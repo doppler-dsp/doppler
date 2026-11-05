@@ -57,6 +57,7 @@ _Shared internals for acq\_core.c and its test._ [More...](#detailed-description
 | Type | Name |
 | ---: | :--- |
 |  int | [**acq\_rate\_better**](#function-acq_rate_better) (size\_t h, float stat, float best) <br>_Does hypothesis_ `h's` _statistic_`stat` _replace the best so far,_`best` _? The rule the rate search picks its winner by._ |
+|  size\_t | [**acq\_rate\_count\_at**](#function-acq_rate_count_at) (size\_t rate\_hyps, size\_t D) <br> |
 |  size\_t | [**acq\_resolve\_tile\_alias**](#function-acq_resolve_tile_alias) (const [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* st, size\_t row, size\_t col) <br> |
 
 
@@ -116,6 +117,22 @@ Unit-tested as a rule on NaN / inf / finite values, because the end-to-end route
 
 
         
+
+<hr>
+
+
+
+### function acq\_rate\_count\_at 
+
+```C++
+static inline size_t acq_rate_count_at (
+    size_t rate_hyps,
+    size_t D
+) 
+```
+
+
+
 
 <hr>
 

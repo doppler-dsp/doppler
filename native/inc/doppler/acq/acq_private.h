@@ -15,6 +15,25 @@
 #include <math.h>
 #include <stddef.h>
 
+/* The rate hypotheses an engine at coherent depth `D` really searches.
+ *
+ * The de-chirp is exp(-j pi a t^2) over the block's epochs, t = (i - (D-1)/2)
+ * T. At D = 1 that is t = 0, and at D = 2 it is t = +-T/2: equal t^2, so every
+ * hypothesis multiplies the block by ONE constant phase and the surfaces are
+ * identical. N looks that are one look must not be priced as N (the gate
+ * rose 3.868 -> 4.214 for nothing), run N times (N times the cost), or pick
+ * among (a strict > keeps hypothesis 0, which reports -R whatever the
+ * carrier does: 1240 of 1240 hits at a true rate of 0, doppler#2221
+ * review). A rate is invisible to a block of one or two epochs; the count
+ * there is 1 and the reported rate is 0. Here rather than in acq_core.c so
+ * the bench, reporting the schedule the engine runs, passes the same
+ * count. */
+static inline size_t
+acq_rate_count_at (size_t rate_hyps, size_t D)
+{
+  return D > 2 ? rate_hyps : 1;
+}
+
 /**
  * @brief Does hypothesis @p h's statistic @p stat replace the best so far,
  *        @p best? The rule the rate search picks its winner by.

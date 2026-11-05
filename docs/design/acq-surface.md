@@ -1122,24 +1122,22 @@ the rate weights, the row map, and an external `dp_pool_t`. $F = 4$ when any
 tile has $d_q \ne 0$, which needs a carrier frequency and more than one tile
 (tile 0's dilation is 0), and $F = 1$ otherwise.
 
-**One scale, $1/N$ on the inverse.** The narrow path has it today and the
-wideband path does not, so every wideband surface falls by $N$. The
-continuous engine is wideband whenever it has more than one tile, and the
-burst door is too when its uncertainty exceeds its span
-(`acq_auto_config_burst`, `acq_core.c:1395`).
-What reads the absolute scale:
+**One scale, $1/N$ on the inverse.** Every surface the map makes carries
+it, narrow and wideband alike, folded into the tiles' weights. The
+wideband path had none before the map, so its surfaces fell by $N$ when it
+moved onto it. The continuous engine is wideband whenever it has more than
+one tile, and the burst door is too when its uncertainty exceeds its span
+(`acq_auto_config_burst`). What reads the absolute scale:
 
 - the hits' and the engine's `peak_mag` and `noise_est`, `surface_complex`
     and `block_prompt`, on `Acquisition` and `BurstAcquisition`;
-- `BurstCapture`'s `peak_mag` (`burst_capture_core.c:1179`), whose tie-break
-    compares hits of one engine, so its order does not move;
-- the telemetry probes `.peak` and `.noise` (`acq_core.c:465-466`);
-- the header's "the signal's units" (`acq_core.h:893`);
-- `src/doppler/acquire/tests/validation/acq/results.md` §2.8, which quotes
-    `noise_est` values: step 2.3 regenerates it if its engine is wideband.
+- `BurstCapture`'s `peak_mag`, whose tie-break compares hits of one
+    engine, so its order does not move;
+- the telemetry probes `.peak` and `.noise`;
+- the header's "the signal's units".
 
-`test_stat`, the thresholds and C/N0 are ratios and do not move. The change
-gets a `changed` changelog entry.
+`test_stat`, the thresholds and C/N0 are ratios and do not move. The
+changelog's `changed` entry names each of these.
 
 **Why slow time first.** The slow-time transform is linear, so it commutes
 with the roll, the template product and the inverse. Taking it on the epoch

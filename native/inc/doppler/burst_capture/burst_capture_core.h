@@ -1058,6 +1058,11 @@ void dp_burst_capture_get_state (const dp_burst_capture_state_t *state, void *bl
  * position as the capture. A queued entry its look-back
  * cannot reach is dropped -- counted in `dropped` if it was a burst,
  * uncounted if it was shadowed -- as a forged blob can name one.
+ *
+ * @return DP_OK; DP_ERR_INVALID for a blob refused above; DP_ERR_MEMORY
+ *         when the acquisition child's blob is at another carrier and the
+ *         rebuild it needs cannot allocate. A refused blob, either way,
+ *         changes nothing.
  */
 int dp_burst_capture_set_state (dp_burst_capture_state_t *state, const void *blob);
 

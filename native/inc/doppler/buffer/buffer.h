@@ -1675,6 +1675,58 @@ typedef enum
   }                                                                           \
                                                                               \
   /**                                                                         \
+   * @brief The samples a snapshot holds that no handed-out frame has         \
+   *        covered: dp_##name##_framer_pending() of the framer it would      \
+   *        restore, read without restoring it.                               \
+   *                                                                          \
+   * With dp_##name##_framer_state_frames(), what lets a composition that     \
+   * counts its position as framed samples plus the carry                     \
+   * (dp_acq_position()) check a child's blob against its own before it       \
+   * writes anything. Accepts exactly the blobs                               \
+   * dp_##name##_framer_set_state() accepts, through the same check, and      \
+   * changes nothing, @p pending included, on a refusal.                      \
+   *                                                                          \
+   * @code                                                                    \
+   * DECLARE_DP_BUFFER_FRAMES (f32, float, float _Complex)                    \
+   *                                                                          \
+   * int main (void)                                                          \
+   * {                                                                        \
+   *   dp_f32_t *ring = dp_f32_create (32);                                   \
+   *   dp_f32_framer_t fr;                                                    \
+   *   if (!ring || dp_f32_framer_init (&fr, ring, 8, 4) != DP_OK)            \
+   *     return 1;                                                            \
+   *   float _Complex x[22] = { 0 };                                          \
+   *   dp_f32_framer_feed_view (&fr, x, 22, 4);                               \
+   *   while (dp_f32_framer_next_view (&fr))                                  \
+   *     ;                       // 4 overlapping frames cover 20 of 22       \
+   *   unsigned char blob[512];                                               \
+   *   uint64_t pending = 0;                                                  \
+   *   if (dp_f32_framer_state_bytes (&fr) > sizeof blob)                     \
+   *     return 1;                                                            \
+   *   dp_f32_framer_get_state (&fr, blob);                                   \
+   *   int ok = dp_f32_framer_state_pending (&fr, blob, &pending); // 2       \
+   *   int same = pending == dp_f32_framer_pending (&fr);                     \
+   *   dp_f32_destroy (ring);                                                 \
+   *   return ok == DP_OK && pending == 2 && same ? 0 : 1;                    \
+   * }                                                                        \
+   * @endcode                                                                 \
+   *                                                                          \
+   * @return DP_OK, or DP_ERR_INVALID.                                        \
+   */                                                                         \
+  static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_state_pending (const dp_##name##_framer_t *fr,           \
+                                    const void *blob, uint64_t *pending)      \
+  {                                                                           \
+    uint64_t live, written, f;                                                \
+    const void *src;                                                          \
+    int rc = dp_##name##_framer_check_state_ (fr, blob, &live, &src,          \
+                                              &written, &f);                  \
+    if (rc == DP_OK)                                                          \
+      *pending = written - (f ? (f - 1) * fr->hop + fr->frame_n : 0);         \
+    return rc;                                                                \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
    * @brief Restore a snapshot into a framer of the same shape.               \
    * @return DP_OK, or DP_ERR_INVALID: wrong shape, sample type or magic, or  \
    *         counters that disagree with the buffered samples. Nothing is     \

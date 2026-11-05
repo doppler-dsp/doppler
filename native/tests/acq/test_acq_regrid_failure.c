@@ -20,21 +20,54 @@
  * requires the engine to match a fresh one: fields, buffers, and what an
  * execute returns.
  *
+ * The buffers are failed too: malloc and calloc are defined over counted
+ * stand-ins for the two included sources only, after every header they
+ * include, so N runs over every plan AND every buffer a regrid builds.
+ *
+ * The carrier is the third reach (#2831): it is set through a regrid that
+ * rebuilds the map, from dp_acq_set_carrier_freq_hz and from set_state for
+ * a blob at another carrier. Swept over every build those make, each must
+ * return DP_ERR_MEMORY with the engine's grid, its map and its blob's bytes
+ * unchanged.
+ *
  * The same reach serves a second contract: a regrid re-applies the caller's
  * thread request at the new tile count, so narrowing to one tile and
  * widening again comes back to min(request, tiles) (#2797).
  */
 #include "doppler/fft/fft_core.h"
 
-/* acq_fft_hook.c: the counted, failable stand-in for the plan builder. The
-   build renames dp_fft_create to it for THIS file only (-D on the target),
-   which is what puts acq_core.c's plans, and nothing the correlator builds,
-   under the counter. */
-extern int g_calls;   /* plans acq_core.c has built since the last arm */
-extern int g_fail_at; /* the call that fails; 0 = none */
+/* acq_fft_hook.c: the counted, failable stand-ins for the plan builder and
+   the allocators. The build renames dp_fft_create to one for THIS file only
+   (-D on the target), and the defines below route the two sources' malloc
+   and calloc to the others, which is what puts acq's and the map's builds,
+   and nothing the headers' inline helpers allocate, under the counter. */
+extern int   g_calls;   /* builds since the last arm */
+extern int   g_fail_at; /* the build that fails; 0 = none */
+extern void *acq_test_malloc (size_t n);
+extern void *acq_test_calloc (size_t n, size_t size);
 
+/* Every header the two sources include, first, so their include guards
+   keep the defines below out of every header. */
+#include "../../src/corr2d/corr2d_map.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/acq/acq_private.h"
+#include "doppler/clib_common.h"
+#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/detector/det_private.h"
+#include "doppler/dp_complex.h"
+#include "doppler/util/util_core.h"
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define malloc(n) acq_test_malloc (n)
+#define calloc(n, size) acq_test_calloc (n, size)
 #include "../../src/acq/acq_core.c"
 #include "../../src/corr2d/corr2d_core.c"
+#undef malloc
+#undef calloc
 
 #include "dp_preamble_test.h"
 #include "dp_test.h"
@@ -67,23 +100,45 @@ run_hits (dp_acq_state_t *a, acq_result_t *h, size_t cap)
   return nh;
 }
 
+/* Every member is 8 bytes, so the struct has no padding and memcmp
+   compares exactly the fields. */
 typedef struct
 {
   size_t n, interp, n_surf, n_noncoh, coherent_bins, window_bins, ring_cap,
-      frame_n, sl_cn, sl_cnext;
+      frame_n, sl_cn, sl_cnext, map_f;
   void *map, *ref, *parts, *ring, *nc_surface, *ref_spec, *map_work,
-      *map_tiles;
+      *map_tiles, *map_spec, *map_rows, *map_off, *map_wt, *blk_raw;
+  double carrier_freq_hz;
 } snap_t;
 
 static snap_t
 snap (const dp_acq_state_t *s)
 {
-  snap_t t = { s->n,        s->interp,        s->n_surf,
-               s->n_noncoh, s->coherent_bins, s->window_bins,
-               s->ring_cap, s->frame_n,       s->sl_cn,
-               s->sl_cnext, s->map,           s->ref,
-               s->parts,    s->ring,          s->nc_surface,
-               s->ref_spec, s->map_work,      s->map_tiles };
+  snap_t t = { .n               = s->n,
+               .interp          = s->interp,
+               .n_surf          = s->n_surf,
+               .n_noncoh        = s->n_noncoh,
+               .coherent_bins   = s->coherent_bins,
+               .window_bins     = s->window_bins,
+               .ring_cap        = s->ring_cap,
+               .frame_n         = s->frame_n,
+               .sl_cn           = s->sl_cn,
+               .sl_cnext        = s->sl_cnext,
+               .map_f           = s->map_f,
+               .map             = s->map,
+               .ref             = s->ref,
+               .parts           = s->parts,
+               .ring            = s->ring,
+               .nc_surface      = s->nc_surface,
+               .ref_spec        = s->ref_spec,
+               .map_work        = s->map_work,
+               .map_tiles       = s->map_tiles,
+               .map_spec        = s->map_spec,
+               .map_rows        = s->map_rows,
+               .map_off         = s->map_off,
+               .map_wt          = s->map_wt,
+               .blk_raw         = s->blk_raw,
+               .carrier_freq_hz = s->carrier_freq_hz };
   return t;
 }
 
@@ -132,13 +187,156 @@ threads_follow_the_request (void)
   return 0;
 }
 
+/* Two carriers above fs/2 = 2 MHz (dp_acq_carrier_freq_ok), and none. */
+#define FC1 1.5e9
+#define FC2 2.2e9
+
+static const uint8_t CODE31[31]
+    = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
+
+/* A tiled engine at carrier @p fc, built the public way (a continuous
+   engine whose span needs three tiles, test_acq_core.c's carrier check),
+   then pushed 1.5 blocks and 3 samples: mid-block and mid-frame, so the
+   blob has a live blk_raw and carry for a failure to disturb. It is not
+   widened with acq_regrid alone: the framer is bound by dp_acq_reset,
+   which every public regrid that changes the frame calls after it, so a
+   bare widening leaves the framer at the old frame. */
+static dp_acq_state_t *
+make_tiled (double fc)
+{
+  const double    span31 = 1.0e6 / (2.0 * 31.0);
+  dp_acq_state_t *a
+      = dp_acq_create_continuous (CODE31, 31, 4.0e6, 1.0e6, 0.0, 75.0,
+                                  3.5 * span31, 1e-3, 0.9, 0, 31, 0.0);
+  if (!a || dp_acq_set_carrier_freq_hz (a, fc) != DP_OK)
+    {
+      dp_acq_destroy (a);
+      return NULL;
+    }
+  const size_t    D = a->coherent_bins, N = a->code_bins;
+  const size_t    L = D * N + (D / 2) * N + 3;
+  float _Complex *x = malloc (L * sizeof *x);
+  for (size_t k = 0; k < L; k++)
+    x[k] = CODE31[(k / 4) % 31] ? 1.0f : -1.0f;
+  acq_result_t h[8];
+  (void)dp_acq_push (a, x, L, h, 8);
+  free (x);
+  return a;
+}
+
+/* The carrier's two entries, each with every build it makes failed in
+   turn. A build before the commit refuses the change: DP_ERR_MEMORY, and
+   the engine's grid and map, and its blob byte for byte, stay as they
+   were. A build after it is the map's worker-slot reserve, whose failure
+   costs speed and never a result (dp__dd_map_reserve), so the change then
+   succeeds with exactly the blob the unarmed change gives. `via_state`
+   restores a blob taken at @p to (set_state's rebuild); otherwise
+   dp_acq_set_carrier_freq_hz (@p to). Sabotage: let acq_regrid commit the
+   carrier (or map_f) before its last build, or let set_state write the
+   framer before its rebuild -> red. */
+static int
+carrier_failure_commits_nothing (double from, double to, int via_state)
+{
+  dp_acq_state_t *src = via_state ? make_tiled (to) : NULL;
+  void           *in  = NULL;
+  if (via_state)
+    {
+      DP_REQUIRE_MSG (src, "the blob's engine");
+      in = malloc (dp_acq_state_bytes (src));
+      dp_acq_get_state (src, in);
+    }
+
+  /* How many builds a successful change makes. */
+  dp_acq_state_t *probe = make_tiled (from);
+  DP_REQUIRE_MSG (probe && probe->window_bins > 1 && probe->blk_epoch > 0
+                      && probe->blk_epoch < probe->coherent_bins,
+                  "a tiled engine, mid-block");
+  g_calls         = 0;
+  g_fail_at       = 0;
+  const int ok    = via_state ? dp_acq_set_state (probe, in)
+                              : dp_acq_set_carrier_freq_hz (probe, to);
+  const int total = g_calls;
+  DP_REQUIRE_MSG (ok == DP_OK && probe->carrier_freq_hz == to,
+                  "the change succeeds unarmed");
+  /* At least the map's slot plans and its buffers. */
+  DP_REQUIRE_MSG (total >= 5, "and counted every build it made");
+  const size_t nwant = dp_acq_state_bytes (probe);
+  void        *want  = malloc (nwant);
+  dp_acq_get_state (probe, want);
+  dp_acq_destroy (probe);
+
+  int refused = 0;
+
+  for (int k = 1; k <= total; k++)
+    {
+      dp_acq_state_t *live = make_tiled (from);
+      DP_REQUIRE_MSG (live, "engine");
+      const size_t nb     = dp_acq_state_bytes (live);
+      void        *before = malloc (nb), *after = malloc (nb);
+      dp_acq_get_state (live, before);
+      const snap_t s0 = snap (live);
+      g_calls         = 0;
+      g_fail_at       = k;
+      const int rc    = via_state ? dp_acq_set_state (live, in)
+                                  : dp_acq_set_carrier_freq_hz (live, to);
+      g_fail_at       = 0;
+      DP_CHECK_MSG (rc == DP_ERR_MEMORY || rc == DP_OK,
+                    "the Nth build failing refuses the change or costs "
+                    "nothing");
+      if (rc == DP_ERR_MEMORY)
+        {
+          refused++;
+          const snap_t s1 = snap (live);
+          DP_CHECK_MSG (memcmp (&s0, &s1, sizeof s0) == 0,
+                        "the grid, the carrier and the map are as they "
+                        "were");
+          DP_CHECK_MSG (dp_acq_state_bytes (live) == nb,
+                        "the blob's size too");
+          dp_acq_get_state (live, after);
+          DP_CHECK_MSG (memcmp (before, after, nb) == 0,
+                        "and the blob is byte for byte the one before");
+        }
+      else
+        {
+          DP_CHECK_MSG (dp_acq_state_bytes (live) == nwant,
+                        "a degraded reserve changes no blob size");
+          void *got = malloc (nwant);
+          dp_acq_get_state (live, got);
+          DP_CHECK_MSG (memcmp (got, want, nwant) == 0,
+                        "a degraded reserve gives the unarmed change's "
+                        "blob");
+          free (got);
+        }
+      free (before);
+      free (after);
+      dp_acq_destroy (live);
+    }
+  /* The map's plans and buffers are built before the commit, so some
+     failure refuses: the sweep reaches the path it is here for. */
+  DP_CHECK_MSG (refused > 0, "some build failing refuses the change");
+  free (want);
+  free (in);
+  dp_acq_destroy (src);
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK_MSG (threads_follow_the_request () == 0,
                 "a regrid re-applies the thread request");
 
-  /* How many plans a successful widening regrid builds. */
+  /* The carrier sweep: on, moved, off, through both entries. */
+  const double pairs[][2] = { { 0.0, FC1 }, { FC1, FC2 }, { FC1, 0.0 } };
+  for (size_t i = 0; i < sizeof pairs / sizeof *pairs; i++)
+    for (int via_state = 0; via_state <= 1; via_state++)
+      DP_CHECK_MSG (
+          carrier_failure_commits_nothing (pairs[i][0], pairs[i][1], via_state)
+              == 0,
+          "a failed carrier change commits nothing");
+
+  /* How many plans and buffers a successful widening regrid builds. */
   dp_acq_state_t *probe = make_engine ();
   DP_REQUIRE_MSG (probe, "engine");
   g_calls   = 0;
@@ -169,7 +367,7 @@ main (void)
       g_fail_at           = k;
       const int rc = acq_regrid (live, NEW_D, NEW_NC, NEW_WINDOW, NULL, 0.0);
       g_fail_at    = 0;
-      DP_CHECK_MSG (rc == -1, "the Nth plan failing fails the regrid");
+      DP_CHECK_MSG (rc == -1, "the Nth build failing fails the regrid");
       const snap_t after = snap (live);
       DP_CHECK_MSG (memcmp (&before, &after, sizeof before) == 0,
                     "a failed regrid leaves the grid and every buffer as "

@@ -403,6 +403,9 @@ extern "C"
 
   int dp_acq_set_state (dp_acq_state_t *state, const void *blob);
 
+  int dp_acq_state_position (const dp_acq_state_t *state, const void *blob,
+                             uint64_t *position);
+
   size_t dp_acq_run (dp_acq_state_t *state, const void *state_in, void *state_out,
                   const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);

@@ -934,7 +934,8 @@ test_a_forged_blob_is_checked (void)
  *   (B) a look-back longer than the stream, which would wrap the tail;
  *   (C) an anchor past the stream position;
  *   (D) an acquisition child taken at another stream position, which acq
- *       itself accepts -- refused after it is restored, and put back;
+ *       itself accepts -- refused from the position its blob records,
+ *       before it is restored (dp_acq_state_position);
  *   (1) a stream position at 2^63 or past it, with an acquisition child
  *       that stands there too, so nothing else refuses it;
  *   (2) a suppression span that ends past the stream position;
@@ -1120,8 +1121,8 @@ test_a_refused_blob_changes_nothing (void)
   DP_CHECK (a->samples_fed == n_cap);
   DP_CHECK (a->dropped == 0u);
 
-  /* (4) The engine outgrew the child region: refused before the undo
-     snapshot or acq's restore could run past it. get_state() leaves a child
+  /* (4) The engine outgrew the child region: refused before acq's
+     position read or its restore could run past it. get_state() leaves a child
      it cannot fit unwritten, so both reads start from zeroed buffers. */
   {
     dp_burst_capture_state_t *d = make ();

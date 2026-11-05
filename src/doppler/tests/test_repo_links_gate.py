@@ -150,3 +150,65 @@ def test_a_version_not_on_the_remote_is_unreleased_and_says_so(
 
 def test_the_real_tree_has_no_main_link_outside_the_allow_list() -> None:
     assert _g().unpinned(REPO) == []
+
+
+def _stamp():
+    sys.path.insert(0, str(REPO / "scripts"))
+    import gen_doc_versions as s
+
+    return s
+
+
+def test_the_stamper_leaves_an_archived_page_and_a_commit_link_alone() -> None:
+    s = _stamp()
+    old = PIN.replace("1.2.3", "0.1.0")
+    text = f"[a]({old}/x)\n"
+    assert "v9.9.9" in s.render(text, "9.9.9")
+    assert s.render(text, "9.9.9", pin_links=False) == text
+    # a commit-pinned link is never matched, in a live page either
+    sha = f"https://github.com/doppler-dsp/doppler/blob/{'a' * 40}/x"
+    assert s.render(sha, "9.9.9") == sha
+
+
+def test_a_full_clone_is_not_made_shallow_by_the_tag_fetch(
+    tmp_path: Path,
+) -> None:
+    """`git fetch --depth=1` on a FULL clone would cut its history."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import _release_tag as r
+
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _repo(origin, "x\n", tag=True)
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "-q", "--no-tags", str(origin), str(clone)],
+        check=True,
+    )
+    state, _ = r.tag_state(clone, "v1.2.3", ci=True)
+    assert state == "present"
+    shallow = r.git(clone, "rev-parse", "--is-shallow-repository").stdout
+    assert shallow.strip() == "false"
+
+
+def test_an_example_added_since_the_tag_is_named_not_linked(
+    tmp_path: Path,
+) -> None:
+    """The generated pages must lint green when a PR adds an example: the
+    new one is plain text until it is in the release (doppler#2857)."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import _release_tag as r
+
+    root = _repo(tmp_path, "x\n")
+    (root / "src" / "new.c").write_text("int n;\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "after the tag")
+    ok = r.reachable(root, ci=True)
+    assert ok("src/a.c") is True
+    assert ok("src/new.c") is False
+    import gen_domains as gd
+
+    assert (
+        gd._links([("new", None), ("a", "https://x/a")])
+        == "new<br>[a](https://x/a)"
+    )

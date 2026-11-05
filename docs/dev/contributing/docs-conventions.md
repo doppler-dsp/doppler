@@ -279,6 +279,11 @@ every release (`gen_doc_versions.py`), anywhere in a page, with no marker
 around it. A `git clone` in a page takes `--branch v<version>` inside a
 doc-version region for the same reason.
 
+A page that must keep naming an OLD state (a record of what a past release did)
+links a **commit**, not a tag: `.../blob/<40-hex sha>/path` is never re-stamped
+or held to the current tag. A frozen page under `archive/` is left alone by the
+stamper altogether.
+
 `scripts/check_repo_links.py` (`make lint`) holds it: no `blob/main` or
 `tree/main` link and no unpinned `git clone` outside the pages
 `docs/.main-links-allowed` lists (the contributing pages, which are about

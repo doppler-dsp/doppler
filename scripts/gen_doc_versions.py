@@ -162,10 +162,18 @@ def unfloored(text: str) -> list[int]:
     ]
 
 
-def render(text: str, version: str) -> str:
-    """Rewrite every version token inside every marked region, and every
-    repository link pinned to a release tag (:data:`LINK_PIN`) anywhere."""
-    text = LINK_PIN.sub(rf"\g<1>v{version}", text)
+def render(text: str, version: str, pin_links: bool = True) -> str:
+    """Rewrite every version token inside every marked region, and (unless
+    ``pin_links`` is False) every repository link pinned to a release tag
+    (:data:`LINK_PIN`) anywhere.
+
+    ``pin_links`` is False for a frozen page under ``archive/``: it records
+    what a release looked like, so its links must keep naming THAT release. A
+    live page that needs a historical link names a commit instead
+    (``.../blob/<40-hex sha>/path``), which this never matches.
+    """
+    if pin_links:
+        text = LINK_PIN.sub(rf"\g<1>v{version}", text)
 
     def one(m: re.Match[str]) -> str:
         head, body, tail = m.group(1), m.group(2), m.group(3)
@@ -189,7 +197,7 @@ def main() -> int:
 
     for page in pages():
         text = page.read_text(encoding="utf-8")
-        new = render(text, version)
+        new = render(text, version, "archive" not in page.parts)
         if new == text:
             continue
         rel = page.relative_to(ROOT)

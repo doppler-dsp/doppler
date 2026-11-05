@@ -38,7 +38,7 @@ _2-D signal detector state._ [More...](#detailed-description)
 | ---: | :--- |
 |  int | [**\_last\_corr\_valid**](#variable-_last_corr_valid)  <br> |
 |  size\_t | [**consumed**](#variable-consumed)  <br> |
-|  [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**corr**](#variable-corr)  <br> |
 |  dp\_f32\_framer\_t | [**framer**](#variable-framer)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
@@ -152,7 +152,7 @@ Input samples the last push took.
 ### variable corr 
 
 ```C++
-dp_corr2d_state_t* dp_detector2d_state_t::corr;
+dp_correlator_state_t* dp_detector2d_state_t::corr;
 ```
 
 

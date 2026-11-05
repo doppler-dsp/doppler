@@ -34,6 +34,7 @@
 * **dp\_CCSDS\_TM\_RAND** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_CCSDS\_TM\_RAND\_LEGACY** ([**ccsds\_tm.h**](ccsds__tm_8h.md))
 * **dp\_CCSDS\_TM\_RS** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
+* **dp\_correlator\_flavor\_t** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_bitorder\_t** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
 * **dp\_ddcr\_state\_t** ([**ddcr\_core.h**](ddcr__core_8h.md))

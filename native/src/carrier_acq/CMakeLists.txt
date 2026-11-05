@@ -23,7 +23,8 @@ target_link_libraries(carrier_acq_core PUBLIC
     spectral_core
     acc_trace_core
     detector_core
-    corr_core
+    correlator_core
+    fft2d_core
     detection_core)
 
 add_executable(test_carrier_acq_core
@@ -35,7 +36,8 @@ target_link_libraries(test_carrier_acq_core
     spectral_core
     acc_trace_core
     detector_core
-    corr_core
+    correlator_core
+    fft2d_core
     detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_carrier_acq_core
@@ -52,7 +54,8 @@ target_link_libraries(bench_carrier_acq_core
     spectral_core
     acc_trace_core
     detector_core
-    corr_core
+    correlator_core
+    fft2d_core
     detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

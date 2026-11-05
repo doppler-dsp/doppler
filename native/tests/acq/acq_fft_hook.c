@@ -1,6 +1,6 @@
 /*
  * acq_fft_hook.c -- the failable allocators test_acq_regrid_failure routes
- * acq_core.c's and corr2d_core.c's builds through. The target renames
+ * acq_core.c's and correlator_core.c's builds through. The target renames
  * dp_fft_create to acq_test_fft_create, and the test defines malloc,
  * calloc and realloc over acq_test_malloc / _calloc / _realloc for the two
  * included sources only, so this file, compiled apart, calls the real ones.

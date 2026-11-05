@@ -17,8 +17,8 @@ target_link_libraries(test_acq_core PRIVATE
 # acq_core.c INTO itself, because acq_regrid is static (a widening regrid is
 # reachable only from the constructor, where a failure ends the engine), and
 # renames the plan builder for that one translation unit so the Nth plan
-# acq_core.c and corr2d_core.c (the map acq builds, compiled into the test, so
-# corr2d_core is not linked) build can be made to fail. The failable builder lives in its own
+# acq_core.c and correlator_core.c (the map acq builds, compiled into the test, so
+# correlator_core is not linked) build can be made to fail. The failable builder lives in its own
 # file, which the rename is undone for, so it calls the real one.
 add_executable(test_acq_regrid_failure
     ${CMAKE_SOURCE_DIR}/native/tests/acq/test_acq_regrid_failure.c

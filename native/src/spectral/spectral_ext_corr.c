@@ -8,21 +8,23 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* CorrObject — wraps dp_corr_state_t *       */
+/* CorrObject — wraps dp_correlator_state_t *       */
 /* ======================================================== */
 
-#include "doppler/corr/corr_core.h"
+#include "doppler/correlator/correlator_core.h"
 
 typedef struct
 {
-  PyObject_HEAD dp_corr_state_t *handle;
+  PyObject_HEAD dp_correlator_state_t *handle;
+  jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } CorrObject;
 
 static void
 CorrObj_dealloc (CorrObject *self)
 {
   if (self->handle)
-    dp_corr_destroy (self->handle);
+    dp_correlator_destroy (self->handle);
+  jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -99,9 +101,9 @@ CorrObj_init (CorrObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t ref_len = (size_t)PyArray_SIZE (ref_arr);
-  self->handle
-      = dp_corr_create ((const float _Complex *)PyArray_DATA (ref_arr),
-                        ref_len, dwell, nthreads, n_out);
+  self->handle   = dp_correlator_create_1d (
+      (const float _Complex *)PyArray_DATA (ref_arr), ref_len, dwell, nthreads,
+      n_out);
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
@@ -121,7 +123,7 @@ CorrObj_reset (CorrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_corr_reset (self->handle);
+  dp_correlator_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -133,7 +135,7 @@ CorrObj_execute_max_out (CorrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_corr_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_correlator_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -188,8 +190,8 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_corr_execute_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _omax    = dp_correlator_execute_max_out (self->handle);
+      size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -205,7 +207,7 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t n_out = dp_corr_execute (
+      size_t n_out = dp_correlator_execute (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -213,8 +215,8 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
         {
           Py_DECREF (out_arr);
           PyErr_SetString (PyExc_ValueError,
-                           "input length is not the frame length (Corr.n); "
-                           "execute takes exactly one frame");
+                           "input length is not the frame length (n: Corr's "
+                           "n, or ny*nx); execute takes exactly one frame");
           return NULL;
         }
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -255,8 +257,8 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr_execute_max_out (self->handle);
-  if (!_cap || _cap < _need)
+  size_t _cap  = dp_correlator_execute_max_out (self->handle);
+  if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -282,7 +284,7 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t n_out = dp_corr_execute (
+  size_t n_out = dp_correlator_execute (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
@@ -290,8 +292,8 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
     {
       Py_DECREF (arr0);
       PyErr_SetString (PyExc_ValueError,
-                       "input length is not the frame length (Corr.n); "
-                       "execute takes exactly one frame");
+                       "input length is not the frame length (n: Corr's n, "
+                       "or ny*nx); execute takes exactly one frame");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -331,7 +333,7 @@ CorrObj_state_bytes (CorrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_corr_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_correlator_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -342,11 +344,11 @@ CorrObj_get_state (CorrObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = dp_corr_state_bytes (self->handle);
+  size_t    _n = dp_correlator_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  dp_corr_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_correlator_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -363,27 +365,18 @@ CorrObj_set_state (CorrObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != dp_corr_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_correlator_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (dp_corr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_correlator_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
     }
   Py_RETURN_NONE;
-}
-static PyObject *
-Corr_getprop_n (CorrObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
 }
 static PyObject *
 Corr_getprop_n_out (CorrObject *self, void *Py_UNUSED (closure))
@@ -415,16 +408,26 @@ Corr_getprop_count (CorrObject *self, void *Py_UNUSED (closure))
     }
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->count);
 }
+static PyObject *
+Corr_getprop_n (CorrObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
+}
 
 static PyGetSetDef Corr_getset[]
-    = { { "n", (getter)Corr_getprop_n, NULL,
-          "FFT / reference length (samples).\n", NULL },
-        { "n_out", (getter)Corr_getprop_n_out, NULL,
-          "Output length (== n unless decoupled).\n", NULL },
-        { "dwell", (getter)Corr_getprop_dwell, NULL,
-          "Integration depth; dump every dwell calls.\n", NULL },
+    = { { "n_out", (getter)Corr_getprop_n_out, NULL,
+          "ny_out * nx_out — output element count.\n", NULL },
+        { "dwell", (getter)Corr_getprop_dwell, NULL, "Integration depth.\n",
+          NULL },
         { "count", (getter)Corr_getprop_count, NULL,
-          "Frames accumulated so far (0 … dwell-1).\n", NULL },
+          "Frames accumulated (0 … dwell-1).\n", NULL },
+        { "n", (getter)Corr_getprop_n, NULL,
+          "ny * nx — total element count.\n", NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
@@ -432,8 +435,16 @@ CorrObj_destroy (CorrObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      dp_corr_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_correlator_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -451,8 +462,16 @@ CorrObj_exit (CorrObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      dp_corr_destroy (self->handle);
+      void *_jm_st = self->handle;
       self->handle = NULL;
+      /* gh-2272: a GIL-free call may still be running on this
+         object; new ones are refused from here, so wait for those. */
+      if (jm_inflight_wait (&self->_jm_inflight) < 0)
+        {
+          self->handle = _jm_st;
+          return NULL;
+        }
+      dp_correlator_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -460,85 +479,94 @@ CorrObj_exit (CorrObject *self, PyObject *args)
 static PyMethodDef CorrObj_methods[] = {
   { "reset", (PyCFunction)CorrObj_reset, METH_NOARGS,
     "Zero the accumulator and reset the integration counter to 0.\n"
-    "Equivalent to starting a fresh dwell cycle without tearing down the FFT\n"
-    "plans. Does NOT recompute ref_spec; use dp_corr_set_ref() to replace\n"
-    "the reference.\n"
+    "Equivalent to starting a fresh dwell cycle without rebuilding FFT plans\n"
+    "or recomputing ref_spec.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.spectral import Corr\n"
+    ">>> from doppler.spectral import Corr2D\n"
     ">>> import numpy as np\n"
-    ">>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0\n"
-    ">>> corr = Corr(ref=ref, dwell=3)\n"
-    ">>> _ = corr.execute(np.ones(4, dtype=np.complex64))\n"
-    ">>> corr.count\n"
+    ">>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0\n"
+    ">>> c = Corr2D(ref=ref, dwell=3)\n"
+    ">>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))\n"
+    ">>> c.count\n"
     "1\n"
-    ">>> corr.reset()\n"
-    ">>> corr.count\n"
+    ">>> c.reset()\n"
+    ">>> c.count\n"
     "0\n" },
 
   { "execute", (PyCFunction)(void *)CorrObj_execute,
     METH_VARARGS | METH_KEYWORDS,
     "execute(x, out) -> ndarray | None\n"
     "\n"
-    "Correlate one frame and optionally dump the coherent accumulator.\n"
-    "Runs: forward FFT → pointwise multiply with ref_spec → accumulate the\n"
-    "cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in\n"
-    "the frequency domain and inverting once is exactly the per-frame\n"
-    "inverse summed, by linearity of the IFFT — valid because the dwell is\n"
-    "**coherent** (a complex sum); a non-coherent (magnitude) integration\n"
-    "could not defer the inverse. On the dwell-th call out is written, the\n"
-    "accumulator is zeroed, and the counter resets; the function returns\n"
-    "n_out. All other calls return 0 and leave out unmodified. In Python, a\n"
-    "dump returns an ndarray and a no-dump returns None.\n"
+    "Correlate one 2-D frame and optionally dump the coherent\n"
+    "accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with\n"
+    "ref_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷\n"
+    "ny*nx). Accumulating in the frequency domain and inverting once is\n"
+    "exactly the per-frame inverse summed, by linearity of the IFFT — valid\n"
+    "because the dwell is **coherent** (a complex sum); a non-coherent\n"
+    "(magnitude) integration could not defer the inverse.\n"
+    "\n"
+    "**Layout.** A frame is ny*nx complex samples in row-major order: row i\n"
+    "is samples i*nx .. (i+1)*nx - 1. For Corr2D that is a (ny, nx) image;\n"
+    "for DelayDoppler it is the raw stream, ny code periods of nx = code_len\n"
+    "samples back to back. The map a dump produces is flat, n_out = ny_out *\n"
+    "nx_out values (ny values with col_out), also row-major: reshape it to\n"
+    "(ny_out, nx_out). On a DelayDoppler, axis 0 is Doppler (centered, zero\n"
+    "Doppler on row ny_out / 2) and axis 1 is delay (the lag, in samples).\n"
+    "\n"
+    "**Ownership.** In Python, a call that dumps returns a new array when no\n"
+    "`out=` is given, and a view of `out=` when one is (a 1-D array holding\n"
+    "at least n_out values; it is written on a dump only, and the next dump\n"
+    "overwrites it). A call that does not dump returns None and touches\n"
+    "neither.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
     "    Input.\n"
     "out : npt.NDArray[np.complex64] | None\n"
-    "    Output buffer for the correlation map (CF32, length n_out); written\n"
-    "    only on a dump call.\n"
+    "    Output buffer for the correlation map (CF32, length n_out:\n"
+    "    ny_out*nx_out, or ny with col_out); written only on a dump call.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64] | None\n"
-    "    n_out on a dump call (or max_out if smaller), 0 otherwise If n_in\n"
-    "    is not the required length the call is REFUSED with nothing read,\n"
-    "    written or counted: SIZE_MAX in C, ValueError in Python (#1925).\n"
-    "    (None in Python). None when the C call writes no output.\n"
+    "    Python: the map on a dump, None otherwise; a frame that is not\n"
+    "    ny*nx samples is REFUSED with nothing read, written or counted, as\n"
+    "    a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0\n"
+    "    otherwise, and SIZE_MAX for the refused frame. None when the C call\n"
+    "    writes no output.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
     "    a count. The exception message is ``input length is not the frame\n"
-    "    length (Corr.n); execute takes exactly one frame``.\n"
+    "    length (n: Corr's n, or ny*nx); execute takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    ">>> from doppler.spectral import Corr\n"
+    ">>> from doppler.spectral import Corr2D\n"
     ">>> import numpy as np\n"
-    ">>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0\n"
-    ">>> corr = Corr(ref=ref, dwell=2)\n"
-    ">>> x = np.ones(4, dtype=np.complex64)\n"
-    ">>> corr.execute(x) is None   # frame 1 — no dump yet\n"
+    ">>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0\n"
+    ">>> c = Corr2D(ref=ref, dwell=2)\n"
+    ">>> x = np.ones((2, 2), dtype=np.complex64)\n"
+    ">>> c.execute(x) is None   # frame 1 — no dump\n"
     "True\n"
-    ">>> corr.execute(x).tolist()  # frame 2 — dump\n"
+    ">>> c.execute(x).tolist()  # frame 2 — dump\n"
     "[(2+0j), (2+0j), (2+0j), (2+0j)]\n" },
   { "execute_max_out", (PyCFunction)CorrObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Maximum output samples per execute call (== n_out).\n"
-    "\n"
-    "Size an output buffer with this before calling dp_corr_execute().\n"
+    "Maximum output samples per execute call\n"
+    "(dp_correlator_state_t::n_out -- ny_out*nx_out normally, or ny when a\n"
+    "single dp_correlator_state_t::col_out was selected).\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
-    "    The configured output length n_out in samples: the reference length\n"
-    "    n for the native path, or the zero-padded length passed to\n"
-    "    dp_corr_create().\n" },
+    "    n_out, fixed at create().\n" },
   { "state_bytes", (PyCFunction)CorrObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -635,13 +663,13 @@ static PyTypeObject CorrObjType = {
   .tp_dealloc                             = (destructor)CorrObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Allocate a 1-D FFT correlator with coherent integrate-and-dump.\n"
-    "Pre-computes conj(FFT(ref)) once at construction so each execute() call\n"
-    "costs only two FFTs and n complex multiplies. ref may be freed after "
-    "this\n"
-    "returns. With dwell == 1 every call produces output; with larger values "
-    "the\n"
-    "accumulator absorbs dwell frames before dumping.\n"
+  = "Allocate the 1-D flavor: a length-n correlator with coherent\n"
+    "integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so\n"
+    "each execute() call costs only two FFTs and n complex multiplies. ref "
+    "may\n"
+    "be freed after this returns. With dwell == 1 every call produces "
+    "output;\n"
+    "with larger values the accumulator absorbs dwell frames before dumping.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -652,7 +680,8 @@ static PyTypeObject CorrObjType = {
     "immediate\n"
     "    output on every call.\n"
     "nthreads : int, default 1\n"
-    "    Accepted for API compatibility; ignored.\n"
+    "    Accepted for API compatibility; one row runs serially whatever it "
+    "says.\n"
     "n_out : int, default 0\n"
     "    Inverse/output length; 0 => native (n). Must be >= n. A larger "
     "value\n"

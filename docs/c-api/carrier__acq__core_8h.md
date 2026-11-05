@@ -17,7 +17,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 * `#include "doppler/detector/detector_core.h"`
 * `#include "doppler/detection/detection_core.h"`
 * `#include "doppler/spectral/spectral_core.h"`
-* `#include "doppler/corr/corr_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/acc_trace/acc_trace_core.h"`
 
@@ -105,7 +105,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 | Type | Name |
 | ---: | :--- |
 | define  | [**CARRIER\_ACQ\_STATE\_MAGIC**](carrier__acq__core_8h.md#define-carrier_acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('C', 'A', 'Q', 'R')`<br>_State-blob magic ("CAQR"); set\_state() rejects any other._  |
-| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `1u`<br>_State-blob layout version; bumped when the payload changes._  |
+| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `2u`<br>_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is DET1 version 3, whose own child is the one correlator's 'CORL' (#2752 step 3.2)._  |
 
 ## Detailed Description
 
@@ -482,9 +482,9 @@ _State-blob magic ("CAQR"); set\_state() rejects any other._
 
 ### define CARRIER\_ACQ\_STATE\_VERSION 
 
-_State-blob layout version; bumped when the payload changes._ 
+_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is DET1 version 3, whose own child is the one correlator's 'CORL' (#2752 step 3.2)._ 
 ```C++
-#define CARRIER_ACQ_STATE_VERSION `1u`
+#define CARRIER_ACQ_STATE_VERSION `2u`
 ```
 
 

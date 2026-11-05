@@ -20,7 +20,7 @@ target_include_directories(
 target_link_libraries(burst_capture_core PUBLIC
     burst_acq_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     fft_core
     detection_core
@@ -34,7 +34,7 @@ add_executable(test_burst_capture_core
 target_link_libraries(test_burst_capture_core
                       PRIVATE burst_capture_core burst_acq_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     fft_core
     detection_core
@@ -53,7 +53,7 @@ add_executable(
 target_link_libraries(bench_burst_capture_core
                       PRIVATE burst_capture_core burst_acq_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     fft_core
     detection_core

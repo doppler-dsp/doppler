@@ -6,7 +6,7 @@
  * FFT forward and inverse).  This is the durable regression gate for the
  * fast-path optimization (see docs/design/corr2d-interpolated-inverse.md).
  */
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
@@ -70,11 +70,11 @@ bench_batches (jm_bench_t *bench, uint32_t *seed)
   double bt[BREPS];
   for (size_t c = 0; c < sizeof bc / sizeof *bc; c++)
     {
-      dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+      dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
           code, bnx, bny, 1, bc[c].nthreads, 0);
       /* warmup: one of each, which also makes the batch scratch */
-      dp_corr2d_execute (dd, x, bn, maps, bn);
-      dp_corr2d_execute_all (dd, x, H * bn, maps, H * bn);
+      dp_correlator_execute (dd, x, bn, maps, bn);
+      dp_correlator_execute_all (dd, x, H * bn, maps, H * bn);
       for (int which = 0; which < 3; which++)
         {
           double best = 1e30;
@@ -83,11 +83,12 @@ bench_batches (jm_bench_t *bench, uint32_t *seed)
               const uint64_t t0 = jm_bench_now_ns ();
               if (which == 0)
                 for (size_t h = 0; h < H; h++)
-                  dp_corr2d_execute (dd, x + h * bn, bn, maps + h * bn, bn);
+                  dp_correlator_execute (dd, x + h * bn, bn, maps + h * bn,
+                                         bn);
               else if (which == 1)
-                dp_corr2d_execute_all (dd, x, H * bn, maps, H * bn);
+                dp_correlator_execute_all (dd, x, H * bn, maps, H * bn);
               else
-                dp_corr2d_execute_power_max (dd, x, H * bn, pw, idx, bn);
+                dp_correlator_execute_power_max (dd, x, H * bn, pw, idx, bn);
               bt[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
               best  = bt[r] < best ? bt[r] : best;
             }
@@ -96,7 +97,7 @@ bench_batches (jm_bench_t *bench, uint32_t *seed)
           printf ("  %-36s %8.2f ms  (%d workers)\n", bc[c].name[which],
                   best * 1e3, dd->nworkers);
         }
-      dp_corr2d_destroy (dd);
+      dp_correlator_destroy (dd);
     }
   free (code);
   free (x);
@@ -178,10 +179,10 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   for (size_t i = 0; i < ny; i++)
     for (size_t p = 0; p < nx; p++)
       xr[i * nx + p] = x[i * nx + p] * conjf (rates[RATE_IN * ny + i]);
-  dp_corr2d_state_t *dd
-      = dp_corr2d_create_delay_doppler (code, nx, ny, 1, 1, 0);
+  dp_correlator_state_t *dd
+      = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, 0);
   /* a candidate threshold at half the coarse peak: one signal, one record */
-  dp_corr2d_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n);
+  dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n);
   float top = 0.0f;
   for (size_t k = 0; k < n; k++)
     top = pw[k] > top ? pw[k] : top;
@@ -200,17 +201,19 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
         {
           const uint64_t t0 = jm_bench_now_ns ();
           if (which == 0)
-            dp_corr2d_execute_power_max (dd, copies, H * n, pw, idx, n);
+            dp_correlator_execute_power_max (dd, copies, H * n, pw, idx, n);
           else if (which == 1)
-            dp_corr2d_bank_power_max (dd, x, n, 4, -4, 7, NULL, 0, pw, idx, n);
+            dp_correlator_bank_power_max (dd, x, n, 4, -4, 7, NULL, 0, pw, idx,
+                                          n);
           else if (which == 2)
-            dp_corr2d_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n);
+            dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx,
+                                          n);
           else if (which == 4)
-            dp_corr2d_bank_power_max (dd, xr, n, 4, -4, 7, rates, R * ny, pw,
-                                      idx, n);
+            dp_correlator_bank_power_max (dd, xr, n, 4, -4, 7, rates, R * ny,
+                                          pw, idx, n);
           else
-            recs = dp_corr2d_bank_detect (dd, x, n, 2, 4, -2, 3, t, t, NULL, 0,
-                                          rp, rg, ra, rr, rc, n);
+            recs = dp_correlator_bank_detect (dd, x, n, 2, 4, -2, 3, t, t,
+                                              NULL, 0, rp, rg, ra, rr, rc, n);
           bt[r]       = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
           best[which] = bt[r] < best[which] ? bt[r] : best[which];
         }
@@ -243,7 +246,7 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
           (best[3] - best[2]) * 1e3);
   printf ("  %d rates cost %.2fx the bank without them\n", (int)R,
           best[4] / best[1]);
-  dp_corr2d_destroy (dd);
+  dp_correlator_destroy (dd);
   free (code), free (x), free (copies), free (pw), free (idx), free (rp);
   free (rg), free (ra), free (rr), free (rc), free (rates), free (xr);
 }
@@ -275,12 +278,13 @@ main (void)
     for (size_t j = 0; j < nx; j++)
       ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
-    dp_corr2d_execute (obj, in, n, out, n); /* warmup */
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, ny, nx, 1, 1, 0, 0, -1);
+    dp_correlator_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        dp_corr2d_execute (obj, in, n, out, n);
+        dp_correlator_execute (obj, in, n, out, n);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -293,7 +297,7 @@ main (void)
             (double)n / (sum / ITERATIONS) / 1e6, obj->fast_path);
 
     free (ref);
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   /* ── genuinely multi-row reference -- general 2-D path ────────────────── */
@@ -302,12 +306,13 @@ main (void)
     for (size_t k = 0; k < n; k++)
       ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
-    dp_corr2d_execute (obj, in, n, out, n); /* warmup */
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, ny, nx, 1, 1, 0, 0, -1);
+    dp_correlator_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        dp_corr2d_execute (obj, in, n, out, n);
+        dp_correlator_execute (obj, in, n, out, n);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -320,7 +325,7 @@ main (void)
             (double)n / (sum / ITERATIONS) / 1e6, obj->fast_path);
 
     free (ref);
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   free (in);
@@ -369,9 +374,9 @@ main (void)
                                 * cexpf (I
                                          * (float)(2.0 * 3.14159265358979323846
                                                    * 10.0 * (double)i / 64.0));
-        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+        dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
             code, dnx, dny, 1, dd_cases[c].nthreads, dd_cases[c].ny_out);
-        dp_corr2d_execute (dd, x, dn, map, dno); /* warmup */
+        dp_correlator_execute (dd, x, dn, map, dno); /* warmup */
         if (dd_cases[c].ny_out)
           {
             size_t k = 0;
@@ -390,7 +395,7 @@ main (void)
         for (int r = 0; r < ITERATIONS; r++)
           {
             t0 = jm_bench_now_ns ();
-            dp_corr2d_execute (dd, x, dn, map, dno);
+            dp_correlator_execute (dd, x, dn, map, dno);
             t1       = jm_bench_now_ns ();
             times[r] = jm_bench_elapsed_sec (t0, t1);
             sum += times[r];
@@ -399,7 +404,7 @@ main (void)
                            JM_BENCH_SAMPLE);
         printf ("  %-28s %8.2f ms  (%d workers)\n", dd_cases[c].name,
                 sum / ITERATIONS * 1e3, dd->nworkers);
-        dp_corr2d_destroy (dd);
+        dp_correlator_destroy (dd);
         free (code);
         free (x);
         free (map);

@@ -13,7 +13,7 @@
  */
 
 #include "doppler/acq/acq_core.h"
-#include "../corr2d/corr2d_map.h"
+#include "../correlator/correlator_map.h"
 #include "doppler/acq/acq_private.h"
 /* det_private.h needs det_noise_mode_t (from detector2d_core.h, included
  * above) and supplies the header-only det_ring_create / det_noise_estimate

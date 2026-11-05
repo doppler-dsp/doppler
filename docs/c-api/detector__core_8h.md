@@ -10,7 +10,7 @@
 
 _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold._ [More...](#detailed-description)
 
-* `#include "doppler/corr/corr_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/f32_buffer/f32_buffer_core.h"`
 
@@ -66,7 +66,7 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**dp\_detector\_consumed**](#function-dp_detector_consumed) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _took._ |
-|  [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* | [**dp\_detector\_create**](#function-dp_detector_create) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_corr\_state\_t**_](structdp__corr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._ |
+|  [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* | [**dp\_detector\_create**](#function-dp_detector_create) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_correlator\_state\_t**_](structdp__correlator__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._ |
 |  void | [**dp\_detector\_destroy**](#function-dp_detector_destroy) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state) <br>_Destroy and free a detector instance._  |
 |  void | [**dp\_detector\_get\_state**](#function-dp_detector_get_state) (const [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, void \* blob) <br>_Serialize the correlator, the carry and the last-dump fields._  |
 |  size\_t | [**dp\_detector\_push**](#function-dp_detector_push) ([**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the detector pipeline. Takes the input in order, runs each complete n-sample frame through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._  |
@@ -107,13 +107,13 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 | Type | Name |
 | ---: | :--- |
 | define  | [**DETECTOR\_STATE\_MAGIC**](detector__core_8h.md#define-detector_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','1')`<br>_Envelope magic ("DET1") identifying a detector state blob._  |
-| define  | [**DETECTOR\_STATE\_VERSION**](detector__core_8h.md#define-detector_state_version)  `2u`<br>_Layout version of the detector state blob (see above)._  |
+| define  | [**DETECTOR\_STATE\_VERSION**](detector__core_8h.md#define-detector_state_version)  `3u`<br>_Layout version of the detector state blob (see above)._  |
 | define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector__core_8h.md#define-det_noise_mode_t_defined)  <br>_Guard: det\_noise\_mode\_t is defined (shared with detector2d)._  |
 
 ## Detailed Description
 
 
-Wraps a [**dp\_corr\_state\_t**](structdp__corr__state__t.md) (FFT correlator + coherent int-dump) behind the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES) so that arbitrary-length sample streams can be fed in any chunk size: the detections are a function of the input stream, not of how it was split into calls. After every int-dump a test statistic is computed:
+Wraps a [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) (FFT correlator + coherent int-dump) behind the ring's framed face (DECLARE\_DP\_BUFFER\_FRAMES) so that arbitrary-length sample streams can be fed in any chunk size: the detections are a function of the input stream, not of how it was split into calls. After every int-dump a test statistic is computed:
 
 
 test\_stat = peak\_mag / noise\_est
@@ -217,7 +217,7 @@ Input samples (CF32) taken by the last push.
 
 ### function dp\_detector\_create 
 
-_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_corr\_state\_t**_](structdp__corr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._
+_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**dp\_correlator\_state\_t**_](structdp__correlator__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow\_two(max(n, 512)) complex samples._
 ```C++
 dp_detector_state_t * dp_detector_create (
     const float _Complex * ref,
@@ -582,7 +582,7 @@ _Envelope magic ("DET1") identifying a detector state blob._
 
 _Layout version of the detector state blob (see above)._ 
 ```C++
-#define DETECTOR_STATE_VERSION `2u`
+#define DETECTOR_STATE_VERSION `3u`
 ```
 
 

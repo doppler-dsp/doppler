@@ -632,7 +632,8 @@ static PyTypeObject CorrDetectorObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate a 1-D streaming signal detector backed by an FFT correlator.\n"
-    "Combines a dp_corr_state_t with a double-mapped ring buffer so that\n"
+    "Combines a dp_correlator_state_t with a double-mapped ring buffer so "
+    "that\n"
     "arbitrary chunk sizes can be pushed. After every int-dump the "
     "peak-to-noise\n"
     "test statistic is compared against threshold; a det_result_t is emitted\n"

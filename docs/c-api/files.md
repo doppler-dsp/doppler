@@ -101,10 +101,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**conv\_core.h**](conv__core_8h.md) _Convolutional codes: the code description, the encoder, and the maximum-likelihood decoder that reads the same description._     
             * **dir** [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md)     
                 * **file** [**conv\_enc\_core.h**](conv__enc__core_8h.md) _The convolutional encoder, as a stateful object over_ `conv` _._    
-            * **dir** [**corr**](dir_28e39a8c94dc713f6e89cb1d02b66afa.md)     
-                * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
-            * **dir** [**corr2d**](dir_ac96ca94cfbb355eb7a82b081cfe387c.md)     
-                * **file** [**corr2d\_core.h**](corr2d__core_8h.md) _2-D FFT-based cross-correlator with coherent integrate-and-dump._     
+            * **dir** [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md)     
+                * **file** [**correlator\_core.h**](correlator__core_8h.md) _The one FFT cross-correlator, with coherent integrate-and-dump._     
             * **dir** [**costas**](dir_8ebd78c7800b34d5dee6ef27ff63e7b3.md)     
                 * **file** [**costas\_core.h**](costas__core_8h.md) _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._     
             * **dir** [**cvt**](dir_409c6e92c9ef1b7281540388592da57d.md)     

@@ -124,7 +124,7 @@
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
-#include "doppler/corr/corr_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/acq/acq_core.h"

@@ -10,7 +10,7 @@
 
 _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._ [More...](#detailed-description)
 
-* `#include "doppler/corr2d/corr2d_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/f32_buffer/f32_buffer_core.h"`
 
@@ -108,7 +108,7 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 | Type | Name |
 | ---: | :--- |
 | define  | [**DETECTOR2D\_STATE\_MAGIC**](detector2d__core_8h.md#define-detector2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','2')`<br>_State-blob magic ('DET2'); set\_state() rejects any other._  |
-| define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `2u`<br>_State-blob layout version (2; version-1 blobs are refused)._  |
+| define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `3u`<br>_State-blob layout version (3; earlier blobs are refused)._  |
 | define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector2d__core_8h.md#define-det_noise_mode_t_defined)  <br>_Include guard: det\_noise\_mode\_t is defined once across the detector headers that share it._  |
 | define  | [**DET\_PEAK\_T\_DEFINED**](detector2d__core_8h.md#define-det_peak_t_defined)  <br>_Include guard:_ [_**det\_peak\_t**_](structdet__peak__t.md) _is defined once across headers._ |
 
@@ -240,13 +240,13 @@ dp_detector2d_state_t * dp_detector2d_create (
 * `noise_hi` Upper flat-index noise bin (inclusive, &lt; ny\*nx). A value at or beyond the window clamps to ny\*nx - 1, so the default sentinel selects the full window. 
 * `noise_mode` Noise aggregation: "mean", "median", "min", or "max". 
 * `threshold` Test-stat gate; 0.0 = always emit. 
-* `nthreads` Forwarded to [**dp\_corr2d\_create()**](corr2d__core_8h.md#function-dp_corr2d_create): workers for the single-row-reference fast path (1 serial, &lt;= 0 every online core); the general 2-D path ignores it. 
+* `nthreads` Forwarded to [**dp\_correlator\_create\_2d()**](correlator__core_8h.md#function-dp_correlator_create_2d): workers for the single-row-reference fast path (1 serial, &lt;= 0 every online core); the general 2-D path ignores it. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL when [**dp\_corr2d\_create()**](corr2d__core_8h.md#function-dp_corr2d_create) refuses the arguments (e.g. `dwell` 0) or allocation fails. 
+Heap-allocated state, or NULL when [**dp\_correlator\_create\_2d()**](correlator__core_8h.md#function-dp_correlator_create_2d) refuses the arguments (e.g. `dwell` 0) or allocation fails. 
 ```C++
 >>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
@@ -434,7 +434,7 @@ int dp_detector2d_set_ref (
 
 
 
-Always resets (the carry, corr2d accumulator, last-dump bookkeeping), even if the new reference is subsequently rejected. The new reference must have the same ny\*nx total size; see [**dp\_corr2d\_set\_ref()**](corr2d__core_8h.md#function-dp_corr2d_set_ref) for the single-row-fast- path rejection rule this forwards.
+Always resets (the carry, corr2d accumulator, last-dump bookkeeping), even if the new reference is subsequently rejected. The new reference must have the same ny\*nx total size; see [**dp\_correlator\_set\_ref()**](correlator__core_8h.md#function-dp_correlator_set_ref) for the single-row-fast- path rejection rule this forwards.
 
 
 
@@ -449,7 +449,7 @@ Always resets (the carry, corr2d accumulator, last-dump bookkeeping), even if th
 
 **Returns:**
 
-0 on success, -1 if rejected by [**dp\_corr2d\_set\_ref()**](corr2d__core_8h.md#function-dp_corr2d_set_ref). 
+0 on success, -1 if rejected by [**dp\_correlator\_set\_ref()**](correlator__core_8h.md#function-dp_correlator_set_ref). 
 
 
 
@@ -582,9 +582,9 @@ _State-blob magic ('DET2'); set\_state() rejects any other._
 
 ### define DETECTOR2D\_STATE\_VERSION 
 
-_State-blob layout version (2; version-1 blobs are refused)._ 
+_State-blob layout version (3; earlier blobs are refused)._ 
 ```C++
-#define DETECTOR2D_STATE_VERSION `2u`
+#define DETECTOR2D_STATE_VERSION `3u`
 ```
 
 

@@ -80,7 +80,8 @@ dp_detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
   if (dp_f32_framer_init (&state->framer, state->ring, n, n) != DP_OK)
     goto fail;
 
-  state->corr = dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+  state->corr
+      = dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 0, 0, -1);
   if (!state->corr)
     goto fail;
 
@@ -112,7 +113,7 @@ dp_detector2d_destroy (dp_detector2d_state_t *state)
   if (state->ring)
     dp_f32_destroy (state->ring);
   if (state->corr)
-    dp_corr2d_destroy (state->corr);
+    dp_correlator_destroy (state->corr);
   free (state->out_buf);
   free (state->mag_buf);
   free (state->noise_scratch);
@@ -123,7 +124,7 @@ void
 dp_detector2d_reset (dp_detector2d_state_t *state)
 {
   dp_f32_framer_reset (&state->framer);
-  dp_corr2d_reset (state->corr);
+  dp_correlator_reset (state->corr);
   state->_last_corr_valid = 0;
   state->consumed         = 0;
   /* The last dump's result is in the blob, so a reset that kept it would
@@ -143,7 +144,7 @@ dp_detector2d_reset (dp_detector2d_state_t *state)
 size_t
 dp_detector2d_state_bytes (const dp_detector2d_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + dp_corr2d_state_bytes (s->corr)
+  return sizeof (dp_state_hdr_t) + dp_correlator_state_bytes (s->corr)
          + dp_f32_framer_state_bytes (&s->framer) + 2 * sizeof (uint64_t)
          + 3 * sizeof (float);
 }
@@ -153,7 +154,7 @@ dp_detector2d_get_state (const dp_detector2d_state_t *s, void *blob)
 {
   DP_GET_OPEN (DETECTOR2D_STATE_MAGIC, DETECTOR2D_STATE_VERSION,
                dp_detector2d_state_bytes (s));
-  DP_W_CHILD (&_w, dp_corr2d, s->corr);
+  DP_W_CHILD (&_w, dp_correlator, s->corr);
   DP_W_CHILD (&_w, dp_f32_framer, &s->framer);
   dp_w_u64 (&_w, s->peak_row);
   dp_w_u64 (&_w, s->peak_col);
@@ -167,7 +168,7 @@ dp_detector2d_set_state (dp_detector2d_state_t *s, const void *blob)
 {
   DP_SET_OPEN (DETECTOR2D_STATE_MAGIC, DETECTOR2D_STATE_VERSION,
                dp_detector2d_state_bytes (s));
-  DP_R_CHILD (&_r, dp_corr2d, s->corr);
+  DP_R_CHILD (&_r, dp_correlator, s->corr);
   DP_R_CHILD (&_r, dp_f32_framer, &s->framer);
   s->peak_row = (size_t)dp_r_u64 (&_r);
   s->peak_col = (size_t)dp_r_u64 (&_r);
@@ -184,7 +185,7 @@ int
 dp_detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref)
 {
   dp_detector2d_reset (state);
-  return dp_corr2d_set_ref (state->corr, ref);
+  return dp_correlator_set_ref (state->corr, ref);
 }
 
 void
@@ -202,8 +203,8 @@ detector2d_step (void *obj, const float _Complex *frame, void *result,
                  size_t slot)
 {
   dp_detector2d_state_t *state = (dp_detector2d_state_t *)obj;
-  size_t n_out = dp_corr2d_execute (state->corr, frame, state->n,
-                                    state->out_buf, state->n);
+  size_t n_out = dp_correlator_execute (state->corr, frame, state->n,
+                                        state->out_buf, state->n);
   if (n_out == 0)
     return 0;
 

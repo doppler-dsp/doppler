@@ -22,8 +22,7 @@
  *   ./build/native/examples/corr_demo
  */
 
-#include <doppler/corr/corr_core.h>
-#include <doppler/corr2d/corr2d_core.h>
+#include <doppler/correlator/correlator_core.h>
 #include <doppler/detector/detector_core.h>
 
 #include "doppler/dp_complex.h"
@@ -80,9 +79,9 @@ demo_corr_1d (void)
   for (size_t k = 0; k < N; k++)
     x[k] = ref[(k + N - LAG) % N];
 
-  dp_corr_state_t *c = dp_corr_create (ref, N, 1, 1, 0);
-  dp_corr_execute (c, x, N, out, N);
-  dp_corr_destroy (c);
+  dp_correlator_state_t *c = dp_correlator_create_1d (ref, N, 1, 1, 0);
+  dp_correlator_execute (c, x, N, out, N);
+  dp_correlator_destroy (c);
 
   /* Find peak. */
   size_t peak_bin = 0;
@@ -132,10 +131,10 @@ demo_corr_dwell (void)
           " N=%zu per frame; after dwell=%zu: %.1f.\n\n",
           N, DWELL, (float)(DWELL * N));
 
-  dp_corr_state_t *c = dp_corr_create (ref, N, DWELL, 1, 0);
+  dp_correlator_state_t *c = dp_correlator_create_1d (ref, N, DWELL, 1, 0);
   for (size_t i = 0; i < DWELL; i++)
     {
-      size_t n_out = dp_corr_execute (c, ref, N, out, N);
+      size_t n_out = dp_correlator_execute (c, ref, N, out, N);
       if (n_out == 0)
         printf ("  frame %zu/%zu : accumulating  (count=%zu)\n", i + 1, DWELL,
                 c->count);
@@ -144,7 +143,7 @@ demo_corr_dwell (void)
                 "|R[0]| = %.3f  (expected %.1f)\n",
                 i + 1, DWELL, cabsf (out[0]), (float)(DWELL * N));
     }
-  dp_corr_destroy (c);
+  dp_correlator_destroy (c);
   printf ("\n");
 }
 
@@ -160,9 +159,10 @@ demo_corr2d (void)
   fill_pn (ref, N);
   circ_shift_2d (x, ref, NY, NX, DR, DC);
 
-  dp_corr2d_state_t *c = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
-  dp_corr2d_execute (c, x, N, out, N);
-  dp_corr2d_destroy (c);
+  dp_correlator_state_t *c
+      = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
+  dp_correlator_execute (c, x, N, out, N);
+  dp_correlator_destroy (c);
 
   size_t peak_flat = 0;
   float  peak_mag  = 0.0f;

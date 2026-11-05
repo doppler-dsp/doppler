@@ -37,7 +37,7 @@
 #ifndef DP_DETECTOR2D_CORE_H
 #define DP_DETECTOR2D_CORE_H
 
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_state.h"
 #include "doppler/f32_buffer/f32_buffer_core.h"
 
@@ -108,7 +108,7 @@ typedef struct
  */
 typedef struct
 {
-  dp_corr2d_state_t *corr;     /**< 2-D FFT correlator + int-dump engine.     */
+  dp_correlator_state_t *corr;     /**< 2-D FFT correlator + int-dump engine.     */
   dp_f32_t *ring;             /**< The carry's storage: bound to @c framer,
                                    freed by destroy.                        */
   dp_f32_framer_t framer;     /**< Any chunk in, ny*nx-sample frames out.    */
@@ -155,10 +155,10 @@ typedef struct
  *                  the default sentinel selects the full window.
  * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
  * @param threshold  Test-stat gate; 0.0 = always emit.
- * @param nthreads   Forwarded to dp_corr2d_create(): workers for the
+ * @param nthreads   Forwarded to dp_correlator_create_2d(): workers for the
  *                   single-row-reference fast path (1 serial, <= 0 every
  *                   online core); the general 2-D path ignores it.
- * @return Heap-allocated state, or NULL when dp_corr2d_create() refuses the
+ * @return Heap-allocated state, or NULL when dp_correlator_create_2d() refuses the
  *         arguments (e.g. @p dwell 0) or allocation fails.
  * @code
  * >>> from doppler.spectral import CorrDetector2D
@@ -208,12 +208,12 @@ void dp_detector2d_reset (dp_detector2d_state_t *state);
  *
  * Always resets (the carry, corr2d accumulator, last-dump bookkeeping), even if
  * the new reference is subsequently rejected.  The new reference must have
- * the same ny*nx total size; see dp_corr2d_set_ref() for the single-row-fast-
+ * the same ny*nx total size; see dp_correlator_set_ref() for the single-row-fast-
  * path rejection rule this forwards.
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, flat row-major CF32, length ny*nx.
- * @return 0 on success, -1 if rejected by dp_corr2d_set_ref().
+ * @return 0 on success, -1 if rejected by dp_correlator_set_ref().
  */
 int dp_detector2d_set_ref (dp_detector2d_state_t *state, const float _Complex *ref);
 
@@ -295,17 +295,18 @@ size_t dp_detector2d_push (dp_detector2d_state_t *state, const float _Complex *i
 size_t dp_detector2d_consumed (const dp_detector2d_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * corr2d child + the framer's carry (its own child blob, fewer than ny*nx
- * samples) + the last-dump result fields; scratch is config (rebuilt by
- * create).  Version 2 is: the corr2d child, the framer child, peak_row and
- * peak_col (u64), then peak_mag, noise_est and test_stat (f32).  Version 1
- * carried the ring's raw contents zero-padded to ring_cap and a last_corr
- * flag; out_buf was never in the blob, so last_corr is None after
- * set_state. */
+ * correlator child + the framer's carry (its own child blob, fewer than
+ * ny*nx samples) + the last-dump result fields; scratch is config (rebuilt
+ * by create).  Version 3 is: the correlator child (a 'CORL' blob, #2752
+ * step 3.2), the framer child, peak_row and peak_col (u64), then peak_mag,
+ * noise_est and test_stat (f32).  Version 2 was the same with a 'CR2D'
+ * child.  Version 1 carried the ring's raw contents zero-padded to ring_cap
+ * and a last_corr flag; out_buf was never in the blob, so last_corr is None
+ * after set_state. */
 /** @brief State-blob magic ('DET2'); set_state() rejects any other. */
 #define DETECTOR2D_STATE_MAGIC DP_FOURCC ('D','E','T','2')
-/** @brief State-blob layout version (2; version-1 blobs are refused). */
-#define DETECTOR2D_STATE_VERSION 2u
+/** @brief State-blob layout version (3; earlier blobs are refused). */
+#define DETECTOR2D_STATE_VERSION 3u
 /**
  * @brief Size in bytes of this detector's state blob.
  * @param state  Must be non-NULL.

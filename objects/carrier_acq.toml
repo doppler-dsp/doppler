@@ -35,11 +35,11 @@ depends_on = [
   # link=true boundary (the same fft2d/fft gotcha acq.toml's own
   # depends_on comment documents): psd_core itself depends on
   # spectral_core (window generation / measurement free functions), and
-  # detector_core itself depends on corr_core (the FFT correlator it
+  # detector_core itself depends on correlator_core (the FFT correlator it
   # wraps) -- both must be linked explicitly here too, even though
   # neither is used directly by this object's own code.
   { name = "spectral", link = true },
-  { name = "corr", link = true },
+  { name = "correlator", link = true },
   { name = "fft", link = true },
   { name = "acc_trace", link = true },
 ]

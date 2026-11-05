@@ -11,7 +11,7 @@
 _Streaming DSSS acquisition engine — burst and continuous front doors over one shared engine._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
-* `#include "doppler/corr2d/corr2d_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/detection/detection_core.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/f32_buffer/f32_buffer_core.h"`

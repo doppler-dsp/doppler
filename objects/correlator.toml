@@ -1,10 +1,13 @@
-[corr2d]
+[correlator]
 arg_type = "float _Complex"
 return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Corr2D"
+# The constructors are the flavors' (docs/design/correlator.md section 4);
+# Corr2D is the 2-D one, and Corr and DelayDoppler are views below.
+create_fn = "dp_correlator_create_2d"
 depends_on = ["fft2d_core"]
 serializable = "true"
 fragment = "generated"
@@ -23,9 +26,9 @@ create_error_message = "Corr2D: invalid parameter (need dwell >= 1, and ny_out a
 # zero-pads the slow-time axis (band-limited Doppler interpolation). nx_out
 # and col_out do not apply: the delay axis is native and the whole map is
 # the point.
-[[corr2d.views]]
+[[correlator.views]]
 class_name = "DelayDoppler"
-create_fn = "dp_corr2d_create_delay_doppler"
+create_fn = "dp_correlator_create_delay_doppler"
 init_params = [
   { name = "code", type = "float _Complex[]" },
   { name = "ny", type = "size_t", default = "1" },
@@ -40,7 +43,33 @@ properties = [
   { name = "doppler_step", type = "double", field = true },
 ]
 
-[[corr2d.init_params]]
+# The 1-D flavor (#2752 step 3.2): Corr, which is Corr2D at one row
+# (docs/design/correlator.md section 2.1). Its Python face is today's Corr
+# until step 4: the 2-D members are excluded and `n` (which Corr2D does not
+# expose) is added. `execute` is the shared one: its refusal names the frame
+# length as `n`, which is true of every flavor (Corr's n, Corr2D's ny*nx),
+# and its exact out= size is Corr's n_out, which a frame never exceeds.
+[[correlator.views]]
+class_name = "Corr"
+create_fn = "dp_correlator_create_1d"
+init_params = [
+  { name = "ref", type = "float _Complex[]" },
+  { name = "dwell", type = "size_t", default = "1" },
+  { name = "nthreads", type = "int", default = "1" },
+  { name = "n_out", type = "size_t", default = "0" },
+]
+exclude_properties = ["ny", "nx", "ny_out", "nx_out", "col_out"]
+exclude_methods = [
+  "execute_all", "execute_coherent", "execute_power_sum",
+  "execute_power_max", "execute_peaks", "bank_power_max", "bank_detect",
+]
+create_error = "ValueError"
+create_error_message = "Corr: invalid parameter (need dwell >= 1, and n_out 0 or at least len(ref))"
+properties = [
+  { name = "n", type = "size_t", field = true },
+]
+
+[[correlator.init_params]]
 name = "ref"
 # TWO-dimensional: the reference is a ny x nx surface, and the manifest had
 # under-declared it as 1-D — which is what made jm derive a single `ref_len`
@@ -53,12 +82,12 @@ type = "float _Complex[][]"
 # `ref_dim0`/`ref_dim1`.
 derived = ["ny", "nx"]
 
-[[corr2d.init_params]]
+[[correlator.init_params]]
 name = "dwell"
 type = "size_t"
 default = "1"
 
-[[corr2d.init_params]]
+[[correlator.init_params]]
 name = "nthreads"
 type = "int"
 default = "1"
@@ -67,12 +96,12 @@ default = "1"
 # cross-spectrum before the inverse → band-limited interpolation of the
 # correlation surface onto a finer (ny_out, nx_out) grid. Trailing + default 0
 # keeps Corr2D(ref, dwell, nthreads) backward-compatible.
-[[corr2d.init_params]]
+[[correlator.init_params]]
 name = "ny_out"
 type = "size_t"
 default = "0"
 
-[[corr2d.init_params]]
+[[correlator.init_params]]
 name = "nx_out"
 type = "size_t"
 default = "0"
@@ -83,12 +112,12 @@ default = "0"
 # lag-0 sum beside this kernel, which is how a second replica of the code
 # gets built. Trailing + default -1 (the whole map) keeps
 # Corr2D(ref, dwell, nthreads, ny_out, nx_out) backward-compatible.
-[[corr2d.init_params]]
+[[correlator.init_params]]
 name = "col_out"
 type = "int"
 default = "-1"
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "execute"
 arg_type = "float _Complex"
 return_type = "float _Complex"
@@ -106,15 +135,15 @@ none_on_empty = true
 # with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "input length is not ny*nx; execute takes exactly one frame"
+error_message = "input length is not the frame length (n: Corr's n, or ny*nx); execute takes exactly one frame"
 
 # Batches (#2683): H frames back to back in one call, every map or one
-# reduction of them, on the C fold loop dp_corr2d_execute_fold. One typed
+# reduction of them, on the C fold loop dp_correlator_execute_fold. One typed
 # method per reduction, because the return shapes differ. Each refuses an
 # empty batch, a length that is not a whole number of frames, or a short
 # out= with SIZE_MAX, which jm raises as ValueError. The GIL is released
 # across the kernel; the DelayDoppler view shares every method.
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "execute_all"
 arg_type = "float _Complex"
 return_type = "float _Complex"
@@ -126,7 +155,7 @@ error = "ValueError"
 error_message = "execute_all: the input must be a whole, nonzero number of frames, and out= must hold every map"
 nogil = true
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "execute_coherent"
 arg_type = "float _Complex"
 return_type = "float _Complex"
@@ -141,7 +170,7 @@ error = "ValueError"
 error_message = "execute_coherent: the input must be a whole, nonzero number of frames, and out= must hold one map"
 nogil = true
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "execute_power_sum"
 arg_type = "float _Complex"
 return_type = "float"
@@ -156,7 +185,7 @@ error = "ValueError"
 error_message = "execute_power_sum: the input must be a whole, nonzero number of frames, and out= must hold one map"
 nogil = true
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "execute_power_max"
 arg_type = "float _Complex"
 return_type = "float"
@@ -168,7 +197,7 @@ error = "ValueError"
 error_message = "execute_power_max: the input must be a whole, nonzero number of frames (at most 2**32), and out= must hold one map"
 nogil = true
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "execute_peaks"
 arg_type = "float _Complex"
 return_type = "float"
@@ -180,7 +209,7 @@ error = "ValueError"
 error_message = "execute_peaks: the input must be a whole, nonzero number of frames, and out= must hold one record per frame"
 nogil = true
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "bank_power_max"
 arg_type = "void"
 return_type = "float"
@@ -193,7 +222,7 @@ error_message = "bank_power_max: needs one frame, L >= 1, g_min <= g_max, rates 
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}, {name = "L", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "rates", type = "float _Complex[]"}]
 
-[[corr2d.methods]]
+[[correlator.methods]]
 name = "bank_detect"
 arg_type = "void"
 return_type = "float"
@@ -206,42 +235,42 @@ error_message = "bank_detect: needs one frame, L_d >= 1 dividing L_r, g_min <= g
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}, {name = "L_d", type = "size_t"}, {name = "L_r", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "t_candidate", type = "float"}, {name = "t_confirm", type = "float"}, {name = "rates", type = "float _Complex[]"}]
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "ny"
 type = "size_t"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "nx"
 type = "size_t"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "ny_out"
 type = "size_t"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "nx_out"
 type = "size_t"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "n_out"
 type = "size_t"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "col_out"
 type = "int"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "dwell"
 type = "size_t"
 field = true
 
-[[corr2d.properties]]
+[[correlator.properties]]
 name = "count"
 type = "size_t"
 field = true

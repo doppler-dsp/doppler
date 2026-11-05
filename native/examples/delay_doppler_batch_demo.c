@@ -27,7 +27,7 @@
  *   ./build/native/examples/delay_doppler_batch_demo
  */
 
-#include <doppler/corr2d/corr2d_core.h>
+#include <doppler/correlator/correlator_core.h>
 
 #include "doppler/dp_complex.h"
 #include <math.h>
@@ -86,15 +86,15 @@ main (void)
                 (float)(-2.0 * M_PI * STEP_BINS * (double)h / NX * (double)m)
                 * I);
 
-  dp_corr2d_state_t *dd
-      = dp_corr2d_create_delay_doppler (code, NX, NY, 1, 0, 0);
+  dp_correlator_state_t *dd
+      = dp_correlator_create_delay_doppler (code, NX, NY, 1, 0, 0);
 
   /* One record per map: its peak power, where it is, and its mean. */
   const size_t n_in = (size_t)H * NY * NX;
-  const size_t nrec = dp_corr2d_execute_peaks_max_out (dd, n_in);
+  const size_t nrec = dp_correlator_execute_peaks_max_out (dd, n_in);
   float        peak[H], mean[H];
   uint32_t     row[H], col[H];
-  if (dp_corr2d_execute_peaks (dd, batch, n_in, peak, row, col, mean, nrec)
+  if (dp_correlator_execute_peaks (dd, batch, n_in, peak, row, col, mean, nrec)
       != H)
     return 1;
 
@@ -111,12 +111,13 @@ main (void)
           STEP_BINS * (double)best, OFFSET_BINS);
 
   /* Every map too, into the caller's buffer, sized by its own query. */
-  const size_t    n_all = dp_corr2d_execute_all_max_out (dd, n_in);
+  const size_t    n_all = dp_correlator_execute_all_max_out (dd, n_in);
   float _Complex *maps  = malloc (n_all * sizeof *maps);
-  const size_t    wrote = dp_corr2d_execute_all (dd, batch, n_in, maps, n_all);
+  const size_t    wrote
+      = dp_correlator_execute_all (dd, batch, n_in, maps, n_all);
   /* A buffer one value short is refused, and nothing is written. */
   const size_t short_call
-      = dp_corr2d_execute_all (dd, batch, n_in, maps, n_all - 1);
+      = dp_correlator_execute_all (dd, batch, n_in, maps, n_all - 1);
   printf ("execute_all wrote %zu values (%d maps); one short: %s\n", wrote, H,
           short_call == SIZE_MAX ? "refused" : "ACCEPTED");
 
@@ -131,7 +132,7 @@ main (void)
     if (fabs (OFFSET_BINS - STEP_BINS * (double)h) < 0.5)
       ok &= col[h] == DELAY;
 
-  dp_corr2d_destroy (dd);
+  dp_correlator_destroy (dd);
   free (maps);
   free (batch);
   return ok ? 0 : 1;

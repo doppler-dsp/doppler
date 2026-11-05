@@ -24,7 +24,7 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     async_dsss_receiver_core
     ber_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     fft_core
     detection_core
@@ -35,7 +35,6 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     spectral_core
     acc_trace_core
     detector_core
-    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -83,7 +82,7 @@ target_link_libraries(test_async_dsss_pool_core
     async_dsss_receiver_core
     ber_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     fft_core
     detection_core
@@ -94,7 +93,6 @@ target_link_libraries(test_async_dsss_pool_core
     spectral_core
     acc_trace_core
     detector_core
-    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -133,7 +131,7 @@ target_link_libraries(bench_async_dsss_pool_core
     async_dsss_receiver_core
     ber_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     fft_core
     detection_core
@@ -144,7 +142,6 @@ target_link_libraries(bench_async_dsss_pool_core
     spectral_core
     acc_trace_core
     detector_core
-    corr_core
     dll_core
     loop_filter_core
     lockdet_core

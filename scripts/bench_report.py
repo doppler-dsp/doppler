@@ -594,6 +594,11 @@ COMPONENT_MODULE = {
     "timing": "sample_clock",
     # Deleted with the old pool; its rows remain in the published runs.
     "async_dsss_pool": "dsss",
+    # One object, `correlator`, since #2752 step 3.2. Its benches keep these
+    # families through step 3 so bench-ab pairs main with head
+    # (docs/design/correlator.md section 7.1); step 4 renames them.
+    "corr": "spectral",
+    "corr2d": "spectral",
 }
 
 #: How many INPUT SAMPLES one recorded unit consumes (#2372): the page

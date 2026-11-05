@@ -457,7 +457,7 @@ pair is the same shape one dimension down. Measured from the code on 2026-10-31:
 - **`Acquisition`** (3,253 lines) is streaming framing, **its own slow-time
     FFT tiles** (`acq_tile_block`, on the `tile_slow` plans in `acq_core.c`),
     a plain `Corr2D` and a CFAR. Its map is a second implementation of
-    `DelayDoppler`'s column stage (`corr2d_col_tile` in `corr2d_core.c`),
+    `DelayDoppler`'s column stage (`corr2d_col_tile` in `correlator_core.c`),
     which `CLAUDE.md` forbids.
 - **The CFAR is already shared.** `Acquisition` reuses `CorrDetector2D`'s ring
     and noise estimator, header-only.

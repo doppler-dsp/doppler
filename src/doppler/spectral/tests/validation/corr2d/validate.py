@@ -169,7 +169,7 @@ def section_object() -> None:
                 "zero-pad maths, and the single-row fast path",
             ],
             [
-                "`native/inc/doppler/corr2d/corr2d_core.h`",
+                "`native/inc/doppler/correlator/correlator_core.h`",
                 "the contract per function — the SSOT this report audits",
             ],
         ],
@@ -268,7 +268,7 @@ def section_object() -> None:
                 "§2.10",
             ],
             [
-                "`dp_corr2d_execute_fold` takes a caller's reducer",
+                "`dp_correlator_execute_fold` takes a caller's reducer",
                 "C — **C-ONLY**, no Python callback by design",
                 "C `_test_batch`",
             ],
@@ -296,7 +296,7 @@ def section_object() -> None:
                 "§2.11 (small scale)",
             ],
             [
-                "`dp_corr2d_bank_fold` takes a caller's reducer",
+                "`dp_correlator_bank_fold` takes a caller's reducer",
                 "C — **C-ONLY**, no Python callback by design",
                 "C `_test_bank`",
             ],
@@ -761,7 +761,7 @@ def review(d: Data) -> None:
     R.find(
         "dp_corr2d_reset_pinned_vacuously",
         "FIXED",
-        "`dp_corr2d_reset` was pinned **vacuously**, which is the shape "
+        "`dp_correlator_reset` was pinned **vacuously**, which is the shape "
         "`docs/dev/contributing/validation.md` warns about by name. The C "
         "test called it on a freshly created object and asserted "
         "`count == 0` — already true before the call — so a `reset()` with "
@@ -814,7 +814,7 @@ def review(d: Data) -> None:
     R.find(
         "dwell_check_incomplete",
         "FIXED",
-        '`dp_corr2d_create` documented `dwell` as *"must be >= 1"* and '
+        '`dp_correlator_create_2d` documented `dwell` as *"must be >= 1"* and '
         "enforced only the output-grid rule, so `dwell = 0` built an "
         "object that was not merely degenerate but **silent**: the dump "
         "test is `++count == dwell`, which zero never satisfies, so it "
@@ -835,8 +835,8 @@ def review(d: Data) -> None:
         "three_claims_no_python_face",
         "C-ONLY",
         "Three claims have no Python face and are certified in "
-        "`native/tests/corr2d/test_corr2d_core.c` instead: "
-        "`dp_corr2d_set_ref` (no "
+        "`native/tests/correlator/test_correlator_core.c` instead: "
+        "`dp_correlator_set_ref` (no "
         "binding at all — including its contract that a fast-path object "
         "REJECTS a reference that is no longer single-row), the `fast_path` "
         "selection flag, and the native path's promise to allocate no "

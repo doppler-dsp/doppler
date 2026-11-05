@@ -405,8 +405,8 @@ main (void)
   /* ── dwell = 0 is refused, inherited from corr2d ──────────────────────
    *
    * detector2d's own header says dwell "must be >= 1" and it validates
-   * nothing itself -- it forwards straight to dp_corr2d_create, which is
-   * where the rule now lives (see test_corr2d_core.c). Pinned here too
+   * nothing itself -- it forwards straight to dp_correlator_create_2d, which
+   * is where the rule now lives (see test_corr2d_core.c). Pinned here too
    * because this is the object a caller constructs, and because it is the
    * assertion that would notice if the forwarding were ever replaced by a
    * local copy that forgot the rule. */
@@ -494,7 +494,8 @@ main (void)
    *
    * Zero mentions in either test file. The header promises three things:
    * the new reference takes effect, the object ALWAYS resets even when the
-   * reference is accepted, and it returns -1 when dp_corr2d_set_ref refuses.
+   * reference is accepted, and it returns -1 when dp_correlator_set_ref
+   * refuses.
    *
    * That third branch is not hypothetical, and writing this test found it
    * the hard way: an impulse reference is single-row, so the object is on
@@ -519,9 +520,9 @@ main (void)
     /* Dirty EVERY piece of state the reset is supposed to clear, or the
        assertions below pass on things that were already clean. Measured
        while writing this: asserting only `corr->count == 0` is satisfied
-       by dp_corr2d_set_ref's own reset, so it tests corr2d rather than this
-       function -- deleting dp_detector2d_reset from set_ref left it green.
-       The ring residue and the last-dump flag are what set_ref adds. */
+       by dp_correlator_set_ref's own reset, so it tests corr2d rather than
+       this function -- deleting dp_detector2d_reset from set_ref left it
+       green. The ring residue and the last-dump flag are what set_ref adds. */
     DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 0); /* dwell 1 of 2 */
     DP_CHECK (dp_detector2d_push (det, in, N, res, 4) == 1); /* dumps       */
     DP_CHECK (det->_last_corr_valid == 1);

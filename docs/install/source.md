@@ -1,5 +1,19 @@
 # Build from Source
 
+## Get the source
+
+Clone the release you want to build:
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
 ## Prerequisites
 
 | Tool       | Minimum | Notes                                                                                                                                                                    |

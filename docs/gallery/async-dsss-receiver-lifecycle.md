@@ -136,7 +136,20 @@ with Capture(tlm, TE, "rx.tlm", SampleClock(FS)) as cap:
 assert cap.count > 0 and cap.dropped == 0
 ```
 
-From a doppler checkout, `scripts/plot_capture.py` draws any capture, one panel
+`scripts/plot_capture.py` is in the repository, not the wheel. Clone the
+release you installed (skip this if you have one):
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
+Then `scripts/plot_capture.py` draws any capture, one panel
 a probe on a shared time axis:
 
 <!-- docs-snippet: no-exec=draws the rx.tlm the Python fence above writes, with the repository's own script -->

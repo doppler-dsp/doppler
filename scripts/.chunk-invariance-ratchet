@@ -22,8 +22,8 @@
 # list, every one is gone now, none backs a second new line, and none still
 # names a live object -- so a rename can merge entries, never multiply them,
 # and a fixed entry is deleted, never traded for a new one
-# (scripts/check_tests_ssot.py, ratchet_added). Anything else on a new line
-# is ADDED, and fails.
+# (scripts/check_tests_ssot.py: carry_refusals, the one rule, which
+# ratchet_added calls). Anything else on a new line is ADDED, and fails.
 #
 # Burn-down: doppler#1896.   Derived, not curated:
 #   python scripts/check_tests_ssot.py   # names every uncovered object

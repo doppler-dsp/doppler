@@ -19,6 +19,16 @@
 #
 # Each family's fix PR deletes its own lines (#2079..#2084, LO/NCO first).
 #
+# A RENAME carries its row by ending the reason with the key it takes over:
+#
+#   Class.dp_new_fn   C_ONLY   <reason>; replaces: Class.dp_old_fn
+#
+# It is not "added" only when the old key was on the merge base's list, is
+# gone now, backs no other new row, names a C function no header declares
+# any more, and had the same verdict -- so a rename never grows the list,
+# trades a fixed row for a new one, or moves a row into another verdict
+# (scripts/check_tests_ssot.py: carry_refusals, mutator_list_added).
+#
 # key                                                   verdict           reason
 
 # -- LOST (14)

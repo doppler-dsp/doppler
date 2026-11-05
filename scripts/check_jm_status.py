@@ -54,8 +54,11 @@ Usage (from the project root; the Makefile is the driver)::
     python scripts/check_jm_status.py          # gate: exit 0, 1 or jm's
     python scripts/check_jm_status.py --fix    # re-vendor, then apply
 
-On a failed status the text report is printed by a second run, so the
-reader sees jm's own explanation. A passing run costs one status, as before.
+On a failed status the reader sees THAT run's report, rendered from its JSON
+(`render_failure`). It is never re-run: a second run is a different
+measurement, and when the tree changed between the two it printed "OK" over
+a gate that had failed, so the only evidence of the failure was discarded
+(#2752 step 3.2's lint, 2026-11-05). A passing run costs one status.
 
 Examples
 --------
@@ -173,12 +176,65 @@ def status(root: Path) -> tuple[int, dict[str, Any]]:
     return r.returncode, report
 
 
+#: Keys jm emits on every run as notes, never as findings; a failure report
+#: counts them rather than listing them, so the findings are not buried.
+NOTES = ("shared_cores", "backings", "inert_pass_capacity")
+
+
+def render_failure(report: dict[str, Any], rc: int) -> str:
+    """The failed run's own report, as text: every finding it carried.
+
+    Nothing is classified here: which keys jm counts is jm's to decide, and
+    a second copy of that rule would drift from it. So every non-empty key
+    is shown -- the ``entries`` (each a file whose render differs, with its
+    state) one line each, every other list item as JSON -- and only the
+    always-present notes in `NOTES` are collapsed to a count. An entry
+    ``status_allow`` excuses is marked, not hidden. A report with nothing
+    to show, under a failing exit, says so rather than reading as clean.
+
+    >>> stale = {"path": "a.pyi", "state": "stale", "allowed": False}
+    >>> report = {"drift": 1, "entries": [stale], "outdated": []}
+    >>> report["backings"] = [{"module": "m"}]
+    >>> print(render_failure(report, 1))
+    check_jm_status: jm status failed (exit 1, drift 1); its own report:
+      entries:
+        stale  a.pyi
+      (notes: backings 1)
+    """
+    lines = [
+        f"check_jm_status: jm status failed (exit {rc}, drift "
+        f"{report.get('drift', '?')}); its own report:"
+    ]
+    shown = 0
+    for key, val in report.items():
+        if key in NOTES or not isinstance(val, (list, dict)) or not val:
+            continue
+        shown += 1
+        lines.append(f"  {key}:")
+        if key == "entries":
+            for e in val:
+                tag = "  (allowed)" if e.get("allowed") else ""
+                lines.append(f"    {e.get('state')}  {e.get('path')}{tag}")
+        elif isinstance(val, dict):
+            for sub, items in val.items():
+                lines.append(f"    {sub}: {json.dumps(items)}")
+        else:
+            lines.extend(f"    {json.dumps(item)}" for item in val)
+    notes = [f"{k} {len(report[k])}" for k in NOTES if report.get(k)]
+    if notes:
+        lines.append(f"  (notes: {', '.join(notes)})")
+    if not shown:
+        lines.append("  no finding listed; the raw report follows")
+        lines.append(json.dumps(report, indent=1))
+    return "\n".join(lines)
+
+
 def check(root: Path) -> int:
     """The gate: jm's drift verdict, then the vendored headers."""
     rc, report = status(root)
     if rc != 0:
-        # Drift. Re-run for the human report, which --json replaces.
-        subprocess.run([*_jm(), "status", "--check"], cwd=root)
+        # Drift: this run's own report, never a second run's (module doc).
+        print(render_failure(report, rc))
         return rc
     if "outdated" not in report:
         print(

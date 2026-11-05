@@ -117,9 +117,7 @@ def test_other_outdated_files_stay_advisory(
     assert "OK" in capsys.readouterr().out
 
 
-def test_jm_drift_is_the_verdict_and_the_text_report_is_shown(
-    monkeypatch, tmp_path: Path
-):
+def test_jm_drift_is_the_verdict(monkeypatch, tmp_path: Path):
     mod = _load()
     calls: list = []
     # 3, not 1: the gate's own refusal is 1, so only jm's code passing
@@ -127,9 +125,71 @@ def test_jm_drift_is_the_verdict_and_the_text_report_is_shown(
     _fake(monkeypatch, mod, 3, [], calls)
     monkeypatch.chdir(tmp_path)
     assert mod.main([]) == 3
-    # One JSON run for the verdict, then the human report for the reader.
-    assert calls[0][-3:] == ["status", "--check", "--json"]
-    assert calls[1][-2:] == ["status", "--check"]
+    assert [c[-3:] for c in calls] == [["status", "--check", "--json"]]
+
+
+def test_a_failure_shows_its_own_report_never_a_rerun(
+    monkeypatch, tmp_path: Path, capsys
+):
+    """The failing run's report is the evidence, and only it is printed.
+
+    jm fails once with a report naming its findings; any second call would
+    say OK, as one did when the tree changed between two runs and the
+    failure's evidence was discarded (#2752 step 3.2's lint). So the output
+    must name the first run's findings, and jm must be called once."""
+    mod = _load()
+    calls: list = []
+    failing = {
+        "drift": 2,
+        "entries": [
+            {
+                "path": "native/src/x/x_ext.c",
+                "state": "stale",
+                "allowed": False,
+            },
+            {"path": "src/x/x.pyi", "state": "missing", "allowed": False},
+        ],
+        "outdated": [],
+        "unanchored": [
+            {"path": "CMakeLists.txt", "anchor": "a", "allowed": False}
+        ],
+        "shared_cores": [{"core": "fft_core", "modules": ["a", "b"]}],
+    }
+
+    def run(cmd, **kw: Any):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(cmd, 1, json.dumps(failing))
+        ok = json.dumps({"drift": 0, "entries": [], "outdated": []})
+        return subprocess.CompletedProcess(
+            cmd, 0, ok if "--json" in cmd else "OK — up to date"
+        )
+
+    monkeypatch.setattr(mod.subprocess, "run", run)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main([]) == 1
+    out = capsys.readouterr().out
+    assert len(calls) == 1, calls
+    assert "stale  native/src/x/x_ext.c" in out
+    assert "missing  src/x/x.pyi" in out
+    assert "CMakeLists.txt" in out
+    assert "up to date" not in out
+    # The always-present notes are counted, not listed.
+    assert "fft_core" not in out and "shared_cores 1" in out
+
+
+def test_a_failure_with_no_listed_finding_prints_the_raw_report(
+    monkeypatch, tmp_path: Path, capsys
+):
+    """A failing exit over a report this script cannot itemize still shows
+    the whole report, never an empty reassurance."""
+    mod = _load()
+    calls: list = []
+    _fake(monkeypatch, mod, 1, [], calls)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main([]) == 1
+    out = capsys.readouterr().out
+    assert "no finding listed" in out and '"outdated": []' in out
 
 
 def test_no_report_is_a_failure_not_an_empty_list(monkeypatch, tmp_path: Path):

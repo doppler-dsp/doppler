@@ -122,6 +122,9 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets:
       base_path: ["."]
+      # A `--8<--` of a file that is not there is a build error, not an empty
+      # tab: the example-project pages include every file of their project.
+      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

@@ -214,9 +214,16 @@ path of yours on the command line. Three things to know:
 
 A fresh machine also needs a toolchain to build your own code. One line:
 
+Debian / Ubuntu:
+
 ```sh
-sudo apt install cmake gcc make pkg-config              # Debian / Ubuntu
-sudo dnf install cmake gcc make pkgconf-pkg-config      # Fedora / RHEL
+sudo apt install cmake gcc make pkg-config
+```
+
+Fedora / RHEL:
+
+```sh
+sudo dnf install cmake gcc make pkgconf-pkg-config
 ```
 
 **Try it:** the [consumer example](../example-projects/consumer.md) is the

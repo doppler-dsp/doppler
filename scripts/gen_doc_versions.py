@@ -34,12 +34,13 @@ Regions are delimited exactly like the other generators::
 
 Inside a region every semver-looking token is rewritten to the current
 version, so a region needs no placeholder syntax and stays readable and
-runnable as committed. That includes anything shaped like one -- a dotted-quad
-address such as ``127.0.0.1`` is a semver-looking token -- so keep a region
-tight around the command that carries the version. One two-part token is
-stamped too: the Debian runtime package embeds its ABI series in its name
-(``libdoppler-dsp0.62_0.62.0_amd64.deb``), and ``0.62`` is the version's
-major.minor. Outside a region nothing is touched --
+runnable as committed. That includes anything shaped like one, so keep a
+region tight around the command that carries the version. A token followed by
+a file extension keeps it (``v0.79.0.tar.gz``), and a four-part number such as
+a dotted-quad address (``127.0.0.1``) is not a version and is left alone.
+One two-part token is stamped too: the Debian runtime package embeds its ABI
+series in its name (``libdoppler-dsp0.62_0.62.0_amd64.deb``), and ``0.62`` is
+the version's major.minor. Outside a region nothing is touched --
 ``check_version_strings.py`` still forbids hand-typed versions
 everywhere else, and skips these regions so the two gates cannot
 contradict each other.
@@ -62,10 +63,22 @@ ROOT = Path(__file__).resolve().parent.parent
 START = "<!-- doc-version:start -->"
 END = "<!-- doc-version:end -->"
 
-# A semver-ish token: 1.2.3, optionally with a pre-release suffix. Bounded
-# on both sides so 0.39.0 is not found inside 10.39.05 or 0.39.01.
+# A semver-ish token: 1.2.3, optionally with a pre-release suffix (1.2.3rc1,
+# 1.2.3.dev4). Bounded on both sides so 0.39.0 is not found inside 10.39.05 or
+# 0.39.01, or 0.39.0.1.
+#
+# The suffix is letters and digits with NO dot, plus the PEP 440 dotted forms
+# (.devN, .postN). It used to be a greedy [A-Za-z0-9.]*, which took ``.tar.gz``
+# for part of the version: the natural URL
+# ``.../archive/refs/tags/v0.79.0.tar.gz`` was rewritten to ``.../v0.79.0`` on
+# the first stamp (doppler#2856). Ending the token before any other
+# ``.<letter>`` means no list of file extensions to keep in step: ``.tar.gz``,
+# ``.zip``, ``.deb`` and a sentence-final period are all simply not part of it.
 VERSION_TOKEN = re.compile(
-    r"(?<![0-9.])\d+\.\d+\.\d+(?:[A-Za-z0-9.]*)?(?![0-9.])"
+    r"(?<![0-9.])\d+\.\d+\.\d+"
+    r"(?:[A-Za-z][A-Za-z0-9]*)?"
+    r"(?:\.(?:dev|post)\d+)*"
+    r"(?!\d|\.\d)"
 )
 
 # The ABI series a Debian runtime package carries in its NAME

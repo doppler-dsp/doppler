@@ -188,7 +188,12 @@ def _ser(out, idx, m, settle):
 
 
 def main(out_path: str = "mpsk_receiver_demo.png") -> None:
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

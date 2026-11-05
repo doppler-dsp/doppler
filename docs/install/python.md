@@ -28,11 +28,12 @@
 
 ## Optional extras
 
-| Extra        | Install command                         | Adds                                                             |
-| ------------ | --------------------------------------- | ---------------------------------------------------------------- |
-| `cli`        | `pip install "doppler-dsp[cli]"`        | `doppler compose` pipeline orchestrator (pydantic, pyyaml, rich) |
-| `specan`     | `pip install "doppler-dsp[specan]"`     | Terminal spectrum analyzer (rich)                                |
-| `specan-web` | `pip install "doppler-dsp[specan-web]"` | Browser spectrum analyzer (FastAPI + WebSocket)                  |
+| Extra        | Install command                         | Adds                                                              |
+| ------------ | --------------------------------------- | ----------------------------------------------------------------- |
+| `cli`        | `pip install "doppler-dsp[cli]"`        | `doppler compose` pipeline orchestrator (pydantic, pyyaml, rich)  |
+| `specan`     | `pip install "doppler-dsp[specan]"`     | Terminal spectrum analyzer (rich)                                 |
+| `examples`   | `pip install "doppler-dsp[examples]"`   | What the example scripts draw and design with (matplotlib, scipy) |
+| `specan-web` | `pip install "doppler-dsp[specan-web]"` | Browser spectrum analyzer (FastAPI + WebSocket)                   |
 
 !!! tip "Install multiple extras at once"
 

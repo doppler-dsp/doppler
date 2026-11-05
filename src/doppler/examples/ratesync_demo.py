@@ -278,7 +278,12 @@ def evm_sweep(esn0_db=(10.0, 15.0, 20.0), n_seeds=10):
 
 
 def main(out_path="ratesync_demo.png"):
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

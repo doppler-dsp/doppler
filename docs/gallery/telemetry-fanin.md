@@ -117,6 +117,8 @@ for src, sub in sources.items():
     print(src, len(recs), "records")  # demux with THAT source's name map
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 A C pipeline publishes the same frames without Python in the loop: the
 `dp_tlm_sink_*` helper (`stream/tlm_sink.h`, in the optional
 `libdoppler_stream` component) drains a `dp_tlm_t` ring straight to a

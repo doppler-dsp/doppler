@@ -372,6 +372,13 @@ repos:
         language: system
         pass_filenames: false
 
+      # A page that needs a NATS broker links how to run one (#2857).
+      - id: broker-links
+        name: pages that need a broker link how to run one
+        entry: make -s lint-broker-links
+        language: system
+        pass_filenames: false
+
       # A `cmake -P` script declares its own policy level (#1578).
       - id: cmake-script-policy
         name: cmake -P scripts declare cmake_minimum_required

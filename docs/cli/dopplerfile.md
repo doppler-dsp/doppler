@@ -76,6 +76,8 @@ Example — `sample_rate: 2048000.0` with `role: source` produces:
 ./chirp.py --bind nats://127.0.0.1:4222/dp-chain-5600 --sample-rate 2048000.0 ...
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 ### Explicit mapping
 
 For scripts that use non-standard flag names, add an `args:` section

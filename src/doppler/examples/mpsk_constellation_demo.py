@@ -55,7 +55,12 @@ def _sim_ber(m, ebn0_db, rng, n=300_000):
 
 
 def main(out_path="mpsk_constellation_demo.png"):
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

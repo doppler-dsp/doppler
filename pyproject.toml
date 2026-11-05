@@ -68,6 +68,13 @@ cli = [
 specan = [
     "rich>=13.0",
 ]
+examples = [
+    # What the example scripts draw and design with. Not dependencies of the
+    # library: `pip install "doppler-dsp[examples]"` is what a script names when
+    # one is missing (doppler#2857).
+    "matplotlib>=3.7",
+    "scipy>=1.10",
+]
 specan-web = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.23",

@@ -183,11 +183,11 @@ ______________________________________________________________________
 
 ## Sinks
 
-| `--output`                 | Result                                                                                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| *(omitted)*                | binary stream to **stdout** (pipe it)                                                                                                     |
-| `file.iq`                  | write to a file                                                                                                                           |
-| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (doppler stream frames: a `dp_header_t`, magic `DPSTREAM`); requires a `nats-server` |
+| `--output`                 | Result                                                                                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| *(omitted)*                | binary stream to **stdout** (pipe it)                                                                                                                                |
+| `file.iq`                  | write to a file                                                                                                                                                      |
+| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (doppler stream frames: a `dp_header_t`, magic `DPSTREAM`); requires a [`nats-server`](../../install/broker.md) |
 
 ```sh
 wfmgen --type tone --count 1000000 | other-tool                    # pipe via stdout

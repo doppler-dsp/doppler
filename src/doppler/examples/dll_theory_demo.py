@@ -81,7 +81,12 @@ def _disc_var(snr_db, sps=16, nper=400):
 
 
 def main(out_path="dll_theory_demo.png"):
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

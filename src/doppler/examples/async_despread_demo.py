@@ -59,6 +59,7 @@ from doppler.detection import (
     det_threshold_noncoherent,
     det_verify_count,
 )
+from doppler.examples._extra import require
 from doppler.impairment import DopplerChannel
 from doppler.source import AWGN, LO
 from doppler.track import Dll
@@ -312,12 +313,8 @@ def check(runs, outputs):
 
 
 def main(out_path="async_despread_demo.png"):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

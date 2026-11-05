@@ -11,12 +11,11 @@ Run:
 
 import numpy as np
 
-try:
-    from scipy.signal import firwin
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit("needs scipy: pip install 'doppler-dsp[examples]'") from e
-
+from doppler.examples._extra import require
 from doppler.filter import FIR
+
+require("scipy")
+from scipy.signal import firwin
 
 # ── 1. Design and apply a low-pass filter ────────────────────────────────────
 

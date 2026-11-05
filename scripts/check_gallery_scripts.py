@@ -121,6 +121,8 @@ def check(repo: pathlib.Path, listed: list[str]) -> int:
     committed = {p.name for p in (repo / ASSETS).glob("*.png")}
     orphans: dict[str, list[str]] = {}
     for ex in sorted((repo / EXAMPLES).glob("*.py")):
+        if ex.name.startswith("_"):
+            continue  # a helper (_extra.py), not a script
         rel = ex.relative_to(repo).as_posix()
         if rel in listed:
             continue

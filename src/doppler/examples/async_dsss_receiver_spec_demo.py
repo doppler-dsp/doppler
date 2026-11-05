@@ -49,6 +49,7 @@ import sys
 # --8<-- [start:signal]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.impairment import DopplerChannel
 from doppler.source import AWGN
 from doppler.wfm import PN, Gold, Synth, wfm_awgn_amplitude
@@ -163,14 +164,14 @@ def make_capture(start_ppm: float, rate_ppm_s: float, seed: int) -> np.ndarray:
 
 # --8<-- [end:signal]
 
-from doppler.ber import (  # noqa: E402
+from doppler.ber import (
     BerMeter,
     ber_esn0_db_for_ser,
     ber_evm_db,
     ber_lock_symbol,
 )
-from doppler.dsss import AsyncDsssReceiver  # noqa: E402
-from doppler.snr import snr_m2m4_db  # noqa: E402
+from doppler.dsss import AsyncDsssReceiver
+from doppler.snr import snr_m2m4_db
 
 #: One row per push, read from the receiver after the push.
 ROW = np.dtype(
@@ -382,12 +383,8 @@ def run_regime(
 
 
 def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

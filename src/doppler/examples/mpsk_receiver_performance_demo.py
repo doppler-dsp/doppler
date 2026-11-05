@@ -74,6 +74,7 @@ from doppler.ber import (
     ber_settle_syms,
     ber_theory_ser,
 )
+from doppler.examples._extra import require
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
 
@@ -482,7 +483,7 @@ def measure(y, idx, m, settle):
 # halfband's orphan sample when a chunk has odd length -- so a chunked run is
 # BIT-IDENTICAL to one big call. Chunk size is a buffering decision, not a
 # signal-processing one.
-import numpy as np  # noqa: E402  (region must be self-contained)
+import numpy as np
 
 
 def demod_stream(rx, blocks):
@@ -1094,12 +1095,8 @@ def main(
     only=GALLERY_PANELS,
     trials=6,
 ):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

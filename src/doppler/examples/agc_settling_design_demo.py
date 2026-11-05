@@ -53,6 +53,7 @@ import math
 import numpy as np
 
 from doppler.agc import AGC
+from doppler.examples._extra import require
 
 DIR = complex(0.6, 0.8)  # |DIR| == 1, so scaling exercises both components
 
@@ -160,12 +161,8 @@ assert rel < 0.15, (
 
 
 def main() -> int:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

@@ -45,8 +45,8 @@ framed = Segment(**common, frame=d)
 x = np.asarray(Composer([framed]).compose())
 # --8<-- [end:frame]
 
-import json  # noqa: E402
-import sys  # noqa: E402
+import json
+import sys
 
 
 def main() -> int:

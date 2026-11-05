@@ -26,6 +26,7 @@ import sys
 
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.track import Dll
 from doppler.wfm import PN, mls_poly
 
@@ -81,12 +82,8 @@ def _disc_var(snr_db, sps=16, nper=400):
 
 
 def main(out_path="dll_theory_demo.png"):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

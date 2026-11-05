@@ -25,6 +25,7 @@ import warnings
 # --8<-- [start:signal]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.wfm import Composer, Gold, Segment, bpsk_map
 
 SF = 1023  # 2**10 - 1: the CCSDS 415.0-G-1 command-link Gold code period
@@ -92,7 +93,7 @@ def make_signal(cn0_dbhz: float, seed: int):
 
 # --8<-- [end:signal]
 
-from doppler.dsss import DsssReceiver  # noqa: E402
+from doppler.dsss import DsssReceiver
 
 SEED = 6
 CN0_OPERATING_DBHZ = 97.0
@@ -140,12 +141,8 @@ def _stream(rx: DsssReceiver, x: np.ndarray):
 
 
 def main(out_path: str = "dsss_receiver_demo.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

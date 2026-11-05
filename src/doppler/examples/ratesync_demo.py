@@ -36,6 +36,7 @@ import sys
 import numpy as np
 
 from doppler.ber import ber_evm_db, ber_evm_ideal_db, ber_settle_syms
+from doppler.examples._extra import require
 from doppler.track import RateSync
 from doppler.wfm import rrc_h
 
@@ -225,7 +226,7 @@ def compare_detectors(rx_signal=None):
 # --8<-- [end:ted]
 
 # --8<-- [start:cost]
-from doppler.resample import MatchedRateConverter  # noqa: E402
+from doppler.resample import MatchedRateConverter
 
 
 # Why a high input rate is nearly free: the cascade's HB/CIC stages do the
@@ -278,12 +279,8 @@ def evm_sweep(esn0_db=(10.0, 15.0, 20.0), n_seeds=10):
 
 
 def main(out_path="ratesync_demo.png"):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

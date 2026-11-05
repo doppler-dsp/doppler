@@ -17,7 +17,7 @@ Pick whichever fits your machine.
 === "Docker (any OS)"
 
     ```sh
-    docker run --rm -p 4222:4222 nats:latest -js
+    docker run --rm -p 4222:4222 nats:2 -js
     ```
 
     `-js` turns JetStream on, which the docs' commands assume. Stop it with
@@ -49,23 +49,33 @@ samples and reads them back, and prints `broker OK` when the broker works:
 <!-- docs-snippet: broker=runs against the broker this page starts -->
 
 ```python
-import time
-
 import numpy as np
 from doppler.stream import CF32, Publisher, Subscriber
 
 sub = Subscriber("nats://127.0.0.1:4222/check")
 pub = Publisher("nats://127.0.0.1:4222/check", CF32)
-time.sleep(0.5)  # let the subscription reach the server before publishing
-pub.send(np.arange(8).astype(np.complex64))
-samples, header = sub.recv(timeout_ms=3000)
-assert len(samples) == 8, "the broker answered but the samples did not arrive"
+x = np.arange(8).astype(np.complex64)
+for _ in range(20):  # up to 5 s: the subscription may not have registered yet
+    pub.send(x)
+    try:
+        samples, header = sub.recv(timeout_ms=250)
+        break
+    except TimeoutError:
+        pass
+else:
+    raise SystemExit("no samples in 5 s: is a broker listening on :4222?")
 print("broker OK:", len(samples), "samples")
 ```
 
 If it fails with `dp_sub_create failed on nats://127.0.0.1:4222/…`, nothing is
 listening on that port: start the server above, or point the endpoint at the
 machine that is running it.
+
+The loop publishes again until a sample arrives because a subscriber cannot yet
+wait for the server to register its subscription, so a publish sent at once can
+be lost ([#2865](https://github.com/doppler-dsp/doppler/issues/2865)). The same
+is true of your own code: start the receiver first, and expect to lose what is
+sent in its first moments.
 
 ## Where it is used
 

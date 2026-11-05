@@ -40,6 +40,7 @@ import numpy as np
 
 from doppler.agc import AGC
 from doppler.detection import det_threshold_noncoherent
+from doppler.examples._extra import require
 from doppler.telemetry import Telemetry
 from doppler.track import Dll, MpskReceiver
 from doppler.wfm import PN, Composer, Segment
@@ -94,12 +95,8 @@ def _mseq31():
 
 
 def main(out_path="telemetry_fanin_demo.png"):
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

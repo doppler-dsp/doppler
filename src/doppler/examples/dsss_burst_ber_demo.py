@@ -51,6 +51,7 @@ import numpy as np
 
 from doppler.ber import BerMeter, ber_esn0_db_for_ser, ber_theory_ber
 from doppler.dsss import DsssBurstReceiver
+from doppler.examples._extra import require
 from doppler.wfm import Composer, FrameDesc, field_bits, prepare
 
 FULL = "--full" in sys.argv
@@ -317,12 +318,8 @@ def main(out: str = "dsss_burst_ber_demo.png") -> None:
         f"({elapsed / total * 1e3:.1f} ms per render + decode)"
     )
 
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

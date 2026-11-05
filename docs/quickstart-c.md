@@ -31,7 +31,8 @@ from source): [Install → C Library](install/c.md).
 
 Any `main.c` works; this is the one the commands below build — the FFT example plus one
 *optional* streaming call. `dp_pub_*`/`dp_sub_*` live in the optional
-`libdoppler_stream`; drop that call and the `_stream` bits below for a
+`libdoppler_stream`, and publishing needs a running
+[NATS broker](install/broker.md); drop that call and the `_stream` bits below for a
 core-only app (then the whole link line is `libdoppler.a -lm -lpthread`):
 
 ```c

@@ -25,12 +25,10 @@ Run:
   python delay_doppler_batch_demo.py
 """
 
-try:
-    import matplotlib
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit(
-        "needs matplotlib: pip install 'doppler-dsp[examples]'"
-    ) from e
+from doppler.examples._extra import require
+
+require("matplotlib")
+import matplotlib
 
 matplotlib.use("Agg")  # headless: no display required
 
@@ -91,7 +89,7 @@ assert np.all(col[near] == DELAY), col
 assert dd.count == 0
 print("OK")
 
-import matplotlib.pyplot as plt  # noqa: E402 -- after the gated compute
+import matplotlib.pyplot as plt
 
 maps = dd.execute_all(batch)  # every map, (H, NY * NX)
 win = maps[best].reshape(NY, NX)

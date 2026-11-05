@@ -39,6 +39,7 @@ import sys
 import numpy as np
 
 from doppler.acquire import Acquisition
+from doppler.examples._extra import require
 from doppler.telemetry import Telemetry
 from doppler.wfm import Composer, Gold, Segment
 
@@ -141,12 +142,8 @@ def watch() -> dict:
 
 
 def main(out_path: str = "acq_surface_demo.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

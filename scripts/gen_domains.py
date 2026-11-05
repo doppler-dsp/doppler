@@ -67,7 +67,25 @@ OUT_DIR = "docs/domains"
 AZ = "docs/api/a-z.md"
 MKDOCS = "mkdocs.yml"
 EXAMPLES = "src/doppler/examples"
-REPO_BLOB = "https://github.com/doppler-dsp/doppler/blob/main/"
+# Example links are pinned to the RELEASE (doppler#2857): a reader of the
+# deployed page installed a release, not main. gen_doc_versions re-stamps the
+# same form on every release, so the two always agree.
+REPO_BLOB_BASE = "https://github.com/doppler-dsp/doppler/blob/v"
+
+
+def _release() -> str:
+    """The version a release bumps (pyproject.toml), as gen_doc_versions."""
+    m = re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if not m:
+        raise SystemExit("gen_domains: no version in pyproject.toml")
+    return m[1]
+
+
+REPO_BLOB = f"{REPO_BLOB_BASE}{_release()}/"
 
 # api-taxonomy.md section 6's top-level areas, in display order. A domain's
 # `area` must be one of these, so a typo cannot create a new one.

@@ -48,7 +48,7 @@ rather than a flat factor. Measured, the penalty runs from 1.72× to 2.08×:
 BPSK and QPSK reach ~2× by 6–8 dB Es/N0, while 8PSK — the case below — pays
 1.72× at 8 dB and 2.07× by 14 dB, so a link sized at low Es/N0 is charged less
 than the round number suggests
-([validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md)
+([validation report](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/mpsk/tests/validation/mpsk/results.md)
 §2.4, [design §9.5](../design/mpsk.md)):
 
 ```python

@@ -64,4 +64,4 @@ independent per-source work the fan-out spreads.
 python -m doppler.examples.crowded_band_demo crowded_band_demo.png
 ```
 
-Source: [`crowded_band_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/crowded_band_demo.py)
+Source: [`crowded_band_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/crowded_band_demo.py)

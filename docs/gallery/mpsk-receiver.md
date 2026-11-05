@@ -88,7 +88,7 @@ the one most callers reach for first is blind to the level.
 the input level, so each 4× step in amplitude moves the reading by exactly
 `20·log10(4) = 12.04 dB` — measured 12.04 and 12.04 across a 16× span, and
 constant to under 0.01 dB across 32× in the
-[validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/mpsk_receiver/results.md)'s
+[validation report](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/track/tests/validation/mpsk_receiver/results.md)'s
 §2.9. So a reading far from 0 dB means what it says: *the input is this far from
 the level the cascade was built for.*
 

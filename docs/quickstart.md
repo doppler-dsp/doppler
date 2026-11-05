@@ -170,12 +170,15 @@ The C examples are not in the pip wheel: they are built from a clone of the
 repository, once (all it needs is a C compiler — see
 [Build from source](#build-from-source)):
 
+<!-- doc-version:start -->
+
 ```bash
-git clone https://github.com/doppler-dsp/doppler
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler
 cd doppler
 make          # builds ./build/native/examples/transmitter, receiver, etc.
 ```
 
+<!-- doc-version:end -->
 Then mix and match, from that clone:
 
 ```bash
@@ -292,8 +295,10 @@ the Rust FFI bindings, running the test suite, or contributing.
     `make install-deps` bootstraps it for you (installs system build
     dependencies too). Or by hand: [Get `jbx`](install/c.md#get-jbx).
 
+<!-- doc-version:start -->
+
 ```bash
-git clone https://github.com/doppler-dsp/doppler
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler
 cd doppler
 make install-deps  # bootstrap jbx (if needed) + install system deps
 make               # C library + examples
@@ -301,13 +306,15 @@ make pyext         # Python extensions
 make test-all      # C, Python and example test suites (Rust: make test-rust)
 ```
 
+<!-- doc-version:end -->
+
 You'll need a C compiler — your system's default one is enough, no C++
 toolchain is required anywhere in the build (the core library and the
 optional stream component, which vendors `nats.c`, are both pure C99).
 
 ??? note "Installing system deps by hand instead"
 
-    `make install-deps` reads [`bootstrap.toml`](https://github.com/doppler-dsp/doppler/blob/main/bootstrap.toml),
+    `make install-deps` reads [`bootstrap.toml`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/bootstrap.toml),
     the single source of truth for doppler's system deps, so it stays in
     sync automatically. To install them yourself instead:
 

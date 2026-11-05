@@ -140,7 +140,7 @@ description with fields called `"preamble"`, `"sync"`, `"payload"` and
 measurement rather than a claim.
 
 The worked version of that check, and of every claim above, is
-[`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/wfmgen_frame_demo.c):
+[`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/native/examples/wfmgen_frame_demo.c):
 it composes framed against unframed, demodulates the frame back to the
 description's own bits, shows one description making a three-frame record
 from three chunks of data -- its payload a `data:LEN` field, each frame the

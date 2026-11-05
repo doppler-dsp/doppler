@@ -10,7 +10,7 @@ Python module `doppler.agc`. Area: [Synchronization](index.md#synchronization).
 
 | Name | Kind | API | Guide | Gallery | Example | Design |
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
-| `AGC` | class | [AGC](../api/python-agc.md) | &nbsp; | [AGC Settling — a design chart](../gallery/agc-settling-design.md)<br>[AGC — Step Response](../gallery/agc.md) | [agc_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/agc_demo.py)<br>[agc_settling_design_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/agc_settling_design_demo.py)<br>[telemetry_fanin_demo](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/telemetry_fanin_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[MPSK Receiver](../design/mpsk.md) |
+| `AGC` | class | [AGC](../api/python-agc.md) | &nbsp; | [AGC Settling — a design chart](../gallery/agc-settling-design.md)<br>[AGC — Step Response](../gallery/agc.md) | [agc_demo](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/agc_demo.py)<br>[agc_settling_design_demo](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/agc_settling_design_demo.py)<br>[telemetry_fanin_demo](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/telemetry_fanin_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[MPSK Receiver](../design/mpsk.md) |
 | `settling_samples` | function | [settling_samples](../api/python-agc.md) | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
 
 ## Gallery pages in this domain

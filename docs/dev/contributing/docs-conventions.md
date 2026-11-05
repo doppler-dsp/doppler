@@ -264,3 +264,26 @@ Dockerfiles read them via just-bashit. The per-distro
 `patchelf` and `rust`, which only the wheel-repair and Rust-test paths
 need — see the script's docstring). Never edit the scripts: change
 `bootstrap.toml` and run `make docs-relink`; CI fails on any drift.
+
+## Linking the repository from a page
+
+A reader of the deployed docs installed a **release**, so a link into the
+repository points at that release, never at `main`:
+
+```text
+https://github.com/doppler-dsp/doppler/blob/v<version>/path/to/file
+```
+
+Write it once with any released version; `make docs-relink` re-stamps it on
+every release (`gen_doc_versions.py`), anywhere in a page, with no marker
+around it. A `git clone` in a page takes `--branch v<version>` inside a
+doc-version region for the same reason.
+
+`scripts/check_repo_links.py` (`make lint`) holds it: no `blob/main` or
+`tree/main` link and no unpinned `git clone` outside the pages
+`docs/.main-links-allowed` lists (the contributing pages, which are about
+`main`), and every pinned link must name a file that exists in the tree **and
+at the tag**. The tag is fetched when it is not local; in CI a tag that cannot
+be fetched is a failure, and a version with no tag on the remote yet (the
+release PR) is checked against the working tree only, and says so. A link to a
+file added since the last release fails until that release ships.

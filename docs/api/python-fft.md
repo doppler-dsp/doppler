@@ -8,7 +8,7 @@ a multiple of 16 with no prime factor above 5; any other length is promoted to
 double and returned as `complex64`.
 
 Source:
-[`src/doppler/spectral/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/__init__.py)
+[`src/doppler/spectral/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/spectral/__init__.py)
 
 ______________________________________________________________________
 

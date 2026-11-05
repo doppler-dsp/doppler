@@ -11,7 +11,7 @@ Everything in the `doppler.wfm` package imports from one place — `from doppler
 to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-nats-sink) below).
 
 Source:
-[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/__init__.py)
+[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/wfm/__init__.py)
 
 These same C cores back the one command-line tool, `wfmgen` — see the
 [Waveform Generator guide](../guide/wfmgen/index.md).

@@ -187,4 +187,4 @@ zero-copy streaming pipeline wants.
 python src/doppler/examples/ddc_fn_demo.py
 ```
 
-Source: [`src/doppler/examples/ddc_fn_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/ddc_fn_demo.py)
+Source: [`src/doppler/examples/ddc_fn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.79.0/src/doppler/examples/ddc_fn_demo.py)

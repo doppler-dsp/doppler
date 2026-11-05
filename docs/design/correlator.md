@@ -192,18 +192,38 @@ classes as `[[correlator.views]]`. Each view has its own `class_name`,
 A view can also override a parent method under the same Python name, with
 a `fn` of its own: `MpskReceiverR`'s `[[mpsk_receiver.views.methods]]`
 `steps` and `bits` are the precedent. The 1-D detector view overrides `push`
-with a C function that returns today's `(lag, peak, noise, stat)`. Where
-the views' surfaces differ today, each keeps its own:
+with a C function that returns today's `(lag, peak, noise, stat)`.
 
-| view             | differs from its 2-D twin                                                     | carried by                                                                           |
-| ---------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `Corr`           | an `n` property, which `Corr2D` lacks; `set_ref` returns `void`, not `int`    | a view property `n`; the view's own `set_ref` `fn`                                   |
-| `CorrDetector`   | `dwell` and `count` are `expr`s over the composed `Corr`; `push` returns lags | the same properties as fields of the one state; the view's own `push` `fn`           |
-| `Corr2D`         | (the parent)                                                                  | `DelayDoppler` stays its view, `exclude_properties = ["nx_out", "col_out"]` as today |
-| `CorrDetector2D` | `push` returns `(row, col, peak, noise, stat)`                                | the one hit record, as it is                                                         |
+**The rule for each view's surface:** a view excludes every parent member
+its class does not have today, and adds none, so each class keeps exactly
+today's members, names and signatures. The parent carries the union of
+today's five surfaces:
 
-Each sub-step's PR lists its views' exact `exclude_*` and own members, and
-`make drift-check` and `make test-stubs` hold the stubs to them.
+- the map methods `execute`, `execute_all`, `execute_coherent`,
+    `execute_power_sum`, `execute_power_max`, `execute_peaks`,
+    `bank_power_max` and `bank_detect`;
+- the detection method `push`;
+- the properties `n`, `ny`, `nx`, `ny_out`, `nx_out`, `n_out`, `col_out`,
+    `dwell`, `count`, `ring_cap`, `noise_lo`, `noise_hi`, `threshold` and
+    `last_corr`.
+
+`DelayDoppler` stays a view of `Corr2D`'s flavor, with today's
+`exclude_properties = ["nx_out", "col_out"]`. The differences between a
+1-D class and its 2-D twin are these, and only these:
+
+| view           | differs from its 2-D twin                                                                                                                 | carried by                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `Corr`         | it has `n`, which `Corr2D` lacks, and lacks `ny`, `nx`, `ny_out`, `nx_out`, `col_out` and every `execute_*` and `bank_*` beyond `execute` | the rule: `n` kept, the rest excluded              |
+| `CorrDetector` | `push` returns `(lag, peak, noise, stat)`, not `(row, col, peak, noise, stat)`; it lacks `ny` and `nx`                                    | the view's own `push` `fn`; `ny` and `nx` excluded |
+
+Both detectors already read `dwell` and `count` the same way, as `expr`s
+over their composed correlator (`objects/detector.toml` and
+`objects/detector2d.toml`), so those become fields of the one state for
+both. `set_ref`, `void` in 1-D and `int` in 2-D, is C-only: no class binds
+it, so the C rename (above) covers it and no view does.
+
+Each sub-step's PR lists its views' `exclude_*` as the rule gives them, and
+`make drift-check` and `make test-stubs` hold the stubs to today's.
 
 ## 6. Goals, and what is not known yet
 
@@ -261,9 +281,20 @@ Each is its own PR, tracked by an issue of its own under #2752.
 
 1. **3.1, this page.**
 
-1. **3.1b, the small-n rows, on main first.** `bench_corr_core.c` gains
-    n = 31, 63 and 127, and `bench_detector_core.c` frames of 31, 63 and 127,
-    on today's code. Their bench-box numbers are U1's baseline.
+1. **3.1b, the small-n rows, on main first.** On today's code, so their
+    bench-box numbers are U1's baseline:
+
+    - `bench_corr_core.c` gains `corr::execute[accumulate][n=31]`,
+        `[n=63]` and `[n=127]`, and `corr::execute[dump][n=31]`, `[n=63]`
+        and `[n=127]`;
+    - `bench_detector_core.c` gains `detector::push[frame=31]`,
+        `[frame=63]` and `[frame=127]`, each pushing one frame a call.
+
+    **Each row checks what it timed**, #2832's pattern. Its input carries
+    the reference at a planted lag; after the timing, the row asserts the
+    peak is at that lag (the map's argmax, or the detector's hit), and
+    `exit 1` otherwise. The PR proves each check red by sabotage: plant the
+    reference one lag off.
 
 1. **3.2, the map and the 1-D detector's engine.** Nothing is deleted until
     the evidence is committed and green:
@@ -294,6 +325,13 @@ Each is its own PR, tracked by an issue of its own under #2752.
 
     The oracle:
 
+    - **an equivalence run before the switch:** a C test pushes the same
+        streams through `dp_detector_*` and through `dp_detector2d_*` at
+        `ny = 1`, today's two objects. It asserts every hit identical,
+        `(lag, peak, noise, stat)` against `(0, col, peak, noise, stat)`,
+        over the four noise modes, dwells 1 and 2, three lengths and odd
+        chunks (§2.1's prototype, committed), proven red by sabotage. It then
+        runs against the two detector flavors;
     - `test_detector_core.c`'s streaming oracle, ported verbatim: chunk
         invariance, `consumed` and re-offer, `reset`, and `set_state`
         mid-stream;
@@ -330,11 +368,27 @@ B's. **The budget is no SLOWER verdict on any row**, where a verdict counts
 only if the same row is flagged twice (step 2's rule). A row that slows
 within budget is stated with its ratio, never left unsaid.
 
-| sub-step | rows                                                                                                                                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.2      | `corr::execute[accumulate]` and `execute[dump]` at every n and dwell, the 3.1b rows; every `corr2d::*` row (`delay_doppler_*`, `bank_*`, `batch_*`, `single_row_fast_path`, `multi_row_general_path`) |
-| 3.3      | `detector::push[chunk=…]` at every chunk, the 3.1b rows; `detector2d::push[…]` at every shape; `carrier_acq::detect[pad=4]`, `[pad=16]`                                                               |
-| 3.4      | every `acq::*` row (`op5M_*`, `op2M_*`, `native`, the `_fc` rows); `async_dsss_pool::push[…]`; `burst_capture::push[4 bursts]`                                                                        |
+The rows, by family, as `benchmarks/published/` names them (the 3.1b rows
+join once they land):
+
+| sub-step | family                       | rows                                                                                                                                                                                                                                                          |
+| -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.2      | `corr::execute`              | `[accumulate]` and `[dump]`, each at `[n=1024]` and `[n=16384]`; 3.1b's `[n=31]`, `[n=63]`, `[n=127]`                                                                                                                                                         |
+| 3.2      | `corr2d::` single shapes     | `single_row_fast_path`, `multi_row_general_path`                                                                                                                                                                                                              |
+| 3.2      | `corr2d::delay_doppler_`     | `32x1024_1t`, `256x4096_1t`, `256x4096_all`                                                                                                                                                                                                                   |
+| 3.2      | `corr2d::batch_64x512_h48_`  | `execute_loop_1t`, `all_1t`, `power_max_1t`, `execute_loop_all`, `all_all`, `power_max_all`                                                                                                                                                                   |
+| 3.2      | `corr2d::bank_64x512_`       | `c12_corrected_batch_1t`, `c12_l4_1t`, `c6_l2_1t`, `detect_l2_l4_1t`                                                                                                                                                                                          |
+| 3.3      | `detector::push`             | `[chunk=64]`, `[chunk=1024]`, `[chunk=16384]`, `[chunk=1024,no-detections]`; 3.1b's `[frame=31]`, `[frame=63]`, `[frame=127]`                                                                                                                                 |
+| 3.3      | `detector2d::push`           | `[16x1024]`, `[128x128]`, `[1024x16]`, `[128x128,no-detections]`                                                                                                                                                                                              |
+| 3.3      | `carrier_acq::detect`        | `[pad=4]`, `[pad=16]`                                                                                                                                                                                                                                         |
+| 3.4      | `acq::`                      | `native_nc90`, `op5M_U50k_nc254`, `op2M_U50k_nc57`, `op5M_U5k_nc225`, `op2M_U5k_nc51`, `op5M_U50k_t8_nc254`, `op5M_U50k_D150_t1_nc1`, `op5M_U50k_D150_t8_nc1`, `op2M_U50k_D60_t1_nc1`, `op2M_U50k_D60_t4_nc1`, `op5M_U5k_D150_t1_nc1`, `op5M_U5k_D150_t4_nc1` |
+| 3.4      | `async_dsss_pool::push`      | `[native,n=1,threads=1]`, `[native,n=4,threads=1]`, `[native,n=4,threads=4]`, `[full,n=1,threads=1]`, `[full,n=4,threads=1]`                                                                                                                                  |
+| 3.4      | `async_dsss_receiver::steps` | `[track,sf=1023,3.069Mcps]`, `[search,sf=1023,3.069Mcps]`                                                                                                                                                                                                     |
+| 3.4      | `burst_capture::push`        | `[4 bursts]`                                                                                                                                                                                                                                                  |
+
+acq's carrier and five-tile rows from step 2 (`op5M_U10k_D150_t1`, the
+`_fc` rows) are on main's bench but not yet in a published set; 3.4's PR
+names them with the rest.
 
 ## 8. Not in step 3
 

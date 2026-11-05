@@ -1214,9 +1214,9 @@ dp_async_dsss_receiver_create (
   if (carrier_freq_hz > 0.0
       && dp_acq_set_carrier_freq_hz (obj->acq, carrier_freq_hz) != DP_OK)
     {
-      dp_acq_destroy (obj->acq);
-      free (obj->code);
-      free (obj);
+      /* The search resampler and its history may be built by now; destroy
+         frees whatever the zeroed object holds. */
+      dp_async_dsss_receiver_destroy (obj);
       return NULL;
     }
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is

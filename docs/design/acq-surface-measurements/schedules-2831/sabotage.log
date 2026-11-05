@@ -1,13 +1,68 @@
-== shared: offset sign in the table: RED; 6 failing check(s)
-== both: ramp phase sign in the table: RED; 6 failing check(s)
-== both: ramp origin at epoch 0: RED; 6 failing check(s)
-== slow first: slow-time pad not zero: RED; 8 failing check(s)
-== slow first: row table shifted: RED; 21 failing check(s)
-== the rule: a tie to rows first: RED; 2 failing check(s)
-== the rule: no resolution band: RED; 1 failing check(s)
-== the rule: fused ignored: RED; 1 failing check(s)
-== refusal: a fine grid at one slow row accepted: RED; 1 failing check(s)
-== rows first: ramp phase sign: RED; 6 failing check(s)
-== rows first: column pad not zero: RED; 21 failing check(s)
-== rows first: column scatter shifted: RED; 17 failing check(s)
-== rows first: weight dropped: RED; 9 failing check(s)
+== shared: offset sign in the table: RED; 6 failing check(s) [ctest:test_corr2d_core]
+    FAIL: the block map is its definition
+    FAIL: the block map is its definition
+    FAIL: the block map is its definition
+== both: ramp phase sign in the table: RED; 6 failing check(s) [ctest:test_corr2d_core]
+    FAIL: the block map is its definition
+    FAIL: the block map is its definition
+    FAIL: the block map is its definition
+== both: ramp origin at epoch 0: RED; 6 failing check(s) [ctest:test_corr2d_core]
+    FAIL: the block map is its definition
+    FAIL: the block map is its definition
+    FAIL: the block map is its definition
+== slow first: slow-time pad not zero: RED; 8 failing check(s) [ctest:test_corr2d_core]
+    FAIL: the block map is its definition
+    FAIL: the two schedules are one map
+    FAIL: the block map is its definition
+== slow first: row table shifted: RED; 21 failing check(s) [ctest:test_corr2d_core]
+    FAIL: one signal, one record
+    FAIL: the record is the signal's fine carrier and lag
+    FAIL: the refine equals the fine bank's map at the cell
+== the rule: a tie to rows first: RED; 2 failing check(s) [ctest:test_corr2d_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:1699  dp__dd_schedule (&x, 1, 1, 0) == DP__DD_SLOW_FIRST
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:1711  dp__dd_schedule (&a3, 3, 1, 0) == DP__DD_SLOW_FIRST
+== the rule: no resolution band: RED; 1 failing check(s) [ctest:test_corr2d_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:1711  dp__dd_schedule (&a3, 3, 1, 0) == DP__DD_SLOW_FIRST
+== the rule: fused ignored: RED; 1 failing check(s) [ctest:test_corr2d_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:1700  dp__dd_schedule (&x, 1, 1, 1) == DP__DD_ROWS_FIRST
+== refusal: a fine grid at one slow row accepted: RED; 1 failing check(s) [ctest:test_corr2d_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:1725  dp__dd_map_create (&bad[k], 1) == NULL
+== rows first: ramp phase sign: RED; 6 failing check(s) [ctest:test_corr2d_core]
+    FAIL: the block map is its definition
+    FAIL: the two schedules are one map
+    FAIL: the block map is its definition
+== rows first: column pad not zero: RED; 21 failing check(s) [ctest:test_corr2d_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:201  err < 1e-5
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:201  err < 1e-5
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:201  err < 1e-5
+== rows first: column scatter shifted: RED; 17 failing check(s) [ctest:test_corr2d_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:201  err < 1e-5
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:201  err < 1e-5
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/corr2d/test_corr2d_core.c:201  err < 1e-5
+== rows first: weight dropped: RED; 9 failing check(s) [ctest:test_corr2d_core]
+    FAIL: bank map h == the hand-corrected frame's map
+    FAIL: bank map h == the hand-corrected frame's map
+    FAIL: bank map h == the hand-corrected frame's map
+== carrier: set_carrier writes the field before the regrid: RED; 82 failing check(s) [ctest:test_acq_regrid_failure]
+    FAIL: the grid, the carrier and the map are as they were
+    FAIL: and the blob is byte for byte the one before
+    FAIL: the grid, the carrier and the map are as they were
+== carrier: the regrid commits it before its builds: RED; 164 failing check(s) [ctest:test_acq_regrid_failure]
+    FAIL: the grid, the carrier and the map are as they were
+    FAIL: and the blob is byte for byte the one before
+    FAIL: the grid, the carrier and the map are as they were
+== carrier: set_state restores the framer before its rebuild: RED; 61 failing check(s) [ctest:test_acq_regrid_failure]
+    FAIL: and the blob is byte for byte the one before
+    FAIL: and the blob is byte for byte the one before
+    FAIL: and the blob is byte for byte the one before
+== position: BurstCapture drops its child's position check: RED; 11 failing check(s) [ctest:test_burst_capture_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/burst_capture/test_burst_capture_core.c:1107  rc == DP_ERR_INVALID
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/burst_capture/test_burst_capture_core.c:1108  memcmp (now, blob, cb) == 0
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/burst_capture/test_burst_capture_core.c:1108  memcmp (now, blob, cb) == 0
+== position: state_position drops the carry: RED; 1 failing check(s) [snippets:dp_acq_state_position]
+    FAILED src/doppler/tests/test_c_header_code.py::test_c_header_code[doppler/acq/acq_core.h::dp_acq_state_position]
+== position: state_pending counts frames x hop (framer test): RED; 2 failing check(s) [ctest:test_framer_core]
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/buffer/test_framer_core.c:1173  reports
+    FAIL /home/matt/doppler/.claude/worktrees/2752-acq/native/tests/buffer/test_framer_core.c:1177  dp_f32_framer_state_pending (&b, blob, &p) == DP_OK && p == 1
+== position: state_pending counts frames x hop (header example): RED; 1 failing check(s) [snippets:_framer_state_pending]
+    FAILED src/doppler/tests/test_c_header_code.py::test_c_header_code[doppler/buffer/buffer.h::_framer_state_pending]

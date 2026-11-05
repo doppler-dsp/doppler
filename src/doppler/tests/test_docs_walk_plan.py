@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -26,8 +27,8 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 INSTALL = REPO / "tests" / "install"
 WALK = INSTALL / "docs-walk.sh"
-pytestmark = pytest.mark.skipif(
-    shutil.which("bash") is None, reason="needs bash"
+pytestmark = posix_only(
+    "runs bash (System32's bash is the WSL launcher on a Windows runner)"
 )
 
 

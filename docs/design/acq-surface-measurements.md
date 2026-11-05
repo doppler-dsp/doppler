@@ -411,3 +411,36 @@ check, reading hypothesis 44 for 68. A sabotage script had restored the
 source but not rebuilt it, so the binaries carried its last sabotage, a
 dropped rows-first weight. After a rebuild, both schedules match
 `execute()` on hand-corrected frames to 3e-5 of a 217 peak.
+
+### 18.7 The carrier's failure paths (step 2.3, review)
+
+The carrier now rebuilds the map, so setting it can fail, and the review
+asked that a failure commit nothing. `test_acq_regrid_failure` counts every
+plan, `malloc`, `calloc` and `realloc` that acq's and the map's sources make,
+and fails each in turn. It sweeps the carrier on, moved and off, through
+`set_carrier_freq_hz` and through `set_state`, on a tiled engine left
+mid-block. Two outcomes are allowed:
+
+- **A build before the commit refuses the change:** `DP_ERR_MEMORY`, with
+    the grid, the map and the blob byte for byte as they were.
+- **The map's worker-slot reserve, after the commit, degrades:** the change
+    succeeds with the unarmed change's blob, and finds the same hits on the
+    same stream after it.
+
+Each of the six cases reaches both outcomes. BurstCapture no longer undoes a
+child it restored at the wrong position: `dp_acq_state_position` reads the
+position a blob records first, on the framer's `state_pending`.
+
+Seven more sabotages each go red (`schedules-2831/sabotage.log`, now twenty
+in all):
+
+- three on the carrier: the field written before the regrid, the carrier
+    committed before the builds, the framer restored before the rebuild;
+- BurstCapture's position check dropped;
+- `state_position` without the carry;
+- `state_pending` counting frames × hop, against the framer test and against
+    the header example (overlapping frames, where the two differ).
+
+**§2.8's `noise_est` values keep their scale.** The acq report's
+`noise_mode` table runs on a narrow engine (`configure_search_raw` pins one
+tile), and the narrow path had the one scale before the map.

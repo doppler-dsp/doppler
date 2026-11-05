@@ -1924,7 +1924,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 check-wheel-tags release-wheel-tags \
-                release-smoke-packages consumer-walk \
+                release-smoke-packages consumer-walk docs-walk docs-walk-docker \
                 bench-python bench-rx \
                 bench-preflight bench-interleaved bench-ab bench-publish \
                 bench-docs \
@@ -3316,6 +3316,46 @@ consumer-walk: ## Do what the docs tell a new .deb user to do, in a clean ubuntu
 	    docker run --rm --init --pull=never -v "$(CURDIR)":/w:ro -w /w \
 	        $(CONSUMER_WALK_IMAGE) bash tests/install/consumer-walk.sh /w \
 	    || { echo "consumer-walk: FAILED (the line above says why)"; exit 1; }
+
+# Walk every install path the docs name, from a blank machine, using the pages'
+# own commands (tests/install/docs-walk.sh extracts each from its page): pip
+# with the [examples] extra, the quick start's Python blocks, a gallery example,
+# wfmgen, the C tarball and its three compile faces, a clone + `make build`, the
+# .debs (doppler#2857). One BARE container per stage.
+#
+#   make docs-walk                                  # published: the real release
+#   make docs-walk WALK_MODE=candidate              # pre-release dry run
+#
+# candidate builds the wheel, the C tarball and the .debs from a clone of HEAD in
+# a container of the walk's own image (so the glibc matches; any of them given in
+# WALK_ARTIFACTS, CI's own, is used instead) and substitutes them for the pinned
+# version text, one substitution per page command; published runs the commands as
+# the pages write them, against PyPI and the GitHub Release (release.yml, after
+# publish). CONTAINER is docker on a runner and podman where that is what the box
+# has. The driver is a bash script, not a recipe: this Makefile's SHELL is sh, and
+# dash has no `pipefail`. The transcript is WALK_LOG.
+WALK_MODE      ?= published
+WALK_ARTIFACTS ?=
+WALK_IMAGE     ?= $(STOCK_REGISTRY)/ubuntu:24.04
+WALK_VERSION   ?= $(shell sed -n 's/^version *= *"\(.*\)"/\1/p' pyproject.toml | head -1)
+WALK_LOG       ?= docs-walk-$(WALK_MODE).log
+CONTAINER      ?= docker
+docs-walk: ## Walk every install path the docs name in a clean container (WALK_MODE=candidate|published)
+	@./scripts/with-deadline.sh $(PKG_SMOKE_DEADLINE) 1 \
+	    env $(STOCK_PULL) $(WALK_IMAGE) \
+	    || { echo "docs-walk: could not pull $(WALK_IMAGE)"; exit 1; }
+	@WALK_MODE=$(WALK_MODE) WALK_VERSION=$(WALK_VERSION) WALK_IMAGE=$(WALK_IMAGE) \
+	 CONTAINER=$(CONTAINER) WALK_LOG=$(WALK_LOG) WALK_ARTIFACTS=$(WALK_ARTIFACTS) \
+	 UV_VERSION=$(UV_VERSION) WORK_DIR=$(abspath $(BUILD_DIR)) \
+	 ./scripts/with-deadline.sh 5400 1 bash tests/install/docs-walk-host.sh walk
+
+# The Docker path of the same walk, from the HOST (a container cannot start
+# one): docs/install/docker.md's `docker run ... doppler --help`, extracted from
+# the page and run unpiped, so its exit status is the verdict. Published only --
+# a candidate's image is built, and smoke-tested, by the Docker CI job.
+docs-walk-docker: ## Run docs/install/docker.md's `docker run ... doppler --help` against the published image
+	@WALK_VERSION=$(WALK_VERSION) WALK_IMAGE=$(WALK_IMAGE) CONTAINER=$(CONTAINER) \
+	 bash tests/install/docs-walk-host.sh docker
 
 # The packaged archive, consumed the way a downstream consumes the published
 # one: extract it into a fresh prefix and run the release smoke against that

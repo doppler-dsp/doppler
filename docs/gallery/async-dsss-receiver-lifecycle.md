@@ -139,9 +139,9 @@ assert cap.count > 0 and cap.dropped == 0
 `scripts/plot_capture.py` is in the repository, not the wheel. Clone the
 release you installed (skip this if you have one):
 
-<!-- docs-snippet: no-exec=clones the repository -->
-
 <!-- doc-version:start -->
+
+<!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
 git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler

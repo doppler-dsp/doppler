@@ -270,9 +270,9 @@ roster yourself rather than trust a number that will drift out of date here:
 These run from a clone of the repository at the release you installed
 (skip this if you have one):
 
-<!-- docs-snippet: no-exec=clones the repository -->
-
 <!-- doc-version:start -->
+
+<!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
 git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler

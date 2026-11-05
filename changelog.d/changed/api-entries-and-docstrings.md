@@ -2,4 +2,5 @@
     internal note.** `Spectrogram`, `DsssBurstReceiver`, `wfm.Gold` and
     `BerInterval` are documented in the API pages; `DsssBurstReceiver` and
     `BurstDemod` now say what they do. See
-    [#2723](https://github.com/doppler-dsp/doppler/issues/2723).
+    [#2723](https://github.com/doppler-dsp/doppler/issues/2723) and
+    [#2855](https://github.com/doppler-dsp/doppler/issues/2855).

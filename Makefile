@@ -1110,7 +1110,13 @@ WHEEL_CMD = $(UV) build --wheel
 # invocation, so a clean checkout renders identically to CI. A stale local
 # zensical.toml (gitignored, absent in CI) shadows mkdocs.yml and silently
 # truncates the nav, so it is removed before every build.
-ZENSICAL     = $(MEM_GUARD_CMD) $(UV) run --group docs zensical
+# The build runs under its OWN memory ceiling, well under the shared guard's
+# (3/4 of RAM): measured, a cold strict build of the 918 pages peaks near
+# 520 MB, so 2G leaves four times that. The ceiling is what turns a return of
+# the runaway (zensical 0.0.45 + mkdocstrings 1.0.4 grew past 4 GB and took
+# the whole slice with it, #2840) into a fast, named failure on one command.
+DOCS_MEM_MAX ?= 2G
+ZENSICAL     = MEM_GUARD_MAX=$(DOCS_MEM_MAX) $(MEM_GUARD_CMD) $(UV) run --group docs zensical
 DOCS_PREPARE = @rm -f zensical.toml
 
 # The docs gate: every check runs, every failure is reported in one pass. The

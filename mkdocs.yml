@@ -10,6 +10,12 @@ repo_url: https://github.com/doppler-dsp/doppler
 repo_name: doppler-dsp/doppler
 copyright: Copyright &copy; 2026 doppler contributors — MIT License
 docs_dir: docs
+# docs/api.md is the stub just-makeit generates (a `::: doppler` directive);
+# api/index.md is the real API page, and both map to api/index.html. zensical
+# 0.0.74 refuses two owners of one page (0.0.45 let one silently win), so the
+# stub is left out of the build, not deleted: the manifest-drift gate wants it.
+exclude_docs: |
+  /api.md
 site_dir: site
 
 extra_css:

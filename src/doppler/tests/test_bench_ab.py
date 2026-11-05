@@ -343,6 +343,9 @@ def test_an_aliased_row_slower_in_b_still_fails(monkeypatch):
 def test_an_aliased_row_on_one_side_only_is_refused(
     monkeypatch, capsys, a, b, row
 ):
+    # An unaliased row both sides share, so the run reaches its verdicts
+    # whatever the alias pairs.
+    a, b = {**a, "fft::z": 1.0}, {**b, "fft::z": 1.0}
     _fake_main(monkeypatch, [a] * 3, [b] * 3)
     assert AB.main(["A", "B", *RENAME]) == 1
     out = capsys.readouterr().out

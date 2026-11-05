@@ -32,11 +32,10 @@
  * by PLANT samples, and checks after its timing that a push reports one
  * hit at that lag, or the bench fails.
  */
-#include "doppler/cvt/cvt_core.h"
 #include "doppler/detector/detector_core.h"
 #include "doppler/dp_complex.h"
-#include "doppler/pn/pn_core.h"
 #include "dp_bench.h"
+#include "dp_bench_pn.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,29 +62,6 @@ static const uint32_t small_bits[N_SMALL] = { 5, 6, 7 };
 #define REPS 64   /* frames a round, one a push */
 #define GATE 3.0f /* peak over noise: an m-sequence clears it by far */
 
-/* One period of the m-sequence of an n-bit register as +-1 NRZ samples, from
-   the shipped generator and mapper. Returns the period, or 0. */
-static size_t
-pn_nrz (uint32_t bits, float _Complex *out, size_t cap)
-{
-  const size_t   n    = ((size_t)1 << bits) - 1;
-  dp_pn_state_t *pn   = dp_pn_create_mls (0, 1, bits, 0);
-  uint8_t       *chip = malloc (n);
-  float         *nrz  = malloc (n * sizeof *nrz);
-  size_t         got  = 0;
-  if (pn && chip && nrz && n <= cap && dp_pn_generate (pn, n, chip, n) == n
-      && dp_bin_to_nrz (chip, n, nrz, n) == n)
-    {
-      for (size_t i = 0; i < n; i++)
-        out[i] = nrz[i];
-      got = n;
-    }
-  dp_pn_destroy (pn);
-  free (chip);
-  free (nrz);
-  return got;
-}
-
 /* The short rows: REPS one-frame pushes a round, then checked. A fresh push
    of one frame must report exactly one hit, at PLANT. Returns 0, or 1 when a
    row does not detect what it was timed detecting. */
@@ -99,7 +75,7 @@ bench_small (jm_bench_t *bench)
   char         name[72];
   for (int s = 0; s < N_SMALL; s++)
     {
-      const size_t n = pn_nrz (small_bits[s], ref, 127);
+      const size_t n = dp_bench_pn_nrz (small_bits[s], ref, 127);
       if (n == 0)
         return 1;
       for (size_t i = 0; i < REPS * n; i++)

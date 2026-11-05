@@ -441,6 +441,60 @@ unit = "sample"
 definition = "The op5M_U10k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp: the row the one delay-Doppler map's schedule rule runs rows first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
 samples = 1
 
+["c:corr::execute[accumulate][n=31]"]
+name = "1-D correlator, accumulate, 31 samples"
+unit = "sample"
+definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 31-sample frames of a 31-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:corr::execute[accumulate][n=63]"]
+name = "1-D correlator, accumulate, 63 samples"
+unit = "sample"
+definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 63-sample frames of a 63-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:corr::execute[accumulate][n=127]"]
+name = "1-D correlator, accumulate, 127 samples"
+unit = "sample"
+definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 127-sample frames of a 127-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:corr::execute[dump][n=31]"]
+name = "1-D correlator, dump, 31 samples"
+unit = "sample"
+definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 31-sample frames of a 31-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:corr::execute[dump][n=63]"]
+name = "1-D correlator, dump, 63 samples"
+unit = "sample"
+definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 63-sample frames of a 63-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:corr::execute[dump][n=127]"]
+name = "1-D correlator, dump, 127 samples"
+unit = "sample"
+definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 127-sample frames of a 127-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:detector::push[frame=31]"]
+name = "1-D streaming detector, 31-sample frames"
+unit = "sample"
+definition = "64 pushes of one 31-sample frame each (ring, correlate, peak over noise, gate, emit) of a 31-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
+["c:detector::push[frame=63]"]
+name = "1-D streaming detector, 63-sample frames"
+unit = "sample"
+definition = "64 pushes of one 63-sample frame each (ring, correlate, peak over noise, gate, emit) of a 63-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
+["c:detector::push[frame=127]"]
+name = "1-D streaming detector, 127-sample frames"
+unit = "sample"
+definition = "64 pushes of one 127-sample frame each (ring, correlate, peak over noise, gate, emit) of a 127-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
 ["c:psd::frame_linear[nfft=16384]"]
 name = "PSD frame, linear power, 16,384 points"
 unit = "frame"

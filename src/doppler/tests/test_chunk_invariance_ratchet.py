@@ -236,6 +236,75 @@ def test_an_entry_added_since_the_base_fails_on_either_ratchet(
     assert mod.ratchet_added(path, "HEAD") == []
 
 
+#: The merge base's list for the rename cases: two entries that a rename
+#: merges into one.
+RENAME_BASE = "dp_a | no test yet\ndp_b | no test yet\n"
+
+
+def _renamed(seed: Seed, head: str) -> list[str]:
+    """`ratchet_added` with RENAME_BASE committed and `head` on disk."""
+    mod = seed(ratchet=RENAME_BASE)
+    mod.CHUNK_RATCHET.write_text(head)
+    return mod.ratchet_added(mod.CHUNK_RATCHET, "HEAD")
+
+
+def test_a_rename_carries_its_lines(seed: Seed) -> None:
+    """Two entries merged into one, each named and each gone: a rename."""
+    assert _renamed(seed, "dp_ab | merged | replaces: dp_a dp_b\n") == []
+
+
+def test_a_rename_of_one_entry_carries_it(seed: Seed) -> None:
+    head = "dp_a | no test yet\ndp_c | renamed | replaces: dp_b\n"
+    assert _renamed(seed, head) == []
+
+
+def test_replacing_a_key_the_base_never_held_is_added(seed: Seed) -> None:
+    """Condition 1: a carry needs something to carry."""
+    bad = _renamed(seed, "dp_c | x | replaces: dp_ghost\n")
+    assert len(bad) == 1
+    assert "'dp_c' ADDED" in bad[0]
+    assert "not on the base's list" in bad[0]
+
+
+def test_replacing_a_key_still_listed_is_added(seed: Seed) -> None:
+    """Condition 2: the old line must go, or the list grew by one."""
+    bad = _renamed(seed, RENAME_BASE + "dp_c | x | replaces: dp_a\n")
+    assert len(bad) == 1
+    assert "still listed at head" in bad[0]
+
+
+def test_one_key_backing_two_new_lines_is_added(seed: Seed) -> None:
+    """Condition 3: one old entry split into two would grow the list."""
+    head = (
+        "dp_b | no test yet\n"
+        "dp_c | x | replaces: dp_a\n"
+        "dp_d | y | replaces: dp_a\n"
+    )
+    bad = _renamed(seed, head)
+    assert len(bad) == 2
+    assert all("more than one new line" in b for b in bad)
+
+
+def test_a_new_line_with_no_replaces_is_still_added(seed: Seed) -> None:
+    bad = _renamed(seed, "dp_ab | merged\n")
+    assert len(bad) == 1
+    assert "may only shrink" in bad[0]
+
+
+def test_the_replaces_field_is_parsed_once_in_the_one_reader(
+    seed: Seed,
+) -> None:
+    """A `|` inside a reason stays in the reason; only a last field that opens
+    with `replaces:` is the carry."""
+    mod = seed()
+    held = mod.parse_ratchet(
+        "dp_x | a | b\ndp_y | r | replaces: dp_p dp_q\ndp_z | r | replaces:\n"
+    )
+    assert held["dp_x"] == ("a | b", ())
+    assert held["dp_y"] == ("r", ("dp_p", "dp_q"))
+    assert held["dp_z"] == ("r", ())
+
+
 def _mutator_list(
     mod: ModuleType, monkeypatch: pytest.MonkeyPatch, text: str
 ) -> Path:

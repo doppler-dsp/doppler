@@ -121,6 +121,8 @@ import pathlib
 import re
 import subprocess
 import sys
+from collections import Counter
+from typing import NamedTuple
 
 from _c_source import strip_comments
 from _gitbase import (
@@ -553,22 +555,51 @@ def roundtripped() -> set[str]:
     return found
 
 
-def parse_ratchet(text: str) -> dict[str, str]:
-    """`key | reason` lines of a ratchet file; `#` comments and blanks out."""
-    held: dict[str, str] = {}
+class RatchetEntry(NamedTuple):
+    """One ratchet line: why it is held, and which keys it carries forward."""
+
+    reason: str
+    #: Keys this line takes over, for a rename (`ratchet_added`); empty for
+    #: an ordinary line.
+    replaces: tuple[str, ...] = ()
+
+
+#: The optional last field of a ratchet line: `| replaces: <key> <key> ...`.
+REPLACES = "replaces:"
+
+
+def parse_ratchet(text: str) -> dict[str, RatchetEntry]:
+    """`key | reason [| replaces: <key> ...]` lines; `#` and blanks out.
+
+    The one reader of every `key | reason` ratchet. The last field, when it
+    opens with `replaces:`, names the keys the line takes over when an
+    object is renamed; ratchet_added() decides whether that carry is
+    allowed. Any other `|` stays part of the reason.
+
+    >>> e = parse_ratchet("dp_b | renamed | replaces: dp_a dp_c\\n")["dp_b"]
+    >>> e.reason, e.replaces
+    ('renamed', ('dp_a', 'dp_c'))
+    >>> parse_ratchet("# c\\ndp_x | a | b\\n")["dp_x"]
+    RatchetEntry(reason='a | b', replaces=())
+    """
+    held: dict[str, RatchetEntry] = {}
     for raw in text.splitlines():
         line = raw.strip()
-        if line and not line.startswith("#"):
-            key, _, reason = line.partition("|")
-            held[key.strip()] = reason.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, *fields = (f.strip() for f in line.split("|"))
+        replaces: tuple[str, ...] = ()
+        if len(fields) > 1 and fields[-1].startswith(REPLACES):
+            replaces = tuple(fields.pop()[len(REPLACES) :].split())
+        held[key] = RatchetEntry(" | ".join(fields), replaces)
     return held
 
 
-def read_ratchet(path: pathlib.Path) -> dict[str, str]:
+def read_ratchet(path: pathlib.Path) -> dict[str, RatchetEntry]:
     return parse_ratchet(path.read_text()) if path.exists() else {}
 
 
-def state_ratchet() -> dict[str, str]:
+def state_ratchet() -> dict[str, RatchetEntry]:
     return read_ratchet(STATE_RATCHET)
 
 
@@ -750,6 +781,16 @@ def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
     merge base for the reason ratchet() gives; a file that is new on this
     branch has no earlier list to have grown from. One helper for the state and
     chunk-invariance ratchets, so they cannot disagree about what "added" is.
+
+    **A rename carries its line; nothing else does.** A new key whose line
+    says `| replaces: <old> ...` is not ADDED only when all three hold:
+
+    1. every replaced key was on the merge base's list;
+    2. every replaced key is gone at head;
+    3. no replaced key backs a second new line, so a carry can merge entries
+       but never multiply them, and the list cannot grow by count.
+
+    Any one missing, and the line is ADDED, with the condition named.
     """
     try:
         rev = resolve_base(ROOT, base)
@@ -762,12 +803,29 @@ def ratchet_added(path: pathlib.Path, base: str) -> list[str]:
     then = show_at(ROOT, rev, rel)
     if then is None:
         return []
-    before = set(parse_ratchet(then))
-    return [
-        f"{rel}: '{k}' ADDED -- a ratchet may only shrink; fix the cause "
-        "(a test, a header) instead of forgiving it"
-        for k in sorted(set(read_ratchet(path)) - before)
-    ]
+    before = parse_ratchet(then)
+    now = read_ratchet(path)
+    added = sorted(set(now) - set(before))
+    backs = Counter(o for k in added for o in now[k].replaces)
+    bad: list[str] = []
+    for k in added:
+        old = now[k].replaces
+        why = []
+        if not old:
+            why.append("a ratchet may only shrink")
+        else:
+            if not_base := [o for o in old if o not in before]:
+                why.append(f"it replaces {not_base}, not on the base's list")
+            if kept := [o for o in old if o in now]:
+                why.append(f"it replaces {kept}, still listed at head")
+            if twice := [o for o in old if backs[o] > 1]:
+                why.append(f"{twice} would back more than one new line")
+        if why:
+            bad.append(
+                f"{rel}: '{k}' ADDED -- {'; '.join(why)}; fix the cause "
+                "(a test, a header) instead of forgiving it"
+            )
+    return bad
 
 
 #: A RATCHET over a Python gate's list: src/doppler/tests/test_mutator_state.py

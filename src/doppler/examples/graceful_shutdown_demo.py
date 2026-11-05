@@ -29,11 +29,14 @@ library's and not any one binding's:
 
 Run it::
 
-    python graceful_shutdown_demo.py
+    python -m doppler.examples.graceful_shutdown_demo
 
-Needs a NATS broker on 127.0.0.1:4222 (``make nats-up``). See
-``docs/design/io-termination.md`` for why all three questions are the same
-question wearing different clothes.
+Needs a NATS broker on 127.0.0.1:4222 (``make nats-up``) and, for the CLI
+face, a BUILT ``wfmgen``, which it finds by walking up from this file to a
+``build/`` tree. From a ``pip install`` there is no such tree, so the demo
+says ``wfmgen not built`` and exits 0 without running: run it from a clone
+after ``make build``. See ``docs/design/io-termination.md`` for why all three
+questions are the same question wearing different clothes.
 """
 
 from __future__ import annotations

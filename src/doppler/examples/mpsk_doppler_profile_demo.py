@@ -139,7 +139,12 @@ def _tail(n_idx: np.ndarray, vals: np.ndarray, lo: int, hi: int) -> np.ndarray:
 
 
 def main(out_path: str = "mpsk_doppler_profile_demo.png") -> None:
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

@@ -134,7 +134,7 @@ ______________________________________________________________________
 
 Doppler streams IQ data over NATS. Transmit and receive on the same
 machine or across a network — the API is identical. Either side
-needs a running `nats-server` (e.g. `nats-server -js`) to connect to.
+needs a running NATS server (see [Run a NATS broker](install/broker.md)) to connect to.
 
 ### Publisher (Python)
 

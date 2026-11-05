@@ -80,6 +80,8 @@ wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
 wfmgen --type tone --continuous --output nats://127.0.0.1:4222/iq
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 BLUE carries `fs` (as `xdelta = 1/fs`), the complex sample format, and byte
 order in its 512-byte header, so one file is fully self-describing.
 

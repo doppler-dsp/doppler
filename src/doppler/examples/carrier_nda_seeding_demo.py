@@ -151,7 +151,12 @@ def qpsk_at(f0: float, nsym: int = 6000, esno_db: float = 20.0) -> np.ndarray:
 
 
 def main(out_path: str) -> None:
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as e:  # an extra, not a dependency
+        raise SystemExit(
+            "needs matplotlib: pip install 'doppler-dsp[examples]'"
+        ) from e
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

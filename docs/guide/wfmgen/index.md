@@ -212,6 +212,8 @@ wfmgen --type bpsk --fs 1e6 --sps 8 --pn-length 7 \
 wfmgen --type qpsk --snr 10 --continuous --realtime --output nats://127.0.0.1:4222/iq
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../../install/broker.md); one command starts one.
+
 A scene from a JSON file — the spec format and a runnable example are in
 [Scenes](scenes.md#sequencing-segments-in-time):
 

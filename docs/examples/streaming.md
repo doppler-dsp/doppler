@@ -2,7 +2,7 @@
 
 ## C: PUB/SUB
 
-Requires a running `nats-server` (e.g. `nats-server -js`).
+Requires a running NATS server: [run one](../install/broker.md) (e.g. `nats-server -js`).
 
 `dp_pub_*`/`dp_sub_*` live in the **optional stream archive**, not the
 core library — an `undefined reference to dp_pub_create` means

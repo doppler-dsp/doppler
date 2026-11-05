@@ -70,7 +70,7 @@ The core library is pure C and links `-lm` and `-lpthread`, both part of a
 POSIX toolchain, so there is no external runtime dependency to install. The optional stream component
 (`libdoppler_stream`, for the NATS wire layer) embeds the vendored `nats.c`
 statically, so it too needs no external runtime NATS client library — just a
-running `nats-server` to connect to. See the
+running [`nats-server`](broker.md) to connect to. See the
 [static vs. dynamic linking design notes](../design/archive/STATIC_VS_DYNAMIC.md)
 for why static vendoring was chosen over a system client-library dependency.
 

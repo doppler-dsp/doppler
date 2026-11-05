@@ -83,6 +83,8 @@ wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime \
        --output nats://127.0.0.1:4222/iq
 ```
 
+A `nats://` endpoint needs a running [NATS broker](../install/broker.md); one command starts one.
+
 If the producer can't keep up — a block takes longer than its `N/fs` period, an
 **underrun** — `wfmgen` keeps the absolute timeline and prints a summary to
 stderr at exit (`wfmgen: 3 underrun(s) — worst 1.2 ms behind real time`). Use

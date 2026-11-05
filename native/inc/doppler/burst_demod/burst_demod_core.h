@@ -185,7 +185,8 @@ extern "C"
    * transmitter spread; `demod(x)` then estimates the residual Doppler and
    * Doppler rate from the preamble, dechirps the burst, despreads it to soft
    * BPSK symbols, frame-syncs against the description's first field and checks
-   * the CRC. It is one-shot per burst, seeded from acquisition. A description
+   * the frame's check field (e.g. a CRC-16). It is one-shot per burst, seeded
+   * from acquisition. A description
    * or parameter it cannot use raises `ValueError` naming the rules. C: this
    * is dp_burst_demod_create_desc() without its `why` out-parameter, so a
    * refusal is a NULL return; call the `_desc` form to be told why.

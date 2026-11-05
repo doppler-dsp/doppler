@@ -396,8 +396,10 @@ benches keep writing `corr`, `detector`, `detector2d` and `acq`, so
 `bench-ab` pairs each row on main with the same row on the sub-step's head.
 The 2-D family is renamed in 3.2, `corr2d` to `correlator`, because jm
 collects a component's bench by its name, and it is judged with
-`make bench-ab ... ALIAS=corr2d=correlator` (#2884), which pairs the rows
-suffix for suffix and fails any that do not pair. Step 4 renames the rest,
+`make bench-ab ... ALIAS=bench_corr2d_core=bench_correlator_core` (#2884,
+#2889: bench-ab keys a row by its fullname, whose family is the bench
+binary), which pairs the rows suffix for suffix and fails any that do not
+pair. Step 4 renames the rest,
 once, to `correlator::` with each row's flavor in its brackets, with the same
 alias, and relabels them in `benchmarks/labels.toml`.
 

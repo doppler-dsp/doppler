@@ -93,3 +93,12 @@ python src/doppler/examples/spectrogram_demo.py
 The script writes `spectrogram_scene.png` and `spectrogram_demo.png` in the
 working directory, and exits
 0 only when its checks hold.
+
+## See also
+
+- [Streaming Spectrograms](../guide/spectrogram.md): how to use `Spectrogram`,
+    and the decisions you make along the way
+- [Python: Spectral API](../api/python-spectral.md#doppler.spectral.Spectrogram):
+    every method and property
+- [Design: the spectrogram](../design/spectrogram.md): why it is shaped this
+    way

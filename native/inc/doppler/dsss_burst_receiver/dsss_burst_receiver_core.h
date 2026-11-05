@@ -187,12 +187,17 @@ typedef struct {
 } dp_dsss_burst_receiver_state_t;
 
 /**
- * @brief The Python binding's constructor: @ref dp_dsss_burst_receiver_create_desc
- *        without the `why` out-parameter.
+ * @brief Find each burst by its preamble, capture it and demodulate its
+ *        frame, all behind one push().
  *
- * An object's generated constructor has no channel for a reason, so a refused
- * description surfaces as the manifest's `create_error_message`, which names
- * the rules. C callers that want the reason call the `_desc` form.
+ * Give it the preamble and payload spreading codes and the frame
+ * description the transmitter spread (a `Frame` or `FrameDesc`): the frame's
+ * first field is the sync word the receiver correlates for and its layout is
+ * the frame's length, so no length is counted by hand. The description is
+ * copied, so it need not outlive the receiver. A description the receiver
+ * cannot use raises `ValueError` naming the rules. C: this is
+ * dp_dsss_burst_receiver_create_desc() without its `why` out-parameter, so
+ * a refusal is a NULL return; call the `_desc` form to be told why.
  *
  * @param acq_code            preamble code, 0/1 chips.
  * @param acq_code_len        its length, chips.

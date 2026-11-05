@@ -216,3 +216,8 @@ The carry is the
 [ring buffer's framed face](../design/ring-buffer.md); every function's
 contract, with an example, is the
 [C API](../c-api/spectrogram__core_8h.md).
+
+To see it working, [the gallery page](../gallery/spectrogram.md) streams a
+chirp and a tone through it and draws the waterfall, and the
+[API entry](../api/python-spectral.md#doppler.spectral.Spectrogram) lists
+every method.

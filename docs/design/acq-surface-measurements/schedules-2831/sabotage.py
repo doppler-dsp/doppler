@@ -1,8 +1,13 @@
-"""Sabotage the block map in corr2d_core.c; each must turn the test red.
+"""Sabotage the one map and its callers; each must turn its gate red.
 
-Record §18.6 (#2831): run from a checkout at the step 2.3 Corr2D commit,
-``python3 docs/design/acq-surface-measurements/schedules-2831/sabotage.py``.
-The source is restored from the text it saved and rebuilt at the end.
+Record §18.6 and §18.7 (#2831): run from a checkout at the step 2.3
+commits, ``python3 docs/design/acq-surface-measurements/schedules-2831/
+sabotage.py``. Each source is restored from the text it saved, and the
+tree is rebuilt at the end.
+
+A case is ``(name, old, new)`` for the map in corr2d_core.c, gated by
+test_corr2d_core, or ``(name, old, new, file, gate)``: ``gate`` is
+``ctest:<test>`` or ``snippets:<filter>``, the header ``@code`` gate.
 """
 
 import pathlib
@@ -10,7 +15,10 @@ import re
 import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[4]
-SRC = ROOT / "native" / "src" / "corr2d" / "corr2d_core.c"
+CORR2D = "native/src/corr2d/corr2d_core.c"
+ACQ = "native/src/acq/acq_core.c"
+BC = "native/src/burst_capture/burst_capture_core.c"
+BUF = "native/inc/doppler/buffer/buffer.h"
 
 SABOTAGES = [
     (
@@ -82,32 +90,120 @@ SABOTAGES = [
         "pr[j] = xa[j] * tl->wt[j];",
         "pr[j] = xa[j] * m->unit;",
     ),
+    # §18.7: the carrier's failure paths and the position a blob records.
+    (
+        "carrier: set_carrier writes the field before the regrid",
+        "  if (carrier_freq_hz == state->carrier_freq_hz)\n"
+        "    return DP_OK;\n",
+        "  if (carrier_freq_hz == state->carrier_freq_hz)\n    return DP_OK;\n"
+        "  state->carrier_freq_hz = carrier_freq_hz;\n",
+        ACQ,
+        "ctest:test_acq_regrid_failure",
+    ),
+    (
+        "carrier: the regrid commits it before its builds",
+        "  const size_t new_f    = acq_map_f (new_carrier, new_db, "
+        "new_freq_bins);\n",
+        "  const size_t new_f    = acq_map_f (new_carrier, new_db, "
+        "new_freq_bins);\n  st->carrier_freq_hz = new_carrier;\n",
+        ACQ,
+        "ctest:test_acq_regrid_failure",
+    ),
+    (
+        "carrier: set_state restores the framer before its rebuild",
+        "  if (ex.carrier_freq_hz != st->carrier_freq_hz\n",
+        "  (void)dp_f32_framer_set_state (&st->framer, acq_state_carry "
+        "((void *)blob));\n  st->samples_consumed = ex.samples_consumed + "
+        "1;\n  if (ex.carrier_freq_hz != st->carrier_freq_hz\n",
+        ACQ,
+        "ctest:test_acq_regrid_failure",
+    ),
+    (
+        "position: BurstCapture drops its child's position check",
+        "      || child_at != fed)\n",
+        "      || 0)\n",
+        BC,
+        "ctest:test_burst_capture_core",
+    ),
+    (
+        "position: state_position drops the carry",
+        "  *position = ex.samples_consumed + pending;\n",
+        "  *position = ex.samples_consumed;\n",
+        ACQ,
+        "snippets:dp_acq_state_position",
+    ),
+    (
+        "position: state_pending counts frames x hop (framer test)",
+        "      *pending = written - (f ? (f - 1) * fr->hop"
+        " + fr->frame_n : 0);",
+        "      *pending = written - f * fr->hop;                         ",
+        BUF,
+        "ctest:test_framer_core",
+    ),
+    (
+        "position: state_pending counts frames x hop (header example)",
+        "      *pending = written - (f ? (f - 1) * fr->hop"
+        " + fr->frame_n : 0);",
+        "      *pending = written - f * fr->hop;                         ",
+        BUF,
+        "snippets:_framer_state_pending",
+    ),
 ]
 
-for name, old, new in SABOTAGES:
-    text = SRC.read_text(encoding="utf-8")
-    n = text.count(old)
-    if n != 1:
-        print(f"== {name}: {n} matches")
-        continue
-    SRC.write_text(text.replace(old, new), encoding="utf-8")
-    out = subprocess.run(
-        ["make", "test", "CTEST_SELECT=-V -R ^test_corr2d_core$"],
+
+def run_gate(gate: str) -> tuple[bool, list[str]]:
+    """Run one gate; return (red, the failing lines it printed)."""
+    kind, what = gate.split(":", 1)
+    if kind == "ctest":
+        r = subprocess.run(
+            ["make", "test", f"CTEST_SELECT=-V -R ^{what}$"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        out = r.stdout
+        red = "tests passed, 0 tests failed" not in out
+        return red, [
+            ln.split(": ", 1)[1]
+            for ln in re.findall(r"^\d+: FAIL.*$", out, re.M)
+        ]
+    subprocess.run(
+        ["make", "build"], cwd=ROOT, capture_output=True, check=False
+    )
+    r = subprocess.run(
+        ["make", "test-snippets", f"PAGE={what}"],
         cwd=ROOT,
         capture_output=True,
         text=True,
         check=False,
-    ).stdout
-    # Restore from the saved text, never from git: the map is uncommitted.
-    SRC.write_text(text, encoding="utf-8")
-    red = "tests passed, 0 tests failed" not in out
-    fails = re.findall(r"^74: FAIL.*$", out, re.M)
+    )
+    return r.returncode != 0, re.findall(r"^FAILED .*$", r.stdout, re.M)
+
+
+for case in SABOTAGES:
+    name, old, new = case[:3]
+    path = ROOT / (case[3] if len(case) > 3 else CORR2D)
+    gate = case[4] if len(case) > 4 else "ctest:test_corr2d_core"
+    text = path.read_text(encoding="utf-8")
+    n = text.count(old)
+    if n != 1:
+        print(f"== {name}: {n} matches")
+        continue
+    path.write_text(text.replace(old, new), encoding="utf-8")
+    try:
+        red, fails = run_gate(gate)
+    finally:
+        # Restore from the saved text, never from git: it may be
+        # uncommitted.
+        path.write_text(text, encoding="utf-8")
     print(
         f"== {name}: {'RED' if red else 'GREEN (not caught)'}; "
-        f"{len(fails)} failing check(s)"
+        f"{len(fails)} failing check(s) [{gate}]",
+        flush=True,
     )
     for line in fails[:3]:
-        print("   ", line[4:])
+        print("   ", line)
 
 # Rebuild the restored source: the last sabotage's binaries must not outlive
 # it (a stale build read as a real defect once).

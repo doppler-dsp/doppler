@@ -1127,6 +1127,60 @@ main (void)
     dp_f32_destroy (rb);
   }
 
+  {
+    /* state_pending reads a blob through the same check: for every
+       single-byte corruption of a real snapshot (and the snapshot itself),
+       it accepts exactly when set_state does, reports what pending() reads
+       once set_state has restored it, and on a refusal leaves `pending`
+       alone. Overlapping frames (hop 3 of 8), where the samples no frame
+       covered are not written - frames * hop. */
+    dp_f32_t       *ra = dp_f32_create (64), *rb = dp_f32_create (64);
+    dp_f32_framer_t a, b;
+    DP_REQUIRE (ra && rb);
+    DP_REQUIRE (dp_f32_framer_init (&a, ra, 8, 3) == DP_OK);
+    DP_REQUIRE (dp_f32_framer_init (&b, rb, 8, 3) == DP_OK);
+    dp_f32_framer_feed_view (&a, x, 21, 1000);
+    while (dp_f32_framer_next_view (&a))
+      ;
+    DP_REQUIRE (a.frames == 5); /* (21 - 8) / 3 + 1, covering 20 */
+    DP_REQUIRE (dp_f32_framer_pending (&a) == 1);
+    const size_t   bytes = dp_f32_framer_state_bytes (&a);
+    unsigned char *blob = malloc (bytes), *bad = malloc (bytes);
+    DP_REQUIRE (blob && bad);
+    dp_f32_framer_get_state (&a, blob);
+    int agree = 1, reports = 1, kept = 1, refused = 0;
+    for (size_t i = 0; i <= 2 * bytes; i++)
+      {
+        memcpy (bad, blob, bytes);
+        if (i < 2 * bytes) /* the last pass is the snapshot itself */
+          bad[i / 2] ^= (unsigned char)(i % 2 ? 0x80 : 0x01);
+        uint64_t p = 0xD0D0D0D0u;
+        dp_f32_framer_reset (&b);
+        const int seen = dp_f32_framer_state_pending (&b, bad, &p);
+        const int took = dp_f32_framer_set_state (&b, bad);
+        if ((seen == DP_OK) != (took == DP_OK))
+          agree = 0;
+        if (seen == DP_OK && p != dp_f32_framer_pending (&b))
+          reports = 0;
+        if (seen != DP_OK)
+          {
+            refused++;
+            if (p != 0xD0D0D0D0u)
+              kept = 0;
+          }
+      }
+    DP_CHECK (agree);
+    DP_CHECK (reports);
+    DP_CHECK (kept);
+    DP_CHECK (refused > 0); /* the premise: corruptions are refused */
+    uint64_t p = 0;
+    DP_CHECK (dp_f32_framer_state_pending (&b, blob, &p) == DP_OK && p == 1);
+    free (blob);
+    free (bad);
+    dp_f32_destroy (ra);
+    dp_f32_destroy (rb);
+  }
+
   free (x);
   DP_TEST_END ("test_framer_core");
 }

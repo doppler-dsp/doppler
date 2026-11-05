@@ -20,8 +20,8 @@
  * requires the engine to match a fresh one: fields, buffers, and what an
  * execute returns.
  *
- * The buffers are failed too: malloc and calloc are defined over counted
- * stand-ins for the two included sources only, after every header they
+ * The buffers are failed too: malloc, calloc and realloc are defined over
+ * counted stand-ins for the two included sources only, after every header they
  * include, so N runs over every plan AND every buffer a regrid builds.
  *
  * The carrier is the third reach (#2831): it is set through a regrid that
@@ -45,6 +45,7 @@ extern int   g_calls;   /* builds since the last arm */
 extern int   g_fail_at; /* the build that fails; 0 = none */
 extern void *acq_test_malloc (size_t n);
 extern void *acq_test_calloc (size_t n, size_t size);
+extern void *acq_test_realloc (void *p, size_t n);
 
 /* Every header the two sources include, first, so their include guards
    keep the defines below out of every header. */
@@ -64,10 +65,12 @@ extern void *acq_test_calloc (size_t n, size_t size);
 
 #define malloc(n) acq_test_malloc (n)
 #define calloc(n, size) acq_test_calloc (n, size)
+#define realloc(p, n) acq_test_realloc (p, n)
 #include "../../src/acq/acq_core.c"
 #include "../../src/corr2d/corr2d_core.c"
 #undef malloc
 #undef calloc
+#undef realloc
 
 #include "dp_preamble_test.h"
 #include "dp_test.h"
@@ -225,12 +228,36 @@ make_tiled (double fc)
   return a;
 }
 
+/* The hits two engines find on the same continuation of make_tiled's
+   stream: two more blocks, so both decide at least one dwell. */
+static int
+same_hits (dp_acq_state_t *a, dp_acq_state_t *b)
+{
+  const size_t    D = a->coherent_bins, N = a->code_bins;
+  const size_t    L = 2 * D * N;
+  float _Complex *x = malloc (L * sizeof *x);
+  for (size_t k = 0; k < L; k++)
+    x[k] = CODE31[((k + 7) / 4) % 31] ? 1.0f : -1.0f;
+  acq_result_t ha[16], hb[16];
+  const size_t na = dp_acq_push (a, x, L, ha, 16);
+  const size_t nb = dp_acq_push (b, x, L, hb, 16);
+  free (x);
+  int same = na == nb && na > 0; /* no hits would compare nothing */
+  for (size_t i = 0; same && i < na; i++)
+    same = ha[i].doppler_bin == hb[i].doppler_bin
+           && ha[i].code_phase == hb[i].code_phase
+           && ha[i].test_stat == hb[i].test_stat
+           && ha[i].peak_mag == hb[i].peak_mag;
+  return same;
+}
+
 /* The carrier's two entries, each with every build it makes failed in
    turn. A build before the commit refuses the change: DP_ERR_MEMORY, and
    the engine's grid and map, and its blob byte for byte, stay as they
    were. A build after it is the map's worker-slot reserve, whose failure
    costs speed and never a result (dp__dd_map_reserve), so the change then
-   succeeds with exactly the blob the unarmed change gives. `via_state`
+   succeeds with exactly the blob the unarmed change gives, and finds the
+   same hits on the same stream after it. `via_state`
    restores a blob taken at @p to (set_state's rebuild); otherwise
    dp_acq_set_carrier_freq_hz (@p to). Sabotage: let acq_regrid commit the
    carrier (or map_f) before its last build, or let set_state write the
@@ -266,7 +293,7 @@ carrier_failure_commits_nothing (double from, double to, int via_state)
   dp_acq_get_state (probe, want);
   dp_acq_destroy (probe);
 
-  int refused = 0;
+  int refused = 0, degraded = 0;
 
   for (int k = 1; k <= total; k++)
     {
@@ -307,6 +334,15 @@ carrier_failure_commits_nothing (double from, double to, int via_state)
                         "a degraded reserve gives the unarmed change's "
                         "blob");
           free (got);
+          dp_acq_state_t *ref = make_tiled (from);
+          DP_REQUIRE_MSG (ref, "the reference engine");
+          DP_REQUIRE (via_state
+                          ? dp_acq_set_state (ref, in) == DP_OK
+                          : dp_acq_set_carrier_freq_hz (ref, to) == DP_OK);
+          DP_CHECK_MSG (same_hits (live, ref),
+                        "and the hits the unarmed change finds");
+          dp_acq_destroy (ref);
+          degraded++;
         }
       free (before);
       free (after);
@@ -315,6 +351,9 @@ carrier_failure_commits_nothing (double from, double to, int via_state)
   /* The map's plans and buffers are built before the commit, so some
      failure refuses: the sweep reaches the path it is here for. */
   DP_CHECK_MSG (refused > 0, "some build failing refuses the change");
+  /* A change that alters the map reserves slots after the commit: the
+     degraded branch runs too, or its checks are vacuous. */
+  DP_CHECK_MSG (degraded > 0, "and some degrades it");
   free (want);
   free (in);
   dp_acq_destroy (src);

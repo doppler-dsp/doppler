@@ -414,6 +414,6 @@ main (void)
   bench_batches (&_bench, &seed);
   bench_bank (&_bench, &seed);
 
-  jm_bench_write_json (&_bench, "corr2d");
+  jm_bench_write_json (&_bench, "correlator");
   return 0;
 }

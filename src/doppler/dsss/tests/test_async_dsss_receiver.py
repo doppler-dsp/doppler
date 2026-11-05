@@ -14,6 +14,9 @@ the state-serialization round trip is bespoke here rather than in the
 generic `test_state_serialization.py` matrix.
 """
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -647,3 +650,62 @@ def test_telemetry_reports_every_loop_and_survives_a_reseed():
     _feed(rx, x[PRE_SILENCE:])
     got = tlm.read_dict()
     assert all(len(got[name]) == 0 for name in outputs)
+
+
+# set_telemetry first attaches the loops to a scratch context, whose ring
+# is a mapping of its own (DECLARE_DP_BUFFER). A child process caps its
+# address space at its current size, so that mapping fails and nothing
+# before it in the call needs one: the attach must raise MemoryError with
+# the manifest's DP_ERR_MEMORY message, not the ValueError of a bad prefix
+# (doppler#2846). Once the cap is lifted, the context holds no probe of the
+# refused attach, and the same attach succeeds.
+_TLM_OOM_CHILD = r"""
+import resource
+import numpy as np
+from doppler.dsss import AsyncDsssReceiver
+from doppler.telemetry import Telemetry
+from doppler.wfm import Gold
+
+def vm_bytes():
+    for line in open("/proc/self/status"):
+        if line.startswith("VmSize"):
+            return int(line.split()[1]) * 1024
+
+code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+                       sample_rate=6.138e6, doppler_uncertainty=500.0)
+tlm = Telemetry(1 << 12)
+soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+resource.setrlimit(resource.RLIMIT_AS, (vm_bytes(), hard))
+try:
+    rx.set_telemetry(tlm, "rx")
+    outcome = "no error"
+except MemoryError as e:
+    outcome = "MemoryError: " + str(e)
+except Exception as e:
+    outcome = type(e).__name__ + ": " + str(e)
+resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+print(outcome)
+print(sum(p.startswith("rx.") for p in tlm.probe_names))
+rx.set_telemetry(tlm, "rx")
+print(sum(p.startswith("rx.") for p in tlm.probe_names) > 0)
+"""
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="reads /proc/self/status"
+)
+def test_a_telemetry_attach_that_cannot_allocate_raises_memoryerror() -> None:
+    r = subprocess.run(
+        [sys.executable, "-c", _TLM_OOM_CHILD],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.splitlines() == [
+        "MemoryError: set_telemetry: the scratch context that checks the "
+        "names could not be allocated; the receiver is unchanged",
+        "0",
+        "True",
+    ]

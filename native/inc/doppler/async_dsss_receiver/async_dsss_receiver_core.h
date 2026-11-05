@@ -810,7 +810,8 @@ typedef enum
    *         tlm, because the loops are first attached to a scratch context
    *         that finds the refusal -- or a probe table with no room for
    *         every probe (found the same way, from the names the scratch
-   *         holds). Every refusal leaves @p tlm's table untouched and the
+   *         holds); DP_ERR_MEMORY when the scratch context cannot be
+   *         allocated. Every refusal leaves @p tlm's table untouched and the
    *         receiver as it was: detached, or still on its previous context
    *         under its previous prefix.
    * @code

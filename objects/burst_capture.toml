@@ -12,6 +12,11 @@ class_name = "BurstCapture"
 # gone past, so a blob without it restores an object that cannot refine the
 # detection it is still holding (docs/design/dsss-burst-receiver.md §11.4).
 serializable = "true"
+# The acquisition child's blob at another carrier rebuilds its map, which
+# can fail to allocate: MemoryError, not a refused blob's ValueError (#2846).
+set_state_status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_state: the acquisition child's carrier needs its delay-Doppler map rebuilt, and the rebuild could not allocate; the capture is unchanged" },
+]
 # A NULL create() is an ARGUMENT error, never an allocation one -- the guard
 # rejects a parameter set that cannot build a capture. Same shape as
 # objects/dsss_burst_receiver.toml's.

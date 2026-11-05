@@ -2962,9 +2962,14 @@ class AsyncDsssReceiver:
 
         Raises
         ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``set_telemetry: the scratch context that checks the names could
+            not be allocated; the receiver is unchanged``.
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``set_telemetry failed``, with the return code appended (gh-869).
+            If the C call returns any other non-zero status. The exception
+            message is ``set_telemetry failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------

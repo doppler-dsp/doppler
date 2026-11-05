@@ -94,4 +94,4 @@ another window or mode restores without	another window, mode or Kaiser beta is r
 framer's snapshot and nothing else	the configuration a row depends on, then the framer's snapshot (#2102)
 does not carry consumed\(\), the PSD's window	it carries mode, nfft, hop, window and beta, not consumed() (#2102)
 without a refusal\. Whether that refusal	set_state refuses a blob from another mode (#2102)
-The Python binding's constructor:	A header brief says what the object does, Python-first, with a trailing 'C:' clause for the C call (docs/dev/contributing/docstring-authoring.md); this opening was an internal note on DsssBurstReceiver and BurstDemod (#2855)
+@brief The Python binding's constructor:	A header brief says what the object does, Python-first, with a trailing 'C:' clause for the C call (docs/dev/contributing/docstring-authoring.md); this opening was an internal note on DsssBurstReceiver and BurstDemod (#2855)

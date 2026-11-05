@@ -38,6 +38,20 @@ Install:
 pip install "doppler-dsp[specan-web]"
 ```
 
+These commands run from a clone of the repository at the release you
+installed; the `make` targets and the `./build/` binaries are not in the wheel.
+Skip this if you already have one:
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
 Regenerate the recorded demo frames:
 
 ```sh

@@ -379,6 +379,13 @@ repos:
         language: system
         pass_filenames: false
 
+      # A page that runs a repo-only command says how to clone it (#2857).
+      - id: clone-notes
+        name: pages that need a clone say how to get one
+        entry: make -s lint-clone-notes
+        language: system
+        pass_filenames: false
+
       # A `cmake -P` script declares its own policy level (#1578).
       - id: cmake-script-policy
         name: cmake -P scripts declare cmake_minimum_required

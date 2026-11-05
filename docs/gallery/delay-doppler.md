@@ -84,6 +84,20 @@ hypothesis's map, with the delay found at column 37.
 `execute_power_max` keeps, cell by cell, the strongest map and which one it
 was. Neither touches the object's dwell.
 
+These commands run from a clone of the repository at the release you
+installed; the `make` targets and the `./build/` binaries are not in the wheel.
+Skip this if you already have one:
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
 ## Run it
 
 ```sh

@@ -225,6 +225,20 @@ nats-server -js
 
 <!-- docs-snippet: skip=illustrative fragment (no main, return values discarded); see the Transmitter/Receiver sections above for the tested versions -->
 
+These commands run from a clone of the repository at the release you
+installed; the `make` targets and the `./build/` binaries are not in the wheel.
+Skip this if you already have one:
+
+<!-- docs-snippet: no-exec=clones the repository -->
+
+<!-- doc-version:start -->
+
+```sh
+git clone --branch v0.79.0 https://github.com/doppler-dsp/doppler && cd doppler
+```
+
+<!-- doc-version:end -->
+
 ```c
 // Transmitter and receiver both connect to the local broker
 dp_pub_create("nats://127.0.0.1:4222/iq", CF64);

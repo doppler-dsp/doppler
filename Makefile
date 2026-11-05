@@ -258,7 +258,7 @@ LOCK_CMD   = $(UV) lock --upgrade-package $(PY_PROJECT)
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
-               retired-names repo-links broker-links ci-pipefail rust-abi \
+               retired-names repo-links broker-links clone-notes ci-pipefail rust-abi \
                header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
@@ -527,6 +527,11 @@ LINT_repo-links = $(UV) run python scripts/check_repo_links.py
 # (doppler#2857): doppler is a client, and nothing else tells a reader what to
 # start. Discovered over docs/; exemptions are data, in docs/.broker-link-exempt.
 LINT_broker-links = $(UV) run python scripts/check_broker_links.py
+
+# A page that runs a repository-only command (`make build`, `./build/...`,
+# `docker compose`) carries a pinned `git clone` (doppler#2857). Discovered
+# over docs/; exemptions are data, in docs/.clone-note-exempt.
+LINT_clone-notes = $(UV) run python scripts/check_clone_notes.py
 
 # A `cmake -P` script inherits no policies: without its own
 # cmake_minimum_required every policy is OLD, which CMake 4 hides and the CMake

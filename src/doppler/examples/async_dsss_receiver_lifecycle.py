@@ -49,6 +49,7 @@ import sys
 # --8<-- [start:signal]
 import numpy as np
 
+from doppler.examples._extra import require
 from doppler.source import AWGN
 from doppler.wfm import Gold, Synth, wfm_awgn_amplitude
 
@@ -144,9 +145,9 @@ def make_timeline(seed: int = SEED_NOISE) -> np.ndarray:
 
 # --8<-- [end:signal]
 
-from doppler.dsss import AsyncDsssReceiver  # noqa: E402
-from doppler.telemetry import MemoryCapture, Telemetry  # noqa: E402
-from doppler.wfm import SampleClock  # noqa: E402
+from doppler.dsss import AsyncDsssReceiver
+from doppler.telemetry import MemoryCapture, Telemetry
+from doppler.wfm import SampleClock
 
 #: ``rx.state``'s values: the receiver's ``ASYNC_DSSS_RX_*`` lifecycle
 #: states. The receiver names its current state as ``lifecycle``; this table
@@ -340,12 +341,8 @@ def check(rows: dict[str, np.ndarray]) -> dict[str, float]:
 
 
 def main(out_path: str = "async_dsss_receiver_lifecycle.png") -> None:
-    try:
-        import matplotlib
-    except ImportError as e:  # an extra, not a dependency
-        raise SystemExit(
-            "needs matplotlib: pip install 'doppler-dsp[examples]'"
-        ) from e
+    require("matplotlib")
+    import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

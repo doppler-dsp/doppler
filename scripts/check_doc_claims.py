@@ -153,6 +153,8 @@ def _example_findings(root: Path) -> list[str]:
     examples = root / "src" / "doppler" / "examples"
     pairs = _pair_scripts(examples)
     for script in sorted(examples.glob("*.py")):
+        if script.name.startswith("_"):
+            continue  # a helper (_extra.py), not a script
         rel = script.relative_to(root).as_posix()
         source = script.read_text(encoding="utf-8")
         try:

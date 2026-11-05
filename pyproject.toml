@@ -71,7 +71,9 @@ specan = [
 examples = [
     # What the example scripts draw and design with. Not dependencies of the
     # library: `pip install "doppler-dsp[examples]"` is what a script names when
-    # one is missing (doppler#2857).
+    # one is missing (doppler#2857). These are the loosest floors the scripts
+    # run on, for a reader's install; the `dev` group pins newer ones, which are
+    # what CI tests against.
     "matplotlib>=3.7",
     "scipy>=1.10",
 ]
@@ -340,7 +342,9 @@ ignore = [
 "**/tests/**"           = ["ANN"]
 "**/benchmarks/**"      = ["ANN"]
 "examples/**"           = ["ANN"]
-"src/doppler/examples/**" = ["ANN"]
+# E402: an example calls `require("matplotlib")` BEFORE importing it, so a missing
+# package is named instead of ending in a bare ModuleNotFoundError (#2857).
+"src/doppler/examples/**" = ["ANN", "E402"]
 "scripts/**"            = ["ANN"]
 "conftest.py"           = ["ANN"]
 "**/conftest.py"        = ["ANN"]

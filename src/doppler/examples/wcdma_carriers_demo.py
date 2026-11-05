@@ -28,12 +28,10 @@ Run: ``uv run python wcdma_carriers_demo.py``
 
 from __future__ import annotations
 
-try:
-    import matplotlib
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit(
-        "needs matplotlib: pip install 'doppler-dsp[examples]'"
-    ) from e
+from doppler.examples._extra import require
+
+require("matplotlib")
+import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -115,8 +113,8 @@ snr0 = w.snr(-10e6, -5e6)  # in-channel SNR of carrier 0
 # The remaining imports serve the figure only; they follow the two
 # narrative blocks above (included verbatim by the gallery page), which
 # must stay self-contained. noqa: E402 — imports not at top, by design.
-from doppler.accumulator import AccTrace  # noqa: E402
-from doppler.spectral import FFT, kaiser_window  # noqa: E402
+from doppler.accumulator import AccTrace
+from doppler.spectral import FFT, kaiser_window
 
 CH_BW = 5.0e6  # nominal 5 MHz channel spacing (== the edges above)
 KAISER_BETA = 12.0  # ~ -90 dB sidelobes: resolves the -10 dB carrier

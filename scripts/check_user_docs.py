@@ -223,6 +223,8 @@ def example_names(root: Path) -> dict[str, set[str]]:
     """``{script filename: identifiers its code uses}``."""
     out: dict[str, set[str]] = {}
     for p in sorted((root / EXAMPLES).glob("*.py")):
+        if p.name.startswith("_"):
+            continue  # a helper (_extra.py), not a script
         try:
             tree = ast.parse(p.read_text(encoding="utf-8"))
         except SyntaxError:

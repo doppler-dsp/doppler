@@ -24,12 +24,10 @@ Run:
   python delay_doppler_bank_demo.py
 """
 
-try:
-    import matplotlib
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit(
-        "needs matplotlib: pip install 'doppler-dsp[examples]'"
-    ) from e
+from doppler.examples._extra import require
+
+require("matplotlib")
+import matplotlib
 
 matplotlib.use("Agg")  # headless: no display required
 
@@ -117,7 +115,7 @@ assert loss_refined > loss_coarse + 0.2 and loss_refined > -0.25
 assert abs(fine[np.argmax(curve)] / 8 - CARRIER_BINS) <= 0.25
 print("OK")
 
-import matplotlib.pyplot as plt  # noqa: E402 -- after the gated compute
+import matplotlib.pyplot as plt
 
 coarse_g = np.arange(*COARSE)  # the coarse carriers g, on the 1/(2 NX) grid
 coarse_pk = np.array(

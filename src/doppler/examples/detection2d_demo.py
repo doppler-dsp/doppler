@@ -60,12 +60,10 @@ Run::
 Saves detection2d_demo.png.  Runs in ~10 s.
 """
 
-try:
-    import matplotlib
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit(
-        "needs matplotlib: pip install 'doppler-dsp[examples]'"
-    ) from e
+from doppler.examples._extra import require
+
+require("matplotlib")
+import matplotlib
 
 matplotlib.use("Agg")
 
@@ -283,7 +281,7 @@ roc_pd = np.array([(sig_stats > t).mean() for t in thresholds])
 
 # ── Plot ─────────────────────────────────────────────────────────────────────
 
-import matplotlib.pyplot as plt  # noqa: E402 — after the gated compute
+import matplotlib.pyplot as plt
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4.5))
 fig.suptitle(

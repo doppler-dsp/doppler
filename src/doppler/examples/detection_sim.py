@@ -77,12 +77,10 @@ Run::
 Saves detection_sim.png.  Runs in ~5 s.
 """
 
-try:
-    import matplotlib
-except ImportError as e:  # an extra, not a dependency
-    raise SystemExit(
-        "needs matplotlib: pip install 'doppler-dsp[examples]'"
-    ) from e
+from doppler.examples._extra import require
+
+require("matplotlib")
+import matplotlib
 
 matplotlib.use("Agg")
 
@@ -225,7 +223,7 @@ assert err_pow < 0.02, "power Pd deviates from Marcum-Q theory"
 
 # ── Plot — 2×2 grid ──────────────────────────────────────────────────────────
 
-import matplotlib.pyplot as plt  # noqa: E402 — after the gated compute
+import matplotlib.pyplot as plt
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 fig.suptitle(

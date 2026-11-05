@@ -391,11 +391,15 @@ join once they land):
 | 3.4      | `async_dsss_receiver::steps` | `[track,sf=1023,3.069Mcps]`, `[search,sf=1023,3.069Mcps]`                                                                                                                                                                                                     |
 | 3.4      | `burst_capture::push`        | `[4 bursts]`                                                                                                                                                                                                                                                  |
 
-**The family names stay through step 3.** The benches keep writing `corr`,
-`corr2d`, `detector`, `detector2d` and `acq`, so `bench-ab` pairs each row on
-main with the same row on the sub-step's head. Step 4 renames them, once, to
-`correlator::` with each row's flavor in its brackets, and relabels them in
-`benchmarks/labels.toml`.
+**The family names stay through step 3, except the one jm renames.** The
+benches keep writing `corr`, `detector`, `detector2d` and `acq`, so
+`bench-ab` pairs each row on main with the same row on the sub-step's head.
+The 2-D family is renamed in 3.2, `corr2d` to `correlator`, because jm
+collects a component's bench by its name, and it is judged with
+`make bench-ab ... ALIAS=corr2d=correlator` (#2884), which pairs the rows
+suffix for suffix and fails any that do not pair. Step 4 renames the rest,
+once, to `correlator::` with each row's flavor in its brackets, with the same
+alias, and relabels them in `benchmarks/labels.toml`.
 
 acq's carrier and five-tile rows from step 2 (`op5M_U10k_D150_t1`, the
 `_fc` rows) are on main's bench but not yet in a published set; 3.4's PR

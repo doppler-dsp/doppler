@@ -70,7 +70,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_desc**](#function-dp_burst_demod_create_desc) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments, const char \*\* why) <br>_Create a demodulator from the frame DESCRIPTION the transmitter spread, in place of a sync word and a hand-counted_ `frame_syms` _._ |
-|  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_frame**](#function-dp_burst_demod_create_frame) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_The Python binding's constructor:_ [_**dp\_burst\_demod\_create\_desc**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _without the_`why` _out-parameter._ |
+|  [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* | [**dp\_burst\_demod\_create\_frame**](#function-dp_burst_demod_create_frame) (const uint8\_t \* data\_code, size\_t data\_code\_len, const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* frame, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t est\_segments) <br>_Demodulate one captured burst's frame, feedforward and with no tracking loops._  |
 |  size\_t | [**dp\_burst\_demod\_demod**](#function-dp_burst_demod_demod) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
 |  size\_t | [**dp\_burst\_demod\_demod\_max\_out**](#function-dp_burst_demod_demod_max_out) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Max output bits = frame\_syms (caller sizes the buffer)._  |
 |  void | [**dp\_burst\_demod\_destroy**](#function-dp_burst_demod_destroy) ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) \* state) <br>_Destroy a demodulator._  |
@@ -236,7 +236,7 @@ dp_burst_demod_destroy (d);
 
 ### function dp\_burst\_demod\_create\_frame 
 
-_The Python binding's constructor:_ [_**dp\_burst\_demod\_create\_desc**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _without the_`why` _out-parameter._
+_Demodulate one captured burst's frame, feedforward and with no tracking loops._ 
 ```C++
 dp_burst_demod_state_t * dp_burst_demod_create_frame (
     const uint8_t * data_code,
@@ -252,7 +252,7 @@ dp_burst_demod_state_t * dp_burst_demod_create_frame (
 
 
 
-An object's generated constructor has no channel for a reason, so a refused description surfaces as the manifest's `create_error_message`, which names the rules. C callers that want the reason call the `_desc` form.
+Give it the data spreading code and the frame description the transmitter spread; `demod(x)` then estimates the residual Doppler and Doppler rate from the preamble, dechirps the burst, despreads it to soft BPSK symbols, frame-syncs against the description's first field and checks the CRC. It is one-shot per burst, seeded from acquisition. A description or parameter it cannot use raises `ValueError` naming the rules. C: this is [**dp\_burst\_demod\_create\_desc()**](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) without its `why` out-parameter, so a refusal is a NULL return; call the `_desc` form to be told why.
 
 
 

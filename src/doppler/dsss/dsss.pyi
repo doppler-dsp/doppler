@@ -1330,8 +1330,8 @@ class PolynomialPhaseEstimator:
 
 @final
 class BurstDemod:
-    """The Python binding's constructor: dp_burst_demod_create_desc without the
-    `why` out-parameter.
+    """Demodulate one captured burst's frame, feedforward and with no tracking
+    loops.
 
     Parameters
     ----------

@@ -1080,7 +1080,7 @@ The runs behind every number here are
     epoch, then slow time for each tile and lag column;
 - Corr2D's `DelayDoppler` and hypothesis bank.
 
-Now there is one: a block map in `corr2d_core.c`, which both acq paths
+Now there is one: a block map in `correlator_core.c`, which both acq paths
 compose and which `DelayDoppler` and the bank run on.
 
 ### 18.1 The map
@@ -1177,7 +1177,7 @@ function and differ by float rounding alone. Both run the same stage code
 (the row gather, the pad and inverse, the slow transform), so there is
 still one implementation.
 
-One rule, `dp__dd_schedule (g, W, R, fused)` in `corr2d_map.h`, picks the
+One rule, `dp__dd_schedule (g, W, R, fused)` in `correlator_map.h`, picks the
 order. It counts each transform as $n \log_2 n$:
 
 - slow first pays, per rate, $N$ slow transforms of $F\,DI$ points and

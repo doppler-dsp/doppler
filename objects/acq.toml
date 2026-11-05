@@ -31,7 +31,7 @@ warnings = [
 # det_pd for the auto-config. det_private.h / the detector2d header are
 # header-only (statics + the enum) → no link line needed for them.
 depends_on = [
-    { name = "corr2d", link = true },
+    { name = "correlator", link = true },
     { name = "fft2d", link = true },
     { name = "fft", link = true },
     { name = "detection", link = true },

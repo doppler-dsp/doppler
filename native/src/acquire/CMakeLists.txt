@@ -29,10 +29,9 @@ target_link_libraries(acquire PRIVATE
     detector_core
     detection_core
     spectral_core
-    corr_core
+    correlator_core
     fft_core
     Threads::Threads
-    corr2d_core
     fft2d_core
     dp_tlm_core
     Python3::NumPy)
@@ -61,10 +60,9 @@ target_link_libraries(test_acquire_core PRIVATE
     detector_core
     detection_core
     spectral_core
-    corr_core
+    correlator_core
     fft_core
     Threads::Threads
-    corr2d_core
     fft2d_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})
@@ -86,10 +84,9 @@ target_link_libraries(bench_acquire_core PRIVATE
     detector_core
     detection_core
     spectral_core
-    corr_core
+    correlator_core
     fft_core
     Threads::Threads
-    corr2d_core
     fft2d_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})

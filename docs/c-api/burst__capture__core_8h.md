@@ -16,7 +16,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/burst_acq/burst_acq_core.h"`
 * `#include "doppler/acq/acq_core.h"`
-* `#include "doppler/corr2d/corr2d_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/detection/detection_core.h"`

@@ -33,7 +33,7 @@ depends_on = [
     { name = "detection", link = true },
     { name = "spectral", link = true },
     { name = "doppler_channel" },
-    { name = "corr", link = true },
+    { name = "correlator", link = true },
     { name = "fft", link = true },
     { name = "acc_trace", link = true },
 ]

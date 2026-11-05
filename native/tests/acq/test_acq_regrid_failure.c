@@ -12,7 +12,7 @@
  * Only the constructor reaches a widening regrid today, and a failed
  * constructor destroys the engine, so no public call can show this. This
  * test therefore compiles acq_core.c into itself to call the static
- * acq_regrid on a LIVE engine, together with corr2d_core.c, whose one
+ * acq_regrid on a LIVE engine, together with correlator_core.c, whose one
  * delay-Doppler map acq's regrid builds (#2752), and renames the plans
  * those two files build (a macro over dp_fft_create, for this file only) to
  * fail the Nth one. It sweeps N over EVERY plan the regrid builds -- the
@@ -49,11 +49,11 @@ extern void *acq_test_realloc (void *p, size_t n);
 
 /* Every header the two sources include, first, so their include guards
    keep the defines below out of every header. */
-#include "../../src/corr2d/corr2d_map.h"
+#include "../../src/correlator/correlator_map.h"
 #include "doppler/acq/acq_core.h"
 #include "doppler/acq/acq_private.h"
 #include "doppler/clib_common.h"
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/detector/det_private.h"
 #include "doppler/dp_complex.h"
 #include "doppler/util/util_core.h"
@@ -67,7 +67,7 @@ extern void *acq_test_realloc (void *p, size_t n);
 #define calloc(n, size) acq_test_calloc (n, size)
 #define realloc(p, n) acq_test_realloc (p, n)
 #include "../../src/acq/acq_core.c"
-#include "../../src/corr2d/corr2d_core.c"
+#include "../../src/correlator/correlator_core.c"
 #undef malloc
 #undef calloc
 #undef realloc

@@ -82,8 +82,7 @@
 | dir | [**coding**](dir_69d8a89cba5242a3dfe9624bc2e7c6f6.md) <br> |
 | dir | [**conv**](dir_dadcb1d47e07452fac6fef665f736671.md) <br> |
 | dir | [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md) <br> |
-| dir | [**corr**](dir_28e39a8c94dc713f6e89cb1d02b66afa.md) <br> |
-| dir | [**corr2d**](dir_ac96ca94cfbb355eb7a82b081cfe387c.md) <br> |
+| dir | [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md) <br> |
 | dir | [**costas**](dir_8ebd78c7800b34d5dee6ef27ff63e7b3.md) <br> |
 | dir | [**cvt**](dir_409c6e92c9ef1b7281540388592da57d.md) <br> |
 | dir | [**ddc**](dir_4a67ebc391a3fd8e8259ec0993c7169b.md) <br> |

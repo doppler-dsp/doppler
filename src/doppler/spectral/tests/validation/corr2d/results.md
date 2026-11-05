@@ -27,7 +27,7 @@ Neither of these is restated here:
 | page | owns |
 |---|---|
 | [`docs/design/corr2d-interpolated-inverse.md`](../../../../../../docs/design/corr2d-interpolated-inverse.md) | why the inverse may be larger than the forward, the zero-pad maths, and the single-row fast path |
-| `native/inc/doppler/corr2d/corr2d_core.h` | the contract per function — the SSOT this report audits |
+| `native/inc/doppler/correlator/correlator_core.h` | the contract per function — the SSOT this report audits |
 
 ### 1.1 The claim inventory
 
@@ -51,12 +51,12 @@ Step 1 of `docs/dev/contributing/validation.md`. The C test is `test_corr2d_core
 | power sum, power max (lowest h on a tie) and per-map peaks are folds over the maps, in h order | C + Python | §2.10 |
 | a batch never touches the dwell | C (blob compare) + Python | §2.10 |
 | a ragged, empty or short-output batch writes nothing | C (poisoned outputs) + Python (`ValueError`) | §2.10 |
-| `dp_corr2d_execute_fold` takes a caller's reducer | C — **C-ONLY**, no Python callback by design | C `_test_batch` |
+| `dp_correlator_execute_fold` takes a caller's reducer | C — **C-ONLY**, no Python callback by design | C `_test_batch` |
 | bank map h is the frame corrected by hand (within each period, times the rate), on every path | C `_test_bank`, 5 paths x 1/2/7 threads | §2.11 |
 | an offset between grid points loses at most sinc(1/(2L)), the bound itself at half a step | C `_test_bank` | §2.11 |
 | `bank_detect` names the fine carrier and recovers the coarse grid's straddle; the refine is the fine bank's value | C `_test_bank_detect`, every path | §2.11 |
 | detect-and-refine holds L = 4's sensitivity at the same Pfa | the characterization (full geometry) and its fast twin | §2.11 (small scale) |
-| `dp_corr2d_bank_fold` takes a caller's reducer | C — **C-ONLY**, no Python callback by design | C `_test_bank` |
+| `dp_correlator_bank_fold` takes a caller's reducer | C — **C-ONLY**, no Python callback by design | C `_test_bank` |
 
 ## 2. Characterisation
 
@@ -225,7 +225,7 @@ Detection at one false-alarm rate per search (0.1 here), 16 periods of a 127-chi
 
 ## 3. Review — findings
 
-- **F1 · FIXED** — `dp_corr2d_reset` was pinned **vacuously**, which is the shape `docs/dev/contributing/validation.md` warns about by name. The C test called it on a freshly created object and asserted `count == 0` — already true before the call — so a `reset()` with an empty body passed, and the header's other promise, that it zeroes the accumulator, was asserted by nothing. Now measured as the header states it (§2.7). Sabotage: dropping the `memset` takes the new check red and leaves the OLD one green, which is the vacuity demonstrated rather than argued.
+- **F1 · FIXED** — `dp_correlator_reset` was pinned **vacuously**, which is the shape `docs/dev/contributing/validation.md` warns about by name. The C test called it on a freshly created object and asserted `count == 0` — already true before the call — so a `reset()` with an empty body passed, and the header's other promise, that it zeroes the accumulator, was asserted by nothing. Now measured as the header states it (§2.7). Sabotage: dropping the `memset` takes the new check red and leaves the OLD one green, which is the vacuity demonstrated rather than argued.
 
 - **F2 · FIXED** — The even-`n` Nyquist-bin split in `corr2d_zeropad_1d` — whose comment claims it matches `scipy.signal.resample` to machine precision — was covered by **nothing**. Proven by deleting it and watching the whole suite stay green, including the new sub-bin interpolation section, because the split changes the interpolated shape and barely moves its argmax. The invariant that sees it is realness (§2.5): 5.5e-08 with the split against 6.3e-03 without.
 
@@ -233,9 +233,9 @@ Detection at one false-alarm rate per search (0.1 here), 16 periods of a 127-chi
 
 - **F4 · BY DESIGN** — `nthreads` was once documented *accepted for API compatibility; ignored*, and this finding said so. Since #2666 it is real: the fast path's rows and the delay-Doppler columns fan out over a persistent pool, each worker on its own FFT plans, and a batch makes whole maps per worker (#2683). The forward guard this finding described is what now holds the design: the output is bit-identical at every thread count, checked in C at 1, 2 and 7 workers and here at 1 and 3 (§2.10). A threaded reduction that folded in completion order would break it, and the C test's sabotage of exactly that goes red.
 
-- **F5 · FIXED** — `dp_corr2d_create` documented `dwell` as *"must be >= 1"* and enforced only the output-grid rule, so `dwell = 0` built an object that was not merely degenerate but **silent**: the dump test is `++count == dwell`, which zero never satisfies, so it accumulated every frame it was handed and emitted nothing until `count` wrapped at SIZE_MAX. A caller whose dwell came from a computed value that underflowed got silence and unbounded growth rather than a refusal. Found by §2.9's refusal check, which failed on the first run. Fixed at the primitive rather than in each caller: `dp_detector2d_create` forwards its own `dwell` straight into this call, so both objects now refuse it and a second copy of the rule cannot drift. NULL is the whole error report by design — `docs/dev/contributing/error-convention.md` makes NULL the return for an invalid argument as well as an allocation failure, which the binding renders as `MemoryError`. Sabotage-proven: removing the check takes the new C section red.
+- **F5 · FIXED** — `dp_correlator_create_2d` documented `dwell` as *"must be >= 1"* and enforced only the output-grid rule, so `dwell = 0` built an object that was not merely degenerate but **silent**: the dump test is `++count == dwell`, which zero never satisfies, so it accumulated every frame it was handed and emitted nothing until `count` wrapped at SIZE_MAX. A caller whose dwell came from a computed value that underflowed got silence and unbounded growth rather than a refusal. Found by §2.9's refusal check, which failed on the first run. Fixed at the primitive rather than in each caller: `dp_detector2d_create` forwards its own `dwell` straight into this call, so both objects now refuse it and a second copy of the rule cannot drift. NULL is the whole error report by design — `docs/dev/contributing/error-convention.md` makes NULL the return for an invalid argument as well as an allocation failure, which the binding renders as `MemoryError`. Sabotage-proven: removing the check takes the new C section red.
 
-- **F6 · C-ONLY** — Three claims have no Python face and are certified in `native/tests/corr2d/test_corr2d_core.c` instead: `dp_corr2d_set_ref` (no binding at all — including its contract that a fast-path object REJECTS a reference that is no longer single-row), the `fast_path` selection flag, and the native path's promise to allocate no interpolation scratch, which is only observable as NULL pointers. The last is now asserted with the padded path checked to allocate them, so it cannot pass on fields that are always NULL.
+- **F6 · C-ONLY** — Three claims have no Python face and are certified in `native/tests/correlator/test_correlator_core.c` instead: `dp_correlator_set_ref` (no binding at all — including its contract that a fast-path object REJECTS a reference that is no longer single-row), the `fast_path` selection flag, and the native path's promise to allocate no interpolation scratch, which is only observable as NULL pointers. The last is now asserted with the padded path checked to allocate them, so it cannot pass on fields that are always NULL.
 
 ## 4. Limits — the certified envelope
 

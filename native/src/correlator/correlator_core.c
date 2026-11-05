@@ -1,5 +1,5 @@
-#include "doppler/corr2d/corr2d_core.h"
-#include "corr2d_map.h"
+#include "doppler/correlator/correlator_core.h"
+#include "correlator_map.h"
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
@@ -16,7 +16,7 @@
  * (nx -> nx_out) into ztmp, then columns (ny -> ny_out) into out.  The
  * even-axis Nyquist split is handled per axis by dp_fft_pad_spectrum(). */
 static void
-corr2d_zeropad_2d (const dp_corr2d_state_t *s, const float _Complex *p,
+corr2d_zeropad_2d (const dp_correlator_state_t *s, const float _Complex *p,
                    float _Complex *out)
 {
   for (size_t i = 0; i < s->ny; i++)
@@ -33,7 +33,7 @@ corr2d_zeropad_2d (const dp_corr2d_state_t *s, const float _Complex *p,
 }
 
 /* True iff ref (ny,nx, row-major) is exactly zero outside row 0 — the
- * single-row-reference fast-path precondition (see corr2d_core.h's file
+ * single-row-reference fast-path precondition (see correlator_core.h's file
  * doc comment for the identity this licenses).  ny==1 is trivially true. */
 static int
 corr2d_is_single_row_ref (const float _Complex *ref, size_t ny, size_t nx)
@@ -82,7 +82,7 @@ corr2d_chunk (size_t n, size_t t, int nworkers, size_t *r0, size_t *r1)
  * Every size here comes from arguments create() already validated, so the
  * allocations abort on OOM (clib_common.h). */
 static void
-corr2d_build_fast (dp_corr2d_state_t *state, const float _Complex *code,
+corr2d_build_fast (dp_correlator_state_t *state, const float _Complex *code,
                    size_t nx, size_t nxo, int nthreads, size_t max_chunks)
 {
   long nt = nthreads;
@@ -116,12 +116,12 @@ corr2d_build_fast (dp_corr2d_state_t *state, const float _Complex *code,
     state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
 }
 
-dp_corr2d_state_t *
-dp_corr2d_create (const float _Complex *ref, size_t ny, size_t nx,
-                  size_t dwell, int nthreads, size_t ny_out, size_t nx_out,
-                  int col_out)
+dp_correlator_state_t *
+dp_correlator_create_2d (const float _Complex *ref, size_t ny, size_t nx,
+                         size_t dwell, int nthreads, size_t ny_out,
+                         size_t nx_out, int col_out)
 {
-  dp_corr2d_state_t *state
+  dp_correlator_state_t *state
       = calloc (1, sizeof (*state)); /* NULL-init pointers */
   if (!state)
     return NULL;
@@ -216,6 +216,7 @@ dp_corr2d_create (const float _Complex *ref, size_t ny, size_t nx,
 
   if (!fast)
     state->nworkers = 1; /* the general 2-D path runs serially */
+  state->flavor    = DP_CORRELATOR_2D;
   state->fast_path = fast;
   state->ny        = ny;
   state->nx        = nx;
@@ -249,12 +250,27 @@ dp_corr2d_create (const float _Complex *ref, size_t ny, size_t nx,
   return state;
 
 fail:
-  dp_corr2d_destroy (state);
+  dp_correlator_destroy (state);
   return NULL;
 }
 
+/* The 1-D flavor is the 2-D one at one row (docs/design/correlator.md
+ * section 2.1): the single-row path, its count and its dwell, so nothing of
+ * Corr's own survives (D1, D4). One row is one chunk, so the pool is never
+ * built and nthreads changes nothing, as Corr documented. */
+dp_correlator_state_t *
+dp_correlator_create_1d (const float _Complex *ref, size_t ref_len,
+                         size_t dwell, int nthreads, size_t n_out)
+{
+  dp_correlator_state_t *state = dp_correlator_create_2d (
+      ref, 1, ref_len, dwell, nthreads, 0, n_out, -1);
+  if (state)
+    state->flavor = DP_CORRELATOR_1D;
+  return state;
+}
+
 void
-dp_corr2d_destroy (dp_corr2d_state_t *state)
+dp_correlator_destroy (dp_correlator_state_t *state)
 {
   if (!state)
     return;
@@ -296,63 +312,58 @@ dp_corr2d_destroy (dp_corr2d_state_t *state)
 }
 
 void
-dp_corr2d_reset (dp_corr2d_state_t *state)
+dp_correlator_reset (dp_correlator_state_t *state)
 {
   memset (state->accum, 0, state->n * sizeof (*state->accum));
   state->count = 0;
 }
 
-/* Serializable state — running accumulator (ny*nx) + frame count; the 2-D FFT
- * plans and the reference spectrum are config, recomputed by create().
+/* Serializable state — one blob for every flavor (docs/design/correlator.md
+ * section 4): the flavor, ny, ny_out, the frame count and the ny*nx
+ * accumulator. The FFT plans and the reference spectrum are config,
+ * recomputed by create().
  *
- * The delay-Doppler flavor carries its own magic, so neither flavor's blob
- * restores into the other: the accumulator means the same thing in both,
- * but a restore across flavors would silently turn a correlation surface
- * into a delay-Doppler map, or back.  Its blob also carries ny and ny_out
- * as reject keys (docs/design/state-serialization.md, "What goes in the
- * blob"): ny because the size check sees only ny*nx, and a (4, 8) blob read
- * as (8, 4) would be reinterpreted rather than refused; ny_out because it
- * fixes the map the dwell in progress dumps into. */
+ * The flavor, ny and ny_out are reject keys (docs/design/state-
+ * serialization.md, "What goes in the blob"). The flavor because the
+ * accumulator means the same thing in each, so a restore across flavors
+ * would silently turn a correlation surface into a delay-Doppler map, or
+ * back; ny because the size check sees only ny*nx, and a (4, 8) blob read as
+ * (8, 4) would be reinterpreted rather than refused; ny_out because it fixes
+ * the map the dwell in progress dumps into. */
 size_t
-dp_corr2d_state_bytes (const dp_corr2d_state_t *s)
+dp_correlator_state_bytes (const dp_correlator_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
-         + (s->delay_doppler ? 2 * sizeof (uint64_t) : 0)
+  return sizeof (dp_state_hdr_t) + 4 * sizeof (uint64_t)
          + s->n * sizeof (float _Complex);
 }
 
 void
-dp_corr2d_get_state (const dp_corr2d_state_t *s, void *blob)
+dp_correlator_get_state (const dp_correlator_state_t *s, void *blob)
 {
-  if (s->delay_doppler)
-    {
-      DP_GET_OPEN (DELAY_DOPPLER_STATE_MAGIC, DELAY_DOPPLER_STATE_VERSION,
-                   dp_corr2d_state_bytes (s));
-      dp_w_u64 (&_w, s->ny);
-      dp_w_u64 (&_w, s->ny_out);
-      dp_w_u64 (&_w, s->count);
-      dp_w_cf32 (&_w, s->accum, s->n);
-      return;
-    }
-  DP_GET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
-               dp_corr2d_state_bytes (s));
+  DP_GET_OPEN (CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION,
+               dp_correlator_state_bytes (s));
+  dp_w_u64 (&_w, (uint64_t)s->flavor);
+  dp_w_u64 (&_w, s->ny);
+  dp_w_u64 (&_w, s->ny_out);
   dp_w_u64 (&_w, s->count);
   dp_w_cf32 (&_w, s->accum, s->n);
 }
 
-/* The delay-Doppler flavor's restore: keys and count are decoded and
- * checked before anything is written, so a refused blob changes nothing. */
-static int
-corr2d_set_state_dd (dp_corr2d_state_t *s, const void *blob)
+int
+dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (DELAY_DOPPLER_STATE_MAGIC, DELAY_DOPPLER_STATE_VERSION,
-               dp_corr2d_state_bytes (s));
+  DP_SET_OPEN (CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION,
+               dp_correlator_state_bytes (s));
+  /* Keys and count are decoded and checked before anything is written, so
+     a refused blob changes nothing. A count at or past the dwell would
+     never dump: `count + 1 == dwell` is never true again until it wraps
+     (#2142, doppler#2641). */
+  const uint64_t flavor = dp_r_u64 (&_r);
   const uint64_t ny     = dp_r_u64 (&_r);
   const uint64_t ny_out = dp_r_u64 (&_r);
   const uint64_t count  = dp_r_u64 (&_r);
-  /* A count at or past the dwell would never dump: `count + 1 == dwell`
-     is never true again until it wraps. */
-  if (ny != s->ny || ny_out != s->ny_out || count >= s->dwell)
+  if (flavor != (uint64_t)s->flavor || ny != s->ny || ny_out != s->ny_out
+      || count >= s->dwell)
     return DP_ERR_INVALID;
   s->count = (size_t)count;
   dp_r_cf32 (&_r, s->accum, s->n);
@@ -360,24 +371,7 @@ corr2d_set_state_dd (dp_corr2d_state_t *s, const void *blob)
 }
 
 int
-dp_corr2d_set_state (dp_corr2d_state_t *s, const void *blob)
-{
-  if (s->delay_doppler)
-    return corr2d_set_state_dd (s, blob);
-  DP_SET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
-               dp_corr2d_state_bytes (s));
-  /* Decoded and checked before anything is written, as the delay-Doppler
-     flavor's is: a count at or past the dwell never dumps (#2142). */
-  const uint64_t count = dp_r_u64 (&_r);
-  if (count >= s->dwell)
-    return DP_ERR_INVALID;
-  s->count = (size_t)count;
-  dp_r_cf32 (&_r, s->accum, s->n);
-  return DP_OK;
-}
-
-int
-dp_corr2d_set_ref (dp_corr2d_state_t *state, const float _Complex *ref)
+dp_correlator_set_ref (dp_correlator_state_t *state, const float _Complex *ref)
 {
   if (state->fast_path)
     {
@@ -404,12 +398,12 @@ dp_corr2d_set_ref (dp_corr2d_state_t *state, const float _Complex *ref)
       for (size_t k = 0; k < state->n; k++)
         state->ref_spec[k] = conjf (state->ref_spec[k]);
     }
-  dp_corr2d_reset (state);
+  dp_correlator_reset (state);
   return 0;
 }
 
 size_t
-dp_corr2d_execute_max_out (dp_corr2d_state_t *state)
+dp_correlator_execute_max_out (dp_correlator_state_t *state)
 {
   return state->n_out;
 }
@@ -426,7 +420,7 @@ dp_corr2d_execute_max_out (dp_corr2d_state_t *state)
  * scaled by 1/nx.  The one inverse every fast-path map is made with: a dump
  * (corr2d_row) and a bank hypothesis (corr2d_bank_rows_body). */
 static void
-corr2d_row_inverse (const dp_corr2d_state_t *s, size_t t,
+corr2d_row_inverse (const dp_correlator_state_t *s, size_t t,
                     const float _Complex *a, float _Complex *pad,
                     float _Complex *d)
 {
@@ -444,7 +438,7 @@ corr2d_row_inverse (const dp_corr2d_state_t *s, size_t t,
 }
 
 static void
-corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
+corr2d_row (const dp_correlator_state_t *s, size_t t, const float _Complex *x,
             float _Complex *a, float _Complex *w, float _Complex *pad,
             float _Complex *d, int dump)
 {
@@ -463,7 +457,7 @@ corr2d_row (const dp_corr2d_state_t *s, size_t t, const float _Complex *x,
    epoch stage, dp__dd_map_epoch1, while the row is hot) and the dump runs
    the map's column stage; slow first accumulates and runs the map whole. */
 static int
-corr2d_dd_fused (const dp_corr2d_state_t *s)
+corr2d_dd_fused (const dp_correlator_state_t *s)
 {
   return s->dd_fused;
 }
@@ -486,7 +480,7 @@ corr2d_dd_fused (const dp_corr2d_state_t *s)
 /* One delay-Doppler row: accumulated; on the dump frame of a fused map,
    inverted through the map's epoch stage into blk and cleared. */
 CORR2D_ONE_BODY static void
-corr2d_dd_row (const dp_corr2d_state_t *s, size_t t, size_t i,
+corr2d_dd_row (const dp_correlator_state_t *s, size_t t, size_t i,
                const float _Complex *x, float _Complex *a, float _Complex *w,
                float _Complex *blk, int dump)
 {
@@ -505,22 +499,22 @@ corr2d_dd_row (const dp_corr2d_state_t *s, size_t t, size_t i,
  * so chunks run concurrently with no synchronization. */
 typedef struct
 {
-  dp_corr2d_state_t    *s;
-  const float _Complex *in;   /**< the frame, ny rows of nx              */
-  float _Complex       *acc;  /**< accumulator, ny rows of nx            */
-  float _Complex       *work; /**< forward spectra, ny rows of nx        */
-  float _Complex       *pad;  /**< zero-pad rows of nx_out; NULL native  */
-  float _Complex       *dst;  /**< dump destination, ny rows of nx_out   */
-  int                   dump; /**< 1 on the frame that completes a dwell */
+  dp_correlator_state_t *s;
+  const float _Complex  *in;   /**< the frame, ny rows of nx              */
+  float _Complex        *acc;  /**< accumulator, ny rows of nx            */
+  float _Complex        *work; /**< forward spectra, ny rows of nx        */
+  float _Complex        *pad;  /**< zero-pad rows of nx_out; NULL native  */
+  float _Complex        *dst;  /**< dump destination, ny rows of nx_out   */
+  int                    dump; /**< 1 on the frame that completes a dwell */
 } corr2d_rows_t;
 
 static void
 corr2d_rows_body (size_t t, void *ctx)
 {
-  const corr2d_rows_t *c  = (const corr2d_rows_t *)ctx;
-  dp_corr2d_state_t   *s  = c->s;
-  const size_t         nx = s->nx, nxo = s->nx_out;
-  size_t               r0, r1;
+  const corr2d_rows_t   *c  = (const corr2d_rows_t *)ctx;
+  dp_correlator_state_t *s  = c->s;
+  const size_t           nx = s->nx, nxo = s->nx_out;
+  size_t                 r0, r1;
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t i = r0; i < r1; i++)
     if (s->delay_doppler)
@@ -531,7 +525,7 @@ corr2d_rows_body (size_t t, void *ctx)
                   c->pad ? c->pad + i * nxo : NULL, c->dst + i * nxo, c->dump);
 }
 
-/* The delay-Doppler dump: the one block map (corr2d_map.h) on the dwell's
+/* The delay-Doppler dump: the one block map (correlator_map.h) on the dwell's
  * product spectra `acc` (ny rows of nx, each already times the conjugated
  * code spectrum), every row at 1/nx onto its centered output row (zero
  * Doppler at row ny_out/2), in the schedule the map's rule picks (one tile,
@@ -546,7 +540,7 @@ corr2d_dd_none (void *ctx, size_t r, const float _Complex *out)
 }
 
 static size_t
-corr2d_dd_work (const dp_corr2d_state_t *s)
+corr2d_dd_work (const dp_correlator_state_t *s)
 {
   const size_t w = dp__dd_map_work_len (s->dd_map, 1, 1);
   return w ? w : 1;
@@ -555,7 +549,7 @@ corr2d_dd_work (const dp_corr2d_state_t *s)
 /* `blk` holds the dump frame's rows as the fused row stage inverted them
    (rows first); slow first reads `acc` instead and clears it. */
 static void
-corr2d_dd_dump (dp_corr2d_state_t *s, int slot, float _Complex *acc,
+corr2d_dd_dump (dp_correlator_state_t *s, int slot, float _Complex *acc,
                 const float _Complex *blk, float _Complex *work,
                 float _Complex *out)
 {
@@ -575,7 +569,7 @@ corr2d_dd_dump (dp_corr2d_state_t *s, int slot, float _Complex *acc,
  * on a dump, acc's first ny entries go to dst and acc is cleared (all n of
  * it, as the state blob covers all n). */
 static void
-corr2d_col_frame (const dp_corr2d_state_t *s, const float _Complex *in,
+corr2d_col_frame (const dp_correlator_state_t *s, const float _Complex *in,
                   float _Complex *acc, float _Complex *dst, int dump)
 {
   const size_t ny = s->ny, nx = s->nx, j0 = (size_t)s->col_out;
@@ -596,7 +590,8 @@ corr2d_col_frame (const dp_corr2d_state_t *s, const float _Complex *in,
 
 /* Fast path: ref is single-row and ny_out == ny, so (see the header doc
  * comment for the full derivation) the row axis of the 2-D transform pair
- * cancels to an exact identity and dp_corr2d_execute reduces, per row i, to
+ * cancels to an exact identity and dp_correlator_execute reduces, per row i,
+ * to
  *
  *   R(i,j) = IFFT_nx( FFT_nx(row_i) · conj(FFT_nx(ref_row0)) )(j) / nx
  *
@@ -608,7 +603,7 @@ corr2d_col_frame (const dp_corr2d_state_t *s, const float _Complex *in,
  * (corr2d_rows_body); the delay-Doppler flavor then makes its map from the
  * accumulated product spectra (corr2d_dd_dump). */
 static size_t
-corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
+corr2d_execute_fast (dp_correlator_state_t *state, const float _Complex *in,
                      float _Complex *out)
 {
   if (state->col_out >= 0)
@@ -654,7 +649,7 @@ corr2d_execute_fast (dp_corr2d_state_t *state, const float _Complex *in,
  * scratch are scratch, not state, so a batch shares them; it brings its own
  * acc. */
 static void
-corr2d_general_frame (const dp_corr2d_state_t *s, const float _Complex *in,
+corr2d_general_frame (const dp_correlator_state_t *s, const float _Complex *in,
                       float _Complex *acc, float _Complex *dst, int dump)
 {
   dp_fft2d_execute_cf32 (s->fwd, in, s->n, s->work_fft, s->n);
@@ -676,11 +671,12 @@ corr2d_general_frame (const dp_corr2d_state_t *s, const float _Complex *in,
 }
 
 size_t
-dp_corr2d_execute (dp_corr2d_state_t *state, const float _Complex *in,
-                   size_t n_in, float _Complex *out, size_t max_out)
+dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
+                       size_t n_in, float _Complex *out, size_t max_out)
 {
   /* n_in must equal ny*nx; refuse before touching the accumulator, so a
-   * refused call is not counted toward the dwell (#1925, as dp_corr_execute).
+   * refused call is not counted toward the dwell (#1925, as
+   * dp_correlator_execute).
    */
   if (n_in != state->n)
     return SIZE_MAX;
@@ -745,10 +741,10 @@ dp_corr2d_execute (dp_corr2d_state_t *state, const float _Complex *in,
   return cap;
 }
 
-dp_corr2d_state_t *
-dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
-                                size_t ny, size_t dwell, int nthreads,
-                                size_t ny_out)
+dp_correlator_state_t *
+dp_correlator_create_delay_doppler (const float _Complex *code,
+                                    size_t code_len, size_t ny, size_t dwell,
+                                    int nthreads, size_t ny_out)
 {
   const size_t nx  = code_len;
   const size_t nyo = ny_out ? ny_out : ny;
@@ -757,10 +753,10 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
 
   /* Every size below follows from the arguments just validated, so the
      allocations abort on OOM rather than unwind (clib_common.h). */
-  dp_corr2d_state_t *state = dp_xcalloc (1, sizeof (*state));
-  const size_t       n     = ny * nx;
-  state->work_fft          = dp_xmalloc (n * sizeof (*state->work_fft));
-  state->accum             = dp_xcalloc (n, sizeof (*state->accum));
+  dp_correlator_state_t *state = dp_xcalloc (1, sizeof (*state));
+  const size_t           n     = ny * nx;
+  state->work_fft              = dp_xmalloc (n * sizeof (*state->work_fft));
+  state->accum                 = dp_xcalloc (n, sizeof (*state->accum));
   /* The delay axis is native (nx_out == nx), so the row stage is exactly
      Corr2D's fast path over a reference whose row 0 is the code. */
   /* Rows split into at most ny chunks, columns into at most one per tile:
@@ -768,7 +764,7 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
   const size_t ntiles = corr2d_ntiles (nx);
   corr2d_build_fast (state, code, nx, nx, nthreads, ny > ntiles ? ny : ntiles);
 
-  /* The one block map (corr2d_map.h): ny epochs of nx, read on ny_out
+  /* The one block map (correlator_map.h): ny epochs of nx, read on ny_out
      slow rows, no code-rate ramp (F = 1), a slot per worker. */
   const dp__dd_geom_t geom = { nx, nx, ny, nyo, 1 };
   state->dd_map  = dp_xnn (dp__dd_map_create (&geom, state->nworkers));
@@ -785,6 +781,7 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
   for (size_t i = 0; i < nyo; i++)
     state->dd_rows[i] = (i + nyo / 2) % nyo;
 
+  state->flavor        = DP_CORRELATOR_DELAY_DOPPLER;
   state->delay_doppler = 1;
   state->fast_path     = 1;
   state->ny            = ny;
@@ -805,7 +802,7 @@ dp_corr2d_create_delay_doppler (const float _Complex *code, size_t code_len,
 
 /* Frames in a batch of n_in samples, or 0 when it is empty or ragged. */
 static size_t
-corr2d_frames (const dp_corr2d_state_t *s, size_t n_in)
+corr2d_frames (const dp_correlator_state_t *s, size_t n_in)
 {
   return (n_in % s->n) ? 0 : n_in / s->n;
 }
@@ -816,7 +813,7 @@ corr2d_frames (const dp_corr2d_state_t *s, size_t n_in)
    frame helper leaves its accumulator zero again after a dump, which is
    what makes each map start from the zero a fresh object starts from. */
 static void
-corr2d_batch_alloc (dp_corr2d_state_t *s)
+corr2d_batch_alloc (dp_correlator_state_t *s)
 {
   if (s->bat_acc)
     return;
@@ -835,7 +832,7 @@ corr2d_batch_alloc (dp_corr2d_state_t *s)
    fast path's rows (and, on a dump, the delay-Doppler columns) on the
    pool.  dst receives the map when dump is set. */
 static void
-corr2d_batch_frame (dp_corr2d_state_t *s, const float _Complex *x,
+corr2d_batch_frame (dp_correlator_state_t *s, const float _Complex *x,
                     float _Complex *dst, int dump)
 {
   if (!s->fast_path)
@@ -862,22 +859,22 @@ corr2d_batch_frame (dp_corr2d_state_t *s, const float _Complex *x,
    split one bit for bit. */
 typedef struct
 {
-  dp_corr2d_state_t    *s;
-  const float _Complex *in; /**< the batch                 */
-  size_t                h0; /**< frame of chunk 0          */
+  dp_correlator_state_t *s;
+  const float _Complex  *in; /**< the batch                 */
+  size_t                 h0; /**< frame of chunk 0          */
 } corr2d_whole_t;
 
 static void
 corr2d_whole_body (size_t t, void *ctx)
 {
-  const corr2d_whole_t *c  = (const corr2d_whole_t *)ctx;
-  dp_corr2d_state_t    *s  = c->s;
-  const size_t          nx = s->nx, nxo = s->nx_out, n = s->n;
-  const float _Complex *x    = c->in + (c->h0 + t) * n;
-  float _Complex       *acc  = s->bat_acc + t * n;
-  float _Complex       *work = s->bat_work + t * n;
-  float _Complex       *pad = s->bat_pad ? s->bat_pad + t * s->ny * nxo : NULL;
-  float _Complex       *map = s->bat_map + t * s->n_out;
+  const corr2d_whole_t  *c  = (const corr2d_whole_t *)ctx;
+  dp_correlator_state_t *s  = c->s;
+  const size_t           nx = s->nx, nxo = s->nx_out, n = s->n;
+  const float _Complex  *x    = c->in + (c->h0 + t) * n;
+  float _Complex        *acc  = s->bat_acc + t * n;
+  float _Complex        *work = s->bat_work + t * n;
+  float _Complex *pad = s->bat_pad ? s->bat_pad + t * s->ny * nxo : NULL;
+  float _Complex *map = s->bat_map + t * s->n_out;
   for (size_t i = 0; i < s->ny; i++)
     if (s->delay_doppler)
       corr2d_dd_row (s, t, i, x + i * nx, acc + i * nx, work + i * nx,
@@ -898,19 +895,19 @@ corr2d_whole_body (size_t t, void *ctx)
    and a short frame is not split once per frame. */
 typedef struct
 {
-  dp_corr2d_state_t    *s;
-  const float _Complex *in;  /**< the batch                       */
-  size_t                H;   /**< frames                          */
-  float _Complex       *dst; /**< the surface: map, or bat_work   */
+  dp_correlator_state_t *s;
+  const float _Complex  *in;  /**< the batch                       */
+  size_t                 H;   /**< frames                          */
+  float _Complex        *dst; /**< the surface: map, or bat_work   */
 } corr2d_coh_t;
 
 static void
 corr2d_coh_body (size_t t, void *ctx)
 {
-  const corr2d_coh_t *c  = (const corr2d_coh_t *)ctx;
-  dp_corr2d_state_t  *s  = c->s;
-  const size_t        nx = s->nx, nxo = s->nx_out;
-  size_t              r0, r1;
+  const corr2d_coh_t    *c  = (const corr2d_coh_t *)ctx;
+  dp_correlator_state_t *s  = c->s;
+  const size_t           nx = s->nx, nxo = s->nx_out;
+  size_t                 r0, r1;
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t h = 0; h < c->H; h++)
     for (size_t i = r0; i < r1; i++)
@@ -929,8 +926,8 @@ corr2d_coh_body (size_t t, void *ctx)
    in h order; coherent = 1 sums the frames' product spectra and folds the
    one map it inverts, as h = 0.  The dwell is never read or written. */
 static size_t
-corr2d_batch (dp_corr2d_state_t *s, const float _Complex *in, size_t n_in,
-              int coherent, const dp_corr2d_fold_t *fold)
+corr2d_batch (dp_correlator_state_t *s, const float _Complex *in, size_t n_in,
+              int coherent, const dp_correlator_fold_t *fold)
 {
   const size_t H = corr2d_frames (s, n_in);
   if (H == 0)
@@ -981,8 +978,9 @@ corr2d_batch (dp_corr2d_state_t *s, const float _Complex *in, size_t n_in,
 }
 
 size_t
-dp_corr2d_execute_fold (dp_corr2d_state_t *state, const float _Complex *in,
-                        size_t n_in, const dp_corr2d_fold_t *fold)
+dp_correlator_execute_fold (dp_correlator_state_t *state,
+                            const float _Complex *in, size_t n_in,
+                            const dp_correlator_fold_t *fold)
 {
   return corr2d_batch (state, in, n_in, 0, fold);
 }
@@ -1061,11 +1059,11 @@ corr2d_fold_power_max (void *ctx, size_t h, const float _Complex *map,
 
 typedef struct
 {
-  const dp_corr2d_state_t *s;
-  float                   *peak;
-  uint32_t                *row;
-  uint32_t                *col;
-  float                   *mean;
+  const dp_correlator_state_t *s;
+  float                       *peak;
+  uint32_t                    *row;
+  uint32_t                    *col;
+  float                       *mean;
 } corr2d_peaks_t;
 
 static void
@@ -1110,7 +1108,8 @@ corr2d_fold_peaks (void *ctx, size_t h, const float _Complex *map, size_t n)
 }
 
 size_t
-dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state, size_t n_in)
+dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
+                                   size_t                       n_in)
 {
   const size_t H = n_in / state->n;
   if (H && state->n_out > SIZE_MAX / H)
@@ -1119,90 +1118,94 @@ dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state, size_t n_in)
 }
 
 size_t
-dp_corr2d_execute_all (dp_corr2d_state_t *state, const float _Complex *in,
-                       size_t n_in, float _Complex *out, size_t max_out)
+dp_correlator_execute_all (dp_correlator_state_t *state,
+                           const float _Complex *in, size_t n_in,
+                           float _Complex *out, size_t max_out)
 {
-  const size_t need = dp_corr2d_execute_all_max_out (state, n_in);
+  const size_t need = dp_correlator_execute_all_max_out (state, n_in);
   if (corr2d_frames (state, n_in) == 0 || need == SIZE_MAX || max_out < need)
     return SIZE_MAX;
-  dp_corr2d_fold_t f = { corr2d_fold_copy, out };
+  dp_correlator_fold_t f = { corr2d_fold_copy, out };
   corr2d_batch (state, in, n_in, 0, &f);
   return need;
 }
 
 size_t
-dp_corr2d_execute_coherent (dp_corr2d_state_t *state, const float _Complex *in,
-                            size_t n_in, float _Complex *out, size_t max_out)
+dp_correlator_execute_coherent (dp_correlator_state_t *state,
+                                const float _Complex *in, size_t n_in,
+                                float _Complex *out, size_t max_out)
 {
   if (corr2d_frames (state, n_in) == 0 || max_out < state->n_out)
     return SIZE_MAX;
-  dp_corr2d_fold_t f = { corr2d_fold_copy, out };
+  dp_correlator_fold_t f = { corr2d_fold_copy, out };
   corr2d_batch (state, in, n_in, 1, &f);
   return state->n_out;
 }
 
 size_t
-dp_corr2d_execute_power_sum (dp_corr2d_state_t    *state,
-                             const float _Complex *in, size_t n_in, float *out,
-                             size_t max_out)
+dp_correlator_execute_power_sum (dp_correlator_state_t *state,
+                                 const float _Complex *in, size_t n_in,
+                                 float *out, size_t max_out)
 {
   if (corr2d_frames (state, n_in) == 0 || max_out < state->n_out)
     return SIZE_MAX;
-  dp_corr2d_fold_t f = { corr2d_fold_power_sum, out };
+  dp_correlator_fold_t f = { corr2d_fold_power_sum, out };
   corr2d_batch (state, in, n_in, 0, &f);
   return state->n_out;
 }
 
 size_t
-dp_corr2d_execute_power_max (dp_corr2d_state_t    *state,
-                             const float _Complex *in, size_t n_in, float *out,
-                             uint32_t *out1, size_t max_out)
+dp_correlator_execute_power_max (dp_correlator_state_t *state,
+                                 const float _Complex *in, size_t n_in,
+                                 float *out, uint32_t *out1, size_t max_out)
 {
   const size_t H = corr2d_frames (state, n_in);
   /* The index is a uint32: map H - 1 must fit in one. */
   if (H == 0 || H - 1 > UINT32_MAX || max_out < state->n_out)
     return SIZE_MAX;
-  corr2d_max_t     c = { out, out1 };
-  dp_corr2d_fold_t f = { corr2d_fold_power_max, &c };
+  corr2d_max_t         c = { out, out1 };
+  dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
   corr2d_batch (state, in, n_in, 0, &f);
   return state->n_out;
 }
 
 size_t
-dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state, size_t n_in)
+dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
+                                     size_t                       n_in)
 {
   return n_in / state->n;
 }
 
 size_t
-dp_corr2d_execute_peaks (dp_corr2d_state_t *state, const float _Complex *in,
-                         size_t n_in, float *out, uint32_t *out1,
-                         uint32_t *out2, float *out3, size_t max_out)
+dp_correlator_execute_peaks (dp_correlator_state_t *state,
+                             const float _Complex *in, size_t n_in, float *out,
+                             uint32_t *out1, uint32_t *out2, float *out3,
+                             size_t max_out)
 {
   const size_t H = corr2d_frames (state, n_in);
   if (H == 0 || max_out < H)
     return SIZE_MAX;
-  corr2d_peaks_t   c = { state, out, out1, out2, out3 };
-  dp_corr2d_fold_t f = { corr2d_fold_peaks, &c };
+  corr2d_peaks_t       c = { state, out, out1, out2, out3 };
+  dp_correlator_fold_t f = { corr2d_fold_peaks, &c };
   corr2d_batch (state, in, n_in, 0, &f);
   return H;
 }
 
 /* The three reductions to one map each write n_out values. */
 size_t
-dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state)
+dp_correlator_execute_coherent_max_out (const dp_correlator_state_t *state)
 {
   return state->n_out;
 }
 
 size_t
-dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state)
+dp_correlator_execute_power_sum_max_out (const dp_correlator_state_t *state)
 {
   return state->n_out;
 }
 
 size_t
-dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state)
+dp_correlator_execute_power_max_max_out (const dp_correlator_state_t *state)
 {
   return state->n_out;
 }
@@ -1233,7 +1236,7 @@ typedef struct
    index cannot name.  Every path runs a bank; only the fast path and
    DelayDoppler share work across hypotheses. */
 static int
-corr2d_bank_check (const dp_corr2d_state_t *s, size_t x_len, size_t L,
+corr2d_bank_check (const dp_correlator_state_t *s, size_t x_len, size_t L,
                    int g_min, int g_max, size_t rates_len, corr2d_bank_t *b)
 {
   if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0)
@@ -1300,7 +1303,7 @@ corr2d_bank_free (corr2d_bank_mem_t *m)
    The rest is the object's own size, already allocated once by create(), so
    it goes through the abort-on-OOM helpers (clib_common.h). */
 static int
-corr2d_bank_alloc (const dp_corr2d_state_t *s, const corr2d_bank_t *b,
+corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
                    int slow_first, corr2d_bank_mem_t *m)
 {
   const size_t nw = (size_t)s->nworkers, L = b->L;
@@ -1364,11 +1367,11 @@ corr2d_bank_alloc (const dp_corr2d_state_t *s, const corr2d_bank_t *b,
    carriers see exactly the frame execute() sees. */
 typedef struct
 {
-  const dp_corr2d_state_t *s;
-  const float _Complex    *x;
-  const float _Complex    *phase; /**< nx values, or NULL for j = 0 */
-  float _Complex          *spec;  /**< ny x nx                      */
-  float _Complex          *prod;  /**< per-worker mix scratch       */
+  const dp_correlator_state_t *s;
+  const float _Complex        *x;
+  const float _Complex        *phase; /**< nx values, or NULL for j = 0 */
+  float _Complex              *spec;  /**< ny x nx                      */
+  float _Complex              *prod;  /**< per-worker mix scratch       */
 } corr2d_bank_fwd_t;
 
 static void
@@ -1397,22 +1400,22 @@ corr2d_bank_fwd_body (size_t t, void *ctx)
    inverse, corr2d_row_inverse) into the surface. */
 typedef struct
 {
-  const dp_corr2d_state_t *s;
-  const float _Complex    *spec; /**< fraction j's ny x nx spectra */
-  size_t                   k;    /**< the roll, 0 .. nx-1          */
-  corr2d_bank_mem_t       *m;
-  float _Complex          *dst; /**< ny x nx_out                  */
+  const dp_correlator_state_t *s;
+  const float _Complex        *spec; /**< fraction j's ny x nx spectra */
+  size_t                       k;    /**< the roll, 0 .. nx-1          */
+  corr2d_bank_mem_t           *m;
+  float _Complex              *dst; /**< ny x nx_out                  */
 } corr2d_bank_rows_t;
 
 static void
 corr2d_bank_rows_body (size_t t, void *ctx)
 {
-  const corr2d_bank_rows_t *c  = (const corr2d_bank_rows_t *)ctx;
-  const dp_corr2d_state_t  *s  = c->s;
-  const size_t              nx = s->nx, nxo = s->nx_out, k = c->k;
-  float _Complex           *a   = c->m->prod + t * nx;
-  float _Complex           *pad = c->m->pad ? c->m->pad + t * nxo : NULL;
-  size_t                    r0, r1;
+  const corr2d_bank_rows_t    *c  = (const corr2d_bank_rows_t *)ctx;
+  const dp_correlator_state_t *s  = c->s;
+  const size_t                 nx = s->nx, nxo = s->nx_out, k = c->k;
+  float _Complex              *a   = c->m->prod + t * nx;
+  float _Complex              *pad = c->m->pad ? c->m->pad + t * nxo : NULL;
+  size_t                       r0, r1;
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t i = r0; i < r1; i++)
     {
@@ -1433,8 +1436,8 @@ corr2d_bank_rows_body (size_t t, void *ctx)
    lengths a bank serves (corr2d-hypotheses.md section 5: short frames run on
    one thread).  Parallel banks would split hypotheses, not a frame. */
 static void
-corr2d_bank_stage (const dp_corr2d_state_t *s, void (*body) (size_t, void *),
-                   void                    *ctx)
+corr2d_bank_stage (const dp_correlator_state_t *s,
+                   void (*body) (size_t, void *), void *ctx)
 {
   for (size_t t = 0; t < (size_t)s->nworkers; t++)
     body (t, ctx);
@@ -1447,8 +1450,8 @@ corr2d_bank_stage (const dp_corr2d_state_t *s, void (*body) (size_t, void *),
    path's own frame code into a fresh accumulator, which the frame code
    leaves zero again.  The bank's definition, with nothing shared. */
 static void
-corr2d_bank_unshared (const dp_corr2d_state_t *s, const float _Complex *x,
-                      const corr2d_bank_t *b, const dp_corr2d_fold_t *fold,
+corr2d_bank_unshared (const dp_correlator_state_t *s, const float _Complex *x,
+                      const corr2d_bank_t *b, const dp_correlator_fold_t *fold,
                       corr2d_bank_mem_t *m)
 {
   const size_t    ny = s->ny, nx = s->nx;
@@ -1481,9 +1484,9 @@ corr2d_bank_unshared (const dp_corr2d_state_t *s, const float _Complex *x,
    h0 + r. */
 typedef struct
 {
-  const dp_corr2d_fold_t *fold;
-  size_t                  h0;
-  size_t                  n_out;
+  const dp_correlator_fold_t *fold;
+  size_t                      h0;
+  size_t                      n_out;
 } corr2d_bank_fold_t;
 
 static void
@@ -1494,11 +1497,11 @@ corr2d_bank_fold_one (void *ctx, size_t r, const float _Complex *out)
 }
 
 static size_t
-corr2d_bank_run (const dp_corr2d_state_t *s, const float _Complex *x,
-                 const corr2d_bank_t *b, const dp_corr2d_fold_t *fold)
+corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
+                 const corr2d_bank_t *b, const dp_correlator_fold_t *fold)
 {
   /* The delay-Doppler map's schedule, decided once by its rule over the
-     carriers one fraction's slow time serves and the rates (corr2d_map.h);
+     carriers one fraction's slow time serves and the rates (correlator_map.h);
      one slow row is the run's own case. */
   const int slow_first
       = s->delay_doppler && s->ny_out > 1
@@ -1589,10 +1592,10 @@ corr2d_bank_run (const dp_corr2d_state_t *s, const float _Complex *x,
 }
 
 size_t
-dp_corr2d_bank_fold (const dp_corr2d_state_t *state, const float _Complex *x,
-                     size_t x_len, size_t L, int g_min, int g_max,
-                     const float _Complex *rates, size_t rates_len,
-                     const dp_corr2d_fold_t *fold)
+dp_correlator_bank_fold (const dp_correlator_state_t *state,
+                         const float _Complex *x, size_t x_len, size_t L,
+                         int g_min, int g_max, const float _Complex *rates,
+                         size_t rates_len, const dp_correlator_fold_t *fold)
 {
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b))
@@ -1602,26 +1605,27 @@ dp_corr2d_bank_fold (const dp_corr2d_state_t *state, const float _Complex *x,
 }
 
 size_t
-dp_corr2d_bank_power_max_max_out (dp_corr2d_state_t *state, size_t x_len)
+dp_correlator_bank_power_max_max_out (dp_correlator_state_t *state,
+                                      size_t                 x_len)
 {
   (void)x_len;
   return state->n_out;
 }
 
 size_t
-dp_corr2d_bank_power_max (const dp_corr2d_state_t *state,
-                          const float _Complex *x, size_t x_len, size_t L,
-                          int g_min, int g_max, const float _Complex *rates,
-                          size_t rates_len, float *out, uint32_t *out1,
-                          size_t max_out)
+dp_correlator_bank_power_max (const dp_correlator_state_t *state,
+                              const float _Complex *x, size_t x_len, size_t L,
+                              int g_min, int g_max,
+                              const float _Complex *rates, size_t rates_len,
+                              float *out, uint32_t *out1, size_t max_out)
 {
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
       || max_out < state->n_out)
     return SIZE_MAX;
-  b.rates            = rates_len ? rates : NULL;
-  corr2d_max_t     c = { out, out1 };
-  dp_corr2d_fold_t f = { corr2d_fold_power_max, &c };
+  b.rates                = rates_len ? rates : NULL;
+  corr2d_max_t         c = { out, out1 };
+  dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
   return corr2d_bank_run (state, x, &b, &f) == SIZE_MAX ? SIZE_MAX
                                                         : state->n_out;
 }
@@ -1634,7 +1638,7 @@ dp_corr2d_bank_power_max (const dp_corr2d_state_t *state,
    DelayDoppler then takes the slow-time DFT at the cell's Doppler bin.  It
    is the bank's map at that cell, up to float rounding. */
 static double
-corr2d_cell_power (const dp_corr2d_state_t *s, const float _Complex *x,
+corr2d_cell_power (const dp_correlator_state_t *s, const float _Complex *x,
                    const float _Complex *code_conj, long long g, size_t L,
                    const float _Complex *w, size_t row, size_t tau,
                    double _Complex *ph)
@@ -1676,7 +1680,7 @@ corr2d_cell_power (const dp_corr2d_state_t *s, const float _Complex *x,
 }
 
 size_t
-dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state, size_t x_len)
+dp_correlator_bank_detect_max_out (dp_correlator_state_t *state, size_t x_len)
 {
   (void)x_len;
   return state->n_out;
@@ -1702,12 +1706,13 @@ corr2d_fold_cell (void *ctx, size_t h, const float _Complex *map, size_t n)
 }
 
 size_t
-dp_corr2d_bank_detect (const dp_corr2d_state_t *state, const float _Complex *x,
-                       size_t x_len, size_t L_d, size_t L_r, int g_min,
-                       int g_max, float t_candidate, float t_confirm,
-                       const float _Complex *rates, size_t rates_len,
-                       float *out, int32_t *out1, uint32_t *out2,
-                       uint32_t *out3, uint32_t *out4, size_t max_out)
+dp_correlator_bank_detect (const dp_correlator_state_t *state,
+                           const float _Complex *x, size_t x_len, size_t L_d,
+                           size_t L_r, int g_min, int g_max, float t_candidate,
+                           float t_confirm, const float _Complex *rates,
+                           size_t rates_len, float *out, int32_t *out1,
+                           uint32_t *out2, uint32_t *out3, uint32_t *out4,
+                           size_t max_out)
 {
   corr2d_bank_t b;
   if (L_d == 0 || L_r < L_d || L_r % L_d != 0
@@ -1733,8 +1738,8 @@ dp_corr2d_bank_detect (const dp_corr2d_state_t *state, const float _Complex *x,
   double _Complex *ph   = direct ? dp_xmalloc (nx * sizeof *ph) : NULL;
   /* 1. Detect: the strongest cell over the coarse bank, and which carrier
      and rate it came from. */
-  corr2d_max_t     c = { pw, ix };
-  dp_corr2d_fold_t f = { corr2d_fold_power_max, &c };
+  corr2d_max_t         c = { pw, ix };
+  dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
   if (corr2d_bank_run (state, x, &b, &f) == SIZE_MAX)
     {
       free (pw), free (ix), free (code), free (ph);
@@ -1793,9 +1798,9 @@ dp_corr2d_bank_detect (const dp_corr2d_state_t *state, const float _Complex *x,
             pr = corr2d_cell_power (state, x, code, gr, L_r, w, row, col, ph);
           else
             {
-              corr2d_bank_t    one = { L_r, (int)gr, 1, 1, w };
-              corr2d_cell_t    cc  = { cell, 0.0 };
-              dp_corr2d_fold_t cf  = { corr2d_fold_cell, &cc };
+              corr2d_bank_t        one = { L_r, (int)gr, 1, 1, w };
+              corr2d_cell_t        cc  = { cell, 0.0 };
+              dp_correlator_fold_t cf  = { corr2d_fold_cell, &cc };
               if (corr2d_bank_run (state, x, &one, &cf) == SIZE_MAX)
                 {
                   ok = 0;
@@ -1823,7 +1828,8 @@ dp_corr2d_bank_detect (const dp_corr2d_state_t *state, const float _Complex *x,
   return ok ? nrec : SIZE_MAX;
 }
 
-/* ── The one delay-Doppler block map (#2752 step 2, corr2d_map.h) ─────────
+/* ── The one delay-Doppler block map (#2752 step 2, correlator_map.h)
+ * ─────────
  *
  * Every stage fans over chunks fixed by the chunk index alone, and chunk t
  * runs on slot t: its own plans (forward N, slow F DI, inverse L) and its

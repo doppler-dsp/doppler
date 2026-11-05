@@ -18,14 +18,16 @@ target_include_directories(
   detector_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/detector)
 target_link_libraries(detector_core PUBLIC
-    corr_core
+    correlator_core
+    fft2d_core
     fft_core)
 
 add_executable(test_detector_core
                ${CMAKE_SOURCE_DIR}/native/tests/detector/test_detector_core.c
                ${CMAKE_SOURCE_DIR}/native/tests/detector/test_detector_symbols.c)
 target_link_libraries(test_detector_core
-                      PRIVATE detector_core corr_core
+                      PRIVATE detector_core correlator_core
+    fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_detector_core
@@ -37,7 +39,8 @@ add_executable(
   bench_detector_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/detector/bench_detector_core.c)
 target_link_libraries(bench_detector_core
-                      PRIVATE detector_core corr_core
+                      PRIVATE detector_core correlator_core
+    fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

@@ -319,8 +319,8 @@ row FFT is shared per fraction, and the slow-time stage is not.
 **The bank, as shipped.** $L$ splits into $L_d$ (the search, default 2) and
 $L_r$ (the resolution, default 4). §5's "the default is 4" stays true of
 the resolution. A caller who wants one stage sets $L_d = L_r$.
-`dp_corr2d_bank_fold` hands every hypothesis map to a C reducer;
-`dp_corr2d_bank_power_max` and `dp_corr2d_bank_detect` are bound as
+`dp_correlator_bank_fold` hands every hypothesis map to a C reducer;
+`dp_correlator_bank_power_max` and `dp_correlator_bank_detect` are bound as
 `bank_power_max` and `bank_detect` on `Corr2D` and `DelayDoppler`. On the
 fast path and DelayDoppler with a native delay axis, the refine is a
 time-domain correlation at the cell's lag and one Doppler DFT; anywhere

@@ -32,7 +32,7 @@ and is the wrong one to rank hypotheses by.
 - **Map h is a fresh dwell-1 object's map for frame h**, bit for bit, on
     every path (general 2-D, the single-row fast path, `col_out`,
     delay-Doppler) and at every thread count. `execute()` and the batch run
-    the same row, tile and frame helpers in `corr2d_core.c`, so this is one
+    the same row, tile and frame helpers in `correlator_core.c`, so this is one
     implementation, not two kept equal.
 - **The dwell is untouched.** A batch never reads or writes `accum`, `count`
     or the state blob, so it may run in the middle of a dwell and needs no blob
@@ -44,7 +44,7 @@ and is the wrong one to rank hypotheses by.
     result. A batch never truncates the way `execute()` does, because a
     truncated reduction has no meaning.
 - **No Python callback in the loop.** C callers get a reducer
-    (`dp_corr2d_fold_t`, handed to `dp_corr2d_execute_fold`); Python gets one
+    (`dp_correlator_fold_t`, handed to `dp_correlator_execute_fold`); Python gets one
     typed method per reduction, because the return shapes differ.
 
 ## 3. The operations
@@ -60,7 +60,7 @@ and is the wrong one to rank hypotheses by.
 `execute_coherent` sums in the spectrum, as a dwell does, rather than summing
 the maps: one inverse instead of H, and the sum of the maps only up to
 rounding. Each call is a thin wrapper over the one loop with a built-in
-reducer, and the header (`corr2d_core.h`) is the contract per call.
+reducer, and the header (`correlator_core.h`) is the contract per call.
 
 A carrier-offset search run as one batch, with the caller's buffers and
 the refusals in view, is `native/examples/delay_doppler_batch_demo.c`; its

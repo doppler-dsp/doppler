@@ -1,7 +1,7 @@
 /* bench_corr_core.c -- what a dwell buys, and what the dump costs.
  *
- * `dp_corr_execute` has two prices behind one signature. Every call runs a
- * forward FFT of the frame, multiplies pointwise by the stored reference
+ * `dp_correlator_execute` has two prices behind one signature. Every call runs
+ * a forward FFT of the frame, multiplies pointwise by the stored reference
  * spectrum and adds that into a coherent accumulator. Only the
  * `dwell`-th call also runs the INVERSE transform and normalises, and
  * only that call writes an output; the rest return 0 and look, from the
@@ -34,7 +34,7 @@
  * itself delayed by PLANT samples, and checks after its timing that the
  * map peaks at that lag, or the bench fails.
  */
-#include "doppler/corr/corr_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "dp_bench.h"
 #include "dp_bench_pn.h"
@@ -79,13 +79,13 @@ static const uint32_t small_bits[N_SMALL] = { 5, 6, 7 };
 /* The lag at which a correlator's next dump peaks: runs it from reset to
    its dump. Returns n (an impossible lag) if no dump came. */
 static size_t
-dump_peak (dp_corr_state_t *c, size_t dwell, const float _Complex *in,
+dump_peak (dp_correlator_state_t *c, size_t dwell, const float _Complex *in,
            size_t n, float _Complex *out)
 {
-  dp_corr_reset (c);
+  dp_correlator_reset (c);
   size_t got = 0;
   for (size_t f = 0; f < dwell; f++)
-    got = dp_corr_execute (c, in, n, out, n);
+    got = dp_correlator_execute (c, in, n, out, n);
   if (got != n)
     return n;
   size_t peak = 0;
@@ -111,28 +111,29 @@ bench_small (jm_bench_t *bench)
         return 1;
       for (size_t i = 0; i < n; i++)
         in[i] = ref[(i + n - PLANT) % n];
-      dp_corr_state_t *acc  = dp_corr_create (ref, n, REPS + 1, 1, n);
-      dp_corr_state_t *dump = dp_corr_create (ref, n, 1, 1, n);
+      dp_correlator_state_t *acc
+          = dp_correlator_create_1d (ref, n, REPS + 1, 1, n);
+      dp_correlator_state_t *dump = dp_correlator_create_1d (ref, n, 1, 1, n);
       if (!acc || !dump)
         return 1;
       for (int r = 0; r < ITERATIONS; r++)
         {
-          dp_corr_reset (acc);
+          dp_correlator_reset (acc);
           uint64_t t0 = jm_bench_now_ns ();
           for (int q = 0; q < REPS; q++)
-            (void)dp_corr_execute (acc, in, n, out, n);
+            (void)dp_correlator_execute (acc, in, n, out, n);
           uint64_t t1                = jm_bench_now_ns ();
           t[s * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
           t0                         = jm_bench_now_ns ();
           for (int q = 0; q < REPS; q++)
-            (void)dp_corr_execute (dump, in, n, out, n);
+            (void)dp_correlator_execute (dump, in, n, out, n);
           t1                          = jm_bench_now_ns ();
           t[s * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
         }
       const size_t pa = dump_peak (acc, REPS + 1, in, n, out);
       const size_t pd = dump_peak (dump, 1, in, n, out);
-      dp_corr_destroy (acc);
-      dp_corr_destroy (dump);
+      dp_correlator_destroy (acc);
+      dp_correlator_destroy (dump);
       if (pa != PLANT || pd != PLANT)
         {
           (void)fprintf (stderr,
@@ -154,13 +155,13 @@ bench_small (jm_bench_t *bench)
 int
 main (void)
 {
-  jm_bench_t       _bench = { 0 };
-  uint64_t         t0, t1;
-  static double    t[N_CFG][ITERATIONS];
-  dp_corr_state_t *corr[N_LEN] = { 0 };
-  const size_t     n_max       = frame_n[N_LEN - 1];
-  float _Complex  *ref = NULL, *in = NULL, *out = NULL;
-  char             name[64];
+  jm_bench_t             _bench = { 0 };
+  uint64_t               t0, t1;
+  static double          t[N_CFG][ITERATIONS];
+  dp_correlator_state_t *corr[N_LEN] = { 0 };
+  const size_t           n_max       = frame_n[N_LEN - 1];
+  float _Complex        *ref = NULL, *in = NULL, *out = NULL;
+  char                   name[64];
 
   ref = malloc (n_max * sizeof *ref);
   in  = malloc (n_max * sizeof *in);
@@ -179,7 +180,8 @@ main (void)
 
   for (int l = 0; l < N_LEN; l++)
     {
-      corr[l] = dp_corr_create (ref, frame_n[l], DWELL, 1, frame_n[l]);
+      corr[l]
+          = dp_correlator_create_1d (ref, frame_n[l], DWELL, 1, frame_n[l]);
       if (!corr[l])
         return 1;
     }
@@ -188,7 +190,7 @@ main (void)
   printf ("%d rounds, min over rounds\n\n", ITERATIONS);
 
   DP_BENCH_SETTLE (
-      (void)dp_corr_execute (corr[0], in, frame_n[0], out, frame_n[0]));
+      (void)dp_correlator_execute (corr[0], in, frame_n[0], out, frame_n[0]));
 
   /* Rounds outside, (length, call kind) inside. The dump/accumulate ratio
      is the file's whole output, so both halves of it must see the same
@@ -201,17 +203,17 @@ main (void)
       {
         const size_t n = frame_n[l];
 
-        dp_corr_reset (corr[l]);
+        dp_correlator_reset (corr[l]);
         for (size_t f = 0; f + 2 < DWELL; f++)
-          (void)dp_corr_execute (corr[l], in, n, out, n);
+          (void)dp_correlator_execute (corr[l], in, n, out, n);
 
         t0 = jm_bench_now_ns ();
-        (void)dp_corr_execute (corr[l], in, n, out, n);
+        (void)dp_correlator_execute (corr[l], in, n, out, n);
         t1                         = jm_bench_now_ns ();
         t[l * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
 
         t0 = jm_bench_now_ns ();
-        (void)dp_corr_execute (corr[l], in, n, out, n);
+        (void)dp_correlator_execute (corr[l], in, n, out, n);
         t1                          = jm_bench_now_ns ();
         t[l * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -246,7 +248,7 @@ main (void)
           "  dwell, because it cannot defer the inverse at all.\n");
 
   for (int l = 0; l < N_LEN; l++)
-    dp_corr_destroy (corr[l]);
+    dp_correlator_destroy (corr[l]);
   free (ref);
   free (in);
   free (out);

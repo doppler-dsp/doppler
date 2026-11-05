@@ -42,7 +42,7 @@
  * warm-up run: the minimum is the run least disturbed by the rest of the
  * machine, which is the quantity a comparison of two orderings needs.
  */
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_parallel.h"
 #include "doppler/dp_thread.h"
@@ -59,7 +59,7 @@
 #endif
 
 /* The slow-time stage gathers this many delay columns at a time, as
-   corr2d_core.c's CORR2D_COL_TILE does, so the ordered pipelines are timed
+   correlator_core.c's CORR2D_COL_TILE does, so the ordered pipelines are timed
    with the same cache behaviour as the shipped column stage they race. */
 #define TILE 16
 #define REPEATS 7
@@ -90,8 +90,8 @@ typedef struct
   dp_fft_state_t *fwd_m[MAXW], *fwd_n[MAXW], *inv_n[MAXW], *slow[MAXW];
   dp_pool_t      *pool;
   /* the full pipeline: one shipped DelayDoppler and its scratch */
-  dp_corr2d_state_t *dd;
-  cf                *hin, *hout;
+  dp_correlator_state_t *dd;
+  cf                    *hin, *hout;
 } geo_t;
 
 typedef struct
@@ -321,7 +321,7 @@ run_full (geo_t *g, stages_t *st)
           for (size_t k = 0; k < g->nx; k++)
             g->hin[r * g->nx + k] = g->x[r * g->nx + k] * ph[k] * w[r];
         double t1 = now_s ();
-        (void)dp_corr2d_execute (g->dd, g->hin, g->ny * g->nx, g->hout, n);
+        (void)dp_correlator_execute (g->dd, g->hin, g->ny * g->nx, g->hout, n);
         double      t2 = now_s ();
         const float wt = (float)(j * g->rates + i + 1);
         for (size_t k = 0; k < n; k++)
@@ -417,8 +417,8 @@ geo_create (size_t ny, size_t nx, size_t ny_out, size_t lf, size_t rates,
       g->slow[t]  = dp_fft_create (ny_out, -1, 1);
     }
   g->pool = nw > 1 ? dp_pool_create (nw) : NULL;
-  g->dd   = dp_corr2d_create_delay_doppler (g->code, nx, ny, 1, nw, ny_out);
-  g->hin  = (cf *)xcalloc (ny * nx, sizeof (cf));
+  g->dd  = dp_correlator_create_delay_doppler (g->code, nx, ny, 1, nw, ny_out);
+  g->hin = (cf *)xcalloc (ny * nx, sizeof (cf));
   g->hout = (cf *)xcalloc (ny_out * nx, sizeof (cf));
   if (!g->dd)
     {
@@ -440,7 +440,7 @@ geo_destroy (geo_t *g)
       dp_fft_destroy (g->slow[t]);
     }
   dp_pool_destroy (g->pool);
-  dp_corr2d_destroy (g->dd);
+  dp_correlator_destroy (g->dd);
   free (g->x);
   free (g->code);
   free (g->cref);

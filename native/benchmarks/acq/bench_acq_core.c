@@ -31,7 +31,7 @@
  * picks n_noncoh from it; the row name records the n_noncoh it chose. A
  * stricter target only lengthens the dwell, not the cost per input sample,
  * so one target is enough. */
-#include "../../src/corr2d/corr2d_map.h"
+#include "../../src/correlator/correlator_map.h"
 #include "doppler/acq/acq_core.h"
 #include "doppler/acq/acq_private.h"
 #include "doppler/dp_complex.h"

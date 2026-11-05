@@ -15,7 +15,7 @@
  * The list on real emitters (two found, a data-split twin held) is the
  * shipped generator's job: validate_acq_peak_list's --check.
  */
-#include "../../src/corr2d/corr2d_map.h"
+#include "../../src/correlator/correlator_map.h"
 #include "doppler/acq/acq_core.h"
 #include "doppler/acq/acq_private.h"
 #include "doppler/detector/det_private.h"
@@ -1807,7 +1807,7 @@ eq_score (dp_acq_state_t *st, const float _Complex *x, eq_score_t *sc,
   return 0;
 }
 
-/* Run the engine's map in one schedule (corr2d_map.h), or by its rule
+/* Run the engine's map in one schedule (correlator_map.h), or by its rule
    (-1), and give it the scratch that schedule needs: the test runs every
    scene in both, which compute one function (docs/design/acq-surface.md
    §18.1). */

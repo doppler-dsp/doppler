@@ -1,5 +1,5 @@
-#include "../../src/corr2d/corr2d_map.h"
-#include "doppler/corr2d/corr2d_core.h"
+#include "../../src/correlator/correlator_map.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
@@ -176,21 +176,22 @@ _test_delay_doppler (void)
             for (size_t m = 0; m < ny * nx; m++)
               frames[f][m] = _rand_cplx (&seed);
           }
-        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+        dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
             code, nx, ny, cases[c].dwell, cases[c].nthreads, cases[c].ny_out);
         DP_CHECK (dd != NULL);
-        DP_CHECK (dp_corr2d_execute_max_out (dd) == nyo * nx);
+        DP_CHECK (dp_correlator_execute_max_out (dd) == nyo * nx);
         float _Complex  *out  = malloc (nyo * nx * sizeof *out);
         double _Complex *want = malloc (nyo * nx * sizeof *want);
         /* Every frame but the last is accumulated silently. */
         for (size_t f = 0; f + 1 < cases[c].dwell; f++)
           {
-            DP_CHECK (dp_corr2d_execute (dd, frames[f], ny * nx, out, nyo * nx)
-                      == 0);
+            DP_CHECK (
+                dp_correlator_execute (dd, frames[f], ny * nx, out, nyo * nx)
+                == 0);
             DP_CHECK (dd->count == f + 1);
           }
-        DP_CHECK (dp_corr2d_execute (dd, frames[cases[c].dwell - 1], ny * nx,
-                                     out, nyo * nx)
+        DP_CHECK (dp_correlator_execute (dd, frames[cases[c].dwell - 1],
+                                         ny * nx, out, nyo * nx)
                   == nyo * nx);
         DP_CHECK (dd->count == 0);
         _dd_direct ((const float _Complex *const *)frames, cases[c].dwell,
@@ -203,7 +204,8 @@ _test_delay_doppler (void)
            the same map, to the byte. */
         float _Complex *again = malloc (nyo * nx * sizeof *again);
         for (size_t f = 0; f < cases[c].dwell; f++)
-          (void)dp_corr2d_execute (dd, frames[f], ny * nx, again, nyo * nx);
+          (void)dp_correlator_execute (dd, frames[f], ny * nx, again,
+                                       nyo * nx);
         DP_CHECK (memcmp (out, again, nyo * nx * sizeof *out) == 0);
         free (again);
         for (size_t f = 0; f < cases[c].dwell; f++)
@@ -211,7 +213,7 @@ _test_delay_doppler (void)
         free (code);
         free (out);
         free (want);
-        dp_corr2d_destroy (dd);
+        dp_correlator_destroy (dd);
       }
   }
 
@@ -225,16 +227,16 @@ _test_delay_doppler (void)
     float _Complex code[32], x[16 * 32], out[16 * 32];
     _dd_code (code, nx, 11u);
     _dd_signal (x, code, ny, nx, d, -3.0 / (double)(ny * nx));
-    dp_corr2d_state_t *dd
-        = dp_corr2d_create_delay_doppler (code, nx, ny, 1, 1, 0);
+    dp_correlator_state_t *dd
+        = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, 0);
     DP_CHECK (dd != NULL);
     DP_CHECK (fabs (dd->doppler_step - 1.0 / (double)(ny * nx)) < 1e-15);
-    DP_CHECK (dp_corr2d_execute (dd, x, ny * nx, out, ny * nx) == ny * nx);
+    DP_CHECK (dp_correlator_execute (dd, x, ny * nx, out, ny * nx) == ny * nx);
     size_t pk = _dd_argmax (out, ny * nx);
     DP_CHECK (pk / nx == ny / 2 - 3 && pk % nx == d);
     DP_CHECK (cabsf (out[pk]) > 0.9f * (float)(ny * nx));
     DP_CHECK (cabsf (out[pk]) <= (float)(ny * nx) * 1.0001f);
-    dp_corr2d_destroy (dd);
+    dp_correlator_destroy (dd);
   }
 
   /* ── ny_out interpolates: a Doppler between native bins ──────────────
@@ -247,14 +249,15 @@ _test_delay_doppler (void)
     float _Complex *out = malloc (nyo * nx * sizeof *out);
     _dd_code (code, nx, 13u);
     _dd_signal (x, code, ny, nx, d, 2.5 / (double)(ny * nx));
-    dp_corr2d_state_t *dd
-        = dp_corr2d_create_delay_doppler (code, nx, ny, 1, 1, nyo);
+    dp_correlator_state_t *dd
+        = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, nyo);
     DP_CHECK (dd != NULL);
     DP_CHECK (fabs (dd->doppler_step - 1.0 / (double)(nyo * nx)) < 1e-15);
-    DP_CHECK (dp_corr2d_execute (dd, x, ny * nx, out, nyo * nx) == nyo * nx);
+    DP_CHECK (dp_correlator_execute (dd, x, ny * nx, out, nyo * nx)
+              == nyo * nx);
     size_t pk = _dd_argmax (out, nyo * nx);
     DP_CHECK (pk / nx == nyo / 2 + 10 && pk % nx == d);
-    dp_corr2d_destroy (dd);
+    dp_correlator_destroy (dd);
     free (out);
   }
 
@@ -273,15 +276,15 @@ _test_delay_doppler (void)
     float _Complex *outs[3];
     for (size_t t = 0; t < 3; t++)
       {
-        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+        dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
             code, nx, ny, 2, threads[t], nyo);
         DP_CHECK (dd != NULL);
         DP_CHECK (dd->nworkers == threads[t]);
         outs[t] = malloc (nyo * nx * sizeof **outs);
-        (void)dp_corr2d_execute (dd, x, n, outs[t], nyo * nx);
-        DP_CHECK (dp_corr2d_execute (dd, x + n, n, outs[t], nyo * nx)
+        (void)dp_correlator_execute (dd, x, n, outs[t], nyo * nx);
+        DP_CHECK (dp_correlator_execute (dd, x + n, n, outs[t], nyo * nx)
                   == nyo * nx);
-        dp_corr2d_destroy (dd);
+        dp_correlator_destroy (dd);
       }
     DP_CHECK (memcmp (outs[0], outs[1], nyo * nx * sizeof **outs) == 0);
     DP_CHECK (memcmp (outs[0], outs[2], nyo * nx * sizeof **outs) == 0);
@@ -294,50 +297,52 @@ _test_delay_doppler (void)
     float _Complex *c_out[2];
     for (size_t t = 0; t < 2; t++)
       {
-        dp_corr2d_state_t *c
-            = dp_corr2d_create (ref, ny, nx, 1, t ? 7 : 1, 0, 0, -1);
+        dp_correlator_state_t *c
+            = dp_correlator_create_2d (ref, ny, nx, 1, t ? 7 : 1, 0, 0, -1);
         DP_CHECK (c != NULL && c->fast_path == 1);
         DP_CHECK (c->nworkers == (t ? 7 : 1));
         c_out[t] = malloc (n * sizeof **c_out);
-        DP_CHECK (dp_corr2d_execute (c, x, n, c_out[t], n) == n);
-        dp_corr2d_destroy (c);
+        DP_CHECK (dp_correlator_execute (c, x, n, c_out[t], n) == n);
+        dp_correlator_destroy (c);
       }
     DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
 
     /* A huge request is capped at the most chunks a stage can use --
        Corr2D: ny rows; delay-Doppler: max(ny, ceil(nx / 16)) = 37 here --
        and the output is still the same bytes. */
-    dp_corr2d_state_t *big = dp_corr2d_create (ref, ny, nx, 1, 2000, 0, 0, -1);
+    dp_correlator_state_t *big
+        = dp_correlator_create_2d (ref, ny, nx, 1, 2000, 0, 0, -1);
     DP_CHECK (big != NULL && big->nworkers == (int)ny);
-    DP_CHECK (dp_corr2d_execute (big, x, n, c_out[1], n) == n);
+    DP_CHECK (dp_correlator_execute (big, x, n, c_out[1], n) == n);
     DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
-    dp_corr2d_destroy (big);
+    dp_correlator_destroy (big);
     float _Complex *dd_out[2];
     for (size_t t = 0; t < 2; t++)
       {
-        dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (
+        dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
             code, nx, ny, 1, t ? 2000 : 1, nyo);
         DP_CHECK (dd != NULL);
         DP_CHECK (dd->nworkers == (t ? 37 : 1));
         dd_out[t] = malloc (nyo * nx * sizeof **dd_out);
-        DP_CHECK (dp_corr2d_execute (dd, x, n, dd_out[t], nyo * nx)
+        DP_CHECK (dp_correlator_execute (dd, x, n, dd_out[t], nyo * nx)
                   == nyo * nx);
-        dp_corr2d_destroy (dd);
+        dp_correlator_destroy (dd);
       }
     DP_CHECK (memcmp (dd_out[0], dd_out[1], nyo * nx * sizeof **dd_out) == 0);
     /* Wide and short: the column stage has more chunks than the rows. */
     {
       float _Complex wcode[640];
       _dd_code (wcode, 640, 31u);
-      dp_corr2d_state_t *w
-          = dp_corr2d_create_delay_doppler (wcode, 640, 4, 1, 2000, 0);
+      dp_correlator_state_t *w
+          = dp_correlator_create_delay_doppler (wcode, 640, 4, 1, 2000, 0);
       DP_CHECK (w != NULL && w->nworkers == 40);
-      dp_corr2d_destroy (w);
+      dp_correlator_destroy (w);
     }
     /* The known-lag path never runs the row stage: no pool, one worker. */
-    dp_corr2d_state_t *lag = dp_corr2d_create (ref, ny, nx, 1, 8, 0, 0, 3);
+    dp_correlator_state_t *lag
+        = dp_correlator_create_2d (ref, ny, nx, 1, 8, 0, 0, 3);
     DP_CHECK (lag != NULL && lag->pool == NULL && lag->nworkers == 1);
-    dp_corr2d_destroy (lag);
+    dp_correlator_destroy (lag);
     free (dd_out[0]);
     free (dd_out[1]);
     free (c_out[0]);
@@ -349,16 +354,21 @@ _test_delay_doppler (void)
   /* ── refusals ─────────────────────────────────────────────────────── */
   {
     float _Complex code[8] = { 1.0f };
-    DP_CHECK (dp_corr2d_create_delay_doppler (NULL, 8, 4, 1, 1, 0) == NULL);
-    DP_CHECK (dp_corr2d_create_delay_doppler (code, 0, 4, 1, 1, 0) == NULL);
-    DP_CHECK (dp_corr2d_create_delay_doppler (code, 8, 0, 1, 1, 0) == NULL);
-    DP_CHECK (dp_corr2d_create_delay_doppler (code, 8, 4, 0, 1, 0) == NULL);
-    DP_CHECK (dp_corr2d_create_delay_doppler (code, 8, 4, 1, 1, 3) == NULL);
+    DP_CHECK (dp_correlator_create_delay_doppler (NULL, 8, 4, 1, 1, 0)
+              == NULL);
+    DP_CHECK (dp_correlator_create_delay_doppler (code, 0, 4, 1, 1, 0)
+              == NULL);
+    DP_CHECK (dp_correlator_create_delay_doppler (code, 8, 0, 1, 1, 0)
+              == NULL);
+    DP_CHECK (dp_correlator_create_delay_doppler (code, 8, 4, 0, 1, 0)
+              == NULL);
+    DP_CHECK (dp_correlator_create_delay_doppler (code, 8, 4, 1, 1, 3)
+              == NULL);
     /* ny_out == ny is the native grid, not a refusal. */
-    dp_corr2d_state_t *ok
-        = dp_corr2d_create_delay_doppler (code, 8, 4, 1, 1, 4);
+    dp_correlator_state_t *ok
+        = dp_correlator_create_delay_doppler (code, 8, 4, 1, 1, 4);
     DP_CHECK (ok != NULL);
-    dp_corr2d_destroy (ok);
+    dp_correlator_destroy (ok);
   }
 
   /* ── serializable state: resume, flavor and key rejects ──────────── */
@@ -369,25 +379,25 @@ _test_delay_doppler (void)
     _dd_code (code, nx, 23u);
     for (size_t m = 0; m < n; m++)
       x[m] = _rand_cplx (&seed);
-    dp_corr2d_state_t *a
-        = dp_corr2d_create_delay_doppler (code, nx, ny, 3, 1, 8);
-    dp_corr2d_state_t *b
-        = dp_corr2d_create_delay_doppler (code, nx, ny, 3, 2, 8);
+    dp_correlator_state_t *a
+        = dp_correlator_create_delay_doppler (code, nx, ny, 3, 1, 8);
+    dp_correlator_state_t *b
+        = dp_correlator_create_delay_doppler (code, nx, ny, 3, 2, 8);
     DP_CHECK (a != NULL && b != NULL);
     float _Complex out_a[64], out_b[64];
-    (void)dp_corr2d_execute (a, x, n, out_a, 64);
-    DP_STATE_ROUNDTRIP_TEST (dp_corr2d, a, b);
+    (void)dp_correlator_execute (a, x, n, out_a, 64);
+    DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
     /* Mid-dwell split: b resumes a's dwell and dumps the same map. */
     {
-      void *blob = malloc (dp_corr2d_state_bytes (a));
-      dp_corr2d_get_state (a, blob);
-      DP_CHECK (dp_corr2d_set_state (b, blob) == DP_OK);
+      void *blob = malloc (dp_correlator_state_bytes (a));
+      dp_correlator_get_state (a, blob);
+      DP_CHECK (dp_correlator_set_state (b, blob) == DP_OK);
       free (blob);
     }
     for (int f = 0; f < 2; f++)
       {
-        (void)dp_corr2d_execute (a, x, n, out_a, 64);
-        (void)dp_corr2d_execute (b, x, n, out_b, 64);
+        (void)dp_correlator_execute (a, x, n, out_a, 64);
+        (void)dp_correlator_execute (b, x, n, out_b, 64);
       }
     DP_CHECK (memcmp (out_a, out_b, sizeof out_a) == 0);
 
@@ -395,63 +405,66 @@ _test_delay_doppler (void)
        delay-Doppler blob back into that Corr2D, are both refused. */
     float _Complex ref[32] = { 0 };
     memcpy (ref, code, sizeof code);
-    dp_corr2d_state_t *c = dp_corr2d_create (ref, ny, nx, 3, 1, 0, 0, -1);
+    dp_correlator_state_t *c
+        = dp_correlator_create_2d (ref, ny, nx, 3, 1, 0, 0, -1);
     DP_CHECK (c != NULL);
     {
-      void *cb = malloc (dp_corr2d_state_bytes (c));
-      void *db = malloc (dp_corr2d_state_bytes (a));
-      dp_corr2d_get_state (c, cb);
-      dp_corr2d_get_state (a, db);
-      DP_CHECK (dp_corr2d_set_state (a, cb) == DP_ERR_INVALID);
-      DP_CHECK (dp_corr2d_set_state (c, db) == DP_ERR_INVALID);
+      void *cb = malloc (dp_correlator_state_bytes (c));
+      void *db = malloc (dp_correlator_state_bytes (a));
+      dp_correlator_get_state (c, cb);
+      dp_correlator_get_state (a, db);
+      DP_CHECK (dp_correlator_set_state (a, cb) == DP_ERR_INVALID);
+      DP_CHECK (dp_correlator_set_state (c, db) == DP_ERR_INVALID);
       free (cb);
       free (db);
     }
     /* A count at or past the dwell would never dump (`++count == dwell` is
        never true again until it wraps), exactly as for the delay-Doppler
        flavor; the Corr2D restore refuses it too, the object untouched
-       (#2142). The count is the first payload word. */
+       (#2142). The count is the fourth payload word, after the flavor, ny
+       and ny_out. */
     {
+      const size_t   at   = sizeof (dp_state_hdr_t) + 3 * sizeof (uint64_t);
       const uint64_t past = 3; /* this Corr2D's dwell */
-      DP_STATE_FORGE_TEST (dp_corr2d, c, CORR2D_STATE_MAGIC,
-                           CORR2D_STATE_VERSION, sizeof (dp_state_hdr_t),
-                           &past, sizeof past);
+      DP_STATE_FORGE_TEST (dp_correlator, c, CORRELATOR_STATE_MAGIC,
+                           CORRELATOR_STATE_VERSION, at, &past, sizeof past);
       /* ...and dwell - 1, one look short of a dump, is a state. */
       const uint64_t edge = past - 1;
-      DP_STATE_ACCEPT_TEST (dp_corr2d, c, sizeof (dp_state_hdr_t), &edge,
-                            sizeof edge);
+      DP_STATE_ACCEPT_TEST (dp_correlator, c, at, &edge, sizeof edge);
     }
-    dp_corr2d_destroy (c);
+    dp_correlator_destroy (c);
 
     /* Reject keys at an equal blob size: ny_out 8 vs 6 (the map), ny 4 vs
        8 over the same ny*nx (a (4, 8) accumulator read as (8, 4)), and a
        count the target's shorter dwell would never dump. */
     {
-      (void)dp_corr2d_execute (a, x, n, out_a, 64);
-      (void)dp_corr2d_execute (a, x, n, out_a, 64); /* count 2 of 3 */
+      (void)dp_correlator_execute (a, x, n, out_a, 64);
+      (void)dp_correlator_execute (a, x, n, out_a, 64); /* count 2 of 3 */
       DP_CHECK (a->count == 2);
-      void *blob = malloc (dp_corr2d_state_bytes (a));
-      dp_corr2d_get_state (a, blob);
-      dp_corr2d_state_t *o6
-          = dp_corr2d_create_delay_doppler (code, nx, ny, 3, 1, 6);
-      dp_corr2d_state_t *t8
-          = dp_corr2d_create_delay_doppler (code, 4, 8, 3, 1, 8);
-      dp_corr2d_state_t *d2
-          = dp_corr2d_create_delay_doppler (code, nx, ny, 2, 1, 8);
+      void *blob = malloc (dp_correlator_state_bytes (a));
+      dp_correlator_get_state (a, blob);
+      dp_correlator_state_t *o6
+          = dp_correlator_create_delay_doppler (code, nx, ny, 3, 1, 6);
+      dp_correlator_state_t *t8
+          = dp_correlator_create_delay_doppler (code, 4, 8, 3, 1, 8);
+      dp_correlator_state_t *d2
+          = dp_correlator_create_delay_doppler (code, nx, ny, 2, 1, 8);
       DP_CHECK (o6 && t8 && d2);
-      DP_CHECK (dp_corr2d_state_bytes (o6) == dp_corr2d_state_bytes (a));
-      DP_CHECK (dp_corr2d_state_bytes (t8) == dp_corr2d_state_bytes (a));
-      DP_CHECK (dp_corr2d_set_state (o6, blob) == DP_ERR_INVALID);
-      DP_CHECK (dp_corr2d_set_state (t8, blob) == DP_ERR_INVALID);
-      DP_CHECK (dp_corr2d_set_state (d2, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_correlator_state_bytes (o6)
+                == dp_correlator_state_bytes (a));
+      DP_CHECK (dp_correlator_state_bytes (t8)
+                == dp_correlator_state_bytes (a));
+      DP_CHECK (dp_correlator_set_state (o6, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_correlator_set_state (t8, blob) == DP_ERR_INVALID);
+      DP_CHECK (dp_correlator_set_state (d2, blob) == DP_ERR_INVALID);
       DP_CHECK (o6->count == 0 && t8->count == 0 && d2->count == 0);
-      dp_corr2d_destroy (o6);
-      dp_corr2d_destroy (t8);
-      dp_corr2d_destroy (d2);
+      dp_correlator_destroy (o6);
+      dp_correlator_destroy (t8);
+      dp_correlator_destroy (d2);
       free (blob);
     }
-    dp_corr2d_destroy (a);
-    dp_corr2d_destroy (b);
+    dp_correlator_destroy (a);
+    dp_correlator_destroy (b);
   }
 }
 
@@ -473,7 +486,7 @@ enum
   B_KINDS
 };
 
-static dp_corr2d_state_t *
+static dp_correlator_state_t *
 _batch_make (int kind, size_t dwell, int nthreads)
 {
   uint32_t seed = 0x2683u + (uint32_t)kind;
@@ -489,23 +502,24 @@ _batch_make (int kind, size_t dwell, int nthreads)
   switch (kind)
     {
     case B_GEN:
-      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+      return dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 0, 0, -1);
     case B_GEN_PAD:
-      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 4, 8, -1);
+      return dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 4, 8, -1);
     case B_FAST:
-      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+      return dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 0, 0, -1);
     case B_FAST_PAD:
-      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 10, -1);
+      return dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 0, 10, -1);
     case B_COL:
-      return dp_corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, 2);
+      return dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 0, 0, 2);
     default:
-      return dp_corr2d_create_delay_doppler (ref, nx, 5, dwell, nthreads, 8);
+      return dp_correlator_create_delay_doppler (ref, nx, 5, dwell, nthreads,
+                                                 8);
     }
 }
 
 /* H frames of the object's frame length, deterministic per seed. */
 static float _Complex *
-_batch_frames (const dp_corr2d_state_t *c, size_t H, uint32_t seed)
+_batch_frames (const dp_correlator_state_t *c, size_t H, uint32_t seed)
 {
   float _Complex *x = malloc (H * c->n * sizeof *x);
   for (size_t k = 0; k < H * c->n; k++)
@@ -517,16 +531,17 @@ _batch_frames (const dp_corr2d_state_t *c, size_t H, uint32_t seed)
 static float _Complex *
 _batch_reference (int kind, const float _Complex *x, size_t H)
 {
-  dp_corr2d_state_t *f = _batch_make (kind, 1, 1);
-  const size_t       n = f->n, no = f->n_out;
-  float _Complex    *ref = malloc (H * no * sizeof *ref);
+  dp_correlator_state_t *f = _batch_make (kind, 1, 1);
+  const size_t           n = f->n, no = f->n_out;
+  float _Complex        *ref = malloc (H * no * sizeof *ref);
   for (size_t h = 0; h < H; h++)
     {
-      dp_corr2d_destroy (f);
+      dp_correlator_destroy (f);
       f = _batch_make (kind, 1, 1);
-      DP_CHECK (dp_corr2d_execute (f, x + h * n, n, ref + h * no, no) == no);
+      DP_CHECK (dp_correlator_execute (f, x + h * n, n, ref + h * no, no)
+                == no);
     }
-  dp_corr2d_destroy (f);
+  dp_correlator_destroy (f);
   return ref;
 }
 
@@ -573,13 +588,15 @@ _test_batch_ranking (void)
       x[DN + m]
           = 1.5f * code[(m % DNX + DNX - D1) % DNX] + 3.0f * dp_cgauss (&rng);
     }
-  dp_corr2d_state_t *dd
-      = dp_corr2d_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
+  dp_correlator_state_t *dd
+      = dp_correlator_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
   DP_REQUIRE (dd != NULL && dd->n == DN && dd->n_out == DN);
   float    pk[2], mn[2], pm[DN];
   uint32_t pr[2], pc[2], pi[DN];
-  DP_REQUIRE (dp_corr2d_execute_peaks (dd, x, 2 * DN, pk, pr, pc, mn, 2) == 2);
-  DP_REQUIRE (dp_corr2d_execute_power_max (dd, x, 2 * DN, pm, pi, DN) == DN);
+  DP_REQUIRE (dp_correlator_execute_peaks (dd, x, 2 * DN, pk, pr, pc, mn, 2)
+              == 2);
+  DP_REQUIRE (dp_correlator_execute_power_max (dd, x, 2 * DN, pm, pi, DN)
+              == DN);
   /* each map's own peak sits at its own code delay */
   DP_CHECK (pc[0] == D0 && pc[1] == D1);
   /* ranked by its own statistic, map 0 wins, strictly */
@@ -599,7 +616,7 @@ _test_batch_ranking (void)
   DP_CHECK_MSG (fabs ((double)pm[best] / (sum / DN) - (double)(pk[0] / mn[0]))
                     > 0.1 * (double)(pk[0] / mn[0]),
                 "the max map's statistic differs from the best map's");
-  dp_corr2d_destroy (dd);
+  dp_correlator_destroy (dd);
   return 0;
 }
 
@@ -613,8 +630,8 @@ _test_batch (void)
     for (size_t hi = 0; hi < sizeof Hs / sizeof *Hs; hi++)
       for (size_t ti = 0; ti < sizeof threads / sizeof *threads; ti++)
         {
-          const size_t       H = Hs[hi];
-          dp_corr2d_state_t *c = _batch_make (kind, 3, threads[ti]);
+          const size_t           H = Hs[hi];
+          dp_correlator_state_t *c = _batch_make (kind, 3, threads[ti]);
           DP_CHECK (c != NULL);
           const size_t    n = c->n, no = c->n_out;
           float _Complex *x    = _batch_frames (c, H, 0x51u + (uint32_t)H);
@@ -622,15 +639,15 @@ _test_batch (void)
 
           /* A dwell in progress: one frame in, its blob kept. */
           float _Complex *dump = malloc (no * sizeof *dump);
-          DP_CHECK (dp_corr2d_execute (c, x, n, dump, no) == 0);
-          const size_t   nb     = dp_corr2d_state_bytes (c);
+          DP_CHECK (dp_correlator_execute (c, x, n, dump, no) == 0);
+          const size_t   nb     = dp_correlator_state_bytes (c);
           unsigned char *before = malloc (nb), *after = malloc (nb);
-          dp_corr2d_get_state (c, before);
+          dp_correlator_get_state (c, before);
 
           /* ALL: every map is the fresh object's, bit for bit. */
           float _Complex *all = malloc (H * no * sizeof *all);
-          DP_CHECK (dp_corr2d_execute_all_max_out (c, H * n) == H * no);
-          DP_CHECK (dp_corr2d_execute_all (c, x, H * n, all, H * no)
+          DP_CHECK (dp_correlator_execute_all_max_out (c, H * n) == H * no);
+          DP_CHECK (dp_correlator_execute_all (c, x, H * n, all, H * no)
                     == H * no);
           DP_CHECK_MSG (memcmp (all, want, H * no * sizeof *all) == 0,
                         "batch map h == a fresh dwell-1 object's map");
@@ -640,12 +657,13 @@ _test_batch (void)
           float _Complex *coh = malloc (no * sizeof *coh);
           float _Complex *cw  = malloc (no * sizeof *cw);
           {
-            dp_corr2d_state_t *f = _batch_make (kind, H, 1);
+            dp_correlator_state_t *f = _batch_make (kind, H, 1);
             for (size_t h = 0; h < H; h++)
-              (void)dp_corr2d_execute (f, x + h * n, n, cw, no);
-            dp_corr2d_destroy (f);
+              (void)dp_correlator_execute (f, x + h * n, n, cw, no);
+            dp_correlator_destroy (f);
           }
-          DP_CHECK (dp_corr2d_execute_coherent (c, x, H * n, coh, no) == no);
+          DP_CHECK (dp_correlator_execute_coherent (c, x, H * n, coh, no)
+                    == no);
           DP_CHECK_MSG (memcmp (coh, cw, no * sizeof *coh) == 0,
                         "coherent == a fresh object with dwell = H");
           {
@@ -667,12 +685,14 @@ _test_batch (void)
           float *pk = malloc (H * sizeof *pk), *mn = malloc (H * sizeof *mn);
           uint32_t *pr = malloc (H * sizeof *pr),
                    *pc = malloc (H * sizeof *pc);
-          DP_CHECK (dp_corr2d_execute_power_sum (c, x, H * n, ps, no) == no);
-          DP_CHECK (dp_corr2d_execute_power_max (c, x, H * n, pm, pi, no)
+          DP_CHECK (dp_correlator_execute_power_sum (c, x, H * n, ps, no)
                     == no);
-          DP_CHECK (dp_corr2d_execute_peaks_max_out (c, H * n) == H);
-          DP_CHECK (dp_corr2d_execute_peaks (c, x, H * n, pk, pr, pc, mn, H)
-                    == H);
+          DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, pm, pi, no)
+                    == no);
+          DP_CHECK (dp_correlator_execute_peaks_max_out (c, H * n) == H);
+          DP_CHECK (
+              dp_correlator_execute_peaks (c, x, H * n, pk, pr, pc, mn, H)
+              == H);
           int sum_ok = 1, max_ok = 1, peak_ok = 1;
           for (size_t k = 0; k < no; k++)
             {
@@ -712,18 +732,19 @@ _test_batch (void)
           /* The folds run in h order whatever the thread count: the same
              reductions from a one-thread object, bit for bit. */
           {
-            dp_corr2d_state_t *one = _batch_make (kind, 1, 1);
-            float             *ps1 = malloc (no * sizeof *ps1);
-            float             *pm1 = malloc (no * sizeof *pm1);
-            uint32_t          *pi1 = malloc (no * sizeof *pi1);
-            float             *pk1 = malloc (H * sizeof *pk1);
-            float             *mn1 = malloc (H * sizeof *mn1);
-            uint32_t          *pr1 = malloc (H * sizeof *pr1);
-            uint32_t          *pc1 = malloc (H * sizeof *pc1);
-            (void)dp_corr2d_execute_power_sum (one, x, H * n, ps1, no);
-            (void)dp_corr2d_execute_power_max (one, x, H * n, pm1, pi1, no);
-            (void)dp_corr2d_execute_peaks (one, x, H * n, pk1, pr1, pc1, mn1,
-                                           H);
+            dp_correlator_state_t *one = _batch_make (kind, 1, 1);
+            float                 *ps1 = malloc (no * sizeof *ps1);
+            float                 *pm1 = malloc (no * sizeof *pm1);
+            uint32_t              *pi1 = malloc (no * sizeof *pi1);
+            float                 *pk1 = malloc (H * sizeof *pk1);
+            float                 *mn1 = malloc (H * sizeof *mn1);
+            uint32_t              *pr1 = malloc (H * sizeof *pr1);
+            uint32_t              *pc1 = malloc (H * sizeof *pc1);
+            (void)dp_correlator_execute_power_sum (one, x, H * n, ps1, no);
+            (void)dp_correlator_execute_power_max (one, x, H * n, pm1, pi1,
+                                                   no);
+            (void)dp_correlator_execute_peaks (one, x, H * n, pk1, pr1, pc1,
+                                               mn1, H);
             DP_CHECK_MSG (memcmp (ps, ps1, no * sizeof *ps) == 0
                               && memcmp (pm, pm1, no * sizeof *pm) == 0
                               && memcmp (pi, pi1, no * sizeof *pi) == 0
@@ -734,7 +755,7 @@ _test_batch (void)
                           "reductions are bit-identical at any thread count");
             free (ps1), free (pm1), free (pi1), free (pk1), free (mn1),
                 free (pr1), free (pc1);
-            dp_corr2d_destroy (one);
+            dp_correlator_destroy (one);
           }
           DP_CHECK_MSG (sum_ok, "power_sum == sum over h of |map|^2");
           DP_CHECK_MSG (max_ok, "power_max == max over h, lowest h on a tie");
@@ -742,21 +763,21 @@ _test_batch (void)
 
           /* None of it touched the dwell: same blob, and the dwell's next
              dumps equal a twin's that never saw a batch. */
-          dp_corr2d_get_state (c, after);
+          dp_correlator_get_state (c, after);
           DP_CHECK_MSG (memcmp (before, after, nb) == 0,
                         "a batch leaves accum and count alone");
           {
-            dp_corr2d_state_t *twin = _batch_make (kind, 3, 1);
-            float _Complex    *td   = malloc (no * sizeof *td);
-            (void)dp_corr2d_execute (twin, x, n, td, no);
+            dp_correlator_state_t *twin = _batch_make (kind, 3, 1);
+            float _Complex        *td   = malloc (no * sizeof *td);
+            (void)dp_correlator_execute (twin, x, n, td, no);
             for (size_t f = 1; f < 3; f++)
               {
                 const float _Complex *xf = x + (f % H) * n;
-                DP_CHECK (dp_corr2d_execute (c, xf, n, dump, no)
-                          == dp_corr2d_execute (twin, xf, n, td, no));
+                DP_CHECK (dp_correlator_execute (c, xf, n, dump, no)
+                          == dp_correlator_execute (twin, xf, n, td, no));
               }
             DP_CHECK (memcmp (dump, td, no * sizeof *td) == 0);
-            dp_corr2d_destroy (twin);
+            dp_correlator_destroy (twin);
             free (td);
           }
 
@@ -764,23 +785,23 @@ _test_batch (void)
               free (pc);
           free (coh), free (cw), free (all), free (before), free (after);
           free (dump), free (want), free (x);
-          dp_corr2d_destroy (c);
+          dp_correlator_destroy (c);
         }
 
   /* ── coherent cancels, power does not: frames x and -x ──────────────── */
   for (int kind = 0; kind < B_KINDS; kind++)
     {
-      dp_corr2d_state_t *c = _batch_make (kind, 1, 2);
-      const size_t       n = c->n, no = c->n_out;
-      float _Complex    *x  = _batch_frames (c, 2, 7u);
-      float _Complex    *m  = malloc (no * sizeof *m);
-      float _Complex    *co = malloc (no * sizeof *co);
-      float             *ps = malloc (no * sizeof *ps);
+      dp_correlator_state_t *c = _batch_make (kind, 1, 2);
+      const size_t           n = c->n, no = c->n_out;
+      float _Complex        *x  = _batch_frames (c, 2, 7u);
+      float _Complex        *m  = malloc (no * sizeof *m);
+      float _Complex        *co = malloc (no * sizeof *co);
+      float                 *ps = malloc (no * sizeof *ps);
       for (size_t k = 0; k < n; k++)
         x[n + k] = -x[k];
-      DP_CHECK (dp_corr2d_execute (c, x, n, m, no) == no);
-      DP_CHECK (dp_corr2d_execute_coherent (c, x, 2 * n, co, no) == no);
-      DP_CHECK (dp_corr2d_execute_power_sum (c, x, 2 * n, ps, no) == no);
+      DP_CHECK (dp_correlator_execute (c, x, n, m, no) == no);
+      DP_CHECK (dp_correlator_execute_coherent (c, x, 2 * n, co, no) == no);
+      DP_CHECK (dp_correlator_execute_power_sum (c, x, 2 * n, ps, no) == no);
       int cancel = 1, doubled = 1;
       for (size_t k = 0; k < no; k++)
         {
@@ -790,34 +811,35 @@ _test_batch (void)
       DP_CHECK_MSG (cancel, "coherent sum of x and -x is zero");
       DP_CHECK_MSG (doubled, "power sum of x and -x is twice one map");
       free (x), free (m), free (co), free (ps);
-      dp_corr2d_destroy (c);
+      dp_correlator_destroy (c);
     }
 
   /* ── ties go to the lowest h: identical frames ──────────────────────── */
   for (int kind = 0; kind < B_KINDS; kind++)
     {
-      dp_corr2d_state_t *c = _batch_make (kind, 1, 7);
-      const size_t       n = c->n, no = c->n_out, H = 9;
-      float _Complex    *x  = _batch_frames (c, H, 9u);
-      float             *pm = malloc (no * sizeof *pm);
-      uint32_t          *pi = malloc (no * sizeof *pi);
+      dp_correlator_state_t *c = _batch_make (kind, 1, 7);
+      const size_t           n = c->n, no = c->n_out, H = 9;
+      float _Complex        *x  = _batch_frames (c, H, 9u);
+      float                 *pm = malloc (no * sizeof *pm);
+      uint32_t              *pi = malloc (no * sizeof *pi);
       for (size_t h = 1; h < H; h++)
         memcpy (x + h * n, x, n * sizeof *x);
-      DP_CHECK (dp_corr2d_execute_power_max (c, x, H * n, pm, pi, no) == no);
+      DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, pm, pi, no)
+                == no);
       int zero = 1;
       for (size_t k = 0; k < no; k++)
         zero &= pi[k] == 0;
       DP_CHECK_MSG (zero, "equal maps: power_max index is 0 everywhere");
       free (x), free (pm), free (pi);
-      dp_corr2d_destroy (c);
+      dp_correlator_destroy (c);
     }
 
   /* ── refusals: nothing written, nothing folded ──────────────────────── */
   for (int kind = 0; kind < B_KINDS; kind++)
     {
-      dp_corr2d_state_t *c = _batch_make (kind, 1, 2);
-      const size_t       n = c->n, no = c->n_out, H = 2;
-      float _Complex    *x = _batch_frames (c, H + 1, 3u);
+      dp_correlator_state_t *c = _batch_make (kind, 1, 2);
+      const size_t           n = c->n, no = c->n_out, H = 2;
+      float _Complex        *x = _batch_frames (c, H + 1, 3u);
       enum
       {
         CAN = 1 << 12
@@ -836,42 +858,44 @@ _test_batch (void)
       for (size_t b = 0; b < sizeof bad / sizeof *bad; b++)
         {
           const size_t m = bad[b];
-          DP_CHECK (dp_corr2d_execute_all (c, x, m, cf, CAN) == SIZE_MAX);
-          DP_CHECK (dp_corr2d_execute_coherent (c, x, m, cf, CAN) == SIZE_MAX);
-          DP_CHECK (dp_corr2d_execute_power_sum (c, x, m, ff, CAN)
+          DP_CHECK (dp_correlator_execute_all (c, x, m, cf, CAN) == SIZE_MAX);
+          DP_CHECK (dp_correlator_execute_coherent (c, x, m, cf, CAN)
                     == SIZE_MAX);
-          DP_CHECK (dp_corr2d_execute_power_max (c, x, m, ff, u1, CAN)
+          DP_CHECK (dp_correlator_execute_power_sum (c, x, m, ff, CAN)
                     == SIZE_MAX);
-          DP_CHECK (dp_corr2d_execute_peaks (c, x, m, ff, u1, u2, f3, CAN)
+          DP_CHECK (dp_correlator_execute_power_max (c, x, m, ff, u1, CAN)
                     == SIZE_MAX);
-          size_t           calls = 0;
-          dp_corr2d_fold_t f     = { NULL, &calls };
+          DP_CHECK (dp_correlator_execute_peaks (c, x, m, ff, u1, u2, f3, CAN)
+                    == SIZE_MAX);
+          size_t               calls = 0;
+          dp_correlator_fold_t f     = { NULL, &calls };
           /* A NULL fold would crash if called: refusal must come first. */
-          DP_CHECK (dp_corr2d_execute_fold (c, x, m, &f) == SIZE_MAX);
+          DP_CHECK (dp_correlator_execute_fold (c, x, m, &f) == SIZE_MAX);
         }
       /* Room for one value less than the whole result. */
-      DP_CHECK (dp_corr2d_execute_all (c, x, H * n, cf, H * no - 1)
+      DP_CHECK (dp_correlator_execute_all (c, x, H * n, cf, H * no - 1)
                 == SIZE_MAX);
-      DP_CHECK (dp_corr2d_execute_coherent (c, x, H * n, cf, no - 1)
+      DP_CHECK (dp_correlator_execute_coherent (c, x, H * n, cf, no - 1)
                 == SIZE_MAX);
-      DP_CHECK (dp_corr2d_execute_power_sum (c, x, H * n, ff, no - 1)
+      DP_CHECK (dp_correlator_execute_power_sum (c, x, H * n, ff, no - 1)
                 == SIZE_MAX);
-      DP_CHECK (dp_corr2d_execute_power_max (c, x, H * n, ff, u1, no - 1)
+      DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, ff, u1, no - 1)
                 == SIZE_MAX);
-      DP_CHECK (dp_corr2d_execute_peaks (c, x, H * n, ff, u1, u2, f3, H - 1)
-                == SIZE_MAX);
+      DP_CHECK (
+          dp_correlator_execute_peaks (c, x, H * n, ff, u1, u2, f3, H - 1)
+          == SIZE_MAX);
       int untouched = 1;
       for (size_t k = 0; k < CAN; k++)
         untouched &= crealf (cf[k]) == -7.0f && ff[k] == -7.0f
                      && f3[k] == -7.0f && u1[k] == 77u && u2[k] == 77u;
       DP_CHECK_MSG (untouched, "a refused batch writes nothing");
       free (x);
-      dp_corr2d_destroy (c);
+      dp_correlator_destroy (c);
     }
 }
 
 /* ── The hypothesis bank (#2683 phase 3) ─────────────────────────────────
- * Every claim of dp_corr2d_bank_fold, _power_max and _detect against an
+ * Every claim of dp_correlator_bank_fold, _power_max and _detect against an
  * oracle built from the object's own execute(): map h of a bank is a fresh
  * dwell-1 object's map of the frame corrected by hand. */
 
@@ -924,7 +948,7 @@ enum
   K_BANK_KINDS
 };
 
-static dp_corr2d_state_t *
+static dp_correlator_state_t *
 _bank_make (int kind, const float _Complex *code, size_t ny, size_t nx,
             int nthreads)
 {
@@ -935,14 +959,17 @@ _bank_make (int kind, const float _Complex *code, size_t ny, size_t nx,
     for (size_t i = 1; i < ny; i++)
       for (size_t p = 0; p < nx; p++)
         ref[i * nx + p] = code[p] * (float)(i + 1) * 0.5f;
-  dp_corr2d_state_t *c
-      = kind == K_FAST ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 0, -1)
+  dp_correlator_state_t *c
+      = kind == K_FAST
+            ? dp_correlator_create_2d (ref, ny, nx, 1, nthreads, 0, 0, -1)
         : kind == K_FAST_PAD
-            ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 2 * nx, -1)
-        : kind == K_GEN ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 0, -1)
-        : kind == K_COL ? dp_corr2d_create (ref, ny, nx, 1, nthreads, 0, 0, 3)
-                        : dp_corr2d_create_delay_doppler (code, nx, ny, 1,
-                                                          nthreads, 2 * ny);
+            ? dp_correlator_create_2d (ref, ny, nx, 1, nthreads, 0, 2 * nx, -1)
+        : kind == K_GEN
+            ? dp_correlator_create_2d (ref, ny, nx, 1, nthreads, 0, 0, -1)
+        : kind == K_COL
+            ? dp_correlator_create_2d (ref, ny, nx, 1, nthreads, 0, 0, 3)
+            : dp_correlator_create_delay_doppler (code, nx, ny, 1, nthreads,
+                                                  2 * ny);
   free (ref);
   return c;
 }
@@ -982,38 +1009,39 @@ _test_bank (void)
       size_t                no   = 0;
       for (int ti = 0; ti < 3; ti++)
         {
-          static const int   th[3] = { 1, 2, 7 };
-          dp_corr2d_state_t *c     = _bank_make (kind, code, BNY, BNX, th[ti]);
+          static const int       th[3] = { 1, 2, 7 };
+          dp_correlator_state_t *c = _bank_make (kind, code, BNY, BNX, th[ti]);
           DP_REQUIRE (c != NULL);
-          no                    = c->n_out;
-          float _Complex  *maps = malloc (C * R * no * sizeof *maps);
-          _bank_copy_t     cp   = { maps, no, 0, 1 };
-          dp_corr2d_fold_t f    = { _bank_copy, &cp };
+          no                        = c->n_out;
+          float _Complex      *maps = malloc (C * R * no * sizeof *maps);
+          _bank_copy_t         cp   = { maps, no, 0, 1 };
+          dp_correlator_fold_t f    = { _bank_copy, &cp };
 
           /* mid-dwell, with its blob kept, to show the bank leaves it */
-          const size_t   nb     = dp_corr2d_state_bytes (c);
+          const size_t   nb     = dp_correlator_state_bytes (c);
           unsigned char *before = malloc (nb), *after = malloc (nb);
-          dp_corr2d_get_state (c, before);
+          dp_correlator_get_state (c, before);
 
-          DP_CHECK (dp_corr2d_bank_fold (c, x, BN, L, gmin, gmax, rv, rl, &f)
-                    == C * R);
+          DP_CHECK (
+              dp_correlator_bank_fold (c, x, BN, L, gmin, gmax, rv, rl, &f)
+              == C * R);
           DP_CHECK_MSG (cp.calls == C * R && cp.order_ok,
                         "bank: one map per hypothesis, in h order");
-          dp_corr2d_get_state (c, after);
+          dp_correlator_get_state (c, after);
           DP_CHECK_MSG (memcmp (before, after, nb) == 0,
                         "bank: the dwell's blob is untouched");
 
           /* the oracle: a fresh dwell-1 object per corrected frame */
-          dp_corr2d_state_t *o    = _bank_make (kind, code, BNY, BNX, 1);
-          float _Complex    *y    = malloc (BN * sizeof *y);
-          float _Complex    *want = malloc (no * sizeof *want);
-          double             err = 0.0, peak = 0.0;
+          dp_correlator_state_t *o    = _bank_make (kind, code, BNY, BNX, 1);
+          float _Complex        *y    = malloc (BN * sizeof *y);
+          float _Complex        *want = malloc (no * sizeof *want);
+          double                 err = 0.0, peak = 0.0;
           for (size_t ci = 0; ci < C; ci++)
             for (size_t r = 0; r < R; r++)
               {
                 _bank_correct (x, BNY, BNX, gmin + (long)ci, L,
                                rv ? rv + r * BNY : NULL, y);
-                DP_CHECK (dp_corr2d_execute (o, y, BN, want, no) == no);
+                DP_CHECK (dp_correlator_execute (o, y, BN, want, no) == no);
                 const float _Complex *got = maps + (ci * R + r) * no;
                 for (size_t k = 0; k < no; k++)
                   {
@@ -1037,9 +1065,9 @@ _test_bank (void)
           /* power_max is the bank's POWER_MAX: pointwise max, lowest h */
           float    *pw = malloc (no * sizeof *pw);
           uint32_t *pi = malloc (no * sizeof *pi);
-          DP_CHECK (dp_corr2d_bank_power_max_max_out (c, BN) == no);
-          DP_CHECK (dp_corr2d_bank_power_max (c, x, BN, L, gmin, gmax, rv, rl,
-                                              pw, pi, no)
+          DP_CHECK (dp_correlator_bank_power_max_max_out (c, BN) == no);
+          DP_CHECK (dp_correlator_bank_power_max (c, x, BN, L, gmin, gmax, rv,
+                                                  rl, pw, pi, no)
                     == no);
           int pm_ok = 1;
           for (size_t k = 0; k < no; k++)
@@ -1059,8 +1087,8 @@ _test_bank (void)
           DP_CHECK_MSG (pm_ok, "bank_power_max == max over the bank's maps");
           free (pw), free (pi);
           free (y), free (want), free (maps), free (before), free (after);
-          dp_corr2d_destroy (o);
-          dp_corr2d_destroy (c);
+          dp_correlator_destroy (o);
+          dp_correlator_destroy (c);
         }
       free (ref1);
     }
@@ -1082,8 +1110,8 @@ _test_bank (void)
     uint32_t pi[ON];
     for (size_t p = 0; p < ONX; p++)
       oc[p] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
-    dp_corr2d_state_t *d
-        = dp_corr2d_create_delay_doppler (oc, ONX, ONY, 1, 1, 0);
+    dp_correlator_state_t *d
+        = dp_correlator_create_delay_doppler (oc, ONX, ONY, 1, 1, 0);
     DP_REQUIRE (d != NULL);
     /* the midpoints of L = 1, 2, 4 (0.5, 0.25, 0.125 and 0.375) and points
        off them */
@@ -1111,16 +1139,16 @@ _test_bank (void)
                   oy[i * ONX + n] = ox[i * ONX + n]
                                     * ((float)cos (a) + (float)sin (a) * I);
                 }
-            DP_REQUIRE (dp_corr2d_execute (d, oy, ON, map, ON) == ON);
+            DP_REQUIRE (dp_correlator_execute (d, oy, ON, map, ON) == ON);
             double exact = 0.0;
             for (size_t k = 0; k < ON; k++)
               exact = fmax (exact,
                             (double)(crealf (map[k]) * crealf (map[k])
                                      + cimagf (map[k]) * cimagf (map[k])));
-            DP_REQUIRE (dp_corr2d_bank_power_max (d, ox, ON, L2, -2 * (int)L2,
-                                                  2 * (int)L2, NULL, 0, pw, pi,
-                                                  ON)
-                        == ON);
+            DP_REQUIRE (
+                dp_correlator_bank_power_max (d, ox, ON, L2, -2 * (int)L2,
+                                              2 * (int)L2, NULL, 0, pw, pi, ON)
+                == ON);
             double best = 0.0;
             for (size_t k = 0; k < ON; k++)
               best = fmax (best, (double)pw[k]);
@@ -1134,7 +1162,7 @@ _test_bank (void)
         DP_CHECK_MSG (ok, "off-grid loss is at most sinc(1/(2L))");
         DP_CHECK_MSG (tight, "half a step from both points loses the bound");
       }
-    dp_corr2d_destroy (d);
+    dp_correlator_destroy (d);
   }
 
   /* ── refusals: nothing folded, nothing written ──────────────────────── */
@@ -1152,28 +1180,31 @@ _test_bank (void)
     float _Complex gref[RN];
     for (size_t k = 0; k < RN; k++)
       gref[k] = _rand_cplx (&seed); /* energy off row 0: the general path */
-    dp_corr2d_state_t *dd
-        = dp_corr2d_create_delay_doppler (rc, RNX, RNY, 1, 2, 0);
-    dp_corr2d_state_t *gen = dp_corr2d_create (gref, RNY, RNX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *dd
+        = dp_correlator_create_delay_doppler (rc, RNX, RNY, 1, 2, 0);
+    dp_correlator_state_t *gen
+        = dp_correlator_create_2d (gref, RNY, RNX, 1, 1, 0, 0, -1);
     float _Complex r0[RN];
     memset (r0, 0, sizeof r0);
     memcpy (r0, rc, sizeof rc);
-    dp_corr2d_state_t *col  = dp_corr2d_create (r0, RNY, RNX, 1, 1, 0, 0, 3);
-    dp_corr2d_state_t *fast = dp_corr2d_create (r0, RNY, RNX, 1, 1, 0, 0, -1);
-    dp_corr2d_state_t *pad
-        = dp_corr2d_create (r0, RNY, RNX, 1, 1, 0, 2 * RNX, -1);
+    dp_correlator_state_t *col
+        = dp_correlator_create_2d (r0, RNY, RNX, 1, 1, 0, 0, 3);
+    dp_correlator_state_t *fast
+        = dp_correlator_create_2d (r0, RNY, RNX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *pad
+        = dp_correlator_create_2d (r0, RNY, RNX, 1, 1, 0, 2 * RNX, -1);
     DP_REQUIRE (dd && gen && col && fast && pad && !gen->fast_path);
-    _bank_copy_t     cp = { NULL, RN, 0, 1 };
-    dp_corr2d_fold_t f  = { _bank_copy, &cp };
-    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN - 1, 2, 0, 1, NULL, 0, &f)
+    _bank_copy_t         cp = { NULL, RN, 0, 1 };
+    dp_correlator_fold_t f  = { _bank_copy, &cp };
+    DP_CHECK (dp_correlator_bank_fold (dd, rx, RN - 1, 2, 0, 1, NULL, 0, &f)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_fold (dd, rx, 2 * RN, 2, 0, 1, NULL, 0, &f)
+    DP_CHECK (dp_correlator_bank_fold (dd, rx, 2 * RN, 2, 0, 1, NULL, 0, &f)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN, 0, 0, 1, NULL, 0, &f)
+    DP_CHECK (dp_correlator_bank_fold (dd, rx, RN, 0, 0, 1, NULL, 0, &f)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN, 2, 1, 0, NULL, 0, &f)
+    DP_CHECK (dp_correlator_bank_fold (dd, rx, RN, 2, 1, 0, NULL, 0, &f)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_fold (dd, rx, RN, 2, 0, 1, rw, RNY + 1, &f)
+    DP_CHECK (dp_correlator_bank_fold (dd, rx, RN, 2, 0, 1, rw, RNY + 1, &f)
               == SIZE_MAX);
     DP_CHECK_MSG (cp.calls == 0, "a refused bank folds nothing");
 
@@ -1186,34 +1217,35 @@ _test_bank (void)
     int32_t  g1[CAN];
     for (size_t k = 0; k < CAN; k++)
       po[k] = o0[k] = -7.0f, pi[k] = u2[k] = u3[k] = u4[k] = 77u, g1[k] = 77;
-    DP_CHECK (
-        dp_corr2d_bank_power_max (dd, rx, RN, 2, 0, 1, NULL, 0, po, pi, RN - 1)
-        == SIZE_MAX);
+    DP_CHECK (dp_correlator_bank_power_max (dd, rx, RN, 2, 0, 1, NULL, 0, po,
+                                            pi, RN - 1)
+              == SIZE_MAX);
     /* detect: a zero search grid, a grid that does not divide, a resolution
        below the search, a short output, and a refined carrier past int32 */
-    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 0, 4, 0, 1, 0.f, 0.f, NULL, 0,
-                                     o0, g1, u2, u3, u4, CAN)
+    DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 0, 4, 0, 1, 0.f, 0.f,
+                                         NULL, 0, o0, g1, u2, u3, u4, CAN)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 3, 4, 0, 1, 0.f, 0.f, NULL, 0,
-                                     o0, g1, u2, u3, u4, CAN)
+    DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 3, 4, 0, 1, 0.f, 0.f,
+                                         NULL, 0, o0, g1, u2, u3, u4, CAN)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 4, 2, 0, 1, 0.f, 0.f, NULL, 0,
-                                     o0, g1, u2, u3, u4, CAN)
+    DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 4, 2, 0, 1, 0.f, 0.f,
+                                         NULL, 0, o0, g1, u2, u3, u4, CAN)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 2, 4, 0, 1, 0.f, 0.f, NULL, 0,
-                                     o0, g1, u2, u3, u4, RN - 1)
+    DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 2, 4, 0, 1, 0.f, 0.f,
+                                         NULL, 0, o0, g1, u2, u3, u4, RN - 1)
               == SIZE_MAX);
-    DP_CHECK (dp_corr2d_bank_detect (dd, rx, RN, 1, 4, INT32_MAX / 2,
-                                     INT32_MAX / 2, 0.f, 0.f, NULL, 0, o0, g1,
-                                     u2, u3, u4, CAN)
+    DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 1, 4, INT32_MAX / 2,
+                                         INT32_MAX / 2, 0.f, 0.f, NULL, 0, o0,
+                                         g1, u2, u3, u4, CAN)
               == SIZE_MAX);
     int clean = 1;
     for (size_t k = 0; k < CAN; k++)
       clean &= po[k] == -7.0f && o0[k] == -7.0f && pi[k] == 77u && u2[k] == 77u
                && u3[k] == 77u && u4[k] == 77u && g1[k] == 77;
     DP_CHECK_MSG (clean, "a refused bank call writes nothing");
-    dp_corr2d_destroy (dd), dp_corr2d_destroy (gen), dp_corr2d_destroy (col);
-    dp_corr2d_destroy (fast), dp_corr2d_destroy (pad);
+    dp_correlator_destroy (dd), dp_correlator_destroy (gen),
+        dp_correlator_destroy (col);
+    dp_correlator_destroy (fast), dp_correlator_destroy (pad);
   }
   return 0;
 }
@@ -1238,8 +1270,8 @@ _test_bank_detect (void)
   float _Complex code[DNX], x[DN];
   for (size_t p = 0; p < DNX; p++)
     code[p] = crealf (_rand_cplx (&seed)) >= 0.0f ? 1.0f : -1.0f;
-  dp_corr2d_state_t *d
-      = dp_corr2d_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
+  dp_correlator_state_t *d
+      = dp_correlator_create_delay_doppler (code, DNX, DNY, 1, 2, 0);
   DP_REQUIRE (d != NULL);
   static float        pw[DN], fp[DN], po[DN];
   static uint32_t     pi[DN], fi[DN], ur[DN], urow[DN], ucol[DN];
@@ -1255,13 +1287,13 @@ _test_bank_detect (void)
           x[m]           = code[(m + DNX - DLAG) % DNX]
                            * ((float)cos (a) + (float)sin (a) * I);
         }
-      DP_REQUIRE (
-          dp_corr2d_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw, pi, DN)
-          == DN);
+      DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0,
+                                                pw, pi, DN)
+                  == DN);
       float top = 0.0f;
       for (size_t k = 0; k < DN; k++)
         top = fmaxf (top, pw[k]);
-      const size_t nrec = dp_corr2d_bank_detect (
+      const size_t nrec = dp_correlator_bank_detect (
           d, x, DN, 2, 4, -4, 4, 0.5f * top, 0.5f * top, NULL, 0, po, gr, ur,
           urow, ucol, DN);
       DP_CHECK_MSG (nrec == 1, "one signal, one record");
@@ -1270,8 +1302,8 @@ _test_bank_detect (void)
                         && ur[0] == 0,
                     "the record is the signal's fine carrier and lag");
       /* the refined power is the fine (L = 4) bank's map at that cell */
-      DP_REQUIRE (dp_corr2d_bank_power_max (d, x, DN, 4, want_g, want_g, NULL,
-                                            0, fp, fi, DN)
+      DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 4, want_g, want_g,
+                                                NULL, 0, fp, fi, DN)
                   == DN);
       const size_t cell = (size_t)urow[0] * DNX + ucol[0];
       DP_CHECK_MSG (nrec >= 1 && fabsf (po[0] - fp[cell]) <= 1e-5f * fp[cell],
@@ -1285,13 +1317,13 @@ _test_bank_detect (void)
           "the refine recovers the coarse grid's straddle loss");
       /* a confirm threshold above the refined power keeps nothing, and so
          does a candidate threshold above the coarse peak */
-      DP_CHECK (dp_corr2d_bank_detect (d, x, DN, 2, 4, -4, 4, 0.5f * top,
-                                       1.01f * po[0], NULL, 0, po, gr, ur,
-                                       urow, ucol, DN)
+      DP_CHECK (dp_correlator_bank_detect (d, x, DN, 2, 4, -4, 4, 0.5f * top,
+                                           1.01f * po[0], NULL, 0, po, gr, ur,
+                                           urow, ucol, DN)
                 == 0);
-      DP_CHECK (dp_corr2d_bank_detect (d, x, DN, 2, 4, -4, 4, 1.01f * top,
-                                       0.0f, NULL, 0, po, gr, ur, urow, ucol,
-                                       DN)
+      DP_CHECK (dp_correlator_bank_detect (d, x, DN, 2, 4, -4, 4, 1.01f * top,
+                                           0.0f, NULL, 0, po, gr, ur, urow,
+                                           ucol, DN)
                 == 0);
     }
 
@@ -1307,7 +1339,7 @@ _test_bank_detect (void)
                          * ((float)cos (a) + (float)sin (a) * I);
       }
     DP_REQUIRE (
-        dp_corr2d_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw, pi, DN)
+        dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw, pi, DN)
         == DN);
     size_t at = 0;
     for (size_t k = 0; k < DN; k++)
@@ -1316,9 +1348,9 @@ _test_bank_detect (void)
     const size_t nb  = ((at / DNX + 1) % DNY) * DNX + at % DNX;
     /* not vacuous: the neighbor row clears the thresholds below */
     DP_REQUIRE (pw[nb] > 0.1f * top);
-    const size_t nrec
-        = dp_corr2d_bank_detect (d, x, DN, 2, 4, -4, 4, 0.1f * top, 0.1f * top,
-                                 NULL, 0, po, gr, ur, urow, ucol, DN);
+    const size_t nrec = dp_correlator_bank_detect (
+        d, x, DN, 2, 4, -4, 4, 0.1f * top, 0.1f * top, NULL, 0, po, gr, ur,
+        urow, ucol, DN);
     DP_CHECK_MSG (nrec == 1 && gr[0] == 1 && ucol[0] == DLAG,
                   "a candidate is a local maximum: one signal, one record");
   }
@@ -1337,19 +1369,19 @@ _test_bank_detect (void)
           x[i * DNX + n] = code[(n + DNX - DLAG) % DNX]
                            * ((float)cos (a) + (float)sin (a) * I);
       }
-    DP_REQUIRE (
-        dp_corr2d_bank_power_max (d, x, DN, 2, -2, 2, w, 2 * DNY, pw, pi, DN)
-        == DN);
+    DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -2, 2, w, 2 * DNY,
+                                              pw, pi, DN)
+                == DN);
     float top = 0.0f;
     for (size_t k = 0; k < DN; k++)
       top = fmaxf (top, pw[k]);
-    const size_t nrec
-        = dp_corr2d_bank_detect (d, x, DN, 2, 4, -2, 2, 0.5f * top, 0.5f * top,
-                                 w, 2 * DNY, po, gr, ur, urow, ucol, DN);
+    const size_t nrec = dp_correlator_bank_detect (
+        d, x, DN, 2, 4, -2, 2, 0.5f * top, 0.5f * top, w, 2 * DNY, po, gr, ur,
+        urow, ucol, DN);
     DP_CHECK_MSG (nrec == 1 && ur[0] == 1 && gr[0] == 0 && ucol[0] == DLAG,
                   "the de-chirping rate is the rate reported");
   }
-  dp_corr2d_destroy (d);
+  dp_correlator_destroy (d);
 
   /* the refine is the fine bank's own value at the cell, on every path: the
      time-domain refine (fast path and DelayDoppler, native delay) and the
@@ -1374,8 +1406,8 @@ _test_bank_detect (void)
     int every = 1, kinds = 0;
     for (int kind = 0; kind < K_BANK_KINDS; kind++)
       {
-        dp_corr2d_state_t *k  = _bank_make (kind, pc, PNY, PNX, 2);
-        const size_t       no = k->n_out;
+        dp_correlator_state_t *k  = _bank_make (kind, pc, PNY, PNX, 2);
+        const size_t           no = k->n_out;
         float *cp = malloc (no * sizeof *cp), *fpw = malloc (no * sizeof *fpw);
         float *rp     = malloc (no * sizeof *rp);
         uint32_t *ci  = malloc (no * sizeof *ci),
@@ -1384,22 +1416,22 @@ _test_bank_detect (void)
                  *rw2 = malloc (no * sizeof *rw2);
         uint32_t *rc  = malloc (no * sizeof *rc);
         int32_t  *rg  = malloc (no * sizeof *rg);
-        DP_REQUIRE (
-            dp_corr2d_bank_power_max (k, px, PN, 2, -3, 3, NULL, 0, cp, ci, no)
-            == no);
+        DP_REQUIRE (dp_correlator_bank_power_max (k, px, PN, 2, -3, 3, NULL, 0,
+                                                  cp, ci, no)
+                    == no);
         float top = 0.0f;
         for (size_t q = 0; q < no; q++)
           top = fmaxf (top, cp[q]);
-        const size_t nrec
-            = dp_corr2d_bank_detect (k, px, PN, 2, 4, -3, 3, 0.3f * top, 0.0f,
-                                     NULL, 0, rp, rg, rr, rw2, rc, no);
+        const size_t nrec = dp_correlator_bank_detect (
+            k, px, PN, 2, 4, -3, 3, 0.3f * top, 0.0f, NULL, 0, rp, rg, rr, rw2,
+            rc, no);
         DP_REQUIRE (nrec != SIZE_MAX);
         kinds += nrec > 0;
         const size_t width = k->col_out >= 0 ? 1 : k->nx_out;
         for (size_t q = 0; q < nrec; q++)
           {
-            DP_REQUIRE (dp_corr2d_bank_power_max (k, px, PN, 4, rg[q], rg[q],
-                                                  NULL, 0, fpw, fi2, no)
+            DP_REQUIRE (dp_correlator_bank_power_max (
+                            k, px, PN, 4, rg[q], rg[q], NULL, 0, fpw, fi2, no)
                         == no);
             const size_t col  = k->col_out >= 0 ? 0 : rc[q];
             const float  want = fpw[(size_t)rw2[q] * width + col];
@@ -1407,7 +1439,7 @@ _test_bank_detect (void)
           }
         free (cp), free (fpw), free (rp), free (ci), free (fi2), free (rr);
         free (rw2), free (rc), free (rg);
-        dp_corr2d_destroy (k);
+        dp_correlator_destroy (k);
       }
     DP_CHECK_MSG (kinds == K_BANK_KINDS,
                   "every path makes a record (none is vacuous)");
@@ -1417,7 +1449,8 @@ _test_bank_detect (void)
   return 0;
 }
 
-/* ── The one delay-Doppler block map (#2752 step 2, corr2d_map.h) ──────────
+/* ── The one delay-Doppler block map (#2752 step 2, correlator_map.h)
+ * ──────────
  *
  * The primitive against its definition (docs/design/acq-surface.md §18.1),
  * evaluated in double precision by direct sums, with nothing of the map's
@@ -1741,7 +1774,8 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (obj != NULL);
     DP_CHECK (obj->ny == NY);
     DP_CHECK (obj->nx == NX);
@@ -1751,10 +1785,10 @@ main (void)
     DP_CHECK (obj->fast_path == 1);
     DP_CHECK (obj->fwd == NULL && obj->inv == NULL);
     DP_CHECK (obj->fwd1d != NULL && obj->inv1d != NULL);
-    dp_corr2d_reset (obj);
+    dp_correlator_reset (obj);
     DP_CHECK (obj->count == 0);
-    dp_corr2d_destroy (obj);
-    dp_corr2d_destroy (NULL);
+    dp_correlator_destroy (obj);
+    dp_correlator_destroy (NULL);
   }
 
   /* ── self-correlation of 2-D unit impulse ─────────────────────────── *
@@ -1763,16 +1797,17 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f + 0.0f * I;
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     float _Complex out[16];
-    size_t n_out = dp_corr2d_execute (obj, ref, N, out, N);
+    size_t n_out = dp_correlator_execute (obj, ref, N, out, N);
 
     DP_CHECK (n_out == N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
     for (size_t k = 1; k < N; k++)
       DP_CHECK (dp_cnearf (out[k], 0.0f + 0.0f * I, TOL));
 
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   /* ── integrate-and-dump: dwell=2 ─────────────────────────────────── */
@@ -1780,21 +1815,22 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 2, 1, 0, 0, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 2, 1, 0, 0, -1);
     float _Complex out[16];
 
-    size_t n1 = dp_corr2d_execute (obj, ref, N, out, N);
+    size_t n1 = dp_correlator_execute (obj, ref, N, out, N);
     DP_CHECK (n1 == 0);
     DP_CHECK (obj->count == 1);
 
-    size_t n2 = dp_corr2d_execute (obj, ref, N, out, N);
+    size_t n2 = dp_correlator_execute (obj, ref, N, out, N);
     DP_CHECK (n2 == N); /* dump on second call */
     DP_CHECK (obj->count == 0);
 
     /* Two frames of impulse × impulse = 2.0 at lag (0,0). */
     DP_CHECK (crealf (out[0]) > 1.9f && crealf (out[0]) < 2.1f);
 
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   /* ── 2-D shift: shifted input produces shifted peak ──────────────── *
@@ -1807,9 +1843,10 @@ main (void)
     ref[0]                 = 1.0f;
     in[NX]                 = 1.0f; /* row 1, col 0 */
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     float _Complex out[16];
-    dp_corr2d_execute (obj, in, N, out, N);
+    dp_correlator_execute (obj, in, N, out, N);
 
     /* Peak should be at row=1, col=0 → flat index = 1*NX + 0 = NX */
     size_t peak_idx = NX;
@@ -1820,16 +1857,17 @@ main (void)
       if (k != peak_idx)
         DP_CHECK (dp_cnearf (out[k], 0.0f + 0.0f * I, TOL));
 
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   /* ── max_out returns n_out (native = ny*nx) ──────────────────────── */
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
-    DP_CHECK (dp_corr2d_execute_max_out (obj) == N);
-    dp_corr2d_destroy (obj);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
+    DP_CHECK (dp_correlator_execute_max_out (obj) == N);
+    dp_correlator_destroy (obj);
   }
 
   /* ── decoupled inverse: interpolated output size + peak location ──── *
@@ -1840,24 +1878,25 @@ main (void)
     ref[0]                 = 1.0f;
     float _Complex in[16]  = { 0 };
     in[NX]                 = 1.0f; /* row 1, col 0 */
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 8, 8, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 8, 8, -1);
     DP_CHECK (obj->ny_out == 8 && obj->nx_out == 8);
     /* ny_out (8) != ny (4) -- Doppler-axis interpolation is requested, so
      * the fast path's identity doesn't apply (see corr2d.h); must fall
      * back to the general 2-D path even though ref is single-row. */
     DP_CHECK (obj->fast_path == 0);
     DP_CHECK (obj->fwd != NULL && obj->inv != NULL);
-    DP_CHECK (dp_corr2d_execute_max_out (obj) == 64);
+    DP_CHECK (dp_correlator_execute_max_out (obj) == 64);
 
     float _Complex out[64];
-    size_t no = dp_corr2d_execute (obj, in, N, out, 64);
+    size_t no = dp_correlator_execute (obj, in, N, out, 64);
     DP_CHECK (no == 64);
     size_t pk = 0;
     for (size_t k = 1; k < 64; k++)
       if (cabsf (out[k]) > cabsf (out[pk]))
         pk = k;
     DP_CHECK (pk / 8 == 2 && pk % 8 == 0);
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   /* ── dense-signal correctness vs. a brute-force reference, both paths ── */
@@ -1871,28 +1910,28 @@ main (void)
       dense_in[k] = _rand_cplx (&seed);
 
     /* single-row ref -> fast path */
-    dp_corr2d_state_t *fast
-        = dp_corr2d_create (dense_ref, ny, nx, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *fast
+        = dp_correlator_create_2d (dense_ref, ny, nx, 1, 1, 0, 0, -1);
     DP_CHECK (fast != NULL && fast->fast_path == 1);
-    dp_corr2d_execute (fast, dense_in, n, out, n);
+    dp_correlator_execute (fast, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
-    dp_corr2d_destroy (fast);
+    dp_correlator_destroy (fast);
 
     /* genuinely multi-row ref -> general path; the pre-existing suite had
      * no non-impulse correctness check for this path either. */
     float _Complex dense_ref2[35];
     for (size_t k = 0; k < n; k++)
       dense_ref2[k] = _rand_cplx (&seed);
-    dp_corr2d_state_t *slow
-        = dp_corr2d_create (dense_ref2, ny, nx, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *slow
+        = dp_correlator_create_2d (dense_ref2, ny, nx, 1, 1, 0, 0, -1);
     DP_CHECK (slow != NULL && slow->fast_path == 0);
-    dp_corr2d_execute (slow, dense_in, n, out, n);
+    dp_correlator_execute (slow, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref2, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
-    dp_corr2d_destroy (slow);
+    dp_correlator_destroy (slow);
   }
 
   /* ── fast path + nx_out interpolation (code-axis only, ny_out==ny) ────── *
@@ -1904,14 +1943,15 @@ main (void)
     ref[0]                 = 1.0f;
     float _Complex in[16]  = { 0 };
     in[1]                  = 1.0f; /* row 0, col 1 */
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 8, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 8, -1);
     DP_CHECK (obj->fast_path
               == 1); /* ny_out==ny native; nx_out interpolated */
     DP_CHECK (obj->ny_out == NY && obj->nx_out == 8);
-    DP_CHECK (dp_corr2d_execute_max_out (obj) == NY * 8);
+    DP_CHECK (dp_correlator_execute_max_out (obj) == NY * 8);
 
     float _Complex out[32];
-    size_t no = dp_corr2d_execute (obj, in, N, out, 32);
+    size_t no = dp_correlator_execute (obj, in, N, out, 32);
     DP_CHECK (no == NY * 8);
     size_t pk = 0;
     for (size_t k = 1; k < NY * 8; k++)
@@ -1919,10 +1959,11 @@ main (void)
         pk = k;
     /* native peak at (row=0, col=1); interpolated col = 1 * (8/4) = 2 */
     DP_CHECK (pk / 8 == 0 && pk % 8 == 2);
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
-  /* ── dp_corr2d_set_ref: fast-path accept vs. reject ────────────────────────
+  /* ── dp_correlator_set_ref: fast-path accept vs. reject
+   * ────────────────────────
    */
   {
     float _Complex ref1[16] = { 0 }, ref2[16] = { 0 }, bad_ref[16] = { 0 };
@@ -1930,24 +1971,25 @@ main (void)
     ref2[1]     = 1.0f; /* still single-row -- row 0, col 1 */
     bad_ref[NX] = 1.0f; /* row 1 nonzero -- no longer single-row */
 
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref1, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref1, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (obj->fast_path == 1);
 
     /* accept: still single-row */
-    DP_CHECK (dp_corr2d_set_ref (obj, ref2) == 0);
+    DP_CHECK (dp_correlator_set_ref (obj, ref2) == 0);
     float _Complex in[16] = { 0 };
     in[1]                 = 1.0f; /* row 0, col 1 -- matches ref2's replica */
     float _Complex out[16];
-    dp_corr2d_execute (obj, in, N, out, N);
+    dp_correlator_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
-    DP_CHECK (dp_corr2d_set_ref (obj, bad_ref) == -1);
-    dp_corr2d_execute (obj, in, N, out, N);
+    DP_CHECK (dp_correlator_set_ref (obj, bad_ref) == -1);
+    dp_correlator_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
-    dp_corr2d_destroy (obj);
+    dp_correlator_destroy (obj);
   }
 
   /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
@@ -1970,16 +2012,18 @@ main (void)
 
     for (int which = 0; which < 2; which++)
       {
-        const float _Complex *rf = which ? full_ref : row_ref;
-        dp_corr2d_state_t *a = dp_corr2d_create (rf, ny, nx, 1, 1, 0, 0, -1);
-        dp_corr2d_state_t *b = dp_corr2d_create (rf, ny, nx, 1, 1, 0, 0, -1);
+        const float _Complex  *rf = which ? full_ref : row_ref;
+        dp_correlator_state_t *a
+            = dp_correlator_create_2d (rf, ny, nx, 1, 1, 0, 0, -1);
+        dp_correlator_state_t *b
+            = dp_correlator_create_2d (rf, ny, nx, 1, 1, 0, 0, -1);
         DP_CHECK (a != NULL && b != NULL);
         DP_CHECK (a->fast_path == (which ? 0 : 1)); /* both paths covered */
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
 
-        DP_CHECK (dp_corr2d_execute (a, input, n, full, n) == n);
-        DP_CHECK (dp_corr2d_execute (b, input, n, part, 6) == 6);
+        DP_CHECK (dp_correlator_execute (a, input, n, full, n) == n);
+        DP_CHECK (dp_correlator_execute (b, input, n, part, 6) == 6);
         for (size_t k = 0; k < 6; k++)
           DP_CHECK (dp_cnearf (part[k], full[k],
                                TOL)); /* prefix is the same surface */
@@ -1989,11 +2033,11 @@ main (void)
 
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
-        DP_CHECK (dp_corr2d_execute (b, input, n, part, 0) == 0);
+        DP_CHECK (dp_correlator_execute (b, input, n, part, 0) == 0);
         for (size_t k = 0; k < n; k++)
           DP_CHECK (dp_cnearf (part[k], 42.0f + 42.0f * I, TOL));
-        dp_corr2d_destroy (a);
-        dp_corr2d_destroy (b);
+        dp_correlator_destroy (a);
+        dp_correlator_destroy (b);
       }
   }
 
@@ -2006,14 +2050,16 @@ main (void)
         ref[i] = (float)(i % 4) + 0.5f * I;
         in[i]  = (float)(i % 3) - 1.0f + 0.2f * I;
       }
-    dp_corr2d_state_t *a = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
-    dp_corr2d_state_t *b = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_correlator_state_t *a
+        = dp_correlator_create_2d (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_correlator_state_t *b
+        = dp_correlator_create_2d (ref, 4, 4, 3, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)dp_corr2d_execute (a, in, 16, out, 16);
-    DP_STATE_ROUNDTRIP_TEST (dp_corr2d, a, b);
+    (void)dp_correlator_execute (a, in, 16, out, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
-    dp_corr2d_destroy (a);
-    dp_corr2d_destroy (b);
+    dp_correlator_destroy (a);
+    dp_correlator_destroy (b);
   }
 
   /* serializable state, fast path: accum's CONTENT differs (per-row nx
@@ -2025,20 +2071,22 @@ main (void)
     ref[0]                 = 1.0f;
     for (int i = 0; i < 16; i++)
       in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
-    dp_corr2d_state_t *a = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
-    dp_corr2d_state_t *b = dp_corr2d_create (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_correlator_state_t *a
+        = dp_correlator_create_2d (ref, 4, 4, 3, 1, 0, 0, -1);
+    dp_correlator_state_t *b
+        = dp_correlator_create_2d (ref, 4, 4, 3, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
     DP_CHECK (a->fast_path == 1 && b->fast_path == 1);
-    (void)dp_corr2d_execute (a, in, 16, out, 16);
-    DP_STATE_ROUNDTRIP_TEST (dp_corr2d, a, b);
+    (void)dp_correlator_execute (a, in, 16, out, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
-    dp_corr2d_destroy (a);
-    dp_corr2d_destroy (b);
+    dp_correlator_destroy (a);
+    dp_correlator_destroy (b);
   }
 
   /* ── reset really zeroes the ACCUMULATOR, not just the counter ────────
    *
-   * The pre-existing lifecycle check called dp_corr2d_reset() on a freshly
+   * The pre-existing lifecycle check called dp_correlator_reset() on a freshly
    * created object and asserted `count == 0` -- which was already true
    * before the call, so a reset() with an empty body passed it. That is
    * the vacuous-reject shape docs/dev/contributing/validation.md warns
@@ -2062,14 +2110,16 @@ main (void)
     for (size_t k = 0; k < n; k++)
       fresh[k] = _rand_cplx (&seed);
 
-    dp_corr2d_state_t *a = dp_corr2d_create (ref, ny, nx, 2, 1, 0, 0, -1);
-    dp_corr2d_state_t *b = dp_corr2d_create (ref, ny, nx, 2, 1, 0, 0, -1);
+    dp_correlator_state_t *a
+        = dp_correlator_create_2d (ref, ny, nx, 2, 1, 0, 0, -1);
+    dp_correlator_state_t *b
+        = dp_correlator_create_2d (ref, ny, nx, 2, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
 
     /* `a` takes one frame of a dwell-2 cycle, so its accumulator is
        non-zero and its counter is 1 -- the precondition the old test
        lacked. Assert it, or this test can go vacuous the same way. */
-    DP_CHECK (dp_corr2d_execute (a, stale, n, out_a, n) == 0);
+    DP_CHECK (dp_correlator_execute (a, stale, n, out_a, n) == 0);
     DP_CHECK (a->count == 1);
     int accum_nonzero = 0;
     for (size_t k = 0; k < n; k++)
@@ -2077,20 +2127,20 @@ main (void)
         accum_nonzero = 1;
     DP_CHECK (accum_nonzero);
 
-    dp_corr2d_reset (a);
+    dp_correlator_reset (a);
     DP_CHECK (a->count == 0);
 
     /* Both now drive a full dwell-2 cycle over identical input. */
-    DP_CHECK (dp_corr2d_execute (a, fresh, n, out_a, n) == 0);
-    DP_CHECK (dp_corr2d_execute (b, fresh, n, out_b, n) == 0);
-    size_t na = dp_corr2d_execute (a, fresh, n, out_a, n);
-    size_t nb = dp_corr2d_execute (b, fresh, n, out_b, n);
+    DP_CHECK (dp_correlator_execute (a, fresh, n, out_a, n) == 0);
+    DP_CHECK (dp_correlator_execute (b, fresh, n, out_b, n) == 0);
+    size_t na = dp_correlator_execute (a, fresh, n, out_a, n);
+    size_t nb = dp_correlator_execute (b, fresh, n, out_b, n);
     DP_CHECK (na == n && nb == n);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (out_a[k] == out_b[k]); /* bit-for-bit: same arithmetic */
 
-    dp_corr2d_destroy (a);
-    dp_corr2d_destroy (b);
+    dp_correlator_destroy (a);
+    dp_correlator_destroy (b);
   }
 
   /* ── nthreads never changes the output ───────────────────────────────
@@ -2117,21 +2167,22 @@ main (void)
 
     for (int path = 0; path < 2; path++)
       {
-        const float _Complex *r = path ? refN : ref1;
-        dp_corr2d_state_t *c0   = dp_corr2d_create (r, ny, nx, 1, 1, 0, 0, -1);
+        const float _Complex  *r = path ? refN : ref1;
+        dp_correlator_state_t *c0
+            = dp_correlator_create_2d (r, ny, nx, 1, 1, 0, 0, -1);
         DP_CHECK (c0 != NULL && c0->fast_path == (path ? 0 : 1));
-        DP_CHECK (dp_corr2d_execute (c0, in, n, base, n) == n);
-        dp_corr2d_destroy (c0);
+        DP_CHECK (dp_correlator_execute (c0, in, n, base, n) == n);
+        dp_correlator_destroy (c0);
 
         for (size_t nt = 2; nt <= 8; nt *= 2)
           {
-            dp_corr2d_state_t *c
-                = dp_corr2d_create (r, ny, nx, 1, nt, 0, 0, -1);
+            dp_correlator_state_t *c
+                = dp_correlator_create_2d (r, ny, nx, 1, nt, 0, 0, -1);
             DP_CHECK (c != NULL);
-            DP_CHECK (dp_corr2d_execute (c, in, n, other, n) == n);
+            DP_CHECK (dp_correlator_execute (c, in, n, other, n) == n);
             for (size_t k = 0; k < n; k++)
               DP_CHECK (other[k] == base[k]);
-            dp_corr2d_destroy (c);
+            dp_correlator_destroy (c);
           }
       }
   }
@@ -2145,18 +2196,20 @@ main (void)
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
-    dp_corr2d_state_t *nat = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *nat
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (nat != NULL);
     DP_CHECK (nat->ny_out == NY && nat->nx_out == NX);
     DP_CHECK (nat->work_pad == NULL && nat->ztmp == NULL);
     DP_CHECK (nat->zcol == NULL && nat->zcolout == NULL);
-    dp_corr2d_destroy (nat);
+    dp_correlator_destroy (nat);
 
     /* ... and the padded path DOES allocate them, so the check above is
        not passing because the fields are always NULL. */
-    dp_corr2d_state_t *pad = dp_corr2d_create (ref, NY, NX, 1, 1, 8, 8, -1);
+    dp_correlator_state_t *pad
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 8, 8, -1);
     DP_CHECK (pad != NULL && pad->work_pad != NULL);
-    dp_corr2d_destroy (pad);
+    dp_correlator_destroy (pad);
   }
 
   /* ── sub-bin interpolation recovers a FRACTIONAL peak ─────────────────
@@ -2215,10 +2268,10 @@ main (void)
                         + (float _Complex) (ai / (double)nx) * I;
               }
 
-            dp_corr2d_state_t *fine
-                = dp_corr2d_create (ref, 1, nx, 1, 1, 0, nx * up, -1);
+            dp_correlator_state_t *fine
+                = dp_correlator_create_2d (ref, 1, nx, 1, 1, 0, nx * up, -1);
             DP_CHECK (fine != NULL);
-            size_t no = dp_corr2d_execute (fine, in, nx, out, nx * up);
+            size_t no = dp_correlator_execute (fine, in, nx, out, nx * up);
             DP_CHECK (no == nx * up);
 
             size_t pk = 0;
@@ -2227,7 +2280,7 @@ main (void)
                 pk = k;
             double got = (double)pk / (double)up;
             DP_CHECK (fabs (got - frac) < 0.02);
-            dp_corr2d_destroy (fine);
+            dp_correlator_destroy (fine);
           }
 
         /* The native grid genuinely cannot do this: at a half-bin offset
@@ -2250,17 +2303,17 @@ main (void)
               in[j] = (float _Complex) (ar / (double)nx)
                       + (float _Complex) (ai / (double)nx) * I;
             }
-          dp_corr2d_state_t *nat
-              = dp_corr2d_create (ref, 1, nx, 1, 1, 0, 0, -1);
+          dp_correlator_state_t *nat
+              = dp_correlator_create_2d (ref, 1, nx, 1, 1, 0, 0, -1);
           DP_CHECK (nat != NULL);
           float _Complex onat[16];
-          DP_CHECK (dp_corr2d_execute (nat, in, nx, onat, nx) == nx);
+          DP_CHECK (dp_correlator_execute (nat, in, nx, onat, nx) == nx);
           size_t pk = 0;
           for (size_t k = 1; k < nx; k++)
             if (cabsf (onat[k]) > cabsf (onat[pk]))
               pk = k;
           DP_CHECK (fabs ((double)pk - frac) >= 0.5 - 1e-9);
-          dp_corr2d_destroy (nat);
+          dp_correlator_destroy (nat);
         }
       }
   }
@@ -2290,10 +2343,10 @@ main (void)
     for (size_t j = 0; j < nx; j++)
       in[j] = (j == 3) ? 1.0f : (j == 4) ? 0.7f : (j == 11) ? -0.4f : 0.0f;
 
-    dp_corr2d_state_t *fine
-        = dp_corr2d_create (ref, 1, nx, 1, 1, 0, nx * up, -1);
+    dp_correlator_state_t *fine
+        = dp_correlator_create_2d (ref, 1, nx, 1, 1, 0, nx * up, -1);
     DP_CHECK (fine != NULL);
-    size_t no = dp_corr2d_execute (fine, in, nx, out, nx * up);
+    size_t no = dp_correlator_execute (fine, in, nx, out, nx * up);
     DP_CHECK (no == nx * up);
 
     float worst = 0.0f;
@@ -2309,7 +2362,7 @@ main (void)
       if (fabsf (crealf (out[k])) > peak)
         peak = fabsf (crealf (out[k]));
     DP_CHECK (peak > 0.5f);
-    dp_corr2d_destroy (fine);
+    dp_correlator_destroy (fine);
   }
 
   /* ── dwell = 0 is refused, not silently accepted ──────────────────────
@@ -2333,13 +2386,15 @@ main (void)
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
-    DP_CHECK (dp_corr2d_create (ref, NY, NX, 0, 1, 0, 0, -1) == NULL);
+    DP_CHECK (dp_correlator_create_2d (ref, NY, NX, 0, 1, 0, 0, -1) == NULL);
     /* Not vacuous: the neighbouring value builds. */
-    dp_corr2d_state_t *ok = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *ok
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (ok != NULL);
-    dp_corr2d_destroy (ok);
+    dp_correlator_destroy (ok);
     /* The pre-existing output-grid rule still holds. */
-    DP_CHECK (dp_corr2d_create (ref, NY, NX, 1, 1, 0, NX - 1, -1) == NULL);
+    DP_CHECK (dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, NX - 1, -1)
+              == NULL);
   }
 
   /* ── a known output column equals that column of the full map ─────────
@@ -2380,35 +2435,35 @@ main (void)
       {
         const size_t nxo = nxo_cases[c] ? nxo_cases[c] : nx;
 
-        dp_corr2d_state_t *full
-            = dp_corr2d_create (ref, ny, nx, 1, 1, 0, nxo_cases[c], -1);
+        dp_correlator_state_t *full
+            = dp_correlator_create_2d (ref, ny, nx, 1, 1, 0, nxo_cases[c], -1);
         DP_CHECK (full != NULL);
         float _Complex *map = malloc (ny * nxo * sizeof (*map));
         DP_CHECK (map != NULL);
-        DP_CHECK (dp_corr2d_execute (full, in, ny * nx, map, ny * nxo)
+        DP_CHECK (dp_correlator_execute (full, in, ny * nx, map, ny * nxo)
                   == ny * nxo);
 
         for (size_t j0 = 0; j0 < nxo; j0++)
           {
-            dp_corr2d_state_t *one = dp_corr2d_create (ref, ny, nx, 1, 1, 0,
-                                                       nxo_cases[c], (int)j0);
+            dp_correlator_state_t *one = dp_correlator_create_2d (
+                ref, ny, nx, 1, 1, 0, nxo_cases[c], (int)j0);
             DP_CHECK (one != NULL);
             /* One value per ROW, not a map. */
             DP_CHECK (one->n_out == ny);
-            DP_CHECK (dp_corr2d_execute_max_out (one) == ny);
+            DP_CHECK (dp_correlator_execute_max_out (one) == ny);
 
             float _Complex col[ny];
-            DP_CHECK (dp_corr2d_execute (one, in, ny * nx, col, ny) == ny);
+            DP_CHECK (dp_correlator_execute (one, in, ny * nx, col, ny) == ny);
             for (size_t i = 0; i < ny; i++)
               {
                 const float _Complex want = map[i * nxo + j0];
                 DP_CHECK (cabsf (col[i] - want)
                           <= 1e-4f * (cabsf (want) + 1.0f));
               }
-            dp_corr2d_destroy (one);
+            dp_correlator_destroy (one);
           }
         free (map);
-        dp_corr2d_destroy (full);
+        dp_correlator_destroy (full);
       }
   }
 
@@ -2434,23 +2489,25 @@ main (void)
     for (size_t k = 0; k < ny * nx; k++)
       in[k] = (float)(k + 1);
 
-    dp_corr2d_state_t *c = dp_corr2d_create (r0, ny, nx, 1, 1, 0, 0, 0);
+    dp_correlator_state_t *c
+        = dp_correlator_create_2d (r0, ny, nx, 1, 1, 0, 0, 0);
     DP_CHECK (c != NULL);
     float _Complex a[ny], b[ny];
-    DP_CHECK (dp_corr2d_execute (c, in, ny * nx, a, ny) == ny);
-    DP_CHECK (dp_corr2d_set_ref (c, r1) == 0);
-    DP_CHECK (dp_corr2d_execute (c, in, ny * nx, b, ny) == ny);
+    DP_CHECK (dp_correlator_execute (c, in, ny * nx, a, ny) == ny);
+    DP_CHECK (dp_correlator_set_ref (c, r1) == 0);
+    DP_CHECK (dp_correlator_execute (c, in, ny * nx, b, ny) == ny);
     /* A stale replica would return the same answer for both codes. */
     DP_CHECK (cabsf (a[0] - b[0]) > 1e-3f);
     /* ... and the new answer is the one r1 actually selects. */
-    dp_corr2d_state_t *fresh = dp_corr2d_create (r1, ny, nx, 1, 1, 0, 0, 0);
+    dp_correlator_state_t *fresh
+        = dp_correlator_create_2d (r1, ny, nx, 1, 1, 0, 0, 0);
     DP_CHECK (fresh != NULL);
     float _Complex f[ny];
-    DP_CHECK (dp_corr2d_execute (fresh, in, ny * nx, f, ny) == ny);
+    DP_CHECK (dp_correlator_execute (fresh, in, ny * nx, f, ny) == ny);
     for (size_t i = 0; i < ny; i++)
       DP_CHECK (cabsf (b[i] - f[i]) <= 1e-5f);
-    dp_corr2d_destroy (fresh);
-    dp_corr2d_destroy (c);
+    dp_correlator_destroy (fresh);
+    dp_correlator_destroy (c);
   }
 
   /* ── col_out is refused where it has no meaning ───────────────────────
@@ -2461,22 +2518,25 @@ main (void)
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
     /* Past the output grid. */
-    DP_CHECK (dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, NX) == NULL);
+    DP_CHECK (dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, NX) == NULL);
     /* A decoupled grid: an interpolated column is a fractional lag. */
-    DP_CHECK (dp_corr2d_create (ref, NY, NX, 1, 1, 0, 2 * NX, 0) == NULL);
+    DP_CHECK (dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 2 * NX, 0)
+              == NULL);
     /* Not the single-row shape the fast path needs: energy outside row 0. */
     float _Complex dense[16];
     for (size_t k = 0; k < 16; k++)
       dense[k] = 1.0f;
-    DP_CHECK (dp_corr2d_create (dense, NY, NX, 1, 1, 0, 0, 0) == NULL);
+    DP_CHECK (dp_correlator_create_2d (dense, NY, NX, 1, 1, 0, 0, 0) == NULL);
     /* Not vacuous: the same shapes build with col_out disabled, and the
        single-row reference builds WITH it. */
-    dp_corr2d_state_t *a = dp_corr2d_create (dense, NY, NX, 1, 1, 0, 0, -1);
+    dp_correlator_state_t *a
+        = dp_correlator_create_2d (dense, NY, NX, 1, 1, 0, 0, -1);
     DP_CHECK (a != NULL);
-    dp_corr2d_destroy (a);
-    dp_corr2d_state_t *b = dp_corr2d_create (ref, NY, NX, 1, 1, 0, 0, 0);
+    dp_correlator_destroy (a);
+    dp_correlator_state_t *b
+        = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, 0);
     DP_CHECK (b != NULL);
-    dp_corr2d_destroy (b);
+    dp_correlator_destroy (b);
   }
 
   /* ── n_in must equal ny*nx: any other length is REFUSED (#1925) ──────
@@ -2486,7 +2546,8 @@ main (void)
     float _Complex ref[16];
     for (size_t i = 0; i < N; i++)
       ref[i] = (i == 0) ? 1.0f : 0.0f;
-    dp_corr2d_state_t *obj = dp_corr2d_create (ref, NY, NX, 2, 1, 0, 0, -1);
+    dp_correlator_state_t *obj
+        = dp_correlator_create_2d (ref, NY, NX, 2, 1, 0, 0, -1);
     DP_CHECK (obj != NULL);
     float _Complex good[16], out[16];
     for (size_t i = 0; i < N; i++)
@@ -2494,13 +2555,13 @@ main (void)
         good[i] = 1.0f;
         out[i]  = CMPLXF (-7.0f, -7.0f);
       }
-    DP_CHECK (dp_corr2d_execute (obj, good, N, out, N) == 0); /* frame 1 */
+    DP_CHECK (dp_correlator_execute (obj, good, N, out, N) == 0); /* frame 1 */
     const size_t bad[] = { 0, 1, N - 1, N + 1, 2 * N };
     for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
       {
         float _Complex *x
             = (float _Complex *)calloc (bad[k] ? bad[k] : 1, sizeof *x);
-        DP_CHECK (dp_corr2d_execute (obj, x, bad[k], out, N) == SIZE_MAX);
+        DP_CHECK (dp_correlator_execute (obj, x, bad[k], out, N) == SIZE_MAX);
         DP_CHECK (obj->count == 1); /* not counted */
         free (x);
       }
@@ -2508,8 +2569,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       untouched &= crealf (out[i]) == -7.0f;
     DP_CHECK (untouched);
-    DP_CHECK (dp_corr2d_execute (obj, good, N, out, N) == N); /* dumps */
-    dp_corr2d_destroy (obj);
+    DP_CHECK (dp_correlator_execute (obj, good, N, out, N) == N); /* dumps */
+    dp_correlator_destroy (obj);
   }
 
   _test_delay_doppler ();
@@ -2519,5 +2580,5 @@ main (void)
   (void)_test_bank_detect ();
   (void)_test_block_map ();
 
-  DP_TEST_END ("test_corr2d_core");
+  DP_TEST_END ("test_correlator_core");
 }

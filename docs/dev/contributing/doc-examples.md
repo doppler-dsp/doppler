@@ -232,7 +232,7 @@ quoted prototype and converts a comment into a gate.
 This is not hypothetical. Converting the two listings that qualified found
 both of them already wrong:
 
-- `corr2d-interpolated-inverse.md` had `dp_corr2d_create`'s parameters in a
+- `corr2d-interpolated-inverse.md` had `dp_correlator_create_2d`'s parameters in a
     stale **order** (`ny_out, nx_out` before `dwell, nthreads`; the header has
     them after). All four are integers, so code copied from the page would
     have compiled and silently misconfigured the correlator.

@@ -67,7 +67,7 @@
 #include "doppler/detector/detector_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
-#include "doppler/corr/corr_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
 #ifdef __cplusplus
@@ -276,12 +276,14 @@ void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x
  * constructed with the same sample_rate_hz/symbol_rate_hz/psd_template/
  * pfa/pd/design_snr as the one that produced the blob -- the same class
  * of precondition dsss_receiver's own segments/sps/n check documents;
- * neither corr_core nor detector_core hash-verify their own reference
+ * neither correlator_core nor detector_core hash-verify their own reference
  * spectra either). */
 /** @brief State-blob magic ("CAQR"); set_state() rejects any other. */
 #define CARRIER_ACQ_STATE_MAGIC DP_FOURCC('C', 'A', 'Q', 'R')
-/** @brief State-blob layout version; bumped when the payload changes. */
-#define CARRIER_ACQ_STATE_VERSION 1u
+/** @brief State-blob layout version; bumped when the payload changes.
+ *  Version 2: the nested detector blob is DET1 version 3, whose own child
+ *  is the one correlator's 'CORL' (#2752 step 3.2). */
+#define CARRIER_ACQ_STATE_VERSION 2u
 /**
  * @brief Size of this instance's serialized state blob.
  * @param state  Instance to size (non-NULL).

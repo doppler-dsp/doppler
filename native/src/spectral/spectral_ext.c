@@ -1,9 +1,9 @@
 /*
  * spectral_ext.c — Python extension module spectral
  *
- * Objects: FFT, FFT2D, Corr, Corr2D, CorrDetector, CorrDetector2D, PSD,
- * Spectrogram, DelayDoppler GENERATED — do not hand-edit. Patches belong in
- * the _ext_<obj>.c fragments.
+ * Objects: FFT, FFT2D, Corr2D, CorrDetector, CorrDetector2D, PSD, Spectrogram,
+ * DelayDoppler, Corr GENERATED — do not hand-edit. Patches belong in the
+ * _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -191,7 +191,7 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
 #include "spectral_ext_corr.c"
-#include "spectral_ext_corr2d.c"
+#include "spectral_ext_correlator.c"
 #include "spectral_ext_delaydoppler.c"
 #include "spectral_ext_detector.c"
 #include "spectral_ext_detector2d.c"
@@ -939,8 +939,6 @@ PyInit_spectral (void)
     return NULL;
   if (PyType_Ready (&FFT2DObjType) < 0)
     return NULL;
-  if (PyType_Ready (&CorrObjType) < 0)
-    return NULL;
   if (PyType_Ready (&Corr2DObjType) < 0)
     return NULL;
   if (PyType_Ready (&CorrDetectorObjType) < 0)
@@ -952,6 +950,8 @@ PyInit_spectral (void)
   if (PyType_Ready (&SpectrogramObjType) < 0)
     return NULL;
   if (PyType_Ready (&DelayDopplerObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&CorrObjType) < 0)
     return NULL;
   PyObject *m = PyModule_Create (&spectral_moduledef);
   if (!m)
@@ -967,13 +967,6 @@ PyInit_spectral (void)
   if (PyModule_AddObject (m, "FFT2D", (PyObject *)&FFT2DObjType) < 0)
     {
       Py_DECREF (&FFT2DObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CorrObjType);
-  if (PyModule_AddObject (m, "Corr", (PyObject *)&CorrObjType) < 0)
-    {
-      Py_DECREF (&CorrObjType);
       Py_DECREF (m);
       return NULL;
     }
@@ -1021,6 +1014,13 @@ PyInit_spectral (void)
       < 0)
     {
       Py_DECREF (&DelayDopplerObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&CorrObjType);
+  if (PyModule_AddObject (m, "Corr", (PyObject *)&CorrObjType) < 0)
+    {
+      Py_DECREF (&CorrObjType);
       Py_DECREF (m);
       return NULL;
     }

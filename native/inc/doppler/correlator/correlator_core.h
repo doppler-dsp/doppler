@@ -1,9 +1,21 @@
 /**
- * @file corr2d_core.h
- * @brief 2-D FFT-based cross-correlator with coherent integrate-and-dump.
+ * @file correlator_core.h
+ * @brief The one FFT cross-correlator, with coherent integrate-and-dump.
  *
- * Two-dimensional extension of corr_core: all buffers are ny×nx row-major
- * flat arrays of length ny*nx.  The correlation theorem extends naturally:
+ * One object, built by flavor (docs/design/correlator.md section 4):
+ *
+ * | constructor                            | flavor                      |
+ * | -------------------------------------- | --------------------------- |
+ * | dp_correlator_create_1d()              | a 1-D reference, one row    |
+ * | dp_correlator_create_2d()              | a (ny, nx) reference        |
+ * | dp_correlator_create_delay_doppler()   | a code, mapped to (Doppler, delay) |
+ *
+ * The methods are shared. The 1-D flavor is the 2-D one at ny = 1, which
+ * the single-row path below serves, so a length-n correlation and a
+ * one-row 2-D correlation are the same bits (test_corr_equiv).
+ *
+ * All buffers are ny×nx row-major flat arrays of length ny*nx.  The
+ * correlation theorem extends naturally:
  *
  *   `R_xh[i,j] = IFFT2( FFT2(x) · conj(FFT2(h)) ) / (ny*nx)`
  *
@@ -17,9 +29,9 @@
  * `ref_spec[u,v]` is independent of `u` — the row axis of the 2-D transform
  * pair cancels to an exact identity (DFT orthogonality:
  * `sum_u exp(2*pi*i*u*(i-i')/ny) = ny` iff `i==i'`, else 0), for *any* row
- * content.  `dp_corr2d_execute` then reduces exactly to
+ * content.  `dp_correlator_execute` then reduces exactly to
  * `R(i,j) = IFFT_nx(FFT_nx(row_i) · conj(FFT_nx(ref_row0)))(j) / nx`,
- * applied independently per row — so `dp_corr2d_create` detects this shape and
+ * applied independently per row — so `dp_correlator_create_2d` detects this shape and
  * runs `ny` independent length-`nx` 1-D FFTs instead of a full `(ny,nx)`
  * 2-D FFT, skipping the row-axis work that would otherwise cancel to a
  * no-op.  Any other reference shape, or `ny_out > ny`, uses the general
@@ -28,17 +40,17 @@
  * Lifecycle:
  * @code
  * float _Complex ref[NY * NX] = { ... };    // row-major 2-D reference
- * dp_corr2d_state_t *c = dp_corr2d_create(ref, NY, NX, 4, 1, 0, 0, -1);
+ * dp_correlator_state_t *c = dp_correlator_create_2d(ref, NY, NX, 4, 1, 0, 0, -1);
  * float _Complex out[NY * NX];
  * for (int i = 0; i < 4; i++) {
- *     size_t n_out = dp_corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
+ *     size_t n_out = dp_correlator_execute(c, frame[i], NY*NX, out, NY*NX);
  *     if (n_out) process_2d(out, NY, NX);   // fires once, on i == 3
  * }
- * dp_corr2d_destroy(c);
+ * dp_correlator_destroy(c);
  * @endcode
  */
-#ifndef DP_CORR2D_CORE_H
-#define DP_CORR2D_CORE_H
+#ifndef DP_CORRELATOR_CORE_H
+#define DP_CORRELATOR_CORE_H
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_parallel.h"
@@ -51,12 +63,27 @@ extern "C" {
 #endif
 
 /**
- * @brief 2-D FFT correlator state.
+ * @brief Which constructor built a correlator.
  *
- * Allocate with dp_corr2d_create(); never stack-allocate.  All heap buffers
- * are ``ny * nx`` complex floats stored in row-major order.
+ * Fixed at create and the state blob's first field: a blob restores only
+ * into a correlator of its own flavor.
+ */
+typedef enum
+{
+  DP_CORRELATOR_1D            = 1, /**< dp_correlator_create_1d()      */
+  DP_CORRELATOR_2D            = 2, /**< dp_correlator_create_2d()      */
+  DP_CORRELATOR_DELAY_DOPPLER = 3  /**< dp_correlator_create_delay_doppler() */
+} dp_correlator_flavor_t;
+
+/**
+ * @brief Correlator state, every flavor.
+ *
+ * Allocate with a dp_correlator_create_*() constructor; never
+ * stack-allocate.  All heap buffers are ``ny * nx`` complex floats stored in
+ * row-major order.
  */
 typedef struct {
+  dp_correlator_flavor_t flavor; /**< The constructor that built it.      */
   dp_fft2d_state_t *fwd;       /**< Forward 2-D plan (sign = -1) at (ny, nx).
                                  NULL when @ref fast_path.                  */
   dp_fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1) at (ny_out,…).
@@ -85,7 +112,7 @@ typedef struct {
   /* Single-row-reference fast path (see the file doc comment for the
    * identity this relies on).  fast_path is decided once at create() and
    * fixed for the object's lifetime; set_ref() may only refresh within the
-   * same mode (see dp_corr2d_set_ref doc comment). */
+   * same mode (see dp_correlator_set_ref doc comment). */
   int             fast_path;    /**< 1 if using the 1-D-per-row fast path.   */
   dp_fft_state_t    *fwd1d;         /**< Forward 1-D plan, length nx.  Fast only.*/
   dp_fft_state_t    *inv1d;         /**< Inverse 1-D plan, length nx_out.  Fast
@@ -100,7 +127,7 @@ typedef struct {
   size_t n_out;             /**< ny_out * nx_out — output element count.  */
   size_t dwell;             /**< Integration depth.                       */
   size_t count;             /**< Frames accumulated (0 … dwell-1).        */
-  /* Known-column output (see dp_corr2d_create's @p col_out).  A caller that
+  /* Known-column output (see dp_correlator_create_2d's @p col_out).  A caller that
    * already knows the correlation lag it wants does not need the other
    * nx_out-1 columns, and evaluating the inverse at one bin is a dot
    * product against the conjugated reference, with NO transform in either
@@ -130,7 +157,7 @@ typedef struct {
   dp_fft_state_t **row_inv;   /**< Per-worker inverse row plans, length
                                    nx_out; worker 0's is @ref inv1d.  Fast
                                    path only.                             */
-  /* Delay-Doppler flavor (dp_corr2d_create_delay_doppler).  The flavor is
+  /* Delay-Doppler flavor (dp_correlator_create_delay_doppler).  The flavor is
    * the fast path's accumulation plus the library's one delay-Doppler map
    * at dump time (docs/design/acq-surface.md §18); it is fixed at create()
    * and changes what the state blob means, so the blob carries its own
@@ -153,7 +180,7 @@ typedef struct {
                                    rule at one tile, one rate): the dump
                                    frame's rows are inverted as they are
                                    accumulated.                           */
-  /* Batch scratch (dp_corr2d_execute_fold and the typed batch calls),
+  /* Batch scratch (dp_correlator_execute_fold and the typed batch calls),
    * allocated on the first batch, one slot per worker.  A batch makes its
    * maps here and never touches accum or count, so it is not state and is
    * not in the blob. */
@@ -165,11 +192,52 @@ typedef struct {
   float _Complex  *bat_map;   /**< Per-worker maps, nworkers x n_out.    */
   float _Complex  *bat_fine;  /**< Per-worker @ref dd_fine for batches;
                                    NULL when the map runs rows first.     */
-} dp_corr2d_state_t;
+} dp_correlator_state_t;
+
+/**
+ * @brief Allocate the 1-D flavor: a length-n correlator with coherent
+ * integrate-and-dump.
+ * Pre-computes conj(FFT(ref)) once at construction so each execute()
+ * call costs only two FFTs and n complex multiplies.  @p ref may be freed
+ * after this returns.  With @p dwell == 1 every call produces output; with
+ * larger values the accumulator absorbs @p dwell frames before dumping.
+ *
+ * It is dp_correlator_create_2d() at ny = 1, nx = @p ref_len: the
+ * single-row path, so the same bits (test_corr_equiv).  Its frame and its
+ * map are both 1-D: execute() takes @p ref_len samples and a dump writes
+ * n_out.
+ *
+ * @param ref       Reference signal, CF32, length @p ref_len.
+ * @param ref_len   Reference / FFT length in samples.
+ * @param dwell     Integration depth; must be >= 1 (0 is refused).  Pass 1
+ *                  for immediate output on every call.
+ * @param nthreads  Accepted for API compatibility; one row runs serially
+ *                  whatever it says.
+ * @param n_out     Inverse/output length; 0 => native (n).  Must be >= n.  A
+ *                  larger value zero-pads the cross-spectrum before the inverse,
+ *                  returning the band-limited (Dirichlet) interpolation of the
+ *                  correlation on a finer length-n_out grid — same peak, sub-bin
+ *                  lag resolution.  Native is bit-exact and allocates no extra
+ *                  buffer.
+ * @return Heap-allocated state (free with dp_correlator_destroy()), or NULL
+ *         on a dwell of 0, an @p n_out below @p ref_len, or allocation
+ *         failure.
+ * @code
+ * >>> from doppler.spectral import Corr
+ * >>> import numpy as np
+ * >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+ * >>> corr = Corr(ref=ref, dwell=1, nthreads=1)
+ * >>> corr.n, corr.dwell, corr.count
+ * (4, 1, 0)
+ * @endcode
+ */
+dp_correlator_state_t *dp_correlator_create_1d (const float _Complex *ref,
+                                                size_t ref_len, size_t dwell,
+                                                int nthreads, size_t n_out);
 
 /**
  * @brief Allocate a 2-D FFT correlator with coherent integrate-and-dump.
- * Two-dimensional extension of dp_corr_create().  The reference is a flat
+ * Two-dimensional extension of dp_correlator_create_1d().  The reference is a flat
  * row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once
  * so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies.
  * The Python wrapper requires @p ref to be a 2-D ndarray with shape
@@ -218,7 +286,7 @@ typedef struct {
  * (4, 4, 1, 0)
  * @endcode
  */
-dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
+dp_correlator_state_t *dp_correlator_create_2d(const float _Complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
                               size_t nx_out, int col_out);
 
@@ -226,7 +294,7 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  * @brief Allocate the delay-Doppler flavor: a code correlator that maps a raw
  * stream of @p ny code periods onto (Doppler, delay).
  *
- * Input to dp_corr2d_execute() is the raw stream -- @p ny periods of
+ * Input to dp_correlator_execute() is the raw stream -- @p ny periods of
  * @p code_len samples, back to back, no reshaping or reference padding by the
  * caller.  Each period (row) is correlated against @p code exactly as
  * Corr2D's single-row fast path does (FFT, multiply by `conj(FFT(code))`,
@@ -245,7 +313,7 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  * (zero Doppler on row `ny_out / 2`), columns are delay lags.  A signal of
  * amplitude `a` that is the code delayed by `d` samples and rotated by `f`
  * cycles/sample peaks at column `d` and row `ny_out/2 + f / doppler_step`,
- * where @ref dp_corr2d_state_t::doppler_step is `1 / (ny_out * nx)`
+ * where @ref dp_correlator_state_t::doppler_step is `1 / (ny_out * nx)`
  * cycles/sample (times the sample rate for Hz).  Its peak is
  * `a * dwell * ny * sum(abs(code)**2)`: the 1/nx of the row inverse
  * cancels the row correlation's own gain of nx, and the slow-time FFT is
@@ -269,7 +337,7 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  *                  every online core; capped at the most chunks a stage
  *                  can use, `max(ny, ceil(code_len / 16))`.
  * @param ny_out    Doppler bins in the map; 0 means @p ny.  Must be >= @p ny.
- * @return Heap-allocated state (free with dp_corr2d_destroy()), or NULL if
+ * @return Heap-allocated state (free with dp_correlator_destroy()), or NULL if
  *         @p code is NULL, @p code_len or @p ny is 0, @p dwell is 0, or
  *         @p ny_out is below @p ny.
  * @code
@@ -295,13 +363,13 @@ dp_corr2d_state_t *dp_corr2d_create(const float _Complex *ref, size_t ny, size_t
  * True
  * @endcode
  */
-dp_corr2d_state_t *dp_corr2d_create_delay_doppler (const float _Complex *code,
+dp_correlator_state_t *dp_correlator_create_delay_doppler (const float _Complex *code,
                                                    size_t code_len, size_t ny,
                                                    size_t dwell, int nthreads,
                                                    size_t ny_out);
 
 /** @brief Destroy and free a corr2d instance.  @param state May be NULL. */
-void dp_corr2d_destroy(dp_corr2d_state_t *state);
+void dp_correlator_destroy(dp_correlator_state_t *state);
 
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
@@ -323,7 +391,7 @@ void dp_corr2d_destroy(dp_corr2d_state_t *state);
  * 0
  * @endcode
  */
-void dp_corr2d_reset(dp_corr2d_state_t *state);
+void dp_correlator_reset(dp_correlator_state_t *state);
 
 /**
  * @brief Replace the reference and recompute its spectrum.
@@ -334,7 +402,7 @@ void dp_corr2d_reset(dp_corr2d_state_t *state);
  * row 0, or the call is rejected and the object's existing reference and
  * spectrum are left completely untouched (never a silent partial update) —
  * a caller that needs a genuinely different reference shape must build a
- * new dp_corr2d_state_t.  A general-path object accepts any (ny,nx) @p ref and
+ * new dp_correlator_state_t.  A general-path object accepts any (ny,nx) @p ref and
  * always succeeds.
  *
  * @param state Must be non-NULL.
@@ -342,14 +410,14 @@ void dp_corr2d_reset(dp_corr2d_state_t *state);
  * @return 0 on success, -1 if @p state is fast-path and @p ref is no longer
  *         single-row.
  */
-int dp_corr2d_set_ref(dp_corr2d_state_t *state, const float _Complex *ref);
+int dp_correlator_set_ref(dp_correlator_state_t *state, const float _Complex *ref);
 
-/** @brief Maximum output samples per execute call (@ref dp_corr2d_state_t::n_out
+/** @brief Maximum output samples per execute call (@ref dp_correlator_state_t::n_out
  *         -- ny_out*nx_out normally, or ny when a single @ref
- *         dp_corr2d_state_t::col_out was selected).
+ *         dp_correlator_state_t::col_out was selected).
  *  @param state  Must be non-NULL.
  *  @return n_out, fixed at create(). */
-size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
+size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
 
 /**
  * @brief Correlate one 2-D frame and optionally dump the coherent accumulator.
@@ -398,7 +466,7 @@ size_t dp_corr2d_execute_max_out(dp_corr2d_state_t *state);
  * [(2+0j), (2+0j), (2+0j), (2+0j)]
  * @endcode
  */
-size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
+size_t dp_correlator_execute(dp_correlator_state_t *state, const float _Complex *in,
                       size_t n_in, float _Complex *out, size_t max_out);
 
 /* ── Batches: many frames in one call (#2683) ──────────────────────────────
@@ -431,7 +499,7 @@ size_t dp_corr2d_execute(dp_corr2d_state_t *state, const float _Complex *in,
 
 /**
  * @brief A C reducer: called once per map, in h order, by
- *        dp_corr2d_execute_fold().
+ *        dp_correlator_execute_fold().
  *
  * @p map holds @p n_out values laid out as execute() writes them, and is
  * valid only for the duration of the call.
@@ -441,7 +509,7 @@ typedef struct
   /** Fold map @p h into the result @p ctx names. */
   void (*fold) (void *ctx, size_t h, const float _Complex *map, size_t n_out);
   void *ctx; /**< Passed to every call of @ref fold. */
-} dp_corr2d_fold_t;
+} dp_correlator_fold_t;
 
 /**
  * @brief Make the map of every frame in a batch and hand each to a reducer.
@@ -457,7 +525,7 @@ typedef struct
  * @return H, or SIZE_MAX (nothing folded) when @p n_in is 0 or not a
  *         multiple of the frame.
  * @code
- * #include "doppler/corr2d/corr2d_core.h"
+ * #include "doppler/correlator/correlator_core.h"
  * #include <stdio.h>
  *
  * // A reducer: the energy of each map, one value per frame.
@@ -474,27 +542,27 @@ typedef struct
  * main (void)
  * {
  *   const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
- *   dp_corr2d_state_t   *dd
- *       = dp_corr2d_create_delay_doppler (code, 4, 2, 1, 1, 0);
+ *   dp_correlator_state_t   *dd
+ *       = dp_correlator_create_delay_doppler (code, 4, 2, 1, 1, 0);
  *   float _Complex frames[3 * 2 * 4]; // 3 frames of ny x nx = 2 x 4
  *   for (size_t k = 0; k < 3 * 2 * 4; k++)
  *     frames[k] = code[k % 4] * (float)(1 + k / 8); // frame h is (h+1) x
  *   double           e[3];
- *   dp_corr2d_fold_t f = { energy, e };
- *   size_t           H = dp_corr2d_execute_fold (dd, frames, 3 * 2 * 4, &f);
+ *   dp_correlator_fold_t f = { energy, e };
+ *   size_t           H = dp_correlator_execute_fold (dd, frames, 3 * 2 * 4, &f);
  *   printf ("%zu maps, energy ratios %.0f %.0f\n", H, e[1] / e[0],
  *           e[2] / e[0]); // 3 maps, energy ratios 4 9
- *   dp_corr2d_destroy (dd);
+ *   dp_correlator_destroy (dd);
  *   return !(H == 3 && e[1] > 3.99 * e[0] && e[1] < 4.01 * e[0]);
  * }
  * @endcode
  */
-size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
+size_t dp_correlator_execute_fold (dp_correlator_state_t *state,
                                const float _Complex *in, size_t n_in,
-                               const dp_corr2d_fold_t *fold);
+                               const dp_correlator_fold_t *fold);
 
 /**
- * @brief Samples dp_corr2d_execute_all() writes for @p n_in input samples:
+ * @brief Samples dp_correlator_execute_all() writes for @p n_in input samples:
  *        H * n_out, H = n_in / (ny * nx).
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
@@ -513,7 +581,7 @@ size_t dp_corr2d_execute_fold (dp_corr2d_state_t *state,
  * 512
  * @endcode
  */
-size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
+size_t dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
                                       size_t n_in);
 
 /**
@@ -533,7 +601,7 @@ size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
  * @param n_in     A nonzero multiple of ny * nx.
  * @param out      H * n_out values (CF32).
  * @param max_out  Capacity of @p out; at least
- *                 dp_corr2d_execute_all_max_out().
+ *                 dp_correlator_execute_all_max_out().
  * @return Python: the (H, n_out) array; a refused batch (empty, not a whole
  *         number of frames, or an `out=` with fewer than H rows) is a
  *         ValueError with nothing written.  C: H * n_out, or SIZE_MAX for the
@@ -556,12 +624,12 @@ size_t dp_corr2d_execute_all_max_out (const dp_corr2d_state_t *state,
  * 0
  * @endcode
  */
-size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
+size_t dp_correlator_execute_all (dp_correlator_state_t *state,
                               const float _Complex *in, size_t n_in,
                               float _Complex *out, size_t max_out);
 
 /**
- * @brief Samples dp_corr2d_execute_coherent() writes: n_out.
+ * @brief Samples dp_correlator_execute_coherent() writes: n_out.
  * @param state  Must be non-NULL.
  * @return n_out, fixed at create().
  * @code
@@ -577,7 +645,7 @@ size_t dp_corr2d_execute_all (dp_corr2d_state_t *state,
  * 256
  * @endcode
  */
-size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
+size_t dp_correlator_execute_coherent_max_out (const dp_correlator_state_t *state);
 
 /**
  * @brief The coherent sum of a batch's maps, inverted once.
@@ -613,12 +681,12 @@ size_t dp_corr2d_execute_coherent_max_out (const dp_corr2d_state_t *state);
  * True
  * @endcode
  */
-size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
+size_t dp_correlator_execute_coherent (dp_correlator_state_t *state,
                                    const float _Complex *in, size_t n_in,
                                    float _Complex *out, size_t max_out);
 
 /**
- * @brief Powers dp_corr2d_execute_power_sum() writes: n_out.
+ * @brief Powers dp_correlator_execute_power_sum() writes: n_out.
  * @param state  Must be non-NULL.
  * @return n_out, fixed at create().
  * @code
@@ -634,7 +702,7 @@ size_t dp_corr2d_execute_coherent (dp_corr2d_state_t *state,
  * 256
  * @endcode
  */
-size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
+size_t dp_correlator_execute_power_sum_max_out (const dp_correlator_state_t *state);
 
 /**
  * @brief The power of a batch's maps, summed cell by cell: each output
@@ -671,24 +739,24 @@ size_t dp_corr2d_execute_power_sum_max_out (const dp_corr2d_state_t *state);
  * True
  * @endcode
  */
-size_t dp_corr2d_execute_power_sum (dp_corr2d_state_t *state,
+size_t dp_correlator_execute_power_sum (dp_correlator_state_t *state,
                                     const float _Complex *in, size_t n_in,
                                     float *out, size_t max_out);
 
 /**
- * @brief Values per output dp_corr2d_execute_power_max() writes: n_out.
+ * @brief Values per output dp_correlator_execute_power_max() writes: n_out.
  * @param state  Must be non-NULL.
  * @return n_out, fixed at create().
  * @code
  * const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
- * dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (code, 4, 2, 1, 1,
+ * dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (code, 4, 2, 1, 1,
  *                                                          0);
- * size_t n = dp_corr2d_execute_power_max_max_out (dd); // 2 x 4 = 8
- * dp_corr2d_destroy (dd);
+ * size_t n = dp_correlator_execute_power_max_max_out (dd); // 2 x 4 = 8
+ * dp_correlator_destroy (dd);
  * return n != 8;
  * @endcode
  */
-size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
+size_t dp_correlator_execute_power_max_max_out (const dp_correlator_state_t *state);
 
 /**
  * @brief The largest power over a batch's maps, cell by cell, and the map
@@ -726,26 +794,26 @@ size_t dp_corr2d_execute_power_max_max_out (const dp_corr2d_state_t *state);
  * (0, 1)
  * @endcode
  */
-size_t dp_corr2d_execute_power_max (dp_corr2d_state_t *state,
+size_t dp_correlator_execute_power_max (dp_correlator_state_t *state,
                                     const float _Complex *in, size_t n_in,
                                     float *out, uint32_t *out1,
                                     size_t max_out);
 
 /**
- * @brief Records dp_corr2d_execute_peaks() writes for @p n_in samples: H.
+ * @brief Records dp_correlator_execute_peaks() writes for @p n_in samples: H.
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
  * @return n_in / (ny * nx).
  * @code
  * const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
- * dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (code, 4, 2, 1, 1,
+ * dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (code, 4, 2, 1, 1,
  *                                                          0);
- * size_t h = dp_corr2d_execute_peaks_max_out (dd, 3 * 2 * 4); // 3 frames
- * dp_corr2d_destroy (dd);
+ * size_t h = dp_correlator_execute_peaks_max_out (dd, 3 * 2 * 4); // 3 frames
+ * dp_correlator_destroy (dd);
  * return h != 3;
  * @endcode
  */
-size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
+size_t dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
                                         size_t n_in);
 
 /**
@@ -791,7 +859,7 @@ size_t dp_corr2d_execute_peaks_max_out (const dp_corr2d_state_t *state,
  * True
  * @endcode
  */
-size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
+size_t dp_correlator_execute_peaks (dp_correlator_state_t *state,
                                 const float _Complex *in, size_t n_in,
                                 float *out, uint32_t *out1, uint32_t *out2,
                                 float *out3, size_t max_out);
@@ -851,7 +919,7 @@ size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
  *         ny-long vectors, a count past 2^32, or scratch that cannot be
  *         allocated.
  * @code
- * #include "doppler/corr2d/corr2d_core.h"
+ * #include "doppler/correlator/correlator_core.h"
  * #include <stdio.h>
  * static void count_maps (void *ctx, size_t h, const float _Complex *map,
  *                         size_t n_out)
@@ -862,42 +930,42 @@ size_t dp_corr2d_execute_peaks (dp_corr2d_state_t *state,
  * int main (void)
  * {
  *   float _Complex code[8] = { 1, -1, 1, 1, -1, 1, -1, -1 }, x[4 * 8] = { 0 };
- *   dp_corr2d_state_t *dd = dp_corr2d_create_delay_doppler (code, 8, 4, 1, 1, 0);
+ *   dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (code, 8, 4, 1, 1, 0);
  *   size_t maps = 0;
- *   dp_corr2d_fold_t f = { count_maps, &maps };
- *   size_t h = dp_corr2d_bank_fold (dd, x, 4 * 8, 4, -4, 4, NULL, 0, &f);
+ *   dp_correlator_fold_t f = { count_maps, &maps };
+ *   size_t h = dp_correlator_bank_fold (dd, x, 4 * 8, 4, -4, 4, NULL, 0, &f);
  *   printf ("%zu %zu\n", h, maps); // 9 carriers, one rate: 9 maps
- *   dp_corr2d_destroy (dd);
+ *   dp_correlator_destroy (dd);
  *   return !(h == 9 && maps == 9);
  * }
  * @endcode
  */
-size_t dp_corr2d_bank_fold (const dp_corr2d_state_t *state, const float _Complex *x,
+size_t dp_correlator_bank_fold (const dp_correlator_state_t *state, const float _Complex *x,
                             size_t x_len, size_t L, int g_min, int g_max,
                             const float _Complex *rates, size_t rates_len,
-                            const dp_corr2d_fold_t *fold);
+                            const dp_correlator_fold_t *fold);
 
 /**
- * @brief Capacity dp_corr2d_bank_power_max() needs: one map.
+ * @brief Capacity dp_correlator_bank_power_max() needs: one map.
  * @param state  The correlator.
  * @param x_len  The frame's length (one map whatever it is).
  * @return `n_out`.
  */
-size_t dp_corr2d_bank_power_max_max_out (dp_corr2d_state_t *state,
+size_t dp_correlator_bank_power_max_max_out (dp_correlator_state_t *state,
                                          size_t x_len);
 
 /**
  * @brief The strongest power at every cell over a bank, and which
  *        hypothesis it came from.
  *
- * dp_corr2d_bank_fold() with the `POWER_MAX` reducer: at each cell, @p out
+ * dp_correlator_bank_fold() with the `POWER_MAX` reducer: at each cell, @p out
  * holds the largest |map_h|^2 over every hypothesis h, and @p out1 that h,
  * `(g - g_min) * R + r`, the lowest h on a tie.  Every argument and refusal
- * is dp_corr2d_bank_fold()'s; in addition @p max_out below `n_out` is
+ * is dp_correlator_bank_fold()'s; in addition @p max_out below `n_out` is
  * refused with nothing written.
  *
  * @param state, x, x_len, L, g_min, g_max, rates, rates_len
- *                  As dp_corr2d_bank_fold().
+ *                  As dp_correlator_bank_fold().
  * @param out       `n_out` powers.
  * @param out1      `n_out` hypothesis indices.
  * @param max_out   Capacity of each output; at least `n_out`.
@@ -922,7 +990,7 @@ size_t dp_corr2d_bank_power_max_max_out (dp_corr2d_state_t *state,
  * (5, 3)
  * @endcode
  */
-size_t dp_corr2d_bank_power_max (const dp_corr2d_state_t *state,
+size_t dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                                  const float _Complex *x, size_t x_len,
                                  size_t L, int g_min, int g_max,
                                  const float _Complex *rates,
@@ -930,12 +998,12 @@ size_t dp_corr2d_bank_power_max (const dp_corr2d_state_t *state,
                                  size_t max_out);
 
 /**
- * @brief Capacity dp_corr2d_bank_detect() needs: one record per map cell.
+ * @brief Capacity dp_correlator_bank_detect() needs: one record per map cell.
  * @param state  The correlator.
  * @param x_len  The frame's length (the bound does not depend on it).
  * @return `n_out`.
  */
-size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
+size_t dp_correlator_bank_detect_max_out (dp_correlator_state_t *state,
                                       size_t x_len);
 
 /**
@@ -945,7 +1013,7 @@ size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
  * The bank searches on @p L_d and resolves on @p L_r
  * (docs/design/corr2d-hypotheses.md section 6):
  *
- * 1. **Detect.** dp_corr2d_bank_power_max() over carriers @p g_min ..
+ * 1. **Detect.** dp_correlator_bank_power_max() over carriers @p g_min ..
  *    @p g_max on the `1 / (L_d nx)` grid, with every rate.
  * 2. **Candidates.** Every cell whose power exceeds @p t_candidate and is
  *    at least each of its 8 neighbors, both axes circular (a delay lag and a
@@ -972,7 +1040,7 @@ size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
  * map's own units; the caller sets them for its noise, as for any detector.
  *
  * @param state, x, x_len, g_min, g_max, rates, rates_len
- *                     As dp_corr2d_bank_fold(); @p g_min and @p g_max are on
+ *                     As dp_correlator_bank_fold(); @p g_min and @p g_max are on
  *                     the coarse grid.
  * @param L_d          The search grid; at least 1.
  * @param L_r          The resolution grid; a multiple of @p L_d.
@@ -989,7 +1057,7 @@ size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
  *         refined carrier, uint32 rate, row and column, always new arrays
  *         (this call takes no `out=`); anything below is a ValueError.  C: the
  *         record count (0 included), or SIZE_MAX with nothing written for
- *         anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an @p L_r that
+ *         anything dp_correlator_bank_fold() refuses, `L_d == 0`, an @p L_r that
  *         @p L_d does not divide, a refined carrier past int32, or @p max_out
  *         below `n_out`.
  * @code
@@ -1013,7 +1081,7 @@ size_t dp_corr2d_bank_detect_max_out (dp_corr2d_state_t *state,
  * 1.233
  * @endcode
  */
-size_t dp_corr2d_bank_detect (const dp_corr2d_state_t *state,
+size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
                               const float _Complex *x, size_t x_len,
                               size_t L_d, size_t L_r, int g_min, int g_max,
                               float t_candidate, float t_confirm,
@@ -1022,45 +1090,43 @@ size_t dp_corr2d_bank_detect (const dp_corr2d_state_t *state,
                               uint32_t *out3, uint32_t *out4, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * running 2-D product-spectrum accumulator + frame count;
- * FFT plans + ref_spec are config, rebuilt by create. */
-/** @brief State-blob magic ('CR2D'); set_state() rejects any other. */
-#define CORR2D_STATE_MAGIC DP_FOURCC ('C','R','2','D')
+ * One blob for every flavor (docs/design/correlator.md section 4): the
+ * flavor, the grid, the frame count and the product-spectrum accumulator.
+ * The FFT plans and the reference spectrum are config, rebuilt by create.
+ * The retired magics 'CORR', 'CR2D' and 'DDMP' are not reused, so a blob
+ * from a release before the one correlator fails dp_state_validate. */
+/** @brief State-blob magic ('CORL'); set_state() rejects any other. */
+#define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
 /** @brief State-blob layout version; set_state() rejects any other. */
-#define CORR2D_STATE_VERSION 1u
-/** @brief The delay-Doppler flavor's state-blob magic ('DDMP'): a Corr2D
- *  blob and a delay-Doppler blob each refuse to restore into the other. */
-#define DELAY_DOPPLER_STATE_MAGIC DP_FOURCC ('D','D','M','P')
-/** @brief The delay-Doppler flavor's blob layout version. */
-#define DELAY_DOPPLER_STATE_VERSION 1u
+#define CORRELATOR_STATE_VERSION 1u
 /**
  * @brief Size in bytes of this correlator's state blob.
  * @param state  Must be non-NULL.
- * @return Header + frame count (u64) + ny*nx complex-float accumulator;
- *         the delay-Doppler flavor adds its ny and ny_out (u64 each). 
+ * @return Header + flavor, ny, ny_out and frame count (u64 each) + the
+ *         ny*nx complex-float accumulator.
  */
-size_t dp_corr2d_state_bytes (const dp_corr2d_state_t *state);
+size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
 /**
  * @brief Serialize the frame count and spectrum accumulator into @p blob.
  * @param state  Must be non-NULL.
- * @param blob   Destination; at least dp_corr2d_state_bytes() bytes.
+ * @param blob   Destination; at least dp_correlator_state_bytes() bytes.
  */
-void dp_corr2d_get_state (const dp_corr2d_state_t *state, void *blob);
+void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
 /**
- * @brief Restore a mid-dwell correlator from dp_corr2d_get_state()'s blob.
+ * @brief Restore a mid-dwell correlator from dp_correlator_get_state()'s blob.
  * @param state  Must be non-NULL, created with the same (ny, nx) and
  *               reference (the reference is not in the blob).
- * @param blob   Source blob of dp_corr2d_state_bytes() bytes.
+ * @param blob   Source blob of dp_correlator_state_bytes() bytes.
  * @return `DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's
- *         magic, version, endianness or size does not match -- including a
- *         blob of the other flavor -- or, for the delay-Doppler flavor, when
- *         the blob's ny or ny_out differs from @p state's or its frame count
- *         is not below @p state's dwell.
+ *         magic, version, endianness or size does not match, when the blob's
+ *         flavor, ny or ny_out differs from @p state's (a blob of one flavor
+ *         never restores into another), or when its frame count is not below
+ *         @p state's dwell.
  */
-int dp_corr2d_set_state (dp_corr2d_state_t *state, const void *blob);
+int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CORR2D_CORE_H */
+#endif /* DP_CORRELATOR_CORE_H */

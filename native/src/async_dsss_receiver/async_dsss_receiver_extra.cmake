@@ -24,9 +24,9 @@ set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/native/tests/async_dsss_receiver/adr_tlm_hook.c
     PROPERTIES COMPILE_OPTIONS "-Udp_tlm_create;-Udp_acq_set_telemetry")
 target_link_libraries(test_adr_telemetry_oom PRIVATE
-    wfm_dsp_core gold_core snr_core ber_core acq_core corr2d_core fft2d_core
+    wfm_dsp_core gold_core snr_core ber_core acq_core correlator_core fft2d_core
     fft_core detection_core dp_tlm_core cvt_core carrier_acq_core psd_core
-    spectral_core acc_trace_core detector_core corr_core dll_core
+    spectral_core acc_trace_core detector_core dll_core
     loop_filter_core lockdet_core costas_core lo_core RateConverter_core
     resamp_core hbdecim_core cic_core fir_core resample_core agc_core
     mpsk_receiver_core ddc_core hbdecim_r2c_core ddcr_core ratesync_core

@@ -5,7 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "CorrDetector"
-depends_on = ["corr_core"]
+depends_on = ["correlator_core"]
 serializable = "true"
 fragment = "generated"
 # A NULL create means a parameter was refused, not OOM (gh-482).

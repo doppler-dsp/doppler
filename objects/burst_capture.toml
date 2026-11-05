@@ -36,7 +36,7 @@ fragment = "generated"
 depends_on = [
     { name = "burst_acq", link = true },
     { name = "acq", link = true },
-    { name = "corr2d", link = true },
+    { name = "correlator", link = true },
     { name = "fft2d", link = true },
     { name = "fft", link = true },
     { name = "detection", link = true },

@@ -161,7 +161,7 @@
 #define DP_ACQ_CORE_H
 
 #include "doppler/clib_common.h"
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dp_state.h"
 #include "doppler/f32_buffer/f32_buffer_core.h"
@@ -442,7 +442,7 @@ extern "C"
                                unless n_noncoh > 1.                          */
 
     /* The one delay-Doppler map (docs/design/acq-surface.md §18; internal,
-     * native/src/corr2d/corr2d_map.h), built by acq_regrid() with the grid
+     * native/src/correlator/correlator_map.h), built by acq_regrid() with the grid
      * and run once a dwell's block is whole, on every path: one tile
      * (narrow) or window_bins (wideband). */
     struct dp__dd_map *map; /**< The map: its plans, a slot per worker.   */

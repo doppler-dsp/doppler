@@ -1,16 +1,16 @@
 
 
-# Struct dp\_corr2d\_state\_t
+# Struct dp\_correlator\_state\_t
 
 
 
-[**ClassList**](annotated.md) **>** [**dp\_corr2d\_state\_t**](structdp__corr2d__state__t.md)
+[**ClassList**](annotated.md) **>** [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md)
 
 
 
-_2-D FFT correlator state._ [More...](#detailed-description)
+_Correlator state, every flavor._ [More...](#detailed-description)
 
-* `#include <corr2d_core.h>`
+* `#include <correlator_core.h>`
 
 
 
@@ -53,6 +53,7 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  double | [**doppler\_step**](#variable-doppler_step)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
 |  int | [**fast\_path**](#variable-fast_path)  <br> |
+|  [**dp\_correlator\_flavor\_t**](correlator__core_8h.md#enum-dp_correlator_flavor_t) | [**flavor**](#variable-flavor)  <br> |
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fwd1d**](#variable-fwd1d)  <br> |
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**inv**](#variable-inv)  <br> |
@@ -122,7 +123,7 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_corr2d\_create()**](corr2d__core_8h.md#function-dp_corr2d_create); never stack-allocate. All heap buffers are `ny * nx` complex floats stored in row-major order. 
+Allocate with a dp\_correlator\_create\_\*() constructor; never stack-allocate. All heap buffers are `ny * nx` complex floats stored in row-major order. 
 
 
     
@@ -134,7 +135,7 @@ Allocate with [**dp\_corr2d\_create()**](corr2d__core_8h.md#function-dp_corr2d_c
 ### variable accum 
 
 ```C++
-float _Complex* dp_corr2d_state_t::accum;
+float _Complex* dp_correlator_state_t::accum;
 ```
 
 
@@ -152,7 +153,7 @@ Coherent product-spectrum accumulator, same (ny,nx)/reinterpretation rule as wor
 ### variable bat\_acc 
 
 ```C++
-float _Complex* dp_corr2d_state_t::bat_acc;
+float _Complex* dp_correlator_state_t::bat_acc;
 ```
 
 
@@ -170,12 +171,12 @@ Per-worker accumulators, nworkers x n; zero between maps.
 ### variable bat\_fine 
 
 ```C++
-float _Complex* dp_corr2d_state_t::bat_fine;
+float _Complex* dp_correlator_state_t::bat_fine;
 ```
 
 
 
-Per-worker [**dd\_fine**](structdp__corr2d__state__t.md#variable-dd_fine) for batches; NULL when the map runs rows first. 
+Per-worker [**dd\_fine**](structdp__correlator__state__t.md#variable-dd_fine) for batches; NULL when the map runs rows first. 
  
 
 
@@ -188,7 +189,7 @@ Per-worker [**dd\_fine**](structdp__corr2d__state__t.md#variable-dd_fine) for ba
 ### variable bat\_map 
 
 ```C++
-float _Complex* dp_corr2d_state_t::bat_map;
+float _Complex* dp_correlator_state_t::bat_map;
 ```
 
 
@@ -206,7 +207,7 @@ Per-worker maps, nworkers x n\_out.
 ### variable bat\_pad 
 
 ```C++
-float _Complex* dp_corr2d_state_t::bat_pad;
+float _Complex* dp_correlator_state_t::bat_pad;
 ```
 
 
@@ -223,7 +224,7 @@ Per-worker row zero-pad, nworkers x ny x nx\_out; fast path with nx\_out &gt; nx
 ### variable bat\_work 
 
 ```C++
-float _Complex* dp_corr2d_state_t::bat_work;
+float _Complex* dp_correlator_state_t::bat_work;
 ```
 
 
@@ -240,7 +241,7 @@ Per-worker forward spectra, nworkers x n.
 ### variable col\_out 
 
 ```C++
-int dp_corr2d_state_t::col_out;
+int dp_correlator_state_t::col_out;
 ```
 
 
@@ -257,7 +258,7 @@ Output column, or &lt; 0 for the full map.
 ### variable col\_ref 
 
 ```C++
-float _Complex* dp_corr2d_state_t::col_ref;
+float _Complex* dp_correlator_state_t::col_ref;
 ```
 
 
@@ -275,7 +276,7 @@ conj(ref row 0) in the TIME domain, length nx; NULL when col\_out &lt; 0.
 ### variable count 
 
 ```C++
-size_t dp_corr2d_state_t::count;
+size_t dp_correlator_state_t::count;
 ```
 
 
@@ -293,7 +294,7 @@ Frames accumulated (0 … dwell-1).
 ### variable dd\_fine 
 
 ```C++
-float _Complex* dp_corr2d_state_t::dd_fine;
+float _Complex* dp_correlator_state_t::dd_fine;
 ```
 
 
@@ -311,7 +312,7 @@ The map's scratch when it runs whole (slow first, or one slow row); NULL when it
 ### variable dd\_fused 
 
 ```C++
-int dp_corr2d_state_t::dd_fused;
+int dp_correlator_state_t::dd_fused;
 ```
 
 
@@ -329,7 +330,7 @@ int dp_corr2d_state_t::dd_fused;
 ### variable dd\_map 
 
 ```C++
-struct dp__dd_map* dp_corr2d_state_t::dd_map;
+struct dp__dd_map* dp_correlator_state_t::dd_map;
 ```
 
 
@@ -347,7 +348,7 @@ The one delay-Doppler block map (docs/design/acq-surface.md §18.1), one slot pe
 ### variable dd\_rows 
 
 ```C++
-size_t* dp_corr2d_state_t::dd_rows;
+size_t* dp_correlator_state_t::dd_rows;
 ```
 
 
@@ -365,7 +366,7 @@ Output row of slow row i: the centered (i + ny\_out/2) mod ny\_out.
 ### variable delay\_doppler 
 
 ```C++
-int dp_corr2d_state_t::delay_doppler;
+int dp_correlator_state_t::delay_doppler;
 ```
 
 
@@ -383,7 +384,7 @@ int dp_corr2d_state_t::delay_doppler;
 ### variable doppler\_step 
 
 ```C++
-double dp_corr2d_state_t::doppler_step;
+double dp_correlator_state_t::doppler_step;
 ```
 
 
@@ -401,7 +402,7 @@ Doppler spacing between adjacent output rows, cycles/sample: 1 / (ny\_out \* nx)
 ### variable dwell 
 
 ```C++
-size_t dp_corr2d_state_t::dwell;
+size_t dp_correlator_state_t::dwell;
 ```
 
 
@@ -419,7 +420,7 @@ Integration depth.
 ### variable fast\_path 
 
 ```C++
-int dp_corr2d_state_t::fast_path;
+int dp_correlator_state_t::fast_path;
 ```
 
 
@@ -434,15 +435,33 @@ int dp_corr2d_state_t::fast_path;
 
 
 
-### variable fwd 
+### variable flavor 
 
 ```C++
-dp_fft2d_state_t* dp_corr2d_state_t::fwd;
+dp_correlator_flavor_t dp_correlator_state_t::flavor;
 ```
 
 
 
-Forward 2-D plan (sign = -1) at (ny, nx). NULL when [**fast\_path**](structdp__corr2d__state__t.md#variable-fast_path). 
+The constructor that built it. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fwd 
+
+```C++
+dp_fft2d_state_t* dp_correlator_state_t::fwd;
+```
+
+
+
+Forward 2-D plan (sign = -1) at (ny, nx). NULL when [**fast\_path**](structdp__correlator__state__t.md#variable-fast_path). 
  
 
 
@@ -455,7 +474,7 @@ Forward 2-D plan (sign = -1) at (ny, nx). NULL when [**fast\_path**](structdp__c
 ### variable fwd1d 
 
 ```C++
-dp_fft_state_t* dp_corr2d_state_t::fwd1d;
+dp_fft_state_t* dp_correlator_state_t::fwd1d;
 ```
 
 
@@ -472,12 +491,12 @@ Forward 1-D plan, length nx. Fast only.
 ### variable inv 
 
 ```C++
-dp_fft2d_state_t* dp_corr2d_state_t::inv;
+dp_fft2d_state_t* dp_correlator_state_t::inv;
 ```
 
 
 
-Inverse 2-D plan (sign = +1) at (ny\_out,…). NULL when [**fast\_path**](structdp__corr2d__state__t.md#variable-fast_path). 
+Inverse 2-D plan (sign = +1) at (ny\_out,…). NULL when [**fast\_path**](structdp__correlator__state__t.md#variable-fast_path). 
  
 
 
@@ -490,7 +509,7 @@ Inverse 2-D plan (sign = +1) at (ny\_out,…). NULL when [**fast\_path**](struct
 ### variable inv1d 
 
 ```C++
-dp_fft_state_t* dp_corr2d_state_t::inv1d;
+dp_fft_state_t* dp_correlator_state_t::inv1d;
 ```
 
 
@@ -508,7 +527,7 @@ Inverse 1-D plan, length nx\_out. Fast only.
 ### variable n 
 
 ```C++
-size_t dp_corr2d_state_t::n;
+size_t dp_correlator_state_t::n;
 ```
 
 
@@ -526,7 +545,7 @@ ny \* nx — total element count.
 ### variable n\_out 
 
 ```C++
-size_t dp_corr2d_state_t::n_out;
+size_t dp_correlator_state_t::n_out;
 ```
 
 
@@ -544,7 +563,7 @@ ny\_out \* nx\_out — output element count.
 ### variable nworkers 
 
 ```C++
-int dp_corr2d_state_t::nworkers;
+int dp_correlator_state_t::nworkers;
 ```
 
 
@@ -562,7 +581,7 @@ Chunks per stage (1 = serial).
 ### variable nx 
 
 ```C++
-size_t dp_corr2d_state_t::nx;
+size_t dp_correlator_state_t::nx;
 ```
 
 
@@ -580,7 +599,7 @@ Column count.
 ### variable nx\_out 
 
 ```C++
-size_t dp_corr2d_state_t::nx_out;
+size_t dp_correlator_state_t::nx_out;
 ```
 
 
@@ -597,7 +616,7 @@ Output columns (== nx unless decoupled).
 ### variable ny 
 
 ```C++
-size_t dp_corr2d_state_t::ny;
+size_t dp_correlator_state_t::ny;
 ```
 
 
@@ -615,7 +634,7 @@ Row count.
 ### variable ny\_out 
 
 ```C++
-size_t dp_corr2d_state_t::ny_out;
+size_t dp_correlator_state_t::ny_out;
 ```
 
 
@@ -633,7 +652,7 @@ Output rows (== ny unless decoupled).
 ### variable pool 
 
 ```C++
-dp_pool_t* dp_corr2d_state_t::pool;
+dp_pool_t* dp_correlator_state_t::pool;
 ```
 
 
@@ -651,12 +670,12 @@ Persistent workers; NULL when serial.
 ### variable ref\_spec 
 
 ```C++
-float _Complex* dp_corr2d_state_t::ref_spec;
+float _Complex* dp_correlator_state_t::ref_spec;
 ```
 
 
 
-conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structdp__corr2d__state__t.md#variable-fast_path) (see row\_ref\_spec). 
+conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structdp__correlator__state__t.md#variable-fast_path) (see row\_ref\_spec). 
 
 
         
@@ -668,12 +687,12 @@ conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structdp__co
 ### variable row\_fwd 
 
 ```C++
-dp_fft_state_t** dp_corr2d_state_t::row_fwd;
+dp_fft_state_t** dp_correlator_state_t::row_fwd;
 ```
 
 
 
-Per-worker forward row plans, length nx; worker 0's is [**fwd1d**](structdp__corr2d__state__t.md#variable-fwd1d). Fast path only. 
+Per-worker forward row plans, length nx; worker 0's is [**fwd1d**](structdp__correlator__state__t.md#variable-fwd1d). Fast path only. 
  
 
 
@@ -686,12 +705,12 @@ Per-worker forward row plans, length nx; worker 0's is [**fwd1d**](structdp__cor
 ### variable row\_inv 
 
 ```C++
-dp_fft_state_t** dp_corr2d_state_t::row_inv;
+dp_fft_state_t** dp_correlator_state_t::row_inv;
 ```
 
 
 
-Per-worker inverse row plans, length nx\_out; worker 0's is [**inv1d**](structdp__corr2d__state__t.md#variable-inv1d). Fast path only. 
+Per-worker inverse row plans, length nx\_out; worker 0's is [**inv1d**](structdp__correlator__state__t.md#variable-inv1d). Fast path only. 
  
 
 
@@ -704,7 +723,7 @@ Per-worker inverse row plans, length nx\_out; worker 0's is [**inv1d**](structdp
 ### variable row\_ref\_spec 
 
 ```C++
-float _Complex* dp_corr2d_state_t::row_ref_spec;
+float _Complex* dp_correlator_state_t::row_ref_spec;
 ```
 
 
@@ -722,7 +741,7 @@ conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec.
 ### variable work\_fft 
 
 ```C++
-float _Complex* dp_corr2d_state_t::work_fft;
+float _Complex* dp_correlator_state_t::work_fft;
 ```
 
 
@@ -740,7 +759,7 @@ Scratch: FFT(in)·ref\_spec product. (ny,nx) either path — fast path reinterpr
 ### variable work\_pad 
 
 ```C++
-float _Complex* dp_corr2d_state_t::work_pad;
+float _Complex* dp_correlator_state_t::work_pad;
 ```
 
 
@@ -758,7 +777,7 @@ Zero-padded product, (ny\_out, nx\_out) or, fast path, (ny, nx\_out).
 ### variable work\_trunc 
 
 ```C++
-float _Complex* dp_corr2d_state_t::work_trunc;
+float _Complex* dp_correlator_state_t::work_trunc;
 ```
 
 
@@ -775,7 +794,7 @@ Bounce buffer for a dump into an under-sized `out` (jm gh-138). Both execute pat
 ### variable zcol 
 
 ```C++
-float _Complex* dp_corr2d_state_t::zcol;
+float _Complex* dp_correlator_state_t::zcol;
 ```
 
 
@@ -793,7 +812,7 @@ Column gather scratch, (ny). General path only.
 ### variable zcolout 
 
 ```C++
-float _Complex* dp_corr2d_state_t::zcolout;
+float _Complex* dp_correlator_state_t::zcolout;
 ```
 
 
@@ -811,7 +830,7 @@ Column-padded scratch, (ny\_out). General path only.
 ### variable ztmp 
 
 ```C++
-float _Complex* dp_corr2d_state_t::ztmp;
+float _Complex* dp_correlator_state_t::ztmp;
 ```
 
 
@@ -825,5 +844,5 @@ Row-padded intermediate, (ny, nx\_out). General path only.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/doppler/corr2d/corr2d_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/correlator/correlator_core.h`
 

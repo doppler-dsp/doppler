@@ -44,7 +44,7 @@ target_link_libraries(dsss PRIVATE
     mpsk_core
     wfm_dsp_core
     acq_core
-    corr2d_core
+    correlator_core
     fft2d_core
     RateConverter_core
     resamp_core
@@ -66,7 +66,6 @@ target_link_libraries(dsss PRIVATE
     psd_core
     acc_trace_core
     detector_core
-    corr_core
     Threads::Threads
     burst_capture_core
     burst_acq_core

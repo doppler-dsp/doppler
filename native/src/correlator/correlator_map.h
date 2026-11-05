@@ -1,5 +1,5 @@
 /**
- * @file corr2d_map.h
+ * @file correlator_map.h
  * @brief The one delay-Doppler block map (#2752 step 2,
  *        docs/design/acq-surface.md §18.1). Internal: acq and Corr2D
  *        compose it, nothing outside the library calls it.
@@ -30,8 +30,8 @@
  * A stage given a slot >= 0 runs whole on that slot, serially (a batch's
  * map per worker).
  */
-#ifndef DP_CORR2D_MAP_H
-#define DP_CORR2D_MAP_H
+#ifndef DP_CORRELATOR_MAP_H
+#define DP_CORRELATOR_MAP_H
 
 #include "doppler/dp_parallel.h"
 #include <complex.h>
@@ -328,4 +328,4 @@ int dp__dd_map_run (dp__dd_map_t *map, dp_pool_t *pool, int slot,
                     float _Complex *work, float _Complex *out,
                     dp__dd_fold_fn fold, void *ctx);
 
-#endif /* DP_CORR2D_MAP_H */
+#endif /* DP_CORRELATOR_MAP_H */

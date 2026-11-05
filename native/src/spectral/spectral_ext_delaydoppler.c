@@ -8,14 +8,14 @@
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* DelayDopplerObject — wraps dp_corr2d_state_t *       */
+/* DelayDopplerObject — wraps dp_correlator_state_t *       */
 /* ======================================================== */
 
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 
 typedef struct
 {
-  PyObject_HEAD dp_corr2d_state_t *handle;
+  PyObject_HEAD dp_correlator_state_t *handle;
   jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
 } DelayDopplerObject;
 
@@ -23,7 +23,7 @@ static void
 DelayDopplerObj_dealloc (DelayDopplerObject *self)
 {
   if (self->handle)
-    dp_corr2d_destroy (self->handle);
+    dp_correlator_destroy (self->handle);
   jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
@@ -125,7 +125,7 @@ DelayDopplerObj_init (DelayDopplerObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = dp_corr2d_create_delay_doppler (
+  self->handle    = dp_correlator_create_delay_doppler (
       (const float _Complex *)PyArray_DATA (code_arr), code_len, ny, dwell,
       nthreads, ny_out);
   Py_DECREF (code_arr);
@@ -148,7 +148,7 @@ DelayDopplerObj_reset (DelayDopplerObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_corr2d_reset (self->handle);
+  dp_correlator_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -161,7 +161,7 @@ DelayDopplerObj_execute_max_out (DelayDopplerObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_corr2d_execute_max_out (self->handle));
+  return PyLong_FromSize_t (dp_correlator_execute_max_out (self->handle));
 }
 
 static PyObject *
@@ -217,7 +217,7 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_corr2d_execute_max_out (self->handle);
+      size_t _omax    = dp_correlator_execute_max_out (self->handle);
       size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -234,7 +234,7 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t n_out = dp_corr2d_execute (
+      size_t n_out = dp_correlator_execute (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
           (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
@@ -242,8 +242,8 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
         {
           Py_DECREF (out_arr);
           PyErr_SetString (PyExc_ValueError,
-                           "input length is not ny*nx; execute takes exactly "
-                           "one frame");
+                           "input length is not the frame length (n: Corr's "
+                           "n, or ny*nx); execute takes exactly one frame");
           return NULL;
         }
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -284,7 +284,7 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr2d_execute_max_out (self->handle);
+  size_t _cap  = dp_correlator_execute_max_out (self->handle);
   if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
@@ -312,7 +312,7 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t n_out = dp_corr2d_execute (
+  size_t n_out = dp_correlator_execute (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
       _d0, _cap);
   Py_DECREF (in_arr);
@@ -320,8 +320,8 @@ DelayDopplerObj_execute (DelayDopplerObject *self, PyObject *args,
     {
       Py_DECREF (arr0);
       PyErr_SetString (PyExc_ValueError,
-                       "input length is not ny*nx; execute takes exactly one "
-                       "frame");
+                       "input length is not the frame length (n: Corr's n, "
+                       "or ny*nx); execute takes exactly one frame");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -371,7 +371,7 @@ DelayDopplerObj_execute_all_max_out (DelayDopplerObject *self, PyObject *args)
       return NULL;
     }
   return PyLong_FromSize_t (
-      dp_corr2d_execute_all_max_out (self->handle, (size_t)n_in));
+      dp_correlator_execute_all_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -395,9 +395,9 @@ DelayDopplerObj_execute_all (DelayDopplerObject *self, PyObject *args,
     {
       return NULL;
     }
-  Py_ssize_t         n     = PyArray_SIZE (in_arr);
-  dp_corr2d_state_t *state = self->handle;
-  size_t             _cols = (size_t)(state->n_out);
+  Py_ssize_t             n     = PyArray_SIZE (in_arr);
+  dp_correlator_state_t *state = self->handle;
+  size_t                 _cols = (size_t)(state->n_out);
   if (_cols == 0)
     {
       PyErr_SetString (PyExc_RuntimeError,
@@ -447,7 +447,8 @@ DelayDopplerObj_execute_all (DelayDopplerObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax = dp_corr2d_execute_all_max_out (self->handle, (size_t)n);
+      size_t _omax
+          = dp_correlator_execute_all_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -474,7 +475,7 @@ DelayDopplerObj_execute_all (DelayDopplerObject *self, PyObject *args,
       void           *_jm_h = self->handle;
       jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_corr2d_execute_all (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+        n_out = dp_correlator_execute_all (_jm_h, _ng0, (size_t)n, _ng1, _cap);
       Py_END_ALLOW_THREADS
       jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
@@ -529,7 +530,7 @@ DelayDopplerObj_execute_all (DelayDopplerObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr2d_execute_all_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_correlator_execute_all_max_out (self->handle, (size_t)n);
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -564,7 +565,7 @@ DelayDopplerObj_execute_all (DelayDopplerObject *self, PyObject *args,
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_corr2d_execute_all (_jm_h, _ng0, (size_t)n, _d0, _cap);
+    n_out = dp_correlator_execute_all (_jm_h, _ng0, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -616,7 +617,8 @@ DelayDopplerObj_execute_coherent_max_out (DelayDopplerObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_corr2d_execute_coherent_max_out (self->handle));
+  return PyLong_FromSize_t (
+      dp_correlator_execute_coherent_max_out (self->handle));
 }
 
 static PyObject *
@@ -672,7 +674,7 @@ DelayDopplerObj_execute_coherent (DelayDopplerObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_corr2d_execute_coherent_max_out (self->handle);
+      size_t _omax    = dp_correlator_execute_coherent_max_out (self->handle);
       size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -699,8 +701,8 @@ DelayDopplerObj_execute_coherent (DelayDopplerObject *self, PyObject *args,
       void           *_jm_h = self->handle;
       jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = dp_corr2d_execute_coherent (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+        n_out = dp_correlator_execute_coherent (_jm_h, _ng0, (size_t)n, _ng1,
+                                                _cap);
       Py_END_ALLOW_THREADS
       jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
@@ -746,7 +748,7 @@ DelayDopplerObj_execute_coherent (DelayDopplerObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr2d_execute_coherent_max_out (self->handle);
+  size_t _cap  = dp_correlator_execute_coherent_max_out (self->handle);
   if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
@@ -782,7 +784,7 @@ DelayDopplerObj_execute_coherent (DelayDopplerObject *self, PyObject *args,
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_corr2d_execute_coherent (_jm_h, _ng0, (size_t)n, _d0, _cap);
+    n_out = dp_correlator_execute_coherent (_jm_h, _ng0, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -829,7 +831,7 @@ DelayDopplerObj_execute_power_sum_max_out (DelayDopplerObject *self,
       return NULL;
     }
   return PyLong_FromSize_t (
-      dp_corr2d_execute_power_sum_max_out (self->handle));
+      dp_correlator_execute_power_sum_max_out (self->handle));
 }
 
 static PyObject *
@@ -885,7 +887,7 @@ DelayDopplerObj_execute_power_sum (DelayDopplerObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_corr2d_execute_power_sum_max_out (self->handle);
+      size_t _omax    = dp_correlator_execute_power_sum_max_out (self->handle);
       size_t _min_cap = _omax ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -912,8 +914,8 @@ DelayDopplerObj_execute_power_sum (DelayDopplerObject *self, PyObject *args,
       void  *_jm_h = self->handle;
       jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out
-            = dp_corr2d_execute_power_sum (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+        n_out = dp_correlator_execute_power_sum (_jm_h, _ng0, (size_t)n, _ng1,
+                                                 _cap);
       Py_END_ALLOW_THREADS
       jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
@@ -959,7 +961,7 @@ DelayDopplerObj_execute_power_sum (DelayDopplerObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr2d_execute_power_sum_max_out (self->handle);
+  size_t _cap  = dp_correlator_execute_power_sum_max_out (self->handle);
   if (!_cap)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
@@ -995,7 +997,8 @@ DelayDopplerObj_execute_power_sum (DelayDopplerObject *self, PyObject *args,
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_corr2d_execute_power_sum (_jm_h, _ng0, (size_t)n, _d0, _cap);
+    n_out
+        = dp_correlator_execute_power_sum (_jm_h, _ng0, (size_t)n, _d0, _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -1057,7 +1060,7 @@ DelayDopplerObj_execute_power_max (DelayDopplerObject *self, PyObject *args)
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr2d_execute_power_max_max_out (self->handle);
+  size_t _cap  = dp_correlator_execute_power_max_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
   size_t _adim_need = (size_t)(_cap);
@@ -1098,8 +1101,8 @@ DelayDopplerObj_execute_power_max (DelayDopplerObject *self, PyObject *args)
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out
-        = dp_corr2d_execute_power_max (_jm_h, _ng0, (size_t)n, _d0, _d1, _cap);
+    n_out = dp_correlator_execute_power_max (_jm_h, _ng0, (size_t)n, _d0, _d1,
+                                             _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -1180,7 +1183,7 @@ DelayDopplerObj_execute_peaks (DelayDopplerObject *self, PyObject *args)
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_corr2d_execute_peaks_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_correlator_execute_peaks_max_out (self->handle, (size_t)n);
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -1228,8 +1231,8 @@ DelayDopplerObj_execute_peaks (DelayDopplerObject *self, PyObject *args)
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_corr2d_execute_peaks (_jm_h, _ng0, (size_t)n, _d0, _d1, _d2,
-                                     _d3, _cap);
+    n_out = dp_correlator_execute_peaks (_jm_h, _ng0, (size_t)n, _d0, _d1, _d2,
+                                         _d3, _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -1384,7 +1387,7 @@ DelayDopplerObj_bank_power_max (DelayDopplerObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dp_corr2d_bank_power_max_max_out (
+  size_t _cap  = dp_correlator_bank_power_max_max_out (
       self->handle, (size_t)PyArray_SIZE (x_arr));
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
@@ -1427,8 +1430,8 @@ DelayDopplerObj_bank_power_max (DelayDopplerObject *self, PyObject *args,
   void  *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_corr2d_bank_power_max (_jm_h, x, x_len, L, g_min, g_max, rates,
-                                      rates_len, _d0, _d1, _cap);
+    n_out = dp_correlator_bank_power_max (_jm_h, x, x_len, L, g_min, g_max,
+                                          rates, rates_len, _d0, _d1, _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
@@ -1577,8 +1580,8 @@ DelayDopplerObj_bank_detect (DelayDopplerObject *self, PyObject *args,
       return NULL;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = dp_corr2d_bank_detect_max_out (self->handle,
-                                                (size_t)PyArray_SIZE (x_arr));
+  size_t _cap  = dp_correlator_bank_detect_max_out (
+      self->handle, (size_t)PyArray_SIZE (x_arr));
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -1632,9 +1635,9 @@ DelayDopplerObj_bank_detect (DelayDopplerObject *self, PyObject *args,
   void  *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_corr2d_bank_detect (_jm_h, x, x_len, L_d, L_r, g_min, g_max,
-                                   t_candidate, t_confirm, rates, rates_len,
-                                   _d0, _d1, _d2, _d3, _d4, _cap);
+    n_out = dp_correlator_bank_detect (
+        _jm_h, x, x_len, L_d, L_r, g_min, g_max, t_candidate, t_confirm, rates,
+        rates_len, _d0, _d1, _d2, _d3, _d4, _cap);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
@@ -1754,7 +1757,7 @@ DelayDopplerObj_state_bytes (DelayDopplerObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_corr2d_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_correlator_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -1766,11 +1769,11 @@ DelayDopplerObj_get_state (DelayDopplerObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = dp_corr2d_state_bytes (self->handle);
+  size_t    _n = dp_correlator_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  dp_corr2d_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_correlator_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -1787,12 +1790,13 @@ DelayDopplerObj_set_state (DelayDopplerObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != dp_corr2d_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_correlator_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (dp_corr2d_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (dp_correlator_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -1909,7 +1913,7 @@ DelayDopplerObj_destroy (DelayDopplerObject *self,
           self->handle = _jm_st;
           return NULL;
         }
-      dp_corr2d_destroy (_jm_st);
+      dp_correlator_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -1936,7 +1940,7 @@ DelayDopplerObj_exit (DelayDopplerObject *self, PyObject *args)
           self->handle = _jm_st;
           return NULL;
         }
-      dp_corr2d_destroy (_jm_st);
+      dp_correlator_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -2007,8 +2011,8 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``input length is not ny*nx;\n"
-    "    execute takes exactly one frame``.\n"
+    "    a count. The exception message is ``input length is not the frame\n"
+    "    length (n: Corr's n, or ny*nx); execute takes exactly one frame``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -2025,9 +2029,9 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     METH_NOARGS,
     "execute_max_out() -> int\n"
     "\n"
-    "Maximum output samples per execute call (dp_corr2d_state_t::n_out --\n"
-    "ny_out*nx_out normally, or ny when a single dp_corr2d_state_t::col_out\n"
-    "was selected).\n"
+    "Maximum output samples per execute call\n"
+    "(dp_correlator_state_t::n_out -- ny_out*nx_out normally, or ny when a\n"
+    "single dp_correlator_state_t::col_out was selected).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -2091,8 +2095,8 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     METH_VARARGS,
     "execute_all_max_out(n_in) -> int\n"
     "\n"
-    "Samples dp_corr2d_execute_all() writes for n_in input samples: H *\n"
-    "n_out, H = n_in / (ny * nx).\n"
+    "Samples dp_correlator_execute_all() writes for n_in input samples: H\n"
+    "* n_out, H = n_in / (ny * nx).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2171,7 +2175,7 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     (PyCFunction)DelayDopplerObj_execute_coherent_max_out, METH_NOARGS,
     "execute_coherent_max_out() -> int\n"
     "\n"
-    "Samples dp_corr2d_execute_coherent() writes: n_out.\n"
+    "Samples dp_correlator_execute_coherent() writes: n_out.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -2246,7 +2250,7 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     (PyCFunction)DelayDopplerObj_execute_power_sum_max_out, METH_NOARGS,
     "execute_power_sum_max_out() -> int\n"
     "\n"
-    "Powers dp_corr2d_execute_power_sum() writes: n_out.\n"
+    "Powers dp_correlator_execute_power_sum() writes: n_out.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -2375,13 +2379,13 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     "The strongest power at every cell over a bank, and which hypothesis\n"
     "it came from.\n"
     "\n"
-    "dp_corr2d_bank_fold() with the `POWER_MAX` reducer: at each cell, out\n"
-    "holds the largest |map_h|^2 over every hypothesis h, and out1 that h,\n"
-    "`(g - g_min) * R + r`, the lowest h on a tie. Every argument and\n"
-    "refusal is dp_corr2d_bank_fold()'s; in addition max_out below `n_out`\n"
-    "is refused with nothing written.\n"
+    "dp_correlator_bank_fold() with the `POWER_MAX` reducer: at each cell,\n"
+    "out holds the largest |map_h|^2 over every hypothesis h, and out1 that\n"
+    "h, `(g - g_min) * R + r`, the lowest h on a tie. Every argument and\n"
+    "refusal is dp_correlator_bank_fold()'s; in addition max_out below\n"
+    "`n_out` is refused with nothing written.\n"
     "\n"
-    "As dp_corr2d_bank_fold().\n"
+    "As dp_correlator_bank_fold().\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2440,8 +2444,8 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     "The bank searches on L_d and resolves on L_r\n"
     "(docs/design/corr2d-hypotheses.md section 6):\n"
     "\n"
-    "1. **Detect.** dp_corr2d_bank_power_max() over carriers g_min .. g_max\n"
-    "   on the `1 / (L_d nx)` grid, with every rate.\n"
+    "1. **Detect.** dp_correlator_bank_power_max() over carriers g_min ..\n"
+    "   g_max on the `1 / (L_d nx)` grid, with every rate.\n"
     "2. **Candidates.** Every cell whose power exceeds t_candidate and is at\n"
     "   least each of its 8 neighbors, both axes circular (a delay lag and a\n"
     "   Doppler bin both wrap).\n"
@@ -2466,7 +2470,7 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     "one-stage bank. Thresholds are powers in the map's own units; the\n"
     "caller sets them for its noise, as for any detector.\n"
     "\n"
-    "As dp_corr2d_bank_fold(); g_min and g_max are on the coarse grid.\n"
+    "As dp_correlator_bank_fold(); g_min and g_max are on the coarse grid.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2496,8 +2500,8 @@ static PyMethodDef DelayDopplerObj_methods[] = {
     "    refined carrier, uint32 rate, row and column, always new arrays\n"
     "    (this call takes no `out=`); anything below is a ValueError. C: the\n"
     "    record count (0 included), or SIZE_MAX with nothing written for\n"
-    "    anything dp_corr2d_bank_fold() refuses, `L_d == 0`, an L_r that L_d\n"
-    "    does not divide, a refined carrier past int32, or max_out below\n"
+    "    anything dp_correlator_bank_fold() refuses, `L_d == 0`, an L_r that\n"
+    "    L_d does not divide, a refined carrier past int32, or max_out below\n"
     "    `n_out`.\n"
     "\n"
     "Raises\n"

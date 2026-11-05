@@ -13,11 +13,11 @@ if(NOT JM_MATH_LIBRARY)
 endif()
 
 # OBJECT library — pure C core, no Python dependency.
-add_library(corr2d_core OBJECT corr2d_core.c)
+add_library(correlator_core OBJECT correlator_core.c)
 target_include_directories(
-  corr2d_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/corr2d)
-target_link_libraries(corr2d_core PUBLIC
+  correlator_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
+                         ${CMAKE_SOURCE_DIR}/native/inc/doppler/correlator)
+target_link_libraries(correlator_core PUBLIC
     Threads::Threads
     fft2d_core
     fft_core)
@@ -36,32 +36,32 @@ if(TARGET ${PROJECT_NAME}_lib_static)
       Threads::Threads)
 endif()
 
-add_executable(test_corr2d_core
-               ${CMAKE_SOURCE_DIR}/native/tests/corr2d/test_corr2d_core.c
-               ${CMAKE_SOURCE_DIR}/native/tests/corr2d/test_corr2d_symbols.c)
-target_link_libraries(test_corr2d_core
-                      PRIVATE corr2d_core Threads::Threads
+add_executable(test_correlator_core
+               ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_correlator_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_correlator_symbols.c)
+target_link_libraries(test_correlator_core
+                      PRIVATE correlator_core Threads::Threads
     fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
-target_include_directories(test_corr2d_core
+target_include_directories(test_correlator_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-add_test(NAME test_corr2d_core COMMAND test_corr2d_core)
+add_test(NAME test_correlator_core COMMAND test_correlator_core)
 
 add_executable(
-  bench_corr2d_core
-  ${CMAKE_SOURCE_DIR}/native/benchmarks/corr2d/bench_corr2d_core.c)
-target_link_libraries(bench_corr2d_core
-                      PRIVATE corr2d_core Threads::Threads
+  bench_correlator_core
+  ${CMAKE_SOURCE_DIR}/native/benchmarks/correlator/bench_correlator_core.c)
+target_link_libraries(bench_correlator_core
+                      PRIVATE correlator_core Threads::Threads
     fft2d_core
     fft_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
-  bench_corr2d_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+  bench_correlator_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
-# Your own CMake for this directory goes in corr2d_extra.cmake beside this
+# Your own CMake for this directory goes in correlator_extra.cmake beside this
 # file: jm includes it and never writes it (gh-1351). This file is
 # regenerated.
-include(${CMAKE_CURRENT_LIST_DIR}/corr2d_extra.cmake OPTIONAL)
+include(${CMAKE_CURRENT_LIST_DIR}/correlator_extra.cmake OPTIONAL)

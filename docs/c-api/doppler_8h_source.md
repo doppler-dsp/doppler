@@ -146,9 +146,7 @@
 
 #include "doppler/fft2d/fft2d_core.h"
 
-#include "doppler/corr/corr_core.h"
-
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 
 #include "doppler/detector/detector_core.h"
 

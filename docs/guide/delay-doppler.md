@@ -193,8 +193,8 @@ weights, a second hypothesis axis for a rate or a window.
 !!! note "Only the fixed reductions are in Python"
 
     The bank and the batch calls above are the reductions Python can ask
-    for. The C library also takes your own reducer (`dp_corr2d_execute_fold`,
-    `dp_corr2d_bank_fold`); it is not bound for Python.
+    for. The C library also takes your own reducer (`dp_correlator_execute_fold`,
+    `dp_correlator_bank_fold`); it is not bound for Python.
 
 ______________________________________________________________________
 

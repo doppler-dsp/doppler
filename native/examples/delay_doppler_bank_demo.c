@@ -2,7 +2,7 @@
  * delay_doppler_bank_demo.c — find a code on an unknown carrier.
  *
  * A code delayed by 37 samples arrives on a carrier 1.3 code bins off
- * nominal, in noise.  dp_corr2d_bank_detect() searches the carrier on a
+ * nominal, in noise.  dp_correlator_bank_detect() searches the carrier on a
  * coarse grid (half bins), picks the candidates, refines each at its own
  * cell on a fine grid (quarter bins) and keeps what clears the confirm
  * threshold (docs/design/corr2d-hypotheses.md section 6); it then measures,
@@ -12,8 +12,9 @@
  *
  *   - create once; the bank never touches the dwell, so execute() is free
  *     to run between bank calls;
- *   - every output is the caller's, at least dp_corr2d_bank_detect_max_out()
- *     long: one record per map cell is the most there can be;
+ *   - every output is the caller's, at least
+ * dp_correlator_bank_detect_max_out() long: one record per map cell is the
+ * most there can be;
  *   - thresholds are powers in the map's units, set from noise alone;
  *   - destroy once.
  *
@@ -23,7 +24,7 @@
  */
 
 #include <doppler/awgn/awgn_core.h>
-#include <doppler/corr2d/corr2d_core.h>
+#include <doppler/correlator/correlator_core.h>
 
 #include "doppler/dp_complex.h"
 #include <math.h>
@@ -61,10 +62,11 @@ make_code (float _Complex *code)
 
 /* The strongest coarse cell of one frame. */
 static float
-coarse_peak (dp_corr2d_state_t *dd, const float _Complex *x, float *pw,
+coarse_peak (dp_correlator_state_t *dd, const float _Complex *x, float *pw,
              uint32_t *ix)
 {
-  if (dp_corr2d_bank_power_max (dd, x, N, 2, -4, 5, NULL, 0, pw, ix, N) != N)
+  if (dp_correlator_bank_power_max (dd, x, N, 2, -4, 5, NULL, 0, pw, ix, N)
+      != N)
     return -1.0f;
   float top = 0.0f;
   for (size_t k = 0; k < N; k++)
@@ -83,9 +85,9 @@ main (void)
   float _Complex  *noise = malloc (N * sizeof *noise);
   float _Complex  *x     = malloc (N * sizeof *x);
 
-  dp_corr2d_state_t *dd
-      = dp_corr2d_create_delay_doppler (code, NX, NY, 1, 1, 0);
-  const size_t cap  = dp_corr2d_bank_detect_max_out (dd, N);
+  dp_correlator_state_t *dd
+      = dp_correlator_create_delay_doppler (code, NX, NY, 1, 1, 0);
+  const size_t cap  = dp_correlator_bank_detect_max_out (dd, N);
   float       *pw   = malloc (cap * sizeof *pw);
   uint32_t    *ix   = malloc (cap * sizeof *ix);
   float       *pow_ = malloc (cap * sizeof *pow_);
@@ -117,9 +119,9 @@ main (void)
     }
 
   const float  peak = coarse_peak (dd, x, pw, ix);
-  const size_t nrec
-      = dp_corr2d_bank_detect (dd, x, N, 2, 4, -4, 5, t_candidate, t_confirm,
-                               NULL, 0, pow_, g, rate, row, col, cap);
+  const size_t nrec = dp_correlator_bank_detect (
+      dd, x, N, 2, 4, -4, 5, t_candidate, t_confirm, NULL, 0, pow_, g, rate,
+      row, col, cap);
   printf ("record  delay  Doppler row  carrier (bins)  refined / coarse\n");
   for (size_t k = 0; k < nrec && nrec != SIZE_MAX; k++)
     printf ("  %zu      %3u      %3u          %+5.2f           %.3f\n", k,
@@ -132,7 +134,8 @@ main (void)
   int   best_g = 0;
   for (int gi = -16; gi <= 24; gi++)
     {
-      if (dp_corr2d_bank_power_max (dd, x, N, 8, gi, gi, NULL, 0, pw, ix, N)
+      if (dp_correlator_bank_power_max (dd, x, N, 8, gi, gi, NULL, 0, pw, ix,
+                                        N)
           != N)
         return 1;
       for (size_t k = 0; k < N; k++)
@@ -155,7 +158,7 @@ main (void)
                  && fabs (best_g / 8.0 - CARRIER_BINS) <= 0.25;
   printf ("%s\n", ok ? "OK" : "FAILED");
 
-  dp_corr2d_destroy (dd);
+  dp_correlator_destroy (dd);
   dp_awgn_destroy (awgn);
   free (noise), free (x), free (pw), free (ix), free (pow_), free (g);
   free (rate), free (row), free (col);

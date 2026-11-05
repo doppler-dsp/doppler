@@ -12,7 +12,7 @@
 #ifndef DP_DETECTOR_CORE_H
 #define DP_DETECTOR_CORE_H
 
-#include "doppler/corr/corr_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_state.h"
 #include "doppler/f32_buffer/f32_buffer_core.h"
 
@@ -47,7 +47,7 @@ typedef struct
 
 typedef struct
 {
-  dp_corr_state_t *corr;       
+  dp_correlator_state_t *corr;       
   dp_f32_t *ring;             
   dp_f32_framer_t framer;     
   float _Complex *out_buf;   
@@ -93,14 +93,16 @@ size_t dp_detector_push (dp_detector_state_t *state, const float _Complex *in,
 size_t dp_detector_consumed (const dp_detector_state_t *state);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * corr child + the framer's carry (its own child blob, fewer than n samples)
- * + the last-dump result fields; scratch is config (rebuilt by create).
- * Version 2 is: the corr child, the framer child, peak_lag (u64), then
- * peak_mag, noise_est and test_stat (f32).  Version 1 carried the ring's
- * raw contents zero-padded to ring_cap and a last_corr flag; out_buf was
- * never in the blob, so last_corr is None after set_state. */
+ * correlator child + the framer's carry (its own child blob, fewer than n
+ * samples) + the last-dump result fields; scratch is config (rebuilt by
+ * create).  Version 3 is: the correlator child (a 'CORL' blob, #2752 step
+ * 3.2), the framer child, peak_lag (u64), then peak_mag, noise_est and
+ * test_stat (f32).  Version 2 was the same with a 'CORR' child.  Version 1
+ * carried the ring's raw contents zero-padded to ring_cap and a last_corr
+ * flag; out_buf was never in the blob, so last_corr is None after
+ * set_state. */
 #define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
-#define DETECTOR_STATE_VERSION 2u
+#define DETECTOR_STATE_VERSION 3u
 size_t dp_detector_state_bytes (const dp_detector_state_t *state);
 void dp_detector_get_state (const dp_detector_state_t *state, void *blob);
 int dp_detector_set_state (dp_detector_state_t *state, const void *blob);

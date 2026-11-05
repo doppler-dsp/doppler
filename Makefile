@@ -1110,14 +1110,22 @@ WHEEL_CMD = $(UV) build --wheel
 # invocation, so a clean checkout renders identically to CI. A stale local
 # zensical.toml (gitignored, absent in CI) shadows mkdocs.yml and silently
 # truncates the nav, so it is removed before every build.
+# The build is held to a PEAK-RSS BUDGET on every machine (scripts/peak_rss.py
+# reads getrusage, so it works on a CI runner) and, where systemd has a user
+# session, to its own CEILING besides. The ceiling is LOCAL-ONLY: mem-guard
+# runs a command unguarded when there is no systemd user session, which is what
+# a GitHub runner has, so the budget is what CI sees.
+#
 # The build runs under its OWN memory ceiling, well under the shared guard's
 # (3/4 of RAM): measured, a cold strict build of the 918 pages peaks near
 # 520 MB, so 2G leaves four times that. The ceiling is what turns a return of
 # the runaway (zensical 0.0.45 + mkdocstrings 1.0.4 grew past 4 GB and took
 # the whole slice with it, #2840) into a fast, named failure on one command.
-DOCS_MEM_MAX ?= 2G
-ZENSICAL     = MEM_GUARD_MAX=$(DOCS_MEM_MAX) $(MEM_GUARD_CMD) $(UV) run --group docs zensical
-DOCS_PREPARE = @rm -f zensical.toml
+DOCS_MEM_MAX  ?= 2G
+DOCS_PEAK_MB  ?= 1536
+DOCS_CHECK_BUILD_CMD = $(UV) run python scripts/peak_rss.py --max-mb $(DOCS_PEAK_MB) -- $(ZENSICAL) build --strict
+ZENSICAL     = env MEM_GUARD_MAX=$(DOCS_MEM_MAX) $(MEM_GUARD_CMD) $(UV) run --group docs zensical
+DOCS_PREPARE = @rm -f zensical.toml && $(UV) run python scripts/check_docs_python.py
 
 # The docs gate: every check runs, every failure is reported in one pass. The
 # ordering is the point — cheap script gates first, so a drifted generated file

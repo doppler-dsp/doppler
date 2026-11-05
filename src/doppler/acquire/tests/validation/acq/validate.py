@@ -157,8 +157,8 @@ def section_object() -> None:
                 "the architecture, the aliasing argument, and what is open",
             ],
             [
-                "[`corr2d`'s report](../../../../spectral/tests/validation/"
-                "corr2d/results.md)",
+                "[`correlator`'s report](../../../../spectral/tests/"
+                "validation/correlator/results.md)",
                 "the correlation surface — not re-derived here",
             ],
             [

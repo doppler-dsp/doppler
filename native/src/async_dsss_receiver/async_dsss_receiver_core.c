@@ -1378,24 +1378,32 @@ dp_async_dsss_receiver_set_telemetry (dp_async_dsss_receiver_state_t *state,
      carrier's in the caller's table, unused (#1897). The scratch then
      knows every name the attach needs, so it also answers whether the
      caller's table has room for the ones it lacks. */
+  /* A refusal says why. Out of memory -- the scratch itself, or a child
+     whose own attach could not allocate (acq builds a scratch too) -- is
+     DP_ERR_MEMORY; everything else is the argument's (#2846). */
+  int       rc      = DP_ERR_INVALID;
   dp_tlm_t *scratch = dp_tlm_create (1);
   int       fits    = 0;
   if (scratch)
     {
-      state->tlm = scratch;
-      fits       = adr_tlm_attach (state) == DP_OK
-                   && dp_tlm_has_room_for (tlm, scratch);
+      state->tlm  = scratch;
+      const int a = adr_tlm_attach (state);
+      fits        = a == DP_OK && dp_tlm_has_room_for (tlm, scratch);
+      if (a == DP_ERR_MEMORY)
+        rc = DP_ERR_MEMORY;
       adr_tlm_detach (state);
       dp_tlm_destroy (scratch);
     }
-  /* No scratch is no memory, not a bad argument: refused like the others,
-     but said as what it is (#2846). */
-  const int rc = scratch ? DP_ERR_INVALID : DP_ERR_MEMORY;
+  else
+    rc = DP_ERR_MEMORY;
   if (fits)
     {
-      state->tlm = tlm;
-      if (adr_tlm_attach (state) == DP_OK)
+      state->tlm  = tlm;
+      const int a = adr_tlm_attach (state);
+      if (a == DP_OK)
         return DP_OK;
+      if (a == DP_ERR_MEMORY)
+        rc = DP_ERR_MEMORY;
       /* Whole or nothing: a half-attached receiver would report some loops
          and not others with no way to tell from the context. */
       adr_tlm_detach (state);

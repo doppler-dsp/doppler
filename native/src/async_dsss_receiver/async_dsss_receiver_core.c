@@ -1209,8 +1209,16 @@ dp_async_dsss_receiver_create (
      hand-off advances its hit's phase by the drift over half its dwell
      (#1254), and a coherent block aligns its epochs (#1256). The same
      carrier the tracking Dll's aid uses. */
-  if (carrier_freq_hz > 0.0)
-    (void)dp_acq_set_carrier_freq_hz (obj->acq, carrier_freq_hz);
+  /* The carrier rebuilds the searcher's map, so it can fail: a receiver
+     without the carrier it was asked for is not built. */
+  if (carrier_freq_hz > 0.0
+      && dp_acq_set_carrier_freq_hz (obj->acq, carrier_freq_hz) != DP_OK)
+    {
+      dp_acq_destroy (obj->acq);
+      free (obj->code);
+      free (obj);
+      return NULL;
+    }
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */

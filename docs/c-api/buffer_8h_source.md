@@ -987,6 +987,20 @@ typedef enum
                                                                               \
                                                                          \
   static inline DP_BUFFER_UNUSED int                                          \
+  dp_##name##_framer_state_pending (const dp_##name##_framer_t *fr,           \
+                                    const void *blob, uint64_t *pending)      \
+  {                                                                           \
+    uint64_t live, written, f;                                                \
+    const void *src;                                                          \
+    int rc = dp_##name##_framer_check_state_ (fr, blob, &live, &src,          \
+                                              &written, &f);                  \
+    if (rc == DP_OK)                                                          \
+      *pending = written - (f ? (f - 1) * fr->hop + fr->frame_n : 0);         \
+    return rc;                                                                \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline DP_BUFFER_UNUSED int                                          \
   dp_##name##_framer_set_state (dp_##name##_framer_t *fr, const void *blob)   \
   {                                                                           \
     uint64_t live, written, frames;                                           \

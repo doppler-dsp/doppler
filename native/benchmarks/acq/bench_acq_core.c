@@ -33,6 +33,7 @@
  * so one target is enough. */
 #include "../../src/corr2d/corr2d_map.h"
 #include "doppler/acq/acq_core.h"
+#include "doppler/acq/acq_private.h"
 #include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
@@ -374,7 +375,7 @@ main (void)
              (docs/design/acq-surface.md §18.1), as the rule picks it. */
           const int sch = dp__dd_map_pick (
               a->map, a->window_bins > 1 ? a->window_bins : 1,
-              a->coherent_bins > 2 ? a->rate_hyps : 1, 0);
+              acq_rate_count_at (a->rate_hyps, a->coherent_bins), 0);
           printf ("n_noncoh=%3zu D=%zu threads=%d pd_predicted=%.4f  "
                   "detect=%s  doppler_bin=%zu code_phase=%zu "
                   "cn0_dbhz_est=%.2f  schedule=%s\n",

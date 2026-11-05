@@ -468,9 +468,24 @@ corr2d_dd_fused (const dp_corr2d_state_t *s)
   return s->dd_fused;
 }
 
+/* One compiled body for the delay-Doppler row, out of line. The tree
+   builds with -ffast-math, so a compiler with baseline FMA fuses the row's
+   multiply-adds differently in each caller it is inlined into: GCC 13 on
+   AArch64 made execute()'s row and a batch's whole-map row differ in the
+   last bit, and a batch map stopped equalling a fresh object's (#2831).
+   Forbidding the inline and the clone keeps every caller on the one body,
+   as loop_filter_core.c does for its gains (doppler#2103). */
+#if defined(_MSC_VER)
+#define CORR2D_ONE_BODY __declspec (noinline)
+#elif defined(__GNUC__) && !defined(__clang__)
+#define CORR2D_ONE_BODY __attribute__ ((noinline, noclone))
+#else
+#define CORR2D_ONE_BODY __attribute__ ((noinline))
+#endif
+
 /* One delay-Doppler row: accumulated; on the dump frame of a fused map,
    inverted through the map's epoch stage into blk and cleared. */
-static void
+CORR2D_ONE_BODY static void
 corr2d_dd_row (const dp_corr2d_state_t *s, size_t t, size_t i,
                const float _Complex *x, float _Complex *a, float _Complex *w,
                float _Complex *blk, int dump)

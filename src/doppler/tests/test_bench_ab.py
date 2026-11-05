@@ -374,6 +374,36 @@ def test_an_alias_that_pairs_nothing_is_refused(monkeypatch, capsys):
     assert "A has no nope:: row" in capsys.readouterr().out
 
 
+def test_an_alias_that_pairs_nothing_stops_after_one_pass(monkeypatch, capsys):
+    """Caught after each side has run once, not after all K passes, and the
+    families each side does have are printed: the alias #2752 step 3.2 first
+    tried named the published family (`corr2d`) where rows are keyed by the
+    bench binary (`bench_corr2d_core`), and lost a full K=5 run to it."""
+    a = {"bench_corr2d_core::x": 1.0}
+    b = {"bench_correlator_core::x": 1.0}
+    _fake_main(monkeypatch, [a] * 5, [b] * 5)
+    runs = []
+    orig = AB.bench_once
+    monkeypatch.setattr(
+        AB, "bench_once", lambda wt, cpus: runs.append(wt) or orig(wt, cpus)
+    )
+    assert AB.main(["A", "B", "-k", "5", "--alias", "corr2d=correlator"]) == 1
+    assert runs == ["A", "B"]
+    out = capsys.readouterr().out
+    assert "A has no corr2d:: row" in out
+    assert "A's C families: bench_corr2d_core" in out
+    assert "B's C families: bench_correlator_core" in out
+
+
+def test_the_binary_alias_pairs_real_fullnames(monkeypatch):
+    """The keys `make bench` actually writes, under the alias the docs give."""
+    a = {"bench_corr2d_core::x": 1.0, "bench_fft_core::z": 1.0}
+    b = {"bench_correlator_core::x": 1.0, "bench_fft_core::z": 1.0}
+    _fake_main(monkeypatch, [a] * 3, [b] * 3)
+    alias = "bench_corr2d_core=bench_correlator_core"
+    assert AB.main(["A", "B", "-k", "3", "--alias", alias]) == 0
+
+
 def test_an_alias_onto_a_family_a_already_has_is_refused():
     """A renamed row may not overwrite a row A measured under the new name."""
     _, _, bad = AB.apply_aliases(

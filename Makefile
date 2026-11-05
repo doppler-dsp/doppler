@@ -5289,10 +5289,13 @@ endif
 # benchmarking.md). BENCH_ARGS narrows the suite as it does for
 # `make bench`. Writes nothing under benchmarks/published/. By hand: nothing
 # in CI runs it (a bench box and minutes).
-# ALIAS pairs a renamed family across the two commits: `ALIAS=corr2d=correlator`
-# compares A's corr2d::<row> with B's correlator::<row>, suffix for suffix
-# (#2752 step 3.2). Declared here, per run, and printed with the verdict;
-# there is no default table. An aliased row on one side only fails.
+# ALIAS pairs a renamed family across the two commits, keyed as bench-ab
+# keys rows, by fullname, whose C family is the bench binary:
+# `ALIAS=bench_corr2d_core=bench_correlator_core` compares A's
+# bench_corr2d_core::<row> with B's bench_correlator_core::<row>, suffix
+# for suffix (#2752 step 3.2). Declared here, per run, and printed with the
+# verdict; there is no default table. An aliased row on one side only
+# fails, and an alias that pairs nothing stops the run after one pass.
 bench-ab: ## A/B two commits, per row min-of-K, band and verdict (A= B= [K>=3] [BUILD=] [ALIAS=old=new])
 ifndef A
 	@echo "usage: make bench-ab A=<ref> B=<ref> [K=5] [BUILD=portable|native]"

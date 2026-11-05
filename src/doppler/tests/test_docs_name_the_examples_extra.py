@@ -32,8 +32,11 @@ PAGES = sorted(
 
 def _needs_extra(name: str) -> bool:
     src = EXAMPLES / f"{name}.py"
-    if not src.exists():
-        return False
+    # A run line naming a module that is not there is a broken page, not an
+    # example that "needs nothing": fail it rather than skip it.
+    assert src.exists(), (
+        f"a page runs doppler.examples.{name}, which is absent"
+    )
     for n in ast.walk(ast.parse(src.read_text(encoding="utf-8"))):
         mods = (
             [a.name for a in n.names]

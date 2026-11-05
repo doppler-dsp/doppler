@@ -55,7 +55,7 @@ CLONE = re.compile(r"git\s+clone\b[^\n]*doppler-dsp/doppler")
 # An example run by its repository path exists only in a clone; the wheel ships
 # the same scripts as `python -m doppler.examples.<name>` (doppler#2857).
 RUN_BY_PATH = re.compile(
-    r"\bpython3?\s+(?:-u\s+)?(?:\./)?src/doppler/examples/"
+    r"\bpython(?:3(?:\.\d+)?)?\s+(?:-u\s+)?(?:\./)?src/doppler/examples/"
 )
 
 

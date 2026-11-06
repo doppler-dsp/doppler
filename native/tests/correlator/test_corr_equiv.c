@@ -24,9 +24,18 @@
  * must not change a bit.
  *
  * It ran first against Corr's and Corr2D's own code (dp_corr_* and
- * dp_corr2d_*, commit 4498372a7), where the 1-D path was a copy, and was
- * proven red by sabotage there. Against the flavors it asserts the same
- * things, so the copy's deletion changed no caller's bits.
+ * dp_corr2d_*, in the commit "test(corr): Corr is Corr2D at one row, byte
+ * for byte"; cited by subject because a rebase changes its hash), where the
+ * 1-D path was a copy, and was proven red by sabotage there. Against the
+ * flavors it asserts the same things, so the copy's deletion changed no
+ * caller's bits.
+ *
+ * Today it is circular for the arithmetic: dp_correlator_create_1d IS
+ * dp_correlator_create_2d at ny = 1, so both sides run the same code and
+ * cannot disagree. It is kept for what still differs between them, the
+ * flavor field and the blob's flavor reject, and for the layout. The
+ * arithmetic is held by test_correlator_1d.c's analytic cases, which assert
+ * peak values against closed forms, including at n_out > n.
  */
 #include "doppler/correlator/correlator_core.h"
 #include "dp_rng_test.h"

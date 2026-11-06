@@ -406,7 +406,7 @@ main (void)
    *
    * detector2d's own header says dwell "must be >= 1" and it validates
    * nothing itself -- it forwards straight to dp_correlator_create_2d, which
-   * is where the rule now lives (see test_corr2d_core.c). Pinned here too
+   * is where the rule now lives (see test_correlator_core.c). Pinned here too
    * because this is the object a caller constructs, and because it is the
    * assertion that would notice if the forwarding were ever replaced by a
    * local copy that forgot the rule. */

@@ -119,8 +119,7 @@ main (void)
     dp_correlator_destroy (obj);
   }
 
-  /* ── dp_correlator_reset clears mid-dwell accumulation
-   * ─────────────────────── */
+  /* ── dp_correlator_reset clears mid-dwell accumulation ───────────── */
   {
     float _Complex ref[16] = { 0 };
     ref[0]                 = 1.0f;
@@ -137,8 +136,7 @@ main (void)
     dp_correlator_destroy (obj);
   }
 
-  /* ── dp_correlator_set_ref recomputes and resets
-   * ───────────────────────────── */
+  /* ── dp_correlator_set_ref recomputes and resets ──────────────────── */
   {
     float _Complex ref_a[16] = { 0 };
     float _Complex ref_b[16] = { 0 };
@@ -192,6 +190,10 @@ main (void)
       if (cabsf (out[k]) > cabsf (out[pk]))
         pk = k;
     DP_CHECK (pk == 2);
+    /* The value, not only the place: the inverse is scaled by the native
+       length n, so a lag that lands on the finer grid keeps the native
+       peak, 1. Scaling by n_out instead would halve it here. */
+    DP_CHECK (dp_cnearf (out[2], 1.0f + 0.0f * I, TOL));
     dp_correlator_destroy (obj);
   }
 
@@ -317,8 +319,10 @@ main (void)
     DP_CHECK (dp_correlator_set_state (obj, blob)
               == DP_OK); /* positive control */
 
-    /* The count is the payload's fourth u64, after flavor, ny and ny_out. */
-    const size_t at     = sizeof (dp_state_hdr_t) + 3 * sizeof (uint64_t);
+    /* The count is the payload's seventh u64, after flavor, ny, ny_out,
+       fast_path, col_out and nx_out; the dwell - 1 accept below proves the
+       offset lands on it. */
+    const size_t at     = sizeof (dp_state_hdr_t) + 6 * sizeof (uint64_t);
     uint64_t     forged = 3; /* == dwell: never dumps again */
     memcpy (blob + at, &forged, sizeof forged);
     DP_CHECK (dp_state_validate (blob, sb, CORRELATOR_STATE_MAGIC,
@@ -348,5 +352,5 @@ main (void)
     dp_correlator_destroy (ok);
   }
 
-  DP_TEST_END ("test_corr_core");
+  DP_TEST_END ("test_correlator_1d");
 }

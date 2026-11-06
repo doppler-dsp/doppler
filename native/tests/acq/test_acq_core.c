@@ -4893,16 +4893,17 @@ main (void)
     dp_acq_destroy (c);
   }
 
-  /* The tolerance on psl against the double brute force below. The
-   * engine computes R on the correlator's single-row path, in cf32
-   * (design correlator.md U4), so it agrees with the oracle to cf32's
-   * rounding, not double's: measured over every acq-family test,
-   * validator and bench (2,626 setup calls, #2752 step 3.4a), the worst
-   * psl change was 6.2e-6 dB, and on these pins 1.5e-6 dB. The budget is
-   * 1e-4 dB: well above that, and 100x tighter than the nearest stated
-   * use, the -16.95 dB Doppler-sidelobe pin's 0.01 dB. The oracle stays
-   * double and independent; only its tolerance moved, from 1e-6. */
-#define ACQ_PSL_TOL_DB 1e-4
+  /* The tolerance on psl and dsl against the double brute forces below.
+   * The engine computes psl's R on the correlator's single-row path and
+   * dsl's sweep on the one delay-Doppler map, both in cf32 (design
+   * correlator.md U4), so each agrees with its oracle to cf32's rounding,
+   * not double's: measured over every acq-family test, validator and
+   * bench (#2752: 2,626 setup calls in 3.4a, 372 sweeps in 3.4b-pre),
+   * the worst psl change was 6.2e-6 dB and the worst dsl 6.4e-7 dB. The
+   * budget is 1e-4 dB: well above both, and 100x tighter than the nearest
+   * stated use, the -16.95 dB Doppler-sidelobe pin's 0.01 dB. The oracles
+   * stay double and independent; only their tolerance moved, from 1e-6. */
+#define ACQ_SL_TOL_DB 1e-4
 
   /* ── dp_acq_psl_db: the preamble's peak sidelobe (doppler#1470)
    * ───────── Checked against a brute-force periodic autocorrelation
@@ -4953,13 +4954,13 @@ main (void)
         if (isinf (want))
           DP_CHECK (isinf (got[c]) && got[c] < 0.0);
         else
-          DP_CHECK (fabs (got[c] - want) < ACQ_PSL_TOL_DB);
+          DP_CHECK (fabs (got[c] - want) < ACQ_SL_TOL_DB);
         dp_acq_destroy (a);
       }
     free (code_pre);
     DP_CHECK (fabs (got[0] - 20.0 * log10 (1.0 / 7.0))
-              < ACQ_PSL_TOL_DB); /* 1/N */
-    DP_CHECK (isinf (got[1]));   /* perfect: none */
+              < ACQ_SL_TOL_DB); /* 1/N */
+    DP_CHECK (isinf (got[1]));  /* perfect: none */
     DP_CHECK (isfinite (got[2]) && got[2] < 0.0 && got[2] > -40.0);
   }
 
@@ -5007,7 +5008,7 @@ main (void)
     DP_CHECK (fabs (dp_acq_dsl_db (a)
                     - _brute_dsl_db (ref, 28, cr * 4.0, a->window_bins,
                                      a->shape.zone))
-              < 1e-6);
+              < ACQ_SL_TOL_DB);
     DP_CHECK (dp_acq_dsl_db (a) >= dp_acq_psl_db (a));
     DP_CHECK (dp_acq_gate_stat (a) == (double)a->threshold || a->n_noncoh > 1);
     free (ref);
@@ -5024,7 +5025,7 @@ main (void)
     DP_CHECK (
         fabs (dp_acq_dsl_db (a)
               - _brute_dsl_db (qpsk, 64, 1.0e6, a->window_bins, a->shape.zone))
-        < 1e-6);
+        < ACQ_SL_TOL_DB);
     dp_acq_destroy (a);
 
     uint8_t          gold[1023];
@@ -5037,7 +5038,7 @@ main (void)
     DP_CHECK (a->window_bins == 5 && a->n_noncoh > 1);
     DP_CHECK (fabs (dp_acq_dsl_db (a) - (-16.95)) < 0.01);
     DP_CHECK (fabs (dp_acq_psl_db (a) - 20.0 * log10 (65.0 / 1023.0))
-              < ACQ_PSL_TOL_DB);
+              < ACQ_SL_TOL_DB);
     DP_CHECK (dp_acq_gate_stat (a) == (double)a->eta_nc);
     dp_acq_destroy (a);
     a = dp_xnn (dp_acq_create_continuous (gold, 1023, 2.0 * 3.069e6, 3.069e6,

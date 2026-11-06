@@ -195,15 +195,16 @@ _agg (const float *mag, size_t lo, size_t hi, det_noise_mode_t mode)
 }
 
 /* det_peak_scan()'s definition: the first maximum among the candidates,
-   one cell at a time. The masked scan skips whole blocks a lane-wise pass
-   says cannot move the pick; this is what it must agree with, cell for
-   cell, so the oracle is the plain loop and never the implementation. */
+   one cell at a time, where a NaN is never a candidate (U2). The masked
+   scan skips whole blocks a lane-wise pass says cannot move the pick; this
+   is what it must agree with, cell for cell, so the oracle is the plain
+   loop and never the implementation. */
 static size_t
 _scan_oracle (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
 {
   size_t best = k1;
   for (size_t k = k0; k < k1; k++)
-    if (!mask[k] && (best == k1 || surf[k] > surf[best]))
+    if (!mask[k] && !isnan (surf[k]) && (best == k1 || surf[k] > surf[best]))
       best = k;
   return best;
 }
@@ -871,10 +872,10 @@ main (void)
     DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1);
     DP_CHECK (det_peak_scan (surf, mask, 0, SN)
               == _scan_oracle (surf, mask, 0, SN));
-    /* NaN: a NaN is never larger than anything, so the plain loop passes
-       over it -- unless it is the FIRST candidate, which it then keeps,
-       since nothing compares larger than a NaN. The lane-wise pass must
-       neither let a NaN hide its block's true maximum nor skip that rule. */
+    /* NaN: a NaN is never a candidate (U2). Nothing compares larger than
+       a NaN, so a scan that let one in as its FIRST candidate would keep it
+       against every later cell; the lane-wise pass must not let a NaN hide
+       its block's true maximum either. */
     memset (mask, 0, SN);
     for (size_t k = 0; k < SN; k++)
       surf[k] = 1.0f;
@@ -889,9 +890,58 @@ main (void)
     DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1100);
     DP_CHECK (det_peak_scan (surf, mask, 0, SN)
               == _scan_oracle (surf, mask, 0, SN));
-    surf[0] = NAN; /* the first candidate: the plain loop keeps it */
-    DP_CHECK (_scan_oracle (surf, mask, 0, SN) == 0);
-    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 0);
+    /* A NaN at the first candidate: the true maximum is still the pick,
+       masked and unmasked alike (the unmasked seed skips it; the masked
+       pass maps it to -INFINITY), at k0 = 0 and at an interior k0. */
+    surf[0] = NAN;
+    DP_CHECK (_scan_oracle (surf, mask, 0, SN) == 1100);
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1100);
+    DP_CHECK (det_peak_scan (surf, NULL, 0, SN) == 1100);
+    surf[500] = NAN;
+    DP_CHECK (det_peak_scan (surf, mask, 500, SN) == 1100);
+    DP_CHECK (det_peak_scan (surf, NULL, 500, SN) == 1100);
+    /* A NaN run at the start, then finite cells below the maximum: the
+       seed walks the run and the plain argmax takes over. */
+    for (size_t k = 0; k < 20; k++)
+      surf[k] = NAN;
+    DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1100);
+    DP_CHECK (det_peak_scan (surf, NULL, 0, SN) == 1100);
+    /* A range of NaNs only: k1 from both paths, as a fully masked range,
+       and det_peak_list lists nothing (and reads no cell past the end). */
+    DP_CHECK (det_peak_scan (surf, mask, 0, 20) == 20);
+    DP_CHECK (det_peak_scan (surf, NULL, 0, 20) == 20);
+    DP_CHECK (det_peak_scan (surf, NULL, 3, 20) == 20);
+    {
+      det_peak_t pk = { 7, 7, 7.0f };
+      DP_CHECK (det_peak_list (surf, 4, 5, -1.0f, 0, 0, NULL, &pk, 1) == 0);
+      DP_CHECK (pk.row == 7 && pk.col == 7); /* untouched */
+    }
+    /* Both detectors' call, at both shapes: det_peak_list at one peak with
+       no gate and no mask, over a 1 x n row (the 1-D detector) and an
+       ny x nx surface (the 2-D one). A NaN in cell 0 beside a finite peak:
+       the finite peak is listed. A NaN beside the peak elsewhere: the peak
+       is listed as before. Neither is reachable through push, since a NaN
+       sample spreads through the transform to every cell; push's all-NaN
+       frame is pinned in each detector's own test. */
+    for (int sh = 0; sh < 2; sh++)
+      {
+        const size_t ny = sh ? 4 : 1, nx = sh ? 8 : 32, n = ny * nx;
+        float        s2[32];
+        for (size_t k = 0; k < n; k++)
+          s2[k] = 1.0f;
+        s2[13]        = 5.0f;
+        s2[0]         = NAN;
+        det_peak_t pk = { 0 };
+        DP_CHECK (det_peak_list (s2, ny, nx, -1.0f, 0, 0, NULL, &pk, 1) == 1);
+        DP_CHECK (pk.row == 13 / nx && pk.col == 13 % nx);
+        DP_CHECK (pk.value == 5.0f);
+        s2[0]  = 1.0f;
+        s2[14] = NAN;
+        pk     = (det_peak_t){ 0 };
+        DP_CHECK (det_peak_list (s2, ny, nx, -1.0f, 0, 0, NULL, &pk, 1) == 1);
+        DP_CHECK (pk.row == 13 / nx && pk.col == 13 % nx);
+        DP_CHECK (pk.value == 5.0f);
+      }
     /* Nothing a candidate: k1. */
     memset (mask, 1, SN);
     DP_CHECK (det_peak_scan (surf, mask, 0, SN) == SN);
@@ -899,6 +949,35 @@ main (void)
     free (surf);
     free (mask);
   }
+
+  /* -- U2: an all-NaN frame, as test_detector_core.c's: the peak reads
+     (0, 0), magnitude +0.0, the noise NaN and test_stat 0, so threshold 0
+     emits that hit and a positive threshold none. A single NaN cell is not
+     reachable through push (it spreads through the transform); the picker
+     is pinned for it above, at both detectors' shapes. */
+  for (int m = 0; m < 4; m++)
+    for (int t = 0; t < 2; t++)
+      {
+        float _Complex ref[N] = { 0 }, x[N];
+        ref[0]                = 1.0f;
+        for (size_t i = 0; i < N; i++)
+          x[i] = NAN;
+        const float            thr = t ? 2.5f : 0.0f;
+        dp_detector2d_state_t *det = dp_detector2d_create (
+            ref, NY, NX, 1, 0, N - 1, (det_noise_mode_t)m, thr, 1);
+        DP_REQUIRE (det != NULL);
+        det_result2d_t r[2]  = { { 9, 9, 9.0f, 9.0f, 9.0f } };
+        const size_t   nhits = dp_detector2d_push (det, x, N, r, 2);
+        DP_CHECK (nhits == (t ? 0u : 1u));
+        DP_CHECK (det->peak_row == 0 && det->peak_col == 0);
+        DP_CHECK (det->peak_mag == 0.0f && !signbit (det->peak_mag));
+        DP_CHECK (isnan (det->noise_est));
+        DP_CHECK (det->test_stat == 0.0f);
+        if (nhits == 1)
+          DP_CHECK (r[0].row == 0 && r[0].col == 0 && r[0].peak_mag == 0.0f
+                    && isnan (r[0].noise_est) && r[0].test_stat == 0.0f);
+        dp_detector2d_destroy (det);
+      }
 
   DP_TEST_END ("test_detector2d_core");
 }

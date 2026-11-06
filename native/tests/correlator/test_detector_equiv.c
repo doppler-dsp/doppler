@@ -27,9 +27,10 @@
  * carry the reference at a planted circular lag with noise-only frames, so
  * both sides of the gate are exercised.
  *
- * The streams are finite. On NaN the two objects disagree today by design
- * (docs/design/correlator.md, U2); the commit that fixes the one peak
- * picker brings them into agreement and adds NaN streams here.
+ * One frame of each stream is NaN. Until U2 (docs/design/correlator.md)
+ * the two disagreed there: the 1-D detector reported the NaN as its peak
+ * and the 2-D one listed nothing. Both now take the one picker, where a
+ * NaN is never a candidate.
  *
  * Proven red by sabotage, each on today's sources, each turning this test
  * red: the 2-D detector's noise window shifted by one bin; the 1-D argmax
@@ -40,6 +41,7 @@
 #include "doppler/detector2d/detector2d_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +61,11 @@ static const size_t chunks[N_CHUNK]   = { 7, 13, 1000, 0 }; /* 0 = whole */
 /* Frames a stream carries: enough for several dumps at dwell 2, and to
    cross a ring wrap at the shortest n. */
 #define N_FRAMES 40
+
+/* One frame of NaN: its dump's map is NaN in every cell, which both must
+   report alike (U2: a NaN is never the peak). Frame 21 is mid-stream and
+   the second of a dwell-2 pair. */
+#define NAN_FRAME 21
 
 /* Room for every hit a push can make: one per frame. */
 #define MAX_HITS (N_FRAMES + 1)
@@ -87,6 +94,12 @@ make_stream (float _Complex *x, const float _Complex *ref, size_t n,
       if (f % 8 >= 6)
         {
           memset (y, 0, n * sizeof *y);
+          continue;
+        }
+      if (f == NAN_FRAME)
+        {
+          for (size_t i = 0; i < n; i++)
+            y[i] = NAN;
           continue;
         }
       for (size_t i = 0; i < n; i++)

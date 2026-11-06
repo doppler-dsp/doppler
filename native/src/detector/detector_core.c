@@ -5,7 +5,7 @@
  * The core data path is:
  *   push(x[M]) → the ring's framer, one n-sample frame at a time →
  *   dp_correlator_execute (FFT correlator + int-dump) →
- *   |·|² + argmax → noise estimate → threshold gate → det_result_t[]
+ *   |·| + det_peak_list → noise estimate → threshold gate → det_result_t[]
  *
  * Ring buffer sizing:
  *   capacity = next_pow_two(max(n, 512))
@@ -45,14 +45,13 @@ detector_compute_stat (dp_detector_state_t *state)
   for (size_t k = 0; k < n; k++)
     state->mag_buf[k] = cabsf (state->out_buf[k]);
 
-  /* Argmax. */
-  size_t peak = 0;
-  for (size_t k = 1; k < n; k++)
-    if (state->mag_buf[k] > state->mag_buf[peak])
-      peak = k;
-
-  state->peak_lag = peak;
-  state->peak_mag = state->mag_buf[peak];
+  /* The one argmax under both detectors (det_peak_list, at one peak and
+     no gate: the first maximum). A NaN is never the peak (U2); an all-NaN
+     map lists nothing, and the peak reads lag 0, magnitude 0. */
+  det_peak_t pk = { 0 };
+  (void)det_peak_list (state->mag_buf, 1, n, -1.0f, 0, 0, NULL, &pk, 1);
+  state->peak_lag = pk.col;
+  state->peak_mag = pk.value;
 
   state->noise_est
       = det_noise_estimate (state->mag_buf, state->noise_lo, state->noise_hi,

@@ -128,10 +128,16 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
   size_t best = k1;
   if (!mask)
     {
-      if (k0 >= k1)
-        return k1;
+      /* The seed is the first cell that is not NaN: nothing compares
+         larger than a NaN, so a NaN seed would hold the pick against every
+         later cell (U2: a NaN is never a peak). On finite data the seed
+         is k0 and the loop is the plain argmax. */
       best = k0;
-      for (size_t k = k0 + 1; k < k1; k++)
+      while (best < k1 && isnan (surf[best]))
+        best++;
+      if (best >= k1)
+        return k1;
+      for (size_t k = best + 1; k < k1; k++)
         if (surf[k] > surf[best])
           best = k;
       return best;
@@ -142,8 +148,8 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
      when that largest candidate beats the pick so far (or there is no pick
      yet and the block has a candidate), seeded with the pick so far -- so
      the result is the plain loop's, cell for cell. A NaN enters the lane
-     pass as -INFINITY, like a masked cell: the plain loop never moves to a
-     NaN after its first candidate, and mapping it out here means no max
+     pass as -INFINITY, like a masked cell: the plain loop never takes a
+     NaN either, and mapping it out here means no max
      instruction the compiler picks under -ffast-math (FMAX propagates a
      NaN, FMAXNM drops it) ever sees one.
      On noise the pick moves in a handful of blocks, so the cost is the one
@@ -193,7 +199,8 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
       if (best == k1 ? !a : !(m > surf[best]))
         continue;
       for (k = b0; k < b1; k++)
-        if (!mask[k] && (best == k1 || surf[k] > surf[best]))
+        if (!mask[k] && !isnan (surf[k])
+            && (best == k1 || surf[k] > surf[best]))
           best = k;
     }
   return best;
@@ -227,7 +234,7 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
       if (n == 0)
         return 0;
       const size_t best = det_peak_scan (surf, NULL, 0, n);
-      if (!(surf[best] > gate))
+      if (best == n || !(surf[best] > gate))
         return 0;
       out[0].row   = best / nx;
       out[0].col   = best % nx;

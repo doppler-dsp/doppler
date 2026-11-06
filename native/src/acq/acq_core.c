@@ -1903,6 +1903,21 @@ acq_lag_amplitude (const double *P, size_t n, double delta, double p_sum)
  * - The delay straddle is acq_lag_amplitude() at the Pd model's nodes and
  *   averaged over [0, 1/2] sample (64-interval Simpson, dp_simpson_weights()).
  */
+/* The periodic autocorrelation of x, R(m) / n for m = 0 .. n-1, through the
+ * correlator's single-row path (x correlated against itself): the one
+ * correlation in the library, in cf32 (design correlator.md U4). Returns a
+ * fresh buffer the caller frees. */
+static float _Complex *
+acq_autocorr (const float _Complex *x, size_t n)
+{
+  dp_correlator_state_t *c = dp_xnn (dp_correlator_create_1d (x, n, 1, 1, 0));
+  float _Complex        *R = dp_xmalloc (n * sizeof *R);
+  const size_t           got = dp_correlator_execute (c, x, n, R, n);
+  (void)got; /* n in, dwell 1: one dump of n, always */
+  dp_correlator_destroy (c);
+  return R;
+}
+
 static void
 acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
 {
@@ -1910,9 +1925,10 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
   double _Complex *spec  = dp_xmalloc (n * sizeof *spec);
   double          *P     = dp_xmalloc (n * sizeof *P);
   dp_fft_state_t  *fwd   = dp_xnn (dp_fft_create (n, -1, 1));
-  dp_fft_state_t  *inv   = dp_xnn (dp_fft_create (n, +1, 1));
   double           p_sum = 0.0;
 
+  /* The power spectrum, for the delay-loss model below: a spectrum, not a
+     correlation, so it stays a double transform. */
   for (size_t i = 0; i < n; i++)
     buf[i] = (double)crealf (t[i]) + I * (double)cimagf (t[i]);
   dp_fft_execute_cf64 (fwd, buf, n, spec, n);
@@ -1921,24 +1937,24 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
       P[k] = creal (spec[k]) * creal (spec[k])
              + cimag (spec[k]) * cimag (spec[k]);
       p_sum += P[k];
-      buf[k] = P[k];
     }
-  dp_fft_execute_cf64 (inv, buf, n, spec, n); /* spec now holds n * R(m) */
 
-  const double r0   = cabs (spec[0]);
-  const size_t half = n / 2;
-  size_t       zone = half > 0 ? half : 1;
-  const double tol  = 1e-6 * r0;
+  float _Complex *R    = acq_autocorr (t, n);
+  const double    r0   = cabsf (R[0]);
+  const size_t    half = n / 2;
+  size_t          zone = half > 0 ? half : 1;
+  const double    tol  = 1e-6 * r0;
   for (size_t m = 1; m <= half; m++)
     {
-      double here = cabs (spec[m]);
-      if (m < half && cabs (spec[m + 1]) > here - tol)
+      double here = cabsf (R[m]);
+      if (m < half && cabsf (R[m + 1]) > here - tol)
         {
           zone = m;
           break;
         }
     }
   sh->zone = zone;
+  free (R);
 
   double u[ACQ_DELAY_LOSS_NODES];
   dp_midpoint_nodes (u, ACQ_DELAY_LOSS_NODES);
@@ -1953,7 +1969,6 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
   sh->delay_loss_mean = m;
 
   dp_fft_destroy (fwd);
-  dp_fft_destroy (inv);
   free (P);
   free (spec);
   free (buf);
@@ -1970,23 +1985,13 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
 static void
 acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
 {
-  double _Complex *buf  = dp_xmalloc (n * sizeof *buf);
-  double _Complex *spec = dp_xmalloc (n * sizeof *spec);
-  dp_fft_state_t  *fwd  = dp_xnn (dp_fft_create (n, -1, 1));
-  dp_fft_state_t  *inv  = dp_xnn (dp_fft_create (n, +1, 1));
-  for (size_t i = 0; i < n; i++)
-    buf[i] = (double)crealf (replica[i]) + I * (double)cimagf (replica[i]);
-  dp_fft_execute_cf64 (fwd, buf, n, spec, n);
-  for (size_t k = 0; k < n; k++)
-    buf[k] = creal (spec[k]) * creal (spec[k])
-             + cimag (spec[k]) * cimag (spec[k]);
-  dp_fft_execute_cf64 (inv, buf, n, spec, n); /* n * R(m) */
-  const double r0 = cabs (spec[0]);
-  double       e1 = 0.0, e2 = 0.0, psl = 0.0;
-  const size_t z = sh->zone;
+  float _Complex *R  = acq_autocorr (replica, n); /* R(m) / n */
+  const double    r0 = cabsf (R[0]);
+  double          e1 = 0.0, e2 = 0.0, psl = 0.0;
+  const size_t    z = sh->zone;
   for (size_t m = 1; m < n; m++)
     {
-      const double r = r0 > 0.0 ? cabs (spec[m]) / r0 : 0.0;
+      const double r = r0 > 0.0 ? cabsf (R[m]) / r0 : 0.0;
       if (r < 1e-6)
         continue;
       e1 += r;
@@ -1997,10 +2002,7 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
   sh->off_peak     = e2;
   sh->off_peak_amp = e1;
   sh->psl          = psl;
-  dp_fft_destroy (fwd);
-  dp_fft_destroy (inv);
-  free (spec);
-  free (buf);
+  free (R);
 }
 
 /* Residual points per tile width in the Doppler-offset sidelobe's sweep.
@@ -2034,6 +2036,15 @@ acq_doppler_sidelobe (const float _Complex *replica, size_t n,
                       size_t window_bins, double du, double fs,
                       acq_shape_t *sh)
 {
+  /* One tile and no Doppler uncertainty: the sweep is the single point
+     nu = 0, where chi is the autocorrelation and dsl IS psl -- the same
+     lags, the same 1e-6 floor. Take the stored value rather than compute
+     it a second time (and, since U4, in another precision). */
+  if (window_bins <= 1 && !(du > 0.0))
+    {
+      sh->dsl = sh->psl;
+      return;
+    }
   double _Complex *ref  = dp_xmalloc (n * sizeof *ref);
   double _Complex *sig  = dp_xmalloc (n * sizeof *sig);
   double _Complex *prod = dp_xmalloc (n * sizeof *prod);

@@ -274,17 +274,37 @@ or its input:
     span). Input: the bank's own C test scenes (`test_corr2d_core.c`, the
     `bank_*` cases). If the rule differs, the difference is stated and one
     rule is chosen with the owner.
-- **U4. acq's setup transforms: precision first, then speed.** The four
-    pairs in D5 run in `double _Complex`, and the single-row path in cf32,
-    so moving them is a precision change, not only a refactor.
+- **U4. acq's setup transforms: precision first, then speed.** Three of
+    D5's pairs ran in `double _Complex`, and the single-row path runs in
+    cf32, so moving them is a precision change, not only a refactor. The
+    fourth, `dp_acq_sidelobe_ratio`, was already cf32: its duplicate is its
+    own plans, and 3.4b moves it with the rest.
     - **Measured on:** every acq validator's `--check` verdict, and the setup's
-        own outputs (template shape, off-peak floor, Doppler sidelobe,
-        sidelobe ratio) on the bench rows' templates.
+        own outputs (template shape, off-peak floor, Doppler sidelobe) at
+        every call site.
     - **The decision rule:** if cf32 moves no verdict and changes no output by
         more than its stated use tolerates, the pairs that are correlations
         move onto the single-row path. Otherwise they stay in double, and the
         page records them as a different precision, which rule 1 does not
         forbid, with the owner's ruling.
+    - **Measured (3.4a).** Both precisions ran side by side at every call
+        site in every acq-family test, validator and bench: 2,626 calls over
+        34 template shapes. The zone (an integer) never changed. The worst
+        changes were 6.2e-6 dB on `psl`, 1.1e-6 dB on `dsl` and 1.4e-7
+        (relative) on the off-peak sums. On the cf32 build every validator's
+        `--check` output is byte-identical to the double run.
+    - **Decided (3.4a).** `acq_off_peak` and the template shape's
+        autocorrelation run on the single-row path, in cf32. The shape's
+        power spectrum stays a double transform, because the delay-loss
+        model needs a spectrum, not a correlation. The three `psl` pins
+        against the double brute force moved from 1e-6 dB to a 1e-4 dB
+        tolerance, with the oracle kept, and at one tile with no Doppler
+        uncertainty `dsl` takes the stored `psl` rather than recomputing it. The Doppler-sidelobe sweep stays in double for
+        now: on the single-row path each tile offset costs a forward and an
+        inverse transform, which made a five-tile receiver's create 2.3x
+        slower. Its home is the one delay-Doppler map, which rolls the
+        spectrum per tile from one forward transform, and 3.4b moves it
+        there.
 
 ## 7. The sub-steps
 

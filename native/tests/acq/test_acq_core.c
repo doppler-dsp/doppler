@@ -4893,6 +4893,17 @@ main (void)
     dp_acq_destroy (c);
   }
 
+  /* The tolerance on psl against the double brute force below. The
+   * engine computes R on the correlator's single-row path, in cf32
+   * (design correlator.md U4), so it agrees with the oracle to cf32's
+   * rounding, not double's: measured over every acq-family test,
+   * validator and bench (2,626 setup calls, #2752 step 3.4a), the worst
+   * psl change was 6.2e-6 dB, and on these pins 1.5e-6 dB. The budget is
+   * 1e-4 dB: well above that, and 100x tighter than the nearest stated
+   * use, the -16.95 dB Doppler-sidelobe pin's 0.01 dB. The oracle stays
+   * double and independent; only its tolerance moved, from 1e-6. */
+#define ACQ_PSL_TOL_DB 1e-4
+
   /* ── dp_acq_psl_db: the preamble's peak sidelobe (doppler#1470)
    * ───────── Checked against a brute-force periodic autocorrelation
    * computed here, O(n^2) and FFT-free, over the lags outside the
@@ -4942,12 +4953,13 @@ main (void)
         if (isinf (want))
           DP_CHECK (isinf (got[c]) && got[c] < 0.0);
         else
-          DP_CHECK (fabs (got[c] - want) < 1e-6);
+          DP_CHECK (fabs (got[c] - want) < ACQ_PSL_TOL_DB);
         dp_acq_destroy (a);
       }
     free (code_pre);
-    DP_CHECK (fabs (got[0] - 20.0 * log10 (1.0 / 7.0)) < 1e-6); /* 1/N */
-    DP_CHECK (isinf (got[1])); /* perfect: none */
+    DP_CHECK (fabs (got[0] - 20.0 * log10 (1.0 / 7.0))
+              < ACQ_PSL_TOL_DB); /* 1/N */
+    DP_CHECK (isinf (got[1]));   /* perfect: none */
     DP_CHECK (isfinite (got[2]) && got[2] < 0.0 && got[2] > -40.0);
   }
 
@@ -5024,7 +5036,8 @@ main (void)
                                           1, 0.0));
     DP_CHECK (a->window_bins == 5 && a->n_noncoh > 1);
     DP_CHECK (fabs (dp_acq_dsl_db (a) - (-16.95)) < 0.01);
-    DP_CHECK (fabs (dp_acq_psl_db (a) - 20.0 * log10 (65.0 / 1023.0)) < 1e-6);
+    DP_CHECK (fabs (dp_acq_psl_db (a) - 20.0 * log10 (65.0 / 1023.0))
+              < ACQ_PSL_TOL_DB);
     DP_CHECK (dp_acq_gate_stat (a) == (double)a->eta_nc);
     dp_acq_destroy (a);
     a = dp_xnn (dp_acq_create_continuous (gold, 1023, 2.0 * 3.069e6, 3.069e6,

@@ -559,67 +559,96 @@ dp_correlator_get_state (const dp_correlator_state_t *s, void *blob)
   dp_w_f32 (&_w, &s->test_stat, 1);
 }
 
-int
-dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
+/* A blob, read and checked whole, before anything is written: what
+   dp_correlator_state_check returns and what set_state commits. */
+typedef struct
+{
+  uint64_t    count;
+  const void *accum; /* in place in the blob, n complex samples */
+  float       thr;   /* detector flavors from here on */
+  const void *fr;    /* the framer's child blob */
+  uint64_t    row, col;
+  float       last[3];
+} corr2d_blob_t;
+
+static int
+corr2d_state_read (const dp_correlator_state_t *s, const void *blob,
+                   corr2d_blob_t *b)
 {
   DP_SET_OPEN (CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION,
                dp_correlator_state_bytes (s));
-  /* Keys and count are decoded and checked before anything is written, so
-     a refused blob changes nothing. A count at or past the dwell would
-     never dump: `count + 1 == dwell` is never true again until it wraps
-     (#2142, doppler#2641). */
+  /* A count at or past the dwell would never dump: `count + 1 == dwell` is
+     never true again until it wraps (#2142, doppler#2641). */
   const uint64_t flavor = dp_r_u64 (&_r);
   const uint64_t ny     = dp_r_u64 (&_r);
   const uint64_t ny_out = dp_r_u64 (&_r);
   const uint64_t fast   = dp_r_u64 (&_r);
   const uint64_t col    = dp_r_u64 (&_r);
   const uint64_t nx_out = dp_r_u64 (&_r);
-  const uint64_t count  = dp_r_u64 (&_r);
+  b->count              = dp_r_u64 (&_r);
   if (flavor != (uint64_t)s->flavor || ny != s->ny || ny_out != s->ny_out
       || fast != (uint64_t)s->fast_path || col != (uint64_t)(int64_t)s->col_out
-      || nx_out != s->nx_out || count >= s->dwell)
+      || nx_out != s->nx_out || b->count >= s->dwell)
     return DP_ERR_INVALID;
-  /* The accumulator is read in place and copied at commit, so the
-     detection payload after it is checked first. */
-  const void *accum = dp_r_reserve (&_r, s->n * sizeof (float _Complex));
-  if (!accum)
+  b->accum = dp_r_reserve (&_r, s->n * sizeof (float _Complex));
+  if (!b->accum)
     return DP_ERR_INVALID;
   if (!corr2d_is_detector (s))
-    {
-      s->count = (size_t)count;
-      memcpy (s->accum, accum, s->n * sizeof (float _Complex));
-      return DP_OK;
-    }
+    return DP_OK;
 
-  /* A detector: its noise window and mode are reject keys (they decide
-     what the stored statistic means), and the framer's child blob is
-     checked without restoring it, so a refusal anywhere changes nothing. */
+  /* A detector. Its noise window and mode are reject keys: they decide
+     what the stored statistic means. The framer's child blob is checked
+     without restoring it, and its frame count must name the dwell's
+     position: push, reset and set_ref keep count == frames % dwell, so a
+     blob that breaks it would put every later dump off by the difference,
+     without a word (#2015's class, which acq refuses the same way). The
+     last peak must be a cell of the map. */
   const uint64_t lo   = dp_r_u64 (&_r);
   const uint64_t hi   = dp_r_u64 (&_r);
   const uint64_t mode = dp_r_u64 (&_r);
-  float          thr;
-  dp_r_f32 (&_r, &thr, 1);
-  const void *fr = dp_r_reserve (&_r, dp_f32_framer_state_bytes (&s->framer));
-  uint64_t    frames;
+  dp_r_f32 (&_r, &b->thr, 1);
+  b->fr = dp_r_reserve (&_r, dp_f32_framer_state_bytes (&s->framer));
+  uint64_t frames;
   if (lo != s->noise_lo || hi != s->noise_hi || mode != (uint64_t)s->noise_mode
-      || !fr || dp_f32_framer_state_frames (&s->framer, fr, &frames) != DP_OK)
+      || !b->fr
+      || dp_f32_framer_state_frames (&s->framer, b->fr, &frames) != DP_OK
+      || frames % s->dwell != b->count)
     return DP_ERR_INVALID;
-  const uint64_t row = dp_r_u64 (&_r);
-  const uint64_t c   = dp_r_u64 (&_r);
-  float          last[3];
-  dp_r_f32 (&_r, last, 3);
+  b->row = dp_r_u64 (&_r);
+  b->col = dp_r_u64 (&_r);
+  dp_r_f32 (&_r, b->last, 3);
+  if (b->row >= s->ny || b->col >= s->nx)
+    return DP_ERR_INVALID;
+  return DP_OK;
+}
 
-  /* Commit: nothing below can refuse (the framer's blob was checked by the
-     same check its set_state runs). */
-  s->count = (size_t)count;
-  memcpy (s->accum, accum, s->n * sizeof (float _Complex));
-  s->threshold = thr;
-  (void)dp_f32_framer_set_state (&s->framer, fr);
-  s->peak_row  = (size_t)row;
-  s->peak_col  = (size_t)c;
-  s->peak_mag  = last[0];
-  s->noise_est = last[1];
-  s->test_stat = last[2];
+int
+dp_correlator_state_check (const dp_correlator_state_t *s, const void *blob)
+{
+  corr2d_blob_t b;
+  return corr2d_state_read (s, blob, &b);
+}
+
+int
+dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
+{
+  /* Read and checked whole first, so a refused blob changes nothing. */
+  corr2d_blob_t b;
+  if (corr2d_state_read (s, blob, &b) != DP_OK)
+    return DP_ERR_INVALID;
+  s->count = (size_t)b.count;
+  memcpy (s->accum, b.accum, s->n * sizeof (float _Complex));
+  if (!corr2d_is_detector (s))
+    return DP_OK;
+  /* Nothing below can refuse: the framer's blob passed the check its own
+     set_state runs. */
+  s->threshold = b.thr;
+  (void)dp_f32_framer_set_state (&s->framer, b.fr);
+  s->peak_row  = (size_t)b.row;
+  s->peak_col  = (size_t)b.col;
+  s->peak_mag  = b.last[0];
+  s->noise_est = b.last[1];
+  s->test_stat = b.last[2];
   /* det_out is not carried, so there is no last map to view, and
      consumed is per-call output, not state. */
   s->_last_corr_valid = 0;

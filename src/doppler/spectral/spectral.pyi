@@ -716,11 +716,8 @@ class Corr2D:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. A detector flavor also drops the carry (the
-        partial frame held between pushes), and its last dump's fields (the
-        peak, noise_est, test_stat) read 0 until the next dump, so the blob
-        after a reset matches a fresh object's (doppler#2642);
-        dp_correlator_consumed() reads 0.
+        or recomputing ref_spec. (A detector flavor resets its stream too: see
+        the detector flavors' section below.)
 
         Examples
         --------
@@ -778,11 +775,8 @@ class Corr2D:
             Python: the map on a dump, None otherwise; a frame that is not
             ny*nx samples is REFUSED with nothing read, written or counted, as
             a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
-            otherwise, and SIZE_MAX for the refused frame. A detector flavor
-            refuses every execute, and every batch and bank call, with SIZE_MAX
-            and nothing changed: its frames come through dp_correlator_push(),
-            and a frame from outside would put the dwell off the framer's grid.
-            None when the C call writes no output.
+            otherwise, and SIZE_MAX for the refused frame. None when the C call
+            writes no output.
 
         Raises
         ------
@@ -1543,11 +1537,8 @@ class DelayDoppler:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. A detector flavor also drops the carry (the
-        partial frame held between pushes), and its last dump's fields (the
-        peak, noise_est, test_stat) read 0 until the next dump, so the blob
-        after a reset matches a fresh object's (doppler#2642);
-        dp_correlator_consumed() reads 0.
+        or recomputing ref_spec. (A detector flavor resets its stream too: see
+        the detector flavors' section below.)
 
         Examples
         --------
@@ -1605,11 +1596,8 @@ class DelayDoppler:
             Python: the map on a dump, None otherwise; a frame that is not
             ny*nx samples is REFUSED with nothing read, written or counted, as
             a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
-            otherwise, and SIZE_MAX for the refused frame. A detector flavor
-            refuses every execute, and every batch and bank call, with SIZE_MAX
-            and nothing changed: its frames come through dp_correlator_push(),
-            and a frame from outside would put the dwell off the framer's grid.
-            None when the C call writes no output.
+            otherwise, and SIZE_MAX for the refused frame. None when the C call
+            writes no output.
 
         Raises
         ------
@@ -2356,11 +2344,8 @@ class Corr:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. A detector flavor also drops the carry (the
-        partial frame held between pushes), and its last dump's fields (the
-        peak, noise_est, test_stat) read 0 until the next dump, so the blob
-        after a reset matches a fresh object's (doppler#2642);
-        dp_correlator_consumed() reads 0.
+        or recomputing ref_spec. (A detector flavor resets its stream too: see
+        the detector flavors' section below.)
 
         Examples
         --------
@@ -2418,11 +2403,8 @@ class Corr:
             Python: the map on a dump, None otherwise; a frame that is not
             ny*nx samples is REFUSED with nothing read, written or counted, as
             a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
-            otherwise, and SIZE_MAX for the refused frame. A detector flavor
-            refuses every execute, and every batch and bank call, with SIZE_MAX
-            and nothing changed: its frames come through dp_correlator_push(),
-            and a frame from outside would put the dwell off the framer's grid.
-            None when the C call writes no output.
+            otherwise, and SIZE_MAX for the refused frame. None when the C call
+            writes no output.
 
         Raises
         ------
@@ -2634,11 +2616,8 @@ class CorrDetector2D:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. A detector flavor also drops the carry (the
-        partial frame held between pushes), and its last dump's fields (the
-        peak, noise_est, test_stat) read 0 until the next dump, so the blob
-        after a reset matches a fresh object's (doppler#2642);
-        dp_correlator_consumed() reads 0.
+        or recomputing ref_spec. (A detector flavor resets its stream too: see
+        the detector flavors' section below.)
 
         Examples
         --------
@@ -2687,7 +2666,8 @@ class CorrDetector2D:
         Returns
         -------
         list[tuple[int, int, float, float, float]]
-            Number of hits written to result, or SIZE_MAX (nothing taken,
+            Python: the list of hits, empty when no dump passed the gate. C:
+            the number of hits written to result, or SIZE_MAX (nothing taken,
             nothing changed) when state is a map flavor.
 
         Examples
@@ -2922,11 +2902,8 @@ class CorrDetector:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. A detector flavor also drops the carry (the
-        partial frame held between pushes), and its last dump's fields (the
-        peak, noise_est, test_stat) read 0 until the next dump, so the blob
-        after a reset matches a fresh object's (doppler#2642);
-        dp_correlator_consumed() reads 0.
+        or recomputing ref_spec. (A detector flavor resets its stream too: see
+        the detector flavors' section below.)
 
         Examples
         --------
@@ -2971,7 +2948,8 @@ class CorrDetector:
         Returns
         -------
         list[tuple[int, float, float, float]]
-            Number of hits written to result, or SIZE_MAX (nothing taken,
+            Python: the list of hits, empty when no dump passed the gate. C:
+            the number of hits written to result, or SIZE_MAX (nothing taken,
             nothing changed) when state is a map flavor.
 
         Examples

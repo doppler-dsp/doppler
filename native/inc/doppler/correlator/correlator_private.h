@@ -200,7 +200,7 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
  * into blocks: a lane-wise pass finds each block's largest candidate, and
  * the plain loop, seeded with the pick so far, runs only on a block whose
  * largest candidate beats it. The pick is the plain loop's, NaN cells
- * included; test_detector2d_core.c holds it to that loop over multi-block
+ * included; test_correlator_detector_2d.c holds it to that loop over multi-block
  * surfaces. `isnan` is reliable here because every doppler build passes
  * -fno-finite-math-only (CMakeLists.txt, with its canary); a consumer of
  * this installed header under a bare -ffast-math loses the NaN rule.

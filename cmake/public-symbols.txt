@@ -564,6 +564,7 @@ dp_correlator_set_ref function
 dp_correlator_set_state function
 dp_correlator_set_threshold function
 dp_correlator_state_bytes function
+dp_correlator_state_check function
 dp_costas_configure function
 dp_costas_configure_lock function
 dp_costas_create function

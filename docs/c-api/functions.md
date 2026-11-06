@@ -665,6 +665,7 @@
 * **dp\_correlator\_set\_state** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_set\_threshold** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_state\_bytes** ([**correlator\_core.h**](correlator__core_8h.md))
+* **dp\_correlator\_state\_check** ([**correlator\_core.h**](correlator__core_8h.md))
 * **det\_cmp\_f32\_asc** ([**correlator\_private.h**](correlator__private_8h.md))
 * **det\_framed\_push** ([**correlator\_private.h**](correlator__private_8h.md))
 * **det\_noise\_chunk** ([**correlator\_private.h**](correlator__private_8h.md))

@@ -303,6 +303,14 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
  * of how it was split into calls.  One object is single-threaded: never
  * push it from two threads at once.
  *
+ * A detector takes its frames through dp_correlator_push() alone: every
+ * execute, batch and bank call refuses it with SIZE_MAX and nothing
+ * changed, since a frame from outside would put the dwell off the framer's
+ * grid.  dp_correlator_reset() also drops its carry (the partial frame held
+ * between pushes), and its last dump's fields (the peak, noise_est,
+ * test_stat) read 0 until the next dump, so the blob after a reset matches
+ * a fresh object's (doppler#2642); dp_correlator_consumed() reads 0.
+ *
  * @code
  * // header-code: skip=a stream-loop fragment: recv() and ref are the caller's
  * dp_correlator_state_t *det = dp_correlator_create_detector_1d (
@@ -363,6 +371,8 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
 void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
+int dp_correlator_state_check (const dp_correlator_state_t *state,
+                               const void *blob);
 
 #ifdef __cplusplus
 }

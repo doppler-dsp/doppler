@@ -2,10 +2,11 @@
  * @file dp_bench_pn.h
  * @brief A benchmark's m-sequence reference, from the shipped generator.
  *
- * Shared by bench_correlator_core.c and bench_detector_core.c (#2752
- * step 3.1b): each correlates a +-1 m-sequence against itself delayed, so a
- * row can check that the peak lands where it was planted. One copy, so the two
- * benches cannot drift apart in how they build it. A bench that includes this
+ * Shared by bench_correlator_core.c's short rows (#2752 step 3.1b): the
+ * correlator's and the 1-D detector's each correlate a +-1 m-sequence
+ * against itself delayed, so a row can check that the peak lands where it
+ * was planted. One copy, so the rows cannot drift apart in how they build
+ * it. A bench that includes this
  * links pn_core and cvt_core (its directory's *_extra.cmake).
  */
 #ifndef DP_BENCH_PN_H

@@ -434,6 +434,51 @@ main (void)
     dp_carrier_acq_destroy (cr);
   }
 
+  /* ── a refused detector child changes nothing, the PSD included ──────
+     'CAQR' nests the PSD's blob and then the 1-D detector's 'CORL'. A
+     restore that wrote the PSD before reading the detector's child left a
+     PSD restored behind a refusal; both children are now checked first
+     (#2752 step 3.3). The detector's child is forged at its magic, and the
+     target, fed other noise, must read back exactly as it was. ── */
+  {
+    dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
+    dp_carrier_acq_state_t *cr = dp_carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+        0, 1e-3, 0.9, 2.0, true, MAX_N_BLOCKS);
+    DP_REQUIRE (ca != NULL && cr != NULL);
+    const size_t    n  = ca->psd->k.n;
+    float _Complex *na = _make_noise (3 * n + 5, 3301u);
+    float _Complex *nb = _make_noise (2 * n + 9, 3302u);
+    dp_carrier_acq_steps (ca, na, 3 * n + 5);
+    dp_carrier_acq_steps (cr, nb, 2 * n + 9);
+    const size_t   bytes = dp_carrier_acq_state_bytes (ca);
+    unsigned char *blob = malloc (bytes), *pre = malloc (bytes),
+                  *post = malloc (bytes);
+    DP_REQUIRE (blob && pre && post);
+    dp_carrier_acq_get_state (ca, blob);
+    dp_carrier_acq_get_state (cr, pre);
+    DP_REQUIRE (memcmp (blob, pre, bytes) != 0); /* the two differ */
+    /* The extra header is seven 8-byte fields; the PSD's child follows. */
+    const size_t det = sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t)
+                       + dp_psd_state_bytes (ca->psd);
+    DP_REQUIRE (det + sizeof (dp_state_hdr_t) < bytes);
+    blob[det] ^= 0x5A;
+    DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_ERR_INVALID);
+    dp_carrier_acq_get_state (cr, post);
+    DP_CHECK (memcmp (pre, post, bytes) == 0);
+    blob[det] ^= 0x5A; /* the positive control: unforged, it loads */
+    DP_CHECK (dp_carrier_acq_set_state (cr, blob) == DP_OK);
+    free (blob);
+    free (pre);
+    free (post);
+    free (na);
+    free (nb);
+    dp_carrier_acq_destroy (ca);
+    dp_carrier_acq_destroy (cr);
+  }
+
   /* ── a version-2 AccTrace blob, nested in its PSD, is refused (#2094) ──
      The trace's mean is a sum in version 3, so a version-2 blob is refused
      through the PSD, and atomically: the PSD is the first thing restored and

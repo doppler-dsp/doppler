@@ -116,7 +116,7 @@ follows:
 distinction is real rather than cosmetic: a `steps` caller knows how much
 output a call produces before making it, and a `push` caller does not — which
 is exactly why `push` returns a **list** of records (`acq_result_t`,
-`det_result_t`) or a variable-length payload with a parallel `events()`, and
+`dp_correlator_hit_t`) or a variable-length payload with a parallel `events()`, and
 why its `*_max_out()` takes the input length. Naming an event-driven object
 `steps` would promise a rate it cannot honour.
 

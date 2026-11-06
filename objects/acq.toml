@@ -28,8 +28,8 @@ warnings = [
 # OBJECT-library object files do not propagate transitively through corr2d, so
 # fft2d/fft must be linked explicitly (as the spectral module does) for the
 # slow-time dp_fft_create + corr2d FFTs. detection_core supplies det_threshold/
-# det_pd for the auto-config. det_private.h / the detector2d header are
-# header-only (statics + the enum) → no link line needed for them.
+# det_pd for the auto-config. correlator_private.h is header-only (statics),
+# and the correlator link above supplies the rest.
 depends_on = [
     { name = "correlator", link = true },
     { name = "fft2d", link = true },

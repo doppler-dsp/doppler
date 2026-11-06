@@ -148,10 +148,6 @@
 
 #include "doppler/correlator/correlator_core.h"
 
-#include "doppler/detector/detector_core.h"
-
-#include "doppler/detector2d/detector2d_core.h"
-
 #include "doppler/psd/psd_core.h"
 
 #include "doppler/spectrogram/spectrogram_core.h"

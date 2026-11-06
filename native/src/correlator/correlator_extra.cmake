@@ -41,16 +41,19 @@ add_test(NAME test_correlator_1d COMMAND test_correlator_1d)
 # mapped by the shipped NRZ mapper.
 target_link_libraries(bench_correlator_core PRIVATE pn_core cvt_core)
 
-# test_detector_equiv: the 1-D detector against the 2-D one at one row, hit
-# for hit (#2752 step 3.3, docs/design/correlator.md section 7). It runs on
-# today's two detectors first, then on the correlator's detector flavors.
-add_executable(test_detector_equiv
-               ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_detector_equiv.c)
-target_link_libraries(test_detector_equiv
-                      PRIVATE detector_core detector2d_core correlator_core
-                              Threads::Threads fft2d_core fft_core
-                              ${JM_MATH_LIBRARY})
-target_include_directories(test_detector_equiv
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/tests)
-add_test(NAME test_detector_equiv COMMAND test_detector_equiv)
+# The detector flavors' tests (#2752 step 3.3). They came with
+# CorrDetector and CorrDetector2D when detector/ and detector2d/ were
+# deleted, as Corr's did in step 3.2, so they are registered here.
+#
+# test_detector_equiv: the 1-D detector flavor against the 2-D one at one
+# row, hit for hit (docs/design/correlator.md section 7). It ran first on
+# the retired detector/ and detector2d/.
+foreach(_t test_detector_equiv test_correlator_detector_1d
+           test_correlator_detector_2d)
+  add_executable(${_t} ${CMAKE_SOURCE_DIR}/native/tests/correlator/${_t}.c)
+  target_link_libraries(${_t} PRIVATE correlator_core Threads::Threads
+                                      fft2d_core fft_core ${JM_MATH_LIBRARY})
+  target_include_directories(${_t} PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                           ${CMAKE_SOURCE_DIR}/native/tests)
+  add_test(NAME ${_t} COMMAND ${_t})
+endforeach()

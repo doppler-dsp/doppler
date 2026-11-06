@@ -26,7 +26,6 @@ target_link_libraries(acquire PRIVATE
     burst_capture_core
     psd_core
     acc_trace_core
-    detector_core
     detection_core
     spectral_core
     correlator_core
@@ -57,7 +56,6 @@ target_link_libraries(test_acquire_core PRIVATE
     burst_capture_core
     psd_core
     acc_trace_core
-    detector_core
     detection_core
     spectral_core
     correlator_core
@@ -81,7 +79,6 @@ target_link_libraries(bench_acquire_core PRIVATE
     burst_capture_core
     psd_core
     acc_trace_core
-    detector_core
     detection_core
     spectral_core
     correlator_core

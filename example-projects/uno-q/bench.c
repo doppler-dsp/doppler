@@ -35,7 +35,6 @@
 #include <time.h>
 
 #include "doppler/correlator/correlator_core.h"
-#include "doppler/detector2d/detector2d_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 #include "doppler/fir/fir_core.h"
@@ -98,18 +97,18 @@ must (void *p)
 
 typedef struct
 {
-  dp_detector2d_state_t *det;
+  dp_correlator_state_t *det;
   const float _Complex  *in;
-  det_result2d_t         res[MAX_RESULTS];
+  dp_correlator_hit_t    res[MAX_RESULTS];
 } det_ctx_t;
 
 static void
 run_detector (void *c)
 {
   det_ctx_t *d = c;
-  dp_detector2d_reset (d->det);
+  dp_correlator_reset (d->det);
   for (int f = 0; f < DET_FRAMES; f++)
-    (void)dp_detector2d_push (d->det, d->in + (size_t)f * DET_BINS, DET_BINS,
+    (void)dp_correlator_push (d->det, d->in + (size_t)f * DET_BINS, DET_BINS,
                               d->res, MAX_RESULTS);
 }
 
@@ -219,7 +218,7 @@ main (int argc, char **argv)
   for (int i = 0; i < 2; i++)
     {
       det[i].in  = din;
-      det[i].det = must (dp_detector2d_create (
+      det[i].det = must (dp_correlator_create_detector_2d (
           dref, dny[i], dnx[i], 1, 1, DET_BINS - 1, DET_NOISE_MEAN, 0.0f, 1));
       (void)snprintf (dname[i], sizeof dname[i], "%zu x %zu bins", dny[i],
                       dnx[i]);

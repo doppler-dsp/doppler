@@ -85,7 +85,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
 |  size\_t | [**noise\_hi**](#variable-noise_hi)  <br> |
 |  size\_t | [**noise\_lo**](#variable-noise_lo)  <br> |
-|  [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) | [**noise\_mode**](#variable-noise_mode)  <br> |
+|  [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) | [**noise\_mode**](#variable-noise_mode)  <br> |
 |  float \* | [**noise\_scratch**](#variable-noise_scratch)  <br> |
 |  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
 |  [**acq\_part\_t**](structacq__part__t.md) \* | [**parts**](#variable-parts)  <br> |

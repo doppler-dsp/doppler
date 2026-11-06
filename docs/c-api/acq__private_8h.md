@@ -88,7 +88,7 @@ _Shared internals for acq\_core.c and its test._ [More...](#detailed-description
 ## Detailed Description
 
 
-Not part of the public API: nothing here is exported, and nothing here is promised to a caller. It exists so a rule that decides a result (the rate search's pick, the tile-edge alias's hop) can be unit-tested as a rule (test\_acq\_core.c includes it), the pattern [**detector/det\_private.h**](det__private_8h.md) follows. 
+Not part of the public API: nothing here is exported, and nothing here is promised to a caller. It exists so a rule that decides a result (the rate search's pick, the tile-edge alias's hop) can be unit-tested as a rule (test\_acq\_core.c includes it), the pattern [**correlator/correlator\_private.h**](correlator__private_8h.md) follows. 
 
 
     

@@ -1,19 +1,20 @@
 
 
-# File det\_private.h
+# File correlator\_private.h
 
 
 
-[**FileList**](files.md) **>** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) **>** [**det\_private.h**](det__private_8h.md)
+[**FileList**](files.md) **>** [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md) **>** [**correlator\_private.h**](correlator__private_8h.md)
 
-[Go to the source code of this file](det__private_8h_source.md)
+[Go to the source code of this file](correlator__private_8h_source.md)
 
-_Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detailed-description)
+_The correlator's detection layer: the ring, the noise estimate, the one peak picker and the framed push._ [More...](#detailed-description)
 
 * `#include <math.h>`
 * `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/f32_buffer/f32_buffer_core.h"`
 * `#include "doppler/util/util_core.h"`
 
@@ -31,11 +32,6 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 
 
 
-## Classes
-
-| Type | Name |
-| ---: | :--- |
-| struct | [**det\_peak\_t**](structdet__peak__t.md) <br>_One listed peak of a surface: its cell and value._  |
 
 
 ## Public Types
@@ -70,9 +66,9 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 | Type | Name |
 | ---: | :--- |
 |  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
-|  size\_t | [**det\_framed\_push**](#function-det_framed_push) (dp\_f32\_framer\_t \* fr, const float \_Complex \* in, size\_t n\_in, void \* result, size\_t max\_results, [**det\_frame\_step\_fn**](det__private_8h.md#typedef-det_frame_step_fn) step, void \* obj, size\_t \* consumed) <br>_The detectors' push: any chunk in through the ring's framer, frames of_ `n` _at hop_`n` _out through_`step` _, never a lost input._ |
-|  float | [**det\_noise\_chunk**](#function-det_noise_chunk) (const float \* mag, size\_t lo, size\_t hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_The per-chunk noise aggregates_  _MEAN, MIN, MAX_ _over bins &#91;lo, hi&#93;, needing no scratch buffer._ |
-|  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
+|  size\_t | [**det\_framed\_push**](#function-det_framed_push) (dp\_f32\_framer\_t \* fr, const float \_Complex \* in, size\_t n\_in, void \* result, size\_t max\_results, [**det\_frame\_step\_fn**](correlator__private_8h.md#typedef-det_frame_step_fn) step, void \* obj, size\_t \* consumed) <br>_The detectors' push: any chunk in through the ring's framer, frames of_ `n` _at hop_`n` _out through_`step` _, never a lost input._ |
+|  float | [**det\_noise\_chunk**](#function-det_noise_chunk) (const float \* mag, size\_t lo, size\_t hi, [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) mode) <br>_The per-chunk noise aggregates_  _MEAN, MIN, MAX_ _over bins &#91;lo, hi&#93;, needing no scratch buffer._ |
+|  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
 |  size\_t | [**det\_peak\_list**](#function-det_peak_list) (const float \* surf, size\_t ny, size\_t nx, float gate, size\_t excl\_rows, size\_t excl\_cols, uint8\_t \* mask, [**det\_peak\_t**](structdet__peak__t.md) \* out, size\_t max\_peaks) <br>_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._ |
 |  size\_t | [**det\_peak\_scan**](#function-det_peak_scan) (const float \* surf, const uint8\_t \* mask, size\_t k0, size\_t k1) <br>_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._ |
 |  void | [**det\_peak\_zone**](#function-det_peak_zone) (uint8\_t \* mask, size\_t ny, size\_t nx, size\_t r, size\_t c, size\_t excl\_rows, size\_t excl\_cols) <br>_The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._ |
@@ -102,16 +98,11 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 
 
 
-## Macros
-
-| Type | Name |
-| ---: | :--- |
-| define  | [**DET\_PEAK\_T\_DEFINED**](det__private_8h.md#define-det_peak_t_defined)  <br> |
 
 ## Detailed Description
 
 
-Not part of the public API. Include after the module's own header so that det\_noise\_mode\_t is already defined via the DET\_NOISE\_MODE\_T\_DEFINED guard in [**detector\_core.h**](detector__core_8h.md) / [**detector2d\_core.h**](detector2d__core_8h.md). 
+Not part of the public API. The correlator's detector flavors and the acquisition engine include it (docs/design/correlator.md section 4: the stream and detection layers, once). 
 
 
     
@@ -170,7 +161,7 @@ static inline size_t det_framed_push (
 
 
 
-[**dp\_detector\_push()**](detector__core_8h.md#function-dp_detector_push) and [**dp\_detector2d\_push()**](detector2d__core_8h.md#function-dp_detector2d_push) are this, with their own step. Each frame yields at most one result, so the framer is fed only what completes as many WHOLE frames as `result` has room for, and no partial frame past them  dp\_f32\_framer\_feed\_frames(), the rule acq shares  and every frame fed is drained before the next feed. That makes a batch exact rather than an estimate: a batch can never write past the room (each frame takes at most one slot) or strand a whole frame in the framer (all are drained). Break either and the push overfills `result` or strands frames; acq breaks the first (a dump reports several peaks), which is why it has its own drain.
+[**dp\_correlator\_push()**](correlator__core_8h.md#function-dp_correlator_push) is this, with the detector flavors' step. Each frame yields at most one result, so the framer is fed only what completes as many WHOLE frames as `result` has room for, and no partial frame past them  dp\_f32\_framer\_feed\_frames(), the rule acq shares  and every frame fed is drained before the next feed. That makes a batch exact rather than an estimate: a batch can never write past the room (each frame takes at most one slot) or strand a whole frame in the framer (all are drained). Break either and the push overfills `result` or strands frames; acq breaks the first (a dump reports several peaks), which is why it has its own drain.
 
 
 Once `result` is full  and with no room it is full from the start  the push takes the rest of its input only if the rest completes no frame (dp\_f32\_framer\_feed\_carry()): that rest is then the carry, taken without loss. Otherwise it takes nothing more, so a push that stops short of its input stops on a frame boundary, never part-way into a frame it cannot report. A caller that cannot resume (Python: one call per push) loses only what a push leaves, and stays frame-aligned when that is a whole number of frames. A resume loop needs room for at least one: with none, a push takes nothing that completes a frame. Input that runs out mid-frame is the carry, held for the next call.
@@ -412,23 +403,7 @@ static inline dp_f32_t * det_ring_create (
 
 
 <hr>
-## Macro Definition Documentation
-
-
-
-
-
-### define DET\_PEAK\_T\_DEFINED 
-
-```C++
-#define DET_PEAK_T_DEFINED 
-```
-
-
-
-
-<hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/doppler/detector/det_private.h`
+The documentation for this class was generated from the following file `native/inc/doppler/correlator/correlator_private.h`
 

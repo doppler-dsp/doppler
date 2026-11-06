@@ -131,9 +131,10 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
    * Median noise aggregation is more CFAR-robust than mean here: the
    * mainlobe peak itself sits inside the same full span being
    * aggregated over, and a plain mean would be biased upward by it. */
-  s->det = dp_detector_create (ref, s->nfft, /*dwell=*/1, /*noise_lo=*/0,
-                               /*noise_hi=*/s->nfft - 1, DET_NOISE_MEDIAN,
-                               /*threshold=*/0.0f, /*nthreads=*/1);
+  s->det = dp_correlator_create_detector_1d (
+      ref, s->nfft, /*dwell=*/1, /*noise_lo=*/0,
+      /*noise_hi=*/s->nfft - 1, DET_NOISE_MEDIAN,
+      /*threshold=*/0.0f, /*nthreads=*/1);
   free (ref);
   if (!s->det)
     {
@@ -150,7 +151,7 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
       free (s->pwr_buf);
       free (s->power_buf);
       free (s->carry_buf);
-      dp_detector_destroy (s->det);
+      dp_correlator_destroy (s->det);
       dp_psd_destroy (s->psd);
       free (s);
       return NULL;
@@ -179,7 +180,7 @@ dp_carrier_acq_destroy (dp_carrier_acq_state_t *state)
   if (!state)
     return;
   dp_psd_destroy (state->psd);
-  dp_detector_destroy (state->det);
+  dp_correlator_destroy (state->det);
   free (state->pwr_buf);
   free (state->power_buf);
   free (state->carry_buf);
@@ -190,23 +191,23 @@ void
 dp_carrier_acq_reset (dp_carrier_acq_state_t *state)
 {
   dp_psd_reset (state->psd);
-  dp_detector_reset (state->det);
+  dp_correlator_reset (state->det);
   state->carry_len   = 0;
   state->n_blocks    = 0;
   state->ready       = false;
   state->residual_hz = 0.0;
 }
 
-/* Sub-bin refine the peak at `lag` directly off dp_detector_state_t's own
- * out_buf (the correlation map from the dump that just fired -- no
+/* Sub-bin refine the peak at `lag` directly off the detector's own
+ * det_out (the correlation map from the dump that just fired -- no
  * second correlation pass needed) and mark ready. */
 static void
 carrier_acq_finish (dp_carrier_acq_state_t *s, size_t lag)
 {
   size_t nfft    = s->nfft;
-  float  y1      = crealf (s->det->out_buf[(lag + nfft - 1) % nfft]);
-  float  y2      = crealf (s->det->out_buf[lag]);
-  float  y3      = crealf (s->det->out_buf[(lag + 1) % nfft]);
+  float  y1      = crealf (s->det->det_out[(lag + nfft - 1) % nfft]);
+  float  y2      = crealf (s->det->det_out[lag]);
+  float  y3      = crealf (s->det->det_out[(lag + 1) % nfft]);
   double frac    = carrier_acq_parabolic_offset (y1, y2, y3);
   double bin_pos = (double)lag + frac;
   if (bin_pos > (double)nfft / 2.0)
@@ -295,12 +296,13 @@ carrier_acq_process_block (dp_carrier_acq_state_t *s,
     s->power_buf[k] = s->pwr_buf[k] + 0.0f * I;
 
   float eta_nc = carrier_acq_ratio_threshold (s, s->n_blocks);
-  dp_detector_set_threshold (s->det, eta_nc);
+  (void)dp_correlator_set_threshold (s->det, eta_nc); /* a detector: DP_OK */
 
-  det_result_t result[1];
-  size_t n_res = dp_detector_push (s->det, s->power_buf, s->nfft, result, 1);
+  /* One hit at most (one frame); at one row its col is the lag. */
+  dp_correlator_hit_t result[1];
+  size_t n_res = dp_correlator_push (s->det, s->power_buf, s->nfft, result, 1);
   if (n_res > 0)
-    carrier_acq_finish (s, result[0].lag);
+    carrier_acq_finish (s, result[0].col);
 }
 
 void
@@ -365,7 +367,7 @@ size_t
 dp_carrier_acq_state_bytes (const dp_carrier_acq_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (carrier_acq_extra_t)
-         + dp_psd_state_bytes (s->psd) + dp_detector_state_bytes (s->det)
+         + dp_psd_state_bytes (s->psd) + dp_correlator_state_bytes (s->det)
          + s->psd->k.n * sizeof (float _Complex);
 }
 
@@ -385,7 +387,7 @@ dp_carrier_acq_get_state (const dp_carrier_acq_state_t *s, void *blob)
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   DP_W_CHILD (&_w, dp_psd, s->psd);
-  DP_W_CHILD (&_w, dp_detector, s->det);
+  DP_W_CHILD (&_w, dp_correlator, s->det);
   /* Only the first carry_len samples are state. The rest of the buffer is
      whatever an earlier block left there, or what malloc handed back, so
      writing it made the blob a function of the allocator, not of the
@@ -420,7 +422,7 @@ dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
   if (!(fabs (extra.residual_hz) <= 0.5 * s->sample_rate_hz))
     return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_psd, s->psd);
-  DP_R_CHILD (&_r, dp_detector, s->det);
+  DP_R_CHILD (&_r, dp_correlator, s->det);
   dp_r_cf32 (&_r, s->carry_buf, s->psd->k.n);
   s->n_blocks    = (size_t)extra.n_blocks;
   s->ready       = (bool)extra.ready;

@@ -18,7 +18,7 @@
 #include "../../src/correlator/correlator_map.h"
 #include "doppler/acq/acq_core.h"
 #include "doppler/acq/acq_private.h"
-#include "doppler/detector/det_private.h"
+#include "doppler/correlator/correlator_private.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/gold/gold_core.h"
@@ -4071,7 +4071,7 @@ main (void)
    * rule ──
    */
   {
-    /* det_private.h's other statics are the engine's; naming them keeps
+    /* correlator_private.h's other statics are the engine's; naming them keeps
        the compiler quiet about a header-only helper this test does not
        call. */
     (void)det_ring_create;

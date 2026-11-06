@@ -1,8 +1,12 @@
-"""Certify `CorrDetector2D` — the CFAR decision over a Corr2D surface.
+"""Part two of the correlator's report: `CorrDetector2D`, the CFAR decision
+over a Corr2D surface.
 
-Run:  python -m doppler.spectral.tests.validation.detector2d.validate
-      make validate          (regenerates every report)
-      make validate-check    (fails if the committed report is stale)
+Not run on its own. `validate.py` in this folder renders the one report
+for the one object (#2752 step 3.3, docs/design/correlator.md section 7):
+its own sections for the map flavors, then this module's for the 2-D
+detector flavor, numbered on from them, and one executive summary, one
+findings list and one limits table for both. `attach()` hands this module
+the report it writes into.
 
 `Corr2D` produces the surface; this object turns it into a decision. It owns
 three things the correlator does not: a ring that lets a caller push chunks of
@@ -15,23 +19,29 @@ wrong statistic moves every `test_stat` in the tree without changing a single
 peak. Three of its four modes were exercised by nothing at all before this
 certification (§3 finding `noise_modes_unexercised`).
 
-`Corr2D`'s own envelope is certified separately and not re-derived here; see
-`src/doppler/spectral/tests/validation/correlator/results.md`.
+`Corr2D`'s own envelope is part one of the same report, and not re-derived
+here.
 """
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
 from doppler.spectral import CorrDetector2D
-from doppler.tests._validation_common import Report, cli
+from doppler.tests._validation_common import Report
 
 HERE = Path(__file__).resolve().parent
 R = Report()
+
+
+def attach(report: Report) -> None:
+    """Write into `report`, the correlator report's, from here on."""
+    global R
+    R = report
+
 
 NY = NX = 8
 N = NY * NX
@@ -86,7 +96,7 @@ def _surface(r: np.random.Generator, peak_at: int, peak: float) -> np.ndarray:
 
 
 def _agg(mag: np.ndarray, lo: int, hi: int, mode: str) -> float:
-    """The aggregate, by definition — the external truth for §2.1."""
+    """The aggregate, by definition — the external truth for §2.12."""
     w = mag[lo : hi + 1]
     return float(
         {"mean": np.mean, "median": np.median, "min": np.min, "max": np.max}[
@@ -111,11 +121,12 @@ def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
 
 
 def section_object() -> None:
-    R.md("## 1. The object — a decision over a correlation surface")
+    R.md("### 1.2 Part two: CorrDetector2D, a decision over the surface")
     R.md()
     R.md(
-        "`CorrDetector2D` chunks an arbitrary-length stream into `ny x nx` "
-        "frames, correlates each through an embedded `Corr2D`, estimates a "
+        "`CorrDetector2D` is the correlator's 2-D detector flavor. It chunks "
+        "an arbitrary-length stream into `ny x nx` frames, correlates each on "
+        "the map part one certifies, estimates a "
         "noise floor over a configurable window, and emits "
         "`(row, col, peak_mag, noise_est, test_stat)` when "
         "`test_stat > threshold`."
@@ -138,21 +149,21 @@ def section_object() -> None:
                 "surface and what the interpolated form changes about it",
             ],
             [
-                "[`correlator`'s report](../correlator/results.md)",
-                "the correlation surface this object decides on — not "
+                "part one of this report (§2.1 to §2.11)",
+                "the correlation surface this flavor decides on — not "
                 "re-derived here",
             ],
             [
-                "`native/inc/doppler/detector2d/detector2d_core.h`",
+                "`native/inc/doppler/correlator/correlator_core.h`",
                 "the contract per function — the SSOT this report audits",
             ],
         ],
     )
-    R.md("### 1.1 The claim inventory")
+    R.md("### 1.3 CorrDetector2D's claim inventory")
     R.md()
     R.md(
         "Step 1 of `docs/dev/contributing/validation.md`. The C test is "
-        "`test_detector2d_core.c`. Four rows were **absent** when this "
+        "`test_correlator_detector_2d.c`. Four rows were **absent** when this "
         "certification began, and the first of them covers the denominator "
         "of every decision the object makes."
     )
@@ -165,34 +176,34 @@ def section_object() -> None:
                 "of four modes",
                 "**was `mean` only** — median/min/max had zero mentions in "
                 "C and Python",
-                "§2.1",
+                "§2.12",
             ],
             [
                 "`test_stat = peak_mag / noise_est`, 0 when `noise_est == 0`",
                 "C, now against the reported fields",
-                "§2.2",
+                "§2.13",
             ],
             [
                 "the flat peak index decomposes to `(row, col)`",
                 "C, at two positions",
-                "§2.3",
+                "§2.14",
             ],
             [
                 "a chunk of any length may be pushed",
                 "C, sub-frame; here across 6 chunk sizes",
-                "§2.4",
+                "§2.15",
             ],
             [
                 "an event is emitted when `test_stat > threshold`; 0 always "
                 "fires",
                 "C, now including the exclusive boundary",
-                "§2.5",
+                "§2.16",
             ],
             [
                 "the last-dump fields update on every dump **regardless of "
                 "threshold**",
                 "**was nothing** — now C",
-                "§2.5",
+                "§2.16",
             ],
             [
                 "`set_ref` replaces the reference, always resets, and "
@@ -208,14 +219,14 @@ def section_object() -> None:
             [
                 "`dwell` must be >= 1",
                 "C, refusal inherited from `dp_correlator_create_2d`",
-                "§2.7",
+                "§2.18",
             ],
             [
                 "`reset` drains the ring and the accumulator",
                 "C + Python",
-                "§2.6",
+                "§2.17",
             ],
-            ["the state triplet round-trips", "C + Python", "§2.6"],
+            ["the state triplet round-trips", "C + Python", "§2.17"],
         ],
     )
 
@@ -225,10 +236,6 @@ def section_object() -> None:
 
 def characterise() -> Data:
     d = Data()
-    R.md("## 2. Characterisation")
-    R.md()
-    R.md("Measured behaviour. No verdicts — those are §3.")
-    R.md()
     _sec_modes(d)
     _sec_stat(d)
     _sec_peak(d)
@@ -240,7 +247,7 @@ def characterise() -> Data:
 
 
 def _sec_modes(d: Data) -> None:
-    R.md("### 2.1 All four noise modes, against the definition")
+    R.md("### 2.12 All four noise modes, against the definition")
     R.md()
     R.md(
         "`noise_est` is the denominator of every decision this object makes. "
@@ -296,7 +303,7 @@ def _sec_modes(d: Data) -> None:
 
 
 def _sec_stat(d: Data) -> None:
-    R.md("### 2.2 The test statistic is the ratio it says it is")
+    R.md("### 2.13 The test statistic is the ratio it says it is")
     R.md()
     worst = 0.0
     for tag, peak in enumerate((2.0, 8.0, 40.0)):
@@ -321,7 +328,7 @@ def _sec_stat(d: Data) -> None:
 
 
 def _sec_peak(d: Data) -> None:
-    R.md("### 2.3 The flat peak index decomposes to (row, col)")
+    R.md("### 2.14 The flat peak index decomposes to (row, col)")
     R.md()
     rows = []
     ok = True
@@ -351,7 +358,7 @@ def _sec_peak(d: Data) -> None:
 
 
 def _sec_chunking(d: Data) -> None:
-    R.md("### 2.4 The chunk size is not part of the answer")
+    R.md("### 2.15 The chunk size is not part of the answer")
     R.md()
     R.md(
         "A caller pushes whatever a socket handed them. The ring makes that "
@@ -402,7 +409,7 @@ def _sec_chunking(d: Data) -> None:
 
 
 def _sec_gate(d: Data) -> None:
-    R.md("### 2.5 The threshold gate, including its exclusive boundary")
+    R.md("### 2.16 The threshold gate, including its exclusive boundary")
     R.md()
     x = _surface(_rng(4), peak_at=0, peak=8.0)
     det0 = CorrDetector2D(
@@ -463,7 +470,7 @@ def _sec_gate(d: Data) -> None:
 
 
 def _sec_lifecycle(d: Data) -> None:
-    R.md("### 2.6 Dwell, reset and the state triplet")
+    R.md("### 2.17 Dwell, reset and the state triplet")
     R.md()
     x = _surface(_rng(5), peak_at=3, peak=6.0)
     det = CorrDetector2D(
@@ -536,7 +543,7 @@ def _sec_lifecycle(d: Data) -> None:
 
 
 def _sec_refusals(d: Data) -> None:
-    R.md("### 2.7 What it refuses")
+    R.md("### 2.18 What it refuses")
     R.md()
     try:
         CorrDetector2D(
@@ -596,7 +603,7 @@ def _sec_refusals(d: Data) -> None:
     )
     R.md(
         "The second row is the precondition for every other measurement in "
-        "§2.1: if the window bounds were ignored, all four modes would "
+        "§2.12: if the window bounds were ignored, all four modes would "
         "still agree with an aggregate computed over the same range and the "
         "whole section would pass while reading the wrong cells."
     )
@@ -607,8 +614,6 @@ def _sec_refusals(d: Data) -> None:
 
 
 def review(d: Data) -> None:
-    R.md("## 3. Review — findings")
-    R.md()
     R.find(
         "noise_modes_unexercised",
         "FIXED",
@@ -656,14 +661,14 @@ def review(d: Data) -> None:
         "entry_points_no_python_face",
         "C-ONLY",
         "Two entry points have no Python face and are certified in "
-        "`native/tests/detector2d/test_detector2d_core.c`: "
-        f"`dp_detector2d_set_ref` ({R.ref('set_ref_no_coverage_either')} "
-        "above) and `dp_detector2d_set_threshold` — the `threshold` property "
+        "`native/tests/correlator/test_correlator_detector_2d.c`: "
+        f"`dp_correlator_set_ref` ({R.ref('set_ref_no_coverage_either')} "
+        "above) and `dp_correlator_set_threshold` — the `threshold` property "
         "is read-only from Python, so a caller who wants to re-gate a "
         "running detector must rebuild it or drop to C. The last-dump "
         "scalars (`peak_row`, `peak_col`, `peak_mag`, `noise_est`, "
         "`test_stat`) are likewise C-only as scalars, though `last_corr` "
-        "exposes the surface they are derived from, which is what §2.5 "
+        "exposes the surface they are derived from, which is what §2.16 "
         f"uses to reach {R.ref('last_dump_comment_wrong')}'s claim from "
         "Python.",
     )
@@ -688,14 +693,6 @@ def review(d: Data) -> None:
 
 
 def limits(d: Data) -> None:
-    R.md("## 4. Limits — the certified envelope")
-    R.md()
-    R.md(
-        "Claims a caller may rely on. A failure here is a regression, not a "
-        "new finding. Every one is asserted by "
-        "`src/doppler/spectral/tests/test_validation_limits.py`."
-    )
-    R.md()
     R.limit(
         d.mode_worst < 1e-4,
         f"all four noise modes match the aggregate computed by definition "
@@ -764,50 +761,3 @@ def limits(d: Data) -> None:
         "the default noise window is the whole surface — the SIZE_MAX "
         "sentinel the binding passes is clamped, not propagated",
     )
-
-
-# ── build ─────────────────────────────────────────────────────────────
-
-
-def build(write: bool = True) -> Report:
-    global R
-    R = Report(write=write)
-    R.md("# CorrDetector2D — validation report")
-    R.md()
-    section_object()
-    d = characterise()
-    review(d)
-    limits(d)
-    R.executive(
-        "CorrDetector2D",
-        [
-            "**The noise estimate is the object.** It is the denominator of "
-            "every decision, and three of its four modes were exercised by "
-            "nothing before this certification — a mode selecting the wrong "
-            "statistic moves every `test_stat` in the library without "
-            "changing a single peak position (§2.1, "
-            f"{R.ref('noise_modes_unexercised')}).",
-            "**The chunk size is not part of the answer.** Six slicings of "
-            "one stream, down to a single sample per `push`, produce the "
-            "same event sequence — which is what makes the ring worth "
-            "having (§2.4).",
-            "**The gate is strict.** A threshold exactly equal to the "
-            "statistic emits nothing, and `0.0` is the documented "
-            "always-fire case rather than a very low threshold (§2.5).",
-            "**Raising the gate does not blind you.** `last_corr` still "
-            "follows the surface when nothing is emitted, so a caller can "
-            "tighten the decision and keep the diagnostic (§2.5, "
-            f"{R.ref('last_dump_comment_wrong')}).",
-            "**Re-gating a running detector needs C.** `threshold` is "
-            "read-only from Python and `set_threshold` has no binding, so "
-            "an adaptive-threshold caller rebuilds the object or drops to "
-            f"the C API ({R.ref('entry_points_no_python_face')}).",
-        ],
-    )
-    R.summary("\n- Raw sweep: `data/noise_modes.csv`")
-    R.emit(HERE / "results.md")
-    return R
-
-
-if __name__ == "__main__":
-    sys.exit(cli(build, HERE))

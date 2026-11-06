@@ -1,5 +1,6 @@
 #include "doppler/correlator/correlator_core.h"
 #include "correlator_map.h"
+#include "doppler/correlator/correlator_private.h"
 
 #include "doppler/clib_common.h"
 #include "doppler/dp_complex.h"
@@ -7,6 +8,20 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* The detector flavors: the stream and detection layers on top of the map
+   (docs/design/correlator.md section 4). They take frames through push
+   alone, so every execute, batch and bank call refuses them. */
+static inline int
+corr2d_is_detector (const dp_correlator_state_t *s)
+{
+  return s->flavor == DP_CORRELATOR_DETECTOR_1D
+         || s->flavor == DP_CORRELATOR_DETECTOR_2D;
+}
+
+static size_t corr2d_execute (dp_correlator_state_t *state,
+                              const float _Complex *in, size_t n_in,
+                              float _Complex *out, size_t max_out);
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -146,8 +161,8 @@ dp_correlator_create_2d (const float _Complex *ref, size_t ny, size_t nx,
      accumulates every frame it is given and emits nothing until count wraps
      at SIZE_MAX. A caller whose dwell came from a computed value that
      underflowed gets silence and unbounded accumulation rather than an
-     error. dp_detector2d_create forwards its own dwell straight here, so
-     validating at the primitive covers both objects. */
+     error. dp_correlator_create_detector_2d forwards its own dwell straight
+     here, so validating at the primitive covers both objects. */
   if (dwell < 1)
     {
       free (state);
@@ -275,6 +290,150 @@ dp_correlator_create_1d (const float _Complex *ref, size_t ref_len,
   return state;
 }
 
+/* ── Detector flavors (docs/design/correlator.md section 4) ─────────────── */
+
+/* The stream and detection layers, on a correlator create_2d built: the
+   ring and its framer (frames of n at hop n, so they tile the stream), the
+   dump buffer, its magnitudes and the median's scratch.  Returns 0, or -1
+   when the ring cannot be made (the caller destroys). */
+static int
+corr2d_detection_build (dp_correlator_state_t *s, size_t noise_lo,
+                        size_t noise_hi, det_noise_mode_t noise_mode,
+                        float threshold)
+{
+  const size_t n = s->n;
+  /* Clamp the noise window to [0, n-1]. The binding passes a SIZE_MAX
+     sentinel (default_raw) for the documented "n-1" full-window default;
+     without this clamp it would overflow the scratch sizing below and read
+     mag_buf out of bounds in det_noise_estimate. */
+  const size_t hi = (noise_hi < n) ? noise_hi : n - 1;
+  const size_t lo = (noise_lo < n) ? noise_lo : n - 1;
+  s->noise_lo     = (lo <= hi) ? lo : hi;
+  s->noise_hi     = (lo <= hi) ? hi : lo;
+  s->noise_mode   = noise_mode;
+  s->threshold    = threshold;
+
+  s->ring = det_ring_create (n > 512 ? n : 512);
+  if (!s->ring)
+    return -1;
+  s->ring_cap = s->ring->capacity;
+  if (dp_f32_framer_init (&s->framer, s->ring, n, n) != DP_OK)
+    return -1;
+  /* Sized from the map's own n, already built: only genuine OOM fails
+     here, so these abort through the helpers (clib_common.h). */
+  s->det_out       = dp_xmalloc (n * sizeof *s->det_out);
+  s->mag_buf       = dp_xmalloc (n * sizeof *s->mag_buf);
+  s->noise_scratch = dp_xmalloc ((s->noise_hi - s->noise_lo + 1)
+                                 * sizeof *s->noise_scratch);
+  return 0;
+}
+
+dp_correlator_state_t *
+dp_correlator_create_detector_2d (const float _Complex *ref, size_t ny,
+                                  size_t nx, size_t dwell, size_t noise_lo,
+                                  size_t noise_hi, det_noise_mode_t noise_mode,
+                                  float threshold, int nthreads)
+{
+  dp_correlator_state_t *s
+      = dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, 0, 0, -1);
+  if (!s)
+    return NULL;
+  s->flavor = DP_CORRELATOR_DETECTOR_2D;
+  if (corr2d_detection_build (s, noise_lo, noise_hi, noise_mode, threshold))
+    {
+      dp_correlator_destroy (s);
+      return NULL;
+    }
+  return s;
+}
+
+/* The 1-D detector is the 2-D one at one row (test_detector_equiv), on the
+   1-D flavor's direct single-row call. */
+dp_correlator_state_t *
+dp_correlator_create_detector_1d (const float _Complex *ref, size_t ref_len,
+                                  size_t dwell, size_t noise_lo,
+                                  size_t noise_hi, det_noise_mode_t noise_mode,
+                                  float threshold, int nthreads)
+{
+  dp_correlator_state_t *s = dp_correlator_create_detector_2d (
+      ref, 1, ref_len, dwell, noise_lo, noise_hi, noise_mode, threshold,
+      nthreads);
+  if (s)
+    s->flavor = DP_CORRELATOR_DETECTOR_1D;
+  return s;
+}
+
+/* The last dump's statistic, from det_out: the magnitudes, the one peak
+   picker at one peak and no gate (the first maximum; a NaN is never the
+   peak, so an all-NaN map lists nothing and reads (0, 0) at 0), the noise
+   floor and their ratio. */
+static void
+corr2d_detection_stat (dp_correlator_state_t *s)
+{
+  const size_t n = s->n;
+  for (size_t k = 0; k < n; k++)
+    s->mag_buf[k] = cabsf (s->det_out[k]);
+
+  det_peak_t pk = { 0 };
+  (void)det_peak_list (s->mag_buf, s->ny, s->nx, -1.0f, 0, 0, NULL, &pk, 1);
+  s->peak_row = pk.row;
+  s->peak_col = pk.col;
+  s->peak_mag = pk.value;
+
+  s->noise_est = det_noise_estimate (s->mag_buf, s->noise_lo, s->noise_hi,
+                                     s->noise_scratch, s->noise_mode);
+  s->test_stat = (s->noise_est > 0.0f) ? (s->peak_mag / s->noise_est) : 0.0f;
+}
+
+/* One frame of dp_correlator_push(), the step det_framed_push() drives:
+   correlate, and on a dump that passes the gate write ONE hit. */
+static int
+corr2d_detection_step (void *obj, const float _Complex *frame, void *result,
+                       size_t slot)
+{
+  dp_correlator_state_t *s = (dp_correlator_state_t *)obj;
+  if (corr2d_execute (s, frame, s->n, s->det_out, s->n) == 0)
+    return 0; /* still accumulating: no dump yet */
+
+  s->_last_corr_valid = 1;
+  corr2d_detection_stat (s);
+  if (s->threshold == 0.0f || s->test_stat > s->threshold)
+    {
+      ((dp_correlator_hit_t *)result)[slot]
+          = (dp_correlator_hit_t){ s->peak_row, s->peak_col, s->peak_mag,
+                                   s->noise_est, s->test_stat };
+      return 1;
+    }
+  return 0;
+}
+
+size_t
+dp_correlator_push (dp_correlator_state_t *state, const float _Complex *in,
+                    size_t n_in, dp_correlator_hit_t *result,
+                    size_t max_results)
+{
+  if (!corr2d_is_detector (state))
+    return SIZE_MAX;
+  /* The drain, its contract and why a batch is exact: correlator_private.h. */
+  return det_framed_push (&state->framer, in, n_in, result, max_results,
+                          corr2d_detection_step, state, &state->consumed);
+}
+
+size_t
+dp_correlator_consumed (const dp_correlator_state_t *state)
+{
+  return state->consumed;
+}
+
+int
+dp_correlator_set_threshold (dp_correlator_state_t *state, float threshold)
+{
+  if (!corr2d_is_detector (state))
+    return DP_ERR_INVALID;
+  state->threshold = threshold;
+  return DP_OK;
+}
+
 void
 dp_correlator_destroy (dp_correlator_state_t *state)
 {
@@ -314,6 +473,11 @@ dp_correlator_destroy (dp_correlator_state_t *state)
   free (state->ztmp);
   free (state->zcol);
   free (state->zcolout);
+  if (state->ring)
+    dp_f32_destroy (state->ring);
+  free (state->det_out);
+  free (state->mag_buf);
+  free (state->noise_scratch);
   free (state);
 }
 
@@ -322,6 +486,18 @@ dp_correlator_reset (dp_correlator_state_t *state)
 {
   memset (state->accum, 0, state->n * sizeof (*state->accum));
   state->count = 0;
+  if (!corr2d_is_detector (state))
+    return;
+  dp_f32_framer_reset (&state->framer);
+  state->_last_corr_valid = 0;
+  state->consumed         = 0;
+  /* The last dump's result is in the blob, so a reset that kept it would
+     serialize a dump this fresh cycle never made (doppler#2642). */
+  state->peak_row  = 0;
+  state->peak_col  = 0;
+  state->peak_mag  = 0.0f;
+  state->noise_est = 0.0f;
+  state->test_stat = 0.0f;
 }
 
 /* Serializable state — one blob for every flavor (docs/design/correlator.md
@@ -346,8 +522,14 @@ dp_correlator_reset (dp_correlator_state_t *state)
 size_t
 dp_correlator_state_bytes (const dp_correlator_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t)
-         + s->n * sizeof (float _Complex);
+  size_t b = sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t)
+             + s->n * sizeof (float _Complex);
+  /* A detector flavor: noise_lo, noise_hi, noise_mode, the threshold, the
+     framer child, peak_row, peak_col, peak_mag, noise_est, test_stat. */
+  if (corr2d_is_detector (s))
+    b += 5 * sizeof (uint64_t) + 4 * sizeof (float)
+         + dp_f32_framer_state_bytes (&s->framer);
+  return b;
 }
 
 void
@@ -363,6 +545,18 @@ dp_correlator_get_state (const dp_correlator_state_t *s, void *blob)
   dp_w_u64 (&_w, s->nx_out);
   dp_w_u64 (&_w, s->count);
   dp_w_cf32 (&_w, s->accum, s->n);
+  if (!corr2d_is_detector (s))
+    return;
+  dp_w_u64 (&_w, s->noise_lo);
+  dp_w_u64 (&_w, s->noise_hi);
+  dp_w_u64 (&_w, (uint64_t)s->noise_mode);
+  dp_w_f32 (&_w, &s->threshold, 1);
+  DP_W_CHILD (&_w, dp_f32_framer, &s->framer);
+  dp_w_u64 (&_w, s->peak_row);
+  dp_w_u64 (&_w, s->peak_col);
+  dp_w_f32 (&_w, &s->peak_mag, 1);
+  dp_w_f32 (&_w, &s->noise_est, 1);
+  dp_w_f32 (&_w, &s->test_stat, 1);
 }
 
 int
@@ -385,14 +579,62 @@ dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
       || fast != (uint64_t)s->fast_path || col != (uint64_t)(int64_t)s->col_out
       || nx_out != s->nx_out || count >= s->dwell)
     return DP_ERR_INVALID;
+  /* The accumulator is read in place and copied at commit, so the
+     detection payload after it is checked first. */
+  const void *accum = dp_r_reserve (&_r, s->n * sizeof (float _Complex));
+  if (!accum)
+    return DP_ERR_INVALID;
+  if (!corr2d_is_detector (s))
+    {
+      s->count = (size_t)count;
+      memcpy (s->accum, accum, s->n * sizeof (float _Complex));
+      return DP_OK;
+    }
+
+  /* A detector: its noise window and mode are reject keys (they decide
+     what the stored statistic means), and the framer's child blob is
+     checked without restoring it, so a refusal anywhere changes nothing. */
+  const uint64_t lo   = dp_r_u64 (&_r);
+  const uint64_t hi   = dp_r_u64 (&_r);
+  const uint64_t mode = dp_r_u64 (&_r);
+  float          thr;
+  dp_r_f32 (&_r, &thr, 1);
+  const void *fr = dp_r_reserve (&_r, dp_f32_framer_state_bytes (&s->framer));
+  uint64_t    frames;
+  if (lo != s->noise_lo || hi != s->noise_hi || mode != (uint64_t)s->noise_mode
+      || !fr || dp_f32_framer_state_frames (&s->framer, fr, &frames) != DP_OK)
+    return DP_ERR_INVALID;
+  const uint64_t row = dp_r_u64 (&_r);
+  const uint64_t c   = dp_r_u64 (&_r);
+  float          last[3];
+  dp_r_f32 (&_r, last, 3);
+
+  /* Commit: nothing below can refuse (the framer's blob was checked by the
+     same check its set_state runs). */
   s->count = (size_t)count;
-  dp_r_cf32 (&_r, s->accum, s->n);
+  memcpy (s->accum, accum, s->n * sizeof (float _Complex));
+  s->threshold = thr;
+  (void)dp_f32_framer_set_state (&s->framer, fr);
+  s->peak_row  = (size_t)row;
+  s->peak_col  = (size_t)c;
+  s->peak_mag  = last[0];
+  s->noise_est = last[1];
+  s->test_stat = last[2];
+  /* det_out is not carried, so there is no last map to view, and
+     consumed is per-call output, not state. */
+  s->_last_corr_valid = 0;
+  s->consumed         = 0;
   return DP_OK;
 }
 
 int
 dp_correlator_set_ref (dp_correlator_state_t *state, const float _Complex *ref)
 {
+  /* A detector resets even when the reference is then refused, as
+     CorrDetector2D always did: its carry and last dump belong to the old
+     reference either way. */
+  if (corr2d_is_detector (state))
+    dp_correlator_reset (state);
   if (state->fast_path)
     {
       /* Mode is fixed for the object's lifetime (see the header doc
@@ -690,9 +932,11 @@ corr2d_general_frame (const dp_correlator_state_t *s, const float _Complex *in,
   memset (acc, 0, s->n * sizeof *acc);
 }
 
-size_t
-dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
-                       size_t n_in, float _Complex *out, size_t max_out)
+/* One frame through the map flavors' and the detectors' shared path: the
+   public execute minus its flavor refusal, which push must not meet. */
+static size_t
+corr2d_execute (dp_correlator_state_t *state, const float _Complex *in,
+                size_t n_in, float _Complex *out, size_t max_out)
 {
   /* n_in must equal ny*nx; refuse before touching the accumulator, so a
    * refused call is not counted toward the dwell (#1925, as
@@ -724,8 +968,10 @@ dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
      corr2d_execute_fast the short frames ran 1-2% slower than Corr's own
      path did on main (n = 31 and 63, docs/design/correlator.md U1); this
      call is the same corr2d_row, so test_corr_equiv still holds it to the
-     2-D flavor at one row byte for byte. */
-  if (state->flavor == DP_CORRELATOR_1D)
+     2-D flavor at one row byte for byte.  The 1-D detector is the same
+     row, so it takes the same call (test_detector_equiv). */
+  if (state->flavor == DP_CORRELATOR_1D
+      || state->flavor == DP_CORRELATOR_DETECTOR_1D)
     {
       const int dump = (++state->count == state->dwell);
       corr2d_row (state, 0, in, state->accum, state->work_fft, state->work_pad,
@@ -778,6 +1024,15 @@ dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
     memcpy (out, dst, cap * sizeof *out);
   state->count = 0;
   return cap;
+}
+
+size_t
+dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
+                       size_t n_in, float _Complex *out, size_t max_out)
+{
+  if (corr2d_is_detector (state))
+    return SIZE_MAX;
+  return corr2d_execute (state, in, n_in, out, max_out);
 }
 
 dp_correlator_state_t *
@@ -839,10 +1094,14 @@ dp_correlator_create_delay_doppler (const float _Complex *code,
 /* ── Batches (#2683) ───────────────────────────────────────────────────────
  */
 
-/* Frames in a batch of n_in samples, or 0 when it is empty or ragged. */
+/* Frames in a batch of n_in samples, or 0 when it is empty or ragged, or
+   when s is a detector flavor: every batch call tests this first, so 0 is
+   how each of them refuses a detector (SIZE_MAX, nothing written). */
 static size_t
 corr2d_frames (const dp_correlator_state_t *s, size_t n_in)
 {
+  if (corr2d_is_detector (s))
+    return 0;
   return (n_in % s->n) ? 0 : n_in / s->n;
 }
 
@@ -1278,7 +1537,8 @@ static int
 corr2d_bank_check (const dp_correlator_state_t *s, size_t x_len, size_t L,
                    int g_min, int g_max, size_t rates_len, corr2d_bank_t *b)
 {
-  if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0)
+  if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0
+      || corr2d_is_detector (s))
     return 0;
   const size_t C = (size_t)((long long)g_max - (long long)g_min + 1);
   const size_t R = rates_len ? rates_len / s->ny : 1;

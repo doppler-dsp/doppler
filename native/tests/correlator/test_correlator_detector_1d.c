@@ -1,4 +1,4 @@
-#include "doppler/detector/detector_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "dp_chunk_inv.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -24,14 +24,15 @@ static void *
 ci_det_create (void *arg)
 {
   const ci_det_cfg_t *c = (const ci_det_cfg_t *)arg;
-  return dp_detector_create (c->ref, N, c->dwell, c->noise_lo, c->noise_hi,
-                             c->noise_mode, c->threshold, 1);
+  return dp_correlator_create_detector_1d (c->ref, N, c->dwell, c->noise_lo,
+                                           c->noise_hi, c->noise_mode,
+                                           c->threshold, 1);
 }
 
 static void
 ci_det_destroy (void *obj)
 {
-  dp_detector_destroy ((dp_detector_state_t *)obj);
+  dp_correlator_destroy ((dp_correlator_state_t *)obj);
 }
 
 /* out_cap is the result cap: sized so no call can fill it (one result per
@@ -39,9 +40,9 @@ ci_det_destroy (void *obj)
 static size_t
 ci_det_push (void *obj, const void *in, size_t n, void *out, size_t out_cap)
 {
-  return dp_detector_push ((dp_detector_state_t *)obj,
-                           (const float _Complex *)in, n, (det_result_t *)out,
-                           out_cap);
+  return dp_correlator_push ((dp_correlator_state_t *)obj,
+                             (const float _Complex *)in, n,
+                             (dp_correlator_hit_t *)out, out_cap);
 }
 
 /* The stream both stream tests read: a random QPSK reference at irregular
@@ -67,7 +68,7 @@ ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
 
 /* Push x through d in seeded random chunks of 1..max_chunk samples with room
    for `cap` detections a call, each chunk re-offered from
-   dp_detector_consumed() until it is used up, and return the detections in
+   dp_correlator_consumed() until it is used up, and return the detections in
    got[]. Counts the calls that stopped short, the stops anywhere but on a
    frame boundary (frames tile the stream from sample 0, and a full push
    that stops short stops on one), and any call that wrote past its room --
@@ -75,13 +76,14 @@ ci_det_stream (float _Complex ref[N], float _Complex x[CI_LEN])
    call, and a call that changed it, or reports more than its room, counts.
    got[] has room for got_len results. */
 static size_t
-ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
-               size_t cap, size_t max_chunk, det_result_t *got, size_t got_len,
-               size_t *stops, size_t *wrong_stop, size_t *overfull)
+ci_det_resume (dp_correlator_state_t *d, const float _Complex *x, size_t len,
+               size_t cap, size_t max_chunk, dp_correlator_hit_t *got,
+               size_t got_len, size_t *stops, size_t *wrong_stop,
+               size_t *overfull)
 {
-  size_t       n_got = 0, off = 0;
-  uint32_t     r = 0x1895u;
-  det_result_t sentinel;
+  size_t              n_got = 0, off = 0;
+  uint32_t            r = 0x1895u;
+  dp_correlator_hit_t sentinel;
   memset (&sentinel, 0xA5, sizeof sentinel);
   *stops = *wrong_stop = *overfull = 0;
   while (off < len)
@@ -96,8 +98,8 @@ ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
           if (guard)
             got[n_got + cap] = sentinel;
           const size_t k
-              = dp_detector_push (d, x + off, offered, got + n_got, cap);
-          const size_t took = dp_detector_consumed (d);
+              = dp_correlator_push (d, x + off, offered, got + n_got, cap);
+          const size_t took = dp_correlator_consumed (d);
           if (k > cap
               || (guard
                   && memcmp (&got[n_got + cap], &sentinel, sizeof sentinel)
@@ -118,16 +120,16 @@ ci_det_resume (dp_detector_state_t *d, const float _Complex *x, size_t len,
   return n_got;
 }
 
-/* Exact, field by field: det_result_t has padding after its size_t and
+/* Exact, field by field: dp_correlator_hit_t has padding after its size_t and
    three floats, and the harness's default memcmp would compare that too.
    Each float is compared by its bytes, so -0.0 and +0.0 still differ. */
 static int
 ci_det_equal (const void *a, const void *b, size_t n)
 {
-  const det_result_t *x = (const det_result_t *)a;
-  const det_result_t *y = (const det_result_t *)b;
+  const dp_correlator_hit_t *x = (const dp_correlator_hit_t *)a;
+  const dp_correlator_hit_t *y = (const dp_correlator_hit_t *)b;
   for (size_t i = 0; i < n; i++)
-    if (x[i].lag != y[i].lag
+    if (x[i].col != y[i].col
         || memcmp (&x[i].peak_mag, &y[i].peak_mag, sizeof (float)) != 0
         || memcmp (&x[i].noise_est, &y[i].noise_est, sizeof (float)) != 0
         || memcmp (&x[i].test_stat, &y[i].test_stat, sizeof (float)) != 0)
@@ -144,17 +146,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (det != NULL);
     DP_CHECK (det->n == N);
     DP_CHECK (det->ring_cap >= N);
     DP_CHECK (det->ring != NULL);
-    DP_CHECK (det->corr != NULL);
+    DP_CHECK (det->flavor
+              == DP_CORRELATOR_DETECTOR_1D); /* the detector flavor */
     DP_CHECK (det->_last_corr_valid == 0);
 
-    dp_detector_destroy (det);
-    dp_detector_destroy (NULL); /* must not crash */
+    dp_correlator_destroy (det);
+    dp_correlator_destroy (NULL); /* must not crash */
   }
 
   /* ── noise_hi sentinel clamp ────────────────────────────────────── *
@@ -164,20 +167,20 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det = dp_detector_create (ref, N, 1, 0, (size_t)-1,
-                                                   DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 0, (size_t)-1, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (det != NULL);
     DP_CHECK (det->noise_lo == 0);
     DP_CHECK (det->noise_hi == N - 1);
 
-    det_result_t results[16];
-    size_t       ndet = dp_detector_push (det, ref, N, results, 16);
+    dp_correlator_hit_t results[16];
+    size_t              ndet = dp_correlator_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
-    DP_CHECK (results[0].lag == 0);
+    DP_CHECK (results[0].col == 0);
     DP_CHECK (isfinite (results[0].noise_est) && results[0].noise_est > 0.0f);
     DP_CHECK (isfinite (results[0].test_stat) && results[0].test_stat > 1.0f);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── impulse ref: push one full frame, threshold=0 always fires ───── *
@@ -188,18 +191,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t results[16];
-    size_t       ndet = dp_detector_push (det, ref, N, results, 16);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
+    size_t              ndet = dp_correlator_push (det, ref, N, results, 16);
 
     DP_CHECK (ndet == 1);
-    DP_CHECK (results[0].lag == 0);
+    DP_CHECK (results[0].col == 0);
     DP_CHECK (results[0].peak_mag > 0.9f && results[0].peak_mag < 1.1f);
     DP_CHECK (results[0].test_stat > 1.0f);
     DP_CHECK (det->_last_corr_valid == 1);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── sub-frame push: two halves should produce one detection ─────── */
@@ -207,18 +210,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t results[16];
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
 
-    size_t n1 = dp_detector_push (det, ref, N / 2, results, 16);
+    size_t n1 = dp_correlator_push (det, ref, N / 2, results, 16);
     DP_CHECK (n1 == 0); /* only half a frame — no dump */
 
-    size_t n2 = dp_detector_push (det, ref + N / 2, N / 2, results, 16);
+    size_t n2 = dp_correlator_push (det, ref + N / 2, N / 2, results, 16);
     DP_CHECK (n2 == 1);
-    DP_CHECK (results[0].lag == 0);
+    DP_CHECK (results[0].col == 0);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── threshold gate: test_stat must exceed threshold ─────────────── *
@@ -227,18 +230,18 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 1000.0f, 1);
-    det_result_t results[16];
-    size_t       ndet = dp_detector_push (det, ref, N, results, 16);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 1000.0f, 1);
+    dp_correlator_hit_t results[16];
+    size_t              ndet = dp_correlator_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 0);
 
     /* Lower threshold — now fires. */
-    dp_detector_set_threshold (det, 0.0f);
-    ndet = dp_detector_push (det, ref, N, results, 16);
+    dp_correlator_set_threshold (det, 0.0f);
+    ndet = dp_correlator_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── dwell=2: needs two frames before a detection ────────────────── */
@@ -246,20 +249,20 @@ main (void)
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t results[16];
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
 
     /* Push 1 frame: corr accumulates, no dump. */
-    size_t n1 = dp_detector_push (det, ref, N, results, 16);
+    size_t n1 = dp_correlator_push (det, ref, N, results, 16);
     DP_CHECK (n1 == 0);
 
     /* Push 2nd frame: dumps, test_stat = 2.0/noise (two δ summed). */
-    size_t n2 = dp_detector_push (det, ref, N, results, 16);
+    size_t n2 = dp_correlator_push (det, ref, N, results, 16);
     DP_CHECK (n2 == 1);
     DP_CHECK (results[0].peak_mag > 1.9f && results[0].peak_mag < 2.1f);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── shifted input: peak should move to lag 1 ───────────────────── *
@@ -270,35 +273,35 @@ main (void)
     ref[0]                = 1.0f;
     in[1]                 = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t results[16];
-    size_t       ndet = dp_detector_push (det, in, N, results, 16);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
+    size_t              ndet = dp_correlator_push (det, in, N, results, 16);
     DP_CHECK (ndet == 1);
-    DP_CHECK (results[0].lag == 1);
+    DP_CHECK (results[0].col == 1);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
-  /* ── dp_detector_reset clears state ────────────────────────────────── */
+  /* ── dp_correlator_reset clears state ────────────────────────────────── */
   {
     float _Complex ref[N] = { 0 };
     ref[0]                = 1.0f;
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t results[16];
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
 
     /* Push 1 frame (partial dwell). */
-    dp_detector_push (det, ref, N, results, 16);
-    DP_CHECK (det->corr->count == 1);
+    dp_correlator_push (det, ref, N, results, 16);
+    DP_CHECK (det->count == 1);
 
     /* Reset clears the dwell counter and ring. */
-    dp_detector_reset (det);
-    DP_CHECK (det->corr->count == 0);
+    dp_correlator_reset (det);
+    DP_CHECK (det->count == 0);
     DP_CHECK (det->_last_corr_valid == 0);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── noise_mode = MEDIAN ─────────────────────────────────────────── *
@@ -312,14 +315,14 @@ main (void)
     /* DET_NOISE_MIN: noise_est = min(mag) over full spectrum.
      * For impulse self-corr, mag = [1, 0, 0, ...], min = 0.
      * Use noise_lo=0, noise_hi=0 (only the peak bin) so noise_est=1. */
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 0, 0, DET_NOISE_MEDIAN, 0.0f, 1);
-    det_result_t results[16];
-    size_t       ndet = dp_detector_push (det, ref, N, results, 16);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 0, 0, DET_NOISE_MEDIAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
+    size_t              ndet = dp_correlator_push (det, ref, N, results, 16);
     DP_CHECK (ndet == 1);
     DP_CHECK (results[0].test_stat > 0.0f);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* ── multi-frame push: push 3 frames at once ─────────────────────── */
@@ -330,44 +333,44 @@ main (void)
     for (size_t i = 0; i < 3 * N; i++)
       big[i] = ref[i % N];
 
-    dp_detector_state_t *det
-        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t results[16];
-    size_t       ndet = dp_detector_push (det, big, 3 * N, results, 16);
+    dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+        ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t results[16];
+    size_t ndet = dp_correlator_push (det, big, 3 * N, results, 16);
     DP_CHECK (ndet == 3);
 
-    dp_detector_destroy (det);
+    dp_correlator_destroy (det);
   }
 
   /* serializable state — corr child + ring residual + result fields. */
   {
     float _Complex ref[16], in[72];
-    det_result_t res[16];
+    dp_correlator_hit_t res[16];
     for (int i = 0; i < 16; i++)
       ref[i] = (float)(i % 4) + 0.5f * I;
     for (int i = 0; i < 72; i++)
       in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
-    dp_detector_state_t *a
-        = dp_detector_create (ref, 16, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
-    dp_detector_state_t *b
-        = dp_detector_create (ref, 16, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_state_t *a = dp_correlator_create_detector_1d (
+        ref, 16, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_state_t *b = dp_correlator_create_detector_1d (
+        ref, 16, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)dp_detector_push (a, in, 72, res, 16);
-    DP_STATE_ROUNDTRIP_TEST (dp_detector, a, b);
-    DP_CHECK (b->corr->count == a->corr->count); /* corr child resumed */
+    (void)dp_correlator_push (a, in, 72, res, 16);
+    DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
+    DP_CHECK (b->count == a->count); /* the dwell resumed */
     /* 72 samples at n = 16: four frames, so a dump at the third and
        one frame toward the next, and a carry of 8 */
-    DP_CHECK (a->corr->count == 1);
+    DP_CHECK (a->count == 1);
     DP_CHECK (dp_f32_framer_pending (&a->framer) == 8);
     DP_CHECK (dp_f32_framer_pending (&b->framer)
               == dp_f32_framer_pending (&a->framer));
-    DP_CHECK (dp_detector_consumed (a) == 72); /* the push took all of in */
-    DP_CHECK (dp_detector_consumed (b) == 0);  /* set_state: no last push */
+    DP_CHECK (dp_correlator_consumed (a) == 72); /* the push took all of in */
+    DP_CHECK (dp_correlator_consumed (b) == 0);  /* set_state: no last push */
     /* the last surface is not state: a's push dumped, b has no view */
     DP_CHECK (a->_last_corr_valid == 1);
     DP_CHECK (b->_last_corr_valid == 0);
-    dp_detector_destroy (a);
-    dp_detector_destroy (b);
+    dp_correlator_destroy (a);
+    dp_correlator_destroy (b);
   }
 
   /* chunk invariance: the detections are a function of the input stream,
@@ -394,7 +397,7 @@ main (void)
           .process  = ci_det_push,
           .arg      = (void *)&cfgs[c],
           .in_size  = sizeof (float _Complex),
-          .out_size = sizeof (det_result_t),
+          .out_size = sizeof (dp_correlator_hit_t),
           .out_cap  = CI_LEN / N + 1,
           .equal    = ci_det_equal,
           .frame_n  = N,
@@ -406,7 +409,7 @@ main (void)
   /* stop and resume: a full result[] stops a push and never loses input.
    * Every frame fires (dwell 1, threshold 0), so room for ONE detection
    * fills on every frame. Offering the stream in seeded random chunks, each
-   * re-offered from dp_detector_consumed() until it is used up, must give
+   * re-offered from dp_correlator_consumed() until it is used up, must give
    * exactly the detections of one push with room for all of them. And each
    * stopped call must have taken everything before the sample that would
    * complete a frame it had no room for: the frames tile the stream from
@@ -415,17 +418,17 @@ main (void)
     float _Complex ref[N];
     static float _Complex x[CI_LEN];
     ci_det_stream (ref, x);
-    const ci_det_cfg_t cfg = { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f };
-    det_result_t       want[CI_LEN / N + 1], got[CI_LEN / N + 4];
+    const ci_det_cfg_t  cfg = { ref, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f };
+    dp_correlator_hit_t want[CI_LEN / N + 1], got[CI_LEN / N + 4];
 
-    dp_detector_state_t *one = ci_det_create ((void *)&cfg);
-    dp_detector_state_t *d   = ci_det_create ((void *)&cfg);
+    dp_correlator_state_t *one = ci_det_create ((void *)&cfg);
+    dp_correlator_state_t *d   = ci_det_create ((void *)&cfg);
     DP_CHECK (one != NULL && d != NULL);
-    DP_CHECK (d != NULL && dp_detector_consumed (d) == 0); /* after create */
+    DP_CHECK (d != NULL && dp_correlator_consumed (d) == 0); /* after create */
     const size_t n_want
-        = dp_detector_push (one, x, CI_LEN, want, CI_LEN / N + 1);
-    DP_CHECK (n_want == CI_LEN / N);                 /* every frame fired */
-    DP_CHECK (dp_detector_consumed (one) == CI_LEN); /* room: took all */
+        = dp_correlator_push (one, x, CI_LEN, want, CI_LEN / N + 1);
+    DP_CHECK (n_want == CI_LEN / N);                   /* every frame fired */
+    DP_CHECK (dp_correlator_consumed (one) == CI_LEN); /* room: took all */
 
     size_t       stops, wrong_stop, overfull;
     const size_t n_got
@@ -436,16 +439,17 @@ main (void)
     DP_CHECK (overfull == 0);
     DP_CHECK (n_got == n_want);
     DP_CHECK (n_got == n_want && ci_det_equal (got, want, n_want));
-    dp_detector_reset (d);
-    DP_CHECK (dp_detector_consumed (d) == 0); /* after reset */
+    dp_correlator_reset (d);
+    DP_CHECK (dp_correlator_consumed (d) == 0); /* after reset */
 
     /* Room for none takes nothing of a rest that completes a frame. Room
      * for one takes frame 0 and stops on its boundary, the rest being two
      * frames, and that frame's hit is the one-shot's first. */
-    DP_CHECK (dp_detector_push (d, x, 3 * N, got, 0) == 0);
-    DP_CHECK (dp_detector_consumed (d) == 0);
-    DP_CHECK (dp_detector_push (d, x, 3 * N, got, 1) == 1);
-    DP_CHECK (dp_detector_consumed (d) == N); /* frame 0, not a sample more */
+    DP_CHECK (dp_correlator_push (d, x, 3 * N, got, 0) == 0);
+    DP_CHECK (dp_correlator_consumed (d) == 0);
+    DP_CHECK (dp_correlator_push (d, x, 3 * N, got, 1) == 1);
+    DP_CHECK (dp_correlator_consumed (d)
+              == N); /* frame 0, not a sample more */
     DP_CHECK (ci_det_equal (got, want, 1));
 
     /* A full push keeps a rest that completes no frame, as the carry, and
@@ -454,19 +458,19 @@ main (void)
      * the start, so it takes N - 4 more (the carry reaches N - 1, still no
      * frame) and then not the sample that would complete frame 2; room 1
      * takes that sample and reports frame 2. */
-    DP_CHECK (dp_detector_push (d, x + N, N + 3, got, 1) == 1);
-    DP_CHECK (dp_detector_consumed (d) == N + 3);
+    DP_CHECK (dp_correlator_push (d, x + N, N + 3, got, 1) == 1);
+    DP_CHECK (dp_correlator_consumed (d) == N + 3);
     DP_CHECK (dp_f32_framer_pending (&d->framer) == 3);
     DP_CHECK (ci_det_equal (got, want + 1, 1));
-    DP_CHECK (dp_detector_push (d, x + 2 * N + 3, N - 4, got, 0) == 0);
-    DP_CHECK (dp_detector_consumed (d) == N - 4);
-    DP_CHECK (dp_detector_push (d, x + 3 * N - 1, 1, got, 0) == 0);
-    DP_CHECK (dp_detector_consumed (d) == 0);
-    DP_CHECK (dp_detector_push (d, x + 3 * N - 1, 1, got, 1) == 1);
-    DP_CHECK (dp_detector_consumed (d) == 1);
+    DP_CHECK (dp_correlator_push (d, x + 2 * N + 3, N - 4, got, 0) == 0);
+    DP_CHECK (dp_correlator_consumed (d) == N - 4);
+    DP_CHECK (dp_correlator_push (d, x + 3 * N - 1, 1, got, 0) == 0);
+    DP_CHECK (dp_correlator_consumed (d) == 0);
+    DP_CHECK (dp_correlator_push (d, x + 3 * N - 1, 1, got, 1) == 1);
+    DP_CHECK (dp_correlator_consumed (d) == 1);
     DP_CHECK (ci_det_equal (got, want + 2, 1));
-    dp_detector_destroy (one);
-    dp_detector_destroy (d);
+    dp_correlator_destroy (one);
+    dp_correlator_destroy (d);
   }
 
   /* stop and resume with room for 2 and 3: room for one cannot tell the
@@ -489,14 +493,14 @@ main (void)
     for (size_t c = 0; c < sizeof cfgs / sizeof *cfgs; c++)
       for (size_t cap = 2; cap <= 3; cap++)
         {
-          det_result_t         want[CI_LEN / N + 1], got[CI_LEN / N + 4];
-          dp_detector_state_t *one = ci_det_create ((void *)&cfgs[c]);
-          dp_detector_state_t *d   = ci_det_create ((void *)&cfgs[c]);
+          dp_correlator_hit_t    want[CI_LEN / N + 1], got[CI_LEN / N + 4];
+          dp_correlator_state_t *one = ci_det_create ((void *)&cfgs[c]);
+          dp_correlator_state_t *d   = ci_det_create ((void *)&cfgs[c]);
           DP_CHECK (one != NULL && d != NULL);
           if (!one || !d)
             continue;
           const size_t n_want
-              = dp_detector_push (one, x, CI_LEN, want, CI_LEN / N + 1);
+              = dp_correlator_push (one, x, CI_LEN, want, CI_LEN / N + 1);
           size_t       stops, wrong_stop, overfull;
           const size_t n_got
               = ci_det_resume (d, x, CI_LEN, cap, CI_LEN, got, CI_LEN / N + 4,
@@ -505,8 +509,8 @@ main (void)
           DP_CHECK (wrong_stop == 0);
           DP_CHECK (overfull == 0);
           DP_CHECK (n_got == n_want && ci_det_equal (got, want, n_want));
-          dp_detector_destroy (one);
-          dp_detector_destroy (d);
+          dp_correlator_destroy (one);
+          dp_correlator_destroy (d);
         }
   }
 
@@ -518,23 +522,23 @@ main (void)
     ref[0]                = 1.0f;
     for (size_t i = 0; i < N; i++)
       x[i] = 1.0f;
-    dp_detector_state_t *a
-        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    dp_detector_state_t *b
-        = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
-    det_result_t res[4];
-    DP_CHECK (dp_detector_push (a, x, N, res, 4) == 1);
+    dp_correlator_state_t *a = dp_correlator_create_detector_1d (
+        ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_state_t *b = dp_correlator_create_detector_1d (
+        ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+    dp_correlator_hit_t res[4];
+    DP_CHECK (dp_correlator_push (a, x, N, res, 4) == 1);
     DP_CHECK (a->peak_mag != 0.0f);
-    dp_detector_reset (a);
-    size_t         sb = dp_detector_state_bytes (a);
+    dp_correlator_reset (a);
+    size_t         sb = dp_correlator_state_bytes (a);
     unsigned char *ba = malloc (sb), *bb = malloc (sb);
-    dp_detector_get_state (a, ba);
-    dp_detector_get_state (b, bb);
+    dp_correlator_get_state (a, ba);
+    dp_correlator_get_state (b, bb);
     DP_CHECK (memcmp (ba, bb, sb) == 0);
     free (ba);
     free (bb);
-    dp_detector_destroy (a);
-    dp_detector_destroy (b);
+    dp_correlator_destroy (a);
+    dp_correlator_destroy (b);
   }
 
   /* -- U2: an all-NaN frame. A NaN sample spreads through the transform to
@@ -553,22 +557,22 @@ main (void)
         ref[0]                 = 1.0f;
         for (size_t i = 0; i < NN; i++)
           x[i] = NAN;
-        const float          thr = t ? 2.5f : 0.0f;
-        dp_detector_state_t *det = dp_detector_create (
+        const float            thr = t ? 2.5f : 0.0f;
+        dp_correlator_state_t *det = dp_correlator_create_detector_1d (
             ref, NN, 1, 0, NN - 1, (det_noise_mode_t)m, thr, 1);
         DP_REQUIRE (det != NULL);
-        det_result_t r[2]  = { { 9, 9.0f, 9.0f, 9.0f } };
-        const size_t nhits = dp_detector_push (det, x, NN, r, 2);
+        dp_correlator_hit_t r[2]  = { { 9, 9.0f, 9.0f, 9.0f } };
+        const size_t        nhits = dp_correlator_push (det, x, NN, r, 2);
         DP_CHECK (nhits == (t ? 0u : 1u));
-        DP_CHECK (det->peak_lag == 0);
+        DP_CHECK (det->peak_col == 0);
         DP_CHECK (det->peak_mag == 0.0f && !signbit (det->peak_mag));
         DP_CHECK (isnan (det->noise_est));
         DP_CHECK (det->test_stat == 0.0f);
         if (nhits == 1)
-          DP_CHECK (r[0].lag == 0 && r[0].peak_mag == 0.0f
+          DP_CHECK (r[0].col == 0 && r[0].peak_mag == 0.0f
                     && isnan (r[0].noise_est) && r[0].test_stat == 0.0f);
-        dp_detector_destroy (det);
+        dp_correlator_destroy (det);
       }
 
-  DP_TEST_END ("test_detector_core");
+  DP_TEST_END ("test_correlator_detector_1d");
 }

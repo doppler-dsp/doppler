@@ -65,7 +65,6 @@ target_link_libraries(dsss PRIVATE
     carrier_acq_core
     psd_core
     acc_trace_core
-    detector_core
     Threads::Threads
     burst_capture_core
     burst_acq_core

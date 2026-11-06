@@ -167,8 +167,6 @@
 #include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/jm_perf.h"
-/* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
-#include "doppler/detector2d/detector2d_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 #include "doppler/dp_parallel.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"

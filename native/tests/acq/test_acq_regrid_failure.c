@@ -54,7 +54,7 @@ extern void *acq_test_realloc (void *p, size_t n);
 #include "doppler/acq/acq_private.h"
 #include "doppler/clib_common.h"
 #include "doppler/correlator/correlator_core.h"
-#include "doppler/detector/det_private.h"
+#include "doppler/correlator/correlator_private.h"
 #include "doppler/dp_complex.h"
 #include "doppler/util/util_core.h"
 #include <math.h>

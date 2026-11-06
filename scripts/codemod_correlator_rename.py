@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Rename Corr and Corr2D's C names to the one correlator's (#2752 step 3.2).
+"""Rename the retired correlators' C names to the one correlator's (#2752).
 
-Step 3.2 makes `corr/` and `corr2d/` one C object, `correlator/`
+Step 3.2 made `corr/` and `corr2d/` one C object, `correlator/`, and step
+3.3 makes `detector/` and `detector2d/` its two detector flavors
 (docs/design/correlator.md, section 5). The files were moved with `git mv`;
 this rewrites what they and their callers SAY, from one table, so the
 rename is reviewable as a list rather than as a diff of a thousand lines.
@@ -70,6 +71,20 @@ PATHS: list[tuple[str, str]] = [
         "benchmarks/corr2d/bench_corr2d_core.c",
         "benchmarks/correlator/bench_correlator_core.c",
     ),
+    # Step 3.3. The private header first: its directory prefix is shared.
+    (
+        "doppler/detector/det_private.h",
+        "doppler/correlator/correlator_private.h",
+    ),
+    ("detector/det_private.h", "correlator/correlator_private.h"),
+    (
+        "doppler/detector2d/detector2d_core.h",
+        "doppler/correlator/correlator_core.h",
+    ),
+    (
+        "doppler/detector/detector_core.h",
+        "doppler/correlator/correlator_core.h",
+    ),
 ]
 
 # Whole words. The constructors become the flavors' (section 4's table);
@@ -87,6 +102,11 @@ _1D_VERBS = [
     "destroy", "reset", "set_ref", "execute", "execute_max_out",
     "state_bytes", "get_state", "set_state",
 ]  # fmt: skip
+# Step 3.3: the detectors' verbs, under the one prefix for both flavors.
+_DET_VERBS = [
+    "destroy", "reset", "set_ref", "set_threshold", "push", "consumed",
+    "state_bytes", "get_state", "set_state",
+]  # fmt: skip
 
 WORDS: list[tuple[str, str]] = [
     ("dp_corr2d_create_delay_doppler", "dp_correlator_create_delay_doppler"),
@@ -97,6 +117,17 @@ WORDS: list[tuple[str, str]] = [
     ("dp_corr2d_fold_t", "dp_correlator_fold_t"),
     *[(f"dp_corr2d_{v}", f"dp_correlator_{v}") for v in _2D_VERBS],
     *[(f"dp_corr_{v}", f"dp_correlator_{v}") for v in _1D_VERBS],
+    ("dp_detector2d_create", "dp_correlator_create_detector_2d"),
+    ("dp_detector_create", "dp_correlator_create_detector_1d"),
+    ("dp_detector2d_state_t", "dp_correlator_state_t"),
+    ("dp_detector_state_t", "dp_correlator_state_t"),
+    ("det_result2d_t", "dp_correlator_hit_t"),
+    ("det_result_t", "dp_correlator_hit_t"),
+    *[(f"dp_detector2d_{v}", f"dp_correlator_{v}") for v in _DET_VERBS],
+    *[(f"dp_detector_{v}", f"dp_correlator_{v}") for v in _DET_VERBS],
+    ("det_private.h", "correlator_private.h"),
+    ("detector2d_core", "correlator_core"),
+    ("detector_core", "correlator_core"),
     ("DP_CORR2D_CORE_H", "DP_CORRELATOR_CORE_H"),
     ("DP_CORR2D_MAP_H", "DP_CORRELATOR_MAP_H"),
     ("corr2d_map.h", "correlator_map.h"),
@@ -128,12 +159,24 @@ INCLUDE = [
 
 EXCLUDE = re.compile(
     r"^(native/src/corr/|native/inc/doppler/corr/|docs/c-api/"
+    # Step 3.3: what it deletes, what jm re-renders and the report it moves
+    # by hand.
+    r"|native/src/detector2?d?/|native/inc/doppler/detector2?d?/"
+    r"|native/tests/detector2?d?/|native/benchmarks/detector2?d?/"
+    r"|native/src/spectral/spectral_ext_detector2?d?\.c$"
+    r"|objects/detector2?d?\.toml$"
+    r"|src/doppler/spectral/tests/validation/detector2d/"
     r"|docs/design/correlator\.md$|docs/design/[^/]*-measurements"
     r"|src/doppler/spectral/tests/validation/correlator/"
     # Two ratchet lists name the OLD symbols on purpose: the design page's
     # exemptions (it describes main as measured) and the set_ref row's
     # `replaces:` record. Rewriting them would erase what they record.
     r"|scripts/\.doc-symbol-exempt$|scripts/\.mutator-state-exempt$"
+    # The codemod's own test names the old symbols as its fixtures; the
+    # retired-names list records history in its comments; and the
+    # allow-list names the deleted detector sources, whose rows come off.
+    r"|src/doppler/tests/test_codemod_|scripts/\.retired-names$"
+    r"|scripts/\.alloc-helper-allow$"
     r"|scripts/codemod_)"
 )
 

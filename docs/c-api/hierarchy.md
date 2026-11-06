@@ -33,9 +33,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**ddc\_state**](structddc__state.md) _Ddc state — an LO and the cascade it feeds._ 
 * **struct** [**ddcr\_extra\_t**](structddcr__extra__t.md) _DDCR-level payload that follows the state envelope: the one config value the blob layout depends on, checked on restore._ 
 * **struct** [**ddcr\_state**](structddcr__state.md) _DdcR state — the real-to-complex front end, an LO and a cascade._ 
-* **struct** [**det\_peak\_t**](structdet__peak__t.md) _One listed peak of a surface: its cell and value._ 
-* **struct** [**det\_result2d\_t**](structdet__result2d__t.md) _Detection event returned by_ [_**dp\_detector2d\_push()**_](detector2d__core_8h.md#function-dp_detector2d_push) _._
-* **struct** [**det\_result\_t**](structdet__result__t.md) _Detection event returned by_ [_**dp\_detector\_push()**_](detector__core_8h.md#function-dp_detector_push) _._
+* **struct** [**det\_peak\_t**](structdet__peak__t.md) _One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() (_ [_**correlator\_private.h**_](correlator__private_8h.md) _) returns, and what the acquisition engine keeps per dwell._
 * **struct** [**dll\_tlm\_t**](structdll__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per code epoch. Zeroed in state blobs and preserved across set\_state (the hand-written triplet treats it like the borrowed_ `code` _)._
 * **struct** [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) _Cascade state_  _owns all sub-stage C objects._
 * **struct** [**dp\_acc\_cf64\_state\_t**](structdp__acc__cf64__state__t.md) _AccCf64 state: the single running complex sum._ 
@@ -62,12 +60,11 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_cic\_state\_t**](structdp__cic__state__t.md) _CIC filter state._ 
 * **struct** [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) _A code and the register encoding it, together._ 
 * **struct** [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md) _A C reducer: called once per map, in h order, by_ [_**dp\_correlator\_execute\_fold()**_](correlator__core_8h.md#function-dp_correlator_execute_fold) _._
+* **struct** [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) _One detection, from either detector flavor's_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _._
 * **struct** [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) _Correlator state, every flavor._ 
 * **struct** [**dp\_costas\_state\_t**](structdp__costas__state__t.md) _Costas loop state._ 
 * **struct** [**dp\_delay\_state\_t**](structdp__delay__state__t.md) _Delay state._ 
 * **struct** [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) _Despreader state._ 
-* **struct** [**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md) _2-D signal detector state._ 
-* **struct** [**dp\_detector\_state\_t**](structdp__detector__state__t.md) _1-D signal detector state._ 
 * **struct** [**dp\_dll\_state\_t**](structdp__dll__state__t.md) _DLL state._ 
 * **struct** [**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md) _DopplerChannel state._ 
 * **struct** [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md) _DsssBurstReceiver state._ 

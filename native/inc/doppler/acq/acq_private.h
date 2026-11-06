@@ -5,7 +5,7 @@
  * Not part of the public API: nothing here is exported, and nothing here is
  * promised to a caller. It exists so a rule that decides a result (the rate
  * search's pick, the tile-edge alias's hop) can be unit-tested as a rule
- * (test_acq_core.c includes it), the pattern detector/det_private.h follows.
+ * (test_acq_core.c includes it), the pattern correlator/correlator_private.h follows.
  */
 #ifndef ACQ_PRIVATE_H
 #define ACQ_PRIVATE_H

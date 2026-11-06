@@ -44,7 +44,6 @@ depends_on = [
     # carrier_acq's own transitive deps -- carrier_acq.toml's link=true
     # entries don't propagate through its OWN link=true boundary either.
     { name = "psd", link = true },
-    { name = "detector", link = true },
     { name = "detection", link = true },
     { name = "spectral", link = true },
     # the hand-over test's stimulus (dp_dsss_dilated_capture), the test's

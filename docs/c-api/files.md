@@ -103,6 +103,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**conv\_enc\_core.h**](conv__enc__core_8h.md) _The convolutional encoder, as a stateful object over_ `conv` _._    
             * **dir** [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md)     
                 * **file** [**correlator\_core.h**](correlator__core_8h.md) _The one FFT cross-correlator, with coherent integrate-and-dump._     
+                * **file** [**correlator\_private.h**](correlator__private_8h.md) _The correlator's detection layer: the ring, the noise estimate, the one peak picker and the framed push._     
             * **dir** [**costas**](dir_8ebd78c7800b34d5dee6ef27ff63e7b3.md)     
                 * **file** [**costas\_core.h**](costas__core_8h.md) _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._     
             * **dir** [**cvt**](dir_409c6e92c9ef1b7281540388592da57d.md)     
@@ -117,11 +118,6 @@ Here is a list of all files with brief descriptions:
                 * **file** [**despreader\_core.h**](despreader__core_8h.md) _Continuous DSSS despreader — Costas carrier loop + DLL code loop._     
             * **dir** [**detection**](dir_c7528e0bd68524c48f260a564c045102.md)     
                 * **file** [**detection\_core.h**](detection__core_8h.md) _Detection-theory utilities for the amplitude-ratio test statistic._     
-            * **dir** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md)     
-                * **file** [**det\_private.h**](det__private_8h.md) _Shared internals for detector\_core.c and detector2d\_core.c._     
-                * **file** [**detector\_core.h**](detector__core_8h.md) _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
-            * **dir** [**detector2d**](dir_8496bb9d19545edf0ab852f69ada11c8.md)     
-                * **file** [**detector2d\_core.h**](detector2d__core_8h.md) _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
             * **dir** [**dll**](dir_c5ff741ba8e1e68126223ee4df379547.md)     
                 * **file** [**dll\_core.h**](dll__core_8h.md) _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._     
             * **dir** [**doppler\_channel**](dir_8380ecb58e2e244790f54835382515ec.md)     

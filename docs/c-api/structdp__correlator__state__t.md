@@ -37,6 +37,7 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  unsigned char | [**\_hot\_pad**](#variable-_hot_pad)  <br> |
+|  int | [**\_last\_corr\_valid**](#variable-_last_corr_valid)  <br> |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
 |  float \_Complex \* | [**bat\_acc**](#variable-bat_acc)  <br> |
 |  float \_Complex \* | [**bat\_fine**](#variable-bat_fine)  <br> |
@@ -45,32 +46,48 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  float \_Complex \* | [**bat\_work**](#variable-bat_work)  <br> |
 |  int | [**col\_out**](#variable-col_out)  <br> |
 |  float \_Complex \* | [**col\_ref**](#variable-col_ref)  <br> |
+|  size\_t | [**consumed**](#variable-consumed)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
 |  float \_Complex \* | [**dd\_fine**](#variable-dd_fine)  <br> |
 |  int | [**dd\_fused**](#variable-dd_fused)  <br> |
 |  struct dp\_\_dd\_map \* | [**dd\_map**](#variable-dd_map)  <br> |
 |  size\_t \* | [**dd\_rows**](#variable-dd_rows)  <br> |
 |  int | [**delay\_doppler**](#variable-delay_doppler)  <br> |
+|  float \_Complex \* | [**det\_out**](#variable-det_out)  <br> |
 |  double | [**doppler\_step**](#variable-doppler_step)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
 |  int | [**fast\_path**](#variable-fast_path)  <br> |
 |  [**dp\_correlator\_flavor\_t**](correlator__core_8h.md#enum-dp_correlator_flavor_t) | [**flavor**](#variable-flavor)  <br> |
+|  dp\_f32\_framer\_t | [**framer**](#variable-framer)  <br> |
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**fwd1d**](#variable-fwd1d)  <br> |
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**inv**](#variable-inv)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**inv1d**](#variable-inv1d)  <br> |
+|  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_out**](#variable-n_out)  <br> |
+|  float | [**noise\_est**](#variable-noise_est)  <br> |
+|  size\_t | [**noise\_hi**](#variable-noise_hi)  <br> |
+|  size\_t | [**noise\_lo**](#variable-noise_lo)  <br> |
+|  [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) | [**noise\_mode**](#variable-noise_mode)  <br> |
+|  float \* | [**noise\_scratch**](#variable-noise_scratch)  <br> |
 |  int | [**nworkers**](#variable-nworkers)  <br> |
 |  size\_t | [**nx**](#variable-nx)  <br> |
 |  size\_t | [**nx\_out**](#variable-nx_out)  <br> |
 |  size\_t | [**ny**](#variable-ny)  <br> |
 |  size\_t | [**ny\_out**](#variable-ny_out)  <br> |
+|  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
+|  float | [**peak\_mag**](#variable-peak_mag)  <br> |
+|  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
 |  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
 |  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
+|  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
+|  size\_t | [**ring\_cap**](#variable-ring_cap)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_fwd**](#variable-row_fwd)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_inv**](#variable-row_inv)  <br> |
 |  float \_Complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
+|  float | [**test\_stat**](#variable-test_stat)  <br> |
+|  float | [**threshold**](#variable-threshold)  <br> |
 |  float \_Complex \* | [**work\_fft**](#variable-work_fft)  <br> |
 |  float \_Complex \* | [**work\_pad**](#variable-work_pad)  <br> |
 |  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
@@ -142,6 +159,24 @@ unsigned char dp_correlator_state_t::_hot_pad[64];
 
 
 Keeps [**count**](structdp__correlator__state__t.md#variable-count) off the read fields' cache lines. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable \_last\_corr\_valid 
+
+```C++
+int dp_correlator_state_t::_last_corr_valid;
+```
+
+
+
+1 once a dump has filled det\_out; 0 after create, reset and set\_state. 
  
 
 
@@ -292,6 +327,24 @@ conj(ref row 0) in the TIME domain, length nx; NULL when col\_out &lt; 0.
 
 
 
+### variable consumed 
+
+```C++
+size_t dp_correlator_state_t::consumed;
+```
+
+
+
+Input samples the last push took. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable count 
 
 ```C++
@@ -400,6 +453,24 @@ int dp_correlator_state_t::delay_doppler;
 
 
 
+### variable det\_out 
+
+```C++
+float _Complex* dp_correlator_state_t::det_out;
+```
+
+
+
+The last dump's correlation map, n complex samples. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable doppler\_step 
 
 ```C++
@@ -463,6 +534,24 @@ dp_correlator_flavor_t dp_correlator_state_t::flavor;
 
 
 The constructor that built it. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable framer 
+
+```C++
+dp_f32_framer_t dp_correlator_state_t::framer;
+```
+
+
+
+Any chunk in, n-sample frames out. 
  
 
 
@@ -543,6 +632,24 @@ Inverse 1-D plan, length nx\_out. Fast only.
 
 
 
+### variable mag\_buf 
+
+```C++
+float* dp_correlator_state_t::mag_buf;
+```
+
+
+
+\|det\_out\|, n floats. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n 
 
 ```C++
@@ -570,6 +677,95 @@ size_t dp_correlator_state_t::n_out;
 
 
 ny\_out \* nx\_out — output element count. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable noise\_est 
+
+```C++
+float dp_correlator_state_t::noise_est;
+```
+
+
+
+Last dump: the noise floor. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable noise\_hi 
+
+```C++
+size_t dp_correlator_state_t::noise_hi;
+```
+
+
+
+Noise bin range, last (inclusive). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable noise\_lo 
+
+```C++
+size_t dp_correlator_state_t::noise_lo;
+```
+
+
+
+Noise bin range, first (inclusive). 
+
+
+        
+
+<hr>
+
+
+
+### variable noise\_mode 
+
+```C++
+det_noise_mode_t dp_correlator_state_t::noise_mode;
+```
+
+
+
+Noise aggregation. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable noise\_scratch 
+
+```C++
+float* dp_correlator_state_t::noise_scratch;
+```
+
+
+
+Scratch for the median's sort. 
  
 
 
@@ -668,6 +864,60 @@ Output rows (== ny unless decoupled).
 
 
 
+### variable peak\_col 
+
+```C++
+size_t dp_correlator_state_t::peak_col;
+```
+
+
+
+Last dump: peak column (the lag at one row). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable peak\_mag 
+
+```C++
+float dp_correlator_state_t::peak_mag;
+```
+
+
+
+Last dump: peak \|R\|. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable peak\_row 
+
+```C++
+size_t dp_correlator_state_t::peak_row;
+```
+
+
+
+Last dump: peak row (0 before one). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable pool 
 
 ```C++
@@ -695,6 +945,42 @@ float _Complex* dp_correlator_state_t::ref_spec;
 
 
 conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structdp__correlator__state__t.md#variable-fast_path) (see row\_ref\_spec). 
+
+
+        
+
+<hr>
+
+
+
+### variable ring 
+
+```C++
+dp_f32_t* dp_correlator_state_t::ring;
+```
+
+
+
+The carry's storage: bound to [**framer**](structdp__correlator__state__t.md#variable-framer), freed by destroy. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ring\_cap 
+
+```C++
+size_t dp_correlator_state_t::ring_cap;
+```
+
+
+
+Ring capacity, complex samples. 
+ 
 
 
         
@@ -748,6 +1034,41 @@ float _Complex* dp_correlator_state_t::row_ref_spec;
 
 
 conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable test\_stat 
+
+```C++
+float dp_correlator_state_t::test_stat;
+```
+
+
+
+Last dump: peak\_mag / noise\_est, or 0. 
+
+
+        
+
+<hr>
+
+
+
+### variable threshold 
+
+```C++
+float dp_correlator_state_t::threshold;
+```
+
+
+
+0 = always fire; &gt; 0 gates test\_stat. 
  
 
 

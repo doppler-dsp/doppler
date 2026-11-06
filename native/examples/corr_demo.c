@@ -23,7 +23,6 @@
  */
 
 #include <doppler/correlator/correlator_core.h>
-#include <doppler/detector/detector_core.h>
 
 #include "doppler/dp_complex.h"
 #include <math.h>
@@ -204,18 +203,19 @@ demo_detector (void)
 
   /* threshold=0 → always fire; noise_lo=1 excludes the peak bin (lag=0)
    * from the noise estimate so noise_est reflects the sidelobe floor.     */
-  dp_detector_state_t *det
-      = dp_detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+  dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+      ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
 
-  det_result_t results[4];
-  size_t       total = 0;
+  /* One hit record for both detector flavors: at one row, col is the lag. */
+  dp_correlator_hit_t results[4];
+  size_t              total = 0;
 
   for (size_t ch = 0; ch < N_CHUNKS; ch++)
     {
       /* Alternate first and second half of ref so consecutive chunk pairs
        * form one complete N-sample frame that matches the reference.      */
       const float complex *in = ref + (ch % 2) * CHUNK;
-      size_t ndet             = dp_detector_push (det, in, CHUNK, results, 4);
+      size_t ndet = dp_correlator_push (det, in, CHUNK, results, 4);
 
       printf ("  chunk %zu (%zu samples) : ", ch + 1, CHUNK);
       if (ndet == 0)
@@ -227,14 +227,14 @@ demo_detector (void)
           for (size_t d = 0; d < ndet; d++)
             printf ("detection  lag=%zu  "
                     "peak=%.4f  noise=%.4f  stat=%.2f\n",
-                    results[d].lag, results[d].peak_mag, results[d].noise_est,
+                    results[d].col, results[d].peak_mag, results[d].noise_est,
                     results[d].test_stat);
         }
       total += ndet;
     }
 
   printf ("\n  total: %zu detections from %zu chunks\n\n", total, N_CHUNKS);
-  dp_detector_destroy (det);
+  dp_correlator_destroy (det);
 }
 
 int

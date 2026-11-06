@@ -155,6 +155,35 @@ def test_a_validator_number_of_an_unrecorded_key_fails(
     assert "`gone_key`" in out.stdout
 
 
+def test_a_report_spans_its_validators_folder(tmp_path: Path) -> None:
+    """A key a sibling module records is the report's own (#2752 step 3.3).
+
+    The correlator's validate.py renders CorrDetector2D's part from
+    detector.py beside it: validate.py cites a key detector.py records,
+    and a page cites it too. Both resolve.
+    """
+    folder = _VALIDATOR[0].rsplit("/", 1)[0]
+    files = {
+        **_CLEAN,
+        _VALIDATOR[0]: _VALIDATOR[1] + 'R.md(R.ref("part_two_key"))\n',
+        f"{folder}/part.py": 'R.find("part_two_key", "FIXED", "text")\n',
+        "docs/part.md": "as finding `part_two_key` records\n",
+    }
+    _seed(tmp_path, files)
+    out = _run(tmp_path)
+    assert out.returncode == 0, out.stdout
+
+
+def test_a_sibling_modules_unrecorded_ref_fails(tmp_path: Path) -> None:
+    """The folder is one report both ways: a sibling's dangling ref fails."""
+    folder = _VALIDATOR[0].rsplit("/", 1)[0]
+    files = {**_CLEAN, f"{folder}/part.py": 'R.md(R.ref("gone_key"))\n'}
+    _seed(tmp_path, files)
+    out = _run(tmp_path)
+    assert out.returncode == 1, out.stdout
+    assert "part.py" in out.stdout and "`gone_key`" in out.stdout
+
+
 def test_a_file_that_is_not_utf8_fails(tmp_path: Path) -> None:
     """An unreadable file is not a clean one: it is reported, not skipped."""
     _seed(tmp_path, _CLEAN)

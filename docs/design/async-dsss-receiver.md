@@ -858,7 +858,7 @@ residual is a design input (doppler#2409).
 peak above the dwell's gate, strongest first, with an exclusion zone of one
 Doppler bin by one chip around each and the two-epoch rule for a peak at an
 already-listed code phase. `det_peak_list`
-(`native/inc/doppler/detector/det_private.h`) is the one primitive under
+(`native/inc/doppler/correlator/correlator_private.h`) is the one primitive under
 both detectors, and §7.2's pick reads it. Its design is §7.1 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)
 until it moves to [`acq-surface.md`](acq-surface.md)

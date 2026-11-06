@@ -90,8 +90,6 @@
 | dir | [**delay**](dir_e9520af345bba2408e131802acc7e37b.md) <br> |
 | dir | [**despreader**](dir_0568e7ebbbbb935946ff07943e2ec07c.md) <br> |
 | dir | [**detection**](dir_c7528e0bd68524c48f260a564c045102.md) <br> |
-| dir | [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) <br> |
-| dir | [**detector2d**](dir_8496bb9d19545edf0ab852f69ada11c8.md) <br> |
 | dir | [**dll**](dir_c5ff741ba8e1e68126223ee4df379547.md) <br> |
 | dir | [**doppler\_channel**](dir_8380ecb58e2e244790f54835382515ec.md) <br> |
 | dir | [**dp\_event\_log**](dir_3dd394e4a68853f038b67a354736a79d.md) <br> |

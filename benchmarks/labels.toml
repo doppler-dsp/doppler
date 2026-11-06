@@ -519,7 +519,19 @@ unit = "sample"
 definition = "64 pushes of one 31-sample frame each (ring, correlate, peak over noise, gate, emit) of a 31-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
 samples = 1
 
+["c:correlator::push[frame=31]"]
+name = "1-D streaming detector, 31-sample frames"
+unit = "sample"
+definition = "64 pushes of one 31-sample frame each (ring, correlate, peak over noise, gate, emit) of a 31-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
 ["c:detector::push[frame=63]"]
+name = "1-D streaming detector, 63-sample frames"
+unit = "sample"
+definition = "64 pushes of one 63-sample frame each (ring, correlate, peak over noise, gate, emit) of a 63-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
+["c:correlator::push[frame=63]"]
 name = "1-D streaming detector, 63-sample frames"
 unit = "sample"
 definition = "64 pushes of one 63-sample frame each (ring, correlate, peak over noise, gate, emit) of a 63-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
@@ -529,6 +541,60 @@ samples = 1
 name = "1-D streaming detector, 127-sample frames"
 unit = "sample"
 definition = "64 pushes of one 127-sample frame each (ring, correlate, peak over noise, gate, emit) of a 127-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
+["c:correlator::push[frame=127]"]
+name = "1-D streaming detector, 127-sample frames"
+unit = "sample"
+definition = "64 pushes of one 127-sample frame each (ring, correlate, peak over noise, gate, emit) of a 127-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
+samples = 1
+
+["c:correlator::push[chunk=64]"]
+name = "1-D streaming detector, 64-sample pushes"
+unit = "sample"
+definition = "65,536 samples of a 1,024-sample chirp, pushed 64 samples a call, far under a frame, through a 1-D detector on 1,024-sample frames of the same chirp (dwell 1, threshold 0, so every dump emits a hit); throughput counts input samples."
+samples = 1
+
+["c:correlator::push[chunk=1024]"]
+name = "1-D streaming detector, 1,024-sample pushes"
+unit = "sample"
+definition = "65,536 samples of a 1,024-sample chirp, pushed 1,024 samples a call, one frame, through a 1-D detector on 1,024-sample frames of the same chirp (dwell 1, threshold 0, so every dump emits a hit); throughput counts input samples."
+samples = 1
+
+["c:correlator::push[chunk=16384]"]
+name = "1-D streaming detector, 16,384-sample pushes"
+unit = "sample"
+definition = "65,536 samples of a 1,024-sample chirp, pushed 16,384 samples a call, 16 frames, through a 1-D detector on 1,024-sample frames of the same chirp (dwell 1, threshold 0, so every dump emits a hit); throughput counts input samples."
+samples = 1
+
+["c:correlator::push[chunk=1024,no-detections]"]
+name = "1-D streaming detector, 1,024-sample pushes, no detections"
+unit = "sample"
+definition = "65,536 samples of a 1,024-sample chirp, pushed one 1,024-sample frame a call, through a 1-D detector whose threshold nothing reaches: the same statistic as the emitting row, never a hit; throughput counts input samples."
+samples = 1
+
+["c:correlator::push[16x1024]"]
+name = "2-D streaming detector, 16 x 1024"
+unit = "sample"
+definition = "4 frames of a 16,384-sample chirp pushed one frame a call through a 16 x 1024 2-D detector (dwell 1, threshold 0, so every dump emits a hit); throughput counts input samples, 65,536 a round."
+samples = 1
+
+["c:correlator::push[128x128]"]
+name = "2-D streaming detector, 128 x 128"
+unit = "sample"
+definition = "4 frames of a 16,384-sample chirp pushed one frame a call through a 128 x 128 2-D detector (dwell 1, threshold 0, so every dump emits a hit); throughput counts input samples, 65,536 a round."
+samples = 1
+
+["c:correlator::push[1024x16]"]
+name = "2-D streaming detector, 1024 x 16"
+unit = "sample"
+definition = "4 frames of a 16,384-sample chirp pushed one frame a call through a 1024 x 16 2-D detector (dwell 1, threshold 0, so every dump emits a hit); throughput counts input samples, 65,536 a round."
+samples = 1
+
+["c:correlator::push[128x128,no-detections]"]
+name = "2-D streaming detector, 128 x 128, no detections"
+unit = "sample"
+definition = "4 frames of a 16,384-sample chirp pushed one frame a call through a 128 x 128 2-D detector whose threshold nothing reaches: the same statistic as the emitting row, never a hit; throughput counts input samples, 65,536 a round."
 samples = 1
 
 ["c:psd::frame_linear[nfft=16384]"]

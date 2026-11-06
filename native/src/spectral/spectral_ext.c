@@ -1,9 +1,9 @@
 /*
  * spectral_ext.c — Python extension module spectral
  *
- * Objects: FFT, FFT2D, Corr2D, CorrDetector, CorrDetector2D, PSD, Spectrogram,
- * DelayDoppler, Corr GENERATED — do not hand-edit. Patches belong in the
- * _ext_<obj>.c fragments.
+ * Objects: FFT, FFT2D, Corr2D, PSD, Spectrogram, DelayDoppler, Corr,
+ * CorrDetector2D, CorrDetector GENERATED — do not hand-edit. Patches belong in
+ * the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -191,10 +191,10 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
 #include "spectral_ext_corr.c"
+#include "spectral_ext_corrdetector.c"
+#include "spectral_ext_corrdetector2d.c"
 #include "spectral_ext_correlator.c"
 #include "spectral_ext_delaydoppler.c"
-#include "spectral_ext_detector.c"
-#include "spectral_ext_detector2d.c"
 #include "spectral_ext_fft.c"
 #include "spectral_ext_fft2d.c"
 #include "spectral_ext_psd.c"
@@ -941,10 +941,6 @@ PyInit_spectral (void)
     return NULL;
   if (PyType_Ready (&Corr2DObjType) < 0)
     return NULL;
-  if (PyType_Ready (&CorrDetectorObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&CorrDetector2DObjType) < 0)
-    return NULL;
   if (PyType_Ready (&PSDObjType) < 0)
     return NULL;
   if (PyType_Ready (&SpectrogramObjType) < 0)
@@ -952,6 +948,10 @@ PyInit_spectral (void)
   if (PyType_Ready (&DelayDopplerObjType) < 0)
     return NULL;
   if (PyType_Ready (&CorrObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&CorrDetector2DObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&CorrDetectorObjType) < 0)
     return NULL;
   PyObject *m = PyModule_Create (&spectral_moduledef);
   if (!m)
@@ -974,23 +974,6 @@ PyInit_spectral (void)
   if (PyModule_AddObject (m, "Corr2D", (PyObject *)&Corr2DObjType) < 0)
     {
       Py_DECREF (&Corr2DObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CorrDetectorObjType);
-  if (PyModule_AddObject (m, "CorrDetector", (PyObject *)&CorrDetectorObjType)
-      < 0)
-    {
-      Py_DECREF (&CorrDetectorObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CorrDetector2DObjType);
-  if (PyModule_AddObject (m, "CorrDetector2D",
-                          (PyObject *)&CorrDetector2DObjType)
-      < 0)
-    {
-      Py_DECREF (&CorrDetector2DObjType);
       Py_DECREF (m);
       return NULL;
     }
@@ -1021,6 +1004,23 @@ PyInit_spectral (void)
   if (PyModule_AddObject (m, "Corr", (PyObject *)&CorrObjType) < 0)
     {
       Py_DECREF (&CorrObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&CorrDetector2DObjType);
+  if (PyModule_AddObject (m, "CorrDetector2D",
+                          (PyObject *)&CorrDetector2DObjType)
+      < 0)
+    {
+      Py_DECREF (&CorrDetector2DObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&CorrDetectorObjType);
+  if (PyModule_AddObject (m, "CorrDetector", (PyObject *)&CorrDetectorObjType)
+      < 0)
+    {
+      Py_DECREF (&CorrDetectorObjType);
       Py_DECREF (m);
       return NULL;
     }

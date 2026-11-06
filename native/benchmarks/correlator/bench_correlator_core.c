@@ -506,6 +506,349 @@ bench_correlator_1d (jm_bench_t *bench)
   return bench_small (bench) != 0;
 }
 
+/* ── The detector flavors' rows (#2752 step 3.3) ───────────────────────────
+ *
+ * They were bench_detector_core and bench_detector2d_core, one binary each;
+ * the two detectors are now the correlator's detector flavors, and jm runs
+ * only bench_<component>_core, so their rows live here, with their names
+ * unchanged. `make bench-ab` pairs them with main's by alias through step 3
+ * (docs/design/correlator.md section 7.1). Macros are prefixed DET1_ and
+ * DET2_ so the three benches' constants cannot collide in one file.
+ *
+ * The 1-D rows: what the detector adds to the correlator, and whether the
+ * caller's chunk size is free.
+ *
+ * `dp_correlator_push` accepts a chunk of ANY length. It writes into a
+ * double-mapped ring, drains whole n-sample frames through the correlator
+ * underneath, and on each int-dump computes peak-over-noise and decides
+ * whether to emit. Nothing in that signature warns that a caller feeding
+ * 64 samples at a time might be paying for the privilege -- and a caller
+ * bridging a hardware block size to a frame size has no choice about it.
+ *
+ * So the first axis is chunk size at constant total work: the same 65536
+ * samples pushed as one call, as frame-sized calls, and as chunks far
+ * smaller than a frame. The correlator work is identical in all three;
+ * only the ring bookkeeping and the call count change.
+ *
+ * The second axis is what a DETECTION costs. Threshold 0.0 fires on every
+ * dump; a threshold nothing can reach fires on none. Both compute the same
+ * statistic -- the peak search over n bins and the noise aggregate over
+ * the noise band -- so the difference is only the emit, and a large gap
+ * would mean the emit path is doing more than it looks like.
+ *
+ * The noise mode is the third thing worth knowing and is deliberately NOT
+ * swept here: "median" sorts a scratch copy of the noise band and the other
+ * three are a single pass, so it is a different algorithm rather than a
+ * configuration of this one. Left for whoever needs it, named here so the
+ * absence is a decision rather than an oversight.
+ *
+ * Three short frames besides (#2752 step 3.1b): the PN periods 31, 63 and
+ * 127, one frame a push, where per-call overhead is a large share of the
+ * work. They are the baseline the 1-D detector flavor must meet
+ * (docs/design/correlator.md, U1). Each detects an m-sequence delayed by
+ * DET1_PLANT samples, and checks after its timing that a push reports one
+ * hit at that lag, or the bench fails.
+ */
+
+#define DET1_ITERATIONS 60
+#define DET1_FRAME 1024
+#define DET1_TOTAL 65536
+#define DET1_MAX_RESULTS 256
+#define DET1_DWELL 1
+
+/* Chunk sizes: well under a frame, exactly a frame, and many frames. */
+#define DET1_N_CFG 4
+static const size_t det1_chunk[DET1_N_CFG]
+    = { 64, DET1_FRAME, 16384, DET1_FRAME };
+/* The last configuration repeats the frame-sized chunk with a threshold
+   nothing reaches, so the pair differs only in whether it emits. */
+static const float det1_thresh[DET1_N_CFG] = { 0.0f, 0.0f, 0.0f, 1e30f };
+#define DET1_FIRING_FRAME_IDX 1
+#define DET1_SILENT_FRAME_IDX 3
+
+/* The short rows: register widths 5, 6 and 7, so periods 31, 63 and 127. */
+#define DET1_PLANT 5   /* the stream's delay, so the hit's lag */
+#define DET1_REPS 64   /* frames a round, one a push */
+#define DET1_GATE 3.0f /* peak over noise: an m-sequence clears it by far */
+
+/* The short rows: DET1_REPS one-frame pushes a round, then checked. A fresh
+   push of one frame must report exactly one hit, at DET1_PLANT. Returns 0,
+   or 1 when a row does not detect what it was timed detecting. */
+static int
+bench_detector_small (jm_bench_t *bench)
+{
+  static double t[N_SMALL][DET1_ITERATIONS];
+  static float _Complex in[DET1_REPS * 127];
+  float _Complex ref[127];
+  dp_correlator_hit_t hit[2];
+  char                name[72];
+  for (int s = 0; s < N_SMALL; s++)
+    {
+      const size_t n = dp_bench_pn_nrz (small_bits[s], ref, 127);
+      if (n == 0)
+        return 1;
+      for (size_t i = 0; i < DET1_REPS * n; i++)
+        in[i] = ref[(i % n + n - DET1_PLANT) % n];
+      dp_correlator_state_t *d = dp_correlator_create_detector_1d (
+          ref, n, 1, 1, n - 1, DET_NOISE_MEAN, DET1_GATE, 1);
+      if (!d)
+        return 1;
+      for (int r = 0; r < DET1_ITERATIONS; r++)
+        {
+          dp_correlator_reset (d);
+          const uint64_t t0 = jm_bench_now_ns ();
+          for (int q = 0; q < DET1_REPS; q++)
+            (void)dp_correlator_push (d, in + (size_t)q * n, n, hit, 2);
+          const uint64_t t1 = jm_bench_now_ns ();
+          t[s][r]           = jm_bench_elapsed_sec (t0, t1);
+        }
+      dp_correlator_reset (d);
+      const size_t nh = dp_correlator_push (d, in, n, hit, 2);
+      dp_correlator_destroy (d);
+      if (nh != 1 || hit[0].col != DET1_PLANT)
+        {
+          (void)fprintf (stderr,
+                         "bench_detector: frame=%zu gave %zu hit(s), lag "
+                         "%zu, not one at %d\n",
+                         n, nh, nh ? hit[0].col : 0, DET1_PLANT);
+          return 1;
+        }
+      (void)snprintf (name, sizeof name, "push[frame=%zu]", n);
+      dp_bench_record (bench, name, t[s], DET1_ITERATIONS, DET1_REPS * n,
+                       "sample");
+    }
+  return 0;
+}
+
+static int
+bench_detector_1d (jm_bench_t *bench)
+{
+  uint64_t               t0, t1;
+  static double          t[DET1_N_CFG][DET1_ITERATIONS];
+  dp_correlator_state_t *det[DET1_N_CFG] = { 0 };
+  float _Complex        *ref = NULL, *in = NULL;
+  dp_correlator_hit_t   *res = NULL;
+  char                   name[72];
+
+  ref = malloc (DET1_FRAME * sizeof *ref);
+  in  = malloc (DET1_TOTAL * sizeof *in);
+  res = malloc (DET1_MAX_RESULTS * sizeof *res);
+  if (!ref || !in || !res)
+    return 1;
+
+  /* A chirp reference and the same chirp in the stream: a real peak, so
+     the peak search and the noise aggregate both see representative data
+     rather than a flat correlation surface. */
+  for (size_t i = 0; i < DET1_FRAME; i++)
+    {
+      const double p = 1e-4 * (double)i * (double)i;
+      ref[i]         = (float _Complex) (cos (p) + sin (p) * I);
+    }
+  for (size_t i = 0; i < DET1_TOTAL; i++)
+    {
+      const double p
+          = 1e-4 * (double)(i % DET1_FRAME) * (double)(i % DET1_FRAME);
+      in[i] = (float _Complex) (cos (p) + sin (p) * I);
+    }
+
+  for (int c = 0; c < DET1_N_CFG; c++)
+    {
+      det[c] = dp_correlator_create_detector_1d (
+          ref, DET1_FRAME, DET1_DWELL, 1, DET1_FRAME - 1, DET_NOISE_MEAN,
+          det1_thresh[c], 1);
+      if (!det[c])
+        return 1;
+    }
+
+  printf ("\n=== detector (corr + ring + peak/noise gate) ===\n");
+  printf ("frame = %d, %d samples per round, %d rounds, min over rounds\n\n",
+          DET1_FRAME, DET1_TOTAL, DET1_ITERATIONS);
+
+  DP_BENCH_SETTLE ((void)dp_correlator_push (det[0], in, DET1_FRAME, res,
+                                             DET1_MAX_RESULTS));
+
+  /* Rounds outside, chunk sizes inside: three of these rows are read as
+     multiples of a fourth, so one thermal step must not land on one. */
+  for (int r = 0; r < DET1_ITERATIONS; r++)
+    for (int c = 0; c < DET1_N_CFG; c++)
+      {
+        dp_correlator_reset (det[c]);
+        t0 = jm_bench_now_ns ();
+        for (size_t off = 0; off < DET1_TOTAL; off += det1_chunk[c])
+          (void)dp_correlator_push (det[c], in + off, det1_chunk[c], res,
+                                    DET1_MAX_RESULTS);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
+      }
+
+  for (int c = 0; c < DET1_N_CFG; c++)
+    {
+      (void)snprintf (name, sizeof name, "push[chunk=%zu%s]", det1_chunk[c],
+                      det1_thresh[c] > 0.0f ? ",no-detections" : "");
+      dp_bench_record (bench, name, t[c], DET1_ITERATIONS, DET1_TOTAL,
+                       "sample");
+    }
+
+  printf ("\n  chunk size at constant work (%d-sample chunks = 1.00x):\n",
+          DET1_FRAME);
+  for (int c = 0; c < DET1_N_CFG; c++)
+    {
+      if (c == DET1_SILENT_FRAME_IDX)
+        continue;
+      printf ("    %6zu samples per push   %.2fx   (%zu calls)\n",
+              det1_chunk[c],
+              dp_bench_min (t[c], DET1_ITERATIONS)
+                  / dp_bench_min (t[DET1_FIRING_FRAME_IDX], DET1_ITERATIONS),
+              (size_t)DET1_TOTAL / det1_chunk[c]);
+    }
+  printf ("\n  emitting a detection on every dump costs %.2fx over\n"
+          "  emitting none, at the same chunk size and the same\n"
+          "  statistic. Both compute peak-over-noise; only one writes.\n",
+          dp_bench_min (t[DET1_FIRING_FRAME_IDX], DET1_ITERATIONS)
+              / dp_bench_min (t[DET1_SILENT_FRAME_IDX], DET1_ITERATIONS));
+
+  for (int c = 0; c < DET1_N_CFG; c++)
+    dp_correlator_destroy (det[c]);
+  free (ref);
+  free (in);
+  free (res);
+  return bench_detector_small (bench);
+}
+
+/* The 2-D rows: the shape penalty, one layer up from the FFT.
+ *
+ * `bench_fft2d_core.c` shows that a separable 2-D transform is not priced
+ * by its bin count: at a constant number of bins, an elongated array costs
+ * well over a square one, because one of the two passes strides. These rows
+ * ask whether that survives the detector wrapped around it -- the ring,
+ * the peak search over the whole surface, and the noise aggregate over the
+ * noise band are all O(n) and identical across shapes, so they dilute the
+ * transform's shape penalty by a factor this measures rather than predicts.
+ *
+ * That matters because the caller's choice is real. A range-Doppler map is
+ * "pulses by range gates"; how those multiply out is set by the waveform,
+ * and a designer trading PRF against gate count is choosing this row
+ * whether or not they know it.
+ *
+ * Three shapes at a constant 16384 bins, plus one repeat of the square
+ * shape with a threshold nothing reaches -- so the pair differs only in
+ * whether a detection is emitted. In 1-D that pair came out free; a 2-D
+ * emit carries a row and a column instead of one lag, and this says
+ * whether that changes anything.
+ */
+
+#define DET2_ITERATIONS 60
+#define DET2_BINS 16384
+#define DET2_FRAMES 4
+#define DET2_MAX_RESULTS 64
+#define DET2_DWELL 1
+
+#define DET2_N_CFG 4
+static const size_t det2_ny[DET2_N_CFG] = { 16, 128, 1024, 128 };
+static const size_t det2_nx[DET2_N_CFG] = { 1024, 128, 16, 128 };
+/* The last configuration repeats the square shape with a threshold nothing
+   reaches, so the pair differs only in whether it emits. */
+static const float det2_thresh[DET2_N_CFG] = { 0.0f, 0.0f, 0.0f, 1e30f };
+#define DET2_SQUARE_IDX 1
+#define DET2_SILENT_IDX 3
+
+static int
+bench_detector_2d (jm_bench_t *bench)
+{
+  uint64_t               t0, t1;
+  static double          t[DET2_N_CFG][DET2_ITERATIONS];
+  dp_correlator_state_t *det[DET2_N_CFG] = { 0 };
+  float _Complex        *ref = NULL, *in = NULL;
+  dp_correlator_hit_t   *res = NULL;
+  char                   name[72];
+
+  ref = malloc (DET2_BINS * sizeof *ref);
+  in  = malloc ((size_t)DET2_FRAMES * DET2_BINS * sizeof *in);
+  res = malloc (DET2_MAX_RESULTS * sizeof *res);
+  if (!ref || !in || !res)
+    return 1;
+
+  /* A chirp reference and the same chirp in the stream: a real peak, so
+     the surface search and the noise aggregate see representative data. */
+  for (size_t i = 0; i < DET2_BINS; i++)
+    {
+      const double p = 1e-5 * (double)i * (double)i;
+      ref[i]         = (float _Complex) (cos (p) + sin (p) * I);
+    }
+  for (size_t i = 0; i < (size_t)DET2_FRAMES * DET2_BINS; i++)
+    {
+      const double q
+          = 1e-5 * (double)(i % DET2_BINS) * (double)(i % DET2_BINS);
+      in[i] = (float _Complex) (cos (q) + sin (q) * I);
+    }
+
+  for (int c = 0; c < DET2_N_CFG; c++)
+    {
+      det[c] = dp_correlator_create_detector_2d (
+          ref, det2_ny[c], det2_nx[c], DET2_DWELL, 1, DET2_BINS - 1,
+          DET_NOISE_MEAN, det2_thresh[c], 1);
+      if (!det[c])
+        return 1;
+    }
+
+  printf ("\n=== detector2d (fft2d corr + ring + peak/noise gate) ===\n");
+  printf ("%d bins per frame, %d frames per round, %d rounds, min over "
+          "rounds\n\n",
+          DET2_BINS, DET2_FRAMES, DET2_ITERATIONS);
+
+  DP_BENCH_SETTLE ((void)dp_correlator_push (
+      det[DET2_SQUARE_IDX], in, DET2_BINS, res, DET2_MAX_RESULTS));
+
+  /* Rounds outside, shapes inside: three shapes of one bin count are read
+     against each other, so drift must land on all of them. */
+  for (int r = 0; r < DET2_ITERATIONS; r++)
+    for (int c = 0; c < DET2_N_CFG; c++)
+      {
+        dp_correlator_reset (det[c]);
+        t0 = jm_bench_now_ns ();
+        for (int f = 0; f < DET2_FRAMES; f++)
+          (void)dp_correlator_push (det[c], in + (size_t)f * DET2_BINS,
+                                    DET2_BINS, res, DET2_MAX_RESULTS);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
+      }
+
+  for (int c = 0; c < DET2_N_CFG; c++)
+    {
+      (void)snprintf (name, sizeof name, "push[%zux%zu%s]", det2_ny[c],
+                      det2_nx[c],
+                      det2_thresh[c] > 0.0f ? ",no-detections" : "");
+      dp_bench_record (bench, name, t[c], DET2_ITERATIONS,
+                       (size_t)DET2_FRAMES * DET2_BINS, "sample");
+    }
+
+  printf ("\n  shape cost at a constant %d bins (%zux%zu = 1.00x):\n",
+          DET2_BINS, det2_ny[DET2_SQUARE_IDX], det2_nx[DET2_SQUARE_IDX]);
+  for (int c = 0; c < DET2_N_CFG; c++)
+    {
+      if (c == DET2_SILENT_IDX)
+        continue;
+      printf ("    %4zu x %-5zu  %.2fx\n", det2_ny[c], det2_nx[c],
+              dp_bench_min (t[c], DET2_ITERATIONS)
+                  / dp_bench_min (t[DET2_SQUARE_IDX], DET2_ITERATIONS));
+    }
+  printf ("  Compare this spread against bench_fft2d_core's. The detector\n"
+          "  adds O(n) work that is identical across shapes, so a SMALLER\n"
+          "  spread here than there is the wrapper diluting the\n"
+          "  transform's penalty, not the penalty going away.\n");
+  printf ("\n  emitting a detection on every dump costs %.2fx over\n"
+          "  emitting none, same shape, same statistic.\n",
+          dp_bench_min (t[DET2_SQUARE_IDX], DET2_ITERATIONS)
+              / dp_bench_min (t[DET2_SILENT_IDX], DET2_ITERATIONS));
+
+  for (int c = 0; c < DET2_N_CFG; c++)
+    dp_correlator_destroy (det[c]);
+  free (ref);
+  free (in);
+  free (res);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -671,6 +1014,9 @@ main (void)
 
   bench_batches (&_bench, &seed);
   bench_bank (&_bench, &seed);
+
+  if (bench_detector_1d (&_bench) != 0 || bench_detector_2d (&_bench) != 0)
+    return 1;
 
   jm_bench_write_json (&_bench, "correlator");
   return 0;

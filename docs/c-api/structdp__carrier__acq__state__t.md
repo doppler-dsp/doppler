@@ -38,7 +38,7 @@ _CarrierAcquisition state: owned PSD and detector children, scratch, config and 
 | ---: | :--- |
 |  float \_Complex \* | [**carry\_buf**](#variable-carry_buf)  <br> |
 |  size\_t | [**carry\_len**](#variable-carry_len)  <br> |
-|  [**dp\_detector\_state\_t**](structdp__detector__state__t.md) \* | [**det**](#variable-det)  <br> |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**det**](#variable-det)  <br> |
 |  size\_t | [**dwell\_target**](#variable-dwell_target)  <br> |
 |  size\_t | [**max\_n\_blocks**](#variable-max_n_blocks)  <br> |
 |  size\_t | [**n\_blocks**](#variable-n_blocks)  <br> |
@@ -147,12 +147,12 @@ Valid samples in carry\_buf, 0..n-1.
 ### variable det 
 
 ```C++
-dp_detector_state_t* dp_carrier_acq_state_t::det;
+dp_correlator_state_t* dp_carrier_acq_state_t::det;
 ```
 
 
 
-Correlate averaged power vs. template. 
+The 1-D detector flavor: correlate averaged power vs. template. 
  
 
 

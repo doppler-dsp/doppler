@@ -26,7 +26,6 @@
 #include "doppler/cic/cic_core.h"
 #include "doppler/resample/resample_core.h"
 #include "doppler/psd/psd_core.h"
-#include "doppler/detector/detector_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"

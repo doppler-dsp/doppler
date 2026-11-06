@@ -9,17 +9,17 @@
  * and a target (Pfa, Pd) — using the detection-theory functions.  The CFAR
  * helpers
  * (det_noise_estimate, det_ring_create) are reused header-only from
- * det_private.h — no link to detector_core.
+ * correlator_private.h, the correlator's detection layer.
  */
 
 #include "doppler/acq/acq_core.h"
 #include "../correlator/correlator_map.h"
 #include "doppler/acq/acq_private.h"
-/* det_private.h needs det_noise_mode_t (from detector2d_core.h, included
- * above) and supplies the header-only det_ring_create / det_noise_estimate
- * statics.
+/* correlator_private.h supplies the header-only det_ring_create /
+ * det_noise_estimate statics, and includes correlator_core.h for the
+ * det_noise_mode_t they take.
  */
-#include "doppler/detector/det_private.h"
+#include "doppler/correlator/correlator_private.h"
 #include "doppler/util/util_core.h"
 
 #include <math.h>
@@ -2697,9 +2697,9 @@ dp_acq_push (dp_acq_state_t *st, const float _Complex *x, size_t n_in,
   /* ONE frame at a time, never a batch: whether the next frame ends a dwell
      depends on where the dwell stands, which only the frame before it
      settles, and a dump can report several results -- the detectors'
-     batched feed (det_private.h) would overfill result here. While slots
-     are left, a frame that ends no dwell needs none and is taken; one that
-     does is taken only while `need` slots are left. A FULL result takes
+     batched feed (correlator_private.h) would overfill result here. While
+     slots are left, a frame that ends no dwell needs none and is taken; one
+     that does is taken only while `need` slots are left. A FULL result takes
      nothing more -- the detectors' rule (#2018), and the contract every
      room-limited caller relies on: a push at room 1 frames nothing past
      its hit. At the first frame it does not take, the push takes the rest

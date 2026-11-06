@@ -16,7 +16,6 @@
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
 #include "doppler/psd/psd_core.h"
-#include "doppler/detector/detector_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/correlator/correlator_core.h"
@@ -29,7 +28,7 @@ extern "C" {
 typedef struct {
     /* Composed children (owned, by pointer). */
     dp_psd_state_t      *psd; 
-    dp_detector_state_t *det; 
+    dp_correlator_state_t *det; 
     /* Scratch, not state -- sized nfft/psd->k.n, allocated once at create
      * (no allocation in the steps() hot path). */
     float         *pwr_buf;    
@@ -76,8 +75,8 @@ void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x
  * constructed with the same sample_rate_hz/symbol_rate_hz/psd_template/
  * pfa/pd/design_snr as the one that produced the blob -- the same class
  * of precondition dsss_receiver's own segments/sps/n check documents;
- * neither correlator_core nor detector_core hash-verify their own reference
- * spectra either). */
+ * correlator_core does not hash-verify its own reference spectra
+ * either). */
 #define CARRIER_ACQ_STATE_MAGIC DP_FOURCC('C', 'A', 'Q', 'R')
 #define CARRIER_ACQ_STATE_VERSION 2u
 size_t dp_carrier_acq_state_bytes(const dp_carrier_acq_state_t *state);

@@ -250,7 +250,7 @@ P2 (prime-length forward FFT).
 **Why.** `acq_core.c` (and, since, `burst_capture_core.c`) build a reference
 with energy only in row 0 — the flat-in-slow-time row spectrum turns the row
 axis into a pass-through, and `acq_core.c` relies on this, doing its own
-Doppler-axis FFT by hand before calling `dp_correlator_execute`. (`detector2d_core.c`
+Doppler-axis FFT by hand before calling `dp_correlator_execute`. (`correlator_core.c`
 passes its caller's arbitrary `(ny, nx)` reference through, so it takes the
 fast path only when that reference happens to be single-row.) For such a
 reference, `ref_spec[u,v] = conj(FFT_nx(ref_row0))[v]` is independent of the

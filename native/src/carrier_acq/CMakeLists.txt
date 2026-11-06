@@ -22,10 +22,9 @@ target_link_libraries(carrier_acq_core PUBLIC
     fft_core
     spectral_core
     acc_trace_core
-    detector_core
+    detection_core
     correlator_core
-    fft2d_core
-    detection_core)
+    fft2d_core)
 
 add_executable(test_carrier_acq_core
                ${CMAKE_SOURCE_DIR}/native/tests/carrier_acq/test_carrier_acq_core.c
@@ -35,10 +34,9 @@ target_link_libraries(test_carrier_acq_core
     fft_core
     spectral_core
     acc_trace_core
-    detector_core
+    detection_core
     correlator_core
     fft2d_core
-    detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_carrier_acq_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -53,10 +51,9 @@ target_link_libraries(bench_carrier_acq_core
     fft_core
     spectral_core
     acc_trace_core
-    detector_core
+    detection_core
     correlator_core
     fft2d_core
-    detection_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_carrier_acq_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

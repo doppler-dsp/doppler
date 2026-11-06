@@ -14,7 +14,9 @@
  *   - dp_psd_state_t: FFT + window + zero-pad + non-coherent power
  *     averaging (Welch's method) -- the entire "measure the average
  *     power spectrum of what's coming in" half of the algorithm.
- *   - dp_detector_state_t: FFT-based circular correlation of the averaged
+ *   - the correlator's 1-D detector flavor
+ *     (dp_correlator_create_detector_1d()): FFT-based circular correlation
+ *     of the averaged
  *     power spectrum against a known template (the average PSD shape
  *     of a random rectangular-pulse BPSK symbol stream by default, or a
  *     caller-supplied override for a different pulse/modulation) plus a
@@ -41,8 +43,9 @@
  *
  * Only the default template generator (a sinc^2 shape, DC-centred to
  * match dp_psd_power_twosided()'s own bin order) and the 3-point parabolic
- * sub-bin peak refinement (read directly off dp_detector_state_t's own
- * out_buf -- no second correlation pass needed) are new leaf code.
+ * sub-bin peak refinement (read directly off the detector's own det_out,
+ * the map of the dump that fired -- no second correlation pass needed)
+ * are new leaf code.
  *
  * Lifecycle: create -> steps()* -> (ready ? residual_hz : keep feeding)
  *            -> reset()/destroy
@@ -64,7 +67,6 @@
 #include "doppler/dp_state.h"
 #include "doppler/jm_perf.h"
 #include "doppler/psd/psd_core.h"
-#include "doppler/detector/detector_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/correlator/correlator_core.h"
@@ -83,7 +85,8 @@ extern "C" {
 typedef struct {
     /* Composed children (owned, by pointer). */
     dp_psd_state_t      *psd; /**< FFT + window + non-coherent power avg.  */
-    dp_detector_state_t *det; /**< Correlate averaged power vs. template.  */
+    dp_correlator_state_t *det; /**< The 1-D detector flavor: correlate
+                                     averaged power vs. template.        */
 
     /* Scratch, not state -- sized nfft/psd->k.n, allocated once at create
      * (no allocation in the steps() hot path). */
@@ -276,13 +279,14 @@ void dp_carrier_acq_steps(dp_carrier_acq_state_t *state, const float _Complex *x
  * constructed with the same sample_rate_hz/symbol_rate_hz/psd_template/
  * pfa/pd/design_snr as the one that produced the blob -- the same class
  * of precondition dsss_receiver's own segments/sps/n check documents;
- * neither correlator_core nor detector_core hash-verify their own reference
- * spectra either). */
+ * correlator_core does not hash-verify its own reference spectra
+ * either). */
 /** @brief State-blob magic ("CAQR"); set_state() rejects any other. */
 #define CARRIER_ACQ_STATE_MAGIC DP_FOURCC('C', 'A', 'Q', 'R')
 /** @brief State-blob layout version; bumped when the payload changes.
- *  Version 2: the nested detector blob is DET1 version 3, whose own child
- *  is the one correlator's 'CORL' (#2752 step 3.2). */
+ *  Version 2: the nested detector blob is the one correlator's 'CORL', in
+ *  its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no
+ *  release was cut, so 3.3's change rides the same unreleased version). */
 #define CARRIER_ACQ_STATE_VERSION 2u
 /**
  * @brief Size of this instance's serialized state blob.

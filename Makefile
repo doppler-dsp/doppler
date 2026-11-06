@@ -753,7 +753,8 @@ LEAK_CHECK    = python3 scripts/check_test_leaks.py
 MEM_GUARD_CMD = scripts/mem-guard.sh
 # CTEST_SELECT narrows the C suite the way PYTEST_SELECT narrows pytest:
 # `make test CTEST_SELECT='-R <re>'` runs only the matching ctests, still
-# under LEAK_CHECK. Empty by default, so the full suite is unchanged.
+# under LEAK_CHECK; `make test-asan` takes it too. Empty by default, so the
+# full suite is unchanged.
 CTEST_SELECT  ?=
 TEST_CMD      = $(LEAK_CHECK) --ctest -- \
                     $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
@@ -2791,18 +2792,21 @@ test-asan: ## Run the C suite under ASan+LSan; any bad access or leak fails
 	 fi; \
 	 [ "$$bad" = 0 ] || exit 1; \
 	 echo "test-asan: one ASan registration flag in each of $$checked test binaries"
-# An empty result set is not a pass -- the same trap test-tsan guards, and it
-# bites harder here because this target takes no pattern: a configure that
-# registered no tests would run zero of them and exit 0, reporting a clean
-# sanitizer run over nothing at all.
-	@n=$$($(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) -N | sed -n 's/^Total Tests: //p'); \
+# An empty result set is not a pass -- the same trap test-tsan guards: a
+# configure that registered no tests would run zero of them and exit 0,
+# reporting a clean sanitizer run over nothing at all. CTEST_SELECT (the knob
+# `make test` takes) narrows the count and the run alike, so a selection that
+# matches nothing fails here too. The build and the two checks above stay
+# whole-suite: the flag scan is over every test binary either way.
+	@n=$$($(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) $(CTEST_SELECT) -N | sed -n 's/^Total Tests: //p'); \
 	 if [ "$$n" = "0" ] || [ -z "$$n" ]; then \
-	   echo "test-asan: the suite registered no tests — nothing ran,"; \
+	   echo "test-asan: the selection holds no tests — nothing ran,"; \
 	   echo "  so this gate has not passed."; exit 1; \
 	 fi; \
 	 echo "test-asan: $$n test(s) under AddressSanitizer + LeakSanitizer"
 	ASAN_OPTIONS=$(ASAN_OPTS) \
-		$(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) --output-on-failure
+		$(CTEST) --test-dir $(ASAN_DIR) $(SAN_EXCLUDE_SWEEP) $(CTEST_SELECT) \
+		--output-on-failure
 
 # ── ThreadSanitizer ──────────────────────────────────────────────────────────
 # WHOLE-SUITE, like test-asan, and that is a correction rather than a

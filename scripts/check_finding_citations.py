@@ -129,20 +129,30 @@ def scan_validators(root: Path, pat):
     """Every recorded key, the keys two reports share, and dangling refs.
 
     Returns ``(keys, shared, dangling)``: the set of keys some tracked
-    ``validate.py`` records with ``find()``; ``{key: [file, ...]}`` for a
-    key recorded by more than one file; and ``(file:line, key)`` for each
-    literal ``ref``/``number`` key its own file does not record.
+    ``validate.py``, or a module beside it, records with ``find()``;
+    ``{key: [validate.py, ...]}`` for a key recorded by more than one
+    report; and ``(file:line, key)`` for each literal ``ref``/``number``
+    key its own report does not record.
     """
     owners: dict[str, list[str]] = {}
     dangling: list[tuple[str, str]] = []
+    # A report is its validator's FOLDER: validate.py may render part of
+    # the report from a sibling module (the correlator's renders
+    # CorrDetector2D's part from detector.py, #2752 step 3.3), so the keys
+    # one module records and another cites are the same report's. Every
+    # tracked .py beside a validate.py is read with it.
+    every_py = tracked(root, "*.py")
     for rel in tracked(root, "*validate.py"):
-        src = (root / rel).read_text("utf-8")
-        mine = set(pat.recorded_keys(src))
+        folder = str(Path(rel).parent)
+        mods = [r for r in every_py if str(Path(r).parent) == folder]
+        srcs = {r: (root / r).read_text("utf-8") for r in mods}
+        mine = {k for src in srcs.values() for k in pat.recorded_keys(src)}
         for key in mine:
             owners.setdefault(key, []).append(rel)
-        for line, key in pat.referenced_keys(src):
-            if key not in mine:
-                dangling.append((f"{rel}:{line}", key))
+        for r, src in srcs.items():
+            for line, key in pat.referenced_keys(src):
+                if key not in mine:
+                    dangling.append((f"{r}:{line}", key))
     shared = {k: v for k, v in owners.items() if len(v) > 1}
     return set(owners), shared, dangling
 

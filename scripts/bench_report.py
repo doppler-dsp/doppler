@@ -600,6 +600,11 @@ COMPONENT_MODULE = {
     # (docs/design/correlator.md section 7.1).
     "corr": "spectral",
     "corr2d": "spectral",
+    # And since step 3.3 the two detectors: their rows are the correlator
+    # bench's too, and the `detector` and `detector2d` rows remain in the
+    # published runs.
+    "detector": "spectral",
+    "detector2d": "spectral",
 }
 
 #: How many INPUT SAMPLES one recorded unit consumes (#2372): the page

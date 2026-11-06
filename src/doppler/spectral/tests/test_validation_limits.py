@@ -27,9 +27,6 @@ import pytest
 from doppler.spectral.tests.validation.correlator import (
     validate as corr2d_validate,
 )
-from doppler.spectral.tests.validation.detector2d import (
-    validate as detector2d_validate,
-)
 from doppler.spectral.tests.validation.psd import validate as psd_validate
 from doppler.spectral.tests.validation.spectrogram import (
     validate as spectrogram_validate,
@@ -37,8 +34,8 @@ from doppler.spectral.tests.validation.spectrogram import (
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
+    # Corr2D and CorrDetector2D: one object, one report (#2752 step 3.3).
     "corr2d": corr2d_validate,
-    "detector2d": detector2d_validate,
     "psd": psd_validate,
     "spectrogram": spectrogram_validate,
 }

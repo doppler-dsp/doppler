@@ -18,6 +18,11 @@ argument, so it is what the transform path is checked against rather than the
 transform path being checked against itself. Where a claim is only reachable
 from C — `set_ref`, the `fast_path` flag, the native path's NULL scratch
 pointers — the report says so and names the C section that covers it.
+
+**One object, one report** (#2752 step 3.3). `CorrDetector2D` is the
+correlator's 2-D detector flavor, so its certification is this report's part
+two, rendered by `detector.py` beside this file: its sections follow these,
+numbered on from them, and its findings and limits count in the one tally.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.spectral import Corr2D
+from doppler.spectral.tests.validation.correlator import detector
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
@@ -823,8 +829,8 @@ def review(d: Data) -> None:
         "computed value that underflowed got silence and unbounded growth "
         "rather than a refusal. Found by §2.9's refusal check, which "
         "failed on the first run. Fixed at the primitive rather than in "
-        "each caller: `dp_detector2d_create` forwards its own `dwell` "
-        "straight into this call, so both objects now refuse it and a "
+        "each caller: `dp_correlator_create_detector_2d` forwards its own "
+        "`dwell` straight into this call, so both objects now refuse it and a "
         "second copy of the rule cannot drift. NULL is the whole error "
         "report by design — `docs/dev/contributing/error-convention.md` "
         "makes NULL the return for an invalid argument as well as an "
@@ -1363,14 +1369,19 @@ def limits(d: Data) -> None:
 def build(write: bool = True) -> Report:
     global R
     R = Report(write=write)
-    R.md("# Corr2D — validation report")
+    detector.attach(R)
+    R.md("# Corr2D and CorrDetector2D — validation report")
     R.md()
     section_object()
+    detector.section_object()
     d = characterise()
+    dd = detector.characterise()
     review(d)
+    detector.review(dd)
     limits(d)
+    detector.limits(dd)
     R.executive(
-        "Corr2D",
+        "Corr2D and CorrDetector2D",
         [
             f"**The transform path is the brute-force answer** to "
             f"{d.brute_worst:.1e} across shapes and both reference kinds, "
@@ -1405,11 +1416,23 @@ def build(write: bool = True) -> Report:
             "H fresh dwell-1 objects on every path and thread count, the "
             "coherent sum is a dwell-H dump, and a batch mid-dwell changes "
             "neither the count nor the state blob (§2.10).",
+            "**CorrDetector2D's noise estimate is the object.** It is the "
+            "denominator of every decision, and three of its four modes "
+            "were exercised by nothing before its certification -- a mode "
+            "selecting the wrong statistic moves every `test_stat` in the "
+            "library without changing a single peak position (§2.12, "
+            f"{R.ref('noise_modes_unexercised')}).",
+            "**Its chunk size is not part of the answer, and its gate is "
+            "strict.** Six slicings of one stream, down to one sample a "
+            "push, give the same events (§2.15); a threshold equal to the "
+            "statistic emits nothing, `0.0` always fires, and a closed gate "
+            "still updates `last_corr` (§2.16, "
+            f"{R.ref('last_dump_comment_wrong')}).",
         ],
     )
     R.summary(
         "\n- Raw sweeps: `data/brute_force.csv`, `data/interpolation.csv`, "
-        "`data/accuracy.csv`"
+        "`data/accuracy.csv`, `data/noise_modes.csv`"
     )
     R.emit(HERE / "results.md")
     return R

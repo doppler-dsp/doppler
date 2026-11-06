@@ -4,9 +4,9 @@
 #
 # Composes existing primitives rather than reimplementing them: psd_core
 # (FFT + window + zero-pad + non-coherent power averaging, Welch's
-# method), detector_core (FFT-based circular correlation of the averaged
-# power spectrum against a known template + noise-referenced test
-# statistic + argmax lag), and detection_core (the same Pfa/Pd chi-square
+# method), the correlator's 1-D detector flavor (FFT-based circular
+# correlation of the averaged power spectrum against a known template +
+# noise-referenced test statistic + argmax lag), and detection_core (the same Pfa/Pd chi-square
 # statistics Acquisition's own auto-config is built on) for the
 # adaptive/fixed dwell gate. Only the known-template generator (a sinc^2
 # shape, the average PSD of a random rectangular-pulse BPSK symbol
@@ -29,15 +29,13 @@ no_step = "true"
 class_name = "CarrierAcquisition"
 depends_on = [
   { name = "psd", link = true },
-  { name = "detector", link = true },
   { name = "detection", link = true },
   # OBJECT-library object files do not propagate transitively through a
   # link=true boundary (the same fft2d/fft gotcha acq.toml's own
   # depends_on comment documents): psd_core itself depends on
   # spectral_core (window generation / measurement free functions), and
-  # detector_core itself depends on correlator_core (the FFT correlator it
-  # wraps) -- both must be linked explicitly here too, even though
-  # neither is used directly by this object's own code.
+  # correlator_core (the 1-D detector flavor) on fft -- both must be linked
+  # explicitly here too.
   { name = "spectral", link = true },
   { name = "correlator", link = true },
   { name = "fft", link = true },

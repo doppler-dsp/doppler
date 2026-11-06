@@ -716,7 +716,11 @@ class Corr2D:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec.
+        or recomputing ref_spec. A detector flavor also drops the carry (the
+        partial frame held between pushes), and its last dump's fields (the
+        peak, noise_est, test_stat) read 0 until the next dump, so the blob
+        after a reset matches a fresh object's (doppler#2642);
+        dp_correlator_consumed() reads 0.
 
         Examples
         --------
@@ -774,8 +778,11 @@ class Corr2D:
             Python: the map on a dump, None otherwise; a frame that is not
             ny*nx samples is REFUSED with nothing read, written or counted, as
             a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
-            otherwise, and SIZE_MAX for the refused frame. None when the C call
-            writes no output.
+            otherwise, and SIZE_MAX for the refused frame. A detector flavor
+            refuses every execute, and every batch and bank call, with SIZE_MAX
+            and nothing changed: its frames come through dp_correlator_push(),
+            and a frame from outside would put the dwell off the framer's grid.
+            None when the C call writes no output.
 
         Raises
         ------
@@ -1536,7 +1543,11 @@ class DelayDoppler:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec.
+        or recomputing ref_spec. A detector flavor also drops the carry (the
+        partial frame held between pushes), and its last dump's fields (the
+        peak, noise_est, test_stat) read 0 until the next dump, so the blob
+        after a reset matches a fresh object's (doppler#2642);
+        dp_correlator_consumed() reads 0.
 
         Examples
         --------
@@ -1594,8 +1605,11 @@ class DelayDoppler:
             Python: the map on a dump, None otherwise; a frame that is not
             ny*nx samples is REFUSED with nothing read, written or counted, as
             a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
-            otherwise, and SIZE_MAX for the refused frame. None when the C call
-            writes no output.
+            otherwise, and SIZE_MAX for the refused frame. A detector flavor
+            refuses every execute, and every batch and bank call, with SIZE_MAX
+            and nothing changed: its frames come through dp_correlator_push(),
+            and a frame from outside would put the dwell off the framer's grid.
+            None when the C call writes no output.
 
         Raises
         ------
@@ -2342,7 +2356,11 @@ class Corr:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec.
+        or recomputing ref_spec. A detector flavor also drops the carry (the
+        partial frame held between pushes), and its last dump's fields (the
+        peak, noise_est, test_stat) read 0 until the next dump, so the blob
+        after a reset matches a fresh object's (doppler#2642);
+        dp_correlator_consumed() reads 0.
 
         Examples
         --------
@@ -2400,8 +2418,11 @@ class Corr:
             Python: the map on a dump, None otherwise; a frame that is not
             ny*nx samples is REFUSED with nothing read, written or counted, as
             a ValueError (#1925). C: n_out on a dump (or max_out if smaller), 0
-            otherwise, and SIZE_MAX for the refused frame. None when the C call
-            writes no output.
+            otherwise, and SIZE_MAX for the refused frame. A detector flavor
+            refuses every execute, and every batch and bank call, with SIZE_MAX
+            and nothing changed: its frames come through dp_correlator_push(),
+            and a frame from outside would put the dwell off the framer's grid.
+            None when the C call writes no output.
 
         Raises
         ------
@@ -2556,13 +2577,299 @@ class Corr:
         """
 
 @final
+class CorrDetector2D:
+    """Allocate a 2-D streaming detector: the 2-D correlator with the stream
+    and detection layers.
+
+    Parameters
+    ----------
+    ref : NDArray[np.complex64]
+        2-D reference image, (ny, nx) CF32 ndarray in Python.
+    dwell : int, default 1
+        Int-dump depth; must be >= 1.
+    noise_lo : int, default 0
+        Lower flat-index noise bin (inclusive, 0-based).
+    noise_hi : int
+        Upper flat-index noise bin (inclusive, < ny*nx). A value at or beyond
+        the window clamps to ny*nx - 1, so the default sentinel selects the
+        full window.
+    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        How the noise bins are aggregated into the noise floor the
+        peak-to-noise statistic divides by.
+        One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
+    threshold : float, default 0.0
+        Test-stat gate; 0.0 = always emit.
+    nthreads : int, default 1
+        Workers for the single-row-reference fast path (1 serial, <= 0 every
+        online core); the general 2-D path ignores it.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``CorrDetector2D:
+        invalid parameter (need a non-empty 2-D ref and dwell >= 1)``.
+
+    Examples
+    --------
+    >>> from doppler.spectral import CorrDetector2D
+    >>> import numpy as np
+    >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+    >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+    ...                  noise_mode="mean", threshold=0.0)
+    >>> det.ny, det.nx, det.n, det.dwell
+    (4, 4, 16, 1)
+
+    """
+
+    def __init__(
+        self,
+        ref: npt.NDArray[np.complex64],
+        dwell: int = 1,
+        noise_lo: int = 0,
+        noise_hi: int = ...,
+        noise_mode: Literal["mean", "median", "min", "max"] = "mean",
+        threshold: float = 0.0,
+        nthreads: int = 1,
+    ) -> None: ...
+    def reset(self) -> None:
+        """Zero the accumulator and reset the integration counter to 0.
+        Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
+        or recomputing ref_spec. A detector flavor also drops the carry (the
+        partial frame held between pushes), and its last dump's fields (the
+        peak, noise_est, test_stat) read 0 until the next dump, so the blob
+        after a reset matches a fresh object's (doppler#2642);
+        dp_correlator_consumed() reads 0.
+
+        Examples
+        --------
+        >>> from doppler.spectral import Corr2D
+        >>> import numpy as np
+        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> c = Corr2D(ref=ref, dwell=3)
+        >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
+        >>> c.count
+        1
+        >>> c.reset()
+        >>> c.count
+        0
+
+        """
+
+    def push(
+        self,
+        x: complex,
+        /,
+    ) -> list[tuple[int, int, float, float, float]]:
+        """Stream an arbitrary-length CF32 chunk through a detector flavor.
+
+        Takes the input in order, runs each complete n-sample frame (n = ny*nx)
+        through the correlator, and on every dump computes the test statistic
+        peak_mag / noise_est. Each dump that passes the threshold is one hit.
+        In Python the result is always a list: of (row, col, peak_mag,
+        noise_est, test_stat) tuples from CorrDetector2D, and of (lag,
+        peak_mag, noise_est, test_stat) tuples from CorrDetector, whose lag is
+        the hit's col.
+
+        Python's push() has room for 1024 detections a call, so a push that
+        completes at most 1024 frames, counting the carry, loses nothing. One
+        that fills the room loses the rest of its input, every later frame
+        whether or not it would have made a detection, unless the rest is
+        shorter than a frame: that is kept as the carry. The next push stays on
+        the frame grid only when what was lost is a whole number of frames;
+        otherwise its peaks are off by the remainder. #1992 and
+        just-buildit/just-makeit#2184 track sizing the list to the call.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        list[tuple[int, int, float, float, float]]
+            Number of hits written to result, or SIZE_MAX (nothing taken,
+            nothing changed) when state is a map flavor.
+
+        Examples
+        --------
+        >>> from doppler.spectral import CorrDetector, CorrDetector2D
+        >>> import numpy as np
+        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+        ...                  noise_mode="mean", threshold=0.0)
+        >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
+        >>> row, col, peak, noise, stat = results[0]
+        >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
+        (0, 0, 1.0, 1.0, 1.0)
+        >>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
+        ...                 noise_mode="mean", threshold=0.0)
+        >>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
+        >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
+        (0, 1.0, 1.0, 1.0)
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the CorrDetector2D has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the CorrDetector2D has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes, /) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the CorrDetector2D has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def ny(self) -> int:
+        """Row count."""
+
+    @property
+    def nx(self) -> int:
+        """Column count."""
+
+    @property
+    def n(self) -> int:
+        """ny * nx: the frame length push cuts the stream into."""
+
+    @property
+    def dwell(self) -> int:
+        """Integration depth: a detection statistic is dumped every `dwell`
+        frames.
+        """
+
+    @property
+    def count(self) -> int:
+        """Frames accumulated toward the next dump (0 ... dwell-1)."""
+
+    @property
+    def ring_cap(self) -> int:
+        """Ring buffer capacity, complex samples."""
+
+    @property
+    def noise_lo(self) -> int:
+        """Noise bin range, first flat index (inclusive)."""
+
+    @property
+    def noise_hi(self) -> int:
+        """Noise bin range, last flat index (inclusive)."""
+
+    @property
+    def threshold(self) -> float:
+        """Test-stat gate: 0 fires on every dump, > 0 on test_stat above it."""
+
+    @property
+    def last_corr(self) -> NDArray[np.complex64]:
+        """The correlation vector from the most recent push() that produced a
+        result (None before that, and after reset() or set_state(): the vector
+        is not part of the serialized state). This is a zero-copy view into a
+        buffer owned by the detector and reused every push() -- the next push()
+        (even one that doesn't produce a result) overwrites it in place. Copy
+        the array before the next push() if you need to retain it.
+        """
+
+    def destroy(self) -> None:
+        """Close the object; the memory goes with its last user.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this, or use the object as a context manager,
+        to end its use at a definite point.
+
+        Views this object handed out keep the memory they point into, as does a
+        call still running on another thread: it is freed when the last of
+        them, and this object, are gone, not here (gh-2187). Idempotent:
+        calling it again does nothing. Every other method raises
+        ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "CorrDetector2D":
+        """Enter a context manager, returning this object.
+
+        Lets a CorrDetector2D be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        CorrDetector2D
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+        /,
+    ) -> None:
+        """Exit a context manager, releasing the CorrDetector2D.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class CorrDetector:
-    """Allocate a 1-D streaming signal detector backed by an FFT correlator.
-    Combines a dp_correlator_state_t with a double-mapped ring buffer so that
-    arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise
-    test statistic is compared against threshold; a det_result_t is emitted
-    when it passes. Setting threshold to 0.0 unconditionally fires on every
-    dump. The ring capacity is next_pow_two(max(n, 512)) complex samples.
+    """Allocate a 1-D streaming detector: the 2-D detector at one row
+    (docs/design/correlator.md section 2.1), so its hits are the 2-D one's at
+    ny = 1, each with row 0 and the lag in col.
 
     Parameters
     ----------
@@ -2613,35 +2920,39 @@ class CorrDetector:
         nthreads: int = 1,
     ) -> None: ...
     def reset(self) -> None:
-        """Reset the correlator, the carry, and last-corr flag. Discards any
-        partial frame carried between pushes and zeroes the coherent
-        accumulator. Equivalent to starting fresh from the same reference
-        without rebuilding any internal object. The last-dump fields (peak_lag,
-        peak_mag, noise_est, test_stat) read 0 until the next dump, so the
-        state blob after a reset matches a fresh object's (doppler#2642).
-        dp_detector_consumed() reads 0 afterwards.
+        """Zero the accumulator and reset the integration counter to 0.
+        Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
+        or recomputing ref_spec. A detector flavor also drops the carry (the
+        partial frame held between pushes), and its last dump's fields (the
+        peak, noise_est, test_stat) read 0 until the next dump, so the blob
+        after a reset matches a fresh object's (doppler#2642);
+        dp_correlator_consumed() reads 0.
 
         Examples
         --------
-        >>> from doppler.spectral import CorrDetector
+        >>> from doppler.spectral import Corr2D
         >>> import numpy as np
-        >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
-        >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
-        ...                noise_mode="mean", threshold=0.0)
-        >>> _ = det.push(np.ones(8, dtype=np.complex64))
-        >>> det.reset()
-        >>> det.count
+        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> c = Corr2D(ref=ref, dwell=3)
+        >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
+        >>> c.count
+        1
+        >>> c.reset()
+        >>> c.count
         0
 
         """
 
     def push(self, x: complex, /) -> list[tuple[int, float, float, float]]:
-        """Stream an arbitrary-length CF32 chunk through the detector pipeline.
-        Takes the input in order, runs each complete n-sample frame through the
-        correlator, and on every int-dump computes the test statistic peak_mag
-        / noise_est. Detections that pass the threshold are appended to the
-        Python return list as (lag, peak_mag, noise_est, test_stat) tuples. In
-        Python the result is always a list, even when empty.
+        """Stream an arbitrary-length CF32 chunk through a detector flavor.
+
+        Takes the input in order, runs each complete n-sample frame (n = ny*nx)
+        through the correlator, and on every dump computes the test statistic
+        peak_mag / noise_est. Each dump that passes the threshold is one hit.
+        In Python the result is always a list: of (row, col, peak_mag,
+        noise_est, test_stat) tuples from CorrDetector2D, and of (lag,
+        peak_mag, noise_est, test_stat) tuples from CorrDetector, whose lag is
+        the hit's col.
 
         Python's push() has room for 1024 detections a call, so a push that
         completes at most 1024 frames, counting the carry, loses nothing. One
@@ -2649,9 +2960,7 @@ class CorrDetector:
         whether or not it would have made a detection, unless the rest is
         shorter than a frame: that is kept as the carry. The next push stays on
         the frame grid only when what was lost is a whole number of frames;
-        otherwise its lags are off by the remainder. Before v0.66 the room was
-        64, and a push past it kept up to ring_cap/n - 1 of those frames for
-        the next call and dropped the rest. #1992 and
+        otherwise its peaks are off by the remainder. #1992 and
         just-buildit/just-makeit#2184 track sizing the list to the call.
 
         Parameters
@@ -2662,19 +2971,23 @@ class CorrDetector:
         Returns
         -------
         list[tuple[int, float, float, float]]
-            Number of det_result_t entries written to result.
+            Number of hits written to result, or SIZE_MAX (nothing taken,
+            nothing changed) when state is a map flavor.
 
         Examples
         --------
-        >>> from doppler.spectral import CorrDetector
+        >>> from doppler.spectral import CorrDetector, CorrDetector2D
         >>> import numpy as np
-        >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
-        >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
-        ...                noise_mode="mean", threshold=0.0)
-        >>> results = det.push(np.ones(8, dtype=np.complex64))
-        >>> len(results)
-        1
-        >>> lag, peak, noise, stat = results[0]
+        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+        ...                  noise_mode="mean", threshold=0.0)
+        >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
+        >>> row, col, peak, noise, stat = results[0]
+        >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
+        (0, 0, 1.0, 1.0, 1.0)
+        >>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
+        ...                 noise_mode="mean", threshold=0.0)
+        >>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
         >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
         (0, 1.0, 1.0, 1.0)
 
@@ -2753,19 +3066,19 @@ class CorrDetector:
 
     @property
     def ring_cap(self) -> int:
-        """Ring buffer capacity in complex samples."""
+        """Ring buffer capacity, complex samples."""
 
     @property
     def noise_lo(self) -> int:
-        """Noise bin range lower bound (inclusive)."""
+        """Noise bin range, first index (inclusive)."""
 
     @property
     def noise_hi(self) -> int:
-        """Noise bin range upper bound (inclusive)."""
+        """Noise bin range, last index (inclusive)."""
 
     @property
     def threshold(self) -> float:
-        """0 = always fire; >0 = gate on test_stat."""
+        """Test-stat gate: 0 fires on every dump, > 0 on test_stat above it."""
 
     @property
     def last_corr(self) -> NDArray[np.complex64]:
@@ -2811,293 +3124,6 @@ class CorrDetector:
         /,
     ) -> None:
         """Exit a context manager, releasing the CorrDetector.
-
-        Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never
-        suppresses one.
-
-        Parameters
-        ----------
-        exc_type : object | None
-            Exception class, or None. Ignored.
-        exc : object | None
-            Exception instance, or None. Ignored.
-        tb : object | None
-            Traceback object, or None. Ignored.
-        """
-
-@final
-class CorrDetector2D:
-    """Allocate a 2-D streaming signal detector backed by a 2-D correlator.
-    Two-dimensional extension of dp_detector_create(). Input frames are flat
-    row-major CF32 arrays of length ny*nx, cut from the stream by the ring's
-    framer. On every int-dump the peak flat index is decomposed into (row, col)
-    and a det_result2d_t is emitted when test_stat > threshold. The Python
-    wrapper accepts a (ny, nx) CF32 ndarray for both ref and the push input.
-
-    Parameters
-    ----------
-    ref : NDArray[np.complex64]
-        2-D reference image, (ny, nx) CF32 ndarray in Python.
-    dwell : int, default 1
-        Int-dump depth; must be >= 1.
-    noise_lo : int, default 0
-        Lower flat-index noise bin (inclusive, 0-based).
-    noise_hi : int
-        Upper flat-index noise bin (inclusive, < ny*nx). A value at or beyond
-        the window clamps to ny*nx - 1, so the default sentinel selects the
-        full window.
-    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        How the noise bins are aggregated into the noise floor the
-        peak-to-noise statistic divides by.
-        One of ``"mean"``, ``"median"``, ``"min"``, ``"max"``.
-    threshold : float, default 0.0
-        Test-stat gate; 0.0 = always emit.
-    nthreads : int, default 1
-        Forwarded to dp_correlator_create_2d(): workers for the
-        single-row-reference fast path (1 serial, <= 0 every online core); the
-        general 2-D path ignores it.
-
-    Raises
-    ------
-    ValueError
-        If construction fails. The exception message is ``CorrDetector2D:
-        invalid parameter (need a non-empty 2-D ref and dwell >= 1)``.
-
-    Examples
-    --------
-    >>> from doppler.spectral import CorrDetector2D
-    >>> import numpy as np
-    >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-    >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
-    ...                  noise_mode="mean", threshold=0.0)
-    >>> det.ny, det.nx, det.n, det.dwell
-    (4, 4, 16, 1)
-
-    """
-
-    def __init__(
-        self,
-        ref: npt.NDArray[np.complex64],
-        dwell: int = 1,
-        noise_lo: int = 0,
-        noise_hi: int = ...,
-        noise_mode: Literal["mean", "median", "min", "max"] = "mean",
-        threshold: float = 0.0,
-        nthreads: int = 1,
-    ) -> None: ...
-    def reset(self) -> None:
-        """Reset the 2-D correlator, the carry, and last-corr flag. Discards
-        any partial frame carried between pushes and zeroes the coherent
-        accumulator. The reference spectrum and FFT plans are preserved. The
-        last-dump fields (peak_row, peak_col, peak_mag, noise_est, test_stat)
-        read 0 until the next dump, so the state blob after a reset matches a
-        fresh object's (doppler#2642).
-
-        Examples
-        --------
-        >>> from doppler.spectral import CorrDetector2D
-        >>> import numpy as np
-        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
-        ...                  noise_mode="mean", threshold=0.0)
-        >>> _ = det.push(np.ones((4, 4), dtype=np.complex64))
-        >>> det.reset()
-        >>> det.count
-        0
-
-        """
-
-    def push(
-        self,
-        x: complex,
-        /,
-    ) -> list[tuple[int, int, float, float, float]]:
-        """Stream an arbitrary-length CF32 chunk through the 2-D detector. The
-        same pipeline as dp_detector_push(), except that frames are ny*nx
-        complex samples and each detection event carries (row, col) for the
-        peak location instead of a single lag index. In Python the result is
-        always a list of (row, col, peak_mag, noise_est, test_stat) tuples.
-
-        Python's push() has room for 1024 detections a call, so a push that
-        completes at most 1024 frames, counting the carry, loses nothing. One
-        that fills the room loses the rest of its input, every later frame
-        whether or not it would have made a detection, unless the rest is
-        shorter than a frame: that is kept as the carry. The next push stays on
-        the frame grid, its peaks at their own (row, col), only when what was
-        lost is a whole number of frames; otherwise they are off by the
-        remainder. Before v0.66 the room was 64, and a push past it kept up to
-        ring_cap/n - 1 of those frames for the next call and dropped the rest.
-        #1992 and just-buildit/just-makeit#2184 track sizing the list to the
-        call.
-
-        Parameters
-        ----------
-        x : complex
-            Input.
-
-        Returns
-        -------
-        list[tuple[int, int, float, float, float]]
-            Number of det_result2d_t entries written to result.
-
-        Examples
-        --------
-        >>> from doppler.spectral import CorrDetector2D
-        >>> import numpy as np
-        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
-        ...                  noise_mode="mean", threshold=0.0)
-        >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
-        >>> len(results)
-        1
-        >>> row, col, peak, noise, stat = results[0]
-        >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
-        (0, 0, 1.0, 1.0, 1.0)
-
-        """
-
-    def state_bytes(self) -> int:
-        """Size in bytes of this object's serialized state.
-
-        The exact length `get_state` returns and `set_state` requires. It
-        depends on how the object was constructed (state arrays are sized at
-        construction), so read it from the instance rather than assuming a
-        constant.
-
-        Raises ``RuntimeError`` if the CorrDetector2D has already been
-        destroyed.
-
-        Returns
-        -------
-        int
-            Byte length of one serialized state blob.
-        """
-
-    def get_state(self) -> bytes:
-        """Serialize this object's mutable state to bytes.
-
-        Captures the state that evolves as the object runs, including any value
-        a setter changed after construction, so a blob taken now and restored
-        later resumes from this point. Construction parameters are not
-        restored: restore into an object built the same way. A core may check
-        some of them and refuse a blob built differently.
-
-        The blob is opaque and always `state_bytes()` long. Its layout is an
-        implementation detail of the C core and is not a stable format across
-        builds.
-
-        Raises ``RuntimeError`` if the CorrDetector2D has already been
-        destroyed.
-
-        Returns
-        -------
-        bytes
-            Opaque snapshot, `state_bytes()` bytes long.
-        """
-
-    def set_state(self, blob: bytes, /) -> None:
-        """Restore mutable state from a `get_state()` blob.
-
-        Overwrites the live state in place, including any value a setter
-        changed after construction. Construction parameters are not restored:
-        restore into an object built the same way. Length is validated against
-        `state_bytes()` before the blob is handed to the C core, which may
-        reject it too: a core may check some construction parameters and refuse
-        a blob built differently.
-
-        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
-        length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the CorrDetector2D has already been destroyed.
-
-        Parameters
-        ----------
-        blob : bytes
-            A `get_state()` blob from this type, exactly `state_bytes()` long.
-        """
-
-    @property
-    def ny(self) -> int:
-        """Number of rows."""
-
-    @property
-    def nx(self) -> int:
-        """Number of columns."""
-
-    @property
-    def n(self) -> int:
-        """ny * nx — total frame length."""
-
-    @property
-    def dwell(self) -> int:
-        """Integration depth: a detection statistic is dumped every `dwell`
-        frames.
-        """
-
-    @property
-    def count(self) -> int:
-        """Frames accumulated toward the next dump (0 ... dwell-1)."""
-
-    @property
-    def ring_cap(self) -> int:
-        """Ring buffer capacity in complex samples."""
-
-    @property
-    def noise_lo(self) -> int:
-        """Noise bin range lower bound (inclusive)."""
-
-    @property
-    def noise_hi(self) -> int:
-        """Noise bin range upper bound (inclusive)."""
-
-    @property
-    def threshold(self) -> float:
-        """0 = always fire; >0 = gate on test_stat."""
-
-    @property
-    def last_corr(self) -> NDArray[np.complex64]:
-        """The correlation vector from the most recent push() that produced a
-        result (None before that, and after reset() or set_state(): the vector
-        is not part of the serialized state). This is a zero-copy view into a
-        buffer owned by the detector and reused every push() -- the next push()
-        (even one that doesn't produce a result) overwrites it in place. Copy
-        the array before the next push() if you need to retain it.
-        """
-
-    def destroy(self) -> None:
-        """Close the object; the memory goes with its last user.
-
-        Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this, or use the object as a context manager,
-        to end its use at a definite point.
-
-        Views this object handed out keep the memory they point into, as does a
-        call still running on another thread: it is freed when the last of
-        them, and this object, are gone, not here (gh-2187). Idempotent:
-        calling it again does nothing. Every other method raises
-        ``RuntimeError`` once it has run.
-        """
-
-    def __enter__(self) -> "CorrDetector2D":
-        """Enter a context manager, returning this object.
-
-        Lets a CorrDetector2D be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
-
-        Returns
-        -------
-        CorrDetector2D
-            This same object, not a copy.
-        """
-
-    def __exit__(
-        self,
-        exc_type: object | None = ...,
-        exc: object | None = ...,
-        tb: object | None = ...,
-        /,
-    ) -> None:
-        """Exit a context manager, releasing the CorrDetector2D.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

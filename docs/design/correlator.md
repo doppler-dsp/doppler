@@ -47,18 +47,18 @@ changes all three:
     becomes the correlator's;
 - it reads the detector's correlation output directly,
     `s->det->out_buf` (`:207-209`), for the parabolic refine;
-- it calls `dp_detector_set_threshold` on every push (`:298`).
+- it sets the detector's threshold on every push (`:298`).
 
 **Everything else that touches the retired objects**, each in the oracle of
 the sub-step that changes it:
 
-| kind           | files                                                                                                                                                                      |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| examples       | `native/examples/corr_demo.c`; `src/doppler/examples/corr_demo.py`, which draws `docs/gallery/corr.md`; `src/doppler/examples/dsss_burst_demo.py:210` (`Corr` and its `n`) |
-| docs           | `docs/api/python-spectral.md`, `docs/api/python-detection.md`, `docs/gallery/corr.md`                                                                                      |
-| Python suites  | `src/doppler/spectral/tests/test_corr.py`, `test_detector.py`, `test_exact_length.py`; the `src/doppler/tests/test_state_serialization.py` matrix                          |
-| C symbol tests | `native/tests/correlator/test_correlator_1d_symbols.c` (Corr's, moved in 3.2), `native/tests/detector/test_detector_symbols.c`                                             |
-| bookkeeping    | `scripts/.mutator-state-exempt`, `native/inc/.example-arity-ratchet`, `native/.c-header-code-ignore`, `scripts/.doc-symbol-exempt`                                         |
+| kind           | files                                                                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| examples       | `native/examples/corr_demo.c`; `src/doppler/examples/corr_demo.py`, which draws `docs/gallery/corr.md`; `src/doppler/examples/dsss_burst_demo.py:210` (`Corr` and its `n`)             |
+| docs           | `docs/api/python-spectral.md`, `docs/api/python-detection.md`, `docs/gallery/corr.md`                                                                                                  |
+| Python suites  | `src/doppler/spectral/tests/test_corr.py`, `test_detector.py`, `test_exact_length.py`; the `src/doppler/tests/test_state_serialization.py` matrix                                      |
+| C symbol tests | `native/tests/correlator/test_correlator_1d_symbols.c` (Corr's, moved in 3.2); the detectors' (deleted in 3.3: the generated `test_correlator_symbols.c` names every view's functions) |
+| bookkeeping    | `scripts/.mutator-state-exempt`, `native/inc/.example-arity-ratchet`, `native/.c-header-code-ignore`, `scripts/.doc-symbol-exempt`                                                     |
 
 ## 2. Today, measured
 
@@ -73,7 +73,8 @@ Origin/main at `ba70f133c`, 2026-11-05.
 | `Acquisition`             | 2,324 + 3,510 (+ 119 `acq_private.h`) | the map, its own framer, `det_private.h`'s CFAR and peaks     |                  597 | yes, 22/22 (two findings open) |
 | `BurstAcquisition`        |                              329 + 92 | a forwarder onto `Acquisition`                                |                   12 | yes, 16/16                     |
 
-The shared CFAR is `native/inc/doppler/detector/det_private.h`: header-only
+The shared CFAR is `det_private.h` (since 3.3,
+`native/inc/doppler/correlator/correlator_private.h`): header-only
 statics for the ring (`det_ring_create`), the noise estimate
 (`det_noise_chunk`, `det_noise_estimate`), the peaks (`det_peak_list`,
 `det_peak_scan`, `det_peak_zone`) and the framed push (`det_framed_push`).
@@ -145,19 +146,19 @@ become the object's, renamed and otherwise unchanged in their arguments:
 | `Corr`'s constructor (renamed in 3.2)             | `dp_correlator_create_1d`                                       | map (single row) and dwell       |
 | `Corr2D`'s constructor (renamed in 3.2)           | `dp_correlator_create_2d`                                       | map and dwell                    |
 | `DelayDoppler`'s constructor (renamed in 3.2)     | `dp_correlator_create_delay_doppler`                            | map (delay-Doppler) and dwell    |
-| `dp_detector_create`                              | `dp_correlator_create_detector_1d`                              | all four, single row             |
-| `dp_detector2d_create`                            | `dp_correlator_create_detector_2d`                              | all four                         |
+| `CorrDetector`'s constructor (renamed in 3.3)     | `dp_correlator_create_detector_1d`                              | all four, single row             |
+| `CorrDetector2D`'s constructor (renamed in 3.3)   | `dp_correlator_create_detector_2d`                              | all four                         |
 | `dp_acq_create_continuous`, `dp_acq_create_burst` | `dp_correlator_create_continuous`, `dp_correlator_create_burst` | all four, with the search policy |
 
 `execute` and its batch family serve the map constructors, and `push`
 serves the detection ones. A method that cannot serve a flavor refuses it
 (`SIZE_MAX`, as `execute` refuses a short frame today), never falls back.
 
-**One hit record** (owner, 2026-11-05). `det_result_t` (lag),
-`det_result2d_t` (row, col) and `acq_result_t` (row, col and the search's
-fields) are three records for one event. The correlator has one:
-`acq_result_t`'s fields under the correlator's name, with `row = 0` at one
-row.
+**One hit record** (owner, 2026-11-05). The 1-D detector's record (lag),
+the 2-D detector's (row, col) and `acq_result_t` (row, col and the search's
+fields) were three records for one event. The correlator has one,
+`dp_correlator_hit_t`, with `row = 0` at one row: 3.3 made it the two
+detectors', and 3.4 widens it with `acq_result_t`'s fields.
 
 **One state blob.** One magic, `CORL`, and one version. The flavor is the
 blob's first field and a reject key, like the grid today. The payload is
@@ -212,10 +213,9 @@ Both detectors bind the one C `push`, which writes the one hit record
 so its Python tuple is today's. If jm cannot bind a subset of a record's
 fields, that is a jm fix first, not a hand-written second `push`.
 
-Both detectors already read `dwell` and `count` the same way, as `expr`s
-over their composed correlator (`objects/detector.toml` and
-`objects/detector2d.toml`), so those become fields of the one state for
-both. `set_ref`, `void` in 1-D and `int` in 2-D, is C-only: no class binds
+Both detectors read `dwell` and `count` the same way, as `expr`s over
+their composed correlator in their own manifests, so since 3.3 those are
+fields of the one state for both. `set_ref`, `void` in 1-D and `int` in 2-D, is C-only: no class binds
 it, so the C rename (above) covers it and no view does.
 
 Each sub-step's PR lists its views' members as the rule gives them, and
@@ -349,8 +349,8 @@ Each is its own PR, tracked by an issue of its own under #2752.
         `threshold`, the last dump's result, `consumed`) go below it, beside
         `count`. `push`, `consumed` and `set_threshold` refuse a map flavor,
         and the `execute` family refuses a detector flavor.
-    - **One hit record**, under the correlator's name (`row`, `col`,
-        `peak_mag`, `noise_est`, `test_stat`); `det_result_t` and `det_result2d_t`
+    - **One hit record**, `dp_correlator_hit_t` (`row`, `col`,
+        `peak_mag`, `noise_est`, `test_stat`); the two detectors' records
         retire, and 3.4 widens the record with acq's fields rather than
         adding a second. `det_noise_mode_t`, `det_peak_t` and
         `det_private.h`'s `det_*` names keep their spelling, since acq uses
@@ -387,7 +387,7 @@ Each is its own PR, tracked by an issue of its own under #2752.
     - `test_detector_core.c`'s streaming oracle, ported verbatim: chunk
         invariance, `consumed` and re-offer, `reset`, and `set_state`
         mid-stream;
-    - `test_detector2d_core.c`, `test_detector_symbols.c`;
+    - the 2-D detector's C tests, and the symbol tests;
     - `carrier_acq`'s C and Python tests;
     - `test_detector.py`, the state matrix;
     - `python-detection.md`'s and `python-spectral.md`'s fences;

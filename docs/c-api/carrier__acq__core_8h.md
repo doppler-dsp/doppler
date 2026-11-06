@@ -14,7 +14,6 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/jm_perf.h"`
 * `#include "doppler/psd/psd_core.h"`
-* `#include "doppler/detector/detector_core.h"`
 * `#include "doppler/detection/detection_core.h"`
 * `#include "doppler/spectral/spectral_core.h"`
 * `#include "doppler/correlator/correlator_core.h"`
@@ -105,7 +104,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 | Type | Name |
 | ---: | :--- |
 | define  | [**CARRIER\_ACQ\_STATE\_MAGIC**](carrier__acq__core_8h.md#define-carrier_acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('C', 'A', 'Q', 'R')`<br>_State-blob magic ("CAQR"); set\_state() rejects any other._  |
-| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `2u`<br>_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is DET1 version 3, whose own child is the one correlator's 'CORL' (#2752 step 3.2)._  |
+| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `2u`<br>_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is the one correlator's 'CORL', in its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no release was cut, so 3.3's change rides the same unreleased version)._  |
 
 ## Detailed Description
 
@@ -119,7 +118,7 @@ Composes existing primitives rather than reimplementing them:
 
 * [**dp\_psd\_state\_t**](structdp__psd__state__t.md): FFT + window + zero-pad + non-coherent power averaging (Welch's method)  the entire "measure the average
     power spectrum of what's coming in" half of the algorithm.
-* [**dp\_detector\_state\_t**](structdp__detector__state__t.md): FFT-based circular correlation of the averaged power spectrum against a known template (the average PSD shape of a random rectangular-pulse BPSK symbol stream by default, or a caller-supplied override for a different pulse/modulation) plus a noise-referenced test statistic and argmax lag.
+* the correlator's 1-D detector flavor ([**dp\_correlator\_create\_detector\_1d()**](correlator__core_8h.md#function-dp_correlator_create_detector_1d)): FFT-based circular correlation of the averaged power spectrum against a known template (the average PSD shape of a random rectangular-pulse BPSK symbol stream by default, or a caller-supplied override for a different pulse/modulation) plus a noise-referenced test statistic and argmax lag.
 * detection\_core's [**dp\_det\_n\_noncoh()**](detection__core_8h.md#function-dp_det_n_noncoh)/dp\_det\_threshold(): det\_n\_noncoh (the same chi-square statistic Acquisition's own auto-config uses) drives the precomputed fixed-dwell/give-up cap; det\_threshold (sqrt(-2\*ln(pfa))) is reused as the tail-quantile stand-in inside the per-block CFAR ratio threshold below.
 
 
@@ -128,7 +127,7 @@ Composes existing primitives rather than reimplementing them:
 The per-block CFAR ratio threshold is NOT [**dp\_det\_threshold\_noncoherent()**](detection__core_8h.md#function-dp_det_threshold_noncoherent) (that statistic  a classic complex-correlator peak/noise envelope ratio  does not transfer to this object's real statistic, a power-spectrum-vs-known-template correlation; confirmed via Monte Carlo, ~5x too conservative). carrier\_acq\_ratio\_threshold() (carrier\_acq\_core.c) instead uses the derived H0 model for this specific statistic (an exact Gamma-sum mean/variance for the averaged, template-correlated periodogram) plus ONE empirically-calibrated tail-inflation constant (kappa, standing in for the argmax-over-nfft-correlated-lags extreme- value quantile a full closed form hasn't cleanly reduced to yet  see FINISHING\_PLAN.md's CarrierAcquisition section / the derive\_carrier\_acq\_statistic.py derivation for the full story, and revisit/refine kappa when time allows).
 
 
-Only the default template generator (a sinc^2 shape, DC-centred to match [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided)'s own bin order) and the 3-point parabolic sub-bin peak refinement (read directly off [**dp\_detector\_state\_t**](structdp__detector__state__t.md)'s own out\_buf  no second correlation pass needed) are new leaf code.
+Only the default template generator (a sinc^2 shape, DC-centred to match [**dp\_psd\_power\_twosided()**](psd__core_8h.md#function-dp_psd_power_twosided)'s own bin order) and the 3-point parabolic sub-bin peak refinement (read directly off the detector's own det\_out, the map of the dump that fired  no second correlation pass needed) are new leaf code.
 
 
 Lifecycle: create -&gt; steps()\* -&gt; (ready ? residual\_hz : keep feeding) -&gt; reset()/destroy
@@ -482,7 +481,7 @@ _State-blob magic ("CAQR"); set\_state() rejects any other._
 
 ### define CARRIER\_ACQ\_STATE\_VERSION 
 
-_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is DET1 version 3, whose own child is the one correlator's 'CORL' (#2752 step 3.2)._ 
+_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is the one correlator's 'CORL', in its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no release was cut, so 3.3's change rides the same unreleased version)._ 
 ```C++
 #define CARRIER_ACQ_STATE_VERSION `2u`
 ```

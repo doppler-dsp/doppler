@@ -3,7 +3,7 @@
  * @brief Shared internals of the wfm composer, the Plan and the synth.
  *
  * Not part of the public API: nothing here is exported, and nothing here is
- * promised to a caller (the acq_private.h / det_private.h pattern).
+ * promised to a caller (the acq_private.h / correlator_private.h pattern).
  */
 #ifndef WFM_PRIVATE_H
 #define WFM_PRIVATE_H

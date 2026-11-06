@@ -34,8 +34,6 @@ doppler/ddc/ddc_core.h::dp_ddc_create
 doppler/ddcr/ddcr_core.h::dp_ddcr_create
 doppler/delay/delay_core.h::dp_delay_create
 doppler/despreader/despreader_core.h::dp_despreader_init
-doppler/detector2d/detector2d_core.h::dp_detector2d_create
-doppler/detector/detector_core.h::dp_detector_create
 doppler/dll/dll_core.h::dll_chip_sign
 doppler/doppler_channel/doppler_channel_core.h::DP_FOURCC
 doppler/dp_interrupt.h::dp_interrupt

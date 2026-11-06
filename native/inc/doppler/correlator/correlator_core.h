@@ -9,10 +9,15 @@
  * | dp_correlator_create_1d()              | a 1-D reference, one row    |
  * | dp_correlator_create_2d()              | a (ny, nx) reference        |
  * | dp_correlator_create_delay_doppler()   | a code, mapped to (Doppler, delay) |
+ * | dp_correlator_create_detector_2d()     | a streaming 2-D detector    |
+ * | dp_correlator_create_detector_1d()     | a streaming 1-D detector    |
  *
  * The methods are shared. The 1-D flavor is the 2-D one at ny = 1, which
  * the single-row path below serves, so a length-n correlation and a
- * one-row 2-D correlation are the same bits (test_corr_equiv).
+ * one-row 2-D correlation are the same bits (test_corr_equiv), and so are
+ * the two detectors' hits (test_detector_equiv).  The map flavors serve
+ * execute and its batch family; the detector flavors serve push, and each
+ * refuses the other's (SIZE_MAX).
  *
  * All buffers are ny×nx row-major flat arrays of length ny*nx.  The
  * correlation theorem extends naturally:
@@ -55,6 +60,7 @@
 #include "doppler/clib_common.h"
 #include "doppler/dp_parallel.h"
 #include "doppler/dp_state.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 
@@ -72,8 +78,58 @@ typedef enum
 {
   DP_CORRELATOR_1D            = 1, /**< dp_correlator_create_1d()      */
   DP_CORRELATOR_2D            = 2, /**< dp_correlator_create_2d()      */
-  DP_CORRELATOR_DELAY_DOPPLER = 3  /**< dp_correlator_create_delay_doppler() */
+  DP_CORRELATOR_DELAY_DOPPLER = 3, /**< dp_correlator_create_delay_doppler() */
+  DP_CORRELATOR_DETECTOR_1D   = 4, /**< dp_correlator_create_detector_1d() */
+  DP_CORRELATOR_DETECTOR_2D   = 5  /**< dp_correlator_create_detector_2d() */
 } dp_correlator_flavor_t;
+
+/**
+ * @brief How a detector flavor aggregates the noise floor from the
+ *        correlation magnitudes over the flat bins noise_lo to noise_hi,
+ *        inclusive.
+ *
+ * The test statistic is peak_mag / noise_est.  A zero noise_est (e.g., when
+ * all bins in the range are zero) yields test_stat = 0, and so does a NaN
+ * one (a NaN anywhere in the range is a NaN mean, median, min or max).
+ */
+typedef enum
+{
+  DET_NOISE_MEAN   = 0, /**< Arithmetic mean of the magnitudes.          */
+  DET_NOISE_MEDIAN = 1, /**< Median (upper middle for an even count).    */
+  DET_NOISE_MIN    = 2, /**< Minimum magnitude.                          */
+  DET_NOISE_MAX    = 3, /**< Maximum magnitude.                          */
+} det_noise_mode_t;
+
+/**
+ * @brief One listed peak of a surface: a cell and its value, in the
+ *        surface's own units (a magnitude on a coherent surface, a power on
+ *        a non-coherent one). What det_peak_list() (correlator_private.h)
+ *        returns, and what the acquisition engine keeps per dwell.
+ */
+typedef struct
+{
+  size_t row;   /**< surface row                                    */
+  size_t col;   /**< surface column                                 */
+  float  value; /**< the cell's value                               */
+} det_peak_t;
+
+/**
+ * @brief One detection, from either detector flavor's
+ *        dp_correlator_push().
+ *
+ * The peak's flat index in the ny x nx correlation map, decomposed into
+ * (row, col) so that a caller does not need nx.  At one row (the 1-D
+ * detector) row is 0 and col is the lag.  docs/design/correlator.md
+ * section 4: the one hit record, which the search flavors widen.
+ */
+typedef struct
+{
+  size_t row;       /**< Row of the correlation peak (0 at one row).        */
+  size_t col;       /**< Column of the peak: the lag, at one row.           */
+  float  peak_mag;  /**< max |R| (linear magnitude, not power).             */
+  float  noise_est; /**< Noise estimate aggregated over noise_lo..noise_hi. */
+  float  test_stat; /**< peak_mag / noise_est; 0 if noise_est is not > 0.   */
+} dp_correlator_hit_t;
 
 /**
  * @brief Correlator state, every flavor.
@@ -191,16 +247,45 @@ typedef struct {
   float _Complex  *bat_map;   /**< Per-worker maps, nworkers x n_out.    */
   float _Complex  *bat_fine;  /**< Per-worker @ref dd_fine for batches;
                                    NULL when the map runs rows first.     */
+  /* Detection layer (the detector flavors, docs/design/correlator.md
+   * section 4): what create sets and push only reads.  Zero / NULL in the
+   * map flavors.  Appended here, after every field the map reads, so that
+   * no field the threaded map was measured at moved (#2752 step 3.3). */
+  dp_f32_t       *ring;          /**< The carry's storage: bound to
+                                      @ref framer, freed by destroy.       */
+  size_t          ring_cap;      /**< Ring capacity, complex samples.     */
+  float _Complex *det_out;       /**< The last dump's correlation map,
+                                      n complex samples.                  */
+  float          *mag_buf;       /**< |det_out|, n floats.                */
+  float          *noise_scratch; /**< Scratch for the median's sort.      */
+  size_t          noise_lo;      /**< Noise bin range, first (inclusive). */
+  size_t          noise_hi;      /**< Noise bin range, last (inclusive).  */
+  det_noise_mode_t noise_mode;   /**< Noise aggregation.                  */
   /* Everything above is written by create (and set_ref) only, and the
    * threaded map's workers read it on every call. `count` is the one field
-   * execute() writes every frame, so it lives last, behind a full cache line
-   * of padding: sharing a line with `n` (as it did once `flavor` was added
+   * execute() writes every frame, so it lives behind a full cache line of
+   * padding: sharing a line with `n` (as it did once `flavor` was added
    * first) made every frame invalidate that line in each worker's cache
-   * (#2886). A new field goes ABOVE this comment unless execute() writes it,
-   * in which case it goes below, next to `count`. */
+   * (#2886). A detector flavor's push writes the fields after it every
+   * call, and a caller may set the threshold every push (carrier_acq
+   * does), so they sit with `count` (#2752 step 3.3). A new field goes
+   * ABOVE this comment unless execute() or push() writes it, in which case
+   * it goes below. */
   unsigned char _hot_pad[64]; /**< Keeps @ref count off the read fields'
                                    cache lines.                            */
   size_t count;             /**< Frames accumulated (0 … dwell-1).        */
+  /* Detection layer, written by every push (detector flavors only). */
+  dp_f32_framer_t framer;    /**< Any chunk in, n-sample frames out.      */
+  float  threshold;          /**< 0 = always fire; > 0 gates test_stat.  */
+  size_t peak_row;           /**< Last dump: peak row (0 before one).    */
+  size_t peak_col;           /**< Last dump: peak column (the lag at one
+                                  row).                                   */
+  float  peak_mag;           /**< Last dump: peak |R|.                   */
+  float  noise_est;          /**< Last dump: the noise floor.            */
+  float  test_stat;          /**< Last dump: peak_mag / noise_est, or 0. */
+  int    _last_corr_valid;   /**< 1 once a dump has filled det_out; 0
+                                  after create, reset and set_state.     */
+  size_t consumed;           /**< Input samples the last push took.      */
 } dp_correlator_state_t;
 
 /**
@@ -381,7 +466,11 @@ void dp_correlator_destroy(dp_correlator_state_t *state);
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
  * Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
- * or recomputing ref_spec.
+ * or recomputing ref_spec.  A detector flavor also drops the carry (the
+ * partial frame held between pushes), and its last dump's fields (the
+ * peak, noise_est, test_stat) read 0 until the next dump, so the blob after
+ * a reset matches a fresh object's (doppler#2642);
+ * dp_correlator_consumed() reads 0.
  *
  * @param state  Must be non-NULL.
  *
@@ -410,7 +499,9 @@ void dp_correlator_reset(dp_correlator_state_t *state);
  * spectrum are left completely untouched (never a silent partial update) —
  * a caller that needs a genuinely different reference shape must build a
  * new dp_correlator_state_t.  A general-path object accepts any (ny,nx) @p ref and
- * always succeeds.
+ * always succeeds.  A detector flavor resets first (see
+ * dp_correlator_reset()), so it is reset even when the reference is then
+ * refused.
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, flat row-major CF32, length ny*nx.
@@ -460,7 +551,11 @@ size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
  * @return Python: the map on a dump, None otherwise; a frame that is not
  *         ny*nx samples is REFUSED with nothing read, written or counted, as a
  *         ValueError (#1925).  C: n_out on a dump (or @p max_out if smaller),
- *         0 otherwise, and SIZE_MAX for the refused frame.
+ *         0 otherwise, and SIZE_MAX for the refused frame.  A detector
+ *         flavor refuses every execute, and every batch and bank call, with
+ *         SIZE_MAX and nothing changed: its frames come through
+ *         dp_correlator_push(), and a frame from outside would put the
+ *         dwell off the framer's grid.
  * @code
  * >>> from doppler.spectral import Corr2D
  * >>> import numpy as np
@@ -1096,12 +1191,217 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
                               float *out, int32_t *out1, uint32_t *out2,
                               uint32_t *out3, uint32_t *out4, size_t max_out);
 
+/* ── Detector flavors ──────────────────────────────────────────────────────
+ * The correlator with the stream and detection layers on top
+ * (docs/design/correlator.md section 4): any chunk in, the ring's framer
+ * cutting n-sample frames (n = ny*nx), each frame correlated and
+ * integrated over dwell frames, and on every dump a test statistic
+ *
+ *   test_stat = peak_mag / noise_est
+ *
+ * where peak_mag is the largest |R| (a NaN cell is never the peak) and
+ * noise_est an aggregate of |R| over the flat bins noise_lo..noise_hi.  A
+ * hit is emitted when test_stat > threshold, or on every dump when
+ * threshold is 0.  The detections are a function of the input stream, not
+ * of how it was split into calls.  One object is single-threaded: never
+ * push it from two threads at once.
+ *
+ * @code
+ * // header-code: skip=a stream-loop fragment: recv() and ref are the caller's
+ * dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+ *     ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
+ * dp_correlator_hit_t hits[64];
+ * // a full hits[] stops a push, and the input it did not take is offered
+ * // again: dp_correlator_consumed(det) says where it stopped
+ * while (recv (chunk, CHUNK_SZ)) {
+ *     for (size_t off = 0; off < CHUNK_SZ; off += dp_correlator_consumed (det)) {
+ *         size_t n = dp_correlator_push (det, chunk + off, CHUNK_SZ - off,
+ *                                        hits, 64);
+ *         for (size_t i = 0; i < n; i++)
+ *             printf ("lag=%zu stat=%.2f\n", hits[i].col, hits[i].test_stat);
+ *     }
+ * }
+ * dp_correlator_destroy (det);
+ * @endcode
+ */
+
+/**
+ * @brief Allocate a 2-D streaming detector: the 2-D correlator with the
+ *        stream and detection layers.
+ *
+ * Input frames are flat row-major CF32 arrays of length ny*nx, cut from
+ * the stream by the ring's framer.  On every dump the peak's flat index is
+ * decomposed into (row, col), and a dp_correlator_hit_t is emitted when
+ * test_stat > threshold.  The Python class accepts a (ny, nx) CF32 ndarray
+ * for both @p ref and the push input.  The ring capacity is
+ * next_pow_two(max(ny*nx, 512)) complex samples.
+ *
+ * @param ref        2-D reference image, (ny, nx) CF32 ndarray in Python.
+ * @param ny         Number of rows in the reference and input frames.
+ * @param nx         Number of columns in the reference and input frames.
+ * @param dwell      Int-dump depth; must be >= 1.
+ * @param noise_lo   Lower flat-index noise bin (inclusive, 0-based).
+ * @param noise_hi   Upper flat-index noise bin (inclusive, < ny*nx).  A
+ *                  value at or beyond the window clamps to ny*nx - 1, so
+ *                  the default sentinel selects the full window.
+ * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
+ * @param threshold  Test-stat gate; 0.0 = always emit.
+ * @param nthreads   Workers for the single-row-reference fast path (1
+ *                   serial, <= 0 every online core); the general 2-D path
+ *                   ignores it.
+ * @return Heap-allocated state, or NULL when the arguments are refused
+ *         (an empty axis, @p dwell 0) or allocation fails.
+ * @code
+ * >>> from doppler.spectral import CorrDetector2D
+ * >>> import numpy as np
+ * >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+ * >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+ * ...                  noise_mode="mean", threshold=0.0)
+ * >>> det.ny, det.nx, det.n, det.dwell
+ * (4, 4, 16, 1)
+ * @endcode
+ */
+dp_correlator_state_t *dp_correlator_create_detector_2d (
+    const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
+    size_t noise_lo, size_t noise_hi, det_noise_mode_t noise_mode,
+    float threshold, int nthreads);
+
+/**
+ * @brief Allocate a 1-D streaming detector: the 2-D detector at one row
+ *        (docs/design/correlator.md section 2.1), so its hits are the 2-D
+ *        one's at ny = 1, each with row 0 and the lag in col.
+ *
+ * After every dump the peak-to-noise test statistic is compared against
+ * @p threshold, and a hit is emitted when it passes; 0.0 fires on every
+ * dump.  The ring capacity is next_pow_two(max(n, 512)) complex samples.
+ *
+ * @param ref        Reference signal, CF32 ndarray of length ref_len.
+ * @param ref_len    Reference / FFT length in complex samples.
+ * @param dwell      Int-dump depth; must be >= 1.
+ * @param noise_lo   Lower noise bin index (inclusive, 0-based).
+ * @param noise_hi   Upper noise bin index (inclusive, < n).  A value at or
+ *                  beyond the window clamps to n - 1, so the
+ *                  default sentinel selects the full window.
+ * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
+ * @param threshold  Test-stat gate; 0.0 = always emit.
+ * @param nthreads   Accepted for API compatibility; ignored.
+ * @return Heap-allocated state, or NULL when the arguments are refused
+ *         (an empty reference, @p dwell 0) or allocation fails.
+ * @code
+ * >>> from doppler.spectral import CorrDetector
+ * >>> import numpy as np
+ * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+ * >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * ...                noise_mode="mean", threshold=0.0)
+ * >>> det.n, det.dwell, det.ring_cap
+ * (8, 1, 512)
+ * @endcode
+ */
+dp_correlator_state_t *dp_correlator_create_detector_1d (
+    const float _Complex *ref, size_t ref_len, size_t dwell,
+    size_t noise_lo, size_t noise_hi, det_noise_mode_t noise_mode,
+    float threshold, int nthreads);
+
+/**
+ * @brief Stream an arbitrary-length CF32 chunk through a detector flavor.
+ *
+ * Takes the input in order, runs each complete n-sample frame (n = ny*nx)
+ * through the correlator, and on every dump computes the test statistic
+ * peak_mag / noise_est.  Each dump that passes the threshold is one hit.
+ * In Python the result is always a list: of (row, col, peak_mag,
+ * noise_est, test_stat) tuples from CorrDetector2D, and of (lag, peak_mag,
+ * noise_est, test_stat) tuples from CorrDetector, whose lag is the hit's
+ * col.
+ *
+ * Python's push() has room for 1024 detections a call, so a push that
+ * completes at most 1024 frames, counting the carry, loses nothing.  One
+ * that fills the room loses the rest of its input, every later frame
+ * whether or not it would have made a detection, unless the rest is
+ * shorter than a frame: that is kept as the carry.  The next push stays on
+ * the frame grid only when what was lost is a whole number of frames;
+ * otherwise its peaks are off by the remainder.  #1992 and
+ * just-buildit/just-makeit#2184 track sizing the list to the call.
+ *
+ * @param state        A detector flavor (non-NULL).
+ * @param in           CF32 input chunk of arbitrary length.
+ * @param n_in         Number of input samples in @p in.
+ * @param result       Caller-supplied array of at least @p max_results
+ *                     hits; filled on return.
+ * @param max_results  Capacity of @p result (maximum detections to emit).
+ *                     A full @p result never loses input: a frame yields at
+ *                     most one detection, and once @p result is full the
+ *                     push takes the rest of its input only if the rest
+ *                     completes no frame (it is then the carry); otherwise
+ *                     it takes nothing more, stopping on the boundary of
+ *                     its last frame.  dp_correlator_consumed() says how
+ *                     many samples it took, and the caller offers the rest
+ *                     again.  Input that runs out mid-frame is the carry,
+ *                     held inside (fewer than n samples).  With room 0 the
+ *                     push is full from the start, so a resume loop needs
+ *                     room for at least one; with that, a push of any
+ *                     input takes at least one sample.
+ * @return Number of hits written to @p result, or SIZE_MAX (nothing
+ *         taken, nothing changed) when @p state is a map flavor.
+ * @code
+ * >>> from doppler.spectral import CorrDetector, CorrDetector2D
+ * >>> import numpy as np
+ * >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+ * >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+ * ...                  noise_mode="mean", threshold=0.0)
+ * >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
+ * >>> row, col, peak, noise, stat = results[0]
+ * >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
+ * (0, 0, 1.0, 1.0, 1.0)
+ * >>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
+ * ...                 noise_mode="mean", threshold=0.0)
+ * >>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
+ * >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
+ * (0, 1.0, 1.0, 1.0)
+ * @endcode
+ */
+size_t dp_correlator_push (dp_correlator_state_t *state,
+                           const float _Complex *in, size_t n_in,
+                           dp_correlator_hit_t *result, size_t max_results);
+
+/**
+ * @brief Input samples the last dp_correlator_push() took.
+ *
+ * Equal to its @p n_in unless @p result filled up; then the caller resumes
+ * at in + consumed.  0 after create, reset, set_ref and set_state, and
+ * always 0 for a map flavor.
+ *
+ * @param state  Must be non-NULL.
+ * @return Samples of the last push's input consumed (including any kept as
+ *         the carry).
+ */
+size_t dp_correlator_consumed (const dp_correlator_state_t *state);
+
+/**
+ * @brief Change a detector flavor's threshold without rebuilding it.
+ *
+ * The value is part of the state blob, so set_state restores it.
+ *
+ * @param state     Must be non-NULL.
+ * @param threshold New threshold; 0.0 = always fire.
+ * @return DP_OK, or DP_ERR_INVALID (nothing changed) for a map flavor.
+ */
+int dp_correlator_set_threshold (dp_correlator_state_t *state,
+                                 float threshold);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * One blob for every flavor (docs/design/correlator.md section 4): the
  * flavor, the grid, the frame count and the product-spectrum accumulator.
  * The flavor, ny, ny_out, fast_path, col_out and nx_out are reject keys:
  * each changes what the accumulator holds, so a blob that differs in any
  * of them is refused rather than reinterpreted.
+ * A detector flavor's blob goes on: noise_lo, noise_hi and noise_mode
+ * (u64 each; reject keys, since they decide what the stored noise_est and
+ * test_stat mean), the threshold (f32; a mutator's value, restored), the
+ * framer's carry as its own child blob (fewer than n samples), then the
+ * last dump's peak_row and peak_col (u64) and peak_mag, noise_est and
+ * test_stat (f32).  The last correlation map (det_out) is not in the blob,
+ * so last_corr is None after set_state, and dp_correlator_consumed() reads
+ * 0.  The retired detector magics 'DET1' and 'DET2' are not reused.
  * The FFT plans and the reference spectrum are config, rebuilt by create.
  * The retired magics 'CORR', 'CR2D' and 'DDMP' are not reused, so a blob
  * from a release before the one correlator fails dp_state_validate. */
@@ -1114,7 +1414,8 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
  * @param state  Must be non-NULL.
  * @return Header + flavor, ny, ny_out, fast_path, col_out, nx_out and
  *         frame count (u64 each) + the
- *         ny*nx complex-float accumulator.
+ *         ny*nx complex-float accumulator; a detector flavor adds 5 u64,
+ *         4 f32 and the framer's child blob.
  */
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
 /**
@@ -1130,9 +1431,12 @@ void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
  * @param blob   Source blob of dp_correlator_state_bytes() bytes.
  * @return `DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's
  *         magic, version, endianness or size does not match, when the blob's
- *         flavor, ny or ny_out differs from @p state's (a blob of one flavor
- *         never restores into another), or when its frame count is not below
- *         @p state's dwell.
+ *         flavor, ny, ny_out, fast_path, col_out or nx_out differs from
+ *         @p state's (a blob of one flavor never restores into another), when
+ *         its frame count is not below @p state's dwell, or, for a detector
+ *         flavor, when noise_lo, noise_hi or noise_mode differs or the
+ *         framer's child blob is refused.  Everything is checked before
+ *         anything is written.
  */
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
 

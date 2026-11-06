@@ -107,7 +107,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "doppler/psd/psd_core.h"
-#include "doppler/detector/detector_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/correlator/correlator_core.h"

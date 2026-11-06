@@ -96,3 +96,6 @@ does not carry consumed\(\), the PSD's window	it carries mode, nfft, hop, window
 without a refusal\. Whether that refusal	set_state refuses a blob from another mode (#2102)
 @brief The Python binding's constructor:	A header brief says what the object does, Python-first, with a trailing 'C:' clause for the C call (docs/dev/contributing/docstring-authoring.md); this opening was an internal note on DsssBurstReceiver and BurstDemod (#2855)
 \bdp_corr(2d)?_(?!reset_pinned_vacuously\b)\w+	dp_correlator_* (Corr and Corr2D are one C object, #2752 step 3.2; dp_corr2d_reset_pinned_vacuously is a finding key and keeps its spelling)
+\bdp_detector(2d)?_\w+	dp_correlator_* (CorrDetector and CorrDetector2D are the correlator's detector flavors, #2752 step 3.3)
+\bdet_result(2d)?_t\b	dp_correlator_hit_t (the one hit record, #2752 step 3.3)
+doppler/detector2?d?/(detector2?d?_core|det_private)\.h	doppler/correlator/correlator_core.h, or correlator_private.h for the detection layer (#2752 step 3.3)

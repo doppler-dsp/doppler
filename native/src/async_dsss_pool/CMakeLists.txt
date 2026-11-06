@@ -34,7 +34,6 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     psd_core
     spectral_core
     acc_trace_core
-    detector_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -92,7 +91,6 @@ target_link_libraries(test_async_dsss_pool_core
     psd_core
     spectral_core
     acc_trace_core
-    detector_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -141,7 +139,6 @@ target_link_libraries(bench_async_dsss_pool_core
     psd_core
     spectral_core
     acc_trace_core
-    detector_core
     dll_core
     loop_filter_core
     lockdet_core

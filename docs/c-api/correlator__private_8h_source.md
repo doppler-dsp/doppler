@@ -1,29 +1,26 @@
 
 
-# File det\_private.h
+# File correlator\_private.h
 
-[**File List**](files.md) **>** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) **>** [**det\_private.h**](det__private_8h.md)
+[**File List**](files.md) **>** [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md) **>** [**correlator\_private.h**](correlator__private_8h.md)
 
-[Go to the documentation of this file](det__private_8h.md)
+[Go to the documentation of this file](correlator__private_8h.md)
 
 
 ```C++
 
-#ifndef DET_PRIVATE_H
-#define DET_PRIVATE_H
+#ifndef DP_CORRELATOR_PRIVATE_H
+#define DP_CORRELATOR_PRIVATE_H
 
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* det_noise_mode_t must be visible before this header is included. */
+/* det_noise_mode_t and det_peak_t are the correlator's public types. */
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/util/util_core.h"
-
-#ifndef DET_NOISE_MODE_T_DEFINED
-#  error "Include detector_core.h or detector2d_core.h before det_private.h"
-#endif
 
 /* Create a dp_f32_t ring of at least cap_min complex samples.
  * dp_f32_create requires the byte count to be page-aligned, which varies
@@ -104,18 +101,6 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
   qsort (scratch, count, sizeof (float), det_cmp_f32_asc);
   return scratch[count / 2];
 }
-
-/* det_peak_t (one listed peak) is public in detector2d_core.h; the 1-D
-   detector includes neither, so define it here under the same guard. */
-#ifndef DET_PEAK_T_DEFINED
-#define DET_PEAK_T_DEFINED
-typedef struct
-{
-  size_t row;   
-  size_t col;   
-  float  value; 
-} det_peak_t;
-#endif
 
 static inline size_t
 det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
@@ -289,7 +274,7 @@ det_framed_push (dp_f32_framer_t *fr, const float _Complex *in, size_t n_in,
   return ndet;
 }
 
-#endif /* DET_PRIVATE_H */
+#endif /* DP_CORRELATOR_PRIVATE_H */
 ```
 
 

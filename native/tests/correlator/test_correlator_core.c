@@ -2494,10 +2494,10 @@ main (void)
    * emitted nothing until count wrapped. A caller whose dwell came from a
    * computed value that underflowed got silence and unbounded growth.
    *
-   * Checked here rather than only in detector2d because dp_detector2d_create
-   * forwards its own dwell straight into this call -- one validation at
-   * the primitive covers both objects, and a copy in each would be the
-   * thing that drifts.
+   * Checked here rather than only in detector2d because
+   * dp_correlator_create_detector_2d forwards its own dwell straight into this
+   * call -- one validation at the primitive covers both objects, and a copy in
+   * each would be the thing that drifts.
    *
    * NULL is the whole error report by design: the repo's convention
    * (docs/dev/contributing/error-convention.md) is that create() returns

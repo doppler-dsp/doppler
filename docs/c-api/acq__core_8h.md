@@ -17,7 +17,6 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 * `#include "doppler/f32_buffer/f32_buffer_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/jm_perf.h"`
-* `#include "doppler/detector2d/detector2d_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
 * `#include "doppler/dp_parallel.h"`
 * `#include "doppler/dp_tlm/dp_tlm_core.h"`

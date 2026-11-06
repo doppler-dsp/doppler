@@ -92,7 +92,7 @@ _Shared internals of the wfm composer, the Plan and the synth._ [More...](#detai
 ## Detailed Description
 
 
-Not part of the public API: nothing here is exported, and nothing here is promised to a caller (the [**acq\_private.h**](acq__private_8h.md) / [**det\_private.h**](det__private_8h.md) pattern). 
+Not part of the public API: nothing here is exported, and nothing here is promised to a caller (the [**acq\_private.h**](acq__private_8h.md) / [**correlator\_private.h**](correlator__private_8h.md) pattern). 
 
 
     

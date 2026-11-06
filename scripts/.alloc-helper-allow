@@ -52,8 +52,6 @@ native/src/ddc/ddc_core.c 3
 native/src/ddcr/ddcr_core.c 1
 native/src/delay/delay_core.c 2
 native/src/despreader/despreader_core.c 3
-native/src/detector/detector_core.c 4
-native/src/detector2d/detector2d_core.c 4
 native/src/dll/dll_core.c 9
 native/src/dp_interrupt_guard/dp_interrupt_guard_core.c 1
 native/src/dp_tlm/dp_tlm_core.c 1

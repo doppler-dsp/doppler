@@ -43,7 +43,6 @@ dp_burst_despreader | no chunk-invariance test yet (#1896)
 dp_carrier_acq | no chunk-invariance test yet (#1896)
 dp_carrier_mpsk | no chunk-invariance test yet (#1896)
 dp_carrier_nda | no chunk-invariance test yet (#1896)
-dp_correlator | the rule does not apply: frame-at-a-time, execute refuses all but one whole frame, so no partition reaches it; its dwell across calls is held by the detector, detector2d and acq chunk tests (#2878) | replaces: dp_corr dp_corr2d
 dp_costas | no chunk-invariance test yet (#1896)
 dp_ddc | no chunk-invariance test yet (#1896)
 dp_ddcr | no chunk-invariance test yet (#1896)

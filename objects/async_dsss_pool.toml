@@ -29,7 +29,6 @@ depends_on = [
     { name = "cic", link = true },
     { name = "resample", link = true },
     { name = "psd", link = true },
-    { name = "detector", link = true },
     { name = "detection", link = true },
     { name = "spectral", link = true },
     { name = "doppler_channel" },

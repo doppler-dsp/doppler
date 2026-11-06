@@ -2045,15 +2045,20 @@ acq_doppler_sidelobe (const float _Complex *replica, size_t n,
       sh->dsl = sh->psl;
       return;
     }
-  double _Complex *ref  = dp_xmalloc (n * sizeof *ref);
-  double _Complex *sig  = dp_xmalloc (n * sizeof *sig);
-  double _Complex *prod = dp_xmalloc (n * sizeof *prod);
-  double _Complex *corr = dp_xmalloc (n * sizeof *corr);
-  dp_fft_state_t  *fwd  = dp_xnn (dp_fft_create (n, -1, 1));
-  dp_fft_state_t  *inv  = dp_xnn (dp_fft_create (n, +1, 1));
-  for (size_t i = 0; i < n; i++)
-    sig[i] = (double)crealf (replica[i]) + I * (double)cimagf (replica[i]);
-  dp_fft_execute_cf64 (fwd, sig, n, ref, n); /* the replica's spectrum */
+  /* On the one delay-Doppler map (correlator_map.h), at D = DI = F = 1:
+     one forward transform per residual, then one row per tile offset,
+     since rolling the residual's spectrum by k bins is the turn by k tiles
+     (f_T is the transform's bin spacing). In cf32, the map's precision
+     (design correlator.md U4, 3.4b-pre). */
+  const dp__dd_geom_t g   = { .n = n, .l = n, .d = 1, .di = 1, .f = 1 };
+  dp__dd_map_t       *map = dp_xnn (dp__dd_map_create (&g, 1));
+  float _Complex     *wt  = dp_xmalloc (n * sizeof *wt);
+  float _Complex     *sig = dp_xmalloc (n * sizeof *sig);
+  float _Complex     *X   = dp_xmalloc (n * sizeof *X);
+  float _Complex     *chi = dp_xmalloc (n * sizeof *chi);
+  dp__dd_map_forward (map, NULL, 0, replica, wt); /* the replica's spectrum */
+  for (size_t b = 0; b < n; b++)
+    wt[b] = conjf (wt[b]);
 
   const double f_tile = fs / (double)n;
   const double half = window_bins > 1 ? 0.5 * f_tile : fmin (du, 0.5 * f_tile);
@@ -2068,40 +2073,35 @@ acq_doppler_sidelobe (const float _Complex *replica, size_t n,
       for (size_t i = 0; i < n; i++)
         {
           const double ph = 2.0 * M_PI * r * (double)i / fs;
-          sig[i]
-              = ((double)crealf (replica[i]) + I * (double)cimagf (replica[i]))
-                * cexp (I * ph);
+          sig[i]          = (float _Complex) (
+              ((double)crealf (replica[i]) + I * (double)cimagf (replica[i]))
+              * cexp (I * ph));
         }
-      dp_fft_execute_cf64 (fwd, sig, n, corr, n); /* residual's spectrum */
+      dp__dd_map_forward (map, NULL, 0, sig, X); /* residual's spectrum */
       double own = 0.0, side = 0.0;
       for (long k = -k_max; k <= k_max; k++)
         {
-          /* nu = r + k f_T: the spectrum rolled by k bins, times conj(ref). */
-          for (size_t b = 0; b < n; b++)
-            {
-              const size_t src
-                  = (size_t)(((long)b - k) % (long)n + (long)n) % n;
-              prod[b] = corr[src] * conj (ref[b]);
-            }
-          dp_fft_execute_cf64 (inv, prod, n, sig, n); /* n * chi(m, nu) */
-          const double peak = cabs (sig[0]);
+          /* nu = r + k f_T: the spectrum read k bins back, times conj(ref):
+             row1 reads bin (b + roll) mod n. */
+          const size_t roll = (size_t)(((-k) % (long)n + (long)n) % (long)n);
+          dp__dd_map_row1 (map, 0, X, roll, wt, chi); /* n * chi(m, nu) */
+          const double peak = cabsf (chi[0]);
           if (peak > own)
             own = peak;
           for (size_t m = z; m <= n - z && m < n; m++)
-            if (cabs (sig[m]) > side)
-              side = cabs (sig[m]);
+            if (cabsf (chi[m]) > side)
+              side = cabsf (chi[m]);
         }
       const double ratio = own > 0.0 ? side / own : 0.0;
       if (ratio > dsl)
         dsl = ratio;
     }
   sh->dsl = dsl < 1e-6 ? 0.0 : dsl;
-  dp_fft_destroy (fwd);
-  dp_fft_destroy (inv);
-  free (corr);
-  free (prod);
+  dp__dd_map_destroy (map);
+  free (chi);
+  free (X);
   free (sig);
-  free (ref);
+  free (wt);
 }
 
 /* rate_hypotheses = 0 (auto): the fewest hypotheses the span needs, chosen

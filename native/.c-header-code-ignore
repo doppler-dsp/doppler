@@ -28,7 +28,6 @@ doppler/ccsds_tm/ccsds_tm_frame.h::dp_ccsds_tm_frame_decode
 doppler/ccsds_tm/ccsds_tm.h::ccsds_tm_conv_max_out
 doppler/cic/cic_core.h::dp_cic_create
 doppler/conv_enc/conv_enc_core.h::dp_conv_enc_create
-doppler/correlator/correlator_core.h::dp_correlator_create_2d
 doppler/correlator/correlator_core.h::dp_correlator_create_1d
 doppler/costas/costas_core.h::dp_costas_init
 doppler/ddc/ddc_core.h::dp_ddc_create

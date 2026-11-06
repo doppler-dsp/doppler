@@ -602,16 +602,17 @@ extern "C"
                         pays even at one tile a worker, while on a host
                         with a costly wake-up (WSL2) it costs that pool
                         1.9-3.5x at D = 1, so no tile count decides it.  */
-    dp_fft_state_t *sl_fwd; /**< dp_acq_sidelobe_ratio()'s forward plan
-                                 (code_bins), made on its first call  */
-    dp_fft_state_t *sl_inv; /**< ... its inverse (lag_bins)            */
-    dp_fft_state_t *sl_inv_cb; /**< ... and an inverse at code_bins, for
-                                    the delayed replica              */
+    struct dp__dd_map *sl_map; /**< dp_acq_sidelobe_ratio()'s transforms:
+                                    the one delay-Doppler map at one
+                                    epoch, code_bins in and lag_bins
+                                    out, made on its first call      */
+    struct dp__dd_map *sl_map_cb; /**< ... and one at code_bins out, for
+                                       the delayed replica           */
     float _Complex *sl_scratch; /**< its buffers: the replica's spectrum,
-                                     a mixed signal, its spectrum and
-                                     the delayed replica (code_bins
-                                     each), then the padded product
-                                     and the row (lag_bins each)     */
+                                     a mixed signal, its spectrum, the
+                                     delayed replica, the spectrum's
+                                     conjugate and ones (code_bins
+                                     each), then the row (lag_bins) */
     double *sl_cmax; /**< ... its cache: ACQ_SIDELOBE_SLOTS rows of
                           lag_bins, each one hit's worst ratio at every
                           column as read in one tile. Derived, never in a

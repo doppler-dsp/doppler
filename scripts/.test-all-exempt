@@ -1,0 +1,4 @@
+# CI test targets `make test-all` deliberately does not run
+# (scripts/check_test_all_covers_ci.py). One line each, `<target> | <reason>`.
+# A line whose reason is gone fails the gate, so this list only shrinks.
+test-sweep | its wall-clock budget is calibrated on CI's runner; a slower or busier local box fails the budget, not the validators

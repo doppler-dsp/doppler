@@ -860,7 +860,9 @@ main (void)
        accepted branch above cannot tell, because an accepted set_ref
        resets on its own way out. */
     DP_CHECK (det->_last_corr_valid == 1);
-    DP_CHECK (dp_correlator_push (det, in, N + N / 2, res, 4) == 0);
+    /* in is one frame long: a whole frame, then half of one. */
+    DP_CHECK (dp_correlator_push (det, in, N, res, 4) == 0);
+    DP_CHECK (dp_correlator_push (det, in, N / 2, res, 4) == 0);
     DP_CHECK (det->count == 1);
     DP_CHECK (dp_f32_framer_pending (&det->framer) == N / 2);
     DP_CHECK (dp_correlator_set_ref (det, ref_2d) != 0);

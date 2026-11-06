@@ -1566,8 +1566,7 @@ static int
 corr2d_bank_check (const dp_correlator_state_t *s, size_t x_len, size_t L,
                    int g_min, int g_max, size_t rates_len, corr2d_bank_t *b)
 {
-  if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0
-      || corr2d_is_detector (s))
+  if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0)
     return 0;
   const size_t C = (size_t)((long long)g_max - (long long)g_min + 1);
   const size_t R = rates_len ? rates_len / s->ny : 1;
@@ -1925,6 +1924,13 @@ dp_correlator_bank_fold (const dp_correlator_state_t *state,
                          int g_min, int g_max, const float _Complex *rates,
                          size_t rates_len, const dp_correlator_fold_t *fold)
 {
+  /* A detector has no bank. Refused here, at each entry, and not in
+     corr2d_bank_check: that helper is inlined into all three, and the one
+     extra flavor test there changed how the whole bank compiles, 12%
+     slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
+     box). */
+  if (corr2d_is_detector (state))
+    return SIZE_MAX;
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b))
     return SIZE_MAX;
@@ -1947,6 +1953,13 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                               const float _Complex *rates, size_t rates_len,
                               float *out, uint32_t *out1, size_t max_out)
 {
+  /* A detector has no bank. Refused here, at each entry, and not in
+     corr2d_bank_check: that helper is inlined into all three, and the one
+     extra flavor test there changed how the whole bank compiles, 12%
+     slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
+     box). */
+  if (corr2d_is_detector (state))
+    return SIZE_MAX;
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
       || max_out < state->n_out)
@@ -2042,6 +2055,13 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
                            uint32_t *out2, uint32_t *out3, uint32_t *out4,
                            size_t max_out)
 {
+  /* A detector has no bank. Refused here, at each entry, and not in
+     corr2d_bank_check: that helper is inlined into all three, and the one
+     extra flavor test there changed how the whole bank compiles, 12%
+     slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
+     box). */
+  if (corr2d_is_detector (state))
+    return SIZE_MAX;
   corr2d_bank_t b;
   if (L_d == 0 || L_r < L_d || L_r % L_d != 0
       || !corr2d_bank_check (state, x_len, L_d, g_min, g_max, rates_len, &b)

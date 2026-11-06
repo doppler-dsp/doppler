@@ -421,10 +421,11 @@ _test_delay_doppler (void)
     /* A count at or past the dwell would never dump (`++count == dwell` is
        never true again until it wraps), exactly as for the delay-Doppler
        flavor; the Corr2D restore refuses it too, the object untouched
-       (#2142). The count is the fourth payload word, after the flavor, ny
-       and ny_out. */
+       (#2142). The count is the seventh payload word, after the flavor,
+       ny, ny_out, fast_path, col_out and nx_out; the accept at dwell - 1
+       below is what proves the offset lands on the count. */
     {
-      const size_t   at   = sizeof (dp_state_hdr_t) + 3 * sizeof (uint64_t);
+      const size_t   at   = sizeof (dp_state_hdr_t) + 6 * sizeof (uint64_t);
       const uint64_t past = 3; /* this Corr2D's dwell */
       DP_STATE_FORGE_TEST (dp_correlator, c, CORRELATOR_STATE_MAGIC,
                            CORRELATOR_STATE_VERSION, at, &past, sizeof past);
@@ -1762,12 +1763,131 @@ _test_block_map (void)
   return 0;
 }
 
+/* ── Blob reject keys within one flavor (#2886 review) ────────────────────
+ *
+ * Load SRC's mid-dwell blob into DST, which has the same flavor and the same
+ * blob size but differs in exactly one reject key. The restore must refuse
+ * and leave DST untouched. The equal size is a REQUIRE, not an `if`: a
+ * pair whose sizes differ is refused by the envelope's size check, and would
+ * pass without ever reaching the key under test. Both sides also restore
+ * their own blob, the positive control. */
+static int
+_cross_load_refused (dp_correlator_state_t *src, dp_correlator_state_t *dst,
+                     const float _Complex *x, size_t n)
+{
+  float _Complex out[256];
+  DP_REQUIRE (src && dst);
+  DP_REQUIRE (dp_correlator_state_bytes (src)
+              == dp_correlator_state_bytes (dst));
+  (void)dp_correlator_execute (src, x, n, out, 256); /* count 1 of 3 */
+  DP_REQUIRE (src->count == 1);
+  const size_t   sb   = dp_correlator_state_bytes (src);
+  unsigned char *blob = malloc (sb);
+  unsigned char *pre  = malloc (sb);
+  unsigned char *post = malloc (sb);
+  DP_REQUIRE (blob && pre && post);
+  dp_correlator_get_state (src, blob);
+  DP_CHECK (dp_correlator_set_state (src, blob) == DP_OK);
+  dp_correlator_get_state (dst, pre);
+  DP_CHECK (dp_correlator_set_state (dst, pre) == DP_OK);
+  DP_CHECK (dp_correlator_set_state (dst, blob) == DP_ERR_INVALID);
+  dp_correlator_get_state (dst, post);
+  DP_CHECK (memcmp (pre, post, sb) == 0);
+  DP_CHECK (dst->count == 0);
+  free (blob);
+  free (pre);
+  free (post);
+  return 0;
+}
+
+static int
+_test_blob_keys (void)
+{
+  enum
+  {
+    NY = 4,
+    NX = 8,
+    N  = NY * NX
+  };
+  float _Complex row[N] = { 0 }, full[N], x[N];
+  for (size_t i = 0; i < N; i++)
+    {
+      full[i] = (float)(i % 5) - 2.0f + I * (float)(i % 3);
+      x[i]    = (float)(i % 7) - 3.0f + I * (float)(i % 2);
+    }
+  for (size_t i = 0; i < NX; i++)
+    row[i] = full[i]; /* energy in row 0 only: the single-row path */
+
+  /* Each pair differs in one key, and the pair is checked to differ in
+     that key and no other the blob carries, so a refusal is that key's. */
+  struct
+  {
+    const char           *key;
+    const float _Complex *ref_a, *ref_b;
+    size_t                ny_a, nx_a, nyo_a, nxo_a, ny_b, nx_b, nyo_b, nxo_b;
+    int                   col_a, col_b;
+  } pairs[] = {
+    /* fast_path: row spectra against one 2-D spectrum, same shape. */
+    { "fast_path", row, full, NY, NX, 0, 0, NY, NX, 0, 0, -1, -1 },
+    /* col_out: per-row dot products against row spectra. */
+    { "col_out", row, row, NY, NX, 0, 0, NY, NX, 0, 0, 2, -1 },
+    /* nx_out: the width the dwell in progress dumps into. */
+    { "nx_out", row, row, NY, NX, 0, 2 * NX, NY, NX, 0, 0, -1, -1 },
+    /* ny, plain 2-D: a (4, 8) accumulator read as (8, 4). Both dump into
+       the same (8, 8) map, so ny is the only key that differs. */
+    { "ny", full, full, NY, NX, 2 * NY, NX, NX, NY, 2 * NY, NX, -1, -1 },
+    /* ny_out, plain 2-D: the map the dwell in progress dumps into. */
+    { "ny_out", full, full, NY, NX, 0, 0, NY, NX, 2 * NY, 0, -1, -1 },
+  };
+  for (size_t p = 0; p < sizeof pairs / sizeof pairs[0]; p++)
+    {
+      dp_correlator_state_t *a = dp_correlator_create_2d (
+          pairs[p].ref_a, pairs[p].ny_a, pairs[p].nx_a, 3, 1, pairs[p].nyo_a,
+          pairs[p].nxo_a, pairs[p].col_a);
+      dp_correlator_state_t *b = dp_correlator_create_2d (
+          pairs[p].ref_b, pairs[p].ny_b, pairs[p].nx_b, 3, 1, pairs[p].nyo_b,
+          pairs[p].nxo_b, pairs[p].col_b);
+      DP_REQUIRE_MSG (a && b, pairs[p].key);
+      DP_REQUIRE (a->flavor == b->flavor);
+      const int differ[]
+          = { a->fast_path != b->fast_path, a->col_out != b->col_out,
+              a->nx_out != b->nx_out, a->ny != b->ny, a->ny_out != b->ny_out };
+      int n_differ = 0;
+      for (size_t k = 0; k < 5; k++)
+        n_differ += differ[k];
+      DP_REQUIRE_MSG (differ[p] && n_differ == 1, pairs[p].key);
+      if (_cross_load_refused (a, b, x, N))
+        return 1;
+      dp_correlator_destroy (a);
+      dp_correlator_destroy (b);
+    }
+  return 0;
+}
+
+/* An empty axis is refused with NULL, never an abort: the row plans are
+   built through dp_xnn, and an FFT plan of length 0 is NULL. Each flavor
+   that can be asked for an empty axis is asked. */
+static void
+_test_empty_axis (void)
+{
+  float _Complex ref[8] = { 1.0f };
+  DP_CHECK (dp_correlator_create_1d (ref, 0, 1, 1, 0) == NULL);
+  DP_CHECK (dp_correlator_create_2d (ref, 2, 0, 1, 1, 0, 0, -1) == NULL);
+  DP_CHECK (dp_correlator_create_2d (ref, 0, 4, 1, 1, 0, 0, -1) == NULL);
+  /* The positive control: the same calls with a non-empty axis build. */
+  dp_correlator_state_t *ok = dp_correlator_create_1d (ref, 8, 1, 1, 0);
+  DP_CHECK (ok != NULL);
+  dp_correlator_destroy (ok);
+}
+
 int
 main (void)
 {
   const size_t NY = 4;
   const size_t NX = 4;
-  const size_t N  = NY * NX; /* 16 */
+  DP_REQUIRE (_test_blob_keys () == 0);
+  _test_empty_axis ();
+  const size_t N = NY * NX; /* 16 */
 
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
@@ -2540,8 +2660,8 @@ main (void)
   }
 
   /* ── n_in must equal ny*nx: any other length is REFUSED (#1925) ──────
-   * As test_corr_core.c: exact-size heap arrays (ASan), a canary-filled out,
-   * and a refusal that does not count toward the dwell. */
+   * As test_correlator_1d.c: exact-size heap arrays (ASan), a canary-filled
+   * out, and a refusal that does not count toward the dwell. */
   {
     float _Complex ref[16];
     for (size_t i = 0; i < N; i++)

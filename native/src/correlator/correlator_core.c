@@ -121,6 +121,12 @@ dp_correlator_create_2d (const float _Complex *ref, size_t ny, size_t nx,
                          size_t dwell, int nthreads, size_t ny_out,
                          size_t nx_out, int col_out)
 {
+  /* An empty axis is refused here, before anything is built: the row plans
+     below go through dp_xnn, and an FFT plan of length 0 is NULL, so an
+     empty reference would abort the process instead of returning NULL.
+     The 1-D flavor (ref_len 0) arrives here as nx 0. */
+  if (nx == 0 || ny == 0)
+    return NULL;
   dp_correlator_state_t *state
       = calloc (1, sizeof (*state)); /* NULL-init pointers */
   if (!state)
@@ -329,11 +335,18 @@ dp_correlator_reset (dp_correlator_state_t *state)
  * would silently turn a correlation surface into a delay-Doppler map, or
  * back; ny because the size check sees only ny*nx, and a (4, 8) blob read as
  * (8, 4) would be reinterpreted rather than refused; ny_out because it fixes
- * the map the dwell in progress dumps into. */
+ * the map the dwell in progress dumps into.
+ *
+ * Within one flavor and shape, three more config values change what the
+ * accumulator holds, so they are reject keys too: fast_path (row spectra
+ * against one 2-D spectrum), col_out (per-row dot products against
+ * spectra) and nx_out (the width the dwell in progress dumps into). A blob
+ * from a single-row-reference object would otherwise load into a
+ * full-reference object of the same shape and dump garbage. */
 size_t
 dp_correlator_state_bytes (const dp_correlator_state_t *s)
 {
-  return sizeof (dp_state_hdr_t) + 4 * sizeof (uint64_t)
+  return sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t)
          + s->n * sizeof (float _Complex);
 }
 
@@ -345,6 +358,9 @@ dp_correlator_get_state (const dp_correlator_state_t *s, void *blob)
   dp_w_u64 (&_w, (uint64_t)s->flavor);
   dp_w_u64 (&_w, s->ny);
   dp_w_u64 (&_w, s->ny_out);
+  dp_w_u64 (&_w, (uint64_t)s->fast_path);
+  dp_w_u64 (&_w, (uint64_t)(int64_t)s->col_out);
+  dp_w_u64 (&_w, s->nx_out);
   dp_w_u64 (&_w, s->count);
   dp_w_cf32 (&_w, s->accum, s->n);
 }
@@ -361,9 +377,13 @@ dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
   const uint64_t flavor = dp_r_u64 (&_r);
   const uint64_t ny     = dp_r_u64 (&_r);
   const uint64_t ny_out = dp_r_u64 (&_r);
+  const uint64_t fast   = dp_r_u64 (&_r);
+  const uint64_t col    = dp_r_u64 (&_r);
+  const uint64_t nx_out = dp_r_u64 (&_r);
   const uint64_t count  = dp_r_u64 (&_r);
   if (flavor != (uint64_t)s->flavor || ny != s->ny || ny_out != s->ny_out
-      || count >= s->dwell)
+      || fast != (uint64_t)s->fast_path || col != (uint64_t)(int64_t)s->col_out
+      || nx_out != s->nx_out || count >= s->dwell)
     return DP_ERR_INVALID;
   s->count = (size_t)count;
   dp_r_cf32 (&_r, s->accum, s->n);

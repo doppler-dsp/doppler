@@ -1035,6 +1035,13 @@ unit = "sample"
 definition = "The searching receiver in the specification configuration the certification measures: a 1,023-chip code at 3.069 Mcps and 2 samples per chip, its own search over plus or minus one code-period frequency (3 kHz), fed noise and searching for every sample fed: 65,536 samples per round; throughput counts input samples."
 samples = 1
 
+["c:async_dsss_receiver::create[search,sf=1023,3.069Mcps,W=5]"]
+name = "Async DSSS receiver, created on a five-tile search"
+unit = "call"
+definition = "Creating one searching receiver in the specification configuration with a five-tile search (plus or minus 5 kHz) and a deep coherent block, which includes sweeping the code's Doppler-offset sidelobe: per call, timed from create's call to its return, destroy untimed."
+domain = "call"
+count = 1
+
 ["c:corr2d::delay_doppler_32x1024_1t"]
 name = "Delay-Doppler map, 32 x 1,024, one thread"
 unit = "sample"

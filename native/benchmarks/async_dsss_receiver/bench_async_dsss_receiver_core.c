@@ -25,6 +25,10 @@
  * filter. It records only if the receiver stayed in tracking for every timed
  * sample with both locks up at either end.
  *
+ * And CREATE, one receiver per call, on a five-tile search: what each new
+ * receiver costs before its first sample, the Doppler-offset sidelobe sweep
+ * included (run_create()).
+ *
  * Not timed here: refinement, a one-time transient rather than a rate.
  */
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
@@ -202,6 +206,52 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
   return 0;
 }
 
+/* CREATE, one receiver per call (#2752 step 3.4): the searching flavor's
+   specification configuration with a five-tile search, +/-5 kHz, and a
+   4 ms code-only window (CODE_ONLY_S), the receivers' Gold-1023 point where
+   create sweeps the code's Doppler-offset sidelobe (dp_acq_dsl_db(), read at
+   create so the sweep never stalls a push). Step 3.4 moves that sweep onto the
+   one delay-Doppler map, so rule 2 judges create as well as push. The row
+   records only if the search is the one named: five window tiles and a
+   deep block, without which create skips the sweep. Destroy is untimed. */
+#define CODE_ONLY_S 0.004 /* a code-only window of 11 epochs: a deep block */
+
+static int
+run_create (jm_bench_t *bench, const uint8_t *code)
+{
+  const double chip = 3.069e6, sym = 2700.0;
+  const size_t sf = 1023, spc = 2;
+  const double cn0 = 10.0 + 10.0 * log10 (sym);
+  double       times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++)
+    {
+      uint64_t                        t0 = jm_bench_now_ns ();
+      dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+          code, sf, chip, sym, chip * (double)spc, 2, cn0, 1e-3, 0.9, 5000.0,
+          4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
+          CODE_ONLY_S, 0.0);
+      uint64_t t1 = jm_bench_now_ns ();
+      if (!rx || rx->acq->window_bins != 5 || !(rx->acq->coherent_bins > 1))
+        {
+          (void)fprintf (stderr,
+                         "bench_async_dsss_receiver[create]: the receiver did "
+                         "not open on a five-tile deep search (window_bins "
+                         "%zu, coherent_bins %zu) -- the row would time a "
+                         "create that skips the sidelobe sweep\n",
+                         rx ? rx->acq->window_bins : 0,
+                         rx ? rx->acq->coherent_bins : 0);
+          return 1;
+        }
+      times[r] = jm_bench_elapsed_sec (t0, t1);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  const char *name = "create[search,sf=1023,3.069Mcps,W=5]";
+  jm_bench_add_unit (bench, name, times, ITERATIONS, 1, JM_BENCH_CALL);
+  printf ("  %-32s %8.3f ms/create\n", name,
+          min_sec (times, ITERATIONS) * 1e3);
+  return 0;
+}
+
 /* Tracking with both locks, or a message naming what was lost. */
 static int
 tracking (const dp_async_dsss_receiver_state_t *rx, const char *when)
@@ -348,6 +398,8 @@ main (void)
   if (run_tracking (&_bench, code1023) != 0)
     return 1;
   if (run_searching (&_bench, code1023) != 0)
+    return 1;
+  if (run_create (&_bench, code1023) != 0)
     return 1;
 
   jm_bench_write_json (&_bench, "async_dsss_receiver");

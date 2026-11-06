@@ -398,13 +398,130 @@ Each is its own PR, tracked by an issue of its own under #2752.
     receivers and the pool call `dp_correlator_*`, and `burst_acq` forwards
     to the new names until step 4.
 
+    The design, reviewed on 2026-11-06. acq is larger than everything 3.2
+    and 3.3 moved together (`acq_core.c` 3,510 lines, `acq_core.h` 2,322,
+    34 public functions), so 3.4 is two PRs:
+
+    - **3.4a, U4 measured, on today's acq.** D5's four setup-time
+        transform pairs run in cf32 through the single-row path beside
+        today's double. The PR states, for each pair, the numeric change in
+        its output's units against the budget its use allows. It also
+        states every acq validator's `--check` verdict, and
+        `make validate-check` must be up to date. If cf32 moves no verdict
+        and keeps every pair within budget, the change lands on today's
+        acq, so 3.4b's bench verdict separates U4's cost from the move's.
+        If it moves a certified number, that is a finding, never a silent
+        re-baseline, and the pairs stay in double with the owner's ruling.
+
+    - **3.4b, the move.** The consumers switch in the same PR: acq cannot
+        be deleted while one still calls it, and a forwarding shim would be
+        a private copy.
+
+    3.4b's design:
+
+    - **The state.** acq's fields that the layers already hold become those
+        fields:
+
+        - the ring, `ring_cap`, the framer and `consumed` go to the stream
+            layer;
+        - `mag_buf`, `noise_scratch`, `noise_lo`, `noise_hi`, `noise_mode`
+            and `threshold` go to the detection layer;
+        - the delay-Doppler map, the pool and the last pick go to the map
+            layer and the last-dump fields;
+        - `max_peaks`, the peak list, the masks and the twins become new
+            detection-layer fields.
+
+        The rest of the search policy is one struct, the correlator's
+        search record: sizing, the grid, rates, the carrier, the
+        sidelobe cache, the parts, Pfa and Pd, telemetry, the surface sink
+        and the hand-off. The state holds it as a pointer, `search`,
+        appended above the pad: NULL for the other five flavors, so no
+        offset 3.2 or 3.3 measured moves and their allocations do not grow.
+        It is allocated once, at create, never per push. Inside it, the
+        fields a push writes sit on their own line behind a pad, as in the
+        state. acq's rows judge the indirection. If they flag it, the
+        fallback (the struct embedded below `consumed`) needs the same
+        placement-pinned and aligned evidence before it is chosen.
+
+    - **One hit record, widened.** `dp_correlator_hit_t` gains
+        `acq_result_t`'s fields in their order: `cn0_dbhz_est`,
+        `samples_consumed`, `chip_phase`, `doppler_rate_hz_s`,
+        `test_stat_peak` and the named `_pad`. `doppler_bin` and
+        `code_phase` become `row` and `col`. The record grows from 32 to 64
+        bytes, `acq_result_t`'s pinned size. The detectors write the new
+        fields as 0, and their rows are judged again for the memory traffic.
+        Python is unaffected: every `push` returns plain tuples, and each
+        class's `result_fields` picks its fields by C name.
+
+    - **Constructors and symbols.** `dp_acq_create_continuous` and
+        `dp_acq_create_burst` become the two search flavors. Of the other
+        `dp_acq_*` functions:
+
+        - those whose name the correlator already has (`push`, `reset`,
+            `consumed`, `set_threshold`, the state triplet, `destroy`) are
+            served by the one function, dispatching on the flavor;
+        - the search-only ones keep their suffix and refuse every other
+            flavor.
+
+        acq's record types become `dp_correlator_*_t`, and `acq_private.h`
+        folds into `correlator_private.h`.
+
+    - **The blob.** `ACQR` (v8, released) is refused. A search flavor's
+        `CORL` payload is the layers' fields as 3.3 packs them, plus the
+        policy's. ACQR's reject keys stay reject keys, each with a
+        cross-load pair, and `set_state` checks the whole blob before it
+        commits.
+
+        Blobs that nest acq's bump, each confirmed in the PR and held by
+        `make state-versions-check`:
+
+        - directly: `BurstCapture` (`BCAP` 6), `DsssReceiver` (`DSRX` 3),
+            `AsyncDsssReceiver` (`ADRX` 15) and `burst_acq`;
+        - through a receiver's child blob: `AsyncDsssPool` (5) and
+            `DsssBurstReceiver` (7).
+
+    - **`Acquisition` stays its own jm object in `acquire`**, over
+        `dp_correlator_state_t`, with its constructor and every method
+        pointed at the new names. A view lives in its parent's module, so a
+        view would move the class and its `__module__` into `spectral`
+        before step 4. The object is a binding over the one C object, not a
+        second implementation. Before it is written, a scratch `jm apply`
+        proves that two objects can share one C state type: one `destroy`,
+        serialization generated on both, and no duplicate symbol. If jm
+        cannot, that is a jm issue first, never hand glue. `BurstAcquisition`
+        stays a forwarder.
+
     The oracle:
 
-    - an equivalence test against today's acq before the switch, as step 2's
-        was;
-    - `test_acq_core.c`, `test_acq_regrid_failure.c`;
-    - every acq validator's `--check` verdict unchanged;
-    - the composing objects' C and Python tests.
+    - **an equivalence test, before the switch.** acq has no second
+        implementation to pair against, as 3.2 and 3.3 did, so the switch's
+        first commit adds the search flavors while `acq/` still builds.
+        `test_search_equiv.c` drives both through the same scenes:
+
+        - both doors;
+        - one peak and four;
+        - rate hypotheses;
+        - the carrier coupled;
+        - a tiled search with D > 1;
+        - one thread and four;
+        - odd chunks;
+        - a mid-stream `get_state`/`set_state`.
+
+        Every hit field and every dwell's statistic surface must be
+        byte-identical, proven red by sabotage. The next commit deletes
+        `acq/` and the test's acq half; its scenes stay as the flavors'
+        pins. The first commit's CI run is the evidence, and the PR links
+        it. A continuous-against-burst pair is pinned only where the header
+        documents that the two doors agree;
+
+    - `test_acq_core.c`, `test_acq_regrid_failure.c` and the symbol tests,
+        ported;
+
+    - every acq validator's `--check` verdict unchanged, and
+        `make validate-check` up to date;
+
+    - the composing objects' C and Python tests, and
+        `tracker_through_window.c`.
 
 1. **3.5, re-certification.** One report for the one object, its limits
     the union of today's four reports. acq's two open findings stay open:
@@ -438,6 +555,8 @@ join once they land):
 | 3.4      | `async_dsss_pool::push`      | `[native,n=1,threads=1]`, `[native,n=4,threads=1]`, `[native,n=4,threads=4]`, `[full,n=1,threads=1]`, `[full,n=4,threads=1]`                                                                                                                                  |
 | 3.4      | `async_dsss_receiver::steps` | `[track,sf=1023,3.069Mcps]`, `[search,sf=1023,3.069Mcps]`                                                                                                                                                                                                     |
 | 3.4      | `burst_capture::push`        | `[4 bursts]`                                                                                                                                                                                                                                                  |
+| 3.4      | `burst_acq::push`            | `[sf=15,spc=2]`, `[sf=63,spc=4]`                                                                                                                                                                                                                              |
+| 3.4      | the 3.3 detector rows        | every `detector::push` and `detector2d::push` row again, since the hit record grows to 64 bytes                                                                                                                                                               |
 
 **The family names stay through step 3, except the ones jm renames.** The
 benches keep writing `detector`, `detector2d` and `acq`, so `bench-ab`

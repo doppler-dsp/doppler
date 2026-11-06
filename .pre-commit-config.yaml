@@ -232,6 +232,14 @@ repos:
         pass_filenames: false
         files: (^|/)(Dockerfile[^/]*|[^/]*\.[Dd]ockerfile|Makefile|[^/]*\.mk|[^/]*\.sh)$|^\.github/|^scripts/(\.stock-pull-exempt|check_stock_images\.py)$
 
+      # `make test-all` runs every test target CI runs (#2886 failed CI twice on gaps).
+      - id: test-all-ci
+        name: test-all runs every test target CI runs
+        entry: make -s lint-test-all-ci
+        language: system
+        pass_filenames: false
+        files: ^(\.github/workflows/|Makefile$|[^/]*\.mk$|scripts/(\.test-all-exempt|check_test_all_covers_ci\.py)$)
+
       # uv.lock's bytes depend on the uv that writes it, so uv is pinned once
       # in pyproject.toml and every installer reads that pin (doppler#1940).
       # No `files:` filter: an installer can appear in any tracked file.

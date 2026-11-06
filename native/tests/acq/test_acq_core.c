@@ -5190,7 +5190,17 @@ main (void)
        surface is where they are. Sabotage, each red: apply the Doppler
        before the delay (it wraps at the period), give a cell only the
        tiles its unfolded frequency touches (the wrap row reads one), or
-       drop test_stat_peak's straddle (the bound reads low). */
+       drop test_stat_peak's straddle (the bound reads low); weight the
+       row by C instead of conj(C).
+
+       The ratio's own precision budget is 1e-6 relative. Its transforms
+       run on the one delay-Doppler map (#2752 3.4b-pre): plans, pad and
+       transforms bit-identical to the private ones they replaced, and the
+       complex product, evaluated in the map's vectorized row loop under
+       -ffast-math, an ulp apart -- measured over every acq-family test,
+       validator and bench, 24,482 calls, worst 9.1e-8 (about 1e-7
+       relative), no pick changed. The budget is 10x that; the 1e-3 margin
+       below is the bound's physical slack, three orders above it. */
     {
       const double fe = fs2 / 2046.0; /* the epoch rate: a tile */
       const struct

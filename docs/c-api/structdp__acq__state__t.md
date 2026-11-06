@@ -126,9 +126,8 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**sl\_cnext**](#variable-sl_cnext)  <br> |
 |  size\_t | [**sl\_crow**](#variable-sl_crow)  <br> |
 |  double | [**sl\_ctile**](#variable-sl_ctile)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_fwd**](#variable-sl_fwd)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_inv**](#variable-sl_inv)  <br> |
-|  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**sl\_inv\_cb**](#variable-sl_inv_cb)  <br> |
+|  struct dp\_\_dd\_map \* | [**sl\_map**](#variable-sl_map)  <br> |
+|  struct dp\_\_dd\_map \* | [**sl\_map\_cb**](#variable-sl_map_cb)  <br> |
 |  float \_Complex \* | [**sl\_scratch**](#variable-sl_scratch)  <br> |
 |  float \* | [**stat\_surface**](#variable-stat_surface)  <br> |
 |  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
@@ -1800,15 +1799,15 @@ and the tile centre, Hz
 
 
 
-### variable sl\_fwd 
+### variable sl\_map 
 
 ```C++
-dp_fft_state_t* dp_acq_state_t::sl_fwd;
+struct dp__dd_map* dp_acq_state_t::sl_map;
 ```
 
 
 
-[**dp\_acq\_sidelobe\_ratio()**](acq__core_8h.md#function-dp_acq_sidelobe_ratio)'s forward plan (code\_bins), made on its first call 
+[**dp\_acq\_sidelobe\_ratio()**](acq__core_8h.md#function-dp_acq_sidelobe_ratio)'s transforms: the one delay-Doppler map at one epoch, code\_bins in and lag\_bins out, made on its first call 
  
 
 
@@ -1818,33 +1817,15 @@ dp_fft_state_t* dp_acq_state_t::sl_fwd;
 
 
 
-### variable sl\_inv 
+### variable sl\_map\_cb 
 
 ```C++
-dp_fft_state_t* dp_acq_state_t::sl_inv;
+struct dp__dd_map* dp_acq_state_t::sl_map_cb;
 ```
 
 
 
-... its inverse (lag\_bins) 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable sl\_inv\_cb 
-
-```C++
-dp_fft_state_t* dp_acq_state_t::sl_inv_cb;
-```
-
-
-
-... and an inverse at code\_bins, for the delayed replica 
+... and one at code\_bins out, for the delayed replica 
  
 
 
@@ -1862,8 +1843,7 @@ float _Complex* dp_acq_state_t::sl_scratch;
 
 
 
-its buffers: the replica's spectrum, a mixed signal, its spectrum and the delayed replica (code\_bins each), then the padded product and the row (lag\_bins each) 
- 
+its buffers: the replica's spectrum, a mixed signal, its spectrum, the delayed replica, the spectrum's conjugate and ones (code\_bins each), then the row (lag\_bins) 
 
 
         

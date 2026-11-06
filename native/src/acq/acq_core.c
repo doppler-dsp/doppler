@@ -2460,12 +2460,8 @@ dp_acq_destroy (dp_acq_state_t *st)
                     st->map_off,  st->map_wt,    st->map_f };
   acq_map_release (&map);
   free (st->prompt_scratch);
-  if (st->sl_fwd)
-    dp_fft_destroy (st->sl_fwd);
-  if (st->sl_inv)
-    dp_fft_destroy (st->sl_inv);
-  if (st->sl_inv_cb)
-    dp_fft_destroy (st->sl_inv_cb);
+  dp__dd_map_destroy (st->sl_map);
+  dp__dd_map_destroy (st->sl_map_cb);
   free (st->sl_scratch);
   free (st->sl_cmax);
   if (st->ring)
@@ -2922,18 +2918,18 @@ static void
 acq_sidelobe_row (dp_acq_state_t *st, const float _Complex *refd, double nu,
                   float _Complex *out)
 {
-  const size_t    cb = st->code_bins, lb = st->lag_bins;
+  const size_t    cb   = st->code_bins;
   float _Complex *C    = st->sl_scratch; /* FFT(replica) */
   float _Complex *sig  = C + cb;
   float _Complex *spec = sig + cb;
-  float _Complex *pad  = spec + 2 * cb; /* after refd */
+  float _Complex *Cc   = C + 4 * cb; /* conj(C) */
   const double    w    = 2.0 * M_PI * nu / st->fs;
   acq_ramp (refd, cb, w, 0, sig);
-  dp_fft_execute_cf32 (st->sl_fwd, sig, cb, spec, cb);
-  for (size_t b = 0; b < cb; b++)
-    spec[b] *= conjf (C[b]);
-  dp_fft_pad_spectrum (spec, cb, pad, lb);
-  dp_fft_execute_cf32 (st->sl_inv, pad, lb, out, lb);
+  /* On the one delay-Doppler map, at one epoch: the forward, then one row
+     of spec * conj(C) padded to lag_bins and inverted -- the same
+     transforms, pad and product this ran on its own plans. */
+  dp__dd_map_forward (st->sl_map, NULL, 0, sig, spec);
+  dp__dd_map_row1 (st->sl_map, 0, spec, 0, Cc, out);
 }
 
 /* One slot of the cache: hit `from`'s worst ratio at every column, over the
@@ -2948,7 +2944,8 @@ acq_sidelobe_fill (dp_acq_state_t *st, const acq_result_t *from, double tile,
   float _Complex *C      = st->sl_scratch;
   float _Complex *spec   = C + 2 * cb; /* scratch for the delayed replica */
   float _Complex *refd   = C + 3 * cb;
-  float _Complex *row    = C + 4 * cb + lb;
+  float _Complex *ones   = C + 5 * cb;
+  float _Complex *row    = C + 6 * cb;
   const double    s      = (double)cb / (double)lb; /* samples a column */
   const double    res    = st->doppler_res_hz;
   const double    f_from = acq_bin_doppler_hz (st, from->doppler_bin);
@@ -2992,7 +2989,8 @@ acq_sidelobe_fill (dp_acq_state_t *st, const acq_result_t *from, double tile,
             * s;
       const double w = -2.0 * M_PI * tau / (double)cb;
       acq_ramp (C, cb, w, 1, spec);
-      dp_fft_execute_cf32 (st->sl_inv_cb, spec, cb, refd, cb);
+      /* the plain inverse, as a row of spec times ones (exact) */
+      dp__dd_map_row1 (st->sl_map_cb, 0, spec, 0, ones, refd);
       for (size_t k = 0; k < cb; k++)
         refd[k] /= (float)cb; /* the unnormalised inverse */
       for (int p = 0; p < ACQ_SIDELOBE_DOPPLER_PTS; p++)
@@ -3017,13 +3015,20 @@ dp_acq_sidelobe_ratio (dp_acq_state_t *state, const acq_result_t *from,
   const size_t    cb = st->code_bins, lb = st->lag_bins;
   if (!st->sl_scratch)
     {
-      st->sl_fwd     = dp_xnn (dp_fft_create (cb, -1, 1));
-      st->sl_inv     = dp_xnn (dp_fft_create (lb, +1, 1));
-      st->sl_inv_cb  = dp_xnn (dp_fft_create (cb, +1, 1));
-      st->sl_scratch = dp_xmalloc ((4 * cb + 2 * lb) * sizeof *st->sl_scratch);
+      const dp__dd_geom_t g  = { .n = cb, .l = lb, .d = 1, .di = 1, .f = 1 };
+      const dp__dd_geom_t gc = { .n = cb, .l = cb, .d = 1, .di = 1, .f = 1 };
+      st->sl_map             = dp_xnn (dp__dd_map_create (&g, 1));
+      st->sl_map_cb          = dp_xnn (dp__dd_map_create (&gc, 1));
+      st->sl_scratch = dp_xmalloc ((6 * cb + lb) * sizeof *st->sl_scratch);
       st->sl_cmax = dp_xmalloc (ACQ_SIDELOBE_SLOTS * lb * sizeof *st->sl_cmax);
       st->sl_cn = st->sl_cnext = 0;
-      dp_fft_execute_cf32 (st->sl_fwd, st->ref, cb, st->sl_scratch, cb);
+      float _Complex *C        = st->sl_scratch;
+      dp__dd_map_forward (st->sl_map, NULL, 0, st->ref, C);
+      for (size_t b = 0; b < cb; b++)
+        {
+          C[4 * cb + b] = conjf (C[b]); /* the row's weights */
+          C[5 * cb + b] = 1.0f;         /* the plain inverse's */
+        }
     }
   /* A pick reads many cells against its few stronger hits, dwell after
      dwell, and each read costs 45 to 90 row transforms uncached; a slot

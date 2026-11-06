@@ -537,5 +537,38 @@ main (void)
     dp_detector_destroy (b);
   }
 
+  /* -- U2: an all-NaN frame. A NaN sample spreads through the transform to
+     every cell, so the map is NaN throughout. A NaN is never the peak: the
+     peak reads lag 0, magnitude +0.0 (it read NaN before U2). The noise
+     estimate is NaN in every mode, so test_stat is 0: threshold 0 (always
+     fire) still emits that hit, and a positive threshold emits none. */
+  for (int m = 0; m < 4; m++)
+    for (int t = 0; t < 2; t++)
+      {
+        enum
+        {
+          NN = 16
+        };
+        float _Complex ref[NN] = { 0 }, x[NN];
+        ref[0]                 = 1.0f;
+        for (size_t i = 0; i < NN; i++)
+          x[i] = NAN;
+        const float          thr = t ? 2.5f : 0.0f;
+        dp_detector_state_t *det = dp_detector_create (
+            ref, NN, 1, 0, NN - 1, (det_noise_mode_t)m, thr, 1);
+        DP_REQUIRE (det != NULL);
+        det_result_t r[2]  = { { 9, 9.0f, 9.0f, 9.0f } };
+        const size_t nhits = dp_detector_push (det, x, NN, r, 2);
+        DP_CHECK (nhits == (t ? 0u : 1u));
+        DP_CHECK (det->peak_lag == 0);
+        DP_CHECK (det->peak_mag == 0.0f && !signbit (det->peak_mag));
+        DP_CHECK (isnan (det->noise_est));
+        DP_CHECK (det->test_stat == 0.0f);
+        if (nhits == 1)
+          DP_CHECK (r[0].lag == 0 && r[0].peak_mag == 0.0f
+                    && isnan (r[0].noise_est) && r[0].test_stat == 0.0f);
+        dp_detector_destroy (det);
+      }
+
   DP_TEST_END ("test_detector_core");
 }

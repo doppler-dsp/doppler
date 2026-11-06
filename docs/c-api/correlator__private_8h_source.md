@@ -183,9 +183,13 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
         }
       if (best == k1 ? !a : !(m > surf[best]))
         continue;
+      /* U2 lives in the seed alone, as on the unmasked path: the first
+         candidate that is not NaN becomes the pick, and from there on a
+         NaN never wins `surf[k] > surf[best]`, so the loop is the plain
+         one and pays no per-cell NaN test. */
       for (k = b0; k < b1; k++)
-        if (!mask[k] && !isnan (surf[k])
-            && (best == k1 || surf[k] > surf[best]))
+        if (!mask[k]
+            && (best == k1 ? !isnan (surf[k]) : surf[k] > surf[best]))
           best = k;
     }
   return best;

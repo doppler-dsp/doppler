@@ -1209,8 +1209,8 @@ main (void)
     DP_CHECK (det_peak_scan (surf, mask, 0, SN)
               == _scan_oracle (surf, mask, 0, SN));
     /* A NaN at the first candidate: the true maximum is still the pick,
-       masked and unmasked alike (the unmasked seed skips it; the masked
-       pass maps it to -INFINITY), at k0 = 0 and at an interior k0. */
+       masked and unmasked alike (both seeds skip it; the masked lane pass
+       also maps it to -INFINITY), at k0 = 0 and at an interior k0. */
     surf[0] = NAN;
     DP_CHECK (_scan_oracle (surf, mask, 0, SN) == 1100);
     DP_CHECK (det_peak_scan (surf, mask, 0, SN) == 1100);

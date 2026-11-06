@@ -200,8 +200,8 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
  * into blocks: a lane-wise pass finds each block's largest candidate, and
  * the plain loop, seeded with the pick so far, runs only on a block whose
  * largest candidate beats it. The pick is the plain loop's, NaN cells
- * included; test_correlator_detector_2d.c holds it to that loop over multi-block
- * surfaces. `isnan` is reliable here because every doppler build passes
+ * included; test_correlator_detector_2d.c holds it to that loop over
+ * multi-block surfaces. `isnan` is reliable here because every doppler build passes
  * -fno-finite-math-only (CMakeLists.txt, with its canary); a consumer of
  * this installed header under a bare -ffast-math loses the NaN rule.
  */
@@ -281,9 +281,13 @@ det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
         }
       if (best == k1 ? !a : !(m > surf[best]))
         continue;
+      /* U2 lives in the seed alone, as on the unmasked path: the first
+         candidate that is not NaN becomes the pick, and from there on a
+         NaN never wins `surf[k] > surf[best]`, so the loop is the plain
+         one and pays no per-cell NaN test. */
       for (k = b0; k < b1; k++)
-        if (!mask[k] && !isnan (surf[k])
-            && (best == k1 || surf[k] > surf[best]))
+        if (!mask[k]
+            && (best == k1 ? !isnan (surf[k]) : surf[k] > surf[best]))
           best = k;
     }
   return best;

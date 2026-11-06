@@ -242,7 +242,7 @@ jobs:
   build-macos:
     name: Build wheels (macOS arm64)
     needs: verify-version
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     # Pin the build to arm64-only, min-os 11.0 (the floor for all Apple
     # Silicon). Some setup-uv Pythons (3.9/3.11/3.12) are universal2 builds
@@ -465,7 +465,7 @@ jobs:
   build-c-macos:
     name: Package C library (macOS arm64)
     needs: verify-version
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -989,7 +989,7 @@ jobs:
             plat: linux-x86_64
           - os: ubuntu-24.04-arm
             plat: linux-aarch64
-          - os: macos-14
+          - os: macos-15
             plat: macos-arm64
           - os: windows-latest
             plat: windows-x86_64
@@ -1139,7 +1139,7 @@ jobs:
           - { tag: x86_64, runner: ubuntu-latest }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
           - { tag: win_amd64, runner: windows-latest }
-          - { tag: macos_arm64, runner: macos-14 }
+          - { tag: macos_arm64, runner: macos-15 }
         python: ${{ fromJSON(needs.verify-version.outputs.pythons) }}
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
@@ -1163,7 +1163,7 @@ jobs:
       # macOS arm64 takes uv's managed build of the leg's Python, the one
       # build-macos builds the wheels with, and ONLY a managed one: setup-uv's
       # python-version sets UV_PYTHON, and uv prefers an interpreter already
-      # on the machine, so `--python 3.9` on macos-14 could resolve to
+      # on the machine, so `--python 3.9` on macos-15 could resolve to
       # Xcode's 3.9.6 instead and the leg would depend on the runner image.
       - if: matrix.arch.tag == 'macos_arm64'
         run: echo "UV_PYTHON_PREFERENCE=only-managed" >> "$GITHUB_ENV"

@@ -95,3 +95,4 @@ framer's snapshot and nothing else	the configuration a row depends on, then the 
 does not carry consumed\(\), the PSD's window	it carries mode, nfft, hop, window and beta, not consumed() (#2102)
 without a refusal\. Whether that refusal	set_state refuses a blob from another mode (#2102)
 @brief The Python binding's constructor:	A header brief says what the object does, Python-first, with a trailing 'C:' clause for the C call (docs/dev/contributing/docstring-authoring.md); this opening was an internal note on DsssBurstReceiver and BurstDemod (#2855)
+\bdp_corr(2d)?_(?!reset_pinned_vacuously\b)\w+	dp_correlator_* (Corr and Corr2D are one C object, #2752 step 3.2; dp_corr2d_reset_pinned_vacuously is a finding key and keeps its spelling)

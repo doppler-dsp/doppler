@@ -1,4 +1,4 @@
-/* bench_corr2d_core.c — single-row-reference fast path vs. the general
+/* bench_correlator_core.c — single-row-reference fast path vs. the general
  * 2-D path, at a DSSS-acquisition-realistic grid.  A single-row reference
  * (the acq/detector2d shape: a code replica with no Doppler content of its
  * own) takes corr2d's fast path (ny independent length-nx 1-D FFTs); a
@@ -8,7 +8,9 @@
  */
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
-#include "jm_bench.h"
+#include "dp_bench.h"
+#include "dp_bench_pn.h"
+#include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -251,9 +253,258 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   free (rg), free (ra), free (rr), free (rc), free (rates), free (xr);
 }
 
-/* Defined in bench_correlator_1d.c, compiled into this binary by
-   correlator_extra.cmake: the 1-D flavor's rows, Corr's on main. */
-int bench_correlator_1d (jm_bench_t *bench);
+/* ── The 1-D flavor's rows: what a dwell buys, and what the dump costs.
+ *
+ * `dp_correlator_execute` has two prices behind one signature. Every call runs
+ * a forward FFT of the frame, multiplies pointwise by the stored reference
+ * spectrum and adds that into a coherent accumulator. Only the
+ * `dwell`-th call also runs the INVERSE transform and normalises, and
+ * only that call writes an output; the rest return 0 and look, from the
+ * outside, exactly the same.
+ *
+ * So a caller choosing `dwell` is amortising one inverse FFT over N
+ * frames, and the useful figure is not the average -- it is the two
+ * prices side by side, plus what the average becomes at each dwell. This
+ * file measures the accumulate-only call and the dump call separately
+ * (by driving the same correlator to the frame before its dump, then
+ * timing one of each), and reports the per-frame average that implies
+ * for several dwells.
+ *
+ * Deferring the inverse is only legal because the integration is
+ * COHERENT -- a complex sum, so summing the cross-spectra and inverting
+ * once equals inverting each and summing, by linearity. A non-coherent
+ * (magnitude) integration could not do this and would pay the inverse
+ * every frame; the ratio here is exactly what that choice would cost.
+ *
+ * Two frame lengths, because the accumulate and the dump scale
+ * differently: the accumulate is one FFT plus an O(n) multiply-add, the
+ * dump adds a second FFT and an O(n) scale, so the ratio between them
+ * should be close to flat in n and any drift in it is the O(n) parts
+ * moving against the O(n log n) ones.
+ *
+ * Three short lengths besides (#2752 step 3.1b): the PN periods 31, 63 and
+ * 127, where per-call overhead is a large share of the work. They are the
+ * baseline the one correlator's single-row flavor must meet (design page
+ * docs/design/correlator.md, U1). Each correlates an m-sequence against
+ * itself delayed by PLANT samples, and checks after its timing that the
+ * map peaks at that lag, or the bench fails.
+ */
+
+#define ITERATIONS_1D 100
+#define N_LEN 2
+#define DWELL 8
+
+static const size_t frame_n[N_LEN] = { 1024, 16384 };
+
+/* Dwells a caller might actually pick, for the amortisation table. */
+#define N_DWELL 4
+static const size_t dwells[N_DWELL] = { 1, 4, 16, 64 };
+
+enum
+{
+  CFG_ACC,
+  CFG_DUMP,
+  N_KIND
+};
+
+static const char *kind_name[N_KIND]
+    = { "execute[accumulate]", "execute[dump]" };
+
+#define N_CFG (N_LEN * N_KIND)
+
+/* The short rows: register widths 5, 6 and 7, so periods 31, 63 and 127. */
+#define N_SMALL 3
+static const uint32_t small_bits[N_SMALL] = { 5, 6, 7 };
+#define PLANT 5 /* the input's delay, so the map's peak lag */
+
+/* One call at these lengths is a few hundred ns, near the clock's own
+   granularity, so a round times REPS calls. The accumulate rows run on a
+   correlator whose dwell is REPS + 1, so no dump lands in the batch; the
+   dump rows on one whose dwell is 1, so every call is a dump. */
+#define REPS 64
+
+/* The lag at which a correlator's next dump peaks: runs it from reset to
+   its dump. Returns n (an impossible lag) if no dump came. */
+static size_t
+dump_peak (dp_correlator_state_t *c, size_t dwell, const float _Complex *in,
+           size_t n, float _Complex *out)
+{
+  dp_correlator_reset (c);
+  size_t got = 0;
+  for (size_t f = 0; f < dwell; f++)
+    got = dp_correlator_execute (c, in, n, out, n);
+  if (got != n)
+    return n;
+  size_t peak = 0;
+  for (size_t k = 1; k < n; k++)
+    if (cabsf (out[k]) > cabsf (out[peak]))
+      peak = k;
+  return peak;
+}
+
+/* The short rows: REPS calls a round, then checked. Each row's correlator
+   runs once more to its dump, whose magnitude must peak at PLANT. Returns 0,
+   or 1 when a row's map does not show what it was timed computing. */
+static int
+bench_small (jm_bench_t *bench)
+{
+  static double t[N_SMALL * N_KIND][ITERATIONS_1D];
+  float _Complex ref[127], in[127], out[127];
+  char name[64];
+  for (int s = 0; s < N_SMALL; s++)
+    {
+      const size_t n = dp_bench_pn_nrz (small_bits[s], ref, 127);
+      if (n == 0)
+        return 1;
+      for (size_t i = 0; i < n; i++)
+        in[i] = ref[(i + n - PLANT) % n];
+      dp_correlator_state_t *acc
+          = dp_correlator_create_1d (ref, n, REPS + 1, 1, n);
+      dp_correlator_state_t *dump = dp_correlator_create_1d (ref, n, 1, 1, n);
+      if (!acc || !dump)
+        return 1;
+      for (int r = 0; r < ITERATIONS_1D; r++)
+        {
+          dp_correlator_reset (acc);
+          uint64_t t0 = jm_bench_now_ns ();
+          for (int q = 0; q < REPS; q++)
+            (void)dp_correlator_execute (acc, in, n, out, n);
+          uint64_t t1                = jm_bench_now_ns ();
+          t[s * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
+          t0                         = jm_bench_now_ns ();
+          for (int q = 0; q < REPS; q++)
+            (void)dp_correlator_execute (dump, in, n, out, n);
+          t1                          = jm_bench_now_ns ();
+          t[s * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
+        }
+      const size_t pa = dump_peak (acc, REPS + 1, in, n, out);
+      const size_t pd = dump_peak (dump, 1, in, n, out);
+      dp_correlator_destroy (acc);
+      dp_correlator_destroy (dump);
+      if (pa != PLANT || pd != PLANT)
+        {
+          (void)fprintf (stderr,
+                         "bench_corr: n=%zu peaks at lag %zu (accumulate) "
+                         "and %zu (dump), not %d\n",
+                         n, pa, pd, PLANT);
+          return 1;
+        }
+      for (int k = 0; k < N_KIND; k++)
+        {
+          (void)snprintf (name, sizeof name, "%s[n=%zu]", kind_name[k], n);
+          dp_bench_record (bench, name, t[s * N_KIND + k], ITERATIONS_1D,
+                           REPS * n, "sample");
+        }
+    }
+  return 0;
+}
+
+/* The 1-D flavor's rows, in this binary because jm bench runs only
+   bench_<component>_core; main calls this first. They share the file,
+   not a second translation unit, so jm_bench.h is compiled once.
+   Returns 0, or 1 when an allocation or a plant check fails. */
+static int
+bench_correlator_1d (jm_bench_t *bench)
+{
+  uint64_t               t0, t1;
+  static double          t[N_CFG][ITERATIONS_1D];
+  dp_correlator_state_t *corr[N_LEN] = { 0 };
+  const size_t           n_max       = frame_n[N_LEN - 1];
+  float _Complex        *ref = NULL, *in = NULL, *out = NULL;
+  char                   name[64];
+
+  ref = malloc (n_max * sizeof *ref);
+  in  = malloc (n_max * sizeof *in);
+  out = malloc (n_max * sizeof *out);
+  if (!ref || !in || !out)
+    return 1;
+
+  /* A chirp reference and an offset copy as input: representative of the
+     acquisition case, and never a value the transform can shortcut. */
+  for (size_t i = 0; i < n_max; i++)
+    {
+      const double p = 1e-4 * (double)i * (double)i;
+      ref[i]         = (float _Complex) (cos (p) + sin (p) * I);
+      in[i]          = (float _Complex) (cos (p + 0.7) + sin (p + 0.7) * I);
+    }
+
+  for (int l = 0; l < N_LEN; l++)
+    {
+      corr[l]
+          = dp_correlator_create_1d (ref, frame_n[l], DWELL, 1, frame_n[l]);
+      if (!corr[l])
+        return 1;
+    }
+
+  printf ("=== corr (coherent cross-correlator, dwell = %d) ===\n", DWELL);
+  printf ("%d rounds, min over rounds\n\n", ITERATIONS_1D);
+
+  DP_BENCH_SETTLE (
+      (void)dp_correlator_execute (corr[0], in, frame_n[0], out, frame_n[0]));
+
+  /* Rounds outside, (length, call kind) inside. The dump/accumulate ratio
+     is the file's whole output, so both halves of it must see the same
+     machine.
+     Each timed pair starts from a fresh cycle: reset, then advance to one
+     frame short of the dump so the next call is an accumulate and the one
+     after it is the dump. The advance is untimed. */
+  for (int r = 0; r < ITERATIONS_1D; r++)
+    for (int l = 0; l < N_LEN; l++)
+      {
+        const size_t n = frame_n[l];
+
+        dp_correlator_reset (corr[l]);
+        for (size_t f = 0; f + 2 < DWELL; f++)
+          (void)dp_correlator_execute (corr[l], in, n, out, n);
+
+        t0 = jm_bench_now_ns ();
+        (void)dp_correlator_execute (corr[l], in, n, out, n);
+        t1                         = jm_bench_now_ns ();
+        t[l * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
+
+        t0 = jm_bench_now_ns ();
+        (void)dp_correlator_execute (corr[l], in, n, out, n);
+        t1                          = jm_bench_now_ns ();
+        t[l * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
+      }
+
+  for (int l = 0; l < N_LEN; l++)
+    for (int k = 0; k < N_KIND; k++)
+      {
+        (void)snprintf (name, sizeof name, "%s[n=%zu]", kind_name[k],
+                        frame_n[l]);
+        dp_bench_record (bench, name, t[l * N_KIND + k], ITERATIONS_1D,
+                         frame_n[l], "sample");
+      }
+
+  printf ("\n  what the deferred inverse buys, per frame:\n");
+  printf ("    %-8s %10s", "n", "dump/acc");
+  for (int d = 0; d < N_DWELL; d++)
+    printf ("   dwell=%-4zu", dwells[d]);
+  printf ("\n");
+  for (int l = 0; l < N_LEN; l++)
+    {
+      const double acc = dp_bench_min (t[l * N_KIND + CFG_ACC], ITERATIONS_1D);
+      const double dump
+          = dp_bench_min (t[l * N_KIND + CFG_DUMP], ITERATIONS_1D);
+      printf ("    %-8zu %9.2fx", frame_n[l], dump / acc);
+      for (int d = 0; d < N_DWELL; d++)
+        printf ("  %7.2f ns", (acc * (double)(dwells[d] - 1) + dump)
+                                  / (double)dwells[d] / (double)frame_n[l]
+                                  * 1e9);
+      printf ("\n");
+    }
+  printf ("  The dwell columns are ns/sample averaged over one cycle. A\n"
+          "  non-coherent integrator pays the dwell=1 column at every\n"
+          "  dwell, because it cannot defer the inverse at all.\n");
+
+  for (int l = 0; l < N_LEN; l++)
+    dp_correlator_destroy (corr[l]);
+  free (ref);
+  free (in);
+  free (out);
+  return bench_small (bench) != 0;
+}
 
 int
 main (void)

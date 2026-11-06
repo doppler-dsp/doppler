@@ -30,14 +30,13 @@ target_include_directories(test_correlator_1d
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_correlator_1d COMMAND test_correlator_1d)
 
-# bench_correlator_1d.c: Corr's bench, against the 1-D flavor. It is a
-# second source of jm's bench_correlator_core, because jm bench runs only
-# bench_<component>_core: as its own executable it was built and never run.
-# `make bench-ab` pairs its rows with main's bench_corr_core by alias
-# through step 3 (docs/design/correlator.md section 7.1). pn_core and
-# cvt_core: the short rows (step 3.1b) correlate an m-sequence from the
-# shipped generator, mapped by the shipped NRZ mapper.
-target_sources(
-  bench_correlator_core
-  PRIVATE ${CMAKE_SOURCE_DIR}/native/benchmarks/correlator/bench_correlator_1d.c)
+# Corr's bench rows, against the 1-D flavor, live in bench_correlator_core.c
+# itself, because jm bench runs only bench_<component>_core: as their own
+# executable they were built and never run. They share that file rather than
+# a second source, because jm_bench.h's static functions warn unused in any
+# translation unit that does not write the JSON (just-makeit#2497).
+# `make bench-ab` pairs them with main's bench_corr_core by alias through
+# step 3 (docs/design/correlator.md section 7.1). pn_core and cvt_core: the
+# short rows (step 3.1b) correlate an m-sequence from the shipped generator,
+# mapped by the shipped NRZ mapper.
 target_link_libraries(bench_correlator_core PRIVATE pn_core cvt_core)

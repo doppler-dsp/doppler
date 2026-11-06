@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import pytest
 
-from doppler.spectral.tests.validation.corr2d import (
+from doppler.spectral.tests.validation.correlator import (
     validate as corr2d_validate,
 )
 from doppler.spectral.tests.validation.detector2d import (

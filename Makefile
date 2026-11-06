@@ -267,7 +267,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals named-args acq-pfa-split \
-               finding-citations
+               finding-citations test-all-ci
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -650,6 +650,11 @@ LINT_stock-images = $(UV) run python scripts/check_stock_images.py \
 # other installer through UV_VERSION.
 # scripts/.bare-uv-allow (rule 4) may only shrink from its state at the merge
 # base with UV_PIN_BASE, read the way STOCK_IMAGES_BASE's list is.
+# `make test-all` runs every test target CI runs, or scripts/.test-all-exempt
+# says why it cannot run locally: a branch green under test-all and red in CI
+# is what #2886 was, twice.
+LINT_test-all-ci = $(UV) run python scripts/check_test_all_covers_ci.py
+
 UV_PIN_BASE ?= origin/main
 LINT_uv-pin = $(UV) run python scripts/check_uv_pin.py --base $(UV_PIN_BASE)
 
@@ -837,7 +842,8 @@ TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 # src/doppler/examples/.examples-skip (reasons mandatory).
 TEST_EXAMPLES_CMD = $(MAKE) --no-print-directory test-examples-c
 
-TEST_ALL_DEPS = test test-examples test-python test-examples-python
+TEST_ALL_DEPS = test test-examples test-python test-examples-python \
+                test-snippets test-stubs test-api-docs test-rust
 
 # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
 # unreachable, so whether they RUN is a property of the environment, not of the

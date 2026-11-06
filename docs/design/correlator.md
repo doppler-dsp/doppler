@@ -106,13 +106,13 @@ The prototype is evidence for this page only; nothing reruns it. Sub-step
 
 ## 3. What is duplicated, which rule 1 removes
 
-|        | the copies                                                                                                                                                                                                               | becomes                                                                               |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| **D1** | `Corr`'s 1-D correlation (`corr_core.c:154-194`) and `Corr2D`'s single-row path (`corr2d_core.c:428-459`)                                                                                                                | the single-row path, at `ny = 1` (§2.1)                                               |
-| **D2** | `CorrDetector`'s argmax loop (`detector_core.c:49-52`) and `det_peak_list`                                                                                                                                               | `det_peak_list` with one peak; NaN by U2's rule                                       |
-| **D3** | `Corr2D`'s own peak passes: `corr2d_fold_peaks` (`corr2d_core.c:1072-1106`) and the bank's 3 × 3 local maximum (`corr2d_core.c:1771-1808`), beside `det_peak_scan` and `det_peak_zone`                                   | one peak primitive in the correlator's private header, if the measurements agree (U3) |
-| **D4** | the dwell counter, `++count == dwell` (`corr_core.c:160`, `corr2d_core.c:620`, `:632`)                                                                                                                                   | the single-row path's, with D1                                                        |
-| **D5** | acq's setup-time n-point transform pairs outside the map: `acq_shape_of_template`, `acq_off_peak`, `acq_doppler_sidelobe` and `dp_acq_sidelobe_ratio` (`acq_core.c:1912-1913`, `:1975-1976`, `:2041-2042`, `:3009-3011`) | decided by U4: they run in `double _Complex`, and the single-row path in cf32         |
+|        | the copies                                                                                                                                                                             | becomes                                                                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **D1** | `Corr`'s 1-D correlation (`corr_core.c:154-194`) and `Corr2D`'s single-row path (`corr2d_core.c:428-459`)                                                                              | the single-row path, at `ny = 1` (§2.1)                                                                                       |
+| **D2** | `CorrDetector`'s argmax loop (`detector_core.c:49-52`) and `det_peak_list`                                                                                                             | `det_peak_list` with one peak; NaN by U2's rule                                                                               |
+| **D3** | `Corr2D`'s own peak passes: `corr2d_fold_peaks` (`corr2d_core.c:1072-1106`) and the bank's 3 × 3 local maximum (`corr2d_core.c:1771-1808`), beside `det_peak_scan` and `det_peak_zone` | one peak primitive in the correlator's private header, if the measurements agree (U3)                                         |
+| **D4** | the dwell counter, `++count == dwell` (`corr_core.c:160`, `corr2d_core.c:620`, `:632`)                                                                                                 | the single-row path's, with D1                                                                                                |
+| **D5** | acq's setup-time n-point transform pairs outside the map: `acq_shape_of_template`, `acq_off_peak`, `acq_doppler_sidelobe` and `dp_acq_sidelobe_ratio`                                  | decided by U4: the first two on the single-row path (3.4a), the last two on the one delay-Doppler map (3.4b-pre), all in cf32 |
 
 **Not duplicates:**
 
@@ -278,7 +278,7 @@ or its input:
     D5's pairs ran in `double _Complex`, and the single-row path runs in
     cf32, so moving them is a precision change, not only a refactor. The
     fourth, `dp_acq_sidelobe_ratio`, was already cf32: its duplicate is its
-    own plans, and 3.4b moves it with the rest.
+    own plans, and 3.4b-pre moved them onto the map.
     - **Measured on:** every acq validator's `--check` verdict, and the setup's
         own outputs (template shape, off-peak floor, Doppler sidelobe) at
         every call site.
@@ -299,12 +299,19 @@ or its input:
         model needs a spectrum, not a correlation. The three `psl` pins
         against the double brute force moved from 1e-6 dB to a 1e-4 dB
         tolerance, with the oracle kept, and at one tile with no Doppler
-        uncertainty `dsl` takes the stored `psl` rather than recomputing it. The Doppler-sidelobe sweep stays in double for
-        now: on the single-row path each tile offset costs a forward and an
-        inverse transform, which made a five-tile receiver's create 2.3x
-        slower. Its home is the one delay-Doppler map, which rolls the
-        spectrum per tile from one forward transform, and 3.4b moves it
-        there.
+        uncertainty `dsl` takes the stored `psl` rather than recomputing it.
+        The Doppler-sidelobe sweep stayed in double: on the single-row path
+        each tile offset costs a forward and an inverse transform, which
+        made a five-tile receiver's create 2.3x slower.
+    - **Done (3.4b-pre).** The sweep runs on the one delay-Doppler map, one
+        forward transform per residual and one row per tile offset, in
+        cf32: over 372 sweeps the worst `dsl` change was 6.4e-7 dB, inside
+        the same 1e-4 dB budget. `dp_acq_sidelobe_ratio`'s three private
+        plans became two maps. Its plans, pad and transforms are
+        bit-identical; the complex product, evaluated in the map's
+        vectorized row loop under `-ffast-math`, moves the ratio by at most
+        9.1e-8 (about 1e-7 relative, over 24,482 calls), and no pick
+        changed. No validator's output moved.
 
 ## 7. The sub-steps
 
@@ -439,9 +446,14 @@ Each is its own PR, tracked by an issue of its own under #2752.
         the delay-Doppler map. 3.4a also added the receiver-create row
         (§7.1), so 3.4b has its A.
 
+    - **3.4b-pre, inside today's acq.** The Doppler-sidelobe sweep and
+        `dp_acq_sidelobe_ratio`'s transforms move onto the one delay-Doppler
+        map (U4 has the measurement), so the move carries no transform of
+        its own.
+
     - **3.4b, the move.** The consumers switch in the same PR: acq cannot
         be deleted while one still calls it, and a forwarding shim would be
-        a private copy.
+        a private copy. It waits on just-makeit#2516 (below).
 
     3.4b's design:
 
@@ -506,16 +518,18 @@ Each is its own PR, tracked by an issue of its own under #2752.
         - through a receiver's child blob: `AsyncDsssPool` (5) and
             `DsssBurstReceiver` (7).
 
-    - **`Acquisition` stays its own jm object in `acquire`**, over
-        `dp_correlator_state_t`, with its constructor and every method
-        pointed at the new names. A view lives in its parent's module, so a
-        view would move the class and its `__module__` into `spectral`
-        before step 4. The object is a binding over the one C object, not a
-        second implementation. Before it is written, a scratch `jm apply`
-        proves that two objects can share one C state type: one `destroy`,
-        serialization generated on both, and no duplicate symbol. If jm
-        cannot, that is a jm issue first, never hand glue. `BurstAcquisition`
-        stays a forwarder.
+    - **`Acquisition` becomes a cross-module view of the correlator.** A
+        scratch `jm apply` on 0.120.2 showed jm cannot point an object at
+        another component's C state: reusing the constructor is refused as
+        a duplicate symbol, and an object with its own constructor gets a
+        state struct of its own. just-makeit#2516 decided the fix: a view
+        may name its module (`module = "acquire"`). The class, its
+        `__module__` and its stub stay in `doppler.acquire`; the view keeps
+        its own constructor, parameters and members, and the parent's
+        `destroy`, `reset` and state triplet. The correlator carries
+        `set_state`'s memory-error row and the link dependencies. 3.4b
+        waits on that jm release. `BurstAcquisition` stays a forwarder
+        until step 4.
 
     The oracle:
 
@@ -619,6 +633,11 @@ names them with the rest.
 
 ## 8. Not in step 3
 
+- `BurstAcquisition`: a second cross-module view of the correlator, made
+    with the burst search flavor's constructor, would delete `burst_acq`'s
+    C forwarder outright; its blob is already the engine's. Recommended
+    for step 4, where the Python classes are decided (3.4b keeps the
+    forwarder).
 - The Python `Correlator` class, and retiring `Acquisition`,
     `BurstAcquisition` and the `burst_acq` forwarder: step 4.
 - Folding `PolynomialPhaseEstimator` in, and renaming `CarrierAcquisition`

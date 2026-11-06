@@ -36,6 +36,7 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  unsigned char | [**\_hot\_pad**](#variable-_hot_pad)  <br> |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
 |  float \_Complex \* | [**bat\_acc**](#variable-bat_acc)  <br> |
 |  float \_Complex \* | [**bat\_fine**](#variable-bat_fine)  <br> |
@@ -129,6 +130,24 @@ Allocate with a dp\_correlator\_create\_\*() constructor; never stack-allocate. 
     
 ## Public Attributes Documentation
 
+
+
+
+### variable \_hot\_pad 
+
+```C++
+unsigned char dp_correlator_state_t::_hot_pad[64];
+```
+
+
+
+Keeps [**count**](structdp__correlator__state__t.md#variable-count) off the read fields' cache lines. 
+ 
+
+
+        
+
+<hr>
 
 
 

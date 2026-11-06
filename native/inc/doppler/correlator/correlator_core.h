@@ -126,7 +126,6 @@ typedef struct {
   size_t nx_out;            /**< Output columns (== nx unless decoupled). */
   size_t n_out;             /**< ny_out * nx_out — output element count.  */
   size_t dwell;             /**< Integration depth.                       */
-  size_t count;             /**< Frames accumulated (0 … dwell-1).        */
   /* Known-column output (see dp_correlator_create_2d's @p col_out).  A caller that
    * already knows the correlation lag it wants does not need the other
    * nx_out-1 columns, and evaluating the inverse at one bin is a dot
@@ -192,6 +191,16 @@ typedef struct {
   float _Complex  *bat_map;   /**< Per-worker maps, nworkers x n_out.    */
   float _Complex  *bat_fine;  /**< Per-worker @ref dd_fine for batches;
                                    NULL when the map runs rows first.     */
+  /* Everything above is written by create (and set_ref) only, and the
+   * threaded map's workers read it on every call. `count` is the one field
+   * execute() writes every frame, so it lives last, behind a full cache line
+   * of padding: sharing a line with `n` (as it did once `flavor` was added
+   * first) made every frame invalidate that line in each worker's cache
+   * (#2886). A new field goes ABOVE this comment unless execute() writes it,
+   * in which case it goes below, next to `count`. */
+  unsigned char _hot_pad[64]; /**< Keeps @ref count off the read fields'
+                                   cache lines.                            */
+  size_t count;             /**< Frames accumulated (0 … dwell-1).        */
 } dp_correlator_state_t;
 
 /**

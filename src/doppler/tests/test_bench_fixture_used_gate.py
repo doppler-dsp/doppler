@@ -47,7 +47,7 @@ REPO = repo_root(__file__)
 HOLLOW = "def test_hollow(benchmark):\n    pass\n"
 CALLS = "def test_calls(benchmark):\n    benchmark(sum, [1, 2, 3])\n"
 # The shape a static per-test scan would wrongly refuse: the fixture is
-# handed to a helper, which calls it. bench_ratesync.py and bench_corr2d.py
+# handed to a helper, which calls it. bench_ratesync.py and bench_correlator.py
 # are written this way, so the gate must accept it.
 HELPER = (
     "def _measure(benchmark):\n"

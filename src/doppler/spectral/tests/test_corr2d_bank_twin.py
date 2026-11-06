@@ -9,7 +9,7 @@ false-alarm rate it was calibrated to on noise it has not seen (not
 significantly above it, nor collapsed below it), and
 detect-and-refine detects as often as the fine grid does, within the
 intervals. The straddle the refine recovers, exactly, is pinned
-deterministically in ``test_corr2d_core.c`` (``_test_bank_detect``).
+deterministically in ``test_correlator_core.c`` (``_test_bank_detect``).
 """
 
 from __future__ import annotations

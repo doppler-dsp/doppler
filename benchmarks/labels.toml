@@ -447,7 +447,19 @@ unit = "sample"
 definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 31-sample frames of a 31-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
 samples = 1
 
+["c:correlator::execute[accumulate][n=31]"]
+name = "1-D correlator, accumulate, 31 samples"
+unit = "sample"
+definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 31-sample frames of a 31-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
+samples = 1
+
 ["c:corr::execute[accumulate][n=63]"]
+name = "1-D correlator, accumulate, 63 samples"
+unit = "sample"
+definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 63-sample frames of a 63-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:correlator::execute[accumulate][n=63]"]
 name = "1-D correlator, accumulate, 63 samples"
 unit = "sample"
 definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 63-sample frames of a 63-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
@@ -459,7 +471,19 @@ unit = "sample"
 definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 127-sample frames of a 127-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
 samples = 1
 
+["c:correlator::execute[accumulate][n=127]"]
+name = "1-D correlator, accumulate, 127 samples"
+unit = "sample"
+definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 127-sample frames of a 127-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
+samples = 1
+
 ["c:corr::execute[dump][n=31]"]
+name = "1-D correlator, dump, 31 samples"
+unit = "sample"
+definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 31-sample frames of a 31-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:correlator::execute[dump][n=31]"]
 name = "1-D correlator, dump, 31 samples"
 unit = "sample"
 definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 31-sample frames of a 31-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
@@ -471,7 +495,19 @@ unit = "sample"
 definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 63-sample frames of a 63-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
 samples = 1
 
+["c:correlator::execute[dump][n=63]"]
+name = "1-D correlator, dump, 63 samples"
+unit = "sample"
+definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 63-sample frames of a 63-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
+samples = 1
+
 ["c:corr::execute[dump][n=127]"]
+name = "1-D correlator, dump, 127 samples"
+unit = "sample"
+definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 127-sample frames of a 127-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
+samples = 1
+
+["c:correlator::execute[dump][n=127]"]
 name = "1-D correlator, dump, 127 samples"
 unit = "sample"
 definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 127-sample frames of a 127-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
@@ -939,7 +975,19 @@ unit = "sample"
 definition = "One DelayDoppler execute on 32 code periods of 1,024 samples: 32 row correlations against the code, then 1,024 length-32 slow-time FFTs, on one thread; throughput counts input samples, 32,768 per map."
 samples = 1
 
+["c:correlator::delay_doppler_32x1024_1t"]
+name = "Delay-Doppler map, 32 x 1,024, one thread"
+unit = "sample"
+definition = "One DelayDoppler execute on 32 code periods of 1,024 samples: 32 row correlations against the code, then 1,024 length-32 slow-time FFTs, on one thread; throughput counts input samples, 32,768 per map."
+samples = 1
+
 ["c:corr2d::delay_doppler_32x1024_o64_1t"]
+name = "Delay-Doppler map, 32 x 1,024, Doppler interpolated to 64 rows, one thread"
+unit = "sample"
+definition = "One DelayDoppler execute on 32 code periods of 1,024 samples with ny_out = 64: 32 row correlations against the code, then 1,024 slow-time FFTs of the 32 periods zero-padded to 64, on one thread; throughput counts input samples, 32,768 per map."
+samples = 1
+
+["c:correlator::delay_doppler_32x1024_o64_1t"]
 name = "Delay-Doppler map, 32 x 1,024, Doppler interpolated to 64 rows, one thread"
 unit = "sample"
 definition = "One DelayDoppler execute on 32 code periods of 1,024 samples with ny_out = 64: 32 row correlations against the code, then 1,024 slow-time FFTs of the 32 periods zero-padded to 64, on one thread; throughput counts input samples, 32,768 per map."
@@ -951,7 +999,19 @@ unit = "sample"
 definition = "One DelayDoppler execute on 256 code periods of 4,096 samples: 256 row correlations against the code, then 4,096 length-256 slow-time FFTs, on one thread; throughput counts input samples, 1,048,576 per map."
 samples = 1
 
+["c:correlator::delay_doppler_256x4096_1t"]
+name = "Delay-Doppler map, 256 x 4,096, one thread"
+unit = "sample"
+definition = "One DelayDoppler execute on 256 code periods of 4,096 samples: 256 row correlations against the code, then 4,096 length-256 slow-time FFTs, on one thread; throughput counts input samples, 1,048,576 per map."
+samples = 1
+
 ["c:corr2d::delay_doppler_256x4096_all"]
+name = "Delay-Doppler map, 256 x 4,096, every core"
+unit = "sample"
+definition = "The 256 x 4,096 DelayDoppler map with nthreads=0, so the row correlations and the slow-time FFTs spread over every online core; throughput counts input samples, 1,048,576 per map."
+samples = 1
+
+["c:correlator::delay_doppler_256x4096_all"]
 name = "Delay-Doppler map, 256 x 4,096, every core"
 unit = "sample"
 definition = "The 256 x 4,096 DelayDoppler map with nthreads=0, so the row correlations and the slow-time FFTs spread over every online core; throughput counts input samples, 1,048,576 per map."
@@ -963,7 +1023,19 @@ unit = "sample"
 definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=1), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
+["c:correlator::batch_64x512_h48_execute_loop_1t"]
+name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, one thread"
+unit = "sample"
+definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=1), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
 ["c:corr2d::batch_64x512_h48_all_1t"]
+name = "Delay-Doppler batch, 48 maps of 64 x 512, one thread"
+unit = "sample"
+definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=1), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:correlator::batch_64x512_h48_all_1t"]
 name = "Delay-Doppler batch, 48 maps of 64 x 512, one thread"
 unit = "sample"
 definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=1), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
@@ -975,7 +1047,19 @@ unit = "sample"
 definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=1); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
+["c:correlator::batch_64x512_h48_power_max_1t"]
+name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, one thread"
+unit = "sample"
+definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=1); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
 ["c:corr2d::batch_64x512_h48_execute_loop_all"]
+name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, every core"
+unit = "sample"
+definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=0), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:correlator::batch_64x512_h48_execute_loop_all"]
 name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, every core"
 unit = "sample"
 definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=0), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
@@ -987,7 +1071,19 @@ unit = "sample"
 definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=0), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
+["c:correlator::batch_64x512_h48_all_all"]
+name = "Delay-Doppler batch, 48 maps of 64 x 512, every core"
+unit = "sample"
+definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=0), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
 ["c:corr2d::batch_64x512_h48_power_max_all"]
+name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, every core"
+unit = "sample"
+definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=0); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
+samples = 1
+
+["c:correlator::batch_64x512_h48_power_max_all"]
 name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, every core"
 unit = "sample"
 definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=0); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
@@ -999,7 +1095,19 @@ unit = "sample"
 definition = "The baseline the hypothesis bank replaces: 12 carrier-corrected copies of one frame (three whole bins x 4 fractions), built outside the timed region, through execute_power_max on one thread; throughput counts the one input frame, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
+["c:correlator::bank_64x512_c12_corrected_batch_1t"]
+name = "Carrier hypotheses by hand, 12 corrected copies, 64 x 512, one thread"
+unit = "sample"
+definition = "The baseline the hypothesis bank replaces: 12 carrier-corrected copies of one frame (three whole bins x 4 fractions), built outside the timed region, through execute_power_max on one thread; throughput counts the one input frame, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
 ["c:corr2d::bank_64x512_c12_l4_1t"]
+name = "Hypothesis bank, 12 carriers (L = 4), 64 x 512, one thread"
+unit = "sample"
+definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
+["c:correlator::bank_64x512_c12_l4_1t"]
 name = "Hypothesis bank, 12 carriers (L = 4), 64 x 512, one thread"
 unit = "sample"
 definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
@@ -1011,13 +1119,31 @@ unit = "sample"
 definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) times 12 per-period Doppler-rate weightings, 144 hypotheses, on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
+["c:correlator::bank_64x512_c12_l4_r12_1t"]
+name = "Hypothesis bank, 12 carriers (L = 4) x 12 Doppler rates, 64 x 512, one thread"
+unit = "sample"
+definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) times 12 per-period Doppler-rate weightings, 144 hypotheses, on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
 ["c:corr2d::bank_64x512_c6_l2_1t"]
 name = "Hypothesis bank, 6 carriers (L = 2), 64 x 512, one thread"
 unit = "sample"
 definition = "bank_power_max at the coarse L = 2: one 64 x 512 frame over 6 carrier hypotheses (three whole bins x 2 fractions) on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
+["c:correlator::bank_64x512_c6_l2_1t"]
+name = "Hypothesis bank, 6 carriers (L = 2), 64 x 512, one thread"
+unit = "sample"
+definition = "bank_power_max at the coarse L = 2: one 64 x 512 frame over 6 carrier hypotheses (three whole bins x 2 fractions) on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
 ["c:corr2d::bank_64x512_detect_l2_l4_1t"]
+name = "Hypothesis bank detect, L = 2 refined to L = 4, 64 x 512, one thread"
+unit = "sample"
+definition = "bank_detect: the L = 2 search over one 64 x 512 frame holding one signal, its one candidate refined to L = 4, on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
+samples = 1
+
+["c:correlator::bank_64x512_detect_l2_l4_1t"]
 name = "Hypothesis bank detect, L = 2 refined to L = 4, 64 x 512, one thread"
 unit = "sample"
 definition = "bank_detect: the L = 2 search over one 64 x 512 frame holding one signal, its one candidate refined to L = 4, on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
@@ -1118,3 +1244,57 @@ name = "numpy 10 log10, 262,144 bins (reference)"
 unit = "call"
 definition = "numpy's float32 10 * log10 over the same 262,144 power bins: what converting power rows by hand costs, beside power_to_db_f32; read in bins per second, 262,144 per call."
 samples = 262144
+
+["c:correlator::execute[accumulate][n=1024]"]
+name = "1-D correlator, accumulate, 1,024 samples"
+unit = "sample"
+definition = "One accumulate-only call (forward FFT, multiply by the reference spectrum, add) on a 1,024-sample chirp frame, on a correlator at dwell 8 advanced to the frame before its dump; throughput counts input samples."
+samples = 1
+
+["c:correlator::execute[accumulate][n=16384]"]
+name = "1-D correlator, accumulate, 16,384 samples"
+unit = "sample"
+definition = "One accumulate-only call (forward FFT, multiply by the reference spectrum, add) on a 16,384-sample chirp frame, on a correlator at dwell 8 advanced to the frame before its dump; throughput counts input samples."
+samples = 1
+
+["c:correlator::execute[dump][n=1024]"]
+name = "1-D correlator, dump, 1,024 samples"
+unit = "sample"
+definition = "The dwell's last call on a 1,024-sample chirp frame: the accumulate, then the inverse FFT, the normalisation and the write of the map; throughput counts input samples."
+samples = 1
+
+["c:correlator::execute[dump][n=16384]"]
+name = "1-D correlator, dump, 16,384 samples"
+unit = "sample"
+definition = "The dwell's last call on a 16,384-sample chirp frame: the accumulate, then the inverse FFT, the normalisation and the write of the map; throughput counts input samples."
+samples = 1
+
+["c:correlator::single_row_fast_path"]
+name = "2-D correlator, single-row reference, 16 x 2,046"
+unit = "sample"
+definition = "One dwell-1 call on a 16 x 2,046 frame against a reference with energy in row 0 only, the acquisition shape, which takes the per-row fast path (16 length-2,046 FFT pairs); throughput counts input samples."
+samples = 1
+
+["c:correlator::multi_row_general_path"]
+name = "2-D correlator, full reference, 16 x 2,046"
+unit = "sample"
+definition = "One dwell-1 call on a 16 x 2,046 frame against a reference with energy in every row, which takes the general path (a full 2-D FFT forward and inverse); throughput counts input samples."
+samples = 1
+
+["py:correlator::test_bench_corr2d_fallback"]
+name = "2-D correlator, 10 x 2,046, from Python"
+unit = "call"
+definition = "One Corr2D.execute at dwell 1 on a 10 x 2,046 random frame against a full random reference, through the Python binding; 2,046 is not 16-aligned, so the 2-D FFT falls back to pocketfft. One call consumes 20,460 samples."
+samples = 20460
+
+["py:correlator::test_bench_corr2d_pffft"]
+name = "2-D correlator, 16 x 2,000, from Python"
+unit = "call"
+definition = "One Corr2D.execute at dwell 1 on a 16 x 2,000 random frame against a full random reference, through the Python binding; both axes are 16-aligned and 5-smooth, so the 2-D FFT runs on pffft. One call consumes 32,000 samples."
+samples = 32000
+
+["py:correlator::test_bench_corr2d_pffft_dwell8"]
+name = "2-D correlator, 16 x 2,000, dwell 8, from Python"
+unit = "call"
+definition = "One Corr2D.execute at dwell 8 on a 16 x 2,000 random frame through the Python binding, averaged over the dwell, so one call in eight also runs the inverse; the 2-D FFT runs on pffft. One call consumes 32,000 samples."
+samples = 32000

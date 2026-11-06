@@ -41,7 +41,7 @@ estimate.
 sums the per-frame cross-spectra and inverts once on the dump rather than once
 per frame. The result is identical by linearity of the inverse FFT, but the
 single inverse amortizes over the dwell (~1.7× cheaper per frame at `dwell=8`,
-`bench_corr2d.py`). This holds only for *coherent* (complex-sum) integration;
+`bench_correlator.py`). This holds only for *coherent* (complex-sum) integration;
 see the [2-D Acquisition gallery](detection2d.md) for the details.
 
 ### `CorrDetector` — streaming CFAR

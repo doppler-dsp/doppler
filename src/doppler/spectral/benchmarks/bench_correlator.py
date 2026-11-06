@@ -12,7 +12,10 @@ work buffer per 1-D transform and is slow on large prime factors. Real DSSS
 code lengths are 2**n-1 (1023 = 3·11·31), so a naive grid hits the fallback —
 the two benchmarks below show the ~5x gap.
 
-Run: pytest src/doppler/spectral/benchmarks/bench_corr2d.py --benchmark-only
+Run::
+
+    pytest --benchmark-only \\
+        src/doppler/spectral/benchmarks/bench_correlator.py
 """
 
 import numpy as np

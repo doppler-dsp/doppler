@@ -1,6 +1,6 @@
 """The hypothesis bank through the binding (#2683 phase 3).
 
-The C tests (``test_corr2d_core.c``, ``_test_bank`` and
+The C tests (``test_correlator_core.c``, ``_test_bank`` and
 ``_test_bank_detect``) pin every claim of the bank against hand-corrected
 frames. These check what the binding adds: the shapes and dtypes each method
 returns, that a bank is the frame batch of corrected copies through the same

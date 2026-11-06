@@ -65,9 +65,36 @@ exclude_methods = [
 ]
 create_error = "ValueError"
 create_error_message = "Corr: invalid parameter (need dwell >= 1, and n_out 0 or at least len(ref))"
-properties = [
-  { name = "n", type = "size_t", field = true },
-]
+
+# Corr's own property docs (#2886 review), the text Corr shipped with on
+# main. Its methods (execute, reset, execute_max_out) share the 2-D docs:
+# jm merges a view method's `doc` with the parent header's sections instead
+# of replacing them, and cannot override a built-in such as reset. That gap
+# is just-makeit#2498; the changelog's Breaking entry announces the change.
+[[correlator.views.properties]]
+name = "n"
+type = "size_t"
+field = true
+doc = "FFT / reference length (samples)."
+
+[[correlator.views.properties]]
+name = "n_out"
+type = "size_t"
+field = true
+doc = "Output length (== n unless decoupled)."
+
+[[correlator.views.properties]]
+name = "dwell"
+type = "size_t"
+field = true
+doc = "Integration depth; dump every dwell calls."
+
+[[correlator.views.properties]]
+name = "count"
+type = "size_t"
+field = true
+doc = "Frames accumulated so far (0 … dwell-1)."
+
 
 [[correlator.init_params]]
 name = "ref"

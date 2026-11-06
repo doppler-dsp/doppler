@@ -13,23 +13,31 @@ The rules:
   never touches `dp_corr2d_reset_pinned_vacuously` (a finding key, which
   is a stable name and keeps its spelling). Nothing outside the table is
   rewritten.
-- **Every entry must match at least once.** An entry that matches nothing
-  is a mistake in the table, and the run fails before writing a byte.
+- **Every entry must match, or already have been applied.** An entry whose
+  old name matches nothing AND whose new name appears nowhere in scope is a
+  mistake in the table, and the run fails before writing a byte. An entry
+  whose new name is already there has been applied, so a re-run on a
+  renamed tree (to take in a path added to the scope) rewrites only what
+  is left, and a run with nothing left prints "nothing to rename" and
+  exits 0.
 - **The scope is the live tree.** History is not rewritten: the
   changelog, the published benchmarks, the dated measurement records, and
   the design page, which describes main as it was measured. `docs/c-api`
   is generated from the headers and is regenerated, not edited. The
-  validation report under `validation/corr2d/` is out of scope too: it moved
-  to `validation/correlator/` by git mv after the run, and its validator and
-  the links to it were edited by hand. The `corr/` sources this step
-  deletes are not rewritten, since nothing of them survives.
+  validation report is out of scope too (EXCLUDE names its directory,
+  `validation/correlator/`, where git mv put it after the first run): its
+  validator and the links to it were edited by hand. The `corr/` sources
+  this step deletes are not rewritten, since nothing of them survives.
+  `example-projects/` is in scope: its C names the same symbols, and
+  `make uno-q-check` builds it.
 
 Usage::
 
     uv run python scripts/codemod_correlator_rename.py          # rewrite
     uv run python scripts/codemod_correlator_rename.py --check  # dry run
 
-Both print each entry's match count. Exit 1 if any entry matched nothing.
+Both print each entry's match count. Exit 1 if any entry matched nothing
+and was never applied.
 """
 
 from __future__ import annotations
@@ -109,6 +117,8 @@ INCLUDE = [
     "native/**/CMakeLists.txt",
     "native/.c-header-code-ignore",
     "native/inc/.example-arity-ratchet",
+    "example-projects/**/*.c",
+    "example-projects/**/*.h",
     "objects/*.toml",
     "src/**/*.py",
     "src/**/*.md",
@@ -119,6 +129,11 @@ INCLUDE = [
 EXCLUDE = re.compile(
     r"^(native/src/corr/|native/inc/doppler/corr/|docs/c-api/"
     r"|docs/design/correlator\.md$|docs/design/[^/]*-measurements"
+    r"|src/doppler/spectral/tests/validation/correlator/"
+    # Two ratchet lists name the OLD symbols on purpose: the design page's
+    # exemptions (it describes main as measured) and the set_ref row's
+    # `replaces:` record. Rewriting them would erase what they record.
+    r"|scripts/\.doc-symbol-exempt$|scripts/\.mutator-state-exempt$"
     r"|scripts/codemod_)"
 )
 
@@ -155,11 +170,17 @@ def main(argv: list[str] | None = None) -> int:
 
     table = _table()
     counts = {old: 0 for old, _, _ in table}
+    applied = {old: False for old, _, _ in table}
     new_text: dict[Path, str] = {}
     for path in _files():
         text = path.read_text(encoding="utf-8")
         orig = text
         for old, pat, new in table:
+            # The new name in the file as found means the entry was applied
+            # by an earlier run; read before this run rewrites anything, so
+            # this run's own output never counts as proof.
+            if new in orig:
+                applied[old] = True
             text, n = pat.subn(new, text)
             counts[old] += n
         if text != orig:
@@ -168,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     width = max(len(o) for o in counts)
     for old, _, new in table:
         print(f"  {counts[old]:5d}  {old:<{width}}  ->  {new}")
-    unmatched = [o for o, c in counts.items() if c == 0]
+    unmatched = [o for o, c in counts.items() if c == 0 and not applied[o]]
     print(
         f"codemod_correlator_rename: {sum(counts.values())} match(es) in "
         f"{len(new_text)} file(s), {len(table)} entries"
@@ -178,6 +199,9 @@ def main(argv: list[str] | None = None) -> int:
         for o in unmatched:
             print(f"  {o}")
         return 1
+    if not new_text:
+        print("codemod_correlator_rename: nothing to rename")
+        return 0
     if not args.check:
         for path, text in new_text.items():
             path.write_text(text, encoding="utf-8")

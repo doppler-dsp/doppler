@@ -81,8 +81,8 @@ statics for the ring (`det_ring_create`), the noise estimate
 
 ### 2.1 The 1-D pair is the 2-D pair at one row
 
-The arithmetic is the same, in the same order. `dp_corr_execute`
-(`corr_core.c:154-194`) and `Corr2D`'s single-row path (`corr2d_row` and
+The arithmetic is the same, in the same order. `Corr`'s execute, before
+3.2 (`corr_core.c:154-194`), and `Corr2D`'s single-row path (`corr2d_row` and
 `corr2d_row_inverse`, `corr2d_core.c:428-459`) take:
 
 - the same plans (`dp_fft_create` ignores `nthreads`);
@@ -142,9 +142,9 @@ become the object's, renamed and otherwise unchanged in their arguments:
 
 | today                                             | becomes                                                         | layers                           |
 | ------------------------------------------------- | --------------------------------------------------------------- | -------------------------------- |
-| `dp_corr_create`                                  | `dp_correlator_create_1d`                                       | map (single row) and dwell       |
-| `dp_corr2d_create`                                | `dp_correlator_create_2d`                                       | map and dwell                    |
-| `dp_corr2d_create_delay_doppler`                  | `dp_correlator_create_delay_doppler`                            | map (delay-Doppler) and dwell    |
+| `Corr`'s constructor (renamed in 3.2)             | `dp_correlator_create_1d`                                       | map (single row) and dwell       |
+| `Corr2D`'s constructor (renamed in 3.2)           | `dp_correlator_create_2d`                                       | map and dwell                    |
+| `DelayDoppler`'s constructor (renamed in 3.2)     | `dp_correlator_create_delay_doppler`                            | map (delay-Doppler) and dwell    |
 | `dp_detector_create`                              | `dp_correlator_create_detector_1d`                              | all four, single row             |
 | `dp_detector2d_create`                            | `dp_correlator_create_detector_2d`                              | all four                         |
 | `dp_acq_create_continuous`, `dp_acq_create_burst` | `dp_correlator_create_continuous`, `dp_correlator_create_burst` | all four, with the search policy |
@@ -301,13 +301,13 @@ Each is its own PR, tracked by an issue of its own under #2752.
 
     1. a C test: `dp_correlator_create_1d` against `create_2d` at `ny = 1`,
         maps and hits, byte for byte, proven red by sabotage. It runs first
-        against today's `dp_corr_*` and `dp_corr2d_*` (the equivalence
-        test), then against the flavors;
+        against Corr's and Corr2D's own C, `corr/` and `corr2d/` (the
+        equivalence test), then against the flavors;
     1. `correlator/` is created from `corr2d/`, and `Corr` becomes the
         single-row flavor (D1, D4);
     1. **Both detectors are repointed in the same PR:** `detector_core.c:99`
-        calls `dp_corr_create` and `detector2d_core.c:83` calls
-        `dp_corr2d_create`, so they compose `create_1d` and `create_2d`
+        built a `Corr` and `detector2d_core.c:83` a `Corr2D`, so they
+        compose `create_1d` and `create_2d`
         before `corr/` and `corr2d/` are deleted. Their blobs, `DET1` and
         `DET2`, then nest a `CORL` child and bump, and so does `CAQR`, which
         nests `DET1`. 3.3's further change to all three rides the same

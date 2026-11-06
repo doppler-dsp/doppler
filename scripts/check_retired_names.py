@@ -84,6 +84,12 @@ SKIP_PARTS = frozenset(
 # Dated measurement records: the tree as it was measured, never edited to
 # follow a rename (see main()).
 RECORDS = ("docs/design/frame-description-measurements.md",)
+# Rename codemods and their tests: each names every old identifier it
+# rewrites (see main()).
+RENAME_TOOLS = (
+    "scripts/codemod_correlator_rename.py",
+    "src/doppler/tests/test_codemod_correlator_rename.py",
+)
 
 SUFFIXES = frozenset(
     {".c", ".h", ".py", ".md", ".txt", ".toml", ".yml", ".yaml", ".sh", ".pyi"}
@@ -169,6 +175,9 @@ def main() -> int:
     # later rename would rewrite the evidence. Named file by file, so a
     # design page that describes the present is still held to the rule.
     exempt |= {(ROOT / rel).resolve() for rel in RECORDS}
+    # ...and a RENAME TOOL with its test: the codemod's table IS the list of
+    # old names, so it cannot do its job without them. Named file by file.
+    exempt |= {(ROOT / rel).resolve() for rel in RENAME_TOOLS}
 
     hits: list[str] = []
     for path in _files():

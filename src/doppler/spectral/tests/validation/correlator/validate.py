@@ -1,6 +1,6 @@
 """Certify `Corr2D` — the 2-D correlator every DSSS acquisition sits on.
 
-Run:  python -m doppler.spectral.tests.validation.corr2d.validate
+Run:  python -m doppler.spectral.tests.validation.correlator.validate
       make validate          (regenerates every report)
       make validate-check    (fails if the committed report is stale)
 

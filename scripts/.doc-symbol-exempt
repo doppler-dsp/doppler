@@ -17,12 +17,6 @@ docs/design/correlator.md dp_correlator_create_burst
 docs/design/correlator.md dp_correlator_create_continuous
 docs/design/correlator.md dp_correlator_create_detector_1d
 docs/design/correlator.md dp_correlator_create_detector_2d
-# Names gone: what step 3.2 renamed, which the page's "today -> becomes"
-# table and its measurements of today's code name on purpose.
-docs/design/correlator.md dp_corr2d_create
-docs/design/correlator.md dp_corr2d_create_delay_doppler
-docs/design/correlator.md dp_corr_create
-docs/design/correlator.md dp_corr_execute
 # Dated measurements of the frame-description migration: what was measured,
 # by the names it had then.
 docs/design/frame-description-measurements.md dp_ccsds_tm_frame_desc_of

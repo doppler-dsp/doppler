@@ -34,7 +34,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/detector2d/detector2d_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/fft2d/fft2d_core.h"
@@ -120,8 +120,8 @@ run_detector (void *c)
 
 typedef struct
 {
-  dp_corr2d_state_t *obj;
-  float _Complex    *in, *out;
+  dp_correlator_state_t *obj;
+  float _Complex        *in, *out;
 } corr_ctx_t;
 
 static void
@@ -129,7 +129,7 @@ run_corr2d (void *c)
 {
   corr_ctx_t  *k = c;
   const size_t n = (size_t)C2_NY * C2_NX;
-  dp_corr2d_execute (k->obj, k->in, n, k->out, n);
+  dp_correlator_execute (k->obj, k->in, n, k->out, n);
 }
 
 /* ── fft / fft2d, forward, complex float ─────────────────────────────── */
@@ -240,7 +240,8 @@ main (int argc, char **argv)
       cor[i].in  = must (malloc (cn * sizeof *cor[i].in));
       cor[i].out = must (malloc (cn * sizeof *cor[i].out));
       chirp (cor[i].in, cn, 3e-6);
-      cor[i].obj = must (dp_corr2d_create (ref, C2_NY, C2_NX, 1, 1, 0, 0, -1));
+      cor[i].obj
+          = must (dp_correlator_create_2d (ref, C2_NY, C2_NX, 1, 1, 0, 0, -1));
       free (ref);
       ADD ("corr2d", cname[i], "MSa/s", cn, run_corr2d, &cor[i]);
     }

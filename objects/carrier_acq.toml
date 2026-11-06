@@ -6,8 +6,9 @@
 # (FFT + window + zero-pad + non-coherent power averaging, Welch's
 # method), the correlator's 1-D detector flavor (FFT-based circular
 # correlation of the averaged power spectrum against a known template +
-# noise-referenced test statistic + argmax lag), and detection_core (the same Pfa/Pd chi-square
-# statistics Acquisition's own auto-config is built on) for the
+# noise-referenced test statistic + argmax lag), and detection_core (the
+# same Pfa/Pd chi-square statistics Acquisition's own auto-config is built
+# on) for the
 # adaptive/fixed dwell gate. Only the known-template generator (a sinc^2
 # shape, the average PSD of a random rectangular-pulse BPSK symbol
 # stream) and a small 3-point local re-correlation + parabolic sub-bin

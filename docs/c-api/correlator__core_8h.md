@@ -98,11 +98,12 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_execute\_power\_sum\_max\_out**](#function-dp_correlator_execute_power_sum_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Powers_ [_**dp\_correlator\_execute\_power\_sum()**_](correlator__core_8h.md#function-dp_correlator_execute_power_sum) _writes: n\_out._ |
 |  void | [**dp\_correlator\_get\_state**](#function-dp_correlator_get_state) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, void \* blob) <br>_Serialize the frame count and spectrum accumulator into_ `blob` _._ |
 |  size\_t | [**dp\_correlator\_push**](#function-dp_correlator_push) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through a detector flavor._  |
-|  void | [**dp\_correlator\_reset**](#function-dp_correlator_reset) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec. A detector flavor also drops the carry (the partial frame held between pushes), and its last dump's fields (the peak, noise\_est, test\_stat) read 0 until the next dump, so the blob after a reset matches a fresh object's (doppler#2642);_ [_**dp\_correlator\_consumed()**_](correlator__core_8h.md#function-dp_correlator_consumed) _reads 0._ |
+|  void | [**dp\_correlator\_reset**](#function-dp_correlator_reset) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec. (A detector flavor resets its stream too: see the detector flavors' section below.)_  |
 |  int | [**dp\_correlator\_set\_ref**](#function-dp_correlator_set_ref) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**dp\_correlator\_set\_state**](#function-dp_correlator_set_state) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* blob) <br>_Restore a mid-dwell correlator from_ [_**dp\_correlator\_get\_state()**_](correlator__core_8h.md#function-dp_correlator_get_state) _'s blob._ |
 |  int | [**dp\_correlator\_set\_threshold**](#function-dp_correlator_set_threshold) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float threshold) <br>_Change a detector flavor's threshold without rebuilding it._  |
 |  size\_t | [**dp\_correlator\_state\_bytes**](#function-dp_correlator_state_bytes) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Size in bytes of this correlator's state blob._  |
+|  int | [**dp\_correlator\_state\_check**](#function-dp_correlator_state_check) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* blob) <br>_Whether_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _would accept_`blob` _, without writing anything._ |
 
 
 
@@ -823,7 +824,7 @@ After every dump the peak-to-noise test statistic is compared against `threshold
 
 **Returns:**
 
-Heap-allocated state, or NULL when the arguments are refused (an empty reference, `dwell` 0) or allocation fails. 
+Heap-allocated state, or NULL when the arguments are refused (an empty reference, `dwell` 0) or the stream's ring cannot be made. Out of memory for the detection buffers aborts, by the library's dp\_x\* convention ([**clib\_common.h**](clib__common_8h.md)). 
 ```C++
 >>> from doppler.spectral import CorrDetector
 >>> import numpy as np
@@ -886,7 +887,7 @@ Input frames are flat row-major CF32 arrays of length ny\*nx, cut from the strea
 
 **Returns:**
 
-Heap-allocated state, or NULL when the arguments are refused (an empty axis, `dwell` 0) or allocation fails. 
+Heap-allocated state, or NULL when the arguments are refused (an empty axis, `dwell` 0) or the stream's ring cannot be made. Out of memory for the detection buffers aborts, by the library's dp\_x\* convention ([**clib\_common.h**](clib__common_8h.md)), as the map's plans do. 
 ```C++
 >>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
@@ -971,7 +972,7 @@ size_t dp_correlator_execute (
 
 **Returns:**
 
-Python: the map on a dump, None otherwise; a frame that is not ny\*nx samples is REFUSED with nothing read, written or counted, as a ValueError (#1925). C: n\_out on a dump (or `max_out` if smaller), 0 otherwise, and SIZE\_MAX for the refused frame. A detector flavor refuses every execute, and every batch and bank call, with SIZE\_MAX and nothing changed: its frames come through [**dp\_correlator\_push()**](correlator__core_8h.md#function-dp_correlator_push), and a frame from outside would put the dwell off the framer's grid. 
+Python: the map on a dump, None otherwise; a frame that is not ny\*nx samples is REFUSED with nothing read, written or counted, as a ValueError (#1925). C: n\_out on a dump (or `max_out` if smaller), 0 otherwise, and SIZE\_MAX for the refused frame. 
 ```C++
 >>> from doppler.spectral import Corr2D
 >>> import numpy as np
@@ -1725,7 +1726,7 @@ Python's push() has room for 1024 detections a call, so a push that completes at
 
 **Returns:**
 
-Number of hits written to `result`, or SIZE\_MAX (nothing taken, nothing changed) when `state` is a map flavor. 
+Python: the list of hits, empty when no dump passed the gate. C: the number of hits written to `result`, or SIZE\_MAX (nothing taken, nothing changed) when `state` is a map flavor. 
 ```C++
 >>> from doppler.spectral import CorrDetector, CorrDetector2D
 >>> import numpy as np
@@ -1756,7 +1757,7 @@ Number of hits written to `result`, or SIZE\_MAX (nothing taken, nothing changed
 
 ### function dp\_correlator\_reset 
 
-_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec. A detector flavor also drops the carry (the partial frame held between pushes), and its last dump's fields (the peak, noise\_est, test\_stat) read 0 until the next dump, so the blob after a reset matches a fresh object's (doppler#2642);_ [_**dp\_correlator\_consumed()**_](correlator__core_8h.md#function-dp_correlator_consumed) _reads 0._
+_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec. (A detector flavor resets its stream too: see the detector flavors' section below.)_ 
 ```C++
 void dp_correlator_reset (
     dp_correlator_state_t * state
@@ -1857,7 +1858,7 @@ int dp_correlator_set_state (
 
 **Returns:**
 
-`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match, when the blob's flavor, ny, ny\_out, fast\_path, col\_out or nx\_out differs from `state's` (a blob of one flavor never restores into another), when its frame count is not below `state's` dwell, or, for a detector flavor, when noise\_lo, noise\_hi or noise\_mode differs or the framer's child blob is refused. Everything is checked before anything is written. 
+`DP_OK`, or `DP_ERR_INVALID` (state untouched) when the header's magic, version, endianness or size does not match, when the blob's flavor, ny, ny\_out, fast\_path, col\_out or nx\_out differs from `state's` (a blob of one flavor never restores into another), when its frame count is not below `state's` dwell, or, for a detector flavor, when noise\_lo, noise\_hi or noise\_mode differs, the framer's child blob is refused, the frames that blob has handed out are not the dwell's position (frames mod dwell must equal the count, as every push, reset and set\_ref keeps it), or the last peak is not a cell of the map. Everything is checked before anything is written. 
 
 
 
@@ -1931,6 +1932,45 @@ size_t dp_correlator_state_bytes (
 **Returns:**
 
 Header + flavor, ny, ny\_out, fast\_path, col\_out, nx\_out and frame count (u64 each) + the ny\*nx complex-float accumulator; a detector flavor adds 5 u64, 4 f32 and the framer's child blob. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_state\_check 
+
+_Whether_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _would accept_`blob` _, without writing anything._
+```C++
+int dp_correlator_state_check (
+    const dp_correlator_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+DP\_OK exactly when set\_state would accept it, and DP\_ERR\_INVALID exactly when it would refuse it: both read the blob through one check. What lets a composition check this child before it restores any other, so a refusal of either changes nothing (carrier\_acq's 'CAQR' does).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `blob` Candidate blob of [**dp\_correlator\_state\_bytes()**](correlator__core_8h.md#function-dp_correlator_state_bytes) bytes. 
+
+
+
+**Returns:**
+
+`DP_OK` or `DP_ERR_INVALID`; `state` is never written. 
 
 
 

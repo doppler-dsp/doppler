@@ -399,6 +399,32 @@ _test_detector_blob (void)
     blob[fr] ^= 0x5A; /* the positive control: the unforged blob loads */
     DP_CHECK (dp_correlator_set_state (b, blob) == DP_OK);
     DP_CHECK (b->count == 1 && b->threshold == 0.0f);
+
+    /* The count must name the framer's position: one frame handed out at
+       dwell 3 is count 1, so a blob claiming count 2 is refused, by
+       set_state and by the check alike, and changes nothing. The count is
+       the seventh u64 after the header. */
+    const size_t cnt = sizeof (dp_state_hdr_t) + 6 * sizeof (uint64_t);
+    uint64_t     c64 = 2;
+    memcpy (blob + cnt, &c64, sizeof c64);
+    dp_correlator_get_state (b, pre);
+    DP_CHECK (dp_correlator_state_check (b, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_correlator_set_state (b, blob) == DP_ERR_INVALID);
+    dp_correlator_get_state (b, post);
+    DP_CHECK (memcmp (pre, post, sb) == 0);
+    c64 = 1;
+    memcpy (blob + cnt, &c64, sizeof c64);
+    DP_CHECK (dp_correlator_state_check (b, blob) == DP_OK);
+
+    /* The last peak must be a cell of the map: a row at ny is refused. It
+       follows the framer child. */
+    const size_t pk  = fr + dp_f32_framer_state_bytes (&a->framer);
+    uint64_t     r64 = BY;
+    memcpy (blob + pk, &r64, sizeof r64);
+    DP_CHECK (dp_correlator_state_check (b, blob) == DP_ERR_INVALID);
+    DP_CHECK (dp_correlator_set_state (b, blob) == DP_ERR_INVALID);
+    dp_correlator_get_state (b, post);
+    DP_CHECK (memcmp (pre, post, sb) == 0);
     free (blob);
     free (pre);
     free (post);
@@ -411,6 +437,13 @@ _test_detector_blob (void)
 /* Each flavor refuses the other's methods, with nothing changed: a
    detector every execute, batch and bank call (its frames come through
    push), and a map push and set_threshold. */
+static void
+_noop_fold (void *ctx, size_t h, const float _Complex *map, size_t n)
+{
+  (void)map, (void)n;
+  *(size_t *)ctx += h + 1; /* any call at all shows */
+}
+
 static int
 _test_flavor_refusals (void)
 {
@@ -430,27 +463,42 @@ _test_flavor_refusals (void)
   for (size_t i = 0; i < RN; i++)
     x[i] = (float)(i % 5) + 0.5f * I;
 
-  dp_correlator_state_t *d = dp_correlator_create_detector_2d (
-      ref, RY, RX, 2, 1, RN - 1, DET_NOISE_MEAN, 0.0f, 1);
-  DP_REQUIRE (d);
-  DP_CHECK (dp_correlator_execute (d, x, RN, cout, RN) == SIZE_MAX);
-  DP_CHECK (dp_correlator_execute_all (d, x, RN, cout, 4 * RN) == SIZE_MAX);
-  DP_CHECK (dp_correlator_execute_coherent (d, x, RN, cout, 4 * RN)
-            == SIZE_MAX);
-  DP_CHECK (dp_correlator_execute_power_sum (d, x, RN, fout, 4 * RN)
-            == SIZE_MAX);
-  DP_CHECK (dp_correlator_execute_power_max (d, x, RN, fout, u1, 4 * RN)
-            == SIZE_MAX);
-  DP_CHECK (dp_correlator_execute_peaks (d, x, RN, fout, u1, u2, f3, 4)
-            == SIZE_MAX);
-  DP_CHECK (dp_correlator_bank_power_max (d, x, RN, 1, 0, 0, NULL, 0, fout, u1,
-                                          4 * RN)
-            == SIZE_MAX);
-  DP_CHECK (dp_correlator_bank_detect (d, x, RN, 1, 1, 0, 0, 1.0f, 1.0f, NULL,
-                                       0, fout, i1, u1, u3, u4, 4 * RN)
-            == SIZE_MAX);
-  DP_CHECK (d->count == 0 && d->_last_corr_valid == 0);
-  dp_correlator_destroy (d);
+  /* Both detector flavors: the 2-D one, and the 1-D one at RN samples. */
+  for (int one = 0; one < 2; one++)
+    {
+      dp_correlator_state_t *d
+          = one ? dp_correlator_create_detector_1d (ref, RN, 2, 1, RN - 1,
+                                                    DET_NOISE_MEAN, 0.0f, 1)
+                : dp_correlator_create_detector_2d (ref, RY, RX, 2, 1, RN - 1,
+                                                    DET_NOISE_MEAN, 0.0f, 1);
+      DP_REQUIRE (d);
+      size_t               calls = 0;
+      dp_correlator_fold_t fold  = { _noop_fold, &calls };
+      DP_CHECK (dp_correlator_execute_fold (d, x, RN, &fold) == SIZE_MAX);
+      DP_CHECK (dp_correlator_bank_fold (d, x, RN, 1, 0, 0, NULL, 0, &fold)
+                == SIZE_MAX);
+      DP_CHECK (calls == 0);
+      DP_CHECK (dp_correlator_execute (d, x, RN, cout, RN) == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_all (d, x, RN, cout, 4 * RN)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_coherent (d, x, RN, cout, 4 * RN)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_power_sum (d, x, RN, fout, 4 * RN)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_power_max (d, x, RN, fout, u1, 4 * RN)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_peaks (d, x, RN, fout, u1, u2, f3, 4)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_bank_power_max (d, x, RN, 1, 0, 0, NULL, 0, fout,
+                                              u1, 4 * RN)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_bank_detect (d, x, RN, 1, 1, 0, 0, 1.0f, 1.0f,
+                                           NULL, 0, fout, i1, u1, u3, u4,
+                                           4 * RN)
+                == SIZE_MAX);
+      DP_CHECK (d->count == 0 && d->_last_corr_valid == 0);
+      dp_correlator_destroy (d);
+    }
 
   dp_correlator_state_t *m
       = dp_correlator_create_2d (ref, RY, RX, 2, 1, 0, 0, -1);
@@ -1218,9 +1266,9 @@ main (void)
     free (mask);
   }
 
-  /* -- U2: an all-NaN frame, as test_detector_core.c's: the peak reads
-     (0, 0), magnitude +0.0, the noise NaN and test_stat 0, so threshold 0
-     emits that hit and a positive threshold none. A single NaN cell is not
+  /* -- U2: an all-NaN frame, as test_correlator_detector_1d.c's: the peak
+     reads (0, 0), magnitude +0.0, the noise NaN and test_stat 0, so threshold
+     0 emits that hit and a positive threshold none. A single NaN cell is not
      reachable through push (it spreads through the transform); the picker
      is pinned for it above, at both detectors' shapes. */
   for (int m = 0; m < 4; m++)

@@ -60,7 +60,7 @@ extern "C"
    * capacity, a grow-on-demand buffer -- all of them want the same
    * "round up to a power of two", and all of them had been writing the
    * doubling loop out where they stood. FIVE identical private copies
-   * were in the tree when this landed -- `correlator/correlator_private.h`,
+   * were in the tree when this landed -- `detector/det_private.h`,
    * `delay_core.c`, `psd_core.c`, `specan_core.c` and `ppe_core.c`, each
    * a `static` one none of the others could reach -- alongside bare
    * `while (c < n) c *= 2` loops seeded from whatever each caller

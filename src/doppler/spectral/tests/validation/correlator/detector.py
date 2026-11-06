@@ -555,7 +555,10 @@ def _sec_refusals(d: Data) -> None:
             threshold=0.0,
         )
         d.dwell_zero_refused = False
-    except (ValueError, MemoryError, TypeError):
+    except ValueError:
+        # Exactly ValueError, the class's declared create_error: any other
+        # exception propagates and fails the build rather than reading as a
+        # refusal (it once read MemoryError as one, §3).
         d.dwell_zero_refused = True
     # A narrower noise window must change the estimate, or noise_lo/hi are
     # being ignored -- the reject test that would otherwise pass vacuously.
@@ -619,7 +622,7 @@ def review(d: Data) -> None:
         "FIXED",
         "**Three of the four noise modes were exercised by nothing.** "
         "`DET_NOISE_MEDIAN`, `DET_NOISE_MIN` and `DET_NOISE_MAX` had zero "
-        "mentions in `test_detector2d_core.c` and zero in "
+        "mentions in the C test (then `test_detector2d_core.c`) and zero in "
         "`test_detector2d.py`; only the mean was ever selected. "
         "`noise_est` is the denominator of every decision this object "
         "makes, so a mode returning the wrong statistic would have moved "
@@ -651,7 +654,8 @@ def review(d: Data) -> None:
         "failures are the finding: asserting `_last_corr_valid == 1` after "
         "a gated push passes on the flag left set by the previous ungated "
         "one, and asserting `test_stat` alone passes because "
-        "`compute_stat_2d` writes the peak position as a side effect. The "
+        "the stat (then `compute_stat_2d`, now `corr2d_detection_stat`) "
+        "writes the peak position as a side effect. The "
         "check that discriminates pushes a peak at a DIFFERENT position "
         "under a closed gate and requires the reported position to follow "
         "it; only a sabotage that restores all five last-dump fields takes "
@@ -674,18 +678,15 @@ def review(d: Data) -> None:
     )
     R.find(
         "dwell_zero_memoryerror",
-        "BY DESIGN",
-        "`dwell = 0` is refused as `MemoryError` rather than `ValueError`. "
-        "That reads wrong until you find the convention: "
-        "`docs/dev/contributing/error-convention.md` makes NULL the "
-        "`create()` return for an invalid argument as well as an "
-        "allocation failure, and jm's generated NULL check raises "
-        '`MemoryError` — explicitly called "correct for the pointer '
-        'convention". The refusal itself is new: it was added to '
-        "`dp_correlator_create_2d` during that object's certification, "
-        "and this one "
-        "inherits it by forwarding rather than by carrying a second copy "
-        "of the rule.",
+        "FIXED",
+        "`dwell = 0` was refused as `MemoryError`: jm's generated NULL "
+        "check raised it for an invalid argument as well as an allocation "
+        "failure (`docs/dev/contributing/error-convention.md`). Since the "
+        'class declares `create_error = "ValueError"` (gh-482) it is a '
+        "`ValueError` naming the parameters, and §2.18 now asserts exactly "
+        "that, where it had accepted either. The refusal itself lives in "
+        "`dp_correlator_create_2d`, which this flavor forwards to rather "
+        "than carrying a second copy of the rule.",
     )
 
 

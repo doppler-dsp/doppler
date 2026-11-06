@@ -466,11 +466,8 @@ void dp_correlator_destroy(dp_correlator_state_t *state);
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
  * Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
- * or recomputing ref_spec.  A detector flavor also drops the carry (the
- * partial frame held between pushes), and its last dump's fields (the
- * peak, noise_est, test_stat) read 0 until the next dump, so the blob after
- * a reset matches a fresh object's (doppler#2642);
- * dp_correlator_consumed() reads 0.
+ * or recomputing ref_spec.  (A detector flavor resets its stream too: see
+ * the detector flavors' section below.)
  *
  * @param state  Must be non-NULL.
  *
@@ -551,11 +548,7 @@ size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
  * @return Python: the map on a dump, None otherwise; a frame that is not
  *         ny*nx samples is REFUSED with nothing read, written or counted, as a
  *         ValueError (#1925).  C: n_out on a dump (or @p max_out if smaller),
- *         0 otherwise, and SIZE_MAX for the refused frame.  A detector
- *         flavor refuses every execute, and every batch and bank call, with
- *         SIZE_MAX and nothing changed: its frames come through
- *         dp_correlator_push(), and a frame from outside would put the
- *         dwell off the framer's grid.
+ *         0 otherwise, and SIZE_MAX for the refused frame.
  * @code
  * >>> from doppler.spectral import Corr2D
  * >>> import numpy as np
@@ -1206,6 +1199,14 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
  * of how it was split into calls.  One object is single-threaded: never
  * push it from two threads at once.
  *
+ * A detector takes its frames through dp_correlator_push() alone: every
+ * execute, batch and bank call refuses it with SIZE_MAX and nothing
+ * changed, since a frame from outside would put the dwell off the framer's
+ * grid.  dp_correlator_reset() also drops its carry (the partial frame held
+ * between pushes), and its last dump's fields (the peak, noise_est,
+ * test_stat) read 0 until the next dump, so the blob after a reset matches
+ * a fresh object's (doppler#2642); dp_correlator_consumed() reads 0.
+ *
  * @code
  * // header-code: skip=a stream-loop fragment: recv() and ref are the caller's
  * dp_correlator_state_t *det = dp_correlator_create_detector_1d (
@@ -1250,7 +1251,9 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
  *                   serial, <= 0 every online core); the general 2-D path
  *                   ignores it.
  * @return Heap-allocated state, or NULL when the arguments are refused
- *         (an empty axis, @p dwell 0) or allocation fails.
+ *         (an empty axis, @p dwell 0) or the stream's ring cannot be made.
+ *         Out of memory for the detection buffers aborts, by the library's
+ *         dp_x* convention (clib_common.h), as the map's plans do.
  * @code
  * >>> from doppler.spectral import CorrDetector2D
  * >>> import numpy as np
@@ -1286,7 +1289,9 @@ dp_correlator_state_t *dp_correlator_create_detector_2d (
  * @param threshold  Test-stat gate; 0.0 = always emit.
  * @param nthreads   Accepted for API compatibility; ignored.
  * @return Heap-allocated state, or NULL when the arguments are refused
- *         (an empty reference, @p dwell 0) or allocation fails.
+ *         (an empty reference, @p dwell 0) or the stream's ring cannot be
+ *         made.  Out of memory for the detection buffers aborts, by the
+ *         library's dp_x* convention (clib_common.h).
  * @code
  * >>> from doppler.spectral import CorrDetector
  * >>> import numpy as np
@@ -1340,7 +1345,8 @@ dp_correlator_state_t *dp_correlator_create_detector_1d (
  *                     push is full from the start, so a resume loop needs
  *                     room for at least one; with that, a push of any
  *                     input takes at least one sample.
- * @return Number of hits written to @p result, or SIZE_MAX (nothing
+ * @return Python: the list of hits, empty when no dump passed the gate.
+ *         C: the number of hits written to @p result, or SIZE_MAX (nothing
  *         taken, nothing changed) when @p state is a map flavor.
  * @code
  * >>> from doppler.spectral import CorrDetector, CorrDetector2D
@@ -1434,11 +1440,29 @@ void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
  *         flavor, ny, ny_out, fast_path, col_out or nx_out differs from
  *         @p state's (a blob of one flavor never restores into another), when
  *         its frame count is not below @p state's dwell, or, for a detector
- *         flavor, when noise_lo, noise_hi or noise_mode differs or the
- *         framer's child blob is refused.  Everything is checked before
+ *         flavor, when noise_lo, noise_hi or noise_mode differs, the
+ *         framer's child blob is refused, the frames that blob has handed
+ *         out are not the dwell's position (frames mod dwell must equal the
+ *         count, as every push, reset and set_ref keeps it), or the last
+ *         peak is not a cell of the map.  Everything is checked before
  *         anything is written.
  */
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
+/**
+ * @brief Whether dp_correlator_set_state() would accept @p blob, without
+ *        writing anything.
+ *
+ * DP_OK exactly when set_state would accept it, and DP_ERR_INVALID exactly
+ * when it would refuse it: both read the blob through one check.  What
+ * lets a composition check this child before it restores any other, so a
+ * refusal of either changes nothing (carrier_acq's 'CAQR' does).
+ *
+ * @param state  Must be non-NULL.
+ * @param blob   Candidate blob of dp_correlator_state_bytes() bytes.
+ * @return `DP_OK` or `DP_ERR_INVALID`; @p state is never written.
+ */
+int dp_correlator_state_check (const dp_correlator_state_t *state,
+                               const void *blob);
 
 #ifdef __cplusplus
 }

@@ -726,7 +726,7 @@ def _sec_bounds(d: Data) -> None:
     for kwargs in ({"ny_out": 0, "nx_out": 8}, {"nx_out": 4}, {"dwell": 0}):
         try:
             Corr2D(ref=ref1, **kwargs)
-        except (ValueError, MemoryError, TypeError):
+        except ValueError:  # exactly: the class's declared create_error
             bad += 1
     d.rejects_bad_args = bad == 3
 
@@ -834,7 +834,9 @@ def review(d: Data) -> None:
         "second copy of the rule cannot drift. NULL is the whole error "
         "report by design — `docs/dev/contributing/error-convention.md` "
         "makes NULL the return for an invalid argument as well as an "
-        "allocation failure, which the binding renders as `MemoryError`. "
+        "allocation failure, and the class's declared `create_error` "
+        "(gh-482) renders it as a `ValueError`, which §2.9 asserts "
+        "exactly. "
         "Sabotage-proven: removing the check takes the new C section red.",
     )
     R.find(

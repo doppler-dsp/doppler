@@ -1688,9 +1688,9 @@ set +e; \
 # written, the numbers collapse and `coverage-gate`'s threshold fails, which
 # is the gate that exists for exactly that.
 # The test executables are objects too, not only the libraries. A `static`
-# function in a header (det_private.h's det_peak_list, dp_state.h's cursors)
-# is instantiated per translation unit and carries that unit's name in the
-# profile, so the copy a C test calls DIRECTLY never merges into the
+# function in a header (correlator_private.h's det_peak_list, dp_state.h's
+# cursors) is instantiated per translation unit and carries that unit's name
+# in the profile, so the copy a C test calls DIRECTLY never merges into the
 # library's copies -- and an export over the libraries alone reports the
 # test's calls as never made. Measured on #1210: two early returns proven
 # by test_acq_core.c showed DA:0 in the export and 89% in the test binary's

@@ -421,6 +421,14 @@ dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
      refuses a NaN, which fails every comparison. */
   if (!(fabs (extra.residual_hz) <= 0.5 * s->sample_rate_hz))
     return DP_ERR_INVALID;
+  /* Both children are checked before either is written, so a refused one
+     changes nothing: the detector's blob (after psd's) by its own check,
+     then psd's restore, which refuses before it writes, then the
+     detector's, which can no longer refuse. */
+  const void *det_blob
+      = (const uint8_t *)blob + _r.off + dp_psd_state_bytes (s->psd);
+  if (dp_correlator_state_check (s->det, det_blob) != DP_OK)
+    return DP_ERR_INVALID;
   DP_R_CHILD (&_r, dp_psd, s->psd);
   DP_R_CHILD (&_r, dp_correlator, s->det);
   dp_r_cf32 (&_r, s->carry_buf, s->psd->k.n);

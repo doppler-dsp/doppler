@@ -189,32 +189,28 @@ classes as `[[correlator.views]]`. Each view has its own `class_name`,
 `exclude_properties` trim what a flavor does not serve, as `ddc` does for
 `MatchedDDC`.
 
-A view can also override a parent method under the same Python name, with
-a `fn` of its own: `MpskReceiverR`'s `[[mpsk_receiver.views.methods]]`
-`steps` and `bits` are the precedent. The 1-D detector view overrides `push`
-with a C function that returns today's `(lag, peak, noise, stat)`.
+A view can also add a member its parent lacks, or override a parent
+method under the same Python name with a `fn` of its own (gh-504; jm
+gh-1012, with `MpskReceiverR`'s `[[mpsk_receiver.views.methods]]` `steps`
+and `bits` as the precedent).
 
-**The rule for each view's surface:** a view excludes every parent member
-its class does not have today, and adds none, so each class keeps exactly
-today's members, names and signatures. The parent carries the union of
-today's five surfaces:
+**The rule for each view's surface:** each class keeps exactly today's
+members, names and signatures. The parent is `Corr2D`, a public class, so
+it carries `Corr2D`'s surface and nothing more: a member on the parent is a
+member of `Corr2D`. A view excludes every parent member its class does not
+have today, and adds the ones only it has.
 
-- the map methods `execute`, `execute_all`, `execute_coherent`,
-    `execute_power_sum`, `execute_power_max`, `execute_peaks`,
-    `bank_power_max` and `bank_detect`;
-- the detection method `push`;
-- the properties `n`, `ny`, `nx`, `ny_out`, `nx_out`, `n_out`, `col_out`,
-    `dwell`, `count`, `ring_cap`, `noise_lo`, `noise_hi`, `threshold` and
-    `last_corr`.
+| view             | excludes                                                                                       | adds                                                                                       |
+| ---------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `DelayDoppler`   | `nx_out`, `col_out`                                                                            | nothing                                                                                    |
+| `Corr`           | `ny`, `nx`, `ny_out`, `nx_out`, `col_out`, and every `execute_*` and `bank_*` beyond `execute` | `n`                                                                                        |
+| `CorrDetector2D` | `ny_out`, `nx_out`, `n_out`, `col_out`, and every `execute*` and `bank_*`                      | `push` (five fields), `n`, `ring_cap`, `noise_lo`, `noise_hi`, `threshold`, `last_corr`    |
+| `CorrDetector`   | as `CorrDetector2D`, and `ny`, `nx`                                                            | as `CorrDetector2D`, with `push`'s record bound as four fields: `(lag, peak, noise, stat)` |
 
-`DelayDoppler` stays a view of `Corr2D`'s flavor, with today's
-`exclude_properties = ["nx_out", "col_out"]`. The differences between a
-1-D class and its 2-D twin are these, and only these:
-
-| view           | differs from its 2-D twin                                                                                                                 | carried by                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `Corr`         | it has `n`, which `Corr2D` lacks, and lacks `ny`, `nx`, `ny_out`, `nx_out`, `col_out` and every `execute_*` and `bank_*` beyond `execute` | the rule: `n` kept, the rest excluded              |
-| `CorrDetector` | `push` returns `(lag, peak, noise, stat)`, not `(row, col, peak, noise, stat)`; it lacks `ny` and `nx`                                    | the view's own `push` `fn`; `ny` and `nx` excluded |
+Both detectors bind the one C `push`, which writes the one hit record
+(§4). The 1-D view lists four of its fields, the column read as the lag,
+so its Python tuple is today's. If jm cannot bind a subset of a record's
+fields, that is a jm fix first, not a hand-written second `push`.
 
 Both detectors already read `dwell` and `count` the same way, as `expr`s
 over their composed correlator (`objects/detector.toml` and
@@ -222,7 +218,7 @@ over their composed correlator (`objects/detector.toml` and
 both. `set_ref`, `void` in 1-D and `int` in 2-D, is C-only: no class binds
 it, so the C rename (above) covers it and no view does.
 
-Each sub-step's PR lists its views' `exclude_*` as the rule gives them, and
+Each sub-step's PR lists its views' members as the rule gives them, and
 `make drift-check` and `make test-stubs` hold the stubs to today's.
 
 ## 6. Goals, and what is not known yet
@@ -252,11 +248,26 @@ or its input:
     gives an empty list, so the peak is 0 (`detector2d_core.c:30`), while
     `CorrDetector` reports NaN at lag 0.
     - **Decided here: NaN is never a peak**, the family's rule already
-        (`acq_rate_better`'s "a NaN never displaces"). A NaN statistic fails
-        every gate, so no hit changes; only the 1-D detector's stored peak
-        does.
-    - Pinned in C in 3.3: an all-NaN frame and a frame with one NaN cell
-        beside a finite peak, on both detector flavors.
+        (`acq_rate_better`'s "a NaN never displaces").
+    - **Today's picker does not keep that rule.** `det_peak_scan` seeds its
+        pick at the first candidate, and no cell is `>` a NaN, so a NaN there
+        is the pick: a NaN in cell 0 hides a finite peak elsewhere, on both
+        detectors, and on acq's masked scans too. 3.3 fixes it in the one
+        picker: the seed skips NaN cells (`isnan`, which the build's
+        `-fno-finite-math-only` keeps), so both paths agree with the masked
+        path's NaN-as-`-INFINITY`. Finite surfaces pick exactly as before.
+    - **A hit can change.** At `threshold = 0` (always fire) no gate stands
+        between a NaN and the hit list: an all-NaN frame gives today a 1-D
+        hit `(0, NaN, NaN, 0)` and a 2-D hit `(0, 0, 0, NaN, 0)`, and after
+        3.3 `(0, 0, 0, NaN, 0)` on both. At `threshold > 0` a NaN statistic
+        fails the gate, so no hit changes there.
+    - **The noise estimate is not changed.** A NaN in the noise window makes
+        `noise_est` NaN and `test_stat` 0.
+    - Pinned in C in 3.3, on both detector flavors: an all-NaN frame at
+        `threshold = 0` and above; a NaN in cell 0 beside a finite peak (the
+        finite peak is reported); a NaN beside the peak elsewhere. One more
+        pin holds the masked and unmasked scans to the same pick with a NaN
+        at the first cell.
 - **U3. The bank's peaks on `det_peak_*`.** Whether `corr2d_fold_peaks` and
     the bank's local maximum are `det_peak_scan` / `det_peak_zone` under
     other names, or a different rule (a 3 × 3 window, where acq zones by
@@ -325,8 +336,44 @@ Each is its own PR, tracked by an issue of its own under #2752.
     detector flavors, `det_private.h` the correlator's private header, and
     `detector/` and `detector2d/` are deleted (D2, D3). `carrier_acq`
     composes the 1-D detector flavor: its nested blob, its read of the
-    correlation output and its per-push threshold all move, and `CAQR`
-    bumps.
+    correlation output and its per-push threshold all move. `CAQR` nests a
+    `CORL` child in place of `DET1` and rides the version 3.2 gave it
+    (2, unreleased); if a release is cut first, it bumps again.
+
+    The design, reviewed on 2026-11-06:
+
+    - **The state.** Two more flavors, the 1-D and 2-D
+        detectors; the 1-D one is the 2-D one at `ny = 1`, as in 3.2. The
+        detection layer's create-time fields are appended above the pad, so
+        no field 3.2 measured moves; the fields a push writes (the framer,
+        `threshold`, the last dump's result, `consumed`) go below it, beside
+        `count`. `push`, `consumed` and `set_threshold` refuse a map flavor,
+        and the `execute` family refuses a detector flavor.
+    - **One hit record**, under the correlator's name (`row`, `col`,
+        `peak_mag`, `noise_est`, `test_stat`); `det_result_t` and `det_result2d_t`
+        retire, and 3.4 widens the record with acq's fields rather than
+        adding a second. `det_noise_mode_t`, `det_peak_t` and
+        `det_private.h`'s `det_*` names keep their spelling, since acq uses
+        them until 3.4; the header moves to `correlator/`.
+    - **The blob.** A detector flavor's `CORL` payload appends `noise_lo`,
+        `noise_hi` and `noise_mode` (reject keys: they decide what the
+        stored statistic means), `threshold` (a mutator's value, #2022),
+        the framer's child blob and the last dump's result. `set_state`
+        validates all of it, the framer child included, before it commits
+        any of it. Each reject key gets a cross-load pair. `DET1` and
+        `DET2` retire.
+    - **`carrier_acq`'s three couplings:** it nests the correlator's blob,
+        reads the 1-D flavor's dump buffer for the parabolic refine (a
+        field read, as today), and sets the correlator's threshold on
+        every push.
+    - **U2's fix** lands first, on today's two detectors, in its own
+        commit, with acq's C tests and every acq validator's `--check`
+        unchanged.
+    - **The certified report.** `validation/detector2d/` would tie to no
+        component, so its 15 limits move into `validation/correlator/` as
+        the report's second part, re-run on the 2-D detector flavor.
+    - **#2901 stays out:** removing a field above the pad would move the
+        offsets 3.2 measured.
 
     The oracle:
 
@@ -386,6 +433,7 @@ join once they land):
 | 3.3      | `detector::push`             | `[chunk=64]`, `[chunk=1024]`, `[chunk=16384]`, `[chunk=1024,no-detections]`; 3.1b's `[frame=31]`, `[frame=63]`, `[frame=127]`                                                                                                                                 |
 | 3.3      | `detector2d::push`           | `[16x1024]`, `[128x128]`, `[1024x16]`, `[128x128,no-detections]`                                                                                                                                                                                              |
 | 3.3      | `carrier_acq::detect`        | `[pad=4]`, `[pad=16]`                                                                                                                                                                                                                                         |
+| 3.3      | `async_dsss_pool::push`      | `[full,n=4,threads=4,carrier]`, whose path runs through `carrier_acq`'s detector; and every 3.2 row again, since the state grows                                                                                                                              |
 | 3.4      | `acq::`                      | `native_nc90`, `op5M_U50k_nc254`, `op2M_U50k_nc57`, `op5M_U5k_nc225`, `op2M_U5k_nc51`, `op5M_U50k_t8_nc254`, `op5M_U50k_D150_t1_nc1`, `op5M_U50k_D150_t8_nc1`, `op2M_U50k_D60_t1_nc1`, `op2M_U50k_D60_t4_nc1`, `op5M_U5k_D150_t1_nc1`, `op5M_U5k_D150_t4_nc1` |
 | 3.4      | `async_dsss_pool::push`      | `[native,n=1,threads=1]`, `[native,n=4,threads=1]`, `[native,n=4,threads=4]`, `[full,n=1,threads=1]`, `[full,n=4,threads=1]`                                                                                                                                  |
 | 3.4      | `async_dsss_receiver::steps` | `[track,sf=1023,3.069Mcps]`, `[search,sf=1023,3.069Mcps]`                                                                                                                                                                                                     |
@@ -404,6 +452,15 @@ any that do not pair:
 
 ```text
 make bench-ab ... ALIAS=bench_corr_core=bench_correlator_core,bench_corr2d_core=bench_correlator_core
+```
+
+3.3 does the same for the two detector benches, which become sources of
+`bench_correlator_core` with their row suffixes unchanged. An alias into a
+family A already has pairs A's own rows as usual, and only a suffix
+collision is refused:
+
+```text
+make bench-ab ... ALIAS=bench_detector_core=bench_correlator_core,bench_detector2d_core=bench_correlator_core
 ```
 
 Step 4 renames the rest,

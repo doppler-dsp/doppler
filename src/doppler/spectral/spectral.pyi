@@ -2293,11 +2293,11 @@ class DelayDoppler:
 
 @final
 class Corr:
-    """Allocate the 1-D flavor: a length-n correlator with coherent
-    integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so
-    each execute() call costs only two FFTs and n complex multiplies. ref may
-    be freed after this returns. With dwell == 1 every call produces output;
-    with larger values the accumulator absorbs dwell frames before dumping.
+    """Allocate a 1-D FFT correlator with coherent integrate-and-dump.
+    Pre-computes conj(FFT(ref)) once at construction so each execute() call
+    costs only two FFTs and n complex multiplies. ref may be freed after this
+    returns. With dwell == 1 every call produces output; with larger values the
+    accumulator absorbs dwell frames before dumping.
 
     Parameters
     ----------
@@ -2307,7 +2307,7 @@ class Corr:
         Integration depth; must be >= 1 (0 is refused). Pass 1 for immediate
         output on every call.
     nthreads : int, default 1
-        Accepted for API compatibility; one row runs serially whatever it says.
+        Accepted for API compatibility; ignored.
     n_out : int, default 0
         Inverse/output length; 0 => native (n). Must be >= n. A larger value
         zero-pads the cross-spectrum before the inverse, returning the
@@ -2493,20 +2493,20 @@ class Corr:
         """
 
     @property
+    def n(self) -> int:
+        """FFT / reference length (samples)."""
+
+    @property
     def n_out(self) -> int:
-        """ny_out * nx_out — output element count."""
+        """Output length (== n unless decoupled)."""
 
     @property
     def dwell(self) -> int:
-        """Integration depth."""
+        """Integration depth; dump every dwell calls."""
 
     @property
     def count(self) -> int:
-        """Frames accumulated (0 … dwell-1)."""
-
-    @property
-    def n(self) -> int:
-        """ny * nx — total element count."""
+        """Frames accumulated so far (0 … dwell-1)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

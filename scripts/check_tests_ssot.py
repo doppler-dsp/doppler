@@ -388,7 +388,7 @@ def double_draws() -> list[str]:
     `dp_bit (&bst) + dp_gauss (&nst)` -- two streams, order irrelevant -- is
     silent, which is the form the header teaches.
 
-    A local wrapper counts as a draw. `test_corr2d_core.c` writes
+    A local wrapper counts as a draw. `test_correlator_core.c` writes
     `_rand_uniform (&seed) + _rand_uniform (&seed) * I`, where the draw is one
     call deeper; a scan that only knew the `dp_*` names walked straight past
     it, and review had to point at it. Any `static` function in the file whose

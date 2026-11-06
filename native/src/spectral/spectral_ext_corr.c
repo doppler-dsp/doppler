@@ -379,6 +379,16 @@ CorrObj_set_state (CorrObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
+Corr_getprop_n (CorrObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
+}
+static PyObject *
 Corr_getprop_n_out (CorrObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -408,26 +418,16 @@ Corr_getprop_count (CorrObject *self, void *Py_UNUSED (closure))
     }
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->count);
 }
-static PyObject *
-Corr_getprop_n (CorrObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
-}
 
 static PyGetSetDef Corr_getset[]
-    = { { "n_out", (getter)Corr_getprop_n_out, NULL,
-          "ny_out * nx_out — output element count.\n", NULL },
-        { "dwell", (getter)Corr_getprop_dwell, NULL, "Integration depth.\n",
-          NULL },
+    = { { "n", (getter)Corr_getprop_n, NULL,
+          "FFT / reference length (samples).\n", NULL },
+        { "n_out", (getter)Corr_getprop_n_out, NULL,
+          "Output length (== n unless decoupled).\n", NULL },
+        { "dwell", (getter)Corr_getprop_dwell, NULL,
+          "Integration depth; dump every dwell calls.\n", NULL },
         { "count", (getter)Corr_getprop_count, NULL,
-          "Frames accumulated (0 … dwell-1).\n", NULL },
-        { "n", (getter)Corr_getprop_n, NULL,
-          "ny * nx — total element count.\n", NULL },
+          "Frames accumulated so far (0 … dwell-1).\n", NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
@@ -663,13 +663,13 @@ static PyTypeObject CorrObjType = {
   .tp_dealloc                             = (destructor)CorrObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Allocate the 1-D flavor: a length-n correlator with coherent\n"
-    "integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so\n"
-    "each execute() call costs only two FFTs and n complex multiplies. ref "
-    "may\n"
-    "be freed after this returns. With dwell == 1 every call produces "
-    "output;\n"
-    "with larger values the accumulator absorbs dwell frames before dumping.\n"
+  = "Allocate a 1-D FFT correlator with coherent integrate-and-dump.\n"
+    "Pre-computes conj(FFT(ref)) once at construction so each execute() call\n"
+    "costs only two FFTs and n complex multiplies. ref may be freed after "
+    "this\n"
+    "returns. With dwell == 1 every call produces output; with larger values "
+    "the\n"
+    "accumulator absorbs dwell frames before dumping.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -680,8 +680,7 @@ static PyTypeObject CorrObjType = {
     "immediate\n"
     "    output on every call.\n"
     "nthreads : int, default 1\n"
-    "    Accepted for API compatibility; one row runs serially whatever it "
-    "says.\n"
+    "    Accepted for API compatibility; ignored.\n"
     "n_out : int, default 0\n"
     "    Inverse/output length; 0 => native (n). Must be >= n. A larger "
     "value\n"

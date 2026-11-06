@@ -594,10 +594,10 @@ COMPONENT_MODULE = {
     "timing": "sample_clock",
     # Deleted with the old pool; its rows remain in the published runs.
     "async_dsss_pool": "dsss",
-    # One object, `correlator`, since #2752 step 3.2. Its 1-D bench keeps
-    # writing `corr` through step 3; the 2-D bench writes `correlator` (jm
-    # collects a component's bench by its name), and `corr2d` rows remain in
-    # the published runs (docs/design/correlator.md section 7.1).
+    # One object, `correlator`, since #2752 step 3.2: its one bench writes
+    # every row as `correlator` (jm collects a component's bench by its
+    # name), and the `corr` and `corr2d` rows remain in the published runs
+    # (docs/design/correlator.md section 7.1).
     "corr": "spectral",
     "corr2d": "spectral",
 }

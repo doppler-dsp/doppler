@@ -109,7 +109,7 @@ def test_bench_batch_64x512_h48_power_max_1t(benchmark: Any) -> None:
 # whole bins x L = 4) against the 12 hand-corrected copies a caller would
 # otherwise build and batch, and ruling 9's coarse search: L = 2 alone, and
 # bank_detect's L = 2 search refined to L = 4. The same rows as
-# bench_corr2d_core.c's bench_bank, so the gap is the binding's overhead.
+# bench_correlator_core.c's bench_bank, so the gap is the binding's overhead.
 NO_RATES = np.empty(0, np.complex64)
 
 

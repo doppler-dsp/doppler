@@ -195,8 +195,7 @@ typedef struct {
 } dp_correlator_state_t;
 
 /**
- * @brief Allocate the 1-D flavor: a length-n correlator with coherent
- * integrate-and-dump.
+ * @brief Allocate a 1-D FFT correlator with coherent integrate-and-dump.
  * Pre-computes conj(FFT(ref)) once at construction so each execute()
  * call costs only two FFTs and n complex multiplies.  @p ref may be freed
  * after this returns.  With @p dwell == 1 every call produces output; with
@@ -211,8 +210,7 @@ typedef struct {
  * @param ref_len   Reference / FFT length in samples.
  * @param dwell     Integration depth; must be >= 1 (0 is refused).  Pass 1
  *                  for immediate output on every call.
- * @param nthreads  Accepted for API compatibility; one row runs serially
- *                  whatever it says.
+ * @param nthreads  Accepted for API compatibility; ignored.
  * @param n_out     Inverse/output length; 0 => native (n).  Must be >= n.  A
  *                  larger value zero-pads the cross-spectrum before the inverse,
  *                  returning the band-limited (Dirichlet) interpolation of the
@@ -368,7 +366,7 @@ dp_correlator_state_t *dp_correlator_create_delay_doppler (const float _Complex 
                                                    size_t dwell, int nthreads,
                                                    size_t ny_out);
 
-/** @brief Destroy and free a corr2d instance.  @param state May be NULL. */
+/** @brief Destroy and free a correlator, any flavor.  @param state May be NULL. */
 void dp_correlator_destroy(dp_correlator_state_t *state);
 
 /**
@@ -1092,6 +1090,9 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * One blob for every flavor (docs/design/correlator.md section 4): the
  * flavor, the grid, the frame count and the product-spectrum accumulator.
+ * The flavor, ny, ny_out, fast_path, col_out and nx_out are reject keys:
+ * each changes what the accumulator holds, so a blob that differs in any
+ * of them is refused rather than reinterpreted.
  * The FFT plans and the reference spectrum are config, rebuilt by create.
  * The retired magics 'CORR', 'CR2D' and 'DDMP' are not reused, so a blob
  * from a release before the one correlator fails dp_state_validate. */
@@ -1102,7 +1103,8 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
 /**
  * @brief Size in bytes of this correlator's state blob.
  * @param state  Must be non-NULL.
- * @return Header + flavor, ny, ny_out and frame count (u64 each) + the
+ * @return Header + flavor, ny, ny_out, fast_path, col_out, nx_out and
+ *         frame count (u64 each) + the
  *         ny*nx complex-float accumulator.
  */
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);

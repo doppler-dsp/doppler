@@ -231,6 +231,9 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * One blob for every flavor (docs/design/correlator.md section 4): the
  * flavor, the grid, the frame count and the product-spectrum accumulator.
+ * The flavor, ny, ny_out, fast_path, col_out and nx_out are reject keys:
+ * each changes what the accumulator holds, so a blob that differs in any
+ * of them is refused rather than reinterpreted.
  * The FFT plans and the reference spectrum are config, rebuilt by create.
  * The retired magics 'CORR', 'CR2D' and 'DDMP' are not reused, so a blob
  * from a release before the one correlator fails dp_state_validate. */

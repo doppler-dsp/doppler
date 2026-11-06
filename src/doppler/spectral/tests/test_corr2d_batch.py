@@ -1,6 +1,6 @@
 """Corr2D and DelayDoppler batches through the binding (#2683).
 
-The C tests (``test_corr2d_core.c``) hold the arithmetic: map h equals a
+The C tests (``test_correlator_core.c``) hold the arithmetic: map h equals a
 fresh dwell-1 object's, every reduction folds in h order, every refusal
 writes nothing. These hold what only the binding can get wrong: the shapes
 and dtypes each method returns, that ``out=`` is filled in place and handed

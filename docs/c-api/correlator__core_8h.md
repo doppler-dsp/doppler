@@ -72,10 +72,10 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_bank\_fold**](#function-dp_correlator_bank_fold) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, const [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md) \* fold) <br>_Run one frame through a bank of carrier and rate hypotheses and hand each map to a reducer._  |
 |  size\_t | [**dp\_correlator\_bank\_power\_max**](#function-dp_correlator_bank_power_max) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, float \* out, uint32\_t \* out1, size\_t max\_out) <br>_The strongest power at every cell over a bank, and which hypothesis it came from._  |
 |  size\_t | [**dp\_correlator\_bank\_power\_max\_max\_out**](#function-dp_correlator_bank_power_max_max_out) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_correlator\_bank\_power\_max()**_](correlator__core_8h.md#function-dp_correlator_bank_power_max) _needs: one map._ |
-|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_1d**](#function-dp_correlator_create_1d) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate the 1-D flavor: a length-n correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_1d**](#function-dp_correlator_create_1d) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_2d**](#function-dp_correlator_create_2d) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**dp\_correlator\_create\_1d()**_](correlator__core_8h.md#function-dp_correlator_create_1d) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_delay\_doppler**](#function-dp_correlator_create_delay_doppler) (const float \_Complex \* code, size\_t code\_len, size\_t ny, size\_t dwell, int nthreads, size\_t ny\_out) <br>_Allocate the delay-Doppler flavor: a code correlator that maps a raw stream of_ `ny` _code periods onto (Doppler, delay)._ |
-|  void | [**dp\_correlator\_destroy**](#function-dp_correlator_destroy) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
+|  void | [**dp\_correlator\_destroy**](#function-dp_correlator_destroy) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Destroy and free a correlator, any flavor._  |
 |  size\_t | [**dp\_correlator\_execute**](#function-dp_correlator_execute) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse._ |
 |  size\_t | [**dp\_correlator\_execute\_all**](#function-dp_correlator_execute_all) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Every map of a batch, unreduced: row h of the (H, n\_out) result is the map of frame h (in C, map h is at_ `out + h * n_out` _)._ |
 |  size\_t | [**dp\_correlator\_execute\_all\_max\_out**](#function-dp_correlator_execute_all_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n\_in) <br>_Samples_ [_**dp\_correlator\_execute\_all()**_](correlator__core_8h.md#function-dp_correlator_execute_all) _writes for_`n_in` _input samples: H \* n\_out, H = n\_in / (ny \* nx)._ |
@@ -526,7 +526,7 @@ size_t dp_correlator_bank_power_max_max_out (
 
 ### function dp\_correlator\_create\_1d 
 
-_Allocate the 1-D flavor: a length-n correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._
+_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._
 ```C++
 dp_correlator_state_t * dp_correlator_create_1d (
     const float _Complex * ref,
@@ -550,7 +550,7 @@ It is [**dp\_correlator\_create\_2d()**](correlator__core_8h.md#function-dp_corr
 * `ref` Reference signal, CF32, length `ref_len`. 
 * `ref_len` Reference / FFT length in samples. 
 * `dwell` Integration depth; must be &gt;= 1 (0 is refused). Pass 1 for immediate output on every call. 
-* `nthreads` Accepted for API compatibility; one row runs serially whatever it says. 
+* `nthreads` Accepted for API compatibility; ignored. 
 * `n_out` Inverse/output length; 0 =&gt; native (n). Must be &gt;= n. A larger value zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer length-n\_out grid — same peak, sub-bin lag resolution. Native is bit-exact and allocates no extra buffer. 
 
 
@@ -713,7 +713,7 @@ True
 
 ### function dp\_correlator\_destroy 
 
-_Destroy and free a corr2d instance._ 
+_Destroy and free a correlator, any flavor._ 
 ```C++
 void dp_correlator_destroy (
     dp_correlator_state_t * state
@@ -1629,7 +1629,7 @@ size_t dp_correlator_state_bytes (
 
 **Returns:**
 
-Header + flavor, ny, ny\_out and frame count (u64 each) + the ny\*nx complex-float accumulator. 
+Header + flavor, ny, ny\_out, fast\_path, col\_out, nx\_out and frame count (u64 each) + the ny\*nx complex-float accumulator. 
 
 
 

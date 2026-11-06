@@ -77,7 +77,7 @@ inverting every frame and summing the surfaces. By linearity of the inverse FFT,
 
 the result is identical — but it runs **one** FFT2 inverse per dump instead of
 `M`, so the per-frame cost falls toward forward-only as `M` grows: ~1.7× faster
-per frame at `M=8` on a pffft-friendly grid (see `bench_corr2d.py`).
+per frame at `M=8` on a pffft-friendly grid (see `bench_correlator.py`).
 
 This deferral is valid **only for coherent integration** — a complex (linear)
 sum. A *non-coherent* combination (`Σ_k |IFFT2(P_k)|²`, accumulating magnitudes)

@@ -1144,6 +1144,7 @@
 
 * **\_pad** ([**acq\_extra\_t**](structacq__extra__t.md), [**acq\_result\_t**](structacq__result__t.md), [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md))
 * **\_pad2** ([**acq\_extra\_t**](structacq__extra__t.md))
+* **\_hot\_pad** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_last\_corr\_valid** ([**dp\_detector2d\_state\_t**](structdp__detector2d__state__t.md), [**dp\_detector\_state\_t**](structdp__detector__state__t.md))
 
 

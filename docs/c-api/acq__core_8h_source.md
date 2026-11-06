@@ -164,9 +164,8 @@ extern "C"
     int              threads;   
     int threads_req; 
     int epoch_fan; 
-    dp_fft_state_t *sl_fwd; 
-    dp_fft_state_t *sl_inv; 
-    dp_fft_state_t *sl_inv_cb; 
+    struct dp__dd_map *sl_map; 
+    struct dp__dd_map *sl_map_cb; 
     float _Complex *sl_scratch; 
     double *sl_cmax; 
     size_t sl_crow[ACQ_SIDELOBE_SLOTS]; 

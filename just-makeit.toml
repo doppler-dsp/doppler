@@ -1,7 +1,8 @@
 include = ["objects/*.toml", "modules/*.toml"]
 
 [project]
-jm_version = "0.119.0"
+applied_layout = "mirrored"
+jm_version = "0.120.2"
 name = "doppler"
 version = "0.80.0"
 build = "cmake"
@@ -78,6 +79,11 @@ status_allow = [
     "CMakeLists.txt:wfm_compose_core",
     "CMakeLists.txt:wfm_sink_stub_core",
     "CMakeLists.txt:wfmgen_core",
+    # The one bench target `jm bench` does not run (jm#2495, doppler#2890).
+    # bench_stream measures the NATS/ZMQ transports and needs a broker, so it
+    # has its own runner, `make bench-stream`. Scoped to the TARGET, so any
+    # other bench added outside `bench_<component>_core` still fails.
+    "native/src/stream/CMakeLists.txt:bench_stream",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

@@ -738,7 +738,9 @@ extern "C"
    *
    * dp_mpsk_receiver_steps() taking real samples: the R2C halfband makes them
    * complex before anything else touches them, and the per-sample body is the
-   * same one. Requires a state built by dp_mpsk_receiver_create_real().
+   * same one. Requires a state built by dp_mpsk_receiver_create_real(). One
+   * cf32 symbol per recovered symbol period, about x_len / sps of them; the
+   * carrier loop locks to one of m phases.
    *
    * @param state    Must be non-NULL.
    * @param x        Real f32 input samples.
@@ -784,7 +786,9 @@ extern "C"
    * @brief Demodulate a real f32 block and emit hard Gray-coded bits.
    *
    * dp_mpsk_receiver_bits() taking real samples. Requires a state built by
-   * dp_mpsk_receiver_create_real().
+   * dp_mpsk_receiver_create_real(). Hard Gray-coded bits, log2(m) bytes of
+   * 0/1 per recovered symbol, LSB-first: coherent, or from the phase
+   * difference of consecutive symbols when created with differential = 1.
    *
    * @param state    Must be non-NULL.
    * @param x        Real f32 input samples.

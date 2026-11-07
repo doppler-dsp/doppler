@@ -22,7 +22,7 @@ target_compile_definitions(test_adr_telemetry_oom PRIVATE
     dp_correlator_set_telemetry=adr_test_acq_set_telemetry)
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/native/tests/async_dsss_receiver/adr_tlm_hook.c
-    PROPERTIES COMPILE_OPTIONS "-Udp_tlm_create;-Udp_acq_set_telemetry")
+    PROPERTIES COMPILE_OPTIONS "-Udp_tlm_create;-Udp_correlator_set_telemetry")
 target_link_libraries(test_adr_telemetry_oom PRIVATE
     wfm_dsp_core gold_core snr_core ber_core correlator_core fft2d_core
     fft_core detection_core dp_tlm_core cvt_core carrier_acq_core psd_core

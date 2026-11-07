@@ -89,6 +89,10 @@ typedef struct
 static void
 bytes_add (bytes_t *o, const void *p, size_t n)
 {
+  /* A push with no hit adds nothing, and memcpy is not defined on a NULL
+     buffer even for zero bytes (UBSan, #2930's first CI run). */
+  if (n == 0)
+    return;
   if (o->n + n > o->cap)
     {
       o->cap           = 2 * (o->n + n) + 4096;

@@ -2613,11 +2613,11 @@ class CorrDetector2D:
     def reset(self) -> None:
         """Restart detection: zero the dwell and drop the carry.
 
-        Zeroes the accumulator and the integration counter, drops the carry (the
-        partial frame held between pushes) and clears the last dump's fields, so
-        the detector afterwards matches a fresh one built with the same arguments.
-        The reference, its spectrum, the noise range and the threshold are kept.
-        last_corr reads None until the next dump.
+        Zeroes the accumulator and the integration counter, drops the carry
+        (the partial frame held between pushes) and clears the last dump's
+        fields, so the detector afterwards matches a fresh one built with the
+        same arguments. The reference, its spectrum, the noise range and the
+        threshold are kept. last_corr reads None until the next dump.
 
         Examples
         --------
@@ -2646,10 +2646,11 @@ class CorrDetector2D:
         """Stream an arbitrary-length CF32 chunk through the detector.
 
         Takes the input in order, runs each complete frame through the
-        correlator, and on every dump computes the test statistic
-        peak_mag / noise_est. Each dump that passes the threshold is one hit,
-        a (row, col, peak_mag, noise_est, test_stat) tuple. A chunk that ends mid-frame keeps the rest as the carry, so the
-        hits do not depend on how the stream is split into calls.
+        correlator, and on every dump computes the test statistic peak_mag /
+        noise_est. Each dump that passes the threshold is one hit, a (row, col,
+        peak_mag, noise_est, test_stat) tuple. A chunk that ends mid-frame
+        keeps the rest as the carry, so the hits do not depend on how the
+        stream is split into calls.
 
         push() has room for 1024 hits a call, so a push that completes at most
         1024 frames, counting the carry, loses nothing. One that fills the room
@@ -2894,11 +2895,11 @@ class CorrDetector:
     def reset(self) -> None:
         """Restart detection: zero the dwell and drop the carry.
 
-        Zeroes the accumulator and the integration counter, drops the carry (the
-        partial frame held between pushes) and clears the last dump's fields, so
-        the detector afterwards matches a fresh one built with the same arguments.
-        The reference, its spectrum, the noise range and the threshold are kept.
-        last_corr reads None until the next dump.
+        Zeroes the accumulator and the integration counter, drops the carry
+        (the partial frame held between pushes) and clears the last dump's
+        fields, so the detector afterwards matches a fresh one built with the
+        same arguments. The reference, its spectrum, the noise range and the
+        threshold are kept. last_corr reads None until the next dump.
 
         Examples
         --------
@@ -2923,10 +2924,11 @@ class CorrDetector:
         """Stream an arbitrary-length CF32 chunk through the detector.
 
         Takes the input in order, runs each complete frame through the
-        correlator, and on every dump computes the test statistic
-        peak_mag / noise_est. Each dump that passes the threshold is one hit,
-        a (lag, peak_mag, noise_est, test_stat) tuple, the lag being the hit's column. A chunk that ends mid-frame keeps the rest as the carry, so the
-        hits do not depend on how the stream is split into calls.
+        correlator, and on every dump computes the test statistic peak_mag /
+        noise_est. Each dump that passes the threshold is one hit, a (lag,
+        peak_mag, noise_est, test_stat) tuple, the lag being the hit's column.
+        A chunk that ends mid-frame keeps the rest as the carry, so the hits do
+        not depend on how the stream is split into calls.
 
         push() has room for 1024 hits a call, so a push that completes at most
         1024 frames, counting the carry, loses nothing. One that fills the room

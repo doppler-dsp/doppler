@@ -93,6 +93,7 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_inv**](#variable-row_inv)  <br> |
 |  float \_Complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
 |  [**dp\_correlator\_search\_t**](correlator__core_8h.md#typedef-dp_correlator_search_t) \* | [**search**](#variable-search)  <br> |
+|  [**dp\_correlator\_search\_t**](correlator__core_8h.md#typedef-dp_correlator_search_t) | [**search\_rec**](#variable-search_rec)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
 |  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
@@ -1168,7 +1169,25 @@ dp_correlator_search_t* dp_correlator_state_t::search;
 
 
 
-The search policy, allocated once at create; NULL unless a search flavor. 
+The search policy: [**search\_rec**](structdp__correlator__state__t.md#variable-search_rec) in the search flavors, NULL in the other five. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable search\_rec 
+
+```C++
+dp_correlator_search_t dp_correlator_state_t::search_rec;
+```
+
+
+
+[**search**](structdp__correlator__state__t.md#variable-search) points here in a search flavor. 
  
 
 

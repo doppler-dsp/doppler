@@ -980,6 +980,7 @@
 * **stat\_surface** ([**dp\_correlator\_search**](structdp__correlator__search.md))
 * **straddle\_loss** ([**dp\_correlator\_search**](structdp__correlator__search.md))
 * **surface\_at** ([**dp\_correlator\_search**](structdp__correlator__search.md))
+* **search\_rec** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **seg\_chips** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **seg\_idx** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **seg\_norm** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))

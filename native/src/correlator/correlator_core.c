@@ -5162,12 +5162,7 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
       = (dp_correlator_state_t *)calloc (1, sizeof (*st));
   if (!st)
     return NULL;
-  st->search = (dp_correlator_search_t *)calloc (1, sizeof (*st->search));
-  if (!st->search)
-    {
-      free (st);
-      return NULL;
-    }
+  st->search = &st->search_rec;
   st->flavor = continuous ? DP_CORRELATOR_SEARCH_CONTINUOUS
                           : DP_CORRELATOR_SEARCH_BURST;
 
@@ -5478,7 +5473,6 @@ dp__search_destroy (dp_correlator_state_t *st)
   free (st->search->stat_surface);
   dp_pool_destroy (st->pool);
   free (st->search->parts);
-  free (st->search);
   free (st);
 }
 

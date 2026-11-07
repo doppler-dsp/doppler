@@ -90,7 +90,7 @@
    The physics is scale-free; only the dB-Hz numbers carry the 60 dB. */
 #define FS_T 1.0e6
 
-/* PN(mls_poly(5), seed=1), the code acq's §2.6 measures */
+/* PN(mls_poly(5), seed=1), the code the correlator report's §2.24 measures */
 static const uint8_t CODE31[31]
     = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
         1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
@@ -186,9 +186,9 @@ typedef struct
 
 static const geom_t PINNED = { D, 1, 0.0, 0.0, TRIALS };
 
-/* Measure one design point. `code` != NULL runs the CONTROL: acq's §2.6,
-   an oversampled chip train delayed in quarter-sample steps. A trial is
-   one frame -- coherent_bins repetitions. */
+/* Measure one design point. `code` != NULL runs the CONTROL: the correlator
+   report's §2.24, an oversampled chip train delayed in quarter-sample
+   steps. A trial is one frame -- coherent_bins repetitions. */
 static row_t
 measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
          const geom_t *gm)
@@ -448,7 +448,7 @@ main (int argc, char **argv)
               "meas", "1sig", "|dly|");
     }
 
-  /* the control: acq's §2.6 point, through this harness */
+  /* the control: the correlator report's §2.24 point, through this harness */
   row_t ctl = measure (NULL, CODE31, 50.0, 1183u, &PINNED);
   print_row ("code 31 x4 (ctl)", 0.0, &ctl);
   if (check)

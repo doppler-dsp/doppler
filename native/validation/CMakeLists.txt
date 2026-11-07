@@ -629,7 +629,8 @@ add_test(NAME validate_acq_surface
 
 # The Pd a TEMPLATE burst engine delivers against the Pd it predicts
 # (doppler#1470): four kinds of repeated preamble at three design points
-# each, acq's §2.6 method, with the code as the control row. Noise from the
+# each, the correlator report's §2.24 method, with the code as the control
+# row. Noise from the
 # shipped awgn; native/tests for dp_test.h and dp_rng_test.h only.
 add_executable(validate_acq_template_pd
                ${CMAKE_CURRENT_SOURCE_DIR}/acq_template_pd.c)

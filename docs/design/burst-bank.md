@@ -221,7 +221,7 @@ ambiguity *inside* a channel.
     `D = 4` and `8`: sweep residual Doppler across `[span − res, span]` in
     `res/8` steps, 40 trials each, and tabulate the reported sign and the
     absolute error. Expected: a clean step at `span − res/2` from right to
-    `−2·span`. This is the sweep `acq`'s report should carry as a
+    `−2·span`. This is the sweep the correlator report's search part should carry as a
     characterization row, since the fold is the engine's.
 1. **Measure the rate at the bank**, `K = 3`, targets uniform over the bank's
     width, `reps ∈ {4, 8}`, 600 trials: the fraction of dedup'd detections

@@ -240,6 +240,14 @@ repos:
         pass_filenames: false
         files: ^(\.github/workflows/|Makefile$|[^/]*\.mk$|scripts/(\.test-all-exempt|check_test_all_covers_ci\.py)$)
 
+      # A fragment the release cut would refuse fails here, on its PR (#2896).
+      - id: changelog-fragments
+        name: changelog.d fragments are entries the assembler accepts
+        entry: make -s lint-changelog-fragments
+        language: system
+        pass_filenames: false
+        files: ^(changelog\.d/|scripts/changelog-assemble\.py$)
+
       # uv.lock's bytes depend on the uv that writes it, so uv is pinned once
       # in pyproject.toml and every installer reads that pin (doppler#1940).
       # No `files:` filter: an installer can appear in any tracked file.

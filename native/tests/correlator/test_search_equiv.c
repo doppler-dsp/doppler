@@ -84,8 +84,10 @@ typedef struct
   int         split;      /* get_state at the middle, into a fresh one  */
   double      f0;         /* the emitter's Doppler, Hz                  */
   double      amp;        /* its amplitude against unit noise           */
-  double      amp2;       /* a second emitter, 41 samples late at -f0;
-                             0 = none (the peak list's scenes)         */
+  double      amp2;       /* a second emitter at -f0; 0 = none (the peak
+                             list's scenes)                            */
+  size_t d2;              /* ... its lag behind the first, samples; 0 =
+                             18                                        */
 } scene_t;
 
 /* Everything a run produced, as bytes. */
@@ -129,7 +131,8 @@ sink (void *ctx, const float *surface, size_t rows, size_t cols,
 
 /* The scene's stream: the code, held SPC samples a chip, delayed by 23
    samples and rotated by f0, plus, when amp2 > 0, a second emitter of the
-   same code 41 samples late at -f0, in unit complex noise.
+   same code d2 samples behind it (18 unless set) at -f0, in unit complex
+   noise.
    Deterministic. */
 static float _Complex *
 stream (const scene_t *sc, size_t n)
@@ -143,11 +146,11 @@ stream (const scene_t *sc, size_t n)
   for (size_t k = 0; k < n; k++)
     {
       const double ph = tau * (double)k;
-      x[k]            = sc->amp * pre[(k + NX - 23) % NX]
-                            * (float _Complex) (cos (ph) + I * sin (ph))
-                        + sc->amp2 * pre[(k + NX - 41) % NX]
-                              * (float _Complex) (cos (ph) - I * sin (ph))
-                        + dp_cgauss (&rng);
+      x[k] = sc->amp * pre[(k + NX - 23) % NX]
+                 * (float _Complex) (cos (ph) + I * sin (ph))
+             + sc->amp2 * pre[(k + 2 * NX - 23 - (sc->d2 ? sc->d2 : 18)) % NX]
+                   * (float _Complex) (cos (ph) - I * sin (ph))
+             + dp_cgauss (&rng);
     }
   free (pre);
   return x;
@@ -332,6 +335,21 @@ main (void)
       .f0         = 3.1e3,
       .amp        = 0.7,
       .amp2       = 0.5 },
+    /* Two near-equal emitters three samples apart: the second pick's
+       neighbour lies in the first's exclusion zone and exceeds it, so the
+       peak-on-lag estimate meets its upper clamp (19 times here). That is
+       the only way it can: the bound binds iff the neighbour beats the
+       centre. */
+    { .name      = "continuous, close pair",
+      .code_only = 1,
+      .cn0       = 66.0,
+      .du        = 10.0e3,
+      .max_peaks = 4,
+      .threads   = 1,
+      .f0        = 3.1e3,
+      .amp       = 0.7,
+      .amp2      = 0.69,
+      .d2        = 3 },
     { .name       = "continuous, split",
       .code_only  = 1,
       .cn0        = 66.0,

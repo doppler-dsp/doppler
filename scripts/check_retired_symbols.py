@@ -19,7 +19,7 @@ So this gate asks what the branch REMOVED, against the merge base with
   longer exist, because a consumer ``#include``s the path.
 
 Each must be matched (``re.search``) by some row's pattern, read by
-``check_retired_names._rows``. A symbol renamed in place is a removal of the
+``check_retired_names.rows``. A symbol renamed in place is a removal of the
 old name, so it needs a row; a symbol or header that still exists needs
 nothing, whatever else changed. On ``main`` itself the merge base is HEAD and
 nothing is removed.
@@ -44,7 +44,7 @@ from _gitbase import (
     resolve_base,
     show_at,
 )
-from check_retired_names import _rows
+from check_retired_names import rows
 from gen_public_symbols import names
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -88,8 +88,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     retired = root / RETIRED
-    rows = _rows(retired) if retired.is_file() else []
-    missing = [g for g in gone if not any(p.search(g) for p, _, _ in rows)]
+    declared = rows(retired) if retired.is_file() else []
+    missing = [g for g in gone if not any(p.search(g) for p, _, _ in declared)]
     if missing:
         print(
             f"retired-symbols: {len(missing)} public name(s) removed since "

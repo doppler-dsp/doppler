@@ -128,6 +128,7 @@ from _c_source import strip_comments
 from _gitbase import (
     BaseUnreadableError,
     added_since_base,
+    ls_tree_at,
     resolve_base,
     show_at,
     show_at_base,
@@ -1166,12 +1167,7 @@ def ratchet(base: str) -> list[str]:
                     rest = rest[m.end() :]
             excused[name] = (dest, removed, rest.strip())
 
-    listing = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", base, "native/tests/"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+    listing = ls_tree_at(ROOT, base, "native/tests/")
 
     def at_base(rel: str) -> int:
         """Assertion count for a repo-relative path at the base ref. A file

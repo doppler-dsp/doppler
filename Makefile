@@ -267,7 +267,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals named-args acq-pfa-split \
-               finding-citations test-all-ci
+               finding-citations test-all-ci changelog-fragments
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -654,6 +654,12 @@ LINT_stock-images = $(UV) run python scripts/check_stock_images.py \
 # says why it cannot run locally: a branch green under test-all and red in CI
 # is what #2886 was, twice.
 LINT_test-all-ci = $(UV) run python scripts/check_test_all_covers_ci.py
+
+# A changelog.d/ fragment the release cut would refuse (prose, or a `### `
+# line) is red on the PR that adds it, not at `make release-pr`: two reached
+# main and stopped the v0.80.0 cut halfway (#2896). `--lint` runs the
+# assembler's own rule function, so the two cannot disagree.
+LINT_changelog-fragments = $(UV) run python scripts/changelog-assemble.py --lint
 
 UV_PIN_BASE ?= origin/main
 LINT_uv-pin = $(UV) run python scripts/check_uv_pin.py --base $(UV_PIN_BASE)

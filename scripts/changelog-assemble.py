@@ -17,7 +17,9 @@ second run finds nothing and changes nothing.
 Usage
 -----
 ``make changelog-assemble`` — the only supported entry point (the Makefile is
-the SSOT for how tools run). ``--check`` reports what would move and exits 1 if
+the SSOT for how tools run). ``--lint`` applies the assembler's fragment rules
+to every fragment without promoting any (``make lint-changelog-fragments``).
+``--check`` reports what would move and exits 1 if
 anything would, which is what lets a release gate ask "is anything still
 sitting unassembled?" without mutating the tree.
 
@@ -125,6 +127,71 @@ def fragments() -> dict[str, list[pathlib.Path]]:
     return found
 
 
+def fragment_problem(f: pathlib.Path, entry: str) -> str | None:
+    """Why fragment @p f (text @p entry) cannot be promoted, or ``None``.
+
+    The ONE home of the fragment rules: the assembler refuses on the first
+    message this returns, and ``--lint`` (``make lint-changelog-fragments``)
+    reports every one across the tree, so a malformed fragment is red on the
+    PR that adds it instead of at the release cut. Two had merged as plain
+    prose before v0.80.0, and ``make release-pr`` stopped halfway with the
+    version bumped but not committed (doppler#2896).
+
+    >>> fragment_problem(ROOT / "x.md", "- an entry") is None
+    True
+    """
+    name = f.relative_to(ROOT)
+    if not entry.lstrip().startswith("- "):
+        return (
+            f"changelog-assemble: {name} does not start with '- ' — a "
+            "fragment is the entry itself, verbatim"
+        )
+    # A fragment may not carry a `### ` heading. The DIRECTORY is the
+    # heading, so one in the body is a second, contradictory answer -- and
+    # because the fragments for a section are joined and inserted as ONE
+    # block, a stray heading captures every fragment that sorts after it.
+    # Measured on the 0.43.0 assembly: `changed/rx-battery-run-level-gate.md`
+    # ended with a `### Removed` line, and the five `changed/` fragments
+    # sorting after it were published under **Removed** -- a static-link fix
+    # and four example rewrites, all announced as deletions. The bullet count
+    # was right, which is exactly why this needs a gate: a miscounted entry is
+    # visible and a misfiled one is not.
+    for n, line in enumerate(entry.splitlines(), 1):
+        if line.startswith("### "):
+            return (
+                f"changelog-assemble: {name} line {n} "
+                f"is a section heading ({line.strip()!r}).\n"
+                "  The directory a fragment sits in IS its heading, "
+                "so this is a second answer to the same question --\n"
+                "  and it captures every fragment promoted after it. "
+                "Delete the line; move the\n"
+                "  entry to changelog.d/<section>/ if it belongs "
+                "under a different one."
+            )
+    return None
+
+
+def lint() -> int:
+    """Apply :func:`fragment_problem` to every fragment; 1 if any fails."""
+    files = [f for group in fragments().values() for f in group]
+    problems = []
+    for f in files:
+        msg = fragment_problem(f, f.read_text(encoding="utf-8").strip("\n"))
+        if msg:
+            problems.append(msg)
+    for msg in problems:
+        print(msg, file=sys.stderr)
+    if problems:
+        print(
+            f"changelog-assemble: {len(problems)} fragment(s) the release "
+            "cut would refuse",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"changelog-assemble: {len(files)} fragment(s) well-formed")
+    return 0
+
+
 def unreleased_bounds(text: str) -> tuple[int, int]:
     """Character offsets of the ``[Unreleased]`` body.
 
@@ -181,6 +248,14 @@ def main() -> int:
         help="report what would move; exit 1 if anything would",
     )
     ap.add_argument(
+        "--lint",
+        action="store_true",
+        help=(
+            "check every fragment against the rules assembly enforces; "
+            "mutates nothing, exit 1 if any would be refused"
+        ),
+    )
+    ap.add_argument(
         "--version",
         metavar="X.Y.Z",
         default="",
@@ -199,6 +274,10 @@ def main() -> int:
             "  --check reports what would move and mutates nothing; "
             "--version rewrites the heading."
         )
+    if args.lint:
+        if args.check or args.version:
+            sys.exit("changelog-assemble: --lint takes no other option")
+        return lint()
     if args.version and not VERSION_RE.match(args.version):
         sys.exit(
             f"changelog-assemble: --version {args.version!r} is not X.Y.Z.\n"
@@ -227,35 +306,9 @@ def main() -> int:
         chunks = []
         for f in files:
             entry = f.read_text().strip("\n")
-            if not entry.lstrip().startswith("- "):
-                sys.exit(
-                    f"changelog-assemble: {f.relative_to(ROOT)} does "
-                    "not start with '- ' — a fragment is the entry "
-                    "itself, verbatim"
-                )
-            # A fragment may not carry a `### ` heading. The DIRECTORY is the
-            # heading, so one in the body is a second, contradictory answer --
-            # and because the fragments for a section are joined and inserted
-            # as ONE block, a stray heading captures every fragment that sorts
-            # after it. Measured on the 0.43.0 assembly:
-            # `changed/rx-battery-run-level-gate.md` ended with a `### Removed`
-            # line, and the five `changed/` fragments sorting after it were
-            # published under **Removed** -- a static-link fix and four
-            # example rewrites, all announced as deletions. The bullet count
-            # was right, which is exactly why this needs a gate: a miscounted
-            # entry is visible and a misfiled one is not.
-            for n, line in enumerate(entry.splitlines(), 1):
-                if line.startswith("### "):
-                    sys.exit(
-                        f"changelog-assemble: {f.relative_to(ROOT)} line {n} "
-                        f"is a section heading ({line.strip()!r}).\n"
-                        "  The directory a fragment sits in IS its heading, "
-                        "so this is a second answer to the same question --\n"
-                        "  and it captures every fragment promoted after it. "
-                        "Delete the line; move the\n"
-                        "  entry to changelog.d/<section>/ if it belongs "
-                        "under a different one."
-                    )
+            problem = fragment_problem(f, entry)
+            if problem:
+                sys.exit(problem)
             chunks.append(entry)
         body = insert(body, section, "\n\n".join(chunks))
 

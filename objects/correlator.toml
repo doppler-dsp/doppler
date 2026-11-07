@@ -350,6 +350,74 @@ return_type = "dp_correlator_hit_t"
 # frames: 32 KiB of stack per call (sizeof(dp_correlator_hit_t) = 32).
 max_results = 1024
 result_fields = [{name = "row", type = "size_t"}, {name = "col", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
+doc = '''
+Stream an arbitrary-length CF32 chunk through the detector.
+
+Takes the input in order, runs each complete frame through the
+correlator, and on every dump computes the test statistic
+peak_mag / noise_est. Each dump that passes the threshold is one hit,
+a (row, col, peak_mag, noise_est, test_stat) tuple. A chunk that ends mid-frame keeps the rest as the carry, so the
+hits do not depend on how the stream is split into calls.
+
+push() has room for 1024 hits a call, so a push that completes at most
+1024 frames, counting the carry, loses nothing. One that fills the room
+loses the rest of its input, every later frame whether or not it would
+have made a hit, unless the rest is shorter than a frame: that is kept
+as the carry. #1992 and just-buildit/just-makeit#2184 track sizing the
+list to the call.
+
+Parameters
+----------
+x : NDArray[np.complex64]
+    The next chunk of the stream, any length.
+
+Returns
+-------
+list[tuple[int, int, float, float, float]]
+    The hits, in order; empty when no dump passed the gate.
+
+Examples
+--------
+>>> from doppler.spectral import CorrDetector2D
+>>> import numpy as np
+>>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+>>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15)
+>>> hits = det.push(np.ones((4, 4), dtype=np.complex64))
+>>> row, col, peak, noise, stat = hits[0]
+>>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
+(0, 0, 1.0, 1.0, 1.0)
+'''
+
+# The detector's own reset doc (#2913): the shared dp_correlator_reset block
+# builds a Corr2D, which this view cannot run (gh-2498 renders it verbatim).
+[[correlator.views.methods]]
+name = "reset"
+doc = '''
+Restart detection: zero the dwell and drop the carry.
+
+Zeroes the accumulator and the integration counter, drops the carry (the
+partial frame held between pushes) and clears the last dump's fields, so
+the detector afterwards matches a fresh one built with the same arguments.
+The reference, its spectrum, the noise range and the threshold are kept.
+last_corr reads None until the next dump.
+
+Examples
+--------
+>>> from doppler.spectral import CorrDetector2D
+>>> import numpy as np
+>>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+>>> det = CorrDetector2D(ref=ref, noise_lo=1)
+>>> det.push(np.ones(8, dtype=np.complex64))
+[]
+>>> det.reset()
+>>> len(det.push(np.ones((4, 4), dtype=np.complex64)))
+1
+>>> det.count, det.last_corr is None
+(0, False)
+>>> det.reset()
+>>> det.count, det.last_corr is None
+(0, True)
+'''
 
 [[correlator.views.properties]]
 name = "n"
@@ -431,6 +499,74 @@ return_type = "dp_correlator_hit_t"
 # is the one hit record; this view lists four of its fields, col as the lag.
 max_results = 1024
 result_fields = [{name = "col", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
+doc = '''
+Stream an arbitrary-length CF32 chunk through the detector.
+
+Takes the input in order, runs each complete frame through the
+correlator, and on every dump computes the test statistic
+peak_mag / noise_est. Each dump that passes the threshold is one hit,
+a (lag, peak_mag, noise_est, test_stat) tuple, the lag being the hit's column. A chunk that ends mid-frame keeps the rest as the carry, so the
+hits do not depend on how the stream is split into calls.
+
+push() has room for 1024 hits a call, so a push that completes at most
+1024 frames, counting the carry, loses nothing. One that fills the room
+loses the rest of its input, every later frame whether or not it would
+have made a hit, unless the rest is shorter than a frame: that is kept
+as the carry. #1992 and just-buildit/just-makeit#2184 track sizing the
+list to the call.
+
+Parameters
+----------
+x : NDArray[np.complex64]
+    The next chunk of the stream, any length.
+
+Returns
+-------
+list[tuple[int, float, float, float]]
+    The hits, in order; empty when no dump passed the gate.
+
+Examples
+--------
+>>> from doppler.spectral import CorrDetector
+>>> import numpy as np
+>>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+>>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=3)
+>>> hits = det.push(np.ones(4, dtype=np.complex64))
+>>> lag, peak, noise, stat = hits[0]
+>>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
+(0, 1.0, 1.0, 1.0)
+'''
+
+# The detector's own reset doc (#2913): the shared dp_correlator_reset block
+# builds a Corr2D, which this view cannot run (gh-2498 renders it verbatim).
+[[correlator.views.methods]]
+name = "reset"
+doc = '''
+Restart detection: zero the dwell and drop the carry.
+
+Zeroes the accumulator and the integration counter, drops the carry (the
+partial frame held between pushes) and clears the last dump's fields, so
+the detector afterwards matches a fresh one built with the same arguments.
+The reference, its spectrum, the noise range and the threshold are kept.
+last_corr reads None until the next dump.
+
+Examples
+--------
+>>> from doppler.spectral import CorrDetector
+>>> import numpy as np
+>>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+>>> det = CorrDetector(ref=ref, noise_lo=1)
+>>> det.push(np.ones(2, dtype=np.complex64))
+[]
+>>> det.reset()
+>>> len(det.push(np.ones(4, dtype=np.complex64)))
+1
+>>> det.count, det.last_corr is None
+(0, False)
+>>> det.reset()
+>>> det.count, det.last_corr is None
+(0, True)
+'''
 
 [[correlator.views.properties]]
 name = "n"

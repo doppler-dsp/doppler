@@ -426,7 +426,7 @@ size_t dp_mpsk_receiver_bits_real (
 
 
 
-[**dp\_mpsk\_receiver\_bits()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_bits) taking real samples. Requires a state built by [**dp\_mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create_real).
+[**dp\_mpsk\_receiver\_bits()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_bits) taking real samples. Requires a state built by [**dp\_mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create_real). Hard Gray-coded bits, log2(m) bytes of 0/1 per recovered symbol, LSB-first: coherent, or from the phase difference of consecutive symbols when created with differential = 1.
 
 
 
@@ -1796,7 +1796,7 @@ size_t dp_mpsk_receiver_steps_real (
 
 
 
-[**dp\_mpsk\_receiver\_steps()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_steps) taking real samples: the R2C halfband makes them complex before anything else touches them, and the per-sample body is the same one. Requires a state built by [**dp\_mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create_real).
+[**dp\_mpsk\_receiver\_steps()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_steps) taking real samples: the R2C halfband makes them complex before anything else touches them, and the per-sample body is the same one. Requires a state built by [**dp\_mpsk\_receiver\_create\_real()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_create_real). One cf32 symbol per recovered symbol period, about x\_len / sps of them; the carrier loop locks to one of m phases.
 
 
 

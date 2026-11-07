@@ -99,8 +99,23 @@ RENAME_TOOLS = (
     "src/doppler/tests/test_codemod_correlator_rename.py",
 )
 
+# `.cmake`: a hand-owned `<obj>_extra.cmake` names C functions in its
+# compile definitions, and #2752 3.4b's rename left one stale there that
+# no file this gate read could show.
 SUFFIXES = frozenset(
-    {".c", ".h", ".py", ".md", ".txt", ".toml", ".yml", ".yaml", ".sh", ".pyi"}
+    {
+        ".c",
+        ".h",
+        ".py",
+        ".md",
+        ".txt",
+        ".toml",
+        ".yml",
+        ".yaml",
+        ".sh",
+        ".pyi",
+        ".cmake",
+    }
 )
 
 

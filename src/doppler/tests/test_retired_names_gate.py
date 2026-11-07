@@ -55,6 +55,12 @@ def test_not_ours_is_skipped(rel: str) -> None:
     assert gate._skipped(rel)
 
 
+def test_a_cmake_file_is_read() -> None:
+    # A hand-owned `<obj>_extra.cmake` names C functions in its compile
+    # definitions (#2752 3.4b left a stale one there).
+    assert ".cmake" in gate.SUFFIXES
+
+
 def _windows_rows() -> list[re.Pattern[str]]:
     rows = [pat for pat, _raw, repl in gate.rows() if "Windows" in repl]
     assert rows, "the retired Windows-support claim has no rows"

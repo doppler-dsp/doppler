@@ -1948,8 +1948,7 @@ static PyMethodDef Corr2DObj_methods[] = {
   { "reset", (PyCFunction)Corr2DObj_reset, METH_NOARGS,
     "Zero the accumulator and reset the integration counter to 0.\n"
     "Equivalent to starting a fresh dwell cycle without rebuilding FFT plans\n"
-    "or recomputing ref_spec. (A detector flavor resets its stream too: see\n"
-    "the detector flavors' section below.)\n"
+    "or recomputing ref_spec.\n"
     "\n"
     "Examples\n"
     "--------\n"

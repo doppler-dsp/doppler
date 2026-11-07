@@ -96,16 +96,22 @@ SUFFIXES = frozenset(
 )
 
 
-def _rows() -> list[tuple[re.Pattern[str], str, str]]:
-    """Parse `.retired-names` into (compiled, raw pattern, replacement)."""
+def _rows(
+    path: Path = RETIRED,
+) -> list[tuple[re.Pattern[str], str, str]]:
+    """Parse `.retired-names` into (compiled, raw pattern, replacement).
+
+    `path` defaults to this repo's list; `check_retired_symbols.py` reads
+    the same rows through here, pointed at a seeded tree in its tests.
+    """
     out: list[tuple[re.Pattern[str], str, str]] = []
-    for n, line in enumerate(RETIRED.read_text().splitlines(), 1):
+    for n, line in enumerate(path.read_text().splitlines(), 1):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         if "\t" not in line:
             print(
-                f"{RETIRED.name}:{n}: expected '<regex>\\t<replacement>'",
+                f"{path.name}:{n}: expected '<regex>\\t<replacement>'",
                 file=sys.stderr,
             )
             sys.exit(2)

@@ -310,7 +310,7 @@ jm_bench_add(jm_bench_t *b, const char *name,
 }
 
 /* qsort comparator for double */
-static int
+static inline int
 jm_dcmp(const void *a, const void *b)
 {
     double da = *(const double *)a, db = *(const double *)b;
@@ -318,7 +318,7 @@ jm_dcmp(const void *a, const void *b)
 }
 
 /* Linear-interpolation quantile on sorted array s[0..n-1]. */
-static double
+static inline double
 jm_quantile(const double *s, int n, double p)
 {
     double pos = p * (double)(n - 1);
@@ -330,7 +330,7 @@ jm_quantile(const double *s, int n, double p)
 
 /* Write pytest-benchmark-compatible JSON to bench_<component>_core.json,
  * then free the rows (jm_bench_free): the bench is empty afterwards. */
-static void
+static inline void
 jm_bench_write_json(jm_bench_t *b, const char *component)
 {
     char fname[256];

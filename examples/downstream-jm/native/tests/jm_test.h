@@ -55,8 +55,15 @@
  * `_fails` that only existed inside main(), so CHECK could not be used from a
  * helper function -- which is a large part of why downstream copies grew
  * incompatible failure semantics instead of being reused. */
-static int jm_checks = 0;
-static int jm_fails = 0;
+#if defined(__GNUC__) || defined(__clang__)
+#  define JM_TEST_MAYBE_UNUSED __attribute__((unused))
+#else
+#  define JM_TEST_MAYBE_UNUSED
+#endif
+/* Marked maybe-unused (gh-2497): a helper file that includes this header for
+ * its declarations but runs no CHECK must still build under -Werror. */
+static int jm_checks JM_TEST_MAYBE_UNUSED = 0;
+static int jm_fails JM_TEST_MAYBE_UNUSED = 0;
 
 /* Record a failure and continue.  The common case: one run reports every
  * broken assertion rather than only the first. */

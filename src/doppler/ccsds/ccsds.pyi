@@ -1,6 +1,7 @@
 # ccsds/ccsds.pyi — type stubs for the ccsds C extension.
 import numpy as np
 from numpy.typing import NDArray
+
 def asm_bits() -> NDArray[np.uint8]:
     """The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits —
     `out[0]` is the first bit on the wire (the top of 0x1A). Pass it to

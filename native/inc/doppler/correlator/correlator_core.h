@@ -769,9 +769,9 @@ typedef struct {
   uint8_t    *peak_mask; /**< n_surf; the working mask.                  */
   uint32_t   *twin_row;  /**< max_peaks: last dwell's picks, native rows. */
   uint32_t   *twin_col;  /**< max_peaks: last dwell's picks, code phases. */
-  dp_correlator_search_t *search; /**< The search policy, allocated once
-                                       at create; NULL unless a search
-                                       flavor.                          */
+  dp_correlator_search_t *search; /**< The search policy: @ref search_rec
+                                       in the search flavors, NULL in the
+                                       other five.                      */
   /* Everything above is written by create (and set_ref) only, and the
    * threaded map's workers read it on every call. `count` is the one field
    * execute() writes every frame, so it lives behind a full cache line of
@@ -801,6 +801,14 @@ typedef struct {
                                   held ones too.                         */
   size_t n_twins;            /**< Search flavors: picks carried over from
                                   the last dwell.                        */
+  /* The search flavors' policy record, embedded rather than allocated
+     (#2752 step 3.4b, docs/design/correlator.md section 7): behind a
+     pointer to its own allocation, a small burst push ran 3% slower than
+     acq's (bench-ab twice, then aligned with heap placement pinned), and
+     here it ties. Last, so no field 3.2 or 3.3 measured moves; every
+     flavor carries its 1.5 KB, unused outside the search. */
+  dp_correlator_search_t search_rec; /**< @ref search points here in a
+                                          search flavor.                */
 } dp_correlator_state_t;
 
 /**

@@ -319,6 +319,13 @@ typedef struct {
   size_t consumed;           
   size_t n_peaks;            
   size_t n_twins;            
+  /* The search flavors' policy record, embedded rather than allocated
+     (#2752 step 3.4b, docs/design/correlator.md section 7): behind a
+     pointer to its own allocation, a small burst push ran 3% slower than
+     acq's (bench-ab twice, then aligned with heap placement pinned), and
+     here it ties. Last, so no field 3.2 or 3.3 measured moves; every
+     flavor carries its 1.5 KB, unused outside the search. */
+  dp_correlator_search_t search_rec; 
 } dp_correlator_state_t;
 
 dp_correlator_state_t *dp_correlator_create_1d (const float _Complex *ref,

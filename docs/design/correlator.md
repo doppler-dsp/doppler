@@ -492,6 +492,15 @@ Each is its own PR, tracked by an issue of its own under #2752.
         state. acq's rows judge the indirection. If they flag it, the
         fallback (the struct embedded below `consumed`) needs the same
         placement-pinned and aligned evidence before it is chosen.
+        **They flagged it, and the fallback is what landed (#2930).**
+        bench-ab flagged four search rows twice; aligned, with heap
+        placement pinned, three tied (placement) and one stayed:
+        `burst_acq push[sf=63,spc=4]` at 1.031 and 1.025, psd and
+        spectrogram controls at 1.000. Reading `search` once per function
+        (the push reloaded it 15 times) did not move it; embedding the
+        record, as `search_rec` after every measured field, did (1.000
+        and 1.004). `search` still names it, NULL in the other flavors,
+        and every flavor carries the record's 1.5 KB.
 
     - **One hit record, widened.** `dp_correlator_hit_t` gains
         acq's hit record's fields in their order: `cn0_dbhz_est`,

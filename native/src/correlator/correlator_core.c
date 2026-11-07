@@ -2973,9 +2973,9 @@ search_chip_phase_of_col (size_t col, size_t code_len, size_t code_bins)
 static inline size_t
 search_zone_cols (const dp_correlator_state_t *st)
 {
-  return (st->search->shape.zone * st->search->lag_bins + st->search->code_bins
-          - 1)
-         / st->search->code_bins;
+  dp_correlator_search_t *const srch = st->search;
+  return (srch->shape.zone * srch->lag_bins + srch->code_bins - 1)
+         / srch->code_bins;
 }
 
 /* The chip phase a hit seeds a code loop with, in Dll's convention: the
@@ -2994,19 +2994,19 @@ search_handoff_chip_phase (const dp_correlator_state_t *state,
                            size_t doppler_bin, size_t code_phase,
                            size_t code_len)
 {
-  double phase = search_chip_phase_of_col (code_phase, code_len,
-                                           state->search->lag_bins);
-  if (state->search->carrier_freq_hz > 0.0)
+  dp_correlator_search_t *const srch = state->search;
+  double                        phase
+      = search_chip_phase_of_col (code_phase, code_len, srch->lag_bins);
+  if (srch->carrier_freq_hz > 0.0)
     {
       const double doppler_hz
           = dp_correlator_bin_doppler_hz (state, doppler_bin);
-      const double dwell_chips = (double)state->search->n_noncoh
-                                 * (double)state->search->coherent_bins
+      const double dwell_chips = (double)srch->n_noncoh
+                                 * (double)srch->coherent_bins
                                  * (double)code_len;
-      phase = dp_fmod_pos (phase
-                               + doppler_hz / state->search->carrier_freq_hz
-                                     * 0.5 * dwell_chips,
-                           (double)code_len);
+      phase                    = dp_fmod_pos (
+          phase + doppler_hz / srch->carrier_freq_hz * 0.5 * dwell_chips,
+          (double)code_len);
     }
   return phase;
 }
@@ -3020,16 +3020,17 @@ search_handoff_chip_phase (const dp_correlator_state_t *state,
 static inline int
 search_in_doppler_band (const dp_correlator_state_t *st, size_t k)
 {
+  dp_correlator_search_t *const srch = st->search;
   /* Wideband mode always searches its whole window_bins grid by
    * construction (there is no further-narrowing prior beyond the windows
    * window_bins itself already tiles) -- every hypothesis is in-band. */
-  if (st->search->window_bins > 1)
+  if (srch->window_bins > 1)
     return 1;
   /* k indexes the (interpolated) SURFACE, so fold on the fine grid and
      compare against a band widened by the same factor -- otherwise
      interpolation would silently narrow the searched Doppler range. */
-  const size_t rows = st->search->coherent_bins * st->search->interp;
-  const size_t row  = k / st->search->lag_bins;
+  const size_t rows = srch->coherent_bins * srch->interp;
+  const size_t row  = k / srch->lag_bins;
   const size_t fold = (row <= rows - row) ? row : rows - row;
   /* The FULL native band is every row: its edge is +/-span = D/2 bins, so
      for an even D the Nyquist bin belongs to it, and for an odd D so does
@@ -3038,9 +3039,9 @@ search_in_doppler_band (const dp_correlator_state_t *st, size_t k)
      builds sb = 2*half+1 that way). Applied to the full band it dropped a
      whole native bin at even D -- 1/D of a uniform Doppler prior, never
      searched (doppler#1183). */
-  if (st->search->searched_bins >= st->search->coherent_bins)
+  if (srch->searched_bins >= srch->coherent_bins)
     return 1;
-  return fold <= ((st->search->searched_bins - 1) / 2) * st->search->interp;
+  return fold <= ((srch->searched_bins - 1) / 2) * srch->interp;
 }
 
 static size_t search_interp_for (size_t D, size_t window_bins);
@@ -3120,20 +3121,21 @@ static size_t
 search_native_row (const dp_correlator_state_t *st, const float *surf,
                    size_t row, size_t col)
 {
-  if (st->search->interp <= 1)
+  dp_correlator_search_t *const srch = st->search;
+  if (srch->interp <= 1)
     return row;
-  const size_t rows = st->search->n_surf / st->search->lag_bins;
+  const size_t rows = srch->n_surf / srch->lag_bins;
   size_t       best = rows;
-  for (size_t d = 0; d <= 2 * st->search->interp; d++)
+  for (size_t d = 0; d <= 2 * srch->interp; d++)
     {
-      size_t r = (row + rows + d - st->search->interp) % rows;
-      if (r % st->search->interp)
+      size_t r = (row + rows + d - srch->interp) % rows;
+      if (r % srch->interp)
         continue;
-      size_t k = r * st->search->lag_bins + col;
-      if (best == rows || surf[k] > surf[best * st->search->lag_bins + col])
+      size_t k = r * srch->lag_bins + col;
+      if (best == rows || surf[k] > surf[best * srch->lag_bins + col])
         best = r;
     }
-  return best / st->search->interp;
+  return best / srch->interp;
 }
 
 /* ── The decided surface's passes, per tile ─────────────────────────────
@@ -3161,9 +3163,10 @@ static inline void
 search_chunk (const dp_correlator_state_t *st, size_t r, size_t *k0,
               size_t *k1)
 {
-  const size_t len = st->search->n_surf / st->search->window_bins;
-  *k0              = r * len;
-  *k1              = *k0 + len;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  len  = srch->n_surf / srch->window_bins;
+  *k0                                = r * len;
+  *k1                                = *k0 + len;
 }
 
 /* The first pass over a decided surface: the magnitude (when asked), the
@@ -3180,27 +3183,30 @@ search_chunk (const dp_correlator_state_t *st, size_t r, size_t *k0,
 static dp_pool_t *
 search_epoch_pool (const dp_correlator_state_t *st)
 {
-  return st->search->epoch_fan ? st->pool : NULL;
+  dp_correlator_search_t *const srch = st->search;
+  return srch->epoch_fan ? st->pool : NULL;
 }
 
 static dp_pool_t *
 search_block_pool (const dp_correlator_state_t *st)
 {
-  return st->search->coherent_bins > 1 ? st->pool : search_epoch_pool (st);
+  dp_correlator_search_t *const srch = st->search;
+  return srch->coherent_bins > 1 ? st->pool : search_epoch_pool (st);
 }
 
 static void
 search_tile_decide (size_t r, void *ctx)
 {
-  const search_scan_t   *sc = (const search_scan_t *)ctx;
-  dp_correlator_state_t *st = sc->st;
-  size_t                 k0, k1;
+  const search_scan_t          *sc   = (const search_scan_t *)ctx;
+  dp_correlator_state_t        *st   = sc->st;
+  dp_correlator_search_t *const srch = st->search;
+  size_t                        k0, k1;
   search_chunk (st, r, &k0, &k1);
   if (sc->magnitude)
     for (size_t k = k0; k < k1; k++)
-      st->mag_buf[k] = cabsf (st->search->out_buf[k]);
+      st->mag_buf[k] = cabsf (srch->out_buf[k]);
   memcpy (st->peak_mask + k0, st->band_mask + k0, k1 - k0);
-  dp_correlator_part_t *p = &st->search->parts[r];
+  dp_correlator_part_t *p = &srch->parts[r];
   /* A tile has no scratch buffer, so it asks for the per-chunk aggregate,
      which cannot be a median. sc->reference is never set for MEDIAN anyway
      (search_scan_surface: it has no per-chunk form). */
@@ -3208,7 +3214,7 @@ search_tile_decide (size_t r, void *ctx)
                        ? det_noise_chunk (sc->surf, k0, k1 - 1, st->noise_mode)
                        : 0.0f;
   const size_t b = det_peak_scan (sc->surf, st->band_mask, k0, k1);
-  p->best        = b == k1 ? st->search->n_surf : b;
+  p->best        = b == k1 ? srch->n_surf : b;
 }
 
 /* A later scan of the list: the chunk's first maximum among the cells the
@@ -3216,25 +3222,27 @@ search_tile_decide (size_t r, void *ctx)
 static void
 search_tile_pick (size_t r, void *ctx)
 {
-  const search_scan_t   *sc = (const search_scan_t *)ctx;
-  dp_correlator_state_t *st = sc->st;
-  size_t                 k0, k1;
+  const search_scan_t          *sc   = (const search_scan_t *)ctx;
+  dp_correlator_state_t        *st   = sc->st;
+  dp_correlator_search_t *const srch = st->search;
+  size_t                        k0, k1;
   search_chunk (st, r, &k0, &k1);
-  const size_t b            = det_peak_scan (sc->surf, st->peak_mask, k0, k1);
-  st->search->parts[r].best = b == k1 ? st->search->n_surf : b;
+  const size_t b      = det_peak_scan (sc->surf, st->peak_mask, k0, k1);
+  srch->parts[r].best = b == k1 ? srch->n_surf : b;
 }
 
 /* The non-coherent path's accumulate: |dump|^2 onto this chunk. */
 static void
 search_tile_nc_acc (size_t r, void *ctx)
 {
-  dp_correlator_state_t *st = ((const search_scan_t *)ctx)->st;
-  size_t                 k0, k1;
+  dp_correlator_state_t        *st   = ((const search_scan_t *)ctx)->st;
+  dp_correlator_search_t *const srch = st->search;
+  size_t                        k0, k1;
   search_chunk (st, r, &k0, &k1);
   for (size_t k = k0; k < k1; k++)
     {
-      float m = cabsf (st->search->out_buf[k]);
-      st->search->nc_surface[k] += m * m;
+      float m = cabsf (srch->out_buf[k]);
+      srch->nc_surface[k] += m * m;
     }
 }
 
@@ -3244,11 +3252,12 @@ search_tile_nc_acc (size_t r, void *ctx)
 static size_t
 search_merge_best (const dp_correlator_state_t *st, const float *surf)
 {
-  const size_t n    = st->search->n_surf;
-  size_t       best = n;
-  for (size_t r = 0; r < st->search->window_bins; r++)
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  n    = srch->n_surf;
+  size_t                        best = n;
+  for (size_t r = 0; r < srch->window_bins; r++)
     {
-      const size_t b = st->search->parts[r].best;
+      const size_t b = srch->parts[r].best;
       if (b < n && (best == n || surf[b] > surf[best]))
         best = b;
     }
@@ -3265,18 +3274,19 @@ static float
 search_scan_surface (dp_correlator_state_t *st, const float *surf,
                      int magnitude)
 {
+  dp_correlator_search_t *const srch = st->search;
   const int fan_ref = st->noise_mode != DET_NOISE_MEDIAN && st->noise_lo == 0
-                      && st->noise_hi == st->search->n_surf - 1;
+                      && st->noise_hi == srch->n_surf - 1;
   search_scan_t sc  = { st, surf, magnitude, fan_ref };
-  dp_pool_run (search_block_pool (st), st->search->window_bins,
-               search_tile_decide, &sc);
+  dp_pool_run (search_block_pool (st), srch->window_bins, search_tile_decide,
+               &sc);
   if (!fan_ref)
     return det_noise_estimate (surf, st->noise_lo, st->noise_hi,
                                st->noise_scratch, st->noise_mode);
-  float ref = st->search->parts[0].ref;
-  for (size_t r = 1; r < st->search->window_bins; r++)
+  float ref = srch->parts[0].ref;
+  for (size_t r = 1; r < srch->window_bins; r++)
     {
-      const float v = st->search->parts[r].ref;
+      const float v = srch->parts[r].ref;
       if (st->noise_mode == DET_NOISE_MIN)
         ref = v < ref ? v : ref;
       else if (st->noise_mode == DET_NOISE_MAX)
@@ -3284,9 +3294,8 @@ search_scan_surface (dp_correlator_state_t *st, const float *surf,
       else
         ref += v;
     }
-  return st->noise_mode == DET_NOISE_MEAN
-             ? ref / (float)st->search->window_bins
-             : ref;
+  return st->noise_mode == DET_NOISE_MEAN ? ref / (float)srch->window_bins
+                                          : ref;
 }
 
 /* The list over a surface, after search_scan_surface() has run the decide
@@ -3301,24 +3310,25 @@ search_scan_surface (dp_correlator_state_t *st, const float *surf,
 static void
 search_list_peaks (dp_correlator_state_t *st, const float *surf, float gate)
 {
-  const size_t  nx   = st->search->lag_bins;
-  const size_t  rows = st->search->n_surf / nx;
-  search_scan_t sc   = { st, surf, 0, 0 };
-  size_t        best = search_merge_best (st, surf);
-  st->n_peaks        = 0;
-  while (best < st->search->n_surf && surf[best] > gate)
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  nx   = srch->lag_bins;
+  const size_t                  rows = srch->n_surf / nx;
+  search_scan_t                 sc   = { st, surf, 0, 0 };
+  size_t                        best = search_merge_best (st, surf);
+  st->n_peaks                        = 0;
+  while (best < srch->n_surf && surf[best] > gate)
     {
       st->peaks[st->n_peaks++]
           = (det_peak_t){ best / nx, best % nx, surf[best] };
       if (st->n_peaks == st->max_peaks)
         break;
       det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx,
-                     st->search->interp, search_zone_cols (st));
-      dp_pool_run (search_block_pool (st), st->search->window_bins,
-                   search_tile_pick, &sc);
+                     srch->interp, search_zone_cols (st));
+      dp_pool_run (search_block_pool (st), srch->window_bins, search_tile_pick,
+                   &sc);
       best = search_merge_best (st, surf);
     }
-  if (st->n_peaks == 0 && best < st->search->n_surf)
+  if (st->n_peaks == 0 && best < srch->n_surf)
     st->peaks[0] = (det_peak_t){ best / nx, best % nx, surf[best] };
   st->peak_row
       = search_native_row (st, surf, st->peaks[0].row, st->peaks[0].col);
@@ -3340,12 +3350,13 @@ static float
 search_peak_concentration (const dp_correlator_state_t *st, const float *surf,
                            int power)
 {
-  const size_t nx   = st->search->lag_bins;
-  const size_t rows = st->search->n_surf / nx;
-  const size_t col  = st->peaks[0].col;
-  const size_t prow = st->peaks[0].row;
-  const size_t zone = st->search->interp;
-  double       tot = 0.0, lobe = 0.0;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  nx   = srch->lag_bins;
+  const size_t                  rows = srch->n_surf / nx;
+  const size_t                  col  = st->peaks[0].col;
+  const size_t                  prow = st->peaks[0].row;
+  const size_t                  zone = srch->interp;
+  double                        tot = 0.0, lobe = 0.0;
   for (size_t r = 0; r < rows; r++)
     {
       double v = surf[r * nx + col];
@@ -3368,50 +3379,42 @@ search_dwell_decided (dp_correlator_state_t *st, const float *surf,
                       float (*stat_of) (const dp_correlator_state_t *, float),
                       int hit)
 {
-  st->search->dwells++;
-  if (st->search->keep_surface)
+  dp_correlator_search_t *const srch = st->search;
+  srch->dwells++;
+  if (srch->keep_surface)
     {
-      if (!st->search->stat_surface)
-        st->search->stat_surface
-            = (float *)dp_xmalloc (st->search->n_surf * sizeof (float));
-      for (size_t k = 0; k < st->search->n_surf; k++)
-        st->search->stat_surface[k] = stat_of (st, surf[k]);
-      st->search->surface_at = st->search->samples_consumed;
-      if (st->search->sink
-          && st->search->dwells
-                     % (st->search->sink_decim ? st->search->sink_decim : 1)
-                 == 0)
-        st->search->sink (st->search->sink_ctx, st->search->stat_surface,
-                          st->search->n_surf / st->search->lag_bins,
-                          st->search->lag_bins, st->search->samples_consumed);
+      if (!srch->stat_surface)
+        srch->stat_surface
+            = (float *)dp_xmalloc (srch->n_surf * sizeof (float));
+      for (size_t k = 0; k < srch->n_surf; k++)
+        srch->stat_surface[k] = stat_of (st, surf[k]);
+      srch->surface_at = srch->samples_consumed;
+      if (srch->sink
+          && srch->dwells % (srch->sink_decim ? srch->sink_decim : 1) == 0)
+        srch->sink (srch->sink_ctx, srch->stat_surface,
+                    srch->n_surf / srch->lag_bins, srch->lag_bins,
+                    srch->samples_consumed);
     }
-  if (st->search->tlm.ctx)
+  if (srch->tlm.ctx)
     {
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_stat,
-                   st->test_stat);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_gate,
-                   st->search->n_noncoh > 1 ? st->search->eta_nc
-                                            : st->threshold);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_noise,
-                   st->noise_est);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_peak, st->peak_mag);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_row,
-                   (double)st->peak_row);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_col,
-                   (double)st->peak_col);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_n_peaks,
-                   (double)st->n_peaks);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_n_held,
-                   (double)st->search->n_held);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_conc,
-                   st->search->peak_conc);
-      dp_tlm_emit (st->search->tlm.ctx, st->search->tlm.id_hit, (double)hit);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_stat, st->test_stat);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_gate,
+                   srch->n_noncoh > 1 ? srch->eta_nc : st->threshold);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_noise, st->noise_est);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_peak, st->peak_mag);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_row, (double)st->peak_row);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_col, (double)st->peak_col);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_n_peaks, (double)st->n_peaks);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_n_held, (double)srch->n_held);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_conc, srch->peak_conc);
+      dp_tlm_emit (srch->tlm.ctx, srch->tlm.id_hit, (double)hit);
     }
 }
 /* Peak, CFAR noise, and test statistic from the coherent dump in out_buf. */
 static void
 search_compute_stat (dp_correlator_state_t *st)
 {
+  dp_correlator_search_t *const srch = st->search;
   /* Two maxima, and the split is the whole point of interpolating.
    *
    * `peak` ranges over the INTERPOLATED surface and sets peak_mag /
@@ -3435,8 +3438,8 @@ search_compute_stat (dp_correlator_state_t *st)
   st->peak_mag = st->peaks[0].value;
   st->test_stat
       = (st->noise_est > 0.0f) ? (st->peak_mag / st->noise_est) : 0.0f;
-  st->search->peak_conc = search_peak_concentration (st, st->mag_buf, 0);
-  st->search->n_held    = 0;
+  srch->peak_conc = search_peak_concentration (st, st->mag_buf, 0);
+  srch->n_held    = 0;
 }
 
 /* Non-coherent CFAR: peak + normalized order-N_nc statistic from nc_surface
@@ -3451,23 +3454,21 @@ search_compute_stat (dp_correlator_state_t *st)
 static void
 search_compute_stat_nc (dp_correlator_state_t *st)
 {
-  float noise_pow = search_scan_surface (st, st->search->nc_surface, 0);
+  dp_correlator_search_t *const srch = st->search;
+  float noise_pow = search_scan_surface (st, srch->nc_surface, 0);
   st->noise_est   = sqrtf (noise_pow);
   /* The gate in the surface's (power) units: R > eta_nc is
      cell > eta_nc^2 * noise_pow / (2 n_noncoh). */
-  const float gate = noise_pow > 0.0f
-                         ? st->search->eta_nc * st->search->eta_nc * noise_pow
-                               / (2.0f * (float)st->search->n_noncoh)
-                         : HUGE_VALF;
-  search_list_peaks (st, st->search->nc_surface, gate);
+  const float gate = noise_pow > 0.0f ? srch->eta_nc * srch->eta_nc * noise_pow
+                                            / (2.0f * (float)srch->n_noncoh)
+                                      : HUGE_VALF;
+  search_list_peaks (st, srch->nc_surface, gate);
   st->peak_mag  = sqrtf (st->peaks[0].value);
-  st->test_stat = (noise_pow > 0.0f)
-                      ? sqrtf (2.0f * (float)st->search->n_noncoh
-                               * st->peaks[0].value / noise_pow)
-                      : 0.0f;
-  st->search->peak_conc
-      = search_peak_concentration (st, st->search->nc_surface, 1);
-  st->search->n_held = 0;
+  st->test_stat = (noise_pow > 0.0f) ? sqrtf (2.0f * (float)srch->n_noncoh
+                                              * st->peaks[0].value / noise_pow)
+                                     : 0.0f;
+  srch->peak_conc = search_peak_concentration (st, srch->nc_surface, 1);
+  srch->n_held    = 0;
 }
 
 double _Complex dp_correlator_cell_corr (const dp_correlator_state_t *st,
@@ -3504,10 +3505,11 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
                               size_t col, const double *f_hz, size_t n_f,
                               double t0, double _Complex *out)
 {
+  dp_correlator_search_t *const srch = st->search;
   if (n_f == 0 || n_epochs == 0)
     return;
-  const size_t nx = st->search->code_bins;
-  const double w0 = 2.0 * M_PI / st->search->fs;
+  const size_t nx = srch->code_bins;
+  const double w0 = 2.0 * M_PI / srch->fs;
   double       lo = f_hz[0], hi = f_hz[0];
   for (size_t j = 1; j < n_f; j++)
     {
@@ -3518,7 +3520,7 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
      per epoch; past DP_CORRELATOR_GRID_MAX_CYCLES the blocks would get too
      short to pay, and the exact primitive is the answer. */
   const double fb = 0.5 * (lo + hi);
-  const double r  = 0.5 * (hi - lo) * (double)nx / st->search->fs;
+  const double r  = 0.5 * (hi - lo) * (double)nx / srch->fs;
   if (r > DP_CORRELATOR_GRID_MAX_CYCLES)
     {
       for (size_t e = 0; e < n_epochs; e++)
@@ -3550,7 +3552,7 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
     size_t k                   = (nx - col % nx) % nx; /* ref index, m = 0 */
     for (size_t m = 0; m < nx; m++)
       {
-        rm[m] = conj ((double _Complex)st->search->ref[k]) * ph;
+        rm[m] = conj ((double _Complex)srch->ref[k]) * ph;
         ph *= step;
         k = k + 1 == nx ? 0 : k + 1;
       }
@@ -3627,8 +3629,8 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
 static size_t
 search_rate_count (const dp_correlator_state_t *st)
 {
-  return search_rate_count_at (st->search->rate_hyps,
-                               st->search->coherent_bins);
+  dp_correlator_search_t *const srch = st->search;
+  return search_rate_count_at (srch->rate_hyps, srch->coherent_bins);
 }
 
 /* Rate hypothesis `h` of `n` over [-span, +span], Hz/s; one hypothesis is
@@ -3655,9 +3657,10 @@ search_peak_on_lag (const dp_correlator_state_t *st, const float *surf,
                     size_t row, size_t c, float centre,
                     float (*stat_of) (const dp_correlator_state_t *, float))
 {
-  const size_t lb = st->search->lag_bins;
-  const double s  = (double)st->search->code_bins / (double)lb;
-  const double z  = (double)st->search->shape.zone;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  lb   = srch->lag_bins;
+  const double                  s    = (double)srch->code_bins / (double)lb;
+  const double                  z    = (double)srch->shape.zone;
   if (!(z > s) || !(centre > 0.0f))
     return centre;
   const float  l  = stat_of (st, surf[row * lb + (c + lb - 1) % lb]);
@@ -3692,11 +3695,12 @@ search_report_peaks (dp_correlator_state_t *st, const float *surf,
                      float (*mag_of) (float), dp_correlator_hit_t *result,
                      size_t room)
 {
-  const size_t nx   = st->search->lag_bins;
-  const size_t zone = search_zone_cols (st);
-  size_t       ndet = 0, n_listed = 0, n_seen = 0;
-  size_t       listed_col[DP_CORRELATOR_MAX_PEAKS];
-  uint32_t     seen_row[DP_CORRELATOR_MAX_PEAKS],
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  nx   = srch->lag_bins;
+  const size_t                  zone = search_zone_cols (st);
+  size_t                        ndet = 0, n_listed = 0, n_seen = 0;
+  size_t                        listed_col[DP_CORRELATOR_MAX_PEAKS];
+  uint32_t                      seen_row[DP_CORRELATOR_MAX_PEAKS],
       seen_col[DP_CORRELATOR_MAX_PEAKS];
   for (size_t i = 0; i < st->n_peaks && ndet < room; i++)
     {
@@ -3734,27 +3738,26 @@ search_report_peaks (dp_correlator_state_t *st, const float *surf,
       /* The coherent length behind one look: the frame on a burst engine
          (D epochs already), the block of D epochs on a tiled one. */
       const float coh_n
-          = (float)(st->search->window_bins > 1
-                        ? st->search->coherent_bins * st->search->frame_n
-                        : st->search->frame_n);
+          = (float)(srch->window_bins > 1 ? srch->coherent_bins * srch->frame_n
+                                          : srch->frame_n);
       const float amp_snr
           = stat
-            / (st->search->n_noncoh > 1
-                   ? sqrtf (2.0f * coh_n * (float)st->search->n_noncoh)
+            / (srch->n_noncoh > 1
+                   ? sqrtf (2.0f * coh_n * (float)srch->n_noncoh)
                    : DP_CORRELATOR_SQRT_2_OVER_PI * sqrtf (2.0f * coh_n));
       result[ndet++] = (dp_correlator_hit_t){
-        .row          = r,
-        .col          = c,
-        .peak_mag     = mag_of (st->peaks[i].value),
-        .noise_est    = st->noise_est,
-        .test_stat    = stat,
-        .cn0_dbhz_est = search_cn0_dbhz_from_amp_snr (amp_snr, st->search->fs),
-        .samples_consumed = st->search->samples_consumed,
-        .chip_phase = search_handoff_chip_phase (st, r, c, st->search->sf),
+        .row              = r,
+        .col              = c,
+        .peak_mag         = mag_of (st->peaks[i].value),
+        .noise_est        = st->noise_est,
+        .test_stat        = stat,
+        .cn0_dbhz_est     = search_cn0_dbhz_from_amp_snr (amp_snr, srch->fs),
+        .samples_consumed = srch->samples_consumed,
+        .chip_phase       = search_handoff_chip_phase (st, r, c, srch->sf),
         .doppler_rate_hz_s
         = search_rate_count (st) > 1
-              ? search_rate_of (st->search->doppler_rate,
-                                st->search->rate_hyps, st->search->rate_best_h)
+              ? search_rate_of (srch->doppler_rate, srch->rate_hyps,
+                                srch->rate_best_h)
               : 0.0,
         .test_stat_peak
         = search_peak_on_lag (st, surf, st->peaks[i].row, c, stat, stat_of),
@@ -3762,8 +3765,8 @@ search_report_peaks (dp_correlator_state_t *st, const float *surf,
     }
   /* This dwell's picks, listed and held, are what the next dwell's
      same-phase candidates are checked against. */
-  st->search->n_held = n_seen - n_listed;
-  st->n_twins        = n_seen;
+  srch->n_held = n_seen - n_listed;
+  st->n_twins  = n_seen;
   for (size_t k = 0; k < n_seen; k++)
     {
       st->twin_row[k] = seen_row[k];
@@ -3781,9 +3784,10 @@ search_stat_coherent (const dp_correlator_state_t *st, float value)
 static float
 search_stat_noncoherent (const dp_correlator_state_t *st, float value)
 {
-  const float noise_pow = st->noise_est * st->noise_est;
+  dp_correlator_search_t *const srch      = st->search;
+  const float                   noise_pow = st->noise_est * st->noise_est;
   return noise_pow > 0.0f
-             ? sqrtf (2.0f * (float)st->search->n_noncoh * value / noise_pow)
+             ? sqrtf (2.0f * (float)srch->n_noncoh * value / noise_pow)
              : 0.0f;
 }
 
@@ -3916,9 +3920,10 @@ search_drift_rate_limit (double f_epoch, size_t depth)
 static double
 search_residual_rate (const dp_correlator_state_t *st)
 {
-  return st->search->rate_hyps > 1
-             ? st->search->doppler_rate / (double)(st->search->rate_hyps - 1)
-             : st->search->doppler_rate;
+  dp_correlator_search_t *const srch = st->search;
+  return srch->rate_hyps > 1
+             ? srch->doppler_rate / (double)(srch->rate_hyps - 1)
+             : srch->doppler_rate;
 }
 
 /* The block-coherent depth a continuous engine runs inside every tile
@@ -4137,75 +4142,73 @@ static void
 search_commit_thresholds (dp_correlator_state_t *st, double pfa, double pd,
                           double snr, double du)
 {
-  const double span = st->search->doppler_span_hz;
-  const size_t D    = st->search->coherent_bins;
-  const size_t nc   = st->search->n_noncoh;
+  dp_correlator_search_t *const srch = st->search;
+  const double                  span = srch->doppler_span_hz;
+  const size_t                  D    = srch->coherent_bins;
+  const size_t                  nc   = srch->n_noncoh;
 
   /* Wideband mode already tiles the FULL requested uncertainty with
    * window_bins windows (no further within-mode narrowing prior exists), so
    * every window is "searched" by construction -- unlike the native
    * du-narrows-the-native-span case search_searched_bins models. */
-  st->search->searched_bins = (st->search->window_bins > 1)
-                                  ? st->search->window_bins * D
-                                  : search_searched_bins (D, du, span);
-  st->search->doppler_res_hz
-      = st->search->chip_rate / ((double)st->search->sf * (double)D);
+  srch->searched_bins  = (srch->window_bins > 1)
+                             ? srch->window_bins * D
+                             : search_searched_bins (D, du, span);
+  srch->doppler_res_hz = srch->chip_rate / ((double)srch->sf * (double)D);
   /* Every rate hypothesis is another independent look at each cell. */
-  st->search->pfa_cell = dp_det_pfa_cell (
-      pfa, (double)(search_band_cells (D, st->search->searched_bins,
-                                       st->search->window_bins,
-                                       st->search->lag_bins)
+  srch->pfa_cell = dp_det_pfa_cell (
+      pfa, (double)(search_band_cells (D, srch->searched_bins,
+                                       srch->window_bins, srch->lag_bins)
                     * search_rate_count (st)));
-  double umax = search_intra_umax (D, st->search->searched_bins, du, span);
-  st->search->straddle_loss
-      = search_straddle_loss (D, st->search->searched_bins, &st->search->shape,
-                              du, span, st->search->interp);
-  st->search->eta = (float)dp_det_threshold (st->search->pfa_cell);
+  double umax         = search_intra_umax (D, srch->searched_bins, du, span);
+  srch->straddle_loss = search_straddle_loss (
+      D, srch->searched_bins, &srch->shape, du, span, srch->interp);
+  srch->eta = (float)dp_det_threshold (srch->pfa_cell);
 
   double gate;
   if (nc > 1)
     {
-      gate = dp_det_threshold_noncoherent (st->search->pfa_cell, (int)nc);
-      st->search->eta_nc = (float)gate;
+      gate          = dp_det_threshold_noncoherent (srch->pfa_cell, (int)nc);
+      srch->eta_nc  = (float)gate;
       st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
     }
   else
     {
-      gate               = st->search->eta;
-      st->search->eta_nc = 0.0f;
-      st->threshold      = st->search->eta * DP_CORRELATOR_SQRT_2_OVER_PI;
+      gate          = srch->eta;
+      srch->eta_nc  = 0.0f;
+      st->threshold = srch->eta * DP_CORRELATOR_SQRT_2_OVER_PI;
     }
-  st->search->pd_predicted = NAN;
-  st->search->pd_burst     = NAN;
-  st->search->underpowered = 0;
+  srch->pd_predicted = NAN;
+  srch->pd_burst     = NAN;
+  srch->underpowered = 0;
   if (snr > 0.0)
     {
       /* The coherent gate divides by a reference measured over the whole
          native surface: price that, in the mode the gate is derived for. */
-      const double k_ref = st->noise_mode == DET_NOISE_MEAN
-                               ? (double)(st->search->n / st->search->code_bins
-                                          * st->search->lag_bins)
-                               : 0.0;
-      st->search->pd_predicted = search_mean_pd (
-          snr, D, umax, &st->search->shape, (int)st->search->n, gate, (int)nc,
-          st->search->interp, 0, k_ref);
+      const double k_ref
+          = st->noise_mode == DET_NOISE_MEAN
+                ? (double)(srch->n / srch->code_bins * srch->lag_bins)
+                : 0.0;
+      srch->pd_predicted
+          = search_mean_pd (snr, D, umax, &srch->shape, (int)srch->n, gate,
+                            (int)nc, srch->interp, 0, k_ref);
       /* A burst is judged on the burst: the Pd a caller of a burst engine
          gets is any dwell the preamble spans detecting. Non-coherent looks
          on a burst have no alignment model (see search_auto_config_burst for
          why the sizer never picks them), so they keep the one-dwell Pd. */
-      if (st->search->burst && nc == 1)
-        st->search->pd_burst = search_mean_pd (
-            snr, D, umax, &st->search->shape, (int)st->search->n, gate, 1,
-            st->search->interp, st->search->reps, k_ref);
-      st->search->underpowered
-          = (uint8_t)((isnan (st->search->pd_burst) ? st->search->pd_predicted
-                                                    : st->search->pd_burst)
+      if (srch->burst && nc == 1)
+        srch->pd_burst
+            = search_mean_pd (snr, D, umax, &srch->shape, (int)srch->n, gate,
+                              1, srch->interp, srch->reps, k_ref);
+      srch->underpowered
+          = (uint8_t)((isnan (srch->pd_burst) ? srch->pd_predicted
+                                              : srch->pd_burst)
                       < pd);
     }
   /* The band mask the peak list starts from: the cells outside the searched
      Doppler band are never candidates. searched_bins is decided just above,
      so this is the one place the mask is built. */
-  for (size_t k = 0; k < st->search->n_surf; k++)
+  for (size_t k = 0; k < srch->n_surf; k++)
     st->band_mask[k] = (uint8_t)!search_in_doppler_band (st, k);
 }
 
@@ -4330,14 +4333,15 @@ search_auto_config_burst (const dp_correlator_state_t *st, double pfa,
                           double pd, double snr, double du, size_t *out_d,
                           size_t *out_nc, size_t *out_window_bins)
 {
-  const size_t cb   = st->search->code_bins;
-  const double span = st->search->doppler_span_hz;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  cb   = srch->code_bins;
+  const double                  span = srch->doppler_span_hz;
 
   *out_nc          = 1; /* see above: a burst has one frame of preamble */
   *out_window_bins = (du > span) ? search_cover_window_bins (du, span) : 1u;
   const size_t d_max
-      = search_drift_depth (st->search->chip_rate / (double)st->search->sf,
-                            search_residual_rate (st), st->search->reps);
+      = search_drift_depth (srch->chip_rate / (double)srch->sf,
+                            search_residual_rate (st), srch->reps);
 
   /* No design C/N0: integrate the whole preamble. The smallest-depth search
      below trades sensitivity for latency against a stated signal; with no
@@ -4375,14 +4379,14 @@ search_auto_config_burst (const dp_correlator_state_t *st, double pfa,
       double       umax = search_intra_umax (D, sb, du, span);
       double       pc   = dp_det_pfa_cell (
           pfa, (double)(search_band_cells (D, sb, window_bins, cb)
-                        * search_rate_count_at (st->search->rate_hyps, D)));
+                        * search_rate_count_at (srch->rate_hyps, D)));
       double       eta   = dp_det_threshold (pc);
       const double k_ref = st->noise_mode == DET_NOISE_MEAN
                                ? (double)(window_bins * D * cb)
                                : 0.0;
-      double       p     = search_mean_pd (
-          snr, D, umax, &st->search->shape, (int)(D * cb), eta, 1,
-          search_interp_for (D, window_bins), st->search->reps, k_ref);
+      double p = search_mean_pd (snr, D, umax, &srch->shape, (int)(D * cb),
+                                 eta, 1, search_interp_for (D, window_bins),
+                                 srch->reps, k_ref);
       if (p >= pd)
         {
           best_d = D;
@@ -4396,8 +4400,8 @@ search_auto_config_burst (const dp_correlator_state_t *st, double pfa,
          own false-alarm floor: far below the design point every depth's Pd
          is that floor, which grows with the dwell count and would pick
          D = 1, the least sensitive depth, for no signal at all. */
-      p -= search_burst_pd_at (0.0, 0.0, D, st->search->reps, (int)(D * cb),
-                               eta, k_ref, &st->search->shape);
+      p -= search_burst_pd_at (0.0, 0.0, D, srch->reps, (int)(D * cb), eta,
+                               k_ref, &srch->shape);
       if (p > best_p)
         {
           best_p = p;
@@ -4425,16 +4429,17 @@ search_auto_config_continuous (const dp_correlator_state_t *st, size_t D,
                                double pfa, double pd, double snr, double du,
                                size_t *out_nc, size_t *out_window_bins)
 {
-  const size_t cb          = st->search->code_bins;
-  const size_t lb          = st->search->lag_bins;
-  const double span        = st->search->doppler_span_hz;
-  const size_t window_bins = search_cover_window_bins (du, span);
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  cb   = srch->code_bins;
+  const size_t                  lb   = srch->lag_bins;
+  const double                  span = srch->doppler_span_hz;
+  const size_t window_bins           = search_cover_window_bins (du, span);
 
   *out_window_bins = window_bins;
   /* The searched Doppler cells are the tiles times the rows inside each. */
   *out_nc = search_ascend_n_noncoh (
-      snr, D, window_bins * D, window_bins, cb, lb, pfa, pd,
-      &st->search->shape, du, span,
+      snr, D, window_bins * D, window_bins, cb, lb, pfa, pd, &srch->shape, du,
+      span,
       st->noise_mode == DET_NOISE_MEAN ? (double)(window_bins * D * lb) : 0.0);
 }
 
@@ -4508,8 +4513,8 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
                   size_t D, size_t W, size_t interp, double carrier,
                   search_map_t *m)
 {
-  const size_t cb = st->search->code_bins, lb = st->search->lag_bins,
-               DI = D * interp;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t cb = srch->code_bins, lb = srch->lag_bins, DI = D * interp;
   memset (m, 0, sizeof *m);
   m->f                     = search_map_f (carrier, D, W);
   const dp__dd_geom_t geom = { cb, lb, D, DI, m->f };
@@ -4530,7 +4535,7 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
       return -1;
     }
   const size_t wl = dp__dd_map_work_len (
-      m->map, W, search_rate_count_at (st->search->rate_hyps, D));
+      m->map, W, search_rate_count_at (srch->rate_hyps, D));
   m->work = malloc ((wl ? wl : 1) * sizeof *m->work);
   if (!m->work)
     {
@@ -4570,7 +4575,7 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
              sq bins of fs/cb, dilates the chip clock by f/carrier, so the
              code advances sq fs / carrier samples an epoch; the map reads
              it on its fine grid about the block's middle (§18.1). */
-          const double dq = (double)sq * st->search->fs / carrier;
+          const double dq = (double)sq * srch->fs / carrier;
           dp__dd_ramp_table (&geom, dq, base, m->off + q * cb, m->wt + q * cb);
           t->off = m->off + q * cb;
           t->wt  = m->wt + q * cb;
@@ -4590,13 +4595,14 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
 static void
 search_apply_threads (dp_correlator_state_t *st)
 {
-  const int n    = st->search->threads_req;
-  long      want = 1;
-  if (n != 1 && st->search->window_bins > 1)
+  dp_correlator_search_t *const srch = st->search;
+  const int                     n    = srch->threads_req;
+  long                          want = 1;
+  if (n != 1 && srch->window_bins > 1)
     {
       want = n > 0 ? n : dp_cpu_count ();
-      if (want > (long)st->search->window_bins)
-        want = (long)st->search->window_bins;
+      if (want > (long)srch->window_bins)
+        want = (long)srch->window_bins;
     }
   if (want < 1)
     want = 1;
@@ -4605,15 +4611,15 @@ search_apply_threads (dp_correlator_state_t *st)
      over the slots it has: slower, never wrong. */
   if (st->dd_map)
     (void)dp__dd_map_reserve (st->dd_map, (int)want);
-  if (want == st->search->threads && (want == 1) == (st->pool == NULL))
+  if (want == srch->threads && (want == 1) == (st->pool == NULL))
     return;
   dp_pool_destroy (st->pool);
-  st->pool            = NULL;
-  st->search->threads = 1;
+  st->pool      = NULL;
+  srch->threads = 1;
   if (want <= 1)
     return;
-  st->pool            = dp_pool_create ((int)want);
-  st->search->threads = dp_pool_threads (st->pool);
+  st->pool      = dp_pool_create ((int)want);
+  srch->threads = dp_pool_threads (st->pool);
 }
 
 static int
@@ -4621,12 +4627,13 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
                       size_t new_freq_bins, const float _Complex *replica,
                       double new_carrier)
 {
-  const size_t cb           = st->search->code_bins;
-  const size_t lb           = st->search->lag_bins;
-  const size_t new_n        = new_db * new_freq_bins * cb;
-  const int    grid_changed = (new_db != st->search->coherent_bins)
-                              || (new_n != st->search->n)
-                              || (new_freq_bins != st->search->window_bins);
+  dp_correlator_search_t *const srch  = st->search;
+  const size_t                  cb    = srch->code_bins;
+  const size_t                  lb    = srch->lag_bins;
+  const size_t                  new_n = new_db * new_freq_bins * cb;
+  const int    grid_changed = (new_db != srch->coherent_bins)
+                              || (new_n != srch->n)
+                              || (new_freq_bins != srch->window_bins);
   const size_t new_frame_n  = (new_freq_bins > 1) ? cb : new_n;
   /* Interpolate each coherent Doppler axis. In wideband mode the window axis
     supplies coarse frequency tiles; each tile can still have a coherent
@@ -4642,9 +4649,9 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
      (the non-coherent looks, the kept surface, the sidelobe cache) stays. */
   const size_t new_f = search_map_f (new_carrier, new_db, new_freq_bins);
   const int    map_changed
-      = grid_changed || !st->dd_map || new_f != st->search->map_f
-        || (new_f > 1 && new_carrier != st->search->carrier_freq_hz);
-  const int state_reset = grid_changed || new_nc != st->search->n_noncoh;
+      = grid_changed || !st->dd_map || new_f != srch->map_f
+        || (new_f > 1 && new_carrier != srch->carrier_freq_hz);
+  const int state_reset = grid_changed || new_nc != srch->n_noncoh;
 
   float _Complex       *new_ref      = NULL;
   float _Complex       *new_out      = NULL;
@@ -4666,7 +4673,7 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
       new_ref = (float _Complex *)calloc (new_n_surf, sizeof (float _Complex));
       if (!new_ref)
         goto fail;
-      memcpy (new_ref, replica ? replica : st->search->ref,
+      memcpy (new_ref, replica ? replica : srch->ref,
               cb * sizeof (float _Complex));
       new_out
           = (float _Complex *)malloc (new_n_surf * sizeof (float _Complex));
@@ -4690,7 +4697,7 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
                                                       * sizeof *new_parts);
     }
   if (map_changed
-      && search_map_build (st, new_ref ? new_ref : st->search->ref, new_db,
+      && search_map_build (st, new_ref ? new_ref : srch->ref, new_db,
                            new_freq_bins, new_interp, new_carrier, &new_map)
              != 0)
     goto fail;
@@ -4715,43 +4722,41 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
    * new. */
   if (grid_changed)
     {
-      free (st->search->ref);
-      free (st->search->out_buf);
+      free (srch->ref);
+      free (srch->out_buf);
       free (st->mag_buf);
       free (st->noise_scratch);
       free (st->band_mask);
       free (st->peak_mask);
-      st->band_mask       = new_band;
-      st->peak_mask       = new_pmask;
-      st->search->ref     = new_ref;
-      st->search->out_buf = new_out;
-      st->mag_buf         = new_mag;
-      st->noise_scratch   = new_scratch;
-      free (st->search->blk_raw);
-      st->search->blk_raw   = new_blk_raw;
-      st->search->blk_epoch = 0;
-      free (st->search->parts);
-      st->search->parts = new_parts;
+      st->band_mask     = new_band;
+      st->peak_mask     = new_pmask;
+      srch->ref         = new_ref;
+      srch->out_buf     = new_out;
+      st->mag_buf       = new_mag;
+      st->noise_scratch = new_scratch;
+      free (srch->blk_raw);
+      srch->blk_raw   = new_blk_raw;
+      srch->blk_epoch = 0;
+      free (srch->parts);
+      srch->parts = new_parts;
     }
   if (map_changed)
     {
-      search_map_t old = {
-        st->dd_map,           st->search->ref_spec,  st->search->map_spec,
-        st->search->map_work, st->search->map_tiles, st->search->map_rows,
-        st->search->map_off,  st->search->map_wt,    st->search->map_f
-      };
+      search_map_t old = { st->dd_map,     srch->ref_spec,  srch->map_spec,
+                           srch->map_work, srch->map_tiles, srch->map_rows,
+                           srch->map_off,  srch->map_wt,    srch->map_f };
       search_map_release (&old);
-      st->dd_map            = new_map.map;
-      st->search->ref_spec  = new_map.ref_spec;
-      st->search->map_spec  = new_map.spec;
-      st->search->map_work  = new_map.work;
-      st->search->map_tiles = new_map.tiles;
-      st->search->map_rows  = new_map.rows;
-      st->search->map_off   = new_map.off;
-      st->search->map_wt    = new_map.wt;
-      st->search->map_f     = new_map.f;
+      st->dd_map      = new_map.map;
+      srch->ref_spec  = new_map.ref_spec;
+      srch->map_spec  = new_map.spec;
+      srch->map_work  = new_map.work;
+      srch->map_tiles = new_map.tiles;
+      srch->map_rows  = new_map.rows;
+      srch->map_off   = new_map.off;
+      srch->map_wt    = new_map.wt;
+      srch->map_f     = new_map.f;
     }
-  st->search->carrier_freq_hz = new_carrier;
+  srch->carrier_freq_hz = new_carrier;
   if (new_ring)
     {
       if (st->ring)
@@ -4759,29 +4764,29 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
       st->ring     = new_ring;
       st->ring_cap = new_ring_cap;
     }
-  st->search->coherent_bins = new_db;
-  st->search->window_bins   = new_freq_bins;
-  st->search->n_noncoh      = new_nc;
-  st->search->n             = new_n;
-  st->search->interp        = new_interp;
-  st->search->n_surf        = new_n_surf;
-  st->search->frame_n       = new_frame_n;
+  srch->coherent_bins = new_db;
+  srch->window_bins   = new_freq_bins;
+  srch->n_noncoh      = new_nc;
+  srch->n             = new_n;
+  srch->interp        = new_interp;
+  srch->n_surf        = new_n_surf;
+  srch->frame_n       = new_frame_n;
   if (state_reset)
     {
-      free (st->search->nc_surface);
-      st->search->nc_surface = new_ncsurf;
+      free (srch->nc_surface);
+      srch->nc_surface = new_ncsurf;
       /* Every sidelobe slot was read on the old grid: its rows' Doppler, its
          tiles and its resolution all follow D, window_bins and interp, so
          none survives a regrid (configure_search_raw forces one tile, and
          may change D as well). */
-      st->search->sl_cn = st->search->sl_cnext = 0;
+      srch->sl_cn = srch->sl_cnext = 0;
       /* A new surface size: the kept surface (search_surface) is re-made
          lazily at the next decided dwell. */
-      free (st->search->stat_surface);
-      st->search->stat_surface = NULL;
-      st->search->surface_at   = 0;
-      st->noise_lo             = 0;
-      st->noise_hi             = new_n_surf - 1;
+      free (srch->stat_surface);
+      srch->stat_surface = NULL;
+      srch->surface_at   = 0;
+      st->noise_lo       = 0;
+      st->noise_hi       = new_n_surf - 1;
     }
   /* The tile count may have moved, so the cap on the caller's request may
      have too: narrowing to one tile runs serially, and widening again comes
@@ -5086,24 +5091,24 @@ static void
 search_auto_rate_hypotheses (dp_correlator_state_t *st, double pfa, double pd,
                              double snr, double du)
 {
-  const double f_epoch = st->search->chip_rate / (double)st->search->sf;
-  const double span    = st->search->doppler_rate;
-  size_t       n;
+  dp_correlator_search_t *const srch    = st->search;
+  const double                  f_epoch = srch->chip_rate / (double)srch->sf;
+  const double                  span    = srch->doppler_rate;
+  size_t                        n;
   for (n = 1; n < DP_CORRELATOR_RATE_HYPS_MAX; n++)
     {
       size_t d_star, nc, wb;
-      st->search->rate_hyps    = n;
-      st->search->doppler_rate = 0.0;
+      srch->rate_hyps    = n;
+      srch->doppler_rate = 0.0;
       search_auto_config_burst (st, pfa, pd, snr, du, &d_star, &nc, &wb);
-      st->search->doppler_rate = span;
+      srch->doppler_rate = span;
       /* The residual from its one home: rate_hyps = n and doppler_rate = span
          are both set, which is what search_residual_rate() reads. */
-      if (search_drift_depth (f_epoch, search_residual_rate (st),
-                              st->search->reps)
+      if (search_drift_depth (f_epoch, search_residual_rate (st), srch->reps)
           >= d_star)
         break;
     }
-  st->search->rate_hyps = n;
+  srch->rate_hyps = n;
 }
 
 /* Shared builder: allocates and configures the engine, dropping straight
@@ -5387,7 +5392,8 @@ int
 dp_correlator_configure_search_raw (dp_correlator_state_t *st,
                                     size_t doppler_bins, size_t n_noncoh)
 {
-  if (doppler_bins < 1 || doppler_bins > st->search->reps || n_noncoh < 1
+  dp_correlator_search_t *const srch = st->search;
+  if (doppler_bins < 1 || doppler_bins > srch->reps || n_noncoh < 1
       || n_noncoh > DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)
     return -1;
   /* Non-coherent looks and rate hypotheses do not compose: the search scores
@@ -5395,20 +5401,20 @@ dp_correlator_configure_search_raw (dp_correlator_state_t *st,
      non-coherent path sets to zero, and sums per-look maxima into a surface
      eta_nc was never derived for. A burst engine buys no looks on its own
      (search_auto_config_burst), so this refuses only a pinned grid. */
-  if (n_noncoh > 1 && st->search->rate_hyps > 1)
+  if (n_noncoh > 1 && srch->rate_hyps > 1)
     return -1;
 
   /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
    * -- it exits wideband mode (window_bins back to 1) if that was active,
    * matching its documented contract of pinning the classic grid directly. */
   if (dp_correlator_regrid (st, doppler_bins, n_noncoh, 1, NULL,
-                            st->search->carrier_freq_hz)
+                            srch->carrier_freq_hz)
       != 0)
     return -1;
 
-  const double snr = search_design_snr (st->search->cn0_dbhz, st->search->fs);
-  search_commit_thresholds (st, st->search->pfa, st->search->pd, snr,
-                            st->search->doppler_uncertainty);
+  const double snr = search_design_snr (srch->cn0_dbhz, srch->fs);
+  search_commit_thresholds (st, srch->pfa, srch->pd, snr,
+                            srch->doppler_uncertainty);
   dp__search_reset (st);
   return 0;
 }
@@ -5479,7 +5485,8 @@ dp__search_destroy (dp_correlator_state_t *st)
 int
 dp_correlator_set_threads (dp_correlator_state_t *st, int n)
 {
-  st->search->threads_req = n;
+  dp_correlator_search_t *const srch = st->search;
+  srch->threads_req                  = n;
   search_apply_threads (st);
   return DP_OK;
 }
@@ -5506,30 +5513,31 @@ dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n)
 void
 dp__search_reset (dp_correlator_state_t *st)
 {
+  dp_correlator_search_t *const srch = st->search;
   /* The ONE place the framer is bound: a regrid can change frame_n while
      keeping a ring already big enough for it (dp_correlator_regrid), so the
      framer is bound here, at the current frame_n, after the ring is emptied --
      never inside the regrid. It cannot refuse: the regrid sized the ring for
      frame_n and the ring was just emptied, which is all init checks. */
   dp_f32_reset (st->ring);
-  const int bound = dp_f32_framer_init (
-      &st->framer, st->ring, st->search->frame_n, st->search->frame_n);
+  const int bound = dp_f32_framer_init (&st->framer, st->ring, srch->frame_n,
+                                        srch->frame_n);
   (void)bound;
   st->consumed = 0;
-  if (st->search->nc_surface)
-    memset (st->search->nc_surface, 0, st->search->n_surf * sizeof (float));
-  st->search->nc_count         = 0;
-  st->search->blk_epoch        = 0;
-  st->search->samples_consumed = 0;
-  st->n_peaks                  = 0;
-  st->n_twins                  = 0;
+  if (srch->nc_surface)
+    memset (srch->nc_surface, 0, srch->n_surf * sizeof (float));
+  srch->nc_count         = 0;
+  srch->blk_epoch        = 0;
+  srch->samples_consumed = 0;
+  st->n_peaks            = 0;
+  st->n_twins            = 0;
   st->peak_row = st->peak_col = 0;
   st->peak_mag = st->noise_est = st->test_stat = 0.0f;
-  st->search->n_held                           = 0;
-  st->search->peak_conc                        = 0.0f;
-  st->search->surface_at                       = 0;
-  st->search->dwells                           = 0;
-  st->search->rate_best_h                      = 0;
+  srch->n_held                                 = 0;
+  srch->peak_conc                              = 0.0f;
+  srch->surface_at                             = 0;
+  srch->dwells                                 = 0;
+  srch->rate_best_h                            = 0;
 }
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
@@ -5572,21 +5580,22 @@ search_ramp (const float _Complex *x, size_t n, double w, int signed_bins,
 static void
 search_rate_table (dp_correlator_state_t *st)
 {
-  const size_t D = st->search->coherent_bins, R = st->search->rate_hyps;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  D = srch->coherent_bins, R = srch->rate_hyps;
   if (search_rate_count (st) < 2
-      || (st->search->rate_chirp && st->search->rate_chirp_d == D))
+      || (srch->rate_chirp && srch->rate_chirp_d == D))
     return;
-  free (st->search->rate_chirp);
-  st->search->rate_chirp = dp_xmalloc (R * D * sizeof *st->search->rate_chirp);
-  st->search->rate_chirp_d = D;
-  const double T           = (double)st->search->sf / st->search->chip_rate;
+  free (srch->rate_chirp);
+  srch->rate_chirp   = dp_xmalloc (R * D * sizeof *srch->rate_chirp);
+  srch->rate_chirp_d = D;
+  const double T     = (double)srch->sf / srch->chip_rate;
   for (size_t h = 0; h < R; h++)
     {
-      const double a = search_rate_of (st->search->doppler_rate, R, h);
+      const double a = search_rate_of (srch->doppler_rate, R, h);
       for (size_t i = 0; i < D; i++)
         {
           const double t = ((double)i - 0.5 * (double)(D - 1)) * T;
-          st->search->rate_chirp[h * D + i]
+          srch->rate_chirp[h * D + i]
               = (float _Complex)dp_correlator_rate_phasor (a, t);
         }
     }
@@ -5611,8 +5620,9 @@ typedef struct
 static void
 search_rate_fold (void *ctx, size_t h, const float _Complex *out)
 {
-  search_rates_t        *c  = (search_rates_t *)ctx;
-  dp_correlator_state_t *st = c->st;
+  search_rates_t               *c    = (search_rates_t *)ctx;
+  dp_correlator_state_t        *st   = c->st;
+  dp_correlator_search_t *const srch = st->search;
   (void)out; /* out_buf itself */
   if (c->R < 2)
     return;
@@ -5622,8 +5632,8 @@ search_rate_fold (void *ctx, size_t h, const float _Complex *out)
       c->best   = st->test_stat;
       c->best_h = h;
       if (h != c->R - 1)
-        memcpy (st->search->rate_best, st->search->out_buf,
-                st->search->n_surf * sizeof *st->search->rate_best);
+        memcpy (srch->rate_best, srch->out_buf,
+                srch->n_surf * sizeof *srch->rate_best);
     }
 }
 
@@ -5636,28 +5646,27 @@ search_rate_fold (void *ctx, size_t h, const float _Complex *out)
 static size_t
 search_make_surface (dp_correlator_state_t *st)
 {
-  const size_t R = search_rate_count (st);
-  if (R > 1 && st->search->rate_best_cap != st->search->n_surf)
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  R    = search_rate_count (st);
+  if (R > 1 && srch->rate_best_cap != srch->n_surf)
     {
-      free (st->search->rate_best);
-      st->search->rate_best
-          = dp_xmalloc (st->search->n_surf * sizeof *st->search->rate_best);
-      st->search->rate_best_cap = st->search->n_surf;
+      free (srch->rate_best);
+      srch->rate_best = dp_xmalloc (srch->n_surf * sizeof *srch->rate_best);
+      srch->rate_best_cap = srch->n_surf;
     }
   search_rates_t c = { st, R, 0, -1.0f };
-  (void)dp__dd_map_run (
-      st->dd_map, search_block_pool (st), -1, st->search->map_spec,
-      R > 1 ? st->search->rate_chirp : NULL, R, st->search->map_tiles,
-      st->search->window_bins > 1 ? st->search->window_bins : 1,
-      st->search->map_work, st->search->out_buf, search_rate_fold, &c);
+  (void)dp__dd_map_run (st->dd_map, search_block_pool (st), -1, srch->map_spec,
+                        R > 1 ? srch->rate_chirp : NULL, R, srch->map_tiles,
+                        srch->window_bins > 1 ? srch->window_bins : 1,
+                        srch->map_work, srch->out_buf, search_rate_fold, &c);
   if (R > 1)
     {
       if (c.best_h != R - 1)
-        memcpy (st->search->out_buf, st->search->rate_best,
-                st->search->n_surf * sizeof *st->search->rate_best);
-      st->search->rate_best_h = c.best_h;
+        memcpy (srch->out_buf, srch->rate_best,
+                srch->n_surf * sizeof *srch->rate_best);
+      srch->rate_best_h = c.best_h;
     }
-  return st->search->n_surf;
+  return srch->n_surf;
 }
 
 /* Would the NEXT frame end a dwell -- report a list? The twin of
@@ -5670,23 +5679,23 @@ search_make_surface (dp_correlator_state_t *st)
 static int
 search_next_frame_decides (const dp_correlator_state_t *st)
 {
-  const int dumps = st->search->window_bins <= 1
-                    || st->search->coherent_bins <= 1
-                    || st->search->blk_epoch + 1 >= st->search->coherent_bins;
+  dp_correlator_search_t *const srch = st->search;
+  const int dumps = srch->window_bins <= 1 || srch->coherent_bins <= 1
+                    || srch->blk_epoch + 1 >= srch->coherent_bins;
   return dumps
-         && (st->search->n_noncoh <= 1
-             || st->search->nc_count + 1 >= st->search->n_noncoh);
+         && (srch->n_noncoh <= 1 || srch->nc_count + 1 >= srch->n_noncoh);
 }
 
 size_t
 dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
                  size_t n_in, dp_correlator_hit_t *result, size_t max_results)
 {
-  size_t       ndet     = 0;
-  size_t       off      = 0;
-  const size_t frame_n  = st->search->frame_n;
-  const size_t nx       = st->search->code_bins;
-  const size_t wideband = st->search->window_bins > 1;
+  dp_correlator_search_t *const srch     = st->search;
+  size_t                        ndet     = 0;
+  size_t                        off      = 0;
+  const size_t                  frame_n  = srch->frame_n;
+  const size_t                  nx       = srch->code_bins;
+  const size_t                  wideband = srch->window_bins > 1;
   search_rate_table (st); /* no-op without rate hypotheses */
 
   /* The room a frame that ENDS A DWELL needs: its whole list (max_peaks
@@ -5733,7 +5742,7 @@ dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
         break; /* the input is used up: the rest of a frame is the carry */
 
       size_t n_out;
-      if (wideband && st->search->coherent_bins > 1)
+      if (wideband && srch->coherent_bins > 1)
         {
           /* A tiled block: its epochs are held raw until its end, where
              the one map runs on them, every stage once a block
@@ -5741,15 +5750,15 @@ dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
              uses the native FFT-bin convention on the combined axis
              (search_block_row), so doppler_bin and doppler_res_hz compose
              as on the narrow axis. */
-          memcpy (st->search->blk_raw + st->search->blk_epoch * nx, frame,
+          memcpy (srch->blk_raw + srch->blk_epoch * nx, frame,
                   nx * sizeof *frame);
-          if (++st->search->blk_epoch < st->search->coherent_bins)
+          if (++srch->blk_epoch < srch->coherent_bins)
             n_out = 0; /* mid-block: no surface yet */
           else
             {
-              st->search->blk_epoch = 0;
+              srch->blk_epoch = 0;
               dp__dd_map_forward (st->dd_map, search_block_pool (st), -1,
-                                  st->search->blk_raw, st->search->map_spec);
+                                  srch->blk_raw, srch->map_spec);
               n_out = search_make_surface (st);
             }
         }
@@ -5758,15 +5767,15 @@ dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
           /* One frame is a whole block: one epoch on a tiled engine at
              D = 1, the D epochs of a narrow one. */
           dp__dd_map_forward (st->dd_map, search_block_pool (st), -1, frame,
-                              st->search->map_spec);
+                              srch->map_spec);
           n_out = search_make_surface (st);
         }
-      st->search->samples_consumed += frame_n;
+      srch->samples_consumed += frame_n;
 
       if (n_out == 0)
         continue; /* mid-dwell — coherent accumulation, no dump yet */
 
-      if (st->search->n_noncoh <= 1)
+      if (srch->n_noncoh <= 1)
         {
           /* Coherent path: amplitude mean-CFAR per dump; the list of
              every peak above the gate, one result each. */
@@ -5784,21 +5793,21 @@ dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
        * (per chunk, on the pool); gate the order-N_nc statistic once
        * n_noncoh looks are in. */
       search_scan_t acc = { st, NULL, 0, 0 };
-      dp_pool_run (search_epoch_pool (st), st->search->window_bins,
+      dp_pool_run (search_epoch_pool (st), srch->window_bins,
                    search_tile_nc_acc, &acc);
-      if (++st->search->nc_count < st->search->n_noncoh)
+      if (++srch->nc_count < srch->n_noncoh)
         continue; /* still accumulating looks */
 
       search_compute_stat_nc (st);
       const int hit = st->test_stat > dp_correlator_gate_stat (st);
       if (hit)
-        ndet += search_report_peaks (st, st->search->nc_surface,
+        ndet += search_report_peaks (st, srch->nc_surface,
                                      search_stat_noncoherent, search_mag_sqrt,
                                      result + ndet, max_results - ndet);
-      search_dwell_decided (st, st->search->nc_surface,
-                            search_stat_noncoherent, hit);
-      memset (st->search->nc_surface, 0, st->search->n_surf * sizeof (float));
-      st->search->nc_count = 0;
+      search_dwell_decided (st, srch->nc_surface, search_stat_noncoherent,
+                            hit);
+      memset (srch->nc_surface, 0, srch->n_surf * sizeof (float));
+      srch->nc_count = 0;
     }
 
   st->consumed = off;
@@ -5814,25 +5823,25 @@ dp__search_consumed (const dp_correlator_state_t *state)
 uint64_t
 dp_correlator_position (const dp_correlator_state_t *state)
 {
-  return state->search->samples_consumed
-         + dp_f32_framer_pending (&state->framer);
+  dp_correlator_search_t *const srch = state->search;
+  return srch->samples_consumed + dp_f32_framer_pending (&state->framer);
 }
 
 int
 dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state,
                                    double                 carrier_freq_hz)
 {
-  if (!dp_correlator_carrier_freq_ok (carrier_freq_hz, state->search->fs))
+  dp_correlator_search_t *const srch = state->search;
+  if (!dp_correlator_carrier_freq_ok (carrier_freq_hz, srch->fs))
     return DP_ERR_INVALID;
-  if (carrier_freq_hz == state->search->carrier_freq_hz)
+  if (carrier_freq_hz == srch->carrier_freq_hz)
     return DP_OK;
   /* The map's fine grid and every tile's ramp follow the carrier, so it is
      set through the regrid, which rebuilds only those (and re-applies the
      requested threads, #2797). It is applied at the block's end, so a
      change mid-block ramps the whole block with the new carrier. */
-  return dp_correlator_regrid (
-             state, state->search->coherent_bins, state->search->n_noncoh,
-             state->search->window_bins, NULL, carrier_freq_hz)
+  return dp_correlator_regrid (state, srch->coherent_bins, srch->n_noncoh,
+                               srch->window_bins, NULL, carrier_freq_hz)
                  == 0
              ? DP_OK
              : DP_ERR_MEMORY;
@@ -5849,35 +5858,32 @@ dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz)
 double
 dp_correlator_psl_db (const dp_correlator_state_t *state)
 {
+  dp_correlator_search_t *const srch = state->search;
   /* log10(0) is -HUGE_VAL, but say it: a perfect sequence has no sidelobe
      to be below, and -inf is that fact rather than a number to compare. */
-  return state->search->shape.psl > 0.0
-             ? 20.0 * log10 (state->search->shape.psl)
-             : -INFINITY;
+  return srch->shape.psl > 0.0 ? 20.0 * log10 (srch->shape.psl) : -INFINITY;
 }
 
 double
 dp_correlator_gate_stat (const dp_correlator_state_t *state)
 {
+  dp_correlator_search_t *const srch = state->search;
   /* The two dwell paths' gates, in the one statistic both report. */
-  return state->search->n_noncoh <= 1 ? (double)state->threshold
-                                      : (double)state->search->eta_nc;
+  return srch->n_noncoh <= 1 ? (double)state->threshold : (double)srch->eta_nc;
 }
 
 double
 dp_correlator_dsl_db (dp_correlator_state_t *state)
 {
-  if (!state->search->dsl_ready)
+  dp_correlator_search_t *const srch = state->search;
+  if (!srch->dsl_ready)
     {
-      search_doppler_sidelobe (state->search->ref, state->search->code_bins,
-                               state->search->dsl_window_bins,
-                               state->search->doppler_uncertainty,
-                               state->search->fs, &state->search->shape);
-      state->search->dsl_ready = 1;
+      search_doppler_sidelobe (
+          srch->ref, srch->code_bins, srch->dsl_window_bins,
+          srch->doppler_uncertainty, srch->fs, &srch->shape);
+      srch->dsl_ready = 1;
     }
-  return state->search->shape.dsl > 0.0
-             ? 20.0 * log10 (state->search->shape.dsl)
-             : -INFINITY;
+  return srch->shape.dsl > 0.0 ? 20.0 * log10 (srch->shape.dsl) : -INFINITY;
 }
 
 /* dp_correlator_sidelobe_ratio()'s sweep points are search_core.h's: they size
@@ -5895,8 +5901,9 @@ static size_t
 search_tiles_of (const dp_correlator_state_t *st, double f, double tol,
                  double *out)
 {
-  const double fe = st->search->fs / (double)st->search->code_bins;
-  const long   W  = (long)st->search->window_bins;
+  dp_correlator_search_t *const srch = st->search;
+  const double                  fe   = srch->fs / (double)srch->code_bins;
+  const long                    W    = (long)srch->window_bins;
   if (W <= 1)
     {
       out[0] = 0.0;
@@ -5926,18 +5933,19 @@ static void
 search_sidelobe_row (dp_correlator_state_t *st, const float _Complex *refd,
                      double nu, float _Complex *out)
 {
-  const size_t    cb   = st->search->code_bins;
-  float _Complex *C    = st->search->sl_scratch; /* FFT(replica) */
-  float _Complex *sig  = C + cb;
-  float _Complex *spec = sig + cb;
-  float _Complex *Cc   = C + 4 * cb; /* conj(C) */
-  const double    w    = 2.0 * M_PI * nu / st->search->fs;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  cb   = srch->code_bins;
+  float _Complex               *C    = srch->sl_scratch; /* FFT(replica) */
+  float _Complex               *sig  = C + cb;
+  float _Complex               *spec = sig + cb;
+  float _Complex               *Cc   = C + 4 * cb; /* conj(C) */
+  const double                  w    = 2.0 * M_PI * nu / srch->fs;
   search_ramp (refd, cb, w, 0, sig);
   /* On the one delay-Doppler map, at one epoch: the forward, then one row
      of spec * conj(C) padded to lag_bins and inverted -- the same
      transforms, pad and product this ran on its own plans. */
-  dp__dd_map_forward (st->search->sl_map, NULL, 0, sig, spec);
-  dp__dd_map_row1 (st->search->sl_map, 0, spec, 0, Cc, out);
+  dp__dd_map_forward (srch->sl_map, NULL, 0, sig, spec);
+  dp__dd_map_row1 (srch->sl_map, 0, spec, 0, Cc, out);
 }
 
 /* One slot of the cache: hit `from`'s worst ratio at every column, over the
@@ -5949,14 +5957,15 @@ search_sidelobe_fill (dp_correlator_state_t     *st,
                       const dp_correlator_hit_t *from, double tile,
                       double *cmax)
 {
-  const size_t    cb = st->search->code_bins, lb = st->search->lag_bins;
-  float _Complex *C      = st->search->sl_scratch;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  cb = srch->code_bins, lb = srch->lag_bins;
+  float _Complex               *C = srch->sl_scratch;
   float _Complex *spec   = C + 2 * cb; /* scratch for the delayed replica */
   float _Complex *refd   = C + 3 * cb;
   float _Complex *ones   = C + 5 * cb;
   float _Complex *row    = C + 6 * cb;
   const double    s      = (double)cb / (double)lb; /* samples a column */
-  const double    res    = st->search->doppler_res_hz;
+  const double    res    = srch->doppler_res_hz;
   const double    f_from = dp_correlator_bin_doppler_hz (st, from->row);
   /* its own peak on its own lag, per Doppler point: |sum_n |c[n]|^2
      e^{j w n}| in the best tile it can have been read in */
@@ -5971,20 +5980,18 @@ search_sidelobe_fill (dp_correlator_state_t     *st,
                             / (double)(DP_CORRELATOR_SIDELOBE_DOPPLER_PTS - 1)
                         - 0.5);
       const size_t n_from
-          = search_tiles_of (st, fpt[p], 1e-9 * st->search->fs, t_from);
+          = search_tiles_of (st, fpt[p], 1e-9 * srch->fs, t_from);
       own[p] = 0.0;
       for (size_t a = 0; a < n_from; a++)
         {
-          const double w = 2.0 * M_PI * (fpt[p] - t_from[a]) / st->search->fs;
+          const double w    = 2.0 * M_PI * (fpt[p] - t_from[a]) / srch->fs;
           double _Complex z = 0.0, ph = 1.0, step = cexp (I * w);
           for (size_t k = 0; k < cb; k++)
             {
               if ((k & 255) == 0) /* resync, as search_ramp() */
                 ph = cexp (I * w * (double)k);
-              z += (double)(crealf (st->search->ref[k])
-                                * crealf (st->search->ref[k])
-                            + cimagf (st->search->ref[k])
-                                  * cimagf (st->search->ref[k]))
+              z += (double)(crealf (srch->ref[k]) * crealf (srch->ref[k])
+                            + cimagf (srch->ref[k]) * cimagf (srch->ref[k]))
                    * ph;
               ph *= step;
             }
@@ -6006,7 +6013,7 @@ search_sidelobe_fill (dp_correlator_state_t     *st,
       const double w = -2.0 * M_PI * tau / (double)cb;
       search_ramp (C, cb, w, 1, spec);
       /* the plain inverse, as a row of spec times ones (exact) */
-      dp__dd_map_row1 (st->search->sl_map_cb, 0, spec, 0, ones, refd);
+      dp__dd_map_row1 (srch->sl_map_cb, 0, spec, 0, ones, refd);
       for (size_t k = 0; k < cb; k++)
         refd[k] /= (float)cb; /* the unnormalised inverse */
       for (int p = 0; p < DP_CORRELATOR_SIDELOBE_DOPPLER_PTS; p++)
@@ -6028,21 +6035,21 @@ dp_correlator_sidelobe_ratio (dp_correlator_state_t     *state,
                               const dp_correlator_hit_t *from,
                               const dp_correlator_hit_t *to)
 {
-  dp_correlator_state_t *st = state;
-  const size_t           cb = st->search->code_bins, lb = st->search->lag_bins;
-  if (!st->search->sl_scratch)
+  dp_correlator_state_t        *st   = state;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  cb = srch->code_bins, lb = srch->lag_bins;
+  if (!srch->sl_scratch)
     {
       const dp__dd_geom_t g  = { .n = cb, .l = lb, .d = 1, .di = 1, .f = 1 };
       const dp__dd_geom_t gc = { .n = cb, .l = cb, .d = 1, .di = 1, .f = 1 };
-      st->search->sl_map     = dp_xnn (dp__dd_map_create (&g, 1));
-      st->search->sl_map_cb  = dp_xnn (dp__dd_map_create (&gc, 1));
-      st->search->sl_scratch
-          = dp_xmalloc ((6 * cb + lb) * sizeof *st->search->sl_scratch);
-      st->search->sl_cmax = dp_xmalloc (DP_CORRELATOR_SIDELOBE_SLOTS * lb
-                                        * sizeof *st->search->sl_cmax);
-      st->search->sl_cn = st->search->sl_cnext = 0;
-      float _Complex *C                        = st->search->sl_scratch;
-      dp__dd_map_forward (st->search->sl_map, NULL, 0, st->search->ref, C);
+      srch->sl_map           = dp_xnn (dp__dd_map_create (&g, 1));
+      srch->sl_map_cb        = dp_xnn (dp__dd_map_create (&gc, 1));
+      srch->sl_scratch = dp_xmalloc ((6 * cb + lb) * sizeof *srch->sl_scratch);
+      srch->sl_cmax    = dp_xmalloc (DP_CORRELATOR_SIDELOBE_SLOTS * lb
+                                     * sizeof *srch->sl_cmax);
+      srch->sl_cn = srch->sl_cnext = 0;
+      float _Complex *C            = srch->sl_scratch;
+      dp__dd_map_forward (srch->sl_map, NULL, 0, srch->ref, C);
       for (size_t b = 0; b < cb; b++)
         {
           C[4 * cb + b] = conjf (C[b]); /* the row's weights */
@@ -6055,36 +6062,34 @@ dp_correlator_sidelobe_ratio (dp_correlator_state_t     *state,
      empties the cache, so a slot is keyed on the hit and the tile alone. */
   const double f_to = dp_correlator_bin_doppler_hz (st, to->row);
   double       t_to[DP_CORRELATOR_SIDELOBE_TILES_MAX];
-  const size_t n_to  = search_tiles_of (st, f_to, 1e-9 * st->search->fs, t_to);
+  const size_t n_to  = search_tiles_of (st, f_to, 1e-9 * srch->fs, t_to);
   double       worst = 0.0;
   for (size_t t = 0; t < n_to; t++)
     {
-      size_t slot = st->search->sl_cn;
-      for (size_t i = 0; i < st->search->sl_cn; i++)
-        if (st->search->sl_crow[i] == from->row
-            && st->search->sl_ccol[i] == from->col
-            && st->search->sl_ctile[i] == t_to[t])
+      size_t slot = srch->sl_cn;
+      for (size_t i = 0; i < srch->sl_cn; i++)
+        if (srch->sl_crow[i] == from->row && srch->sl_ccol[i] == from->col
+            && srch->sl_ctile[i] == t_to[t])
           {
             slot = i;
             break;
           }
-      if (slot == st->search->sl_cn)
+      if (slot == srch->sl_cn)
         {
-          if (st->search->sl_cn < DP_CORRELATOR_SIDELOBE_SLOTS)
-            slot = st->search->sl_cn++;
+          if (srch->sl_cn < DP_CORRELATOR_SIDELOBE_SLOTS)
+            slot = srch->sl_cn++;
           else
             {
-              slot = st->search->sl_cnext;
-              st->search->sl_cnext
-                  = (st->search->sl_cnext + 1) % DP_CORRELATOR_SIDELOBE_SLOTS;
+              slot = srch->sl_cnext;
+              srch->sl_cnext
+                  = (srch->sl_cnext + 1) % DP_CORRELATOR_SIDELOBE_SLOTS;
             }
-          st->search->sl_crow[slot]  = from->row;
-          st->search->sl_ccol[slot]  = from->col;
-          st->search->sl_ctile[slot] = t_to[t];
-          search_sidelobe_fill (st, from, t_to[t],
-                                st->search->sl_cmax + slot * lb);
+          srch->sl_crow[slot]  = from->row;
+          srch->sl_ccol[slot]  = from->col;
+          srch->sl_ctile[slot] = t_to[t];
+          search_sidelobe_fill (st, from, t_to[t], srch->sl_cmax + slot * lb);
         }
-      worst = fmax (worst, st->search->sl_cmax[slot * lb + to->col % lb]);
+      worst = fmax (worst, srch->sl_cmax[slot * lb + to->col % lb]);
     }
   return worst > 1.0 ? 1.0 : worst;
 }
@@ -6094,6 +6099,7 @@ dp_correlator_build_handoff (const dp_correlator_state_t *state,
                              const dp_correlator_hit_t *hit, size_t code_len,
                              dp_correlator_handoff_t *out)
 {
+  dp_correlator_search_t *const srch = state->search;
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
@@ -6105,7 +6111,7 @@ dp_correlator_build_handoff (const dp_correlator_state_t *state,
     .samples_consumed = hit->samples_consumed,
     .chip_phase       = phase,
     .doppler_hz_est   = doppler_hz,
-    .doppler_res_hz   = state->search->doppler_res_hz,
+    .doppler_res_hz   = srch->doppler_res_hz,
     .cn0_dbhz_est     = (double)hit->cn0_dbhz_est,
     .peak_mag         = hit->peak_mag,
     .noise_est        = hit->noise_est,
@@ -6118,9 +6124,10 @@ int
 dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim)
 {
+  dp_correlator_search_t *const srch = state->search;
   if (!tlm) /* detach: the probe site reverts to the single-branch cost */
     {
-      state->search->tlm.ctx = NULL;
+      srch->tlm.ctx = NULL;
       return DP_OK;
     }
   const char              *p = prefix ? prefix : "acq";
@@ -6128,11 +6135,10 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
       = { "stat", "gate",    "noise",  "peak", "row",
           "col",  "n_peaks", "n_held", "conc", "hit" };
   int32_t *ids[10]
-      = { &state->search->tlm.id_stat,    &state->search->tlm.id_gate,
-          &state->search->tlm.id_noise,   &state->search->tlm.id_peak,
-          &state->search->tlm.id_row,     &state->search->tlm.id_col,
-          &state->search->tlm.id_n_peaks, &state->search->tlm.id_n_held,
-          &state->search->tlm.id_conc,    &state->search->tlm.id_hit };
+      = { &srch->tlm.id_stat,    &srch->tlm.id_gate,   &srch->tlm.id_noise,
+          &srch->tlm.id_peak,    &srch->tlm.id_row,    &srch->tlm.id_col,
+          &srch->tlm.id_n_peaks, &srch->tlm.id_n_held, &srch->tlm.id_conc,
+          &srch->tlm.id_hit };
   char name[10][DP_TLM_NAME_MAX];
   for (size_t i = 0; i < 10; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, suffix[i]) != DP_OK)
@@ -6164,56 +6170,57 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
     }
   for (size_t i = 0; i < 10; i++)
     *ids[i] = got[i];
-  state->search->tlm.ctx = tlm; /* set last: the emit site gates on ctx */
+  srch->tlm.ctx = tlm; /* set last: the emit site gates on ctx */
   return DP_OK;
 }
 size_t
 dp_correlator_surface (dp_correlator_state_t *state, float *out, size_t n_out)
 {
-  if (!state->search->stat_surface || state->search->surface_at == 0
-      || n_out < state->search->n_surf)
+  dp_correlator_search_t *const srch = state->search;
+  if (!srch->stat_surface || srch->surface_at == 0 || n_out < srch->n_surf)
     return 0;
-  memcpy (out, state->search->stat_surface,
-          state->search->n_surf * sizeof (float));
-  return state->search->n_surf;
+  memcpy (out, srch->stat_surface, srch->n_surf * sizeof (float));
+  return srch->n_surf;
 }
 size_t
 dp_correlator_surface_doppler_hz (dp_correlator_state_t *state, double *out,
                                   size_t n_out)
 {
-  const size_t rows = state->search->n_surf / state->search->lag_bins;
+  dp_correlator_search_t *const srch = state->search;
+  const size_t                  rows = srch->n_surf / srch->lag_bins;
   if (n_out < rows)
     return 0;
   /* Row r is bin r/interp of the native axis (window_bins tiles, or the
      coherent_bins slow-time rows), folded the way every hit is. */
   for (size_t r = 0; r < rows; r++)
-    out[r] = (double)dp_fftfreq_index (r, rows) / (double)state->search->interp
-             * state->search->doppler_res_hz;
+    out[r] = (double)dp_fftfreq_index (r, rows) / (double)srch->interp
+             * srch->doppler_res_hz;
   return rows;
 }
 size_t
 dp_correlator_surface_chip_phase (dp_correlator_state_t *state, double *out,
                                   size_t n_out)
 {
-  const size_t cols = state->search->lag_bins;
+  dp_correlator_search_t *const srch = state->search;
+  const size_t                  cols = srch->lag_bins;
   if (n_out < cols)
     return 0;
   for (size_t c = 0; c < cols; c++)
-    out[c] = search_chip_phase_of_col (c, state->search->sf, cols);
+    out[c] = search_chip_phase_of_col (c, srch->sf, cols);
   return cols;
 }
 size_t
 dp_correlator_surface_complex (dp_correlator_state_t *state,
                                float _Complex *out, size_t n_out)
 {
+  dp_correlator_search_t *const srch = state->search;
   /* out_buf is the coherent dump the last dwell was decided on; a
      non-coherent dwell accumulates power elsewhere and out_buf is only
      its last look, so it is not the dwell's. */
-  if (state->search->dwells == 0 || state->search->n_noncoh > 1
-      || n_out < state->search->n_surf)
+  if (srch->dwells == 0 || srch->n_noncoh > 1 || n_out < srch->n_surf)
     return 0;
-  memcpy (out, state->search->out_buf, state->search->n_surf * sizeof *out);
-  return state->search->n_surf;
+  memcpy (out, srch->out_buf, srch->n_surf * sizeof *out);
+  return srch->n_surf;
 }
 /* A whole block sits in blk exactly when the engine gathers blocks, at
    least one epoch has been consumed since create/reset, and the epoch
@@ -6221,50 +6228,49 @@ dp_correlator_surface_complex (dp_correlator_state_t *state,
 static int
 search_block_whole (const dp_correlator_state_t *state)
 {
-  return state->search->blk_raw != NULL && state->search->samples_consumed > 0
-         && state->search->blk_epoch == 0;
+  dp_correlator_search_t *const srch = state->search;
+  return srch->blk_raw != NULL && srch->samples_consumed > 0
+         && srch->blk_epoch == 0;
 }
 size_t
 dp_correlator_block_prompt (dp_correlator_state_t *state, size_t tile,
                             size_t col, float _Complex *out, size_t n_out)
 {
-  const size_t D = state->search->coherent_bins, cb = state->search->code_bins;
-  const size_t lb = state->search->lag_bins;
-  if (!search_block_whole (state) || tile >= state->search->window_bins
-      || col >= lb || n_out < D)
+  dp_correlator_search_t *const srch = state->search;
+  const size_t                  D = srch->coherent_bins, cb = srch->code_bins;
+  const size_t                  lb = srch->lag_bins;
+  if (!search_block_whole (state) || tile >= srch->window_bins || col >= lb
+      || n_out < D)
     return 0;
-  if (!state->search->prompt_scratch)
+  if (!srch->prompt_scratch)
     {
-      state->search->prompt_scratch
-          = malloc ((2 * cb + lb) * sizeof (float _Complex));
-      if (!state->search->prompt_scratch)
+      srch->prompt_scratch = malloc ((2 * cb + lb) * sizeof (float _Complex));
+      if (!srch->prompt_scratch)
         return 0;
     }
-  float _Complex *wt = state->search->prompt_scratch, *row = wt + cb;
+  float _Complex *wt = srch->prompt_scratch, *row = wt + cb;
   /* The block's epoch spectra, from its raw epochs: the same transform
      the block's surface ran on, so this also holds after a restore. */
-  dp__dd_map_forward (state->dd_map, NULL, 0, state->search->blk_raw,
-                      state->search->map_spec);
-  const dp__dd_tile_t *t = &state->search->map_tiles[tile];
-  const long   sr        = dp_fftfreq_index (tile, state->search->window_bins);
-  const double d
-      = state->search->carrier_freq_hz > 0.0 && sr != 0
-            ? (double)sr * state->search->fs / state->search->carrier_freq_hz
-            : 0.0;
+  dp__dd_map_forward (state->dd_map, NULL, 0, srch->blk_raw, srch->map_spec);
+  const dp__dd_tile_t *t  = &srch->map_tiles[tile];
+  const long           sr = dp_fftfreq_index (tile, srch->window_bins);
+  const double         d  = srch->carrier_freq_hz > 0.0 && sr != 0
+                                ? (double)sr * srch->fs / srch->carrier_freq_hz
+                                : 0.0;
   for (size_t k = 0; k < D; k++)
     {
       /* The template at the one scale, ramped EXACTLY to epoch k about the
          block's middle (the map's own row stage, at one epoch: the
          surface reads the same ramp rounded to its fine grid). */
       for (size_t j = 0; j < cb; j++)
-        wt[j] = state->search->ref_spec[j] / (float)cb;
+        wt[j] = srch->ref_spec[j] / (float)cb;
       if (d != 0.0)
         {
           const double s = ((double)k - 0.5 * (double)(D - 1)) * d;
           search_ramp (wt, cb, -2.0 * M_PI * s / (double)cb, 1, wt);
         }
-      dp__dd_map_row1 (state->dd_map, 0, state->search->map_spec + k * cb,
-                       t->roll, wt, row);
+      dp__dd_map_row1 (state->dd_map, 0, srch->map_spec + k * cb, t->roll, wt,
+                       row);
       out[k] = row[col];
     }
   return D;
@@ -6273,10 +6279,11 @@ size_t
 dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *out,
                          size_t n_out)
 {
-  const size_t n = state->search->coherent_bins * state->search->code_bins;
+  dp_correlator_search_t *const srch = state->search;
+  const size_t                  n    = srch->coherent_bins * srch->code_bins;
   if (!search_block_whole (state) || n_out < n)
     return 0;
-  memcpy (out, state->search->blk_raw, n * sizeof *out);
+  memcpy (out, srch->blk_raw, n * sizeof *out);
   return n;
 }
 void
@@ -6284,18 +6291,20 @@ dp_correlator_set_surface_sink (dp_correlator_state_t        *state,
                                 dp_correlator_surface_sink_fn fn, void *ctx,
                                 uint32_t decim)
 {
-  state->search->sink       = fn;
-  state->search->sink_ctx   = ctx;
-  state->search->sink_decim = decim ? decim : 1u;
+  dp_correlator_search_t *const srch = state->search;
+  srch->sink                         = fn;
+  srch->sink_ctx                     = ctx;
+  srch->sink_decim                   = decim ? decim : 1u;
   if (fn)
-    state->search->keep_surface = 1;
+    srch->keep_surface = 1;
 }
 
 void
 dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep)
 {
+  dp_correlator_search_t *const srch = state->search;
   if (state->search)
-    state->search->keep_surface = keep;
+    srch->keep_surface = keep;
 }
 /* ── Serializable state — the pure-transducer face ─────────────────────────
  *
@@ -6330,10 +6339,10 @@ search_state_nc (void *blob, const dp_correlator_state_t *st)
 static uint32_t *
 search_state_twins (void *blob, const dp_correlator_state_t *st)
 {
-  return (uint32_t *)((char *)search_state_nc (blob, st)
-                      + (st->search->n_noncoh > 1
-                             ? st->search->n_surf * sizeof (float)
-                             : 0));
+  dp_correlator_search_t *const srch = st->search;
+  return (
+      uint32_t *)((char *)search_state_nc (blob, st)
+                  + (srch->n_noncoh > 1 ? srch->n_surf * sizeof (float) : 0));
 }
 
 /* The block accumulator's cells, when the engine has one. */
@@ -6343,9 +6352,8 @@ search_state_twins (void *blob, const dp_correlator_state_t *st)
 static size_t
 search_blk_raw_cells (const dp_correlator_state_t *st)
 {
-  return st->search->blk_raw
-             ? st->search->coherent_bins * st->search->code_bins
-             : 0;
+  dp_correlator_search_t *const srch = st->search;
+  return srch->blk_raw ? srch->coherent_bins * srch->code_bins : 0;
 }
 
 static float _Complex *
@@ -6358,9 +6366,10 @@ search_state_blk_raw (void *blob, const dp_correlator_state_t *st)
 size_t
 dp__search_state_bytes (const dp_correlator_state_t *st)
 {
+  dp_correlator_search_t *const srch = st->search;
   size_t b = SEARCH_BODY_OFF + dp_f32_framer_state_bytes (&st->framer);
-  if (st->search->n_noncoh > 1)
-    b += st->search->n_surf * sizeof (float);
+  if (srch->n_noncoh > 1)
+    b += srch->n_surf * sizeof (float);
   b += 2 * st->max_peaks * sizeof (uint32_t);
   b += search_blk_raw_cells (st) * sizeof (float _Complex);
   return b;
@@ -6369,7 +6378,8 @@ dp__search_state_bytes (const dp_correlator_state_t *st)
 void
 dp__search_get_state (const dp_correlator_state_t *st, void *blob)
 {
-  const size_t n = st->search->n;
+  dp_correlator_search_t *const srch = st->search;
+  const size_t                  n    = srch->n;
 
   dp_writer_t w = dp_writer_init (blob, dp__search_state_bytes (st));
   dp_w_hdr (&w, CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION,
@@ -6380,24 +6390,24 @@ dp__search_get_state (const dp_correlator_state_t *st, void *blob)
      deterministic, and a designated initialiser leaves it unspecified. */
   search_extra_t ex;
   memset (&ex, 0, sizeof ex);
-  ex.has_nc           = (uint16_t)(st->search->n_noncoh > 1);
+  ex.has_nc           = (uint16_t)(srch->n_noncoh > 1);
   ex._pad             = 0;
-  ex.n_noncoh         = (uint32_t)st->search->n_noncoh;
+  ex.n_noncoh         = (uint32_t)srch->n_noncoh;
   ex.n                = (uint64_t)n;
-  ex.samples_consumed = st->search->samples_consumed;
-  ex.nc_count         = (uint32_t)st->search->nc_count;
+  ex.samples_consumed = srch->samples_consumed;
+  ex.nc_count         = (uint32_t)srch->nc_count;
   ex.max_peaks        = (uint32_t)st->max_peaks;
   ex.n_twins          = (uint32_t)st->n_twins;
-  ex.blk_epoch        = (uint32_t)st->search->blk_epoch;
-  ex.rate_hyps        = (uint32_t)st->search->rate_hyps;
-  ex.carrier_freq_hz  = st->search->carrier_freq_hz;
+  ex.blk_epoch        = (uint32_t)srch->blk_epoch;
+  ex.rate_hyps        = (uint32_t)srch->rate_hyps;
+  ex.carrier_freq_hz  = srch->carrier_freq_hz;
   dp_w_bytes (&w, &ex, sizeof ex);
 
   /* The carry: the framer's own snapshot, zero-padded to a fixed size. */
   dp_f32_framer_get_state (&st->framer, search_state_carry (blob));
   if (ex.has_nc)
-    memcpy (search_state_nc (blob, st), st->search->nc_surface,
-            st->search->n_surf * sizeof (float));
+    memcpy (search_state_nc (blob, st), srch->nc_surface,
+            srch->n_surf * sizeof (float));
   /* The twin pairs, then zeros to max_peaks: each region has a writer of
      its own, so its pad is dp_w_zeros like every other blob's. */
   dp_writer_t tw = dp_writer_init (search_state_twins (blob, st),
@@ -6416,16 +6426,16 @@ dp__search_get_state (const dp_correlator_state_t *st, void *blob)
      zeros here: a blob is a function of the stream, not of the heap (#2052,
      the block's share of #1471). Nothing reads them before they are rewritten,
      so a restored engine's zeros change no output. */
-  const size_t D = st->search->coherent_bins, nx = st->search->code_bins;
-  const size_t live = st->search->blk_epoch          ? st->search->blk_epoch
-                      : st->search->samples_consumed ? D
-                                                     : 0;
-  if (st->search->blk_raw)
+  const size_t D = srch->coherent_bins, nx = srch->code_bins;
+  const size_t live = srch->blk_epoch          ? srch->blk_epoch
+                      : srch->samples_consumed ? D
+                                               : 0;
+  if (srch->blk_raw)
     {
       dp_writer_t rw = dp_writer_init (search_state_blk_raw (blob, st),
                                        search_blk_raw_cells (st)
                                            * sizeof (float _Complex));
-      dp_w_cf32 (&rw, st->search->blk_raw, live * nx);
+      dp_w_cf32 (&rw, srch->blk_raw, live * nx);
       dp_w_zeros (&rw, (D - live) * nx * sizeof (float _Complex));
     }
 }
@@ -6437,7 +6447,8 @@ static int
 search_state_check (const dp_correlator_state_t *st, const void *blob,
                     search_extra_t *out)
 {
-  int rc
+  dp_correlator_search_t *const srch = st->search;
+  int                           rc
       = dp_state_validate (blob, dp__search_state_bytes (st),
                            CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION);
   if (rc != DP_OK)
@@ -6450,12 +6461,11 @@ search_state_check (const dp_correlator_state_t *st, const void *blob,
   search_extra_t ex;
   memcpy (&ex, (const char *)blob + sizeof (dp_state_hdr_t) + sizeof flavor,
           sizeof ex);
-  if (ex.n != (uint64_t)st->search->n
-      || ex.n_noncoh != (uint32_t)st->search->n_noncoh
+  if (ex.n != (uint64_t)srch->n || ex.n_noncoh != (uint32_t)srch->n_noncoh
       || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks
-      || ex.blk_epoch >= (uint32_t)st->search->coherent_bins
-      || ex.rate_hyps != (uint32_t)st->search->rate_hyps
-      || !dp_correlator_carrier_freq_ok (ex.carrier_freq_hz, st->search->fs))
+      || ex.blk_epoch >= (uint32_t)srch->coherent_bins
+      || ex.rate_hyps != (uint32_t)srch->rate_hyps
+      || !dp_correlator_carrier_freq_ok (ex.carrier_freq_hz, srch->fs))
     return DP_ERR_INVALID;
 
   /* The carry and the engine's position must name ONE stream point: the
@@ -6468,22 +6478,20 @@ search_state_check (const dp_correlator_state_t *st, const void *blob,
   if (dp_f32_framer_state_frames (&st->framer,
                                   search_state_carry ((void *)blob), &frames)
           != DP_OK
-      || frames > UINT64_MAX / st->search->frame_n
-      || frames * st->search->frame_n != ex.samples_consumed)
+      || frames > UINT64_MAX / srch->frame_n
+      || frames * srch->frame_n != ex.samples_consumed)
     return DP_ERR_INVALID;
 
   /* The dwell's place follows from the same count, so it is held to it
      too: a tiled engine dumps once per block of D frames and every other
      once per frame, the block's epoch is the frames into the block, and
      the non-coherent looks are the dumps into the dwell. */
-  const uint64_t D
-      = st->search->window_bins > 1 && st->search->coherent_bins > 1
-            ? (uint64_t)st->search->coherent_bins
-            : 1;
+  const uint64_t D     = srch->window_bins > 1 && srch->coherent_bins > 1
+                             ? (uint64_t)srch->coherent_bins
+                             : 1;
   const uint64_t dumps = frames / D;
   if (ex.blk_epoch != frames % D
-      || ex.nc_count
-             != (st->search->n_noncoh > 1 ? dumps % st->search->n_noncoh : 0))
+      || ex.nc_count != (srch->n_noncoh > 1 ? dumps % srch->n_noncoh : 0))
     return DP_ERR_INVALID;
   *out = ex;
   return DP_OK;
@@ -6515,8 +6523,9 @@ dp__search_state_check (const dp_correlator_state_t *st, const void *blob)
 int
 dp__search_set_state (dp_correlator_state_t *st, const void *blob)
 {
-  search_extra_t ex;
-  int            rc = search_state_check (st, blob, &ex);
+  dp_correlator_search_t *const srch = st->search;
+  search_extra_t                ex;
+  int                           rc = search_state_check (st, blob, &ex);
   if (rc != DP_OK)
     return rc;
 
@@ -6525,10 +6534,9 @@ dp__search_set_state (dp_correlator_state_t *st, const void *blob)
      blob taken at another carrier gets the fine grid and the tables it needs.
      It is the last thing that can fail, and a failed regrid commits
      nothing, so the engine is untouched either way. */
-  if (ex.carrier_freq_hz != st->search->carrier_freq_hz
-      && dp_correlator_regrid (st, st->search->coherent_bins,
-                               st->search->n_noncoh, st->search->window_bins,
-                               NULL, ex.carrier_freq_hz)
+  if (ex.carrier_freq_hz != srch->carrier_freq_hz
+      && dp_correlator_regrid (st, srch->coherent_bins, srch->n_noncoh,
+                               srch->window_bins, NULL, ex.carrier_freq_hz)
              != 0)
     return DP_ERR_MEMORY;
   /* Every check has passed; from here the blob is applied. The framer
@@ -6537,18 +6545,17 @@ dp__search_set_state (dp_correlator_state_t *st, const void *blob)
                                  search_state_carry ((void *)blob));
 
   /* Then the rest of the live state. */
-  st->search->samples_consumed = ex.samples_consumed;
-  st->search->nc_count         = ex.nc_count;
-  st->consumed                 = 0;
+  srch->samples_consumed = ex.samples_consumed;
+  srch->nc_count         = ex.nc_count;
+  st->consumed           = 0;
 
-  if (st->search->nc_surface)
+  if (srch->nc_surface)
     {
       if (ex.has_nc)
-        memcpy (st->search->nc_surface, search_state_nc ((void *)blob, st),
-                st->search->n_surf * sizeof (float));
+        memcpy (srch->nc_surface, search_state_nc ((void *)blob, st),
+                srch->n_surf * sizeof (float));
       else
-        memset (st->search->nc_surface, 0,
-                st->search->n_surf * sizeof (float));
+        memset (srch->nc_surface, 0, srch->n_surf * sizeof (float));
     }
   const uint32_t *tw = search_state_twins ((void *)blob, st);
   st->n_twins        = ex.n_twins;
@@ -6557,15 +6564,15 @@ dp__search_set_state (dp_correlator_state_t *st, const void *blob)
       st->twin_row[k] = tw[2 * k];
       st->twin_col[k] = tw[2 * k + 1];
     }
-  st->search->blk_epoch = ex.blk_epoch;
-  if (st->search->blk_raw)
-    memcpy (st->search->blk_raw, search_state_blk_raw ((void *)blob, st),
+  srch->blk_epoch = ex.blk_epoch;
+  if (srch->blk_raw)
+    memcpy (srch->blk_raw, search_state_blk_raw ((void *)blob, st),
             search_blk_raw_cells (st) * sizeof (float _Complex));
-  st->n_peaks            = 0;
-  st->search->n_held     = 0;
-  st->search->peak_conc  = 0.0f;
-  st->search->surface_at = 0; /* nothing decided since the restore */
-  st->search->dwells     = 0;
+  st->n_peaks      = 0;
+  srch->n_held     = 0;
+  srch->peak_conc  = 0.0f;
+  srch->surface_at = 0; /* nothing decided since the restore */
+  srch->dwells     = 0;
   return DP_OK;
 }
 

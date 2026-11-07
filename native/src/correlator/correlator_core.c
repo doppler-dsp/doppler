@@ -19,6 +19,23 @@ corr2d_is_detector (const dp_correlator_state_t *s)
          || s->flavor == DP_CORRELATOR_DETECTOR_2D;
 }
 
+/* The search flavors (#2752 3.4b): the detection layers with the search
+   policy on top, in correlator_search.c. The functions every flavor shares
+   dispatch to it; the map's refuse them, as they refuse a detector. */
+static inline int
+corr2d_is_search (const dp_correlator_state_t *s)
+{
+  return s->flavor == DP_CORRELATOR_SEARCH_CONTINUOUS
+         || s->flavor == DP_CORRELATOR_SEARCH_BURST;
+}
+
+/* A map flavor: the ones execute, its batch family and the bank serve. */
+static inline int
+corr2d_is_map (const dp_correlator_state_t *s)
+{
+  return !corr2d_is_detector (s) && !corr2d_is_search (s);
+}
+
 static size_t corr2d_execute (dp_correlator_state_t *state,
                               const float _Complex *in, size_t n_in,
                               float _Complex *out, size_t max_out);
@@ -399,9 +416,14 @@ corr2d_detection_step (void *obj, const float _Complex *frame, void *result,
   corr2d_detection_stat (s);
   if (s->threshold == 0.0f || s->test_stat > s->threshold)
     {
+      /* The search flavors' fields (chip_phase on) are 0 from a detector
+         (docs/design/correlator.md section 4: the one hit record). */
       ((dp_correlator_hit_t *)result)[slot]
-          = (dp_correlator_hit_t){ s->peak_row, s->peak_col, s->peak_mag,
-                                   s->noise_est, s->test_stat };
+          = (dp_correlator_hit_t){ .row       = s->peak_row,
+                                   .col       = s->peak_col,
+                                   .peak_mag  = s->peak_mag,
+                                   .noise_est = s->noise_est,
+                                   .test_stat = s->test_stat };
       return 1;
     }
   return 0;
@@ -412,6 +434,8 @@ dp_correlator_push (dp_correlator_state_t *state, const float _Complex *in,
                     size_t n_in, dp_correlator_hit_t *result,
                     size_t max_results)
 {
+  if (corr2d_is_search (state))
+    return dp__search_push (state, in, n_in, result, max_results);
   if (!corr2d_is_detector (state))
     return SIZE_MAX;
   /* The drain, its contract and why a batch is exact: correlator_private.h. */
@@ -439,6 +463,11 @@ dp_correlator_destroy (dp_correlator_state_t *state)
 {
   if (!state)
     return;
+  if (corr2d_is_search (state))
+    {
+      dp__search_destroy (state);
+      return;
+    }
   if (state->fwd)
     dp_fft2d_destroy (state->fwd);
   if (state->inv)
@@ -484,6 +513,11 @@ dp_correlator_destroy (dp_correlator_state_t *state)
 void
 dp_correlator_reset (dp_correlator_state_t *state)
 {
+  if (corr2d_is_search (state))
+    {
+      dp__search_reset (state);
+      return;
+    }
   memset (state->accum, 0, state->n * sizeof (*state->accum));
   state->count = 0;
   if (!corr2d_is_detector (state))
@@ -522,6 +556,8 @@ dp_correlator_reset (dp_correlator_state_t *state)
 size_t
 dp_correlator_state_bytes (const dp_correlator_state_t *s)
 {
+  if (corr2d_is_search (s))
+    return dp__search_state_bytes (s);
   size_t b = sizeof (dp_state_hdr_t) + 7 * sizeof (uint64_t)
              + s->n * sizeof (float _Complex);
   /* A detector flavor: noise_lo, noise_hi, noise_mode, the threshold, the
@@ -535,6 +571,11 @@ dp_correlator_state_bytes (const dp_correlator_state_t *s)
 void
 dp_correlator_get_state (const dp_correlator_state_t *s, void *blob)
 {
+  if (corr2d_is_search (s))
+    {
+      dp__search_get_state (s, blob);
+      return;
+    }
   DP_GET_OPEN (CORRELATOR_STATE_MAGIC, CORRELATOR_STATE_VERSION,
                dp_correlator_state_bytes (s));
   dp_w_u64 (&_w, (uint64_t)s->flavor);
@@ -625,6 +666,8 @@ corr2d_state_read (const dp_correlator_state_t *s, const void *blob,
 int
 dp_correlator_state_check (const dp_correlator_state_t *s, const void *blob)
 {
+  if (corr2d_is_search (s))
+    return dp__search_state_check (s, blob);
   corr2d_blob_t b;
   return corr2d_state_read (s, blob, &b);
 }
@@ -632,6 +675,8 @@ dp_correlator_state_check (const dp_correlator_state_t *s, const void *blob)
 int
 dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
 {
+  if (corr2d_is_search (s))
+    return dp__search_set_state (s, blob);
   /* Read and checked whole first, so a refused blob changes nothing. */
   corr2d_blob_t b;
   if (corr2d_state_read (s, blob, &b) != DP_OK)
@@ -662,7 +707,7 @@ dp_correlator_set_ref (dp_correlator_state_t *state, const float _Complex *ref)
   /* A detector resets even when the reference is then refused, as
      CorrDetector2D always did: its carry and last dump belong to the old
      reference either way. */
-  if (corr2d_is_detector (state))
+  if (!corr2d_is_map (state))
     dp_correlator_reset (state);
   if (state->fast_path)
     {
@@ -1059,7 +1104,7 @@ size_t
 dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
                        size_t n_in, float _Complex *out, size_t max_out)
 {
-  if (corr2d_is_detector (state))
+  if (!corr2d_is_map (state))
     return SIZE_MAX;
   return corr2d_execute (state, in, n_in, out, max_out);
 }
@@ -1129,7 +1174,7 @@ dp_correlator_create_delay_doppler (const float _Complex *code,
 static size_t
 corr2d_frames (const dp_correlator_state_t *s, size_t n_in)
 {
-  if (corr2d_is_detector (s))
+  if (!corr2d_is_map (s))
     return 0;
   return (n_in % s->n) ? 0 : n_in / s->n;
 }
@@ -1929,7 +1974,7 @@ dp_correlator_bank_fold (const dp_correlator_state_t *state,
      extra flavor test there changed how the whole bank compiles, 12%
      slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
      box). */
-  if (corr2d_is_detector (state))
+  if (!corr2d_is_map (state))
     return SIZE_MAX;
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b))
@@ -1958,7 +2003,7 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
      extra flavor test there changed how the whole bank compiles, 12%
      slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
      box). */
-  if (corr2d_is_detector (state))
+  if (!corr2d_is_map (state))
     return SIZE_MAX;
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
@@ -2060,7 +2105,7 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
      extra flavor test there changed how the whole bank compiles, 12%
      slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
      box). */
-  if (corr2d_is_detector (state))
+  if (!corr2d_is_map (state))
     return SIZE_MAX;
   corr2d_bank_t b;
   if (L_d == 0 || L_r < L_d || L_r % L_d != 0

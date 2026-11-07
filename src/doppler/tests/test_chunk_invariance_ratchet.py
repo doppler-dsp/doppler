@@ -155,6 +155,17 @@ def test_a_stateful_object_that_does_not_stream_owes_nothing(
     assert mod.streaming() == set()
 
 
+def test_a_private_header_declares_no_object(seed: Seed) -> None:
+    # An object's internals (the correlator's search halves, #2752 3.4b)
+    # are not a caller's triplet: the same declaration in a public header
+    # makes an object, and in a `*_private.h` beside it, none.
+    mod = seed(header="int dp_foo_set_state (void *s, const void *b);\n")
+    (mod.INC / "doppler/foo/foo_private.h").write_text(
+        "int dp__bar_set_state (void *s, const void *b);\n"
+    )
+    assert mod.serializable() == {"dp_foo"}
+
+
 def test_naming_the_object_without_the_harness_does_not_count(
     seed: Seed,
 ) -> None:

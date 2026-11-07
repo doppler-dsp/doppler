@@ -1,0 +1,234 @@
+
+
+# Struct dp\_correlator\_shape\_t
+
+
+
+[**ClassList**](annotated.md) **>** [**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md)
+
+
+
+_What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._ [More...](#detailed-description)
+
+* `#include <correlator_core.h>`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Public Attributes
+
+| Type | Name |
+| ---: | :--- |
+|  double | [**delay\_loss**](#variable-delay_loss)  <br> |
+|  double | [**delay\_loss\_mean**](#variable-delay_loss_mean)  <br> |
+|  double | [**dsl**](#variable-dsl)  <br> |
+|  double | [**off\_peak**](#variable-off_peak)  <br> |
+|  double | [**off\_peak\_amp**](#variable-off_peak_amp)  <br> |
+|  double | [**psl**](#variable-psl)  <br> |
+|  size\_t | [**zone**](#variable-zone)  <br> |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Detailed Description
+
+
+The engine's framing, slow-time transform and wideband tiling hold for any periodic reference; only two things read the waveform's correlation shape, and they read it from here rather than from the chip count:
+
+
+
+* the width of the correlation mainlobe, which sets the peak list's exclusion zone and the twin rule's reach ([**zone**](structdp__correlator__shape__t.md#variable-zone));
+* the amplitude a peak keeps when the true delay falls between two samples, which the Pd model averages over a uniform half-sample prior ([**delay\_loss**](structdp__correlator__shape__t.md#variable-delay_loss), [**delay\_loss\_mean**](structdp__correlator__shape__t.md#variable-delay_loss_mean)).
+
+
+
+
+The constructor that owns the waveform fills it once. A PN code of `spc` samples per chip has a triangular autocorrelation one chip wide, so its descriptor is analytic: `zone = spc`, and a peak `delta` samples off the grid keeps `1 - delta/spc`. 
+
+
+    
+## Public Attributes Documentation
+
+
+
+
+### variable delay\_loss 
+
+```C++
+double dp_correlator_shape_t::delay_loss[DP_CORRELATOR_DELAY_LOSS_NODES];
+```
+
+
+
+Amplitude kept at the midpoint nodes (k + 1/2)/nodes of that half-sample range, k = 0 … nodes-1. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable delay\_loss\_mean 
+
+```C++
+double dp_correlator_shape_t::delay_loss_mean;
+```
+
+
+
+Mean amplitude kept over a uniform delay straddle of 0 to 1/2 sample. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable dsl 
+
+```C++
+double dp_correlator_shape_t::dsl;
+```
+
+
+
+Doppler-offset sidelobe: the largest \|chi(m, nu)\| over the same lags as psl, relative to the emitter's own peak, over every residual and tile offset the grid can put between an emitter and a tile (design acq-surface.md §8). psl is its zero-offset case, so dsl &gt;= psl. A strong emitter lists peaks this far below it, more than a mainlobe from its own lag. [**dp\_correlator\_dsl\_db()**](correlator__core_8h.md#function-dp_correlator_dsl_db) is the read-back, and computes it on the first call: read it through that, never directly. Defined on the construction grid; a grid pinned later keeps it. 
+
+
+        
+
+<hr>
+
+
+
+### variable off\_peak 
+
+```C++
+double dp_correlator_shape_t::off_peak;
+```
+
+
+
+Correlation energy OFF the peak, relative to it: sum over m != 0 of \|R(m)\|^2 / R(0)^2 for the periodic autocorrelation R. It lands in the cells the CFAR reference averages, so the Pd model charges it (doppler#1501): ~0 for a perfect sequence. Filled by the constructor from the replica, whatever built the rest. 
+
+
+        
+
+<hr>
+
+
+
+### variable off\_peak\_amp 
+
+```C++
+double dp_correlator_shape_t::off_peak_amp;
+```
+
+
+
+The same lags' AMPLITUDE: sum over m != 0 of \|R(m)\| / R(0). With off\_peak it says how concentrated that energy is, which sets how much mean it adds to the reference. 
+
+
+        
+
+<hr>
+
+
+
+### variable psl 
+
+```C++
+double dp_correlator_shape_t::psl;
+```
+
+
+
+Peak sidelobe: the largest \|R(m)\| / R(0) OUTSIDE the mainlobe, zone &lt;= m &lt;= n - zone  the lags the peak list's exclusion does not cover. 0 for a perfect sequence (below 1e-6, rounding). [**dp\_correlator\_psl\_db()**](correlator__core_8h.md#function-dp_correlator_psl_db) is the read-back (doppler#1470). 
+
+
+        
+
+<hr>
+
+
+
+### variable zone 
+
+```C++
+size_t dp_correlator_shape_t::zone;
+```
+
+
+
+Correlation mainlobe half-width, samples: peaks closer than this in delay are one emitter. 
+ 
+
+
+        
+
+<hr>
+
+------------------------------
+The documentation for this class was generated from the following file `native/inc/doppler/correlator/correlator_core.h`
+

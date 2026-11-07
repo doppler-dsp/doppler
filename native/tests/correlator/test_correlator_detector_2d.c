@@ -1284,7 +1284,11 @@ main (void)
         dp_correlator_state_t *det = dp_correlator_create_detector_2d (
             ref, NY, NX, 1, 0, N - 1, (det_noise_mode_t)m, thr, 1);
         DP_REQUIRE (det != NULL);
-        dp_correlator_hit_t r[2]  = { { 9, 9, 9.0f, 9.0f, 9.0f } };
+        dp_correlator_hit_t r[2]  = { { .row       = 9,
+                                        .col       = 9,
+                                        .peak_mag  = 9.0f,
+                                        .noise_est = 9.0f,
+                                        .test_stat = 9.0f } };
         const size_t        nhits = dp_correlator_push (det, x, N, r, 2);
         DP_CHECK (nhits == (t ? 0u : 1u));
         DP_CHECK (det->peak_row == 0 && det->peak_col == 0);

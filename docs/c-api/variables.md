@@ -36,6 +36,8 @@
 * **dp\_CCSDS\_TM\_RS** ([**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md))
 * **det\_noise\_mode\_t** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_flavor\_t** ([**correlator\_core.h**](correlator__core_8h.md))
+* **dp\_correlator\_search\_t** ([**correlator\_core.h**](correlator__core_8h.md))
+* **dp\_correlator\_surface\_sink\_fn** ([**correlator\_core.h**](correlator__core_8h.md))
 * **det\_frame\_step\_fn** ([**correlator\_private.h**](correlator__private_8h.md))
 * **dp\_bitorder\_t** ([**cvt\_core.h**](cvt__core_8h.md))
 * **dp\_ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))

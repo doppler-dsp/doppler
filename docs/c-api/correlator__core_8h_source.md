@@ -18,6 +18,10 @@
 #include "doppler/f32_buffer/f32_buffer_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/fft2d/fft2d_core.h"
+#include "doppler/cvt/cvt_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/jm_perf.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +33,9 @@ typedef enum
   DP_CORRELATOR_2D            = 2, 
   DP_CORRELATOR_DELAY_DOPPLER = 3, 
   DP_CORRELATOR_DETECTOR_1D   = 4, 
-  DP_CORRELATOR_DETECTOR_2D   = 5  
+  DP_CORRELATOR_DETECTOR_2D   = 5, 
+  DP_CORRELATOR_SEARCH_CONTINUOUS = 6, 
+  DP_CORRELATOR_SEARCH_BURST  = 7  
 } dp_correlator_flavor_t;
 
 typedef enum
@@ -49,12 +55,153 @@ typedef struct
 
 typedef struct
 {
-  size_t row;       
-  size_t col;       
+  size_t row; 
+  size_t col; 
   float  peak_mag;  
   float  noise_est; 
   float  test_stat; 
+  float cn0_dbhz_est;        
+  uint64_t samples_consumed; 
+  double chip_phase; 
+  double doppler_rate_hz_s; 
+  float test_stat_peak; 
+  uint32_t _pad; 
 } dp_correlator_hit_t;
+
+
+typedef struct
+{
+  dp_tlm_t *ctx;      
+  int32_t id_stat;    
+  int32_t id_gate;    
+  int32_t id_noise;   
+  int32_t id_peak;    
+  int32_t id_row;     
+  int32_t id_col;     
+  int32_t id_n_peaks; 
+  int32_t id_n_held;  
+  int32_t id_conc;    
+  int32_t id_hit;     
+} dp_correlator_tlm_t;
+
+typedef void (*dp_correlator_surface_sink_fn) (void *ctx, const float *surface,
+                                     size_t rows, size_t cols,
+                                     uint64_t samples_consumed);
+
+typedef struct
+{
+  float  ref;  
+  size_t best; 
+} dp_correlator_part_t;
+
+#define DP_CORRELATOR_DELAY_LOSS_NODES 4
+
+typedef struct
+{
+  size_t zone; 
+  double delay_loss_mean; 
+  double delay_loss[DP_CORRELATOR_DELAY_LOSS_NODES]; 
+  double off_peak; 
+  double off_peak_amp; 
+  double psl; 
+  double dsl; 
+} dp_correlator_shape_t;
+
+#define DP_CORRELATOR_SIDELOBE_DOPPLER_PTS 9
+#define DP_CORRELATOR_SIDELOBE_LAG_PTS 5
+#define DP_CORRELATOR_SIDELOBE_SLOTS 32
+
+typedef struct dp_correlator_search
+{
+  float _Complex *ref; 
+  float _Complex *out_buf; 
+  float *nc_surface;    
+  float _Complex *ref_spec; 
+  float _Complex *map_spec; 
+  float _Complex *map_work; 
+  struct dp__dd_tile *map_tiles; 
+  size_t  *map_rows; 
+  int32_t *map_off;  
+  float _Complex *map_wt; 
+  size_t map_f;      
+  size_t coherent_bins; 
+  size_t window_bins; 
+  size_t code_bins; 
+  size_t lag_bins;  
+  size_t n; 
+  size_t n_surf; 
+  size_t interp; 
+  size_t frame_n; 
+  size_t sf;      
+  dp_correlator_shape_t shape; 
+  size_t reps;    
+  size_t searched_bins; 
+  size_t n_noncoh;   
+  double chip_rate; 
+  double fs;        
+  double cn0_dbhz;  
+  double doppler_span_hz; 
+  double doppler_res_hz; 
+  double pfa;         
+  double doppler_uncertainty; 
+  size_t dsl_window_bins; 
+  double symbol_rate; 
+  double epochs_per_symbol;  
+  size_t code_only_epochs; 
+  double doppler_rate; 
+  size_t rate_hyps;    
+  float _Complex *rate_chirp; 
+  size_t rate_chirp_d; 
+  double carrier_freq_hz; 
+  float _Complex *blk_raw; 
+  int              threads;   
+  int threads_req; 
+  int epoch_fan; 
+  dp_correlator_part_t *parts;          
+  float  eta;       
+  float  eta_nc;    
+  double pfa_cell;  
+  double pd;        
+  double pd_predicted;  
+  double pd_burst; 
+  double straddle_loss; 
+  uint8_t underpowered; 
+  uint8_t burst; 
+  /* Observability (docs/design/async-dsss-receiver.md §2.4):
+     attach-on-demand, nothing in blobs. */
+  dp_correlator_tlm_t tlm;       
+  int       keep_surface; 
+  float *stat_surface; 
+  dp_correlator_surface_sink_fn sink; 
+  void    *sink_ctx;   
+  uint32_t sink_decim; 
+  /* Everything above is written by create, regrid and the setters;
+   * the threaded tile stages read it. The fields below are what a
+   * push writes, so they sit behind a full cache line, as the
+   * state's hot fields do (dp_correlator_state_t's _hot_pad). */
+  unsigned char _hot_pad[64]; 
+  float _Complex *prompt_scratch; 
+  size_t nc_count; 
+  int dsl_ready; 
+  float _Complex *rate_best; 
+  size_t rate_best_cap;      
+  size_t rate_best_h;  
+  size_t blk_epoch;    
+  struct dp__dd_map *sl_map; 
+  struct dp__dd_map *sl_map_cb; 
+  float _Complex *sl_scratch; 
+  double *sl_cmax; 
+  size_t sl_crow[DP_CORRELATOR_SIDELOBE_SLOTS]; 
+  size_t sl_ccol[DP_CORRELATOR_SIDELOBE_SLOTS]; 
+  double sl_ctile[DP_CORRELATOR_SIDELOBE_SLOTS]; 
+  size_t sl_cn;    
+  size_t sl_cnext; 
+  uint64_t samples_consumed; 
+  uint64_t surface_at; 
+  uint64_t dwells;     
+  size_t   n_held;     
+  float    peak_conc;  
+} dp_correlator_search_t;
 
 typedef struct {
   dp_correlator_flavor_t flavor; 
@@ -140,6 +287,14 @@ typedef struct {
   size_t          noise_lo;      
   size_t          noise_hi;      
   det_noise_mode_t noise_mode;   
+  /* The search flavors' (#2752 3.4b): NULL / 0 in every other flavor. */
+  size_t      max_peaks; 
+  det_peak_t *peaks;     
+  uint8_t    *band_mask; 
+  uint8_t    *peak_mask; 
+  uint32_t   *twin_row;  
+  uint32_t   *twin_col;  
+  dp_correlator_search_t *search; 
   /* Everything above is written by create (and set_ref) only, and the
    * threaded map's workers read it on every call. `count` is the one field
    * execute() writes every frame, so it lives behind a full cache line of
@@ -162,6 +317,8 @@ typedef struct {
   float  test_stat;          
   int    _last_corr_valid;   
   size_t consumed;           
+  size_t n_peaks;            
+  size_t n_twins;            
 } dp_correlator_state_t;
 
 dp_correlator_state_t *dp_correlator_create_1d (const float _Complex *ref,
@@ -365,7 +522,16 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
  * 0.  The retired detector magics 'DET1' and 'DET2' are not reused.
  * The FFT plans and the reference spectrum are config, rebuilt by create.
  * The retired magics 'CORR', 'CR2D' and 'DDMP' are not reused, so a blob
- * from a release before the one correlator fails dp_state_validate. */
+ * from a release before the one correlator fails dp_state_validate.
+ * A search flavor's blob is the header, its flavor (u64; a reject key),
+ * then the search payload: a fixed block of the counts that are reject
+ * keys (the grid size, the non-coherent looks, the peak-list capacity,
+ * the rate hypotheses, the carrier) and the stream position, the framer's
+ * carry as its own child blob, the non-coherent power accumulator when
+ * n_noncoh > 1, the last dwell's picks (the twins), and a tiled block's
+ * raw epochs.  The carry, the position, the block's epoch and the look
+ * count must name one stream point, or the blob is refused.  acq's
+ * retired magic 'ACQR' is not reused. */
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
 #define CORRELATOR_STATE_VERSION 1u
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
@@ -373,6 +539,195 @@ void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
 int dp_correlator_state_check (const dp_correlator_state_t *state,
                                const void *blob);
+
+/* ── Search flavors ──────────────────────────────────────────────────────────
+ * #2752 3.4b: the acquisition engine, as the correlator's sixth and
+ * seventh flavors.
+ *
+ * The functions every flavor shares, on a search flavor (kept here rather
+ * than in their own doc blocks, which every Python class of the
+ * correlator renders):
+ *
+ * - dp_correlator_push() frames the search's own grid.  For every complete
+ *   frame it applies the slow-time Doppler FFT, correlates against the
+ *   reference, dumps the coherent surface (or, when n_noncoh > 1,
+ *   accumulates |.|^2 over n_noncoh looks first), lists up to max_peaks
+ *   picks above the auto-configured gate and writes one hit each, with
+ *   every field filled: the Doppler bin and code phase as row and col, the
+ *   statistic, the C/N0 estimate, the stream position, the hand-off chip
+ *   phase and the rate hypothesis.  A frame that ends a dwell may write up
+ *   to max_peaks hits, so it is taken only while at least
+ *   min(max_peaks, max_results) slots are left (at least one); a frame
+ *   that ends none needs no room while any slot is left.  A max_results
+ *   under max_peaks still takes the dwell and keeps its strongest
+ *   max_results picks: that loses results, never input.
+ * - dp_correlator_consumed() is not a hit's samples_consumed, which is
+ *   CUMULATIVE and counts only framed samples (the stream position a hit's
+ *   epoch ended at): resuming from that would re-feed the carry.  It reads
+ *   0 after a regrid too.
+ * - dp_correlator_reset() drains the ring and clears the non-coherent
+ *   power accumulator, the block in progress and the dwell bookkeeping, so
+ *   the next push begins a fresh search from an empty ring; the grid, the
+ *   thresholds and the reference are untouched.
+ * - dp_correlator_set_threshold() refuses it: the gate is sized from Pfa
+ *   and Pd at create, with the raw and non-coherent thresholds it implies.
+ * - The state triplet: the blob is described with the others, under
+ *   "Serializable state".
+ */
+
+
+#define DP_CORRELATOR_MAX_PEAKS 64u
+
+
+#define DP_CORRELATOR_RATE_HYPS_MAX 64u
+
+#define DP_CORRELATOR_N_NONCOH_SAFETY_CEILING 256u
+
+#define DP_CORRELATOR_CN0_NONE NAN
+
+dp_correlator_state_t *dp_correlator_create_burst (const float _Complex *tmpl, size_t n,
+                               size_t reps, double fs, double cn0_dbhz,
+                               double doppler_uncertainty, double pfa,
+                               double pd, int noise_mode,
+                               double doppler_rate,
+                               size_t rate_hypotheses);
+
+size_t dp_correlator_period_samples (size_t code_len);
+
+size_t dp_correlator_search_period (size_t code_len, double sample_rate,
+                             double chip_rate);
+
+dp_correlator_state_t *dp_correlator_create_continuous (const uint8_t *code, size_t code_len,
+                                    double sample_rate, double chip_rate,
+                                    double symbol_rate, double cn0_dbhz,
+                                    double doppler_uncertainty, double pfa,
+                                    double pd, int noise_mode,
+                                    size_t code_only_epochs,
+                                    double doppler_rate);
+
+double dp_correlator_rate_hypothesis (double span, size_t n, size_t h);
+
+double _Complex dp_correlator_rate_phasor (double rate, double t);
+
+size_t dp_correlator_rate_hypotheses_for (double f_epoch, double span,
+                                   size_t depth);
+
+
+
+int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t doppler_bins,
+                              size_t n_noncoh);
+
+int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n);
+
+int dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state, double carrier_freq_hz);
+
+int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz);
+
+int dp_correlator_set_threads (dp_correlator_state_t *state, int n);
+int dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
+                       const char *prefix, uint32_t decim);
+
+size_t dp_correlator_surface (dp_correlator_state_t *state, float *out, size_t n_out);
+
+size_t dp_correlator_surface_doppler_hz (dp_correlator_state_t *state, double *out,
+                               size_t n_out);
+
+size_t dp_correlator_surface_chip_phase (dp_correlator_state_t *state, double *out,
+                               size_t n_out);
+
+size_t dp_correlator_surface_complex (dp_correlator_state_t *state, float _Complex *out,
+                            size_t n_out);
+
+double _Complex dp_correlator_cell_corr (const dp_correlator_state_t *state,
+                               const float _Complex *x, size_t col,
+                               double f_hz, double t0);
+
+void dp_correlator_cell_corr_grid (const dp_correlator_state_t *state, const float _Complex *x,
+                         size_t n_epochs, size_t col, const double *f_hz,
+                         size_t n_f, double t0, double _Complex *out);
+
+size_t dp_correlator_block_prompt (dp_correlator_state_t *state, size_t tile, size_t col,
+                         float _Complex *out, size_t n_out);
+
+size_t dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *out,
+                      size_t n_out);
+
+void dp_correlator_set_surface_sink (dp_correlator_state_t *state, dp_correlator_surface_sink_fn fn,
+                           void *ctx, uint32_t decim);
+
+
+
+uint64_t dp_correlator_position (const dp_correlator_state_t *state);
+
+typedef struct
+{
+  uint64_t samples_consumed; 
+  double
+      chip_phase; 
+  double doppler_hz_est;  
+  double doppler_res_hz;  
+  double cn0_dbhz_est;    
+  float  peak_mag;        
+  float  noise_est;       
+  float  test_stat;       
+} dp_correlator_handoff_t;
+
+/* The FFT-bin convention this engine reports in -- `0 = DC`, ascending
+ * positive, then wrapping negative -- is `dp_fftfreq_index()` in
+ * clib_common.h, and its doc comment there is the one definition. It was
+ * declared here, and four call sites outside C restated the fold in three
+ * mutually inconsistent ways; the engine's wideband search and its own
+ * hand-off were two of them, which surfaced as a receiver reporting
+ * `tracking == 1` while decoding noise. Every consumer -- this engine's
+ * search, its hand-off, and any composing receiver -- now includes the
+ * SAME inline rather than restating the formula. */
+
+static inline size_t
+dp_correlator_grid_bins (const dp_correlator_state_t *state)
+{
+  return state->search->window_bins * state->search->coherent_bins;
+}
+
+static inline double
+dp_correlator_bin_doppler_hz (const dp_correlator_state_t *state, size_t doppler_bin)
+{
+  return (double)dp_fftfreq_index (doppler_bin, dp_correlator_grid_bins (state))
+         * state->search->doppler_res_hz;
+}
+
+double dp_correlator_psl_db (const dp_correlator_state_t *state);
+
+double dp_correlator_dsl_db (dp_correlator_state_t *state);
+
+double dp_correlator_gate_stat (const dp_correlator_state_t *state);
+
+void dp_correlator_build_handoff (const dp_correlator_state_t *state, const dp_correlator_hit_t *hit,
+                        size_t code_len, dp_correlator_handoff_t *out);
+
+double dp_correlator_sidelobe_ratio (dp_correlator_state_t     *state,
+                              const dp_correlator_hit_t *from,
+                              const dp_correlator_hit_t *to);
+
+/* ── Serializable state — the elastic / pure-transducer face
+ * ─────────────────
+ *
+ * The OO engine above is convenient but stateful.  These match the rest of
+ * the library's serializable objects (lo/cic/fir/ddcr): serialize a
+ * channel's cross-call state to a flat POD, ship (descriptor, state, input)
+ * to any thread/process/pod, rebuild the engine from the descriptor
+ * (acq_create), inject the state, and continue — bit-identical to an
+ * uninterrupted run.
+ */
+
+
+
+
+int dp_correlator_state_position (const dp_correlator_state_t *state, const void *blob,
+                           uint64_t *position);
+
+size_t dp_correlator_run (dp_correlator_state_t *state, const void *state_in, void *state_out,
+                const float _Complex *in, size_t n_in, dp_correlator_hit_t *result,
+                size_t max_results);
 
 #ifdef __cplusplus
 }

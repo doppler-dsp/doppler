@@ -26,6 +26,8 @@ target_link_libraries(spectral PRIVATE
     psd_core
     spectrogram_core
     Threads::Threads
+    detection_core
+    dp_tlm_core
     acc_trace_core
     dp_interrupt_guard_core
     Python3::NumPy)
@@ -51,6 +53,8 @@ target_link_libraries(test_spectral_core PRIVATE
     psd_core
     spectrogram_core
     Threads::Threads
+    detection_core
+    dp_tlm_core
     acc_trace_core
     dp_interrupt_guard_core
     ${JM_MATH_LIBRARY})

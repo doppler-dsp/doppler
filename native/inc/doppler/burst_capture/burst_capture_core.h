@@ -15,7 +15,7 @@
  *
  * It OWNS its acquisition engine rather than accepting someone else's
  * results, and that is a correctness choice rather than a convenience one:
- * `acq_result_t::samples_consumed` is stream-absolute only for an engine fed
+ * `dp_correlator_hit_t::samples_consumed` is stream-absolute only for an engine fed
  * continuously and never reset, in the caller's own sample coordinates. An
  * object taking foreign results would have to require that and could not
  * check it — and a violated assumption is not a slightly wrong window, it is
@@ -51,7 +51,7 @@
 #include "doppler/buffer/buffer.h"
 #include "doppler/dp_state.h"
 #include "doppler/burst_acq/burst_acq_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 #include "doppler/fft/fft_core.h"
@@ -92,13 +92,15 @@
 
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-/** @brief State blob layout version. 6: every queued burst and the last
+/** @brief State blob layout version. 7: the search's child blob is the
+ *  correlator's search flavor ('CORL', the flavor word first; doppler#2752
+ *  step 3.4b), not acq's 'ACQR'. 6: every queued burst and the last
  *  event carry refine's winning rate hypothesis (doppler#2219). 5: the blob
  *  carries the whole ring, and `dropped` counts look-back discarded while a
  *  burst still needed it, not refused input (doppler#2015). An older blob is
  *  refused rather than carried over: a v5 blob, written by v0.66.0 through
  *  v0.71.0, is restored by the release that wrote it. */
-#define BURST_CAPTURE_STATE_VERSION 6u
+#define BURST_CAPTURE_STATE_VERSION 7u
 
 #ifdef __cplusplus
 extern "C" {
@@ -162,7 +164,7 @@ typedef struct
  * activity wants the first; a caller decoding wants the second; a bank doing
  * both would otherwise have to run two acquisition engines over one stream.
  *
- * The epoch is stream-absolute, which `acq_result_t::code_phase` is not --
+ * The epoch is stream-absolute, which `dp_correlator_hit_t::code_phase` is not --
  * that is a lag modulo one code period, and making it absolute is the first
  * thing this object does with a hit.
  */
@@ -239,7 +241,7 @@ typedef struct
                            acq's code_phase is a residue of, so every epoch
                            ambiguity in this object is stated against it.  */
   size_t burst_len;   /**< Samples in one emitted window. Acquisition has
-                           no notion of this -- dp_acq_create_burst() takes
+                           no notion of this -- dp_correlator_create_burst() takes
                            search parameters only -- which is exactly why it
                            is a parameter HERE: for a capture, the burst
                            length is what gets captured.                   */
@@ -267,7 +269,7 @@ typedef struct
   double   doppler_rate_hz_s; /**< Refine's winning rate hypothesis, Hz/s. */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  double _Complex *cell_buf; /**< Refine's cells: dp_acq_cell_corr_grid() of
+  double _Complex *cell_buf; /**< Refine's cells: dp_correlator_cell_corr_grid() of
                                  every candidate preamble POSITION (one code
                                  period each) at every Doppler cell inside
                                  the detecting engine's bin, position-major,
@@ -507,7 +509,7 @@ typedef struct
  * @param fs            Sample rate, Hz (> 0); 1 for normalized units.
  * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz, of the
  *                      preamble's mean power: any finite value, or NaN
- *                      (ACQ_CN0_NONE) for no design point.
+ *                      (DP_CORRELATOR_CN0_NONE) for no design point.
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -518,8 +520,8 @@ typedef struct
  *                      (doppler#1482); 0 is no bound. With
  *                      @p rate_hypotheses > 1 it is the span instead.
  * @param rate_hypotheses  Doppler-rate hypotheses to search (0 = auto,
- *                      else 1 to ACQ_RATE_HYPS_MAX; auto picks the fewest the
- *                      span needs, see dp_acq_create_burst(), and
+ *                      else 1 to DP_CORRELATOR_RATE_HYPS_MAX; auto picks the fewest the
+ *                      span needs, see dp_correlator_create_burst(), and
  *                      dp_burst_capture_get_rate_hypotheses() reads the
  *                      choice); 1 searches none and
  *                      @p doppler_rate only caps the depth. Above 1 the
@@ -529,7 +531,7 @@ typedef struct
  *                      depth is bounded by the RESIDUAL, `R/(n - 1)` -- deeper
  *                      blocks, more sensitivity, about `n` times the per-dwell
  *                      cost, and a false-alarm budget split over the
- *                      hypotheses (dp_acq_create_burst() owns the semantics).
+ *                      hypotheses (dp_correlator_create_burst() owns the semantics).
  *                      Refine follows the engine: its coherent sum over the
  *                      preamble's periods tries the rates too, on a finer
  *                      grid because it integrates the whole preamble, and
@@ -615,7 +617,7 @@ dp_burst_capture_state_t *dp_burst_capture_create (
  * @param reps          Preamble repetitions (>= 1).
  * @param fs            Sample rate, Hz (> 0).
  * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz: any finite
- *                      value, or NaN (ACQ_CN0_NONE) for no design point.
+ *                      value, or NaN (DP_CORRELATOR_CN0_NONE) for no design point.
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -976,7 +978,7 @@ double dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state)
  * @return Predicted per-burst Pd, 0 to 1; NAN with no design C/N0 or
  *         with n_noncoh > 1. */
 double dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state);
-/** @brief The preamble's peak sidelobe level, dB: dp_acq_psl_db() of the
+/** @brief The preamble's peak sidelobe level, dB: dp_correlator_psl_db() of the
  *         engine. A burst clearing the threshold by more than `-psl_db`
  *         also detects its own sidelobe, outside the peak zone; -INFINITY
  *         for a perfect sequence.
@@ -995,7 +997,7 @@ double dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state)
 size_t dp_burst_capture_get_rate_hypotheses (
     const dp_burst_capture_state_t *state);
 /** @brief Doppler hypotheses searched: the coherent depth, or the window-tile
- *         count past the native span -- acq_grid_bins() (doppler#1512).
+ *         count past the native span -- dp_correlator_grid_bins() (doppler#1512).
  *  @param state  Capture. Must be non-NULL.
  *  @return Doppler hypotheses on the grid. */
 size_t dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state);

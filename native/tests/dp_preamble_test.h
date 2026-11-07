@@ -2,11 +2,12 @@
  * @file dp_preamble_test.h
  * @brief A PN code as preamble SAMPLES, for the burst engines' tests.
  *
- * The burst constructors -- dp_acq_create_burst(), dp_burst_acq_create(),
- * dp_burst_capture_create() -- take a preamble as its samples (doppler#1470):
- * one period, at `fs`. A PN code is one such preamble, built the way a
- * caller builds it: chips mapped by dp_bin_to_nrz(), the library's one
- * chip -> +-1 rule, each held `spc` samples, at `fs = chip_rate * spc`.
+ * The burst constructors -- dp_correlator_create_burst(),
+ * dp_burst_acq_create(), dp_burst_capture_create() -- take a preamble as its
+ * samples (doppler#1470): one period, at `fs`. A PN code is one such preamble,
+ * built the way a caller builds it: chips mapped by dp_bin_to_nrz(), the
+ * library's one chip -> +-1 rule, each held `spc` samples, at `fs = chip_rate
+ * * spc`.
  *
  * One builder, so a test cannot quietly grow its own mapping: before this
  * the chip -> sign rule was written inline dozens of times across these
@@ -54,7 +55,7 @@ dp_code_preamble (const uint8_t *code, size_t code_len, size_t spc)
  * Multiplies bin k of the period's FFT by `e^{-j 2 pi f_k tau / n}` over the
  * signed bin f_k; an even length's Nyquist bin takes `cos(pi tau)`. For a
  * periodic signal this is the exact fractional delay, and it is the kernel
- * the engine's delay straddle (acq_shape_t) is built on.
+ * the engine's delay straddle (dp_correlator_shape_t) is built on.
  *
  * A harness that puts a burst on a WHOLE sample hands the engine a code
  * phase with no straddle at all, which the Pd model averages over half a

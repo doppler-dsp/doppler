@@ -605,6 +605,10 @@ COMPONENT_MODULE = {
     # published runs.
     "detector": "spectral",
     "detector2d": "spectral",
+    # And since step 3.4b the search: its rows are the correlator bench's
+    # bench_search(), and the `acq` rows remain in the published runs,
+    # under the module that held them.
+    "acq": "acquire",
 }
 
 #: How many INPUT SAMPLES one recorded unit consumes (#2372): the page

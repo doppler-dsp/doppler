@@ -1,5 +1,6 @@
 """Coverage for ``doppler.acquire.Acquisition`` (the continuous front door onto
-``acq_core.c``) that isn't already exercised elsewhere in this test suite.
+``correlator_core.c``) that isn't already exercised elsewhere in this test
+suite.
 
 ``test_acquisition_stress.py`` already characterizes this class's
 search *accuracy* (Doppler/code-phase/CN0 sweep, reusing

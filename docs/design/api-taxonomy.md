@@ -446,7 +446,7 @@ pair is the same shape one dimension down. Measured from the code on 2026-10-31:
 
 - **`BurstAcquisition`'s C core is a 92-line forwarder** onto
     `Acquisition`'s engine: `burst_acq_core.c` only forwards, and the engine
-    builds it with its own burst constructor, `dp_acq_create_burst`. Its
+    builds it with its own burst constructor, `dp_correlator_create_burst`. Its
     Python surface is its own, though: `pd_burst`, `psl_db`, `reps`,
     `rate_hypotheses` and the `preamble` are burst-only, and `Acquisition`
     has about 20 members it lacks (`surface*`, `threads`, `set_telemetry`,
@@ -455,7 +455,7 @@ pair is the same shape one dimension down. Measured from the code on 2026-10-31:
     down each delay column, then the code correlation.
 - **`CorrDetector2D`** is `Corr2D` plus streaming framing plus a CFAR threshold.
 - **`Acquisition`** (3,253 lines) is streaming framing, **its own slow-time
-    FFT tiles** (`acq_tile_block`, on the `tile_slow` plans in `acq_core.c`),
+    FFT tiles** (`acq_tile_block`, on the `tile_slow` plans in `correlator_core.c`),
     a plain `Corr2D` and a CFAR. Its map is a second implementation of
     `DelayDoppler`'s column stage (`corr2d_col_tile` in `correlator_core.c`),
     which `CLAUDE.md` forbids.

@@ -4,12 +4,6 @@
 This inheritance list is sorted roughly, but not completely, alphabetically:
 
 
-* **struct** [**acq\_extra\_t**](structacq__extra__t.md) _Per-object extra header for an engine's cross-call state._ 
-* **struct** [**acq\_handoff\_t**](structacq__handoff__t.md) _Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__result__t.md) _hit._
-* **struct** [**acq\_part\_t**](structacq__part__t.md) _One tile's share of a decided surface (docs/design/acq-surface.md §13): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._
-* **struct** [**acq\_result\_t**](structacq__result__t.md) _One acquisition detection event._ 
-* **struct** [**acq\_shape\_t**](structacq__shape__t.md) _What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._ 
-* **struct** [**acq\_tlm\_t**](structacq__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_acq\_set\_state()**_](acq__core_8h.md#function-dp_acq_set_state) _like the borrowed code._
 * **struct** [**agc\_tlm\_t**](structagc__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM); telemetry is observation, not DSP state that migrates._ 
 * **struct** [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) _The receiver's own fields in its state blob, after the envelope and before the children._ 
 * **struct** [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) _One consistent picture of what the receiver is doing, by value._ 
@@ -41,7 +35,6 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md) _AccQ15 state: one 64-bit integer running sum._ 
 * **struct** [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md) _AccQ8 state._ 
 * **struct** [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md) _AccTrace state. Allocate with_ [_**dp\_acc\_trace\_create()**_](acc__trace__core_8h.md#function-dp_acc_trace_create) _._
-* **struct** [**dp\_acq\_state\_t**](structdp__acq__state__t.md) _Streaming acquisition-engine state._ 
 * **struct** [**dp\_adc\_state\_t**](structdp__adc__state__t.md) _ADC state._ 
 * **struct** [**dp\_agc\_state\_t**](structdp__agc__state__t.md) _AGC state._ 
 * **struct** [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) _AsyncDsssPool state._ 
@@ -49,7 +42,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) _AWGN generator state (opaque to callers; use the API)._ 
 * **struct** [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) _BerMeter state._ 
 * **struct** [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) _Boxcar moving-average state (cf32)._ 
-* **struct** [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) _BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_acq\_state\_t**_](structdp__acq__state__t.md) _engine._
+* **struct** [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) _BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_correlator\_state\_t**_](structdp__correlator__state__t.md) _engine._
 * **struct** [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) _BurstCapture state._ 
 * **struct** [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) _BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create\_desc()**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _._
 * **struct** [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) _BurstDespreader state._ 

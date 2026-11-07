@@ -15,7 +15,6 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 * `#include "doppler/buffer/buffer.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/burst_acq/burst_acq_core.h"`
-* `#include "doppler/acq/acq_core.h"`
 * `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
 * `#include "doppler/fft/fft_core.h"`
@@ -82,7 +81,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**dp\_burst\_capture\_events\_max\_out**](#function-dp_burst_capture_events_max_out) ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, size\_t n) <br>_Records available from the last push()._ `n` _is ignored._ |
 |  double | [**dp\_burst\_capture\_get\_cn0\_dbhz\_est**](#function-dp_burst_capture_get_cn0_dbhz_est) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Estimated C/N0 of the most recent window, dB-Hz._  |
 |  size\_t | [**dp\_burst\_capture\_get\_code\_bins**](#function-dp_burst_capture_get_code_bins) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Code-phase hypotheses per Doppler row._  |
-|  size\_t | [**dp\_burst\_capture\_get\_doppler\_bins**](#function-dp_burst_capture_get_doppler_bins) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _acq\_grid\_bins() (doppler#1512)._ |
+|  size\_t | [**dp\_burst\_capture\_get\_doppler\_bins**](#function-dp_burst_capture_get_doppler_bins) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _dp\_correlator\_grid\_bins() (doppler#1512)._ |
 |  double | [**dp\_burst\_capture\_get\_doppler\_hz\_est**](#function-dp_burst_capture_get_doppler_hz_est) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Signed coarse Doppler estimate of the most recent window, Hz._  |
 |  double | [**dp\_burst\_capture\_get\_doppler\_rate**](#function-dp_burst_capture_get_doppler_rate) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler rate (Hz/s) the coherent depth is bounded against; 0 is no bound._  |
 |  double | [**dp\_burst\_capture\_get\_doppler\_rate\_hz\_s**](#function-dp_burst_capture_get_doppler_rate_hz_s) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Refine's winning Doppler-rate hypothesis for the most recent window, Hz/s._  |
@@ -98,7 +97,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**dp\_burst\_capture\_get\_pd\_predicted**](#function-dp_burst_capture_get_pd_predicted) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Detection probability of one dwell wholly inside the preamble._  |
 |  size\_t | [**dp\_burst\_capture\_get\_pending**](#function-dp_burst_capture_get_pending) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Detections held because their burst window has not fully arrived._  |
 |  uint64\_t | [**dp\_burst\_capture\_get\_preamble\_start**](#function-dp_burst_capture_get_preamble_start) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Stream-absolute sample index the most recent window's preamble starts at._  |
-|  double | [**dp\_burst\_capture\_get\_psl\_db**](#function-dp_burst_capture_get_psl_db) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
+|  double | [**dp\_burst\_capture\_get\_psl\_db**](#function-dp_burst_capture_get_psl_db) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**dp\_correlator\_psl\_db()**_](correlator__core_8h.md#function-dp_correlator_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
 |  size\_t | [**dp\_burst\_capture\_get\_rate\_hypotheses**](#function-dp_burst_capture_get_rate_hypotheses) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Doppler-rate hypotheses searched; 1 is none_  __`doppler_rate` _then only caps the coherent depth._ |
 |  void | [**dp\_burst\_capture\_get\_state**](#function-dp_burst_capture_get_state) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
 |  double | [**dp\_burst\_capture\_get\_straddle\_loss**](#function-dp_burst_capture_get_straddle_loss) (const [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
@@ -146,7 +145,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | define  | [**BURST\_CAPTURE\_MAX\_PHASES**](burst__capture__core_8h.md#define-burst_capture_max_phases)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_REFINE\_INTERP**](burst__capture__core_8h.md#define-burst_capture_refine_interp)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
-| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `6u`<br>_State blob layout version. 6: every queued burst and the last event carry refine's winning rate hypothesis (doppler#2219). 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015). An older blob is refused rather than carried over: a v5 blob, written by v0.66.0 through v0.71.0, is restored by the release that wrote it._ |
+| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `7u`<br>_State blob layout version. 7: the search's child blob is the correlator's search flavor ('CORL', the flavor word first; doppler#2752 step 3.4b), not acq's 'ACQR'. 6: every queued burst and the last event carry refine's winning rate hypothesis (doppler#2219). 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015). An older blob is refused rather than carried over: a v5 blob, written by v0.66.0 through v0.71.0, is restored by the release that wrote it._ |
 
 ## Detailed Description
 
@@ -157,7 +156,7 @@ Between a detector and whatever consumes a burst there is a stage nobody owned: 
 It searches, refines, retains, and emits the burst's SAMPLES. It stops there — demodulating, recording, or shipping a window elsewhere is the caller's business. `DsssBurstReceiver` is this plus `BurstDemod`.
 
 
-It OWNS its acquisition engine rather than accepting someone else's results, and that is a correctness choice rather than a convenience one: `acq_result_t::samples_consumed` is stream-absolute only for an engine fed continuously and never reset, in the caller's own sample coordinates. An object taking foreign results would have to require that and could not check it — and a violated assumption is not a slightly wrong window, it is refine searching the wrong repetition, which returns noise rather than a degraded frame. `push()` defining the coordinate system makes the invariant internal. See docs/design/dsss-burst-receiver.md §11.
+It OWNS its acquisition engine rather than accepting someone else's results, and that is a correctness choice rather than a convenience one: `dp_correlator_hit_t::samples_consumed` is stream-absolute only for an engine fed continuously and never reset, in the caller's own sample coordinates. An object taking foreign results would have to require that and could not check it — and a violated assumption is not a slightly wrong window, it is refine searching the wrong repetition, which returns noise rather than a degraded frame. `push()` defining the coordinate system makes the invariant internal. See docs/design/dsss-burst-receiver.md §11.
 
 
 Lifecycle: create, then push() repeatedly, then destroy. There is no step()/steps(): a burst is a frame, not a sample.
@@ -280,13 +279,13 @@ Any repeated preamble: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code 
 * `burst_len` Samples in one burst  what gets captured. 
 * `reps` Preamble repetitions (&gt;= 1). 
 * `fs` Sample rate, Hz (&gt; 0); 1 for normalized units. 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz, of the preamble's mean power: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz, of the preamble's mean power: any finite value, or NaN (DP\_CORRELATOR\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
 * `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
 * `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. With `rate_hypotheses` &gt; 1 it is the span instead. 
-* `rate_hypotheses` Doppler-rate hypotheses to search (0 = auto, else 1 to ACQ\_RATE\_HYPS\_MAX; auto picks the fewest the span needs, see [**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst), and [**dp\_burst\_capture\_get\_rate\_hypotheses()**](burst__capture__core_8h.md#function-dp_burst_capture_get_rate_hypotheses) reads the choice); 1 searches none and `doppler_rate` only caps the depth. Above 1 the capture COMPENSATES the rate: `doppler_rate` is the span `[-R, +R]`, the acquisition de-chirps its coherent block at this many rates across it, and the depth is bounded by the RESIDUAL, `R/(n - 1)`  deeper blocks, more sensitivity, about `n` times the per-dwell cost, and a false-alarm budget split over the hypotheses ([**dp\_acq\_create\_burst()**](acq__core_8h.md#function-dp_acq_create_burst) owns the semantics). Refine follows the engine: its coherent sum over the preamble's periods tries the rates too, on a finer grid because it integrates the whole preamble, and its Doppler cells widen by the shift a rate puts between the detecting dwell's middle and the preamble's  so a burst the engine found by rate is placed by rate. Needs a non-zero `doppler_rate` (the span). Measured: validate\_acq\_rate\_pd. 
+* `rate_hypotheses` Doppler-rate hypotheses to search (0 = auto, else 1 to DP\_CORRELATOR\_RATE\_HYPS\_MAX; auto picks the fewest the span needs, see [**dp\_correlator\_create\_burst()**](correlator__core_8h.md#function-dp_correlator_create_burst), and [**dp\_burst\_capture\_get\_rate\_hypotheses()**](burst__capture__core_8h.md#function-dp_burst_capture_get_rate_hypotheses) reads the choice); 1 searches none and `doppler_rate` only caps the depth. Above 1 the capture COMPENSATES the rate: `doppler_rate` is the span `[-R, +R]`, the acquisition de-chirps its coherent block at this many rates across it, and the depth is bounded by the RESIDUAL, `R/(n - 1)`  deeper blocks, more sensitivity, about `n` times the per-dwell cost, and a false-alarm budget split over the hypotheses ([**dp\_correlator\_create\_burst()**](correlator__core_8h.md#function-dp_correlator_create_burst) owns the semantics). Refine follows the engine: its coherent sum over the preamble's periods tries the rates too, on a finer grid because it integrates the whole preamble, and its Doppler cells widen by the shift a rate puts between the detecting dwell's middle and the preamble's  so a burst the engine found by rate is placed by rate. Needs a non-zero `doppler_rate` (the span). Measured: validate\_acq\_rate\_pd. 
 
 
 
@@ -386,7 +385,7 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 * `burst_len` Samples in one burst  what gets captured. 
 * `reps` Preamble repetitions (&gt;= 1). 
 * `fs` Sample rate, Hz (&gt; 0). 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (DP\_CORRELATOR\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
@@ -746,7 +745,7 @@ The engine's code\_bins, in samples.
 
 ### function dp\_burst\_capture\_get\_doppler\_bins 
 
-_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _acq\_grid\_bins() (doppler#1512)._
+_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _dp\_correlator\_grid\_bins() (doppler#1512)._
 ```C++
 size_t dp_burst_capture_get_doppler_bins (
     const dp_burst_capture_state_t * state
@@ -1308,7 +1307,7 @@ The start sample; 0 before the first window and after reset().
 
 ### function dp\_burst\_capture\_get\_psl\_db 
 
-_The preamble's peak sidelobe level, dB:_ [_**dp\_acq\_psl\_db()**_](acq__core_8h.md#function-dp_acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._
+_The preamble's peak sidelobe level, dB:_ [_**dp\_correlator\_psl\_db()**_](correlator__core_8h.md#function-dp_correlator_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._
 ```C++
 double dp_burst_capture_get_psl_db (
     const dp_burst_capture_state_t * state
@@ -1888,9 +1887,9 @@ _State blob magic — a wrong blob is rejected, not reinterpreted._
 
 ### define BURST\_CAPTURE\_STATE\_VERSION 
 
-_State blob layout version. 6: every queued burst and the last event carry refine's winning rate hypothesis (doppler#2219). 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015). An older blob is refused rather than carried over: a v5 blob, written by v0.66.0 through v0.71.0, is restored by the release that wrote it._
+_State blob layout version. 7: the search's child blob is the correlator's search flavor ('CORL', the flavor word first; doppler#2752 step 3.4b), not acq's 'ACQR'. 6: every queued burst and the last event carry refine's winning rate hypothesis (doppler#2219). 5: the blob carries the whole ring, and_ `dropped` _counts look-back discarded while a burst still needed it, not refused input (doppler#2015). An older blob is refused rather than carried over: a v5 blob, written by v0.66.0 through v0.71.0, is restored by the release that wrote it._
 ```C++
-#define BURST_CAPTURE_STATE_VERSION `6u`
+#define BURST_CAPTURE_STATE_VERSION `7u`
 ```
 
 

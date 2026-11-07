@@ -50,8 +50,8 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  float _Complex *x   = malloc (BENCH_N * sizeof *x);
-  acq_result_t   *res = malloc (MAX_RESULTS * sizeof *res);
+  float _Complex      *x   = malloc (BENCH_N * sizeof *x);
+  dp_correlator_hit_t *res = malloc (MAX_RESULTS * sizeof *res);
   if (!x || !res)
     return 1;
   /* Unit-variance complex Gaussian noise (Box-Muller), the case a detector

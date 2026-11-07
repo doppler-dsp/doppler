@@ -36,7 +36,7 @@ _Composed receiver state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
 |  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
@@ -121,7 +121,7 @@ Owns all four children for the object's entire lifetime  `dll`/ `rc`/`rx` are al
 ### variable acq 
 
 ```C++
-dp_acq_state_t* dp_dsss_receiver_state_t::acq;
+dp_correlator_state_t* dp_dsss_receiver_state_t::acq;
 ```
 
 
@@ -246,7 +246,7 @@ uint8_t* dp_dsss_receiver_state_t::code;
 
 
 
-Own copy of the spreading code  [**dp\_acq\_create\_continuous()**](acq__core_8h.md#function-dp_acq_create_continuous)/ [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create)'s own borrow-vs-copy semantics aren't part of either's public contract, so this object keeps a persistent copy rather than depend on being able to read it back out of a child, or on the caller's original buffer outliving construction. 
+Own copy of the spreading code  [**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous)/ [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create)'s own borrow-vs-copy semantics aren't part of either's public contract, so this object keeps a persistent copy rather than depend on being able to read it back out of a child, or on the caller's original buffer outliving construction. 
 
 
         

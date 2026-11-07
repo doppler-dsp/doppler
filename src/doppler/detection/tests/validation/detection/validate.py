@@ -221,7 +221,7 @@ def section_object() -> None:
             ["every helper fails closed on nonsense", "C", "§2.7"],
             [
                 "the Pd model is unreliable past a few hundred looks "
-                "(`acq_core.h`)",
+                "(`correlator_core.h`)",
                 "nowhere",
                 "§2.3 — **contradicted**, "
                 f"{R.ref('acq_core_states_twice_lines')}",
@@ -430,9 +430,11 @@ def _sec_noncoherent(d: Data) -> None:
     R.md("#### The model does not break where the tree says it does")
     R.md()
     R.md(
-        '`acq_core.h` states twice that this model is *"non-monotonic and '
+        '`correlator_core.h` states twice that this model is *"non-monotonic '
+        "and "
         'unreliable past a few hundred looks"*, and bounds its search at '
-        "`ACQ_N_NONCOH_SAFETY_CEILING = 256` on that basis. Swept out to "
+        "`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING = 256` on that basis. Swept "
+        "out to "
         "1024 looks at pfa=1e-3, n_coh=16, snr=0.15, both the threshold and "
         "Pd increase at **every** step:"
     )
@@ -1062,8 +1064,11 @@ def review(d: Data) -> None:
         "existed, in "
         "`test_detection.py`, which is real evidence in the wrong language "
         "for an object whose header is the SSOT — and these three are what "
-        "`acq_core.c` sizes its entire (coherent depth, look count) split "
-        "with (`acq_core.c:237`, `:275`, `:308`). Added in C: the exact "
+        "`correlator_core.c` sizes its entire (coherent depth, look count) "
+        "split "
+        "with (`search_mean_pd`, `search_commit_thresholds` and "
+        "`search_ascend_n_noncoh` in `correlator_core.c`). Added in C: the "
+        "exact "
         "reduction at one look, the threshold checked against `marcum_q` "
         "rather than a literal, growth with the look count, Pd = Pfa at "
         "zero SNR, and `det_n_noncoh`'s minimality at its own re-derived "
@@ -1117,10 +1122,12 @@ def review(d: Data) -> None:
     R.find(
         "acq_core_states_twice_lines",
         "CONFIRMED",
-        "`acq_core.h` states twice (lines 75 and 307) that this module's "
+        "`correlator_core.h` states twice (lines 2079 and 2205) that this "
+        "module's "
         'non-coherent Pd model is *"non-monotonic and unreliable past a '
         'few hundred looks"*, and bounds its search at '
-        "`ACQ_N_NONCOH_SAFETY_CEILING = 256` on that basis. Neither half "
+        "`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING = 256` on that basis. Neither "
+        "half "
         "reproduces: the threshold and Pd are monotone out to **1024** "
         "looks (§2.3), and Monte-Carlo agrees with the model to **0.2-0.6 "
         "sigma at 512** looks with H0 priced correctly there too. The "

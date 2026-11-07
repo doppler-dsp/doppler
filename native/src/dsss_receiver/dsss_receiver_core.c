@@ -54,10 +54,11 @@ dsss_rx_chain_ok (double chip_rate, double symbol_rate, size_t code_len,
  * pre-despread carrier loop, by value into *car_out -- dp_costas_init never
  * allocates, so it can't fail) from the given hand-off phase/frequency and
  * grid, without touching `state`'s existing children -- the fail-safe half
- * of the "allocate everything first" regrid discipline (acq_regrid() in
- * acq_core.c is the precedent). Cannot fail: the sub-object allocations are
- * small, internal, and argument-validated, so they route through the
- * abort-on-OOM helpers (dp_xnn) rather than an unwind path no test reaches. */
+ * of the "allocate everything first" regrid discipline (dp_correlator_regrid()
+ * in correlator_core.c is the precedent). Cannot fail: the sub-object
+ * allocations are small, internal, and argument-validated, so they route
+ * through the abort-on-OOM helpers (dp_xnn) rather than an unwind path no test
+ * reaches. */
 static void
 dsss_rx_build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
                      size_t code_len, size_t spc, int m, int differential,
@@ -386,7 +387,7 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
 
   /* The searcher checks its own domain (pfa, pd, C/N0 ...), so its refusal
      is this create's, not an abort under dp_xnn (doppler#2103). */
-  obj->acq = dp_acq_create_continuous (
+  obj->acq = dp_correlator_create_continuous (
       obj->code, code_len, chip_rate * (double)spc, chip_rate, symbol_rate,
       cn0_dbhz, doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0);
   if (!obj->acq)
@@ -436,7 +437,7 @@ dp_dsss_receiver_destroy (dp_dsss_receiver_state_t *state)
   free (state->car_carry_buf);
   free (state->trk_dll_buf);
   free (state->trk_rc_buf);
-  dp_acq_destroy (state->acq);
+  dp_correlator_destroy (state->acq);
   free (state->code);
   free (state);
 }
@@ -444,7 +445,7 @@ dp_dsss_receiver_destroy (dp_dsss_receiver_state_t *state)
 void
 dp_dsss_receiver_reset (dp_dsss_receiver_state_t *state)
 {
-  dp_acq_reset (state->acq);
+  dp_correlator_reset (state->acq);
   /* Rebuilt at the current grid (a configure_chain_raw() pin survives a
    * reset). The rebuild runs under dp_xnn, so an allocation failure aborts;
    * nothing else can fail, the grid having been checked when it was set. */
@@ -478,9 +479,9 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
        * configure_search_raw() (an engine reset) and set_state() (an
        * engine restore) would leave behind, so the two timebases parted
        * and the tail below read outside x (#2042). */
-      const uint64_t before = dp_acq_position (state->acq);
-      acq_result_t   hit;
-      size_t         n_hits = dp_acq_push (state->acq, x, x_len, &hit, 1);
+      const uint64_t      before = dp_correlator_position (state->acq);
+      dp_correlator_hit_t hit;
+      size_t n_hits = dp_correlator_push (state->acq, x, x_len, &hit, 1);
       if (n_hits == 0)
         return 0;
 
@@ -499,11 +500,11 @@ dp_dsss_receiver_steps (dp_dsss_receiver_state_t *state,
       const size_t          tail_len = x_len - (size_t)at;
 
       /* This receiver's embedded engine is always built via
-       * dp_acq_create_continuous() -- coherent_bins is pinned at 1,
+       * dp_correlator_create_continuous() -- coherent_bins is pinned at 1,
        * window_bins is the active mechanism, always --
-       * dp_acq_build_handoff()'s only supported mode. */
-      acq_handoff_t ho;
-      dp_acq_build_handoff (state->acq, &hit, state->code_len, &ho);
+       * dp_correlator_build_handoff()'s only supported mode. */
+      dp_correlator_handoff_t ho;
+      dp_correlator_build_handoff (state->acq, &hit, state->code_len, &ho);
 
       dsss_rx_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
                              state->segments, state->sps, state->n);
@@ -522,7 +523,8 @@ int
 dp_dsss_receiver_configure_search_raw (dp_dsss_receiver_state_t *state,
                                        size_t doppler_bins, size_t n_noncoh)
 {
-  return dp_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+  return dp_correlator_configure_search_raw (state->acq, doppler_bins,
+                                             n_noncoh);
 }
 
 void
@@ -626,7 +628,7 @@ dp_dsss_receiver_state_bytes (const dp_dsss_receiver_state_t *s)
    * car_carry_len samples, then zeros, since the rest of the buffer is an
    * earlier period's or dp_xmalloc's and not state (#2076's sibling). */
   return sizeof (dp_state_hdr_t) + sizeof (dsss_receiver_extra_t)
-         + dp_acq_state_bytes (s->acq) + dp_costas_state_bytes (&s->car)
+         + dp_correlator_state_bytes (s->acq) + dp_costas_state_bytes (&s->car)
          + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
          + dp_mpsk_receiver_state_bytes (s->rx)
          + s->tsamps * sizeof (float _Complex);
@@ -647,7 +649,7 @@ dp_dsss_receiver_get_state (const dp_dsss_receiver_state_t *s, void *blob)
     .car_carry_len  = (uint64_t)s->car_carry_len,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
-  DP_W_CHILD (&_w, dp_acq, s->acq);
+  DP_W_CHILD (&_w, dp_correlator, s->acq);
   DP_W_CHILD (&_w, dp_costas, &s->car);
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
@@ -676,7 +678,7 @@ dp_dsss_receiver_set_state (dp_dsss_receiver_state_t *s, const void *blob)
       || extra.n != (uint64_t)s->n
       || extra.car_carry_len >= (uint64_t)s->tsamps)
     return DP_ERR_INVALID;
-  DP_R_CHILD (&_r, dp_acq, s->acq);
+  DP_R_CHILD (&_r, dp_correlator, s->acq);
   DP_R_CHILD (&_r, dp_costas, &s->car);
   DP_R_CHILD (&_r, dp_dll, s->dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->rc);

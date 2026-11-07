@@ -29,7 +29,7 @@ front door, part four),
 not exist is the object that puts them together.
 
 The continuous chain has one. `dsss_receiver_core.c` calls
-`dp_acq_build_handoff()` — both convention inversions in one place — and then
+`dp_correlator_build_handoff()` — both convention inversions in one place — and then
 derives the unprocessed tail (`samples_fed - samples_consumed`) so no sample
 is lost or reprocessed across acquisition to tracking. Both of those are
 hand-off concerns, and both live in C exactly once.
@@ -37,7 +37,7 @@ hand-off concerns, and both live in C exactly once.
 The burst chain has neither. Its hand-off is arithmetic every caller redoes
 in Python, and the cost is already on the record: **one bin-to-frequency fold
 was restated in four Python call sites, in three mutually inconsistent ways**,
-one of them spelled `((bin + n/2) % n) - n/2` — the exact form `acq_core.h`
+one of them spelled `((bin + n/2) % n) - n/2` — the exact form `correlator_core.h`
 names as a past full-span sign inversion that surfaced as a receiver
 reporting lock while decoding noise. That was fixed in `ea7ccbcf0` by giving
 the fold one home (`dp_fftfreq`), but the fold was the symptom. Four
@@ -91,7 +91,7 @@ which of this design's assumptions survive contact. Four did not.
 
 ### 3.1 `code_phase` is a residue, not a position
 
-`acq_result_t.code_phase` measured exactly `burst_start mod code_bins` at
+`dp_correlator_hit_t.code_phase` measured exactly `burst_start mod code_bins` at
 every offset tried, including one sample short of a period and one exactly
 on it. The half of that nothing states is the **modulo**.
 
@@ -152,11 +152,11 @@ event chainable rather than merely consumable.
 **preamble** can, because it has finite extent — its edges break exactly the
 periodicity a bare code correlation is blind to. Score a candidate offset
 with **acquisition's own statistic** at the code phase acquisition settled:
-`dp_acq_cell_corr()` of each of the `REPS` periods the preamble would occupy,
+`dp_correlator_cell_corr()` of each of the `REPS` periods the preamble would occupy,
 mixed at one Doppler on one time reference and summed **coherently**, the
 strongest Doppler cell taken. Doppler is a nuisance parameter here; only the
 winning offset is kept. Every cell of every period is one
-`dp_acq_cell_corr_grid()` call, which despreads each sample once rather than
+`dp_correlator_cell_corr_grid()` call, which despreads each sample once rather than
 once per cell (doppler#1538). The score at a whole-period offset `k` still follows
 the triangular overlap envelope `(REPS - abs(k)) / REPS`, because only
 `REPS - abs(k)` of those positions land on preamble.
@@ -229,7 +229,7 @@ This is not a defect in the metric — its two documented ends are certified
 in `burst_despreader`'s own report, and a carrier-lock indicator is only a
 threshold test on the carrier. It is that a chain assembled by a caller has
 no member whose job is to validate the seam. It is the same shape
-`acq_core.h` records historically: a receiver reporting tracking while
+`correlator_core.h` records historically: a receiver reporting tracking while
 decoding noise. A composed object can check its own hand-off; a hand-wired
 one structurally cannot.
 
@@ -339,9 +339,9 @@ one-result API silently under-reports a list-returning one.
 
 ______________________________________________________________________
 
-## 4. What this means for `acq_handoff_t`
+## 4. What this means for `dp_correlator_handoff_t`
 
-[`async-dsss-receiver.md`](async-dsss-receiver.md) specifies `acq_handoff_t` with
+[`async-dsss-receiver.md`](async-dsss-receiver.md) specifies `dp_correlator_handoff_t` with
 `chip_phase` (chips), `samples_consumed`, `doppler_hz_est`, `doppler_res_hz`,
 `cn0_dbhz_est` and three diagnostics. Measured against §3, that record is
 **sufficient for a tracking consumer and insufficient for a burst one**, and
@@ -371,10 +371,10 @@ should receive an answer, not a subtraction to perform. **This is exactly
 the field a caller cannot compute** — it needs the engine's own stream
 position, which is why it must be produced here and not by the caller.
 
-`dp_acq_build_handoff()` also has to learn the burst front door. Its doc comment
+`dp_correlator_build_handoff()` also has to learn the burst front door. Its doc comment
 states the current assumption plainly — `state` built via
-`dp_acq_create_continuous()`, because it reads `doppler_bin` as a frequency-
-*window* index — while an engine from `dp_acq_create_burst()` reports a
+`dp_correlator_create_continuous()`, because it reads `doppler_bin` as a frequency-
+*window* index — while an engine from `dp_correlator_create_burst()` reports a
 *coherent* bin. Extending it is a precondition, not a side quest.
 
 ______________________________________________________________________
@@ -528,7 +528,7 @@ is not settled is its operating envelope.
     `dsss_burst_receiver_core.c`; it moved into the capture as
     `burst_capture_refine()` (`burst_capture_core.c`, §11.3). It does not compose `Corr` as this bullet
     guessed: the candidates are `anchor + k·P` and nothing between, so the
-    stage scores each with acquisition's own statistic — `dp_acq_cell_corr()`
+    stage scores each with acquisition's own statistic — `dp_correlator_cell_corr()`
     of every period the preamble would occupy, so the replica has one home —
     summed coherently over a Doppler search (§3.4; doppler#1502 replaced the
     earlier per-period `corr2d` correlation with it). The
@@ -539,7 +539,7 @@ is not settled is its operating envelope.
 
 - **Whether the history ring should be acq's — SETTLED for now, the
     receiver's.** §7.1 has the receiver keep its own, costing one `memcpy` of
-    the stream, because `dp_acq_push()` consumes eagerly. The alternative is a
+    the stream, because `dp_correlator_push()` consumes eagerly. The alternative is a
     retention policy on `acq`'s existing ring so there is one copy instead of
     two. That is a change to a certified object, so it needs a measurement
     showing the copy matters before it is worth the blast radius — and at
@@ -679,17 +679,17 @@ power of two. (As built, the capture reaches further in both directions —
 
 **The primitive already exists, and `acq` already depends on it.**
 `native/inc/doppler/buffer/buffer.h` generates a double-mapped SPSC ring
-(`dp_f32_t` for cf32), and `acq_core.h` includes it — `dp_acq_state_t` holds
+(`dp_f32_t` for cf32), and `correlator_core.h` includes it — `dp_correlator_state_t` holds
 `dp_f32_t *ring`, the storage its framer carries the stream in. So this is not a new dependency for a DSP
 core, and **no new type is needed**: `DECLARE_DP_BUFFER` already covers the
 dtype. The double mapping is the property that matters here — a window
 spanning the wrap comes back as one contiguous `float complex *`, so the
 burst can be handed to `demod()` with no copy and no seam.
 
-**What it does not already do is retain.** `dp_acq_push()` drains the ring
+**What it does not already do is retain.** `dp_correlator_push()` drains the ring
 through a `dp_f32_framer_t`, one frame a call of `dp_f32_framer_next_view()`,
 and each frame it hands out is released on the framer's next call
-(`dp_acq_push` in `acq_core.c`), so by the time a hit is emitted acquisition has
+(`dp_correlator_push` in `correlator_core.c`), so by the time a hit is emitted acquisition has
 *released* the samples the receiver still needs. The receiver therefore
 keeps its **own** history ring alongside acq's, rather than borrowing one it
 does not own.
@@ -879,7 +879,7 @@ ______________________________________________________________________
 
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) — the
     phase order this document is phase 1 of
-- [`async-dsss-receiver.md`](async-dsss-receiver.md) — `acq_handoff_t` and the
+- [`async-dsss-receiver.md`](async-dsss-receiver.md) — `dp_correlator_handoff_t` and the
     service-boundary goals this extends to bursts
 - [DSSS use cases](../dev/contributing/dsss-use-cases.md) — the burst regime's
     geometry and why the 2-D roll fits it
@@ -1015,7 +1015,7 @@ object that also demodulates. That is the reuse case, and it is present.
 
 The alternative gh-1166 draws — `push(samples, acq_results)`, so a caller
 brings their own detector — was rejected on one invariant.
-`acq_result_t::samples_consumed` is stream-absolute **only** for an engine
+`dp_correlator_hit_t::samples_consumed` is stream-absolute **only** for an engine
 fed continuously and never `reset()`, in the caller's own sample
 coordinates. An object taking foreign results has to require that and cannot
 check it, and a violation is not a degraded window: refine searches the wrong
@@ -1047,7 +1047,7 @@ are not re-made:
     to reach back to a burst start already gone past — and after the split
     the same fixed region, the whole history ring, is written one envelope
     deeper, behind the capture's own `state_bytes()`.
-- **It needs no new accessor.** `dp_acq_state_t::doppler_res_hz` is a public
+- **It needs no new accessor.** `dp_correlator_state_t::doppler_res_hz` is a public
     field and `BurstAcquisition.doppler_res_hz` is a published property
     (`objects/burst_acq.toml`), so nothing re-derives the bin width.
 

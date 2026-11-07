@@ -241,7 +241,7 @@ def test_config_physics(cn0_dbhz, want_db):
     # searched cells, at least every native one. WHICH number -- every row
     # of the Doppler-interpolated surface the maximum ranges over -- is
     # pinned exactly against the engine's band mask in C
-    # (test_acq_core.c, _acq_pfa_split_check; doppler#2218). A copy of
+    # (test_correlator_search.c, _acq_pfa_split_check; doppler#2218). A copy of
     # that count here would be a second definition of it.
     n_cells = math.log1p(-PFA) / math.log1p(-a.pfa_cell)
     assert n_cells == pytest.approx(round(n_cells), rel=1e-6)
@@ -427,7 +427,8 @@ def test_state_roundtrip_resume():
     """The serializable (elastic / pure-transducer) face: serialize
     mid-stream, restore into a *fresh* engine, and resume — the concatenated
     detections must match an uninterrupted run (the pod-handoff guarantee).
-    Mirrors the C ``dp_acq_run`` round-trip; compares detection cells (Doppler
+    Mirrors the C ``dp_correlator_run`` round-trip; compares detection cells
+    (Doppler
     bin, code phase), which are exact across the split.
     """
     rng = np.random.default_rng(2024)

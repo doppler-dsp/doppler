@@ -3,8 +3,8 @@
 # The acquisition surface: the DSSS search engine
 
 The design of the DSSS search engine (`dp_acq_*`,
-`native/src/acq/acq_core.c`), the one C engine behind both
-`dp_acq_create_continuous()` (`Acquisition`) and `dp_acq_create_burst()`
+`native/src/correlator/correlator_core.c`), the one C engine behind both
+`dp_correlator_create_continuous()` (`Acquisition`) and `dp_correlator_create_burst()`
 (`BurstAcquisition`). §1–§8 write what the continuous engine computes, from
 the input samples to a hand-off, as equations, each step naming the
 function that performs it; §9 is the two front doors and what the burst
@@ -18,23 +18,23 @@ the one home of the engine's design.
 
 ## 1. Notation
 
-| symbol                                            | meaning                                                                                                                                               | in the code               |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| $x[n]$                                            | complex input samples, $n = 0, 1, \ldots$ counted from the engine's create or last reset                                                              | `x` of `dp_acq_push()`    |
-| $b[\ell] \in \{0, 1\}$                            | the code's chips, $\ell = 0 \ldots L-1$                                                                                                               | `code`                    |
-| $L$                                               | chips per code period (the spreading factor)                                                                                                          | `sf`                      |
-| $S$                                               | samples per chip                                                                                                                                      | `spc`                     |
-| $N = L S$                                         | samples per code period: one **epoch**                                                                                                                | `code_bins`               |
-| $c[n]$                                            | the code template, one epoch long                                                                                                                     | `replica`                 |
-| $f_S$, $\omega_S = 2\pi f_S$                      | sample rate, $f_S = S R_C$ for chip rate $R_C$; sample $n$ is at time $t_n = n / f_S$                                                                 | `fs`                      |
-| $f_E = f_S / N = R_C / L$, $\omega_E = 2\pi f_E$  | epoch rate; one epoch lasts $T_E = 1/f_E$                                                                                                             | `2 * doppler_span_hz`     |
-| $W$                                               | Doppler tiles, $r = 0 \ldots W-1$                                                                                                                     | `window_bins`             |
-| $\hat f_q = q f_E$, $\hat\omega_q = q\, \omega_E$ | a coarse Doppler hypothesis, $q \in \{0, \pm 1, \pm 2, \ldots\}$; tile $r$'s is $q_r = f_{\text{FFT}}(r, W)$                                          | `dp_fftfreq_index(r, W)`  |
-| $D$                                               | the slow-time depth: epochs per coherent block                                                                                                        | `coherent_bins`           |
-| $I$                                               | slow-time interpolation, $I = 2$ when $D > 1$, else 1                                                                                                 | `interp`                  |
-| $K$                                               | non-coherent looks per dwell                                                                                                                          | `n_noncoh`                |
-| $\mathrm{FFT}\{y\}$                               | the unnormalized $P$-point transform of $y[n]$: $\mathrm{FFT}\{y\}[j] = \sum_{n=0}^{P-1} y[n]\, e^{-j 2\pi j n / P}$, with $P = N$ unless subscripted | `dp_fft_create(P, -1, 1)` |
-| $\mathrm{IFFT}\{Y\}$                              | its unnormalized inverse: $\mathrm{IFFT}\{Y\}[n] = \sum_{j=0}^{P-1} Y[j]\, e^{+j 2\pi j n / P}$, so $\mathrm{IFFT}\{\mathrm{FFT}\{y\}\} = P\, y$      | `dp_fft_create(P, +1, 1)` |
+| symbol                                            | meaning                                                                                                                                               | in the code                   |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| $x[n]$                                            | complex input samples, $n = 0, 1, \ldots$ counted from the engine's create or last reset                                                              | `x` of `dp_correlator_push()` |
+| $b[\ell] \in \{0, 1\}$                            | the code's chips, $\ell = 0 \ldots L-1$                                                                                                               | `code`                        |
+| $L$                                               | chips per code period (the spreading factor)                                                                                                          | `sf`                          |
+| $S$                                               | samples per chip                                                                                                                                      | `spc`                         |
+| $N = L S$                                         | samples per code period: one **epoch**                                                                                                                | `code_bins`                   |
+| $c[n]$                                            | the code template, one epoch long                                                                                                                     | `replica`                     |
+| $f_S$, $\omega_S = 2\pi f_S$                      | sample rate, $f_S = S R_C$ for chip rate $R_C$; sample $n$ is at time $t_n = n / f_S$                                                                 | `fs`                          |
+| $f_E = f_S / N = R_C / L$, $\omega_E = 2\pi f_E$  | epoch rate; one epoch lasts $T_E = 1/f_E$                                                                                                             | `2 * doppler_span_hz`         |
+| $W$                                               | Doppler tiles, $r = 0 \ldots W-1$                                                                                                                     | `window_bins`                 |
+| $\hat f_q = q f_E$, $\hat\omega_q = q\, \omega_E$ | a coarse Doppler hypothesis, $q \in \{0, \pm 1, \pm 2, \ldots\}$; tile $r$'s is $q_r = f_{\text{FFT}}(r, W)$                                          | `dp_fftfreq_index(r, W)`      |
+| $D$                                               | the slow-time depth: epochs per coherent block                                                                                                        | `coherent_bins`               |
+| $I$                                               | slow-time interpolation, $I = 2$ when $D > 1$, else 1                                                                                                 | `interp`                      |
+| $K$                                               | non-coherent looks per dwell                                                                                                                          | `n_noncoh`                    |
+| $\mathrm{FFT}\{y\}$                               | the unnormalized $P$-point transform of $y[n]$: $\mathrm{FFT}\{y\}[j] = \sum_{n=0}^{P-1} y[n]\, e^{-j 2\pi j n / P}$, with $P = N$ unless subscripted | `dp_fft_create(P, -1, 1)`     |
+| $\mathrm{IFFT}\{Y\}$                              | its unnormalized inverse: $\mathrm{IFFT}\{Y\}[n] = \sum_{j=0}^{P-1} Y[j]\, e^{+j 2\pi j n / P}$, so $\mathrm{IFFT}\{\mathrm{FFT}\{y\}\} = P\, y$      | `dp_fft_create(P, +1, 1)`     |
 
 The signed index of bin $u$ of an $M$-point grid is numpy's `fftfreq` fold,
 the one convention every axis below uses (`dp_fftfreq_index()`):
@@ -48,7 +48,7 @@ The template holds each chip for $S$ samples, mapped to $\pm 1$
 
 $$c[n] = 1 - 2\, b\big[\lfloor n / S \rfloor\big], \qquad n = 0 \ldots N-1$$
 
-Its spectrum is taken once, conjugated, and kept (`acq_regrid()`):
+Its spectrum is taken once, conjugated, and kept (`dp_correlator_regrid()`):
 
 $$C_T = \mathrm{FFT}\{c\}^{*}$$
 
@@ -129,9 +129,9 @@ delay-Doppler map's row stage, §18.1):
 $$z_{k,q} = \mathrm{IFFT}\Big\{X_k\big[(j + q) \bmod N\big]\, C_T[j]\Big\}$$
 
 This is the engine's **wideband window tiling** (the file doc of
-`acq_core.h`), which the continuous engine runs whenever $W > 1$, with the
+`correlator_core.h`), which the continuous engine runs whenever $W > 1$, with the
 slow-time depth of §4 inside each tile. At $W = 1$ the only hypothesis is
-$q = 0$, and the engine frames its $D$ epochs untiled (`acq_regrid()`'s
+$q = 0$, and the engine frames its $D$ epochs untiled (`dp_correlator_regrid()`'s
 `frame_n`): the same $q = 0$ surface, with no shift to apply. The hypotheses are $q_r = f_{\text{FFT}}(r, W)$
 for $r = 0 \ldots W-1$: the centers $0, \pm f_E, \pm 2 f_E, \ldots$, stored
 in FFT order. With a
@@ -200,7 +200,7 @@ of §3 is what chooses which of those zones a block is looking at.
 The zero padding is exact band-limited interpolation of the Doppler axis,
 which halves the worst scalloping of a slow-time bin
 (`ACQ_DOPPLER_INTERP`). Two optional factors multiply the series before the
-transform: with a carrier set (`dp_acq_set_carrier_freq_hz()`), a linear
+transform: with a carrier set (`dp_correlator_set_carrier_freq_hz()`), a linear
 phase in the epoch's spectrum that shifts each epoch's lag to the block's
 middle by the hypothesis' code-rate dilation; and with rate hypotheses
 (burst engines), the de-chirp $e^{-j \pi a_h t_{i'}^2}$
@@ -226,7 +226,7 @@ against $2WD \cdot N \log N + WN \cdot DI \log(DI)$ naively. The slow-time
 transform is linear, so it can also come first, once a block for every
 tile: $N$ slow-time transforms and $W DI$ inverses. The engine takes
 whichever order its rule picks (§18.1), and either fans across threads
-(`dp_acq_set_threads()`) with bit-identical results.
+(`dp_correlator_set_threads()`) with bit-identical results.
 
 **The depth.** From the code-only window $E$ in whole epochs
 (`code_only_epochs`) and the Doppler rate $\dot f$ (`doppler_rate`)
@@ -318,7 +318,7 @@ $$R[u, m] = \sqrt{\frac{2K\, P[u, m]}{\bar P}} > \eta_K, \qquad Q_K(0, \eta_K) =
 
 where $Q_K$ is the generalized Marcum Q-function
 (`dp_det_threshold_noncoherent()`). $K$ is the smallest count, at most
-`ACQ_N_NONCOH_SAFETY_CEILING` (256), whose averaged $P_d$ meets the target
+`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING` (256), whose averaged $P_d$ meets the target
 at the design C/N0 (`acq_ascend_n_noncoh()`).
 
 One dwell is therefore $K$ blocks, $KDN$ samples.
@@ -342,7 +342,7 @@ Each listed cell is then reported (`acq_report_peaks()`):
 - **Its tile**: near a tile edge both neighboring tiles read an emitter at
     the same row, so the block's raw epochs are correlated at the row's
     frequency and one epoch rate either side, and the strongest of the three
-    names the tile (`acq_resolve_tile_alias()`).
+    names the tile (`search_resolve_tile_alias()`).
 - **The twin rule**: a pick within the zone of an already-listed pick's lag,
     at any row, is held for one dwell and listed only if, on the previous
     dwell, a pick stood at the same native row and within the zone of its
@@ -357,7 +357,7 @@ list removes a peak further away: §8 is what can stand there.
 ## 7. From a cell to a hand-off
 
 A reported cell, at native row $u'$ (of $WD$) and lag $m$, becomes physical
-values (`dp_acq_build_handoff()`, `acq_handoff_chip_phase()`):
+values (`dp_correlator_build_handoff()`, `acq_handoff_chip_phase()`):
 
 $$\hat f_{\text{hit}} = f_{\text{FFT}}(u', WD)\; \delta f, \qquad \hat\phi = \big(L - m\,L/L_m\big) \bmod L \ \text{chips}$$
 
@@ -411,18 +411,18 @@ two tiles at once.
 **Sidelobes at zero residual**, $\nu = 0$, are the code's periodic
 autocorrelation. Their largest outside the zone, relative to the peak, is
 the preamble's peak sidelobe, which the constructor already computes
-(`acq_shape_t::psl`, `dp_acq_psl_db()`). For a Gold code of 1023 chips the
+(`dp_correlator_shape_t::psl`, `dp_correlator_psl_db()`). For a Gold code of 1023 chips the
 three autocorrelation values give $65/1023$: $-23.9$ dB. That holds on
 whole- and half-chip lags. On a padded lag grid (`lag_bins` > `code_bins`)
 most columns fall between samples, where the zero-padded interpolation
 reads higher: $-23.2$ dB for this code at $S = 2$ on 2,048 columns
 (`native/validation/acq_emitter_floor.c`). So rule 2 bounds a cell with the
-engine's per-cell model on the grid it reads (`dp_acq_sidelobe_ratio()`),
+engine's per-cell model on the grid it reads (`dp_correlator_sidelobe_ratio()`),
 never with `psl`.
 
 **Sidelobes at a tile offset**, $\nu = f - \hat f_q$ for the tiles the
 emitter is not in, are much larger. The engine computes their worst case
-on first read (`acq_shape_t::dsl`, `dp_acq_dsl_db()`). Computed from $\chi$
+on first read (`dp_correlator_shape_t::dsl`, `dp_correlator_dsl_db()`). Computed from $\chi$
 for the Gold code the receiver validators use
 (`dp_dsss_gold_1023()`, $S = 2$, $f_E = 3$ kHz, five tiles), the largest
 $|\chi(\Delta, f - \hat f_q)|$ with $\Delta$ more than a chip from 0,
@@ -567,7 +567,7 @@ off: the last row is far above it.
 **Decided (2026-10-21).** The owner ruled that the ranked search's floor is
 derived from the code's Doppler-offset sidelobe level, as `psl` is from its
 zero-offset one; the level is defined on the grid the engine was built with
-and computed on its first read, `dp_acq_dsl_db()`. A peak is a second emitter only
+and computed on its first read, `dp_correlator_dsl_db()`. A peak is a second emitter only
 if its statistic stands higher than the stronger emitters' sidelobes can
 reach, their statistic times that level, and it still clears the detector's
 gate. The mechanism and its numbers are #2525's, in its design text.
@@ -577,7 +577,7 @@ floor to 20 dB above it, a level that holds everywhere took no weaker
 emitter at the floor beside any stronger one its sidelobes could reach.
 The owner ruled that the bound is per cell: each stronger emitter's
 statistic on its own lag (`test_stat_peak`, §3.1) times its ambiguity to
-the candidate's cell, `dp_acq_sidelobe_ratio()`, which computes that cell
+the candidate's cell, `dp_correlator_sidelobe_ratio()`, which computes that cell
 the way the surface is made and over what the hits leave unknown (the lag
 column, the native row, every tile the cell touches). It is this level at
 the worst cells and well below it at most. On a deep block the level
@@ -616,15 +616,15 @@ mislock, not a graceful loss of gain, and the engine closes it at the
 constructor instead of pricing it as a tunable trade
 ([the guide's worked proof](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)).
 
-|               | `dp_acq_create_continuous()` (`Acquisition`)                            | `dp_acq_create_burst()` (`BurstAcquisition`)                                 |
-| ------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| signal        | a continuous, data-modulated code                                       | a burst opening with a repeated, data-free preamble                          |
-| reference     | the code's chips, held `spc` samples each (§2)                          | one period of the preamble, as samples (§9.1)                                |
-| Doppler       | always window-tiled (§3), $W = 1$ when $\Delta \le f_E/2$               | one native span; tiled the same way when $\Delta$ exceeds it                 |
-| depth $D$     | from `code_only_epochs` and `doppler_rate` (§4), 1 by default           | the smallest in $[1, \text{reps}]$ whose burst $P_d$ (`pd_burst`) meets `pd` |
-| looks $K$     | auto-selected to meet `pd`, at most `ACQ_N_NONCOH_SAFETY_CEILING` (256) | always 1                                                                     |
-| Doppler rate  | caps $D$; one rate hypothesis                                           | caps $D$; `rate_hypotheses` de-chirps the block at $n$ rates (§4)            |
-| short of `pd` | best effort, `underpowered` set                                         | the depth with the most `pd_burst`, `underpowered` set                       |
+|               | `dp_correlator_create_continuous()` (`Acquisition`)                               | `dp_correlator_create_burst()` (`BurstAcquisition`)                          |
+| ------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| signal        | a continuous, data-modulated code                                                 | a burst opening with a repeated, data-free preamble                          |
+| reference     | the code's chips, held `spc` samples each (§2)                                    | one period of the preamble, as samples (§9.1)                                |
+| Doppler       | always window-tiled (§3), $W = 1$ when $\Delta \le f_E/2$                         | one native span; tiled the same way when $\Delta$ exceeds it                 |
+| depth $D$     | from `code_only_epochs` and `doppler_rate` (§4), 1 by default                     | the smallest in $[1, \text{reps}]$ whose burst $P_d$ (`pd_burst`) meets `pd` |
+| looks $K$     | auto-selected to meet `pd`, at most `DP_CORRELATOR_N_NONCOH_SAFETY_CEILING` (256) | always 1                                                                     |
+| Doppler rate  | caps $D$; one rate hypothesis                                                     | caps $D$; `rate_hypotheses` de-chirps the block at $n$ rates (§4)            |
+| short of `pd` | best effort, `underpowered` set                                                   | the depth with the most `pd_burst`, `underpowered` set                       |
 
 **Continuous.** Coherent gain comes only from epochs the caller declares
 code-only (`code_only_epochs`), inside a tile, in blocks that a data
@@ -641,7 +641,7 @@ burst $P_d$ is the preamble landing at any offset against stream-aligned
 dwells, detected when any one of them is. Untiled, it frames $D$ epochs
 $D \times N$, transforms down the columns for Doppler, correlates each row
 against the reference through `corr2d`, and CFAR-gates the surface (the
-file doc of `acq_core.h`). With a stated design C/N0 and an uncertainty
+file doc of `correlator_core.h`). With a stated design C/N0 and an uncertainty
 wider than one span, it tiles as the continuous door does and chooses the
 depth inside every tile.
 
@@ -663,7 +663,7 @@ Nothing in the burst engine's surface is specific to a PN code. It frames
 the stream by one period of the reference, correlates each repetition
 circularly, transforms slow time, and tiles a wide uncertainty by whole-bin
 spectral shifts. All of that holds for **any periodic complex reference**.
-`dp_acq_create_burst()` takes the samples themselves (#1470, #1478): a PN
+`dp_correlator_create_burst()` takes the samples themselves (#1470, #1478): a PN
 code is passed as its chips by `bin_to_nrz()`, held `spc` samples each, and
 one chip is one sample (`sf = n`, `spc = 1`, `chip_rate = fs`), so
 `code_phase` is the delay into the repetition in samples.
@@ -671,7 +671,7 @@ one chip is one sample (`sf = n`, `spc = 1`, `chip_rate = fs`), so
 **What the engine asks of the waveform** is two numbers about its
 autocorrelation $R$. A code has both analytically, from the triangle one
 chip wide. A template gets both from one FFT at construction
-(`acq_shape_t`):
+(`dp_correlator_shape_t`):
 
 | quantity       | used for                                            | a code      | a template                                                                       |
 | -------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
@@ -705,7 +705,7 @@ instead of shrinking, so the zero-delay cut overstates its loss.
 reference has, so `peak_mag` and `noise_est` are in the signal's units.
 `cn0_dbhz` is the preamble's mean power over `fs`; at `fs = 1` it is the
 per-sample SNR in dB and Doppler is in cycles/sample. Any finite `cn0_dbhz`
-is a design point, negative included, and NaN (`ACQ_CN0_NONE`) means none
+is a design point, negative included, and NaN (`DP_CORRELATOR_CN0_NONE`) means none
 (#1484).
 
 **`pd_predicted` is measured, not only modelled**
@@ -761,7 +761,7 @@ outgrows one span. On a continuous data-modulated signal that integration
 is not available to any method (§9), so the coherent advantage disappears
 and the shift's one forward transform per epoch is the cheaper
 realization: about 1.2–1.55× faster than an equivalent tuned-mixer bank in
-a frequency-bank benchmark (the file doc of `acq_core.h`). On that door the
+a frequency-bank benchmark (the file doc of `correlator_core.h`). On that door the
 shift is the whole $D = 1$ search, not a front end to a richer kernel.
 
 **Sub-block chopping** would cut each epoch into $K$ pieces: the slow-time
@@ -893,9 +893,9 @@ $n$ = 3, 5 and 9 (#2287).
 
 **Where this is enforced.**
 
-- `test_acq_core.c` pins `pfa_cell` to the band mask's in-band cell count
+- `test_correlator_search.c` pins `pfa_cell` to the band mask's in-band cell count
     on every grid shape, and `make lint-acq-pfa-split` holds every
-    `dp_det_pfa_cell` call under `native/src/acq/` to `acq_band_cells`.
+    `dp_det_pfa_cell` call under `native/src/correlator/` to `acq_band_cells`.
 - The certification measures the delivered rate against the target
     (finding `pfa_over_delivered`, FIXED) and holds it with a shrink-only ratchet, 1.4× over
     60,000 frames: a backstop that an on-target detector trips about 0.1% of
@@ -913,8 +913,8 @@ $n$ = 3, 5 and 9 (#2287).
 
 **State.** The engine owns a ring (leftover samples and the stream
 offset), its accumulators and its plans; everything that survives a push
-serializes through the standard triplet, `dp_acq_state_bytes()` /
-`dp_acq_get_state()` / `dp_acq_set_state()`, and `dp_acq_run()` is the
+serializes through the standard triplet, `dp_correlator_state_bytes()` /
+`dp_correlator_get_state()` / `dp_correlator_set_state()`, and `dp_correlator_run()` is the
 pure-transducer form over it ([acq-fn.md](acq-fn.md),
 [state-serialization.md](state-serialization.md)). A blob resumes
 bit-for-bit in a fresh engine; config that sizes it (the rate-hypothesis
@@ -923,7 +923,7 @@ carry (`acq_caf_tile`, `acq_nc_accumulate`) was proposed and not built: the
 serialized engine gives the same hand-off.
 
 **Inside one engine,** each stage of the one map (§18.3) fans once a block
-on a persistent worker pool (`dp_acq_set_threads()`,
+on a persistent worker pool (`dp_correlator_set_threads()`,
 `Acquisition.set_threads()`, read back as `threads`). Each worker slot owns
 its plans and scratch, every output row is one slot's same arithmetic, and
 the per-cell passes that decide a surface merge serially in tile order, so
@@ -935,7 +935,7 @@ single-tile one run serially.
 
 **Across engines,** shards are independent: coarse-Doppler channels, rate
 hypotheses, time blocks. `push` releases the GIL (`nogil = true` in
-`objects/acq.toml`), so thread-per-shard scales, about 3.4× on 8 cores and
+`objects/correlator.toml`), so thread-per-shard scales, about 3.4× on 8 cores and
 4.9× on 12, memory-bandwidth bound past a few cores (`bench_acq.py`).
 Per-shard memory is small (a surface of $WDI \times N$ floats), so
 thousands of shards fit in RAM. `src/doppler/dsss/orchestrator.py`
@@ -1022,7 +1022,7 @@ independent tiles per 100 ms.
 
 **Code Doppler** (chip-rate dilation) walks the code phase by
 $(v/c) R_C T_{coh}$ chips. With a carrier set
-(`dp_acq_set_carrier_freq_hz()`), the continuous engine aligns each
+(`dp_correlator_set_carrier_freq_hz()`), the continuous engine aligns each
 block's epochs by the hypothesis' dilation (§4) and advances the hand-off's
 chip phase by it (§7); the burst path does not compensate it (§17).
 
@@ -1254,7 +1254,7 @@ will (record §18.4):
     same output, `refine_bias` but for its timing line.
 - `rx_dynamics` passes both ways; it is the MPSK receiver and never calls
     acq.
-- The C suites widen it: every check of `test_acq_core` passes, its tiled
+- The C suites widen it: every check of `test_correlator_search` passes, its tiled
     carrier cases included, but the one that pins `block_prompt`'s rows to
     the exact ramp, which the map keeps exact (§18.2); and
     `test_async_dsss_receiver_core`, `test_async_dsss_pool_core` and
@@ -1276,7 +1276,7 @@ of one push rises, which the speed gate, a throughput measure, does not see.
 pool's full span), leaves the engine and its state blob, which is a version
 bump.
 
-**`dp_acq_block_prompt`**, `blk`'s only other reader, runs the map on one
+**`dp_correlator_block_prompt`**, `blk`'s only other reader, runs the map on one
 epoch: a block of $D = 1$, no slow time, with the exact ramp
 $e^{-j 2\pi (k - c) d_q j'/N}$ as the row stage's per-bin phase, for the
 one tile it is asked for. It stays the exactly ramped per-epoch column its
@@ -1289,10 +1289,10 @@ used to be baked into `blk` at push time; it is now applied at the block end
 from `blk_raw`, so a restore into an engine holding another carrier would
 silently compute a different block. It is a mutator's value (#2022),
 restored by `set_state`, and not a reject key: $F$ sizes the fine slow-time
-buffer, not the blob, which holds raw epochs. `dp_acq_set_carrier_freq_hz`,
+buffer, not the blob, which holds raw epochs. `dp_correlator_set_carrier_freq_hz`,
 which only sets a field today, rebuilds the fine buffer and the per-tile
-offset and phase tables when $F$ or a $d_q$ moves, through `acq_regrid`,
-which re-applies the requested thread count (#2797). `dp_acq_set_state`,
+offset and phase tables when $F$ or a $d_q$ moves, through `dp_correlator_regrid`,
+which re-applies the requested thread count (#2797). `dp_correlator_set_state`,
 which today only copies fields, restores the carrier through that same
 rebuild, never by writing the field, so a restore that moves $F$ (a
 blob taken at a carrier, restored into a carrier-0 engine) gets the buffer
@@ -1325,7 +1325,7 @@ threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
 ### 18.4 Oracle and gate
 
 - **Before the switch (step 2.2):** `_acq_map_equivalence_check` in
-    `test_acq_core.c` compares today's decided complex surface and hits
+    `test_correlator_search.c` compares today's decided complex surface and hits
     with the map's definition, evaluated in double precision by direct DFTs
     in the test. It runs 13 seeded scenes, 8 draws each, each asserting the
     regime it claims: $D = 1$ to 150, narrow and tiled, a side tile, a padded

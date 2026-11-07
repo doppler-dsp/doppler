@@ -247,9 +247,9 @@ entirely when it provably contributes nothing — a `corr2d`-level
 optimization, independent of §1-8's forward/inverse split and orthogonal to
 P2 (prime-length forward FFT).
 
-**Why.** `acq_core.c` (and, since, `burst_capture_core.c`) build a reference
+**Why.** `correlator_core.c` (and, since, `burst_capture_core.c`) build a reference
 with energy only in row 0 — the flat-in-slow-time row spectrum turns the row
-axis into a pass-through, and `acq_core.c` relies on this, doing its own
+axis into a pass-through, and `correlator_core.c` relies on this, doing its own
 Doppler-axis FFT by hand before calling `dp_correlator_execute`. (`correlator_core.c`
 passes its caller's arbitrary `(ny, nx)` reference through, so it takes the
 fast path only when that reference happens to be single-row.) For such a
@@ -301,10 +301,10 @@ spectrum. Same byte count, same layout, so `dp_correlator_state_bytes`/
 `ny=16, nx=2046` — the acquisition grid from §1/`acq-surface.md` §14):
 single-row (fast path) ~86 MSa/s vs. multi-row (general path) ~54 MSa/s at
 that grid. The much larger end-to-end win is in the small-grid regime
-`dp_acq_push` actually runs at (`ny=16, nx=14`): the composed `DsssReceiver`'s
+`dp_correlator_push` actually runs at (`ny=16, nx=14`): the composed `DsssReceiver`'s
 "search" (acquisition) benchmark went from ~28-59 MSa/s to ~133 MSa/s,
 now roughly matching its "track" regime (~135 MSa/s) instead of trailing
-it 3-5x — `dp_correlator_execute` was ~75% of `dp_acq_push`'s per-frame cost, split
+it 3-5x — `dp_correlator_execute` was ~75% of `dp_correlator_push`'s per-frame cost, split
 almost evenly between the forward and inverse FFT2, confirming the row
 axis really was paying for a full transform pair every frame.
 

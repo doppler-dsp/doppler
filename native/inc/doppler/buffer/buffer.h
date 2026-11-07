@@ -1681,7 +1681,7 @@ typedef enum
    *                                                                          \
    * With dp_##name##_framer_state_frames(), what lets a composition that     \
    * counts its position as framed samples plus the carry                     \
-   * (dp_acq_position()) check a child's blob against its own before it       \
+   * (dp_correlator_position()) check a child's blob against its own before it       \
    * writes anything. Accepts exactly the blobs                               \
    * dp_##name##_framer_set_state() accepts, through the same check, and      \
    * changes nothing, @p pending included, on a refusal.                      \

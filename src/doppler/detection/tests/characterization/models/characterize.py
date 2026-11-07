@@ -7,7 +7,8 @@ statistic the family claims to describe, count how often it crosses, and
 compare the frequency to the probability that was priced.
 
 This subject exists because that comparison was being asserted rather than
-run. `acq_core.c` sizes its whole (coherent depth, non-coherent look) split
+run. `correlator_core.c` sizes its whole (coherent depth, non-coherent look)
+split
 on these helpers and its own comment reads *"Validated against Monte-Carlo to
 <1% (det_pd_noncoherent tests)"* — a real claim, spot-checked at three points
 in a unit test, with no sweep behind the number.

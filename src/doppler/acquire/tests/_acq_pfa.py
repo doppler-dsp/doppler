@@ -13,7 +13,8 @@ convention, and this repo has paid for that four times over.
 **Why it is worth measuring at all.** The gate is a maximum over the
 Doppler-INTERPOLATED surface, and `acq_commit_thresholds()` prices it with a
 Sidak split over the cells that maximum ranges over (`acq_band_cells()` in
-`native/src/acq/acq_core.c`: every searched row of the interpolated surface,
+`native/src/correlator/correlator_core.c`: every searched row of the
+interpolated surface,
 times `code_bins`, times the rate hypotheses). That is the one definition;
 this module only measures what it delivers.
 
@@ -50,7 +51,8 @@ if TYPE_CHECKING:
 #:
 #: 1.4 since doppler#2218 put the delivered rate on target (it was 2.2
 #: against a delivered ~1.65-1.85). A BACKSTOP: the exact guard is the C pin,
-#: test_acq_core.c's _acq_pfa_split_check, which holds pfa_cell to the band
+#: test_correlator_search.c's _acq_pfa_split_check, which holds pfa_cell to
+#: the band
 #: mask's cell count. This catches what slips past it, at the frames that
 #: resolve it: the certification (the caller CI runs, through
 #: test_validation_limits) measures 60,000 frames at `pfa = 1e-3`. An

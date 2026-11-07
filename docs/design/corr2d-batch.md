@@ -20,7 +20,7 @@ ______________________________________________________________________
 | caller                        | gives                                   | wants back                                                       | today                                                                                                       |
 | ----------------------------- | --------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | a delay-Doppler sweep (#2683) | H frames, or H hypotheses of one frame  | every map, or the best cell over them and which map it came from | H `execute()` calls at dwell 1; at 64 x 512 that is about 186 us a map, and the cost is the map, not Python |
-| acq's rate search (#2670)     | one frame under each rate hypothesis    | each map's peak and its peak-to-mean, to rank the hypotheses     | `acq_core.c` hand-rolls the per-map statistic and the argmax                                                |
+| acq's rate search (#2670)     | one frame under each rate hypothesis    | each map's peak and its peak-to-mean, to rank the hypotheses     | `correlator_core.c` hand-rolls the per-map statistic and the argmax                                         |
 | non-coherent integration      | frames whose phase wanders between them | the power summed across frames                                   | a coherent dwell cancels them; nothing sums power                                                           |
 
 The peak-to-mean ranking is why `PEAKS` reports each map's own statistics:

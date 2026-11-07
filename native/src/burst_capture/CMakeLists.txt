@@ -19,7 +19,6 @@ target_include_directories(
                             ${CMAKE_SOURCE_DIR}/native/inc/doppler/burst_capture)
 target_link_libraries(burst_capture_core PUBLIC
     burst_acq_core
-    acq_core
     correlator_core
     fft2d_core
     fft_core
@@ -33,7 +32,6 @@ add_executable(test_burst_capture_core
                ${CMAKE_SOURCE_DIR}/native/tests/burst_capture/test_burst_capture_symbols.c)
 target_link_libraries(test_burst_capture_core
                       PRIVATE burst_capture_core burst_acq_core
-    acq_core
     correlator_core
     fft2d_core
     fft_core
@@ -52,7 +50,6 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/native/benchmarks/burst_capture/bench_burst_capture_core.c)
 target_link_libraries(bench_burst_capture_core
                       PRIVATE burst_capture_core burst_acq_core
-    acq_core
     correlator_core
     fft2d_core
     fft_core

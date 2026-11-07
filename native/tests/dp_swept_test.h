@@ -3,7 +3,7 @@
  * @brief A swept carrier for C tests: rotate a block by a chirp about a
  *        stated center.
  *
- * `test_acq_core.c`, `test_burst_capture_core.c` and
+ * `test_correlator_search.c`, `test_burst_capture_core.c` and
  * `native/validation/acq_rate_pd.c` each carried a private
  * `exp(j*2*pi*(f_mid*u + 0.5*rate*u*u))` phase ramp.  This is the one copy,
  * built on the library's own operator -- a chirp `wfm_synth` and

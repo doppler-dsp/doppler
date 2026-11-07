@@ -180,7 +180,7 @@ def section_object() -> None:
                 "the Pd/threshold sizing this engine calls — not re-derived",
             ],
             [
-                "`native/inc/doppler/acq/acq_core.h`",
+                "`native/inc/doppler/correlator/correlator_core.h`",
                 "the contract — the SSOT this report audits",
             ],
         ],
@@ -189,7 +189,7 @@ def section_object() -> None:
     R.md()
     R.md(
         "Step 1 of `docs/dev/contributing/validation.md`. The C test is "
-        "`test_acq_core.c` (already substantial). Two claims had "
+        "`test_correlator_search.c` (already substantial). Two claims had "
         "**zero mentions in either language**, and both are the kind that "
         "fail quietly."
     )
@@ -341,7 +341,8 @@ def _sec_templates(d: Data) -> None:
         "`acq_create_burst_template()` searches a preamble by its samples "
         "(doppler#1470). What a code knows analytically -- the peak zone, "
         "the delay straddle -- comes from the template's own correlation, "
-        "and `test_acq_core.c` pins those inputs against closed forms. "
+        "and `test_correlator_search.c` pins those inputs against closed "
+        "forms. "
         "This measures the OUTPUT: §2.24's method, one frame of "
         f"D = {D} repetitions per trial with the grid pinned, Doppler "
         "uniform over the span, a continuous band-limited delay, AWGN from "
@@ -892,7 +893,8 @@ def _sec_noisemode(d: Data) -> None:
     R.md()
     R.md(
         "`noise_mode` picks how the reference cells are aggregated, and it "
-        "had zero mentions in `test_acq_core.c` and zero in `test_acq.py` — "
+        "had zero mentions in `test_correlator_search.c` and zero in "
+        "`test_acq.py` — "
         "only the default was ever exercised. It is the denominator of the "
         "gating statistic, so the choice moves the engine's whole "
         "sensitivity."
@@ -922,7 +924,8 @@ def _sec_noisemode(d: Data) -> None:
             rows.append([mode, "0", "—", "no detection"])
     R.table(["noise_mode", "hits", "noise_est", "test_stat"], rows)
     d.mode_rows = d.mode_rows + rows
-    # The ordering test_acq_core.c pins (its noise-mode block), relation for
+    # The ordering test_correlator_search.c pins (its noise-mode block),
+    # relation for
     # relation: min divides by the smallest reference cell, so it is
     # strictly above mean and median; max is at or below mean. A pair is
     # compared only when both modes detected, since an aggressive enough
@@ -1118,7 +1121,8 @@ def review(d: Data) -> None:
     R.find(
         "noise_mode_zero_mentions_test",
         "FIXED",
-        "**`noise_mode` had zero mentions in `test_acq_core.c` and zero in "
+        "**`noise_mode` had zero mentions in `test_correlator_search.c` and "
+        "zero in "
         "`test_acq.py`** — only the default was ever exercised, on an "
         "engine whose constructor offers four. `noise_est` is the "
         "denominator of the gating statistic, so the choice moves the "
@@ -1162,7 +1166,7 @@ def review(d: Data) -> None:
         "`doppler_span_hz`, with the header open, and failed at 2x span; "
         "the correct behaviour looked like a coverage bug for several "
         "minutes. The coverage itself is right and already swept in "
-        "`test_acq_core.c`. Filed as "
+        "`test_correlator_search.c`. Filed as "
         "[#998](https://github.com/doppler-dsp/doppler/issues/998).",
     )
     R.find(
@@ -1173,7 +1177,7 @@ def review(d: Data) -> None:
         "(§2.19); everything else this part measures through the Python "
         "face runs the burst door. The continuous engine's runtime "
         "behaviour (the tiled search, the carrier coupling, threads, the "
-        "peak list) is pinned in `test_acq_core.c`, "
+        "peak list) is pinned in `test_correlator_search.c`, "
         "`test_acq_continuous.py` and the async DSSS receiver's reports, "
         "not here, so this report on its own overstates what it certifies "
         "for that front door. Left open: "
@@ -1259,7 +1263,8 @@ def review(d: Data) -> None:
         "takes away: 0.92 promised, 0.65 delivered in §2.29. The burst "
         "constructors now take `doppler_rate` and cap the depth by the "
         "drift rule the continuous engine already used, from one helper "
-        "(doppler#1482). Sabotage-proven in `test_acq_core.c` and in the "
+        "(doppler#1482). Sabotage-proven in `test_correlator_search.c` and in "
+        "the "
         "harness's spot check.",
     )
 

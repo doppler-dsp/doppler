@@ -15,9 +15,9 @@
  *
  * No public call can make an allocation fail, so this test compiles
  * async_dsss_receiver_core.c into itself. The build renames dp_tlm_create
- * and dp_acq_set_telemetry for this file only (-D on the target), routing
- * them through the counted stand-ins in adr_tlm_hook.c, and fails the Nth
- * call of either. Each case runs from a detached receiver and from one
+ * and dp_correlator_set_telemetry for this file only (-D on the target),
+ * routing them through the counted stand-ins in adr_tlm_hook.c, and fails the
+ * Nth call of either. Each case runs from a detached receiver and from one
  * already attached elsewhere, and each requires the armed failure to have
  * fired, so no case can pass by never reaching its branch.
  *
@@ -56,7 +56,7 @@ typedef struct
 {
   const char *name;
   int         tlm_at; /* fail this dp_tlm_create call; 0 = none */
-  int         acq_at; /* fail this dp_acq_set_telemetry call; 0 = none */
+  int acq_at; /* fail this dp_correlator_set_telemetry call; 0 = none */
 } oom_case_t;
 
 static const oom_case_t CASES[] = {
@@ -80,7 +80,7 @@ run_case (const oom_case_t *c, int attached)
                 == DP_OK);
   const size_t   old_probes = dp_tlm_probe_count (old);
   dp_tlm_t      *was_tlm    = rx->tlm;
-  void          *was_acq    = rx->acq->tlm.ctx;
+  void          *was_acq    = rx->acq->search->tlm.ctx;
   const uint32_t was_decim  = rx->tlm_decim;
   char           was_prefix[DP_TLM_NAME_MAX];
   memcpy (was_prefix, rx->tlm_prefix, sizeof was_prefix);
@@ -95,7 +95,8 @@ run_case (const oom_case_t *c, int attached)
   DP_REQUIRE_MSG (hit, c->name);
   DP_CHECK_MSG (rc == DP_ERR_MEMORY, c->name);
   DP_CHECK_MSG (dp_tlm_probe_count (t2) == 0, c->name);
-  DP_CHECK_MSG (rx->tlm == was_tlm && rx->acq->tlm.ctx == was_acq, c->name);
+  DP_CHECK_MSG (rx->tlm == was_tlm && rx->acq->search->tlm.ctx == was_acq,
+                c->name);
   DP_CHECK_MSG (rx->tlm_decim == was_decim
                     && memcmp (rx->tlm_prefix, was_prefix, sizeof was_prefix)
                            == 0,

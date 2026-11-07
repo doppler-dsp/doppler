@@ -94,7 +94,7 @@ What `detections()` hands back: everything acquisition found in the last push, B
 Both exist because they answer different questions and arrive at different times. A detection is available the moment a frame clears threshold; a burst is not available until its LAST sample has, which is `retain_span` later and never for a burst that was cut off. A caller watching a band for activity wants the first; a caller decoding wants the second; a bank doing both would otherwise have to run two acquisition engines over one stream.
 
 
-The epoch is stream-absolute, which `acq_result_t::code_phase` is not  that is a lag modulo one code period, and making it absolute is the first thing this object does with a hit. 
+The epoch is stream-absolute, which `dp_correlator_hit_t::code_phase` is not  that is a lag modulo one code period, and making it absolute is the first thing this object does with a hit. 
 
 
     

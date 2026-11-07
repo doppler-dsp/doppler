@@ -59,7 +59,7 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   PyObject          *reps_obj            = NULL;
   unsigned long long reps_raw            = 5;
   double             fs                  = 1.0;
-  double             cn0_dbhz            = ACQ_CN0_NONE;
+  double             cn0_dbhz            = DP_CORRELATOR_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -1569,9 +1569,9 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "coherent depth when a design cn0_dbhz asks for one, and a hit's "
     "doppler_bin indexes all of window_bins * depth rows. This is the count "
     "to fold a hit's bin over (bin_to_signed(bin, doppler_bins) * "
-    "doppler_res_hz is the signed Doppler); it is acq_grid_bins(), and the "
-    "same number BurstAcquisition.doppler_bins reads. `configure_search_raw` "
-    "pins it.\n",
+    "doppler_res_hz is the signed Doppler); it is dp_correlator_grid_bins(), "
+    "and the same number BurstAcquisition.doppler_bins reads. "
+    "`configure_search_raw` pins it.\n",
     NULL },
   { "n_noncoh", (getter)PersistentBurstCapture_getprop_n_noncoh, NULL,
     "Non-coherent looks combined per decision. Above 1 the object needs that "
@@ -2144,7 +2144,7 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "    Sample rate, Hz (> 0).\n"
     "cn0_dbhz : float\n"
     "    C/N0 the search is sized for, dB-Hz: any finite value, or NaN\n"
-    "    (ACQ_CN0_NONE) for no design point.\n"
+    "    (DP_CORRELATOR_CN0_NONE) for no design point.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    Doppler search half-range, Hz (0 = native).\n"
     "pfa : float, default 1e-3\n"

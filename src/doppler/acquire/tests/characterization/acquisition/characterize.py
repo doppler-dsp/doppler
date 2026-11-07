@@ -110,7 +110,8 @@ from doppler.util import fromto
 
 # Acquisition sizing knobs, matching what DsssReceiver configures internally
 # for its own embedded engine (native_dsss_receiver_core.c's
-# dp_acq_create_continuous call by way of the Python DsssReceiver constructor's
+# dp_correlator_create_continuous call by way of the Python DsssReceiver
+# constructor's
 # own defaults/stress-harness choices) -- this is what makes "the full range
 # we defined for DsssReceiver" apply to Acquisition on its own.
 DOPPLER_UNCERTAINTY = 0.95 * SPAN_HZ

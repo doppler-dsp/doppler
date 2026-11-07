@@ -1,6 +1,7 @@
 """``BurstAcquisition`` is a thin composing object: a genuinely separate jm
 object (``objects/burst_acq.toml``) whose C core (``burst_acq_core.c``) is a
-pure forwarder onto the SAME shared ``dp_acq_state_t``/``acq_core.c`` engine
+pure forwarder onto the SAME shared
+``dp_correlator_state_t``/``correlator_core.c`` engine
 ``Acquisition`` (continuous) uses -- the two public front doors onto one
 engine (``docs/design/async-dsss-receiver.md`` §2.1).
 ``test_acq.py`` already exhaustively covers this class's own streaming/
@@ -165,10 +166,11 @@ def test_hit_chip_phase_matches_acquisition(spc):
     """A BurstAcquisition hit carries the same Dll seed as an Acquisition
     hit on the same capture: ``hit[7]``, ``chip_phase`` (doppler#1257).
 
-    Both classes run ``dp_acq_push`` -> ``acq_report_peaks`` on one engine,
+    Both classes run ``dp_correlator_push`` -> ``acq_report_peaks`` on one
+    engine,
     so the C hit is the same; this pins that both Python faces return it.
     The units differ by construction: a burst engine is built from a
-    sampled template, "one chip = one sample" (``dp_acq_create_burst``),
+    sampled template, "one chip = one sample" (``dp_correlator_create_burst``),
     so its ``chip_phase`` counts template samples over a period of
     ``code_bins``, while Acquisition counts code chips over ``SF``. At one
     sample per chip the two are equal; at ``spc`` the burst value is

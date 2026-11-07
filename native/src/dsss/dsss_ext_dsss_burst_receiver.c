@@ -60,7 +60,7 @@ DsssBurstReceiverObj_init (DsssBurstReceiverObject *self, PyObject *args,
   PyObject          *spc_obj             = NULL;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
-  double             cn0_dbhz            = ACQ_CN0_NONE;
+  double             cn0_dbhz            = DP_CORRELATOR_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;

@@ -17,7 +17,7 @@
 #include "doppler/buffer/buffer.h"
 #include "doppler/dp_state.h"
 #include "doppler/burst_acq/burst_acq_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 #include "doppler/fft/fft_core.h"
@@ -34,7 +34,7 @@
 #define BURST_CAPTURE_EDGE_TWINS 4u
 
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-#define BURST_CAPTURE_STATE_VERSION 6u
+#define BURST_CAPTURE_STATE_VERSION 7u
 
 #ifdef __cplusplus
 extern "C" {

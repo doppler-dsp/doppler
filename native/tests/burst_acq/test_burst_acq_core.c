@@ -1,12 +1,13 @@
 /*
  * test_burst_acq_core.c — BurstAcquisition thin-forwarder C-level tests.
  *
- * burst_acq_core.c is a pure forwarder onto acq_core.c's shared engine (see
- * burst_acq_core.h's file doc comment) -- the underlying physics are already
- * exhaustively covered by test_acq_core.c against dp_acq_create_burst()
- * directly. This test only proves the forwarding itself is correct: a
- * real construction succeeds, push()/reset()/configure_search_raw() reach
- * the embedded engine, and the state triplet round-trips.
+ * burst_acq_core.c is a pure forwarder onto correlator_core.c's shared engine
+ * (see burst_acq_core.h's file doc comment) -- the underlying physics are
+ * already exhaustively covered by test_correlator_search.c against
+ * dp_correlator_create_burst() directly. This test only proves the forwarding
+ * itself is correct: a real construction succeeds,
+ * push()/reset()/configure_search_raw() reach the embedded engine, and the
+ * state triplet round-trips.
  */
 #include "doppler/burst_acq/burst_acq_core.h"
 #include "doppler/dp_complex.h"
@@ -22,7 +23,8 @@ int
 main (void)
 {
 
-  /* A NULL/empty preamble is rejected, same as dp_acq_create_burst() itself.
+  /* A NULL/empty preamble is rejected, same as dp_correlator_create_burst()
+   * itself.
    */
   DP_CHECK (
       dp_burst_acq_create (NULL, 0, 1, 4.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0, 1)
@@ -45,7 +47,7 @@ main (void)
    * engine, one dump, one hit. The buffer is sized from the frame it
    * pushes: it was two periods, which held a frame only while the sizer
    * picked D <= 2, and read past its end when it picked 3 (doppler#1501). */
-  const size_t    frame = obj->engine->coherent_bins * nx;
+  const size_t    frame = obj->engine->search->coherent_bins * nx;
   float _Complex *burst = malloc (frame * sizeof (float _Complex));
   DP_CHECK (burst != NULL);
   if (burst)
@@ -55,13 +57,13 @@ main (void)
           uint8_t chip = CODE7[(k / spc) % 7];
           burst[k]     = (chip & 1u) ? -1.0f : 1.0f;
         }
-      acq_result_t hits[4];
-      size_t       nh = dp_burst_acq_push (obj, burst, frame, hits, 4);
+      dp_correlator_hit_t hits[4];
+      size_t              nh = dp_burst_acq_push (obj, burst, frame, hits, 4);
       DP_CHECK (nh == 1);
       if (nh == 1)
         {
-          DP_CHECK (hits[0].doppler_bin == 0);
-          DP_CHECK (hits[0].code_phase == 0);
+          DP_CHECK (hits[0].row == 0);
+          DP_CHECK (hits[0].col == 0);
         }
       free (burst);
     }

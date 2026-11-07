@@ -1,12 +1,12 @@
 /**
  * @file burst_acq_core.h
- * @brief BurstAcquisition — thin forwarder onto acq_core.c's shared engine.
+ * @brief BurstAcquisition — thin forwarder onto correlator_core.c's shared engine.
  *
- * Composes dp_acq_state_t (native/inc/doppler/acq/acq_core.h) as an embedded pointer,
- * built via dp_acq_create_burst() -- the BURST front door onto the SAME shared
- * engine `Acquisition` (acq_core.h) composes via dp_acq_create_continuous().
+ * Composes dp_correlator_state_t (native/inc/doppler/correlator/correlator_core.h) as an embedded pointer,
+ * built via dp_correlator_create_burst() -- the BURST front door onto the SAME shared
+ * engine `Acquisition` (correlator_core.h) composes via dp_correlator_create_continuous().
  * Every function here is a direct forward to the corresponding acq_* call;
- * the entire algorithm lives in acq_core.c exactly once (see
+ * the entire algorithm lives in correlator_core.c exactly once (see
  * docs/design/async-dsss-receiver.md's Acquisition/BurstAcquisition split
  * and CLAUDE.md's "every algorithm lives in C exactly once" rule).
  *
@@ -17,7 +17,7 @@
  *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
  * dp_burst_acq_state_t *obj = dp_burst_acq_create(zc, 127, 8, 1.0e6, 50.0,
  *                                           0.0, 1e-3, 0.9, 0, 0.0, 1);
- * acq_result_t hits[64];
+ * dp_correlator_hit_t hits[64];
  * size_t nh = dp_burst_acq_push(obj, samples, n_samples, hits, 64);
  * dp_burst_acq_destroy(obj);
  * @endcode
@@ -25,7 +25,7 @@
 #ifndef DP_BURST_ACQ_CORE_H
 #define DP_BURST_ACQ_CORE_H
 
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
 #include "doppler/cvt/cvt_core.h"
@@ -37,14 +37,14 @@ extern "C"
 
   /**
    * @brief BurstAcquisition state: a pure wrapper around one shared
-   *        dp_acq_state_t engine.
+   *        dp_correlator_state_t engine.
    *
    * Allocate with dp_burst_acq_create(); every other function forwards
    * straight to the corresponding acq_* call on `engine`.
    */
   typedef struct
   {
-    dp_acq_state_t *engine; /**< The wrapped acquisition engine; owned,
+    dp_correlator_state_t *engine; /**< The wrapped acquisition engine; owned,
                                  freed by dp_burst_acq_destroy(). */
     /** The engine's `underpowered` at construction -- a field of THIS
         struct because a declared jm warning's condition must be one; it is
@@ -54,8 +54,8 @@ extern "C"
 
   /**
    * @brief Create a burst-mode acquisition engine for any repeated preamble,
-   *        given as its samples (forwards to dp_acq_create_burst() -- see its
-   *        doc comment in acq_core.h for the full physics).
+   *        given as its samples (forwards to dp_correlator_create_burst() -- see its
+   *        doc comment in correlator_core.h for the full physics).
    *
    * One period of @p preamble_len complex samples at @p fs, repeated up to @p reps
    * times: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped
@@ -75,7 +75,7 @@ extern "C"
    * @param fs  Sample rate in Hz (> 0); 1 for normalized units.
    * @param cn0_dbhz  Design carrier-to-noise density in dB-Hz, of the
    *                  preamble's mean power: any finite value, or NaN
-   *                  (ACQ_CN0_NONE) for no design point -- size for the
+   *                  (DP_CORRELATOR_CN0_NONE) for no design point -- size for the
    *                  whole preamble.
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz.
    * @param pfa  Target system false-alarm probability (0,1).
@@ -85,12 +85,12 @@ extern "C"
    *                  depth at `f_epoch/sqrt(2*doppler_rate)` repetitions
    *                  (doppler#1482); 0 is no bound.
    * @param rate_hypotheses  Doppler-rate hypotheses to search (0 = auto,
-   *                  else 1 to ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the
+   *                  else 1 to DP_CORRELATOR_RATE_HYPS_MAX); 1 searches none. Above 1 the
    *                  engine COMPENSATES the rate rather than only capping the
    *                  depth: `doppler_rate` becomes the span `[-R, +R]`, the
    *                  coherent block is de-chirped at this many rates across
    *                  it, and the depth is bounded by the residual
-   *                  `R/(n - 1)` -- see dp_acq_create_burst(), which owns the
+   *                  `R/(n - 1)` -- see dp_correlator_create_burst(), which owns the
    *                  semantics, including 0 = auto (the engine chooses the
    *                  count; read it back from `engine->rate_hyps`). Needs a
    *                  non-zero `doppler_rate`.
@@ -155,7 +155,7 @@ extern "C"
   /**
    * @brief Drain the input ring and reset the coherent accumulator.
    *
-   * Forwards to dp_acq_reset() on the embedded engine: discards any buffered
+   * Forwards to dp_correlator_reset() on the embedded engine: discards any buffered
    * samples that have not yet completed a frame and clears the non-coherent
    * power accumulator and dwell bookkeeping, so the next push() begins a
    * fresh search from an empty ring.  Construction parameters are untouched.
@@ -183,19 +183,19 @@ extern "C"
   /**
    * @brief Stream raw samples; emit one event per CFAR dump above threshold.
    *
-   * Forwards to dp_acq_push() on the embedded engine (see its doc comment in
-   * acq_core.h for the framing/CFAR mechanics).  Each event carries the
+   * Forwards to dp_correlator_push() on the embedded engine (see its doc comment in
+   * correlator_core.h for the framing/CFAR mechanics).  Each event carries the
    * peak's Doppler bin and code phase (the two search axes), its CFAR
-   * statistic, and an estimated C/N0 — see @ref acq_result_t.
+   * statistic, and an estimated C/N0 — see @ref dp_correlator_hit_t.
    *
-   * Python's push() has room for 1024 events a call, with dp_acq_push()'s
+   * Python's push() has room for 1024 events a call, with dp_correlator_push()'s
    * rule for what a push that fills it loses.
    *
    * @param state        Allocated engine (non-NULL).
    * @param x            Raw input, interleaved CF32, @p n_in complex samples.
    * @param n_in         Number of complex input samples.
    * @param result       Output array for detection events.
-   * @param max_results  Capacity of @p result: dp_acq_push()'s contract, so
+   * @param max_results  Capacity of @p result: dp_correlator_push()'s contract, so
    *                     a full @p result never loses input and
    *                     dp_burst_acq_consumed() says where to resume.
    * @return Number of events written (0 … max_results).
@@ -215,13 +215,13 @@ extern "C"
    * @endcode
    */
   size_t dp_burst_acq_push (dp_burst_acq_state_t *state, const float _Complex *x,
-                         size_t n_in, acq_result_t *result,
+                         size_t n_in, dp_correlator_hit_t *result,
                          size_t max_results);
 
   /**
    * @brief Input samples the last dp_burst_acq_push() took: the embedded
-   *        engine's dp_acq_consumed(), per call (not the cumulative
-   *        acq_result_t::samples_consumed).
+   *        engine's dp_correlator_consumed(), per call (not the cumulative
+   *        dp_correlator_hit_t::samples_consumed).
    *
    * @param state  Must be non-NULL.
    * @return Samples taken from the last push's input; resume the stream at
@@ -232,15 +232,15 @@ extern "C"
   /**
    * @brief Pin the search grid directly, bypassing the auto-sizing search.
    *
-   * Forwards to dp_acq_configure_search_raw() on the embedded engine (see its
-   * doc comment in acq_core.h): resizes every grid-dependent buffer/plan,
+   * Forwards to dp_correlator_configure_search_raw() on the embedded engine (see its
+   * doc comment in correlator_core.h): resizes every grid-dependent buffer/plan,
    * re-derives the threshold ladder for the pinned grid, and clears in-flight
    * accumulation — call between push() calls, never a substitute for one.
    *
    * @param state        Allocated engine (non-NULL).
    * @param doppler_bins Coherent depth to pin, in `[1, reps]`.
    * @param n_noncoh     Non-coherent look count to pin, in
-   *                     `[1, ACQ_N_NONCOH_SAFETY_CEILING]`.
+   *                     `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
    * @return 0 on success, -1 if either argument is out of range or an
    *         allocation fails (the engine keeps its prior grid on failure).
    * @code
@@ -267,8 +267,8 @@ extern "C"
   /**
    * @brief How many peaks a dwell may report: the peak list's capacity.
    *
-   * Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc
-   * comment in acq_core.h): one is the classic gated maximum; more is the
+   * Forwards to dp_correlator_set_max_peaks() on the embedded engine (see its doc
+   * comment in correlator_core.h): one is the classic gated maximum; more is the
    * list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
    * same gate, strongest first, an exclusion zone of one Doppler bin by the
    * reference's first autocorrelation null (one chip for a PN code) around
@@ -276,7 +276,7 @@ extern "C"
    * already-listed code phase. Each listed peak is one result from push().
    *
    * @param state  Allocated engine (non-NULL).
-   * @param n      1 … ACQ_MAX_PEAKS.
+   * @param n      1 … DP_CORRELATOR_MAX_PEAKS.
    * @return 0, or -1 (engine untouched) when @p n is out of range.
    * @code
    * >>> import numpy as np
@@ -293,18 +293,18 @@ extern "C"
   int dp_burst_acq_set_max_peaks (dp_burst_acq_state_t *state, size_t n);
 
   /* ── Serializable state — forwards straight to the embedded engine's own
-   * triplet (the serialized bytes ARE the shared dp_acq_state_t's own state;
+   * triplet (the serialized bytes ARE the shared dp_correlator_state_t's own state;
    * no separate format needed). */
 
   /**
-   * @brief Byte size of the state blob: dp_acq_state_bytes() of the engine.
+   * @brief Byte size of the state blob: dp_correlator_state_bytes() of the engine.
    * @param state  Must be non-NULL.
    * @return Blob size in bytes; depends on the engine's grid and
    *         configuration, so query it per instance.
    */
   size_t dp_burst_acq_state_bytes (const dp_burst_acq_state_t *state);
   /**
-   * @brief Serialize the engine's cross-call state (dp_acq_get_state()).
+   * @brief Serialize the engine's cross-call state (dp_correlator_get_state()).
    *
    * Call between pushes.
    *
@@ -313,7 +313,7 @@ extern "C"
    */
   void   dp_burst_acq_get_state (const dp_burst_acq_state_t *state, void *blob);
   /**
-   * @brief Restore the engine's cross-call state (dp_acq_set_state()).
+   * @brief Restore the engine's cross-call state (dp_correlator_set_state()).
    * @param state  Must be non-NULL; built with the same preamble and grid
    *               as the instance that wrote @p blob.
    * @param blob   A blob from dp_burst_acq_get_state().

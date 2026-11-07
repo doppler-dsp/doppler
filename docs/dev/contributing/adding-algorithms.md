@@ -228,7 +228,7 @@ guard first reached a NaN statistic by feeding samples whose power overflows
 `float`. In the Release build it did; in every Debug build (the sanitizers,
 coverage, macOS, Windows) the constant genuinely detected, and CI went red on
 one assertion. Pin the rule, not the overflow: the pick is a one-line
-`static inline` in a private header (`acq_private.h`, the `correlator_private.h`
+`static inline` in a private header (`correlator_private.h`, the `correlator_private.h`
 pattern: nothing exported, nothing promised to a caller) and the test calls it
 with NaN, infinity and finite values on every build.
 
@@ -335,7 +335,7 @@ mid-stream re-size has to reset everything the engine composes.
 pack is found by the mid-stream split test, not by the round trip: a split
 that resumes from `get_state` / `set_state` and must match the unsplit run
 bit-for-bit fails the moment a field that shapes the output is missing from
-the blob. `acq`'s raw block was found that way (`test_acq_core.c`); the
+the blob. `acq`'s raw block was found that way (`test_correlator_search.c`); the
 round trip alone would have restored everything it packed and said nothing
 about what it did not.
 

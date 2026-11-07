@@ -45,7 +45,7 @@ Step 1 of `docs/dev/contributing/validation.md`: every prose claim the header ma
 | envelope and power are the same detector | C, at 4 grid points | §2.2 |
 | `det_verify_count` is a conservative budget | C, degenerate cases included | §2.5 |
 | every helper fails closed on nonsense | C | §2.7 |
-| the Pd model is unreliable past a few hundred looks (`acq_core.h`) | nowhere | §2.3 — **contradicted**, F5 |
+| the Pd model is unreliable past a few hundred looks (`correlator_core.h`) | nowhere | §2.3 — **contradicted**, F5 |
 
 ## 2. Characterisation
 
@@ -107,7 +107,7 @@ The last column is the threshold checked against the law it claims to solve, not
 
 #### The model does not break where the tree says it does
 
-`acq_core.h` states twice that this model is *"non-monotonic and unreliable past a few hundred looks"*, and bounds its search at `ACQ_N_NONCOH_SAFETY_CEILING = 256` on that basis. Swept out to 1024 looks at pfa=1e-3, n_coh=16, snr=0.15, both the threshold and Pd increase at **every** step:
+`correlator_core.h` states twice that this model is *"non-monotonic and unreliable past a few hundred looks"*, and bounds its search at `DP_CORRELATOR_N_NONCOH_SAFETY_CEILING = 256` on that basis. Swept out to 1024 looks at pfa=1e-3, n_coh=16, snr=0.15, both the threshold and Pd increase at **every** step:
 
 | n_noncoh | threshold | Pd |
 |---|---|---|
@@ -292,7 +292,7 @@ These size a detector once, at startup, from numbers a config file supplied — 
 
 ## 3. Review — findings
 
-- **F1 · FIXED** — The non-coherent trio — `det_threshold_noncoherent`, `det_pd_noncoherent`, `det_n_noncoh` — had **zero** mentions in `native/tests/detection/test_detection_core.c`. The coverage existed, in `test_detection.py`, which is real evidence in the wrong language for an object whose header is the SSOT — and these three are what `acq_core.c` sizes its entire (coherent depth, look count) split with (`acq_core.c:237`, `:275`, `:308`). Added in C: the exact reduction at one look, the threshold checked against `marcum_q` rather than a literal, growth with the look count, Pd = Pfa at zero SNR, and `det_n_noncoh`'s minimality at its own re-derived threshold. Sabotage-proven: forcing the coherent answer regardless of look count takes it red.
+- **F1 · FIXED** — The non-coherent trio — `det_threshold_noncoherent`, `det_pd_noncoherent`, `det_n_noncoh` — had **zero** mentions in `native/tests/detection/test_detection_core.c`. The coverage existed, in `test_detection.py`, which is real evidence in the wrong language for an object whose header is the SSOT — and these three are what `correlator_core.c` sizes its entire (coherent depth, look count) split with (`search_mean_pd`, `search_commit_thresholds` and `search_ascend_n_noncoh` in `correlator_core.c`). Added in C: the exact reduction at one look, the threshold checked against `marcum_q` rather than a literal, growth with the look count, Pd = Pfa at zero SNR, and `det_n_noncoh`'s minimality at its own re-derived threshold. Sabotage-proven: forcing the coherent answer regardless of look count takes it red.
 
 - **F2 · FIXED** — `detection_core.h` explains why `det_threshold_f` exists with one number — the chi-square gate realizing 41x the priced pfa at n = 16 — and nothing re-derived it. The behaviour behind that is not a finding: a threshold built on a reference estimated from `n` samples inherits the estimate's uncertainty, and the library already prices it correctly. What was missing was the arithmetic executing anywhere, so the figure could drift from the code with no gate noticing. Now re-derived in C (41.0x) and reproduced by Monte-Carlo in the characterization subject (41.1x). §2.4 also supplies what the ratio was standing in for and what a caller actually needs: a budget table in dB indexed by how many samples are available for the reference — 3.27 dB at 16, 0.97 dB at 100. A rate multiplier cannot be added to a link budget; that number can. Sabotage-proven with a defect no existing literal could see: perturbing `det_threshold_noncoherent` at `n_noncoh == 32` only, which exactly two assertions catch, both new.
 
@@ -300,7 +300,7 @@ These size a detector once, at startup, from numbers a config file supplied — 
 
 - **F4 · FIXED** — The `marcum_q` doc claimed the series *"converges in ~60 terms for practical a, b <= 15"*. The implementation's window half-width is `12*sqrt(u+1) + 60` with `u = a^2/2` — about 60 terms at `a = 0` and about **187** at `a = 15`, and the scaling is load-bearing rather than incidental: a fixed 60-wide window anchored at `k = 0` misses the Poisson mass entirely once `a` is large, which `marcum_q.c` already carries a comment about. The prose said the constant and called it the total. Corrected, and the envelope is now measured (§2.6) instead of asserted.
 
-- **F5 · CONFIRMED** — `acq_core.h` states twice (lines 75 and 307) that this module's non-coherent Pd model is *"non-monotonic and unreliable past a few hundred looks"*, and bounds its search at `ACQ_N_NONCOH_SAFETY_CEILING = 256` on that basis. Neither half reproduces: the threshold and Pd are monotone out to **1024** looks (§2.3), and Monte-Carlo agrees with the model to **0.2-0.6 sigma at 512** looks with H0 priced correctly there too. The ceiling may still be right for reasons of runtime or latency, but those are not the reasons the header gives, and non-coherent looks are where the wideband mode buys all of its margin. Left open because the ceiling is `acq`'s to move, not `detection`'s: [#997](https://github.com/doppler-dsp/doppler/issues/997).
+- **F5 · CONFIRMED** — `correlator_core.h` states twice (lines 2079 and 2205) that this module's non-coherent Pd model is *"non-monotonic and unreliable past a few hundred looks"*, and bounds its search at `DP_CORRELATOR_N_NONCOH_SAFETY_CEILING = 256` on that basis. Neither half reproduces: the threshold and Pd are monotone out to **1024** looks (§2.3), and Monte-Carlo agrees with the model to **0.2-0.6 sigma at 512** looks with H0 priced correctly there too. The ceiling may still be right for reasons of runtime or latency, but those are not the reasons the header gives, and non-coherent looks are where the wideband mode buys all of its margin. Left open because the ceiling is `acq`'s to move, not `detection`'s: [#997](https://github.com/doppler-dsp/doppler/issues/997).
 
 - **F6 · BY DESIGN** — `det_threshold` and `det_q_inv` both take a probability and return a small number near 5, and at `pfa = 5e-6` they return 4.9409 and 4.4172 — different laws, no type-level distinction, and an easy silent swap. Kept as two functions rather than one dispatching on a mode flag: the caller genuinely knows which law its statistic obeys, and a mode flag would move the same mistake one level out while making it harder to see at the call site. The defence is `docs/design/detection.md` §2, the header warning, and the fact that `det_q_inv` is signed — so a caller who clamps its negative branch, which reads as defensive, halves every dwell it sizes.
 

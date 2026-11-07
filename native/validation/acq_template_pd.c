@@ -3,19 +3,19 @@
  * @brief The Pd a TEMPLATE burst engine delivers, against the Pd it
  *        predicts (doppler#1470 phase 4 of the object lifecycle's Explore).
  *
- * dp_acq_create_burst() searches any repeated complex preamble by its
+ * dp_correlator_create_burst() searches any repeated complex preamble by its
  * samples, and sizes itself from `pd_predicted` -- a model whose inputs for a
  * template (the zone, the band-limited delay straddle) are pinned against
- * closed forms in test_acq_core.c, but whose OUTPUT had never been measured
- * over noise. The correlator report's §2.24 (part three, the search) measures
- * it for a code; this measures it for
- * four kinds of preamble, the same way:
+ * closed forms in test_correlator_search.c, but whose OUTPUT had never been
+ * measured over noise. The correlator report's §2.24 (part three, the search)
+ * measures it for a code; this measures it for four kinds of preamble, the
+ * same way:
  *
  *   one frame of D = 8 repetitions per trial, the grid pinned at D = 8 and
- *   one look (dp_acq_configure_search_raw), the Doppler uniform over the
- *   native span +/- fs/(2n), the delay uniform and CONTINUOUS, AWGN from
- *   the shipped awgn at the design C/N0; a trial hits when the frame
- *   reports any detection.
+ *   one look (dp_correlator_configure_search_raw), the Doppler uniform over
+ * the native span +/- fs/(2n), the delay uniform and CONTINUOUS, AWGN from the
+ * shipped awgn at the design C/N0; a trial hits when the frame reports any
+ * detection.
  *
  * A template is defined only by its samples, so a fractional delay is the
  * band-limited one: a linear phase across the periodic template's FFT --
@@ -68,8 +68,8 @@
  *                                       and the three drift rows at 500
  *                                       trials
  */
-#include "doppler/acq/acq_core.h"
 #include "doppler/awgn/awgn_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/fft/fft_core.h"
 #include "dp_preamble_test.h"
@@ -154,11 +154,12 @@ templates (tmpl_t *out)
 /* The grid every row is measured on: D repetitions, one look. A harness
    that cannot pin it has nothing to measure, so it stops. */
 static void
-pin (dp_acq_state_t *a)
+pin (dp_correlator_state_t *a)
 {
-  if (dp_acq_configure_search_raw (a, D, 1) != 0)
+  if (dp_correlator_configure_search_raw (a, D, 1) != 0)
     {
-      DP_TEST_ERR ("dp_acq_configure_search_raw (D=%u, 1) refused\n", D);
+      DP_TEST_ERR ("dp_correlator_configure_search_raw (D=%u, 1) refused\n",
+                   D);
       abort ();
     }
 }
@@ -198,30 +199,30 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   const double fs = code ? 1.0e6 * (double)spc : FS_T;
   /* The control's preamble is the code's samples (bin_to_nrz, held spc),
      the way every burst engine is built now (doppler#1470). */
-  float _Complex *cpre = code ? dp_code_preamble (code, 31, spc) : NULL;
-  dp_acq_state_t *a
-      = dp_xnn (dp_acq_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
-                                     0.0, PFA, 0.9, 0, gm->rate_arg, 1));
+  float _Complex        *cpre = code ? dp_code_preamble (code, 31, spc) : NULL;
+  dp_correlator_state_t *a    = dp_xnn (
+      dp_correlator_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
+                                  0.0, PFA, 0.9, 0, gm->rate_arg, 1));
   free (cpre);
   if (gm->pinned)
     pin (a);
   row_t r = { 0 };
   r.cn0   = cn0;
-  r.pred  = a->pd_predicted;
-  r.depth = a->coherent_bins;
+  r.pred  = a->search->pd_predicted;
+  r.depth = a->search->coherent_bins;
 
-  const size_t     len  = a->coherent_bins * n;
-  float _Complex  *x    = dp_xmalloc (len * sizeof *x);
-  float _Complex  *per  = dp_xmalloc (n * sizeof *per);
-  float _Complex  *nz   = dp_xmalloc (len * sizeof *nz);
-  const double     span = fs / (2.0 * (double)n); /* Hz, as the engine */
-  dp_awgn_state_t *g    = dp_xnn (dp_awgn_create (
+  const size_t        len  = a->search->coherent_bins * n;
+  float _Complex     *x    = dp_xmalloc (len * sizeof *x);
+  float _Complex     *per  = dp_xmalloc (n * sizeof *per);
+  float _Complex     *nz   = dp_xmalloc (len * sizeof *nz);
+  const double        span = fs / (2.0 * (double)n); /* Hz, as the engine */
+  dp_awgn_state_t    *g    = dp_xnn (dp_awgn_create (
       seed,
       dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs)), 1.0f)));
-  uint32_t         st   = seed;
-  int              hits = 0;
-  double           derr = 0.0;
-  acq_result_t     h[16];
+  uint32_t            st   = seed;
+  int                 hits = 0;
+  double              derr = 0.0;
+  dp_correlator_hit_t h[16];
 
   for (int trial = 0; trial < gm->trials; trial++)
     {
@@ -258,12 +259,12 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
-      dp_acq_reset (a);
-      size_t nh = dp_acq_push (a, x, len, h, 16);
+      dp_correlator_reset (a);
+      size_t nh = dp_correlator_push (a, x, len, h, 16);
       if (nh > 0)
         {
           hits++;
-          double d = fabs ((double)h[0].code_phase - tau);
+          double d = fabs ((double)h[0].col - tau);
           if (d > (double)n / 2.0)
             d = (double)n - d;
           derr += d;
@@ -277,7 +278,7 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   free (nz);
   free (per);
   free (x);
-  dp_acq_destroy (a);
+  dp_correlator_destroy (a);
   return r;
 }
 
@@ -293,22 +294,22 @@ cn0_for (const float _Complex *pre, size_t n, double fs, double target)
      the scan alone put the spot check over its CI budget (doppler#1498). */
   int lo = 0, hi = 280;
   {
-    dp_acq_state_t *a = dp_xnn (dp_acq_create_burst (
+    dp_correlator_state_t *a = dp_xnn (dp_correlator_create_burst (
         pre, n, D, fs, 30.0 + 0.25 * (double)hi, 0.0, PFA, 0.9, 0, 0.0, 1));
     pin (a);
-    const double p = a->pd_predicted;
-    dp_acq_destroy (a);
+    const double p = a->search->pd_predicted;
+    dp_correlator_destroy (a);
     if (!(p >= target))
       return NAN;
   }
   while (lo < hi)
     {
-      const int       mid = (lo + hi) / 2;
-      dp_acq_state_t *a   = dp_xnn (dp_acq_create_burst (
+      const int              mid = (lo + hi) / 2;
+      dp_correlator_state_t *a   = dp_xnn (dp_correlator_create_burst (
           pre, n, D, fs, 30.0 + 0.25 * (double)mid, 0.0, PFA, 0.9, 0, 0.0, 1));
       pin (a);
-      const double p = a->pd_predicted;
-      dp_acq_destroy (a);
+      const double p = a->search->pd_predicted;
+      dp_correlator_destroy (a);
       if (p >= target)
         hi = mid;
       else
@@ -354,21 +355,21 @@ drift_rows (const tmpl_t *zc, int check)
      the step a linear scan finds, in ~8 constructions rather than ~95. */
   int lo = 0, hi = 160; /* steps down from 70 dB-Hz */
   {
-    dp_acq_state_t *a    = dp_xnn (dp_acq_create_burst (
+    dp_correlator_state_t *a    = dp_xnn (dp_correlator_create_burst (
         zc->t, zc->n, reps, FS_T, 70.0 - 0.25 * (double)hi, 0.0, PFA, 0.9, 0,
         0.0, 1));
-    const int       deep = a->coherent_bins >= 10;
-    dp_acq_destroy (a);
+    const int              deep = a->search->coherent_bins >= 10;
+    dp_correlator_destroy (a);
     DP_REQUIRE (deep);
   }
   while (lo < hi)
     {
-      const int       mid  = (lo + hi) / 2;
-      dp_acq_state_t *a    = dp_xnn (dp_acq_create_burst (
+      const int              mid  = (lo + hi) / 2;
+      dp_correlator_state_t *a    = dp_xnn (dp_correlator_create_burst (
           zc->t, zc->n, reps, FS_T, 70.0 - 0.25 * (double)mid, 0.0, PFA, 0.9,
           0, 0.0, 1));
-      const int       deep = a->coherent_bins >= 10;
-      dp_acq_destroy (a);
+      const int              deep = a->search->coherent_bins >= 10;
+      dp_correlator_destroy (a);
       if (deep)
         hi = mid;
       else

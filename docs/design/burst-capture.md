@@ -32,7 +32,7 @@ A user of that bank who wants the burst has two routes, and both are bad.
 
 - **Continue feeding continuously.** Anchors are stream-absolute and there is
     no sweep — and [§3.1](dsss-burst-receiver.md) bites in full:
-    `acq_result_t::code_phase` measures `burst_start mod code_bins` exactly,
+    `dp_correlator_hit_t::code_phase` measures `burst_start mod code_bins` exactly,
     so it fixes the alignment WITHIN a code period and never says WHICH
     repetition. A burst has a frame that begins in one specific repetition.
     Resolving that is a refine stage, a history ring to reach back into, a
@@ -90,7 +90,7 @@ ______________________________________________________________________
 | the suppression window that follows an emitted burst | telemetry about a consumer's estimates           |
 
 `burst_len` is a **construction parameter**, and that is the point of the
-split. `dp_acq_create_burst()` takes search parameters only and has no notion of
+split. `dp_correlator_create_burst()` takes search parameters only and has no notion of
 how long a burst is; teaching acquisition frame geometry to support refine
 would be wrong. For a capture the burst length IS the parameter, because it
 is what gets captured — and it is what sizes the retention.
@@ -103,7 +103,7 @@ ______________________________________________________________________
 object as `push(samples, acq_results)`: the caller brings their own detector.
 That face is rejected on one invariant.
 
-> `acq_result_t::samples_consumed` is stream-absolute **only** for an engine
+> `dp_correlator_hit_t::samples_consumed` is stream-absolute **only** for an engine
 > fed continuously and never `reset()`, in the caller's own sample
 > coordinates.
 
@@ -144,7 +144,7 @@ of any repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), at `fs`
 ([#1470](https://github.com/doppler-dsp/doppler/issues/1470)). A PN code is one
 such preamble -- its chips by `bin_to_nrz()`, each held `spc` samples, at
 `fs = chip_rate · spc` -- and `DsssBurstReceiver` builds it that way from the
-code it is given. The engine is `dp_acq_create_burst()`. Nothing downstream of
+code it is given. The engine is `dp_correlator_create_burst()`. Nothing downstream of
 it reads chips: the ring, CLAIM, refine's Doppler cells and the window all
 work in periods and samples.
 
@@ -545,7 +545,7 @@ burst's. So the contract is:
     ceiling falls short of `pd` it is `underpowered`, honestly, rather than
     escalated (`acq_auto_config_burst`).
 - **`cn0_dbhz` is a design (minimum) C/N0, and optional.** NaN
-    (`ACQ_CN0_NONE`, the default) means none given: the whole preamble is
+    (`DP_CORRELATOR_CN0_NONE`, the default) means none given: the whole preamble is
     integrated in one look (capped by `doppler_rate` when one is given) and the threshold is `pfa`'s alone; `pd` is a
     target only with a design point, and without one `pd_predicted` is NaN
     and `underpowered` never asserts. Every finite value is a design point,

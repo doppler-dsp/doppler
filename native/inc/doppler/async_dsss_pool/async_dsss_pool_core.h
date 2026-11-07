@@ -126,7 +126,7 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
@@ -151,7 +151,10 @@ extern "C"
  * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
  * of a magic names one layout, so this pool steps past every number the
  * magic has carried (#2569; scripts/check_state_versions.py). */
-#define ASYNC_DSSS_POOL_STATE_VERSION 5u /* v5: the controller's search */
+#define ASYNC_DSSS_POOL_STATE_VERSION 6u /* v6: the receivers' search child is
+                                              the correlator's ('CORL',
+                                              #2752 3.4b); v5: the
+                                              controller's search */
 
   /** The ghost rule's window, s: the trailing span both its tests read
    *  (doppler#2529). */

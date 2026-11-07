@@ -46,9 +46,9 @@
  * The fidelity check compares two blobs from two fresh `malloc`s, and a fresh
  * allocation is usually a zeroed page -- so a `get_state` that left bytes of
  * its own blob unwritten produced two identical, all-zero gaps and passed.
- * dp_acq_get_state did exactly that with its ring's unused tail: the blob's
- * bytes depended on whatever the caller's buffer held, and a blob shipped to
- * another pod carried that heap along with it.
+ * dp_correlator_get_state did exactly that with its ring's unused tail: the
+ * blob's bytes depended on whatever the caller's buffer held, and a blob
+ * shipped to another pod carried that heap along with it.
  *
  * So both buffers are FILLED first, with two different patterns, and `a` is
  * serialized into both. Every byte `get_state` owns must then agree; a byte

@@ -7,9 +7,12 @@ three's (`search.py`), which certifies the engine it forwards to. The part
 retires with the forwarder in step 4. `attach()` hands this module the
 report it writes into.
 
-`burst_acq_core.c` is a pure forwarder onto `acq_core.c`'s shared engine:
-every function is a direct call through an embedded `dp_acq_state_t` built by
-`dp_acq_create_burst()`. The algorithm lives in `acq` exactly once, which is
+`burst_acq_core.c` is a pure forwarder onto `correlator_core.c`'s shared
+engine:
+every function is a direct call through an embedded `dp_correlator_state_t`
+built by
+`dp_correlator_create_burst()`. The algorithm lives in `acq` exactly once,
+which is
 the
 library's rule, and it is certified there.
 
@@ -157,8 +160,10 @@ def section_object() -> None:
     )
     R.md()
     R.md(
-        "`BurstAcquisition` composes one `dp_acq_state_t`, built through "
-        "`dp_acq_create_burst()`, and forwards every call to it. There is no "
+        "`BurstAcquisition` composes one `dp_correlator_state_t`, built "
+        "through "
+        "`dp_correlator_create_burst()`, and forwards every call to it. There "
+        "is no "
         "algorithm here: the physics — coherent depth selection, CFAR "
         "sizing, window tiling, the detection statistic — lives in `acq` "
         "exactly once and is certified in part three of this report "
@@ -216,7 +221,8 @@ def section_object() -> None:
                 "§2.31",
             ],
             [
-                "the constructor's arguments reach `dp_acq_create_burst` "
+                "the constructor's arguments reach "
+                "`dp_correlator_create_burst` "
                 "intact",
                 "**partially** — C builds one object and detects with it",
                 "§2.30",
@@ -531,7 +537,7 @@ def review(d: Data) -> None:
         "BY DESIGN",
         "**This part does not measure detection performance, and that is "
         "the point.** `burst_acq_core.c` forwards every call into "
-        "`acq_core.c`; re-running the detection statistics through the "
+        "`correlator_core.c`; re-running the detection statistics through the "
         "wrapper would certify the same engine a second time and present "
         "the result as independent evidence. The physics is certified in "
         "part three of this report (§2.19 to §2.29), which measures through "

@@ -13,7 +13,7 @@
 #define DP_DSSS_RECEIVER_CORE_H
 
 #include "doppler/RateConverter/RateConverter_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/cic/cic_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -34,7 +34,7 @@ extern "C"
 
   typedef struct
   {
-    dp_acq_state_t           *acq; 
+    dp_correlator_state_t           *acq; 
     dp_dll_state_t           *dll; 
     dp_RateConverter_state_t *rc;  
     dp_mpsk_receiver_state_t *rx;  
@@ -139,7 +139,10 @@ extern "C"
   } dsss_receiver_extra_t;
 
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
-#define DSSS_RECEIVER_STATE_VERSION 3u /* v3: the dll child grew (output
+#define DSSS_RECEIVER_STATE_VERSION 4u /* v4: the search child is the
+                                           correlator's search flavor
+                                           ('CORL', #2752 3.4b); v3: the dll
+                                           child grew (output
                                            level, #2495); v2: pre-despread
                                            dp_costas_state_t car + carry
                                            buffer added */

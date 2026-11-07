@@ -22,10 +22,10 @@ live socket.
 
 **Two faces over the one engine, both first-class:**
 
-| face                                                            | what it is                                                                      | for                                                 |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **OO object** (`Acquisition`, `Ddcr`)                           | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
-| **pure run** (`dp_acq_run`, `dp_ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
+| face                                                                   | what it is                                                                      | for                                                 |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **OO object** (`Acquisition`, `Ddcr`)                                  | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
+| **pure run** (`dp_correlator_run`, `dp_ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
 
 The two faces are the *same* engine: the OO object owns its state; the pure
 `*_run` face takes `state_in` / `state_out` blobs so a fresh engine (rebuilt
@@ -43,16 +43,16 @@ alongside** the OO API, never a replacement.
 - **state** — the serializable flat **POD** that *is* "everything a fresh pod
     needs." Threaded in → out each call via `state_in` / `state_out`.
 - **scratch** — per-worker workspace; holds no meaning (reused, never state).
-    In the shipped engine this lives inside `dp_acq_state_t` alongside the mutable
-    state; the descriptor (the `dp_acq_create_burst`/`dp_acq_create_continuous` args)
+    In the shipped engine this lives inside `dp_correlator_state_t` alongside the mutable
+    state; the descriptor (the `dp_correlator_create_burst`/`dp_correlator_create_continuous` args)
     plays the **config** role.
 
 ## State blobs (flat, versioned POD)
 
-- **`acq_fn` state** (`dp_acq_state_bytes` / `dp_acq_get_state` in
-    `native/src/acq/acq_core.c`, version 6), in the order it is written:
+- **`acq_fn` state** (`dp_correlator_state_bytes` / `dp_correlator_get_state` in
+    `native/src/correlator/correlator_core.c`, version 6), in the order it is written:
 
-    1. the envelope, then `acq_extra_t`: `n`, `n_noncoh`, `max_peaks`, the
+    1. the envelope, then `search_extra_t`: `n`, `n_noncoh`, `max_peaks`, the
         running sample offset `samples_consumed` (the code-phase anchor,
         carried so a resumed pod keeps a continuous phase reference),
         `nc_count`, `n_twins`, the block epoch and `rate_hyps` (the number of
@@ -78,10 +78,10 @@ alongside** the OO API, never a replacement.
 
 ## C API shape (acq)
 
-The engine stays one opaque `dp_acq_state_t` (descriptor = config, built by
-`dp_acq_create_burst` or `dp_acq_create_continuous`; scratch + mutable state live
+The engine stays one opaque `dp_correlator_state_t` (descriptor = config, built by
+`dp_correlator_create_burst` or `dp_correlator_create_continuous`; scratch + mutable state live
 inside it). The pure face is the
-serializable triplet + `dp_acq_run`, mirroring `ddcr`:
+serializable triplet + `dp_correlator_run`, mirroring `ddcr`:
 
 ```c title="acq_fn C surface"
 #include <complex.h>
@@ -89,7 +89,7 @@ serializable triplet + `dp_acq_run`, mirroring `ddcr`:
 #include <stdint.h>
 #include <stdio.h>
 
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 
 int
 main (void)
@@ -99,28 +99,28 @@ main (void)
      repetitions, continuous only inside a tile over declared code-only
      epochs. (There is no bare acq_create, and no max_noncoh: the continuous
      engine auto-selects its non-coherent looks against the internal
-     ACQ_N_NONCOH_SAFETY_CEILING; a burst engine never adds any.) */
-  dp_acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
+     DP_CORRELATOR_N_NONCOH_SAFETY_CEILING; a burst engine never adds any.) */
+  dp_correlator_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
                                 double, double, double, double, double, int,
                                 double, size_t)
-      = dp_acq_create_burst;
-  dp_acq_state_t *(*create_cont) (const uint8_t *, size_t, double, double,
+      = dp_correlator_create_burst;
+  dp_correlator_state_t *(*create_cont) (const uint8_t *, size_t, double, double,
                                double, double, double, double, double, int,
                                size_t, double)
-      = dp_acq_create_continuous;
+      = dp_correlator_create_continuous;
 
   /* serializable state (jm `serializable` flag generates the Python
      triplet). */
-  size_t (*bytes) (const dp_acq_state_t *) = dp_acq_state_bytes;
-  void (*get) (const dp_acq_state_t *, void *) = dp_acq_get_state;
+  size_t (*bytes) (const dp_correlator_state_t *) = dp_correlator_state_bytes;
+  void (*get) (const dp_correlator_state_t *, void *) = dp_correlator_get_state;
   /* DP_OK, or DP_ERR_INVALID (-4) on a refused blob. */
-  int (*set) (dp_acq_state_t *, const void *) = dp_acq_set_state;
+  int (*set) (dp_correlator_state_t *, const void *) = dp_correlator_set_state;
 
   /* pure run: (state_in, input) -> (state_out, hits). Either blob may be
      NULL (NULL in = fresh; NULL out = discard). */
-  size_t (*run) (dp_acq_state_t *, const void *, void *, const float complex *,
-                 size_t, acq_result_t *, size_t)
-      = dp_acq_run;
+  size_t (*run) (dp_correlator_state_t *, const void *, void *, const float complex *,
+                 size_t, dp_correlator_hit_t *, size_t)
+      = dp_correlator_run;
 
   printf ("acq_fn surface: %d\n",
           (create_burst != 0) + (create_cont != 0) + (bytes != 0)
@@ -129,8 +129,8 @@ main (void)
 }
 ```
 
-`Acquisition` (the object) owns one `dp_acq_state_t` and forwards `push` →
-`dp_acq_push`; the pure `dp_acq_run` face reuses the same engine with explicit
+`Acquisition` (the object) owns one `dp_correlator_state_t` and forwards `push` →
+`dp_correlator_push`; the pure `dp_correlator_run` face reuses the same engine with explicit
 `state_in`/`state_out`. Bit-identical to an uninterrupted run.
 
 ## Elastic fan-out
@@ -145,12 +145,12 @@ main (void)
 ## Build sequence
 
 1. **(done — PR #259)** physics sizing API; the foundation.
-1. **(done — PR #260)** `acq_fn` serializable state + `dp_acq_run` — flat-POD state
+1. **(done — PR #260)** `acq_fn` serializable state + `dp_correlator_run` — flat-POD state
     (then the unconsumed ring samples + nc surface + counters; since version
     5 the carry is the framer's snapshot) on the existing
-    `dp_acq_state_t`; `dp_acq_state_bytes`/`get_state`/`set_state` + `dp_acq_run`.
+    `dp_correlator_state_t`; `dp_correlator_state_bytes`/`get_state`/`set_state` + `dp_correlator_run`.
     **Bit-exact vs an uninterrupted run + state round-trip**, verified in
-    `test_acq_core.c`. (`serializable = true` on `acq.toml` for the
+    `test_correlator_search.c`. (`serializable = true` on `acq.toml` for the
     `Acquisition` Python triplet landed same-day, PR #268.)
 1. **(done — PRs #261, #265)** `ddc_fn` serializable state — `dp_ddcr_run` + the
     heterogeneous leaf serializers (lo/cic/fir/resamp/hbdecim/hbdecim_r2c +

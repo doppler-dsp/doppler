@@ -761,7 +761,7 @@ size_t dp_correlator_search::n;
 
 
 
-NATIVE grid size in samples: coherent\_bins \* window\_bins \* code\_bins (both may exceed 1: D rows inside each tile). This is the INPUT frame and the count of statistically independent cells  it is what the threshold ladder is sized from, and it is what `doppler_bin` is reported on. 
+NATIVE grid size in samples: coherent\_bins \* window\_bins \* code\_bins (both may exceed 1: D rows inside each tile). This is the INPUT frame and the count of statistically independent cells  it is what the threshold ladder is sized from, and it is what `row` is reported on. 
  
 
 

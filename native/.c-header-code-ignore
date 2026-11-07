@@ -10,7 +10,6 @@
 # does not belong here: make it compile, or mark it in the block itself with
 # `// header-code: no-run=REASON` or `// header-code: skip=REASON`.
 
-doppler/acq/acq_core.h::acq_surface_sink_fn
 doppler/adc/adc_core.h::dp_adc_create
 doppler/agc/agc_core.h::agc_exp10_
 doppler/async_dsss_receiver/async_dsss_receiver_core.h::ASYNC_DSSS_RX_CARRIER_PULLIN_HZ

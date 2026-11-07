@@ -30,7 +30,6 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 * `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/acc_trace/acc_trace_core.h"`
-* `#include "doppler/acq/acq_core.h"`
 * `#include "doppler/carrier_acq/carrier_acq_core.h"`
 * `#include "doppler/resamp/resamp_core.h"`
 * `#include "doppler/hbdecim/hbdecim_core.h"`
@@ -134,7 +133,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_receivers)  `[**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver)  `(-1)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_MAGIC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'P', 'L')`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `5u /\* v5: the controller's search \*/`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `/* multi line expression */`<br> |
 
 ## Detailed Description
 
@@ -1055,7 +1054,7 @@ FourCC type tag ("ADPL") stamped in a pool state blob's header.
 ### define ASYNC\_DSSS\_POOL\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_POOL_STATE_VERSION `5u /* v5: the controller's search */`
+#define ASYNC_DSSS_POOL_STATE_VERSION `/* multi line expression */`
 ```
 
 

@@ -13,31 +13,26 @@
  *
  *   floor        one clean emitter in an ALIGNED block -- pure code for the
  *                whole block, the window's interior -- at the operating
- *                point: the surface read back through dp_acq_surface() (§2.4,
- *                the gate's own units) and binned by Doppler-row distance
- *                from the peak; the worst cell at another code phase is the
- *                floor a second emitter competes with. Expected the
- *                transition-free number, about -21 dB.
- *   straddle     the same emitter in three blocks that are NOT aligned: one
- *                data transition mid-block; PRBS data at the symbol rate
- *                through the whole block (a block inside the data section);
- *                and the window's EDGE mid-block -- half pure code, half
- *                data, which is what a block sees when the code-only window
- *                opens or closes at no particular chip phase (§5.4). What
- *                the maintainer asked to be watched: the emitter's energy
- *                leaves its row for the others of its column, and the
- *                `conc` probe of §2.4 is the number that separates that
- *                splatter from a second emitter.
- *   pfa          pure noise, blocks of D = 16, the realized fraction of
- *                blocks whose gate fires against the configured pfa -- the
- *                CFAR counts every row of every tile, or it does not.
- *   sensitivity  realized Pd against C/N0 for D of 1, 16 and the operating
- *                point's 150, one look each: the C/N0 at which the depth
- *                detects what a single epoch cannot.
- *   dilated      the aligned block at the specification's Doppler, 20 ppm of
- * a 2.5 GHz (docs/design/async-dsss-receiver.md) carrier (50 kHz), two ways:
- * the synth's own carrier offset with the code standing still, and through the
- * shipped doppler_channel with the chips dilated by the same 20 ppm
+ *                point: the surface read back through dp_correlator_surface()
+ * (§2.4, the gate's own units) and binned by Doppler-row distance from the
+ * peak; the worst cell at another code phase is the floor a second emitter
+ * competes with. Expected the transition-free number, about -21 dB. straddle
+ * the same emitter in three blocks that are NOT aligned: one data transition
+ * mid-block; PRBS data at the symbol rate through the whole block (a block
+ * inside the data section); and the window's EDGE mid-block -- half pure code,
+ * half data, which is what a block sees when the code-only window opens or
+ * closes at no particular chip phase (§5.4). What the maintainer asked to be
+ * watched: the emitter's energy leaves its row for the others of its column,
+ * and the `conc` probe of §2.4 is the number that separates that splatter from
+ * a second emitter. pfa          pure noise, blocks of D = 16, the realized
+ * fraction of blocks whose gate fires against the configured pfa -- the CFAR
+ * counts every row of every tile, or it does not. sensitivity  realized Pd
+ * against C/N0 for D of 1, 16 and the operating point's 150, one look each:
+ * the C/N0 at which the depth detects what a single epoch cannot. dilated the
+ * aligned block at the specification's Doppler, 20 ppm of a 2.5 GHz
+ * (docs/design/async-dsss-receiver.md) carrier (50 kHz), two ways: the synth's
+ * own carrier offset with the code standing still, and through the shipped
+ * doppler_channel with the chips dilated by the same 20 ppm
  *                -- 100 chips/s, 3.1 chips across a D = 150 block (#1256).
  *                Per depth: the peak against the gate, `conc`, the peak's
  *                width along the code axis, the hand-off's Doppler, and
@@ -50,7 +45,7 @@
  *                own centre, so both neighbours read an edge emitter at
  *                the same row within 0.03 dB and the pick was the noise's,
  *                half the time; the engine now asks the block at the
- *                row's own frequency (acq_resolve_tile_alias). Expected
+ *                row's own frequency (search_resolve_tile_alias). Expected
  *                none, every one within a row.
  *
  * Usage:
@@ -65,9 +60,9 @@
  *                                          block's cost against the still
  *                                          one
  */
-#include "doppler/acq/acq_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
@@ -133,38 +128,38 @@ typedef struct
 /* One engine at chip_rate with the depth its window buys (or a chosen
    code_only_epochs when `epochs` > 0), the surface kept. The caller
    requires ONE_LOOK of it: this harness reads one block per decision. */
-static dp_acq_state_t *
+static dp_correlator_state_t *
 engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
 {
-  size_t          W = epochs ? epochs : code_only_epochs_for (chip_rate);
-  dp_acq_state_t *a = dp_acq_create_continuous (
+  size_t W = epochs ? epochs : code_only_epochs_for (chip_rate);
+  dp_correlator_state_t *a = dp_correlator_create_continuous (
       code, SF, chip_rate * (double)SPC, chip_rate, SYMBOL_RATE, SIZING_CN0,
       DU, pfa, PD, 0, W, epochs ? 0.0 : RATE);
   if (a)
-    a->keep_surface = 1;
+    a->search->keep_surface = 1;
   return a;
 }
 #define ONE_LOOK(a)                                                           \
-  DP_REQUIRE_MSG ((a) && (a)->n_noncoh == 1,                                  \
+  DP_REQUIRE_MSG ((a) && (a)->search->n_noncoh == 1,                          \
                   "the engine is sized to one look (n_noncoh == 1)")
 
 /* One block of the emitter (or of noise), at tile TILE plus `frac` of a
    row, code phase TAU0, at cn0_dbhz (0 = clean), rendered by the shipped
    synth; pushed; the surface read back and binned. */
 static int
-measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
+measure (const uint8_t *code, dp_correlator_state_t *a, block_kind_t kind,
          double frac, double cn0_dbhz, uint32_t seed, block_t *out)
 {
-  const size_t D = a->coherent_bins, tiles = a->window_bins;
-  const size_t nx = a->code_bins;
+  const size_t D = a->search->coherent_bins, tiles = a->search->window_bins;
+  const size_t nx = a->search->code_bins;
   /* The surface is read on lag_bins columns (the padded lag grid when the
      period is not 7-smooth), a column nx/lb of a sample; one chip, SPC
      samples, is zc whole columns. */
-  const size_t lb   = a->lag_bins;
+  const size_t lb   = a->search->lag_bins;
   const long   zc   = (long)(SPC * lb / nx);
-  const size_t rows = a->n_surf / lb;
-  const double fs   = a->fs;
-  const double cps  = a->chip_rate / SYMBOL_RATE;
+  const size_t rows = a->search->n_surf / lb;
+  const double fs   = a->search->fs;
+  const double cps  = a->search->chip_rate / SYMBOL_RATE;
   /* Tile TILE's own frequency plus a fraction of a ROW: the fold the
      engine reports rows on. */
   const long   r      = dp_fftfreq_index (TILE, tiles);
@@ -227,21 +222,22 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
     dp_wfm_synth_steps (syn, raw, discard + blk);
   DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
                 "the block's data covered the render");
-  acq_result_t hit[4];
-  dp_acq_reset (a);
-  size_t nh = dp_acq_push (a, raw + discard, blk, hit, 4);
-  float *s  = dp_xmalloc (a->n_surf * sizeof *s);
-  DP_REQUIRE_MSG (dp_acq_surface (a, s, a->n_surf) == a->n_surf,
+  dp_correlator_hit_t hit[4];
+  dp_correlator_reset (a);
+  size_t nh = dp_correlator_push (a, raw + discard, blk, hit, 4);
+  float *s  = dp_xmalloc (a->search->n_surf * sizeof *s);
+  DP_REQUIRE_MSG (dp_correlator_surface (a, s, a->search->n_surf)
+                      == a->search->n_surf,
                   "the surface tap reads the decided block");
   out->D         = D;
   out->tiles     = tiles;
   out->rows      = rows;
-  out->n_noncoh  = a->n_noncoh;
+  out->n_noncoh  = a->search->n_noncoh;
   out->peak_row  = a->peak_row; /* native */
   out->peak_col  = a->peak_col;
   out->peak_stat = a->test_stat;
   out->gate      = a->threshold;
-  out->conc      = a->peak_conc;
+  out->conc      = a->search->peak_conc;
   out->hit       = nh > 0;
   /* The code phase the engine reports for a block that starts `discard`
      samples into the code: the hand-off's mapping, inverted. */
@@ -251,15 +247,16 @@ measure (const uint8_t *code, dp_acq_state_t *a, block_kind_t kind,
   /* Bin every cell outside the exclusion zone by its Doppler-row distance
      from the peak -- native rows, circular on the one folded grid -- and
      keep the worst cell at another code phase. */
-  const size_t prow = a->peak_row * a->interp; /* surface row of the peak */
-  double       mx[NBIN] = { 0 }, mx_other = 0.0;
-  for (size_t k = 0; k < a->n_surf; k++)
+  const size_t prow
+      = a->peak_row * a->search->interp; /* surface row of the peak */
+  double mx[NBIN] = { 0 }, mx_other = 0.0;
+  for (size_t k = 0; k < a->search->n_surf; k++)
     {
       size_t row = k / lb, col = k % lb;
       size_t dr = row > prow ? row - prow : prow - row;
       if (dr > rows - dr)
         dr = rows - dr;
-      double drn = (double)dr / (double)a->interp; /* native rows */
+      double drn = (double)dr / (double)a->search->interp; /* native rows */
       long   dc  = (long)col - (long)out->peak_col;
       if (dc < 0)
         dc = -dc;
@@ -299,17 +296,17 @@ typedef struct
    carrier, the chips dilated with it (`dilate` 1). Noise, when cn0_dbhz >
    0, from the shipped awgn after the channel, as a receiver sees it. */
 static int
-measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
+measure_dilated (const uint8_t *code, dp_correlator_state_t *a, double ppm,
                  int dilate, int comp, double cn0_dbhz, uint32_t seed,
                  dil_t *out)
 {
   /* `comp`: the engine told the carrier, so every tile carries its own
      code-rate hypothesis and the hand-off its half-dwell advance. */
-  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, comp ? CARRIER_HZ : 0.0)
+  DP_REQUIRE (dp_correlator_set_carrier_freq_hz (a, comp ? CARRIER_HZ : 0.0)
               == DP_OK);
-  const size_t          D = a->coherent_bins, nx = a->code_bins;
-  const double          fs  = a->fs;
-  const double          f   = ppm * 1e-6 * CARRIER_HZ;
+  const size_t D = a->search->coherent_bins, nx = a->search->code_bins;
+  const double fs           = a->search->fs;
+  const double f            = ppm * 1e-6 * CARRIER_HZ;
   dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
       WFM_SYNTH_DSSS, fs, dilate ? 0.0 : f, WFM_SYNTH_SNR_CLEAN, 1, seed,
       (int)SPC, 7, 0, 0, 0.0);
@@ -357,21 +354,22 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
       free (nz);
       dp_awgn_destroy (g);
     }
-  acq_result_t hit[4];
-  dp_acq_reset (a);
-  size_t nh = dp_acq_push (a, raw + discard, blk, hit, 4);
-  float *s  = dp_xmalloc (a->n_surf * sizeof *s);
-  DP_REQUIRE_MSG (dp_acq_surface (a, s, a->n_surf) == a->n_surf,
+  dp_correlator_hit_t hit[4];
+  dp_correlator_reset (a);
+  size_t nh = dp_correlator_push (a, raw + discard, blk, hit, 4);
+  float *s  = dp_xmalloc (a->search->n_surf * sizeof *s);
+  DP_REQUIRE_MSG (dp_correlator_surface (a, s, a->search->n_surf)
+                      == a->search->n_surf,
                   "the surface tap reads the decided block");
   out->D         = D;
   out->hit       = nh > 0;
   out->peak_stat = a->test_stat;
   out->gate      = a->threshold;
-  out->conc      = a->peak_conc;
+  out->conc      = a->search->peak_conc;
   /* The peak's width along the code axis: columns of the peak's own
      surface row within 3 dB of it, circular. */
-  const size_t prow = a->peak_row * a->interp;
-  const size_t lb   = a->lag_bins; /* the surface's columns */
+  const size_t prow = a->peak_row * a->search->interp;
+  const size_t lb   = a->search->lag_bins; /* the surface's columns */
   size_t       wide = 0;
   for (size_t c = 0; c < lb; c++)
     if (s[prow * lb + c] >= 0.7071 * s[prow * lb + a->peak_col])
@@ -381,18 +379,18 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
   /* The hand-off, without and with the carrier (the half-dwell advance
      of #1254 -- for one look of D epochs, D * SF / 2 of the drift). The
      hit is the engine's own; when the gate did not fire, its peak. */
-  acq_result_t  h = nh > 0 ? hit[0]
-                           : (acq_result_t){ .doppler_bin = a->peak_row,
-                                             .code_phase  = a->peak_col };
-  acq_handoff_t ho;
-  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
-  dp_acq_build_handoff (a, &h, SF, &ho);
+  dp_correlator_hit_t h = nh > 0 ? hit[0]
+                                 : (dp_correlator_hit_t){ .row = a->peak_row,
+                                                          .col = a->peak_col };
+  dp_correlator_handoff_t ho;
+  DP_REQUIRE (dp_correlator_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  dp_correlator_build_handoff (a, &h, SF, &ho);
   out->doppler_hz_est = ho.doppler_hz_est;
   out->chip_raw       = ho.chip_phase;
-  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
-  dp_acq_build_handoff (a, &h, SF, &ho);
+  DP_REQUIRE (dp_correlator_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
+  dp_correlator_build_handoff (a, &h, SF, &ho);
   out->chip_adv = ho.chip_phase;
-  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_carrier_freq_hz (a, 0.0) == DP_OK);
   free (s);
   free (raw);
   dp_wfm_synth_destroy (syn);
@@ -405,14 +403,14 @@ measure_dilated (const uint8_t *code, dp_acq_state_t *a, double ppm,
    from the truth, and the worst |error| of the rest, Hz. One look per
    block (ONE_LOOK), so a decision per block. */
 static int
-measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
+measure_edge (const uint8_t *code, dp_correlator_state_t *a, double hz,
               double cn0_dbhz, uint32_t seed, int blocks, int *n_hits,
               int *n_off, double *worst_hz)
 {
-  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
-  const size_t          D = a->coherent_bins, nx = a->code_bins;
-  const double          fs = a->fs, span = fs / (double)nx;
-  const double          ppm = hz / CARRIER_HZ * 1e6;
+  DP_REQUIRE (dp_correlator_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
+  const size_t D = a->search->coherent_bins, nx = a->search->code_bins;
+  const double fs = a->search->fs, span = fs / (double)nx;
+  const double ppm = hz / CARRIER_HZ * 1e6;
   dp_wfm_synth_state_t *syn
       = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              seed, (int)SPC, 7, 0, 0, 0.0);
@@ -428,12 +426,12 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
   dp_awgn_state_t *g = dp_awgn_create (
       seed * 7919u + 1u,
       dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
-  const size_t   cap = dp_doppler_channel_execute_max_out (ch);
-  float complex *in  = dp_xmalloc (nx * sizeof *in);
-  float complex *tmp = dp_xmalloc (cap * sizeof *tmp);
-  float complex *nz  = dp_xmalloc (cap * sizeof *nz);
-  acq_result_t   hit[4];
-  dp_acq_reset (a);
+  const size_t        cap = dp_doppler_channel_execute_max_out (ch);
+  float complex      *in  = dp_xmalloc (nx * sizeof *in);
+  float complex      *tmp = dp_xmalloc (cap * sizeof *tmp);
+  float complex      *nz  = dp_xmalloc (cap * sizeof *nz);
+  dp_correlator_hit_t hit[4];
+  dp_correlator_reset (a);
   *n_hits = *n_off = 0;
   *worst_hz        = 0.0;
   for (size_t e = 0; e < (size_t)blocks * D; e++)
@@ -443,11 +441,11 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
       dp_awgn_generate (g, n, nz, cap);
       for (size_t i = 0; i < n; i++)
         tmp[i] += nz[i];
-      size_t nh = dp_acq_push (a, tmp, n, hit, 4);
+      size_t nh = dp_correlator_push (a, tmp, n, hit, 4);
       for (size_t h = 0; h < nh; h++)
         {
-          acq_handoff_t ho;
-          dp_acq_build_handoff (a, &hit[h], SF, &ho);
+          dp_correlator_handoff_t ho;
+          dp_correlator_build_handoff (a, &hit[h], SF, &ho);
           const double err = fabs (ho.doppler_hz_est - hz);
           (*n_hits)++;
           if (err > 0.5 * span)
@@ -462,7 +460,7 @@ measure_edge (const uint8_t *code, dp_acq_state_t *a, double hz,
   dp_awgn_destroy (g);
   dp_doppler_channel_destroy (ch);
   dp_wfm_synth_destroy (syn);
-  DP_REQUIRE (dp_acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_carrier_freq_hz (a, 0.0) == DP_OK);
   return 0;
 }
 
@@ -491,13 +489,13 @@ main (int argc, char **argv)
   block_t      aligned[2];
   for (int i = 0; i < (check ? 1 : 2); i++)
     {
-      dp_acq_state_t *a = engine_open (code, rates[i], 0, 1e-3);
+      dp_correlator_state_t *a = engine_open (code, rates[i], 0, 1e-3);
       ONE_LOOK (a);
       printf ("\n%.0f Mcps: %zu tiles x D = %zu rows (%zu whole code-only "
               "epochs, rate %.0f Hz/s), %.1f Hz per row, %zu surface rows\n",
-              rates[i] / 1e6, a->window_bins, a->coherent_bins,
-              a->code_only_epochs, RATE, a->doppler_res_hz,
-              a->n_surf / a->lag_bins);
+              rates[i] / 1e6, a->search->window_bins, a->search->coherent_bins,
+              a->search->code_only_epochs, RATE, a->search->doppler_res_hz,
+              a->search->n_surf / a->search->lag_bins);
       printf ("  %-26s %-9s %-8s %-6s %-6s %-6s %-6s %-6s %-6s\n", "block",
               "peak/gate", "conc", "row0", "row1", "row2", "row3+", "other",
               "col");
@@ -534,16 +532,16 @@ main (int argc, char **argv)
                 }
             }
         }
-      dp_acq_destroy (a);
+      dp_correlator_destroy (a);
     }
   printf ("  (dB below the peak, cells outside the exclusion zone, by "
           "Doppler-row distance; `other` = at another code phase)\n");
 
   /* ── pfa per block: pure noise at D = 16 ───────────────────────────── */
   {
-    const double    pfa    = check ? 0.2 : 0.1;
-    const int       blocks = check ? 400 : 300;
-    dp_acq_state_t *a      = engine_open (code, 5.0e6, 31, pfa);
+    const double           pfa    = check ? 0.2 : 0.1;
+    const int              blocks = check ? 400 : 300;
+    dp_correlator_state_t *a      = engine_open (code, 5.0e6, 31, pfa);
     ONE_LOOK (a);
     int fired = 0;
     for (int t = 0; t < blocks; t++)
@@ -565,20 +563,20 @@ main (int argc, char **argv)
        its own sigma at the measured rate, an escape of well under 1%. At 100
        blocks the band was 8..32, and a native-priced draw landed inside it a
        quarter to half of the time. The exact guard is the cell count, pinned
-       to the band mask in test_acq_core.c. */
+       to the band mask in test_correlator_search.c. */
     const double expect = pfa;
     double       sd     = sqrt (expect * (1.0 - expect) * blocks);
     printf ("\npfa per block, D = %zu, %zu tiles, interp %zu, configured "
             "%.2f: %d of %d blocks fired (expected %.0f +- %.0f, the "
             "configured rate)\n",
-            a->coherent_bins, a->window_bins, a->interp, pfa, fired, blocks,
-            expect * blocks, sd);
+            a->search->coherent_bins, a->search->window_bins,
+            a->search->interp, pfa, fired, blocks, expect * blocks, sd);
     if (check)
       DP_CHECK_MSG (fabs ((double)fired - expect * blocks) <= 3.0 * sd,
                     "the realized pfa is the configured one: the gate is "
                     "priced over every interpolated row of every tile "
                     "(#2218)");
-    dp_acq_destroy (a);
+    dp_correlator_destroy (a);
   }
 
   /* ── sensitivity: realized Pd against C/N0, per depth ──────────────── */
@@ -598,9 +596,9 @@ main (int argc, char **argv)
                                     7-smooth 150 costs 0.1 dB of it */
     for (int e = 0; e < 3; e++)
       {
-        dp_acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
+        dp_correlator_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
         ONE_LOOK (a);
-        printf ("  %-6zu", a->coherent_bins);
+        printf ("  %-6zu", a->search->coherent_bins);
         for (int c = 0; c < (check ? 2 : 4); c++)
           {
             const double cn0 = check ? chk_cn0 : cn0s[c];
@@ -619,13 +617,13 @@ main (int argc, char **argv)
               }
             double pd = (double)hits / trials;
             printf ("   %4.2f (%4.1f)", pd, marg / trials);
-            if (a->coherent_bins == 1 && cn0 == chk_cn0)
+            if (a->search->coherent_bins == 1 && cn0 == chk_cn0)
               pd_d1_chk = pd;
             if (epochs[e] == 0 && cn0 == chk_cn0)
               pd_dwin_chk = pd;
           }
         printf ("\n");
-        dp_acq_destroy (a);
+        dp_correlator_destroy (a);
       }
     if (check)
       {
@@ -651,7 +649,7 @@ main (int argc, char **argv)
         = { "still", "dilated", "dilated+c" }; /* +c: the carrier told */
     for (int e = 0; e < 3; e++)
       {
-        dp_acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
+        dp_correlator_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
         ONE_LOOK (a);
         DP_REQUIRE (
             measure_dilated (code, a, SPEC_PPM, 0, 0, 0.0, 11u, &still[e])
@@ -670,7 +668,7 @@ main (int argc, char **argv)
                     b->chip_adv,
                     w ? SPEC_PPM * 1e-6 * (double)b->D * (double)SF : 0.0);
           }
-        dp_acq_destroy (a);
+        dp_correlator_destroy (a);
       }
     printf ("  (peak/gate in the gate's units; chip phases are the "
             "hand-off's, at the block's end: the still block's is the "
@@ -685,13 +683,13 @@ main (int argc, char **argv)
        carriers: the worst ratio and the ratio of the row's means. */
     double rec_worst = 0.0, rec_mean = 0.0;
     {
-      dp_acq_state_t *ar = engine_open (code, 5.0e6, 0, 1e-3);
+      dp_correlator_state_t *ar = engine_open (code, 5.0e6, 0, 1e-3);
       ONE_LOOK (ar);
-      const double row   = ar->doppler_res_hz;
+      const double row   = ar->search->doppler_res_hz;
       double       sum_s = 0.0, sum_c = 0.0;
       printf ("\nThe told carrier across one row at D = %zu (%.1f Hz), from "
               "50 kHz:\n  %-9s %-7s %-7s %s\n",
-              ar->coherent_bins, row, "offset", "still", "comp", "dB");
+              ar->search->coherent_bins, row, "offset", "still", "comp", "dB");
       for (int k = 0; k < 8; k++)
         {
           const double ppm
@@ -711,17 +709,17 @@ main (int argc, char **argv)
       rec_mean = db (sum_c / sum_s);
       printf ("  worst %.2f dB, the row's means %.2f dB\n", rec_worst,
               rec_mean);
-      dp_acq_destroy (ar);
+      dp_correlator_destroy (ar);
     }
 
     /* The depth's sensitivity both ways: realized Pd at D = 150. */
-    const double    cn0s[3] = { 34.0, 38.0, 42.0 };
-    const int       trials  = check ? 5 : 20;
-    dp_acq_state_t *a       = engine_open (code, 5.0e6, 0, 1e-3);
+    const double           cn0s[3] = { 34.0, 38.0, 42.0 };
+    const int              trials  = check ? 5 : 20;
+    dp_correlator_state_t *a       = engine_open (code, 5.0e6, 0, 1e-3);
     ONE_LOOK (a);
     printf ("\nD = %zu, one look, realized Pd over %d trials (mean "
             "peak/gate):\n  %-9s",
-            a->coherent_bins, trials, "code");
+            a->search->coherent_bins, trials, "code");
     for (int c = 0; c < 3; c++)
       printf ("   %5.0f dB-Hz", cn0s[c]);
     printf ("\n");
@@ -749,7 +747,7 @@ main (int argc, char **argv)
           }
         printf ("\n");
       }
-    dp_acq_destroy (a);
+    dp_correlator_destroy (a);
     if (check)
       {
         /* Pinned where the measurement put them (design §12.12): the
@@ -787,16 +785,16 @@ main (int argc, char **argv)
   }
   /* ── the tile edge (#1270): the pick asked at the row's frequency ── */
   {
-    dp_acq_state_t *a = engine_open (code, 5.0e6, 0, 1e-3);
+    dp_correlator_state_t *a = engine_open (code, 5.0e6, 0, 1e-3);
     ONE_LOOK (a);
-    const double span    = a->fs / (double)a->code_bins;
+    const double span    = a->search->fs / (double)a->search->code_bins;
     const double hzs[2]  = { 2.5 * span, 2.5 * span + 68.0 };
     const double cn0s[2] = { 45.0, 40.0 };
     const int    blocks  = check ? 20 : 60;
     printf ("\nThe tile edge at D = %zu, tiles %.0f Hz apart, %d decided "
             "blocks each, the carrier told: hand-offs a whole tile from the "
             "truth, and the worst error of the rest\n  %-14s",
-            a->coherent_bins, span, blocks, "emitter");
+            a->search->coherent_bins, span, blocks, "emitter");
     for (int c = 0; c < 2; c++)
       printf ("   %5.0f dB-Hz", cn0s[c]);
     printf ("\n");
@@ -818,7 +816,7 @@ main (int argc, char **argv)
           }
         printf ("\n");
       }
-    dp_acq_destroy (a);
+    dp_correlator_destroy (a);
     if (check)
       DP_CHECK_MSG (hits_total >= 2 * blocks - 2 && off_total == 0,
                     "an emitter on a tile's edge is handed off in its own "

@@ -20,6 +20,13 @@ depends_on = [
     { name = "cvt" },
 ]
 serializable = "true"
+# A search flavor's set_state can rebuild the delay-Doppler map for a blob
+# at another carrier (#2831), so it can fail to allocate; the row is the
+# parent's because the state triplet is (#2752 3.4b: Acquisition's moved
+# here with it). No other flavor returns DP_ERR_MEMORY from set_state.
+set_state_status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_state: the blob's carrier needs the delay-Doppler map rebuilt, and the rebuild could not allocate; the engine is unchanged" },
+]
 fragment = "generated"
 # dp_parallel.h's persistent pool is pthreads: the per-row correlations and
 # DelayDoppler's map fans each of its stages out over `nthreads` workers.
@@ -630,3 +637,357 @@ buf_field = "det_out"
 len_field = "n"
 valid_field = "_last_corr_valid"
 doc = "The correlation vector from the most recent push() that produced a result (None before that, and after reset() or set_state(): the vector is not part of the serialized state). This is a zero-copy view into a buffer owned by the detector and reused every push() -- the next push() (even one that doesn't produce a result) overwrites it in place. Copy the array before the next push() if you need to retain it."
+
+# The continuous search flavor, as doppler.acquire's Acquisition (#2752 step
+# 3.4b; docs/design/correlator.md section 7): a cross-module view
+# (just-makeit#2516), so the class, its __module__ and its stub stay in
+# doppler.acquire. Its surface is acq's, unchanged: every map member is
+# excluded, and what the search has is added. A property on the search
+# record (dp_correlator_search_t, behind the state's `search` pointer) reads
+# through `expr`; the layers' fields are plain fields. `underpowered` is the
+# search record's field, and its warning reaches it the same way.
+[[correlator.views]]
+class_name = "Acquisition"
+module = "acquire"
+create_fn = "dp_correlator_create_continuous"
+create_error = "ValueError"
+create_error_message = "Acquisition: invalid parameter (need chip_rate > 0 and a sample_rate whose code period, sample_rate * len(code) / chip_rate, is a whole number of samples, at least len(code); a finite cn0_dbhz; 0 < pfa < 1 and 0 < pd < 1; a finite doppler_uncertainty >= 0 and doppler_rate >= 0; code_only_epochs >= 1)"
+init_params = [{ name = "code", type = "uint8_t[]" }, { name = "sample_rate", type = "double", default = "4000000.0" }, { name = "chip_rate", type = "double", default = "1000000.0" }, { name = "symbol_rate", type = "double", default = "1000.0" }, { name = "cn0_dbhz", type = "double", default = "50.0" }, { name = "doppler_uncertainty", type = "double", default = "0.0" }, { name = "pfa", type = "double", default = "1e-3" }, { name = "pd", type = "double", default = "0.9" }, { name = "noise_mode", type = "string_enum:mean,median,min,max", default = "mean", doc = "The CFAR reference: the statistic the noise floor is estimated with, which the detection threshold scales." }, { name = "code_only_epochs", type = "size_t", default = "1", doc = "Whole code-only epochs a waveform's code-only window holds at any chip phase (floor(W_symbols * chips_per_symbol / sf) - 1; docs/design/async-dsss-receiver.md §2.1) -- the engine allows a coherent depth to accommodate such waveforms. 1 = no window: a coherent depth of 1." }, { name = "doppler_rate", type = "double", default = "0.0", doc = "Doppler rate in Hz/s the coherent depth is bounded against (the drift over one block stays inside half a slow-time row); 0 leaves the window as the only bound." }]
+exclude_methods = ["execute", "execute_all", "execute_coherent", "execute_power_sum", "execute_power_max", "execute_peaks", "bank_power_max", "bank_detect"]
+exclude_properties = ["ny", "nx", "ny_out", "nx_out", "n_out", "col_out", "dwell", "count"]
+warnings = [
+  { after = "__init__", condition = "self->handle->search->underpowered", category = "UserWarning", message = "Acquisition is under-powered: pd_predicted < pd at this cn0_dbhz. Raise cn0_dbhz or narrow doppler_uncertainty." },
+]
+
+[[correlator.views.methods]]
+name = "push"
+arg_type = "float _Complex"
+return_type = "dp_correlator_hit_t"
+nogil = true
+max_results = 1024
+result_fields = [
+  { name = "row", type = "size_t" },
+  { name = "col", type = "size_t" },
+  { name = "peak_mag", type = "float" },
+  { name = "noise_est", type = "float" },
+  { name = "test_stat", type = "float" },
+  { name = "cn0_dbhz_est", type = "float" },
+  { name = "samples_consumed", type = "uint64_t" },
+  { name = "chip_phase", type = "double" },
+  { name = "doppler_rate_hz_s", type = "double" },
+]
+fn = "dp_correlator_push"
+
+[[correlator.views.methods]]
+name = "configure_search_raw"
+fn = "dp_correlator_configure_search_raw"
+doc = "Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling)."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "doppler_bins", type = "size_t" },
+  { name = "n_noncoh", type = "size_t" },
+]
+
+[[correlator.views.methods]]
+name = "set_max_peaks"
+fn = "dp_correlator_set_max_peaks"
+doc = "How many peaks a dwell may report -- the peak list's capacity (docs/design/async-dsss-receiver.md section 7.1). One (the default) is the classic gated maximum. More lists every peak above the same gate, strongest first, with an exclusion zone of one Doppler bin by one chip around each (one emitter's main lobe, so its own shoulders are not the next peak) and the two-epoch rule for a peak at an already-listed code phase (a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles; such a peak is held for one dwell and listed only if it is still there, at the same tile, on the next). Each listed peak is one record from push(), all of a dwell's sharing samples_consumed and noise_est; a held twin takes one of the n slots that dwell but is not reported. The threshold does not change with n. Raises ValueError outside 1..64. Clears the held candidates."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "n", type = "size_t" },
+]
+
+[[correlator.views.methods]]
+name = "set_carrier_freq_hz"
+fn = "dp_correlator_set_carrier_freq_hz"
+doc = "Couple the code clock to the carrier: the chip rate dilates by doppler_hz / carrier_freq_hz, and the engine accounts for it -- every window tile's epochs are shifted along the code axis by the drift the tile's own frequency implies, aligned to the block's middle (inside a coherent block of D epochs), and the hand-off advances the hit's code phase by the drift over half the dwell (docs/design/async-dsss-receiver-measurements.md §12.11, §12.12). It rides in the state blob, so a resumed engine carries it on, and setting it rebuilds the one delay-Doppler map's ramp tables (docs/design/acq-surface.md §18.2). 0.0 (the default) = uncoupled, the engine as it ran without it. Raises ValueError for a carrier that is neither 0 nor finite and above half the sample rate (fs / 2): every Doppler the engine can report is below fs / 2, so above it |doppler / carrier| < 1 and the dilation stays finite."
+arg_type = "void"
+return_type = "int"
+status_return = true
+status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_carrier_freq_hz: rebuilding the delay-Doppler map for the new carrier could not allocate; the engine is unchanged" },
+]
+params = [
+  { name = "carrier_freq_hz", type = "double" },
+]
+
+[[correlator.views.methods]]
+name = "set_threads"
+fn = "dp_correlator_set_threads"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "n", type = "int" },
+]
+
+[[correlator.views.methods]]
+name = "set_telemetry"
+fn = "dp_correlator_set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
+[[correlator.views.methods]]
+name = "surface"
+fn = "dp_correlator_surface"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "out", type = "float[]", out = true },
+]
+
+[[correlator.views.methods]]
+name = "surface_doppler_hz"
+fn = "dp_correlator_surface_doppler_hz"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "out", type = "double[]", out = true },
+]
+
+[[correlator.views.methods]]
+name = "surface_chip_phase"
+fn = "dp_correlator_surface_chip_phase"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "out", type = "double[]", out = true },
+]
+
+[[correlator.views.methods]]
+name = "surface_complex"
+fn = "dp_correlator_surface_complex"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "out", type = "float _Complex[]", out = true },
+]
+
+[[correlator.views.methods]]
+name = "block_prompt"
+fn = "dp_correlator_block_prompt"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "tile", type = "size_t" },
+  { name = "col", type = "size_t" },
+  { name = "out", type = "float _Complex[]", out = true },
+]
+
+[[correlator.views.methods]]
+name = "block_raw"
+fn = "dp_correlator_block_raw"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "out", type = "float _Complex[]", out = true },
+]
+
+[[correlator.views.properties]]
+name = "max_peaks"
+type = "size_t"
+field = true
+doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set with set_max_peaks()."
+
+[[correlator.views.properties]]
+name = "carrier_freq_hz"
+type = "double"
+doc = "RF carrier the Doppler is physically coupled to, Hz (0.0 = uncoupled); set with set_carrier_freq_hz()."
+expr = "(self->handle->search->carrier_freq_hz)"
+
+[[correlator.views.properties]]
+name = "code_bins"
+type = "size_t"
+doc = "One code period in samples, sample_rate * sf / chip_rate: the length of every forward transform and of a raw epoch."
+expr = "(self->handle->search->code_bins)"
+
+[[correlator.views.properties]]
+name = "lag_bins"
+type = "size_t"
+doc = "Code-phase columns of the surface. Equal to code_bins unless code_bins is not 7-smooth; then the correlation is read on the next power of two, an exact interpolation that keeps the inverse transforms fast. Column c is a lag of c * code_bins / lag_bins samples; surface_chip_phase() gives each column in chips."
+expr = "(self->handle->search->lag_bins)"
+
+[[correlator.views.properties]]
+name = "doppler_bins"
+type = "size_t"
+expr = "(self->handle->search->window_bins * self->handle->search->coherent_bins)"
+doc = "Native Doppler bins this engine searches: the window-tile count times the block-coherent depth inside each tile (`coherent_bins`), one uniform grid of `doppler_res_hz` over the tiled span in FFT-bin order -- what a hit's `doppler_bin` indexes."
+
+[[correlator.views.properties]]
+name = "coherent_bins"
+type = "size_t"
+doc = "The block-coherent depth D inside every window tile (docs/design/acq-surface.md §4): epochs per block and Doppler rows per tile. 1 without a code-only window."
+expr = "(self->handle->search->coherent_bins)"
+
+[[correlator.views.properties]]
+name = "sf"
+type = "size_t"
+doc = "Chips per PN segment, inferred from len(code)."
+expr = "(self->handle->search->sf)"
+
+[[correlator.views.properties]]
+name = "n_noncoh"
+type = "size_t"
+doc = "Non-coherent looks per detection (1 = pure coherent)."
+expr = "(self->handle->search->n_noncoh)"
+
+[[correlator.views.properties]]
+name = "ring_cap"
+type = "size_t"
+field = true
+doc = "Input ring capacity in complex samples."
+
+[[correlator.views.properties]]
+name = "noise_lo"
+type = "size_t"
+field = true
+doc = "First CFAR reference bin (inclusive)."
+
+[[correlator.views.properties]]
+name = "noise_hi"
+type = "size_t"
+field = true
+doc = "Last CFAR reference bin (inclusive)."
+
+[[correlator.views.properties]]
+name = "threshold"
+type = "float"
+field = true
+doc = "CFAR gate on the test statistic (coherent path)."
+
+[[correlator.views.properties]]
+name = "eta"
+type = "float"
+doc = "Raw per-cell Rayleigh amplitude threshold."
+expr = "(self->handle->search->eta)"
+
+[[correlator.views.properties]]
+name = "eta_nc"
+type = "float"
+doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
+expr = "(self->handle->search->eta_nc)"
+
+[[correlator.views.properties]]
+name = "pfa_cell"
+type = "double"
+doc = "Šidák per-cell false-alarm probability over the searched cells."
+expr = "(self->handle->search->pfa_cell)"
+
+[[correlator.views.properties]]
+name = "pd_predicted"
+type = "double"
+doc = "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."
+expr = "(self->handle->search->pd_predicted)"
+
+[[correlator.views.properties]]
+name = "straddle_loss"
+type = "double"
+doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."
+expr = "(self->handle->search->straddle_loss)"
+
+[[correlator.views.properties]]
+name = "fs"
+type = "double"
+doc = "Sample rate (Hz) the engine searches at: chip_rate * code_bins / sf."
+expr = "(self->handle->search->fs)"
+
+[[correlator.views.properties]]
+name = "chip_rate"
+type = "double"
+doc = "Chip rate (Hz)."
+expr = "(self->handle->search->chip_rate)"
+
+[[correlator.views.properties]]
+name = "cn0_dbhz"
+type = "double"
+doc = "Carrier-to-noise density used to size the search (dB-Hz)."
+expr = "(self->handle->search->cn0_dbhz)"
+
+[[correlator.views.properties]]
+name = "doppler_span_hz"
+type = "double"
+doc = "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."
+expr = "(self->handle->search->doppler_span_hz)"
+
+[[correlator.views.properties]]
+name = "doppler_res_hz"
+type = "double"
+doc = "Doppler bin width = chip_rate/(sf*doppler_bins) Hz."
+expr = "(self->handle->search->doppler_res_hz)"
+
+[[correlator.views.properties]]
+name = "pd"
+type = "double"
+doc = "Target detection probability."
+expr = "(self->handle->search->pd)"
+
+[[correlator.views.properties]]
+name = "underpowered"
+type = "bool"
+doc = "True when pd_predicted < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."
+expr = "(self->handle->search->underpowered)"
+
+[[correlator.views.properties]]
+name = "symbol_rate"
+type = "double"
+doc = "Continuous data-symbol rate (Hz) this engine was built with -- diagnostic only, doesn't feed sizing (this engine never coherently combines regardless)."
+expr = "(self->handle->search->symbol_rate)"
+
+[[correlator.views.properties]]
+name = "epochs_per_symbol"
+type = "double"
+doc = "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."
+expr = "(self->handle->search->epochs_per_symbol)"
+
+[[correlator.views.properties]]
+name = "threads"
+type = "int"
+doc = "Workers the searcher fans its tiles across, the calling thread included (docs/design/acq-surface.md §13); 1 = serial. Set with set_threads(); a continuous engine with more than one tile starts at the machine's online core count."
+expr = "(self->handle->search->threads)"
+
+[[correlator.views.properties]]
+name = "keep_surface"
+type = "int"
+writable = true
+doc = "1 keeps every decided dwell's surface for `surface()` (normalised into the gate's units at each decision); 0 (the default) costs nothing. `set_surface_sink()` in C sets it."
+expr = "(self->handle->search->keep_surface)"
+
+[[correlator.views.properties]]
+name = "surface_rows"
+type = "size_t"
+expr = "(self->handle->search->n_surf / self->handle->search->lag_bins)"
+doc = "Rows of the surface `surface()` returns: the Doppler axis in surface units (tiles x interpolated slow-time rows); its columns are `lag_bins`."
+
+[[correlator.views.properties]]
+name = "surface_at"
+type = "size_t"
+doc = "`samples_consumed` of the dwell whose surface `surface()` returns (0 until one has been captured)."
+expr = "(self->handle->search->surface_at)"
+
+[[correlator.views.properties]]
+name = "n_peaks"
+type = "size_t"
+field = true
+doc = "Picks in the last decided dwell, held twins included."
+
+[[correlator.views.properties]]
+name = "n_held"
+type = "size_t"
+doc = "Picks of the last decided dwell held as same-code-phase twins rather than listed (docs/design/async-dsss-receiver.md §7.1)."
+expr = "(self->handle->search->n_held)"
+
+[[correlator.views.properties]]
+name = "peak_conc"
+type = "float"
+doc = "Concentration of the last dwell's strongest peak: the power of its main lobe (its row and one either side, the exclusion zone's width) over the total power of its code-phase column across every Doppler row and tile. Near 1 for a clean single emitter, even one straddling two tiles; about 0.5 when a data transition splits it into twins two or more tiles away; lower when a coherent block straddles data (docs/design/async-dsss-receiver.md §2.4)."
+expr = "(self->handle->search->peak_conc)"

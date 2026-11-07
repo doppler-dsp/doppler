@@ -1385,13 +1385,25 @@ class Corr2D:
         a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
-        length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the Corr2D has already been destroyed.
+        length differs from `state_bytes()`, the exception listed under Raises
+        if the core rejects it, and ``RuntimeError`` if the Corr2D has already
+        been destroyed.
 
         Parameters
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+
+        Raises
+        ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``set_state: the blob's carrier needs the delay-Doppler map
+            rebuilt, and the rebuild could not allocate; the engine is
+            unchanged``.
+        ValueError
+            If the C core rejects the blob with any other non-zero status. The
+            exception message is ``set_state rejected the blob``.
         """
 
     @property
@@ -2205,13 +2217,25 @@ class DelayDoppler:
         a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
-        length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the DelayDoppler has already been destroyed.
+        length differs from `state_bytes()`, the exception listed under Raises
+        if the core rejects it, and ``RuntimeError`` if the DelayDoppler has
+        already been destroyed.
 
         Parameters
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+
+        Raises
+        ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``set_state: the blob's carrier needs the delay-Doppler map
+            rebuilt, and the rebuild could not allocate; the engine is
+            unchanged``.
+        ValueError
+            If the C core rejects the blob with any other non-zero status. The
+            exception message is ``set_state rejected the blob``.
         """
 
     @property
@@ -2483,13 +2507,25 @@ class Corr:
         a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
-        length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the Corr has already been destroyed.
+        length differs from `state_bytes()`, the exception listed under Raises
+        if the core rejects it, and ``RuntimeError`` if the Corr has already
+        been destroyed.
 
         Parameters
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+
+        Raises
+        ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``set_state: the blob's carrier needs the delay-Doppler map
+            rebuilt, and the rebuild could not allocate; the engine is
+            unchanged``.
+        ValueError
+            If the C core rejects the blob with any other non-zero status. The
+            exception message is ``set_state rejected the blob``.
         """
 
     @property
@@ -2732,13 +2768,25 @@ class CorrDetector2D:
         a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
-        length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the CorrDetector2D has already been destroyed.
+        length differs from `state_bytes()`, the exception listed under Raises
+        if the core rejects it, and ``RuntimeError`` if the CorrDetector2D has
+        already been destroyed.
 
         Parameters
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+
+        Raises
+        ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``set_state: the blob's carrier needs the delay-Doppler map
+            rebuilt, and the rebuild could not allocate; the engine is
+            unchanged``.
+        ValueError
+            If the C core rejects the blob with any other non-zero status. The
+            exception message is ``set_state rejected the blob``.
         """
 
     @property
@@ -3008,13 +3056,25 @@ class CorrDetector:
         a blob built differently.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
-        length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the CorrDetector has already been destroyed.
+        length differs from `state_bytes()`, the exception listed under Raises
+        if the core rejects it, and ``RuntimeError`` if the CorrDetector has
+        already been destroyed.
 
         Parameters
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+
+        Raises
+        ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``set_state: the blob's carrier needs the delay-Doppler map
+            rebuilt, and the rebuild could not allocate; the engine is
+            unchanged``.
+        ValueError
+            If the C core rejects the blob with any other non-zero status. The
+            exception message is ``set_state rejected the blob``.
         """
 
     @property

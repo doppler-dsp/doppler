@@ -958,7 +958,7 @@ def review(d: Data) -> None:
         "bin_frequency_fold_restated_four",
         "FIXED",
         "**One bin-to-frequency fold was restated in four Python call "
-        "sites, three ways** — one of them the exact form `acq_core.h` "
+        "sites, three ways** — one of them the exact form `correlator_core.h` "
         "records as a past full-span sign inversion. It is `fftfreq`, and "
         "the engine's private helper had deviated from it at one index: an "
         "even grid's Nyquist bin. Fixed by giving the fold one home "
@@ -1067,7 +1067,8 @@ def review(d: Data) -> None:
         "first -- 6/6 decoded with 333-sample blocks against 1/6 with one "
         "large one. Three separate sites: an early return that never looked "
         "at `x` at all, a `break` that left the remainder unwritten, and a "
-        "single `dp_acq_push` per chunk, which stops once its result array is "
+        "single `dp_correlator_push` per chunk, which stops once its result "
+        "array is "
         "full and abandons its own input suffix. All three are gone: the "
         "loop runs to the end of `x`, acq is re-fed until it has absorbed "
         "the chunk, and `push()` returns EVERY burst it completed. "

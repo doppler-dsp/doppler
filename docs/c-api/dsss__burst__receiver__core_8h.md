@@ -16,11 +16,10 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/burst_capture/burst_capture_core.h"`
 * `#include "doppler/burst_acq/burst_acq_core.h"`
-* `#include "doppler/acq/acq_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/burst_demod/burst_demod_core.h"`
 * `#include "doppler/burst_despreader/burst_despreader_core.h"`
 * `#include "doppler/ppe/ppe_core.h"`
-* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
 * `#include "doppler/spectral/spectral_core.h"`
 * `#include "doppler/loop_filter/loop_filter_core.h"`
@@ -141,7 +140,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
-| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `7u`<br>_Layout version of the DsssBurstReceiver state blob._  |
+| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `8u`<br>_Layout version of the DsssBurstReceiver state blob. 8: the capture's search child is the correlator's search flavor ('CORL', #2752 3.4b)._  |
 
 ## Detailed Description
 
@@ -1433,9 +1432,9 @@ _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._
 
 ### define DSSS\_BURST\_RECEIVER\_STATE\_VERSION 
 
-_Layout version of the DsssBurstReceiver state blob._ 
+_Layout version of the DsssBurstReceiver state blob. 8: the capture's search child is the correlator's search flavor ('CORL', #2752 3.4b)._ 
 ```C++
-#define DSSS_BURST_RECEIVER_STATE_VERSION `7u`
+#define DSSS_BURST_RECEIVER_STATE_VERSION `8u`
 ```
 
 

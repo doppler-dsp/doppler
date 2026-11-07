@@ -36,7 +36,7 @@ _Composed receiver state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  bool | [**align\_pending**](#variable-align_pending)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
@@ -191,7 +191,7 @@ Every child is allocated at create() with a placeholder seed (phase 0, no Dopple
 ### variable acq 
 
 ```C++
-dp_acq_state_t* dp_async_dsss_receiver_state_t::acq;
+dp_correlator_state_t* dp_async_dsss_receiver_state_t::acq;
 ```
 
 

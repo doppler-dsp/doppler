@@ -111,7 +111,7 @@ uint32_t dp_correlator_hit_t::_pad;
 
 
 
-Alignment padding, named so the record has none unnamed; written as 0 (every builder's designated initializer zeroes it). A new field goes before it, which moves it, and test\_acq\_core.c's layout assert goes red until the comparison names the field. 
+Alignment padding, named so the record has none unnamed; written as 0 (every builder's designated initializer zeroes it). A new field goes before it, which moves it, and test\_correlator\_search.c's layout assert goes red until the comparison names the field. 
 
 
         

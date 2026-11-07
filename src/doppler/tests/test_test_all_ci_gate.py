@@ -112,3 +112,59 @@ def test_the_real_tree_passes_and_fails_when_sabotaged(tmp_path: Path) -> None:
     )
     errs = mod.check(copy)
     assert any("make test-snippets" in e for e in errs), errs
+
+
+MATRIX_JOB = """\
+  san:
+    strategy:
+      matrix:
+        san:
+          - { target: test-asan, label: ASan }
+          - { target: test-tsan, label: TSan }
+    steps:
+      - name: ${{ matrix.san.label }}
+        run: make ${{ matrix.san.target }}
+"""
+
+
+def _seed_matrix(tmp_path: Path, deps: str, exempt: str) -> Path:
+    root = _seed(tmp_path, deps, exempt)
+    wf = root / ".github" / "workflows" / "ci.yml"
+    wf.write_text(WORKFLOW + MATRIX_JOB)
+    return root
+
+
+def test_a_matrix_target_test_all_skips_fails(tmp_path: Path) -> None:
+    """#2912's shape: `make ${{ matrix.san.target }}` names test-asan and
+    test-tsan through the job's matrix; literal text never shows them."""
+    root = _seed_matrix(tmp_path, "test-python test-snippets", SWEEP)
+    errs = _load().check(root)
+    assert len(errs) == 2, errs
+    assert "make test-asan" in errs[0] and "make test-tsan" in errs[1]
+
+
+def test_a_matrix_target_covered_or_exempt_passes(tmp_path: Path) -> None:
+    root = _seed_matrix(
+        tmp_path,
+        "test-python test-snippets test-asan",
+        SWEEP + "test-tsan | its own instrumented tree, run by CI\n",
+    )
+    assert _load().check(root) == []
+
+
+def test_the_real_tree_sees_the_sanitizer_matrix(tmp_path: Path) -> None:
+    """Dropping test-tsan's exempt line from a copy of the real tree turns
+    the gate red: ci.yml's sanitizer matrix is read, not only its text."""
+    mod = _load()
+    copy = tmp_path / "repo"
+    shutil.copytree(
+        REPO / ".github" / "workflows", copy / ".github" / "workflows"
+    )
+    (copy / "scripts").mkdir()
+    shutil.copy(REPO / "Makefile", copy / "Makefile")
+    exempt = (REPO / "scripts" / ".test-all-exempt").read_text("utf-8")
+    kept = [ln for ln in exempt.splitlines() if not ln.startswith("test-tsan")]
+    assert len(kept) == len(exempt.splitlines()) - 1
+    (copy / "scripts" / ".test-all-exempt").write_text("\n".join(kept) + "\n")
+    errs = mod.check(copy)
+    assert len(errs) == 1 and "make test-tsan" in errs[0], errs

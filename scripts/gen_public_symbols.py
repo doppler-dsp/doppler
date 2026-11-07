@@ -51,6 +51,19 @@ def render() -> str:
     return HEADER + "".join(f"{n} {syms[n]}\n" for n in sorted(syms))
 
 
+def names(text: str) -> set[str]:
+    """The symbol names in a list :func:`render` wrote -- its reader.
+
+    Lives beside the writer so the format has one home in both directions;
+    ``check_retired_symbols.py`` reads the list at the merge base with it.
+    """
+    return {
+        ln.split()[0]
+        for ln in text.splitlines()
+        if ln.strip() and not ln.startswith("#")
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--check", action="store_true")

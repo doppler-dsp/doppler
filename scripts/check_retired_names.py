@@ -96,7 +96,7 @@ SUFFIXES = frozenset(
 )
 
 
-def _rows(
+def rows(
     path: Path = RETIRED,
 ) -> list[tuple[re.Pattern[str], str, str]]:
     """Parse `.retired-names` into (compiled, raw pattern, replacement).
@@ -159,8 +159,8 @@ def _skipped(rel: str) -> bool:
 
 
 def main() -> int:
-    rows = _rows()
-    if not rows:
+    declared = rows()
+    if not declared:
         print("retired-names: no retired names declared")
         return 0
 
@@ -194,7 +194,7 @@ def main() -> int:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        for compiled, pat, repl in rows:
+        for compiled, pat, repl in declared:
             for n, line in enumerate(text.splitlines(), 1):
                 if compiled.search(line):
                     rel = path.relative_to(ROOT).as_posix()
@@ -210,7 +210,10 @@ def main() -> int:
         )
         return 1
 
-    print(f"retired-names: OK — {len(rows)} retired pattern(s), 0 occurrences")
+    print(
+        f"retired-names: OK — {len(declared)} retired pattern(s),"
+        " 0 occurrences"
+    )
     return 0
 
 

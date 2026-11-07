@@ -56,7 +56,7 @@ def test_not_ours_is_skipped(rel: str) -> None:
 
 
 def _windows_rows() -> list[re.Pattern[str]]:
-    rows = [pat for pat, _raw, repl in gate._rows() if "Windows" in repl]
+    rows = [pat for pat, _raw, repl in gate.rows() if "Windows" in repl]
     assert rows, "the retired Windows-support claim has no rows"
     return rows
 

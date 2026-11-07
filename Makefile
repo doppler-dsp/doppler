@@ -193,7 +193,16 @@ endif
 #
 # As the caller, not root: the build tree lands in the checkout, and a
 # root-owned one is a `make clean` away from needing sudo.
-CONTAINER_CHECKOUT = -u $$(id -u):$$(id -g) -v "$(CURDIR)":/w -w /w \
+#
+# CONTAINER_USER is how a container runs as the caller, and the one place that
+# is decided. Under docker, `-u uid:gid`. Under rootless podman (`docker` is
+# often podman's CLI) that uid inside maps to a subordinate uid outside and
+# cannot write the mount at all; `--userns=keep-id` maps it to the caller
+# (#2933). Shell-expanded, so it is decided on the box that runs it.
+CONTAINER_USER = $$(if docker --version 2>/dev/null | grep -qi podman; \
+                   then echo --userns=keep-id; \
+                   else echo -u $$(id -u):$$(id -g); fi)
+CONTAINER_CHECKOUT = $(CONTAINER_USER) -v "$(CURDIR)":/w -w /w \
                      -e UV_PROJECT_ENVIRONMENT=/w/$(1)/.venv
 
 # Extra cmake args passed through to every configure step.
@@ -2981,8 +2990,8 @@ gen-c-api: ## Regenerate docs/c-api/ from the headers (mkdoxy, CI's doxygen)
 	   echo "gen-c-api: local $${have:-none} != CI's $(DOXYGEN_VERSION) — shimming the CI image"; \
 	   $(DOXYGEN_IMAGE_CHECK); \
 	   shim=$$(mktemp -d); \
-	   printf '#!/bin/sh\nexec docker run --rm -i -u %s:%s -v "%s":"%s" -w "$$PWD" %s doxygen "$$@"\n' \
-	     "$$(id -u)" "$$(id -g)" "$(CURDIR)" "$(CURDIR)" "$(CI_IMAGE)" > $$shim/doxygen; \
+	   printf '#!/bin/sh\nexec docker run --rm -i %s -v "%s":"%s" -w "$$PWD" %s doxygen "$$@"\n' \
+	     "$(CONTAINER_USER)" "$(CURDIR)" "$(CURDIR)" "$(CI_IMAGE)" > $$shim/doxygen; \
 	   chmod +x $$shim/doxygen; \
 	   PATH="$$shim:$$PATH" $(MAKE) -s gen-c-api-run; rc=$$?; \
 	   rm -rf $$shim; exit $$rc; \

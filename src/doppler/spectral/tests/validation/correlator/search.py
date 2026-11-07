@@ -1422,11 +1422,6 @@ def executive_bullets() -> list[str]:
         "all of them is the mistake the field exists to prevent, and it "
         "was pinned by nothing until now (§2.21, "
         f"{R.ref('samples_consumed_unpinned')}).",
-        "**The CFAR reference is a real choice, worth ~15 dB.** `min` "
-        "is the optimistic extreme and `max` can suppress detection "
-        "entirely at a given signal level. Only the default was ever "
-        "exercised before this certification (§2.26, "
-        f"{R.ref('noise_mode_zero_mentions_test')}).",
         "**Size the push against `n_noncoh`, not against epochs.** The "
         "auto-sizer routinely picks a look count above 1, so one dump "
         "needs several frames and a short push returns nothing at all — "

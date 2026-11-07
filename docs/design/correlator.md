@@ -552,7 +552,14 @@ Each is its own PR, tracked by an issue of its own under #2752.
 1. **3.5, re-certification.** One report for the one object, its limits
     the union of today's four reports. acq's two open findings stay open:
     finding `auto_sizer_short_push_empty` and finding
-    `searched_doppler_unreported`.
+    `searched_doppler_unreported`. **Landed before 3.4b**, so the move
+    keeps one report's `--check` rather than leaving report folders tied
+    to a component it deletes:
+    `src/doppler/spectral/tests/validation/correlator/` carries four
+    parts (the map, the 2-D detector, the search, the burst door), 83
+    limits and 25 findings. A third open finding,
+    `continuous_search_thin_python` (#2923), records that the continuous
+    search has one limit of its own there.
 
 ### 7.1 The speed rows, with their budgets
 

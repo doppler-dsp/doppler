@@ -7,7 +7,8 @@
  * samples, and sizes itself from `pd_predicted` -- a model whose inputs for a
  * template (the zone, the band-limited delay straddle) are pinned against
  * closed forms in test_acq_core.c, but whose OUTPUT had never been measured
- * over noise. acq's report §2.6 measures it for a code; this measures it for
+ * over noise. The correlator report's §2.24 (part three, the search) measures
+ * it for a code; this measures it for
  * four kinds of preamble, the same way:
  *
  *   one frame of D = 8 repetitions per trial, the grid pinned at D = 8 and

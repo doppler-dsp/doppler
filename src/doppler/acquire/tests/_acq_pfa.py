@@ -1,6 +1,7 @@
 """Realized acquisition Pfa over a pure-noise run — measured in ONE place.
 
-The certification (`validation/acq/`) and the characterization
+The certification (the correlator report's part three,
+`spectral/tests/validation/correlator/search.py`) and the characterization
 (`characterization/burst_acquisition/`) both need to know what false-alarm
 rate the detector actually delivers against the rate the caller asked for.
 They need it at different scales — the certification wants a number fast

@@ -34,7 +34,11 @@ from pathlib import Path
 import numpy as np
 
 from doppler.spectral import Corr2D
-from doppler.spectral.tests.validation.correlator import detector
+from doppler.spectral.tests.validation.correlator import (
+    burst_door,
+    detector,
+    search,
+)
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
@@ -184,7 +188,7 @@ def section_object() -> None:
     R.md()
     R.md(
         "Step 1 of `docs/dev/contributing/validation.md`. The C test is "
-        "`test_corr2d_core.c`. Three rows were **absent or vacuous** when "
+        "`test_correlator_core.c`. Three rows were **absent or vacuous** when "
         "this certification began; three more are unreachable from Python "
         "and are certified in C instead."
     )
@@ -246,6 +250,14 @@ def section_object() -> None:
                 "§2.8",
             ],
             ["the state triplet round-trips", "C + Python", "§2.7"],
+            [
+                "the 1-D map flavor (`Corr`, `dp_correlator_create_1d`) is "
+                "the 2-D map at `ny = 1`, byte for byte",
+                "C — **C-ONLY**: `test_corr_equiv.c` (against the retired "
+                "`Corr`'s own C, then the flavors), `test_correlator_1d.c`; "
+                "no limit here measures it through Python",
+                "C §1-D map",
+            ],
             [
                 "a batch's map h is a fresh dwell-1 object's map for frame "
                 "h, every path, every thread count",
@@ -434,7 +446,7 @@ def _sec_fastpath(d: Data) -> None:
         "cancels identically and `ny` independent 1-D transforms compute the "
         "same surface. The object selects that path itself; **the "
         "`fast_path` flag has no binding**, so which path ran is asserted in "
-        "`test_corr2d_core.c` and only the RESULT is checkable here."
+        "`test_correlator_core.c` and only the RESULT is checkable here."
     )
     R.md()
     worst = 0.0
@@ -1371,19 +1383,31 @@ def limits(d: Data) -> None:
 def build(write: bool = True) -> Report:
     global R
     R = Report(write=write)
-    detector.attach(R)
-    R.md("# Corr2D and CorrDetector2D — validation report")
+    for part in (detector, search, burst_door):
+        part.attach(R)
+    R.md(
+        "# The correlator — Corr2D, CorrDetector2D, Acquisition and "
+        "BurstAcquisition — validation report"
+    )
     R.md()
     section_object()
     detector.section_object()
+    search.section_object()
+    burst_door.section_object()
     d = characterise()
     dd = detector.characterise()
+    ds = search.characterise()
+    db = burst_door.characterise()
     review(d)
     detector.review(dd)
+    search.review(ds)
+    burst_door.review(db)
     limits(d)
     detector.limits(dd)
+    search.limits(ds)
+    burst_door.limits(db)
     R.executive(
-        "Corr2D and CorrDetector2D",
+        "the correlator",
         [
             f"**The transform path is the brute-force answer** to "
             f"{d.brute_worst:.1e} across shapes and both reference kinds, "
@@ -1394,47 +1418,21 @@ def build(write: bool = True) -> Report:
             "repeated frame is exactly three times `dwell=1`, and nothing "
             "is emitted before the dwell-th call — which is what a caller "
             "sizing an acquisition threshold has to assume (§2.2).",
-            f"**A larger inverse buys real sub-bin resolution**: a "
-            f"fractional peak is recovered to {d.interp_worst_bins:.3f} of "
-            f"a bin where the native grid is off by "
-            f"{d.native_grid_worst:.2f} (§2.4). Build the test stimulus "
-            f"over SIGNED frequencies — a `0..nx-1` sweep produces a "
-            f"double peak that reads like a broken interpolator and is not "
-            f"({R.ref('sub_bin_pinned_integer')}).",
-            "**Three claims are C-ONLY**, including `set_ref`'s contract "
-            "that a fast-path object refuses a reference that is no longer "
-            "single-row. A Python-only audit of this object would report a "
-            "clean bill of health for the surface that matters least "
-            f"({R.ref('three_claims_no_python_face')}).",
-            "**Two of the pins it arrived with could not fail**: `reset` "
-            "was asserted on an object that was already reset, and the "
-            "Nyquist split was covered by nothing at all. Both were found "
-            "by breaking the code and watching the suite stay green, which "
-            "is the only way that class of gap surfaces "
-            f"({R.ref('dp_corr2d_reset_pinned_vacuously')}, "
-            f"{R.ref('even_nyquist_bin_split_corr2d')}).",
-            "**A batch makes the same maps as execute(), and leaves the "
-            "dwell alone.** H frames in one call give maps bit-identical to "
-            "H fresh dwell-1 objects on every path and thread count, the "
-            "coherent sum is a dwell-H dump, and a batch mid-dwell changes "
-            "neither the count nor the state blob (§2.10).",
             "**CorrDetector2D's noise estimate is the object.** It is the "
             "denominator of every decision, and three of its four modes "
             "were exercised by nothing before its certification -- a mode "
             "selecting the wrong statistic moves every `test_stat` in the "
             "library without changing a single peak position (§2.12, "
             f"{R.ref('noise_modes_unexercised')}).",
-            "**Its chunk size is not part of the answer, and its gate is "
-            "strict.** Six slicings of one stream, down to one sample a "
-            "push, give the same events (§2.15); a threshold equal to the "
-            "statistic emits nothing, `0.0` always fires, and a closed gate "
-            "still updates `last_corr` (§2.16, "
-            f"{R.ref('last_dump_comment_wrong')}).",
+            *search.executive_bullets(),
+            *burst_door.executive_bullets(),
         ],
     )
     R.summary(
         "\n- Raw sweeps: `data/brute_force.csv`, `data/interpolation.csv`, "
-        "`data/accuracy.csv`, `data/noise_modes.csv`"
+        "`data/accuracy.csv`, `data/noise_modes.csv` (the map and the "
+        "detector), `data/span.csv`, `data/threshold.csv`, `data/cn0.csv` "
+        "(the search), `data/forwarding.csv` (the burst door)"
     )
     R.emit(HERE / "results.md")
     return R

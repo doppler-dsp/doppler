@@ -1,8 +1,12 @@
-"""Certify `acq` — the shared DSSS acquisition engine, both front doors.
+"""Part three of the correlator's report: `acq`, the shared DSSS
+acquisition engine, through both front doors.
 
-Run:  python -m doppler.acquire.tests.validation.acq.validate
-      make validate          (regenerates every report)
-      make validate-check    (fails if the committed report is stale)
+Not run on its own. `validate.py` in this folder renders the one report for
+the one object (#2752 step 3.5, docs/design/correlator.md section 7): the map
+flavors, then the 2-D detector (`detector.py`), then this search, then the
+burst front door (`burst_door.py`), numbered on from each other, with one
+executive summary, one findings list and one limits table. `attach()` hands
+this module the report it writes into.
 
 One engine, two mode-fixed constructors. `BurstAcquisition` searches a
 repeated preamble with coherent depth; `Acquisition` searches a continuous,
@@ -24,7 +28,6 @@ the CFAR statistics are `detection`'s. Neither is re-derived here.
 from __future__ import annotations
 
 import subprocess
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,18 +41,25 @@ from doppler.acquire.tests._acq_pfa import (
 )
 from doppler.acquire.tests._preamble import code_preamble
 from doppler.tests._repo import build_dir, exe, repo_root
-from doppler.tests._validation_common import Report, cli
+from doppler.tests._validation_common import Report
 from doppler.wfm import PN, mls_poly
 
 HERE = Path(__file__).resolve().parent
 ROOT = repo_root(__file__)
-#: The template Monte-Carlo (§2.10, §2.11) is C's: one trial loop, one set
+#: The template Monte-Carlo (§2.28, §2.29) is C's: one trial loop, one set
 #: of templates and one band-limited delay, in the harness. This report
 #: renders its rows and decides in limits().
 TEMPLATE_PD = exe(
     build_dir(__file__) / "native/validation/validate_acq_template_pd"
 )
 R = Report()
+
+
+def attach(report: Report) -> None:
+    """Write into `report`, the correlator report's, from here on."""
+    global R
+    R = report
+
 
 SF = 31
 SPC = 4
@@ -96,6 +106,7 @@ class Data:
     """Everything §3 and §4 read, measured once in §2."""
 
     mode_rows: list[list[str]] = field(default_factory=list)
+    mode_order: bool = False
     continuous_always_tiles: bool = False
     burst_uses_coherent: bool = False
     span_rows: list[list[str]] = field(default_factory=list)
@@ -135,7 +146,10 @@ class Data:
 
 
 def section_object() -> None:
-    R.md("## 1. The object — one engine, two mode-fixed front doors")
+    R.md(
+        "### 1.4 Part three: Acquisition — one engine, two mode-fixed "
+        "front doors"
+    )
     R.md()
     R.md(
         "`acq` jointly estimates a code phase and a Doppler bin and declares "
@@ -157,8 +171,7 @@ def section_object() -> None:
                 "the architecture, the aliasing argument, and what is open",
             ],
             [
-                "[`correlator`'s report](../../../../spectral/tests/"
-                "validation/correlator/results.md)",
+                "parts one and two of this report (§2.1 to §2.18)",
                 "the correlation surface — not re-derived here",
             ],
             [
@@ -172,11 +185,11 @@ def section_object() -> None:
             ],
         ],
     )
-    R.md("### 1.1 The claim inventory")
+    R.md("### 1.5 Acquisition's claim inventory")
     R.md()
     R.md(
         "Step 1 of `docs/dev/contributing/validation.md`. The C test is "
-        "`test_acq_core.c` (659 lines, already substantial). Two claims had "
+        "`test_acq_core.c` (already substantial). Two claims had "
         "**zero mentions in either language**, and both are the kind that "
         "fail quietly."
     )
@@ -188,74 +201,74 @@ def section_object() -> None:
                 "`samples_consumed` is a PER-HIT anchor; one push spanning "
                 "several epochs emits several offsets",
                 "**was nothing, in C or Python**",
-                "§2.3",
+                "§2.21",
             ],
             [
                 "`noise_mode` selects the CFAR reference "
                 "(mean/median/min/max)",
                 "**was nothing, in C or Python** — only the default ran",
-                "§2.8",
+                "§2.26",
             ],
             [
                 "burst picks the smallest coherent depth meeting `pd`",
                 "C, at both ends of the range",
-                "§2.1",
+                "§2.19",
             ],
             [
                 "continuous ALWAYS window-tiles, even inside one span",
                 "C",
-                "§2.1",
+                "§2.19",
             ],
             [
                 "a coherent axis resolves only within `chip_rate/(2*sf)`",
                 "C",
-                "§2.2",
+                "§2.20",
             ],
             [
                 "tiling covers the requested uncertainty on both sides",
                 "C, with a coverage sweep",
-                "§2.2",
+                "§2.20",
             ],
             [
                 "`cn0_dbhz_est` inverts the sizing relationship",
                 "C, against injected AWGN",
-                "§2.7",
+                "§2.25",
             ],
             [
                 "a tighter uncertainty lowers the per-cell threshold",
                 "C partially — measured as a relationship here",
-                "§2.4",
+                "§2.22",
             ],
             [
                 "`configure_search_raw` bounds-checks and keeps the prior "
                 "grid on failure",
                 "C",
-                "§2.9",
+                "§2.27",
             ],
             [
                 "`reset` drains the ring and the accumulator",
                 "C + Python",
-                "§2.9",
+                "§2.27",
             ],
-            ["the state triplet round-trips", "C + Python", "§2.9"],
+            ["the state triplet round-trips", "C + Python", "§2.27"],
             [
                 "`acq_create_burst_template` searches any repeated preamble "
                 "by its samples; the zone and the delay straddle come from "
                 "its own correlation",
                 "C, against closed forms (chirp, Zadoff-Chu, QPSK, RRC)",
-                "§2.10",
+                "§2.28",
             ],
             [
                 "`pd_predicted` holds for a template as for a code",
                 "**was nothing** — the inputs were pinned, never the "
                 "output over noise",
-                "§2.10",
+                "§2.28",
             ],
             [
                 "`doppler_rate` caps the burst depth at "
                 "`f_epoch/sqrt(2*rate)`",
                 "C, both constructors, sabotage-proven",
-                "§2.11",
+                "§2.29",
             ],
         ],
     )
@@ -266,10 +279,6 @@ def section_object() -> None:
 
 def characterise() -> Data:
     d = Data()
-    R.md("## 2. Characterisation")
-    R.md()
-    R.md("Measured behaviour. No verdicts — those are §3.")
-    R.md()
     _sec_modes(d)
     _sec_span(d)
     _sec_anchor(d)
@@ -290,13 +299,13 @@ def _template_harness(d: Data) -> None:
 
     A missing binary is a hard failure rather than a skip: a skipped
     measurement is indistinguishable from a passing one in a log, and
-    §2.10-§2.11 come from nowhere else. `make build` builds it, and CI
+    §2.28-§2.29 come from nowhere else. `make build` builds it, and CI
     builds before it runs any Python.
     """
     if not TEMPLATE_PD.exists():
         raise SystemExit(
             f"acq: {TEMPLATE_PD.relative_to(ROOT)} is not built — run "
-            f"`make build` first. §2.10-§2.11 are its measurements."
+            f"`make build` first. §2.28-§2.29 are its measurements."
         )
     out = subprocess.run(
         [str(TEMPLATE_PD), "--emit"],
@@ -318,7 +327,7 @@ def _template_harness(d: Data) -> None:
 
 
 def _pd_verdict(r: dict[str, str]) -> tuple[bool, float]:
-    """(never optimistic, measured - predicted): §2.6's two bounds read."""
+    """(never optimistic, measured - predicted): §2.24's two bounds read."""
     pred, meas, se = float(r["pred"]), float(r["meas"]), float(r["se"])
     return meas >= pred - 2.0 * se, meas - pred
 
@@ -326,22 +335,22 @@ def _pd_verdict(r: dict[str, str]) -> tuple[bool, float]:
 def _sec_templates(d: Data) -> None:
     """Does `pd_predicted` hold for a preamble that is not a code?"""
     D, trials, pfa = d.tmpl_meta
-    R.md("### 2.10 Any repeated preamble: the Pd a template delivers")
+    R.md("### 2.28 Any repeated preamble: the Pd a template delivers")
     R.md()
     R.md(
         "`acq_create_burst_template()` searches a preamble by its samples "
         "(doppler#1470). What a code knows analytically -- the peak zone, "
         "the delay straddle -- comes from the template's own correlation, "
         "and `test_acq_core.c` pins those inputs against closed forms. "
-        "This measures the OUTPUT: §2.6's method, one frame of "
+        "This measures the OUTPUT: §2.24's method, one frame of "
         f"D = {D} repetitions per trial with the grid pinned, Doppler "
         "uniform over the span, a continuous band-limited delay, AWGN from "
         f"the shipped `awgn`, pfa {pfa}, {trials} trials a row. Each "
         "template runs at the C/N0 where the engine itself predicts 0.3, "
         "0.6 and 0.9, so a wrong slope shows. The code runs through the "
-        "same harness as the control and lands on §2.6, so any gap in the "
+        "same harness as the control and lands on §2.24, so any gap in the "
         "other rows is the engine's; it then runs at the same three design "
-        "points, because §2.6's one point is 0.65 and the constructors "
+        "points, because §2.24's one point is 0.65 and the constructors "
         "default to pd = 0.9. Measured by "
         "`native/validation/acq_template_pd.c`; `|delay err|` is the mean "
         "distance of the reported delay from the injected one, in samples."
@@ -404,7 +413,7 @@ def _sec_templates(d: Data) -> None:
 def _sec_drift(d: Data) -> None:
     """Does a Doppler rate keep the prediction honest?"""
     name, reps, rate, trials = d.drift_meta
-    R.md("### 2.11 A Doppler rate caps the coherent depth")
+    R.md("### 2.29 A Doppler rate caps the coherent depth")
     R.md()
     R.md(
         "A Doppler rate moves the carrier during a block and smears it "
@@ -457,7 +466,7 @@ def _sec_drift(d: Data) -> None:
 
 
 def _sec_modes(d: Data) -> None:
-    R.md("### 2.1 The two front doors choose different machinery")
+    R.md("### 2.19 The two front doors choose different machinery")
     R.md()
     code = _code()
     rows = []
@@ -544,7 +553,7 @@ def _sec_modes(d: Data) -> None:
 
 
 def _sec_span(d: Data) -> None:
-    R.md("### 2.2 The native span, and what tiling is for")
+    R.md("### 2.20 The native span, and what tiling is for")
     R.md()
     span = CHIP_RATE / (2.0 * SF)
     code = _code()
@@ -608,7 +617,7 @@ def _sec_span(d: Data) -> None:
 
 
 def _sec_anchor(d: Data) -> None:
-    R.md("### 2.3 `samples_consumed` is a per-HIT anchor")
+    R.md("### 2.21 `samples_consumed` is a per-HIT anchor")
     R.md()
     R.md(
         "Documented as *\"the raw sample offset this detection's epoch ended "
@@ -667,7 +676,7 @@ def _sec_anchor(d: Data) -> None:
 
 
 def _sec_threshold(d: Data) -> None:
-    R.md("### 2.4 The threshold is a function of the cell count")
+    R.md("### 2.22 The threshold is a function of the cell count")
     R.md()
     R.md(
         "The per-cell false-alarm rate is the system rate divided across "
@@ -747,7 +756,7 @@ def _sec_threshold(d: Data) -> None:
 
 def _sec_measured_pd(d: Data) -> None:
     """Does `pd_predicted` describe the Pd a caller gets over the prior?"""
-    R.md("### 2.6 The Pd it delivers, against the Pd it predicts")
+    R.md("### 2.24 The Pd it delivers, against the Pd it predicts")
     R.md()
     R.md(
         "`pd_predicted` is the AVERAGE Pd over the straddle priors -- Doppler "
@@ -833,7 +842,7 @@ def _sec_measured_pd(d: Data) -> None:
 
 
 def _sec_cn0(d: Data) -> None:
-    R.md("### 2.7 The reported C/N0 tracks the injected one")
+    R.md("### 2.25 The reported C/N0 tracks the injected one")
     R.md()
     R.md(
         "`cn0_dbhz_est` inverts the same C/N0 <-> per-sample-SNR "
@@ -879,7 +888,7 @@ def _sec_cn0(d: Data) -> None:
 
 
 def _sec_noisemode(d: Data) -> None:
-    R.md("### 2.8 The CFAR reference is a choice, worth ~15 dB")
+    R.md("### 2.26 The CFAR reference is a choice, worth ~15 dB")
     R.md()
     R.md(
         "`noise_mode` picks how the reference cells are aggregated, and it "
@@ -913,6 +922,20 @@ def _sec_noisemode(d: Data) -> None:
             rows.append([mode, "0", "—", "no detection"])
     R.table(["noise_mode", "hits", "noise_est", "test_stat"], rows)
     d.mode_rows = d.mode_rows + rows
+    # The ordering test_acq_core.c pins (its noise-mode block), relation for
+    # relation: min divides by the smallest reference cell, so it is
+    # strictly above mean and median; max is at or below mean. A pair is
+    # compared only when both modes detected, since an aggressive enough
+    # reference may legitimately suppress detection -- and mean and min
+    # must both detect, or the comparison is vacuous.
+    have = stats.keys()
+    d.mode_order = (
+        "mean" in have
+        and "min" in have
+        and stats["min"] > stats["mean"]
+        and ("median" not in have or stats["min"] > stats["median"])
+        and ("max" not in have or stats["max"] <= stats["mean"])
+    )
     R.md(
         "Dividing by the smallest reference cell is a far more optimistic "
         "detector than dividing by the largest, so `min` produces the "
@@ -925,7 +948,7 @@ def _sec_noisemode(d: Data) -> None:
 
 
 def _sec_lifecycle(d: Data) -> None:
-    R.md("### 2.9 configure_search_raw, reset and the state triplet")
+    R.md("### 2.27 configure_search_raw, reset and the state triplet")
     R.md()
     code = _code()
     a = BurstAcquisition(
@@ -988,14 +1011,21 @@ def _sec_lifecycle(d: Data) -> None:
         code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     s.configure_search_raw(doppler_bins=4, n_noncoh=1)
-    s.push(_burst(code, 2))
+    # A prefix that is not a whole number of epochs: the code then sits
+    # 100 samples into the resumed frames, so a fresh instance (no
+    # state) reads another code phase and the comparison can fail.
+    s.push(_burst(code, 2)[:100])
     blob = s.get_state()
     t = BurstAcquisition(
         code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     t.configure_search_raw(doppler_bins=4, n_noncoh=1)
     t.set_state(blob)
-    d.state_exact = [h[:2] for h in s.push(x)] == [h[:2] for h in t.push(x)]
+    # Every field of every hit, the statistics included (as the map's and
+    # the detector's resume limits compare their whole output), and at
+    # least one hit: two empty lists would agree vacuously.
+    hs, ht = list(s.push(x)), list(t.push(x))
+    d.state_exact = len(hs) >= 1 and hs == ht
     R.md(
         f"A reset mid-frame leaves the engine behaving like a fresh one "
         f"(**{d.reset_drains}**), and a mid-stream state blob resumes into a "
@@ -1006,7 +1036,7 @@ def _sec_lifecycle(d: Data) -> None:
 
 def _sec_realized_pfa(d: Data) -> None:
     """Does the detector deliver the false-alarm rate it was asked for?"""
-    R.md("### 2.5 The rate it delivers, against the rate it was asked for")
+    R.md("### 2.23 The rate it delivers, against the rate it was asked for")
     R.md()
     R.md(
         "Every claim above is about how the threshold is DERIVED. This one "
@@ -1072,8 +1102,6 @@ def _sec_realized_pfa(d: Data) -> None:
 
 
 def review(d: Data) -> None:
-    R.md("## 3. Review — findings")
-    R.md()
     R.find(
         "samples_consumed_unpinned",
         "FIXED",
@@ -1084,7 +1112,7 @@ def review(d: Data) -> None:
         "hit with the same offset still detects in the right place, and "
         "only a caller correlating detections to wall-clock would ever see "
         "it. Now measured over a push spanning many epochs — every anchor "
-        "distinct, strictly increasing, one dump's stride apart (§2.3). "
+        "distinct, strictly increasing, one dump's stride apart (§2.21). "
         "Sabotage-proven by stamping a constant, which takes it red.",
     )
     R.find(
@@ -1138,11 +1166,25 @@ def review(d: Data) -> None:
         "[#998](https://github.com/doppler-dsp/doppler/issues/998).",
     )
     R.find(
+        "continuous_search_thin_python",
+        "GAP",
+        "**`Acquisition`, the continuous search, has one limit of its own "
+        "in this report.** Continuous mode window-tiles with no prior "
+        "(§2.19); everything else this part measures through the Python "
+        "face runs the burst door. The continuous engine's runtime "
+        "behaviour (the tiled search, the carrier coupling, threads, the "
+        "peak list) is pinned in `test_acq_core.c`, "
+        "`test_acq_continuous.py` and the async DSSS receiver's reports, "
+        "not here, so this report on its own overstates what it certifies "
+        "for that front door. Left open: "
+        "[#2923](https://github.com/doppler-dsp/doppler/issues/2923).",
+    )
+    R.find(
         "separate_burst_constructor",
         "BY DESIGN",
         "`BurstAcquisition` and `Acquisition` are separate constructors "
         "rather than a mode flag, and the report measures the consequence "
-        "(§2.1): with no uncertainty prior at all, continuous still reports "
+        "(§2.19): with no uncertainty prior at all, continuous still reports "
         "`doppler_bins = 1` and buys margin from non-coherent looks. That "
         "reads like a missed optimisation and is the opposite — a coherent "
         "multi-epoch axis aliases a data-modulated stream's own transitions "
@@ -1157,7 +1199,7 @@ def review(d: Data) -> None:
         "`cn0_dbhz_est` saturates once the true C/N0 exceeds what the code "
         "and geometry can resolve, because the CFAR reference cells then "
         "contain the code's own autocorrelation sidelobes rather than "
-        "receiver noise. The header states this and §2.7 measures inside "
+        "receiver noise. The header states this and §2.25 measures inside "
         "the linear region deliberately. Worth a caller's attention: the "
         "estimate is a floor on the true C/N0 at high signal levels, not a "
         "measurement of it.",
@@ -1188,7 +1230,7 @@ def review(d: Data) -> None:
         "correlation is worth (0.95-0.97x measured at 1e-3, 1e6 dwells a "
         "row), about 0.015 dB of sensitivity. The measured per-geometry "
         "`N_eff` that would recover it is doppler#1064's open refinement. "
-        "\u00a72.5 re-measures the delivered rate.",
+        "\u00a72.23 re-measures the delivered rate.",
     )
 
     # ── 4. limits ─────────────────────────────────────────────────────────
@@ -1205,7 +1247,7 @@ def review(d: Data) -> None:
         "(a 7-chip code at D = 1 delivered 0.23 against a predicted 0.92). "
         "The model now prices the finite, self-inflated reference "
         "(doppler#1501), and the shaped rows are conservative by "
-        "0.05-0.10 (§2.10). The ratchet this finding carried is now the "
+        "0.05-0.10 (§2.28). The ratchet this finding carried is now the "
         "same bound every template keeps (doppler#1483).",
     )
     R.find(
@@ -1214,7 +1256,7 @@ def review(d: Data) -> None:
         "**The burst sizer ignored a Doppler rate.** It picked the "
         "coherent depth up to `reps` whatever the platform was doing, so "
         "a long preamble under acceleration was sized on a Pd the drift "
-        "takes away: 0.92 promised, 0.65 delivered in §2.11. The burst "
+        "takes away: 0.92 promised, 0.65 delivered in §2.29. The burst "
         "constructors now take `doppler_rate` and cap the depth by the "
         "drift rule the continuous engine already used, from one helper "
         "(doppler#1482). Sabotage-proven in `test_acq_core.c` and in the "
@@ -1223,14 +1265,6 @@ def review(d: Data) -> None:
 
 
 def limits(d: Data) -> None:
-    R.md("## 4. Limits — the certified envelope")
-    R.md()
-    R.md(
-        "Claims a caller may rely on. A failure here is a regression, not a "
-        "new finding. Every one is asserted by "
-        "`src/doppler/acquire/tests/test_validation_limits.py`."
-    )
-    R.md()
     R.limit(
         d.anchors_distinct,
         "every hit from one push carries a distinct, strictly increasing "
@@ -1279,7 +1313,8 @@ def limits(d: Data) -> None:
         f"`pd_predicted` describes the Pd delivered over the uniform prior: "
         f"measured {d.pd_measured:.2f} against {d.pd_model:.2f} predicted at "
         f"D=8, 50 dB-Hz -- never optimistic (within 2 sigma of "
-        f"{d.pd_trials} trials), never more than 0.15 pessimistic (\u00a72.6)",
+        f"{d.pd_trials} trials), never more than 0.15 pessimistic "
+        "(\u00a72.24)",
     )
     R.limit(
         d.thresh_rises_with_cells,
@@ -1312,11 +1347,14 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.state_exact,
-        "a mid-stream state blob resumes into a fresh instance",
+        "a mid-stream state blob resumes into a fresh instance: every field "
+        "of every hit identical, the statistics included",
     )
     R.limit(
-        len(d.mode_rows) >= 8,
-        "all four CFAR noise modes are exercised, not only the default",
+        d.mode_order,
+        "the CFAR reference orders the statistic as the C pin does: min "
+        "strictly above mean and median, max at or below mean, with mean and "
+        "min both detecting",
     )
     ctl = [r for r in d.tmpl_rows if "(ctl)" in r["preamble"]]
     code = [r for r in d.tmpl_rows if r["preamble"] == "code 31 x4"]
@@ -1330,9 +1368,9 @@ def limits(d: Data) -> None:
     R.limit(
         len(ctl) == 1
         and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, ctl)),
-        "the template harness reproduces §2.6 on the code: its control "
+        "the template harness reproduces §2.24 on the code: its control "
         "row is never optimistic and within 0.15, so a gap in a template "
-        "row is the engine's (§2.10)",
+        "row is the engine's (§2.28)",
     )
     R.limit(
         len(code) == 3
@@ -1340,14 +1378,14 @@ def limits(d: Data) -> None:
         "`pd_predicted` holds for the code at Pd 0.3, 0.6 and 0.9 -- the "
         "constructors' default pd, where the model's margin is thinnest: "
         "never optimistic (2 sigma), never more than 0.15 pessimistic "
-        "(§2.10)",
+        "(§2.28)",
     )
     R.limit(
         len(held) == 9
         and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, held)),
         "`pd_predicted` holds for a Zadoff-Chu, a chirp and a QPSK "
         "preamble at Pd 0.3, 0.6 and 0.9: never optimistic (2 sigma), "
-        "never more than 0.15 pessimistic (§2.10)",
+        "never more than 0.15 pessimistic (§2.28)",
     )
     R.limit(
         len(shaped) == 3
@@ -1368,66 +1406,38 @@ def limits(d: Data) -> None:
         and _pd_verdict(told)[0]
         and int(told["depth"]) < int(blind["depth"]),
         "given a Doppler rate, the burst engine caps its depth and "
-        "predicts the Pd it delivers under that ramp (§2.11)",
+        "predicts the Pd it delivers under that ramp (§2.29)",
     )
 
 
 # ── build ─────────────────────────────────────────────────────────────
 
 
-def build(write: bool = True) -> Report:
-    global R
-    R = Report(write=write)
-    R.md("# acq — validation report")
-    R.md()
-    section_object()
-    d = characterise()
-    review(d)
-    limits(d)
-    R.executive(
-        "acq",
-        [
-            "**Time-stamp each hit from its own anchor.** One push spanning "
-            "several epochs emits several detections, each with its own "
-            "`samples_consumed` — reusing one message-level timestamp for "
-            "all of them is the mistake the field exists to prevent, and it "
-            "was pinned by nothing until now (§2.3, "
-            f"{R.ref('samples_consumed_unpinned')}).",
-            "**The CFAR reference is a real choice, worth ~15 dB.** `min` "
-            "is the optimistic extreme and `max` can suppress detection "
-            "entirely at a given signal level. Only the default was ever "
-            "exercised before this certification (§2.8, "
-            f"{R.ref('noise_mode_zero_mentions_test')}).",
-            "**A tighter Doppler prior buys sensitivity, not just "
-            "runtime**: fewer searched cells means a lower per-cell "
-            "threshold. If the uncertainty can be bounded, bound it "
-            "(§2.4).",
-            "**Size the push against `n_noncoh`, not against epochs.** The "
-            "auto-sizer routinely picks a look count above 1, so one dump "
-            "needs several frames and a short push returns nothing at all — "
-            "which reads as a broken detector rather than an incomplete "
-            f"dwell ({R.ref('auto_sizer_short_push_empty')}, #999).",
-            "**Continuous mode never uses coherent depth, deliberately.** "
-            "Even with no uncertainty prior it reports `doppler_bins = 1`; "
-            "a multi-epoch coherent axis aliases a data-modulated stream's "
-            "transitions across the whole Doppler axis (§2.1, "
-            f"{R.ref('separate_burst_constructor')}).",
-            "**Any repeated preamble works; give a long one its Doppler "
-            "rate.** The code, Zadoff-Chu, chirp, QPSK and a shaped QPSK "
-            "all meet `pd_predicted` at 0.3, 0.6 and the default 0.9. The "
-            "margin is thinnest at 0.9, +0.03 for the code (§2.10, "
-            f"{R.ref('shaped_pd_optimistic')}). "
-            "Without `doppler_rate` a long preamble is sized at a depth the "
-            "drift takes away, 0.91 promised and 0.84 delivered (§2.11, "
-            f"{R.ref('burst_sizer_ignored_doppler_rate')}).",
-        ],
-    )
-    R.summary(
-        "\n- Raw sweeps: `data/span.csv`, `data/threshold.csv`, `data/cn0.csv`"
-    )
-    R.emit(HERE / "results.md")
-    return R
-
-
-if __name__ == "__main__":
-    sys.exit(cli(build, HERE))
+def executive_bullets() -> list[str]:
+    """This part's lines of the one executive summary."""
+    return [
+        "**Time-stamp each hit from its own anchor.** One push spanning "
+        "several epochs emits several detections, each with its own "
+        "`samples_consumed` — reusing one message-level timestamp for "
+        "all of them is the mistake the field exists to prevent, and it "
+        "was pinned by nothing until now (§2.21, "
+        f"{R.ref('samples_consumed_unpinned')}).",
+        "**The CFAR reference is a real choice, worth ~15 dB.** `min` "
+        "is the optimistic extreme and `max` can suppress detection "
+        "entirely at a given signal level. Only the default was ever "
+        "exercised before this certification (§2.26, "
+        f"{R.ref('noise_mode_zero_mentions_test')}).",
+        "**Size the push against `n_noncoh`, not against epochs.** The "
+        "auto-sizer routinely picks a look count above 1, so one dump "
+        "needs several frames and a short push returns nothing at all — "
+        "which reads as a broken detector rather than an incomplete "
+        f"dwell ({R.ref('auto_sizer_short_push_empty')}, #999).",
+        "**Any repeated preamble works; give a long one its Doppler "
+        "rate.** The code, Zadoff-Chu, chirp, QPSK and a shaped QPSK "
+        "all meet `pd_predicted` at 0.3, 0.6 and the default 0.9. The "
+        "margin is thinnest at 0.9, +0.03 for the code (§2.28, "
+        f"{R.ref('shaped_pd_optimistic')}). "
+        "Without `doppler_rate` a long preamble is sized at a depth the "
+        "drift takes away, 0.91 promised and 0.84 delivered (§2.29, "
+        f"{R.ref('burst_sizer_ignored_doppler_rate')}).",
+    ]

@@ -17,7 +17,10 @@ own gate: `validate.py --check`, run by `make validate-check`.
 Kept per-module rather than as one tree-wide collector because the
 validators import their own module's objects: this one pulls in
 `doppler.spectral`, and a shared collector would import every module's
-extension to run any object's limits.
+extension to run any object's limits. The correlator's report is the one
+exception: its parts three and four certify `Acquisition` and
+`BurstAcquisition` (#2752 step 3.5), so this test imports `doppler.acquire`
+too.
 """
 
 from __future__ import annotations
@@ -34,7 +37,8 @@ from doppler.spectral.tests.validation.spectrogram import (
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
-    # Corr2D and CorrDetector2D: one object, one report (#2752 step 3.3).
+    # The correlator: Corr2D, CorrDetector2D, Acquisition and
+    # BurstAcquisition, one object, one report (#2752 steps 3.3 and 3.5).
     "corr2d": corr2d_validate,
     "psd": psd_validate,
     "spectrogram": spectrogram_validate,

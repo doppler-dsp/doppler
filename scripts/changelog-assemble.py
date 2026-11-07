@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import io
 import pathlib
 import re
 import sys
@@ -140,7 +141,8 @@ def fragment_problem(f: pathlib.Path, entry: str) -> str | None:
     >>> fragment_problem(ROOT / "x.md", "- an entry") is None
     True
     """
-    name = f.relative_to(ROOT)
+    # Repo paths are '/' on every OS; str() would print '\\' on Windows.
+    name = f.relative_to(ROOT).as_posix()
     if not entry.lstrip().startswith("- "):
         return (
             f"changelog-assemble: {name} does not start with '- ' — a "
@@ -295,7 +297,7 @@ def main() -> int:
         print(f"changelog-assemble: {total} fragment(s) still unassembled")
         for _section, files in found.items():
             for f in files:
-                print(f"  {f.relative_to(ROOT)}")
+                print(f"  {f.relative_to(ROOT).as_posix()}")
         return 1
 
     text = CHANGELOG.read_text()
@@ -338,4 +340,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # The messages carry an em dash; Windows' locale encoding (cp1252) would
+    # garble or refuse it, so write UTF-8 whatever the console's encoding.
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
     raise SystemExit(main())

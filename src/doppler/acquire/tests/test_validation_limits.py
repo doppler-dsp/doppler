@@ -24,20 +24,15 @@ from __future__ import annotations
 
 import pytest
 
-from doppler.acquire.tests.validation.acq import (
-    validate as acq_validate,
-)
-from doppler.acquire.tests.validation.burst_acq import (
-    validate as burst_acq_validate,
-)
 from doppler.acquire.tests.validation.burst_capture import (
     validate as burst_capture_validate,
 )
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
-    "acq": acq_validate,
-    "burst_acq": burst_acq_validate,
+    # Acquisition and BurstAcquisition are parts three and four of the
+    # correlator's report since #2752 step 3.5: spectral's limits test
+    # runs them.
     "burst_capture": burst_capture_validate,
 }
 

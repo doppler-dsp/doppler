@@ -12,8 +12,10 @@ pinned-only-at-literals / absent, the uncovered ones written and each proven by
 sabotage — and only then this file.
 
 **What is deliberately NOT re-derived here.** The detection statistics belong
-to [`acq`](../acq/results.md) and reach this object through
-[`BurstAcquisition`](../burst_acq/results.md); re-measuring them would certify
+to `acq`, certified as part three of the correlator's
+[report](../../../../spectral/tests/validation/correlator/results.md), and
+reach this object through `BurstAcquisition`, its part four; re-measuring
+them would certify
 the same engine a third time and report it as independent evidence. Refine's
 discrimination against C/N0 and the framing sweep are measured in
 [`dsss_burst_receiver`](../dsss_burst_receiver/results.md)'s characterization,

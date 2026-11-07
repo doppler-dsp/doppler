@@ -543,9 +543,18 @@ ROUNDTRIP = re.compile(r"\bDP_STATE_ROUNDTRIP_TEST\s*\(\s*(\w+)\s*,")
 
 
 def serializable() -> set[str]:
-    """Every prefix whose public header declares `int <p>_set_state (`."""
+    """Every prefix whose public header declares `int <p>_set_state (`.
+
+    A `*_private.h` is not one: it holds an object's internals, never a
+    caller's triplet. The correlator's search flavors declare their halves
+    of the shared functions there (`dp__search_set_state`, dispatched to by
+    `dp_correlator_set_state`), and read as an object of their own they
+    asked for a round trip under a name no caller can reach (#2752 3.4b).
+    """
     found: set[str] = set()
     for h in sorted(INC.rglob("*.h")):
+        if h.name.endswith("_private.h"):
+            continue
         found.update(SET_STATE.findall(strip_comments(h.read_text())))
     return found
 

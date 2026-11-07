@@ -68,6 +68,7 @@ extern void *acq_test_realloc (void *p, size_t n);
 #define realloc(p, n) acq_test_realloc (p, n)
 #include "../../src/acq/acq_core.c"
 #include "../../src/correlator/correlator_core.c"
+#include "../../src/correlator/correlator_search.c"
 #undef malloc
 #undef calloc
 #undef realloc

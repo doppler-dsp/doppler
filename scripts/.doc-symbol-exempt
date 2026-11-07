@@ -10,12 +10,6 @@
 # §4a), dp_interrupt_t an alternative the design weighed and closed.
 docs/design/end-of-capture.md DP_EOS
 docs/design/end-of-capture.md dp_interrupt_t
-# Names not built: the step-3 correlator's proposed API (#2752). Each entry
-# fails once its sub-step builds the symbol, and comes off then. Step 3.2
-# built the map flavors' constructors and the state type; 3.3 the
-# detector flavors'.
-docs/design/correlator.md dp_correlator_create_burst
-docs/design/correlator.md dp_correlator_create_continuous
 # Dated measurements of the frame-description migration: what was measured,
 # by the names it had then.
 docs/design/frame-description-measurements.md dp_ccsds_tm_frame_desc_of

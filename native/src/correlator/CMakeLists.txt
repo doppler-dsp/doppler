@@ -20,7 +20,10 @@ target_include_directories(
 target_link_libraries(correlator_core PUBLIC
     Threads::Threads
     fft2d_core
-    fft_core)
+    fft_core
+    detection_core
+    dp_tlm_core
+    cvt_core)
 if(TARGET ${PROJECT_NAME}_lib)
   target_link_libraries(${PROJECT_NAME}_lib PRIVATE
       Threads::Threads)
@@ -43,6 +46,9 @@ target_link_libraries(test_correlator_core
                       PRIVATE correlator_core Threads::Threads
     fft2d_core
     fft_core
+    detection_core
+    dp_tlm_core
+    cvt_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_correlator_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -56,6 +62,9 @@ target_link_libraries(bench_correlator_core
                       PRIVATE correlator_core Threads::Threads
     fft2d_core
     fft_core
+    detection_core
+    dp_tlm_core
+    cvt_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_correlator_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

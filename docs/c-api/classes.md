@@ -71,8 +71,13 @@
 * [**dp\_cic\_state\_t**](structdp__cic__state__t.md)
 * [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md)
 * [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md)
+* [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md)
 * [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md)
+* [**dp\_correlator\_part\_t**](structdp__correlator__part__t.md)
+* [**dp\_correlator\_search**](structdp__correlator__search.md)
+* [**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md)
 * [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md)
+* [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md)
 * [**dp\_costas\_state\_t**](structdp__costas__state__t.md)
 * [**dp\_delay\_state\_t**](structdp__delay__state__t.md)
 * [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md)
@@ -187,6 +192,7 @@
 
 ## s
 
+* [**search\_extra\_t**](structsearch__extra__t.md)
 * [**symsync\_tlm\_t**](structsymsync__tlm__t.md)
 * [**syncword\_hit\_t**](structsyncword__hit__t.md)
 

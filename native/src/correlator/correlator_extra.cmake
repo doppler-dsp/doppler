@@ -1,5 +1,12 @@
 # Hand-owned (jm includes this file and never writes it, gh-1351).
 #
+# The search flavors (#2752 step 3.4b) are the correlator's second source.
+# Added here rather than on the generated add_library() line: a source
+# named there makes jm read the whole CMakeLists as hand-owned, and it then
+# stops carrying the manifest's link dependencies onto it.
+target_sources(correlator_core
+               PRIVATE ${CMAKE_CURRENT_LIST_DIR}/correlator_search.c)
+
 # The 1-D flavor's own test, bench and equivalence test (#2752 step 3.2).
 # jm generates one test and one bench per component, test_correlator_core
 # and bench_correlator_core, which are Corr2D's. The 1-D flavor's came with
@@ -11,7 +18,8 @@ add_executable(test_corr_equiv
                ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_corr_equiv.c)
 target_link_libraries(test_corr_equiv
                       PRIVATE correlator_core Threads::Threads fft2d_core
-                              fft_core ${JM_MATH_LIBRARY})
+                              fft_core detection_core dp_tlm_core cvt_core
+                              ${JM_MATH_LIBRARY})
 target_include_directories(test_corr_equiv
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -24,7 +32,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_correlator_1d_symbols.c)
 target_link_libraries(test_correlator_1d
                       PRIVATE correlator_core Threads::Threads fft2d_core
-                              fft_core ${JM_MATH_LIBRARY})
+                              fft_core detection_core dp_tlm_core cvt_core
+                              ${JM_MATH_LIBRARY})
 target_include_directories(test_correlator_1d
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -52,8 +61,28 @@ foreach(_t test_detector_equiv test_correlator_detector_1d
            test_correlator_detector_2d)
   add_executable(${_t} ${CMAKE_SOURCE_DIR}/native/tests/correlator/${_t}.c)
   target_link_libraries(${_t} PRIVATE correlator_core Threads::Threads
-                                      fft2d_core fft_core ${JM_MATH_LIBRARY})
+                                      fft2d_core fft_core detection_core dp_tlm_core cvt_core
+                              ${JM_MATH_LIBRARY})
   target_include_directories(${_t} PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                            ${CMAKE_SOURCE_DIR}/native/tests)
   add_test(NAME ${_t} COMMAND ${_t})
 endforeach()
+
+# test_search_equiv: the search flavors against acq, byte for byte (#2752
+# step 3.4b's transition commit). It compiles acq_core.c, correlator_core.c
+# and correlator_search.c into itself, under strict floating point, so the
+# comparison is of the code and not of -ffast-math's inlining choices (the
+# test's header). It lives only while acq/ does; the next commit drops its
+# acq half.
+add_executable(test_search_equiv
+               ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_search_equiv.c)
+dp_gnu_compile_options(test_search_equiv PRIVATE -fno-fast-math
+                       -ffp-contract=off)
+target_link_libraries(test_search_equiv
+                      PRIVATE Threads::Threads fft2d_core fft_core
+                              detection_core dp_tlm_core cvt_core
+                              ${JM_MATH_LIBRARY})
+target_include_directories(test_search_equiv
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_search_equiv COMMAND test_search_equiv)

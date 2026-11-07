@@ -29,10 +29,10 @@ target_link_libraries(acquire PRIVATE
     detection_core
     spectral_core
     correlator_core
+    dp_tlm_core
     fft_core
     Threads::Threads
     fft2d_core
-    dp_tlm_core
     Python3::NumPy)
 target_include_directories(acquire PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(acquire PROPERTIES
@@ -59,10 +59,10 @@ target_link_libraries(test_acquire_core PRIVATE
     detection_core
     spectral_core
     correlator_core
+    dp_tlm_core
     fft_core
     Threads::Threads
     fft2d_core
-    dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_acquire_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -82,10 +82,10 @@ target_link_libraries(bench_acquire_core PRIVATE
     detection_core
     spectral_core
     correlator_core
+    dp_tlm_core
     fft_core
     Threads::Threads
     fft2d_core
-    dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(bench_acquire_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

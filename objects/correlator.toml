@@ -8,7 +8,17 @@ class_name = "Corr2D"
 # The constructors are the flavors' (docs/design/correlator.md section 4);
 # Corr2D is the 2-D one, and Corr and DelayDoppler are views below.
 create_fn = "dp_correlator_create_2d"
-depends_on = ["fft2d_core"]
+# The search flavors (#2752 3.4b, correlator_search.c) bring acq's links:
+# detection_core sizes the gate (det_threshold, det_pd), dp_tlm_core is the
+# probe registration set_telemetry makes, and cvt the NRZ mapper the C
+# test's PN preambles are built with (bare: the test needs it, the .so does
+# not).
+depends_on = [
+    "fft2d_core",
+    { name = "detection", link = true },
+    { name = "dp_tlm", link = true },
+    { name = "cvt" },
+]
 serializable = "true"
 fragment = "generated"
 # dp_parallel.h's persistent pool is pthreads: the per-row correlations and
@@ -347,7 +357,8 @@ return_type = "dp_correlator_hit_t"
 # The binding makes ONE call into a stack array of this many results, and a
 # push that would make more loses the input past the last (#1992; the jm ask
 # is just-buildit/just-makeit#2184). 1024 makes that a push of over 1024
-# frames: 32 KiB of stack per call (sizeof(dp_correlator_hit_t) = 32).
+# frames: 64 KiB of stack per call (sizeof(dp_correlator_hit_t) = 64, the
+# widened record of #2752 3.4b; acq's push held the same).
 max_results = 1024
 result_fields = [{name = "row", type = "size_t"}, {name = "col", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
 doc = '''

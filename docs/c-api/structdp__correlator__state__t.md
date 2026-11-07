@@ -39,6 +39,7 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  unsigned char | [**\_hot\_pad**](#variable-_hot_pad)  <br> |
 |  int | [**\_last\_corr\_valid**](#variable-_last_corr_valid)  <br> |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
+|  uint8\_t \* | [**band\_mask**](#variable-band_mask)  <br> |
 |  float \_Complex \* | [**bat\_acc**](#variable-bat_acc)  <br> |
 |  float \_Complex \* | [**bat\_fine**](#variable-bat_fine)  <br> |
 |  float \_Complex \* | [**bat\_map**](#variable-bat_map)  <br> |
@@ -64,8 +65,11 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md) \* | [**inv**](#variable-inv)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \* | [**inv1d**](#variable-inv1d)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
+|  size\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_out**](#variable-n_out)  <br> |
+|  size\_t | [**n\_peaks**](#variable-n_peaks)  <br> |
+|  size\_t | [**n\_twins**](#variable-n_twins)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
 |  size\_t | [**noise\_hi**](#variable-noise_hi)  <br> |
 |  size\_t | [**noise\_lo**](#variable-noise_lo)  <br> |
@@ -78,7 +82,9 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  size\_t | [**ny\_out**](#variable-ny_out)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
+|  uint8\_t \* | [**peak\_mask**](#variable-peak_mask)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
+|  [**det\_peak\_t**](structdet__peak__t.md) \* | [**peaks**](#variable-peaks)  <br> |
 |  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
 |  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
@@ -86,8 +92,11 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_fwd**](#variable-row_fwd)  <br> |
 |  [**dp\_fft\_state\_t**](structdp__fft__state__t.md) \*\* | [**row\_inv**](#variable-row_inv)  <br> |
 |  float \_Complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
+|  [**dp\_correlator\_search\_t**](correlator__core_8h.md#typedef-dp_correlator_search_t) \* | [**search**](#variable-search)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
+|  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
+|  uint32\_t \* | [**twin\_row**](#variable-twin_row)  <br> |
 |  float \_Complex \* | [**work\_fft**](#variable-work_fft)  <br> |
 |  float \_Complex \* | [**work\_pad**](#variable-work_pad)  <br> |
 |  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
@@ -195,6 +204,24 @@ float _Complex* dp_correlator_state_t::accum;
 
 
 Coherent product-spectrum accumulator, same (ny,nx)/reinterpretation rule as work\_fft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable band\_mask 
+
+```C++
+uint8_t* dp_correlator_state_t::band_mask;
+```
+
+
+
+n\_surf; 1 = outside the searched band. 
  
 
 
@@ -650,6 +677,24 @@ float* dp_correlator_state_t::mag_buf;
 
 
 
+### variable max\_peaks 
+
+```C++
+size_t dp_correlator_state_t::max_peaks;
+```
+
+
+
+Peak-list capacity per dwell (1 = the maximum only); [**dp\_correlator\_set\_max\_peaks()**](correlator__core_8h.md#function-dp_correlator_set_max_peaks). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n 
 
 ```C++
@@ -677,6 +722,42 @@ size_t dp_correlator_state_t::n_out;
 
 
 ny\_out \* nx\_out — output element count. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_peaks 
+
+```C++
+size_t dp_correlator_state_t::n_peaks;
+```
+
+
+
+Search flavors: picks in the last dwell, held ones too. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_twins 
+
+```C++
+size_t dp_correlator_state_t::n_twins;
+```
+
+
+
+Search flavors: picks carried over from the last dwell. 
  
 
 
@@ -900,6 +981,24 @@ Last dump: peak \|R\|.
 
 
 
+### variable peak\_mask 
+
+```C++
+uint8_t* dp_correlator_state_t::peak_mask;
+```
+
+
+
+n\_surf; the working mask. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable peak\_row 
 
 ```C++
@@ -909,6 +1008,24 @@ size_t dp_correlator_state_t::peak_row;
 
 
 Last dump: peak row (0 before one). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable peaks 
+
+```C++
+det_peak_t* dp_correlator_state_t::peaks;
+```
+
+
+
+max\_peaks: the last dwell's picks. 
  
 
 
@@ -1043,6 +1160,24 @@ conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec.
 
 
 
+### variable search 
+
+```C++
+dp_correlator_search_t* dp_correlator_state_t::search;
+```
+
+
+
+The search policy, allocated once at create; NULL unless a search flavor. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable test\_stat 
 
 ```C++
@@ -1070,6 +1205,40 @@ float dp_correlator_state_t::threshold;
 
 0 = always fire; &gt; 0 gates test\_stat. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable twin\_col 
+
+```C++
+uint32_t* dp_correlator_state_t::twin_col;
+```
+
+
+
+max\_peaks: last dwell's picks, code phases. 
+
+
+        
+
+<hr>
+
+
+
+### variable twin\_row 
+
+```C++
+uint32_t* dp_correlator_state_t::twin_row;
+```
+
+
+
+max\_peaks: last dwell's picks, native rows. 
 
 
         

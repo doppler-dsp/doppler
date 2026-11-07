@@ -424,4 +424,208 @@ det_framed_push (dp_f32_framer_t *fr, const float _Complex *in, size_t n_in,
   return ndet;
 }
 
+/* ── The search flavors' halves of the shared functions (#2752 3.4b) ───────
+ * correlator_search.c defines them; dp_correlator_push, _reset, _destroy and
+ * the state triplet dispatch to them on the flavor (correlator_core.c), so
+ * a caller names only the one function. */
+/**
+ * @brief dp_correlator_push() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ * @param x Input, @p n_in complex samples.
+ * @param n_in Samples in @p x.
+ * @param out Hits, room for @p max_out.
+ * @param max_out Capacity of @p out.
+ * @return Hits written.
+ */
+size_t dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
+                        size_t n_in, dp_correlator_hit_t *out,
+                        size_t max_out);
+/**
+ * @brief dp_correlator_reset() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ */
+void dp__search_reset (dp_correlator_state_t *st);
+/**
+ * @brief dp_correlator_destroy() on a search flavor.
+ * @param st A search flavor; may be NULL.
+ */
+void dp__search_destroy (dp_correlator_state_t *st);
+/**
+ * @brief dp_correlator_consumed() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ * @return Samples the last push took.
+ */
+size_t dp__search_consumed (const dp_correlator_state_t *st);
+/**
+ * @brief dp_correlator_state_bytes() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ * @return The blob size, bytes.
+ */
+size_t dp__search_state_bytes (const dp_correlator_state_t *st);
+/**
+ * @brief dp_correlator_get_state() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ * @param blob Destination, dp__search_state_bytes() bytes.
+ */
+void dp__search_get_state (const dp_correlator_state_t *st, void *blob);
+/**
+ * @brief dp_correlator_state_check() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ * @param blob Candidate blob.
+ * @return DP_OK or DP_ERR_INVALID; @p st is never written.
+ */
+int dp__search_state_check (const dp_correlator_state_t *st,
+                            const void *blob);
+/**
+ * @brief dp_correlator_set_state() on a search flavor.
+ * @param st A search flavor (non-NULL).
+ * @param blob Source blob.
+ * @return DP_OK, or DP_ERR_INVALID with @p st unchanged.
+ */
+int dp__search_set_state (dp_correlator_state_t *st, const void *blob);
+
+/* ── The search flavors' rules, unit-tested as rules (#2752 3.4b) ───────── */
+
+/* The rate hypotheses an engine at coherent depth `D` really searches.
+ *
+ * The de-chirp is exp(-j pi a t^2) over the block's epochs, t = (i - (D-1)/2)
+ * T. At D = 1 that is t = 0, and at D = 2 it is t = +-T/2: equal t^2, so every
+ * hypothesis multiplies the block by ONE constant phase and the surfaces are
+ * identical. N looks that are one look must not be priced as N (the gate
+ * rose 3.868 -> 4.214 for nothing), run N times (N times the cost), or pick
+ * among (a strict > keeps hypothesis 0, which reports -R whatever the
+ * carrier does: 1240 of 1240 hits at a true rate of 0, doppler#2221
+ * review). A rate is invisible to a block of one or two epochs; the count
+ * there is 1 and the reported rate is 0. Here rather than in search_core.c so
+ * the bench, reporting the schedule the engine runs, passes the same
+ * count. */
+static inline size_t
+search_rate_count_at (size_t rate_hyps, size_t D)
+{
+  return D > 2 ? rate_hyps : 1;
+}
+
+/**
+ * @brief Does hypothesis @p h's statistic @p stat replace the best so far,
+ *        @p best? The rule the rate search picks its winner by.
+ *
+ * Hypothesis 0 always wins the first place, whatever it reads: a dwell
+ * whose every statistic is NaN (a power that overflows float is inf/inf)
+ * would otherwise fail `stat > best` at every hypothesis, pick none, and
+ * leave the search restoring the PREVIOUS dwell's winning surface. After
+ * it, a hypothesis must beat the best strictly, so a NaN never displaces
+ * one and ties keep the earlier.
+ *
+ * Unit-tested as a rule on NaN / inf / finite values, because the
+ * end-to-end route to a NaN statistic (a float power overflowing) depends
+ * on the compiler's code generation and differs between Release and Debug.
+ */
+static inline int
+search_rate_better (size_t h, float stat, float best)
+{
+  return h == 0 || stat > best;
+}
+
+/* The tile-edge alias (doppler#1270). A tile de-rotates by its own
+ * centre, so an emitter near the edge between two tiles leaves half a
+ * span of residual inside the epoch in both, and the slow-time transform
+ * folds modulo the epoch rate: the two neighbours read the emitter at the
+ * same row index and, measured on the pool's grid at 45 dB-Hz, within
+ * 0.03 dB of each other -- the pick is the noise's, one tile low or high,
+ * half the time on the edge and one time in six 68 Hz inside it. The
+ * block can tell when it is asked at the ROW's frequency: the raw epochs
+ * mixed by the row's own frequency correlate with the replica at the
+ * pick's code phase with under half a row of residual, and mixed by that
+ * frequency one span off the residual is exactly one cycle per epoch, a
+ * correlation of zero. Three hypotheses -- the row, one span down, one
+ * span up -- summed over the block's epochs non-coherently (a data
+ * transition inside an epoch costs every hypothesis the same), each
+ * epoch's column walked by the hypothesis's own code rate as
+ * the map's ramp walks the tile's. Returns the native row that wins;
+ * the pick's own row when the engine is not block-coherent and tiled. */
+static inline size_t
+search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t col)
+{
+  const size_t D = st->search->coherent_bins, nx = st->search->code_bins;
+  const size_t W = st->search->window_bins, rows = W * D;
+  if (!st->search->blk_raw || W <= 1 || D <= 1)
+    return row;
+  const double f0 = (double)dp_fftfreq_index (row, rows) * st->search->doppler_res_hz;
+  const double span = st->search->fs / (double)nx;
+  /* The pick's column on a padded lag axis (lag_bins) is a lag in samples
+     of col * code_bins / lag_bins; the raw epochs are correlated at the
+     nearest whole sample. */
+  if (st->search->lag_bins != nx)
+    col = (size_t)lround ((double)col * (double)nx / (double)st->search->lag_bins)
+          % nx;
+  double       best = -1.0;
+  long         win  = 0;
+  for (long h = -1; h <= 1; h++)
+    {
+      const double f = f0 + (double)h * span;
+      /* The code-rate walk of this hypothesis, samples per epoch: a
+         positive Doppler runs the chip clock fast and the peak sits
+         EARLIER each epoch (the map's ramp convention). */
+      const double d  = st->search->carrier_freq_hz > 0.0
+                            ? f / st->search->carrier_freq_hz * (double)nx
+                            : 0.0;
+      double       pw = 0.0;
+      for (size_t e = 0; e < D; e++)
+        {
+          const long sh = lround (((double)e - 0.5 * (double)(D - 1)) * d);
+          const long c0 = (((long)col - sh) % (long)nx + (long)nx) % (long)nx;
+          const double _Complex acc = dp_correlator_cell_corr (
+              st, st->search->blk_raw + e * nx, (size_t)c0, f, (double)(e * nx));
+          pw += creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
+        }
+      if (pw > best)
+        {
+          best = pw;
+          win  = h;
+        }
+    }
+  return (size_t)(((long)row + win * (long)D + (long)rows) % (long)rows);
+}
+
+/**
+ * @brief Per-object extra header for an engine's cross-call state.
+ *
+ * The state blob is the *only* thing a fresh engine needs to continue a
+ * stream from `(descriptor, state, input)` — it makes the engine a pure
+ * transducer for the elastic fan-out (thread / process / pod).  Standard
+ * bytes interface (see dp_state.h); layout, contiguous and flat:
+ *
+ *   `[ dp_state_hdr_t ] [ search_extra_t ]`
+ *   `[ the framer's snapshot ]`   (the carry, fewer than frame_n samples;
+ *                                  its own self-validating child blob)
+ *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
+ *   `[ uint32_t       twins[2 * max_peaks] ]`      (held row, col pairs)
+ *
+ * Build the byte buffer with dp_correlator_state_bytes(); set_state validates the
+ * envelope (magic/version/size) plus n / n_noncoh below, rejecting a
+ * mismatch rather than reinterpreting it.
+ */
+typedef struct
+{
+  uint16_t has_nc; /**< 1 if `nc_surface[n]` follows the samples.     */
+  uint16_t _pad;             /**< Alignment padding; written as 0.      */
+  uint32_t n_noncoh;         /**< Non-coherent looks (consistency).     */
+  uint64_t n;                /**< Frame size; must equal engine's n.    */
+  uint64_t samples_consumed; /**< Stream offset framed so far.          */
+  uint32_t nc_count;     /**< Looks accumulated in the current dump.    */
+  uint32_t max_peaks;    /**< List capacity; must equal the engine's.   */
+  uint32_t n_twins;      /**< Last dwell's picks that follow.           */
+  uint32_t blk_epoch; /**< v3: epochs gathered in the block being built */
+  uint32_t rate_hyps; /**< v6: rate hypotheses searched; must equal the
+                           engine's -- it sizes the search and changes
+                           what a surface means.                       */
+  uint32_t _pad2;     /**< Alignment padding; written as 0.          */
+  double carrier_freq_hz; /**< v8: the carrier (a mutator's value,
+                               #2022): the block's raw epochs are
+                               ramped at its end by the map, so a
+                               restore takes the carrier through
+                               dp_correlator_set_carrier_freq_hz()'s
+                               rebuild.                            */
+} search_extra_t;
+
 #endif /* DP_CORRELATOR_PRIVATE_H */

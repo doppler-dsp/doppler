@@ -60,8 +60,13 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_cic\_state\_t**](structdp__cic__state__t.md) _CIC filter state._ 
 * **struct** [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) _A code and the register encoding it, together._ 
 * **struct** [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md) _A C reducer: called once per map, in h order, by_ [_**dp\_correlator\_execute\_fold()**_](correlator__core_8h.md#function-dp_correlator_execute_fold) _._
-* **struct** [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) _One detection, from either detector flavor's_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _._
+* **struct** [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md) _Wire-ready hand-off record built from one_ [_**dp\_correlator\_hit\_t**_](structdp__correlator__hit__t.md) _hit._
+* **struct** [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) _One detection, from any detector or search flavor's_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _._
+* **struct** [**dp\_correlator\_part\_t**](structdp__correlator__part__t.md) _One tile's share of a decided surface (docs/design/acq-surface.md §13): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._
+* **struct** [**dp\_correlator\_search**](structdp__correlator__search.md) _The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/correlator.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._
+* **struct** [**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md) _What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._ 
 * **struct** [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) _Correlator state, every flavor._ 
+* **struct** [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _like the borrowed code._
 * **struct** [**dp\_costas\_state\_t**](structdp__costas__state__t.md) _Costas loop state._ 
 * **struct** [**dp\_delay\_state\_t**](structdp__delay__state__t.md) _Delay state._ 
 * **struct** [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) _Despreader state._ 
@@ -143,6 +148,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md) _Polyphase resampler state._ 
 * **struct** [**rs\_code\_t**](structrs__code__t.md) _A Reed-Solomon code over_ `GF(2^J)` _._
 * **struct** [**rs\_t**](structrs__t.md) _A code plus the tables derived from it._ 
+* **struct** [**search\_extra\_t**](structsearch__extra__t.md) _Per-object extra header for an engine's cross-call state._ 
 * **struct** [**symsync\_tlm\_t**](structsymsync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch per recovered symbol. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._ 
 * **struct** [**syncword\_hit\_t**](structsyncword__hit__t.md) _What_ [_**dp\_syncword\_find**_](syncword__core_8h.md#function-dp_syncword_find) _found._
 * **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._ 

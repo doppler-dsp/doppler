@@ -258,7 +258,7 @@ LOCK_CMD   = $(UV) lock --upgrade-package $(PY_PROJECT)
 # owns the version, so there is no `additional_dependencies` left to drift.
 LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
-               retired-names repo-links broker-links clone-notes ci-pipefail rust-abi \
+               retired-names retired-symbols repo-links broker-links clone-notes ci-pipefail rust-abi \
                header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
@@ -514,6 +514,11 @@ lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting som
 # five of them the NAME a C test prints, which no compiler can notice. The
 # list is data, added by the commit that retires a name.
 LINT_retired-names = $(UV) run python scripts/check_retired_names.py
+
+# ...and nothing REQUIRED the row: #2886 removed every dp_corr_* symbol with
+# none, and a caller it missed broke every Build job (#2905). A public
+# symbol or native/inc/doppler header gone since the merge base needs a row.
+LINT_retired-symbols = $(UV) run python scripts/check_retired_symbols.py
 
 # The docs point at the RELEASE the reader installed, not at main
 # (doppler#2857): no `blob/main` link and no `git clone` without --branch outside

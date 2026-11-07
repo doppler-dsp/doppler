@@ -118,6 +118,22 @@ def show_at(root: Path, rev: str, rel: str) -> str | None:
     return show.stdout if show.returncode == 0 else None
 
 
+def ls_tree_at(root: Path, rev: str, prefix: str) -> list[str]:
+    """Every tracked path under `prefix` at revision `rev`, repo-relative.
+
+    Empty when `rev` had nothing there. A caller that needs the set of files
+    at the base (a header that was deleted, not just edited) asks here
+    rather than spelling `git ls-tree` itself.
+    """
+    out = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", rev, "--", prefix],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    return out.stdout.splitlines() if out.returncode == 0 else []
+
+
 def show_at_base(root: Path, ref: str, rel: str) -> str | None:
     """`rel` as of the merge base of HEAD and `ref`; None if absent there.
 

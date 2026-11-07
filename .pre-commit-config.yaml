@@ -381,6 +381,16 @@ repos:
         language: system
         pass_filenames: false
 
+      # ...and a public name this branch REMOVES must have that row (#2905):
+      # a symbol gone from cmake/public-symbols.txt, or a header gone from
+      # native/inc/doppler, since the merge base with origin/main.
+      - id: retired-symbols
+        name: removed public names have a retired-names row
+        entry: make -s lint-retired-symbols
+        language: system
+        pass_filenames: false
+        files: ^(native/inc/|cmake/public-symbols\.txt$|scripts/\.retired-names$)
+
       # The docs link the release the reader installed, never main (#2857).
       - id: repo-links
         name: docs link the release, not main

@@ -452,7 +452,7 @@ becomes a silent no-op. Full rationale:
 - **Outside a report, cite the key or the claim.** A C test's comment, a
     header, a design page, an example and a validator's own comments have no
     render step. They write the word *finding* (or *findings*) and then the
-    key in backticks, as in "acq's finding `pfa_over_delivered`" or
+    key in backticks, as in "the correlator report's finding `pfa_over_delivered`" or
     "findings `pfa_over_delivered` and `shaped_pd_optimistic`", or they say
     the claim in words. Only that form is a citation; a backticked name
     anywhere else is code. A key resolves only within its own report, so

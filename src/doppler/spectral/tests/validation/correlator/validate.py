@@ -256,7 +256,7 @@ def section_object() -> None:
                 "C — **C-ONLY**: `test_corr_equiv.c` (against the retired "
                 "`Corr`'s own C, then the flavors), `test_correlator_1d.c`; "
                 "no limit here measures it through Python",
-                "C §1-D map",
+                "C, the 1-D map",
             ],
             [
                 "a batch's map h is a fresh dwell-1 object's map for frame "
@@ -1407,17 +1407,13 @@ def build(write: bool = True) -> Report:
     search.limits(ds)
     burst_door.limits(db)
     R.executive(
-        "the correlator",
+        "The correlator",
         [
             f"**The transform path is the brute-force answer** to "
             f"{d.brute_worst:.1e} across shapes and both reference kinds, "
             f"so the FFT machinery, the scaling and the conjugation "
             f"convention are all measured against something that shares "
             f"none of them (§2.1).",
-            "**A dump is the coherent SUM, not an average.** `dwell=3` on a "
-            "repeated frame is exactly three times `dwell=1`, and nothing "
-            "is emitted before the dwell-th call — which is what a caller "
-            "sizing an acquisition threshold has to assume (§2.2).",
             "**CorrDetector2D's noise estimate is the object.** It is the "
             "denominator of every decision, and three of its four modes "
             "were exercised by nothing before its certification -- a mode "

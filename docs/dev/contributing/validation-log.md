@@ -82,7 +82,7 @@ listed the moment its folder exists. There is no list here to update.
 | [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)                     | `resample`   | 14/14  | 9        | none                       |
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                               | `source`     | 26/26  | 9        | none                       |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                             | `source`     | 18/18  | 9        | none                       |
-| [the correlator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/correlator/results.md)         | `spectral`   | 83/83  | 25       | 3 — F14, F15, F16          |
+| [The correlator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/correlator/results.md)         | `spectral`   | 83/83  | 25       | 3 — F14, F15, F16          |
 | [PSD](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/psd/results.md)                           | `spectral`   | 30/30  | 16       | 3 — F11, F12, F14          |
 | [The Spectrogram](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/tests/validation/spectrogram/results.md)       | `spectral`   | 36/36  | 12       | none                       |
 | [CarrierNda](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/tests/validation/carrier_nda/results.md)               | `track`      | 43/43  | 12       | 6 — F4, F5, F6, F7, F8, F9 |

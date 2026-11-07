@@ -161,7 +161,8 @@ def section_object() -> None:
         "`dp_acq_create_burst()`, and forwards every call to it. There is no "
         "algorithm here: the physics — coherent depth selection, CFAR "
         "sizing, window tiling, the detection statistic — lives in `acq` "
-        "exactly once and is certified in its own report."
+        "exactly once and is certified in part three of this report "
+        "(§2.19 to §2.29)."
     )
     R.md()
     R.table(
@@ -528,7 +529,7 @@ def review(d: Data) -> None:
     R.find(
         "no_detection_performance",
         "BY DESIGN",
-        "**This report does not measure detection performance, and that is "
+        "**This part does not measure detection performance, and that is "
         "the point.** `burst_acq_core.c` forwards every call into "
         "`acq_core.c`; re-running the detection statistics through the "
         "wrapper would certify the same engine a second time and present "

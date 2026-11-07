@@ -235,7 +235,7 @@ def section_object() -> None:
                 "modes, dwells 1 and 2, odd chunks), "
                 "`test_correlator_detector_1d.c`; no limit here measures it "
                 "through Python",
-                "C §1-D detector",
+                "C, the 1-D detector",
             ],
         ],
     )

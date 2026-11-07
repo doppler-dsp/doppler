@@ -2,6 +2,7 @@
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
+
 def snr_data_aided_db(
     soft: npt.NDArray[np.complex64],
     sign_bits: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,

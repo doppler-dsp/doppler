@@ -2,6 +2,7 @@
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
+
 def mpsk_map(
     sym: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
     m: int = 4,

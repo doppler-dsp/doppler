@@ -542,7 +542,164 @@ int dp_correlator_state_check (const dp_correlator_state_t *state,
 
 /* ── Search flavors ──────────────────────────────────────────────────────────
  * #2752 3.4b: the acquisition engine, as the correlator's sixth and
- * seventh flavors.
+ * seventh flavors: a streaming DSSS acquisition engine, burst and
+ * continuous, acq until that step.
+ *
+ *
+ * Acquires a signal built from a repeated sequence -- a spread-spectrum
+ * code (the continuous door) or any repeated complex preamble (the burst
+ * door) -- arriving with an unknown integer code phase and an unknown
+ * carrier-frequency (Doppler) offset, buried in AWGN.  It
+ * jointly estimates the (Doppler bin, code phase) and declares a detection
+ * whenever the CFAR test statistic crosses an automatically configured
+ * threshold.
+ *
+ * Pipeline (owned end to end, one object):
+ *   push(raw cf32) -> ring buffer -> reframe to (coherent_bins, code_bins) ->
+ *   slow-time Doppler FFT (FFT along the segment axis) -> 2-D code correlation
+ *   against a single-row reference (corr2d) -> argmax + CFAR noise estimate
+ *   -> threshold gate -> dp_correlator_hit_t.
+ *
+ * The fast-time axis (code_bins samples, one code period) is the circular
+ * code matched filter, read on lag_bins columns: code_bins itself, or, on a
+ * continuous engine whose period is not 7-smooth, the next power of two --
+ * the cross-spectrum zero-padded before the inverse, an exact interpolation
+ * of the same circular correlation at a fraction of the cost of inverses of
+ * an awkward length (lag_bins' doc). The slow-time axis (coherent_bins
+ * rows, one row per code repetition) is the coherent Doppler search.  A
+ * carrier offset f (cycles/sample) lands the peak at
+ * row = round(f*code_bins*coherent_bins) mod coherent_bins, column = code
+ * phase.
+ *
+ * **Two mode-fixed public constructors, one shared engine.** A coherent
+ * slow-time Doppler FFT can only ever resolve frequency *within* one native
+ * span `chip_rate/(2*sf)` — more coherent depth subdivides that SAME fixed
+ * range more finely, it never widens it — and for a continuous (async,
+ * data-modulated) signal, a multi-epoch coherent axis wide enough to matter
+ * aliases the data's own bit transitions across the whole Doppler-bin axis (a
+ * structural mislock, not a graceful SNR loss — see
+ * docs/design/acq-surface.md §9).  So the two constructors fix a mode each,
+ * never a per-call knob:
+ *
+ * - dp_correlator_create_burst() — the smallest coherent depth `coherent_bins` in
+ *   `[1, reps]` whose BURST Pd meets @p pd: the preamble lands at any
+ *   offset against stream-aligned dwells and is detected when any one of
+ *   them is (see dp_correlator_create_burst()); never a non-coherent look. Minimum
+ *   latency for a strong signal, unmodulated bursts/preambles only.  A tighter
+ *   @p doppler_uncertainty shrinks the searched cell count, lowering the
+ *   Sidak threshold (more sensitive).  When @p doppler_uncertainty
+ *   exceeds the native span, the wideband window-tiling mechanism below
+ *   tiles it, and the coherent depth is chosen INSIDE every tile -- the
+ *   smallest that meets @p pd at a stated design C/N0, and 1 with none (a
+ *   default-built tiled search has never carried a block).
+ * - dp_correlator_create_continuous() — for a continuous, data-modulated signal:
+ *   ALWAYS uses the wideband window-tiling mechanism below, unconditionally
+ *   (never attempts coherent multi-epoch combining, even when
+ *   @p doppler_uncertainty is narrower than one native span) — closes the
+ *   aliasing footgun structurally rather than pricing it as a tunable loss.
+ *   Sensitivity margin comes entirely from auto-selected non-coherent looks.
+ *
+ * Both convert C/N0 to a per-sample amplitude SNR
+ * (snr = sqrt(10^(cn0_dbhz/10) / fs)), where fs is the sample rate: the
+ * burst door's @p fs, the continuous door's @p sample_rate.  Every reported
+ * detection inverts this same relationship to report an estimated C/N0
+ * (dp_correlator_hit_t::cn0_dbhz_est) — a bandwidth/integration-time-independent
+ * figure of merit directly comparable to @p cn0_dbhz, unlike a raw per-sample
+ * or coherently-integrated ratio (both scale with the sample rate and the
+ * coherent depth, and so aren't portable across configurations).
+ *
+ * **Wideband window-tiling mode**: instead of coherent combining, tiles the
+ * requested uncertainty with `window_bins = 2*ceil((du - span)/(2*span)) + 1`
+ * (`du = doppler_uncertainty`, `span = chip_rate/(2*sf)`; always odd, so the
+ * coverage is symmetric) parallel frequency-window hypotheses, each one native
+ * span wide, searched every epoch from a SINGLE shared forward FFT of that
+ * epoch: hypothesis r's spectrum is the shared FFT circularly rolled by r
+ * bins (exact — the window spacing IS this code_bins-point FFT's own bin
+ * spacing) against one fixed precomputed replica spectrum, then
+ * inverse-FFT'd — `window_bins` inverse FFTs plus the one shared forward FFT
+ * per epoch, not `window_bins` independent down-conversions. Empirically the
+ * cheaper of the two realizations benchmarked for this
+ * (a frequency-bank benchmark): ~1.2x-1.55x faster than
+ * an equivalent tuned-mixer bank, measured with real doppler.spectral.FFT.
+ * SNR margin in this mode comes entirely from auto-selected non-coherent
+ * looks (magnitude-squared accumulation, immune to data-modulation sign
+ * flips) rather than coherent depth, sized against an internal safety-valve
+ * ceiling rather than a caller-supplied cap (the semi-analytical Pd model
+ * this engine sizes against grows unreliable past a few hundred looks — not
+ * a public knob to tune around that). `row` in @ref dp_correlator_hit_t
+ * reports the frequency-window index (0 … window_bins-1, native FFT-bin
+ * ordering) instead of a slow-time-FFT row when this mode is active at
+ * coherent_bins=1, where `doppler_res_hz` is the per-window spacing
+ * (chip_rate/sf). A burst engine sized to a coherent depth D > 1 inside the
+ * tiles (a stated design C/N0) indexes the combined grid instead:
+ * `window_bins*D` bins of `chip_rate/(sf*D)`, folded over dp_correlator_grid_bins().
+ *
+ * **Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md
+ * §2.3): the engine allows a coherent depth, to accommodate waveforms with
+ * code-only windows. Given `code_only_epochs > 1` -- the whole code-only
+ * epochs such a window holds at any chip phase -- it runs a coherent depth
+ * `D` inside every tile: the per-tile epoch
+ * correlations are gathered for `D` epochs, then a zero-padded slow-time
+ * FFT per code-phase column turns each tile into `D` Doppler rows
+ * `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping
+ * and the engine does not know any emitter's window phase, so `D` is at
+ * most `(code_only_epochs+1)/2` (a whole block always lands inside the
+ * window) and, when `doppler_rate` is given, at most
+ * `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a
+ * row), rounded down to a 7-smooth length (dp_fft_smooth_floor()): `D` is a
+ * slow-time FFT length, and a prime factor of 13 or more costs pocketfft its
+ * slow path (doppler#2457). The Doppler axis is then ONE uniform grid of
+ * `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)`
+ * over the tiled span, in native FFT-bin order (0 = DC, ascending, then
+ * wrapping negative): `row` indexes it, and dp_correlator_build_handoff()
+ * folds it with dp_fftfreq_index() over that count. A block that straddles
+ * data spreads that emitter over its rows, `10*log10(D)` below an aligned
+ * block, at its own code phase -- the `conc` probe
+ * (docs/design/async-dsss-receiver.md §2.4) reads it.
+ * `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as
+ * described above. A tile de-rotates by its own centre, so an emitter on
+ * the edge between two tiles reads the same in both (within 0.03 dB) and
+ * the slow-time transform folds it to the same row index of each: every
+ * listed peak is therefore asked at its ROW's frequency before it is
+ * reported -- the block's raw epochs correlated with the replica at the
+ * pick's code phase, mixed by the row's frequency and by that one span
+ * down and up, the winner reported (docs/design/acq-surface.md §6,
+ * docs/design/async-dsss-receiver-measurements.md §12.18,
+ * doppler#1270).
+ *
+ * **A roll per thread** (docs/design/acq-surface.md §13): the tiles are
+ * independent after the one forward transform, so the per-epoch tile loop
+ * and, at `D > 1`, the
+ * block-end column loop run across a persistent pool of workers
+ * (dp_parallel.h's `dp_pool_*`), created once with the engine and parked
+ * between pushes. Each tile owns its inverse plan and scratch, so the
+ * result is bit-identical at any thread count. The per-cell passes that
+ * decide a surface -- the magnitude, the CFAR reference, the working mask
+ * and every scan of the peak list -- run per tile too, each into a slot of
+ * its own, and are merged serially in tile order (a mean of the tiles'
+ * means over equal cells, the first of the tiles' first maxima), so the
+ * serial remainder is per tile, not per cell. dp_correlator_set_threads() sets the
+ * count.
+ *
+ * @code
+ * // header-code: skip=a fragment: samples is the caller's stream
+ * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
+ * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
+ * float nrz[31];
+ * bin_to_nrz(code, 31, nrz, 31);           // chip 0 -> +1, chip 1 -> -1
+ * float _Complex pre[124];
+ * for (size_t i = 0; i < 124; i++)
+ *   pre[i] = nrz[i / 4];                   // each chip held 4 samples
+ * dp_correlator_state_t *a = dp_correlator_create_burst(pre, 124, 16, 4.0e6, 45.0,
+ *                                   0.0, 1e-3, 0.9, 0, 0.0, 1);
+ * dp_correlator_hit_t hits[64];
+ * size_t nh = dp_correlator_push(a, samples, n_samples, hits, 64);
+ * for (size_t i = 0; i < nh; i++)
+ *   printf("Doppler %zu, code phase %zu, C/N0 %.1f dB-Hz\n",
+ *          hits[i].row, hits[i].col,
+ *          hits[i].cn0_dbhz_est);
+ * dp_correlator_destroy(a);
+ * @endcode
  *
  * The functions every flavor shares, on a search flavor (kept here rather
  * than in their own doc blocks, which every Python class of the
@@ -654,6 +811,8 @@ size_t dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *ou
 
 void dp_correlator_set_surface_sink (dp_correlator_state_t *state, dp_correlator_surface_sink_fn fn,
                            void *ctx, uint32_t decim);
+
+void dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep);
 
 
 

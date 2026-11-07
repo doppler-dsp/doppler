@@ -13,7 +13,7 @@
 #define DP_ASYNC_DSSS_RECEIVER_CORE_H
 
 #include "doppler/RateConverter/RateConverter_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/cic/cic_core.h"
 #include "doppler/costas/costas_core.h"
@@ -100,7 +100,7 @@ typedef enum
 
   typedef struct
   {
-    dp_acq_state_t *acq; 
+    dp_correlator_state_t *acq; 
     /* Refine stage: a frozen-carrier collection Dll feeding
      * CarrierAcquisition via a RateConverter. Rebuilt on every real
      * acquisition hit and on reset(); otherwise untouched. */
@@ -145,7 +145,7 @@ typedef enum
     float _Complex *car_carry_buf; 
     size_t         car_carry_len;  
     /* Own copy of the spreading code (same rationale as DsssReceiver's
-     * own copy -- neither dp_acq_create_continuous() nor dp_dll_create()'s
+     * own copy -- neither dp_correlator_create_continuous() nor dp_dll_create()'s
      * borrow-vs-copy semantics are part of their public contract). */
     uint8_t *code;     
     size_t   code_len; 
@@ -182,7 +182,7 @@ typedef enum
     uint64_t samples_in;   
     bool     align_pending; 
     /* The search's own rate. The engine runs at the rate where one code
-     * period is dp_acq_period_samples(code_len) samples (a power of two:
+     * period is dp_correlator_period_samples(code_len) samples (a power of two:
      * its transforms are that long); refine and tracking run at the
      * caller's. `srch_rs` resamples the input to it while searching and
      * is NULL when the caller already feeds that rate. Search sample j
@@ -425,7 +425,7 @@ typedef enum
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 15u /* v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 16u /* v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

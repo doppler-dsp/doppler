@@ -476,7 +476,7 @@ LINT_gnu-flags = $(UV) run python scripts/check_gnu_flags.py
 LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
 
 # The acquisition engine prices a gate at three sites, and only the commit
-# site has an exact pin (test_acq_core.c). Each must split pfa over the one
+# site has an exact pin (test_correlator_search.c). Each must split pfa over the one
 # count, acq_band_cells(): a hand count of the native cells re-inlined at
 # the sizer or the non-coherent ascend fired the engine at about twice its
 # pfa and passed every test (doppler#2218).
@@ -1714,7 +1714,7 @@ set +e; \
 # in the profile, so the copy a C test calls DIRECTLY never merges into the
 # library's copies -- and an export over the libraries alone reports the
 # test's calls as never made. Measured on #1210: two early returns proven
-# by test_acq_core.c showed DA:0 in the export and 89% in the test binary's
+# by test_correlator_search.c showed DA:0 in the export and 89% in the test binary's
 # own report, and the patch gate failed at 88% on lines that had a test. The
 # test SOURCES stay out of the report through COV_IGNORE; only what they
 # exercised in library headers is added.

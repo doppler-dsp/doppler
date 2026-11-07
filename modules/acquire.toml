@@ -12,7 +12,7 @@ Examples
 False
 
 """
-objects = ["carrier_acq", "acq", "burst_acq", "burst_capture"]
+objects = ["carrier_acq", "burst_acq", "burst_capture"]
 
 [[module.acquire.functions]]
 name = "bin_to_signed"

@@ -54,7 +54,7 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   PyObject          *reps_obj            = NULL;
   unsigned long long reps_raw            = 1;
   double             fs                  = 1.0;
-  double             cn0_dbhz            = ACQ_CN0_NONE;
+  double             cn0_dbhz            = DP_CORRELATOR_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -192,8 +192,8 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
     {
       return NULL;
     }
-  size_t       n_in = (size_t)PyArray_SIZE (in_arr);
-  acq_result_t results[1024];
+  size_t              n_in = (size_t)PyArray_SIZE (in_arr);
+  dp_correlator_hit_t results[1024];
   if (!self->handle)
     {
       Py_DECREF (in_arr);
@@ -227,10 +227,8 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
     {
       PyObject *tup = Py_BuildValue (
           "(NNNNNNNNN)",
-          PyLong_FromUnsignedLongLong (
-              (unsigned long long)results[i].doppler_bin),
-          PyLong_FromUnsignedLongLong (
-              (unsigned long long)results[i].code_phase),
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].row),
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].col),
           PyFloat_FromDouble ((double)results[i].peak_mag),
           PyFloat_FromDouble ((double)results[i].noise_est),
           PyFloat_FromDouble ((double)results[i].test_stat),
@@ -449,7 +447,7 @@ BurstAcquisition_getprop_code_bins (BurstAcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(self->handle->engine->code_bins));
+      (unsigned long long)(self->handle->engine->search->code_bins));
 }
 static PyObject *
 BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
@@ -461,7 +459,7 @@ BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(acq_grid_bins (self->handle->engine)));
+      (unsigned long long)(dp_correlator_grid_bins (self->handle->engine)));
 }
 static PyObject *
 BurstAcquisition_getprop_reps (BurstAcquisitionObject *self,
@@ -473,7 +471,7 @@ BurstAcquisition_getprop_reps (BurstAcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(self->handle->engine->reps));
+      (unsigned long long)(self->handle->engine->search->reps));
 }
 static PyObject *
 BurstAcquisition_getprop_n_noncoh (BurstAcquisitionObject *self,
@@ -485,7 +483,7 @@ BurstAcquisition_getprop_n_noncoh (BurstAcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(self->handle->engine->n_noncoh));
+      (unsigned long long)(self->handle->engine->search->n_noncoh));
 }
 static PyObject *
 BurstAcquisition_getprop_ring_cap (BurstAcquisitionObject *self,
@@ -543,7 +541,7 @@ BurstAcquisition_getprop_eta (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)(self->handle->engine->eta));
+  return PyFloat_FromDouble ((double)(self->handle->engine->search->eta));
 }
 static PyObject *
 BurstAcquisition_getprop_eta_nc (BurstAcquisitionObject *self,
@@ -554,7 +552,7 @@ BurstAcquisition_getprop_eta_nc (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)(self->handle->engine->eta_nc));
+  return PyFloat_FromDouble ((double)(self->handle->engine->search->eta_nc));
 }
 static PyObject *
 BurstAcquisition_getprop_pfa_cell (BurstAcquisitionObject *self,
@@ -565,7 +563,7 @@ BurstAcquisition_getprop_pfa_cell (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->pfa_cell));
+  return PyFloat_FromDouble ((self->handle->engine->search->pfa_cell));
 }
 static PyObject *
 BurstAcquisition_getprop_pd_predicted (BurstAcquisitionObject *self,
@@ -576,7 +574,7 @@ BurstAcquisition_getprop_pd_predicted (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->pd_predicted));
+  return PyFloat_FromDouble ((self->handle->engine->search->pd_predicted));
 }
 static PyObject *
 BurstAcquisition_getprop_pd_burst (BurstAcquisitionObject *self,
@@ -587,7 +585,7 @@ BurstAcquisition_getprop_pd_burst (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->pd_burst));
+  return PyFloat_FromDouble ((self->handle->engine->search->pd_burst));
 }
 static PyObject *
 BurstAcquisition_getprop_psl_db (BurstAcquisitionObject *self,
@@ -598,7 +596,7 @@ BurstAcquisition_getprop_psl_db (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((dp_acq_psl_db (self->handle->engine)));
+  return PyFloat_FromDouble ((dp_correlator_psl_db (self->handle->engine)));
 }
 static PyObject *
 BurstAcquisition_getprop_straddle_loss (BurstAcquisitionObject *self,
@@ -609,7 +607,7 @@ BurstAcquisition_getprop_straddle_loss (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->straddle_loss));
+  return PyFloat_FromDouble ((self->handle->engine->search->straddle_loss));
 }
 static PyObject *
 BurstAcquisition_getprop_fs (BurstAcquisitionObject *self,
@@ -620,7 +618,7 @@ BurstAcquisition_getprop_fs (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->fs));
+  return PyFloat_FromDouble ((self->handle->engine->search->fs));
 }
 static PyObject *
 BurstAcquisition_getprop_doppler_rate (BurstAcquisitionObject *self,
@@ -631,7 +629,7 @@ BurstAcquisition_getprop_doppler_rate (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->doppler_rate));
+  return PyFloat_FromDouble ((self->handle->engine->search->doppler_rate));
 }
 static PyObject *
 BurstAcquisition_getprop_rate_hypotheses (BurstAcquisitionObject *self,
@@ -643,7 +641,7 @@ BurstAcquisition_getprop_rate_hypotheses (BurstAcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(self->handle->engine->rate_hyps));
+      (unsigned long long)(self->handle->engine->search->rate_hyps));
 }
 static PyObject *
 BurstAcquisition_getprop_cn0_dbhz (BurstAcquisitionObject *self,
@@ -654,7 +652,7 @@ BurstAcquisition_getprop_cn0_dbhz (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->cn0_dbhz));
+  return PyFloat_FromDouble ((self->handle->engine->search->cn0_dbhz));
 }
 static PyObject *
 BurstAcquisition_getprop_doppler_span_hz (BurstAcquisitionObject *self,
@@ -665,7 +663,7 @@ BurstAcquisition_getprop_doppler_span_hz (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->doppler_span_hz));
+  return PyFloat_FromDouble ((self->handle->engine->search->doppler_span_hz));
 }
 static PyObject *
 BurstAcquisition_getprop_doppler_res_hz (BurstAcquisitionObject *self,
@@ -676,7 +674,7 @@ BurstAcquisition_getprop_doppler_res_hz (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->doppler_res_hz));
+  return PyFloat_FromDouble ((self->handle->engine->search->doppler_res_hz));
 }
 static PyObject *
 BurstAcquisition_getprop_pd (BurstAcquisitionObject *self,
@@ -687,7 +685,7 @@ BurstAcquisition_getprop_pd (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((self->handle->engine->pd));
+  return PyFloat_FromDouble ((self->handle->engine->search->pd));
 }
 static PyObject *
 BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
@@ -698,7 +696,8 @@ BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyBool_FromLong ((long)((self->handle->engine->underpowered)));
+  return PyBool_FromLong (
+      (long)((self->handle->engine->search->underpowered)));
 }
 
 static PyGetSetDef BurstAcquisition_getset[] = {
@@ -717,8 +716,8 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "coherent depth when a design cn0_dbhz asks for one, and a hit's "
     "doppler_bin indexes all of window_bins * depth rows. This is the count "
     "to fold a hit's bin over (bin_to_signed(bin, doppler_bins) * "
-    "doppler_res_hz is the signed Doppler); it is acq_grid_bins(), and the "
-    "same number BurstCapture.doppler_bins reads.\n",
+    "doppler_res_hz is the signed Doppler); it is dp_correlator_grid_bins(), "
+    "and the same number BurstCapture.doppler_bins reads.\n",
     NULL },
   { "reps", (getter)BurstAcquisition_getprop_reps, NULL,
     "Max coherent code repetitions (the coherence ceiling).\n", NULL },
@@ -856,7 +855,7 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)BurstAcquisitionObj_reset, METH_NOARGS,
     "Drain the input ring and reset the coherent accumulator.\n"
     "\n"
-    "Forwards to dp_acq_reset() on the embedded engine: discards any\n"
+    "Forwards to dp_correlator_reset() on the embedded engine: discards any\n"
     "buffered samples that have not yet completed a frame and clears the\n"
     "non-coherent power accumulator and dwell bookkeeping, so the next\n"
     "push() begins a fresh search from an empty ring. Construction\n"
@@ -883,13 +882,14 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "\n"
     "Stream raw samples; emit one event per CFAR dump above threshold.\n"
     "\n"
-    "Forwards to dp_acq_push() on the embedded engine (see its doc comment\n"
-    "in acq_core.h for the framing/CFAR mechanics). Each event carries the\n"
-    "peak's Doppler bin and code phase (the two search axes), its CFAR\n"
-    "statistic, and an estimated C/N0 — see acq_result_t.\n"
+    "Forwards to dp_correlator_push() on the embedded engine (see its doc\n"
+    "comment in correlator_core.h for the framing/CFAR mechanics). Each\n"
+    "event carries the peak's Doppler bin and code phase (the two search\n"
+    "axes), its CFAR statistic, and an estimated C/N0 — see\n"
+    "dp_correlator_hit_t.\n"
     "\n"
-    "Python's push() has room for 1024 events a call, with dp_acq_push()'s\n"
-    "rule for what a push that fills it loses.\n"
+    "Python's push() has room for 1024 events a call, with\n"
+    "dp_correlator_push()'s rule for what a push that fills it loses.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -931,11 +931,11 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look "
     "safety-valve ceiling).\n"
     "\n"
-    "Forwards to dp_acq_configure_search_raw() on the embedded engine (see\n"
-    "its doc comment in acq_core.h): resizes every grid-dependent\n"
-    "buffer/plan, re-derives the threshold ladder for the pinned grid, and\n"
-    "clears in-flight accumulation — call between push() calls, never a\n"
-    "substitute for one.\n"
+    "Forwards to dp_correlator_configure_search_raw() on the embedded engine\n"
+    "(see its doc comment in correlator_core.h): resizes every\n"
+    "grid-dependent buffer/plan, re-derives the threshold ladder for the\n"
+    "pinned grid, and clears in-flight accumulation — call between push()\n"
+    "calls, never a substitute for one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -943,7 +943,7 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "    Coherent depth to pin, in `[1, reps]`.\n"
     "n_noncoh : int\n"
     "    Non-coherent look count to pin, in `[1,\n"
-    "    ACQ_N_NONCOH_SAFETY_CEILING]`.\n"
+    "    DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -986,18 +986,18 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "that dwell but is not reported. The threshold does not change with n. "
     "Raises ValueError outside 1..64. Clears the held candidates.\n"
     "\n"
-    "Forwards to dp_acq_set_max_peaks() on the embedded engine (see its doc\n"
-    "comment in acq_core.h): one is the classic gated maximum; more is the\n"
-    "list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the\n"
-    "same gate, strongest first, an exclusion zone of one Doppler bin by the\n"
-    "reference's first autocorrelation null (one chip for a PN code) around\n"
-    "each, and the two-epoch rule for a peak at an already-listed code\n"
-    "phase. Each listed peak is one result from push().\n"
+    "Forwards to dp_correlator_set_max_peaks() on the embedded engine (see\n"
+    "its doc comment in correlator_core.h): one is the classic gated\n"
+    "maximum; more is the list of docs/design/async-dsss-receiver.md §7.1 --\n"
+    "every peak above the same gate, strongest first, an exclusion zone of\n"
+    "one Doppler bin by the reference's first autocorrelation null (one chip\n"
+    "for a PN code) around each, and the two-epoch rule for a peak at an\n"
+    "already-listed code phase. Each listed peak is one result from push().\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "n : int\n"
-    "    1 … ACQ_MAX_PEAKS.\n"
+    "    1 … DP_CORRELATOR_MAX_PEAKS.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1116,9 +1116,8 @@ static PyTypeObject BurstAcquisitionObjType = {
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Create a burst-mode acquisition engine for any repeated preamble, given\n"
-    "as its samples (forwards to dp_acq_create_burst() -- see its doc comment "
-    "in\n"
-    "acq_core.h for the full physics).\n"
+    "as its samples (forwards to dp_correlator_create_burst() -- see its doc\n"
+    "comment in correlator_core.h for the full physics).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1133,9 +1132,9 @@ static PyTypeObject BurstAcquisitionObjType = {
     "cn0_dbhz : float\n"
     "    Design carrier-to-noise density in dB-Hz, of the preamble's mean "
     "power:\n"
-    "    any finite value, or NaN (ACQ_CN0_NONE) for no design point -- size "
-    "for\n"
-    "    the whole preamble.\n"
+    "    any finite value, or NaN (DP_CORRELATOR_CN0_NONE) for no design "
+    "point\n"
+    "    -- size for the whole preamble.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    One-sided Doppler search half-range in Hz.\n"
     "pfa : float, default 1e-3\n"
@@ -1154,17 +1153,16 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    bound.\n"
     "rate_hypotheses : int, default 1\n"
     "    Doppler-rate hypotheses to search (0 = auto, else 1 to\n"
-    "    ACQ_RATE_HYPS_MAX); 1 searches none. Above 1 the engine COMPENSATES "
-    "the\n"
-    "    rate rather than only capping the depth: `doppler_rate` becomes the\n"
-    "    span `[-R, +R]`, the coherent block is de-chirped at this many "
-    "rates\n"
-    "    across it, and the depth is bounded by the residual `R/(n - 1)` -- "
-    "see\n"
-    "    dp_acq_create_burst(), which owns the semantics, including 0 = auto\n"
-    "    (the engine chooses the count; read it back from "
-    "`engine->rate_hyps`).\n"
-    "    Needs a non-zero `doppler_rate`.\n"
+    "    DP_CORRELATOR_RATE_HYPS_MAX); 1 searches none. Above 1 the engine\n"
+    "    COMPENSATES the rate rather than only capping the depth: "
+    "`doppler_rate`\n"
+    "    becomes the span `[-R, +R]`, the coherent block is de-chirped at "
+    "this\n"
+    "    many rates across it, and the depth is bounded by the residual `R/(n "
+    "-\n"
+    "    1)` -- see dp_correlator_create_burst(), which owns the semantics,\n"
+    "    including 0 = auto (the engine chooses the count; read it back from\n"
+    "    `engine->rate_hyps`). Needs a non-zero `doppler_rate`.\n"
     "\n"
     "Raises\n"
     "------\n"

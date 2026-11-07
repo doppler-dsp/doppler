@@ -13,21 +13,21 @@ create_error = "ValueError"
 create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 <= rate_hypotheses <= 64 (0 = auto; doppler_rate > 0 unless 1), 0 < pfa < 1, 0 < pd < 1)"
 # The under-powered UserWarning is declared (gh-481): its condition is a
 # bool field of dp_burst_acq_state_t, which mirrors the engine's at
-# construction -- the same warning objects/acq.toml declares.
+# construction -- the same warning objects/correlator.toml declares.
 warnings = [
   { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstAcquisition is under-powered: pd_burst < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow doppler_uncertainty." },
 ]
 fragment = "generated"
-# Composes acq's shared engine (dp_acq_state_t/acq_core.c) -- this class is the
+# Composes acq's shared engine (dp_correlator_state_t/correlator_search.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
 # unchanged, including its wideband mode for doppler_uncertainty beyond the
 # native span (window tiles, with a coherent depth inside each tile when a
 # design cn0_dbhz asks for one; D = 1 without). The hand-written burst_acq_core.h/.c
-# (below) is a thin forwarder onto dp_acq_create_burst()/dp_acq_push()/etc -- the
-# entire algorithm lives in acq_core.c exactly once.
+# (below) is a thin forwarder onto dp_correlator_create_burst()/dp_correlator_push()/etc -- the
+# entire algorithm lives in correlator_search.c exactly once.
 depends_on = [
-    { name = "acq", link = true },
+    { name = "correlator", link = true },
     # cvt: bin_to_nrz(), which the C test and bench build PN preambles with.
     # Bare -- they need the symbol, the .so does not.
     { name = "cvt" },
@@ -59,7 +59,7 @@ default = "1.0"
 name = "cn0_dbhz"
 type = "double"
 # NaN = no design point (doppler#1484): any finite C/N0 is a real one.
-default_raw = "ACQ_CN0_NONE"
+default_raw = "DP_CORRELATOR_CN0_NONE"
 
 [[burst_acq.init_params]]
 name = "doppler_uncertainty"
@@ -102,15 +102,15 @@ default = "1"
 [[burst_acq.methods]]
 name = "push"
 arg_type = "float _Complex"
-return_type = "acq_result_t"
+return_type = "dp_correlator_hit_t"
 nogil = true
 # The binding makes ONE call into a stack array of this many results, and a
 # push that would make more loses the input past the dwell it stops at
 # (#1992; the jm ask is just-buildit/just-makeit#2184). 1024 makes that a
 # push of over 1024 / max_peaks dwells: 56 KiB of stack per call
-# (sizeof(acq_result_t) = 56).
+# (sizeof(dp_correlator_hit_t) = 64).
 max_results = 1024
-result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}, {name = "doppler_rate_hz_s", type = "double"}]
+result_fields = [{name = "row", type = "size_t"}, {name = "col", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}, {name = "chip_phase", type = "double"}, {name = "doppler_rate_hz_s", type = "double"}]
 
 # Advanced escape hatch: pin the search grid directly, bypassing both
 # auto-sizing searches (mirrors Dll's/Costas's configure_lock_raw()). Raises
@@ -151,25 +151,25 @@ doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set w
 [[burst_acq.properties]]
 name = "code_bins"
 type = "size_t"
-expr = "self->handle->engine->code_bins"
+expr = "self->handle->engine->search->code_bins"
 doc = "Delay hypotheses searched: one repetition of the preamble, in samples (len(preamble))."
 
 [[burst_acq.properties]]
 name = "doppler_bins"
 type = "size_t"
-expr = "acq_grid_bins(self->handle->engine)"
-doc = "Doppler hypotheses searched: the coherent depth chosen (the slow-time FFT length in code reps, <= reps), times the window-tile count when doppler_uncertainty exceeds the native span -- a tile keeps its own coherent depth when a design cn0_dbhz asks for one, and a hit's doppler_bin indexes all of window_bins * depth rows. This is the count to fold a hit's bin over (bin_to_signed(bin, doppler_bins) * doppler_res_hz is the signed Doppler); it is acq_grid_bins(), and the same number BurstCapture.doppler_bins reads."
+expr = "dp_correlator_grid_bins(self->handle->engine)"
+doc = "Doppler hypotheses searched: the coherent depth chosen (the slow-time FFT length in code reps, <= reps), times the window-tile count when doppler_uncertainty exceeds the native span -- a tile keeps its own coherent depth when a design cn0_dbhz asks for one, and a hit's doppler_bin indexes all of window_bins * depth rows. This is the count to fold a hit's bin over (bin_to_signed(bin, doppler_bins) * doppler_res_hz is the signed Doppler); it is dp_correlator_grid_bins(), and the same number BurstCapture.doppler_bins reads."
 
 [[burst_acq.properties]]
 name = "reps"
 type = "size_t"
-expr = "self->handle->engine->reps"
+expr = "self->handle->engine->search->reps"
 doc = "Max coherent code repetitions (the coherence ceiling)."
 
 [[burst_acq.properties]]
 name = "n_noncoh"
 type = "size_t"
-expr = "self->handle->engine->n_noncoh"
+expr = "self->handle->engine->search->n_noncoh"
 doc = "Non-coherent looks per detection (1 = pure coherent)."
 
 [[burst_acq.properties]]
@@ -199,89 +199,89 @@ doc = "CFAR gate on the test statistic (coherent path)."
 [[burst_acq.properties]]
 name = "eta"
 type = "float"
-expr = "self->handle->engine->eta"
+expr = "self->handle->engine->search->eta"
 doc = "Raw per-cell Rayleigh amplitude threshold."
 
 [[burst_acq.properties]]
 name = "eta_nc"
 type = "float"
-expr = "self->handle->engine->eta_nc"
+expr = "self->handle->engine->search->eta_nc"
 doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
 
 [[burst_acq.properties]]
 name = "pfa_cell"
 type = "double"
-expr = "self->handle->engine->pfa_cell"
+expr = "self->handle->engine->search->pfa_cell"
 doc = "Šidák per-cell false-alarm probability over the searched cells."
 
 [[burst_acq.properties]]
 name = "pd_predicted"
 type = "double"
-expr = "self->handle->engine->pd_predicted"
+expr = "self->handle->engine->search->pd_predicted"
 doc = "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."
 
 [[burst_acq.properties]]
 name = "pd_burst"
 type = "double"
-expr = "self->handle->engine->pd_burst"
+expr = "self->handle->engine->search->pd_burst"
 doc = "Predicted Pd of one burst of `reps` repetitions at cn0_dbhz: the dwells are aligned to the stream, so the preamble lands at a uniform offset and spans about reps/doppler_bins of them, whole or partial, and the burst is detected when any one is. The number the sizer meets `pd` with and `underpowered` is set from; pd_predicted is one aligned dwell. NaN with no design cn0_dbhz or with n_noncoh > 1."
 
 [[burst_acq.properties]]
 name = "psl_db"
 type = "double"
-expr = "dp_acq_psl_db (self->handle->engine)"
+expr = "dp_correlator_psl_db (self->handle->engine)"
 doc = "The preamble's peak sidelobe level, dB: the largest lag of its periodic autocorrelation OUTSIDE the mainlobe, relative to the peak. A detection's sidelobes sit this far below it, at delays the peak list's exclusion does not cover, so a burst clearing the threshold by more than `-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and a strong burst's sidelobe can mask a weak one there. -29.8 dB for a 31-chip m-sequence (1/31); `-inf` for a perfect sequence such as Zadoff-Chu. Fixed at construction."
 
 [[burst_acq.properties]]
 name = "straddle_loss"
 type = "double"
-expr = "self->handle->engine->straddle_loss"
+expr = "self->handle->engine->search->straddle_loss"
 doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."
 
 [[burst_acq.properties]]
 name = "fs"
 type = "double"
-expr = "self->handle->engine->fs"
+expr = "self->handle->engine->search->fs"
 doc = "Sample rate (Hz) the preamble was given at."
 
 [[burst_acq.properties]]
 name = "doppler_rate"
 type = "double"
-expr = "self->handle->engine->doppler_rate"
+expr = "self->handle->engine->search->doppler_rate"
 doc = "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins <= f_epoch/sqrt(2*doppler_rate). 0 is no bound."
 
 [[burst_acq.properties]]
 name = "rate_hypotheses"
 type = "size_t"
-expr = "self->handle->engine->rate_hyps"
+expr = "self->handle->engine->search->rate_hyps"
 doc = "Doppler-rate hypotheses the engine searches, as given at construction, or the count the engine chose when it was built with 0 (auto: the fewest whose residual stops limiting the depth); 1 is none -- `doppler_rate` then only caps the coherent depth. Above 1 `doppler_rate` is the span of the hypotheses and the depth is bounded by the residual `doppler_rate/(rate_hypotheses - 1)`."
 
 [[burst_acq.properties]]
 name = "cn0_dbhz"
 type = "double"
-expr = "self->handle->engine->cn0_dbhz"
+expr = "self->handle->engine->search->cn0_dbhz"
 doc = "Carrier-to-noise density used to size the search (dB-Hz)."
 
 [[burst_acq.properties]]
 name = "doppler_span_hz"
 type = "double"
-expr = "self->handle->engine->doppler_span_hz"
+expr = "self->handle->engine->search->doppler_span_hz"
 doc = "Native unambiguous Doppler half-range = +/- fs/(2*len(preamble)) Hz."
 
 [[burst_acq.properties]]
 name = "doppler_res_hz"
 type = "double"
-expr = "self->handle->engine->doppler_res_hz"
+expr = "self->handle->engine->search->doppler_res_hz"
 doc = "Doppler bin width = fs/(len(preamble)*doppler_bins) Hz."
 
 [[burst_acq.properties]]
 name = "pd"
 type = "double"
-expr = "self->handle->engine->pd"
+expr = "self->handle->engine->search->pd"
 doc = "Target detection probability."
 
 [[burst_acq.properties]]
 name = "underpowered"
 type = "bool"
-expr = "self->handle->engine->underpowered"
+expr = "self->handle->engine->search->underpowered"
 doc = "True when pd_burst < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."

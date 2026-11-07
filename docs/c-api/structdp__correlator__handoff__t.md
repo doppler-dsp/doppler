@@ -108,7 +108,7 @@ double dp_correlator_handoff_t::chip_phase;
 
 
 
-Chips, Dll's own instantaneous-phase convention (the mirror image of dp\_correlator\_hit\_t::code\_phase's correlation-lag convention  see [**dp\_correlator\_build\_handoff()**](correlator__core_8h.md#function-dp_correlator_build_handoff)'s doc comment). 
+Chips, Dll's own instantaneous-phase convention (the mirror image of [**dp\_correlator\_hit\_t::col**](structdp__correlator__hit__t.md#variable-col)'s correlation-lag convention  see [**dp\_correlator\_build\_handoff()**](correlator__core_8h.md#function-dp_correlator_build_handoff)'s doc comment). 
 
 
         

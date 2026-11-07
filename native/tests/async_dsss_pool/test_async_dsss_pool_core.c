@@ -122,7 +122,7 @@ _test_create_domain (void)
                                  POOL_CR * (double)POOL_SPC, 2, 60.0, 1e-3,
                                  0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
                                  false, 100000, 0.0, 0.0, false, 0.0, 0.0, 0);
-  DP_REQUIRE (p != NULL && p->rx[0]->acq->window_bins > 1);
+  DP_REQUIRE (p != NULL && p->rx[0]->acq->search->window_bins > 1);
   for (size_t i = 0; i < p->n_receivers; i++)
     DP_CHECK (dp_async_dsss_receiver_get_threads (p->rx[i]) == 1);
   /* The search runs on the pool's own thread count, capped at one worker a
@@ -130,12 +130,12 @@ _test_create_domain (void)
      (asked explicitly, so this holds on a one-core box), one on one, and
      the online cores on no more than its tiles. Sabotage: the search
      serial again -> 1 at two, red. */
-  const int tiles = (int)p->search->acq->window_bins;
+  const int tiles = (int)p->search->acq->search->window_bins;
   DP_REQUIRE (tiles >= 2);
   /* The search runs its per-epoch stages inline (#2775): the fan costs a
      pool 1.9-3.5x at D = 1 on WSL2. Sabotage: drop the pool's clear ->
      red. */
-  DP_CHECK_MSG (p->search->acq->epoch_fan == 0,
+  DP_CHECK_MSG (p->search->acq->search->epoch_fan == 0,
                 "the pool's search keeps its per-epoch stages inline");
   DP_REQUIRE (dp_async_dsss_pool_set_threads (p, 2) == 0);
   DP_CHECK (dp_async_dsss_receiver_get_threads (p->search) == 2);
@@ -165,7 +165,7 @@ _test_create_domain (void)
       DP_REQUIRE (q != NULL);
       DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
       DP_CHECK (dp_async_dsss_receiver_get_threads (q->search) == 2);
-      DP_CHECK (q->search->acq->epoch_fan == 0);
+      DP_CHECK (q->search->acq->search->epoch_fan == 0);
       dp_async_dsss_pool_destroy (q);
       free (blob);
     }
@@ -221,7 +221,7 @@ _test_two_emitters_two_holders (void)
   /* The one search is excluded from both holders; no receiver searches. */
   DP_CHECK (dp_async_dsss_receiver_get_n_exclusions (p->search) == 2);
   for (size_t i = 0; i < 3; i++)
-    DP_CHECK (dp_acq_position (p->rx[i]->acq) == 0);
+    DP_CHECK (dp_correlator_position (p->rx[i]->acq) == 0);
   /* The holders track and emit; the searcher never emitted. */
   DP_CHECK (st[0].state == ASYNC_DSSS_RX_TRACKING
             && st[1].state == ASYNC_DSSS_RX_TRACKING);
@@ -263,16 +263,16 @@ _test_search_runs_once (void)
         {
           both_at     = periods;
           count_then  = p->search_periods;
-          engine_then = dp_acq_position (p->search->acq);
+          engine_then = dp_correlator_position (p->search->acq);
         }
     }
   DP_REQUIRE_MSG (both_at > 0, "both emitters held");
   DP_CHECK (periods > both_at + 20); /* a long run past it */
   for (size_t i = 0; i < 2; i++)
-    DP_CHECK (dp_acq_position (p->rx[i]->acq) == 0);
+    DP_CHECK (dp_correlator_position (p->rx[i]->acq) == 0);
   DP_CHECK_MSG (p->search_periods == count_then,
                 "the search ran with every receiver holding");
-  DP_CHECK (dp_acq_position (p->search->acq) == engine_then);
+  DP_CHECK (dp_correlator_position (p->search->acq) == engine_then);
   DP_CHECK (!p->searching);
   dp_async_dsss_pool_destroy (p);
   free (x);
@@ -444,7 +444,7 @@ _test_threads_change_nothing (void)
   dp_async_dsss_pool_state_t *a = _pool_span (code, 3, 0.0, 1, 5000.0);
   dp_async_dsss_pool_state_t *b = _pool_span (code, 3, 0.0, 3, 5000.0);
   DP_REQUIRE (a && b);
-  DP_REQUIRE (b->search->acq->window_bins > 1); /* a fan to compare */
+  DP_REQUIRE (b->search->acq->search->window_bins > 1); /* a fan to compare */
   DP_REQUIRE (dp_async_dsss_pool_get_threads (a) == 1);
   /* At most the receivers, and at most the box: 3 on a box of 3 or more. */
   DP_CHECK (dp_async_dsss_pool_get_threads (b) <= 3);
@@ -886,7 +886,7 @@ _test_ghost_is_released (void)
       false, 0.0, 0.0);
   DP_REQUIRE (p && pr);
   (void)dp_async_dsss_receiver_set_threads (pr, 1);
-  DP_REQUIRE (dp_acq_set_max_peaks (pr->acq, 16) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_max_peaks (pr->acq, 16) == DP_OK);
   int    seeded = 0, tracked = 0;
   double ghost_ph = 0.0;
   for (size_t b = 0; b + te <= n && !p->released_ghost; b += te)
@@ -895,15 +895,15 @@ _test_ghost_is_released (void)
       tracked |= p->hist_len[1] > 0;
       if (seeded)
         continue;
-      acq_result_t h[16];
-      const size_t k = dp_acq_push (pr->acq, x + b, te, h, 16);
+      dp_correlator_hit_t h[16];
+      const size_t        k = dp_correlator_push (pr->acq, x + b, te, h, 16);
       if (k < 2 || h[0].samples_consumed != b + te)
         continue;
-      acq_handoff_t h0, hi;
-      dp_acq_build_handoff (pr->acq, &h[0], 1023, &h0);
+      dp_correlator_handoff_t h0, hi;
+      dp_correlator_build_handoff (pr->acq, &h[0], 1023, &h0);
       for (size_t i = 1; i < k && !seeded; i++)
         {
-          dp_acq_build_handoff (pr->acq, &h[i], 1023, &hi);
+          dp_correlator_build_handoff (pr->acq, &h[i], 1023, &hi);
           if (_chip_dist (hi.chip_phase, h0.chip_phase, 1023.0) > 1.0)
             {
               DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], hi.chip_phase,

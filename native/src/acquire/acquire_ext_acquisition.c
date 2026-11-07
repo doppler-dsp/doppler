@@ -1,21 +1,21 @@
-/* jm:generated acquire_ext_acq.c */
+/* jm:generated acquire_ext_acquisition.c */
 /*
- * acquire_ext_acq.c — Acquisition type for the acquire module.
+ * acquire_ext_acquisition.c — Acquisition type for the acquire module.
  *
  * Included by acquire_ext.c (the module aggregator).
  * jm regenerates this file on every apply; do not edit it.
- * Hand-written code belongs in acquire_ext_acq_extra.c.
+ * Hand-written code belongs in acquire_ext_acquisition_extra.c.
  * Do NOT compile this file directly — only acquire_ext.c is compiled.
  */
 /* ======================================================== */
-/* AcquisitionObject — wraps dp_acq_state_t *       */
+/* AcquisitionObject — wraps dp_correlator_state_t *       */
 /* ======================================================== */
 
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 
 typedef struct
 {
-  PyObject_HEAD dp_acq_state_t *handle;
+  PyObject_HEAD dp_correlator_state_t *handle;
   jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
   PyObject     *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
 } AcquisitionObject;
@@ -24,7 +24,7 @@ static void
 AcquisitionObj_dealloc (AcquisitionObject *self)
 {
   if (self->handle)
-    dp_acq_destroy (self->handle);
+    dp_correlator_destroy (self->handle);
   jm_inflight_free (&self->_jm_inflight);
   Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
   Py_TYPE (self)->tp_free ((PyObject *)self);
@@ -112,7 +112,7 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = dp_acq_create_continuous (
+  self->handle    = dp_correlator_create_continuous (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, sample_rate,
       chip_rate, symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
       noise_mode, code_only_epochs, doppler_rate);
@@ -128,7 +128,7 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                        "and doppler_rate >= 0; code_only_epochs >= 1)");
       return -1;
     }
-  if (self->handle->underpowered)
+  if (self->handle->search->underpowered)
     {
       if (PyErr_WarnEx (PyExc_UserWarning,
                         "Acquisition is under-powered: pd_predicted < pd at "
@@ -149,7 +149,7 @@ AcquisitionObj_reset (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_acq_reset (self->handle);
+  dp_correlator_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -170,8 +170,8 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
     {
       return NULL;
     }
-  size_t       n_in = (size_t)PyArray_SIZE (in_arr);
-  acq_result_t results[1024];
+  size_t              n_in = (size_t)PyArray_SIZE (in_arr);
+  dp_correlator_hit_t results[1024];
   if (!self->handle)
     {
       Py_DECREF (in_arr);
@@ -186,7 +186,7 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_acq_push (_jm_h, _ng0, n_in, results, 1024);
+    n_out = dp_correlator_push (_jm_h, _ng0, n_in, results, 1024);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -205,10 +205,8 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
     {
       PyObject *tup = Py_BuildValue (
           "(NNNNNNNNN)",
-          PyLong_FromUnsignedLongLong (
-              (unsigned long long)results[i].doppler_bin),
-          PyLong_FromUnsignedLongLong (
-              (unsigned long long)results[i].code_phase),
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].row),
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].col),
           PyFloat_FromDouble ((double)results[i].peak_mag),
           PyFloat_FromDouble ((double)results[i].noise_est),
           PyFloat_FromDouble ((double)results[i].test_stat),
@@ -290,7 +288,8 @@ AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
+  int _rc = dp_correlator_configure_search_raw (self->handle, doppler_bins,
+                                                n_noncoh);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -339,7 +338,7 @@ AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_acq_set_max_peaks (self->handle, n);
+  int _rc = dp_correlator_set_max_peaks (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
@@ -368,7 +367,7 @@ AcquisitionObj_set_carrier_freq_hz (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_acq_set_carrier_freq_hz (self->handle, carrier_freq_hz);
+  int _rc = dp_correlator_set_carrier_freq_hz (self->handle, carrier_freq_hz);
   if (_rc != 0)
     {
       switch (_rc)
@@ -408,7 +407,7 @@ AcquisitionObj_set_threads (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_acq_set_threads (self->handle, n);
+  int _rc = dp_correlator_set_threads (self->handle, n);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_threads failed",
@@ -475,7 +474,7 @@ AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_acq_set_telemetry (self->handle, tlm, prefix, decim);
+  int _rc = dp_correlator_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
@@ -529,7 +528,7 @@ AcquisitionObj_surface (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = dp_acq_surface (self->handle, out, out_len);
+  size_t y = dp_correlator_surface (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -573,7 +572,7 @@ AcquisitionObj_surface_doppler_hz (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = dp_acq_surface_doppler_hz (self->handle, out, out_len);
+  size_t y = dp_correlator_surface_doppler_hz (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -617,7 +616,7 @@ AcquisitionObj_surface_chip_phase (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = dp_acq_surface_chip_phase (self->handle, out, out_len);
+  size_t y = dp_correlator_surface_chip_phase (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -661,7 +660,7 @@ AcquisitionObj_surface_complex (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = dp_acq_surface_complex (self->handle, out, out_len);
+  size_t y = dp_correlator_surface_complex (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -750,7 +749,8 @@ AcquisitionObj_block_prompt (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = dp_acq_block_prompt (self->handle, tile, col, out, out_len);
+  size_t y
+      = dp_correlator_block_prompt (self->handle, tile, col, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -794,7 +794,7 @@ AcquisitionObj_block_raw (AcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t y = dp_acq_block_raw (self->handle, out, out_len);
+  size_t y = dp_correlator_block_raw (self->handle, out, out_len);
   Py_DECREF (out_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -808,7 +808,7 @@ AcquisitionObj_state_bytes (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (dp_acq_state_bytes (self->handle));
+  return PyLong_FromSize_t (dp_correlator_state_bytes (self->handle));
 }
 
 static PyObject *
@@ -820,11 +820,11 @@ AcquisitionObj_get_state (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = dp_acq_state_bytes (self->handle);
+  size_t    _n = dp_correlator_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  dp_acq_get_state (self->handle, PyBytes_AS_STRING (_b));
+  dp_correlator_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
@@ -841,12 +841,13 @@ AcquisitionObj_set_state (AcquisitionObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != dp_acq_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != dp_correlator_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  int _rc = dp_acq_set_state (self->handle, PyBytes_AS_STRING (arg));
+  int _rc = dp_correlator_set_state (self->handle, PyBytes_AS_STRING (arg));
   if (_rc != 0)
     {
       switch (_rc)
@@ -887,7 +888,7 @@ Acquisition_getprop_carrier_freq_hz (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->carrier_freq_hz);
+  return PyFloat_FromDouble (((self->handle->search->carrier_freq_hz)));
 }
 static PyObject *
 Acquisition_getprop_code_bins (AcquisitionObject *self,
@@ -899,7 +900,7 @@ Acquisition_getprop_code_bins (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->code_bins);
+      (unsigned long long)((self->handle->search->code_bins)));
 }
 static PyObject *
 Acquisition_getprop_lag_bins (AcquisitionObject *self,
@@ -911,7 +912,7 @@ Acquisition_getprop_lag_bins (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->lag_bins);
+      (unsigned long long)((self->handle->search->lag_bins)));
 }
 static PyObject *
 Acquisition_getprop_doppler_bins (AcquisitionObject *self,
@@ -922,8 +923,9 @@ Acquisition_getprop_doppler_bins (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)((
-      self->handle->window_bins * self->handle->coherent_bins)));
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->search->window_bins
+                            * self->handle->search->coherent_bins)));
 }
 static PyObject *
 Acquisition_getprop_coherent_bins (AcquisitionObject *self,
@@ -935,7 +937,7 @@ Acquisition_getprop_coherent_bins (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->coherent_bins);
+      (unsigned long long)((self->handle->search->coherent_bins)));
 }
 static PyObject *
 Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -945,7 +947,8 @@ Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->sf);
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->search->sf)));
 }
 static PyObject *
 Acquisition_getprop_n_noncoh (AcquisitionObject *self,
@@ -957,7 +960,7 @@ Acquisition_getprop_n_noncoh (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->n_noncoh);
+      (unsigned long long)((self->handle->search->n_noncoh)));
 }
 static PyObject *
 Acquisition_getprop_ring_cap (AcquisitionObject *self,
@@ -1014,7 +1017,7 @@ Acquisition_getprop_eta (AcquisitionObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)self->handle->eta);
+  return PyFloat_FromDouble ((double)((self->handle->search->eta)));
 }
 static PyObject *
 Acquisition_getprop_eta_nc (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -1024,7 +1027,7 @@ Acquisition_getprop_eta_nc (AcquisitionObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)self->handle->eta_nc);
+  return PyFloat_FromDouble ((double)((self->handle->search->eta_nc)));
 }
 static PyObject *
 Acquisition_getprop_pfa_cell (AcquisitionObject *self,
@@ -1035,7 +1038,7 @@ Acquisition_getprop_pfa_cell (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->pfa_cell);
+  return PyFloat_FromDouble (((self->handle->search->pfa_cell)));
 }
 static PyObject *
 Acquisition_getprop_pd_predicted (AcquisitionObject *self,
@@ -1046,7 +1049,7 @@ Acquisition_getprop_pd_predicted (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->pd_predicted);
+  return PyFloat_FromDouble (((self->handle->search->pd_predicted)));
 }
 static PyObject *
 Acquisition_getprop_straddle_loss (AcquisitionObject *self,
@@ -1057,7 +1060,7 @@ Acquisition_getprop_straddle_loss (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->straddle_loss);
+  return PyFloat_FromDouble (((self->handle->search->straddle_loss)));
 }
 static PyObject *
 Acquisition_getprop_fs (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -1067,7 +1070,7 @@ Acquisition_getprop_fs (AcquisitionObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->fs);
+  return PyFloat_FromDouble (((self->handle->search->fs)));
 }
 static PyObject *
 Acquisition_getprop_chip_rate (AcquisitionObject *self,
@@ -1078,7 +1081,7 @@ Acquisition_getprop_chip_rate (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->chip_rate);
+  return PyFloat_FromDouble (((self->handle->search->chip_rate)));
 }
 static PyObject *
 Acquisition_getprop_cn0_dbhz (AcquisitionObject *self,
@@ -1089,7 +1092,7 @@ Acquisition_getprop_cn0_dbhz (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->cn0_dbhz);
+  return PyFloat_FromDouble (((self->handle->search->cn0_dbhz)));
 }
 static PyObject *
 Acquisition_getprop_doppler_span_hz (AcquisitionObject *self,
@@ -1100,7 +1103,7 @@ Acquisition_getprop_doppler_span_hz (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->doppler_span_hz);
+  return PyFloat_FromDouble (((self->handle->search->doppler_span_hz)));
 }
 static PyObject *
 Acquisition_getprop_doppler_res_hz (AcquisitionObject *self,
@@ -1111,7 +1114,7 @@ Acquisition_getprop_doppler_res_hz (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->doppler_res_hz);
+  return PyFloat_FromDouble (((self->handle->search->doppler_res_hz)));
 }
 static PyObject *
 Acquisition_getprop_pd (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -1121,7 +1124,7 @@ Acquisition_getprop_pd (AcquisitionObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->pd);
+  return PyFloat_FromDouble (((self->handle->search->pd)));
 }
 static PyObject *
 Acquisition_getprop_underpowered (AcquisitionObject *self,
@@ -1132,7 +1135,7 @@ Acquisition_getprop_underpowered (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyBool_FromLong ((long)(self->handle->underpowered));
+  return PyBool_FromLong ((long)(((self->handle->search->underpowered))));
 }
 static PyObject *
 Acquisition_getprop_symbol_rate (AcquisitionObject *self,
@@ -1143,7 +1146,7 @@ Acquisition_getprop_symbol_rate (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->symbol_rate);
+  return PyFloat_FromDouble (((self->handle->search->symbol_rate)));
 }
 static PyObject *
 Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
@@ -1154,7 +1157,7 @@ Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->epochs_per_symbol);
+  return PyFloat_FromDouble (((self->handle->search->epochs_per_symbol)));
 }
 static PyObject *
 Acquisition_getprop_threads (AcquisitionObject *self,
@@ -1165,7 +1168,7 @@ Acquisition_getprop_threads (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)self->handle->threads);
+  return PyLong_FromLong ((long)((self->handle->search->threads)));
 }
 static PyObject *
 Acquisition_getprop_keep_surface (AcquisitionObject *self,
@@ -1176,7 +1179,7 @@ Acquisition_getprop_keep_surface (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)self->handle->keep_surface);
+  return PyLong_FromLong ((long)((self->handle->search->keep_surface)));
 }
 static int
 Acquisition_setprop_keep_surface (AcquisitionObject *self, PyObject *value,
@@ -1195,7 +1198,7 @@ Acquisition_setprop_keep_surface (AcquisitionObject *self, PyObject *value,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return -1;
     }
-  self->handle->keep_surface = v;
+  dp_correlator_set_keep_surface (self->handle, v);
   return 0;
 }
 static PyObject *
@@ -1207,8 +1210,8 @@ Acquisition_getprop_surface_rows (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->n_surf / self->handle->lag_bins)));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)((
+      self->handle->search->n_surf / self->handle->search->lag_bins)));
 }
 static PyObject *
 Acquisition_getprop_surface_at (AcquisitionObject *self,
@@ -1220,7 +1223,7 @@ Acquisition_getprop_surface_at (AcquisitionObject *self,
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->surface_at);
+      (unsigned long long)((self->handle->search->surface_at)));
 }
 static PyObject *
 Acquisition_getprop_n_peaks (AcquisitionObject *self,
@@ -1243,7 +1246,7 @@ Acquisition_getprop_n_held (AcquisitionObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->n_held);
+      (unsigned long long)((self->handle->search->n_held)));
 }
 static PyObject *
 Acquisition_getprop_peak_conc (AcquisitionObject *self,
@@ -1254,7 +1257,7 @@ Acquisition_getprop_peak_conc (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)self->handle->peak_conc);
+  return PyFloat_FromDouble ((double)((self->handle->search->peak_conc)));
 }
 
 static PyGetSetDef Acquisition_getset[] = {
@@ -1404,7 +1407,7 @@ AcquisitionObj_destroy (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
           self->handle = _jm_st;
           return NULL;
         }
-      dp_acq_destroy (_jm_st);
+      dp_correlator_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
@@ -1431,92 +1434,82 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
           self->handle = _jm_st;
           return NULL;
         }
-      dp_acq_destroy (_jm_st);
+      dp_correlator_destroy (_jm_st);
     }
   Py_RETURN_NONE;
 }
 
 static PyMethodDef AcquisitionObj_methods[] = {
   { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
-    "Drain the input ring and reset the coherent accumulator.\n"
-    "\n"
-    "Discards any buffered samples that have not yet completed a frame and\n"
-    "clears the non-coherent power accumulator and dwell bookkeeping, so the\n"
-    "next push() begins a fresh search from an empty ring. The construction\n"
-    "parameters — grid, thresholds, and PN reference — are untouched; only\n"
-    "the in-flight streaming state is dropped.\n"
+    "Zero the accumulator and reset the integration counter to 0.\n"
+    "Equivalent to starting a fresh dwell cycle without rebuilding FFT plans\n"
+    "or recomputing ref_spec. (A detector flavor resets its stream too: see\n"
+    "the detector flavors' section below.)\n"
     "\n"
     "Examples\n"
     "--------\n"
+    ">>> from doppler.spectral import Corr2D\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.acquire import Acquisition\n"
-    ">>> from doppler.wfm import PN, mls_poly\n"
-    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
-    "...                      length=5).generate(31)).astype(np.uint8)\n"
-    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
-    "...     np.complex64)\n"
-    ">>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)\n"
-    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
-    "cn0_dbhz=50.0)\n"
-    ">>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream\n"
-    ">>> a.reset()                 # drop it before it can bias a detection\n"
-    ">>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)\n"
-    "(0, 18)\n" },
+    ">>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0\n"
+    ">>> c = Corr2D(ref=ref, dwell=3)\n"
+    ">>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))\n"
+    ">>> c.count\n"
+    "1\n"
+    ">>> c.reset()\n"
+    ">>> c.count\n"
+    "0\n" },
 
   { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
     "\n"
-    "Stream raw samples; emit one event per CFAR dump above threshold.\n"
+    "Stream an arbitrary-length CF32 chunk through a detector flavor.\n"
     "\n"
-    "Buffers x, then for every complete frame applies the slow-time Doppler\n"
-    "FFT, correlates against the PN reference, dumps the coherent surface\n"
-    "(or, when n_noncoh > 1, accumulates |·|² over n_noncoh looks first),\n"
-    "gates the peak on the auto-configured threshold, and appends an\n"
-    "acq_result_t. Each event carries the peak's Doppler bin and code phase\n"
-    "(the two search axes), its CFAR statistic, and an estimated C/N0 — see\n"
-    "acq_result_t.\n"
+    "Takes the input in order, runs each complete n-sample frame (n = ny*nx)\n"
+    "through the correlator, and on every dump computes the test statistic\n"
+    "peak_mag / noise_est. Each dump that passes the threshold is one hit.\n"
+    "In Python the result is always a list: of (row, col, peak_mag,\n"
+    "noise_est, test_stat) tuples from CorrDetector2D, and of (lag,\n"
+    "peak_mag, noise_est, test_stat) tuples from CorrDetector, whose lag is\n"
+    "the hit's col.\n"
     "\n"
-    "Python's push() has room for 1024 events a call, so a push that ends at\n"
-    "most 1024 / max_peaks dwells, counting the carry, loses nothing. Once\n"
-    "fewer than max_peaks slots are left, the call stops before the next\n"
-    "frame that would end a dwell -- and once all 1024 are used, before the\n"
-    "next frame of any kind -- and the rest of its input is lost, unless the\n"
-    "rest completes no frame, counting the carry already held: that is kept\n"
-    "as the carry. The next push stays on the frame grid only when what was\n"
-    "lost is a whole number of frames. Before v0.66 the room was 64, and a\n"
-    "push past it kept up to ring_cap/frame_n - 1 frames for the next call,\n"
-    "dropped the rest, and could cut a dwell's list short. #1992 and\n"
+    "Python's push() has room for 1024 detections a call, so a push that\n"
+    "completes at most 1024 frames, counting the carry, loses nothing. One\n"
+    "that fills the room loses the rest of its input, every later frame\n"
+    "whether or not it would have made a detection, unless the rest is\n"
+    "shorter than a frame: that is kept as the carry. The next push stays on\n"
+    "the frame grid only when what was lost is a whole number of frames;\n"
+    "otherwise its peaks are off by the remainder. #1992 and\n"
     "just-buildit/just-makeit#2184 track sizing the list to the call.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
-    "    Raw input, interleaved CF32, n_in complex samples.\n"
+    "    Input.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "list[tuple]\n"
-    "    Number of events written (0 … max_results).\n"
+    "    Python: the list of hits, empty when no dump passed the gate. C:\n"
+    "    the number of hits written to result, or SIZE_MAX (nothing taken,\n"
+    "    nothing changed) when state is a map flavor.\n"
     "\n"
     "Examples\n"
     "--------\n"
+    ">>> from doppler.spectral import CorrDetector, CorrDetector2D\n"
     ">>> import numpy as np\n"
-    ">>> from doppler.acquire import Acquisition\n"
-    ">>> from doppler.wfm import PN, mls_poly\n"
-    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
-    "...                      length=5).generate(31)).astype(np.uint8)\n"
-    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
-    "...     np.complex64)\n"
-    ">>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, "
-    "cn0_dbhz=50.0,\n"
-    "...                 doppler_uncertainty=40e3)\n"
-    ">>> fs = 4e6                        # the sample_rate passed above\n"
-    ">>> t = np.arange(a.code_bins * a.n_noncoh)\n"
-    ">>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)\n"
-    ">>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)\n"
-    "...        * carrier).astype(np.complex64)\n"
-    ">>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)\n"
-    "(1, 18)\n" },
+    ">>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0\n"
+    ">>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,\n"
+    "...                  noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> results = det.push(np.ones((4, 4), dtype=np.complex64))\n"
+    ">>> row, col, peak, noise, stat = results[0]\n"
+    ">>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)\n"
+    "(0, 0, 1.0, 1.0, 1.0)\n"
+    ">>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,\n"
+    "...                 noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> lag, peak, noise, stat = det1.push(np.ones(4, "
+    "dtype=np.complex64))[0]\n"
+    ">>> lag, round(peak, 4), round(noise, 4), round(stat, 4)\n"
+    "(0, 1.0, 1.0, 1.0)\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)AcquisitionObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,
@@ -1537,10 +1530,11 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "Resizes every buffer/plan that depends on the grid (the slow-time FFT,\n"
     "the code correlator, the reference, and every per-frame scratch\n"
     "buffer), re-derives the threshold ladder for the pinned grid from the\n"
-    "same physics dp_acq_create_burst()/dp_acq_create_continuous() used, and\n"
-    "clears in-flight accumulation (ring contents, the non-coherent power\n"
-    "accumulator, dwell bookkeeping) — call between push() calls, never a\n"
-    "substitute for one.\n"
+    "same physics\n"
+    "dp_correlator_create_burst()/dp_correlator_create_continuous() used,\n"
+    "and clears in-flight accumulation (ring contents, the non-coherent\n"
+    "power accumulator, dwell bookkeeping) — call between push() calls,\n"
+    "never a substitute for one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1548,7 +1542,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "    Coherent depth to pin, in `[1, reps]`.\n"
     "n_noncoh : int\n"
     "    Non-coherent look count to pin, in `[1,\n"
-    "    ACQ_N_NONCOH_SAFETY_CEILING]`.\n"
+    "    DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1602,16 +1596,16 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "transition inside the epoch splits one emitter into twins at its own\n"
     "code phase on other tiles, so such a peak is held for one dwell and\n"
     "listed only if it was there, at the same tile, on the previous one.\n"
-    "Each listed peak is one acq_result_t from dp_acq_push(), all of a\n"
-    "dwell's sharing its `samples_consumed` and `noise_est`. A held twin\n"
-    "takes a slot of the `n` for that dwell but is not reported. The\n"
+    "Each listed peak is one dp_correlator_hit_t from dp_correlator_push(),\n"
+    "all of a dwell's sharing its `samples_consumed` and `noise_est`. A held\n"
+    "twin takes a slot of the `n` for that dwell but is not reported. The\n"
     "threshold does not change: a second peak is another draw from the same\n"
     "cells against the same union bound. Clears the held candidates.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "n : int\n"
-    "    1 … ACQ_MAX_PEAKS.\n"
+    "    1 … DP_CORRELATOR_MAX_PEAKS.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1664,15 +1658,16 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "  grid 4 times finer and rounded. The bound is 0.09 dB, the worst over\n"
     "  33 tones and three dilations (docs/design/acq-surface.md §18.1); the\n"
     "  engine measures 0.020-0.026 dB on its equivalence test's carrier\n"
-    "  scenes. dp_acq_block_prompt() applies it exactly. A change of carrier\n"
-    "  mid-block applies to the whole block. Measured at the specification's\n"
-    "  20 ppm with D = 154 (3.1 chips of drift across the block): without it\n"
-    "  the block's peak is 13 dB down and 3 chips wide and the depth detects\n"
-    "  nothing at 34 dB-Hz; with it the block reads as a still one.\n"
-    "- **The hand-off** (dp_acq_build_handoff()) advances the hit's code\n"
-    "  phase by the drift over half the dwell -- the non-coherent sum's peak\n"
-    "  is the phase at the dwell's middle, the seed is wanted at its end:\n"
-    "  0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.\n"
+    "  scenes. dp_correlator_block_prompt() applies it exactly. A change of\n"
+    "  carrier mid-block applies to the whole block. Measured at the\n"
+    "  specification's 20 ppm with D = 154 (3.1 chips of drift across the\n"
+    "  block): without it the block's peak is 13 dB down and 3 chips wide\n"
+    "  and the depth detects nothing at 34 dB-Hz; with it the block reads as\n"
+    "  a still one.\n"
+    "- **The hand-off** (dp_correlator_build_handoff()) advances the hit's\n"
+    "  code phase by the drift over half the dwell -- the non-coherent sum's\n"
+    "  peak is the phase at the dwell's middle, the seed is wanted at its\n"
+    "  end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.\n"
     "\n"
     "A mutator's value (#2022): it rides in the state blob (v8), and a\n"
     "restore takes it through this setter's rebuild, so a resumed engine\n"
@@ -1779,10 +1774,11 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\"<prefix>.peak\" (the strongest cell's raw value), \"<prefix>.row\" "
     "and\n"
     "\"<prefix>.col\" (its native Doppler row and code-phase column — a\n"
-    "surface coordinate, not a physical unit; dp_acq_surface_doppler_hz()\n"
-    "and dp_acq_surface_chip_phase() convert), \"<prefix>.n_peaks\" (picks "
-    "in\n"
-    "the dwell, held twins included), \"<prefix>.n_held\" (picks held as\n"
+    "surface coordinate, not a physical unit;\n"
+    "dp_correlator_surface_doppler_hz() and\n"
+    "dp_correlator_surface_chip_phase() convert), \"<prefix>.n_peaks\" "
+    "(picks\n"
+    "in the dwell, held twins included), \"<prefix>.n_held\" (picks held as\n"
     "same-code-phase twins rather than listed, §7.1), \"<prefix>.conc\" (the\n"
     "strongest pick's concentration — see `peak_conc`: its main lobe's power\n"
     "over its whole column's, near 1 for one clean emitter even when it\n"
@@ -1840,9 +1836,9 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on\n"
     "the non-coherent path) is a flat plane on a plot. The engine keeps this\n"
     "only while `keep_surface` is set (a caller sets it, or\n"
-    "dp_acq_set_surface_sink() does): set it, push, then read. `surface_at`\n"
-    "says which dwell it is; a time-decimated record is the caller reading\n"
-    "every k-th dwell, or a sink with `decim`.\n"
+    "dp_correlator_set_surface_sink() does): set it, push, then read.\n"
+    "`surface_at` says which dwell it is; a time-decimated record is the\n"
+    "caller reading every k-th dwell, or a sink with `decim`.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1885,7 +1881,8 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "One value per surface row, the fold and scale a hit's `doppler_hz_est`\n"
     "uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated\n"
     "grid where the slow-time axis is interpolated), so a plot of\n"
-    "dp_acq_surface() carries the same axis a DetectionEvent reports on.\n"
+    "dp_correlator_surface() carries the same axis a DetectionEvent reports\n"
+    "on.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1920,7 +1917,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "The surface's code-phase axis: the chip phase of each column.\n"
     "\n"
     "One value per surface column, in chips, the same mapping\n"
-    "dp_acq_build_handoff() applies to a hit's `code_phase` — so a plotted\n"
+    "dp_correlator_build_handoff() applies to a hit's `col` — so a plotted\n"
     "peak sits at the chip phase the DetectionEvent would carry.\n"
     "\n"
     "Parameters\n"
@@ -1955,9 +1952,9 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "phase per cell, before the magnitude the gate reads.\n"
     "\n"
     "Copies the coherent sum the last dwell was decided on into out,\n"
-    "row-major `surface_rows` x `lag_bins` like dp_acq_surface(), in the\n"
-    "correlation's own units rather than the gate's. A cell's phase is the\n"
-    "carrier at the block's middle, relative to its tile's centre; its\n"
+    "row-major `surface_rows` x `lag_bins` like dp_correlator_surface(), in\n"
+    "the correlation's own units rather than the gate's. A cell's phase is\n"
+    "the carrier at the block's middle, relative to its tile's centre; its\n"
     "neighbours along the code axis are complex early and late arms, so a\n"
     "tracker can form the coherent discriminator `Re(conj(P) (L - E)) /\n"
     "|P|^2`, which the magnitude surface cannot\n"
@@ -2065,11 +2062,11 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\n"
     "Copies the `coherent_bins * code_bins` samples the block-coherent\n"
     "engine gathered for its last whole block into out, epoch by epoch in\n"
-    "stream order — the samples dp_acq_push() consumed, untouched. Kept for\n"
-    "the tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker\n"
-    "can re-correlate them at any code phase, rate or symbol boundary the\n"
-    "engine's own grid does not have — a symbol-rate despreader at the\n"
-    "tracked timing runs on exactly this\n"
+    "stream order — the samples dp_correlator_push() consumed, untouched.\n"
+    "Kept for the tile-edge re-ask (search_resolve_tile_alias()); exposed so\n"
+    "a tracker can re-correlate them at any code phase, rate or symbol\n"
+    "boundary the engine's own grid does not have — a symbol-rate despreader\n"
+    "at the tracked timing runs on exactly this\n"
     "(docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a\n"
     "block is whole, until the next epoch is pushed.\n"
     "\n"
@@ -2225,9 +2222,10 @@ static PyTypeObject AcquisitionObjType = {
     "    sample_rate * code_len / chip_rate` samples, which must be a whole\n"
     "    number of at least code_len: the search's transforms are n points "
     "long,\n"
-    "    so a smooth n (a power of two, dp_acq_period_samples()) is what "
-    "makes\n"
-    "    them fast. When n is a multiple of code_len each chip is held n /\n"
+    "    so a smooth n (a power of two, dp_correlator_period_samples()) is "
+    "what\n"
+    "    makes them fast. When n is a multiple of code_len each chip is held "
+    "n /\n"
     "    code_len samples; otherwise each sample takes the chip its centre "
     "falls\n"
     "    in, and the correlation shape is measured from that replica.\n"
@@ -2235,10 +2233,11 @@ static PyTypeObject AcquisitionObjType = {
     "    Chip rate in Hz (> 0).\n"
     "symbol_rate : float, default 1000.0\n"
     "    Continuous data-symbol rate in Hz; <= 0 means no known clock.\n"
-    "    Diagnostic only (exposed via dp_acq_state_t::epochs_per_symbol),\n"
-    "    doesn't feed sizing: this engine never coherently combines "
-    "regardless\n"
-    "    of the data-modulation clock.\n"
+    "    Diagnostic only (exposed via\n"
+    "    dp_correlator_search_t::epochs_per_symbol), doesn't feed sizing: "
+    "this\n"
+    "    engine never coherently combines regardless of the data-modulation\n"
+    "    clock.\n"
     "cn0_dbhz : float, default 50.0\n"
     "    Carrier-to-noise density in dB-Hz: any finite value. A continuous\n"
     "    engine needs one -- its non-coherent looks cannot be chosen without "
@@ -2289,11 +2288,10 @@ static PyTypeObject AcquisitionObjType = {
     "Warns\n"
     "-----\n"
     "UserWarning\n"
-    "    Emitted after construction when ``underpowered`` holds: "
-    "``Acquisition\n"
-    "    is under-powered: pd_predicted < pd at this cn0_dbhz. Raise cn0_dbhz "
-    "or\n"
-    "    narrow doppler_uncertainty.``.\n"
+    "    Emitted after construction when "
+    "``self->handle->search->underpowered``\n"
+    "    holds: ``Acquisition is under-powered: pd_predicted < pd at this\n"
+    "    cn0_dbhz. Raise cn0_dbhz or narrow doppler_uncertainty.``.\n"
     "\n"
     "Examples\n"
     "--------\n"

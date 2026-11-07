@@ -10,21 +10,21 @@ target_link_libraries(bench_async_dsss_receiver_core PRIVATE awgn_core)
 # (#2846). The test compiles async_dsss_receiver_core.c INTO itself, so its
 # link line is the core's dependency list without async_dsss_receiver_core,
 # and it renames the two calls that can fail for that translation unit only:
-# dp_tlm_create (the scratch context) and dp_acq_set_telemetry (the
+# dp_tlm_create (the scratch context) and dp_correlator_set_telemetry (the
 # searcher's attach, which builds a scratch of its own). The counted
 # stand-ins live in their own file, compiled with the renames undone, so
-# they call the real ones. The pattern is test_acq_regrid_failure's.
+# they call the real ones. The pattern is test_correlator_regrid_failure's.
 add_executable(test_adr_telemetry_oom
     ${CMAKE_SOURCE_DIR}/native/tests/async_dsss_receiver/test_adr_telemetry_oom.c
     ${CMAKE_SOURCE_DIR}/native/tests/async_dsss_receiver/adr_tlm_hook.c)
 target_compile_definitions(test_adr_telemetry_oom PRIVATE
     dp_tlm_create=adr_test_tlm_create
-    dp_acq_set_telemetry=adr_test_acq_set_telemetry)
+    dp_correlator_set_telemetry=adr_test_acq_set_telemetry)
 set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/native/tests/async_dsss_receiver/adr_tlm_hook.c
     PROPERTIES COMPILE_OPTIONS "-Udp_tlm_create;-Udp_acq_set_telemetry")
 target_link_libraries(test_adr_telemetry_oom PRIVATE
-    wfm_dsp_core gold_core snr_core ber_core acq_core correlator_core fft2d_core
+    wfm_dsp_core gold_core snr_core ber_core correlator_core fft2d_core
     fft_core detection_core dp_tlm_core cvt_core carrier_acq_core psd_core
     spectral_core acc_trace_core correlator_core dll_core
     loop_filter_core lockdet_core costas_core lo_core RateConverter_core

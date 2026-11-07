@@ -103,8 +103,8 @@ ______________________________________________________________________
 ### 2.1 Two front doors, one engine
 
 `Acquisition` (continuous) and `BurstAcquisition` are two public
-constructors over one `dp_acq_state_t`
-(`native/inc/doppler/acq/acq_core.h`), each exposing only the parameters
+constructors over one `dp_correlator_state_t`
+(`native/inc/doppler/correlator/correlator_core.h`), each exposing only the parameters
 that mean something for it rather than one class with a `mode` and
 per-parameter "ignored here" caveats. State, auto-sizing, `push()` and
 serialization are shared. `Acquisition` takes the code, `sample_rate`,
@@ -120,7 +120,7 @@ rolls one epoch's spectrum across when the uncertainty is wider than one
 epoch's span ([`acq-surface.md`](acq-surface.md) §3).
 Non-coherent looks are a separate axis. On the continuous door `n_noncoh`
 is auto-selected to meet `pd` at `pfa` and read-only, bounded only by a
-safety valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256 looks) because the
+safety valve (`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING`, 256 looks) because the
 semi-analytical `pd_predicted` model turns non-monotonic past it. A burst
 engine never adds looks: it sizes on the burst and reports `underpowered`.
 
@@ -141,13 +141,13 @@ the epoch-by-epoch search. `AsyncDsssReceiver` takes the window as a time,
 
 ### 2.2 A detection is a physical record, never a grid index
 
-`acq_handoff_t` (`native/inc/doppler/acq/acq_core.h`) is the data; the
+`dp_correlator_handoff_t` (`native/inc/doppler/correlator/correlator_core.h`) is the data; the
 *hand-off* is the action that turns a raw `push()` hit into it and gives it
 to the next stage. The record crosses a thread or process boundary, so it
 cannot be the grid-relative `(doppler_bin, code_phase)`, which mean nothing
 without also shipping the emitting engine's `spc` and `doppler_res_hz`.
 Every field is in a physical unit and the record is a flat, pointer-free
-POD. `dp_acq_build_handoff()` builds one from each hit of a continuous
+POD. `dp_correlator_build_handoff()` builds one from each hit of a continuous
 engine. `AsyncDsssReceiver`'s `seed()` takes three of its fields,
 `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est`, and the receiver's own
 hit takes that same path. A hit whose Doppler is at or past half the sample
@@ -171,11 +171,11 @@ at its `samples_consumed` (§11.3). The field list is the header's own.
 
 **`chip_phase` is where the code will be, not where it was.** A hit is
 decided at its dwell's end and the seed is wanted at the next sample, so
-`dp_acq_build_handoff()` advances the phase by the drift over half the
+`dp_correlator_build_handoff()` advances the phase by the drift over half the
 dwell on the hit's own Doppler. **Neither constructor takes a
 `carrier_freq`**: the engine works in baseband Doppler Hz, and a
 baseband-only caller never has to name one. A caller that knows the carrier
-tells the engine afterwards (`dp_acq_set_carrier_freq_hz()` /
+tells the engine afterwards (`dp_correlator_set_carrier_freq_hz()` /
 `set_carrier_freq_hz`), which turns on that advance and, inside a coherent
 block of `D > 1` epochs, aligns the block's epochs on the dilated code
 clock. `AsyncDsssReceiver` passes its own `carrier_freq_hz` on.
@@ -232,7 +232,7 @@ there (`test_async_dsss_receiver_core.c`,
 
 **The engine's windowing ships.** Its roll of one epoch's spectrum across
 frequency windows, the alias check a pick near a window's edge gets
-(`acq_resolve_tile_alias`), and the roll per thread on persistent workers
+(`search_resolve_tile_alias`), and the roll per thread on persistent workers
 are current engine behavior, and the pool's search runs on them. Their design text is §2.3 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)
 until it moves to [`acq-surface.md`](acq-surface.md)
@@ -257,8 +257,8 @@ blob. `AsyncDsssReceiver.set_telemetry` forwards them as `<prefix>.acq`.
     then `surface(out)` gives every cell divided by the reference the gate
     used, so a cell reads as its own test statistic and the gate is a flat
     plane on a plot, with `surface_doppler_hz()`/`surface_chip_phase()` as
-    its axes, from the same mapping an `acq_handoff_t` carries.
-    `dp_acq_set_surface_sink(fn, ctx, decim)` hands every `decim`-th
+    its axes, from the same mapping an `dp_correlator_handoff_t` carries.
+    `dp_correlator_set_surface_sink(fn, ctx, decim)` hands every `decim`-th
     dwell's surface to a callback on the pushing thread. Underneath,
     `surface_complex(out)` is the coherent dump the last dwell was decided
     on, `block_prompt(tile, col, out)` one cell's `D` per-epoch correlations
@@ -603,7 +603,7 @@ receiver in a pool is §6; this section is the chain under both.
     `Acquisition` (§2)
     over `±doppler_uncertainty`, at the coherent depth `D` its code-only
     window sizes (§2.3; `D = 1`, one epoch a look, without one). A hit becomes
-    a seed through `dp_acq_build_handoff()` and `seed()`, and the
+    a seed through `dp_correlator_build_handoff()` and `seed()`, and the
     unconsumed tail of the same call goes straight on. A hit at or past
     half the sample rate is outside the seed domain: it is refused, counted
     in `refused_hits`, and the search goes on over its tail. In a pool the
@@ -883,7 +883,7 @@ controller to the one search's. The engine is asked for 16 peaks a dwell.
     the detector's own gate. Each stronger signal contributes its
     statistic on its own lag (`test_stat_peak`: a straddle between two lag
     columns put back, since its sidelobes keep their level) times the
-    code's ambiguity from it to that cell (`dp_acq_sidelobe_ratio()`,
+    code's ambiguity from it to that cell (`dp_correlator_sidelobe_ratio()`,
     computed the way the surface is made, over what the hits leave
     unknown). That is the worst sidelobe level only at the worst cells;
     bounded by it everywhere, as it was until 2026-11-01, a signal at the
@@ -893,7 +893,7 @@ controller to the one search's. The engine is asked for 16 peaks a dwell.
     Doppler row (modulo the epoch rate) and its neighbours when that is
     larger, because two signals on one row can stack their sidelobes on
     one cell (doppler#2554, doppler#2556). A deep block keeps the worst
-    sidelobe level (`dp_acq_dsl_db()`, read at create) as a floor under
+    sidelobe level (`dp_correlator_dsl_db()`, read at create) as a floor under
     each ratio: with data inside the block a strong signal's own data
     splatter adds to a cell beyond its ambiguity, and is not modelled yet
     (doppler#2730). Noise riding on a sidelobe lifts it by no more than
@@ -948,7 +948,7 @@ $D = 90$); from +4 dB there are none, and the validator gates that.
 | +18 dB                     | 13 of 32 (0.26–0.58)  | 0 of 17 (0.00–0.18)    |
 | +20 dB                     | 7 of 34 (0.10–0.37)   | 0 of 17 (0.00–0.18)    |
 
-Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s. b15233152 is a pre-squash commit of #2731, not an ancestor of the merged head; its rule-2 code (adr_pick, adr_sidelobe_bound, dp_acq_sidelobe_ratio, acq_sidelobe_row, acq_peak_on_lag) is byte-identical to the squashed commit's, so the data stands (doppler#2735).
+Sidelobes taken, with or without the weaker emitter, over every row: 0. Run `validate_async_dsss_near_far --emit` at `b15233152`, 2026-11-01 20:05 UTC on `zen-x2elite-x`, 1343.6 s. b15233152 is a pre-squash commit of #2731, not an ancestor of the merged head; its rule-2 code (adr_pick, adr_sidelobe_bound, the sidelobe ratio (dp_correlator_sidelobe_ratio now), acq_sidelobe_row, acq_peak_on_lag) is byte-identical to the squashed commit's, so the data stands (doppler#2735).
 
 <!-- async-dsss-pool:design-near-far:end -->
 
@@ -1206,7 +1206,7 @@ ______________________________________________________________________
 
 - **Not a burst receiver.** No preamble, no `reps`, no capture ring, no
     frame demodulator. The data-free block is a coherence opportunity, not a
-    preamble, and the search's product is an `acq_handoff_t`. Bursts are
+    preamble, and the search's product is an `dp_correlator_handoff_t`. Bursts are
     [`burst-bank.md`](burst-bank.md)'s and
     [`dsss-burst-receiver.md`](dsss-burst-receiver.md)'s.
 - **No clock inside.** No engine, receiver or record here reads a time;
@@ -1226,7 +1226,7 @@ ______________________________________________________________________
 - [`acq-surface.md`](acq-surface.md) — the acquisition engine
     under §2: the windowing, the CFAR gate, what is open.
 - [`dsss-burst-receiver.md`](dsss-burst-receiver.md) — the burst chain,
-    which shares §2.2's `acq_handoff_t`.
+    which shares §2.2's `dp_correlator_handoff_t`.
 - [`burst-bank.md`](burst-bank.md) — the burst bank this page's continuous
     case was split from.
 - [AsyncDsssReceiver: the specification waveform](../gallery/async-dsss-receiver-spec.md)

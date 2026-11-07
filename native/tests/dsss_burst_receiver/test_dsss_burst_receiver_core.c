@@ -485,7 +485,7 @@ test_decodes_under_residual_doppler (void)
 {
   dp_dsss_burst_receiver_state_t *probe = make_rx ();
   DP_REQUIRE (probe != NULL);
-  double res_hz = probe->cap->acq->engine->doppler_res_hz;
+  double res_hz = probe->cap->acq->engine->search->doppler_res_hz;
   double fs     = 1.0e6 * (double)SPC;
   dp_dsss_burst_receiver_destroy (probe);
 
@@ -790,7 +790,7 @@ test_one_burst_many_detections_is_claimed_once (void)
   DP_REQUIRE (dp_dsss_burst_receiver_configure_search_raw (s, 1, 1) == 0);
   /* The frame really is one code period now -- otherwise the preamble would
      not span several frames and this test would prove nothing. */
-  DP_REQUIRE (s->cap->acq->engine->n == s->cap->code_period);
+  DP_REQUIRE (s->cap->acq->engine->search->n == s->cap->code_period);
 
   const size_t AT = 5000;
   static float _Complex cap[40000];
@@ -974,8 +974,8 @@ test_every_burst_survives_any_block_size (void)
   return 0;
 }
 
-/* dp_acq_push() takes no more than its result array has room for, and the
- * caller offers it the rest again. push() slices at chunk_max, so a chunk
+/* dp_correlator_push() takes no more than its result array has room for, and
+ * the caller offers it the rest again. push() slices at chunk_max, so a chunk
  * can easily carry more than BURST_CAPTURE_HITS dumps -- so it keeps looping
  * until acq has absorbed the whole chunk. A single dp_burst_acq_push() per
  * chunk would leave acq un-fed over samples this object is holding, losing

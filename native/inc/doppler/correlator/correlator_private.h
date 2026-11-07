@@ -425,7 +425,7 @@ det_framed_push (dp_f32_framer_t *fr, const float _Complex *in, size_t n_in,
 }
 
 /* ── The search flavors' halves of the shared functions (#2752 3.4b) ───────
- * correlator_search.c defines them; dp_correlator_push, _reset, _destroy and
+ * correlator_core.c's search section defines them; dp_correlator_push, _reset, _destroy and
  * the state triplet dispatch to them on the flavor (correlator_core.c), so
  * a caller names only the one function. */
 /**

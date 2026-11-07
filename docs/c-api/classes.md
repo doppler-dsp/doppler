@@ -4,12 +4,6 @@
 
 ## a
 
-* [**acq\_extra\_t**](structacq__extra__t.md)
-* [**acq\_handoff\_t**](structacq__handoff__t.md)
-* [**acq\_part\_t**](structacq__part__t.md)
-* [**acq\_result\_t**](structacq__result__t.md)
-* [**acq\_shape\_t**](structacq__shape__t.md)
-* [**acq\_tlm\_t**](structacq__tlm__t.md)
 * [**agc\_tlm\_t**](structagc__tlm__t.md)
 * [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md)
 * [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md)
@@ -52,7 +46,6 @@
 * [**dp\_acc\_q15\_state\_t**](structdp__acc__q15__state__t.md)
 * [**dp\_acc\_q8\_state\_t**](structdp__acc__q8__state__t.md)
 * [**dp\_acc\_trace\_state\_t**](structdp__acc__trace__state__t.md)
-* [**dp\_acq\_state\_t**](structdp__acq__state__t.md)
 * [**dp\_adc\_state\_t**](structdp__adc__state__t.md)
 * [**dp\_agc\_state\_t**](structdp__agc__state__t.md)
 * [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md)

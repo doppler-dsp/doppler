@@ -1791,8 +1791,21 @@ Corr2DObj_set_state (Corr2DObject *self, PyObject *arg)
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (dp_correlator_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  int _rc = dp_correlator_set_state (self->handle, PyBytes_AS_STRING (arg));
+  if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_MEMORY:
+          PyErr_SetString (
+              PyExc_MemoryError,
+              "set_state: the blob's carrier needs the delay-Doppler map "
+              "rebuilt, "
+              "and the rebuild could not allocate; the engine is unchanged");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
     }
@@ -2573,14 +2586,25 @@ static PyMethodDef Corr2DObj_methods[] = {
     "a blob built differently.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
-    "length differs from `state_bytes()` or the core rejects it, and\n"
-    "``RuntimeError`` if the Corr2D has already been destroyed.\n"
+    "length differs from `state_bytes()`, the exception listed under Raises\n"
+    "if the core rejects it, and ``RuntimeError`` if the Corr2D has already\n"
+    "been destroyed.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "blob : bytes\n"
-    "    A `get_state()` blob from this type, exactly `state_bytes()` "
-    "long.\n" },
+    "    A `get_state()` blob from this type, exactly `state_bytes()` long.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    ``set_state: the blob's carrier needs the delay-Doppler map\n"
+    "    rebuilt, and the rebuild could not allocate; the engine is\n"
+    "    unchanged``.\n"
+    "ValueError\n"
+    "    If the C core rejects the blob with any other non-zero status. The\n"
+    "    exception message is ``set_state rejected the blob``.\n" },
   { "destroy", (PyCFunction)Corr2DObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

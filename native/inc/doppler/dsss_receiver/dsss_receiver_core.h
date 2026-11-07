@@ -16,7 +16,7 @@
  *   - **searching** (`tracking() == 0`): samples feed the embedded
  *     `Acquisition`. Nothing is emitted. On a hit, the carrier loop/
  *     `Dll`/`RateConverter`/`MpskReceiver` are built from the hit's code
- *     phase and Doppler estimate (the exact `acq_result_t::chip_phase`
+ *     phase and Doppler estimate (the exact `dp_correlator_hit_t::chip_phase`
  *     hand-off phase and `RateConverter`-bridged sample-rate hand-off
  *     this repo's gallery pages validated by hand), and the **unconsumed
  *     tail** of the same `steps()` call is handed straight to them — no
@@ -65,7 +65,7 @@
 #define DP_DSSS_RECEIVER_CORE_H
 
 #include "doppler/RateConverter/RateConverter_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/cic/cic_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -100,7 +100,7 @@ extern "C"
    */
   typedef struct
   {
-    dp_acq_state_t           *acq; /**< Owned continuous acquisition engine;
+    dp_correlator_state_t           *acq; /**< Owned continuous acquisition engine;
                                       fed while `tracking` is 0. */
     dp_dll_state_t           *dll; /**< Owned code loop (despreader); always
                                       allocated, rebuilt on each hit,
@@ -141,7 +141,7 @@ extern "C"
     float _Complex *trk_rc_buf;
     size_t         trk_rc_cap; /**< Capacity of `trk_rc_buf`, samples. */
 
-    /** Own copy of the spreading code -- dp_acq_create_continuous()/
+    /** Own copy of the spreading code -- dp_correlator_create_continuous()/
      * dp_dll_create()'s own borrow-vs-copy semantics aren't part of either's
      * public contract,
      * so this object keeps a persistent copy rather than depend on being
@@ -187,10 +187,10 @@ extern "C"
    * Only `code`/`chip_rate`/`symbol_rate` describe the signal itself —
    * everything else is a physically-motivated default a caller can
    * override, not a requirement. Internally: the embedded `Acquisition`
-   * is built via `dp_acq_create_continuous()` (this receiver is inherently
+   * is built via `dp_correlator_create_continuous()` (this receiver is inherently
    * continuous/streaming) -- always window-tiles, never coherently
    * combines across epochs, sensitivity purely from an internally
-   * auto-sized non-coherent look count (see `acq_core.h`'s file doc
+   * auto-sized non-coherent look count (see `correlator_core.h`'s file doc
    * comment); `Dll` always uses `bn=0.002` (this story's own validated
    * stable loop bandwidth for a one-update-per-code-epoch geometry, not
    * `dp_dll_create()`'s own default of 0.01, which this story found unstable
@@ -218,7 +218,7 @@ extern "C"
    * @param symbol_rate          Data-symbol rate, Hz. Required — passed
    *                             straight to the embedded Acquisition's
    *                             own `symbol_rate` (diagnostic there; see
-   *                             `dp_acq_create_continuous()`).
+   *                             `dp_correlator_create_continuous()`).
    * @param sample_rate          Input sample rate, Hz: a whole number of
    *                             samples a chip (to a part in 1e9), at
    *                             least one, or 0 for two a chip (the
@@ -401,7 +401,7 @@ extern "C"
 
   /**
    * @brief Pin the embedded Acquisition's search grid directly.
-   * Forwards to `dp_acq_configure_search_raw()` — the escape hatch under
+   * Forwards to `dp_correlator_configure_search_raw()` — the escape hatch under
    * this object's own `symbol_rate`-driven auto-sizing, for a power user
    * who wants a specific `(doppler_bins, n_noncoh)` instead. Pinning
    * exits the continuous engine's wideband window-tiling mode, re-derives
@@ -411,14 +411,14 @@ extern "C"
    *
    * @param state         Must be non-NULL.
    * @param doppler_bins  Coherent depth to pin, in `[1, reps]` as
-   *                      dp_acq_configure_search_raw() defines it.
+   *                      dp_correlator_configure_search_raw() defines it.
    * @param n_noncoh      Non-coherent looks accumulated per grid cell
    *                      (1..256); more looks buys sensitivity at the cost
    *                      of dwell, replacing the auto-sized count.
    * @return 0 on success, -1 on an invalid grid (including
    *         @p n_noncoh > 1 on an engine with rate hypotheses) or a failed
    *         allocation (the engine keeps its prior grid; see
-   *         dp_acq_configure_search_raw()).
+   *         dp_correlator_configure_search_raw()).
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import DsssReceiver
@@ -488,7 +488,7 @@ extern "C"
    * freshly-sized `RateConverter` -- never coupled to each other (see the
    * module docstring). It rebuilds `dll`/`rc`/`rx` at once, allocating
    * every replacement before freeing the old ones (`Acquisition`'s
-   * `acq_regrid()` discipline), and the pinned grid is the one every later
+   * `dp_correlator_regrid()` discipline), and the pinned grid is the one every later
    * chain is built on: the next hit's hand-off and reset() both rebuild at
    * it.
    *
@@ -606,7 +606,10 @@ extern "C"
   /** @brief Magic tag ("DSRX") stamped in a receiver state blob. */
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
   /** @brief Layout version of the receiver state blob. */
-#define DSSS_RECEIVER_STATE_VERSION 3u /* v3: the dll child grew (output
+#define DSSS_RECEIVER_STATE_VERSION 4u /* v4: the search child is the
+                                           correlator's search flavor
+                                           ('CORL', #2752 3.4b); v3: the dll
+                                           child grew (output
                                            level, #2495); v2: pre-despread
                                            dp_costas_state_t car + carry
                                            buffer added */

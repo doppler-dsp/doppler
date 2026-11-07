@@ -3,18 +3,23 @@
 
 A dwell's statistic is the largest cell of the Doppler-INTERPOLATED surface,
 so the per-cell false-alarm probability must be the Sidak share of `pfa` over
-the cells that maximum ranges over. `acq_band_cells()` in
-`native/src/acq/acq_core.c` is that count: every searched row of the
+the cells that maximum ranges over. `search_band_cells()` in
+`native/src/correlator/correlator_core.c` (the search flavors' section,
+correlator_core.c's `acq_band_cells()` until #2752 step 3.4b) is that count:
+every searched row of the
 interpolated surface, times `code_bins`. Pricing a gate over a hand count of
 the native cells instead (`searched_bins * code_bins`) fired every D > 1
 engine at about twice its `pfa` (doppler#2218).
 
-Three sites price a gate: acq_commit_thresholds(), acq_ascend_n_noncoh() and
+Three sites price a gate: search_commit_thresholds(), search_ascend_n_noncoh()
+and
 the burst sizer's depth loop. Only the first has an exact pin
-(test_acq_core.c's _acq_pfa_split_check reads the committed pfa_cell), so a
+(test_correlator_search.c's _acq_pfa_split_check reads the committed
+pfa_cell), so a
 hand count re-inlined at either of the other two would pass every test. This
-holds all of them: each `dp_det_pfa_cell (` call under `native/src/acq/` must
-take `acq_band_cells (` in its arguments. A tree with no such call fails too,
+holds all of them: each `dp_det_pfa_cell (` call under `native/src/correlator/`
+must take `search_band_cells (` in its arguments. A tree with no such call
+fails too,
 because then this gate is checking nothing.
 
 Usage:  python3 scripts/check_acq_pfa_split.py [--root DIR]
@@ -30,9 +35,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCAN_DIR = "native/src/acq"
+SCAN_DIR = "native/src/correlator"
 CALL = re.compile(r"(?<![\w.])dp_det_pfa_cell\s*\(")
-COUNT = re.compile(r"(?<![\w.])acq_band_cells\s*\(")
+COUNT = re.compile(r"(?<![\w.])search_band_cells\s*\(")
 COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
 
 
@@ -82,14 +87,14 @@ def main() -> int:
     if not bad:
         print(
             f"acq-pfa-split: all {len(found)} gate prices split over "
-            "acq_band_cells()"
+            "search_band_cells()"
         )
         return 0
     print("acq-pfa-split: a gate is priced over a count of its own --")
     for f, n in bad:
-        print(f"  {f}:{n}: dp_det_pfa_cell without acq_band_cells")
+        print(f"  {f}:{n}: dp_det_pfa_cell without search_band_cells")
     print(
-        "  Split pfa over acq_band_cells (D, sb, window_bins, code_bins),\n"
+        "  Split pfa over search_band_cells (D, sb, window_bins, code_bins),\n"
         "  times the rate hypotheses: the cells the dwell's maximum ranges\n"
         "  over, every row of the interpolated surface. A hand count of the\n"
         "  native cells fires the engine at about twice its pfa\n"

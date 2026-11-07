@@ -12,7 +12,7 @@
 #ifndef DP_BURST_ACQ_CORE_H
 #define DP_BURST_ACQ_CORE_H
 
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
 #include "doppler/cvt/cvt_core.h"
@@ -24,7 +24,7 @@ extern "C"
 
   typedef struct
   {
-    dp_acq_state_t *engine; 
+    dp_correlator_state_t *engine; 
     uint8_t underpowered;
   } dp_burst_acq_state_t;
 
@@ -42,7 +42,7 @@ extern "C"
   void dp_burst_acq_reset (dp_burst_acq_state_t *state);
 
   size_t dp_burst_acq_push (dp_burst_acq_state_t *state, const float _Complex *x,
-                         size_t n_in, acq_result_t *result,
+                         size_t n_in, dp_correlator_hit_t *result,
                          size_t max_results);
 
   size_t dp_burst_acq_consumed (const dp_burst_acq_state_t *state);
@@ -53,7 +53,7 @@ extern "C"
   int dp_burst_acq_set_max_peaks (dp_burst_acq_state_t *state, size_t n);
 
   /* ── Serializable state — forwards straight to the embedded engine's own
-   * triplet (the serialized bytes ARE the shared dp_acq_state_t's own state;
+   * triplet (the serialized bytes ARE the shared dp_correlator_state_t's own state;
    * no separate format needed). */
 
   size_t dp_burst_acq_state_bytes (const dp_burst_acq_state_t *state);

@@ -321,10 +321,10 @@ not a property of the formula. That is what
 `src/doppler/detection/tests/characterization/models/` is for, and
 it is the reason this module carries a characterization subject at all.
 
-**One inherited claim did not survive contact with that sweep.** `acq_core.h`
+**One inherited claim did not survive contact with that sweep.** `correlator_core.h`
 states, twice, that the non-coherent Pd model becomes "non-monotonic and
 unreliable past a few hundred looks", and bounds the look count at
-`ACQ_N_NONCOH_SAFETY_CEILING = 256` on that basis. Measured here: the model is
+`DP_CORRELATOR_N_NONCOH_SAFETY_CEILING = 256` on that basis. Measured here: the model is
 monotone in both threshold and Pd out to **1024** looks, and agrees with
 Monte-Carlo to **under one standard error at 512** (0.2-0.6 sigma across four
 cells). Neither half of the claim reproduces. Whether the ceiling should move

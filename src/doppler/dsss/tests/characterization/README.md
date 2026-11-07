@@ -70,7 +70,7 @@ code epoch (2,046 samples) each:
 - **The pool's dwells are 46% of its time.** 305 of its pushes (1 in 16)
     decide a dwell, at 1,295 µs against 101 µs for the rest.
 - **An ordinary pool push is about 4× a receiver push.** The pool's searcher
-    correlates every epoch across its Doppler tiles (`dp_acq_push`: a
+    correlates every epoch across its Doppler tiles (`dp_correlator_push`: a
     forward FFT, then a roll and an inverse FFT per tile), where the
     receiver's own search stops at its first hit. This run times the two
     objects, not the searcher alone.

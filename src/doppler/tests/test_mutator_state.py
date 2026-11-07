@@ -512,6 +512,17 @@ def _c_only(cls: str, comp: str, bound: set[str]) -> list[Mutator]:
 
 def discover() -> list[Mutator]:
     found: list[Mutator] = []
+    # What each component's classes bind, its views' included, as the C
+    # suffix each would carry: a method's own name, and set_<p> for a
+    # writable property. A view shares its parent's core and header, so a
+    # C function a view binds has a Python face even when the parent's
+    # class does not bind it (the correlator's Acquisition, #2752 3.4b).
+    bound_by: dict[str, set[str]] = {}
+    for d in _serializable():
+        props, methods = _members(python_type(d.cls))
+        bound_by.setdefault(d.comp, set()).update(
+            set(methods) | {f"set_{p}" for p in _writable(d.cls, props)}
+        )
     for d in _serializable():
         stub = _stubs()[d.cls]
         props, methods = _members(python_type(d.cls))
@@ -547,10 +558,7 @@ def discover() -> list[Mutator]:
                 )
             )
         if d.view is None:  # a view shares its parent's core and its header
-            # What the type binds, as the C suffix it would carry: a
-            # method's own name, and set_<p> for a writable property.
-            bound = set(methods) | {f"set_{p}" for p in writable}
-            found += _c_only(d.cls, d.comp, bound)
+            found += _c_only(d.cls, d.comp, bound_by[d.comp])
     return found
 
 

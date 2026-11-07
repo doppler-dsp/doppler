@@ -44,9 +44,6 @@ Here is a list of all files with brief descriptions:
                 * **file** [**acc\_trace\_core.h**](acc__trace__core_8h.md) _AccTrace — per-bin vector trace accumulator._     
             * **dir** [**accumulator**](dir_36cdc8980ffec967038c3fbc81b64143.md)     
                 * **file** [**accumulator\_core.h**](accumulator__core_8h.md) _Accumulator module — public C API._ 
-            * **dir** [**acq**](dir_34926d0c3adbcf3f65d9e19727d3354d.md)     
-                * **file** [**acq\_core.h**](acq__core_8h.md) _Streaming DSSS acquisition engine — burst and continuous front doors over one shared engine._     
-                * **file** [**acq\_private.h**](acq__private_8h.md) _Shared internals for acq\_core.c and its test._     
             * **dir** [**acquire**](dir_684079cd19bcefcd0ee51c221517a041.md)     
                 * **file** [**acquire\_core.h**](acquire__core_8h.md) _Acquire module — public C API._     
             * **dir** [**adc**](dir_eddcd1edcea89729b407f545f79f2d08.md)     
@@ -74,7 +71,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
                 * **file** [**buffer\_core.h**](buffer__core_8h.md) _Buffer module — public C API._ 
             * **dir** [**burst\_acq**](dir_55efb80a743a0f920c38ee6730a791eb.md)     
-                * **file** [**burst\_acq\_core.h**](burst__acq__core_8h.md) _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._     
+                * **file** [**burst\_acq\_core.h**](burst__acq__core_8h.md) _BurstAcquisition — thin forwarder onto correlator\_core.c's shared engine._     
             * **dir** [**burst\_capture**](dir_5fb975a28c31ccaec359941e78dbfe20.md)     
                 * **file** [**burst\_capture\_core.h**](burst__capture__core_8h.md) _BurstCapture — acquisition's output turned into aligned bursts._     
             * **dir** [**burst\_demod**](dir_ab0fdf036101e4998629894503e143b8.md)     

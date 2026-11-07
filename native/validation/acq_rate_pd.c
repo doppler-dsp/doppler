@@ -66,9 +66,9 @@
  *
  * The first two modes assert the same claims.
  */
-#include "doppler/acq/acq_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/burst_capture/burst_capture_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_parallel.h"
 #include "doppler/wfm/wfm_core.h"
@@ -343,19 +343,19 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
   pfa_row_t        r = { .noise = 14695981039346656037ull };
   dp_awgn_state_t *g = dp_xnn (
       dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)cn0, 1.0f)));
-  dp_acq_state_t *a
-      = dp_acq_create_burst (ZC, N, REPS, 1.0, cn0, 0.0, PFA, PD, 0, RATE, rh);
+  dp_correlator_state_t *a = dp_correlator_create_burst (
+      ZC, N, REPS, 1.0, cn0, 0.0, PFA, PD, 0, RATE, rh);
   if (!a)
     {
       DP_TEST_ERR ("engine at Rh=%zu refused\n", rh);
       abort ();
     }
-  r.rh                      = a->rate_hyps; /* what auto chose, else rh */
-  r.depth                   = a->coherent_bins;
-  const size_t    per_dwell = a->frame_n;
-  const size_t    chunk     = 64u * per_dwell;
-  float _Complex *nz        = dp_xmalloc (chunk * sizeof *nz);
-  acq_result_t    res[64];
+  r.rh    = a->search->rate_hyps; /* what auto chose, else rh */
+  r.depth = a->search->coherent_bins;
+  const size_t        per_dwell = a->search->frame_n;
+  const size_t        chunk     = 64u * per_dwell;
+  float _Complex     *nz        = dp_xmalloc (chunk * sizeof *nz);
+  dp_correlator_hit_t res[64];
   while (r.dwells < dwells_wanted)
     {
       dp_awgn_generate (g, chunk, nz, chunk);
@@ -364,10 +364,11 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
       size_t off = 0;
       while (off < chunk)
         {
-          const size_t nh = dp_acq_push (a, nz + off, chunk - off, res, 64);
+          const size_t nh
+              = dp_correlator_push (a, nz + off, chunk - off, res, 64);
           r.hits += (double)nh;
-          off += dp_acq_consumed (a);
-          if (dp_acq_consumed (a) == 0)
+          off += dp_correlator_consumed (a);
+          if (dp_correlator_consumed (a) == 0)
             break;
         }
       r.dwells += 64.0;
@@ -376,7 +377,7 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
   dp_wilson (r.hits, r.dwells, &r.lo, &r.hi);
   dp_awgn_destroy (g);
   free (nz);
-  dp_acq_destroy (a);
+  dp_correlator_destroy (a);
   return r;
 }
 
@@ -402,8 +403,8 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
    and 9 hold "under the target" as they are. The rows are seeded, so these
    odds say which draw CI runs, not how often a run flakes; on that draw the
    #2218 sabotage turns 1 and 3 red. The exact guards for #2218 are the C pin
-   (test_acq_core.c's _acq_pfa_split_check) and `make lint-acq-pfa-split`,
-   which holds every pricing site to acq_band_cells().
+   (test_correlator_search.c's _acq_pfa_split_check) and `make
+   lint-acq-pfa-split`, which holds every pricing site to acq_band_cells().
 
    Each row is its own engine, noise and seed, so the rows run in parallel
    and their counts do not depend on the schedule; the heaviest go first.
@@ -504,9 +505,9 @@ static rate_row_t
 measure_rate (size_t rh, double design, double sig, double rate, int trials,
               uint32_t seed)
 {
-  rate_row_t      r = { 0 };
-  dp_acq_state_t *a = dp_acq_create_burst (ZC, N, REPS, 1.0, design, 0.0, PFA,
-                                           PD, 0, RATE, rh);
+  rate_row_t             r = { 0 };
+  dp_correlator_state_t *a = dp_correlator_create_burst (
+      ZC, N, REPS, 1.0, design, 0.0, PFA, PD, 0, RATE, rh);
   if (!a)
     {
       DP_TEST_ERR ("engine at Rh=%zu refused\n", rh);
@@ -515,8 +516,8 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
   r.rh                      = rh;
   r.sig                     = sig;
   r.rate                    = rate;
-  r.depth                   = a->coherent_bins;
-  const size_t     D        = a->coherent_bins;
+  r.depth                   = a->search->coherent_bins;
+  const size_t     D        = a->search->coherent_bins;
   const size_t     lead_max = 3u * D * N;
   const size_t     len      = lead_max + BURST + 4u * N;
   float _Complex  *x        = dp_xmalloc (len * sizeof *x);
@@ -524,11 +525,11 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
   float _Complex  *per      = dp_xmalloc (N * sizeof *per);
   dp_awgn_state_t *g        = dp_xnn (
       dp_awgn_create (seed, dp_awgn_amplitude_for_snr ((float)sig, 1.0f)));
-  const double dur  = (double)(REPS * N);
-  const double span = 1.0 / (2.0 * (double)N) - RATE * 0.5 * dur;
-  const double step = 2.0 * RATE / (double)(rh - 1);
-  uint32_t     st   = seed;
-  acq_result_t res[64];
+  const double        dur  = (double)(REPS * N);
+  const double        span = 1.0 / (2.0 * (double)N) - RATE * 0.5 * dur;
+  const double        step = 2.0 * RATE / (double)(rh - 1);
+  uint32_t            st   = seed;
+  dp_correlator_hit_t res[64];
   for (int t = 0; t < trials; t++)
     {
       const size_t at = D * N + (size_t)(dp_uni (&st) * (double)(2u * D * N));
@@ -549,15 +550,16 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
       dp_awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
-      dp_acq_reset (a);
+      dp_correlator_reset (a);
       const double truth = fmod ((double)at + frac, (double)N);
       size_t       off   = 0;
       while (off < len)
         {
-          const size_t nh = dp_acq_push (a, x + off, len - off, res, 64);
+          const size_t nh
+              = dp_correlator_push (a, x + off, len - off, res, 64);
           for (size_t k = 0; k < nh; k++)
             {
-              double d = fabs ((double)res[k].code_phase - truth);
+              double d = fabs ((double)res[k].col - truth);
               if (d > 0.5 * (double)N)
                 d = (double)N - d;
               if (d > TOL)
@@ -575,7 +577,7 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
               if (fabs (fabs (res[k].doppler_rate_hz_s) - RATE) < 1e-15)
                 r.edge++;
             }
-          const size_t c = dp_acq_consumed (a);
+          const size_t c = dp_correlator_consumed (a);
           if (c == 0)
             break;
           off += c;
@@ -585,7 +587,7 @@ measure_rate (size_t rh, double design, double sig, double rate, int trials,
   free (per);
   free (nz);
   free (x);
-  dp_acq_destroy (a);
+  dp_correlator_destroy (a);
   return r;
 }
 
@@ -612,7 +614,7 @@ measure_event_rate (size_t rh, double design, double sig, double base,
      capture's grid (0 is a grid point only for odd R), then moved by `off`
      of its step. */
   const size_t hb   = (size_t)lround (0.5 * (base + 1.0) * (double)(R - 1));
-  const double rate = dp_acq_rate_hypothesis (RATE, R, hb) + off * step;
+  const double rate = dp_correlator_rate_hypothesis (RATE, R, hb) + off * step;
   r.rate            = rate;
   const size_t     lead_max = 3u * r.depth * N;
   const size_t     len      = lead_max + BURST + 2u * s->refine_span + 4u * N;
@@ -736,11 +738,12 @@ main (int argc, char **argv)
               prow[i].lo, prow[i].hi);
     }
 
-  /* The reported rate, against the truth (acq_result_t::doppler_rate_hz_s).
-     The contract: right from a block wholly inside the preamble, and only
-     well above the design point; a block straddling the preamble's edge
-     often names +-R. The full run prints the design point and 3 dB over as
-     well, which the contract does not claim; the +23 dB row is gated. */
+  /* The reported rate, against the truth
+     (dp_correlator_hit_t::doppler_rate_hz_s). The contract: right from a block
+     wholly inside the preamble, and only well above the design point; a block
+     straddling the preamble's edge often names +-R. The full run prints the
+     design point and 3 dB over as well, which the contract does not claim; the
+     +23 dB row is gated. */
   printf ("\nreported rate: Rh = 9, hits on the burst's code phase\n");
   printf ("%7s %9s %6s | %6s %7s %7s | %6s %9s\n", "sig dB", "true rate",
           "hits", "near", "near %", "+-R %", "full", "full near");
@@ -993,9 +996,9 @@ main (int argc, char **argv)
      the same claims, the design point recomputed for it. Neither this block
      nor LFM's guards the de-chirp itself: with it removed and the depth
      kept, both depth checks stay green, because depth is what they measure.
-     test_acq_core.c's sweep test holds it exactly (the winning hypothesis
-     at +-1e7 Hz/s, either sign, :1147), and ZC's reported-rate rows above
-     hold it statistically. */
+     test_correlator_search.c's sweep test holds it exactly (the winning
+     hypothesis at +-1e7 Hz/s, either sign, :1147), and ZC's reported-rate rows
+     above hold it statistically. */
   {
     DP_CHECK_MSG (pn_preamble (),
                   "the PN preamble is one m-sequence period: its periodic "

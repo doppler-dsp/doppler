@@ -181,7 +181,7 @@ static dp_burst_capture_state_t *
 make (void)
 {
   return capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                            ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+                            DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
 }
 
 /**
@@ -230,8 +230,9 @@ test_create_copies_and_derives (void)
      so a borrowing constructor would show up here; +-1 chips are already
      unit RMS, so the row IS the preamble. */
   float _Complex *pre = dp_code_preamble (code, ACQ_SF, SPC);
-  DP_CHECK (memcmp (s->acq->engine->ref, pre, ACQ_SF * SPC * sizeof *pre)
-            == 0);
+  DP_CHECK (
+      memcmp (s->acq->engine->search->ref, pre, ACQ_SF * SPC * sizeof *pre)
+      == 0);
   free (pre);
   DP_CHECK (s->code_period == ACQ_SF * SPC);
   DP_CHECK (s->burst_len == BURST_LEN);
@@ -249,7 +250,7 @@ test_create_copies_and_derives (void)
      last-event mirror it was 0.0 here. */
   DP_CHECK (dp_burst_capture_get_doppler_res_hz (s) > 0.0);
   DP_CHECK (dp_burst_capture_get_doppler_res_hz (s)
-            == s->acq->engine->doppler_res_hz);
+            == s->acq->engine->search->doppler_res_hz);
 
   /* The ring holds twice the retained span, so chunk_max is never zero: a
      push larger than the ring is sliced rather than refused. */
@@ -591,7 +592,7 @@ test_a_held_head_does_not_stall_long_bursts (void)
     {
       dp_burst_capture_state_t *s
           = capture_from_code (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC, 1.0e6,
-                               ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+                               DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
       DP_REQUIRE (s != NULL);
       DP_REQUIRE (LONG_LEN > s->refine_span); /* the premise */
       size_t seen[4] = { 0 };
@@ -935,7 +936,7 @@ test_a_forged_blob_is_checked (void)
  *   (C) an anchor past the stream position;
  *   (D) an acquisition child taken at another stream position, which acq
  *       itself accepts -- refused from the position its blob records,
- *       before it is restored (dp_acq_state_position);
+ *       before it is restored (dp_correlator_state_position);
  *   (1) a stream position at 2^63 or past it, with an acquisition child
  *       that stands there too, so nothing else refuses it;
  *   (2) a suppression span that ends past the stream position;
@@ -976,14 +977,15 @@ test_a_refused_blob_changes_nothing (void)
      look count all still agree with the position. */
   uint64_t huge_fed;
   {
-    dp_acq_state_t *e   = b->acq->engine;
-    const uint64_t  per = (uint64_t)e->coherent_bins * e->n_noncoh;
-    const uint64_t  k
-        = ((UINT64_C (1) << 63) / (per * e->frame_n) + 1u) * per * e->frame_n;
-    e->samples_consumed += k;
-    e->framer.frames += k / e->frame_n;
+    dp_correlator_state_t *e = b->acq->engine;
+    const uint64_t         per
+        = (uint64_t)e->search->coherent_bins * e->search->n_noncoh;
+    const uint64_t k = ((UINT64_C (1) << 63) / (per * e->search->frame_n) + 1u)
+                       * per * e->search->frame_n;
+    e->search->samples_consumed += k;
+    e->framer.frames += k / e->search->frame_n;
     e->framer.written += k;
-    huge_fed = dp_acq_position (e);
+    huge_fed = dp_correlator_position (e);
     DP_REQUIRE (huge_fed >= (UINT64_C (1) << 63));
     dp_burst_capture_get_state (b, huge);
   }
@@ -1083,7 +1085,8 @@ test_a_refused_blob_changes_nothing (void)
           break;
         case 11:
           /* Every hypothesis lies in [-doppler_rate, +doppler_rate]. */
-          e0.doppler_rate_hz_s = 2.0 * a->acq->engine->doppler_rate + 1.0;
+          e0.doppler_rate_hz_s
+              = 2.0 * a->acq->engine->search->doppler_rate + 1.0;
           break;
         default:
           {
@@ -1128,8 +1131,9 @@ test_a_refused_blob_changes_nothing (void)
     dp_burst_capture_state_t *d = make ();
     DP_REQUIRE (d != NULL);
     (void)dp_burst_capture_push (d, cap, LEAD, NULL, 0);
-    DP_REQUIRE (dp_burst_acq_set_max_peaks (d->acq, ACQ_MAX_PEAKS) == 0);
-    DP_REQUIRE (dp_acq_state_bytes (d->acq->engine) > d->acq_blob_max);
+    DP_REQUIRE (dp_burst_acq_set_max_peaks (d->acq, DP_CORRELATOR_MAX_PEAKS)
+                == 0);
+    DP_REQUIRE (dp_correlator_state_bytes (d->acq->engine) > d->acq_blob_max);
     memset (now, 0, cb);
     memset (bad, 0, cb);
     dp_burst_capture_get_state (d, now);
@@ -1277,13 +1281,13 @@ test_a_full_ring_restored_makes_room (void)
      a child that stands anywhere but the capture's stream position. */
   for (size_t took = 0; took < room;)
     {
-      acq_result_t hits[BURST_CAPTURE_HITS];
+      dp_correlator_hit_t hits[BURST_CAPTURE_HITS];
       (void)dp_burst_acq_push (a->acq, z + took, room - took, hits,
                                BURST_CAPTURE_HITS);
       DP_REQUIRE (dp_burst_acq_consumed (a->acq) > 0u);
       took += dp_burst_acq_consumed (a->acq);
     }
-  DP_REQUIRE (dp_acq_position (a->acq->engine) == a->samples_fed);
+  DP_REQUIRE (dp_correlator_position (a->acq->engine) == a->samples_fed);
 
   const uint64_t           P    = a->code_period;
   const uint64_t           tail = a->hist->tail;
@@ -1896,12 +1900,12 @@ test_one_look_and_the_design_point_is_optional (void)
   /* No design point: the whole preamble, one look, nothing to be under. */
   dp_burst_capture_state_t *s
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                           ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+                           DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
-  DP_CHECK (s->acq->engine->n_noncoh == 1u);
-  DP_CHECK (s->acq->engine->coherent_bins == REPS);
+  DP_CHECK (s->acq->engine->search->n_noncoh == 1u);
+  DP_CHECK (s->acq->engine->search->coherent_bins == REPS);
   DP_CHECK (!s->underpowered);
-  DP_CHECK (isnan (s->acq->engine->pd_predicted));
+  DP_CHECK (isnan (s->acq->engine->search->pd_predicted));
   dp_burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                          sizeof out / sizeof *out);
   /* Each transmitted burst exactly once, at its exact sample; the scene's
@@ -1925,10 +1929,10 @@ test_one_look_and_the_design_point_is_optional (void)
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
                            40.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (low != NULL);
-  DP_CHECK (low->acq->engine->n_noncoh == 1u);
-  DP_CHECK (low->acq->engine->coherent_bins == REPS);
+  DP_CHECK (low->acq->engine->search->n_noncoh == 1u);
+  DP_CHECK (low->acq->engine->search->coherent_bins == REPS);
   DP_CHECK (low->underpowered);
-  DP_CHECK (!isnan (low->acq->engine->pd_predicted));
+  DP_CHECK (!isnan (low->acq->engine->search->pd_predicted));
   dp_burst_capture_push (low, cap, sizeof cap / sizeof *cap, out,
                          sizeof out / sizeof *out);
   got = dp_burst_capture_events (low, 0, ev, 8u);
@@ -1970,14 +1974,14 @@ test_configure_search_raw_refuses_a_grid_beyond_reach (void)
   dp_burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
   const size_t k_lo = s->k_lo;
-  const size_t db0  = s->acq->engine->coherent_bins;
-  const size_t nc0  = s->acq->engine->n_noncoh;
+  const size_t db0  = s->acq->engine->search->coherent_bins;
+  const size_t nc0  = s->acq->engine->search->n_noncoh;
   DP_CHECK (dp_burst_capture_configure_search_raw (s, REPS, k_lo / REPS + 1u)
             == DP_ERR_INVALID);
-  DP_CHECK (s->acq->engine->coherent_bins == db0);
-  DP_CHECK (s->acq->engine->n_noncoh == nc0);
+  DP_CHECK (s->acq->engine->search->coherent_bins == db0);
+  DP_CHECK (s->acq->engine->search->n_noncoh == nc0);
   DP_CHECK (dp_burst_capture_configure_search_raw (s, 2u, k_lo / 2u) == DP_OK);
-  DP_CHECK (s->acq->engine->n_noncoh == k_lo / 2u);
+  DP_CHECK (s->acq->engine->search->n_noncoh == k_lo / 2u);
   dp_burst_capture_destroy (s);
   return 0;
 }
@@ -2075,7 +2079,7 @@ test_release_gives_back_a_shadowed_burst (void)
     const size_t              LONG_LEN = 4u * BURST_LEN, DECOY_LEAD = 3000u;
     dp_burst_capture_state_t *s
         = capture_from_code (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC, 1.0e6,
-                             ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+                             DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (s != NULL);
     DP_REQUIRE (DECOY_LEAD >= s->refine_span
                 && DECOY_LEAD < LONG_LEN); /* the premise */
@@ -2115,10 +2119,10 @@ test_release_gives_back_a_shadowed_burst (void)
  * `configure_search_raw` reaches the engine, and re-reads the blob bound it
  * invalidated.
  *
- * It is the one call that can legitimately move `dp_acq_state_bytes()` under a
- * `state_bytes()` that promises to be a pure function of configuration. If
- * the bound were not re-read, a blob taken after this call could exceed the
- * region reserved for it.
+ * It is the one call that can legitimately move `dp_correlator_state_bytes()`
+ * under a `state_bytes()` that promises to be a pure function of
+ * configuration. If the bound were not re-read, a blob taken after this call
+ * could exceed the region reserved for it.
  */
 static int
 test_configure_search_raw_reaches_the_engine (void)
@@ -2128,18 +2132,18 @@ test_configure_search_raw_reaches_the_engine (void)
   /* A coherent depth of 2 against a sized 4: the grid is the one ASKED for,
      not the one the auto-sizer picked, which is the whole point of the
      escape hatch. */
-  DP_CHECK (s->acq->engine->coherent_bins == REPS);
+  DP_CHECK (s->acq->engine->search->coherent_bins == REPS);
   DP_CHECK (dp_burst_capture_configure_search_raw (s, 2u, 1u) == DP_OK);
-  DP_CHECK (s->acq->engine->coherent_bins == 2u);
+  DP_CHECK (s->acq->engine->search->coherent_bins == 2u);
   /* And a grid the engine cannot honour is REFUSED, not silently clamped: a
      coherent depth deeper than the preamble has no frames to integrate.
      Measured: reps=4 accepts 1, 2 and 4 and rejects 8. */
   DP_CHECK (dp_burst_capture_configure_search_raw (s, 8u, 1u)
             == DP_ERR_INVALID);
-  DP_CHECK (s->acq->engine->coherent_bins
+  DP_CHECK (s->acq->engine->search->coherent_bins
             == 2u); /* unchanged by the refusal */
   /* ...and the blob bound it invalidated was re-read. */
-  DP_CHECK (s->acq_blob_max == dp_acq_state_bytes (s->acq->engine));
+  DP_CHECK (s->acq_blob_max == dp_correlator_state_bytes (s->acq->engine));
   size_t after = dp_burst_capture_state_bytes (s);
   /* ...so a blob taken NOW fits the region reserved for it. */
   void *blob = malloc (after);
@@ -2724,10 +2728,10 @@ test_doppler_rate_caps_the_depth (void)
   const double rate    = f_epoch * f_epoch / (2.0 * 2.5 * 2.5); /* cap: 2 */
   dp_burst_capture_state_t *free_
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                           ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+                           DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
   dp_burst_capture_state_t *held
       = capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                           ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, rate);
+                           DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, rate);
   DP_REQUIRE (free_ != NULL && held != NULL);
   DP_CHECK (dp_burst_capture_get_doppler_bins (free_) == REPS);
   DP_CHECK (dp_burst_capture_get_doppler_bins (held) == 2);
@@ -2739,15 +2743,16 @@ test_doppler_rate_caps_the_depth (void)
   scratch_path (path, sizeof path, "rate");
   remove (path);
   dp_burst_capture_state_t *dsk = capture_from_code_backed (
-      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, ACQ_CN0_NONE,
-      0.0, 1e-3, 0.9, 0, rate);
+      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+      DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, rate);
   DP_REQUIRE (dsk != NULL);
   DP_CHECK (dp_burst_capture_get_doppler_bins (dsk) == 2);
   dp_burst_capture_destroy (dsk);
   remove (path);
 
   DP_CHECK (capture_from_code (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                               1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, -1.0)
+                               1.0e6, DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9,
+                               0, -1.0)
             == NULL);
   return 0;
 }
@@ -2803,7 +2808,7 @@ make_zc (double doppler_rate)
      puts a false capture in ~6% of these 39-frame streams, measured over
      200 seeds -- a property of the configured rate, not of the preamble. */
   return dp_burst_capture_create (zc, ZC_N, ZC_BURST, ZC_REPS, 1.0,
-                                  ACQ_CN0_NONE, 0.0, 1e-6, 0.9, 0,
+                                  DP_CORRELATOR_CN0_NONE, 0.0, 1e-6, 0.9, 0,
                                   doppler_rate, 1);
 }
 
@@ -2868,14 +2873,15 @@ static int
 test_rejects_a_bad_preamble (void)
 {
   float _Complex z[4] = { 0 };
-  DP_CHECK (dp_burst_capture_create (NULL, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0,
-                                     1e-3, 0.9, 0, 0.0, 1)
+  DP_CHECK (dp_burst_capture_create (NULL, 4, 64, 4, 1.0,
+                                     DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0,
+                                     0.0, 1)
             == NULL);
-  DP_CHECK (dp_burst_capture_create (z, 0, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
-                                     0.9, 0, 0.0, 1)
+  DP_CHECK (dp_burst_capture_create (z, 0, 64, 4, 1.0, DP_CORRELATOR_CN0_NONE,
+                                     0.0, 1e-3, 0.9, 0, 0.0, 1)
             == NULL);
-  DP_CHECK (dp_burst_capture_create (z, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0, 1e-3,
-                                     0.9, 0, 0.0, 1)
+  DP_CHECK (dp_burst_capture_create (z, 4, 64, 4, 1.0, DP_CORRELATOR_CN0_NONE,
+                                     0.0, 1e-3, 0.9, 0, 0.0, 1)
             == NULL);
   return 0;
 }
@@ -2890,8 +2896,8 @@ test_backed_captures_a_zadoff_chu_burst (void)
   float _Complex zc[ZC_N];
   zadoff_chu (zc);
   dp_burst_capture_state_t *s = dp_burst_capture_create_backed (
-      path, zc, ZC_N, ZC_BURST, ZC_REPS, 1.0, ACQ_CN0_NONE, 0.0, 1e-6, 0.9, 0,
-      0.0, 1);
+      path, zc, ZC_N, ZC_BURST, ZC_REPS, 1.0, DP_CORRELATOR_CN0_NONE, 0.0,
+      1e-6, 0.9, 0, 0.0, 1);
   DP_REQUIRE (s != NULL);
   DP_CHECK (s->backed == 1);
   static float _Complex cap[40000];
@@ -2901,8 +2907,8 @@ test_backed_captures_a_zadoff_chu_burst (void)
                                     sizeof out / sizeof *out);
   DP_CHECK (n == ZC_BURST && s->preamble_start == 9001u);
   DP_CHECK (dp_burst_capture_create_backed (NULL, zc, ZC_N, ZC_BURST, ZC_REPS,
-                                            1.0, ACQ_CN0_NONE, 0.0, 1e-3, 0.9,
-                                            0, 0.0, 1)
+                                            1.0, DP_CORRELATOR_CN0_NONE, 0.0,
+                                            1e-3, 0.9, 0, 0.0, 1)
             == NULL);
   dp_burst_capture_destroy (s);
   remove (path);
@@ -3096,12 +3102,12 @@ test_a_wide_doppler_search_is_searched (void)
                        * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
 
       dp_burst_capture_state_t *s = dp_burst_capture_create (
-          pre, NP, RP * NP + PAY, RP, 1.0, ACQ_CN0_NONE, 2.5 * span, 1e-6, 0.9,
-          0, 0.0, 1);
+          pre, NP, RP * NP + PAY, RP, 1.0, DP_CORRELATOR_CN0_NONE, 2.5 * span,
+          1e-6, 0.9, 0, 0.0, 1);
       DP_REQUIRE (s != NULL);
       /* The read-back is the grid the engine searches. */
       DP_CHECK (dp_burst_capture_get_doppler_bins (s)
-                == acq_grid_bins (s->acq->engine));
+                == dp_correlator_grid_bins (s->acq->engine));
       DP_CHECK (dp_burst_capture_get_doppler_bins (s) > 1);
       size_t n = dp_burst_capture_push (s, cap, n_cap, out,
                                         sizeof out / sizeof *out);
@@ -3161,11 +3167,12 @@ test_a_sweeping_carrier_is_compensated (void)
     DP_REQUIRE (au != NULL);
     DP_CHECK (dp_burst_capture_get_rate_hypotheses (au) >= 1
               && dp_burst_capture_get_rate_hypotheses (au)
-                     <= ACQ_RATE_HYPS_MAX);
+                     <= DP_CORRELATOR_RATE_HYPS_MAX);
     dp_burst_capture_destroy (au);
   }
   DP_CHECK (dp_burst_capture_create (zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3,
-                                     0.9, 0, rate, ACQ_RATE_HYPS_MAX + 1)
+                                     0.9, 0, rate,
+                                     DP_CORRELATOR_RATE_HYPS_MAX + 1)
             == NULL);
   DP_CHECK (dp_burst_capture_create (zc, NP, BURST, RP, 1.0, 10.0, 0.0, 1e-3,
                                      0.9, 0, 0.0, 5)
@@ -3234,9 +3241,9 @@ test_a_sweeping_carrier_is_compensated (void)
     dp_burst_capture_state_t *sd = dp_burst_capture_create (
         zc, NP, BURST, RP, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, rate, 9);
     DP_REQUIRE (sd != NULL && zd != NULL);
-    DP_REQUIRE (sd->acq->engine->coherent_bins > 2);
-    DP_REQUIRE (sd->acq->engine->coherent_bins
-                > zd->acq->engine->coherent_bins);
+    DP_REQUIRE (sd->acq->engine->search->coherent_bins > 2);
+    DP_REQUIRE (sd->acq->engine->search->coherent_bins
+                > zd->acq->engine->search->coherent_bins);
     dp_burst_capture_state_t *eng[2] = { sd, zd };
     size_t                    got[2] = { 0, 0 };
     const double sd_noise = sqrt (10.0); /* per component: power 20 = 13 dB */
@@ -3389,8 +3396,8 @@ rg_placed (dp_burst_capture_state_t *s, size_t at, double sweep, double snr_db,
 {
   static float _Complex x[1u << 16];
   static float _Complex out[1u << 16];
-  const size_t len = 3u * s->acq->engine->coherent_bins * RG_NP + RG_BURST
-                     + 2u * s->refine_span + 4u * RG_NP;
+  const size_t len = 3u * s->acq->engine->search->coherent_bins * RG_NP
+                     + RG_BURST + 2u * s->refine_span + 4u * RG_NP;
   if (len > sizeof x / sizeof *x
       || dp_burst_capture_push_max_out (s, len) > sizeof out / sizeof *out)
     {
@@ -3440,8 +3447,8 @@ test_refine_widens_its_cells_by_the_rate (void)
      non-zero. A sizing change that moves either sends this test back to
      the search rather than letting it pass on a scenario that no longer
      exercises anything. */
-  const size_t D = s->acq->engine->coherent_bins;
-  DP_REQUIRE_MSG (D == 11 && s->acq->engine->rate_hyps == 5,
+  const size_t D = s->acq->engine->search->coherent_bins;
+  DP_REQUIRE_MSG (D == 11 && s->acq->engine->search->rate_hyps == 5,
                   "the engine is sized as the scenario was chosen");
   static const struct
   {
@@ -3482,10 +3489,10 @@ test_refine_searches_a_denser_rate_grid (void)
   dp_burst_capture_state_t *s = dp_burst_capture_create (
       zc, RG_NP, RG_BURST, RG_RP, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, 9.0e-7, 2);
   DP_REQUIRE (s != NULL);
-  const size_t D = s->acq->engine->coherent_bins;
-  DP_REQUIRE_MSG (D == 5 && s->acq->engine->rate_hyps == 2,
+  const size_t D = s->acq->engine->search->coherent_bins;
+  DP_REQUIRE_MSG (D == 5 && s->acq->engine->search->rate_hyps == 2,
                   "the engine is sized as the scenario was chosen");
-  DP_CHECK_MSG (s->rate_ph_n > s->acq->engine->rate_hyps,
+  DP_CHECK_MSG (s->rate_ph_n > s->acq->engine->search->rate_hyps,
                 "refine's rate grid is denser than the engine's");
   for (size_t twelfth = 4; twelfth <= 7; twelfth++)
     for (int up = 6; up <= 12; up += 6)
@@ -3547,8 +3554,9 @@ test_each_event_carries_refines_rate (void)
       {
         const size_t h = hs[a];
         /* A quarter step inward from an edge stays inside the span. */
-        const double off   = (h == 0 ? 0.25 : h == R - 1 ? -0.25 : offs[b]);
-        const double truth = dp_acq_rate_hypothesis (span, R, h) + off * step;
+        const double off = (h == 0 ? 0.25 : h == R - 1 ? -0.25 : offs[b]);
+        const double truth
+            = dp_correlator_rate_hypothesis (span, R, h) + off * step;
         const size_t where = at[n % 3u];
         uint32_t     st    = 2219u + (uint32_t)n++;
         for (size_t i = 0; i < LEN; i++)
@@ -3577,12 +3585,13 @@ test_each_event_carries_refines_rate (void)
         DP_CHECK_MSG (got != NULL, "the swept burst is placed exactly");
         if (!got)
           continue;
-        if (got->doppler_rate_hz_s != dp_acq_rate_hypothesis (span, R, h))
+        if (got->doppler_rate_hz_s
+            != dp_correlator_rate_hypothesis (span, R, h))
           DP_TEST_ERR ("  truth %.3e: event %.3e, nearest %.3e\n", truth,
                        got->doppler_rate_hz_s,
-                       dp_acq_rate_hypothesis (span, R, h));
+                       dp_correlator_rate_hypothesis (span, R, h));
         DP_CHECK_MSG (got->doppler_rate_hz_s
-                          == dp_acq_rate_hypothesis (span, R, h),
+                          == dp_correlator_rate_hypothesis (span, R, h),
                       "the event's rate is the hypothesis nearest the "
                       "carrier's");
         DP_CHECK_MSG (dp_burst_capture_get_doppler_rate_hz_s (s)
@@ -3658,8 +3667,8 @@ test_refine_searches_rates_with_one_hypothesis (void)
   dp_burst_capture_state_t *s    = dp_burst_capture_create (
       zc, RG_NP, RG_BURST, RG_RP, 1.0, -15.0, 0.0, 1e-3, 0.9, 0, span, 1);
   DP_REQUIRE (s != NULL);
-  const size_t D = s->acq->engine->coherent_bins;
-  DP_REQUIRE_MSG (D == 5 && s->acq->engine->rate_hyps == 1,
+  const size_t D = s->acq->engine->search->coherent_bins;
+  DP_REQUIRE_MSG (D == 5 && s->acq->engine->search->rate_hyps == 1,
                   "the capped engine is sized as the scenario was chosen");
   DP_CHECK_MSG (s->rate_ph_n > 1,
                 "refine searches a rate grid with one acquisition "
@@ -3732,16 +3741,16 @@ test_a_tiled_capture_anchors_at_its_dwell (void)
         cap[at + i]
             += pre[i] * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
 
-      dp_burst_capture_state_t *s
-          = dp_burst_capture_create (pre, NP, NP + PAY, 1u, 1.0, ACQ_CN0_NONE,
-                                     2.5 * span, 1e-6, 0.9, 0, 0.0, 1);
+      dp_burst_capture_state_t *s = dp_burst_capture_create (
+          pre, NP, NP + PAY, 1u, 1.0, DP_CORRELATOR_CN0_NONE, 2.5 * span, 1e-6,
+          0.9, 0, 0.0, 1);
       DP_REQUIRE (s != NULL);
-      const dp_acq_state_t *e = s->acq->engine;
+      const dp_correlator_state_t *e = s->acq->engine;
       /* The premise that makes the 9001 case discriminate: the old anchor,
          (W - 1) periods early, is out of refine's reach (k_hi = reps), even
          with the deciding frame a period past the start. */
-      DP_REQUIRE (e->window_bins - 1u > 1u + 1u);
-      DP_REQUIRE (j == 0u || at < (e->window_bins - 1u) * NP);
+      DP_REQUIRE (e->search->window_bins - 1u > 1u + 1u);
+      DP_REQUIRE (j == 0u || at < (e->search->window_bins - 1u) * NP);
 
       size_t found = 0, other = 0, restored = 0;
       for (size_t off = 0; off < n_cap; off += 128u)
@@ -3815,10 +3824,11 @@ test_a_tiled_burst_after_a_window_is_not_shadowed (void)
   const size_t              n_cap = sizeof cap / sizeof *cap;
   const double              span  = 1.0 / (double)NP;
   const size_t              BL    = RP * NP + PAY;
-  dp_burst_capture_state_t *s     = dp_burst_capture_create (
-      pre, NP, BL, RP, 1.0, ACQ_CN0_NONE, 2.5 * span, 1e-6, 0.9, 0, 0.0, 1);
+  dp_burst_capture_state_t *s
+      = dp_burst_capture_create (pre, NP, BL, RP, 1.0, DP_CORRELATOR_CN0_NONE,
+                                 2.5 * span, 1e-6, 0.9, 0, 0.0, 1);
   DP_REQUIRE (s != NULL);
-  const size_t W   = s->acq->engine->window_bins;
+  const size_t W   = s->acq->engine->search->window_bins;
   const size_t gap = 300u;
   /* The premises: tiled; the first burst within refine's reach of the old
      anchor; a gap the capture promises to resolve, under (W - 1)*P. */

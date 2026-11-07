@@ -261,7 +261,7 @@ Two facts the sweep exposed that §9.1 did not know:
 
 - The strip on a single channel starts at `span − res/2` at D=8 exactly as
     predicted — but the reason it is a whole half-bin wide is that
-    `acq_core.c` divides the peak row by `interp` before reporting, so the
+    `correlator_core.c` divides the peak row by `interp` before reporting, so the
     **Doppler estimate is quantized to native bins** even though the search
     runs on the interpolated surface. Reporting the interpolated row's
     frequency instead would halve the strip to `res/4`, halve every Doppler

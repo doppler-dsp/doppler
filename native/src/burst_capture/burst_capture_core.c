@@ -33,39 +33,42 @@
  * point, on the private phase ramp it then swept with); keyed on the rate,
  * the row reads 0.905 on the library's rotation. */
 static size_t
-burst_capture_rate_hyps (const dp_acq_state_t *eng, size_t reps)
+burst_capture_rate_hyps (const dp_correlator_state_t *eng, size_t reps)
 {
-  if (!(eng->doppler_rate > 0.0))
+  if (!(eng->search->doppler_rate > 0.0))
     return 1;
   /* The engine's drift rule at refine's depth, from the engine's own home
-     for it (dp_acq_rate_hypotheses_for), never fewer than the engine's. */
-  const size_t need = dp_acq_rate_hypotheses_for (
-      eng->fs / (double)eng->code_bins, eng->doppler_rate, reps);
-  return need > eng->rate_hyps ? need : eng->rate_hyps;
+     for it (dp_correlator_rate_hypotheses_for), never fewer than the engine's.
+   */
+  const size_t need = dp_correlator_rate_hypotheses_for (
+      eng->search->fs / (double)eng->search->code_bins,
+      eng->search->doppler_rate, reps);
+  return need > eng->search->rate_hyps ? need : eng->search->rate_hyps;
 }
 
 /* The rate hypotheses' phasors over the preamble's periods, about its middle,
  * R_h rows of `reps`: the cells mix each period at a constant frequency, so
  * what a rate leaves is the engine's de-chirp phasor, at the period's time
  * from the middle. Spans the engine's [-R, +R] on the engine's grid
- * (dp_acq_rate_hypothesis), so refine searches the rates the engine did.
- * Built once, at create: nothing in them moves while the capture runs. */
+ * (dp_correlator_rate_hypothesis), so refine searches the rates the engine
+ * did. Built once, at create: nothing in them moves while the capture runs. */
 static void
 burst_capture_rate_phasors (dp_burst_capture_state_t *s)
 {
-  const dp_acq_state_t *eng  = s->acq->engine;
-  const size_t          reps = s->reps;
-  const size_t          R_h  = burst_capture_rate_hyps (eng, reps);
-  s->rate_ph_n               = R_h;
-  s->rate_ph                 = dp_xmalloc (R_h * reps * sizeof *s->rate_ph);
+  const dp_correlator_state_t *eng  = s->acq->engine;
+  const size_t                 reps = s->reps;
+  const size_t                 R_h  = burst_capture_rate_hyps (eng, reps);
+  s->rate_ph_n                      = R_h;
+  s->rate_ph = dp_xmalloc (R_h * reps * sizeof *s->rate_ph);
   for (size_t h = 0; h < R_h; h++)
     {
-      const double a = dp_acq_rate_hypothesis (eng->doppler_rate, R_h, h);
+      const double a
+          = dp_correlator_rate_hypothesis (eng->search->doppler_rate, R_h, h);
       for (size_t r = 0; r < reps; r++)
         {
-          const double t           = ((double)r - 0.5 * (double)(reps - 1))
-                                     * (double)s->code_period / eng->fs;
-          s->rate_ph[h * reps + r] = dp_acq_rate_phasor (a, t);
+          const double t = ((double)r - 0.5 * (double)(reps - 1))
+                           * (double)s->code_period / eng->search->fs;
+          s->rate_ph[h * reps + r] = dp_correlator_rate_phasor (a, t);
         }
     }
 }
@@ -81,14 +84,15 @@ burst_capture_rate_phasors (dp_burst_capture_state_t *s)
  * unbounded `doppler_rate` would wrap the allocations they size. Zero without
  * a declared rate, keyed like burst_capture_rate_hyps() (doppler#2219). */
 static size_t
-burst_capture_rate_cells (const dp_acq_state_t *eng, size_t reps)
+burst_capture_rate_cells (const dp_correlator_state_t *eng, size_t reps)
 {
-  if (!(eng->doppler_rate > 0.0))
+  if (!(eng->search->doppler_rate > 0.0))
     return 0;
-  const double per  = (double)eng->code_bins / eng->fs;
-  const double want = 0.5 * eng->doppler_rate
+  const double per  = (double)eng->search->code_bins / eng->search->fs;
+  const double want = 0.5 * eng->search->doppler_rate
                       * (double)BURST_CAPTURE_REFINE_INTERP * (double)reps
-                      * (double)(reps + eng->coherent_bins) * per * per;
+                      * (double)(reps + eng->search->coherent_bins) * per
+                      * per;
   const double cap  = 0.5 * (double)reps * (double)BURST_CAPTURE_REFINE_INTERP;
   return (size_t)ceil (want < cap ? want : cap);
 }
@@ -120,7 +124,8 @@ burst_capture_size_cells (dp_burst_capture_state_t *s)
  * @param reps          Preamble repetitions.
  * @param fs            Sample rate, Hz.
  * @param cn0_dbhz      Design (minimum) C/N0 the search is sized for,
- *                      dB-Hz; NaN = no design point (see dp_acq_create_burst).
+ *                      dB-Hz; NaN = no design point (see
+ * dp_correlator_create_burst).
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -188,8 +193,9 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
    * arrive. Sized from the geometry, which is entirely known here.
    *
    * Reusing the double-mapped ring rather than growing a new type: acq
-   * already composes it (dp_acq_state_t's `ring`), and the mirror is what lets
-   * a window spanning the wrap be copied out as ONE contiguous run. */
+   * already composes it (dp_correlator_state_t's `ring`), and the mirror is
+   * what lets a window spanning the wrap be copied out as ONE contiguous run.
+   */
   {
     /* Refine searches whole code periods either side of the anchor, because
        acquisition's code phase already fixes the alignment WITHIN a period
@@ -284,15 +290,15 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   burst_capture_size_cells (s);
   burst_capture_rate_phasors (s);
 
-  /* dp_acq_state_bytes() is ALREADY a pure function of configuration -- it
-     sizes its carry from frame_n (the framer's fixed-size snapshot), not
+  /* dp_correlator_state_bytes() is ALREADY a pure function of configuration --
+     it sizes its carry from frame_n (the framer's fixed-size snapshot), not
      from whatever happens to be unconsumed. It is re-read in
      configure_search_raw(), the
      one call that can legitimately change the grid underneath it. */
-  s->acq_blob_max = dp_acq_state_bytes (s->acq->engine);
+  s->acq_blob_max = dp_correlator_state_bytes (s->acq->engine);
   /* Mirrored once here: the declared warning needs it as a field, and a
      value that cannot change after create() has no reason to be re-read. */
-  s->underpowered = s->acq->engine->underpowered ? 1 : 0;
+  s->underpowered = s->acq->engine->search->underpowered ? 1 : 0;
 
   return s;
 
@@ -457,8 +463,8 @@ burst_capture_refine_reach (const dp_burst_capture_state_t *s, uint64_t anchor,
  * **Acquisition's statistic, at the settled cell.** Acquisition has
  * already settled the code phase and the Doppler; what is left is the
  * period. So each candidate is scored by the statistic acquisition itself
- * would compute for a preamble starting there -- dp_acq_cell_corr() of every
- * period the preamble would occupy, mixed at one Doppler on one time
+ * would compute for a preamble starting there -- dp_correlator_cell_corr() of
+ * every period the preamble would occupy, mixed at one Doppler on one time
  * reference and summed coherently over the `reps` periods -- and the
  * strongest candidate wins. Only `reps - abs(k)` of the positions still land
  * on preamble when a candidate is `k` periods off, so the score peaks at the
@@ -522,13 +528,14 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
   /* The Doppler cells: the depth-`reps` grid (fine = fs / (P * reps *
      ACQ_DOPPLER_INTERP)) across the detecting engine's bin (fs / (P * D))
      centred on its estimate, one cell of slack each side. */
-  const dp_acq_state_t *eng = s->acq->engine;
-  const size_t          IP  = BURST_CAPTURE_REFINE_INTERP;
-  const double fine = eng->fs / ((double)P * (double)reps * (double)IP);
-  const size_t half
-      = (reps * IP + 2u * eng->coherent_bins - 1u) / (2u * eng->coherent_bins)
-        + 1u + burst_capture_rate_cells (eng, reps);
-  size_t cells = 2u * half + 1u;
+  const dp_correlator_state_t *eng = s->acq->engine;
+  const size_t                 IP  = BURST_CAPTURE_REFINE_INTERP;
+  const double                 fine
+      = eng->search->fs / ((double)P * (double)reps * (double)IP);
+  const size_t half  = (reps * IP + 2u * eng->search->coherent_bins - 1u)
+                           / (2u * eng->search->coherent_bins)
+                       + 1u + burst_capture_rate_cells (eng, reps);
+  size_t       cells = 2u * half + 1u;
   if (cells > s->max_cells - BURST_CAPTURE_EDGE_TWINS)
     cells = s->max_cells - BURST_CAPTURE_EDGE_TWINS;
   const long hc = (long)(cells / 2u);
@@ -552,14 +559,15 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
      same energy u^-1 samples along -- which then outscores the true one
      (doppler#1519). So each cell within 1.5 fine steps of the edge is
      scored at its other alias too, and the finite preamble decides. */
-  const double span = eng->fs / (double)P;
+  const double span = eng->search->fs / (double)P;
   /* The fold is centred on the TILE the hit came from. A native search has
      one, at 0; a tiled one (doppler_uncertainty past the native span) puts
      each window at a multiple of the span, and folding about 0 mixed a
      burst in any other window at the wrong frequency (doppler#1512). */
-  const double c
-      = eng->window_bins > 1 ? span * floor (doppler_hz / span + 0.5) : 0.0;
-  size_t n_twin = 0;
+  const double c      = eng->search->window_bins > 1
+                            ? span * floor (doppler_hz / span + 0.5)
+                            : 0.0;
+  size_t       n_twin = 0;
   for (size_t j = 0; j < cells; j++)
     {
       double f = doppler_hz + (double)((long)j - hc) * fine - c;
@@ -574,8 +582,8 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
   /* The candidate positions are consecutive periods, one contiguous run of
      the double-mapped ring, so every cell of every position is one call
      that despreads each sample once (doppler#1538). */
-  dp_acq_cell_corr_grid (eng, burst_capture_at (s, lo), n_pos, 0, s->cell_f,
-                         nf, 0.0, s->cell_buf);
+  dp_correlator_cell_corr_grid (eng, burst_capture_at (s, lo), n_pos, 0,
+                                s->cell_f, nf, 0.0, s->cell_buf);
 
   /* The rate hypotheses' phasors (burst_capture_rate_phasors(), built once
      at create: they depend only on configuration). The hypothesis is scored
@@ -604,7 +612,8 @@ burst_capture_refine (dp_burst_capture_state_t *s, uint64_t anchor,
         }
 
   *start = lo + (uint64_t)(best_k * P);
-  *rate  = dp_acq_rate_hypothesis (eng->doppler_rate, R_h, best_h);
+  *rate
+      = dp_correlator_rate_hypothesis (eng->search->doppler_rate, R_h, best_h);
   *score = best;
   return 1;
 }
@@ -971,12 +980,12 @@ burst_capture_emit (dp_burst_capture_state_t *s)
   /* Publish the event. These fields ARE the record a consumer receives, so
      they are written together, from one burst, and never left half-updated
      from a previous one. */
-  const dp_acq_state_t *eng = s->acq->engine;
-  s->preamble_start         = e->start;
-  s->doppler_hz_est         = e->doppler_hz;
-  s->cn0_dbhz_est           = e->cn0_dbhz;
-  s->doppler_res_hz         = eng->doppler_res_hz;
-  s->doppler_rate_hz_s      = e->doppler_rate_hz_s;
+  const dp_correlator_state_t *eng = s->acq->engine;
+  s->preamble_start                = e->start;
+  s->doppler_hz_est                = e->doppler_hz;
+  s->cn0_dbhz_est                  = e->cn0_dbhz;
+  s->doppler_res_hz                = eng->search->doppler_res_hz;
+  s->doppler_rate_hz_s             = e->doppler_rate_hz_s;
   s->n_bursts++;
 
   /* ...and the same event into this burst's OWN row. One push can complete
@@ -1086,8 +1095,8 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
      queued behind one that has not arrived stays queued until it does. */
   burst_capture_drain (state);
 
-  const dp_acq_state_t *e   = state->acq->engine;
-  size_t                off = 0;
+  const dp_correlator_state_t *e   = state->acq->engine;
+  size_t                       off = 0;
   while (off < x_len)
     {
       size_t chunk = x_len - off;
@@ -1125,8 +1134,8 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
       size_t fed = 0;
       while (fed < chunk)
         {
-          acq_result_t hits[BURST_CAPTURE_HITS];
-          size_t       nh
+          dp_correlator_hit_t hits[BURST_CAPTURE_HITS];
+          size_t              nh
               = dp_burst_acq_push (state->acq, x + off + fed, chunk - fed,
                                    hits, BURST_CAPTURE_HITS);
 
@@ -1155,8 +1164,9 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
                  where `n` counts W frequency hypotheses over that period and
                  backing off `n` anchored every hit (W - 1) periods early
                  (doppler#2090). */
-              uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->frame_n
-                               + (uint64_t)hits[i].code_phase;
+              uint64_t epoch = hits[i].samples_consumed
+                               - (uint64_t)e->search->frame_n
+                               + (uint64_t)hits[i].col;
 
               /* Record the hit BEFORE anything filters it. This is what the
                  search found; `events()` is what survived the claim rule and
@@ -1173,7 +1183,7 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
               {
                 burst_capture_detection_t *d = &state->det[state->det_len++];
                 d->epoch                     = epoch;
-                d->doppler_hz = acq_bin_doppler_hz (e, hits[i].doppler_bin);
+                d->doppler_hz = dp_correlator_bin_doppler_hz (e, hits[i].row);
                 d->cn0_dbhz   = hits[i].cn0_dbhz_est;
                 d->test_stat  = (double)hits[i].test_stat;
                 d->peak_mag   = (double)hits[i].peak_mag;
@@ -1222,7 +1232,7 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
                       cand->shadowed = shadow;
                       cand->refined  = 0;
                       cand->doppler_hz
-                          = acq_bin_doppler_hz (e, hits[i].doppler_bin);
+                          = dp_correlator_bin_doppler_hz (e, hits[i].row);
                       cand->cn0_dbhz          = hits[i].cn0_dbhz_est;
                       cand->doppler_rate_hz_s = 0.0;
                       /* A later anchor can pass the entries queued after it
@@ -1263,7 +1273,7 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
               q->peak_mag   = (double)hits[i].peak_mag;
               q->refined    = 0;
               q->shadowed   = shadow;
-              q->doppler_hz = acq_bin_doppler_hz (e, hits[i].doppler_bin);
+              q->doppler_hz = dp_correlator_bin_doppler_hz (e, hits[i].row);
               q->cn0_dbhz   = hits[i].cn0_dbhz_est;
               q->doppler_rate_hz_s = 0.0; /* refine's, once refined */
               state->pending++;
@@ -1410,14 +1420,14 @@ dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
   /* The grid moved, so the child's blob size may have moved with it. This is
      the one call that can legitimately change it underneath a bound that
      state_bytes() promises is a pure function of configuration. */
-  state->acq_blob_max = dp_acq_state_bytes (state->acq->engine);
+  state->acq_blob_max = dp_correlator_state_bytes (state->acq->engine);
   return DP_OK;
 }
 
 size_t
 dp_burst_capture_get_rate_hypotheses (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->rate_hyps;
+  return state->acq->engine->search->rate_hyps;
 }
 
 /* ── Read-backs ──────────────────────────────────────────────────────────
@@ -1448,7 +1458,7 @@ dp_burst_capture_get_doppler_res_hz (const dp_burst_capture_state_t *state)
      cross-channel dedup from it at construction -- the mirror read 0.0
      there, before any burst, and a dedup window of zero merged nothing
      (doppler#1174). The event row keeps its own copy per burst. */
-  return state->acq->engine->doppler_res_hz;
+  return state->acq->engine->search->doppler_res_hz;
 }
 
 double
@@ -1530,43 +1540,43 @@ dp_burst_capture_get_min_gap (const dp_burst_capture_state_t *state)
 double
 dp_burst_capture_get_eta (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->eta;
+  return state->acq->engine->search->eta;
 }
 
 double
 dp_burst_capture_get_eta_nc (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->eta_nc;
+  return state->acq->engine->search->eta_nc;
 }
 
 double
 dp_burst_capture_get_straddle_loss (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->straddle_loss;
+  return state->acq->engine->search->straddle_loss;
 }
 
 double
 dp_burst_capture_get_pd_predicted (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->pd_predicted;
+  return state->acq->engine->search->pd_predicted;
 }
 
 double
 dp_burst_capture_get_pd_burst (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->pd_burst;
+  return state->acq->engine->search->pd_burst;
 }
 
 double
 dp_burst_capture_get_psl_db (const dp_burst_capture_state_t *state)
 {
-  return dp_acq_psl_db (state->acq->engine);
+  return dp_correlator_psl_db (state->acq->engine);
 }
 
 double
 dp_burst_capture_get_doppler_rate (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->doppler_rate;
+  return state->acq->engine->search->doppler_rate;
 }
 
 size_t
@@ -1574,25 +1584,25 @@ dp_burst_capture_get_doppler_bins (const dp_burst_capture_state_t *state)
 {
   /* The grid the search covers, tiles included -- the same number
      BurstAcquisition's doppler_bins reads (doppler#1512). */
-  return acq_grid_bins (state->acq->engine);
+  return dp_correlator_grid_bins (state->acq->engine);
 }
 
 size_t
 dp_burst_capture_get_n_noncoh (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->n_noncoh;
+  return state->acq->engine->search->n_noncoh;
 }
 
 size_t
 dp_burst_capture_get_code_bins (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->code_bins;
+  return state->acq->engine->search->code_bins;
 }
 
 double
 dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state)
 {
-  return state->acq->engine->doppler_span_hz;
+  return state->acq->engine->search->doppler_span_hz;
 }
 
 /* ── Serializable state ──────────────────────────────────────────────── */
@@ -1603,7 +1613,7 @@ dp_burst_capture_get_doppler_span_hz (const dp_burst_capture_state_t *state)
 static int
 burst_capture_rate_ok (const dp_burst_capture_state_t *s, double rate)
 {
-  const double span = s->acq->engine->doppler_rate;
+  const double span = s->acq->engine->search->doppler_rate;
   return isfinite (rate) && fabs (rate) <= span * (1.0 + 1e-12);
 }
 
@@ -1682,7 +1692,7 @@ dp_burst_capture_get_state (const dp_burst_capture_state_t *s, void *blob)
       dp_w_zeros (&_w, (s->hist->capacity - n) * sizeof (float _Complex));
     }
 
-  size_t an = dp_acq_state_bytes (s->acq->engine);
+  size_t an = dp_correlator_state_bytes (s->acq->engine);
   dp_w_u32 (&_w, (uint32_t)an);
   /* The engine's blob, then zeros to the fixed acq_blob_max. A blob larger
      than the bound (which state_bytes promises cannot happen) is written as
@@ -1691,7 +1701,7 @@ dp_burst_capture_get_state (const dp_burst_capture_state_t *s, void *blob)
     {
       void *region = dp_w_reserve (&_w, an);
       if (region)
-        dp_acq_get_state (s->acq->engine, region);
+        dp_correlator_get_state (s->acq->engine, region);
       dp_w_zeros (&_w, s->acq_blob_max - an);
     }
   else
@@ -1753,7 +1763,7 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
      that, and then neither the undo snapshot below nor acq's own restore may
      run: both would go past the region (get_state skips the child for the
      same reason). */
-  if (dp_acq_state_bytes (s->acq->engine) > s->acq_blob_max)
+  if (dp_correlator_state_bytes (s->acq->engine) > s->acq_blob_max)
     return DP_ERR_INVALID;
 
   /* The queue, checked on what the blob claims rather than trusted: phases
@@ -1836,10 +1846,10 @@ dp_burst_capture_set_state (dp_burst_capture_state_t *s, const void *blob)
      carrier rebuild commits nothing on failure, so a refusal there still
      leaves both untouched. */
   uint64_t child_at;
-  if (dp_acq_state_position (s->acq->engine, acq, &child_at) != DP_OK
+  if (dp_correlator_state_position (s->acq->engine, acq, &child_at) != DP_OK
       || child_at != fed)
     return DP_ERR_INVALID;
-  const int crc = dp_acq_set_state (s->acq->engine, acq);
+  const int crc = dp_correlator_set_state (s->acq->engine, acq);
   if (crc != DP_OK)
     return crc;
 

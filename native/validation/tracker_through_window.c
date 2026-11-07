@@ -28,8 +28,8 @@
  * receiver is the SEARCHING flavor (`dp_async_dsss_receiver_create`),
  * seeded once with what the searcher hands it: the shipped `acq`
  * continuous engine runs on the same received blocks until its first hit,
- * and dp_acq_build_handoff() of that hit is the seed -- the pool's own path
- * (§8.2). Not the stimulus's nominal phase: a seed that ignores the
+ * and dp_correlator_build_handoff() of that hit is the seed -- the pool's own
+ * path (§8.2). Not the stimulus's nominal phase: a seed that ignores the
  * channel's own delay (0.6 chip through the resampler) leaves the code
  * loop outside its pull-in, and that was measured here first. The release
  * clock is the design's 2 s. Two
@@ -55,8 +55,8 @@
  * shipped 0.5 dB look-back the estimate is unbiased -- and what failed at
  * the floor was the searcher's seed (#1254, fixed): its hit's code phase
  * is the middle of its dwell, 0.9 chip behind the code at 40 dB-Hz, and
- * dp_acq_build_handoff() now advances it by the drift over half the dwell,
- * given the carrier. `--check` pins the static condition; the channel's
+ * dp_correlator_build_handoff() now advances it by the drift over half the
+ * dwell, given the carrier. `--check` pins the static condition; the channel's
  * rows are in the full table.
  *
  * The receiver is fed one epoch (2046 samples) at a time and the flags are
@@ -89,10 +89,10 @@
  *                                              channel's truth, the code
  *                                              rate, the lock metric
  */
-#include "doppler/acq/acq_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
@@ -247,7 +247,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   /* The searcher that seeds it: the shipped continuous engine over the
      specification's Doppler span (one native span without a channel), fed the
      same blocks until its first hit. */
-  dp_acq_state_t *acq = dp_acq_create_continuous (
+  dp_correlator_state_t *acq = dp_correlator_create_continuous (
       code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
       cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,
       0.9, 0, 1, 0.0);
@@ -255,7 +255,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   /* Through the channel the code clock rides the carrier's Doppler: the
      searcher is told the carrier, as the receiver is (#1254, #1256). */
   if (cond != COND_STATIC)
-    DP_REQUIRE (dp_acq_set_carrier_freq_hz (acq, CARRIER_HZ) == DP_OK);
+    DP_REQUIRE (dp_correlator_set_carrier_freq_hz (acq, CARRIER_HZ) == DP_OK);
   int seeded = 0;
 
   uint64_t n        = 0; /* received samples handed to the receiver */
@@ -290,15 +290,15 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
           /* The searcher sees every block until it hits; the hit's
              hand-off record is the seed, applied at this block's end (the
              engine consumes whole epochs, and a block is one). */
-          acq_result_t hit;
-          if (dp_acq_push (acq, blk, TE, &hit, 1) == 0)
+          dp_correlator_hit_t hit;
+          if (dp_correlator_push (acq, blk, TE, &hit, 1) == 0)
             {
               if (b + 1 >= lock_blocks)
                 break; /* never acquired */
               continue;
             }
-          acq_handoff_t ho;
-          dp_acq_build_handoff (acq, &hit, SF, &ho);
+          dp_correlator_handoff_t ho;
+          dp_correlator_build_handoff (acq, &hit, SF, &ho);
           DP_REQUIRE_MSG (dp_async_dsss_receiver_seed (rx, ho.chip_phase,
                                                        ho.doppler_hz_est,
                                                        ho.cn0_dbhz_est)
@@ -414,7 +414,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   free (blk);
   free (sig);
   dp_doppler_channel_destroy (ch);
-  dp_acq_destroy (acq);
+  dp_correlator_destroy (acq);
   dp_async_dsss_receiver_destroy (rx);
   dp_awgn_destroy (g);
   dp_wfm_synth_destroy (syn);

@@ -43,7 +43,7 @@
  *                                         centred, data-free same-tile
  *                                         maximum is the Gold bound
  */
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
@@ -96,7 +96,8 @@ typedef struct
                           actually competes with                    */
   /* Rule 2's own claim, cell by cell (clean runs only): every off-zone
      cell of the peak's tile and the two beside it against
-     dp_acq_sidelobe_ratio() at that cell, the least margin and where. */
+     dp_correlator_sidelobe_ratio() at that cell, the least margin and where.
+   */
   double min_margin_db;          /* model minus cell, dB; the least     */
   double margin_cell_db;         /* that cell, dB below the peak        */
   double margin_model_db;        /* its model value                     */
@@ -111,7 +112,7 @@ typedef struct
  * amplitude, with an optional sign flip at mid-epoch every epoch (the async
  * data's worst case) and optional noise at cn0_dbhz (0 = none). `present`
  * = 0 pushes the noise alone, for the reference-rise row. */
-/* The per-cell model pass: ~6,100 dp_acq_sidelobe_ratio() calls a run,
+/* The per-cell model pass: ~6,100 dp_correlator_sidelobe_ratio() calls a run,
    against one hit, so its cache makes them three row sweeps (one a tile)
    and lookups: milliseconds. The --check runs it on the two clean emitters
    it gates; the full sweep runs it on the data-transition one, which is
@@ -122,30 +123,31 @@ static int
 measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
          double cn0_dbhz, int present, uint32_t seed, floor_t *out)
 {
-  dp_acq_state_t *a = dp_acq_create_continuous (
+  dp_correlator_state_t *a = dp_correlator_create_continuous (
       code, SF, chip_rate * (double)SPC, chip_rate, SYMBOL_RATE, SIZING_CN0,
       DU, PFA, PD, 0, 1, 0.0);
   if (!a)
     {
-      DP_TEST_ERR ("dp_acq_create_continuous failed\n");
+      DP_TEST_ERR ("dp_correlator_create_continuous failed\n");
       return 1;
     }
-  out->n_noncoh    = a->n_noncoh;
-  out->window_bins = a->window_bins;
-  if (a->n_noncoh != 1 || a->coherent_bins != 1 || a->interp != 1)
+  out->n_noncoh    = a->search->n_noncoh;
+  out->window_bins = a->search->window_bins;
+  if (a->search->n_noncoh != 1 || a->search->coherent_bins != 1
+      || a->search->interp != 1)
     {
       DP_TEST_ERR (
           "engine sized n_noncoh=%zu coherent_bins=%zu interp=%zu; this "
           "harness reads the single-look surface and needs 1/1/1\n",
-          a->n_noncoh, a->coherent_bins, a->interp);
-      dp_acq_destroy (a);
+          a->search->n_noncoh, a->search->coherent_bins, a->search->interp);
+      dp_correlator_destroy (a);
       return 1;
     }
-  const size_t nx = a->code_bins;
-  const size_t W  = a->window_bins;
+  const size_t nx = a->search->code_bins;
+  const size_t W  = a->search->window_bins;
   /* The surface is read on lag_bins columns (2048 for this 2046-sample
      period: the padded lag grid), a column code_bins/lag_bins of a sample. */
-  const size_t lb = a->lag_bins;
+  const size_t lb = a->search->lag_bins;
   /* One chip, SPC samples, in columns: a column 2 away is 1.998 samples
      off (inside the chip), 3 away is 2.997 (outside). */
   const long zc = (long)(SPC * lb / nx);
@@ -153,7 +155,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
     {
       DP_TEST_ERR ("engine read %zu lag columns; the checks expect %u\n", lb,
                    LB);
-      dp_acq_destroy (a);
+      dp_correlator_destroy (a);
       return 1;
     }
   const double fs = chip_rate * (double)SPC;
@@ -192,7 +194,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   if (!syn || rc != 0)
     {
       DP_TEST_ERR ("wfm_synth continuous DSSS setup failed\n");
-      dp_acq_destroy (a);
+      dp_correlator_destroy (a);
       dp_wfm_synth_destroy (syn);
       return 1;
     }
@@ -206,13 +208,13 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
     dp_wfm_synth_noise_steps (syn, raw, TAU0 + nx);
   float complex *buf = raw + TAU0;
 
-  acq_result_t hit[2];
-  const size_t nh = dp_acq_push (a, buf, nx, hit, 2);
+  dp_correlator_hit_t hit[2];
+  const size_t        nh = dp_correlator_push (a, buf, nx, hit, 2);
 
   /* The engine's surface, as gated on. */
   const float *m  = a->mag_buf;
   size_t       pk = 0;
-  for (size_t k = 1; k < a->n_surf; k++)
+  for (size_t k = 1; k < a->search->n_surf; k++)
     if (m[k] > m[pk])
       pk = k;
   out->peak_row  = pk / lb;
@@ -225,7 +227,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   size_t cnt[NBIN] = { 0 };
   double mx_all    = 0.0;
   double mx_other  = 0.0;
-  for (size_t k = 0; k < a->n_surf; k++)
+  for (size_t k = 0; k < a->search->n_surf; k++)
     {
       size_t row = k / lb, col = k % lb;
       long   dr = (long)row - (long)out->peak_row;
@@ -263,7 +265,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   /* Rule 2's claim is per cell: what this emitter's sidelobe reads at a
      cell must sit under the model's value FOR THAT CELL, not only at the
      worst one. Every off-zone cell of the peak's tile and its two
-     neighbours, against dp_acq_sidelobe_ratio() there. Clean runs only:
+     neighbours, against dp_correlator_sidelobe_ratio() there. Clean runs only:
      with noise a cell is the sidelobe plus noise, which rule 2's gate,
      not the model, covers. */
   out->min_margin_db = INFINITY;
@@ -271,14 +273,14 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   if (with_margins && present && !(cn0_dbhz > 0.0) && nh > 0)
     {
       /* Rule 2 scales the model by the emitter's statistic ON ITS OWN LAG
-         (acq_result_t::test_stat_peak: the straddle between two lag columns
-         put back), not by the peak as read, so a cell is compared on that
-         scale too. */
-      const double       on_lag = out->peak_mag * (double)hit[0].test_stat_peak
-                                  / (double)hit[0].test_stat;
-      const size_t       rows   = a->n_surf / lb;
-      const acq_result_t from
-          = { .doppler_bin = out->peak_row, .code_phase = out->peak_col };
+         (dp_correlator_hit_t::test_stat_peak: the straddle between two lag
+         columns put back), not by the peak as read, so a cell is compared on
+         that scale too. */
+      const double on_lag = out->peak_mag * (double)hit[0].test_stat_peak
+                            / (double)hit[0].test_stat;
+      const size_t rows   = a->search->n_surf / lb;
+      const dp_correlator_hit_t from
+          = { .row = out->peak_row, .col = out->peak_col };
       for (long d = -1; d <= 1; d++)
         {
           const size_t row
@@ -292,10 +294,10 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
                 dc = (long)lb - dc;
               if (dc <= zc) /* the zone: every row here is within one */
                 continue;
-              const acq_result_t to
-                  = { .doppler_bin = row, .code_phase = col };
-              const double cell  = db (m[row * lb + col] / on_lag);
-              const double model = db (dp_acq_sidelobe_ratio (a, &from, &to));
+              const dp_correlator_hit_t to   = { .row = row, .col = col };
+              const double              cell = db (m[row * lb + col] / on_lag);
+              const double              model
+                  = db (dp_correlator_sidelobe_ratio (a, &from, &to));
               out->margin_cells++;
               if (model - cell < out->min_margin_db)
                 {
@@ -313,7 +315,7 @@ measure (const uint8_t *code, double chip_rate, double frac, int data_flip,
   DP_CHECK_MSG (!dp_wfm_synth_data_ended (syn),
                 "the flip pattern covered the render");
   dp_wfm_synth_destroy (syn);
-  dp_acq_destroy (a);
+  dp_correlator_destroy (a);
   return 0;
 }
 
@@ -345,8 +347,8 @@ main (int argc, char **argv)
          -23.19 dB against Gold's -23.94.
 
          1. RULE 2, CELL BY CELL: every off-zone cell of the emitter's tile
-            and the two beside it sits under dp_acq_sidelobe_ratio() at that
-            cell, on rule 2's own scale (the emitter's statistic on its own
+            and the two beside it sits under dp_correlator_sidelobe_ratio() at
+         that cell, on rule 2's own scale (the emitter's statistic on its own
             lag). Measured least margin +0.65 dB centred, +0.61 dB half a
             tile off, over 6,129 cells each: the model is a sampled maximum,
             not a proven bound, and this is its measured margin. With a data

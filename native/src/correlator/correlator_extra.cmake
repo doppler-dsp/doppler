@@ -1,12 +1,5 @@
 # Hand-owned (jm includes this file and never writes it, gh-1351).
 #
-# The search flavors (#2752 step 3.4b) are the correlator's second source.
-# Added here rather than on the generated add_library() line: a source
-# named there makes jm read the whole CMakeLists as hand-owned, and it then
-# stops carrying the manifest's link dependencies onto it.
-target_sources(correlator_core
-               PRIVATE ${CMAKE_CURRENT_LIST_DIR}/correlator_search.c)
-
 # The 1-D flavor's own test, bench and equivalence test (#2752 step 3.2).
 # jm generates one test and one bench per component, test_correlator_core
 # and bench_correlator_core, which are Corr2D's. The 1-D flavor's came with
@@ -68,21 +61,61 @@ foreach(_t test_detector_equiv test_correlator_detector_1d
   add_test(NAME ${_t} COMMAND ${_t})
 endforeach()
 
-# test_search_equiv: the search flavors against acq, byte for byte (#2752
-# step 3.4b's transition commit). It compiles acq_core.c, correlator_core.c
-# and correlator_search.c into itself, under strict floating point, so the
-# comparison is of the code and not of -ffast-math's inlining choices (the
-# test's header). It lives only while acq/ does; the next commit drops its
-# acq half.
+# test_search_equiv: the search flavors' scenes, each against its own plain
+# run (#2752 step 3.4b). They were the transition commit's acq-against-
+# correlator oracle; acq/ is gone, and they pin that how a stream arrives
+# (chunks, threads, a restore) changes no byte, under the library's flags.
 add_executable(test_search_equiv
                ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_search_equiv.c)
-dp_gnu_compile_options(test_search_equiv PRIVATE -fno-fast-math
-                       -ffp-contract=off)
 target_link_libraries(test_search_equiv
-                      PRIVATE Threads::Threads fft2d_core fft_core
-                              detection_core dp_tlm_core cvt_core
+                      PRIVATE correlator_core Threads::Threads fft2d_core
+                              fft_core detection_core dp_tlm_core cvt_core
                               ${JM_MATH_LIBRARY})
 target_include_directories(test_search_equiv
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_search_equiv COMMAND test_search_equiv)
+
+# The search flavors' C tests (#2752 step 3.4b), acq's until acq/ was
+# deleted, registered here as the detectors' were in 3.3.
+#
+# test_correlator_search: acq's test_correlator_search. It builds a swept carrier
+# with dp_swept_test.h, which is dp_wfm_synth_prod over a chirp synth: a
+# TEST-ONLY dependency (the search never calls the generator), so it is on
+# this target alone. The list is wfm_synth_core's closure, as
+# test_wfm_synth_core links it; the cores are OBJECT libraries, and CMake
+# adds an object library's objects only to a target that names it.
+add_executable(test_correlator_search
+               ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_correlator_search.c)
+target_link_libraries(test_correlator_search
+                      PRIVATE correlator_core Threads::Threads fft2d_core
+                              fft_core detection_core dp_tlm_core cvt_core
+                              wfm_synth_core lo_core awgn_core pn_core fir_core
+                              resamp_core wfm_dsp_core wfm_frame_core gold_core
+                              ${JM_MATH_LIBRARY})
+target_include_directories(test_correlator_search
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_correlator_search COMMAND test_correlator_search)
+
+# test_correlator_regrid_failure: a regrid that fails commits nothing
+# (#2761). It compiles both correlator sources INTO itself, because a
+# widening regrid is reachable only from the constructor, and renames the
+# plan builder for that one translation unit so the Nth plan can be made to
+# fail. The failable builder lives in its own file, which the rename is
+# undone for, so it calls the real one.
+add_executable(test_correlator_regrid_failure
+    ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_correlator_regrid_failure.c
+    ${CMAKE_SOURCE_DIR}/native/tests/correlator/correlator_fft_hook.c)
+target_compile_definitions(test_correlator_regrid_failure PRIVATE
+    dp_fft_create=search_test_fft_create)
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/native/tests/correlator/correlator_fft_hook.c
+    PROPERTIES COMPILE_OPTIONS "-Udp_fft_create")
+target_link_libraries(test_correlator_regrid_failure PRIVATE
+    Threads::Threads fft2d_core fft_core detection_core
+    dp_tlm_core cvt_core ${JM_MATH_LIBRARY})
+target_include_directories(test_correlator_regrid_failure PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_correlator_regrid_failure
+         COMMAND test_correlator_regrid_failure)

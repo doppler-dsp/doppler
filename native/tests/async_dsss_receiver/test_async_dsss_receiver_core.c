@@ -51,7 +51,8 @@
 #include <string.h>
 
 /* A length-7 maximal-length sequence -- same fixture test_dsss_receiver_
- * core.c/test_acq_core.c use for fast, real (not mocked) unit tests. */
+ * core.c/test_correlator_search.c use for fast, real (not mocked) unit tests.
+ */
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 /* Stream `x` through `rx` in fixed-size chunks, collecting every emitted
@@ -521,8 +522,8 @@ _test_spec_ramp_decode (void)
  * the 40 dB-Hz floor it is 88 epochs, 0.9 chip, past it: the refine Dll
  * sat where it was seeded, its detector saw no lobe, and the hand-over
  * was the unrefined seed, 1.1 kHz off, which the carrier loop can never
- * acquire. dp_acq_build_handoff() now advances the phase by the drift over
- * half the dwell. Sabotage: pass 0.0 for the carrier at the receiver's
+ * acquire. dp_correlator_build_handoff() now advances the phase by the drift
+ * over half the dwell. Sabotage: pass 0.0 for the carrier at the receiver's
  * call site -> the floor's seeds red (the 45 dB-Hz ones survive it, which
  * is why the floor is in the test).
  *
@@ -1115,14 +1116,14 @@ _test_telemetry_reaches_the_search (void)
   if (!rx || !rx->acq || !t || !t2)
     return 1;
   DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
-  DP_CHECK (rx->acq->tlm.ctx == t);
+  DP_CHECK (rx->acq->search->tlm.ctx == t);
   DP_CHECK (dp_tlm_probe_id (t, "rx.acq.stat") >= 0);
   DP_CHECK (
       dp_async_dsss_receiver_set_telemetry (rx, t2, "abcdefghijklmnop", 1)
       == DP_ERR_INVALID);
-  DP_CHECK (rx->acq->tlm.ctx == t && dp_tlm_probe_count (t2) == 0);
+  DP_CHECK (rx->acq->search->tlm.ctx == t && dp_tlm_probe_count (t2) == 0);
   DP_CHECK (dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1) == DP_OK);
-  DP_CHECK (rx->acq->tlm.ctx == NULL);
+  DP_CHECK (rx->acq->search->tlm.ctx == NULL);
   dp_async_dsss_receiver_destroy (rx);
   dp_tlm_destroy (t2);
   dp_tlm_destroy (t);
@@ -2840,7 +2841,7 @@ _test_handoff_resumes_at_the_hit (void)
       return 1;
     }
   /* The premise: frames after a hit that decide nothing. */
-  DP_CHECK (one->acq->n_noncoh > 1);
+  DP_CHECK (one->acq->search->n_noncoh > 1);
 
   float _Complex *a, *b;
   size_t          n_a = _stream (one, x, n, n, &a);
@@ -3127,7 +3128,8 @@ _test_handover_holds_the_refined_doppler_to_the_domain (void)
               DP_CHECK (dp_async_dsss_receiver_get_doppler_hz (dst) == 0.0);
               DP_CHECK (dst->seed_doppler_hz_est == 0.0);
               /* The search restarts on the grid: 1124 in, owed to 2046. */
-              DP_CHECK (dst->align_pending && dp_acq_position (dst->acq) == 0);
+              DP_CHECK (dst->align_pending
+                        && dp_correlator_position (dst->acq) == 0);
             }
         }
       free (blob);
@@ -3632,7 +3634,7 @@ _test_threads_change_nothing_but_cost (void)
   dp_async_dsss_receiver_state_t *a = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
   dp_async_dsss_receiver_state_t *b = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
   DP_REQUIRE (a != NULL && b != NULL);
-  DP_REQUIRE (a->acq->window_bins == 5); /* something to fan out */
+  DP_REQUIRE (a->acq->search->window_bins == 5); /* something to fan out */
   DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_threads (a, 1), DP_OK);
   DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_threads (b, 4), DP_OK);
   DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (a), 1);
@@ -3656,7 +3658,7 @@ _test_threads_change_nothing_but_cost (void)
   /* A regrid to one tile re-applies the cap (#2746), and the blob carries
      what then runs: the 4-thread, five-tile receiver saves threads = 1 and
      restores as 1 into a receiver on the same one-tile grid. Sabotage:
-     drop the re-cap in dp_acq_configure_search_raw -> it saves 4. */
+     drop the re-cap in dp_correlator_configure_search_raw -> it saves 4. */
   DP_REQUIRE (dp_async_dsss_receiver_configure_search_raw (b, 1, 1) == 0);
   DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (b), 1);
   {
@@ -3716,14 +3718,14 @@ _test_dwells_start_on_the_block_grid (void)
       DP_REQUIRE (dp_async_dsss_receiver_get_coherent_bins (rx) == 6);
       (void)dp_async_dsss_receiver_steps (rx, pre, fed_before, out, 600);
       /* From create the grid starts at sample 0: nothing was owed. */
-      DP_CHECK_EQ_U64 (dp_acq_position (rx->acq), (uint64_t)fed_before);
+      DP_CHECK_EQ_U64 (dp_correlator_position (rx->acq), (uint64_t)fed_before);
       dp_async_dsss_receiver_reset (rx);
       for (size_t pos = 0; pos < 500; pos += chunk)
         {
           const size_t take = pos + chunk <= 500 ? chunk : 500 - pos;
           (void)dp_async_dsss_receiver_steps (rx, post + pos, take, out, 600);
           const size_t fed = pos + take;
-          DP_CHECK_EQ_U64 (dp_acq_position (rx->acq),
+          DP_CHECK_EQ_U64 (dp_correlator_position (rx->acq),
                            (uint64_t)(fed > owed ? fed - owed : 0));
         }
       DP_CHECK (rx->state == ASYNC_DSSS_RX_SEARCHING);
@@ -3750,8 +3752,8 @@ _test_dwells_start_on_the_block_grid (void)
   DP_REQUIRE (dp_async_dsss_receiver_set_state (b, blob) == DP_OK);
   (void)dp_async_dsss_receiver_steps (a, post + 3, 497, out, 600);
   (void)dp_async_dsss_receiver_steps (b, post + 3, 497, out, 600);
-  DP_CHECK_EQ_U64 (dp_acq_position (a->acq), (uint64_t)(500 - owed));
-  DP_CHECK_EQ_U64 (dp_acq_position (b->acq), (uint64_t)(500 - owed));
+  DP_CHECK_EQ_U64 (dp_correlator_position (a->acq), (uint64_t)(500 - owed));
+  DP_CHECK_EQ_U64 (dp_correlator_position (b->acq), (uint64_t)(500 - owed));
   /* A flag that is not a flag is a forged blob. */
   async_dsss_receiver_extra_t *extra
       = (async_dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t));
@@ -3931,8 +3933,8 @@ _test_ranks_and_exclusions_split_two_signals (void)
   /* A alone: excluded, it is never taken at any Doppler, dwell after
      dwell; and at rank 1 there is no second signal to take. Either way the
      search goes on, and the engine is fed every sample exactly once -- its
-     position is what was fed (the rest resumes at dp_acq_consumed(), not
-     at the hit: resuming at the hit re-fed the carry). */
+     position is what was fed (the rest resumes at dp_correlator_consumed(),
+     not at the hit: resuming at the hit re-fed the carry). */
   for (int k = 0; k < 2; k++)
     {
       dp_async_dsss_receiver_state_t *r = _slow_rx (code, 47.0, 500.0, 0, 0);
@@ -3944,7 +3946,7 @@ _test_ranks_and_exclusions_split_two_signals (void)
       const size_t fed = _until_seeded (r, xa, na);
       DP_CHECK_MSG (r->state == ASYNC_DSSS_RX_SEARCHING,
                     k ? "rank 1 of one signal" : "excluded signal taken");
-      DP_CHECK_EQ_U64 (dp_acq_position (r->acq), (uint64_t)fed);
+      DP_CHECK_EQ_U64 (dp_correlator_position (r->acq), (uint64_t)fed);
       DP_CHECK_EQ_U64 (dp_async_dsss_receiver_status (r).state_samples,
                        (uint64_t)fed);
       dp_async_dsss_receiver_destroy (r);
@@ -4105,7 +4107,8 @@ _test_pooled_and_search_only (void)
       picks += k;
       if (k && rx->state == ASYNC_DSSS_RX_IDLE)
         {
-          DP_CHECK (dp_acq_position (rx->acq) == 0); /* never searched */
+          DP_CHECK (dp_correlator_position (rx->acq)
+                    == 0); /* never searched */
           DP_CHECK (dp_async_dsss_receiver_seed (rx, ph[0], dop[0], cn0[0])
                     == DP_OK);
           seeded = off;
@@ -4116,7 +4119,7 @@ _test_pooled_and_search_only (void)
   DP_CHECK (seeded > 0);
   DP_CHECK_MSG (rx->state == ASYNC_DSSS_RX_TRACKING,
                 "a pooled receiver seeded from the pick does not track");
-  DP_CHECK (dp_acq_position (rx->acq) == 0);
+  DP_CHECK (dp_correlator_position (rx->acq) == 0);
   dp_async_dsss_receiver_reset (rx);
   DP_CHECK (rx->state == ASYNC_DSSS_RX_IDLE);
   /* Both mutators travel (#2022): a fresh receiver restored from each
@@ -4262,7 +4265,7 @@ _test_one_signal_holds_one_rank (void)
     {
       dp_async_dsss_receiver_state_t *rx
           = _slow_rx (code, 60.0, 5000.0, 0.0, 0.0);
-      DP_REQUIRE (rx != NULL && rx->acq->window_bins > 1);
+      DP_REQUIRE (rx != NULL && rx->acq->search->window_bins > 1);
       DP_CHECK (dp_async_dsss_receiver_set_rank (rx, r) == DP_OK);
       (void)_until_seeded (rx, x, n);
       DP_CHECK_MSG ((rx->state != ASYNC_DSSS_RX_SEARCHING) == (r == 0),
@@ -4277,7 +4280,7 @@ _test_one_signal_holds_one_rank (void)
 
 /* A ranked or excluded search takes no sidelobe (#2525). One emitter's
  * dwell list also holds its code's Doppler-offset sidelobes, hundreds of
- * chips from its phase and up to dp_acq_dsl_db() below it (design
+ * chips from its phase and up to dp_correlator_dsl_db() below it (design
  * acq-surface.md §8), and noise rides on them. A search that skips the
  * strongest peak must not take one as a second signal: on a stream holding
  * A alone, neither a rank-1 receiver nor a rank-0 receiver with A excluded
@@ -4311,11 +4314,11 @@ _test_ranked_search_takes_no_sidelobe (void)
           dp_async_dsss_receiver_state_t *rx
               = _slow_rx (code, 47.0, 5000.0, 0.0, 0.0);
           DP_REQUIRE (r0 && r1 && rx);
-          /* Rule 2 bounds per cell (dp_acq_sidelobe_ratio()), so nothing
-             here reads the code's worst sidelobe and its sweep (0.15 s on
-             this search) is never paid. Sabotage: read dp_acq_dsl_db()
-             at create again -> red. */
-          DP_CHECK (!r0->acq->dsl_ready);
+          /* Rule 2 bounds per cell (dp_correlator_sidelobe_ratio()), so
+             nothing here reads the code's worst sidelobe and its sweep (0.15 s
+             on this search) is never paid. Sabotage: read
+             dp_correlator_dsl_db() at create again -> red. */
+          DP_CHECK (!r0->acq->search->dsl_ready);
           (void)_until_seeded (r0, x, n);
           DP_REQUIRE (r0->state != ASYNC_DSSS_RX_SEARCHING);
           const double pa = r0->seed_chip_phase;

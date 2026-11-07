@@ -1,15 +1,18 @@
 /**
  * @file test_search_equiv.c
- * @brief The search flavors against acq, byte for byte (#2752 step 3.4b).
+ * @brief The search flavors' scenes: how the stream arrives changes no
+ *        byte (#2752 step 3.4b).
  *
- * acq has no second implementation to pair against, as the map and the
- * detectors had in 3.2 and 3.3, so the step's first commit adds the
- * correlator's two search flavors while acq/ still builds, and this test
- * drives both through the same scenes (docs/design/correlator.md section
- * 7, 3.4b's oracle):
+ * These scenes were the step's oracle: in the transition commit they drove
+ * acq and the correlator's search flavors side by side, compiled under
+ * strict floating point, and every hit and every dwell's surface was
+ * byte-identical (PR #2930's first CI run is that evidence). With acq/
+ * deleted they stay as the search flavors' pins (docs/design/correlator.md
+ * section 7), each against its own plain run: the same stream pushed whole,
+ * on one thread, without a restore. The scenes:
  *
  *   - both doors, continuous and burst;
- *   - one peak and four;
+ *   - one peak and four, with a second emitter, and a close pair;
  *   - rate hypotheses;
  *   - the carrier coupled;
  *   - a tiled search with D > 1;
@@ -18,25 +21,11 @@
  *   - a mid-stream get_state / set_state into a fresh engine.
  *
  * Every hit, all 64 bytes of it, and every dwell's statistic surface (the
- * surface sink, every dwell) must be byte-identical. The driver is written
- * once and instantiated for each API by a macro, so the two sides cannot be
- * fed differently.
- *
- * The oracle is the C, not the compiler's choices: the library builds with
- * -ffast-math, under which two copies of one function inlined differently
- * may round differently (the first build showed a 1-ulp test_stat_peak on
- * the non-coherent path, where GCC cloned report_peaks with different
- * constant propagation in the two files). So the three sources are
- * compiled INTO this translation unit, with -fno-fast-math and
- * -ffp-contract=off (correlator_extra.cmake): every result is then fixed
- * by the C semantics, and a difference is a difference in the code.
- *
- * The next commit deletes acq/ and this test's acq half; its scenes stay as
- * the search flavors' pins.
+ * surface sink, every dwell) must match the plain run's. Built as the
+ * library is, under its own flags: a delivery that changed a bit there
+ * would be a bit a caller sees.
  */
-#include "../../src/acq/acq_core.c"
-#include "../../src/correlator/correlator_core.c"
-#include "../../src/correlator/correlator_search.c"
+#include "doppler/correlator/correlator_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
@@ -47,11 +36,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-_Static_assert (sizeof (dp_correlator_hit_t) == sizeof (acq_result_t),
-                "the widened hit record is acq_result_t's 64 bytes");
+_Static_assert (sizeof (dp_correlator_hit_t) == 64,
+                "the one hit record is 64 bytes");
 
 /* A length-31 maximal-length sequence (one period): PN(mls_poly(5),
- * seed=1), as test_acq_core.c's CODE31. */
+ * seed=1), as test_correlator_search.c's CODE31. */
 static const uint8_t CODE31[31]
     = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
         1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
@@ -238,7 +227,6 @@ stream (const scene_t *sc, size_t n)
     return 0;                                                                 \
   }
 
-DEFINE_RUN (acq, dp_acq_, dp_acq_state_t, acq_result_t)
 DEFINE_RUN (corr, dp_correlator_, dp_correlator_state_t, dp_correlator_hit_t)
 
 static int
@@ -246,14 +234,19 @@ equiv (const scene_t *sc)
 {
   const size_t    n = (size_t)400 * NX;
   float _Complex *x = stream (sc, n);
-  rec_t           a = { 0 }, c = { 0 };
-  acq_run (sc, x, n, &a);
+  /* The plain run: the stream whole, one thread, no restore. */
+  scene_t plain    = *sc;
+  plain.odd_chunks = 0;
+  plain.split      = 0;
+  plain.threads    = 1;
+  rec_t a = { 0 }, c = { 0 };
+  corr_run (&plain, x, n, &a);
   corr_run (sc, x, n, &c);
   free (x);
   printf ("  %-28s hits %4zu/%-4zu dwells %4zu/%-4zu\n", sc->name, a.n_hits,
           c.n_hits, a.n_dwells, c.n_dwells);
   /* The scene must say something: a run with no hit or no dwell would
-     match its twin vacuously. */
+     match its plain run vacuously. */
   DP_CHECK_MSG (a.n_hits > 0 && a.n_dwells > 0, sc->name);
   /* Where two runs part, so a red names the byte. */
   for (int w = 0; w < 2; w++)
@@ -270,8 +263,8 @@ equiv (const scene_t *sc)
                     = (const void *)(x->b + i / 64 * 64);
                 const dp_correlator_hit_t *hc
                     = (const void *)(y->b + i / 64 * 64);
-                printf ("    acq  stat %a peak %a row %zu col %zu\n"
-                        "    corr stat %a peak %a row %zu col %zu\n",
+                printf ("    plain stat %a peak %a row %zu col %zu\n"
+                        "    scene stat %a peak %a row %zu col %zu\n",
                         ha->test_stat, ha->test_stat_peak, ha->row, ha->col,
                         hc->test_stat, hc->test_stat_peak, hc->row, hc->col);
               }

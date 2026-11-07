@@ -2,7 +2,8 @@
 
 ``Acquisition.push()`` reports ``code_phase`` as a correlation lag; each hit
 also carries ``chip_phase``, the code's own instantaneous phase at the
-hand-off instant, which C computes once (``dp_acq_build_handoff``'s helper)
+hand-off instant, which C computes once (``dp_correlator_build_handoff``'s
+helper)
 and both faces read. Uncoupled, that phase is the lag's sign inversion
 modulo the spreading factor. Coupled to a carrier, it is further advanced by
 the chip drift over half the dwell -- the term the retired Python

@@ -83,7 +83,15 @@ SKIP_PARTS = frozenset(
 )
 # Dated measurement records: the tree as it was measured, never edited to
 # follow a rename (see main()).
-RECORDS = ("docs/design/frame-description-measurements.md",)
+RECORDS = (
+    "docs/design/frame-description-measurements.md",
+    # acq's measurements, by the names it had then (#2752 step 3.4b moved
+    # it into the correlator): the records and the scripts they ran.
+    "docs/design/acq-surface-measurements.md",
+    "docs/design/async-dsss-receiver-measurements.md",
+    "docs/design/acq-surface-measurements/equiv-2825/sabotage.py",
+    "docs/design/acq-surface-measurements/schedules-2831/sabotage.py",
+)
 # Rename codemods and their tests: each names every old identifier it
 # rewrites (see main()).
 RENAME_TOOLS = (

@@ -367,7 +367,7 @@ int dp_delay_set_state(dp_delay_state_t *s, const void *blob)
 > was left out of the blob as runtime state, and `configure_search_raw()` reset
 > the child but not the count, so after a restore or a reconfigure the two
 > timebases parted and the hand-off read outside its input (#2042). Read the
-> child's own position instead (`dp_acq_position()`), and keep no parallel
+> child's own position instead (`dp_correlator_position()`), and keep no parallel
 > counter.
 
 ### Composition — `DP_W_CHILD` / `DP_R_CHILD`

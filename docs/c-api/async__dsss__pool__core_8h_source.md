@@ -32,7 +32,7 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
@@ -46,7 +46,10 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 5u /* v5: the controller's search */
+#define ASYNC_DSSS_POOL_STATE_VERSION 6u /* v6: the receivers' search child is
+                                              the correlator's ('CORL',
+                                              #2752 3.4b); v5: the
+                                              controller's search */
 
 #define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
 #define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0

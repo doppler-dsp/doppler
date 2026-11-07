@@ -14,6 +14,17 @@ docs/design/end-of-capture.md dp_interrupt_t
 # by the names it had then.
 docs/design/frame-description-measurements.md dp_ccsds_tm_frame_desc_of
 docs/design/frame-description-measurements.md dp_wfm_source_describe_frame
+# Dated measurements of acq, by the names it had before #2752 step 3.4b
+# moved it into the correlator.
+docs/design/acq-surface-measurements.md dp_acq_state_position
+docs/design/async-dsss-receiver-measurements.md dp_acq_block_prompt
+docs/design/async-dsss-receiver-measurements.md dp_acq_block_raw
+docs/design/async-dsss-receiver-measurements.md dp_acq_build_handoff
+docs/design/async-dsss-receiver-measurements.md dp_acq_set_carrier_freq_hz
+docs/design/async-dsss-receiver-measurements.md dp_acq_set_threads
+docs/design/async-dsss-receiver-measurements.md dp_acq_sidelobe_ratio
+docs/design/async-dsss-receiver-measurements.md dp_acq_state_t
+docs/design/async-dsss-receiver-measurements.md dp_acq_surface_complex
 docs/design/frame-description-measurements.md dp_wfm_synth_set_dsss
 # The table row that says it was deleted.
 docs/design/frame-description.md dp_ccsds_tm_frame_desc_of

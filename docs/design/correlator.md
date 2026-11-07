@@ -112,7 +112,7 @@ The prototype is evidence for this page only; nothing reruns it. Sub-step
 | **D2** | `CorrDetector`'s argmax loop (`detector_core.c:49-52`) and `det_peak_list`                                                                                                             | `det_peak_list` with one peak; NaN by U2's rule                                                                               |
 | **D3** | `Corr2D`'s own peak passes: `corr2d_fold_peaks` (`corr2d_core.c:1072-1106`) and the bank's 3 × 3 local maximum (`corr2d_core.c:1771-1808`), beside `det_peak_scan` and `det_peak_zone` | one peak primitive in the correlator's private header, if the measurements agree (U3)                                         |
 | **D4** | the dwell counter, `++count == dwell` (`corr_core.c:160`, `corr2d_core.c:620`, `:632`)                                                                                                 | the single-row path's, with D1                                                                                                |
-| **D5** | acq's setup-time n-point transform pairs outside the map: `acq_shape_of_template`, `acq_off_peak`, `acq_doppler_sidelobe` and `dp_acq_sidelobe_ratio`                                  | decided by U4: the first two on the single-row path (3.4a), the last two on the one delay-Doppler map (3.4b-pre), all in cf32 |
+| **D5** | acq's setup-time n-point transform pairs outside the map: `acq_shape_of_template`, `acq_off_peak`, `acq_doppler_sidelobe` and the sidelobe ratio (`dp_correlator_sidelobe_ratio` now)  | decided by U4: the first two on the single-row path (3.4a), the last two on the one delay-Doppler map (3.4b-pre), all in cf32 |
 
 **Not duplicates:**
 
@@ -141,24 +141,24 @@ the surface sink.
 **The constructors are flavors, the methods shared.** Today's constructors
 become the object's, renamed and otherwise unchanged in their arguments:
 
-| today                                             | becomes                                                         | layers                           |
-| ------------------------------------------------- | --------------------------------------------------------------- | -------------------------------- |
-| `Corr`'s constructor (renamed in 3.2)             | `dp_correlator_create_1d`                                       | map (single row) and dwell       |
-| `Corr2D`'s constructor (renamed in 3.2)           | `dp_correlator_create_2d`                                       | map and dwell                    |
-| `DelayDoppler`'s constructor (renamed in 3.2)     | `dp_correlator_create_delay_doppler`                            | map (delay-Doppler) and dwell    |
-| `CorrDetector`'s constructor (renamed in 3.3)     | `dp_correlator_create_detector_1d`                              | all four, single row             |
-| `CorrDetector2D`'s constructor (renamed in 3.3)   | `dp_correlator_create_detector_2d`                              | all four                         |
-| `dp_acq_create_continuous`, `dp_acq_create_burst` | `dp_correlator_create_continuous`, `dp_correlator_create_burst` | all four, with the search policy |
+| today                                           | becomes                                                         | layers                           |
+| ----------------------------------------------- | --------------------------------------------------------------- | -------------------------------- |
+| `Corr`'s constructor (renamed in 3.2)           | `dp_correlator_create_1d`                                       | map (single row) and dwell       |
+| `Corr2D`'s constructor (renamed in 3.2)         | `dp_correlator_create_2d`                                       | map and dwell                    |
+| `DelayDoppler`'s constructor (renamed in 3.2)   | `dp_correlator_create_delay_doppler`                            | map (delay-Doppler) and dwell    |
+| `CorrDetector`'s constructor (renamed in 3.3)   | `dp_correlator_create_detector_1d`                              | all four, single row             |
+| `CorrDetector2D`'s constructor (renamed in 3.3) | `dp_correlator_create_detector_2d`                              | all four                         |
+| acq's two constructors (moved in 3.4b)          | `dp_correlator_create_continuous`, `dp_correlator_create_burst` | all four, with the search policy |
 
 `execute` and its batch family serve the map constructors, and `push`
 serves the detection ones. A method that cannot serve a flavor refuses it
 (`SIZE_MAX`, as `execute` refuses a short frame today), never falls back.
 
 **One hit record** (owner, 2026-11-05). The 1-D detector's record (lag),
-the 2-D detector's (row, col) and `acq_result_t` (row, col and the search's
+the 2-D detector's (row, col) and acq's (row, col and the search's
 fields) were three records for one event. The correlator has one,
 `dp_correlator_hit_t`, with `row = 0` at one row: 3.3 made it the two
-detectors', and 3.4 widens it with `acq_result_t`'s fields.
+detectors', and 3.4 widens it with acq's fields.
 
 **One state blob.** One magic, `CORL`, and one version. The flavor is the
 blob's first field and a reject key, like the grid today. The payload is
@@ -277,7 +277,7 @@ or its input:
 - **U4. acq's setup transforms: precision first, then speed.** Three of
     D5's pairs ran in `double _Complex`, and the single-row path runs in
     cf32, so moving them is a precision change, not only a refactor. The
-    fourth, `dp_acq_sidelobe_ratio`, was already cf32: its duplicate is its
+    fourth, the sidelobe ratio (`dp_correlator_sidelobe_ratio`), was already cf32: its duplicate is its
     own plans, and 3.4b-pre moved them onto the map.
     - **Measured on:** every acq validator's `--check` verdict, and the setup's
         own outputs (template shape, off-peak floor, Doppler sidelobe) at
@@ -306,7 +306,7 @@ or its input:
     - **Done (3.4b-pre).** The sweep runs on the one delay-Doppler map, one
         forward transform per residual and one row per tile offset, in
         cf32: over 372 sweeps the worst `dsl` change was 6.4e-7 dB, inside
-        the same 1e-4 dB budget. `dp_acq_sidelobe_ratio`'s three private
+        the same 1e-4 dB budget. The sidelobe ratio's three private
         plans became two maps. Its plans, pad and transforms are
         bit-identical; the complex product, evaluated in the map's
         vectorized row loop under `-ffast-math`, moves the ratio by at most
@@ -447,13 +447,25 @@ Each is its own PR, tracked by an issue of its own under #2752.
         (§7.1), so 3.4b has its A.
 
     - **3.4b-pre, inside today's acq.** The Doppler-sidelobe sweep and
-        `dp_acq_sidelobe_ratio`'s transforms move onto the one delay-Doppler
+        the sidelobe ratio's transforms move onto the one delay-Doppler
         map (U4 has the measurement), so the move carries no transform of
         its own.
 
     - **3.4b, the move.** The consumers switch in the same PR: acq cannot
         be deleted while one still calls it, and a forwarding shim would be
-        a private copy. It waits on just-makeit#2516 (below).
+        a private copy. It waited on just-makeit#2516 (below).
+        **Landed (#2930).** The search is the search flavors' section of
+        `correlator_core.c`, generated from `acq_core.c` by one rename
+        table and one field map: jm owns a component's functions only in
+        its `_core.c`, and refuses a second source that declares them. The
+        oracle measured all of the design below: the transition commit's
+        15 scenes were byte-identical, acq against the search flavors,
+        under strict floating point (the library's `-ffast-math` moved one
+        `test_stat_peak` by an ulp through different inlining), with every
+        sabotage red. `Acquisition` is the view, and two jm gaps leave its
+        `reset` and `push` showing the shared docs until they ship
+        (just-makeit#2528, #2529; doppler#2913). `keep_surface`, a
+        writable property on the search record, gained a C setter.
 
     3.4b's design:
 
@@ -482,17 +494,17 @@ Each is its own PR, tracked by an issue of its own under #2752.
         placement-pinned and aligned evidence before it is chosen.
 
     - **One hit record, widened.** `dp_correlator_hit_t` gains
-        `acq_result_t`'s fields in their order: `cn0_dbhz_est`,
+        acq's hit record's fields in their order: `cn0_dbhz_est`,
         `samples_consumed`, `chip_phase`, `doppler_rate_hz_s`,
         `test_stat_peak` and the named `_pad`. `doppler_bin` and
         `code_phase` become `row` and `col`. The record grows from 32 to 64
-        bytes, `acq_result_t`'s pinned size. The detectors write the new
+        bytes, acq's record's pinned size. The detectors write the new
         fields as 0, and their rows are judged again for the memory traffic.
         Python is unaffected: every `push` returns plain tuples, and each
         class's `result_fields` picks its fields by C name.
 
-    - **Constructors and symbols.** `dp_acq_create_continuous` and
-        `dp_acq_create_burst` become the two search flavors. Of the other
+    - **Constructors and symbols.** acq's continuous and burst
+        constructors become the two search flavors. Of acq's other
         `dp_acq_*` functions:
 
         - those whose name the correlator already has (`push`, `reset`,
@@ -505,18 +517,26 @@ Each is its own PR, tracked by an issue of its own under #2752.
         folds into `correlator_private.h`.
 
     - **The blob.** `ACQR` (v8, released) is refused. A search flavor's
-        `CORL` payload is the layers' fields as 3.3 packs them, plus the
-        policy's. ACQR's reject keys stay reject keys, each with a
+        blob is `CORL`: the header, the flavor (a u64, the reject key every
+        flavor's blob opens with), then acq's payload as it was: the search
+        extra block (the counts that are reject keys, and the stream
+        position), the framer's own snapshot, the non-coherent accumulator
+        when `n_noncoh > 1`, the twins, and a tiled block's raw epochs. The
+        framer is the one field it shares with the 3.3 flavors, and it is
+        packed by the same primitive (`dp_f32_framer_get_state`); the rest
+        is the search's own, so re-packing it the 3.3 way would move bytes
+        for no reuse. ACQR's reject keys stay reject keys, each with a
         cross-load pair, and `set_state` checks the whole blob before it
         commits.
 
         Blobs that nest acq's bump, each confirmed in the PR and held by
         `make state-versions-check`:
 
-        - directly: `BurstCapture` (`BCAP` 6), `DsssReceiver` (`DSRX` 3),
-            `AsyncDsssReceiver` (`ADRX` 15) and `burst_acq`;
-        - through a receiver's child blob: `AsyncDsssPool` (5) and
-            `DsssBurstReceiver` (7).
+        - directly: `BurstCapture` (`BCAP` 6 to 7), `DsssReceiver` (`DSRX`
+            3 to 4), `AsyncDsssReceiver` (`ADRX` 15 to 16), and `burst_acq`,
+            whose blob is the engine's own and so is `CORL` now;
+        - through a receiver's child blob: `AsyncDsssPool` (5 to 6) and
+            `DsssBurstReceiver` (7 to 8).
 
     - **`Acquisition` becomes a cross-module view of the correlator.** A
         scratch `jm apply` on 0.120.2 showed jm cannot point an object at
@@ -550,7 +570,8 @@ Each is its own PR, tracked by an issue of its own under #2752.
         Every hit field and every dwell's statistic surface must be
         byte-identical, proven red by sabotage. The next commit deletes
         `acq/` and the test's acq half; its scenes stay as the flavors'
-        pins. The first commit's CI run is the evidence, and the PR links
+        pins, each against its own plain run (the stream whole, one
+        thread, no restore). The first commit's CI run is the evidence, and the PR links
         it. A continuous-against-burst pair is pinned only where the header
         documents that the two doors agree;
 

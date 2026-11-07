@@ -14,7 +14,6 @@
 * `#include "doppler/acc_cf64/acc_cf64_core.h"`
 * `#include "doppler/acc_trace/acc_trace_core.h"`
 * `#include "doppler/carrier_acq/carrier_acq_core.h"`
-* `#include "doppler/acq/acq_core.h"`
 * `#include "doppler/burst_acq/burst_acq_core.h"`
 * `#include "doppler/burst_capture/burst_capture_core.h"`
 * `#include "doppler/agc/agc_core.h"`

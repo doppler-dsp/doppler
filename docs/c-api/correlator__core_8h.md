@@ -130,6 +130,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_run**](#function-dp_correlator_run) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
 |  size\_t | [**dp\_correlator\_search\_period**](#function-dp_correlator_search_period) (size\_t code\_len, double sample\_rate, double chip\_rate) <br>_The samples one code period is searched at, for a caller feeding_ `sample_rate:` _its own period when that is already fast, else_[_**dp\_correlator\_period\_samples()**_](correlator__core_8h.md#function-dp_correlator_period_samples) _._ |
 |  int | [**dp\_correlator\_set\_carrier\_freq\_hz**](#function-dp_correlator_set_carrier_freq_hz) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
+|  void | [**dp\_correlator\_set\_keep\_surface**](#function-dp_correlator_set_keep_surface) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int keep) <br>_Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._ |
 |  int | [**dp\_correlator\_set\_max\_peaks**](#function-dp_correlator_set_max_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**dp\_correlator\_set\_ref**](#function-dp_correlator_set_ref) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**dp\_correlator\_set\_state**](#function-dp_correlator_set_state) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* blob) <br>_Restore a mid-dwell correlator from_ [_**dp\_correlator\_get\_state()**_](correlator__core_8h.md#function-dp_correlator_get_state) _'s blob._ |
@@ -151,8 +152,8 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**dp\_correlator\_bin\_doppler\_hz**](#function-dp_correlator_bin_doppler_hz) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t doppler\_bin) <br>_A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over dp\_correlator\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._ |
-|  size\_t | [**dp\_correlator\_grid\_bins**](#function-dp_correlator_grid_bins) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._ |
+|  double | [**dp\_correlator\_bin\_doppler\_hz**](#function-dp_correlator_bin_doppler_hz) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t doppler\_bin) <br>_A hit's signed Doppler, Hz: its_ `row` _folded over dp\_correlator\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._ |
+|  size\_t | [**dp\_correlator\_grid\_bins**](#function-dp_correlator_grid_bins) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The Doppler grid a hit's_ `row` _indexes:_`window_bins * coherent_bins` _bins._ |
 
 
 
@@ -797,8 +798,8 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
 
 
-* **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … lag\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase * code_len / lag_bins, code_len)`, folded non-negative.
-* **Doppler**: `state` is assumed built via [**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `doppler_bin` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->search->doppler_res_hz`.
+* **Chip phase**: `hit's` `col` is a correlation LAG (0 … lag\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - col * code_len / lag_bins, code_len)`, folded non-negative.
+* **Doppler**: `state` is assumed built via [**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `row` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->search->doppler_res_hz`.
 * **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**dp\_correlator\_set\_carrier\_freq\_hz()**](correlator__core_8h.md#function-dp_correlator_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At the specification's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
 
 **Parameters:**
@@ -1184,7 +1185,7 @@ dp_correlator_state_t * dp_correlator_create_burst (
 
 
 
-Takes the preamble as its SAMPLES: one period of `n` complex samples at `fs`, repeated up to `reps` times. A PN code is one such preamble  pass its chips mapped by [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz) and held `spc` samples each, at `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`, and `code_phase` is the delay into the repetition, in samples  for a preamble whose ambiguity function is a ridge (Zadoff-Chu: one native bin of Doppler moves the peak `u^-1 mod n` samples), the delay plus that shift whenever the Doppler is not resolved before correlation. It converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose burst Pd `pd_burst` meets `pd` at the Sidak threshold (minimum latency for a strong signal). `pd_burst` treats the preamble as exactly `reps` periods at a uniform offset against the stream-aligned dwells, and credits every dwell it spans (doppler#1498). If no depth meets `pd` the engine takes the one with the most burst Pd and is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
+Takes the preamble as its SAMPLES: one period of `n` complex samples at `fs`, repeated up to `reps` times. A PN code is one such preamble  pass its chips mapped by [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz) and held `spc` samples each, at `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`, and `col` is the delay into the repetition, in samples  for a preamble whose ambiguity function is a ridge (Zadoff-Chu: one native bin of Doppler moves the peak `u^-1 mod n` samples), the delay plus that shift whenever the Doppler is not resolved before correlation. It converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose burst Pd `pd_burst` meets `pd` at the Sidak threshold (minimum latency for a strong signal). `pd_burst` treats the preamble as exactly `reps` periods at a uniform offset against the stream-aligned dwells, and credits every dwell it spans (doppler#1498). If no depth meets `pd` the engine takes the one with the most burst Pd and is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
 
 
 `cn0_dbhz` is the DESIGN (minimum) C/N0 and is optional: NaN ([**DP\_CORRELATOR\_CN0\_NONE**](correlator__core_8h.md#define-dp_correlator_cn0_none)) means none was given, and the engine then integrates the whole preamble (`coherent_bins = reps`; 1 in a tiled search, where a depth multiplies the buffers and the latency and only a stated C/N0 asks for one) with the threshold set by `pfa` alone. `pd` is a sizing target only when a design C/N0 is given; without one `pd_predicted` and `pd_burst` are NAN and `underpowered` is never set.
@@ -2948,6 +2949,38 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 
 
 
+### function dp\_correlator\_set\_keep\_surface 
+
+_Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._
+```C++
+void dp_correlator_set_keep_surface (
+    dp_correlator_state_t * state,
+    int keep
+) 
+```
+
+
+
+Python's writable Acquisition.keep\_surface; [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) sets it too, and a search flavor's other setters leave it as it is. A flavor with no search does nothing.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `keep` 1 to keep, 0 not to. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_correlator\_set\_max\_peaks 
 
 _How many peaks a dwell may report: the peak list's capacity._ 
@@ -3530,7 +3563,7 @@ size_t dp_correlator_surface_chip_phase (
 
 
 
-One value per surface column, in chips, the same mapping [**dp\_correlator\_build\_handoff()**](correlator__core_8h.md#function-dp_correlator_build_handoff) applies to a hit's `code_phase` — so a plotted peak sits at the chip phase the DetectionEvent would carry.
+One value per surface column, in chips, the same mapping [**dp\_correlator\_build\_handoff()**](correlator__core_8h.md#function-dp_correlator_build_handoff) applies to a hit's `col` — so a plotted peak sits at the chip phase the DetectionEvent would carry.
 
 
 
@@ -3692,7 +3725,7 @@ True
 
 ### function dp\_correlator\_bin\_doppler\_hz 
 
-_A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over dp\_correlator\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._
+_A hit's signed Doppler, Hz: its_ `row` _folded over dp\_correlator\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._
 ```C++
 static inline double dp_correlator_bin_doppler_hz (
     const dp_correlator_state_t * state,
@@ -3713,7 +3746,7 @@ The one conversion from a bin to Hz; [**dp\_correlator\_build\_handoff()**](corr
 
 ### function dp\_correlator\_grid\_bins 
 
-_The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._
+_The Doppler grid a hit's_ `row` _indexes:_`window_bins * coherent_bins` _bins._
 ```C++
 static inline size_t dp_correlator_grid_bins (
     const dp_correlator_state_t * state
@@ -3722,7 +3755,7 @@ static inline size_t dp_correlator_grid_bins (
 
 
 
-One bin in a native search; the window-tile count once a `doppler_uncertainty` wider than the native span is tiled; tiles times the block depth on a continuous engine with code-only epochs. Every consumer that folds a `doppler_bin` must fold it over THIS, not over `coherent_bins`: a capture that did read every tiled hit as 0 Hz (doppler#1512). 
+One bin in a native search; the window-tile count once a `doppler_uncertainty` wider than the native span is tiled; tiles times the block depth on a continuous engine with code-only epochs. Every consumer that folds a `row` must fold it over THIS, not over `coherent_bins`: a capture that did read every tiled hit as 0 Hz (doppler#1512). 
 
 
         

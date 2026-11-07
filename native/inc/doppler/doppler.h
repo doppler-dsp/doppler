@@ -32,8 +32,6 @@
 
 #include "doppler/carrier_acq/carrier_acq_core.h"
 
-#include "doppler/acq/acq_core.h"
-
 #include "doppler/burst_acq/burst_acq_core.h"
 
 #include "doppler/burst_capture/burst_capture_core.h"

@@ -28,7 +28,6 @@ create_error_message = "AsyncDsssReceiver: invalid parameter (need a code of at 
 serializable = "true"
 depends_on = [
     { name = "ber" }, # dp_sym_test.h delegates here
-    { name = "acq", link = true },
     { name = "carrier_acq", link = true },
     { name = "dll", link = true },
     { name = "costas", link = true },

@@ -100,6 +100,9 @@ def test_a_record_is_exempt_and_nothing_else_is() -> None:
     """
     for rel in gate.RECORDS:
         assert (REPO / rel).is_file(), f"{rel}: an exempt record that is gone"
-        assert rel.endswith("-measurements.md"), (
+        # A measurement record, or a script it ran, filed under its own
+        # `<topic>-measurements/` directory (acq-surface-measurements' dated
+        # sabotages, #2752 3.4b): named file by file, never the directory.
+        assert rel.endswith("-measurements.md") or ("-measurements/" in rel), (
             f"{rel}: only dated measurement records are exempt"
         )

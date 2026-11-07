@@ -23,17 +23,16 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     gold_core
     async_dsss_receiver_core
     ber_core
-    acq_core
-    correlator_core
-    fft2d_core
-    fft_core
-    detection_core
-    dp_tlm_core
-    cvt_core
     carrier_acq_core
     psd_core
+    fft_core
     spectral_core
     acc_trace_core
+    detection_core
+    correlator_core
+    fft2d_core
+    dp_tlm_core
+    cvt_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -80,17 +79,16 @@ target_link_libraries(test_async_dsss_pool_core
     gold_core
     async_dsss_receiver_core
     ber_core
-    acq_core
-    correlator_core
-    fft2d_core
-    fft_core
-    detection_core
-    dp_tlm_core
-    cvt_core
     carrier_acq_core
     psd_core
+    fft_core
     spectral_core
     acc_trace_core
+    detection_core
+    correlator_core
+    fft2d_core
+    dp_tlm_core
+    cvt_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -128,17 +126,16 @@ target_link_libraries(bench_async_dsss_pool_core
     gold_core
     async_dsss_receiver_core
     ber_core
-    acq_core
-    correlator_core
-    fft2d_core
-    fft_core
-    detection_core
-    dp_tlm_core
-    cvt_core
     carrier_acq_core
     psd_core
+    fft_core
     spectral_core
     acc_trace_core
+    detection_core
+    correlator_core
+    fft2d_core
+    dp_tlm_core
+    cvt_core
     dll_core
     loop_filter_core
     lockdet_core

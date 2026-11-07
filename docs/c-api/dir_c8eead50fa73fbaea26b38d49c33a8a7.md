@@ -56,7 +56,6 @@
 | dir | [**acc\_q8**](dir_ea0f50795da7b2248dba00cbaac7e694.md) <br> |
 | dir | [**acc\_trace**](dir_ea4259ba3dd1c044f0efb519286a18a5.md) <br> |
 | dir | [**accumulator**](dir_36cdc8980ffec967038c3fbc81b64143.md) <br> |
-| dir | [**acq**](dir_34926d0c3adbcf3f65d9e19727d3354d.md) <br> |
 | dir | [**acquire**](dir_684079cd19bcefcd0ee51c221517a041.md) <br> |
 | dir | [**adc**](dir_eddcd1edcea89729b407f545f79f2d08.md) <br> |
 | dir | [**agc**](dir_da2fce83534b434d126c978bac57abe5.md) <br> |

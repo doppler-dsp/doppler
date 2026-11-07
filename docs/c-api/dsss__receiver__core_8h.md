@@ -11,7 +11,7 @@
 _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despread carrier wipeoff -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._ [More...](#detailed-description)
 
 * `#include "doppler/RateConverter/RateConverter_core.h"`
-* `#include "doppler/acq/acq_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/cic/cic_core.h"`
 * `#include "doppler/dll/dll_core.h"`
 * `#include "doppler/dp_state.h"`
@@ -73,7 +73,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 | ---: | :--- |
 |  int | [**dp\_dsss\_receiver\_configure\_chain\_raw**](#function-dp_dsss_receiver_configure_chain_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, size\_t segments, size\_t sps, int n) <br>_Pin the despread/resample/demod grid directly, bypassing the create-time_ `segments` _/_`sps` _defaults._ |
 |  void | [**dp\_dsss\_receiver\_configure\_lock\_raw**](#function-dp_dsss_receiver_configure_lock_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, size\_t n\_looks, double alpha, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the embedded Dll's code-lock detector directly. Forwards to_ `dp_dll_configure_lock_raw()` _, which also clears the in-flight lock statistic and drops lock. Only meaningful once tracking has begun: while searching it tunes the placeholder Dll, which the next hit replaces, so the setting is lost (as it is on reset() and configure\_chain\_raw()). The detector is the hysteretic lockdet over the DLL's per-N-look CFAR statistic —_`up_thresh` _/_`down_thresh` _set the declare/drop levels and_`n_up` _/_`n_down` _the consecutive-look verify counts, trading declare latency against false-alarm rate._ |
-|  int | [**dp\_dsss\_receiver\_configure\_search\_raw**](#function-dp_dsss_receiver_configure_search_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded Acquisition's search grid directly. Forwards to_ `dp_acq_configure_search_raw()` _— the escape hatch under this object's own_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _instead. Pinning exits the continuous engine's wideband window-tiling mode, re-derives its thresholds and resets it, discarding any search in flight. While tracking the engine is idle, so the pinned grid governs the search that resumes after the next_`reset()` _._ |
+|  int | [**dp\_dsss\_receiver\_configure\_search\_raw**](#function-dp_dsss_receiver_configure_search_raw) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded Acquisition's search grid directly. Forwards to_ `dp_correlator_configure_search_raw()` _— the escape hatch under this object's own_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _instead. Pinning exits the continuous engine's wideband window-tiling mode, re-derives its thresholds and resets it, discarding any search in flight. While tracking the engine is idle, so the pinned grid governs the search that resumes after the next_`reset()` _._ |
 |  [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* | [**dp\_dsss\_receiver\_create**](#function-dp_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential) <br>_Create a DSSS receiver in the searching state._  |
 |  void | [**dp\_dsss\_receiver\_destroy**](#function-dp_dsss_receiver_destroy) ([**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Destroy a receiver and release all four children._  |
 |  double | [**dp\_dsss\_receiver\_get\_chip\_phase**](#function-dp_dsss_receiver_get_chip_phase) (const [**dp\_dsss\_receiver\_state\_t**](structdp__dsss__receiver__state__t.md) \* state) <br>_Dll's live tracked code phase (chips); 0.0 while searching._  |
@@ -135,7 +135,7 @@ The single-object form of the chain validated across this repo's "continuous asy
 
 
 
-* **searching** (`tracking() == 0`): samples feed the embedded `Acquisition`. Nothing is emitted. On a hit, the carrier loop/ `Dll`/`RateConverter`/`MpskReceiver` are built from the hit's code phase and Doppler estimate (the exact `acq_result_t::chip_phase` hand-off phase and `RateConverter`-bridged sample-rate hand-off this repo's gallery pages validated by hand), and the **unconsumed tail** of the same `steps()` call is handed straight to them — no samples are dropped at the transition.
+* **searching** (`tracking() == 0`): samples feed the embedded `Acquisition`. Nothing is emitted. On a hit, the carrier loop/ `Dll`/`RateConverter`/`MpskReceiver` are built from the hit's code phase and Doppler estimate (the exact `dp_correlator_hit_t::chip_phase` hand-off phase and `RateConverter`-bridged sample-rate hand-off this repo's gallery pages validated by hand), and the **unconsumed tail** of the same `steps()` call is handed straight to them — no samples are dropped at the transition.
 * **tracking** (`tracking() == 1`): samples are first derotated by a pre-despread carrier loop (`costas_wipeoff`/`costas_update`, one update per code period, `bn_fll`-assisted  removes BULK Doppler and its RATE OF CHANGE before the code loop ever sees it; a fixed/ bounded residual alone is fine downstream-only, per `docs/design/async-dsss-receiver.md` §3.4, but an unbounded Doppler RATE is not), one code period at a time (a small internal carry buffer holds any leftover partial-period tail across calls  `steps()` still accepts any block size), then feed `Dll -> RateConverter -> MpskReceiver` in sequence  the C-level equivalent of hand-composing those four objects (plus the new carrier stage)  and demodulated symbols are emitted. This is a NEW composition living entirely in this object  deliberately NOT a swap to the existing `Despreader` object (which fuses Costas+Dll per-sample), because `Despreader` embeds `Dll` via `dp_dll_init()`, hardcoded to `segments==1`; it cannot carry this object's own `segments>1` async-lookback tracking. `dp_dll_steps()` itself is called completely unmodified.
 
 
@@ -181,7 +181,7 @@ int dp_dsss_receiver_configure_chain_raw (
 
 
 
-The escape hatch for the one composition-specific knob this object adds beyond its children's own: `segments` (Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples and terminal outputs per symbol) are independently overridable here, still bridged by a freshly-sized `RateConverter`  never coupled to each other (see the module docstring). It rebuilds `dll`/`rc`/`rx` at once, allocating every replacement before freeing the old ones (`Acquisition`'s `acq_regrid()` discipline), and the pinned grid is the one every later chain is built on: the next hit's hand-off and reset() both rebuild at it.
+The escape hatch for the one composition-specific knob this object adds beyond its children's own: `segments` (Dll's tracking parameter) and `sps`/`n` (MpskReceiver's samples and terminal outputs per symbol) are independently overridable here, still bridged by a freshly-sized `RateConverter`  never coupled to each other (see the module docstring). It rebuilds `dll`/`rc`/`rx` at once, allocating every replacement before freeing the old ones (`Acquisition`'s `dp_correlator_regrid()` discipline), and the pinned grid is the one every later chain is built on: the next hit's hand-off and reset() both rebuild at it.
 
 
 The new grid is checked before anything is rebuilt, and refused with the receiver left on its prior grid: `segments` &gt;= 1, `sps` &gt;= 2, a symbol no faster than a chip and a resampling ratio that is a normal double (doppler#2103), and an `n` MpskReceiver would accept (doppler#2426). Still an abort: an allocation failure in the rebuild, which runs under dp\_xnn (doppler#2112).
@@ -279,7 +279,7 @@ void dp_dsss_receiver_configure_lock_raw (
 
 ### function dp\_dsss\_receiver\_configure\_search\_raw 
 
-_Pin the embedded Acquisition's search grid directly. Forwards to_ `dp_acq_configure_search_raw()` _— the escape hatch under this object's own_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _instead. Pinning exits the continuous engine's wideband window-tiling mode, re-derives its thresholds and resets it, discarding any search in flight. While tracking the engine is idle, so the pinned grid governs the search that resumes after the next_`reset()` _._
+_Pin the embedded Acquisition's search grid directly. Forwards to_ `dp_correlator_configure_search_raw()` _— the escape hatch under this object's own_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _instead. Pinning exits the continuous engine's wideband window-tiling mode, re-derives its thresholds and resets it, discarding any search in flight. While tracking the engine is idle, so the pinned grid governs the search that resumes after the next_`reset()` _._
 ```C++
 int dp_dsss_receiver_configure_search_raw (
     dp_dsss_receiver_state_t * state,
@@ -296,14 +296,14 @@ int dp_dsss_receiver_configure_search_raw (
 
 
 * `state` Must be non-NULL. 
-* `doppler_bins` Coherent depth to pin, in `[1, reps]` as [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_acq_configure_search_raw) defines it. 
+* `doppler_bins` Coherent depth to pin, in `[1, reps]` as [**dp\_correlator\_configure\_search\_raw()**](correlator__core_8h.md#function-dp_correlator_configure_search_raw) defines it. 
 * `n_noncoh` Non-coherent looks accumulated per grid cell (1..256); more looks buys sensitivity at the cost of dwell, replacing the auto-sized count. 
 
 
 
 **Returns:**
 
-0 on success, -1 on an invalid grid (including `n_noncoh` &gt; 1 on an engine with rate hypotheses) or a failed allocation (the engine keeps its prior grid; see [**dp\_acq\_configure\_search\_raw()**](acq__core_8h.md#function-dp_acq_configure_search_raw)). 
+0 on success, -1 on an invalid grid (including `n_noncoh` &gt; 1 on an engine with rate hypotheses) or a failed allocation (the engine keeps its prior grid; see [**dp\_correlator\_configure\_search\_raw()**](correlator__core_8h.md#function-dp_correlator_configure_search_raw)). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import DsssReceiver
@@ -350,7 +350,7 @@ dp_dsss_receiver_state_t * dp_dsss_receiver_create (
 
 
 
-Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything else is a physically-motivated default a caller can override, not a requirement. Internally: the embedded `Acquisition` is built via `dp_acq_create_continuous()` (this receiver is inherently continuous/streaming)  always window-tiles, never coherently combines across epochs, sensitivity purely from an internally auto-sized non-coherent look count (see `acq_core.h`'s file doc comment); `Dll` always uses `bn=0.002` (this story's own validated stable loop bandwidth for a one-update-per-code-epoch geometry, not `dp_dll_create()`'s own default of 0.01, which this story found unstable here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses `pulse=iandd`, `bn_carrier=bn_timing=0.01`, `zeta=0.707` and `lock_thresh=0.3` — this story's own validated values throughout. It also passed `acq_to_track=1` and `warmup_syms=30` until those were deleted (doppler#877, `1f417e97`); the composed receiver now runs its one NDA discriminator here as everywhere else. `lock_thresh=0.3` predates the lock statistic becoming a calibrated detector and is retained because it is validated here, but it now has a derivable reading: the carrier lock EMA's noise-only sd is 0.1132 at every M, so 0.3 is **2.65 noise sigmas**, a per-look Pfa of ~4e-3 — looser than `MpskReceiver`'s own 0.5 default (4.42 sigma, 5e-6) and still ~6 sigma clear of the +0.99 a locked BPSK constellation reads, which is why it holds. See `carrier_nda_core.h`. `n` (MpskReceiver's terminal outputs per symbol, `m_out`) is derived from `sps` by [**mpsk\_rx\_derive\_m\_out()**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out): the even count `2*floor(sps/2)`, capped at 8.
+Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything else is a physically-motivated default a caller can override, not a requirement. Internally: the embedded `Acquisition` is built via `dp_correlator_create_continuous()` (this receiver is inherently continuous/streaming)  always window-tiles, never coherently combines across epochs, sensitivity purely from an internally auto-sized non-coherent look count (see `correlator_core.h`'s file doc comment); `Dll` always uses `bn=0.002` (this story's own validated stable loop bandwidth for a one-update-per-code-epoch geometry, not `dp_dll_create()`'s own default of 0.01, which this story found unstable here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses `pulse=iandd`, `bn_carrier=bn_timing=0.01`, `zeta=0.707` and `lock_thresh=0.3` — this story's own validated values throughout. It also passed `acq_to_track=1` and `warmup_syms=30` until those were deleted (doppler#877, `1f417e97`); the composed receiver now runs its one NDA discriminator here as everywhere else. `lock_thresh=0.3` predates the lock statistic becoming a calibrated detector and is retained because it is validated here, but it now has a derivable reading: the carrier lock EMA's noise-only sd is 0.1132 at every M, so 0.3 is **2.65 noise sigmas**, a per-look Pfa of ~4e-3 — looser than `MpskReceiver`'s own 0.5 default (4.42 sigma, 5e-6) and still ~6 sigma clear of the +0.99 a locked BPSK constellation reads, which is why it holds. See `carrier_nda_core.h`. `n` (MpskReceiver's terminal outputs per symbol, `m_out`) is derived from `sps` by [**mpsk\_rx\_derive\_m\_out()**](mpsk__rx__loops_8h.md#function-mpsk_rx_derive_m_out): the even count `2*floor(sps/2)`, capped at 8.
 
 
 
@@ -361,7 +361,7 @@ Only `code`/`chip_rate`/`symbol_rate` describe the signal itself — everything 
 * `code` Spreading code, one 0/1 chip per element (0 -&gt; +1, 1 -&gt; -1 BPSK; only the low bit is used, so pass 0/1, not +/-1). 
 * `code_len` Chips in `code` (the spreading factor). 
 * `chip_rate` Chip rate, Hz. Required. 
-* `symbol_rate` Data-symbol rate, Hz. Required — passed straight to the embedded Acquisition's own `symbol_rate` (diagnostic there; see `dp_acq_create_continuous()`). 
+* `symbol_rate` Data-symbol rate, Hz. Required — passed straight to the embedded Acquisition's own `symbol_rate` (diagnostic there; see `dp_correlator_create_continuous()`). 
 * `sample_rate` Input sample rate, Hz: a whole number of samples a chip (to a part in 1e9), at least one, or 0 for two a chip (the default). A fractional rate is refused: this receiver's code loop and carrier stage run whole-sample code periods (AsyncDsssReceiver takes any). 
 * `m` PSK order, 2/4/8; default 2 (BPSK). 
 * `cn0_dbhz` Design C/N0 for acquisition sizing, dB-Hz; default 55.0. 

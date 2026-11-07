@@ -8,7 +8,7 @@
 
 
 
-_BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_acq\_state\_t**_](structdp__acq__state__t.md) _engine._[More...](#detailed-description)
+_BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_correlator\_state\_t**_](structdp__correlator__state__t.md) _engine._[More...](#detailed-description)
 
 * `#include <burst_acq_core.h>`
 
@@ -36,7 +36,7 @@ _BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_acq\_state\_t
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_acq\_state\_t**](structdp__acq__state__t.md) \* | [**engine**](#variable-engine)  <br> |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**engine**](#variable-engine)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
 
 
@@ -97,7 +97,7 @@ Allocate with [**dp\_burst\_acq\_create()**](burst__acq__core_8h.md#function-dp_
 ### variable engine 
 
 ```C++
-dp_acq_state_t* dp_burst_acq_state_t::engine;
+dp_correlator_state_t* dp_burst_acq_state_t::engine;
 ```
 
 

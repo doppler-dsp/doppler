@@ -66,7 +66,7 @@ typedef struct
 
 #include "doppler/burst_capture/burst_capture_core.h"
 #include "doppler/burst_acq/burst_acq_core.h"
-#include "doppler/acq/acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/burst_despreader/burst_despreader_core.h"
 #include "doppler/ppe/ppe_core.h"
@@ -626,8 +626,10 @@ uint64_t dp_dsss_burst_receiver_get_n_bursts(const dp_dsss_burst_receiver_state_
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-/** @brief Layout version of the DsssBurstReceiver state blob. */
-#define DSSS_BURST_RECEIVER_STATE_VERSION 7u
+/** @brief Layout version of the DsssBurstReceiver state blob. 8: the
+ *  capture's search child is the correlator's search flavor ('CORL',
+ *  #2752 3.4b). */
+#define DSSS_BURST_RECEIVER_STATE_VERSION 8u
 
 /**
  * @brief Byte size of @p state's blob (envelope + payload + child).

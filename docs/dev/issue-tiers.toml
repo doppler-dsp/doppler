@@ -1017,9 +1017,9 @@ why = "Three private copies of the validation harness CSV parser"
 
 [issue.1915]
 tier = 1
-title = "Two manifests restate acq_result_t's fields by hand, and drifted the first time the struct grew"
+title = "Manifests restate dp_correlator_hit_t's fields by hand (result_fields), and drifted the first time the struct grew"
 status = "open"
-why = "Two manifests restate acq_result_t by hand; no gate checks result_fields against the C struct"
+why = "Four views restate dp_correlator_hit_t by hand; no gate checks result_fields against the C struct"
 
 [issue.1920]
 tier = 1

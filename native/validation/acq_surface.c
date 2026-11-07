@@ -70,8 +70,8 @@
  *                                   ambiguity, and a deep engine on data
  *                                   lists none
  */
-#include "doppler/acq/acq_core.h"
 #include "doppler/clib_common.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "dp_dsss_test.h"
@@ -187,18 +187,19 @@ typedef struct
 } chi_t;
 
 static void
-chi_open (chi_t *x, const uint8_t *code, const dp_acq_state_t *a)
+chi_open (chi_t *x, const uint8_t *code, const dp_correlator_state_t *a)
 {
-  x->n       = a->code_bins;
-  x->spc     = a->code_bins / a->sf; /* whole samples a chip, as built */
-  x->w_tiles = a->window_bins;
+  x->n       = a->search->code_bins;
+  x->spc     = a->search->code_bins
+               / a->search->sf; /* whole samples a chip, as built */
+  x->w_tiles = a->search->window_bins;
   if (x->w_tiles > 16)
     {
       (void)fprintf (stderr, "validate_acq_surface: %zu tiles, at most 16\n",
                      x->w_tiles);
       exit (1);
     }
-  x->f_e       = 2.0 * a->doppler_span_hz;
+  x->f_e       = 2.0 * a->search->doppler_span_hz;
   x->fs        = FS;
   x->fwd       = dp_fft_create (x->n, -1, 1);
   x->inv       = dp_fft_create (x->n, +1, 1);
@@ -394,13 +395,13 @@ slow_window (win_t k, size_t d, size_t interp)
 
 /* ── the engine's peak lists ──────────────────────────────────────────── */
 
-static dp_acq_state_t *
+static dp_correlator_state_t *
 engine (const uint8_t *code, int deep)
 {
-  dp_acq_state_t *a = dp_acq_create_continuous (
+  dp_correlator_state_t *a = dp_correlator_create_continuous (
       code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, CN0_SIZED, U_HZ,
       PFA, PD, 0, deep ? CODE_ONLY_EPOCHS : 1, deep ? DOPPLER_RATE : 0.0);
-  if (!a || dp_acq_set_max_peaks (a, MAX_PEAKS) != 0)
+  if (!a || dp_correlator_set_max_peaks (a, MAX_PEAKS) != 0)
     {
       (void)fprintf (stderr, "validate_acq_surface: the engine refused the "
                              "operating point\n");
@@ -433,24 +434,24 @@ list_stream (const uint8_t *code, int deep, double f_hz, double cn0,
   size_t          n;
   dp_dsss_windowed_capture (code, SF, SPC, FS, FS / SYM_RATE, f_hz, cn0, N_SYM,
                             PRE * seed, seed, W_SYM, f_sym, &x, &n, &data);
-  dp_acq_state_t *a = engine (code, deep);
-  acq_result_t    h[MAX_PEAKS];
-  size_t          pos = 0;
+  dp_correlator_state_t *a = engine (code, deep);
+  dp_correlator_hit_t    h[MAX_PEAKS];
+  size_t                 pos = 0;
   while (pos < n)
     {
-      const size_t k    = dp_acq_push (a, x + pos, n - pos, h, MAX_PEAKS);
-      const size_t took = dp_acq_consumed (a);
+      const size_t k = dp_correlator_push (a, x + pos, n - pos, h, MAX_PEAKS);
+      const size_t took = dp_correlator_consumed (a);
       pos += took;
       if (k)
         {
           o->lists++;
-          acq_handoff_t h0;
-          dp_acq_build_handoff (a, &h[0], SF, &h0);
+          dp_correlator_handoff_t h0;
+          dp_correlator_build_handoff (a, &h[0], SF, &h0);
           int any = 0;
           for (size_t i = 1; i < k; i++)
             {
-              acq_handoff_t hi;
-              dp_acq_build_handoff (a, &h[i], SF, &hi);
+              dp_correlator_handoff_t hi;
+              dp_correlator_build_handoff (a, &h[i], SF, &hi);
               if (chip_dist (hi.chip_phase, h0.chip_phase) > 1.0)
                 {
                   const double v
@@ -466,7 +467,7 @@ list_stream (const uint8_t *code, int deep, double f_hz, double cn0,
       if (!took)
         break;
     }
-  dp_acq_destroy (a);
+  dp_correlator_destroy (a);
   free (x);
   free (data);
 }
@@ -501,10 +502,10 @@ main (int argc, char **argv)
   uint8_t   code[SF];
   dp_dsss_gold_1023 (code);
 
-  dp_acq_state_t *deep = engine (code, 1);
-  chi_t           x;
+  dp_correlator_state_t *deep = engine (code, 1);
+  chi_t                  x;
   chi_open (&x, code, deep);
-  const size_t d = deep->coherent_bins, interp = deep->interp;
+  const size_t d = deep->search->coherent_bins, interp = deep->search->interp;
   double      *flat = malloc (x.n * sizeof *flat);
   window_fill (WIN_NONE, flat, x.n);
 
@@ -539,7 +540,7 @@ main (int argc, char **argv)
 
   if (check)
     {
-      DP_CHECK_MSG (fabs (psl_db - dp_acq_psl_db (deep)) < 0.01,
+      DP_CHECK_MSG (fabs (psl_db - dp_correlator_psl_db (deep)) < 0.01,
                     "chi at zero residual is the engine's own psl");
       DP_CHECK_MSG (amb[1].n_tiles == 2, "the tile-edge row ties two tiles");
       for (int r = 0; r < N_ROWS; r++)
@@ -578,7 +579,7 @@ main (int argc, char **argv)
                     "a deep engine on data lists no off-lag peak");
       free (flat);
       chi_close (&x);
-      dp_acq_destroy (deep);
+      dp_correlator_destroy (deep);
       DP_TEST_END ("validate_acq_surface");
     }
 
@@ -586,9 +587,9 @@ main (int argc, char **argv)
   size_t  depth[2];
   for (int dp = 0; dp < 2; dp++)
     {
-      dp_acq_state_t *a = engine (code, dp);
-      depth[dp]         = a->coherent_bins;
-      dp_acq_destroy (a);
+      dp_correlator_state_t *a = engine (code, dp);
+      depth[dp]                = a->search->coherent_bins;
+      dp_correlator_destroy (a);
       for (int c = 0; c < N_LIST_CN0; c++)
         lists[dp][c] = lists_at (code, dp, LIST_CN0[c], F_SYM);
     }
@@ -603,7 +604,8 @@ main (int argc, char **argv)
               "\"psl_db\": %.4f, \"uncertainty_hz\": %.1f, \"sweep_hz\": "
               "%.1f},\n",
               SF, x.spc, x.n, FS, x.f_e, x.w_tiles, d, interp,
-              deep->shape.zone, dp_acq_psl_db (deep), U_HZ, SWEEP_HZ);
+              deep->search->shape.zone, dp_correlator_psl_db (deep), U_HZ,
+              SWEEP_HZ);
       printf (" \"ambiguity\": [");
       for (int r = 0; r < N_ROWS; r++)
         {
@@ -665,8 +667,8 @@ main (int argc, char **argv)
     {
       printf ("geometry: N %zu, W %zu tiles at f_E %.1f Hz, D %zu, I %zu, "
               "zone %zu samples, psl %.2f dB\n",
-              x.n, x.w_tiles, x.f_e, d, interp, deep->shape.zone,
-              dp_acq_psl_db (deep));
+              x.n, x.w_tiles, x.f_e, d, interp, deep->search->shape.zone,
+              dp_correlator_psl_db (deep));
       for (int r = 0; r < N_ROWS; r++)
         {
           printf ("  %7.0f Hz: worst off-lag %.2f dB, %.1f chips off, tile",
@@ -696,6 +698,6 @@ main (int argc, char **argv)
     }
   free (flat);
   chi_close (&x);
-  dp_acq_destroy (deep);
+  dp_correlator_destroy (deep);
   return 0;
 }

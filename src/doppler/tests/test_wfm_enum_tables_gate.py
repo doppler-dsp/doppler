@@ -453,7 +453,7 @@ def _seed_view(
 ) -> None:
     _seed_bound(tmp_path, manifest=manifest)
     if c is not None:
-        f = tmp_path / "native/src/acq/acq_core.c"
+        f = tmp_path / "native/src/correlator/correlator_core.c"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(c, encoding="utf-8")
 
@@ -756,7 +756,7 @@ def test_a_brief_on_the_header_declaration_is_read(tmp_path: Path) -> None:
     )
     h = "/** Make one. In C the window is W_HANN. */\nint make (int window);\n"
     _seed_view(tmp_path, c=bare)
-    hdr = tmp_path / "native/inc/doppler/acq/acq_core.h"
+    hdr = tmp_path / "native/inc/doppler/correlator/correlator_core.h"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(h, encoding="utf-8")
     r = _run(tmp_path)
@@ -798,7 +798,7 @@ def test_a_brief_names_the_view_in_order(tmp_path: Path) -> None:
     is red, and `T_A or T_B` passes. A value named again later (`T_C
     returns 0`) is past the view, so it is red too."""
     _seed_bound(tmp_path, header=_TRIO_H, manifest=_TRIO_TOML)
-    f = tmp_path / "native/src/acq/acq_core.c"
+    f = tmp_path / "native/src/correlator/correlator_core.c"
     f.parent.mkdir(parents=True, exist_ok=True)
 
     f.write_text(_TRIO_C.replace("; T_C returns 0", ""), encoding="utf-8")

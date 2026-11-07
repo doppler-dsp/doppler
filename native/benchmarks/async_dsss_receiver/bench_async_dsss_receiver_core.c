@@ -209,10 +209,10 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
 /* CREATE, one receiver per call (#2752 step 3.4): the searching flavor's
    specification configuration with a five-tile search, +/-5 kHz, and a
    4 ms code-only window (CODE_ONLY_S), the receivers' Gold-1023 point where
-   create sweeps the code's Doppler-offset sidelobe (dp_acq_dsl_db(), read at
-   create so the sweep never stalls a push). Step 3.4 moves that sweep onto the
-   one delay-Doppler map, so rule 2 judges create as well as push. The row
-   records only if the search is the one named: five window tiles and a
+   create sweeps the code's Doppler-offset sidelobe (dp_correlator_dsl_db(),
+   read at create so the sweep never stalls a push). Step 3.4 moves that sweep
+   onto the one delay-Doppler map, so rule 2 judges create as well as push. The
+   row records only if the search is the one named: five window tiles and a
    deep block, without which create skips the sweep. Destroy is untimed. */
 #define CODE_ONLY_S 0.004 /* a code-only window of 11 epochs: a deep block */
 
@@ -231,15 +231,16 @@ run_create (jm_bench_t *bench, const uint8_t *code)
           4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
           CODE_ONLY_S, 0.0);
       uint64_t t1 = jm_bench_now_ns ();
-      if (!rx || rx->acq->window_bins != 5 || !(rx->acq->coherent_bins > 1))
+      if (!rx || rx->acq->search->window_bins != 5
+          || !(rx->acq->search->coherent_bins > 1))
         {
           (void)fprintf (stderr,
                          "bench_async_dsss_receiver[create]: the receiver did "
                          "not open on a five-tile deep search (window_bins "
                          "%zu, coherent_bins %zu) -- the row would time a "
                          "create that skips the sidelobe sweep\n",
-                         rx ? rx->acq->window_bins : 0,
-                         rx ? rx->acq->coherent_bins : 0);
+                         rx ? rx->acq->search->window_bins : 0,
+                         rx ? rx->acq->search->coherent_bins : 0);
           return 1;
         }
       times[r] = jm_bench_elapsed_sec (t0, t1);

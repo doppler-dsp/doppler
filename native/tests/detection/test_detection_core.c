@@ -360,8 +360,8 @@ main (void)
    * The non-coherent trio, in C. It was covered only by
    * src/doppler/detection/tests/test_detection.py -- real coverage, in the
    * wrong language for the object whose header is the SSOT, and these three
-   * are what acq_core.c sizes its entire (M, N_nc) split with
-   * (acq_core.c:237, :275, :308). */
+   * are what correlator_core.c sizes its entire (M, N_nc) split with
+   * (correlator_core.c:237, :275, :308). */
   {
     const double pfa = 1e-3;
 

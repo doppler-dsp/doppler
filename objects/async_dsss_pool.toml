@@ -18,7 +18,6 @@ extra_link_libs = ["Threads::Threads", "wfm_dsp_core", "gold_core"]
 depends_on = [
     { name = "async_dsss_receiver", link = true },
     { name = "ber" },
-    { name = "acq", link = true },
     { name = "carrier_acq", link = true },
     { name = "dll", link = true },
     { name = "costas", link = true },

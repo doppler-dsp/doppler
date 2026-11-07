@@ -466,8 +466,7 @@ void dp_correlator_destroy(dp_correlator_state_t *state);
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
  * Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
- * or recomputing ref_spec.  (A detector flavor resets its stream too: see
- * the detector flavors' section below.)
+ * or recomputing ref_spec.
  *
  * @param state  Must be non-NULL.
  *

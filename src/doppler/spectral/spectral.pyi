@@ -716,8 +716,7 @@ class Corr2D:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. (A detector flavor resets its stream too: see
-        the detector flavors' section below.)
+        or recomputing ref_spec.
 
         Examples
         --------
@@ -1537,8 +1536,7 @@ class DelayDoppler:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. (A detector flavor resets its stream too: see
-        the detector flavors' section below.)
+        or recomputing ref_spec.
 
         Examples
         --------
@@ -2344,8 +2342,7 @@ class Corr:
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. (A detector flavor resets its stream too: see
-        the detector flavors' section below.)
+        or recomputing ref_spec.
 
         Examples
         --------
@@ -2614,23 +2611,30 @@ class CorrDetector2D:
         nthreads: int = 1,
     ) -> None: ...
     def reset(self) -> None:
-        """Zero the accumulator and reset the integration counter to 0.
-        Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. (A detector flavor resets its stream too: see
-        the detector flavors' section below.)
+        """Restart detection: zero the dwell and drop the carry.
+
+        Zeroes the accumulator and the integration counter, drops the carry (the
+        partial frame held between pushes) and clears the last dump's fields, so
+        the detector afterwards matches a fresh one built with the same arguments.
+        The reference, its spectrum, the noise range and the threshold are kept.
+        last_corr reads None until the next dump.
 
         Examples
         --------
-        >>> from doppler.spectral import Corr2D
+        >>> from doppler.spectral import CorrDetector2D
         >>> import numpy as np
-        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> c = Corr2D(ref=ref, dwell=3)
-        >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
-        >>> c.count
+        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+        >>> det = CorrDetector2D(ref=ref, noise_lo=1)
+        >>> det.push(np.ones(8, dtype=np.complex64))
+        []
+        >>> det.reset()
+        >>> len(det.push(np.ones((4, 4), dtype=np.complex64)))
         1
-        >>> c.reset()
-        >>> c.count
-        0
+        >>> det.count, det.last_corr is None
+        (0, False)
+        >>> det.reset()
+        >>> det.count, det.last_corr is None
+        (0, True)
 
         """
 
@@ -2639,53 +2643,41 @@ class CorrDetector2D:
         x: complex,
         /,
     ) -> list[tuple[int, int, float, float, float]]:
-        """Stream an arbitrary-length CF32 chunk through a detector flavor.
+        """Stream an arbitrary-length CF32 chunk through the detector.
 
-        Takes the input in order, runs each complete n-sample frame (n = ny*nx)
-        through the correlator, and on every dump computes the test statistic
-        peak_mag / noise_est. Each dump that passes the threshold is one hit.
-        In Python the result is always a list: of (row, col, peak_mag,
-        noise_est, test_stat) tuples from CorrDetector2D, and of (lag,
-        peak_mag, noise_est, test_stat) tuples from CorrDetector, whose lag is
-        the hit's col.
+        Takes the input in order, runs each complete frame through the
+        correlator, and on every dump computes the test statistic
+        peak_mag / noise_est. Each dump that passes the threshold is one hit,
+        a (row, col, peak_mag, noise_est, test_stat) tuple. A chunk that ends mid-frame keeps the rest as the carry, so the
+        hits do not depend on how the stream is split into calls.
 
-        Python's push() has room for 1024 detections a call, so a push that
-        completes at most 1024 frames, counting the carry, loses nothing. One
-        that fills the room loses the rest of its input, every later frame
-        whether or not it would have made a detection, unless the rest is
-        shorter than a frame: that is kept as the carry. The next push stays on
-        the frame grid only when what was lost is a whole number of frames;
-        otherwise its peaks are off by the remainder. #1992 and
-        just-buildit/just-makeit#2184 track sizing the list to the call.
+        push() has room for 1024 hits a call, so a push that completes at most
+        1024 frames, counting the carry, loses nothing. One that fills the room
+        loses the rest of its input, every later frame whether or not it would
+        have made a hit, unless the rest is shorter than a frame: that is kept
+        as the carry. #1992 and just-buildit/just-makeit#2184 track sizing the
+        list to the call.
 
         Parameters
         ----------
-        x : complex
-            Input.
+        x : NDArray[np.complex64]
+            The next chunk of the stream, any length.
 
         Returns
         -------
         list[tuple[int, int, float, float, float]]
-            Python: the list of hits, empty when no dump passed the gate. C:
-            the number of hits written to result, or SIZE_MAX (nothing taken,
-            nothing changed) when state is a map flavor.
+            The hits, in order; empty when no dump passed the gate.
 
         Examples
         --------
-        >>> from doppler.spectral import CorrDetector, CorrDetector2D
+        >>> from doppler.spectral import CorrDetector2D
         >>> import numpy as np
         >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
-        ...                  noise_mode="mean", threshold=0.0)
-        >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
-        >>> row, col, peak, noise, stat = results[0]
+        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15)
+        >>> hits = det.push(np.ones((4, 4), dtype=np.complex64))
+        >>> row, col, peak, noise, stat = hits[0]
         >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
         (0, 0, 1.0, 1.0, 1.0)
-        >>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
-        ...                 noise_mode="mean", threshold=0.0)
-        >>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
-        >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
-        (0, 1.0, 1.0, 1.0)
 
         """
 
@@ -2900,72 +2892,67 @@ class CorrDetector:
         nthreads: int = 1,
     ) -> None: ...
     def reset(self) -> None:
-        """Zero the accumulator and reset the integration counter to 0.
-        Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. (A detector flavor resets its stream too: see
-        the detector flavors' section below.)
+        """Restart detection: zero the dwell and drop the carry.
+
+        Zeroes the accumulator and the integration counter, drops the carry (the
+        partial frame held between pushes) and clears the last dump's fields, so
+        the detector afterwards matches a fresh one built with the same arguments.
+        The reference, its spectrum, the noise range and the threshold are kept.
+        last_corr reads None until the next dump.
 
         Examples
         --------
-        >>> from doppler.spectral import Corr2D
+        >>> from doppler.spectral import CorrDetector
         >>> import numpy as np
-        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> c = Corr2D(ref=ref, dwell=3)
-        >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
-        >>> c.count
+        >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+        >>> det = CorrDetector(ref=ref, noise_lo=1)
+        >>> det.push(np.ones(2, dtype=np.complex64))
+        []
+        >>> det.reset()
+        >>> len(det.push(np.ones(4, dtype=np.complex64)))
         1
-        >>> c.reset()
-        >>> c.count
-        0
+        >>> det.count, det.last_corr is None
+        (0, False)
+        >>> det.reset()
+        >>> det.count, det.last_corr is None
+        (0, True)
 
         """
 
     def push(self, x: complex, /) -> list[tuple[int, float, float, float]]:
-        """Stream an arbitrary-length CF32 chunk through a detector flavor.
+        """Stream an arbitrary-length CF32 chunk through the detector.
 
-        Takes the input in order, runs each complete n-sample frame (n = ny*nx)
-        through the correlator, and on every dump computes the test statistic
-        peak_mag / noise_est. Each dump that passes the threshold is one hit.
-        In Python the result is always a list: of (row, col, peak_mag,
-        noise_est, test_stat) tuples from CorrDetector2D, and of (lag,
-        peak_mag, noise_est, test_stat) tuples from CorrDetector, whose lag is
-        the hit's col.
+        Takes the input in order, runs each complete frame through the
+        correlator, and on every dump computes the test statistic
+        peak_mag / noise_est. Each dump that passes the threshold is one hit,
+        a (lag, peak_mag, noise_est, test_stat) tuple, the lag being the hit's column. A chunk that ends mid-frame keeps the rest as the carry, so the
+        hits do not depend on how the stream is split into calls.
 
-        Python's push() has room for 1024 detections a call, so a push that
-        completes at most 1024 frames, counting the carry, loses nothing. One
-        that fills the room loses the rest of its input, every later frame
-        whether or not it would have made a detection, unless the rest is
-        shorter than a frame: that is kept as the carry. The next push stays on
-        the frame grid only when what was lost is a whole number of frames;
-        otherwise its peaks are off by the remainder. #1992 and
-        just-buildit/just-makeit#2184 track sizing the list to the call.
+        push() has room for 1024 hits a call, so a push that completes at most
+        1024 frames, counting the carry, loses nothing. One that fills the room
+        loses the rest of its input, every later frame whether or not it would
+        have made a hit, unless the rest is shorter than a frame: that is kept
+        as the carry. #1992 and just-buildit/just-makeit#2184 track sizing the
+        list to the call.
 
         Parameters
         ----------
-        x : complex
-            Input.
+        x : NDArray[np.complex64]
+            The next chunk of the stream, any length.
 
         Returns
         -------
         list[tuple[int, float, float, float]]
-            Python: the list of hits, empty when no dump passed the gate. C:
-            the number of hits written to result, or SIZE_MAX (nothing taken,
-            nothing changed) when state is a map flavor.
+            The hits, in order; empty when no dump passed the gate.
 
         Examples
         --------
-        >>> from doppler.spectral import CorrDetector, CorrDetector2D
+        >>> from doppler.spectral import CorrDetector
         >>> import numpy as np
-        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
-        ...                  noise_mode="mean", threshold=0.0)
-        >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
-        >>> row, col, peak, noise, stat = results[0]
-        >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
-        (0, 0, 1.0, 1.0, 1.0)
-        >>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
-        ...                 noise_mode="mean", threshold=0.0)
-        >>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
+        >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+        >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=3)
+        >>> hits = det.push(np.ones(4, dtype=np.complex64))
+        >>> lag, peak, noise, stat = hits[0]
         >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
         (0, 1.0, 1.0, 1.0)
 

@@ -1,8 +1,11 @@
-"""Certify `BurstAcquisition` — a forwarder, certified as one.
+"""Part four of the correlator's report: `BurstAcquisition`, a forwarder,
+certified as one.
 
-Run:  python -m doppler.acquire.tests.validation.burst_acq.validate
-      make validate          (regenerates every report)
-      make validate-check    (fails if the committed report is stale)
+Not run on its own. `validate.py` in this folder renders the one report for
+the one object (#2752 step 3.5): this front door's sections come after part
+three's (`search.py`), which certifies the engine it forwards to. The part
+retires with the forwarder in step 4. `attach()` hands this module the
+report it writes into.
 
 `burst_acq_core.c` is a pure forwarder onto `acq_core.c`'s shared engine:
 every function is a direct call through an embedded `dp_acq_state_t` built by
@@ -21,12 +24,11 @@ That is not a formality. A thin wrapper's characteristic defect is a
 transposition — two same-typed parameters swapped, so the object still
 constructs, still detects on a strong signal, and is sized against the wrong
 numbers. `pfa` and `pd` are both doubles in (0,1); `reps` and `spc` are both
-`size_t`. §2.1 is built to catch exactly that.
+`size_t`. §2.30 is built to catch exactly that.
 """
 
 from __future__ import annotations
 
-import sys
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,11 +37,18 @@ import numpy as np
 
 from doppler.acquire import BurstAcquisition
 from doppler.acquire.tests._preamble import code_preamble
-from doppler.tests._validation_common import Report, cli
+from doppler.tests._validation_common import Report
 from doppler.wfm import PN, mls_poly
 
 HERE = Path(__file__).resolve().parent
 R = Report()
+
+
+def attach(report: Report) -> None:
+    """Write into `report`, the correlator report's, from here on."""
+    global R
+    R = report
+
 
 SF = 31
 SPC = 4
@@ -143,7 +152,9 @@ class Data:
 
 
 def section_object() -> None:
-    R.md("## 1. The object — a front door, not an algorithm")
+    R.md(
+        "### 1.6 Part four: BurstAcquisition — a front door, not an algorithm"
+    )
     R.md()
     R.md(
         "`BurstAcquisition` composes one `dp_acq_state_t`, built through "
@@ -164,7 +175,7 @@ def section_object() -> None:
                 "are fixed at construction rather than switchable",
             ],
             [
-                "[`acq`'s report](../acq/results.md)",
+                "part three of this report (§2.19 to §2.29)",
                 "everything this object does at runtime — the engine, its "
                 "sizing, its statistics. **Not re-derived here.**",
             ],
@@ -174,7 +185,7 @@ def section_object() -> None:
             ],
         ],
     )
-    R.md("### 1.1 What a forwarder can get wrong")
+    R.md("### 1.7 What a forwarder can get wrong")
     R.md()
     R.md(
         "Re-measuring detection through the wrapper would certify the same "
@@ -193,7 +204,7 @@ def section_object() -> None:
         "a false-alarm rate nobody chose."
     )
     R.md()
-    R.md("### 1.2 The claim inventory")
+    R.md("### 1.8 BurstAcquisition's claim inventory")
     R.md()
     R.table(
         ["header claim", "pinned where", "here"],
@@ -201,38 +212,38 @@ def section_object() -> None:
             [
                 "every function forwards to the embedded engine",
                 "C, one call each",
-                "§2.2",
+                "§2.31",
             ],
             [
                 "the constructor's arguments reach `dp_acq_create_burst` "
                 "intact",
                 "**partially** — C builds one object and detects with it",
-                "§2.1",
+                "§2.30",
             ],
             [
                 "`push`/`reset`/`configure_search_raw` reach the engine",
                 "C",
-                "§2.2",
+                "§2.31",
             ],
             [
                 "the serialized bytes ARE the shared engine's own state",
                 "C, round-trip + envelope reject",
-                "§2.2",
+                "§2.31",
             ],
             [
                 "a NULL or zero-length code is rejected, as `acq` rejects it",
                 "C",
-                "§2.2",
+                "§2.31",
             ],
             [
                 "an under-powered configuration warns at construction",
                 "**was nothing** — the declared warning had no test",
-                "§2.3",
+                "§2.32",
             ],
             [
                 "`destroy(NULL)` is safe",
                 "C",
-                "§2.2",
+                "§2.31",
             ],
         ],
     )
@@ -243,10 +254,6 @@ def section_object() -> None:
 
 def characterise() -> Data:
     d = Data()
-    R.md("## 2. Characterisation")
-    R.md()
-    R.md("Measured behaviour. No verdicts — those are §3.")
-    R.md()
     _sec_forwarding(d)
     _sec_methods(d)
     _sec_warning(d)
@@ -255,7 +262,7 @@ def characterise() -> Data:
 
 
 def _sec_forwarding(d: Data) -> None:
-    R.md("### 2.1 Every constructor argument reaches the engine")
+    R.md("### 2.30 Every constructor argument reaches the engine")
     R.md()
     R.md(
         "One parameter is varied at a time and the object's whole derived "
@@ -316,7 +323,7 @@ def _sec_forwarding(d: Data) -> None:
 
 
 def _sec_methods(d: Data) -> None:
-    R.md("### 2.2 Every method reaches the engine")
+    R.md("### 2.31 Every method reaches the engine")
     R.md()
     code = _code()
     a = _make(cn0_dbhz=60.0, reps=4)
@@ -339,12 +346,18 @@ def _sec_methods(d: Data) -> None:
 
     s = _make(cn0_dbhz=60.0, reps=4)
     s.configure_search_raw(doppler_bins=4, n_noncoh=1)
-    s.push(_burst(code, 2))
+    # A prefix that is not a whole number of epochs: the code then sits
+    # 100 samples into the resumed frames, so a fresh instance (no
+    # state) reads another code phase and the comparison can fail.
+    s.push(_burst(code, 2)[:100])
     blob = s.get_state()
     t = _make(cn0_dbhz=60.0, reps=4)
     t.configure_search_raw(doppler_bins=4, n_noncoh=1)
     t.set_state(blob)
-    d.state_reaches = [h[:2] for h in s.push(x)] == [h[:2] for h in t.push(x)]
+    # Every field of every hit, the statistics included, and at least one
+    # hit: two empty lists would agree vacuously.
+    hs, ht = list(s.push(x)), list(t.push(x))
+    d.state_reaches = len(hs) >= 1 and hs == ht
     bad = bytearray(blob)
     bad[0] ^= 0xFF
     try:
@@ -399,7 +412,7 @@ def _sec_methods(d: Data) -> None:
 
 
 def _sec_warning(d: Data) -> None:
-    R.md("### 2.3 An under-powered configuration says so")
+    R.md("### 2.32 An under-powered configuration says so")
     R.md()
     R.md(
         "The object declares a post-construction warning gated on its own "
@@ -446,12 +459,12 @@ def _sec_warning(d: Data) -> None:
 
 
 def _sec_identities(d: Data) -> None:
-    R.md("### 2.4 The derived identities, across three geometries")
+    R.md("### 2.33 The derived identities, across three geometries")
     R.md()
     R.md(
         "Each of these is a documented relationship between a constructor "
         "argument and a published field, so each is a second, independent "
-        "check that the argument landed in the right slot. §2.1 proves the "
+        "check that the argument landed in the right slot. §2.30 proves the "
         "arguments are distinguishable; these prove where they went."
     )
     R.md()
@@ -512,8 +525,6 @@ def _both(d: Data) -> str:
 
 
 def review(d: Data) -> None:
-    R.md("## 3. Review — findings")
-    R.md()
     R.find(
         "no_detection_performance",
         "BY DESIGN",
@@ -522,7 +533,8 @@ def review(d: Data) -> None:
         "`acq_core.c`; re-running the detection statistics through the "
         "wrapper would certify the same engine a second time and present "
         "the result as independent evidence. The physics is certified in "
-        "[`acq`'s report](../acq/results.md), which measures through this "
+        "part three of this report (§2.19 to §2.29), which measures through "
+        "this "
         "very front door. What is certified here is delivery — that every "
         "argument and every call arrives, and arrives in the right place.",
     )
@@ -533,7 +545,7 @@ def review(d: Data) -> None:
         f"construction.** The C test builds one object and detects with it, "
         f"which proves nothing about whether each argument reached its own "
         f"destination: a wrapper that transposed two same-typed parameters "
-        f"would still construct and still detect a strong signal. §2.1 now "
+        f"would still construct and still detect a strong signal. §2.30 now "
         f"varies each of the seven constructor arguments alone and requires "
         f"(a) that each moves something, and (b) that no two move the same "
         f"set — {_both(d)}. "
@@ -549,7 +561,7 @@ def review(d: Data) -> None:
         "engine's own `underpowered` field, and it is exactly the kind of "
         "thing that stops working invisibly — a diagnostic nobody exercises "
         "is indistinguishable from one that was removed. Now checked in "
-        "both directions (§2.3): it fires on a configuration that cannot "
+        "both directions (§2.32): it fires on a configuration that cannot "
         "meet the requested `pd`, and stays silent on one that can. A "
         "warning that always fires is as useless as one that never does, "
         "and only the pair separates them.",
@@ -571,15 +583,6 @@ def review(d: Data) -> None:
 
 
 def limits(d: Data) -> None:
-    R.md("## 4. Limits — the certified envelope")
-    R.md()
-    R.md(
-        "Claims a caller may rely on. A failure here is a regression, not a "
-        "new finding. Every one is asserted by "
-        "`src/doppler/acquire/tests/test_validation_limits.py`. The detection "
-        "envelope itself is [`acq`'s](../acq/results.md), not repeated here."
-    )
-    R.md()
     R.limit(
         d.every_param_moves,
         "each of the seven constructor arguments changes the derived state "
@@ -607,7 +610,7 @@ def limits(d: Data) -> None:
     R.limit(
         d.state_reaches,
         "get_state/set_state reach the engine: a mid-stream blob resumes "
-        "into a fresh instance",
+        "into a fresh instance, every field of every hit identical",
     )
     R.limit(
         d.state_rejects,
@@ -652,50 +655,13 @@ def limits(d: Data) -> None:
     )
 
 
-# ── build ─────────────────────────────────────────────────────────────
-
-
-def build(write: bool = True) -> Report:
-    global R
-    R = Report(write=write)
-    R.md("# BurstAcquisition — validation report")
-    R.md()
-    section_object()
-    d = characterise()
-    review(d)
-    limits(d)
-    R.executive(
-        "BurstAcquisition",
-        [
-            "**The detection envelope is [`acq`'s](../acq/results.md), not "
-            "this object's.** Every call forwards into the shared engine, "
-            "so re-measuring the statistics here would certify the same "
-            "code twice and call the second run independent "
-            f"({R.ref('no_detection_performance')}).",
-            "**What a forwarder can get wrong is delivery, and that is what "
-            "is certified.** Each of the seven constructor arguments moves "
-            "a distinct set of derived quantities, so a transposition — two "
-            "same-typed parameters swapped, the object still constructing "
-            "and still detecting — cannot hide (§2.1, "
-            f"{R.ref('argument_delivery_thin')}).",
-            "**`pfa` and `pd` are the pair to watch.** Both are doubles in "
-            "(0,1) and nothing in the type system separates them; they are "
-            "distinguishable only because `pfa` moves the threshold and the "
-            "per-cell rate while `pd` moves only the look count (§2.1).",
-            "**The under-powered warning is tested in both directions** — "
-            "it fires when the link cannot meet the requested `pd` and "
-            "stays quiet when it can. It had no test at all, which is how a "
-            "declared diagnostic stops working invisibly (§2.3, "
-            f"{R.ref('underpowered_warning_untested')}).",
-            "**The serialized bytes are the engine's own state**, with no "
-            "wrapper format layered on, so a blob taken here restores the "
-            "whole search (§2.2).",
-        ],
-    )
-    R.summary("\n- Raw sweep: `data/forwarding.csv`")
-    R.emit(HERE / "results.md")
-    return R
-
-
-if __name__ == "__main__":
-    sys.exit(cli(build, HERE))
+def executive_bullets() -> list[str]:
+    """This part's lines of the one executive summary."""
+    return [
+        "**BurstAcquisition is certified for delivery, not physics.** "
+        "Its detection envelope is part three's (§2.19 to §2.29), and "
+        "each of its seven constructor arguments moves a distinct set "
+        "of derived quantities, so a transposition such as `pfa` and "
+        "`pd` swapped -- both doubles in (0,1) -- cannot hide (§2.30, "
+        f"{R.ref('argument_delivery_thin')}).",
+    ]

@@ -227,6 +227,16 @@ def section_object() -> None:
                 "§2.17",
             ],
             ["the state triplet round-trips", "C + Python", "§2.17"],
+            [
+                "the 1-D detector flavor (`CorrDetector`, "
+                "`dp_correlator_create_detector_1d`) is the 2-D one at "
+                "`ny = 1`, hit for hit",
+                "C — **C-ONLY**: `test_detector_equiv.c` (the four noise "
+                "modes, dwells 1 and 2, odd chunks), "
+                "`test_correlator_detector_1d.c`; no limit here measures it "
+                "through Python",
+                "C §1-D detector",
+            ],
         ],
     )
 

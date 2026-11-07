@@ -441,6 +441,6 @@ in all):
 - `state_pending` counting frames × hop, against the framer test and against
     the header example (overlapping frames, where the two differ).
 
-**§2.8's `noise_est` values keep their scale.** The acq report's
+**§2.26's `noise_est` values keep their scale.** The correlator report's
 `noise_mode` table runs on a narrow engine (`configure_search_raw` pins one
 tile), and the narrow path had the one scale before the map.

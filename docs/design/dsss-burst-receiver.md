@@ -22,7 +22,8 @@ ______________________________________________________________________
 ## 1. Why — the thing that is missing
 
 Every piece of the burst chain exists and is certified — see
-`src/doppler/acquire/tests/validation/burst_acq/results.md`,
+`src/doppler/spectral/tests/validation/correlator/results.md` (its burst
+front door, part four),
 `src/doppler/dsss/tests/validation/burst_despreader/results.md` and
 `src/doppler/dsss/tests/validation/burst_demod/results.md`. What does
 not exist is the object that puts them together.

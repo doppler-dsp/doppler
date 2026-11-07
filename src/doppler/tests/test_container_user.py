@@ -29,6 +29,12 @@ if TYPE_CHECKING:
 REPO = repo_root(__file__)
 MAKEFILE = REPO / "Makefile"
 
+# The containers these recipes start, and the uid they run as, are POSIX: no
+# Windows leg runs one, and os.getuid does not exist there.
+posix_only = pytest.mark.skipif(
+    os.name != "posix", reason="container recipes and uids are POSIX-only"
+)
+
 
 def _container_user(tmp_path: Path, version_line: str) -> str:
     """What CONTAINER_USER expands to when `docker --version` prints this."""
@@ -60,16 +66,15 @@ def _container_user(tmp_path: Path, version_line: str) -> str:
     ("version_line", "want"),
     [
         ("podman version 5.8.9", "--userns=keep-id"),
-        (
-            "Docker version 27.3.1, build ce12230",
-            f"-u {os.getuid()}:{os.getgid()}",
-        ),
+        ("Docker version 27.3.1, build ce12230", "-u {uid}:{gid}"),
     ],
     ids=["podman", "docker"],
 )
+@posix_only
 def test_container_runs_as_the_caller(
     tmp_path: Path, version_line: str, want: str
 ) -> None:
+    want = want.format(uid=os.getuid(), gid=os.getgid())
     assert _container_user(tmp_path, version_line) == want
 
 

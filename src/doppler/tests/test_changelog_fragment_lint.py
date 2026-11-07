@@ -44,7 +44,7 @@ def _lint(script: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(script), "--lint"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -66,7 +66,11 @@ def test_a_prose_fragment_fails(tmp_path: Path) -> None:
     )
     r = _lint(script)
     assert r.returncode == 1
-    assert "changelog.d/fixed/prose.md does not start with '- '" in r.stderr
+    # The em dash survives: the script writes UTF-8 on every OS.
+    assert (
+        "changelog.d/fixed/prose.md does not start with '- ' — a fragment"
+        in r.stderr
+    )
     assert "ok.md" not in r.stderr
 
 

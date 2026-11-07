@@ -2,3 +2,6 @@
 # (scripts/check_test_all_covers_ci.py). One line each, `<target> | <reason>`.
 # A line whose reason is gone fails the gate, so this list only shrinks.
 test-sweep | its wall-clock budget is calibrated on CI's runner; a slower or busier local box fails the budget, not the validators
+test-asan | builds its own ASan-instrumented tree (build-asan-<cc>/) and reruns the C suite there; CI's sanitizer matrix is its gate, and owner 2026-11-06: pre-push is targeted checks, not every instrumented rebuild
+test-ubsan | builds its own UBSan-instrumented tree (build-ubsan/) and reruns the C suite there; CI's sanitizer matrix is its gate, and owner 2026-11-06: pre-push is targeted checks, not every instrumented rebuild
+test-tsan | builds its own TSan-instrumented tree (build-tsan/) and reruns the C suite there; CI's sanitizer matrix is its gate, and owner 2026-11-06: pre-push is targeted checks, not every instrumented rebuild

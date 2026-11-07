@@ -17,6 +17,12 @@ source and ``TEST_ALL_DEPS`` answer to it, in both directions:
 2. Every exempt line names a target CI still runs and ``TEST_ALL_DEPS`` still
    leaves out, so the list only shrinks: a line whose reason is gone fails.
 
+A target chosen from a matrix -- ``make ${{ matrix.san.target }}`` -- is
+resolved against that job's ``strategy.matrix`` (its axis lists and
+``include`` entries), so each leg's target counts as one CI runs. The
+sanitizer job is that shape, and reading only literal text missed all three
+of its targets (#2912).
+
 Exempt lines are ``<target> | <reason>``; ``#`` comments and blank lines are
 ignored. A line with no reason fails.
 
@@ -29,6 +35,12 @@ Examples
 --------
 >>> sorted(ci_targets("run: make -s test-python TEST_PATHS=x\\nmake test"))
 ['test', 'test-python']
+>>> job = {
+...     "strategy": {"matrix": {"san": [{"target": "test-asan"}]}},
+...     "steps": [{"run": "make ${{ matrix.san.target }}"}],
+... }
+>>> sorted(matrix_targets({"jobs": {"j": job}}))
+['test-asan']
 >>> sorted(test_all_deps("TEST_ALL_DEPS = test \\\\\\n    test-python\\n"))
 ['test', 'test-python']
 """
@@ -39,9 +51,19 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 #: A `make` call naming a test target, with any `-s`/`-k` style flags first.
 MAKE_TEST = re.compile(r"\bmake\s+(?:-[A-Za-z-]+\s+)*(test(?:-[a-z0-9-]+)?)\b")
+#: A `make` call whose target is a matrix expression, e.g.
+#: `make ${{ matrix.san.target }}`; group 1 is the dotted path after `matrix.`.
+MAKE_MATRIX = re.compile(
+    r"\bmake\s+(?:-[A-Za-z-]+\s+)*\$\{\{\s*matrix\.([\w.-]+)\s*\}\}"
+)
+#: What a test target looks like, for a value read out of a matrix.
+TEST_TARGET = re.compile(r"test(?:-[a-z0-9-]+)?")
 #: The one assignment of the dependency list (doppler overrides standard.mk's
 #: `?=` default with a plain `=`).
 DEPS = re.compile(r"^TEST_ALL_DEPS\s*[:?]?=\s*(.*)$", re.M)
@@ -50,6 +72,38 @@ DEPS = re.compile(r"^TEST_ALL_DEPS\s*[:?]?=\s*(.*)$", re.M)
 def ci_targets(text: str) -> set[str]:
     """Every test target a workflow's text runs through make."""
     return set(MAKE_TEST.findall(text))
+
+
+def _matrix_values(matrix: dict[str, Any], path: list[str]) -> set[str]:
+    """Every value ``matrix.<path>`` takes across a job's legs.
+
+    The first path element names an axis (a list) or an ``include`` key;
+    the rest index into each entry, so ``san.target`` reads ``target`` from
+    every item of the ``san`` list.
+    """
+    axis, rest = path[0], path[1:]
+    entries = list(matrix.get(axis) or [])
+    entries += [i[axis] for i in matrix.get("include") or [] if axis in i]
+    found: set[str] = set()
+    for entry in entries:
+        for key in rest:
+            entry = entry.get(key) if isinstance(entry, dict) else None
+        if isinstance(entry, str):
+            found.add(entry)
+    return found
+
+
+def matrix_targets(workflow: dict[str, Any]) -> set[str]:
+    """Test targets a parsed workflow runs as ``make ${{ matrix.<path> }}``."""
+    found: set[str] = set()
+    for job in (workflow.get("jobs") or {}).values():
+        matrix = (job.get("strategy") or {}).get("matrix") or {}
+        if not isinstance(matrix, dict):
+            continue
+        for step in job.get("steps") or []:
+            for path in MAKE_MATRIX.findall(str(step.get("run", ""))):
+                found |= _matrix_values(matrix, path.split("."))
+    return {t for t in found if TEST_TARGET.fullmatch(t)}
 
 
 def test_all_deps(makefile: str) -> set[str]:
@@ -82,7 +136,9 @@ def check(root: Path) -> list[str]:
     """Every failure, as a line naming what to change."""
     ci: set[str] = set()
     for wf in sorted((root / ".github" / "workflows").glob("*.y*ml")):
-        ci |= ci_targets(wf.read_text(encoding="utf-8"))
+        text = wf.read_text(encoding="utf-8")
+        ci |= ci_targets(text)
+        ci |= matrix_targets(yaml.safe_load(text) or {})
     deps = test_all_deps((root / "Makefile").read_text(encoding="utf-8"))
     exempt, errors = read_exempt(root / "scripts" / ".test-all-exempt")
     for t in sorted(ci - deps - set(exempt)):

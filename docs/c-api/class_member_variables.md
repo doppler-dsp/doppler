@@ -235,7 +235,6 @@
 * **dd\_fused** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **dd\_map** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **dd\_rows** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
-* **delay\_doppler** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **det\_out** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **doppler\_step** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **dwell** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))

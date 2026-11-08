@@ -511,6 +511,9 @@ size_t dp_correlator_push (dp_correlator_state_t *state,
                            const float _Complex *in, size_t n_in,
                            dp_correlator_hit_t *result, size_t max_results);
 
+size_t dp_correlator_push_max_out (const dp_correlator_state_t *state,
+                                   size_t n_in);
+
 size_t dp_correlator_consumed (const dp_correlator_state_t *state);
 
 int dp_correlator_set_threshold (dp_correlator_state_t *state,
@@ -871,7 +874,10 @@ typedef struct
 static inline size_t
 dp_correlator_grid_bins (const dp_correlator_state_t *state)
 {
-  return state->search->window_bins * state->search->coherent_bins;
+  /* 0 off a search flavor, which has no Doppler grid (§18). */
+  return state->search
+             ? state->search->window_bins * state->search->coherent_bins
+             : 0;
 }
 
 static inline double

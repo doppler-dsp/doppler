@@ -605,11 +605,228 @@ test_a_value_not_honored_is_refused (void)
   return 0;
 }
 
+/* The search-only entry points on a flavor without a search record:
+   each refuses with its own refusal value and touches nothing
+   (docs/design/correlator-python.md section 18). One class reaches every
+   member from every flavor, so these must not dereference `search`. */
+static int
+search_members_refuse (dp_correlator_state_t *s)
+{
+  float  f[4];
+  double d[4];
+  float _Complex z[4];
+  int ok = 1;
+  ok &= dp_correlator_configure_search_raw (s, 1, 1) == DP_ERR_INVALID;
+  ok &= dp_correlator_set_threads (s, 2) == DP_ERR_INVALID;
+  ok &= dp_correlator_set_max_peaks (s, 2) != 0;
+  ok &= dp_correlator_set_carrier_freq_hz (s, 2.5e9) == DP_ERR_INVALID;
+  ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1) == DP_ERR_INVALID;
+  ok &= dp_correlator_surface (s, f, 4) == 0;
+  ok &= dp_correlator_surface_doppler_hz (s, d, 4) == 0;
+  ok &= dp_correlator_surface_chip_phase (s, d, 4) == 0;
+  ok &= dp_correlator_surface_complex (s, z, 4) == 0;
+  ok &= dp_correlator_block_prompt (s, 0, 0, z, 4) == 0;
+  ok &= dp_correlator_block_raw (s, z, 4) == 0;
+  ok &= isnan (dp_correlator_psl_db (s));
+  ok &= isnan (dp_correlator_gate_stat (s));
+  ok &= isnan (dp_correlator_dsl_db (s));
+  ok &= dp_correlator_position (s) == 0;
+  ok &= dp_correlator_grid_bins (s) == 0;
+  return ok;
+}
+
+static int
+test_members_off_their_flavor (void)
+{
+  float _Complex ref2[4 * 8];
+  fill_noise (ref2, 4 * 8, 3u, 1.0f);
+  dp_correlator_state_t *maps[] = {
+    dp_correlator_create_1d (NRZ, 31, 1, 1, 0),
+    dp_correlator_create_2d (ref2, 4, 8, 1, 1, 0, 0, -1),
+    dp_correlator_create_delay_doppler (NRZ, 31, 8, 1, 1, 0),
+  };
+  dp_correlator_state_t *dets[] = {
+    dp_correlator_create_detector_1d (NRZ, 31, 1, 0, SIZE_MAX, DET_NOISE_MEAN,
+                                      0.0f, 1),
+    dp_correlator_create_detector_2d (ref2, 4, 8, 1, 0, SIZE_MAX,
+                                      DET_NOISE_MEAN, 0.0f, 1),
+  };
+  for (size_t i = 0; i < 3; i++)
+    {
+      DP_REQUIRE (maps[i] != NULL);
+      DP_CHECK (search_members_refuse (maps[i]));
+      DP_CHECK (dp_correlator_push_max_out (maps[i], 1000) == 0);
+      DP_CHECK (dp_correlator_execute_max_out (maps[i]) > 0);
+      dp_correlator_destroy (maps[i]);
+    }
+  for (size_t i = 0; i < 2; i++)
+    {
+      DP_REQUIRE (dets[i] != NULL);
+      DP_CHECK (search_members_refuse (dets[i]));
+      /* execute() refuses a detector, so nothing sizes a map for it. */
+      DP_CHECK (dp_correlator_execute_max_out (dets[i]) == 0);
+      DP_CHECK (dp_correlator_execute_all_max_out (dets[i], 64) == 0);
+      DP_CHECK (dp_correlator_execute_peaks_max_out (dets[i], 64) == 0);
+      dp_correlator_destroy (dets[i]);
+    }
+
+  /* A search's frame length n is 0: the batch sizers must not divide by
+     it, and execute_max_out sizes nothing. */
+  float _Complex tmpl[124];
+  for (size_t i = 0; i < 124; i++)
+    tmpl[i] = NRZ[i / 4];
+  dp_correlator_state_t *b = dp_correlator_create_burst (
+      tmpl, 124, 2, 4.0e6, DP_CORRELATOR_CN0_NONE, 5.0e3, 1e-3, 0.9,
+      DET_NOISE_MEAN, 0.0, 1);
+  dp_correlator_state_t *c = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  DP_REQUIRE (b != NULL && c != NULL);
+  dp_correlator_state_t *searches[] = { b, c };
+  for (size_t i = 0; i < 2; i++)
+    {
+      DP_CHECK (dp_correlator_execute_max_out (searches[i]) == 0);
+      DP_CHECK (dp_correlator_execute_all_max_out (searches[i], 1000) == 0);
+      DP_CHECK (dp_correlator_execute_peaks_max_out (searches[i], 1000) == 0);
+    }
+
+  /* The burst search refuses what only the continuous one honors (the
+     carrier coupling, telemetry, the surface and block read-outs), and
+     serves surface_complex, which the map-equivalence test reads on it.
+     Each refusal is checked where the call would otherwise succeed:
+     buffers with room, a decided dwell for surface(), a whole block for
+     block_*(). */
+  enum
+  {
+    BIG = 1 << 16
+  };
+  static float  fb[BIG];
+  static double db[BIG];
+  static float _Complex zb[BIG];
+  DP_CHECK (dp_correlator_set_carrier_freq_hz (b, 2.5e9) == DP_ERR_INVALID);
+  DP_CHECK (dp_correlator_set_telemetry (b, NULL, NULL, 1) == DP_ERR_INVALID);
+  DP_CHECK (dp_correlator_surface_doppler_hz (b, db, BIG) == 0);
+  DP_CHECK (dp_correlator_surface_chip_phase (b, db, BIG) == 0);
+  /* ...which the continuous search serves: the same calls succeed. */
+  DP_CHECK (dp_correlator_set_carrier_freq_hz (c, 2.5e9) == DP_OK);
+  DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1) == DP_OK);
+  DP_CHECK (dp_correlator_surface_doppler_hz (c, db, BIG) > 0);
+  DP_CHECK (dp_correlator_surface_chip_phase (c, db, BIG)
+            == c->search->lag_bins);
+
+  /* A wideband burst search, its blocks gathered and its surface kept:
+     where block_*() and surface() would hand data out, they refuse. Five
+     tiles of depth D = 4: the grid a 55 dB-Hz design sizes here, and the
+     one that gathers blocks (tiles and D > 1). */
+  const double           span = 4.0e6 / (2.0 * 124.0);
+  dp_correlator_state_t *w
+      = dp_correlator_create_burst (tmpl, 124, 8, 4.0e6, 55.0, 3.5 * span,
+                                    1e-3, 0.9, DET_NOISE_MEAN, 0.0, 1);
+  /* Tiled, and a coherent depth pinned above 1: the grid that gathers
+     blocks (60 dB-Hz alone sizes D = 1). */
+  DP_REQUIRE (w != NULL);
+  DP_REQUIRE (w->search->window_bins > 1 && w->search->coherent_bins > 1
+              && w->search->blk_raw != NULL);
+  w->search->keep_surface   = 1;
+  float _Complex *xs        = code_stream (124 * 400, 4, 11, 1.0f);
+  int             saw_block = 0, saw_surface = 0;
+  for (size_t off = 0; off < 124 * 400; off += 124)
+    {
+      dp_correlator_hit_t h[64];
+      (void)dp_correlator_push (w, xs + off, 124, h, 64);
+      if (w->search->blk_raw && w->search->samples_consumed > 0
+          && w->search->blk_epoch == 0)
+        {
+          saw_block = 1;
+          DP_CHECK (dp_correlator_block_raw (w, zb, BIG) == 0);
+          DP_CHECK (dp_correlator_block_prompt (w, 0, 0, zb, BIG) == 0);
+        }
+      if (w->search->stat_surface && w->search->surface_at > 0)
+        {
+          saw_surface = 1;
+          DP_CHECK (dp_correlator_surface (w, fb, BIG) == 0);
+        }
+    }
+  DP_REQUIRE_MSG (saw_block, "the wideband burst gathered no whole block");
+  DP_REQUIRE_MSG (saw_surface, "the burst kept no decided surface");
+  free (xs);
+  dp_correlator_destroy (w);
+  /* set_max_peaks and set_threads are honored by both searches. */
+  DP_CHECK (dp_correlator_set_max_peaks (b, 2) == 0);
+  DP_CHECK (dp_correlator_set_threads (b, 1) == DP_OK);
+  DP_CHECK (dp_correlator_grid_bins (b) > 0);
+  dp_correlator_destroy (b);
+  dp_correlator_destroy (c);
+  return 0;
+}
+
+/* Push every chunk with a result array exactly push_max_out(chunk) long:
+   push must take the whole chunk (a short array would make it stop on a
+   frame boundary) and never report more hits than the bound.  Chunks of
+   every length 1 .. 3 frames walk the carry across each boundary. */
+static int
+bound_holds (dp_correlator_state_t *s, const float _Complex *x, size_t len,
+             size_t frame)
+{
+  int    ok  = 1;
+  size_t off = 0, step = 1;
+  while (off < len && ok)
+    {
+      const size_t         n     = step < len - off ? step : len - off;
+      const size_t         bound = dp_correlator_push_max_out (s, n);
+      dp_correlator_hit_t *hits  = malloc ((bound ? bound : 1) * sizeof *hits);
+      const size_t got = dp_correlator_push (s, x + off, n, hits, bound);
+      ok               = got <= bound && dp_correlator_consumed (s) == n;
+      if (!ok)
+        DP_TEST_ERR ("  push of %zu at %zu: %zu hits, bound %zu, took "
+                     "%zu\n",
+                     n, off, got, bound, dp_correlator_consumed (s));
+      hits_seen += got;
+      free (hits);
+      off += n;
+      step = step % (3 * frame) + 1;
+    }
+  return ok;
+}
+
+static int
+test_push_never_passes_its_bound (void)
+{
+  /* A detector at threshold 0: every dump is a hit, one a frame. */
+  float _Complex        *x1  = code_stream (31 * 60, 1, 5, 1.0f);
+  size_t                 was = hits_seen;
+  dp_correlator_state_t *det = dp_correlator_create_detector_1d (
+      NRZ, 31, 1, 0, SIZE_MAX, DET_NOISE_MEAN, 0.0f, 1);
+  DP_REQUIRE (det != NULL);
+  DP_CHECK (bound_holds (det, x1, 31 * 60, 31));
+  DP_CHECK (hits_seen > was);
+  dp_correlator_destroy (det);
+  free (x1);
+
+  /* A search listing up to three peaks a dwell, on two emitters at code
+     phases far apart, so a dwell makes more than one hit. */
+  float _Complex *x4 = code_stream (124 * 300, 4, 37, 1.0f);
+  for (size_t i = 61; i < 124 * 300; i++)
+    x4[i] += NRZ[((i - 61) / 4) % 31];
+  dp_correlator_state_t *c = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  DP_REQUIRE (c != NULL && dp_correlator_set_max_peaks (c, 3) == 0);
+  was = hits_seen;
+  DP_CHECK (bound_holds (c, x4, 124 * 300, c->search->frame_n));
+  DP_CHECK (hits_seen > was + 1);
+  dp_correlator_destroy (c);
+  free (x4);
+  return 0;
+}
+
 int
 main (void)
 {
   make_code ();
   (void)test_each_row_builds_its_flavor ();
   (void)test_a_value_not_honored_is_refused ();
+  (void)test_members_off_their_flavor ();
+  (void)test_push_never_passes_its_bound ();
   DP_TEST_END ("test_correlator_create");
 }

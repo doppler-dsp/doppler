@@ -1043,6 +1043,8 @@ int dp_correlator_set_ref(dp_correlator_state_t *state, const float _Complex *re
  *         -- ny_out*nx_out normally, or ny when a single @ref
  *         dp_correlator_state_t::col_out was selected).
  *  @param state  Must be non-NULL.
+ *
+ * 0 on a detector or search flavor, which execute() refuses.
  *  @return n_out, fixed at create(). */
 size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
 
@@ -1193,6 +1195,8 @@ size_t dp_correlator_execute_fold (dp_correlator_state_t *state,
  *        H * n_out, H = n_in / (ny * nx).
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
+ * 0 on a detector or search flavor, which execute_all() refuses.
+ *
  * @return The capacity `execute_all` needs for @p n_in samples: H * n_out
  *         values (C: SIZE_MAX if that overflows).
  * @code
@@ -1430,6 +1434,8 @@ size_t dp_correlator_execute_power_max (dp_correlator_state_t *state,
  * @brief Records dp_correlator_execute_peaks() writes for @p n_in samples: H.
  * @param state  Must be non-NULL.
  * @param n_in   Input samples about to be passed.
+ * 0 on a detector or search flavor, which execute_peaks() refuses.
+ *
  * @return n_in / (ny * nx).
  * @code
  * const float _Complex code[4] = { 1.0f, 1.0f, -1.0f, 1.0f };
@@ -1900,6 +1906,23 @@ dp_correlator_state_t *dp_correlator_create_detector_1d (
 size_t dp_correlator_push (dp_correlator_state_t *state,
                            const float _Complex *in, size_t n_in,
                            dp_correlator_hit_t *result, size_t max_results);
+
+/**
+ * @brief The most hits dp_correlator_push() can return for @p n_in more
+ *        samples: a result array this long is never short.
+ *
+ * The frames @p n_in completes, counting the carry the last push left,
+ * times what one frame can make: one hit for a detector (one per dump),
+ * `max_peaks` for a search (a frame that ends a dwell lists up to that
+ * many). A bound, not a count: most frames end no dump. 0 on a map
+ * flavor, which push() refuses. SIZE_MAX if the product would overflow.
+ *
+ * @param state  Must be non-NULL.
+ * @param n_in   Samples the next push() will be given.
+ * @return The bound, in hits.
+ */
+size_t dp_correlator_push_max_out (const dp_correlator_state_t *state,
+                                   size_t n_in);
 
 /**
  * @brief Input samples the last dp_correlator_push() took.
@@ -2734,6 +2757,8 @@ size_t dp_correlator_rate_hypotheses_for (double f_epoch, double span,
  * @param doppler_bins Coherent depth to pin, in `[1, reps]`.
  * @param n_noncoh     Non-coherent look count to pin, in
  *                     `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
+ * Refused (DP_ERR_INVALID) on a map or detector flavor (no search record).
+ *
  * @return 0 on success, -1 if either argument is out of range (or
  *         @p n_noncoh > 1 on an engine with rate hypotheses, which do not
  *         compose with non-coherent looks), or an
@@ -2781,6 +2806,9 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
  *
  * @param state  Must be non-NULL.
  * @param n      1 … DP_CORRELATOR_MAX_PEAKS.
+ * Refused (-1) on a map or detector flavor (no search record), which lists no
+ * peaks.
+ *
  * @return 0, or -1 (state untouched) when @p n is out of range.
  * @code
  * >>> import numpy as np
@@ -2833,6 +2861,9 @@ int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n);
  *
  * @param state           Must be non-NULL.
  * @param carrier_freq_hz RF carrier, Hz; 0.0 = uncoupled.
+ * Refused (DP_ERR_INVALID) on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return `DP_OK`, `DP_ERR_INVALID` for a carrier outside
  *         dp_correlator_carrier_freq_ok() at this engine's sample rate, or
  *         `DP_ERR_MEMORY` when the rebuild cannot allocate (the engine
@@ -2902,6 +2933,8 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  *
  * @param state Must be non-NULL.
  * @param n     Thread count; 0 = online cores, 1 = serial.
+ * Refused (DP_ERR_INVALID) on a map or detector flavor (no search record).
+ *
  * @return DP_OK. The count actually running is `threads`.
  * @code
  * >>> import numpy as np
@@ -2952,6 +2985,9 @@ int dp_correlator_set_threads (dp_correlator_state_t *state, int n);
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "acq" or "ch0.acq".
  * @param decim  Emit every decim-th decided dwell; >= 1.
+ * Refused (DP_ERR_INVALID) on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return DP_OK; DP_ERR_INVALID for an overlong @p prefix, a @p decim
  *         of 0, or a probe table without room for all ten probes;
  *         DP_ERR_MEMORY when the dry run's scratch context cannot be
@@ -2996,6 +3032,9 @@ int dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
  * @param state Must be non-NULL.
  * @param out   At least `surface_rows * lag_bins` floats.
  * @param n_out Capacity of @p out.
+ * 0 on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return Cells written (`surface_rows * lag_bins`), or 0 when no dwell
  *         has been decided with `keep_surface` set, or @p out is too small.
  * @code
@@ -3031,6 +3070,9 @@ size_t dp_correlator_surface (dp_correlator_state_t *state, float *out, size_t n
  * @param state Must be non-NULL.
  * @param out   At least `surface_rows` doubles.
  * @param n_out Capacity of @p out.
+ * 0 on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return Values written (`surface_rows`), or 0 if @p out is too small.
  * @code
  * >>> import numpy as np
@@ -3061,6 +3103,9 @@ size_t dp_correlator_surface_doppler_hz (dp_correlator_state_t *state, double *o
  * @param state Must be non-NULL.
  * @param out   At least `lag_bins` doubles.
  * @param n_out Capacity of @p out.
+ * 0 on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return Values written (`lag_bins`), or 0 if @p out is too small.
  * @code
  * >>> import numpy as np
@@ -3098,6 +3143,8 @@ size_t dp_correlator_surface_chip_phase (dp_correlator_state_t *state, double *o
  * @param state Must be non-NULL.
  * @param out   At least `surface_rows * lag_bins` complex floats.
  * @param n_out Capacity of @p out.
+ * 0 on a map or detector flavor (no search record).
+ *
  * @return Cells written (`surface_rows * lag_bins`), or 0 when no dwell
  *         has been decided, the path is non-coherent, or @p out is too
  *         small.
@@ -3217,6 +3264,9 @@ void dp_correlator_cell_corr_grid (const dp_correlator_state_t *state, const flo
  * @param col   Code-phase column, `0 … lag_bins-1`.
  * @param out   At least `coherent_bins` complex floats.
  * @param n_out Capacity of @p out.
+ * 0 on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return Values written (`coherent_bins`), or 0 at `coherent_bins == 1`
  *         (no block is gathered), while a block is partial, for an index
  *         out of range, or when @p out is too small.
@@ -3264,6 +3314,9 @@ size_t dp_correlator_block_prompt (dp_correlator_state_t *state, size_t tile, si
  * @param state Must be non-NULL.
  * @param out   At least `coherent_bins * code_bins` complex floats.
  * @param n_out Capacity of @p out.
+ * 0 on every flavor but the continuous search
+ * (docs/design/correlator-python.md section 18).
+ *
  * @return Samples written (`coherent_bins * code_bins`), or 0 at
  *         `coherent_bins == 1`, while a block is partial, or when @p out
  *         is too small.
@@ -3356,6 +3409,8 @@ void dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep);
  * @endcode
  *
  * @param state  Must be non-NULL.
+ * 0 on a map or detector flavor (no search record).
+ *
  * @return Samples taken since create, reset, a regrid or a restore:
  *         those framed plus the carry still pending.
  */
@@ -3405,12 +3460,15 @@ typedef struct
  * the block depth on a continuous engine with code-only epochs. Every
  * consumer that folds a `row` must fold it over THIS, not over
  * `coherent_bins`: a capture that did read every tiled hit as 0 Hz
- * (doppler#1512).
+ * (doppler#1512). 0 on a map or detector flavor, which has no Doppler grid.
  */
 static inline size_t
 dp_correlator_grid_bins (const dp_correlator_state_t *state)
 {
-  return state->search->window_bins * state->search->coherent_bins;
+  /* 0 off a search flavor, which has no Doppler grid (§18). */
+  return state->search
+             ? state->search->window_bins * state->search->coherent_bins
+             : 0;
 }
 
 /**
@@ -3444,6 +3502,8 @@ dp_correlator_bin_doppler_hz (const dp_correlator_state_t *state, size_t doppler
  * fixed at construction and not serialized.
  *
  * @param state  Must be non-NULL.
+ * NaN on a map or detector flavor (no search record).
+ *
  * @return Peak sidelobe level in dB (<= 0), or -INFINITY.
  *
  * @code
@@ -3488,6 +3548,8 @@ double dp_correlator_psl_db (const dp_correlator_state_t *state);
  * Computed on the first call and cached in @p state (hence non-const).
  *
  * @param state  Must be non-NULL.
+ * NaN on a map or detector flavor (no search record).
+ *
  * @return Doppler-offset sidelobe level in dB, or -INFINITY when there
  *         is none.
  *
@@ -3525,6 +3587,8 @@ double dp_correlator_dsl_db (dp_correlator_state_t *state);
  *        Configuration: fixed by the thresholds the grid was sized with.
  *
  * @param state  Must be non-NULL.
+ * NaN on a map or detector flavor (no search record).
+ *
  * @return The gate, in dp_correlator_hit_t::test_stat units.
  */
 double dp_correlator_gate_stat (const dp_correlator_state_t *state);

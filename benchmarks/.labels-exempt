@@ -128,12 +128,6 @@ c:conv_enc::encode[k=7]
 c:conv_enc::encode[k=9]
 c:conv_enc::encode[raw kernel]
 c:conv_enc::encode[through the object]
-c:corr2d::multi_row_general_path
-c:corr2d::single_row_fast_path
-c:corr::execute[accumulate][n=1024]
-c:corr::execute[accumulate][n=16384]
-c:corr::execute[dump][n=1024]
-c:corr::execute[dump][n=16384]
 c:cvt::bin_to_nrz
 c:cvt::hex_to_bin
 c:cvt::int_to_bin
@@ -158,14 +152,6 @@ c:detection::det_threshold
 c:detection::det_threshold_noncoherent[n=8]
 c:detection::marcum_q[m=1]
 c:detection::marcum_q[m=4]
-c:detector2d::push[1024x16]
-c:detector2d::push[128x128,no-detections]
-c:detector2d::push[128x128]
-c:detector2d::push[16x1024]
-c:detector::push[chunk=1024,no-detections]
-c:detector::push[chunk=1024]
-c:detector::push[chunk=16384]
-c:detector::push[chunk=64]
 c:doppler_channel::execute[profile]
 c:doppler_channel::execute[ramp]
 c:doppler_channel::execute[static]
@@ -543,9 +529,6 @@ py:conv_enc::test_bench_constraint_length[7]
 py:conv_enc::test_bench_constraint_length[9]
 py:conv_enc::test_bench_encode[65536]
 py:conv_enc::test_bench_encode[8192]
-py:corr2d::test_bench_corr2d_fallback
-py:corr2d::test_bench_corr2d_pffft
-py:corr2d::test_bench_corr2d_pffft_dwell8
 py:corr::test_bench_execute_64k
 py:costas::test_bench_steps_64k
 py:ddc::test_bench_execute_64k

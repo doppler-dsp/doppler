@@ -65,16 +65,13 @@ ______________________________________________________________________
     correlation, bit for bit, ties included. Step 3.3 rests on it to make
     both detectors flavors of the one correlator.
 
-- **The correlator's two search flavors, and a C test that they are acq,
-    byte for byte** (`test_search_equiv`, #2752 step 3.4b).
+- **The correlator's two search flavors** (#2752 step 3.4b).
     `dp_correlator_create_continuous` and `dp_correlator_create_burst` are
     the acquisition engine as the correlator's sixth and seventh flavors,
     served by its one `push`, `reset` and state triplet; the hit record
-    widens to acq's 64 bytes. The test drives both through 15 scenes (both
-    doors, a peak list, rate hypotheses, the carrier, a tiled search, four
-    threads, odd chunks, a mid-stream restore) and compares every hit and
-    every dwell's surface under strict floating point. It is the evidence
-    the step's move rests on.
+    widens to acq's 64 bytes. `test_search_equiv` proved them byte-identical
+    to acq over 15 scenes before acq was deleted (#2930), and now pins each
+    flavor against its own plain run.
 
 ### Changed
 
@@ -105,9 +102,10 @@ ______________________________________________________________________
     tightened, and a new open finding records that continuous search's
     Python-face evidence is thin (#2923).
 
-- **The search benchmark rows keep their labels under `correlator::`**
+- **The search benchmark rows are labelled under `correlator::`**
     (#2752). Step 3.4b moved acq's rows into `bench_correlator_core`; the
-    17 labels now name both keys until #2900 maps renames.
+    old `c:acq::`, `c:corr::`, `c:corr2d::` and `c:detector::` labels
+    retired with this release's benchmark set.
 
 - **just-makeit pin 0.119.0 → 0.120.2** (#2890). `jm status --check`, which
     `make drift-check` runs, now fails a bench target `jm bench` never runs

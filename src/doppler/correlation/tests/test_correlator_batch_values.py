@@ -275,7 +275,10 @@ def test_reset_before_and_after_a_batch(make: Make, method: str) -> None:
     obj.reset()  # reset BEFORE a batch
     after_reset = _run(obj, method, x)
     for got in (mid, after_reset):
-        for g, w in zip(_parts(got), _parts(want), strict=True):
+        gp, wp = _parts(got), _parts(want)
+        # zip(strict=True) is 3.10+; the floor is 3.9, so check by hand.
+        assert len(gp) == len(wp), f"{method}: {len(gp)} parts, want {len(wp)}"
+        for g, w in zip(gp, wp):
             np.testing.assert_array_equal(g, w)
 
     # A dwell in progress again, a batch, THEN the reset: what the reset

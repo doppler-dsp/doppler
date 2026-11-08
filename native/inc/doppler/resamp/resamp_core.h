@@ -395,12 +395,14 @@ extern "C"
    *
    * **The scalar and block forms are INDISTINGUISHABLE.** Feeding a stream
    * one sample at a time through here yields the same outputs, in the same
-   * number, bit-for-bit, as one dp_resamp_execute_ctrl() over the same
-   * `(in, ctrl[])`. Not "close" and not "one sample of delay apart": the
-   * same. A caller chooses between them for control flow — the block form
-   * when `ctrl[]` is known in advance, this one when each correction
-   * depends on the outputs already emitted — never for a difference in what
-   * comes out.
+   * number, at the same ticks, as one dp_resamp_execute_ctrl() over the same
+   * `(in, ctrl[])` -- never "one sample of delay apart". Each value agrees
+   * to a few float ULPs rather than to the bit: the library builds with
+   * -ffast-math, and a compiler may sum the polyphase dot product in a
+   * different order at each call site (GCC 15 on aarch64 does). A caller
+   * chooses between them for control flow — the block form when `ctrl[]`
+   * is known in advance, this one when each correction depends on the
+   * outputs already emitted — never for a difference in what comes out.
    *
    * That is what "offers" buys, and why @p x is NOT pushed on entry:
    * nothing enters an interpolator's delay line without a load REQUEST — a

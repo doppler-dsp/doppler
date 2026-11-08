@@ -62,5 +62,5 @@ unmodulated carrier per M; lock on modulated M-PSK data **with no symbol
 timing**; closed-loop frequency jitter that grows with `bn`; and a closed-loop
 step response that locks on both constant-modulus and pulse-shaped (RRC) inputs.
 
-Source: [`src/doppler/examples/mpsk_nda_theory_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/mpsk_nda_theory_demo.py); tests in
+Source: [`src/doppler/examples/mpsk_nda_theory_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/mpsk_nda_theory_demo.py); tests in
 `src/doppler/track/tests/test_theory_carrier_nda.py` and the C harnesses above.

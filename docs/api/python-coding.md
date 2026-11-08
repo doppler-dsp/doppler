@@ -37,7 +37,7 @@ that checkpoints can checkpoint through it (see
 [State Serialization](../design/state-serialization.md)).
 
 Source:
-[`native/src/viterbi/viterbi_core.c`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/native/src/viterbi/viterbi_core.c)
+[`native/src/viterbi/viterbi_core.c`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/native/src/viterbi/viterbi_core.c)
 
 The design, including how the butterfly and the survivor ring are laid out,
 is [The Viterbi Decoder](../design/viterbi.md); the end-to-end coded link is

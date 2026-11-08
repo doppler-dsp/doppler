@@ -13,6 +13,182 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.81.0] - 2026-11-07
+
+### Breaking
+
+- **`CorrDetector` and `CorrDetector2D` are the correlator's detector
+    flavors** (#2752 step 3.3). Saved `get_state()` blobs from
+    `CorrDetector`, `CorrDetector2D` and `CarrierAcquisition` are refused
+    (`DET1`/`DET2` retire for `CORL`). In C, every `dp_detector_*` and
+    `dp_detector2d_*` symbol is `dp_correlator_*` (`create_detector_1d`,
+    `create_detector_2d`), both write `dp_correlator_hit_t`, whose `col` is
+    the 1-D lag, and the headers `doppler/detector/detector_core.h` and
+    `doppler/detector2d/detector2d_core.h` are gone, from `doppler.h` too.
+    Python's signatures are unchanged; the threshold now travels in a blob.
+
+- **C: `Corr` and `Corr2D` are one object, `correlator`** (#2752 step 3.2;
+    design #2863). Every `dp_corr_*` and `dp_corr2d_*` symbol is now
+    `dp_correlator_*` (header `doppler/correlator/correlator_core.h`), with
+    constructors `create_1d`, `create_2d` and `create_delay_doppler`. One
+    state magic, `CORL`, replaces `CORR`, `CR2D` and `DDMP`, so an older blob
+    is refused; `DET1`/`DET2` go to version 3 and `CAQR` to 2. Python's
+    signatures are unchanged, but `Corr.execute`, `reset` and
+    `execute_max_out` now carry the shared 2-D docstrings, and a wrong-length
+    frame's `ValueError` says `(n: Corr's n, or ny*nx)`, not `(Corr.n)`.
+
+- **The acquisition engine is the correlator's two search flavors** (#2752
+    step 3.4b, #2930). Saved blobs from `Acquisition`, `BurstAcquisition`
+    and everything composing them are refused (`ACQR` retires for `CORL`;
+    BCAP, DSRX, ADRX, the pool and DBRX bump). In C, `dp_acq_*` is
+    `dp_correlator_*`, `acq_result_t` is `dp_correlator_hit_t` (`row`, `col`
+    for `doppler_bin`, `code_phase`), and `doppler/acq/` is gone. Python's
+    signatures and tuples are unchanged. libdoppler.so no longer exports
+    `dp_async_dsss_receiver_set_pooled`, `_set_search_only` or
+    `_take_picks`: never public API (a private header's), and the static
+    library is unchanged.
+
+### Added
+
+- **A C test that `Corr` is `Corr2D` at one row, byte for byte**
+    (`test_corr_equiv`, #2752 step 3.2). It drives both through the same
+    calls and compares every return, every output buffer, the count and the
+    state blob's payload, including a short `out`, a new reference and a
+    reset mid-dwell. It is the evidence step 3.2 rests on to make `Corr` the
+    one correlator's single-row flavor (its design, #2863, section 2.1).
+
+- **A C test that `CorrDetector` is `CorrDetector2D` at one row, hit for
+    hit** (`test_detector_equiv`, #2752 step 3.3). It pushes the same
+    streams through both, over the four noise modes, dwells 1 and 2, three
+    lengths, two noise windows, two thresholds and odd chunks, and compares
+    every hit, every `consumed`, the stored last dump and the held
+    correlation, bit for bit, ties included. Step 3.3 rests on it to make
+    both detectors flavors of the one correlator.
+
+- **The correlator's two search flavors, and a C test that they are acq,
+    byte for byte** (`test_search_equiv`, #2752 step 3.4b).
+    `dp_correlator_create_continuous` and `dp_correlator_create_burst` are
+    the acquisition engine as the correlator's sixth and seventh flavors,
+    served by its one `push`, `reset` and state triplet; the hit record
+    widens to acq's 64 bytes. The test drives both through 15 scenes (both
+    doors, a peak list, rate hypotheses, the carrier, a tiled search, four
+    threads, odd chunks, a mid-stream restore) and compares every hit and
+    every dwell's surface under strict floating point. It is the evidence
+    the step's move rests on.
+
+### Changed
+
+- **`Acquisition`'s template shape and off-peak floor come from the
+    correlator** (#2752 step 3.4a): their autocorrelation runs on the
+    correlator's single-row path, in cf32, instead of a private double
+    transform pair. The reported peak sidelobe (`psl_db`) moves by at most
+    6.2e-6 dB; every acq validator's verdict is unchanged. A new benchmark
+    row times `AsyncDsssReceiver` create on a five-tile search.
+
+- **`Acquisition`'s Doppler-sidelobe sweep and sidelobe ratio run on the
+    one delay-Doppler map** (#2752 step 3.4b-pre), not on private
+    transforms. The sweep is now single precision: `dsl_db` moves by at
+    most 6.4e-7 dB, and every acq validator's verdict is unchanged.
+
+- **A malformed changelog fragment fails `make lint` on its own PR.**
+    `make lint-changelog-fragments` runs `changelog-assemble.py --lint`,
+    which applies the assembler's own fragment rules (starts with `- `, no
+    `### ` line) to every fragment in `changelog.d/`. They used to run only
+    at the release cut, where two prose fragments stopped the v0.80.0
+    `make release-pr` halfway (#2896).
+
+- **The correlator has one validation report** (#2752 step 3.5):
+    `Acquisition` and `BurstAcquisition` join `Corr2D` and
+    `CorrDetector2D` in
+    `src/doppler/spectral/tests/validation/correlator/results.md`, as parts
+    three and four. 83 limits and 25 findings; three of the limits were
+    tightened, and a new open finding records that continuous search's
+    Python-face evidence is thin (#2923).
+
+- **The search benchmark rows keep their labels under `correlator::`**
+    (#2752). Step 3.4b moved acq's rows into `bench_correlator_core`; the
+    17 labels now name both keys until #2900 maps renames.
+
+- **just-makeit pin 0.119.0 → 0.120.2** (#2890). `jm status --check`, which
+    `make drift-check` runs, now fails a bench target `jm bench` never runs
+    (jm#2495), so a benchmark's rows can no longer go silently absent from
+    `make bench` and `make bench-ab`. `bench_stream` is allowed by name: it
+    has its own runner, `make bench-stream`. The pin also brings 0.120.1's
+    fix for `jm status` reporting files written mid-run as stale (jm#2488).
+
+- **just-makeit pin 0.120.2 → 0.122.3.** `jm apply` now generates a
+    contract test per module's functions (jm gh-2127), and a correlator
+    view may live in another module (jm#2516), which #2752 step 3.4b
+    needs for `Acquisition`.
+
+- **just-makeit pin 0.122.3 → 0.122.4.** A view's own `doc` now renders as
+    the whole docstring (jm#2528, jm#2529), which #2913 needs. The real-input
+    `MpskReceiverR.steps`/`.bits` take their docstrings from the C header,
+    so their Parameters, Returns and Examples stay.
+
+- **just-makeit pin 0.122.4 → 0.122.5.** A warning whose condition is a
+    declared property names that property in the docstring (jm#2534), so
+    `Acquisition`'s under-powered warning reads `underpowered` (#2752).
+
+- **A public C name removed on a branch now needs a `.retired-names`
+    row** (#2905): `make lint-retired-symbols` fails when a symbol in
+    `cmake/public-symbols.txt` or a header under `native/inc/doppler/` is
+    gone since the merge base with `origin/main` and no row's pattern
+    matches it, so `check_retired_names.py` then finds every caller still
+    using the old name.
+
+- **`make test-all` runs every test target CI runs.** It now also runs
+    `test-snippets`, `test-stubs`, `test-api-docs` and `test-rust`, and a
+    lint gate (`make lint-test-all-ci`) fails when a workflow runs a
+    `make test-*` target that `test-all` leaves out, unless
+    `scripts/.test-all-exempt` says why it cannot run locally (only
+    `test-sweep`, whose time budget is calibrated on CI's runner). Step 3.2
+    (#2886) was green locally and failed CI twice on checks only the
+    doc-fence gates collect.
+
+- **`make lint-test-all-ci` reads matrix-chosen targets** (#2912): a
+    `make ${{ matrix.<path> }}` step is resolved against its job's
+    `strategy.matrix`, so the sanitizer job's `test-asan`, `test-ubsan` and
+    `test-tsan` are seen. Each is exempt from `test-all` with its reason:
+    it builds its own instrumented tree, and CI is its gate.
+
+- **`make test-asan` takes `CTEST_SELECT`**, like `make test`:
+    `make test-asan CTEST_SELECT='-R test_correlator'` runs 4 tests under
+    ASan instead of 168. A selection that matches nothing fails rather than
+    passing over nothing.
+
+- **`make train` cancels the CI of the PRs it closes.** The re-vendored
+    `scripts/train.py` (canonical standard, just-buildit.github.io#200)
+    cancels each closed constituent's queued and in-progress runs, which
+    gate nothing once the train exists and held capped macOS runners ahead
+    of a release (just-makeit v0.120.2 waited 1.5 h on them, 2026-11-06).
+
+### Fixed
+
+- **Container fallbacks run as the caller under rootless podman too**
+    (#2933). `-u uid:gid` cannot write a bind mount there, so `gen-c-api`'s
+    doxygen fallback failed as a missing `index.xml`; one `CONTAINER_USER`
+    now picks `--userns=keep-id` on podman.
+
+- **`CorrDetector` and `CorrDetector2D` document their own `reset` and
+    `push`** (#2913). The shared docs had shown `Corr2D`'s example and the
+    C call's return beside the Python one; each detector now has its own,
+    with its own example (just-makeit#2528, #2529).
+
+- **A NaN is never a peak, in `CorrDetector`, `CorrDetector2D` and
+    `Acquisition`.** The one peak picker seeded its pick at the first cell,
+    and nothing compares larger than a NaN, so a NaN there hid a finite peak
+    elsewhere. It now skips NaN cells on both its paths. Finite data picks
+    exactly as before. An all-NaN map now gives `CorrDetector` a peak of 0
+    at lag 0, not NaN, as `CorrDetector2D` already did; at `threshold = 0`
+    that is the hit it reports (#2752 step 3.3, design U2).
+
+- **The release workflow builds macOS wheels on `macos-15`**.
+    GitHub no longer serves the `macos-14` image ("The configuration
+    'macos-14-arm64-us-default' is not supported"), so every macOS job of the
+    v0.80.0 release run was cancelled before a runner was assigned and
+    nothing was published. The wheels still pin min-os 11.0.
+
 ## [0.80.0] - 2026-11-05
 
 ### Breaking
@@ -18702,5 +18878,6 @@ ______________________________________________________________________
 [0.79.0]: https://github.com/doppler-dsp/doppler/compare/v0.78.0...v0.79.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.80.0]: https://github.com/doppler-dsp/doppler/compare/v0.79.0...v0.80.0
+[0.81.0]: https://github.com/doppler-dsp/doppler/compare/v0.80.0...v0.81.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.80.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.81.0...HEAD

@@ -4,7 +4,7 @@ Direct-form FIR filter backed by `dp_fir_state_t`.
 Accepts real (`float32`) or complex (`complex64`) taps; input must be `complex64`.
 
 Source:
-[`src/doppler/filter/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/filter/__init__.py)
+[`src/doppler/filter/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/filter/__init__.py)
 
 ______________________________________________________________________
 

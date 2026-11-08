@@ -5,7 +5,7 @@ values one standard picked, kept beside the general layer rather than inside
 it. Today that is `asm_bits()`, the Attached Sync Marker.
 
 Source:
-[`src/doppler/ccsds/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/ccsds/__init__.py)
+[`src/doppler/ccsds/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/ccsds/__init__.py)
 
 ______________________________________________________________________
 

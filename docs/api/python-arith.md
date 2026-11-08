@@ -7,7 +7,7 @@ dot products, saturating shifts, and small running accumulators. Every operation
 hardware and the rest of doppler's Q-format paths behave.
 
 Source:
-[`src/doppler/arith/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/arith/__init__.py)
+[`src/doppler/arith/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/arith/__init__.py)
 
 ______________________________________________________________________
 

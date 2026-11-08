@@ -216,4 +216,4 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.ratesync_demo ratesync_demo.png
 ```
 
-Source: [`src/doppler/examples/ratesync_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/ratesync_demo.py)
+Source: [`src/doppler/examples/ratesync_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/ratesync_demo.py)

@@ -437,7 +437,7 @@ Skip this if you already have one:
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.80.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.81.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->
@@ -562,7 +562,7 @@ face hides become the API:
 1. **A declaration is reproducible.** The same scene composed twice is
     byte-identical, which is what makes a capture replayable.
 
-[`native/examples/wfmgen_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/native/examples/wfmgen_demo.c)
+[`native/examples/wfmgen_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/native/examples/wfmgen_demo.c)
 is the worked version: two segments, the first summing two clean tones, each
 followed by a gap. Clean sources carry no AWGN, so the gaps are exact zeros
 — which is why its checks are equalities rather than thresholds. It

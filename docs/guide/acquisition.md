@@ -305,7 +305,7 @@ At `pfa = 1e-3` a false alarm is expected now and then, and the capture
 returns a window for it like any other. It is a detector's output stage and
 does not gate on signal quality. Filter on `cn0_dbhz_est`, which separates
 real windows from spurious ones by several dB: in the
-[burst capture demo](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/burst_capture_demo.py)
+[burst capture demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/burst_capture_demo.py)
 the gap is about 9 dB. Set the threshold from your own link: a real burst's
 estimate scatters around the true C/N0 by a few dB, while a false alarm's sits
 near the floor the gate allows.

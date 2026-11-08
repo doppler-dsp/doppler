@@ -126,7 +126,7 @@ description the flags spell, so the record stores them there, as Fields.
 
 The same parser, and the same refusals. This is
 `native/examples/wfm_field_demo.c`, which `make test-examples-c` builds and
-runs; its Python twin is [`src/doppler/examples/wfm_field_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/wfm_field_demo.py).
+runs; its Python twin is [`src/doppler/examples/wfm_field_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/wfm_field_demo.py).
 
 ```c
 --8<-- "native/examples/wfm_field_demo.c"

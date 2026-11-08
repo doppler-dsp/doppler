@@ -28,16 +28,13 @@ B (a gate cannot pass on a row it never saw), and writes nothing under
 ``benchmarks/published/``. ``BENCH_ARGS`` narrows the suite exactly as it
 does for ``make bench``, e.g. ``BENCH_ARGS="--c-only acq"``.
 
-``ALIAS=old=new`` judges a family renamed between the two commits: A's
-``old::<row>`` against B's ``new::<row>``, suffix for suffix, so a rename
-keeps every row comparable. Rows are keyed by their ``fullname``, whose
-family for a C row is the BENCH BINARY, ``bench_corr2d_core``, not the
-published name's ``corr2d``. So #2752 step 3.2's rename is
-``ALIAS=bench_corr2d_core=bench_correlator_core``. It is declared per run,
-never defaulted, and printed with the verdict. Within an aliased family a
-row on one side only is UNPAIRED and fails. An alias that pairs nothing
-refuses the run, and is caught after the first pass of each side, not
-after all of them.
+A renamed family is paired through ``benchmarks/renames.toml`` (#2900),
+the table the benchmarks page and the label gate read: every row is keyed
+by the ID it has NOW (``c:<component>::<row>``, ``py:<module>::<test>``),
+so A's ``c:acq::<row>`` is judged against B's ``c:correlator::<row>``,
+suffix for suffix, with nothing declared per run. Within a family a rename
+put in force, a row on one side only is UNPAIRED and fails, and two A rows
+the table makes one refuse the run.
 
 Examples
 --------
@@ -45,8 +42,6 @@ Examples
     make bench-ab A=origin/main B=HEAD K=7 \\
         BENCH_ARGS="--c-only async_dsss_pool"              # one C component
     make bench-ab A=v0.78.0 B=HEAD BUILD=native JSON=ab.json
-    make bench-ab A=origin/main B=HEAD \\
-        ALIAS=bench_corr2d_core=bench_correlator_core      # a renamed bench
 """
 
 from __future__ import annotations
@@ -66,7 +61,13 @@ from bench_interleaved import (
     bench_once,
     setup_worktree,
 )
-from bench_report import fastest_cpus, machine_not_ready
+from bench_report import (
+    canon,
+    fastest_cpus,
+    machine_not_ready,
+    read_renames,
+    row_id,
+)
 
 
 def worktree_path(side: str) -> str:
@@ -81,12 +82,13 @@ def worktree_path(side: str) -> str:
     return d
 
 
-def best_rounds(snaps: list) -> dict:
+def best_rounds(snaps: list, suite: str | None = None) -> dict:
     """{row: [best round of each pass]} over K snapshots of one suite.
 
-    A row is named by its ``fullname`` (the bench binary or test module
-    and the row), falling back to ``name``. A pass whose row has no
-    positive ``stats.min`` contributes nothing for that row.
+    With ``suite`` (``"c"`` or ``"py"``) a row is named by the page's row
+    ID (`bench_report.row_id`), which a moved bench file does not change;
+    without it, by its ``fullname``, falling back to ``name``. A pass whose
+    row has no positive ``stats.min`` contributes nothing for that row.
 
     >>> s = [
     ...     {"benchmarks": [{"fullname": "x", "stats": {"min": 2.0}}]},
@@ -103,7 +105,12 @@ def best_rounds(snaps: list) -> dict:
     out: dict = {}
     for s in snaps:
         for b in s.get("benchmarks", []):
-            key = b.get("fullname") or b.get("name")
+            if suite and b.get("name"):
+                key = row_id("c" if suite == "c" else "python", b)
+            elif suite:
+                key = f"{suite}:{b.get('fullname')}"
+            else:
+                key = b.get("fullname") or b.get("name")
             m = b.get("stats", {}).get("min")
             if key and isinstance(m, (int, float)) and m > 0:
                 out.setdefault(key, []).append(float(m))
@@ -209,91 +216,50 @@ def compare(a: dict, b: dict) -> dict:
     return out
 
 
-def families(snaps: list) -> list:
-    """The row families in some snapshots, sorted: what an alias can name.
+def apply_renames(a: dict, b: dict, renames: dict) -> tuple:
+    """Both sides' rows under the IDs they have now; which rows a rename
+    in force governs.
 
-    >>> row = {"fullname": "bench_x_core::r", "stats": {"min": 1.0}}
-    >>> families([{"benchmarks": [row]}])
-    ['bench_x_core']
+    Returns ``(a_now, b_now, governed, problems)``:
+
+    - ``a_now`` and ``b_now`` key every row by `bench_report.canon`, so a
+      row A measured under a family the table renamed pairs with B's row
+      of the new name;
+    - ``governed`` maps each key a rename in force covers -- every renamed
+      A row, and every B row in a family some A row was renamed into -- to
+      the name A measured it under, or ``None`` for a B row A never had;
+    - ``problems`` names two rows of one side that the table makes one.
+
+    >>> a = {"c:corr2d::x": [1.0], "c:fft::y": [1.0]}
+    >>> b = {"c:correlator::x": [1.0], "c:fft::y": [1.0]}
+    >>> an, bn, gov, bad = apply_renames(a, b, {"c:corr2d": "c:correlator"})
+    >>> sorted(an), gov, bad
+    (['c:correlator::x', 'c:fft::y'], {'c:correlator::x': 'c:corr2d::x'}, [])
     """
-    return sorted(
-        {k.split("::", 1)[0] for k in best_rounds(snaps) if "::" in k}
-    )
-
-
-def parse_aliases(spec: str) -> list:
-    """`old=new` family renames, separated by commas or spaces.
-
-    A family is a row's prefix before its first ``::``, in the key bench-ab
-    compares, the ``fullname``: ``bench_corr2d_core`` in
-    ``bench_corr2d_core::single_row_fast_path``. Only whole families are
-    renamed, and a row's suffix must match exactly, so nothing pairs by
-    resemblance.
-
-    >>> parse_aliases("corr2d=correlator")
-    [('corr2d', 'correlator')]
-    >>> parse_aliases("a=b, c=d")
-    [('a', 'b'), ('c', 'd')]
-    >>> parse_aliases("corr2d")
-    Traceback (most recent call last):
-    ...
-    ValueError: alias 'corr2d' is not old=new
-    """
-    out = []
-    for item in spec.replace(",", " ").split():
-        old, eq, new = item.partition("=")
-        if not eq or not old or not new or "::" in old + new or old == new:
-            raise ValueError(f"alias {item!r} is not old=new")
-        out.append((old, new))
-    return out
-
-
-def apply_aliases(a: dict, b: dict, aliases: list) -> tuple:
-    """A's rows renamed into B's families; which rows the aliases govern.
-
-    Returns ``(a_renamed, governed, problems)``:
-
-    - ``a_renamed`` is A with every ``old::suffix`` row keyed
-      ``new::suffix``, so `compare` pairs it with B's row of that name;
-    - ``governed`` maps each key an alias covers (every renamed A row, and
-      every B row in a ``new`` family) to the A name it was measured under,
-      or ``None`` for a B row A never had;
-    - ``problems`` names what refuses the run before any verdict: an alias
-      matching no row on one side (an alias that pairs nothing passes
-      nothing), or a renamed row colliding with a row A already has.
-
-    >>> a = {"corr2d::x": [1.0], "fft::y": [1.0]}
-    >>> b = {"correlator::x": [1.0], "fft::y": [1.0]}
-    >>> ar, gov, bad = apply_aliases(a, b, [("corr2d", "correlator")])
-    >>> sorted(ar), gov, bad
-    (['correlator::x', 'fft::y'], {'correlator::x': 'corr2d::x'}, [])
-    """
-    renamed = dict(a)
-    governed: dict = {}
-    problems = []
-    for old, new in aliases:
-        olds = [k for k in a if k.startswith(f"{old}::")]
-        news = [k for k in b if k.startswith(f"{new}::")]
-        if not olds:
-            problems.append(f"alias {old}={new}: A has no {old}:: row")
-        if not news:
-            problems.append(f"alias {old}={new}: B has no {new}:: row")
-        for k in olds:
-            to = f"{new}::{k[len(old) + 2 :]}"
-            if to in a:
+    out, problems, governed, into = [], [], {}, set()
+    for side, rows in (("A", a), ("B", b)):
+        now: dict = {}
+        for k, v in rows.items():
+            n = canon(k, renames)
+            if n in now:
                 problems.append(
-                    f"alias {old}={new}: {k} would replace A's own {to}"
+                    f"{side} measured both {now[n][0]} and {k}, which "
+                    f"benchmarks/renames.toml makes one row, {n}"
                 )
                 continue
-            renamed[to] = renamed.pop(k)
-            governed[to] = k
-        for k in news:
+            now[n] = (k, v)
+            if side == "A" and n != k:
+                governed[n] = k
+                into.add(n.partition("::")[0])
+        out.append({n: v for n, (_, v) in now.items()})
+    for k in out[1]:
+        if k.partition("::")[0] in into:
             governed.setdefault(k, None)
-    return renamed, governed, problems
+    return out[0], out[1], governed, problems
 
 
 def pair_governed(result: dict, governed: dict) -> dict:
-    """Refuse every aliased row that did not pair: absent is not a pass.
+    """Refuse every renamed row that did not pair: absent is not a pass.
 
     Within a renamed family, a row on one side only would otherwise read as
     MISSING (A only) or, worse, NEW (B only), which the gate lets through.
@@ -338,33 +304,24 @@ def failures(result: dict) -> list:
     ]
 
 
-def judge(samples: dict, aliases: list) -> tuple:
-    """Both suites' verdicts, with the aliases applied: (result, problems).
+def judge(samples: dict, renames: dict) -> tuple:
+    """Both suites' verdicts, rows under today's IDs: (result, problems).
 
-    The aliases are applied to each suite's rows; an alias is refused only
-    when it pairs nothing in EITHER suite (a C family has no Python rows),
-    so `problems` keeps the per-alias complaints that hold in both.
-
-    >>> c = {"benchmarks": [{"fullname": "old::x", "stats": {"min": 1.0}}]}
-    >>> d = {"benchmarks": [{"fullname": "new::x", "stats": {"min": 1.0}}]}
+    >>> c = {"benchmarks": [{"name": "old::x", "stats": {"min": 1.0}}]}
+    >>> d = {"benchmarks": [{"name": "new::x", "stats": {"min": 1.0}}]}
     >>> s = {"A": {"c": [c] * 3, "py": []}, "B": {"c": [d] * 3, "py": []}}
-    >>> r, bad = judge(s, [("old", "new")])
+    >>> r, bad = judge(s, {"c:old": "c:new"})
     >>> r["c:new::x"]["verdict"], r["c:new::x"]["alias_from"], bad
-    ('TIE', 'old::x', [])
+    ('TIE', 'c:old::x', [])
     """
     result: dict = {}
-    seen: dict = {}
+    problems: list = []
     for suite in ("c", "py"):
-        a = best_rounds(samples["A"][suite])
-        b = best_rounds(samples["B"][suite])
-        a, governed, bad = apply_aliases(a, b, aliases)
-        for p in bad:
-            seen.setdefault(p, set()).add(suite)
-        part = pair_governed(compare(a, b), governed)
-        result.update({f"{suite}:{row}": v for row, v in part.items()})
-    # A "has no row" complaint counts only when it holds in both suites; a
-    # collision is a problem wherever it happens.
-    problems = [p for p, s in seen.items() if "has no" not in p or len(s) == 2]
+        a = best_rounds(samples["A"][suite], suite)
+        b = best_rounds(samples["B"][suite], suite)
+        a, b, governed, bad = apply_renames(a, b, renames)
+        problems += bad
+        result.update(pair_governed(compare(a, b), governed))
     return result, problems
 
 
@@ -379,8 +336,8 @@ def render(result: dict) -> str:
     head = ("row", "A us", "B us", "B/A", "tol us", "verdict")
     lines = []
     for key, v in result.items():
-        # An aliased row names what A measured it as, so the pairing is in
-        # the verdict table and not only in the alias line above it.
+        # A renamed row names what A measured it as, so the pairing is in
+        # the verdict table and not only in the rename line above it.
         row = f"{key} <- {v['alias_from']}" if v.get("alias_from") else key
         if "ratio" in v:
             lines.append(
@@ -462,17 +419,10 @@ def main(argv=None) -> int:
         help="the flags BOTH sides build at",
     )
     ap.add_argument("--json", help="also write the result here")
-    ap.add_argument(
-        "--alias",
-        default="",
-        help="old=new family renames, pairing A's old::row with B's new::row",
-    )
     args = ap.parse_args(argv)
-    try:
-        aliases = parse_aliases(args.alias)
-    except ValueError as e:
-        print(f"bench-ab: {e}")
-        return 2
+    # The table in THIS checkout: a branch that renames a family declares
+    # the rename in the same commit.
+    renames = read_renames(REPO)
     if args.k < 3:
         # The band is second-best minus best. At K = 2 that is max - min,
         # which one slow pass widens enough to hide a regression (#2771).
@@ -515,24 +465,20 @@ def main(argv=None) -> int:
                 py, c = bench_once(wts[side], cpus)
                 samples[side]["py"].append(py)
                 samples[side]["c"].append(c)
-            # An alias that pairs nothing is known once each side has run
-            # once: stop then, not after every pass (#2752 step 3.2 lost a
-            # full K=5 run to a mis-keyed alias).
-            if i == 0 and aliases:
-                early = judge(samples, aliases)[1]
-                if early:
-                    for p in early:
-                        print(f"bench-ab: {p}")
-                    for side in ("A", "B"):
-                        fams = families(samples[side]["c"])
-                        print(f"  {side}'s C families: {', '.join(fams)}")
-                    return 1
     finally:
         _remove_worktrees(wts)
 
-    result, problems = judge(samples, aliases)
-    for a_, b_ in aliases:
-        print(f"alias in force: A {a_}::<row> is B {b_}::<row>")
+    result, problems = judge(samples, renames)
+    olds = {
+        v["alias_from"].partition("::")[0]
+        for v in result.values()
+        if v.get("alias_from")
+    }
+    for old in sorted(olds):
+        print(
+            f"rename in force (benchmarks/renames.toml): A {old}::<row> "
+            f"is B {renames[old]}::<row>"
+        )
     if problems:
         for p in problems:
             print(f"bench-ab: {p}")
@@ -549,7 +495,7 @@ def main(argv=None) -> int:
                     "b": commits["B"],
                     "k": args.k,
                     "build": args.build,
-                    "aliases": [f"{o}={n}" for o, n in aliases],
+                    "renames": renames,
                     "rows": result,
                 },
                 fh,

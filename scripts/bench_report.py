@@ -515,6 +515,9 @@ LABELS = "benchmarks/labels.toml"
 LABELS_EXEMPT = "benchmarks/.labels-exempt"
 #: C units for releases that never recorded one (#2314); it only empties.
 LEGACY_UNITS = "benchmarks/legacy-units.toml"
+#: Row families renamed between releases (#2900): the one declaration the
+#: page, the label gate and `make bench-ab` all read a row's ID through.
+RENAMES = "benchmarks/renames.toml"
 #: The jm manifest: which module each object belongs to.
 MANIFEST = "just-makeit.toml"
 
@@ -594,21 +597,6 @@ COMPONENT_MODULE = {
     "timing": "sample_clock",
     # Deleted with the old pool; its rows remain in the published runs.
     "async_dsss_pool": "dsss",
-    # One object, `correlator`, since #2752 step 3.2: its one bench writes
-    # every row as `correlator` (jm collects a component's bench by its
-    # name), and the `corr` and `corr2d` rows remain in the published runs
-    # (docs/design/correlator.md section 7.1).
-    "corr": "spectral",
-    "corr2d": "spectral",
-    # And since step 3.3 the two detectors: their rows are the correlator
-    # bench's too, and the `detector` and `detector2d` rows remain in the
-    # published runs.
-    "detector": "spectral",
-    "detector2d": "spectral",
-    # And since step 3.4b the search: its rows are the correlator bench's
-    # bench_search(), and the `acq` rows remain in the published runs,
-    # under the module that held them.
-    "acq": "acquire",
 }
 
 #: How many INPUT SAMPLES one recorded unit consumes (#2372): the page
@@ -941,6 +929,123 @@ def read_exempt(text: str) -> list:
     ]
 
 
+def read_renames(root: str = ".") -> dict:
+    """{old family: new family} from RENAMES, each chain followed to its end.
+
+    A family is a row ID's part before ``::``: ``c:<component>`` or
+    ``py:<module>``. The file maps one old family to the one it became, so
+    ``c:acq = c:correlator`` says every ``c:acq::<row>`` a release published
+    is the row ``c:correlator::<row>`` measures now. A rename of a rename
+    (``a -> b``, later ``b -> c``) resolves to the last name. Whether each
+    entry is sound -- both ends well formed, ``old`` published and no
+    longer built, ``new`` built -- is `rename_problems`; a cycle is
+    refused here, since no name ends it.
+
+    >>> resolve_renames({"c:a": "c:b", "c:b": "c:c"})
+    {'c:a': 'c:c', 'c:b': 'c:c'}
+    """
+    path = os.path.join(root, RENAMES)
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as fh:
+        return resolve_renames(dict(_toml.load(fh)))
+
+
+def resolve_renames(table: dict) -> dict:
+    """``table`` with every chain followed to its last name; a cycle is
+    refused (`read_renames`).
+
+    >>> resolve_renames({"c:a": "c:b", "c:b": "c:a"})
+    Traceback (most recent call last):
+    ...
+    SystemExit: benchmarks/renames.toml: `c:a` is renamed in a cycle
+    """
+    out = {}
+    for old in table:
+        new, seen = table[old], {old}
+        while new in table:
+            if new in seen:
+                raise SystemExit(f"{RENAMES}: `{old}` is renamed in a cycle")
+            seen.add(new)
+            new = table[new]
+        out[old] = new
+    return out
+
+
+def canon(rid: str, renames: dict) -> str:
+    """The ID a row has now: its family renamed through ``renames``.
+
+    >>> canon("c:acq::op5M_nc1", {"c:acq": "c:correlator"})
+    'c:correlator::op5M_nc1'
+    >>> canon("c:fft::x", {"c:acq": "c:correlator"})
+    'c:fft::x'
+    """
+    fam, sep, row = rid.partition("::")
+    return renames.get(fam, fam) + sep + row
+
+
+def rename_problems(root: str, renames: dict, releases: list) -> list:
+    """What the rename table may not say (#2900), as messages.
+
+    Each ``old`` and ``new`` is a family (``c:<component>`` or
+    ``py:<module>``, one suite on both ends). ``old`` was published by some
+    release and is built by no bench now, so an entry never names a family
+    that still writes rows. ``new`` is built by a bench now: a C component
+    has ``native/benchmarks/<component>/``, a Python module's rows come
+    from some ``src/doppler/*/benchmarks/bench_<module>.py``. And no
+    release recorded two rows that the table makes one.
+    """
+    bad = []
+    published, collide = set(), set()
+    for v, builds, _ in releases:
+        for suites in builds.values():
+            seen: dict = {}
+            for suite, benches in suites.items():
+                for bench in benches:
+                    rid = row_id(suite, bench)
+                    published.add(rid.partition("::")[0])
+                    now = canon(rid, renames)
+                    if seen.setdefault(now, rid) != rid:
+                        collide.add((v, now, seen[now], rid))
+    for v, now, a, b in sorted(collide):
+        bad.append(
+            f"{RENAMES}: {v} recorded both `{a}` and `{b}`, which the "
+            f"table makes one row, `{now}`"
+        )
+
+    def built(fam: str) -> bool:
+        kind, _, name = fam.partition(":")
+        if kind == "c":
+            return os.path.isdir(os.path.join(root, BENCH_SRC, name))
+        pat = os.path.join(root, "src", "doppler", "*", "benchmarks")
+        return bool(glob.glob(os.path.join(pat, f"bench_{name}.py")))
+
+    for old, new in sorted(renames.items()):
+        ends = (old.partition(":"), new.partition(":"))
+        if any(
+            k not in ("c", "py") or not n or "::" in n for k, _, n in ends
+        ) or (ends[0][0] != ends[1][0]):
+            bad.append(
+                f"{RENAMES}: `{old}` = `{new}` is not one family renamed "
+                "to another in the same suite (`c:<component>` or "
+                "`py:<module>`)"
+            )
+            continue
+        if old not in published:
+            bad.append(
+                f"{RENAMES}: `{old}` was published by no release -- a "
+                "rename joins a published history to a new name"
+            )
+        if built(old):
+            bad.append(
+                f"{RENAMES}: `{old}` is still built, so its rows would be "
+                "read as another family's"
+            )
+        if not built(new):
+            bad.append(f"{RENAMES}: `{new}` is built by no bench")
+    return bad
+
+
 def _raw_releases(root: str = PUBLISHED) -> list:
     """[(version, {build: {suite: [bench, ...]}, meta})] oldest first."""
     out = []
@@ -1066,21 +1171,28 @@ def page_data(root: str = ".") -> dict:
     releases = _raw_releases(os.path.join(root, PUBLISHED))
     versions = [v for v, _, _ in releases]
     obj2mod, modules = read_manifest(root)
+    renames = read_renames(root)
+    # Labels are keyed by today's IDs already: the gate refuses an old one.
     labels = read_labels(root)
     legacy = read_legacy_units(root)
     if not releases:
         return {"versions": [], "rows": [], "problems": []}
     _, newest, _ = releases[-1]
+    # Every row is keyed by the ID it has NOW (`canon`), so a renamed
+    # family's published history and its label follow it (#2900).
     live = {}
     for b in BUILDS:
         for suite, benches in newest.get(b, {}).items():
             for bench in benches:
-                live.setdefault(row_id(suite, bench), (suite, bench))
+                rid = canon(row_id(suite, bench), renames)
+                live.setdefault(rid, (suite, bench))
 
     rows, problems, stale_legacy = [], [], []
     for rid in sorted(live):
         suite, bench = live[rid]
-        comp = _component(suite, bench)
+        # A C row's component is its family's, renamed: what builds it now.
+        comp = rid[2:].split("::", 1)[0] if suite == "c" else None
+        comp = comp or _component(suite, bench)
         mod = module_of(suite, comp, obj2mod, modules)
         fam = MODULE_FAMILY.get(mod, "")
         if not fam:
@@ -1099,7 +1211,7 @@ def page_data(root: str = ".") -> dict:
         for i, (_, builds, _) in enumerate(releases):
             for b in BUILDS:
                 for x in builds.get(b, {}).get(suite, []):
-                    if row_id(suite, x) != rid:
+                    if canon(row_id(suite, x), renames) != rid:
                         continue
                     got = seconds_per_unit(suite, x)
                     # A name recorded more than once in one set (acq's
@@ -1247,11 +1359,28 @@ def label_problems(
     data = page_data(root)
     bad = list(data["problems"])
     live = {r["id"] for r in data["rows"]}
-    labels = read_labels(root)
+    renames = read_renames(root)
+    bad += rename_problems(
+        root, renames, _raw_releases(os.path.join(root, PUBLISHED))
+    )
+    raw = read_labels(root)
+    labels: dict = {}
+    for rid, lab in raw.items():
+        now = canon(rid, renames)
+        if now != rid:
+            bad.append(
+                f"{LABELS}: `{rid}` is a renamed row ({RENAMES}): key its "
+                f"label `{now}`"
+            )
+        if now in labels:
+            bad.append(f"{LABELS}: two labels for the one row `{now}`")
+        labels[now] = lab
     newest = data["versions"][-1] if data["versions"] else None
     commit = (data.get("meta", {}).get(newest) or {}).get("commit")
     if history:
-        _, dead = unpublished_labels(root, labels, live, newest, commit)
+        _, dead = unpublished_labels(
+            root, labels, live, newest, commit, renames
+        )
         bad += dead
     for rid, lab in labels.items():
         for key in ("name", "unit", "definition"):
@@ -1262,7 +1391,15 @@ def label_problems(
     if os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-    exempt = read_exempt(text)
+    exempt = []
+    for rid in read_exempt(text):
+        now = canon(rid, renames)
+        if now != rid:
+            bad.append(
+                f"{LABELS_EXEMPT}: `{rid}` is a renamed row ({RENAMES}): "
+                f"write it `{now}`"
+            )
+        exempt.append(now)
     for rid in exempt:
         if rid in labels:
             bad.append(f"{LABELS_EXEMPT}: `{rid}` is labelled now {FIXABLE}")
@@ -1279,7 +1416,9 @@ def label_problems(
             base,
             LABELS_EXEMPT,
             exempt,
-            read_exempt,
+            # The base's lines are read under today's names, so writing a
+            # line under its new ID is not adding one.
+            lambda s: [canon(r, renames) for r in read_exempt(s)],
             since=LABELS,
         ):
             bad.append(
@@ -1299,7 +1438,9 @@ def label_problems(
 FIXABLE = "-- remove the line"
 
 
-def unpublished_labels(root, labels, live, newest, commit) -> tuple:
+def unpublished_labels(
+    root, labels, live, newest, commit, renames=None
+) -> tuple:
     """``(pending, problems)`` for labels whose row the newest release
     does not measure.
 
@@ -1326,7 +1467,7 @@ def unpublished_labels(root, labels, live, newest, commit) -> tuple:
                 "read to tell new from dead: fetch the full history"
             ]
         text = show_at(Path(root), rev, LABELS)
-        then = set(_toml.loads(text)) if text else set()
+        then = {canon(k, renames or {}) for k in _toml.loads(text or "")}
     pending, dead = [], []
     for rid in waiting:
         if then is not None and rid not in then:
@@ -1352,6 +1493,7 @@ def fix_labels(root: str = ".") -> list:
     """
     data = page_data(root)
     live = {r["id"] for r in data["rows"]}
+    renames = read_renames(root)
     labels = read_labels(root)
     done = []
     stale = set(data.get("_stale_legacy", []))
@@ -1380,10 +1522,11 @@ def fix_labels(root: str = ".") -> list:
         keep = []
         for ln in lines:
             rid = ln.strip()
+            now = canon(rid, renames)
             if (
                 rid
                 and not rid.startswith("#")
-                and (rid in labels or rid not in live)
+                and (now in labels or now not in live)
             ):
                 done.append(f"{LABELS_EXEMPT}: removed `{rid}`")
                 continue

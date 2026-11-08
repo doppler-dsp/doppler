@@ -86,6 +86,13 @@ CLEAN = 100.0
 
 NSYM = 8000
 
+#: §2.2's realisations. A tracking verdict holds on EVERY seed or it is not
+#: one, the same rule as the seeding sweep; a single seed at a marginal
+#: point flipped with the compiler (#2952). Telemetry is decimated by
+#: `ESNO_DECIM` to read the loop's own frequency probe.
+ESNO_SEEDS = (7, 11, 13, 17, 19, 23, 29, 31)
+ESNO_DECIM = 64
+
 #: The lock EMA's shipped coefficient (`CARRIER_NDA_LOCK_ALPHA`) and the
 #: analytic H0 standard deviation the header derives from it:
 #: ``sqrt(Var_look * alpha/(2-alpha))`` with ``Var_look = 1/2`` exactly, for
@@ -862,21 +869,44 @@ def characterise() -> Data:
         "the lock statistic side by side."
     )
     R.md()
+    R.md(
+        f"Each point runs {len(ESNO_SEEDS)} noise realisations. "
+        f"`|freq error|` is the worst seed's mean tracked-frequency error "
+        f"over the second half of the record, read from the object's own "
+        f"`car.freq` probe; a point TRACKS only if every seed is inside "
+        f"5e-4. `locked` counts the seeds that declare, and a point DECLARES "
+        f"only if every seed does; near the threshold that count is a "
+        f"probability, so it is reported as one. `lock` is the median "
+        f"end-of-record statistic. One seed's last sample is not a verdict: "
+        f"at a marginal point it flips with the build (#2952)."
+    )
+    R.md()
     d.esno_grid = (30.0, 20.0, 15.0, 10.0, 6.0, 3.0)
     rows = []
     for m in MS:
         for e in d.esno_grid:
-            c, _, _ = run(psk(m, F0, NSYM, snr_db=e), m)
-            err = abs(c.norm_freq - F0)
-            d.esno.append((m, e, err, c.lock, bool(c.locked)))
+            errs, stats, decl = [], [], []
+            for s in ESNO_SEEDS:
+                c, _, t = run(
+                    psk(m, F0, NSYM, snr_db=e, seed=s), m, decim=ESNO_DECIM
+                )
+                f = np.asarray(t["car.freq"])
+                errs.append(abs(float(np.mean(f[len(f) // 2 :])) - F0))
+                stats.append(c.lock)
+                decl.append(bool(c.locked))
+            err = max(errs)
+            tracks = err < 5e-4
+            lock = float(np.median(stats))
+            locked = all(decl)
+            d.esno.append((m, e, err, lock, locked, tracks))
             rows.append(
                 [
                     m,
                     f"{e:g}",
                     f"{err:.1e}",
-                    "yes" if err < 5e-4 else "**no**",
-                    f"{c.lock:+.4f}",
-                    "yes" if c.locked else "no",
+                    "yes" if tracks else "**no**",
+                    f"{lock:+.4f}",
+                    f"{sum(decl)}/{len(decl)}",
                 ]
             )
     R.table(
@@ -896,7 +926,7 @@ def characterise() -> Data:
     )
     R.md("![tracking and declaring](esno.png)")
     R.md()
-    _track = [r for r in d.esno if r[2] < 5e-4]
+    _track = [r for r in d.esno if r[5]]
     _decl = [r for r in d.esno if r[4]]
     R.md(
         f"Of {len(d.esno)} points swept, {len(_track)} track and only "
@@ -1879,7 +1909,7 @@ def review(d: Data) -> None:
         "BY DESIGN",
         f"Tracking and declaring are different envelopes, and the gap is "
         f"wide: of {len(d.esno)} points in §2.2, "
-        f"{sum(1 for r in d.esno if r[2] < 5e-4)} track the carrier and "
+        f"{sum(1 for r in d.esno if r[5])} track the carrier and "
         f"{sum(1 for r in d.esno if r[4])} declare lock. An RRC-shaped "
         f"stream at M = 8 tracks to 1e-6 and reads `locked = False` at "
         f"every Es/N0 swept. This is consistent with `docs/design/mpsk.md`, "
@@ -1942,7 +1972,7 @@ def limits(d: Data) -> None:
     )
 
     # --- tracking vs declaring ------------------------------------------
-    _track = [r for r in d.esno if r[2] < 5e-4]
+    _track = [r for r in d.esno if r[5]]
     R.limit(
         len(_track) > len([r for r in d.esno if r[4]]),
         f"the TRACKING envelope is strictly wider than the DECLARING one "
@@ -1952,7 +1982,7 @@ def limits(d: Data) -> None:
         f"whether the loop is working ({R.ref('track_vs_declare_envelopes')})",
     )
     R.limit(
-        all(r[2] < 5e-4 for r in d.esno if r[1] >= 15.0),
+        all(r[5] for r in d.esno if r[1] >= 15.0),
         "and every M tracks to better than 5e-4 cycles/sample at Es/N0 of "
         "15 dB and above",
     )
@@ -2281,7 +2311,7 @@ def executive(d: Data) -> None:
         )
         if dc and abs(t - f) > 1e-4
     ]
-    tracks = sum(1 for r in d.esno if r[2] < 5e-4)
+    tracks = sum(1 for r in d.esno if r[5])
     declares = sum(1 for r in d.esno if r[4])
     R.executive(
         "CarrierNda",

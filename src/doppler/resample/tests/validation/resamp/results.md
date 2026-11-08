@@ -37,12 +37,12 @@ The gate that catches the accumulator, and the one that was silently 55-60 dB do
 
 | rate | outputs | vs `rate x n` | tone residual (dB) |
 |---|---|---|---|
-| 0.25 | 1024 | +0.0 | -142.5 |
+| 0.25 | 1024 | +0.0 | -142.9 |
 | 0.3 | 1228 | -0.8 | -78.8 |
 | 0.5 | 2048 | +0.0 | -142.3 |
 | 0.7 | 2867 | -0.2 | -71.1 |
 | 0.923 | 3780 | -0.6 | -67.8 |
-| 1 | 4096 | +0.0 | -147.4 |
+| 1 | 4096 | +0.0 | -148.8 |
 | 1.3 | 5325 | +0.2 | -74.4 |
 | 2 | 8192 | +0.0 | -70.6 |
 | 2.5 | 10241 | +1.0 | -73.8 |
@@ -111,9 +111,9 @@ The near-edge tone is the whole measurement: it is where the images crowd the tr
 
 ### 2.6 `execute` vs `execute_ctrl`: a delay, not a defect (C §18)
 
-`execute` dispatches on rate and uses the transposed decimator below unity; `execute_ctrl` rides the interpolator at every rate. So with a zero control they are bit-identical at and above unity and **must** differ below it. The difference is large — order unity against a unit-amplitude signal — which reads alarming until both are projected: each is a clean tone, and what separates them is **group delay**, not quality.
+`execute` dispatches on rate and uses the transposed decimator below unity; `execute_ctrl` rides the interpolator at every rate. So with a zero control they agree at and above unity and **must** differ below it. Agreeing is the same count with each value within 8 ULPs, the tolerance C §18 pins (`RESAMP_FORMS_ULPS`): -ffast-math may contract the two forms' dot products differently, so the last bits belong to the compiler (#2697). The difference below unity is large — order unity against a unit-amplitude signal — which reads alarming until both are projected: each is a clean tone, and what separates them is **group delay**, not quality.
 
-| rate | `execute` structure | identical | count delta | max abs diff | implied delay (out samples) |
+| rate | `execute` structure | agree (8 ULPs) | count delta | max abs diff | implied delay (out samples) |
 |---|---|---|---|---|---|
 | 0.5 | transposed decimator | **no** | +0 | 1.775 | +3.250 |
 | 0.7 | transposed decimator | **no** | +1 | 0.708 | +1.150 |
@@ -128,11 +128,11 @@ Zero Doppler **is** rate 1.0, so a closing-then-opening geometry ramps the contr
 | ctrl delta | outputs | tone residual (dB) |
 |---|---|---|
 | -1e-06 | 4096 | -68.7 |
-| -1e-09 | 4096 | -147.4 |
-| -1e-10 | 4096 | -147.4 |
-| +0e+00 | 4096 | -147.4 |
-| +1e-10 | 4097 | -146.5 |
-| +1e-09 | 4097 | -146.5 |
+| -1e-09 | 4096 | -148.8 |
+| -1e-10 | 4096 | -148.8 |
+| +0e+00 | 4096 | -148.8 |
+| +1e-10 | 4097 | -146.9 |
+| +1e-09 | 4097 | -146.9 |
 | +1e-06 | 4097 | -68.7 |
 
 
@@ -230,13 +230,13 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 | PASS | Decimating, everything from 0.6 of fs_out is rejected by more than 60 dB: worst -66.2 dB |
 | PASS | Interpolating, no artifact anywhere in the rejection band rises above -60 dBc, at fractional rates included: worst -62.3 dBc |
 | PASS | A control deviation inside the old unity window still produces a full output block (the interpolator does not stall) |
-| PASS | ...and the stream stays a pure tone through it: worst -146.5 dB |
+| PASS | ...and the stream stays a pure tone through it: worst -146.9 dB |
 | PASS | `execute_ctrl` accepts any real control numpy can widen to float64 — float32 and a plain list included |
 | PASS | ...and rejects a complex control outright rather than silently discarding its imaginary half |
 | PASS | `ctrl_acc` is observable from Python and lives in [0, 1): 0.0 fresh, 0.0396 under a steer |
 | PASS | `ctrl_acc` reports the CONTROL accumulator, so it stays 0.0 for a caller driving the object through `execute()` |
 | PASS | Serialized state resumes a split stream bit-exactly at every rate |
-| PASS | At and above unity, a zero control reproduces `execute` bit-for-bit |
+| PASS | At and above unity, a zero control reproduces `execute`: the same count, each value within 8 ULPs |
 
 
 ## 5. Summary

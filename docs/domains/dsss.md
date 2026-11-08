@@ -25,7 +25,7 @@ Python module `doppler.dsss`. Area: [Receivers](index.md#receiver).
 
 ## Guide pages in this domain
 
-- [DSSS Burst Acquisition](../guide/dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with `BurstAcquisition`, and continuous signals with `Acquisition`
+- [DSSS Burst Acquisition](../guide/dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with the burst search, `Correlator(framing="burst")`, and continuous signals with the continuous search
 
 ## Gallery pages in this domain
 
@@ -35,8 +35,8 @@ Python module `doppler.dsss`. Area: [Receivers](index.md#receiver).
 - [AsyncDsssReceiver: a signal's lifecycle](../gallery/async-dsss-receiver-lifecycle.md) — one packaged receiver through an emitter's life: searched, tracked through a fade, released when it departs, reset, and re-acquired on its return, read from its own state after every push
 - [AsyncDsssReceiver: the specification link](../gallery/async-dsss-receiver-spec.md) — one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass: carrier-to-code aiding, a missed hand-off searched again, and the decode scored by BER, EVM and M2M4
 - [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md) — detection characterisation curves.
-- [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()`, the same answer at every block size
-- [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md) — `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
+- [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `Correlator -> refine -> BurstDemod` behind one `push()`, the same answer at every block size
+- [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md) — `Correlator -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
 - [Streaming Async Despreader](../gallery/async-despread.md) — `Dll(segments)` despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid.
 
 ## Design pages in this domain
@@ -52,7 +52,8 @@ Pages filed under another domain that name a symbol of this module, or link to o
 
 - [Waveform generation (wfm)](wfm.md): [A Frame You Built, Generated](../gallery/wfmgen-carried-frame.md), [A Frame as a Description](../design/frame-description.md), [A Framed Link, Checked by Its Description](../gallery/framed-link.md), [A Receiver Built from a Frame Description](../design/rx-frame-description.md), [Fields — bits, written as text](../guide/wfmgen/fields.md), [One Cache Slot for a Whole Background Field](../gallery/plan-background.md), [Scenes — composing in time](../guide/wfmgen/scenes.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
 - [Channel impairment](impairment.md): [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md), [Doppler Channel — a Doppler Profile Driven by a Cosine](../gallery/doppler-channel-profile.md), [The Doppler channel — one parameter, both clocks and the carrier](../design/doppler-channel.md)
-- [Spectral analysis](spectral.md): [2-D Acquisition Grid](../gallery/detection2d.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md)
+- [Correlation](correlation.md): [2-D Acquisition Grid](../gallery/detection2d.md), [The Correlator](../guide/correlator.md)
+- [Spectral analysis](spectral.md): [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md)
 - [Acquisition](acquire.md): [Acquiring a Repeated Preamble](../guide/acquisition.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [BurstCapture: acquisition's output, turned into bursts](../design/burst-capture.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md), [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
 - [Tracking & synchronization](track.md): [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Lock Detection Across doppler.track](../guide/lock-detection.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [MPSK Receiver](../design/mpsk.md)
 - [Detection statistics](detection.md): [Detection Sizing — the four laws behind one prefix](../design/detection.md)

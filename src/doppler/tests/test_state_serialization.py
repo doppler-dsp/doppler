@@ -14,9 +14,10 @@ every type carrying the triplet:
    magic-clobbered blob raise ``ValueError`` and a non-``bytes`` argument raise
    ``TypeError``, never a silent reinterpretation.
 
-The frame-based ``Acquisition`` has a bespoke streaming shape that doesn't fit
-the block-``execute`` harness; its round-trip lives in
-``dsss/tests/test_acq.py`` and is intentionally not duplicated here.
+Every ``Correlator`` flavor with running state has its own row, the
+continuous search's included: a split mid-stream through ``push``, compared
+on the blob (#2078). A blob from one flavor is refused by every other
+(``test_correlator_flavor_blob_refused_by_every_other``).
 
 Examples
 --------
@@ -38,11 +39,15 @@ import pytest
 from numpy.typing import NDArray
 
 from doppler.accumulator import AccCf64, AccF32, AccTrace
-from doppler.acquire import BurstAcquisition, BurstCapture, CarrierAcquisition
+from doppler.acquire import (
+    BurstCapture,
+    CarrierAcquisition,
+)
 from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
 from doppler.coding import ConvEncoder, Viterbi
+from doppler.correlation import Correlator
 from doppler.cvt import (
     ADC,
     F32ToI8,
@@ -73,15 +78,7 @@ from doppler.resample import (
     Resampler,
 )
 from doppler.source import AWGN, LO, NCO
-from doppler.spectral import (
-    PSD,
-    Corr,
-    Corr2D,
-    CorrDetector,
-    CorrDetector2D,
-    DelayDoppler,
-    Spectrogram,
-)
+from doppler.spectral import PSD, Spectrogram
 from doppler.track import (
     CarrierMpsk,
     CarrierNda,
@@ -108,6 +105,8 @@ _HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
 _REF16 = (np.arange(16) + 0.5j).astype(np.complex64)
 # A 31-chip 0/1 spreading code for the burst despreader.
 _CODE31 = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
+# The same chips as the continuous search's NRZ reference (0 -> +1, 1 -> -1).
+_NRZ31 = np.where(_CODE31 & 1, -1, 1).astype(np.complex64)
 # A COMPLEX preamble, Zadoff-Chu root 5 over 31 samples: the burst engines
 # take any preamble by its samples (doppler#1470), and until these entries
 # every round trip in the tree built them from a +-1 code.
@@ -531,15 +530,20 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     # Detectors / correlators — running accumulator (or whole-struct), with the
     # opaque FFT plans + reference rebuilt by create().
-    "Corr": (lambda: Corr(ref=_REF16, dwell=5), _frame_feed("execute", 16)),
-    "Corr2D": (
-        lambda: Corr2D(ref=_REF16.reshape(4, 4), dwell=5),
+    # One Correlator row per flavor with running state, each keyed by the
+    # flavor `c.flavor` names.
+    "Correlator[1d]": (
+        lambda: Correlator(_REF16, dwell=5),
         _frame_feed("execute", 16),
     ),
-    # The delay-Doppler flavor of Corr2D: the same accumulator under its own
-    # magic, with ny and ny_out as reject keys.
-    "DelayDoppler": (
-        lambda: DelayDoppler(_REF16[:4], ny=4, dwell=5, ny_out=8),
+    "Correlator[2d]": (
+        lambda: Correlator(_REF16.reshape(4, 4), dwell=5),
+        _frame_feed("execute", 16),
+    ),
+    # The delay-Doppler flavor: the same accumulator under its own magic,
+    # with ny and ny_out as reject keys.
+    "Correlator[delay_doppler]": (
+        lambda: Correlator(_REF16[:4], doppler_rows=4, dwell=5, ny_out=8),
         _frame_feed("execute", 16),
     ),
     "PSD": (
@@ -575,13 +579,13 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     # Detectors / analyzer / generator — output is phase/threshold dependent,
     # so the post-block state blob is the resume observable.
-    "CorrDetector": (
-        lambda: CorrDetector(ref=_REF16, dwell=3, threshold=0.0),
+    "Correlator[detector_1d]": (
+        lambda: Correlator(_REF16, detect=1, dwell=3, threshold=0.0),
         _blob_after(lambda o, seg: o.push(seg)),
     ),
-    "CorrDetector2D": (
-        lambda: CorrDetector2D(
-            ref=_REF16.reshape(4, 4), dwell=3, threshold=0.0
+    "Correlator[detector_2d]": (
+        lambda: Correlator(
+            _REF16.reshape(4, 4), detect=1, dwell=3, threshold=0.0
         ),
         _blob_after(lambda o, seg: o.push(seg)),
     ),
@@ -610,14 +614,32 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # carry buffer; design_snr=0.1 -> dwell_target=6686 (n_fft=16),
     # comfortably beyond the harness's 2048-sample stream so the object
     # never reaches its terminal (ready/give-up) state mid-test -- a
-    # genuine in-progress resume, like PSD's/Corr's own entries above.
+    # genuine in-progress resume, like PSD's/Correlator's own entries above.
     # Burst acquisition of a complex preamble: the engine's resumable state is
     # the partial frame in its ring plus the dwell counters. The 2048-sample
     # stream is not a whole number of 8 x 31 frames, so the cut lands
     # mid-frame. Compared on the blob, as the detectors are: the hits depend
     # on the whole running state.
-    "BurstAcquisition (Zadoff-Chu)": (
-        lambda: BurstAcquisition(_ZC31, reps=8, fs=1.0e6, cn0_dbhz=50.0),
+    "Correlator[burst] (Zadoff-Chu)": (
+        lambda: Correlator(
+            _ZC31, framing="burst", reps=8, sample_rate=1.0e6, cn0_dbhz=50.0
+        ),
+        _blob_after(lambda o, seg: o.push(seg)),
+    ),
+    # The continuous search (#2078): its resumable state is the partial frame
+    # in its ring, the non-coherent power accumulator and the dwell counters.
+    # A frame is 62 samples (31 chips at 2 samples a chip, one Doppler bin)
+    # and 60 dB-Hz sizes two non-coherent looks, so the 777-sample cut lands
+    # mid-frame and mid-dwell. Compared on the blob, as the burst search is.
+    "Correlator[continuous]": (
+        lambda: Correlator(
+            _NRZ31,
+            framing="continuous",
+            sample_rate=2.0e6,
+            chip_rate=1.0e6,
+            cn0_dbhz=60.0,
+            doppler_uncertainty=1.0e3,
+        ),
         _blob_after(lambda o, seg: o.push(seg)),
     ),
     # ...and the capture over it: the engine's state plus the history ring
@@ -728,3 +750,37 @@ def test_dll_refused_blob_changes_nothing() -> None:
 
     y = _stream(4 * 127 * 2, seed=4)
     assert np.array_equal(_track_feed(b, y), _track_feed(twin, y))
+
+
+# Every Correlator row, by the flavor it builds: the cross-flavor refusal
+# below offers each one's blob to every other.
+_CORRELATOR_ROWS = [n for n in CASES if n.startswith("Correlator[")]
+
+
+@pytest.mark.parametrize(
+    ("src", "dst"),
+    [(a, b) for a in _CORRELATOR_ROWS for b in _CORRELATOR_ROWS if a != b],
+)
+def test_correlator_flavor_blob_refused_by_every_other(
+    src: str, dst: str
+) -> None:
+    """A blob from one Correlator flavor is refused by every other, and the
+    refusing instance is left exactly as it was (#2752 step 4, section 6).
+
+    One class serves seven flavors, and each flavor's blob names its own,
+    so ``set_state`` must refuse a blob from another rather than read it as
+    its own: the Python twin of the C ``_search_flavor_cross_load_check``.
+    Refused is a ``ValueError``; unchanged is the target's own blob, read
+    before and after, byte for byte.
+    """
+    make_src, feed_src = CASES[src]
+    make_dst, feed_dst = CASES[dst]
+    a = make_src()
+    feed_src(a, _stream(256, seed=1))
+    b = make_dst()
+    feed_dst(b, _stream(256, seed=2))
+    assert a.flavor != b.flavor
+    blob, before = a.get_state(), b.get_state()
+    with pytest.raises(ValueError):
+        b.set_state(blob)
+    assert b.get_state() == before

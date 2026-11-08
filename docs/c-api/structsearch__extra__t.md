@@ -36,11 +36,11 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
-|  uint16\_t | [**\_pad**](#variable-_pad)  <br> |
 |  uint32\_t | [**\_pad2**](#variable-_pad2)  <br> |
 |  uint32\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  uint16\_t | [**has\_nc**](#variable-has_nc)  <br> |
+|  uint16\_t | [**keep\_surface**](#variable-keep_surface)  <br> |
 |  uint32\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
 |  uint32\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
@@ -110,24 +110,6 @@ Build the byte buffer with [**dp\_correlator\_state\_bytes()**](correlator__core
 
 
 
-### variable \_pad 
-
-```C++
-uint16_t search_extra_t::_pad;
-```
-
-
-
-Alignment padding; written as 0. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable \_pad2 
 
 ```C++
@@ -190,6 +172,24 @@ uint16_t search_extra_t::has_nc;
 
 
 1 if `nc_surface[n]` follows the samples. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable keep\_surface 
+
+```C++
+uint16_t search_extra_t::keep_surface;
+```
+
+
+
+The keep\_surface mutator, 0 or 1 (#2022; version 2). 
  
 
 

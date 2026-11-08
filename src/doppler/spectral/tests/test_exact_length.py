@@ -1,12 +1,12 @@
 """``execute`` takes exactly one frame: any other length is refused (#1925).
 
-Every fixed-size ``execute`` in ``doppler.spectral`` (FFT, FFT2D, Corr, Corr2D)
-used to hand the kernel the caller's array and let it read ``n`` samples
-whatever the array held. ``Corr(ref64).execute(np.ones(10))`` read 64 samples
-out of a 10-sample allocation (a heap over-read); ``execute(np.ones(65536))``
-was accepted and silently truncated, which is how the corr benchmark
-published 206 GSa/s for 1/1024 of the samples it claimed (#1918). The in-place
-variants transformed a buffer whose tail was never written.
+Every fixed-size ``execute`` in ``doppler.spectral`` (FFT, FFT2D) used to hand
+the kernel the caller's array and let it read ``n`` samples whatever the array
+held. A 64-sample ``Corr``'s ``execute(np.ones(10))`` read 64 samples out of a
+10-sample allocation (a heap over-read); ``execute(np.ones(65536))`` was
+accepted and silently truncated, which is how the corr benchmark published 206
+GSa/s for 1/1024 of the samples it claimed (#1918). The in-place variants
+transformed a buffer whose tail was never written.
 
 The C kernels now refuse (SIZE_MAX, nothing read, written or counted) and the
 bindings raise ``ValueError``. The cases below pin every entry point, on the
@@ -15,7 +15,9 @@ do: advance a dwell, and leak a reference to the caller's array.
 ``execute_ci16``/``ci8`` count int values, two to a complex sample, so an odd
 count is refused by the binding before the kernel sees it (#1933). The matching
 C tests (``test_{fft,fft2d,corr,corr2d}_core.c``) hand the kernel
-exact-size heap arrays so ASan sees an over-read.
+exact-size heap arrays so ASan sees an over-read. The correlator's cases
+(it was ``Corr``/``Corr2D``) moved with the class to
+``correlation/tests/test_correlator_exact_length.py``.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ import sys
 import numpy as np
 import pytest
 
-from doppler.spectral import FFT, FFT2D, Corr, Corr2D
+from doppler.spectral import FFT, FFT2D
 
 C64, C128 = np.complex64, np.complex128
 N = 64
@@ -37,14 +39,6 @@ def _fft():
 
 def _fft2d():
     return FFT2D(8, 8)
-
-
-def _corr():
-    return Corr(np.ones(N, C64), 1)
-
-
-def _corr2d():
-    return Corr2D(np.ones((8, 8), C64), 1)
 
 
 #: (id, make, method, dtype, input elements per frame)
@@ -59,8 +53,6 @@ CASES = [
     ("fft2d.cf64", _fft2d, "execute_cf64", C128, N),
     ("fft2d.inplace_cf32", _fft2d, "execute_inplace_cf32", C64, N),
     ("fft2d.inplace_cf64", _fft2d, "execute_inplace_cf64", C128, N),
-    ("corr", _corr, "execute", C64, N),
-    ("corr2d", _corr2d, "execute", C64, N),
 ]
 IDS = [c[0] for c in CASES]
 
@@ -160,18 +152,3 @@ def test_an_odd_refusal_does_not_leak_the_callers_array(method, dt):
         with pytest.raises(ValueError):
             getattr(obj, method)(x)
     assert sys.getrefcount(x) == before
-
-
-@pytest.mark.parametrize("make", [_corr, _corr2d], ids=["corr", "corr2d"])
-def test_a_refusal_is_not_counted_toward_the_dwell(make):
-    """dwell 2: refused calls between two good frames must not dump early or
-    late; the dump is still on the second good frame."""
-    ref = np.ones(N, C64) if make is _corr else np.ones((8, 8), C64)
-    obj = (Corr if make is _corr else Corr2D)(ref, 2)
-    good = np.ones(N, C64)
-    assert obj.execute(good) is None
-    for bad in (np.ones(3, C64), np.ones(2 * N, C64), np.ones(0, C64)):
-        with pytest.raises(ValueError):
-            obj.execute(bad)
-        assert obj.count == 1
-    assert obj.execute(good) is not None

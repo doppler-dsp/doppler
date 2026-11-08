@@ -22,7 +22,7 @@ ______________________________________________________________________
 ## 1. Why — the thing that is missing
 
 Every piece of the burst chain exists and is certified — see
-`src/doppler/spectral/tests/validation/correlator/results.md` (its burst
+`src/doppler/correlation/tests/validation/correlator/results.md` (its burst
 front door, part four),
 `src/doppler/dsss/tests/validation/burst_despreader/results.md` and
 `src/doppler/dsss/tests/validation/burst_demod/results.md`. What does
@@ -587,7 +587,8 @@ native/src/dsss_burst_receiver/dsss_burst_receiver_core.c
 objects/dsss_burst_receiver.toml
 ```
 
-State: the composed `dp_burst_acq_state_t *`, the chosen consumer's state, the
+State: the composed `dp_burst_capture_state_t *` (whose search is a burst
+`dp_correlator_state_t`), the chosen consumer's state, the
 history ring (§7.1), the in-flight burst, and `samples_fed`. Config: the two
 codes, the sync word, the geometry, and which consumer to drive.
 
@@ -1048,8 +1049,9 @@ are not re-made:
     the same fixed region, the whole history ring, is written one envelope
     deeper, behind the capture's own `state_bytes()`.
 - **It needs no new accessor.** `dp_correlator_state_t::doppler_res_hz` is a public
-    field and `BurstAcquisition.doppler_res_hz` is a published property
-    (`objects/burst_acq.toml`), so nothing re-derives the bin width.
+    field and the burst search's `Correlator.doppler_res_hz` is a published
+    property (`objects/correlator.toml`), so nothing re-derives the bin
+    width.
 
 ### 11.4 The look-back IS the blob
 

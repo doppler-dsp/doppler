@@ -13,11 +13,17 @@ its gallery page.
 
 <!-- domain-index:start -->
 
+## Correlation
+
+One Correlator for every FFT correlation: 1-D and 2-D maps, delay-Doppler maps, streaming detectors, and the continuous and burst searches (acquisition).
+
+- [Delay-Doppler Search](delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with the delay-Doppler `Correlator`
+- [The Correlator](correlator.md) — one class, `Correlator`, for every FFT correlation: maps, delay-Doppler maps, streaming detectors and the continuous and burst searches (acquisition)
+
 ## Spectral analysis
 
-FFTs, correlators, power spectra and spectrograms.
+FFTs, power spectra and spectrograms.
 
-- [Delay-Doppler Search](delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler`
 - [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement
 - [Streaming Spectrograms](spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python)
 
@@ -25,7 +31,7 @@ FFTs, correlators, power spectra and spectrograms.
 
 Finding a signal before anything tracks it: bursts, preambles and carriers.
 
-- [Acquiring a Repeated Preamble](acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition`
+- [Acquiring a Repeated Preamble](acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and the burst search, `Correlator`
 
 ## Tracking & synchronization
 
@@ -37,7 +43,7 @@ Loop filters, carrier and timing recovery, and the narrowband receivers built on
 
 Despreading, polynomial-phase estimation and the DSSS receivers.
 
-- [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with `BurstAcquisition`, and continuous signals with `Acquisition`
+- [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with the burst search, `Correlator(framing="burst")`, and continuous signals with the continuous search
 
 ## Streaming
 

@@ -3,11 +3,12 @@
 The `doppler.detection` module is the **detection-theory** layer over the C
 `detection` core: closed-form relationships between probability of detection
 (`Pd`), probability of false alarm (`Pfa`), SNR, and coherent dwell length for a
-square-law detector. Pair it with the streaming
-[`CorrDetector`](python-spectral.md#streaming-detection) — `detection` tells you
-*what threshold and dwell to use*, `CorrDetector` *runs* the detection. Mind
-the units: `det_threshold` is in units of the noise's Rayleigh σ, while
-`CorrDetector`'s `noise_est` is the mean magnitude of the surface, so its gate
+square-law detector. Pair it with the streaming detector,
+[`Correlator(ref, detect=1)`](python-correlation.md#detectors-and-searches) —
+`detection` tells you *what threshold and dwell to use*, the detector *runs*
+the detection. Mind the units: `det_threshold` is in units of the noise's
+Rayleigh σ, while the detector's `noise_est` is the mean magnitude of the
+surface, so its gate
 is `det_threshold(pfa) · sqrt(2/π)`.
 
 Every quantity comes in two forms: an **amplitude-SNR** version (`det_*`, where
@@ -104,7 +105,8 @@ When coherent integration is capped (Doppler walk, data bits, oscillator drift,
 Doppler rate), `N_nc` coherent **looks** are combined by summing squared
 magnitude. The detector becomes the order-`N_nc` Marcum-Q; these helpers package
 it and reduce to the coherent (order-1) versions above at `n_noncoh = 1`. They
-drive the `doppler.acquire.Acquisition` engine's coherent/non-coherent split.
+drive the continuous search's (`Correlator(..., framing="continuous")`)
+coherent/non-coherent split.
 
 ::: doppler.detection.det_threshold_noncoherent
 

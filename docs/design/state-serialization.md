@@ -581,7 +581,7 @@ serializable object's fragment is generated today:
 
 | Type                                                | C triplet | Python ser/des | Binding                 |
 | --------------------------------------------------- | --------- | -------------- | ----------------------- |
-| `LO`, `CIC`, `FIR`, `Acquisition`, generators       | ✅        | ✅             | `jm`-auto from the flag |
+| `LO`, `CIC`, `FIR`, `Correlator`, generators        | ✅        | ✅             | `jm`-auto from the flag |
 | `DDC`, `Ddcr`, `RateConverter`, compositions, loops | ✅        | ✅             | `jm`-auto from the flag |
 
 **The rollout is complete: every stateful object is serializable** (the gate's
@@ -606,7 +606,7 @@ does neither.
 
 The orchestrator cashes it in: `CoarseChannel.get_state`/`set_state` (and the
 bank-level `Acquirer.get_state`/`set_state`) compose their children's blobs (DDC
-mixer/decimator + the `BurstAcquisition` or `BurstCapture` search) behind a small Python envelope. So a
+mixer/decimator + the burst `Correlator` or `BurstCapture` search) behind a small Python envelope. So a
 running acquirer is the documented `(descriptor, state, block)` triple —
 checkpoint a bank mid-stream, rebuild it from its descriptor on another pod,
 restore the blob, and the search continues **detection-for-detection identical**

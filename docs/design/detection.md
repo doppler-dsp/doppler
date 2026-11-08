@@ -19,7 +19,7 @@ ______________________________________________________________________
 ## 1. Why the sizing is one module and not one per object
 
 Every object in this tree that declares anything faces the same two questions.
-`Acquisition` asks them of a 2-D correlation surface, `LockDet` of a scalar
+`Correlator`'s searches ask them of a 2-D correlation surface, `LockDet` of a scalar
 lock metric, `Dll` of a code-lock statistic, `BurstDespreader` of an in-phase
 power ratio, `BerMeter` of a bit-error count. The *statistic* is each object's
 own — only the carrier loop knows what an M-th power retains once noise has
@@ -310,7 +310,7 @@ ______________________________________________________________________
 **Stateless and thread-safe, all of it.** Nothing here holds a sample, a
 history or a lock. There is no state triplet because there is no state — these
 functions size a detector, they are not one. The detector is `LockDet`
-(hysteresis over a metric), `Acquisition` (a CFAR surface), `BurstDespreader`
+(hysteresis over a metric), `Correlator` (a CFAR surface), `BurstDespreader`
 (the F-ratio gate) — each of which owns its statistic and calls here for the
 arithmetic.
 

@@ -549,6 +549,9 @@ FAMILIES = (
 #: the manifest's `[module.*].objects`, not through a second list here.
 MODULE_FAMILY = {
     "spectral": "spectral",
+    # The Correlator (#2752 step 4): its component's rows were spectral's
+    # before the class left that module, and they stay on that tab.
+    "correlation": "spectral",
     "measure": "spectral",
     "analyzer": "spectral",
     "ber": "spectral",

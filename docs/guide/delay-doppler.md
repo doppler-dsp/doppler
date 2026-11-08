@@ -1,8 +1,9 @@
-<!-- domain: spectral; summary: where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler` -->
+<!-- domain: correlation; summary: where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with the delay-Doppler `Correlator` -->
 
 # Delay-Doppler Search
 
-`doppler.spectral.DelayDoppler` answers one question about a stretch of
+The delay-Doppler flavor of `doppler.correlation.Correlator`, built as
+`Correlator(code, doppler_rows=ny)`, answers one question about a stretch of
 samples: **where is this code, and how fast is it rotating?** You give it
 one period of a code (a PN code, a Zadoff-Chu sequence, any sequence with a
 sharp autocorrelation) and a frame of the received stream. It hands back a
@@ -43,7 +44,7 @@ periods:
 
 ```python
 import numpy as np
-from doppler.spectral import DelayDoppler
+from doppler.correlation import Correlator
 
 rng = np.random.default_rng(0)
 NX, NY = 64, 16                       # code length, periods per frame
@@ -55,7 +56,7 @@ f = DOPPLER_BINS / (NY * NX)          # cycles per sample
 x = (np.tile(np.roll(code, DELAY), NY)
      * np.exp(2j * np.pi * f * n)).astype(np.complex64)
 
-dd = DelayDoppler(code, ny=NY)
+dd = Correlator(code, doppler_rows=NY)
 m = dd.execute(x).reshape(NY, NX)     # a dump on every frame (dwell 1)
 
 row, col = np.unravel_index(np.argmax(np.abs(m)), m.shape)
@@ -85,7 +86,7 @@ f = 3.5 / (NY * NX)
 x35 = (np.tile(np.roll(code, DELAY), NY)
        * np.exp(2j * np.pi * f * n)).astype(np.complex64)
 
-fine = DelayDoppler(code, ny=NY, ny_out=4 * NY)
+fine = Correlator(code, doppler_rows=NY, ny_out=4 * NY)
 mf = fine.execute(x35).reshape(fine.ny_out, NX)
 r, c = np.unravel_index(np.argmax(np.abs(mf)), mf.shape)
 print((int(r) - fine.ny_out // 2) * fine.doppler_step * (NY * NX), int(c))
@@ -105,7 +106,8 @@ A receiver rarely has one frame. It tries a frame under several hypotheses,
 or ranks the candidate frames from several antennas, and keeps the best.
 Looping over `execute` works but leaves the loop in Python and, with a
 `dwell` above 1, mixes the frames into one dwell. A **batch** is `H` frames
-back to back (`H * ny * nx` samples) handed over in one call:
+back to back (`H * ny * nx` samples) handed over in one call. Below,
+`n_out` is one map's length, `execute_max_out()`:
 
 - the object's dwell is **never touched**, so a batch can run in the middle
     of a dwell;
@@ -200,8 +202,10 @@ ______________________________________________________________________
 
 ## See also
 
-- [Python: Spectral API](../api/python-spectral.md): `DelayDoppler` and
-    `Corr2D`, every method and property
+- [Python: Correlation API](../api/python-correlation.md): `Correlator`,
+    every method and property
+- [The Correlator](correlator.md): the class's other flavors, and which
+    knobs pick each
 - [Gallery: Delay-Doppler Search](../gallery/delay-doppler.md): the map, the
     coarse straddle loss and the refine that recovers it, drawn
 - The runnable examples

@@ -1,14 +1,15 @@
-<!-- domain: dsss; summary: the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()`, the same answer at every block size -->
+<!-- domain: dsss; summary: the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `Correlator -> refine -> BurstDemod` behind one `push()`, the same answer at every block size -->
 
 # DsssBurstReceiver — the Composed Burst Chain
 
 ![Four bursts decoded at their exact samples, the same answer at every block size, and every per-burst read-back checked against the scene](../assets/dsss_burst_receiver_demo.png)
 
-The composed form of `BurstAcquisition -> refine -> BurstDemod`, the burst
-DSSS receive chain, in one C object:
+The composed form of `Correlator -> refine -> BurstDemod` (the
+`Correlator` being the burst search, `framing="burst"`), the burst DSSS
+receive chain, in one C object:
 [`DsssBurstReceiver`](../api/python-dsss.md). Its continuous counterpart is
 [`DsssReceiver`](dsss-receiver.md). Each stage on its own is its API page:
-[`BurstAcquisition`](../api/python-acquire.md),
+[`Correlator`](../api/python-correlation.md),
 [`BurstDemod`](../api/python-dsss.md).
 
 This page is the end-to-end walkthrough: a frame **description**, the burst

@@ -22,8 +22,6 @@
 
 #include "doppler/carrier_acq/carrier_acq_core.h"
 
-#include "doppler/burst_acq/burst_acq_core.h"
-
 #include "doppler/burst_capture/burst_capture_core.h"
 
 #include "doppler/agc/agc_core.h"
@@ -51,6 +49,8 @@
 #include "doppler/rs_codec/rs_codec_core.h"
 
 #include "doppler/interleaver/interleaver_core.h"
+
+#include "doppler/correlator/correlator_core.h"
 
 #include "doppler/f32_to_i8/f32_to_i8_core.h"
 
@@ -143,8 +143,6 @@
 #include "doppler/fft/fft_core.h"
 
 #include "doppler/fft2d/fft2d_core.h"
-
-#include "doppler/correlator/correlator_core.h"
 
 #include "doppler/psd/psd_core.h"
 

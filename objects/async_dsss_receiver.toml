@@ -9,7 +9,7 @@
 #   searching -> acq hit -> refining -> CarrierAcquisition ready
 #             (or its own give-up cap) -> tracking
 #
-# Composes acq (Acquisition) + carrier_acq (CarrierAcquisition, the
+# Composes the continuous search (correlator) + carrier_acq (CarrierAcquisition, the
 # refine stage's frequency estimator) + dll (code tracking, both stages)
 # + costas (carrier loop, both stages) + RateConverter (both stages) +
 # mpsk_receiver (demod, track stage only) -- the same cross-module

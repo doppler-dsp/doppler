@@ -1,12 +1,13 @@
-<!-- domain: dsss; summary: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator. -->
+<!-- domain: dsss; summary: `Correlator -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator. -->
 
 # DsssReceiver — the Composed Continuous DSSS Receiver
 
 ![Constellation, running BER, windowed correctness, and carrier pull-in](../assets/dsss_receiver_demo.png)
 
-`Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`, the
+`Correlator -> Dll(segments) -> RateConverter -> MpskReceiver`, the
 four-object continuous async-DSSS receive chain, composed into one C
-object, [`DsssReceiver`](../api/python-dsss.md). Everything a caller would
+object, [`DsssReceiver`](../api/python-dsss.md). The `Correlator` is the
+continuous search, `framing="continuous"`. Everything a caller would
 otherwise wire by hand across four objects — building the tracking chain
 from an acquisition hit, the phase-inversion hand-off, the
 `RateConverter` bridge from the chip clock to the symbol clock — is one
@@ -17,7 +18,7 @@ continuous asynchronous BPSK stream at CN0=97 dB-Hz (SEED=6).
 
 Only `code`/`chip_rate`/`symbol_rate` are required — everything else is a
 physically-motivated default, the same "easy path derives, raw path pins"
-shape `Acquisition`/`Dll` already use:
+shape the continuous `Correlator` and `Dll` already use:
 
 ```python
 --8<-- "src/doppler/examples/dsss_receiver_demo.py:receiver"
@@ -28,8 +29,8 @@ this page passes them explicitly for clarity, not because they're
 required. Three escape hatches cover the power-user surface:
 
 - `configure_search_raw(doppler_bins, n_noncoh)` — pins the embedded
-    Acquisition's search grid directly, forwarding to
-    `Acquisition.configure_search_raw`.
+    continuous search's grid directly, forwarding to
+    `Correlator.configure_search_raw`.
 - `configure_lock_raw(...)` — re-tunes the embedded Dll's code-lock
     detector directly, forwarding to `Dll`'s own raw lock configuration.
 - `configure_chain_raw(segments, sps, n)` — pins the despread/resample/
@@ -39,7 +40,7 @@ required. Three escape hatches cover the power-user surface:
 
 !!! warning "`configure_search_raw` replaces the auto-sized grid"
 
-    `DsssReceiver`'s embedded `Acquisition` is the continuous engine: it
+    `DsssReceiver`'s embedded search is the continuous `Correlator`: it
     window-tiles the Doppler search at a coherent depth of one epoch and
     adds non-coherent looks, specifically to avoid a real, confirmed
     mislock failure mode (see
@@ -61,7 +62,7 @@ required. Three escape hatches cover the power-user surface:
 ```
 
 `steps()` streams raw samples through whichever child is currently
-active: while searching, samples feed the embedded Acquisition and
+active: while searching, samples feed the embedded search and
 nothing is emitted (an empty array is normal, not an error). The moment a
 hit fires, `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from
 it — with the phase-inversion hand-off and the rate bridge — and the
@@ -76,7 +77,7 @@ Four panels, all produced by the one object: decoded BPSK
 constellation (settled window), running BER (settled window), windowed
 decode correctness across the full run, and `DsssReceiver.norm_freq` vs.
 epoch — flat at zero through the searching phase (the placeholder chain's
-own untracked value), then pulling in from the Acquisition-quantized seed
+own untracked value), then pulling in from the search-quantized seed
 to the true residual Doppler the moment the receiver locks.
 
 ## Also serializable, like every stateful object in this codebase

@@ -14,7 +14,8 @@
  * `ASYNC_DSSS_RX_*` values below, also `status().state`:
  *
  *   - **searching** (the start): samples feed the
- *     embedded `Acquisition`. A hit is made into a seed by
+ *     embedded continuous search (the `Correlator` flavor). A hit is made
+ *     into a seed by
  *     `dp_correlator_build_handoff()` and taken through
  *     `dp_async_dsss_receiver_seed()`, and the unconsumed tail of the same
  *     call goes straight on. The refine chain is a FROZEN carrier wipe
@@ -597,7 +598,7 @@ typedef enum
    *                                   two.
    * @param m                          PSK order, 2/4/8; default 2 (BPSK).
    * @param cn0_dbhz                   Design C/N0, dB-Hz; default 55.0 --
-   *                                   feeds BOTH the embedded Acquisition's
+   *                                   feeds BOTH the embedded search's
    *                                   own sizing AND (derated by
    *                                   `refine_design_margin_db`)
    *                                   CarrierAcquisition's `design_snr`.
@@ -748,7 +749,7 @@ typedef enum
 
   /**
    * @brief Return to the searching state.
-   * Resets the embedded Acquisition and rebuilds the refine-stage chain
+   * Resets the embedded search and rebuilds the refine-stage chain
    * and the live tracking chain back to their
    * placeholder seed (phase 0, no Doppler). A receiver that has locked
    * cannot be "reset back to tracking the same signal," only back to
@@ -1165,7 +1166,7 @@ typedef enum
   int dp_async_dsss_receiver_get_lost (const dp_async_dsss_receiver_state_t *state);
 
   /**
-   * @brief Pin the embedded Acquisition's search grid directly.
+   * @brief Pin the embedded search's grid directly.
    * Forwards to `dp_correlator_configure_search_raw()` -- the escape hatch under
    * this object's `symbol_rate`-driven auto-sizing, for a power user who
    * wants a specific `(doppler_bins, n_noncoh)`. The pin replaces the whole

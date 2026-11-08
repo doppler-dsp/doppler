@@ -106,3 +106,19 @@ doppler/detector2?d?/(detector2?d?_core|det_private)\.h	doppler/correlator/corre
 \bacq_(bin_doppler_hz|grid_bins|regrid)\b	dp_correlator_bin_doppler_hz, dp_correlator_grid_bins, dp_correlator_regrid (#2752 step 3.4b)
 \bACQ_(CN0_NONE|DELAY_LOSS_NODES|MAX_PEAKS|N_NONCOH_SAFETY_CEILING|RATE_HYPS_MAX|SIDELOBE_(DOPPLER_PTS|LAG_PTS|SLOTS)|STATE_MAGIC|STATE_VERSION)\b	DP_CORRELATOR_<name>; ACQR is refused, a search flavor's blob is CORL (#2752 step 3.4b)
 doppler/acq/acq_(core|private)\.h	doppler/correlator/correlator_core.h, or correlator_private.h (#2752 step 3.4b)
+
+# doppler#2752 step 4: the seven correlator classes are one, doppler.correlation
+# .Correlator, whose knobs pick the flavor (docs/design/correlator-python.md
+# sections 3, 17, 18). Only the CODE forms are retired -- an import from the
+# old module and a constructor call -- so a dated measurement page that names
+# the class it measured keeps its history, and CarrierAcquisition (which stays)
+# is not a match.
+from doppler\.spectral import[^\n]*\b(Corr|Corr2D|DelayDoppler|CorrDetector|CorrDetector2D)\b	from doppler.correlation import Correlator (#2752 step 4)
+from doppler\.acquire import[^\n]*\b(Acquisition|BurstAcquisition)\b	from doppler.correlation import Correlator (#2752 step 4)
+(?<![A-Za-z_])(Corr|Corr2D|DelayDoppler|CorrDetector|CorrDetector2D|BurstAcquisition|Acquisition)\(	Correlator(...) with the knobs that pick the flavor (docs/design/correlator-python.md section 3)
+
+# doppler#2752 step 4: burst_acq, the forwarder onto the burst search, is
+# retired; BurstCapture calls the engine directly (docs/design/
+# correlator-python.md section 8).
+\bdp_burst_acq_\w+	dp_correlator_* on a burst search, dp_correlator_create_burst (#2752 step 4)
+doppler/burst_acq/burst_acq_core\.h	doppler/correlator/correlator_core.h (#2752 step 4)

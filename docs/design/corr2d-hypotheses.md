@@ -284,7 +284,7 @@ The fraction a caller gets back is $L_r$'s, so what $L = 4$ resolved, the
 refine still resolves. What changes is the cost.
 
 **Measured** by the bank's characterization
-(`spectral/tests/characterization/corr2d_bank/characterize.py`, through
+(`correlation/tests/characterization/corr2d_bank/characterize.py`, through
 `bank_power_max` and `bank_detect`): a repeated 511-chip PN m-sequence, 64
 periods, at a uniform delay, whole bins $k \in \{-1, 0, 1\}$, in the shipped
 `AWGN`. Every detector's thresholds come from its own 20,000 noise-only
@@ -321,8 +321,9 @@ $L_r$ (the resolution, default 4). §5's "the default is 4" stays true of
 the resolution. A caller who wants one stage sets $L_d = L_r$.
 `dp_correlator_bank_fold` hands every hypothesis map to a C reducer;
 `dp_correlator_bank_power_max` and `dp_correlator_bank_detect` are bound as
-`bank_power_max` and `bank_detect` on `Corr2D` and `DelayDoppler`. On the
-fast path and DelayDoppler with a native delay axis, the refine is a
+`bank_power_max` and `bank_detect` on `Correlator`'s 2-D and delay-Doppler
+flavors (`Corr2D` and `DelayDoppler` until #2752 step 4). On the fast path
+and the delay-Doppler flavor with a native delay axis, the refine is a
 time-domain correlation at the cell's lag and one Doppler DFT; anywhere
 else it makes the fine map and reads the cell. Every path runs a bank, and
 only those two share work. A bank runs on the calling thread
@@ -336,5 +337,5 @@ sinc(1/(2L)), and exactly that half a step out; `bank_detect` names the
 fine carrier, and its refine is the fine bank's own value; and every
 detector holds its $P_{fa}$, with detect-and-refine matching $L = 4$, at a
 small scale. The full-geometry Monte Carlo is
-`src/doppler/spectral/tests/characterization/corr2d_bank/characterize.py`,
+`src/doppler/correlation/tests/characterization/corr2d_bank/characterize.py`,
 run by `make characterize`, with its fast twin per push.

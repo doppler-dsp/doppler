@@ -8,12 +8,14 @@ two methods cover it:
 * **2-D roll** — one forward ``FFT_nx`` of a single epoch, then ``D`` inverse
   ``FFT_nx`` (one per Doppler-shifted code spectrum). ``D`` **coarse** bins
   (``1/nx`` resolution), one epoch's gain. The fast, latency-bound choice.
-* **Column-FFT mixer bank** — ``D`` channels, each a ``Corr2D(ny, nx)`` tile
+* **Column-FFT mixer bank** — ``D`` channels, each a 2-D ``Correlator``
+  (ny, nx) tile
   integrating ``ny`` epochs. ``D·ny`` **fine** bins (``1/(ny·nx)``), full
   ``10·log10(ny·N)`` coherent gain — but a 2-D FFT over ``ny`` epochs per
   channel. The sensitive, latency-tolerant choice.
 
-Both primitives are shipped doppler (``spectral.FFT`` / ``spectral.Corr2D``).
+Both primitives are shipped doppler (``spectral.FFT`` /
+``correlation.Correlator``).
 The benchmark reports per-method cost so the doc's "fastest that acquires"
 claims are measured, not asserted: the bank buys ``ny`` finer bins *and* ``ny``
 epochs of gain, so it runs tens-of-times the roll for the same span (the factor
@@ -25,7 +27,8 @@ Run: pytest src/doppler/dsss/benchmarks/bench_widedoppler.py --benchmark-only
 import numpy as np
 import pytest
 
-from doppler.spectral import FFT, Corr2D
+from doppler.correlation import Correlator
+from doppler.spectral import FFT
 
 # (label, ny coherent epochs, nx epoch samples, D Doppler windows to cover Δf)
 GRIDS = [
@@ -72,7 +75,9 @@ def test_bench_2d_roll(benchmark, label, ny, nx, d):
 
 @pytest.mark.parametrize("label,ny,nx,d", GRIDS)
 def test_bench_column_tile(benchmark, label, ny, nx, d):
-    """One mixer-bank channel: a Corr2D(ny, nx) tile (ny fine bins, ny epochs).
+    """One mixer-bank channel: a 2-D Correlator (ny, nx) tile.
+
+    ny fine bins, ny epochs.
 
     The full fine bank over the same span is ``d`` of these; ``extra_info``
     records that implied bank cost next to the roll above.
@@ -84,7 +89,7 @@ def test_bench_column_tile(benchmark, label, ny, nx, d):
     x = (
         rng.standard_normal((ny, nx)) + 1j * rng.standard_normal((ny, nx))
     ).astype(np.complex64)
-    c = Corr2D(ref, 1)
+    c = Correlator(ref, dwell=1)
     benchmark(c.execute, x)
     if benchmark.stats:
         mean = benchmark.stats["mean"]

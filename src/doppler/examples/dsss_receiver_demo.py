@@ -1,5 +1,5 @@
 """dsss_receiver_demo.py -- the four-object continuous async-DSSS chain
-``Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver``,
+``Correlator -> Dll(segments) -> RateConverter -> MpskReceiver``,
 composed into one C object, :class:`~doppler.dsss.DsssReceiver`.
 
 A CCSDS Gold-code, continuous-asynchronous-BPSK-data signal at
@@ -12,7 +12,7 @@ validated values (4 and 8) and can be overridden, and ``configure_search_raw``/
 ``configure_lock_raw``/``configure_chain_raw`` are the escape hatches
 for a power user who wants to pin the acquisition grid, code-lock
 detector, or despread/resample/demod grid directly -- the same "easy
-path derives, raw path pins" shape ``Acquisition``/``Dll`` already use.
+path derives, raw path pins" shape ``Correlator``/``Dll`` already use.
 
 Run:  python -m doppler.examples.dsss_receiver_demo  [out.png]
 """

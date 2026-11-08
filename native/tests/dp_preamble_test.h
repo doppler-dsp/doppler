@@ -2,8 +2,8 @@
  * @file dp_preamble_test.h
  * @brief A PN code as preamble SAMPLES, for the burst engines' tests.
  *
- * The burst constructors -- dp_correlator_create_burst(),
- * dp_burst_acq_create(), dp_burst_capture_create() -- take a preamble as its
+ * The burst constructors -- dp_correlator_create_burst() and
+ * dp_burst_capture_create() -- take a preamble as its
  * samples (doppler#1470): one period, at `fs`. A PN code is one such preamble,
  * built the way a caller builds it: chips mapped by dp_bin_to_nrz(), the
  * library's one chip -> +-1 rule, each held `spc` samples, at `fs = chip_rate

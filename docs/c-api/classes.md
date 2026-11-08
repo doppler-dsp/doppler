@@ -53,7 +53,6 @@
 * [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md)
 * [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md)
 * [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md)
-* [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md)
 * [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md)
 * [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md)
 * [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md)

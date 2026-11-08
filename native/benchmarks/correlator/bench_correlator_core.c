@@ -1288,6 +1288,110 @@ bench_search (jm_bench_t *bench)
   return 0;
 }
 
+/* The burst search's always-on cost, per sample of search: the rows
+   bench_burst_acq_core recorded (c:burst_acq::push[...]) until burst_acq
+   retired in #2752 step 4, carried here under their names
+   (benchmarks/renames.toml maps c:burst_acq to c:correlator).
+ *
+ * A burst search is a DETECTOR, not a tracker: it runs over the input looking
+ * for a preamble that may never arrive, so it pays its cost whether or not
+ * there is a signal. That makes its per-sample number the floor of any
+ * always-on receiver, and the one that decides how many channels a box can
+ * watch at once.
+ *
+ * Spreading factor and samples-per-chip set the size of the search together,
+ * through the code period in samples (sf * spc). The rows are the period's two
+ * ends, 30 samples (sf 15, spc 2) and 252 (sf 63, spc 4) (doppler#2386).
+ * Every timed push must consume its whole block: the engine stops taking
+ * input when its result slots fill, and a short push would read fast. */
+#define BURST_N 32768
+#define BURST_ITERS 50
+#define BURST_WARMUP_S 0.25
+#define BURST_MAX_RESULTS 16
+
+static int
+bench_burst_push (jm_bench_t *bench)
+{
+  float _Complex      *x   = malloc (BURST_N * sizeof *x);
+  dp_correlator_hit_t *res = malloc (BURST_MAX_RESULTS * sizeof *res);
+  if (!x || !res)
+    return 1;
+  /* Unit-variance complex Gaussian noise (Box-Muller), the case a detector
+     listens to between bursts. A structured +/-1 sequence is not: the CFAR
+     reads it as a stream of detections, the result slots fill, and the push
+     stops early (the consumption check below). */
+  uint32_t st = 0x77C3u;
+  for (int i = 0; i < BURST_N; i++)
+    {
+      const double u1  = ((double)_xorshift32 (&st) + 1.0) / 4294967297.0;
+      const double u2  = ((double)_xorshift32 (&st) + 1.0) / 4294967297.0;
+      const double mag = sqrt (-log (u1));
+      const double th  = 6.283185307179586 * u2;
+      x[i]             = (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
+    }
+
+  const size_t    sfs[2]  = { 15, 63 };
+  const size_t    spcs[2] = { 2, 4 };
+  static double   t_ps[2][BURST_ITERS];
+  static uint8_t  code[64];
+  volatile size_t sink = 0;
+  for (int k = 0; k < 2; k++)
+    {
+      const size_t sf = sfs[k], spc = spcs[k];
+      for (size_t i = 0; i < sf; i++)
+        code[i] = (uint8_t)(((i * 2246822519u) >> 31) & 1u);
+      /* The preamble is the code's samples: bin_to_nrz, held spc. */
+      static float nrz[64];
+      static float _Complex pre[64 * 4];
+      (void)dp_bin_to_nrz (code, sf, nrz, 64);
+      for (size_t i = 0; i < sf * spc; i++)
+        pre[i] = nrz[i / spc];
+      dp_correlator_state_t *a
+          = dp_correlator_create_burst (pre, sf * spc, 8, 1.0e6 * (double)spc,
+                                        65.0, 0.0, 1e-2, 0.9, 0, 0.0, 1);
+      if (!a)
+        {
+          (void)fprintf (stderr, "burst push: create(sf=%zu, spc=%zu) NULL\n",
+                         sf, spc);
+          return 1;
+        }
+      uint64_t w0 = jm_bench_now_ns (), w1;
+      do
+        {
+          dp_correlator_reset (a);
+          sink += dp_correlator_push (a, x, BURST_N, res, BURST_MAX_RESULTS);
+          w1 = jm_bench_now_ns ();
+        }
+      while (jm_bench_elapsed_sec (w0, w1) < BURST_WARMUP_S);
+      for (int r = 0; r < BURST_ITERS; r++)
+        {
+          dp_correlator_reset (a);
+          const uint64_t t0 = jm_bench_now_ns ();
+          sink += dp_correlator_push (a, x, BURST_N, res, BURST_MAX_RESULTS);
+          const uint64_t t1 = jm_bench_now_ns ();
+          t_ps[k][r]        = jm_bench_elapsed_sec (t0, t1);
+          if (dp_correlator_consumed (a) != BURST_N)
+            {
+              (void)fprintf (stderr,
+                             "burst push(sf=%zu, spc=%zu) took %zu of %d "
+                             "samples -- the row would credit samples it "
+                             "never read\n",
+                             sf, spc, dp_correlator_consumed (a), BURST_N);
+              return 1;
+            }
+        }
+      char name[64];
+      (void)snprintf (name, sizeof name, "push[sf=%zu,spc=%zu]", sf, spc);
+      jm_bench_add_unit (bench, name, t_ps[k], BURST_ITERS, BURST_N,
+                         JM_BENCH_SAMPLE);
+      dp_correlator_destroy (a);
+    }
+  (void)sink;
+  free (x);
+  free (res);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1458,6 +1562,8 @@ main (void)
     return 1;
 
   if (bench_search (&_bench) != 0)
+    return 1;
+  if (bench_burst_push (&_bench) != 0)
     return 1;
   jm_bench_write_json (&_bench, "correlator");
   return 0;

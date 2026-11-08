@@ -1,9 +1,8 @@
 /*
  * acquire_ext.c — Python extension module acquire
  *
- * Objects: CarrierAcquisition, BurstAcquisition, BurstCapture,
- * PersistentBurstCapture, Acquisition GENERATED — do not hand-edit. Patches
- * belong in the _ext_<obj>.c fragments.
+ * Objects: CarrierAcquisition, BurstCapture, PersistentBurstCapture
+ * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -190,8 +189,6 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 }
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
-#include "acquire_ext_acquisition.c"
-#include "acquire_ext_burst_acq.c"
 #include "acquire_ext_burst_capture.c"
 #include "acquire_ext_carrier_acq.c"
 #include "acquire_ext_persistentburstcapture.c"
@@ -299,10 +296,11 @@ static PyModuleDef acquire_moduledef = {
   .m_name = "acquire",
   .m_doc
   = "Acquisition: the searches that find a signal before anything tracks it. "
-    "Acquisition is the code-phase x Doppler engine; BurstAcquisition and "
-    "BurstCapture find a burst of any repeated complex preamble (a PN code, "
-    "Zadoff-Chu, a chirp or a QPSK sequence), and PersistentBurstCapture "
-    "keeps the capture's history in a file. CarrierAcquisition is a coarse "
+    "The code-phase x Doppler search itself is doppler.correlation's "
+    "Correlator (framing='continuous' or 'burst'); BurstCapture finds a burst "
+    "of any repeated complex preamble (a PN code, Zadoff-Chu, a chirp or a "
+    "QPSK sequence) and captures it, and PersistentBurstCapture keeps the "
+    "capture's history in a file. CarrierAcquisition is a coarse "
     "frequency/phase search that seeds a carrier tracking loop. bin_to_signed "
     "is the Doppler-bin fold convention the searches and their hand-offs "
     "share.\n"
@@ -326,13 +324,9 @@ PyInit_acquire (void)
   import_array ();
   if (PyType_Ready (&CarrierAcquisitionObjType) < 0)
     return NULL;
-  if (PyType_Ready (&BurstAcquisitionObjType) < 0)
-    return NULL;
   if (PyType_Ready (&BurstCaptureObjType) < 0)
     return NULL;
   if (PyType_Ready (&PersistentBurstCaptureObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&AcquisitionObjType) < 0)
     return NULL;
   PyObject *m = PyModule_Create (&acquire_moduledef);
   if (!m)
@@ -343,15 +337,6 @@ PyInit_acquire (void)
       < 0)
     {
       Py_DECREF (&CarrierAcquisitionObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&BurstAcquisitionObjType);
-  if (PyModule_AddObject (m, "BurstAcquisition",
-                          (PyObject *)&BurstAcquisitionObjType)
-      < 0)
-    {
-      Py_DECREF (&BurstAcquisitionObjType);
       Py_DECREF (m);
       return NULL;
     }
@@ -369,14 +354,6 @@ PyInit_acquire (void)
       < 0)
     {
       Py_DECREF (&PersistentBurstCaptureObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&AcquisitionObjType);
-  if (PyModule_AddObject (m, "Acquisition", (PyObject *)&AcquisitionObjType)
-      < 0)
-    {
-      Py_DECREF (&AcquisitionObjType);
       Py_DECREF (m);
       return NULL;
     }

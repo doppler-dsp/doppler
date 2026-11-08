@@ -1,4 +1,4 @@
-<!-- domain: spectral; summary: a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call. -->
+<!-- domain: correlation; summary: a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call. -->
 
 # Delay-Doppler Search
 
@@ -7,7 +7,8 @@
 ## What you're seeing
 
 A code delayed by 37 samples arrives on a carrier 1.3 code bins off
-nominal, 15 dB under the noise in every sample. `DelayDoppler` correlates
+nominal, 15 dB under the noise in every sample. The delay-Doppler
+`Correlator` (`Correlator(code, doppler_rows=16)`) correlates
 each of 16 code periods against the code and runs a slow-time FFT down every
 delay column, which gives a map of Doppler rows by delay columns.
 `bank_detect` searches the carrier too.

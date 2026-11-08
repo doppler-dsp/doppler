@@ -43,12 +43,13 @@ The gate that catches the accumulator, and the one that was silently 55-60 dB do
 | 0.7 | 2867 | -0.2 | -71.1 |
 | 0.923 | 3780 | -0.6 | -67.8 |
 | 1 | 4096 | +0.0 | -148.8 |
+| 1.0333 | 4233 | +0.6 | -74.3 |
 | 1.3 | 5325 | +0.2 | -74.4 |
 | 2 | 8192 | +0.0 | -70.6 |
 | 2.5 | 10241 | +1.0 | -73.8 |
 | 4 | 16384 | +0.0 | -72.6 |
 
-Two populations, and the split is structural rather than a quality gradient: where `1/rate` is a whole number of samples (0.25, 0.5, 1.0) the fractional part is exactly zero, one arm is selected forever, and the residual sits at the float32 floor. Every other rate interpolates between arms and pays the bank's own error.
+Two populations, and the split is structural rather than a quality gradient: where `1/rate` is a whole number of samples (0.25, 0.5, 1.0) the fractional part is exactly zero, one arm is selected forever, and the residual sits at the float32 floor. Every other rate interpolates between arms and pays the bank's own error. 1.0333 is the row nearest unity, where the phase walks slowest across the arms; it reads with 1.3, so nothing in the bank depends on being close to 1.
 
 ![tone purity](tone_purity.png)
 

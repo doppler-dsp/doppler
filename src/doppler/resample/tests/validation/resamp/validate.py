@@ -217,7 +217,7 @@ def characterise() -> Data:
         "question a comparison against a reference implementation would."
     )
     R.md()
-    for rate in (0.25, 0.3, 0.5, 0.7, 0.923, 1.0, 1.3, 2.0, 2.5, 4.0):
+    for rate in (0.25, 0.3, 0.5, 0.7, 0.923, 1.0, 1.0333, 1.3, 2.0, 2.5, 4.0):
         f0 = 0.05
         y = Resampler(rate=rate).execute(tone(NIN, f0))
         d.rates.append(rate)
@@ -242,7 +242,9 @@ def characterise() -> Data:
         "(0.25, 0.5, 1.0) the fractional part is exactly zero, one arm is "
         "selected forever, and the residual sits at the float32 floor. "
         "Every other rate interpolates between arms and pays the bank's "
-        "own error."
+        "own error. 1.0333 is the row nearest unity, where the phase walks "
+        "slowest across the arms; it reads with 1.3, so nothing in the "
+        "bank depends on being close to 1."
     )
     R.md()
     R.md("![tone purity](tone_purity.png)")

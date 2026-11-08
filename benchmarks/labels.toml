@@ -1371,3 +1371,110 @@ name = "2-D correlator, 16 x 2,000, dwell 8, from Python"
 unit = "call"
 definition = "One Corr2D.execute at dwell 8 on a 16 x 2,000 random frame through the Python binding, averaged over the dwell, so one call in eight also runs the inverse; the 2-D FFT runs on pffft. One call consumes 32,000 samples."
 samples = 32000
+
+# acq's rows, measured from bench_correlator_core since #2752 step 3.4b (#2930).
+# The c:acq:: keys above keep v0.80.0 and earlier labelled; #2900 retires
+# the duplicates.
+
+["c:correlator::native_nc90"]
+name = "DSSS acquisition, 1,023-chip code, no Doppler search"
+unit = "sample"
+definition = "A code-phase search for a 1,023-chip code at 3.069 Mcps and 2 samples per chip, with no Doppler search (one frequency window), pushed one 90-epoch non-coherent dwell (184,140 samples) at a time; throughput counts searched input samples."
+samples = 1
+headline = true
+
+["c:correlator::op2M_U50k_D60_t1_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60 (a 500 Hz/s rate bound's 61, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op2M_U50k_D60_t4_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60 (a 500 Hz/s rate bound's 61, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U50k_D150_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U50k_D150_t8_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 8 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 8 threads; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U5k_D150_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U5k_D150_t4_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 4 threads"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U50k_D150_t1_fc_nc1"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op5M_U50k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp over the block (the code's chip clock dilated by the Doppler over the carrier, as an emitter's is): the continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op2M_U50k_D60_t1_fc_nc1"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op2M_U50k_D60_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp over the block: the continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60, on 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U5k_D150_t1_fc_nc1"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op5M_U5k_D150_t1 search with a 2.2 GHz carrier set, so both side tiles run their code-rate ramp over the block: the continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U10k_D150_t1_nc1"]
+name = "DSSS search, 5 Mcps, ±10 kHz, depth 150, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±10 kHz of Doppler (5 tiles), block-coherent depth D = 150, on 1 thread: the row the one delay-Doppler map's schedule rule runs slow first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U10k_D150_t1_fc_nc1"]
+name = "DSSS search, 5 Mcps, ±10 kHz, depth 150, 1 thread, 2.2 GHz carrier"
+unit = "sample"
+definition = "The op5M_U10k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp: the row the one delay-Doppler map's schedule rule runs rows first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op2M_U50k_nc57"]
+name = "DSSS search, 2 Mcps, ±50 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler (53 frequency tiles, the operating range's worst case), depth D = 1 on 1 thread, pushed one 57-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op2M_U5k_nc51"]
+name = "DSSS search, 2 Mcps, ±5 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 2 Mcps over ±5 kHz of Doppler (7 frequency tiles), depth D = 1 on 1 thread, pushed one 51-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U50k_nc254"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler (21 frequency tiles), depth D = 1 on 1 thread, pushed one 254-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U5k_nc225"]
+name = "DSSS search, 5 Mcps, ±5 kHz, depth 1, 1 thread"
+unit = "sample"
+definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler (3 frequency tiles), depth D = 1 on 1 thread, pushed one 225-epoch non-coherent dwell at a time; throughput counts searched input samples."
+samples = 1
+
+["c:correlator::op5M_U50k_t8_nc254"]
+name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 8 threads"
+unit = "sample"
+definition = "The 5 Mcps, ±50 kHz, depth D = 1 search (21 frequency tiles, 254-epoch dwells) with the tiles fanned across 8 threads; the published run is pinned to 4 cores and their SMT siblings (CPUs 0-3 and 10-13), so the 8 threads run two to a core; throughput counts searched input samples."
+samples = 1

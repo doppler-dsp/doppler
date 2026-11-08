@@ -83,13 +83,6 @@ definition = "The full M-PSK receive chain (timing, carrier, decisions) at 4 sam
 samples = 1
 headline = true
 
-["c:acq::native_nc90"]
-name = "DSSS acquisition, 1,023-chip code, no Doppler search"
-unit = "sample"
-definition = "A code-phase search for a 1,023-chip code at 3.069 Mcps and 2 samples per chip, with no Doppler search (one frequency window), pushed one 90-epoch non-coherent dwell (184,140 samples) at a time; throughput counts searched input samples."
-samples = 1
-headline = true
-
 ["c:rs::decode[e=8]"]
 name = "Reed-Solomon decode, 8 errors"
 unit = "codeword"
@@ -375,88 +368,10 @@ count = 2040
 # then (`make lint` checks it against the commit the newest release was
 # measured at), so a new row is labelled in the PR that adds it.
 
-["c:acq::op2M_U50k_D60_t1_nc1"]
-name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60 (a 500 Hz/s rate bound's 61, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op2M_U50k_D60_t4_nc1"]
-name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 4 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60 (a 500 Hz/s rate bound's 61, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D150_t1_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D150_t8_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 8 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 8 threads; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U5k_D150_t1_nc1"]
-name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U5k_D150_t4_nc1"]
-name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 4 threads"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150 (a 500 Hz/s rate bound's 154, rounded down to a 7-smooth length), the roll fanned across 4 threads; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_D150_t1_fc_nc1"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 150, 1 thread, 2.2 GHz carrier"
-unit = "sample"
-definition = "The op5M_U50k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp over the block (the code's chip clock dilated by the Doppler over the carrier, as an emitter's is): the continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op2M_U50k_D60_t1_fc_nc1"]
-name = "DSSS search, 2 Mcps, ±50 kHz, depth 60, 1 thread, 2.2 GHz carrier"
-unit = "sample"
-definition = "The op2M_U50k_D60_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp over the block: the continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler, block-coherent depth D = 60, on 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U5k_D150_t1_fc_nc1"]
-name = "DSSS search, 5 Mcps, ±5 kHz, depth 150, 1 thread, 2.2 GHz carrier"
-unit = "sample"
-definition = "The op5M_U5k_D150_t1 search with a 2.2 GHz carrier set, so both side tiles run their code-rate ramp over the block: the continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler, block-coherent depth D = 150, on 1 thread; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U10k_D150_t1_nc1"]
-name = "DSSS search, 5 Mcps, ±10 kHz, depth 150, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±10 kHz of Doppler (5 tiles), block-coherent depth D = 150, on 1 thread: the row the one delay-Doppler map's schedule rule runs slow first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U10k_D150_t1_fc_nc1"]
-name = "DSSS search, 5 Mcps, ±10 kHz, depth 150, 1 thread, 2.2 GHz carrier"
-unit = "sample"
-definition = "The op5M_U10k_D150_t1 search with a 2.2 GHz carrier set, so every side tile runs its code-rate ramp: the row the one delay-Doppler map's schedule rule runs rows first near its crossover (docs/design/acq-surface.md §18.1); throughput counts searched input samples."
-samples = 1
-
-["c:corr::execute[accumulate][n=31]"]
-name = "1-D correlator, accumulate, 31 samples"
-unit = "sample"
-definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 31-sample frames of a 31-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
-samples = 1
-
 ["c:correlator::execute[accumulate][n=31]"]
 name = "1-D correlator, accumulate, 31 samples"
 unit = "sample"
 definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 31-sample frames of a 31-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
-samples = 1
-
-["c:corr::execute[accumulate][n=63]"]
-name = "1-D correlator, accumulate, 63 samples"
-unit = "sample"
-definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 63-sample frames of a 63-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
 samples = 1
 
 ["c:correlator::execute[accumulate][n=63]"]
@@ -465,22 +380,10 @@ unit = "sample"
 definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 63-sample frames of a 63-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
 samples = 1
 
-["c:corr::execute[accumulate][n=127]"]
-name = "1-D correlator, accumulate, 127 samples"
-unit = "sample"
-definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 127-sample frames of a 127-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
-samples = 1
-
 ["c:correlator::execute[accumulate][n=127]"]
 name = "1-D correlator, accumulate, 127 samples"
 unit = "sample"
 definition = "64 accumulate-only calls (forward FFT, multiply by the reference spectrum, add) on 127-sample frames of a 127-chip m-sequence delayed 5 samples, on a correlator whose dwell no batch reaches; the row then checks its next dump peaks at that lag; throughput counts input samples."
-samples = 1
-
-["c:corr::execute[dump][n=31]"]
-name = "1-D correlator, dump, 31 samples"
-unit = "sample"
-definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 31-sample frames of a 31-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
 samples = 1
 
 ["c:correlator::execute[dump][n=31]"]
@@ -489,22 +392,10 @@ unit = "sample"
 definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 31-sample frames of a 31-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
 samples = 1
 
-["c:corr::execute[dump][n=63]"]
-name = "1-D correlator, dump, 63 samples"
-unit = "sample"
-definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 63-sample frames of a 63-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
-samples = 1
-
 ["c:correlator::execute[dump][n=63]"]
 name = "1-D correlator, dump, 63 samples"
 unit = "sample"
 definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 63-sample frames of a 63-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
-samples = 1
-
-["c:corr::execute[dump][n=127]"]
-name = "1-D correlator, dump, 127 samples"
-unit = "sample"
-definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 127-sample frames of a 127-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
 samples = 1
 
 ["c:correlator::execute[dump][n=127]"]
@@ -513,34 +404,16 @@ unit = "sample"
 definition = "64 calls of a dwell-1 correlator, each a dump (forward FFT, multiply, inverse FFT, scale), on 127-sample frames of a 127-chip m-sequence delayed 5 samples; the row then checks the map peaks at that lag; throughput counts input samples."
 samples = 1
 
-["c:detector::push[frame=31]"]
-name = "1-D streaming detector, 31-sample frames"
-unit = "sample"
-definition = "64 pushes of one 31-sample frame each (ring, correlate, peak over noise, gate, emit) of a 31-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
-samples = 1
-
 ["c:correlator::push[frame=31]"]
 name = "1-D streaming detector, 31-sample frames"
 unit = "sample"
 definition = "64 pushes of one 31-sample frame each (ring, correlate, peak over noise, gate, emit) of a 31-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
 samples = 1
 
-["c:detector::push[frame=63]"]
-name = "1-D streaming detector, 63-sample frames"
-unit = "sample"
-definition = "64 pushes of one 63-sample frame each (ring, correlate, peak over noise, gate, emit) of a 63-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
-samples = 1
-
 ["c:correlator::push[frame=63]"]
 name = "1-D streaming detector, 63-sample frames"
 unit = "sample"
 definition = "64 pushes of one 63-sample frame each (ring, correlate, peak over noise, gate, emit) of a 63-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
-samples = 1
-
-["c:detector::push[frame=127]"]
-name = "1-D streaming detector, 127-sample frames"
-unit = "sample"
-definition = "64 pushes of one 127-sample frame each (ring, correlate, peak over noise, gate, emit) of a 127-chip m-sequence delayed 5 samples; the row then checks a fresh frame gives one hit at that lag; throughput counts input samples."
 samples = 1
 
 ["c:correlator::push[frame=127]"]
@@ -798,36 +671,6 @@ count = 2040
 # The DSSS family, after the cut (doppler#2386): one label per kept row
 # whose measurement the cut left unchanged.
 
-["c:acq::op2M_U50k_nc57"]
-name = "DSSS search, 2 Mcps, ±50 kHz, depth 1, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 2 Mcps over ±50 kHz of Doppler (53 frequency tiles, the operating range's worst case), depth D = 1 on 1 thread, pushed one 57-epoch non-coherent dwell at a time; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op2M_U5k_nc51"]
-name = "DSSS search, 2 Mcps, ±5 kHz, depth 1, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 2 Mcps over ±5 kHz of Doppler (7 frequency tiles), depth D = 1 on 1 thread, pushed one 51-epoch non-coherent dwell at a time; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_nc254"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±50 kHz of Doppler (21 frequency tiles), depth D = 1 on 1 thread, pushed one 254-epoch non-coherent dwell at a time; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U5k_nc225"]
-name = "DSSS search, 5 Mcps, ±5 kHz, depth 1, 1 thread"
-unit = "sample"
-definition = "The continuous async-DSSS searcher at 5 Mcps over ±5 kHz of Doppler (3 frequency tiles), depth D = 1 on 1 thread, pushed one 225-epoch non-coherent dwell at a time; throughput counts searched input samples."
-samples = 1
-
-["c:acq::op5M_U50k_t8_nc254"]
-name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 8 threads"
-unit = "sample"
-definition = "The 5 Mcps, ±50 kHz, depth D = 1 search (21 frequency tiles, 254-epoch dwells) with the tiles fanned across 8 threads; the published run is pinned to 4 cores and their SMT siblings (CPUs 0-3 and 10-13), so the 8 threads run two to a core; throughput counts searched input samples."
-samples = 1
-
 ["c:acquire::bin_to_signed (wrapper, not inlinable)"]
 name = "FFT bin to signed index"
 unit = "call"
@@ -1042,22 +885,10 @@ definition = "Creating one searching receiver in the specification configuration
 domain = "call"
 count = 1
 
-["c:corr2d::delay_doppler_32x1024_1t"]
-name = "Delay-Doppler map, 32 x 1,024, one thread"
-unit = "sample"
-definition = "One DelayDoppler execute on 32 code periods of 1,024 samples: 32 row correlations against the code, then 1,024 length-32 slow-time FFTs, on one thread; throughput counts input samples, 32,768 per map."
-samples = 1
-
 ["c:correlator::delay_doppler_32x1024_1t"]
 name = "Delay-Doppler map, 32 x 1,024, one thread"
 unit = "sample"
 definition = "One DelayDoppler execute on 32 code periods of 1,024 samples: 32 row correlations against the code, then 1,024 length-32 slow-time FFTs, on one thread; throughput counts input samples, 32,768 per map."
-samples = 1
-
-["c:corr2d::delay_doppler_32x1024_o64_1t"]
-name = "Delay-Doppler map, 32 x 1,024, Doppler interpolated to 64 rows, one thread"
-unit = "sample"
-definition = "One DelayDoppler execute on 32 code periods of 1,024 samples with ny_out = 64: 32 row correlations against the code, then 1,024 slow-time FFTs of the 32 periods zero-padded to 64, on one thread; throughput counts input samples, 32,768 per map."
 samples = 1
 
 ["c:correlator::delay_doppler_32x1024_o64_1t"]
@@ -1066,22 +897,10 @@ unit = "sample"
 definition = "One DelayDoppler execute on 32 code periods of 1,024 samples with ny_out = 64: 32 row correlations against the code, then 1,024 slow-time FFTs of the 32 periods zero-padded to 64, on one thread; throughput counts input samples, 32,768 per map."
 samples = 1
 
-["c:corr2d::delay_doppler_256x4096_1t"]
-name = "Delay-Doppler map, 256 x 4,096, one thread"
-unit = "sample"
-definition = "One DelayDoppler execute on 256 code periods of 4,096 samples: 256 row correlations against the code, then 4,096 length-256 slow-time FFTs, on one thread; throughput counts input samples, 1,048,576 per map."
-samples = 1
-
 ["c:correlator::delay_doppler_256x4096_1t"]
 name = "Delay-Doppler map, 256 x 4,096, one thread"
 unit = "sample"
 definition = "One DelayDoppler execute on 256 code periods of 4,096 samples: 256 row correlations against the code, then 4,096 length-256 slow-time FFTs, on one thread; throughput counts input samples, 1,048,576 per map."
-samples = 1
-
-["c:corr2d::delay_doppler_256x4096_all"]
-name = "Delay-Doppler map, 256 x 4,096, every core"
-unit = "sample"
-definition = "The 256 x 4,096 DelayDoppler map with nthreads=0, so the row correlations and the slow-time FFTs spread over every online core; throughput counts input samples, 1,048,576 per map."
 samples = 1
 
 ["c:correlator::delay_doppler_256x4096_all"]
@@ -1090,22 +909,10 @@ unit = "sample"
 definition = "The 256 x 4,096 DelayDoppler map with nthreads=0, so the row correlations and the slow-time FFTs spread over every online core; throughput counts input samples, 1,048,576 per map."
 samples = 1
 
-["c:corr2d::batch_64x512_h48_execute_loop_1t"]
-name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, one thread"
-unit = "sample"
-definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=1), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
-samples = 1
-
 ["c:correlator::batch_64x512_h48_execute_loop_1t"]
 name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, one thread"
 unit = "sample"
 definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=1), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
-samples = 1
-
-["c:corr2d::batch_64x512_h48_all_1t"]
-name = "Delay-Doppler batch, 48 maps of 64 x 512, one thread"
-unit = "sample"
-definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=1), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
 ["c:correlator::batch_64x512_h48_all_1t"]
@@ -1114,22 +921,10 @@ unit = "sample"
 definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=1), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
-["c:corr2d::batch_64x512_h48_power_max_1t"]
-name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, one thread"
-unit = "sample"
-definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=1); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
-samples = 1
-
 ["c:correlator::batch_64x512_h48_power_max_1t"]
 name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, one thread"
 unit = "sample"
 definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=1); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
-samples = 1
-
-["c:corr2d::batch_64x512_h48_execute_loop_all"]
-name = "Delay-Doppler batch baseline, 48 maps of 64 x 512, every core"
-unit = "sample"
-definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=0), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
 ["c:correlator::batch_64x512_h48_execute_loop_all"]
@@ -1138,22 +933,10 @@ unit = "sample"
 definition = "48 separate execute() calls on a 64 x 512 DelayDoppler (nthreads=0), one map each: the loop a batch replaces; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
-["c:corr2d::batch_64x512_h48_all_all"]
-name = "Delay-Doppler batch, 48 maps of 64 x 512, every core"
-unit = "sample"
-definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=0), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
-samples = 1
-
 ["c:correlator::batch_64x512_h48_all_all"]
 name = "Delay-Doppler batch, 48 maps of 64 x 512, every core"
 unit = "sample"
 definition = "execute_all: the same 48 maps of 64 x 512 in one call (nthreads=0), every map written out; throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
-samples = 1
-
-["c:corr2d::batch_64x512_h48_power_max_all"]
-name = "Delay-Doppler batch max-power fold, 48 maps of 64 x 512, every core"
-unit = "sample"
-definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=0); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
 ["c:correlator::batch_64x512_h48_power_max_all"]
@@ -1162,22 +945,10 @@ unit = "sample"
 definition = "execute_power_max: the 48 maps of 64 x 512 folded into one per-cell maximum power and its frame index, no map written out (nthreads=0); throughput counts input samples, 1,572,864 per round (48 frames of 64 x 512)."
 samples = 1
 
-["c:corr2d::bank_64x512_c12_corrected_batch_1t"]
-name = "Carrier hypotheses by hand, 12 corrected copies, 64 x 512, one thread"
-unit = "sample"
-definition = "The baseline the hypothesis bank replaces: 12 carrier-corrected copies of one frame (three whole bins x 4 fractions), built outside the timed region, through execute_power_max on one thread; throughput counts the one input frame, 32,768 per round (one 64 x 512 frame)."
-samples = 1
-
 ["c:correlator::bank_64x512_c12_corrected_batch_1t"]
 name = "Carrier hypotheses by hand, 12 corrected copies, 64 x 512, one thread"
 unit = "sample"
 definition = "The baseline the hypothesis bank replaces: 12 carrier-corrected copies of one frame (three whole bins x 4 fractions), built outside the timed region, through execute_power_max on one thread; throughput counts the one input frame, 32,768 per round (one 64 x 512 frame)."
-samples = 1
-
-["c:corr2d::bank_64x512_c12_l4_1t"]
-name = "Hypothesis bank, 12 carriers (L = 4), 64 x 512, one thread"
-unit = "sample"
-definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
 ["c:correlator::bank_64x512_c12_l4_1t"]
@@ -1186,34 +957,16 @@ unit = "sample"
 definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
-["c:corr2d::bank_64x512_c12_l4_r12_1t"]
-name = "Hypothesis bank, 12 carriers (L = 4) x 12 Doppler rates, 64 x 512, one thread"
-unit = "sample"
-definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) times 12 per-period Doppler-rate weightings, 144 hypotheses, on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
-samples = 1
-
 ["c:correlator::bank_64x512_c12_l4_r12_1t"]
 name = "Hypothesis bank, 12 carriers (L = 4) x 12 Doppler rates, 64 x 512, one thread"
 unit = "sample"
 definition = "bank_power_max: one 64 x 512 frame searched over 12 carrier hypotheses (three whole bins x L = 4 fractions) times 12 per-period Doppler-rate weightings, 144 hypotheses, on one thread, folded to per-cell maximum power; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
-["c:corr2d::bank_64x512_c6_l2_1t"]
-name = "Hypothesis bank, 6 carriers (L = 2), 64 x 512, one thread"
-unit = "sample"
-definition = "bank_power_max at the coarse L = 2: one 64 x 512 frame over 6 carrier hypotheses (three whole bins x 2 fractions) on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
-samples = 1
-
 ["c:correlator::bank_64x512_c6_l2_1t"]
 name = "Hypothesis bank, 6 carriers (L = 2), 64 x 512, one thread"
 unit = "sample"
 definition = "bank_power_max at the coarse L = 2: one 64 x 512 frame over 6 carrier hypotheses (three whole bins x 2 fractions) on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
-samples = 1
-
-["c:corr2d::bank_64x512_detect_l2_l4_1t"]
-name = "Hypothesis bank detect, L = 2 refined to L = 4, 64 x 512, one thread"
-unit = "sample"
-definition = "bank_detect: the L = 2 search over one 64 x 512 frame holding one signal, its one candidate refined to L = 4, on one thread; throughput counts input samples, 32,768 per round (one 64 x 512 frame)."
 samples = 1
 
 ["c:correlator::bank_64x512_detect_l2_l4_1t"]
@@ -1373,8 +1126,8 @@ definition = "One Corr2D.execute at dwell 8 on a 16 x 2,000 random frame through
 samples = 1
 
 # acq's rows, measured from bench_correlator_core since #2752 step 3.4b (#2930).
-# The c:acq:: keys above keep v0.80.0 and earlier labelled; #2900 retires
-# the duplicates.
+# Their old c:acq:: labels were retired with v0.81.0, the first set without
+# those rows; #2900 maps the old IDs so the history stays joined.
 
 ["c:correlator::native_nc90"]
 name = "DSSS acquisition, 1,023-chip code, no Doppler search"

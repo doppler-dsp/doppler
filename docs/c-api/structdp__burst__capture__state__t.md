@@ -36,7 +36,7 @@ _BurstCapture state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  size\_t | [**acq\_blob\_max**](#variable-acq_blob_max)  <br> |
 |  int | [**backed**](#variable-backed)  <br> |
 |  size\_t | [**burst\_len**](#variable-burst_len)  <br> |
@@ -140,12 +140,12 @@ Allocate with [**dp\_burst\_capture\_create()**](burst__capture__core_8h.md#func
 ### variable acq 
 
 ```C++
-dp_burst_acq_state_t* dp_burst_capture_state_t::acq;
+dp_correlator_state_t* dp_burst_capture_state_t::acq;
 ```
 
 
 
-Search stage, certified separately. 
+Search stage, the burst search flavor ([**dp\_correlator\_create\_burst()**](correlator__core_8h.md#function-dp_correlator_create_burst)), certified separately. 
  
 
 

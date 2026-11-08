@@ -1917,7 +1917,7 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "doppler_bins : int\n"
-    "    Coherent depth to pin (see dp_burst_acq_configure_search_raw()).\n"
+    "    Coherent depth to pin (see dp_correlator_configure_search_raw()).\n"
     "n_noncoh : int\n"
     "    Non-coherent looks to pin; `n_noncoh * doppler_bins` must not\n"
     "    exceed the refine reach.\n"

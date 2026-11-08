@@ -15,7 +15,6 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 * `#include "doppler/buffer/buffer.h"`
 * `#include "doppler/dp_state.h"`
 * `#include "doppler/burst_capture/burst_capture_core.h"`
-* `#include "doppler/burst_acq/burst_acq_core.h"`
 * `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/burst_demod/burst_demod_core.h"`
 * `#include "doppler/burst_despreader/burst_despreader_core.h"`

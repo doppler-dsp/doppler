@@ -50,7 +50,7 @@
 #include "doppler/jm_perf.h"
 #include "doppler/buffer/buffer.h"
 #include "doppler/dp_state.h"
-#include "doppler/burst_acq/burst_acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft2d/fft2d_core.h"
@@ -247,7 +247,9 @@ typedef struct
                            length is what gets captured.                   */
 
   /* ── The composed child ─────────────────────────────────────────────── */
-  dp_burst_acq_state_t *acq; /**< Search stage, certified separately.         */
+  dp_correlator_state_t *acq; /**< Search stage, the burst search flavor
+                                  (dp_correlator_create_burst()),
+                                  certified separately.              */
 
   /* ── Look-back (docs/design/dsss-burst-receiver.md §7.1) ────────────── */
   dp_f32_t *hist;      /**< History ring. Double-mapped, so a window that
@@ -908,7 +910,7 @@ int dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i);
  *
  * @param state         Capture. Must be non-NULL.
  * @param doppler_bins  Coherent depth to pin (see
- *                      dp_burst_acq_configure_search_raw()).
+ *                      dp_correlator_configure_search_raw()).
  * @param n_noncoh      Non-coherent looks to pin; `n_noncoh *
  *                      doppler_bins` must not exceed the refine reach.
  * @return DP_OK, or DP_ERR_INVALID if this object or the engine refused the

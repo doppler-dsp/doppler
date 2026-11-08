@@ -65,7 +65,6 @@ target_link_libraries(dsss PRIVATE
     acc_trace_core
     Threads::Threads
     burst_capture_core
-    burst_acq_core
     fft2d_core
     Python3::NumPy)
 target_include_directories(dsss PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

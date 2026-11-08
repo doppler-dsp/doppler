@@ -22,13 +22,12 @@ create_error_message = "DsssBurstReceiver: invalid parameter (need non-empty acq
 # Composes the three certified Burst* cores. `corr` is the refine stage's
 # primitive (docs/design/dsss-burst-receiver.md §3.4) -- the whole preamble
 # correlated as one reference, which is what names the code repetition that
-# burst_acq's own code_phase structurally cannot.
+# the burst search's own code_phase structurally cannot.
 #
-# `acq` is listed explicitly even though burst_acq forwards to it: jm's
-# depends_on linking is not recursively transitive, the same reason
-# objects/dsss_receiver.toml has to repeat RateConverter's cascade.
-# The full transitive closure, not just the direct three: burst_acq pulls
-# acq -> corr2d/fft2d/fft/detection, burst_demod pulls ppe -> fft/spectral,
+# The full transitive closure, not just the direct three, because jm's
+# depends_on linking is not recursively transitive (the same reason
+# objects/dsss_receiver.toml repeats RateConverter's cascade):
+# burst_capture pulls correlator -> fft2d/fft/detection, burst_demod pulls ppe -> fft/spectral,
 # and burst_despreader pulls loop_filter. Listing only the direct deps links
 # a .so that cannot resolve them.
 depends_on = [
@@ -36,7 +35,6 @@ depends_on = [
     # adds the demodulator, which is the whole of the split -- everything
     # about FINDING a burst is the child's, and is certified there.
     { name = "burst_capture", link = true },
-    { name = "burst_acq", link = true },
     { name = "burst_demod", link = true },
     { name = "wfm_frame", link = true },
     { name = "pn", link = true },

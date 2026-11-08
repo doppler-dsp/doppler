@@ -636,33 +636,24 @@ join once they land):
 | 3.4      | `burst_acq::push`             | `[sf=15,spc=2]`, `[sf=63,spc=4]`                                                                                                                                                                                                                              |
 | 3.4      | the 3.3 detector rows         | every `detector::push` and `detector2d::push` row again, since the hit record grows to 64 bytes                                                                                                                                                               |
 
-**The family names stay through step 3, except the ones jm renames.** The
-benches keep writing `detector`, `detector2d` and `acq`, so `bench-ab`
-pairs each row on main with the same row on the sub-step's head. 3.2 moves
+**Row suffixes stay through step 3; only the family changes, where jm
+renames a bench binary.** 3.2 moves
 both correlator benches into one binary, `bench_correlator_core`, because
 jm runs a component's bench by its name and `corr` is no longer a
 component: the 1-D bench is a second source of that binary, not an
-executable of its own, which jm would build and never run. Both are judged
-with two aliases (#2884, #2889: bench-ab keys a row by its fullname, whose
-family is the bench binary), which pair the rows suffix for suffix and fail
-any that do not pair:
+executable of its own, which jm would build and never run. 3.3 does the
+same for the two detector benches, which become sources of
+`bench_correlator_core` with their row suffixes unchanged.
 
-```text
-make bench-ab ... ALIAS=bench_corr_core=bench_correlator_core,bench_corr2d_core=bench_correlator_core
-```
-
-3.3 does the same for the two detector benches, which become sources of
-`bench_correlator_core` with their row suffixes unchanged. An alias into a
-family A already has pairs A's own rows as usual, and only a suffix
-collision is refused:
-
-```text
-make bench-ab ... ALIAS=bench_detector_core=bench_correlator_core,bench_detector2d_core=bench_correlator_core
-```
-
-Step 4 renames the rest,
-once, to `correlator::` with each row's flavor in its brackets, with the same
-alias, and relabels them in `benchmarks/labels.toml`.
+3.2 and 3.3 were judged with `ALIAS=` pairings (#2884, #2889) that
+`benchmarks/renames.toml` now declares (#2900): `c:corr`, `c:corr2d`,
+`c:detector`, `c:detector2d` and `c:acq` each map to `c:correlator`.
+`make bench-ab` keys every row by the page's row ID and pairs a renamed
+row with its new ID through that table by itself, so a sub-step's A/B is
+plain `make bench-ab A=<main> B=<head>`. The table refuses a pairing that
+would make two rows of one run one. Step 4 renames the rest once, to
+`correlator::` with each row's flavor in its brackets, adds those entries
+to the same table, and relabels them in `benchmarks/labels.toml`.
 
 acq's carrier and five-tile rows from step 2 (`op5M_U10k_D150_t1`, the
 `_fc` rows) are on main's bench but not yet in a published set; 3.4's PR

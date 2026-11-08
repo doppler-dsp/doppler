@@ -6315,7 +6315,7 @@ dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep)
 /* The blob: the CORL header, the flavor (the reject key every flavor's
    blob opens with), then the search payload. */
 #define SEARCH_BODY_OFF                                                       \
-  (sizeof (dp_state_hdr_t) + sizeof (uint64_t) + sizeof (search_extra_t))
+  (DP_CORRELATOR_SEARCH_EXTRA_OFF + sizeof (search_extra_t))
 
 static void *
 search_state_carry (void *blob)
@@ -6453,8 +6453,7 @@ search_state_check (const dp_correlator_state_t *st, const void *blob,
   if (flavor != (uint64_t)st->flavor)
     return DP_ERR_INVALID;
   search_extra_t ex;
-  memcpy (&ex, (const char *)blob + sizeof (dp_state_hdr_t) + sizeof flavor,
-          sizeof ex);
+  memcpy (&ex, (const char *)blob + DP_CORRELATOR_SEARCH_EXTRA_OFF, sizeof ex);
   if (ex.n != (uint64_t)srch->n || ex.n_noncoh != (uint32_t)srch->n_noncoh
       || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks
       || ex.blk_epoch >= (uint32_t)srch->coherent_bins

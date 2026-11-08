@@ -398,6 +398,9 @@ typedef struct
   double carrier_freq_hz; 
 } search_extra_t;
 
+#define DP_CORRELATOR_SEARCH_EXTRA_OFF                                       \
+  (sizeof (dp_state_hdr_t) + sizeof (uint64_t))
+
 #endif /* DP_CORRELATOR_PRIVATE_H */
 ```
 

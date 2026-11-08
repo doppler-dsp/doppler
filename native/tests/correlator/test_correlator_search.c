@@ -3085,10 +3085,12 @@ _acq_set_state_carrier_check (void)
       for (int bad = 0; bad < 2; bad++)
         {
           search_extra_t ex;
-          memcpy (&ex, (char *)blob + sizeof (dp_state_hdr_t), sizeof ex);
+          memcpy (&ex, (char *)blob + DP_CORRELATOR_SEARCH_EXTRA_OFF,
+                  sizeof ex);
           ex.carrier_freq_hz
               = bad == 0 ? NAN : 0.25 * a->search->fs; /* < fs/2 */
-          memcpy ((char *)blob + sizeof (dp_state_hdr_t), &ex, sizeof ex);
+          memcpy ((char *)blob + DP_CORRELATOR_SEARCH_EXTRA_OFF, &ex,
+                  sizeof ex);
           DP_CHECK (dp_correlator_set_state (b, blob) == DP_ERR_INVALID);
           dp_correlator_get_state (b, after);
           DP_CHECK_MSG (memcmp (before, after, sz) == 0,
@@ -3396,7 +3398,7 @@ _acq_resume_check (void)
           {
             const int64_t step = dk < 2 ? (int64_t)frame_n : 1;
             uint64_t      sc;
-            const size_t  at = sizeof (dp_state_hdr_t)
+            const size_t  at = DP_CORRELATOR_SEARCH_EXTRA_OFF
                                + offsetof (search_extra_t, samples_consumed);
             memcpy (bad, blob, sb);
             memcpy (&sc, bad + at, sizeof sc);
@@ -3416,7 +3418,7 @@ _acq_resume_check (void)
           for (int sgn = -1; sgn <= 1; sgn += 2)
             {
               uint32_t     v;
-              const size_t at = sizeof (dp_state_hdr_t) + fields[fk];
+              const size_t at = DP_CORRELATOR_SEARCH_EXTRA_OFF + fields[fk];
               memcpy (bad, blob, sb);
               memcpy (&v, bad + at, sizeof v);
               v += (uint32_t)sgn;
@@ -3611,6 +3613,68 @@ _brute_dsl_db (const float _Complex *ref, size_t n, double fs, size_t w,
         worst = side / own;
     }
   return 20.0 * log10 (worst);
+}
+
+/* A blob restores only into its own flavor (#2930 review). Continuous and
+   burst engines of one configuration can serialize to the same size, the
+   same grid and the same keys, so the flavor word is then the one thing a
+   cross-load has to be refused by: the pair is built so that it is (the
+   DP_REQUIRE), and a set_state that skipped the flavor check would take
+   the other door's blob whole. A detector's blob and a search's differ in
+   size as well; that pair is held too, both ways. Every refusal leaves the
+   target's own blob as it was. Sabotage: drop the flavor test in
+   search_state_check -> red. */
+static int
+_search_flavor_cross_load_check (void)
+{
+  const size_t           spc = 2;
+  const double           cr  = 1.0e6;
+  dp_correlator_state_t *c   = dp_correlator_create_continuous (
+      CODE7, 7, cr * (double)spc, cr, 0.0, 60.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
+  dp_correlator_state_t *b
+      = burst_from_code (CODE7, 7, 1, spc, cr, 60.0, 0.0, 1e-3, 0.9, 0, 0.0);
+  float _Complex ref[14]   = { 1.0f };
+  dp_correlator_state_t *d = dp_correlator_create_detector_1d (
+      ref, 14, 1, 1, 13, DET_NOISE_MEAN, 0.0f, 1);
+  DP_REQUIRE (c && b && d);
+  /* One look at depth 1 on both: the grid, n, n_noncoh, max_peaks, the
+     rate count and the carrier then agree, and so does the size. */
+  DP_REQUIRE (dp_correlator_configure_search_raw (c, 1, 1) == 0);
+  DP_REQUIRE (dp_correlator_state_bytes (c) == dp_correlator_state_bytes (b));
+  /* Three frames into each, so no blob is a fresh one. */
+  float _Complex x[42];
+  for (size_t k = 0; k < 42; k++)
+    x[k] = (k % 3) ? 1.0f : -1.0f;
+  dp_correlator_hit_t hits[DP_CORRELATOR_MAX_PEAKS];
+  (void)dp_correlator_push (c, x, 42, hits, DP_CORRELATOR_MAX_PEAKS);
+  (void)dp_correlator_push (b, x, 42, hits, DP_CORRELATOR_MAX_PEAKS);
+  (void)dp_correlator_push (d, x, 42, hits, DP_CORRELATOR_MAX_PEAKS);
+
+  dp_correlator_state_t *const pairs[][2]
+      = { { c, b }, { b, c }, { c, d }, { d, c }, { b, d }, { d, b } };
+  for (size_t i = 0; i < sizeof pairs / sizeof *pairs; i++)
+    {
+      dp_correlator_state_t *from = pairs[i][0], *to = pairs[i][1];
+      const size_t           fs   = dp_correlator_state_bytes (from);
+      const size_t           ts   = dp_correlator_state_bytes (to);
+      unsigned char         *blob = malloc (fs), *before = malloc (ts),
+                    *after = malloc (ts);
+      DP_REQUIRE (blob && before && after);
+      dp_correlator_get_state (from, blob);
+      dp_correlator_get_state (to, before);
+      DP_CHECK_MSG (dp_correlator_set_state (to, blob) == DP_ERR_INVALID,
+                    "a blob restores only into its own flavor");
+      dp_correlator_get_state (to, after);
+      DP_CHECK_MSG (memcmp (before, after, ts) == 0,
+                    "a refused cross-load leaves the target as it was");
+      free (blob);
+      free (before);
+      free (after);
+    }
+  dp_correlator_destroy (c);
+  dp_correlator_destroy (b);
+  dp_correlator_destroy (d);
+  return 0;
 }
 
 int
@@ -5492,6 +5556,9 @@ main (void)
 
   /* A coupled carrier and the Doppler prior (doppler#2103). */
   DP_CHECK (carrier_and_prior_domain () == 0);
+
+  /* A blob restores only into its own flavor (#2930 review). */
+  DP_CHECK (_search_flavor_cross_load_check () == 0);
 
   DP_TEST_END ("test_correlator_search");
 }

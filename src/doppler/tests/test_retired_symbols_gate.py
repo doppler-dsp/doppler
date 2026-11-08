@@ -139,3 +139,24 @@ def test_an_unresolvable_base_fails_closed(tmp_path: Path) -> None:
         text=True,
     )
     assert r.returncode == 1, r.stdout
+
+
+def test_a_name_a_private_header_still_declares_is_not_retired(
+    tmp_path: Path,
+) -> None:
+    """Leaving the export list for a `*_private.h` is internal, not retired.
+
+    The list leaves private headers out (#2930): a function an object's own
+    sources still call, declared in its `*_private.h`, left the list without
+    leaving the tree, and a row would forbid it.
+    """
+    root = _seed(tmp_path)
+    _write(root, SYMBOLS, "# generated\nfir_create function\n")
+    _write(
+        root,
+        "native/inc/doppler/widget/widget_private.h",
+        "int dp_widget_create (void);\n",
+    )
+    _commit(root)
+    r = _run(root)
+    assert r.returncode == 0, r.stdout + r.stderr

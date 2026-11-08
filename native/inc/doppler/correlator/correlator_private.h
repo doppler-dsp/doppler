@@ -595,7 +595,7 @@ search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t c
  * transducer for the elastic fan-out (thread / process / pod).  Standard
  * bytes interface (see dp_state.h); layout, contiguous and flat:
  *
- *   `[ dp_state_hdr_t ] [ search_extra_t ]`
+ *   `[ dp_state_hdr_t ] [ uint64_t flavor ] [ search_extra_t ]`
  *   `[ the framer's snapshot ]`   (the carry, fewer than frame_n samples;
  *                                  its own self-validating child blob)
  *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
@@ -627,5 +627,11 @@ typedef struct
                                dp_correlator_set_carrier_freq_hz()'s
                                rebuild.                            */
 } search_extra_t;
+
+/** @brief Where a search flavor's @ref search_extra_t sits in its blob: after
+ *  the envelope and the flavor word every correlator blob opens with.  The
+ *  one offset get_state, the check and the tests read it at. */
+#define DP_CORRELATOR_SEARCH_EXTRA_OFF                                       \
+  (sizeof (dp_state_hdr_t) + sizeof (uint64_t))
 
 #endif /* DP_CORRELATOR_PRIVATE_H */

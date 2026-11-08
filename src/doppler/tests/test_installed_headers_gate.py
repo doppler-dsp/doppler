@@ -23,6 +23,8 @@ from doppler.tests._repo import repo_root
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
+
 REPO = repo_root(__file__)
 SCRIPT = REPO / "cmake" / "check_installed_headers.cmake"
 
@@ -105,3 +107,31 @@ def test_refuses_a_missing_manifest(tmp_path: Path) -> None:
     )
     assert r.returncode != 0
     assert "no install manifest" in r.stderr
+
+
+def test_a_private_header_exports_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `*_private.h` declares internals; the shared library exports none.
+
+    The same extern declaration in a public header is a published symbol,
+    and in a `*_private.h` beside it, none (#2752 3.4b's `dp__search_*`).
+    """
+    import importlib.util
+    import sys
+
+    scripts = repo_root(__file__) / "scripts"
+    monkeypatch.syspath_prepend(str(scripts))
+    spec = importlib.util.spec_from_file_location(
+        "check_installed_headers", scripts / "check_installed_headers.py"
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["check_installed_headers"] = mod
+    spec.loader.exec_module(mod)
+    pub = tmp_path / "foo_core.h"
+    priv = tmp_path / "foo_private.h"
+    pub.write_text("int dp_foo_push (void *s);\n")
+    priv.write_text("int dp__foo_push (void *s);\n")
+    monkeypatch.setattr(mod, "headers", lambda: [pub, priv])
+    assert mod.public_symbols() == {"dp_foo_push": "function"}

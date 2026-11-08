@@ -185,6 +185,7 @@
 * **DP\_CORRELATOR\_SIDELOBE\_DOPPLER\_PTS** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_SIDELOBE\_LAG\_PTS** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_SIDELOBE\_SLOTS** ([**correlator\_core.h**](correlator__core_8h.md))
+* **DP\_CORRELATOR\_SEARCH\_EXTRA\_OFF** ([**correlator\_private.h**](correlator__private_8h.md))
 * **DDC\_STATE\_MAGIC** ([**ddc\_core.h**](ddc__core_8h.md))
 * **DDC\_STATE\_VERSION** ([**ddc\_core.h**](ddc__core_8h.md))
 * **DDCR\_STATE\_MAGIC** ([**ddcr\_core.h**](ddcr__core_8h.md))

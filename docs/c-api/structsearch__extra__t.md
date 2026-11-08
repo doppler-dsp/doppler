@@ -98,7 +98,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 The state blob is the _only_ thing a fresh engine needs to continue a stream from `(descriptor, state, input)` — it makes the engine a pure transducer for the elastic fan-out (thread / process / pod). Standard bytes interface (see [**dp\_state.h**](dp__state_8h.md)); layout, contiguous and flat:
 
 
-`[  dp_state_hdr_t ] [ search_extra_t ]` `[ the framer's snapshot ]` (the carry, fewer than frame\_n samples; its own self-validating child blob) `[ float nc_surface[n] ]` (only when n\_noncoh &gt; 1) `[ uint32_t twins[2 * max_peaks] ]` (held row, col pairs)
+`[  dp_state_hdr_t ] [ uint64_t flavor ] [ search_extra_t ]` `[ the framer's snapshot ]` (the carry, fewer than frame\_n samples; its own self-validating child blob) `[ float nc_surface[n] ]` (only when n\_noncoh &gt; 1) `[ uint32_t twins[2 * max_peaks] ]` (held row, col pairs)
 
 
 Build the byte buffer with [**dp\_correlator\_state\_bytes()**](correlator__core_8h.md#function-dp_correlator_state_bytes); set\_state validates the envelope (magic/version/size) plus n / n\_noncoh below, rejecting a mismatch rather than reinterpreting it. 

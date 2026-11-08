@@ -44,6 +44,7 @@ from _gitbase import (
     resolve_base,
     show_at,
 )
+from check_installed_headers import private_symbols
 from check_retired_names import rows
 from gen_public_symbols import names
 
@@ -59,7 +60,11 @@ def removed(root: Path, base: str) -> list[str]:
     then = show_at(root, rev, SYMBOLS)
     now_path = root / SYMBOLS
     now = names(now_path.read_text()) if now_path.is_file() else set()
-    gone = sorted(names(then) - now) if then is not None else []
+    # A name a `*_private.h` still declares is internal, not retired: the
+    # export list leaves private headers out (#2930), and a row would forbid
+    # a function its own object still calls.
+    internal = set(private_symbols(root / "native" / "inc"))
+    gone = sorted(names(then) - now - internal) if then is not None else []
     gone += sorted(
         rel
         for rel in ls_tree_at(root, rev, HEADERS)

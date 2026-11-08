@@ -660,7 +660,87 @@ warnings = [
 ]
 
 [[correlator.views.methods]]
+name = "reset"
+doc = '''
+Drain the input ring and reset the coherent accumulator.
+
+Discards any buffered samples that have not yet completed a frame and
+clears the non-coherent power accumulator and dwell bookkeeping, so the
+next push() begins a fresh search from an empty ring. The construction
+parameters — grid, thresholds, and PN reference — are untouched; only
+the in-flight streaming state is dropped.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
+>>> a.reset()                 # drop it before it can bias a detection
+>>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)
+(0, 18)
+'''
+
+[[correlator.views.methods]]
 name = "push"
+doc = '''
+Stream raw samples; emit one event per CFAR dump above threshold.
+
+Buffers x, then for every complete frame applies the slow-time Doppler
+FFT, correlates against the PN reference, dumps the coherent surface
+(or, when n_noncoh > 1, accumulates |·|² over n_noncoh looks first),
+gates the peak on the auto-configured threshold, and appends an
+dp_correlator_hit_t. Each event carries the peak's Doppler bin and code
+phase (the two search axes), its CFAR statistic, and an estimated C/N0
+— see dp_correlator_hit_t.
+
+Python's push() has room for 1024 events a call, so a push that ends at
+most 1024 / max_peaks dwells, counting the carry, loses nothing. Once
+fewer than max_peaks slots are left, the call stops before the next
+frame that would end a dwell -- and once all 1024 are used, before the
+next frame of any kind -- and the rest of its input is lost, unless the
+rest completes no frame, counting the carry already held: that is kept
+as the carry. The next push stays on the frame grid only when what was
+lost is a whole number of frames. Before v0.66 the room was 64, and a
+push past it kept up to ring_cap/frame_n - 1 frames for the next call,
+dropped the rest, and could cut a dwell's list short. #1992 and
+just-buildit/just-makeit#2184 track sizing the list to the call.
+
+Parameters
+----------
+x : complex
+    Raw input, interleaved CF32, n_in complex samples.
+
+Returns
+-------
+list[tuple[int, int, float, float, float, float, int, float, float]]
+    Number of events written (0 … max_results).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
+...                 doppler_uncertainty=40e3)
+>>> fs = 4e6                        # the sample_rate passed above
+>>> t = np.arange(a.code_bins * a.n_noncoh)
+>>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
+>>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
+...        * carrier).astype(np.complex64)
+>>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)
+(1, 18)
+'''
 arg_type = "float _Complex"
 return_type = "dp_correlator_hit_t"
 nogil = true
@@ -681,7 +761,60 @@ fn = "dp_correlator_push"
 [[correlator.views.methods]]
 name = "configure_search_raw"
 fn = "dp_correlator_configure_search_raw"
-doc = "Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling)."
+doc = '''
+Pin the search grid directly, bypassing both auto-sizing searches --
+the advanced escape hatch (mirrors
+Dll.configure_lock_raw/Costas.configure_lock). Resizes every
+buffer/plan that depends on the grid (the slow-time FFT, the code
+correlator, the reference, and every per-frame scratch buffer),
+re-derives the threshold ladder for the pinned grid from the same
+physics __init__ used, and clears in-flight accumulation (ring
+contents, the non-coherent power accumulator, dwell bookkeeping) --
+call between push() calls, never a substitute for one. Raises
+ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside
+[1, 256] (the internal non-coherent-look safety-valve ceiling).
+
+Resizes every buffer/plan that depends on the grid (the slow-time FFT,
+the code correlator, the reference, and every per-frame scratch
+buffer), re-derives the threshold ladder for the pinned grid from the
+same physics
+dp_correlator_create_burst()/dp_correlator_create_continuous() used,
+and clears in-flight accumulation (ring contents, the non-coherent
+power accumulator, dwell bookkeeping) — call between push() calls,
+never a substitute for one.
+
+Parameters
+----------
+doppler_bins : int
+    Coherent depth to pin, in `[1, reps]`.
+n_noncoh : int
+    Non-coherent look count to pin, in `[1,
+    DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
+
+Raises
+------
+ValueError
+    If the C call returns a non-zero status. The exception message is
+    ``configure_search_raw failed``, with the return code appended
+    (gh-869).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
+>>> a.doppler_bins, a.n_noncoh
+(1, 4)
+>>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
+>>> a.push(burst)[0][:2]      # detects at the pinned grid
+(0, 18)
+'''
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -693,7 +826,61 @@ params = [
 [[correlator.views.methods]]
 name = "set_max_peaks"
 fn = "dp_correlator_set_max_peaks"
-doc = "How many peaks a dwell may report -- the peak list's capacity (docs/design/async-dsss-receiver.md section 7.1). One (the default) is the classic gated maximum. More lists every peak above the same gate, strongest first, with an exclusion zone of one Doppler bin by one chip around each (one emitter's main lobe, so its own shoulders are not the next peak) and the two-epoch rule for a peak at an already-listed code phase (a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles; such a peak is held for one dwell and listed only if it is still there, at the same tile, on the next). Each listed peak is one record from push(), all of a dwell's sharing samples_consumed and noise_est; a held twin takes one of the n slots that dwell but is not reported. The threshold does not change with n. Raises ValueError outside 1..64. Clears the held candidates."
+doc = '''
+How many peaks a dwell may report -- the peak list's capacity
+(docs/design/async-dsss-receiver.md section 7.1). One (the default) is
+the classic gated maximum. More lists every peak above the same gate,
+strongest first, with an exclusion zone of one Doppler bin by one chip
+around each (one emitter's main lobe, so its own shoulders are not the
+next peak) and the two-epoch rule for a peak at an already-listed code
+phase (a data transition inside the epoch splits one emitter into twins
+at its own code phase on other tiles; such a peak is held for one dwell
+and listed only if it is still there, at the same tile, on the next).
+Each listed peak is one record from push(), all of a dwell's sharing
+samples_consumed and noise_est; a held twin takes one of the n slots
+that dwell but is not reported. The threshold does not change with n.
+Raises ValueError outside 1..64. Clears the held candidates.
+
+One (the default) is the classic detector -- the maximum of the
+surface, gated. More is the list of docs/design/async-dsss-receiver.md
+§7.1: every peak above the same gate, strongest first, each with an
+exclusion zone of one Doppler bin by the reference's first
+autocorrelation null around it (one chip for a PN code; one emitter's
+main lobe, so its own shoulders are not the next peak), and the
+two-epoch rule for a peak at an already-listed code phase -- a data
+transition inside the epoch splits one emitter into twins at its own
+code phase on other tiles, so such a peak is held for one dwell and
+listed only if it was there, at the same tile, on the previous one.
+Each listed peak is one dp_correlator_hit_t from dp_correlator_push(),
+all of a dwell's sharing its `samples_consumed` and `noise_est`. A held
+twin takes a slot of the `n` for that dwell but is not reported. The
+threshold does not change: a second peak is another draw from the same
+cells against the same union bound. Clears the held candidates.
+
+Parameters
+----------
+n : int
+    1 … DP_CORRELATOR_MAX_PEAKS.
+
+Raises
+------
+ValueError
+    If the C call returns a non-zero status. The exception message is
+    ``set_max_peaks failed``, with the return code appended (gh-869).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import Acquisition
+>>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+>>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, symbol_rate=1e3,
+...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
+>>> a.max_peaks
+1
+>>> a.set_max_peaks(8)
+>>> a.max_peaks
+8
+'''
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -704,7 +891,83 @@ params = [
 [[correlator.views.methods]]
 name = "set_carrier_freq_hz"
 fn = "dp_correlator_set_carrier_freq_hz"
-doc = "Couple the code clock to the carrier: the chip rate dilates by doppler_hz / carrier_freq_hz, and the engine accounts for it -- every window tile's epochs are shifted along the code axis by the drift the tile's own frequency implies, aligned to the block's middle (inside a coherent block of D epochs), and the hand-off advances the hit's code phase by the drift over half the dwell (docs/design/async-dsss-receiver-measurements.md §12.11, §12.12). It rides in the state blob, so a resumed engine carries it on, and setting it rebuilds the one delay-Doppler map's ramp tables (docs/design/acq-surface.md §18.2). 0.0 (the default) = uncoupled, the engine as it ran without it. Raises ValueError for a carrier that is neither 0 nor finite and above half the sample rate (fs / 2): every Doppler the engine can report is below fs / 2, so above it |doppler / carrier| < 1 and the dilation stays finite."
+doc = '''
+Couple the code clock to the carrier: the chip rate dilates by
+doppler_hz / carrier_freq_hz, and the engine accounts for it -- every
+window tile's epochs are shifted along the code axis by the drift the
+tile's own frequency implies, aligned to the block's middle (inside a
+coherent block of D epochs), and the hand-off advances the hit's code
+phase by the drift over half the dwell
+(docs/design/async-dsss-receiver-measurements.md §12.11, §12.12). It
+rides in the state blob, so a resumed engine carries it on, and setting
+it rebuilds the one delay-Doppler map's ramp tables
+(docs/design/acq-surface.md §18.2). 0.0 (the default) = uncoupled, the
+engine as it ran without it. Raises ValueError for a carrier that is
+neither 0 nor finite and above half the sample rate (fs / 2): every
+Doppler the engine can report is below fs / 2, so above it |doppler /
+carrier| < 1 and the dilation stays finite.
+
+A physically-coupled Doppler moves the code as well as the carrier --
+100 chips/s at 20 ppm of 5 Mcps -- and the engine's two long
+integrations both smear over it (doppler#1256, #1254):
+
+- **Inside a coherent block** of D epochs every tile's epoch
+  correlations are shifted along the code axis by the drift the tile's
+  own frequency implies, `f_tile / carrier` chips per chip, aligned to
+  the block's middle (a linear phase on each epoch's product). The one
+  delay-Doppler map applies it at the block's end, read on a slow-time
+  grid 4 times finer and rounded. The bound is 0.09 dB, the worst over
+  33 tones and three dilations (docs/design/acq-surface.md §18.1); the
+  engine measures 0.020-0.026 dB on its equivalence test's carrier
+  scenes. dp_correlator_block_prompt() applies it exactly. A change of
+  carrier mid-block applies to the whole block. Measured at the
+  specification's 20 ppm with D = 154 (3.1 chips of drift across the
+  block): without it the block's peak is 13 dB down and 3 chips wide
+  and the depth detects nothing at 34 dB-Hz; with it the block reads as
+  a still one.
+- **The hand-off** (dp_correlator_build_handoff()) advances the hit's
+code
+  phase by the drift over half the dwell -- the non-coherent sum's peak
+  is the phase at the dwell's middle, the seed is wanted at its end:
+  0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
+
+A mutator's value (#2022): it rides in the state blob (v8), and a
+restore takes it through this setter's rebuild, so a resumed engine
+carries it on. Setting it rebuilds the map's fine grid and every tile's
+ramp tables when they move (the regrid that re-applies the thread
+request). Default 0.0 (uncoupled) is the engine exactly as it ran
+without it.
+
+Parameters
+----------
+carrier_freq_hz : float
+    RF carrier, Hz; 0.0 = uncoupled.
+
+Raises
+------
+MemoryError
+    If the C call returns ``DP_ERR_MEMORY``. The exception message is
+    ``set_carrier_freq_hz: rebuilding the delay-Doppler map for the new
+    carrier could not allocate; the engine is unchanged``.
+ValueError
+    If the C call returns any other non-zero status. The exception
+    message is ``set_carrier_freq_hz failed``, with the return code
+    appended (gh-869).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import Acquisition
+>>> from doppler.wfm import Gold
+>>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+>>> a = Acquisition(code, sample_rate=1e7, chip_rate=5e6, symbol_rate=2700.0,
+...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)
+>>> a.carrier_freq_hz
+0.0
+>>> a.set_carrier_freq_hz(2.5e9)
+>>> a.carrier_freq_hz
+2500000000.0
+'''
 arg_type = "void"
 return_type = "int"
 status_return = true

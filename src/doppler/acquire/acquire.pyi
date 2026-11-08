@@ -2461,9 +2461,9 @@ class Acquisition:
     Warns
     -----
     UserWarning
-        Emitted after construction when ``self->handle->search->underpowered``
-        holds: ``Acquisition is under-powered: pd_predicted < pd at this
-        cn0_dbhz. Raise cn0_dbhz or narrow doppler_uncertainty.``.
+        Emitted after construction when ``underpowered`` holds: ``Acquisition
+        is under-powered: pd_predicted < pd at this cn0_dbhz. Raise cn0_dbhz or
+        narrow doppler_uncertainty.``.
 
     Examples
     --------
@@ -2506,23 +2506,29 @@ class Acquisition:
         doppler_rate: float = 0.0,
     ) -> None: ...
     def reset(self) -> None:
-        """Zero the accumulator and reset the integration counter to 0.
-        Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
-        or recomputing ref_spec. (A detector flavor resets its stream too: see
-        the detector flavors' section below.)
+        """Drain the input ring and reset the coherent accumulator.
+
+        Discards any buffered samples that have not yet completed a frame and
+        clears the non-coherent power accumulator and dwell bookkeeping, so the
+        next push() begins a fresh search from an empty ring. The construction
+        parameters — grid, thresholds, and PN reference — are untouched; only
+        the in-flight streaming state is dropped.
 
         Examples
         --------
-        >>> from doppler.spectral import Corr2D
         >>> import numpy as np
-        >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> c = Corr2D(ref=ref, dwell=3)
-        >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
-        >>> c.count
-        1
-        >>> c.reset()
-        >>> c.count
-        0
+        >>> from doppler.acquire import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
+        >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+        >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
+        >>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
+        >>> a.reset()                 # drop it before it can bias a detection
+        >>> a.push(burst)[0][:2]      # (Doppler bin, code phase column)
+        (0, 18)
 
         """
 
@@ -2531,53 +2537,56 @@ class Acquisition:
         x: complex,
         /,
     ) -> list[tuple[int, int, float, float, float, float, int, float, float]]:
-        """Stream an arbitrary-length CF32 chunk through a detector flavor.
+        """Stream raw samples; emit one event per CFAR dump above threshold.
 
-        Takes the input in order, runs each complete n-sample frame (n = ny*nx)
-        through the correlator, and on every dump computes the test statistic
-        peak_mag / noise_est. Each dump that passes the threshold is one hit.
-        In Python the result is always a list: of (row, col, peak_mag,
-        noise_est, test_stat) tuples from CorrDetector2D, and of (lag,
-        peak_mag, noise_est, test_stat) tuples from CorrDetector, whose lag is
-        the hit's col.
+        Buffers x, then for every complete frame applies the slow-time Doppler
+        FFT, correlates against the PN reference, dumps the coherent surface
+        (or, when n_noncoh > 1, accumulates |·|² over n_noncoh looks first),
+        gates the peak on the auto-configured threshold, and appends an
+        dp_correlator_hit_t. Each event carries the peak's Doppler bin and code
+        phase (the two search axes), its CFAR statistic, and an estimated C/N0
+        — see dp_correlator_hit_t.
 
-        Python's push() has room for 1024 detections a call, so a push that
-        completes at most 1024 frames, counting the carry, loses nothing. One
-        that fills the room loses the rest of its input, every later frame
-        whether or not it would have made a detection, unless the rest is
-        shorter than a frame: that is kept as the carry. The next push stays on
-        the frame grid only when what was lost is a whole number of frames;
-        otherwise its peaks are off by the remainder. #1992 and
+        Python's push() has room for 1024 events a call, so a push that ends at
+        most 1024 / max_peaks dwells, counting the carry, loses nothing. Once
+        fewer than max_peaks slots are left, the call stops before the next
+        frame that would end a dwell -- and once all 1024 are used, before the
+        next frame of any kind -- and the rest of its input is lost, unless the
+        rest completes no frame, counting the carry already held: that is kept
+        as the carry. The next push stays on the frame grid only when what was
+        lost is a whole number of frames. Before v0.66 the room was 64, and a
+        push past it kept up to ring_cap/frame_n - 1 frames for the next call,
+        dropped the rest, and could cut a dwell's list short. #1992 and
         just-buildit/just-makeit#2184 track sizing the list to the call.
 
         Parameters
         ----------
         x : complex
-            Input.
+            Raw input, interleaved CF32, n_in complex samples.
 
         Returns
         -------
         list[tuple[int, int, float, float, float, float, int, float, float]]
-            Python: the list of hits, empty when no dump passed the gate. C:
-            the number of hits written to result, or SIZE_MAX (nothing taken,
-            nothing changed) when state is a map flavor.
+            Number of events written (0 … max_results).
 
         Examples
         --------
-        >>> from doppler.spectral import CorrDetector, CorrDetector2D
         >>> import numpy as np
-        >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
-        ...                  noise_mode="mean", threshold=0.0)
-        >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
-        >>> row, col, peak, noise, stat = results[0]
-        >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
-        (0, 0, 1.0, 1.0, 1.0)
-        >>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
-        ...                 noise_mode="mean", threshold=0.0)
-        >>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
-        >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
-        (0, 1.0, 1.0, 1.0)
+        >>> from doppler.acquire import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
+        >>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
+        ...                 doppler_uncertainty=40e3)
+        >>> fs = 4e6                        # the sample_rate passed above
+        >>> t = np.arange(a.code_bins * a.n_noncoh)
+        >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
+        >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
+        ...        * carrier).astype(np.complex64)
+        >>> a.push(sig)[0][:2]              # (Doppler-window bin, lag column)
+        (1, 18)
 
         """
 
@@ -2729,9 +2738,10 @@ class Acquisition:
           and the depth detects nothing at 34 dB-Hz; with it the block reads as
           a still one.
         - **The hand-off** (dp_correlator_build_handoff()) advances the hit's
-          code phase by the drift over half the dwell -- the non-coherent sum's
-          peak is the phase at the dwell's middle, the seed is wanted at its
-          end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
+        code
+          phase by the drift over half the dwell -- the non-coherent sum's peak
+          is the phase at the dwell's middle, the seed is wanted at its end:
+          0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
 
         A mutator's value (#2022): it rides in the state blob (v8), and a
         restore takes it through this setter's rebuild, so a resumed engine

@@ -10,6 +10,10 @@
 # §4a), dp_interrupt_t an alternative the design weighed and closed.
 docs/design/end-of-capture.md DP_EOS
 docs/design/end-of-capture.md dp_interrupt_t
+# Names not built yet: #2752 step 4's proposed dispatcher and its framing
+# enum. Each entry leaves when step 4 defines it.
+docs/design/correlator-python.md dp_correlator_create
+docs/design/correlator-python.md dp_correlator_framing_t
 # Dated measurements of the frame-description migration: what was measured,
 # by the names it had then.
 docs/design/frame-description-measurements.md dp_ccsds_tm_frame_desc_of

@@ -1569,23 +1569,7 @@ static PyTypeObject MpskReceiverObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.track import MpskReceiver\n"
-    ">>> obj = MpskReceiver(\n"
-    "...     m=4,\n"
-    "...     sps=8.0,\n"
-    "...     m_out=0,\n"
-    "...     pulse=\"iandd\",\n"
-    "...     rrc_beta=0.35,\n"
-    "...     rrc_span=8,\n"
-    "...     bn_carrier=0.01,\n"
-    "...     zeta=0.0,\n"
-    "...     bn_timing=0.01,\n"
-    "...     lock_thresh=0.0,\n"
-    "...     init_norm_freq=0.0,\n"
-    "...     differential=0,\n"
-    "...     num_phases=0,\n"
-    "...     agc=1,\n"
-    "...     bn_agc_ratio=0.0,\n"
-    "... )\n",
+    ">>> obj = MpskReceiver()\n",
   .tp_methods = MpskReceiverObj_methods,
   .tp_getset  = MpskReceiver_getset,
   .tp_new     = MpskReceiverObj_new,

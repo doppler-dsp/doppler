@@ -1181,17 +1181,7 @@ static PyTypeObject RateSyncObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.track import RateSync\n"
-    ">>> obj = RateSync(\n"
-    "...     sps=4.0,\n"
-    "...     pulse=\"rrc\",\n"
-    "...     beta=0.35,\n"
-    "...     span=8,\n"
-    "...     m=2,\n"
-    "...     num_phases=1024,\n"
-    "...     bn=0.01,\n"
-    "...     zeta=0.707,\n"
-    "...     ted=\"gardner\",\n"
-    "... )\n",
+    ">>> obj = RateSync()\n",
   .tp_methods = RateSyncObj_methods,
   .tp_getset  = RateSync_getset,
   .tp_new     = RateSyncObj_new,

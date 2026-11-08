@@ -1269,15 +1269,7 @@ static PyTypeObject MatchedRateConverterObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.resample import MatchedRateConverter\n"
-    ">>> obj = MatchedRateConverter(\n"
-    "...     rate=1.0,\n"
-    "...     compensate=1,\n"
-    "...     pulse=\"rrc\",\n"
-    "...     beta=0.35,\n"
-    "...     span=8,\n"
-    "...     pulse_sps=2.0,\n"
-    "...     num_phases=1024,\n"
-    "... )\n",
+    ">>> obj = MatchedRateConverter()\n",
   .tp_methods = MatchedRateConverterObj_methods,
   .tp_getset  = MatchedRateConverter_getset,
   .tp_new     = MatchedRateConverterObj_new,

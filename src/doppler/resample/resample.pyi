@@ -1262,15 +1262,7 @@ class MatchedRateConverter:
     Create with defaults:
 
     >>> from doppler.resample import MatchedRateConverter
-    >>> obj = MatchedRateConverter(
-    ...     rate=1.0,
-    ...     compensate=1,
-    ...     pulse="rrc",
-    ...     beta=0.35,
-    ...     span=8,
-    ...     pulse_sps=2.0,
-    ...     num_phases=1024,
-    ... )
+    >>> obj = MatchedRateConverter()
 
     """
 
@@ -1648,7 +1640,7 @@ class Farrow:
     Create with defaults:
 
     >>> from doppler.resample import Farrow
-    >>> obj = Farrow(order="cubic")
+    >>> obj = Farrow()
 
     """
 

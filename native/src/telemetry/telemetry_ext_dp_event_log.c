@@ -723,7 +723,7 @@ static PyMethodDef EventLogObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from doppler.telemetry import EventLog\n"
-    "    >>> obj = EventLog(path=..., fc=0.0)\n"
+    "    >>> obj = EventLog(path=...)\n"
     "    >>> obj.close()\n" },
   { "destroy", (PyCFunction)EventLogObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"

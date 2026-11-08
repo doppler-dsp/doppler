@@ -1486,8 +1486,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> obj.accumulate_real(np.zeros(4, dtype=np.float32))\n" },
   { "reset", (PyCFunction)PSDObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -1497,8 +1496,7 @@ static PyMethodDef PSDObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> obj.reset()\n" },
   { "psd_db", (PyCFunction)(void *)PSDObj_psd_db, METH_VARARGS | METH_KEYWORDS,
     "psd_db(out) -> ndarray | None\n"
@@ -1520,8 +1518,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> y = obj.psd_db()\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1591,8 +1588,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> y = obj.power_twosided()\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1628,8 +1624,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> y = obj.power_onesided()\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1706,8 +1701,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> obj.total_band_power(np.zeros(4, dtype=np.float64))\n"
     "    0.0\n" },
   { "occupied_bw", (PyCFunction)(void *)PSDObj_occupied_bw,
@@ -1759,8 +1753,7 @@ static PyMethodDef PSDObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> obj.noise_floor()\n"
     "    0.0\n" },
   { "snr", (PyCFunction)(void *)PSDObj_snr, METH_VARARGS | METH_KEYWORDS,
@@ -1784,8 +1777,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> obj.snr(0.0, 0.0)\n"
     "    0.0\n" },
   { "sfdr", (PyCFunction)(void *)PSDObj_sfdr, METH_VARARGS | METH_KEYWORDS,
@@ -1807,8 +1799,7 @@ static PyMethodDef PSDObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import PSD\n"
-    "    >>> obj = PSD(n=1024, fs=1.0, window=\"hann\", beta=0.0, pad=1, "
-    "full_scale=1.0, bits=0, mode=\"mean\", alpha=0.1, hop=0)\n"
+    "    >>> obj = PSD()\n"
     "    >>> obj.sfdr(0.0)\n"
     "    0.0\n" },
   { "state_bytes", (PyCFunction)PSDObj_state_bytes, METH_NOARGS,

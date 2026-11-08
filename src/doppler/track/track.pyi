@@ -30,7 +30,7 @@ class LoopFilter:
     Create with defaults:
 
     >>> from doppler.track import LoopFilter
-    >>> obj = LoopFilter(bn=0.01, zeta=0.707, t=1.0)
+    >>> obj = LoopFilter()
 
     """
 
@@ -340,13 +340,7 @@ class Costas:
     Create with defaults:
 
     >>> from doppler.track import Costas
-    >>> obj = Costas(
-    ...     bn=0.05,
-    ...     zeta=0.707,
-    ...     init_norm_freq=0.0,
-    ...     tsamps=64,
-    ...     bn_fll=0.0,
-    ... )
+    >>> obj = Costas()
 
     """
 
@@ -1659,13 +1653,7 @@ class SymbolSync:
     Create with defaults:
 
     >>> from doppler.track import SymbolSync
-    >>> obj = SymbolSync(
-    ...     sps=4,
-    ...     bn=0.01,
-    ...     zeta=0.707,
-    ...     order="cubic",
-    ...     ted="gardner",
-    ... )
+    >>> obj = SymbolSync()
 
     """
 
@@ -2177,17 +2165,7 @@ class RateSync:
     Create with defaults:
 
     >>> from doppler.track import RateSync
-    >>> obj = RateSync(
-    ...     sps=4.0,
-    ...     pulse="rrc",
-    ...     beta=0.35,
-    ...     span=8,
-    ...     m=2,
-    ...     num_phases=1024,
-    ...     bn=0.01,
-    ...     zeta=0.707,
-    ...     ted="gardner",
-    ... )
+    >>> obj = RateSync()
 
     """
 
@@ -2632,14 +2610,7 @@ class CarrierMpsk:
     Create with defaults:
 
     >>> from doppler.track import CarrierMpsk
-    >>> obj = CarrierMpsk(
-    ...     bn=0.05,
-    ...     zeta=0.707,
-    ...     init_norm_freq=0.0,
-    ...     tsamps=64,
-    ...     bn_fll=0.0,
-    ...     m=4,
-    ... )
+    >>> obj = CarrierMpsk()
 
     """
 
@@ -2990,14 +2961,7 @@ class CarrierNda:
     Create with defaults:
 
     >>> from doppler.track import CarrierNda
-    >>> obj = CarrierNda(
-    ...     bn=0.01,
-    ...     zeta=0.707,
-    ...     init_norm_freq=0.0,
-    ...     sps=8,
-    ...     n=4,
-    ...     m=4,
-    ... )
+    >>> obj = CarrierNda()
 
     """
 
@@ -3493,23 +3457,7 @@ class MpskReceiver:
     Create with defaults:
 
     >>> from doppler.track import MpskReceiver
-    >>> obj = MpskReceiver(
-    ...     m=4,
-    ...     sps=8.0,
-    ...     m_out=0,
-    ...     pulse="iandd",
-    ...     rrc_beta=0.35,
-    ...     rrc_span=8,
-    ...     bn_carrier=0.01,
-    ...     zeta=0.0,
-    ...     bn_timing=0.01,
-    ...     lock_thresh=0.0,
-    ...     init_norm_freq=0.0,
-    ...     differential=0,
-    ...     num_phases=0,
-    ...     agc=1,
-    ...     bn_agc_ratio=0.0,
-    ... )
+    >>> obj = MpskReceiver()
 
     """
 
@@ -4753,23 +4701,7 @@ class MpskReceiverR:
     Create with defaults:
 
     >>> from doppler.track import MpskReceiverR
-    >>> obj = MpskReceiverR(
-    ...     m=4,
-    ...     sps=32.0,
-    ...     m_out=0,
-    ...     pulse="iandd",
-    ...     rrc_beta=0.35,
-    ...     rrc_span=8,
-    ...     bn_carrier=0.01,
-    ...     zeta=0.0,
-    ...     bn_timing=0.01,
-    ...     lock_thresh=0.0,
-    ...     init_norm_freq=0.0,
-    ...     differential=0,
-    ...     num_phases=0,
-    ...     agc=1,
-    ...     bn_agc_ratio=0.0,
-    ... )
+    >>> obj = MpskReceiverR()
 
     """
 

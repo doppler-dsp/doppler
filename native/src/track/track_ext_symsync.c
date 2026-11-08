@@ -1150,13 +1150,7 @@ static PyTypeObject SymbolSyncObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.track import SymbolSync\n"
-    ">>> obj = SymbolSync(\n"
-    "...     sps=4,\n"
-    "...     bn=0.01,\n"
-    "...     zeta=0.707,\n"
-    "...     order=\"cubic\",\n"
-    "...     ted=\"gardner\",\n"
-    "... )\n",
+    ">>> obj = SymbolSync()\n",
   .tp_methods = SymbolSyncObj_methods,
   .tp_getset  = SymbolSync_getset,
   .tp_new     = SymbolSyncObj_new,

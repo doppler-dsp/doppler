@@ -1314,7 +1314,7 @@ static PyTypeObject BerMeterObjType = {
             "Create with defaults:\n"
             "\n"
             ">>> from doppler.ber import BerMeter\n"
-            ">>> obj = BerMeter(m=4, target_errors=200, conf=0.99)\n",
+            ">>> obj = BerMeter()\n",
   .tp_methods = BerMeterObj_methods,
   .tp_getset  = BerMeter_getset,
   .tp_new     = BerMeterObj_new,

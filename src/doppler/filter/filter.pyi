@@ -249,7 +249,7 @@ class MovingAverage:
     Create with defaults:
 
     >>> from doppler.filter import MovingAverage
-    >>> obj = MovingAverage(len=4, gain=1.0)
+    >>> obj = MovingAverage()
 
     """
 

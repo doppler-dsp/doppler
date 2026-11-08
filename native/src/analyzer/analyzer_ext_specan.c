@@ -632,8 +632,7 @@ static PyMethodDef SpecanObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.analyzer import Specan\n"
-    "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, "
-    "center=0.0, offset_db=0.0, full_scale=1.0, bits=0, navg=1)\n"
+    "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0)\n"
     "    >>> obj.retune(0.0)\n" },
   { "reset", (PyCFunction)SpecanObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -643,8 +642,7 @@ static PyMethodDef SpecanObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from doppler.analyzer import Specan\n"
-    "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, "
-    "center=0.0, offset_db=0.0, full_scale=1.0, bits=0, navg=1)\n"
+    "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SpecanObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"

@@ -1010,14 +1010,7 @@ static PyTypeObject CarrierNdaObjType = {
                 "Create with defaults:\n"
                 "\n"
                 ">>> from doppler.track import CarrierNda\n"
-                ">>> obj = CarrierNda(\n"
-                "...     bn=0.01,\n"
-                "...     zeta=0.707,\n"
-                "...     init_norm_freq=0.0,\n"
-                "...     sps=8,\n"
-                "...     n=4,\n"
-                "...     m=4,\n"
-                "... )\n",
+                ">>> obj = CarrierNda()\n",
   .tp_methods = CarrierNdaObj_methods,
   .tp_getset  = CarrierNda_getset,
   .tp_new     = CarrierNdaObj_new,

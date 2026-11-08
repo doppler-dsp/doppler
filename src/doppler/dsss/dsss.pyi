@@ -1196,7 +1196,7 @@ class PolynomialPhaseEstimator:
     Create with defaults:
 
     >>> from doppler.dsss import PolynomialPhaseEstimator
-    >>> obj = PolynomialPhaseEstimator(max_len=4096, max_rate=0.0)
+    >>> obj = PolynomialPhaseEstimator()
 
     """
 

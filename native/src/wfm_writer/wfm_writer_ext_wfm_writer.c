@@ -731,9 +731,7 @@ static PyMethodDef WriterObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.wfm import Writer\n"
-    "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
-    "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
-    "t0=0.0, sidecar=True)\n"
+    "    >>> obj = Writer(path=..., fs=0.0)\n"
     "    >>> obj.annotate(0)\n" },
   { "track_clipping", (PyCFunction)(void *)WriterObj_track_clipping,
     METH_VARARGS | METH_KEYWORDS,
@@ -751,9 +749,7 @@ static PyMethodDef WriterObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.wfm import Writer\n"
-    "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
-    "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
-    "t0=0.0, sidecar=True)\n"
+    "    >>> obj = Writer(path=..., fs=0.0)\n"
     "    >>> obj.track_clipping(0)\n" },
   { "add_keyword", (PyCFunction)(void *)WriterObj_add_keyword,
     METH_VARARGS | METH_KEYWORDS,

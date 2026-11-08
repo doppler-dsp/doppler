@@ -478,7 +478,7 @@ static PyTypeObject F32ToUQ15ObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.cvt import F32ToUQ15\n"
-    ">>> obj = F32ToUQ15(scale=32768.0)\n",
+    ">>> obj = F32ToUQ15()\n",
   .tp_methods = F32ToUQ15Obj_methods,
   .tp_getset  = F32ToUQ15_getset,
   .tp_new     = F32ToUQ15Obj_new,

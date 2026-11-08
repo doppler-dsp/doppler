@@ -1045,15 +1045,7 @@ static PyTypeObject ToneMeasureObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.measure import ToneMeasure\n"
-    ">>> obj = ToneMeasure(\n"
-    "...     n=8192,\n"
-    "...     fs=1.0,\n"
-    "...     n_harmonics=8,\n"
-    "...     full_scale=1.0,\n"
-    "...     bits=0,\n"
-    "...     dynamic_range_db=0.0,\n"
-    "...     dc_guard=0,\n"
-    "... )\n",
+    ">>> obj = ToneMeasure()\n",
   .tp_methods = ToneMeasureObj_methods,
   .tp_getset  = ToneMeasure_getset,
   .tp_new     = ToneMeasureObj_new,

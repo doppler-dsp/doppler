@@ -615,7 +615,7 @@ static PyTypeObject FrameMeterObjType = {
                                             "Create with defaults:\n"
                                             "\n"
                                             ">>> from doppler.ber import FrameMeter\n"
-                                            ">>> obj = FrameMeter(target_errors=200, conf=0.99)\n",
+                                            ">>> obj = FrameMeter()\n",
   .tp_methods                             = FrameMeterObj_methods,
   .tp_getset                              = FrameMeter_getset,
   .tp_new                                 = FrameMeterObj_new,

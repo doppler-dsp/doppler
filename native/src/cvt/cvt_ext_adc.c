@@ -512,7 +512,7 @@ static PyTypeObject ADCObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.cvt import ADC\n"
-    ">>> obj = ADC(bits=16, dbfs=-10.0, dithering=0)\n",
+    ">>> obj = ADC()\n",
   .tp_methods = ADCObj_methods,
   .tp_getset  = ADC_getset,
   .tp_new     = ADCObj_new,

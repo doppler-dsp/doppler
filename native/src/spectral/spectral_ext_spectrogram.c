@@ -970,8 +970,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
-    "mode=\"power\")\n"
+    "    >>> obj = Spectrogram()\n"
     "    >>> y = obj.push(np.zeros(4, dtype=np.complex64))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1056,8 +1055,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
-    "mode=\"power\")\n"
+    "    >>> obj = Spectrogram()\n"
     "    >>> y = obj.flush()\n" },
   { "flush_max_out", (PyCFunction)SpectrogramObj_flush_max_out, METH_NOARGS,
     "flush_max_out() -> int\n"
@@ -1103,8 +1101,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
-    "mode=\"power\")\n"
+    "    >>> obj = Spectrogram()\n"
     "    >>> obj.rows_for(0)\n"
     "    0\n" },
   { "reset", (PyCFunction)SpectrogramObj_reset, METH_NOARGS,
@@ -1130,8 +1127,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from doppler.spectral import Spectrogram\n"
-    "    >>> obj = Spectrogram(nfft=256, hop=0, window=\"hann\", beta=0.0, "
-    "mode=\"power\")\n"
+    "    >>> obj = Spectrogram()\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SpectrogramObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
@@ -1292,13 +1288,7 @@ static PyTypeObject SpectrogramObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.spectral import Spectrogram\n"
-    ">>> obj = Spectrogram(\n"
-    "...     nfft=256,\n"
-    "...     hop=0,\n"
-    "...     window=\"hann\",\n"
-    "...     beta=0.0,\n"
-    "...     mode=\"power\",\n"
-    "... )\n",
+    ">>> obj = Spectrogram()\n",
   .tp_methods = SpectrogramObj_methods,
   .tp_getset  = Spectrogram_getset,
   .tp_new     = SpectrogramObj_new,

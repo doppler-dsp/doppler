@@ -584,7 +584,7 @@ static PyTypeObject FarrowObjType = {
                                             "Create with defaults:\n"
                                             "\n"
                                             ">>> from doppler.resample import Farrow\n"
-                                            ">>> obj = Farrow(order=\"cubic\")\n",
+                                            ">>> obj = Farrow()\n",
   .tp_methods                             = FarrowObj_methods,
   .tp_getset                              = Farrow_getset,
   .tp_new                                 = FarrowObj_new,

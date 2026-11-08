@@ -1,0 +1,437 @@
+<!-- domain: acquire; summary: step 4 of the correlator consolidation (#2752): one Python class, doppler.correlation.Correlator, its constructor and knobs, what push returns, the classes and burst_acq forwarder it retires, its composers, and the #2683, #2900 and #2901 decisions -->
+
+# One Python class: the step-4 design
+
+Step 4 of the consolidation ([#2752](https://github.com/doppler-dsp/doppler/issues/2752),
+[API taxonomy §6.4](api-taxonomy.md#64-consolidation-one-primitive-correlator)).
+Step 3 left one C object with seven constructors
+([correlator.md](correlator.md)). Python still sees seven classes in two
+modules:
+
+- `doppler.spectral`: `Corr`, `Corr2D`, `DelayDoppler`, `CorrDetector`,
+    `CorrDetector2D`;
+- `doppler.acquire`: `Acquisition`, `BurstAcquisition`.
+
+Step 4 makes them one class, `doppler.correlation.Correlator`. The knobs are
+its arguments, burst or continuous framing included. No `Acquisition` or
+`BurstAcquisition` class survives (owner, 2026-10-31), and the `burst_acq`
+C forwarder goes with them (step 1, folded here).
+
+This page also settles three linked issues that step 4 needs:
+
+- [#2683](https://github.com/doppler-dsp/doppler/issues/2683): the Python
+    batch contract (§9);
+- [#2900](https://github.com/doppler-dsp/doppler/issues/2900): bench rows
+    that keep their history across a rename (§10);
+- [#2901](https://github.com/doppler-dsp/doppler/issues/2901): the flavor
+    recorded twice (§11).
+
+The owner's two rules still hold: no private copy survives, and speed only
+goes up. Step 4 is mostly binding and documentation. Its C changes are a
+constructor dispatcher (§3), `BurstCapture` calling the engine directly
+(§7), and #2901 (§11). This follows
+[Adding an algorithm](../dev/contributing/adding-algorithms.md) from phase 1.
+
+**This page proposes; it decides nothing until review.** §15 lists the
+decisions with a recommendation for each.
+
+## 1. Who calls it, and with what
+
+| caller                                                  | needs                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| A user correlating a block against a template           | maps: one per call, or a batch reduced in C                               |
+| A user searching a code over delay x Doppler            | maps, a hypothesis bank, the peak per map                                 |
+| A user detecting a reference in a stream                | detections from `push`, threshold set as k x noise                        |
+| A user acquiring a DSSS signal or a burst               | detections from `push`, threshold set from Pfa/Pd and a C/N0 design point |
+| `BurstCapture`, `DsssReceiver`, `AsyncDsssReceiver` (C) | the engine, composed in C; Python never sees it                           |
+| `doppler.dsss.orchestrator` (Python)                    | a burst search per channel, built as `BurstAcquisition` today             |
+
+The last row is a fourth consumer the taxonomy's table does not list. It
+builds one `BurstAcquisition` per channel (`orchestrator.py:214`) and hands
+it out through an `acquisition` property.
+
+## 2. Today's seven surfaces
+
+Measured from the stubs on main (0bb4824d0), excluding the context-manager
+and state-blob members every class has:
+
+| class              | module   | constructor                                                                                                                               | methods                                                                    | properties |
+| ------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------- |
+| `Corr`             | spectral | `ref, dwell, nthreads, n_out`                                                                                                             | `execute`, `reset`                                                         | 4          |
+| `Corr2D`           | spectral | `ref` (2-D), `dwell, nthreads, ny_out, nx_out, col_out`                                                                                   | `execute*`, `bank_*` (2), `*_max_out`                                      | 8          |
+| `DelayDoppler`     | spectral | `code, ny, dwell, nthreads, ny_out`                                                                                                       | as `Corr2D`                                                                | 7          |
+| `CorrDetector`     | spectral | `ref, dwell, noise_lo, noise_hi, noise_mode, threshold, nthreads`                                                                         | `push`, `reset`                                                            | 8          |
+| `CorrDetector2D`   | spectral | as `CorrDetector`, 2-D `ref`                                                                                                              | `push`, `reset`                                                            | 10         |
+| `Acquisition`      | acquire  | `code` (uint8), `sample_rate, chip_rate, symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, code_only_epochs, doppler_rate` | `push`, `surface*` (4), `block_*` (2), setters (4), `configure_search_raw` | 33         |
+| `BurstAcquisition` | acquire  | `preamble, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate, rate_hypotheses`                                   | `push`, `set_max_peaks`, `configure_search_raw`                            | 24         |
+
+Six of them are the `correlator` object today: `Corr2D` its base class,
+the other five its views. `BurstAcquisition`
+is the seventh: its own object, `burst_acq`, a C forwarder onto the same
+engine.
+
+Two inconsistencies a reader meets today, which one class removes:
+
+- **One quantity, several names.** The sample rate is `sample_rate`
+    on `Acquisition` and `fs` on `BurstAcquisition`. The reference is `ref`,
+    `code` or `preamble`.
+- **`push` returns two shapes.** `CorrDetector*` return 5-field tuples;
+    `Acquisition` and `BurstAcquisition` return 9-field tuples of the same
+    C record, `dp_correlator_hit_t`.
+
+## 3. One constructor
+
+**The constraint.** A jm object has one constructor (`create_fn`). Views
+give a second constructor, but each view is a separate class with its own
+name. Alternate constructors (`factories`) exist only for `kind = "handle"`
+modules, not objects (`just_makeit/_keys.py`). And a module's
+`__init__.py` is re-export only, so a Python factory function is out.
+
+So "one class whose knobs are its arguments" means one C constructor that
+takes every knob and dispatches to the flavor's own constructor. The
+dispatch lives in C, once. The seven flavor constructors stay public for C
+callers, who name the flavor they want.
+
+**Proposed C entry point** (`correlator_core.h`):
+
+```text
+dp_correlator_state_t *dp_correlator_create (
+    const float _Complex *ref, size_t ny, size_t nx,
+    dp_correlator_framing_t framing,  /* NONE, CONTINUOUS, BURST */
+    size_t doppler_rows,              /* > 0: a code row, delay x Doppler */
+    int detect,                       /* maps or detections (framing NONE) */
+    size_t dwell, size_t n_out, size_t ny_out, size_t nx_out, int col_out,
+    float threshold, size_t noise_lo, size_t noise_hi, int noise_mode,
+    double sample_rate, double chip_rate, double symbol_rate, size_t reps,
+    double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
+    double doppler_rate, size_t rate_hypotheses, size_t code_only_epochs,
+    int nthreads);
+```
+
+**How the knobs pick the flavor:**
+
+| `framing`    | `ref`     | `doppler_rows` | `detect` | flavor              | replaces           |
+| ------------ | --------- | -------------- | -------- | ------------------- | ------------------ |
+| `none`       | 1-D       | 0              | no       | `1D`                | `Corr`             |
+| `none`       | 1-D       | 0              | yes      | `DETECTOR_1D`       | `CorrDetector`     |
+| `none`       | 2-D       | 0              | no       | `2D`                | `Corr2D`           |
+| `none`       | 2-D       | 0              | yes      | `DETECTOR_2D`       | `CorrDetector2D`   |
+| `none`       | 1-D       | ny > 0         | no       | `DELAY_DOPPLER`     | `DelayDoppler`     |
+| `continuous` | 1-D chips | -              | implied  | `SEARCH_CONTINUOUS` | `Acquisition`      |
+| `burst`      | 1-D       | -              | implied  | `SEARCH_BURST`      | `BurstAcquisition` |
+
+Any other combination is refused with a `ValueError` naming the knob
+(`create_error`). For example, a 2-D `ref` with `framing = "burst"`, or
+`doppler_rows` with `detect`. A knob a flavor does not read is refused
+when set away from its default, never silently ignored.
+
+**Proposed Python spelling:**
+
+```text
+Correlator(ref, *, framing="none", doppler_rows=0, detect=False,
+           dwell=1, n_out=0, ny_out=0, nx_out=0, col_out=-1,
+           threshold=0.0, noise_lo=0, noise_hi=0, noise_mode="mean",
+           sample_rate=0.0, chip_rate=0.0, symbol_rate=0.0, reps=0,
+           cn0_dbhz=50.0, doppler_uncertainty=0.0, pfa=1e-3, pd=0.9,
+           doppler_rate=0.0, rate_hypotheses=1, code_only_epochs=1,
+           nthreads=1)
+```
+
+One name for each quantity (§2): `ref` for every reference, and
+`sample_rate` on both search flavors. `fs` and `preamble` retire.
+
+**Three things jm must express, to confirm on a scratch project in phase 2
+before any code:**
+
+1. **One `ref` that is 1-D or 2-D.** Today `Corr2D`'s `ref` is
+    `float _Complex[][]` and `Corr`'s is `float _Complex[]`. One init-param
+    has one type. Fallback: `ref` is 2-D always, and a 1-D reference is
+    `ref[None, :]` (ny = 1). That is a worse spelling for the commonest
+    case, so it is the fallback, not the plan.
+1. **The continuous search's chips.** `dp_correlator_create_continuous`
+    takes `uint8_t` chips at the chip rate; every other flavor takes cf32
+    samples. Recommended: the dispatcher takes the chips as cf32 NRZ
+    (+1/-1, cvt's mapper), as the burst flavor already takes its preamble.
+    Then "the reference is always samples" holds, and `DsssReceiver`'s C
+    path keeps calling the uint8 constructor directly.
+1. **A string-enum `framing`.** jm has `string_enum:` init params
+    (`noise_mode` uses one), so this is expected to work as-is.
+
+If (1) needs a jm feature, the ask is filed and fixed upstream first
+(owner: fix it where it is defined), never a hand-written fragment.
+
+## 4. Members a flavor does not serve
+
+One class carries every flavor's members: about 20 methods and 40
+properties once duplicates merge. Most belong to some flavors only:
+`execute*` and `bank_*` to the map flavors, `push` to detectors and
+searches, `surface*`, `eta`, `pd_predicted` and the rest to searches.
+
+- **Methods** already refuse: the C returns `SIZE_MAX` or an error code on
+    a flavor that does not serve the call, and the binding raises. The
+    docstring names the flavors that serve it.
+- **Properties on the search record** read through `search`, which is
+    `NULL` for a map or detector flavor. A plain `expr` would dereference
+    `NULL`. Recommended: each such property reads through a C accessor that
+    returns NaN (floats) or 0 (counts) off a search flavor, documented as
+    such. Raising would be better if a jm property getter can raise; that
+    is checked in phase 2 with the three items in §3.
+- **A `flavor` property** (string) says which flavor the knobs built, so
+    a caller who is unsure can ask instead of guessing from a NaN.
+
+## 5. What `push` returns
+
+One record for every flavor: `dp_correlator_hit_t`, returned as a NumPy
+**structured array** (`record_dtype`), the shape `BurstCapture.detections()`
+already returns. Two reasons:
+
+- One shape for one record, instead of 5-field tuples on detectors and
+    9-field tuples on searches.
+- It removes the stack cap. Today the binding calls into a stack array of
+    `max_results = 1024` hits, and a push that would make more loses the
+    input past the last one
+    ([#1992](https://github.com/doppler-dsp/doppler/issues/1992),
+    just-makeit#2184). A `variable_output` record array sizes from a
+    `*_max_out` instead.
+
+The fields keep their C names: `row`, `col`, `peak_mag`, `noise_est`,
+`test_stat`, `cn0_dbhz_est`, `samples_consumed`, `chip_phase`,
+`doppler_rate_hz_s`, `test_stat_peak`. Off a search flavor, the search-only
+fields read 0, as the C fills them today.
+
+To confirm in phase 2: jm renders `record_dtype` + `variable_output` on a
+method that also takes a cf32 input array. `BurstCapture`'s record methods
+take no input (`arg_type = "void"`).
+
+## 6. The module
+
+- **New module `doppler.correlation`**: `modules/correlation.toml`, objects
+    `["correlator"]`, and a `[domain.correlation]` entry in
+    `docs/domains.toml`. The C object stays at
+    `native/{inc/doppler,src}/correlator/`; only its Python module moves.
+- **`doppler.spectral`** loses `Corr`, `Corr2D`, `DelayDoppler`,
+    `CorrDetector`, `CorrDetector2D`, and its module docstring stops
+    naming them.
+- **`doppler.acquire`** loses `Acquisition` and `BurstAcquisition`. It
+    keeps `CarrierAcquisition`, `BurstCapture`, `PersistentBurstCapture`
+    and `bin_to_signed`, and its docstring points at `Correlator` for the
+    search.
+- **No aliases.** The old names are not re-exported, deprecated or kept
+    as subclasses (owner: none survives). This is step 4's Python break,
+    released once, with the changelog entry naming each old class and its
+    `Correlator(...)` spelling.
+
+`Correlator`'s docstring and guide say it is "also called acquisition when
+it is part of a detector or receiver", so a search for the word lands on it.
+
+## 7. Retiring `burst_acq`
+
+What goes:
+
+- `native/inc/doppler/burst_acq/`, `native/src/burst_acq/`;
+- `native/src/acquire/acquire_ext_burst_acq.c`, `objects/burst_acq.toml`;
+- `native/tests/burst_acq/`, `native/benchmarks/burst_acq/`;
+- `src/doppler/acquire/tests/test_burst_acq.py`,
+    `src/doppler/acquire/benchmarks/bench_burst_acq.py`.
+
+**`BurstCapture` calls the engine directly.** It makes eight `burst_acq_*`
+calls (`create` x2, `destroy`, `reset`, `push`, `consumed`,
+`configure_search_raw`, and the state type in its header). Each becomes the
+`dp_correlator_*` call the forwarder made. `underpowered` already lives on
+the search record. `burst_capture.toml`'s `depends_on` names `correlator`
+instead of `burst_acq`.
+
+Oracle: `BurstCapture`'s C and Python tests and its validator
+(`src/doppler/acquire/tests/validation/burst_capture/`), unchanged and
+green; and its state blob byte-identical, since the forwarder's blob
+already was the engine's.
+
+## 8. The objects that compose it
+
+| consumer            | today                                     | step 4                                                                                |
+| ------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| `BurstCapture`      | C, through the `burst_acq` forwarder      | C, `dp_correlator_*` directly (§7)                                                    |
+| `DsssReceiver`      | C, `dp_correlator_state_t`                | unchanged                                                                             |
+| `AsyncDsssReceiver` | C, `dp_correlator_state_t`                | unchanged                                                                             |
+| `dsss.orchestrator` | Python, `BurstAcquisition(preamble, ...)` | `Correlator(preamble, framing="burst", ...)`; its `acquisition` property returns that |
+
+All three receivers forward `configure_search_raw` with their own
+docstrings. Those docstrings name `BurstAcquisition.doppler_bins` and
+`Acquisition`; they are rewritten to name `Correlator`.
+
+## 9. #2683: the Python batch contract
+
+What #2683 asked for and where it stands:
+
+| ask                                                     | state                                                                                                                                               |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a batch interface with documented axes                  | done in C and Python: `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks`, `bank_power_max`, `bank_detect` |
+| coherent / independent / power sum / power max          | done, each a fixed C reducer                                                                                                                        |
+| a detector-specific statistic without a Python callback | C only: `dp_correlator_execute_fold` and `bank_fold` take a C reducer                                                                               |
+| value tests for every reducer                           | partly: see below                                                                                                                                   |
+
+**Recommended: the fixed reducers are the Python contract.**
+`execute_fold`'s reducer is a C function pointer called once per map. A
+Python callable there is the inner-loop callback #2683 forbids, and a
+pointer from `ctypes` or `cffi` is a foreign object no other binding
+accepts. A caller who needs a statistic the fixed reducers lack takes
+`execute_all` (every map, no accumulation: #2683's "streaming
+independent-map output") and reduces in NumPy, or writes the reducer in C.
+The `Correlator` docstring says so, and #2683 closes on that.
+
+**Value tests still missing**, each against a NumPy reference built from
+`execute_all`'s maps:
+
+- `execute_power_sum` and `execute_power_max` values, including the
+    originating map index for power max and its tie rule;
+- max of per-map statistics differs from the statistic of a pointwise-max
+    map (the cancellation case #2683 names);
+- a batch called mid-dwell, for each reducer beyond `all`, `coherent` and
+    `peaks`: the temporal accumulator is unchanged after it;
+- `reset()` before and after a batch;
+- an `out=` buffer reused across calls, poisoned per run.
+
+They move with the class into `src/doppler/correlation/tests/`. Each is
+proved by sabotaging its reducer in a copy.
+
+## 10. #2900: bench rows keep their history across a rename
+
+Step 4 renames rows again: `py:corr2d::*`, `py:acq::*` and
+`py:burst_acq::*` become `py:correlator::*`, and `c:burst_acq::*` becomes
+`c:correlator::*`. Without #2900 each one starts a new trend line and its
+labels are carried twice for a release, as `c:corr::` and `c:corr2d::` are
+now.
+
+**Proposed: one table, `benchmarks/renames.toml`.**
+
+```toml
+[[rename]]
+old = "c:corr::"
+new = "c:correlator::"
+```
+
+Three readers, one declaration (owner: one declaration, both directions):
+
+- `bench_report` joins a row's history across the table, so the trend line
+    continues.
+- The label gate accepts a label under the new ID for a published row
+    under the old one, so `labels.toml` holds one key per row.
+- `make bench-ab` reads its aliases from the table instead of `ALIAS=`.
+
+Its gate: a rename whose `old` prefix names no published row, or whose
+`new` names no current bench, fails `make lint`. Proved by sabotage like
+every gate. Rows are prefixes, so a rename entry may also rename a single
+row when the bench IDs change shape.
+
+#2900 lands as its own PR before step 4's code, so step 4's renames are
+entries in the table from the start. Its follow-up stays as #2900 names it:
+the old `c:corr::`/`c:corr2d::` label keys go once the next release
+publishes the new rows.
+
+## 11. #2901: the flavor recorded twice
+
+`dp_correlator_state_t` has `flavor` and the older `delay_doppler` flag,
+which is 1 exactly when `flavor == DP_CORRELATOR_DELAY_DOPPLER`.
+
+**Recommended: drop `delay_doppler` and branch on `flavor`.** The
+dispatcher (§3) makes `flavor` the one fact every path reads, and a
+compare of one enum against a constant costs the hot path nothing a
+flag-read did not. The struct-layout risk #2901 names is measured, not
+assumed: its own PR, `make bench-ab` against main on the pinned rows, and
+the pool row that #2886 diagnosed among them. If any row is slower, the
+other fix (keep the flag, set it only from `flavor` in one place) takes
+its place.
+
+## 12. Docs, examples, validation and benches
+
+**Guides and gallery**, rewritten for `Correlator`:
+
+- guides: `docs/guide/acquisition.md`, `delay-doppler.md`,
+    `dsss-acquisition.md`; a new `Correlator` guide replaces the `Corr` and
+    `CorrDetector` exemptions (`docs/.user-docs-exempt`, lines 90-91);
+- gallery: `corr.md`, `delay-doppler.md`, `detection2d.md`,
+    `dsss-acq-characterization.md`;
+- API pages: a new page for the `correlation` module; the `spectral` and `acquire`
+    pages lose the seven classes.
+
+**Examples ported, not dropped** (13):
+
+- `acq_surface_demo`, `burst_capture_demo`, `corr_demo`,
+    `delay_doppler_bank_demo`, `delay_doppler_batch_demo`;
+- `detection2d_demo`, `detector2d_acq_demo`, `dsss_burst_ber_demo`,
+    `dsss_burst_demo`, `dsss_realtime_file_demod`;
+- `dsss_receiver_demo`, `mpsk_doppler_profile_demo`,
+    `mpsk_receiver_performance_demo`.
+
+Each keeps its physical asserts. The C twins (`native/examples/corr_demo.c`,
+`delay_doppler_bank_demo.c`, `delay_doppler_batch_demo.c`) already call the
+C flavor constructors, which stay; they are unchanged. Phase 9 owes a C and
+a Python example for the one class, and these are them. A gallery PNG it draws is regenerated and
+must not change beyond its own tolerance. Every retired class's docstring
+example is ported into `Correlator`'s, or into a guide whose fences are
+tested.
+
+**Validation.** The one report from step 3.5
+(`src/doppler/spectral/tests/validation/correlator/`) moves to
+`src/doppler/correlation/tests/validation/correlator/` and its Python face
+switches to `Correlator`. The verdicts are the oracle (§13); the report is
+not re-certified unless a verdict moves.
+
+**Benches.** `bench_corr.py`, `bench_correlator.py`, `bench_acq.py` and
+`bench_burst_acq.py` become one `src/doppler/correlation/benchmarks/ bench_correlator.py`, each row renamed through §10's table.
+
+## 13. Oracle and speed gate
+
+- **Behaviour.** Every test that names a retired class runs against its
+    `Correlator(...)` spelling with its expected values unchanged: the
+    composing objects' tests and validators, the correlator's validation
+    verdicts, every ported example and doc fence. A changed value is a
+    finding, not an update.
+- **Retirement.** No new gate: each retired class name and the
+    `burst_acq_` prefix get a row in `scripts/.retired-names`
+    (`check_retired_names.py`) in the commit that retires them, and the
+    `burst_acq_*` symbols a row for `check_retired_symbols.py`.
+- **Speed.** `make bench-ab A=main B=<branch>` on the pinned rows of
+    [correlator.md §7.1](correlator.md), plus the renamed Python rows. Step
+    4 changes no hot loop, so every row is expected to tie. The binding's
+    record-array return (§5) is the one change on a measured path; its
+    `push` rows are judged against the tuples they replace.
+
+## 14. Order of work
+
+Each item is its own PR. The release of step 3's C break comes first
+(#2752's order).
+
+1. **#2900**: `benchmarks/renames.toml` and its three readers (§10).
+1. **#2901**: one flavor field, with its own `bench-ab` (§11).
+1. **Phase 2 on a scratch project**: the three jm checks in §3, the
+    property getter in §4 and the record array in §5. Any gap is filed and
+    fixed upstream before 4.
+1. **The class**: `dp_correlator_create`, `modules/correlation.toml`, the
+    seven views removed, the record array, the #2683 tests.
+1. **`burst_acq` retired**: `BurstCapture` on the engine directly, the
+    orchestrator on `Correlator` (§7, §8).
+1. **Docs and examples** ported (§12).
+1. **Release** step 4's Python break.
+
+Items 4 to 6 may land as one PR if splitting them would leave main with a
+class whose examples do not run.
+
+## 15. Decisions for review
+
+| #   | decision                           | recommended                                                               |
+| --- | ---------------------------------- | ------------------------------------------------------------------------- |
+| D1  | how one class gets every flavor    | one C dispatcher, `dp_correlator_create`, with every knob (§3)            |
+| D2  | the continuous search's reference  | cf32 NRZ chips through the dispatcher; C keeps the uint8 constructor (§3) |
+| D3  | a member its flavor does not serve | methods raise; search properties read NaN/0, or raise if jm can (§4)      |
+| D4  | `push`'s return                    | one structured array of `dp_correlator_hit_t`, no stack cap (§5)          |
+| D5  | old class names                    | none kept, no aliases (§6)                                                |
+| D6  | #2683's extensibility              | fixed reducers + `execute_all` are the Python contract; fold stays C (§9) |
+| D7  | #2900's shape                      | `benchmarks/renames.toml`, read by report, label gate and bench-ab (§10)  |
+| D8  | #2901                              | drop `delay_doppler`, branch on `flavor`, if bench-ab ties (§11)          |
+
+**Unknowns**, each checked before the code that depends on it:
+
+- whether jm can take a 1-D or 2-D `ref` in one init param (§3);
+- whether a jm property getter can raise (§4);
+- whether jm renders a record array on a method with an input array (§5).

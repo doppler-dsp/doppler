@@ -355,7 +355,7 @@ Three readers, one declaration (owner: one declaration, both directions):
     continues.
 - The label gate accepts a label under the new ID for a published row
     under the old one, so `labels.toml` holds one key per row.
-- `make bench-ab` reads its aliases from the table instead of `ALIAS=`.
+- `make bench-ab` pairs renamed rows through the table; `ALIAS=` is gone.
 
 Its gate: a rename whose `old` prefix names no published row, or whose
 `new` names no current bench, fails `make lint`. Proved by sabotage like

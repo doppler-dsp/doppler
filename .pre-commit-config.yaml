@@ -136,6 +136,15 @@ repos:
         language: system
         pass_filenames: false
 
+      # A header included twice in one #if branch: the include guard hides
+      # it from the compiler, so four headers carried one (gh-2752 step 4c).
+      - id: dup-include
+        name: a C file includes a header once per branch
+        entry: make -s lint-dup-include
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # Every gate the acq engine prices splits pfa over acq_band_cells(), the
       # cells its maximum ranges over; a hand count of the native cells fired
       # it at about twice its pfa (doppler#2218).

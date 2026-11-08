@@ -660,7 +660,7 @@ static PyTypeObject LoopFilterObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.track import LoopFilter\n"
-    ">>> obj = LoopFilter(bn=0.01, zeta=0.707, t=1.0)\n",
+    ">>> obj = LoopFilter()\n",
   .tp_methods = LoopFilterObj_methods,
   .tp_getset  = LoopFilter_getset,
   .tp_new     = LoopFilterObj_new,

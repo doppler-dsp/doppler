@@ -397,7 +397,7 @@ static PyTypeObject PolynomialPhaseEstimatorObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.dsss import PolynomialPhaseEstimator\n"
-    ">>> obj = PolynomialPhaseEstimator(max_len=4096, max_rate=0.0)\n",
+    ">>> obj = PolynomialPhaseEstimator()\n",
   .tp_methods = PolynomialPhaseEstimatorObj_methods,
   .tp_getset  = PolynomialPhaseEstimator_getset,
   .tp_new     = PolynomialPhaseEstimatorObj_new,

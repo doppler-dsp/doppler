@@ -65,7 +65,7 @@ class Telemetry:
     Create with defaults:
 
     >>> from doppler.telemetry import Telemetry
-    >>> obj = Telemetry(ring_records=16384)
+    >>> obj = Telemetry()
 
     """
 

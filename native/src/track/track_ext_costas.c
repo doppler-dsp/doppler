@@ -1063,13 +1063,7 @@ static PyTypeObject CostasObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.track import Costas\n"
-    ">>> obj = Costas(\n"
-    "...     bn=0.05,\n"
-    "...     zeta=0.707,\n"
-    "...     init_norm_freq=0.0,\n"
-    "...     tsamps=64,\n"
-    "...     bn_fll=0.0,\n"
-    "... )\n",
+    ">>> obj = Costas()\n",
   .tp_methods = CostasObj_methods,
   .tp_getset  = Costas_getset,
   .tp_new     = CostasObj_new,

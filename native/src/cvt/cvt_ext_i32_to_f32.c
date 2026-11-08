@@ -356,7 +356,7 @@ static PyTypeObject I32ToF32ObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.cvt import I32ToF32\n"
-    ">>> obj = I32ToF32(scale=2147483648.0)\n",
+    ">>> obj = I32ToF32()\n",
   .tp_methods = I32ToF32Obj_methods,
   .tp_new     = I32ToF32Obj_new,
   .tp_init    = (initproc)I32ToF32Obj_init,

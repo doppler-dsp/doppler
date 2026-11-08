@@ -407,8 +407,7 @@ static PyMethodDef RawCaptureObj_methods[] = {
     "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from iqtools.capture import RawCapture\n"
-    "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", endian=\"le\", "
-    "fs=1.0, fc=0.0)\n"
+    "    >>> obj = RawCapture(path=...)\n"
     "    >>> y = obj.read(4)\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -445,8 +444,7 @@ static PyMethodDef RawCaptureObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> from iqtools.capture import RawCapture\n"
-    "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", endian=\"le\", "
-    "fs=1.0, fc=0.0)\n"
+    "    >>> obj = RawCapture(path=...)\n"
     "    >>> rec = obj.summary()\n"
     "    >>> rec.num_samples is not None\n"
     "    True\n" },

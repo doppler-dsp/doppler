@@ -479,7 +479,7 @@ static PyTypeObject F32ToI16U32ObjType = {
                 "Create with defaults:\n"
                 "\n"
                 ">>> from doppler.cvt import F32ToI16U32\n"
-                ">>> obj = F32ToI16U32(scale=32768.0)\n",
+                ">>> obj = F32ToI16U32()\n",
   .tp_methods = F32ToI16U32Obj_methods,
   .tp_getset  = F32ToI16U32_getset,
   .tp_new     = F32ToI16U32Obj_new,

@@ -352,7 +352,7 @@ static PyTypeObject I8ToF32ObjType = {
                                             "Create with defaults:\n"
                                             "\n"
                                             ">>> from doppler.cvt import I8ToF32\n"
-                                            ">>> obj = I8ToF32(scale=128.0)\n",
+                                            ">>> obj = I8ToF32()\n",
   .tp_methods                             = I8ToF32Obj_methods,
   .tp_new                                 = I8ToF32Obj_new,
   .tp_init                                = (initproc)I8ToF32Obj_init,

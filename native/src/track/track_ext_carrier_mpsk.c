@@ -887,14 +887,7 @@ static PyTypeObject CarrierMpskObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.track import CarrierMpsk\n"
-    ">>> obj = CarrierMpsk(\n"
-    "...     bn=0.05,\n"
-    "...     zeta=0.707,\n"
-    "...     init_norm_freq=0.0,\n"
-    "...     tsamps=64,\n"
-    "...     bn_fll=0.0,\n"
-    "...     m=4,\n"
-    "... )\n",
+    ">>> obj = CarrierMpsk()\n",
   .tp_methods = CarrierMpskObj_methods,
   .tp_getset  = CarrierMpsk_getset,
   .tp_new     = CarrierMpskObj_new,

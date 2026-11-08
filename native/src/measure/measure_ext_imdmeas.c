@@ -637,13 +637,7 @@ static PyTypeObject IMDMeasureObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.measure import IMDMeasure\n"
-    ">>> obj = IMDMeasure(\n"
-    "...     n=8192,\n"
-    "...     fs=1.0,\n"
-    "...     full_scale=1.0,\n"
-    "...     bits=0,\n"
-    "...     dynamic_range_db=0.0,\n"
-    "... )\n",
+    ">>> obj = IMDMeasure()\n",
   .tp_methods = IMDMeasureObj_methods,
   .tp_getset  = IMDMeasure_getset,
   .tp_new     = IMDMeasureObj_new,

@@ -476,7 +476,7 @@ static PyTypeObject F32ToI8ObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.cvt import F32ToI8\n"
-    ">>> obj = F32ToI8(scale=128.0)\n",
+    ">>> obj = F32ToI8()\n",
   .tp_methods = F32ToI8Obj_methods,
   .tp_getset  = F32ToI8_getset,
   .tp_new     = F32ToI8Obj_new,

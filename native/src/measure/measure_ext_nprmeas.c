@@ -656,13 +656,7 @@ static PyTypeObject NPRMeasureObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.measure import NPRMeasure\n"
-    ">>> obj = NPRMeasure(\n"
-    "...     n=8192,\n"
-    "...     fs=1.0,\n"
-    "...     full_scale=1.0,\n"
-    "...     bits=0,\n"
-    "...     dynamic_range_db=0.0,\n"
-    "... )\n",
+    ">>> obj = NPRMeasure()\n",
   .tp_methods = NPRMeasureObj_methods,
   .tp_getset  = NPRMeasure_getset,
   .tp_new     = NPRMeasureObj_new,

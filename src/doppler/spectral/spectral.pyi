@@ -2828,7 +2828,7 @@ class CorrDetector2D:
         """Test-stat gate: 0 fires on every dump, > 0 on test_stat above it."""
 
     @property
-    def last_corr(self) -> NDArray[np.complex64]:
+    def last_corr(self) -> NDArray[np.complex64] | None:
         """The correlation vector from the most recent push() that produced a
         result (None before that, and after reset() or set_state(): the vector
         is not part of the serialized state). This is a zero-copy view into a
@@ -3108,7 +3108,7 @@ class CorrDetector:
         """Test-stat gate: 0 fires on every dump, > 0 on test_stat above it."""
 
     @property
-    def last_corr(self) -> NDArray[np.complex64]:
+    def last_corr(self) -> NDArray[np.complex64] | None:
         """The correlation vector from the most recent push() that produced a
         result (None before that, and after reset() or set_state(): the vector
         is not part of the serialized state). This is a zero-copy view into a
@@ -3753,13 +3753,7 @@ class Spectrogram:
     Create with defaults:
 
     >>> from doppler.spectral import Spectrogram
-    >>> obj = Spectrogram(
-    ...     nfft=256,
-    ...     hop=0,
-    ...     window="hann",
-    ...     beta=0.0,
-    ...     mode="power",
-    ... )
+    >>> obj = Spectrogram()
 
     """
 

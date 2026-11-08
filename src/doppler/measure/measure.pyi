@@ -348,15 +348,7 @@ class ToneMeasure:
     Create with defaults:
 
     >>> from doppler.measure import ToneMeasure
-    >>> obj = ToneMeasure(
-    ...     n=8192,
-    ...     fs=1.0,
-    ...     n_harmonics=8,
-    ...     full_scale=1.0,
-    ...     bits=0,
-    ...     dynamic_range_db=0.0,
-    ...     dc_guard=0,
-    ... )
+    >>> obj = ToneMeasure()
 
     """
 
@@ -650,13 +642,7 @@ class NPRMeasure:
     Create with defaults:
 
     >>> from doppler.measure import NPRMeasure
-    >>> obj = NPRMeasure(
-    ...     n=8192,
-    ...     fs=1.0,
-    ...     full_scale=1.0,
-    ...     bits=0,
-    ...     dynamic_range_db=0.0,
-    ... )
+    >>> obj = NPRMeasure()
 
     """
 
@@ -877,13 +863,7 @@ class IMDMeasure:
     Create with defaults:
 
     >>> from doppler.measure import IMDMeasure
-    >>> obj = IMDMeasure(
-    ...     n=8192,
-    ...     fs=1.0,
-    ...     full_scale=1.0,
-    ...     bits=0,
-    ...     dynamic_range_db=0.0,
-    ... )
+    >>> obj = IMDMeasure()
 
     """
 

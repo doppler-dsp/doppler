@@ -31,12 +31,7 @@ class DopplerChannel:
     Create with defaults:
 
     >>> from doppler.impairment import DopplerChannel
-    >>> obj = DopplerChannel(
-    ...     fs=1000000.0,
-    ...     carrier_hz=0.0,
-    ...     doppler_ppm=0.0,
-    ...     doppler_rate_ppm_s=0.0,
-    ... )
+    >>> obj = DopplerChannel()
 
     """
 

@@ -1056,7 +1056,7 @@ static PyTypeObject TelemetryObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.telemetry import Telemetry\n"
-    ">>> obj = Telemetry(ring_records=16384)\n",
+    ">>> obj = Telemetry()\n",
   .tp_methods = TelemetryObj_methods,
   .tp_getset  = Telemetry_getset,
   .tp_new     = TelemetryObj_new,

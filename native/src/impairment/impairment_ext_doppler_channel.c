@@ -1058,12 +1058,7 @@ static PyTypeObject DopplerChannelObjType = {
     "Create with defaults:\n"
     "\n"
     ">>> from doppler.impairment import DopplerChannel\n"
-    ">>> obj = DopplerChannel(\n"
-    "...     fs=1000000.0,\n"
-    "...     carrier_hz=0.0,\n"
-    "...     doppler_ppm=0.0,\n"
-    "...     doppler_rate_ppm_s=0.0,\n"
-    "... )\n",
+    ">>> obj = DopplerChannel()\n",
   .tp_methods = DopplerChannelObj_methods,
   .tp_getset  = DopplerChannel_getset,
   .tp_new     = DopplerChannelObj_new,

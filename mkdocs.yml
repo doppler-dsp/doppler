@@ -402,6 +402,7 @@ nav:
               - "CoarseChannel — is a channel an object, or a slice of the bank?": design/coarse-channel.md
               - "Design — pure-functional acquisition kernel (elastic fleet)": design/acq-fn.md
               - "One correlator: the step-3 design": design/correlator.md
+              - "One Python class: the step-4 design": design/correlator-python.md
               - "The acquisition surface — the measurement record": design/acq-surface-measurements.md
               - "The acquisition surface: the DSSS search engine": design/acq-surface.md
           - "Tracking & synchronization":

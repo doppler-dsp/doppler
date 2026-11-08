@@ -42,7 +42,7 @@ Pages filed under another domain that name a symbol of this module, or link to o
 - [Channel impairment](impairment.md): [The Doppler channel — one parameter, both clocks and the carrier](../design/doppler-channel.md)
 - [Spectral analysis](spectral.md): [Power Spectra & Measurements](../guide/spectral-psd.md), [Streaming Spectrograms](../guide/spectrogram.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md)
 - [Spectrum analyzer](analyzer.md): [Spectrum Analyzer](../design/specan.md)
-- [Acquisition](acquire.md): [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [BurstCapture: acquisition's output, turned into bursts](../design/burst-capture.md), [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [One correlator: the step-3 design](../design/correlator.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
+- [Acquisition](acquire.md): [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [BurstCapture: acquisition's output, turned into bursts](../design/burst-capture.md), [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
 - [Tracking & synchronization](track.md): [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [The Loop Filter](../design/loop-filter.md)
 - [Automatic gain control (AGC)](agc.md): [Automatic Gain Control](../design/agc.md)
 - [Detection statistics](detection.md): [Lock Detection — the reasoning](../design/lock-detect.md)

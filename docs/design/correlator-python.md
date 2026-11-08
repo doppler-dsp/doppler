@@ -20,19 +20,19 @@ C forwarder goes with them (step 1, folded here).
 This page also settles three linked issues that step 4 needs:
 
 - [#2683](https://github.com/doppler-dsp/doppler/issues/2683): the Python
-    batch contract (§9);
+    batch contract (§10);
 - [#2900](https://github.com/doppler-dsp/doppler/issues/2900): bench rows
-    that keep their history across a rename (§10);
+    that keep their history across a rename (§11);
 - [#2901](https://github.com/doppler-dsp/doppler/issues/2901): the flavor
-    recorded twice (§11).
+    recorded twice (§12).
 
 The owner's two rules still hold: no private copy survives, and speed only
 goes up. Step 4 is mostly binding and documentation. Its C changes are a
 constructor dispatcher (§3), `BurstCapture` calling the engine directly
-(§7), and #2901 (§11). This follows
+(§8), and #2901 (§12). This follows
 [Adding an algorithm](../dev/contributing/adding-algorithms.md) from phase 1.
 
-**This page proposes; it decides nothing until review.** §15 lists the
+**This page proposes; it decides nothing until review.** §16 lists the
 decisions with a recommendation for each.
 
 ## 1. Who calls it, and with what
@@ -46,7 +46,8 @@ decisions with a recommendation for each.
 | `BurstCapture`, `DsssReceiver`, `AsyncDsssReceiver` (C) | the engine, composed in C; Python never sees it                           |
 | `doppler.dsss.orchestrator` (Python)                    | a burst search per channel, built as `BurstAcquisition` today             |
 
-The last row is a fourth consumer the taxonomy's table does not list. It
+The last row is a fourth consumer, which the taxonomy's table
+([§6.4](api-taxonomy.md#64-consolidation-one-primitive-correlator)) now lists too. It
 builds one `BurstAcquisition` per channel (`orchestrator.py:214`) and hands
 it out through an `acquisition` property.
 
@@ -108,6 +109,12 @@ dp_correlator_state_t *dp_correlator_create (
     int nthreads);
 ```
 
+It is positional because jm's `init_params` map one to one onto the C
+constructor's arguments; the Python face is the keyword call below. C
+callers are pointed at the seven flavor constructors, and the
+dispatcher's own doc in `correlator_core.h` says so: it is the binding's
+entry point, not one a C caller should write by hand.
+
 **How the knobs pick the flavor:**
 
 | `framing`    | `ref`     | `doppler_rows` | `detect` | flavor              | replaces           |
@@ -153,7 +160,9 @@ before any code:**
     samples. Recommended: the dispatcher takes the chips as cf32 NRZ
     (+1/-1, cvt's mapper), as the burst flavor already takes its preamble.
     Then "the reference is always samples" holds, and `DsssReceiver`'s C
-    path keeps calling the uint8 constructor directly.
+    path keeps calling the uint8 constructor directly. The dispatcher
+    refuses any chip that is not exactly +1 or -1 (a `create_error` naming
+    `ref`), so a shaped or noisy reference cannot quantize silently.
 1. **A string-enum `framing`.** jm has `string_enum:` init params
     (`noise_mode` uses one), so this is expected to work as-is.
 
@@ -171,13 +180,16 @@ searches, `surface*`, `eta`, `pd_predicted` and the rest to searches.
     a flavor that does not serve the call, and the binding raises. The
     docstring names the flavors that serve it.
 - **Properties on the search record** read through `search`, which is
-    `NULL` for a map or detector flavor. A plain `expr` would dereference
-    `NULL`. Recommended: each such property reads through a C accessor that
-    returns NaN (floats) or 0 (counts) off a search flavor, documented as
-    such. Raising would be better if a jm property getter can raise; that
-    is checked in phase 2 with the three items in §3.
+    `NULL` for a map or detector flavor. They **raise** there, an
+    `AttributeError` naming the flavors that serve the property, through a
+    C accessor that refuses off a search flavor. A NaN or a 0 would be a
+    silent wrong answer: `Correlator(ref).eta` reading NaN looks like a
+    measurement. Whether a jm property getter can raise is checked in phase
+    2 with the items in §3. If it cannot, that is a jm ask, filed and
+    fixed upstream before the class ships (the path just-makeit#2516
+    took), never a NaN fallback.
 - **A `flavor` property** (string) says which flavor the knobs built, so
-    a caller who is unsure can ask instead of guessing from a NaN.
+    a caller can ask before reading a member, instead of catching the error.
 
 ## 5. What `push` returns
 
@@ -203,7 +215,34 @@ To confirm in phase 2: jm renders `record_dtype` + `variable_output` on a
 method that also takes a cf32 input array. `BurstCapture`'s record methods
 take no input (`arg_type = "void"`).
 
-## 6. The module
+## 6. State serialization
+
+`correlator.toml` already declares `serializable = "true"` once for every
+flavor, and each flavor's blob names its flavor, so a blob from one is
+refused by another (step 3.4b). Step 4 keeps that one declaration; what
+changes is the Python side.
+
+- **The state matrix** (`src/doppler/tests/test_state_serialization.py`)
+    gains one `(make, feed)` entry per flavor with running state, spelled
+    `Correlator(...)`, replacing the retired classes' entries one for one:
+    `Corr`, `Corr2D`, `DelayDoppler`, `CorrDetector`, `CorrDetector2D` and
+    `BurstAcquisition (Zadoff-Chu)`. `Acquisition` has no entry today
+    (#2078); the continuous flavor gets one, a split mid-stream through
+    `push`, so it is held like the other six.
+- **The #2022 mutator gate** (`test_mutator_state.py`) sees the merged
+    members: every mutator is in the blob or on
+    `scripts/.mutator-state-exempt`, and that list only shrinks. Its rows
+    move from the retired names to `Correlator`'s
+    (`Acquisition.keep_surface` becomes `Correlator.keep_surface`), and the
+    seven `Acquisition.* NO_RECIPE` rows, which exist only because
+    `Acquisition` had no matrix entry, are probed once the continuous
+    flavor has one. Each then leaves the list or stays with its own reason.
+- **Cross-flavor refusal through Python:** one test, a blob from each
+    flavor offered to every other, each refused with `ValueError` and the
+    target unchanged, the Python twin of the C
+    `_search_flavor_cross_load_check`.
+
+## 7. The module
 
 - **New module `doppler.correlation`**: `modules/correlation.toml`, objects
     `["correlator"]`, and a `[domain.correlation]` entry in
@@ -224,7 +263,7 @@ take no input (`arg_type = "void"`).
 `Correlator`'s docstring and guide say it is "also called acquisition when
 it is part of a detector or receiver", so a search for the word lands on it.
 
-## 7. Retiring `burst_acq`
+## 8. Retiring `burst_acq`
 
 What goes:
 
@@ -246,11 +285,11 @@ Oracle: `BurstCapture`'s C and Python tests and its validator
 green; and its state blob byte-identical, since the forwarder's blob
 already was the engine's.
 
-## 8. The objects that compose it
+## 9. The objects that compose it
 
 | consumer            | today                                     | step 4                                                                                |
 | ------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| `BurstCapture`      | C, through the `burst_acq` forwarder      | C, `dp_correlator_*` directly (§7)                                                    |
+| `BurstCapture`      | C, through the `burst_acq` forwarder      | C, `dp_correlator_*` directly (§8)                                                    |
 | `DsssReceiver`      | C, `dp_correlator_state_t`                | unchanged                                                                             |
 | `AsyncDsssReceiver` | C, `dp_correlator_state_t`                | unchanged                                                                             |
 | `dsss.orchestrator` | Python, `BurstAcquisition(preamble, ...)` | `Correlator(preamble, framing="burst", ...)`; its `acquisition` property returns that |
@@ -259,7 +298,7 @@ All three receivers forward `configure_search_raw` with their own
 docstrings. Those docstrings name `BurstAcquisition.doppler_bins` and
 `Acquisition`; they are rewritten to name `Correlator`.
 
-## 9. #2683: the Python batch contract
+## 10. #2683: the Python batch contract
 
 What #2683 asked for and where it stands:
 
@@ -294,7 +333,7 @@ The `Correlator` docstring says so, and #2683 closes on that.
 They move with the class into `src/doppler/correlation/tests/`. Each is
 proved by sabotaging its reducer in a copy.
 
-## 10. #2900: bench rows keep their history across a rename
+## 11. #2900: bench rows keep their history across a rename
 
 Step 4 renames rows again: `py:corr2d::*`, `py:acq::*` and
 `py:burst_acq::*` become `py:correlator::*`, and `c:burst_acq::*` becomes
@@ -328,7 +367,7 @@ entries in the table from the start. Its follow-up stays as #2900 names it:
 the old `c:corr::`/`c:corr2d::` label keys go once the next release
 publishes the new rows.
 
-## 11. #2901: the flavor recorded twice
+## 12. #2901: the flavor recorded twice
 
 `dp_correlator_state_t` has `flavor` and the older `delay_doppler` flag,
 which is 1 exactly when `flavor == DP_CORRELATOR_DELAY_DOPPLER`.
@@ -342,7 +381,7 @@ the pool row that #2886 diagnosed among them. If any row is slower, the
 other fix (keep the flag, set it only from `flavor` in one place) takes
 its place.
 
-## 12. Docs, examples, validation and benches
+## 13. Docs, examples, validation and benches
 
 **Guides and gallery**, rewritten for `Correlator`:
 
@@ -374,13 +413,14 @@ tested.
 **Validation.** The one report from step 3.5
 (`src/doppler/spectral/tests/validation/correlator/`) moves to
 `src/doppler/correlation/tests/validation/correlator/` and its Python face
-switches to `Correlator`. The verdicts are the oracle (§13); the report is
+switches to `Correlator`. The verdicts are the oracle (§14); the report is
 not re-certified unless a verdict moves.
 
 **Benches.** `bench_corr.py`, `bench_correlator.py`, `bench_acq.py` and
-`bench_burst_acq.py` become one `src/doppler/correlation/benchmarks/ bench_correlator.py`, each row renamed through §10's table.
+`bench_burst_acq.py` become one `bench_correlator.py` in the
+`correlation` module's benchmarks, each row renamed through §11's table.
 
-## 13. Oracle and speed gate
+## 14. Oracle and speed gate
 
 - **Behaviour.** Every test that names a retired class runs against its
     `Correlator(...)` spelling with its expected values unchanged: the
@@ -397,41 +437,42 @@ not re-certified unless a verdict moves.
     record-array return (§5) is the one change on a measured path; its
     `push` rows are judged against the tuples they replace.
 
-## 14. Order of work
+## 15. Order of work
 
 Each item is its own PR. The release of step 3's C break comes first
 (#2752's order).
 
-1. **#2900**: `benchmarks/renames.toml` and its three readers (§10).
-1. **#2901**: one flavor field, with its own `bench-ab` (§11).
+1. **#2900**: `benchmarks/renames.toml` and its three readers (§11).
+1. **#2901**: one flavor field, with its own `bench-ab` (§12).
 1. **Phase 2 on a scratch project**: the three jm checks in §3, the
     property getter in §4 and the record array in §5. Any gap is filed and
     fixed upstream before 4.
 1. **The class**: `dp_correlator_create`, `modules/correlation.toml`, the
     seven views removed, the record array, the #2683 tests.
 1. **`burst_acq` retired**: `BurstCapture` on the engine directly, the
-    orchestrator on `Correlator` (§7, §8).
-1. **Docs and examples** ported (§12).
+    orchestrator on `Correlator` (§8, §9).
+1. **Docs and examples** ported (§13).
 1. **Release** step 4's Python break.
 
 Items 4 to 6 may land as one PR if splitting them would leave main with a
 class whose examples do not run.
 
-## 15. Decisions for review
+## 16. Decisions for review
 
-| #   | decision                           | recommended                                                               |
-| --- | ---------------------------------- | ------------------------------------------------------------------------- |
-| D1  | how one class gets every flavor    | one C dispatcher, `dp_correlator_create`, with every knob (§3)            |
-| D2  | the continuous search's reference  | cf32 NRZ chips through the dispatcher; C keeps the uint8 constructor (§3) |
-| D3  | a member its flavor does not serve | methods raise; search properties read NaN/0, or raise if jm can (§4)      |
-| D4  | `push`'s return                    | one structured array of `dp_correlator_hit_t`, no stack cap (§5)          |
-| D5  | old class names                    | none kept, no aliases (§6)                                                |
-| D6  | #2683's extensibility              | fixed reducers + `execute_all` are the Python contract; fold stays C (§9) |
-| D7  | #2900's shape                      | `benchmarks/renames.toml`, read by report, label gate and bench-ab (§10)  |
-| D8  | #2901                              | drop `delay_doppler`, branch on `flavor`, if bench-ab ties (§11)          |
+| #   | decision                           | recommended                                                                               |
+| --- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| D1  | how one class gets every flavor    | one C dispatcher, `dp_correlator_create`, with every knob (§3)                            |
+| D2  | the continuous search's reference  | cf32 NRZ chips, anything not exactly +-1 refused; C keeps the uint8 constructor (§3)      |
+| D3  | a member its flavor does not serve | methods and properties raise; a getter jm cannot raise from is a jm ask, fixed first (§4) |
+| D4  | `push`'s return                    | one structured array of `dp_correlator_hit_t`, no stack cap (§5)                          |
+| D5  | old class names                    | none kept, no aliases (§7)                                                                |
+| D6  | #2683's extensibility              | fixed reducers + `execute_all` are the Python contract; fold stays C (§10)                |
+| D7  | #2900's shape                      | `benchmarks/renames.toml`, read by report, label gate and bench-ab (§11)                  |
+| D8  | #2901                              | drop `delay_doppler`, branch on `flavor`, if bench-ab ties (§12)                          |
 
 **Unknowns**, each checked before the code that depends on it:
 
 - whether jm can take a 1-D or 2-D `ref` in one init param (§3);
-- whether a jm property getter can raise (§4);
+- whether a jm property getter can raise (§4); if not, a jm ask, fixed
+    before the class ships;
 - whether jm renders a record array on a method with an input array (§5).

@@ -4203,6 +4203,27 @@ class DsssBurstReceiver:
         NDArray[Any]
             Records written to out -- `min(events_max_out(), max_out)`.
 
+            One row per `dsss_br_event_t` record, with fields:
+
+            preamble_start : int
+                Refined stream position of the preamble.
+            doppler_hz_est : float
+                Signed coarse Doppler, Hz.
+            doppler_res_hz : float
+                Acquisition's native bin width, Hz.
+            cn0_dbhz_est : float
+                C/N0 estimate from the hit, dB-Hz.
+            est_freq_hz : float
+                Demod's residual-frequency estimate.
+            est_rate_hz : float
+                Demod's chirp-rate estimate.
+            demod_cn0_dbhz : float
+                Demod's C/N0, dB-Hz, channel-referred.
+            demod_timing_chips : float
+                Start error the demod measured, chips.
+            frame_valid : int
+                The frame passed its error detection.
+
         Examples
         --------
         >>> import numpy as np

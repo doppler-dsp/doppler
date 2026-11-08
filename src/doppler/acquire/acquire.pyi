@@ -1070,6 +1070,19 @@ class BurstCapture:
             min(detections held, max_out): the rows copied, or with a NULL out
             the rows that would have been.
 
+            One row per `burst_capture_detection_t` record, with fields:
+
+            epoch : int
+                Stream-absolute code epoch of the hit.
+            doppler_hz : float
+                Signed coarse Doppler, folded, Hz.
+            cn0_dbhz : float
+                C/N0 estimate from the hit, dB-Hz.
+            test_stat : float
+                The CFAR gating statistic, peak over noise.
+            peak_mag : float
+                Raw CFAR peak magnitude.
+
         Examples
         --------
         >>> import numpy as np
@@ -1125,6 +1138,19 @@ class BurstCapture:
         NDArray[Any]
             min(windows of the last push, max_out): the rows copied, or with a
             NULL out the rows that would have been.
+
+            One row per `burst_capture_event_t` record, with fields:
+
+            preamble_start : int
+                Refined stream position of the preamble.
+            doppler_hz_est : float
+                Signed coarse Doppler, Hz.
+            doppler_res_hz : float
+                Acquisition's native bin width, Hz.
+            cn0_dbhz_est : float
+                C/N0 estimate from the hit, dB-Hz.
+            doppler_rate_hz_s : float
+                Refine's winning rate hypothesis, Hz/s: the rate whose de-chirp made the whole preamble's coherent sum largest at preamble_start. One of refine's R grid points from -doppler_rate to +doppler_rate, spaced 2*doppler_rate/(R - 1); 0 without a declared rate (doppler_rate 0). Refine searches the grid whenever a rate is declared, with one acquisition hypothesis or many (doppler#2219). A hypothesis, not a fit, from the whole preamble rather than one dwell: it is the grid point nearest the carrier's rate in every event 23 dB over the design point, on or off the grid. At the design point it is in 82% to 89% of events whose rate is ON a grid point, but in 51% of those 0.4 of a step off one, where the neighbouring point is only 0.6 of a step away (validate_acq_rate_pd's event-rate rows; docs/design/burst-capture.md). Appended last, so positional initialisers do not shift (doppler#2219).
 
         Examples
         --------
@@ -1830,6 +1856,19 @@ class PersistentBurstCapture:
             min(detections held, max_out): the rows copied, or with a NULL out
             the rows that would have been.
 
+            One row per `burst_capture_detection_t` record, with fields:
+
+            epoch : int
+                Stream-absolute code epoch of the hit.
+            doppler_hz : float
+                Signed coarse Doppler, folded, Hz.
+            cn0_dbhz : float
+                C/N0 estimate from the hit, dB-Hz.
+            test_stat : float
+                The CFAR gating statistic, peak over noise.
+            peak_mag : float
+                Raw CFAR peak magnitude.
+
         Examples
         --------
         >>> import numpy as np
@@ -1885,6 +1924,19 @@ class PersistentBurstCapture:
         NDArray[Any]
             min(windows of the last push, max_out): the rows copied, or with a
             NULL out the rows that would have been.
+
+            One row per `burst_capture_event_t` record, with fields:
+
+            preamble_start : int
+                Refined stream position of the preamble.
+            doppler_hz_est : float
+                Signed coarse Doppler, Hz.
+            doppler_res_hz : float
+                Acquisition's native bin width, Hz.
+            cn0_dbhz_est : float
+                C/N0 estimate from the hit, dB-Hz.
+            doppler_rate_hz_s : float
+                Refine's winning rate hypothesis, Hz/s: the rate whose de-chirp made the whole preamble's coherent sum largest at preamble_start. One of refine's R grid points from -doppler_rate to +doppler_rate, spaced 2*doppler_rate/(R - 1); 0 without a declared rate (doppler_rate 0). Refine searches the grid whenever a rate is declared, with one acquisition hypothesis or many (doppler#2219). A hypothesis, not a fit, from the whole preamble rather than one dwell: it is the grid point nearest the carrier's rate in every event 23 dB over the design point, on or off the grid. At the design point it is in 82% to 89% of events whose rate is ON a grid point, but in 51% of those 0.4 of a step off one, where the neighbouring point is only 0.6 of a step away (validate_acq_rate_pd's event-rate rows; docs/design/burst-capture.md). Appended last, so positional initialisers do not shift (doppler#2219).
 
         Examples
         --------

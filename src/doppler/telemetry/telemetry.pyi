@@ -93,6 +93,17 @@ class Telemetry:
         NDArray[Any]
             Number of records copied out.
 
+            One row per `dp_tlm_rec_t` record, with fields:
+
+            n : int
+                Caller-stamped sample index (dp_tlm_set_now).
+            value : float
+                The scalar, narrowed to float.
+            probe : int
+                Probe id; index into the registry.
+            flags : int
+                Reserved; always 0.
+
         Examples
         --------
         >>> from doppler.telemetry import Telemetry
@@ -579,6 +590,17 @@ class MemoryCapture:
         -------
         NDArray[Any]
             Number of records copied out.
+
+            One row per `dp_tlm_rec_t` record, with fields:
+
+            n : int
+                Caller-stamped sample index (Telemetry.set_now).
+            value : float
+                The scalar, narrowed to float.
+            probe : int
+                Probe id; index into the registry.
+            flags : int
+                Reserved; always 0.
 
         Examples
         --------

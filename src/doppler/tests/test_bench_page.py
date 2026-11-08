@@ -804,3 +804,102 @@ def test_a_label_with_a_count_reads_an_unknown_unit(tmp_path: Path) -> None:
     assert br.label_problems(str(tree)) == []
     row = _row(br.page_data(str(tree)), "c:costas::steps")
     assert (row["dom"], row["cnt"]) == ("byte", 1)
+
+
+# ── A renamed family (#2900) ───────────────────────────────────────────────
+#
+# benchmarks/renames.toml says `c:oldloop` became `c:costas`: the page joins
+# the two histories, the label gate wants one label under the new ID, and an
+# exempt line rewritten to the new ID is not one added.
+
+RENAME = '"c:oldloop" = "c:costas"\n'
+
+
+def _renames(tree: Path, text: str = RENAME, built=("costas",)) -> Path:
+    (tree / "benchmarks" / "renames.toml").write_text(text, encoding="utf-8")
+    for comp in built:
+        (tree / "native" / "benchmarks" / comp).mkdir(parents=True)
+    return tree
+
+
+def test_a_renamed_rows_history_continues(tmp_path: Path) -> None:
+    rel = {
+        "v0.70.0": [_c("oldloop::steps", 2e-3, 4096, {"unit": "sample"})],
+        "v0.71.0": [_c("costas::steps", 1e-3, 4096, {"unit": "sample"})],
+    }
+    br = _load()
+    tree = _renames(_tree(tmp_path, rel, LABEL))
+    data = br.page_data(str(tree))
+    assert [r["id"] for r in data["rows"]] == ["c:costas::steps"]
+    row = _row(data, "c:costas::steps")
+    assert all(p is not None for p in row["p"]), row["p"]
+    assert row["sl"] == 1.0  # twice as fast as the release before
+    assert br.label_problems(str(tree)) == []
+
+
+def test_a_row_published_under_its_old_id_takes_the_new_label(
+    tmp_path: Path,
+) -> None:
+    """The newest release may still carry the old ID (v0.80.0's `c:acq`
+    rows): it reads as the new row, labelled once, under the new key."""
+    rel = {"v0.71.0": [_c("oldloop::steps", 1e-3, 4096, {"unit": "sample"})]}
+    br = _load()
+    tree = _renames(_tree(tmp_path / "a", rel, LABEL))
+    assert br.label_problems(str(tree)) == []
+    old_key = LABEL.replace("c:costas::steps", "c:oldloop::steps")
+    tree = _renames(_tree(tmp_path / "b", rel, old_key))
+    bad = br.label_problems(str(tree))
+    assert any("is a renamed row" in b for b in bad), bad
+    tree = _renames(_tree(tmp_path / "c", rel, LABEL + "\n" + old_key))
+    bad = br.label_problems(str(tree))
+    assert any("two labels for the one row" in b for b in bad), bad
+
+
+@pytest.mark.parametrize(
+    ("text", "built", "said"),
+    [
+        ('"c:never" = "c:costas"\n', ("costas",), "published by no release"),
+        (RENAME, ("costas", "oldloop"), "is still built"),
+        (RENAME, (), "built by no bench"),
+        ('"c:oldloop" = "py:costas"\n', ("costas",), "is not one family"),
+        ('"c:oldloop::steps" = "c:costas"\n', ("costas",), "not one family"),
+    ],
+)
+def test_the_rename_table_refuses(
+    tmp_path: Path, text: str, built: tuple, said: str
+) -> None:
+    rel = {"v0.71.0": [_c("oldloop::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _renames(_tree(tmp_path, rel, LABEL), text, built)
+    bad = _load().label_problems(str(tree))
+    assert any(said in b for b in bad), bad
+
+
+def test_a_rename_that_merges_two_rows_is_refused(tmp_path: Path) -> None:
+    rel = {
+        "v0.71.0": [
+            _c("oldloop::steps", 1e-3, 4096, {"unit": "sample"}),
+            _c("costas::steps", 1e-3, 4096, {"unit": "sample"}),
+        ]
+    }
+    tree = _renames(_tree(tmp_path, rel, LABEL))
+    bad = _load().label_problems(str(tree))
+    assert any("makes one row, `c:costas::steps`" in b for b in bad), bad
+
+
+def test_an_exempt_line_written_under_its_new_id_is_not_added(
+    tmp_path: Path,
+) -> None:
+    rel = {"v0.71.0": [_c("oldloop::steps", 1e-3, 4096, {"unit": "sample"})]}
+    tree = _renames(_tree(tmp_path, rel, "", exempt=["c:oldloop::steps"]))
+    _git(tree, "init", "-q", "-b", "main")
+    _commit(tree, "base")
+    (tree / "benchmarks" / ".labels-exempt").write_text(
+        "c:costas::steps\n", encoding="utf-8"
+    )
+    assert _load().label_problems(str(tree), base="main") == []
+    # and the old spelling is refused, so the list holds one per row
+    (tree / "benchmarks" / ".labels-exempt").write_text(
+        "c:oldloop::steps\n", encoding="utf-8"
+    )
+    bad = _load().label_problems(str(tree), base="main")
+    assert any("write it `c:costas::steps`" in b for b in bad), bad

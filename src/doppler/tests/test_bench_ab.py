@@ -297,33 +297,42 @@ def test_main_exits_2_when_a_ref_is_a_dirty_head(monkeypatch, capsys):
     assert "dirty" in capsys.readouterr().out
 
 
-# ── ALIAS: a family renamed between A and B (#2752 step 3.2) ───────────────
+# ── A family renamed between A and B (#2900) ───────────────────────────────
 #
-# corr2d:: rows on main are correlator:: rows on the branch. An alias pairs
-# them suffix for suffix, and a governed row that does not pair fails.
+# corr2d:: rows on main are correlator:: rows on the branch.
+# benchmarks/renames.toml pairs them suffix for suffix, and a governed row
+# that does not pair fails.
 
-RENAME = ["-k", "3", "--alias", "corr2d=correlator"]
+RENAMES = {"c:corr2d": "c:correlator"}
 
 
-def test_a_renamed_family_pairs_under_its_alias(monkeypatch, capsys):
+def _renamed(monkeypatch, table=None):
+    monkeypatch.setattr(
+        AB, "read_renames", lambda root: RENAMES if table is None else table
+    )
+
+
+def test_a_renamed_family_pairs_through_the_table(monkeypatch, capsys):
     """Each A row is judged against B's row of the same suffix, and the
     verdict says which A name it was measured under."""
     a = {"corr2d::x": 1.0, "corr2d::y": 1.0, "fft::z": 1.0}
     b = {"correlator::x": 1.0, "correlator::y": 1.0, "fft::z": 1.0}
     _fake_main(monkeypatch, [a] * 3, [b] * 3)
-    assert AB.main(["A", "B", *RENAME]) == 0
+    _renamed(monkeypatch)
+    assert AB.main(["A", "B", "-k", "3"]) == 0
     out = capsys.readouterr().out
-    assert "alias in force: A corr2d::<row> is B correlator::<row>" in out
-    assert "c:correlator::x <- corr2d::x" in out
+    assert "A c:corr2d::<row> is B c:correlator::<row>" in out
+    assert "c:correlator::x <- c:corr2d::x" in out
     assert "3 tie" in out
 
 
-def test_an_aliased_row_slower_in_b_still_fails(monkeypatch):
-    """The alias pairs; it does not forgive."""
+def test_a_renamed_row_slower_in_b_still_fails(monkeypatch):
+    """The rename pairs; it does not forgive."""
     _fake_main(
         monkeypatch, [{"corr2d::x": 1.0}] * 3, [{"correlator::x": 1.5}] * 3
     )
-    assert AB.main(["A", "B", *RENAME]) == 1
+    _renamed(monkeypatch)
+    assert AB.main(["A", "B", "-k", "3"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -332,7 +341,7 @@ def test_an_aliased_row_slower_in_b_still_fails(monkeypatch):
         # B dropped one renamed row: A only.
         ({"corr2d::x": 1.0, "corr2d::y": 1.0}, {"correlator::x": 1.0}, "y"),
         # B grew a row in the renamed family that A never had: B only.
-        # Unaliased it would be NEW, which passes; aliased it must pair.
+        # Unrenamed it would be NEW, which passes; renamed it must pair.
         (
             {"corr2d::x": 1.0},
             {"correlator::x": 1.0, "correlator::w": 1.0},
@@ -340,78 +349,94 @@ def test_an_aliased_row_slower_in_b_still_fails(monkeypatch):
         ),
     ],
 )
-def test_an_aliased_row_on_one_side_only_is_refused(
+def test_a_renamed_row_on_one_side_only_is_refused(
     monkeypatch, capsys, a, b, row
 ):
-    # An unaliased row both sides share, so the run reaches its verdicts
-    # whatever the alias pairs.
+    # A row both sides share, so the run reaches its verdicts whatever the
+    # rename pairs.
     a, b = {**a, "fft::z": 1.0}, {**b, "fft::z": 1.0}
     _fake_main(monkeypatch, [a] * 3, [b] * 3)
-    assert AB.main(["A", "B", *RENAME]) == 1
+    _renamed(monkeypatch)
+    assert AB.main(["A", "B", "-k", "3"]) == 1
     out = capsys.readouterr().out
     assert f"c:correlator::{row}" in out
     assert "UNPAIRED" in out
 
 
-def test_an_unaliased_rename_still_shows_as_unpaired(monkeypatch, capsys):
-    """Without the alias, the renamed family is MISSING on A's side and NEW
-    on B's, and the run fails: a rename is never silently paired. The shared
-    `fft::z` row lets the run reach its verdicts rather than stopping on
-    "no row was measured on both sides"."""
+def test_an_undeclared_rename_shows_as_missing_and_new(monkeypatch, capsys):
+    """With no table entry, the renamed family is MISSING on A's side and
+    NEW on B's, and the run fails: a rename is never paired by
+    resemblance."""
     a = {"corr2d::x": 1.0, "fft::z": 1.0}
     b = {"correlator::x": 1.0, "fft::z": 1.0}
     _fake_main(monkeypatch, [a] * 3, [b] * 3)
+    _renamed(monkeypatch, {})
     assert AB.main(["A", "B", "-k", "3"]) == 1
     out = capsys.readouterr().out
     assert "1 missing" in out and "1 new" in out
     assert "c:corr2d::x" in out and "c:correlator::x" in out
 
 
-def test_an_alias_that_pairs_nothing_is_refused(monkeypatch, capsys):
-    """Absent is not a pass: an alias naming a family neither side has."""
-    _fake_main(monkeypatch, [{"fft::z": 1.0}] * 3, [{"fft::z": 1.0}] * 3)
-    assert AB.main(["A", "B", "-k", "3", "--alias", "nope=gone"]) == 1
-    assert "A has no nope:: row" in capsys.readouterr().out
+def test_the_rows_make_bench_writes_pair_by_row_id():
+    """Real rows carry a ``name`` and a ``fullname``. C rows pair by the
+    page's ID, not the bench binary; a Python row keeps its ID when its
+    bench file moves to another module (step 4 moves the correlator's)."""
+
+    def row(name, full, m):
+        return {"name": name, "fullname": full, "stats": {"min": m}}
+
+    a = {
+        "c": [{"benchmarks": [row("corr2d::x", "bench_corr2d_core::x", 1.0)]}]
+        * 3,
+        "py": [
+            {
+                "benchmarks": [
+                    row(
+                        "bench_correlator::test_t",
+                        "src/doppler/spectral/benchmarks/"
+                        "bench_correlator.py::test_t",
+                        1.0,
+                    )
+                ]
+            }
+        ]
+        * 3,
+    }
+    b = {
+        "c": [
+            {
+                "benchmarks": [
+                    row("correlator::x", "bench_correlator_core::x", 1.0)
+                ]
+            }
+        ]
+        * 3,
+        "py": [
+            {
+                "benchmarks": [
+                    row(
+                        "bench_correlator::test_t",
+                        "src/doppler/correlation/benchmarks/"
+                        "bench_correlator.py::test_t",
+                        1.0,
+                    )
+                ]
+            }
+        ]
+        * 3,
+    }
+    r, bad = AB.judge({"A": a, "B": b}, RENAMES)
+    assert bad == []
+    assert r["c:correlator::x"]["verdict"] == "TIE"
+    assert r["c:correlator::x"]["alias_from"] == "c:corr2d::x"
+    assert r["py:correlator::test_t"]["verdict"] == "TIE"
 
 
-def test_an_alias_that_pairs_nothing_stops_after_one_pass(monkeypatch, capsys):
-    """Caught after each side has run once, not after all K passes, and the
-    families each side does have are printed: the alias #2752 step 3.2 first
-    tried named the published family (`corr2d`) where rows are keyed by the
-    bench binary (`bench_corr2d_core`), and lost a full K=5 run to it."""
-    a = {"bench_corr2d_core::x": 1.0}
-    b = {"bench_correlator_core::x": 1.0}
-    _fake_main(monkeypatch, [a] * 5, [b] * 5)
-    runs = []
-    orig = AB.bench_once
-    monkeypatch.setattr(
-        AB, "bench_once", lambda wt, cpus: runs.append(wt) or orig(wt, cpus)
+def test_two_rows_the_table_makes_one_are_refused():
+    """A row renamed onto one A already has would silently drop one."""
+    *_, bad = AB.apply_renames(
+        {"c:old::x": [1.0], "c:new::x": [1.0]},
+        {"c:new::x": [1.0]},
+        {"c:old": "c:new"},
     )
-    assert AB.main(["A", "B", "-k", "5", "--alias", "corr2d=correlator"]) == 1
-    assert runs == ["A", "B"]
-    out = capsys.readouterr().out
-    assert "A has no corr2d:: row" in out
-    assert "A's C families: bench_corr2d_core" in out
-    assert "B's C families: bench_correlator_core" in out
-
-
-def test_the_binary_alias_pairs_real_fullnames(monkeypatch):
-    """The keys `make bench` actually writes, under the alias the docs give."""
-    a = {"bench_corr2d_core::x": 1.0, "bench_fft_core::z": 1.0}
-    b = {"bench_correlator_core::x": 1.0, "bench_fft_core::z": 1.0}
-    _fake_main(monkeypatch, [a] * 3, [b] * 3)
-    alias = "bench_corr2d_core=bench_correlator_core"
-    assert AB.main(["A", "B", "-k", "3", "--alias", alias]) == 0
-
-
-def test_an_alias_onto_a_family_a_already_has_is_refused():
-    """A renamed row may not overwrite a row A measured under the new name."""
-    _, _, bad = AB.apply_aliases(
-        {"old::x": [1.0], "new::x": [1.0]}, {"new::x": [1.0]}, [("old", "new")]
-    )
-    assert any("would replace A's own new::x" in p for p in bad)
-
-
-def test_a_malformed_alias_is_a_usage_error(monkeypatch):
-    _fake_main(monkeypatch, [{"r": 1.0}] * 3, [{"r": 1.0}] * 3)
-    assert AB.main(["A", "B", "-k", "3", "--alias", "corr2d"]) == 2
+    assert any("makes one row, c:new::x" in p for p in bad), bad

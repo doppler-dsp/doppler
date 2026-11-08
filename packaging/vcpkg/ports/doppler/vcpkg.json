@@ -1,6 +1,6 @@
 {
   "name": "doppler",
-  "version": "0.80.0",
+  "version": "0.81.0",
   "description": "Practical, portable, performant digital signal processing.",
   "homepage": "https://github.com/doppler-dsp/doppler",
   "license": "MIT",

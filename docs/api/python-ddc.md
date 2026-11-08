@@ -4,7 +4,7 @@ Digital Down-Converter — shifts a carrier to baseband and decimates in
 one call, backed by `dp_ddc_state_t` and `dp_ddcr_state_t`.
 
 Source:
-[`src/doppler/ddc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/ddc/__init__.py)
+[`src/doppler/ddc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/ddc/__init__.py)
 
 ______________________________________________________________________
 

@@ -10,7 +10,7 @@ Python module `doppler.ccsds`. Area: [Coding](index.md#coding).
 
 | Name | Kind | API | Guide | Gallery | Example | Design |
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
-| `asm_bits` | function | [asm_bits](../api/python-ccsds.md) | &nbsp; | &nbsp; | [ccsds_link_demo](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/ccsds_link_demo.py) | [A Frame as a Description](../design/frame-description.md)<br>[A Frame as a Description — the measurement record](../design/frame-description-measurements.md) |
+| `asm_bits` | function | [asm_bits](../api/python-ccsds.md) | &nbsp; | &nbsp; | [ccsds_link_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/ccsds_link_demo.py) | [A Frame as a Description](../design/frame-description.md)<br>[A Frame as a Description — the measurement record](../design/frame-description-measurements.md) |
 
 ## Gallery pages in this domain
 

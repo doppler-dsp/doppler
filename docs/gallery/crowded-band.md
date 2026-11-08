@@ -65,4 +65,4 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.crowded_band_demo crowded_band_demo.png
 ```
 
-Source: [`crowded_band_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/crowded_band_demo.py)
+Source: [`crowded_band_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/crowded_band_demo.py)

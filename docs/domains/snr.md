@@ -12,7 +12,7 @@ Python module `doppler.snr`. Area: [Estimation](index.md#estimation).
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
 | `snr_data_aided_db` | function | [snr_data_aided_db](../api/python-snr.md) | &nbsp; | &nbsp; | &nbsp; | [Receiver Test Harness](../design/rx-test.md) |
 | `snr_data_aided_db_series` | function | [snr_data_aided_db_series](../api/python-snr.md) | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
-| `snr_m2m4_db` | function | [snr_m2m4_db](../api/python-snr.md) | &nbsp; | [AsyncDsssReceiver: the specification link](../gallery/async-dsss-receiver-spec.md)<br>[M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md) | [async_dsss_receiver_spec_demo](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/async_dsss_receiver_spec_demo.py) | [Receiver Test Harness](../design/rx-test.md) |
+| `snr_m2m4_db` | function | [snr_m2m4_db](../api/python-snr.md) | &nbsp; | [AsyncDsssReceiver: the specification link](../gallery/async-dsss-receiver-spec.md)<br>[M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md) | [async_dsss_receiver_spec_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/async_dsss_receiver_spec_demo.py) | [Receiver Test Harness](../design/rx-test.md) |
 | `snr_m2m4_db_series` | function | [snr_m2m4_db_series](../api/python-snr.md) | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
 
 ## Used in other domains

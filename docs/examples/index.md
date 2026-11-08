@@ -1,7 +1,7 @@
 # Examples
 
 The runnable scripts under
-[`src/doppler/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.80.0/src/doppler/examples)
+[`src/doppler/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.81.0/src/doppler/examples)
 that don't get a rendered walkthrough in the [Gallery](../gallery/index.md) —
 raw building blocks, C programs, and the streaming demo.
 

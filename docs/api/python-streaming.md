@@ -13,7 +13,7 @@ PUSH/PULL rides the JetStream work-queue tier, so start it with
 `nats-server -js`. Endpoints are `nats://host:port/subject`.
 
 Source:
-[`src/doppler/stream/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/stream/__init__.py)
+[`src/doppler/stream/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/stream/__init__.py)
 
 For the C side and a runnable end-to-end walk-through, see the
 [Streaming examples](../examples/streaming.md).

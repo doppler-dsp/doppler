@@ -8,7 +8,7 @@ run once per `decim` samples with a first-order hold on the gain between updates
 — so a long block costs `O(n/decim)` control work, not `O(n)`.
 
 Source:
-[`src/doppler/agc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/agc/__init__.py)
+[`src/doppler/agc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/agc/__init__.py)
 
 See the [AGC gallery page](../gallery/agc.md) for convergence plots and the
 attack/decay behaviour under bursts.

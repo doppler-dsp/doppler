@@ -148,13 +148,13 @@ Skip this if you already have one:
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.80.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.81.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->
 
 The worked version of that check, and of every claim above, is
-[`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/native/examples/wfmgen_frame_demo.c):
+[`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/native/examples/wfmgen_frame_demo.c):
 it composes framed against unframed, demodulates the frame back to the
 description's own bits, shows one description making a three-frame record
 from three chunks of data -- its payload a `data:LEN` field, each frame the
@@ -169,7 +169,7 @@ make build
 
 **From Python**, where there is no ops table by design, the same end is
 reached by running the transform in the caller and handing the wire the
-result — [`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/frame_own_stage_demo.py), which describes the
+result — [`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/frame_own_stage_demo.py), which describes the
 same generic frame, whitens it with its own kernel and checks the recovered
 bits against the same description. The trade is the one
 [#1125](https://github.com/doppler-dsp/doppler/issues/1125) chose: once per

@@ -11,7 +11,7 @@ Everything in the `doppler.wfm` package imports from one place — `from doppler
 to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-nats-sink) below).
 
 Source:
-[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/wfm/__init__.py)
+[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/wfm/__init__.py)
 
 These same C cores back the one command-line tool, `wfmgen` — see the
 [Waveform Generator guide](../guide/wfmgen/index.md).
@@ -696,7 +696,7 @@ Python callback would make the one surface that must stay fast the one that
 cannot be ([#1125](https://github.com/doppler-dsp/doppler/issues/1125)). So
 `build()` refuses a kind it has no kernel for, and a Python caller reaches the
 same end by running the transform itself and handing the wire the result:
-[`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/frame_own_stage_demo.py) does exactly that, end to end,
+[`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/frame_own_stage_demo.py) does exactly that, end to end,
 and `native/examples/wfmgen_frame_demo.c` §6 does it the C way with an ops
 table. Both are self-validating.
 

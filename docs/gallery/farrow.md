@@ -51,4 +51,4 @@ This is the interpolation half of a symbol synchronizer: the integer NCO gives
 the symbol strobe and `µ` for free on overflow, and the Farrow produces the
 sample at that instant.
 
-Source: [`src/doppler/examples/farrow_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/farrow_demo.py).
+Source: [`src/doppler/examples/farrow_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/farrow_demo.py).

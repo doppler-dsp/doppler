@@ -334,7 +334,7 @@ settled. A hand-over can still miss (finding `handoff_can_miss_the_carrier`),
 and a burst that did not settle
 would be counted beside the loss. Both are measured, with the loss's
 interval, in the
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 (§2.6). Where the loss goes is the record's §2.7, measured by
 `validate_async_dsss_receiver_loss`
 (`native/validation/async_dsss_receiver_loss.c`): the specification's

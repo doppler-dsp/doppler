@@ -10,7 +10,7 @@ Python module `doppler.interrupt`. Area: [I/O](index.md#io).
 
 | Name | Kind | API | Guide | Gallery | Example | Design |
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
-| `Interrupt` | class | [Interrupt](../api/python-interrupt.md) | &nbsp; | &nbsp; | [graceful_shutdown_demo](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/graceful_shutdown_demo.py)<br>[receiver](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/receiver.py)<br>[ring_interrupt_demo](https://github.com/doppler-dsp/doppler/blob/v0.80.0/src/doppler/examples/ring_interrupt_demo.py) | [Ending a wait — one contract for network, memory and disk](../design/io-termination.md)<br>[Ending a capture — spooling an endless stream to disk while reading it back](../design/end-of-capture.md)<br>[Streaming — one envelope, six roles, two planes](../design/streaming.md) |
+| `Interrupt` | class | [Interrupt](../api/python-interrupt.md) | &nbsp; | &nbsp; | [graceful_shutdown_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/graceful_shutdown_demo.py)<br>[receiver](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/receiver.py)<br>[ring_interrupt_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/ring_interrupt_demo.py) | [Ending a wait — one contract for network, memory and disk](../design/io-termination.md)<br>[Ending a capture — spooling an endless stream to disk while reading it back](../design/end-of-capture.md)<br>[Streaming — one envelope, six roles, two planes](../design/streaming.md) |
 
 ## Design pages in this domain
 

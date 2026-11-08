@@ -1356,21 +1356,21 @@ samples = 1
 
 ["py:correlator::test_bench_corr2d_fallback"]
 name = "2-D correlator, 10 x 2,046, from Python"
-unit = "call"
+unit = "sample"
 definition = "One Corr2D.execute at dwell 1 on a 10 x 2,046 random frame against a full random reference, through the Python binding; 2,046 is not 16-aligned, so the 2-D FFT falls back to pocketfft. One call consumes 20,460 samples."
-samples = 20460
+samples = 1
 
 ["py:correlator::test_bench_corr2d_pffft"]
 name = "2-D correlator, 16 x 2,000, from Python"
-unit = "call"
+unit = "sample"
 definition = "One Corr2D.execute at dwell 1 on a 16 x 2,000 random frame against a full random reference, through the Python binding; both axes are 16-aligned and 5-smooth, so the 2-D FFT runs on pffft. One call consumes 32,000 samples."
-samples = 32000
+samples = 1
 
 ["py:correlator::test_bench_corr2d_pffft_dwell8"]
 name = "2-D correlator, 16 x 2,000, dwell 8, from Python"
-unit = "call"
+unit = "sample"
 definition = "One Corr2D.execute at dwell 8 on a 16 x 2,000 random frame through the Python binding, averaged over the dwell, so one call in eight also runs the inverse; the 2-D FFT runs on pffft. One call consumes 32,000 samples."
-samples = 32000
+samples = 1
 
 # acq's rows, measured from bench_correlator_core since #2752 step 3.4b (#2930).
 # The c:acq:: keys above keep v0.80.0 and earlier labelled; #2900 retires

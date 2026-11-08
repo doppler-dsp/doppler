@@ -5560,10 +5560,16 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
   if (doppler_rows != 0)
     CORR_REFUSE ("Correlator: a search sizes its own Doppler grid; "
                  "doppler_rows needs framing='none'");
-  if (dwell != 1 || ny_out != 0 || nx_out != 0 || col_out != -1
-      || nthreads != 1)
-    CORR_REFUSE ("Correlator: dwell, ny_out, nx_out, col_out and nthreads "
-                 "are a map's or a detector's; they need framing='none'");
+  if (dwell != 1 || ny_out != 0 || nx_out != 0 || col_out != -1)
+    CORR_REFUSE ("Correlator: dwell, ny_out, nx_out and col_out are a "
+                 "map's or a detector's; they need framing='none'");
+  /* A search does take a thread count, through set_threads(), and sizes
+     its own pool at create (every core across its tiles): nthreads' 1
+     here would be a different request, so it is not passed through. */
+  if (nthreads != 1)
+    CORR_REFUSE ("Correlator: a search sizes its own thread pool at "
+                 "create; nthreads applies to framing='none', and a "
+                 "search's count is set after create with set_threads()");
   if (threshold != 0.0f || noise_lo != 0 || noise_hi != SIZE_MAX)
     CORR_REFUSE ("Correlator: a search sets its threshold from pfa; "
                  "threshold, noise_lo and noise_hi need framing='none' "

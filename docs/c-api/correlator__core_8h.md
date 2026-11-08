@@ -1169,7 +1169,7 @@ The continuous search's reference is NRZ chips as samples: exactly +1 (chip 0) o
 * `doppler_rate` Doppler rate bound, Hz/s; default 0. 
 * `rate_hypotheses` Rate hypotheses of the burst search; default 1. 
 * `code_only_epochs` Code-only epochs of the continuous search; default 1. 
-* `nthreads` Worker threads of a map or detector; default 1. 
+* `nthreads` Worker threads of a map or detector; default 1. A search sizes its own pool and refuses any other value here: its count is set after create with [**dp\_correlator\_set\_threads()**](correlator__core_8h.md#function-dp_correlator_set_threads). 
 * `why` Where a refusal's sentence goes; may be NULL. A static string, never freed. 
 
 

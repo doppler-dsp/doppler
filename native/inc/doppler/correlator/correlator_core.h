@@ -2626,7 +2626,10 @@ typedef enum
  * @param rate_hypotheses Rate hypotheses of the burst search; default 1.
  * @param code_only_epochs Code-only epochs of the continuous search;
  *                    default 1.
- * @param nthreads    Worker threads of a map or detector; default 1.
+ * @param nthreads    Worker threads of a map or detector; default 1. A
+ *                    search sizes its own pool and refuses any other
+ *                    value here: its count is set after create with
+ *                    dp_correlator_set_threads().
  * @param why         Where a refusal's sentence goes; may be NULL. A
  *                    static string, never freed.
  * @return The correlator, or NULL: refused (@p why says which knob) or

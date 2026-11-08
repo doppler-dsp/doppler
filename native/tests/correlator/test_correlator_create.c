@@ -521,9 +521,14 @@ test_a_value_not_honored_is_refused (void)
       k         = s;
       k.col_out = 0;
       DP_CHECK (refused (&k, "col_out"));
-      k          = s;
+      k = s;
+      /* A search honors a thread count, but through set_threads() after
+         create: the sentence must send the caller there (section 17). */
       k.nthreads = 2;
       DP_CHECK (refused (&k, "nthreads"));
+      DP_CHECK (refused (&k, "set_threads()"));
+      k.nthreads = 0;
+      DP_CHECK (refused (&k, "set_threads()"));
       k           = s;
       k.threshold = 3.0f;
       DP_CHECK (refused (&k, "threshold"));

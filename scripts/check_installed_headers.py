@@ -178,16 +178,42 @@ def _file_scope_heads(text: str):
             start = i + 1
 
 
-def headers() -> list[pathlib.Path]:
-    """Every installed header, and the configured ones (`version.h.in`)."""
+def headers(inc: pathlib.Path | None = None) -> list[pathlib.Path]:
+    """Every installed header, and the configured ones (`version.h.in`).
+
+    *inc* is the include tree to read, this repository's by default.
+    """
+    inc = INC if inc is None else inc
     return [
         h
-        for h in sorted([*INC.rglob("*.h"), *INC.rglob("*.h.in")])
+        for h in sorted([*inc.rglob("*.h"), *inc.rglob("*.h.in")])
         if h.name not in NOT_INSTALLED
     ]
 
 
 def public_symbols() -> dict[str, str]:
+    """name -> "function" | "data" for every symbol a public header publishes.
+
+    A `*_private.h` holds an object's internals, never a caller's API: what
+    it declares is shared between the object's own sources and its tests,
+    which link the static archive, so the shared library exports none of it
+    (`private_symbols()` is that set). The correlator's search halves
+    (`dp__search_*`, #2752 3.4b) were the first extern functions in one
+    the shared library exported.
+    """
+    return _symbols(public=True)
+
+
+def private_symbols(inc: pathlib.Path | None = None) -> dict[str, str]:
+    """What the `*_private.h` headers declare: internals, never exported.
+
+    `check_retired_symbols.py` reads it so a name that left the export
+    list but is still declared here counts as internal, not retired.
+    """
+    return _symbols(public=False, inc=inc)
+
+
+def _symbols(public: bool, inc: pathlib.Path | None = None) -> dict[str, str]:
     """name -> "function" | "data" for every symbol a header publishes.
 
     What a shared library exports is exactly this, intersected with what it
@@ -197,7 +223,9 @@ def public_symbols() -> dict[str, str]:
     counts -- every translation unit has its own copy.
     """
     out: dict[str, str] = {}
-    for header in headers():
+    for header in headers() if inc is None else headers(inc):
+        if header.name.endswith("_private.h") == public:
+            continue
         text = header.read_text(encoding="utf-8", errors="replace")
         text = _blank_preproc(_blank_comments(text))
         for stmt, _ in _file_scope(text):

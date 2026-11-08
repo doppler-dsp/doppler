@@ -118,6 +118,11 @@ _The correlator's detection layer: the ring, the noise estimate, the one peak pi
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DP\_CORRELATOR\_SEARCH\_EXTRA\_OFF**](correlator__private_8h.md#define-dp_correlator_search_extra_off)  `(sizeof ([**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)) + sizeof (uint64\_t))`<br>_Where a search flavor's_ [_**search\_extra\_t**_](structsearch__extra__t.md) _sits in its blob: after the envelope and the flavor word every correlator blob opens with. The one offset get\_state, the check and the tests read it at._ |
 
 ## Detailed Description
 
@@ -742,6 +747,23 @@ static inline size_t search_resolve_tile_alias (
     size_t row,
     size_t col
 ) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define DP\_CORRELATOR\_SEARCH\_EXTRA\_OFF 
+
+_Where a search flavor's_ [_**search\_extra\_t**_](structsearch__extra__t.md) _sits in its blob: after the envelope and the flavor word every correlator blob opens with. The one offset get\_state, the check and the tests read it at._
+```C++
+#define DP_CORRELATOR_SEARCH_EXTRA_OFF `(sizeof ( dp_state_hdr_t ) + sizeof (uint64_t))`
 ```
 
 

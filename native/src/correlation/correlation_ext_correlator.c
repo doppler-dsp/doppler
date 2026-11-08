@@ -2083,6 +2083,18 @@ CorrelatorObj_configure_search_raw (CorrelatorObject *self, PyObject *args,
                                                 n_noncoh);
   if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_INVALID:
+          PyErr_SetString (
+              PyExc_ValueError,
+              "configure_search_raw: only a search (framing='continuous' or "
+              "'burst') has a grid to pin; Correlator.flavor says which this "
+              "is");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "configure_search_raw failed", (long long)_rc);
       return NULL;
@@ -2132,6 +2144,17 @@ CorrelatorObj_set_max_peaks (CorrelatorObject *self, PyObject *args,
   int _rc = dp_correlator_set_max_peaks (self->handle, n);
   if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_INVALID:
+          PyErr_SetString (PyExc_ValueError,
+                           "set_max_peaks: only a search "
+                           "(framing='continuous' or 'burst') lists "
+                           "peaks; Correlator.flavor says which this is");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
                     (long long)_rc);
       return NULL;
@@ -2163,6 +2186,13 @@ CorrelatorObj_set_carrier_freq_hz (CorrelatorObject *self, PyObject *args,
     {
       switch (_rc)
         {
+        case DP_ERR_INVALID:
+          PyErr_SetString (PyExc_ValueError,
+                           "set_carrier_freq_hz: only the continuous search "
+                           "(framing='continuous') takes a carrier, and it "
+                           "must be 0 (none) or "
+                           "finite and above sample_rate / 2");
+          return NULL;
         case DP_ERR_MEMORY:
           PyErr_SetString (
               PyExc_MemoryError,
@@ -2201,6 +2231,18 @@ CorrelatorObj_set_threads (CorrelatorObject *self, PyObject *args,
   int _rc = dp_correlator_set_threads (self->handle, n);
   if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_INVALID:
+          PyErr_SetString (PyExc_ValueError,
+                           "set_threads: only a search (framing='continuous' "
+                           "or 'burst') sizes "
+                           "its pool after create; a map or detector takes "
+                           "nthreads at create");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_threads failed",
                     (long long)_rc);
       return NULL;
@@ -2268,6 +2310,19 @@ CorrelatorObj_set_telemetry (CorrelatorObject *self, PyObject *args,
   int _rc = dp_correlator_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_INVALID:
+          PyErr_SetString (PyExc_ValueError,
+                           "set_telemetry: only the continuous search "
+                           "(framing='continuous') is "
+                           "instrumented, with a prefix that fits a probe "
+                           "name, a decim the "
+                           "context accepts and room for its ten probes");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
                     (long long)_rc);
       return NULL;
@@ -5369,9 +5424,13 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``configure_search_raw failed``, with the return code appended\n"
-    "    (gh-869).\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``configure_search_raw: only a search (framing='continuous' or\n"
+    "    'burst') has a grid to pin; Correlator.flavor says which this is``.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``configure_search_raw failed``, with the return code\n"
+    "    appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5424,8 +5483,13 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_max_peaks failed``, with the return code appended (gh-869).\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``set_max_peaks: only a search (framing='continuous' or 'burst')\n"
+    "    lists peaks; Correlator.flavor says which this is``.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``set_max_peaks failed``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5488,6 +5552,11 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
+    "ValueError\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``set_carrier_freq_hz: only the continuous search\n"
+    "    (framing='continuous') takes a carrier, and it must be 0 (none) or\n"
+    "    finite and above sample_rate / 2``.\n"
     "MemoryError\n"
     "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
     "    ``set_carrier_freq_hz: rebuilding the delay-Doppler map for the new\n"
@@ -5544,8 +5613,14 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_threads failed``, with the return code appended (gh-869).\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``set_threads: only a search (framing='continuous' or 'burst')\n"
+    "    sizes its pool after create; a map or detector takes nthreads at\n"
+    "    create``.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``set_threads failed``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5611,8 +5686,14 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_telemetry failed``, with the return code appended (gh-869).\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``set_telemetry: only the continuous search (framing='continuous')\n"
+    "    is instrumented, with a prefix that fits a probe name, a decim the\n"
+    "    context accepts and room for its ten probes``.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``set_telemetry failed``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -6121,7 +6202,32 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "\"noise_est\",\n"
     "...                                            \"test_stat\"))\n"
     ">>> lag, round(peak, 4), round(noise, 4), round(stat, 4)\n"
-    "(0, 1.0, 1.0, 1.0)\n" },
+    "(0, 1.0, 1.0, 1.0)\n"
+    "\n"
+    "A burst search over a PN preamble, 4 samples a chip, finds the burst's\n"
+    "delay; any repeated preamble works, a Zadoff-Chu sequence included:\n"
+    "\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1, "
+    "length=5).generate(31),\n"
+    "...                   np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), "
+    "4).astype(np.complex64)\n"
+    ">>> b = Correlator(s0, framing=\"burst\", reps=8, sample_rate=4e6,\n"
+    "...                cn0_dbhz=60.0)\n"
+    ">>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]\n"
+    ">>> int(h[\"row\"]), int(h[\"col\"])     # (Doppler bin, delay in "
+    "samples)\n"
+    "(0, 17)\n"
+    ">>> k = np.arange(127)\n"
+    ">>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / "
+    "127).astype(np.complex64)\n"
+    ">>> z = Correlator(zc, framing=\"burst\", reps=8, sample_rate=1.0)\n"
+    ">>> z.code_bins                      # samples a repetition\n"
+    "127\n"
+    ">>> h = z.push(np.tile(np.roll(zc, 40), 10))[0]\n"
+    ">>> int(h[\"row\"]), int(h[\"col\"])\n"
+    "(0, 40)\n" },
   { "push_max_out", (PyCFunction)CorrelatorObj_push_max_out, METH_VARARGS,
     "push_max_out(n_in) -> int\n"
     "\n"
@@ -6362,7 +6468,21 @@ static PyTypeObject CorrelatorObjType = {
     ">>> Correlator(ref, doppler_rows=4).flavor      # a delay-Doppler map\n"
     "'delay_doppler'\n"
     ">>> Correlator(ref).execute(ref).shape          # one dump of nx lags\n"
-    "(8,)\n",
+    "(8,)\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1, "
+    "length=5).generate(31),\n"
+    "...                   np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), "
+    "4).astype(np.complex64)\n"
+    ">>> b = Correlator(s0, framing=\"burst\", reps=8, sample_rate=4e6,\n"
+    "...                cn0_dbhz=60.0)       # a burst search: 8 repetitions\n"
+    ">>> b.flavor\n"
+    "'burst'\n"
+    ">>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]\n"
+    ">>> int(h[\"row\"]), int(h[\"col\"])     # (Doppler bin, delay in "
+    "samples)\n"
+    "(0, 17)\n",
   .tp_methods = CorrelatorObj_methods,
   .tp_getset  = Correlator_getset,
   .tp_new     = CorrelatorObj_new,

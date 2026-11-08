@@ -353,9 +353,10 @@ def test_carrier_and_prior_refusals_are_raised():
         **kw,
     )
     a.set_carrier_freq_hz(2.5e9)
-    with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):
+    refused = "set_carrier_freq_hz: only the continuous search"
+    with pytest.raises(ValueError, match=refused):
         a.set_carrier_freq_hz(1e-305)
-    with pytest.raises(ValueError, match="set_carrier_freq_hz failed"):
+    with pytest.raises(ValueError, match=refused):
         a.set_carrier_freq_hz(5e6)  # exactly fs / 2
     assert a.carrier_freq_hz == 2.5e9
     finite = "doppler_uncertainty must be finite and >= 0"

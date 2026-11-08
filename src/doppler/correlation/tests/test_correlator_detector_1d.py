@@ -166,7 +166,7 @@ def test_a_full_push_keeps_a_remainder_shorter_than_a_frame():
 def test_a_refused_create_is_a_value_error():
     """dwell=0 is refused as it is for the 1-D map (#2641); the detector,
     its 2-D twin and the 2-D map used to report it as MemoryError, having
-    no create_error. The message is the one generic refusal for now
+    no create_error. The message names dwell
     (docs/design/correlator-python.md §17)."""
     det = "Correlator: dwell must be at least 1"
     with pytest.raises(ValueError, match=det):

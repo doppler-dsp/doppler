@@ -16,9 +16,12 @@ constructor whose knobs pick the flavor.
 
 The [Correlator guide](../guide/correlator.md) is where to start: what each
 flavor is for, which knobs pick it, and the refusal rule. In short, a knob the
-flavor would not honor is refused with `ValueError`, and a member the flavor
-does not serve raises `AttributeError` (`hasattr` reads `False`); the
-`flavor` property says which flavor was built.
+flavor would not honor is refused with `ValueError` naming the knob. A
+property the flavor does not serve raises `AttributeError` (`hasattr` reads
+`False`); a method it does not serve, such as `surface()` off the
+continuous search, raises `ValueError` when called, before it writes
+anything (`hasattr` reads `True`). The `flavor` property says which flavor
+was built.
 
 The two search flavors are also called **acquisition**: they find a signal
 before anything tracks it. `BurstCapture` and the DSSS receivers on the

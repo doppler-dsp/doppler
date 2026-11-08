@@ -30,9 +30,9 @@ from doppler.acquire.tests.validation.burst_capture import (
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
-    # Acquisition and BurstAcquisition are parts three and four of the
-    # correlator's report since #2752 step 3.5: spectral's limits test
-    # runs them.
+    # The searches (once Acquisition and BurstAcquisition) are parts three
+    # and four of the correlator's report since #2752 step 3.5:
+    # doppler.correlation's limits test runs them.
     "burst_capture": burst_capture_validate,
 }
 

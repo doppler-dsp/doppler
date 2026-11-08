@@ -17,8 +17,6 @@
 #include "doppler/buffer/buffer.h"
 #include "doppler/dp_state.h"
 #include "doppler/correlator/correlator_core.h"
-#include "doppler/correlator/correlator_core.h"
-#include "doppler/correlator/correlator_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/detection/detection_core.h"

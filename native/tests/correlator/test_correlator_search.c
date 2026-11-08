@@ -4396,7 +4396,8 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (t, "acq.conc") >= 0);
     DP_CHECK (c->search->keep_surface == 0); /* off until a reader asks */
     acq_obs_sink_t sc = { 0, 0, 0, 0.0f };
-    dp_correlator_set_surface_sink (c, acq_obs_sink, &sc, 2);
+    DP_CHECK (dp_correlator_set_surface_sink (c, acq_obs_sink, &sc, 2)
+              == DP_OK);
     DP_CHECK (c->search->keep_surface == 1); /* the sink arms the tap */
 
     /* One emitter: the rolled replica on the carrier of tile +1, which
@@ -4606,7 +4607,7 @@ main (void)
 
     /* Detach the sink and the probes: nothing more is written or kept.
      */
-    dp_correlator_set_surface_sink (c, NULL, NULL, 0);
+    DP_CHECK (dp_correlator_set_surface_sink (c, NULL, NULL, 0) == DP_OK);
     DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1) == DP_OK);
     c->search->keep_surface = 0;
     dp_correlator_reset (c);

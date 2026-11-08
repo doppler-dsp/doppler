@@ -189,7 +189,7 @@ stream (const scene_t *sc, size_t n)
     static const size_t PRIMES[] = { 97, 251, 13, 509, 61, 1031, 7 };         \
     T                  *e        = NAME##_make (sc);                          \
     DP_REQUIRE (e != NULL);                                                   \
-    P##set_surface_sink (e, sink, r, 1);                                      \
+    DP_REQUIRE (P##set_surface_sink (e, sink, r, 1) == DP_OK);                \
     H hits[DP_CORRELATOR_MAX_PEAKS];                                          \
     /* Off every period: 3 frames past a multiple of the NC looks (4) and     \
        of the block (D = 4), and 17 samples into a frame, so the blob         \
@@ -212,7 +212,7 @@ stream (const scene_t *sc, size_t n)
             free (blob);                                                      \
             P##destroy (e);                                                   \
             e = f;                                                            \
-            P##set_surface_sink (e, sink, r, 1);                              \
+            DP_REQUIRE (P##set_surface_sink (e, sink, r, 1) == DP_OK);        \
             split_done = 1;                                                   \
           }                                                                   \
         size_t len = sc->odd_chunks ? PRIMES[k++ % 7] : n - off;              \

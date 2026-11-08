@@ -5390,6 +5390,241 @@ dp_correlator_create_burst (const float _Complex *tmpl, size_t n, size_t reps,
   return st;
 }
 
+/* ── One constructor (docs/design/correlator-python.md sections 3, 17) ──── */
+
+dp_correlator_flavor_t
+dp_correlator_flavor (const dp_correlator_state_t *state)
+{
+  return state->flavor;
+}
+
+/* A refusal: the sentence names the knob, and is a static string. */
+#define CORR_REFUSE(msg)                                                      \
+  do                                                                          \
+    {                                                                         \
+      if (why)                                                                \
+        *why = (msg);                                                         \
+      return NULL;                                                            \
+    }                                                                         \
+  while (0)
+
+/* The continuous search's reference as the chips its constructor takes:
+   +1 is chip 0 and -1 chip 1 (dp_bin_to_nrz's mapping), and anything else
+   is not a chip.  Returns the chips (the caller frees), or NULL when a
+   sample is not exactly +1 or -1.  The copy is an eighth of the reference
+   the caller already holds, so only a genuine OOM fails it: that aborts
+   (clib_common.h). */
+static uint8_t *
+corr_nrz_chips (const float _Complex *ref, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    {
+      const float re = crealf (ref[i]), im = cimagf (ref[i]);
+      if (im != 0.0f || (re != 1.0f && re != -1.0f))
+        return NULL;
+    }
+  uint8_t *chips = dp_xmalloc (n);
+  for (size_t i = 0; i < n; i++)
+    chips[i] = crealf (ref[i]) < 0.0f;
+  return chips;
+}
+
+dp_correlator_state_t *
+dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
+                      dp_correlator_framing_t framing, size_t doppler_rows,
+                      int detect, size_t dwell, size_t ny_out, size_t nx_out,
+                      int col_out, float threshold, size_t noise_lo,
+                      size_t noise_hi, int noise_mode, double sample_rate,
+                      double chip_rate, double symbol_rate, size_t reps,
+                      double cn0_dbhz, double doppler_uncertainty, double pfa,
+                      double pd, double doppler_rate, size_t rate_hypotheses,
+                      size_t code_only_epochs, int nthreads, const char **why)
+{
+  dp_correlator_state_t *s;
+  if (why)
+    *why = NULL;
+  if (framing != DP_CORRELATOR_FRAMING_NONE
+      && framing != DP_CORRELATOR_FRAMING_CONTINUOUS
+      && framing != DP_CORRELATOR_FRAMING_BURST)
+    CORR_REFUSE ("Correlator: framing must be 'none', 'continuous' or "
+                 "'burst'");
+  if (!ref || ny == 0 || nx == 0)
+    CORR_REFUSE ("Correlator: ref is empty");
+  /* The detectors and the searches take it as given: here is the one
+     place an int becomes a mode. */
+  if (noise_mode < DET_NOISE_MEAN || noise_mode > DET_NOISE_MAX)
+    CORR_REFUSE ("Correlator: noise_mode must be 'mean', 'median', 'min' "
+                 "or 'max'");
+
+  /* The detector's knobs: refused on every flavor but a detector. */
+  const int detector_knob_set = threshold != 0.0f || noise_lo != 0
+                                || noise_hi != SIZE_MAX
+                                || noise_mode != DET_NOISE_MEAN;
+
+  if (framing == DP_CORRELATOR_FRAMING_NONE)
+    {
+      /* A search's knobs, which no map or detector reads. */
+      if (sample_rate != 0.0)
+        CORR_REFUSE ("Correlator: sample_rate is a search's; it needs "
+                     "framing='continuous' or 'burst'");
+      if (!isnan (cn0_dbhz))
+        CORR_REFUSE ("Correlator: cn0_dbhz is a search's design point; it "
+                     "needs framing='continuous' or 'burst'");
+      if (doppler_uncertainty != 0.0 || pfa != 1e-3 || pd != 0.9
+          || doppler_rate != 0.0)
+        CORR_REFUSE ("Correlator: doppler_uncertainty, pfa, pd and "
+                     "doppler_rate size a search; they need "
+                     "framing='continuous' or 'burst'");
+      if (chip_rate != 0.0 || symbol_rate != 0.0 || code_only_epochs != 1)
+        CORR_REFUSE ("Correlator: chip_rate, symbol_rate and "
+                     "code_only_epochs are the continuous search's; they "
+                     "need framing='continuous'");
+      if (reps != 1 || rate_hypotheses != 1)
+        CORR_REFUSE ("Correlator: reps and rate_hypotheses are the burst "
+                     "search's; they need framing='burst'");
+
+      if (doppler_rows > 0)
+        {
+          if (detect)
+            CORR_REFUSE ("Correlator: doppler_rows builds a delay-Doppler "
+                         "map, which does not detect (detect=False)");
+          if (ny != 1)
+            CORR_REFUSE ("Correlator: doppler_rows correlates a 1-D code, "
+                         "and ref has more than one row");
+          if (nx_out != 0 || col_out != -1)
+            CORR_REFUSE ("Correlator: the delay-Doppler map's delay axis "
+                         "is native; nx_out and col_out shape a 2-D ref's "
+                         "map");
+          if (detector_knob_set)
+            CORR_REFUSE ("Correlator: threshold, noise_lo, noise_hi and "
+                         "noise_mode are a detector's; they need "
+                         "detect=True");
+          s = dp_correlator_create_delay_doppler (ref, nx, doppler_rows, dwell,
+                                                  nthreads, ny_out);
+          if (!s)
+            CORR_REFUSE ("Correlator: the delay-Doppler map refused its "
+                         "arguments (need dwell >= 1, and ny_out 0 or at "
+                         "least doppler_rows) or could not allocate");
+          return s;
+        }
+
+      if (detect)
+        {
+          if (ny_out != 0 || nx_out != 0 || col_out != -1)
+            CORR_REFUSE ("Correlator: ny_out, nx_out and col_out shape a "
+                         "map; a detector reports hits (detect=True)");
+          s = ny == 1 ? dp_correlator_create_detector_1d (
+                            ref, nx, dwell, noise_lo, noise_hi,
+                            (det_noise_mode_t)noise_mode, threshold, nthreads)
+                      : dp_correlator_create_detector_2d (
+                            ref, ny, nx, dwell, noise_lo, noise_hi,
+                            (det_noise_mode_t)noise_mode, threshold, nthreads);
+          if (!s)
+            CORR_REFUSE ("Correlator: the detector refused its arguments "
+                         "(need dwell >= 1) or could not allocate");
+          return s;
+        }
+
+      if (detector_knob_set)
+        CORR_REFUSE ("Correlator: threshold, noise_lo, noise_hi and "
+                     "noise_mode are a detector's; they need detect=True");
+      if (ny == 1)
+        {
+          /* The 1-D flavor is the 2-D one at one row: nx_out pads it. */
+          if (ny_out != 0)
+            CORR_REFUSE ("Correlator: ny_out pads the rows of a 2-D ref, "
+                         "and ref has one row");
+          if (col_out != -1)
+            CORR_REFUSE ("Correlator: col_out emits one lag of each row "
+                         "of a 2-D ref, and ref has one row");
+          s = dp_correlator_create_1d (ref, nx, dwell, nthreads, nx_out);
+          if (!s)
+            CORR_REFUSE ("Correlator: the 1-D correlator refused its "
+                         "arguments (need dwell >= 1, and nx_out 0 or at "
+                         "least len(ref)) or could not allocate");
+          return s;
+        }
+      s = dp_correlator_create_2d (ref, ny, nx, dwell, nthreads, ny_out,
+                                   nx_out, col_out);
+      if (!s)
+        CORR_REFUSE ("Correlator: the 2-D correlator refused its arguments "
+                     "(need dwell >= 1, ny_out and nx_out each 0 or at "
+                     "least the ref's extent, and col_out -1 or a lag "
+                     "below len(ref[0]), which needs a ref with energy in "
+                     "its first row only and native ny_out and nx_out) or "
+                     "could not allocate");
+      return s;
+    }
+
+  /* A search: the map's and the detector's knobs are not read. */
+  if (doppler_rows != 0)
+    CORR_REFUSE ("Correlator: a search sizes its own Doppler grid; "
+                 "doppler_rows needs framing='none'");
+  if (dwell != 1 || ny_out != 0 || nx_out != 0 || col_out != -1
+      || nthreads != 1)
+    CORR_REFUSE ("Correlator: dwell, ny_out, nx_out, col_out and nthreads "
+                 "are a map's or a detector's; they need framing='none'");
+  if (threshold != 0.0f || noise_lo != 0 || noise_hi != SIZE_MAX)
+    CORR_REFUSE ("Correlator: a search sets its threshold from pfa; "
+                 "threshold, noise_lo and noise_hi need framing='none' "
+                 "and detect=True");
+  if (ny != 1)
+    CORR_REFUSE ("Correlator: a search correlates a 1-D ref, and ref has "
+                 "more than one row");
+  if (!(sample_rate > 0.0))
+    CORR_REFUSE ("Correlator: a search needs sample_rate; 0 is not given "
+                 "(sample_rate=1.0 for normalized units)");
+
+  if (framing == DP_CORRELATOR_FRAMING_CONTINUOUS)
+    {
+      if (reps != 1 || rate_hypotheses != 1)
+        CORR_REFUSE ("Correlator: reps and rate_hypotheses are the burst "
+                     "search's; they need framing='burst'");
+      if (!(chip_rate > 0.0))
+        CORR_REFUSE ("Correlator: the continuous search needs chip_rate; 0 "
+                     "is not given");
+      if (!isfinite (cn0_dbhz))
+        CORR_REFUSE ("Correlator: the continuous search sizes its dwell "
+                     "from a design point; it needs a finite cn0_dbhz");
+      uint8_t *chips = corr_nrz_chips (ref, nx);
+      if (!chips)
+        CORR_REFUSE ("Correlator: the continuous search's ref is NRZ "
+                     "chips, each exactly +1 or -1");
+      s = dp_correlator_create_continuous (
+          chips, nx, sample_rate, chip_rate, symbol_rate, cn0_dbhz,
+          doppler_uncertainty, pfa, pd, noise_mode, code_only_epochs,
+          doppler_rate);
+      free (chips);
+      if (!s)
+        CORR_REFUSE ("Correlator: the continuous search refused its "
+                     "arguments (need a sample_rate whose code period, "
+                     "sample_rate * len(ref) / chip_rate, is a whole "
+                     "number of samples, at least len(ref); 0 < pfa < 1 "
+                     "and 0 < pd < 1; a finite doppler_uncertainty >= 0 "
+                     "and doppler_rate >= 0; code_only_epochs >= 1) or "
+                     "could not allocate");
+      return s;
+    }
+
+  if (chip_rate != 0.0 || symbol_rate != 0.0 || code_only_epochs != 1)
+    CORR_REFUSE ("Correlator: chip_rate, symbol_rate and code_only_epochs "
+                 "are the continuous search's; they need "
+                 "framing='continuous'");
+  s = dp_correlator_create_burst (ref, nx, reps, sample_rate, cn0_dbhz,
+                                  doppler_uncertainty, pfa, pd, noise_mode,
+                                  doppler_rate, rate_hypotheses);
+  if (!s)
+    CORR_REFUSE ("Correlator: the burst search refused its arguments (need "
+                 "a ref with finite, non-zero energy, reps >= 1, cn0_dbhz "
+                 "finite or NaN, doppler_uncertainty >= 0, doppler_rate "
+                 ">= 0, 0 <= rate_hypotheses <= 64 (0 = auto; "
+                 "doppler_rate > 0 unless 1), 0 < pfa < 1, 0 < pd < 1) or "
+                 "could not allocate");
+  return s;
+}
+
+#undef CORR_REFUSE
+
 int
 dp_correlator_configure_search_raw (dp_correlator_state_t *st,
                                     size_t doppler_bins, size_t n_noncoh)

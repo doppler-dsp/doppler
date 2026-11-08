@@ -56,6 +56,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 | ---: | :--- |
 | enum  | [**det\_noise\_mode\_t**](#enum-det_noise_mode_t)  <br>_How a detector flavor aggregates the noise floor from the correlation magnitudes over the flat bins noise\_lo to noise\_hi, inclusive._  |
 | enum  | [**dp\_correlator\_flavor\_t**](#enum-dp_correlator_flavor_t)  <br>_Which constructor built a correlator._  |
+| enum  | [**dp\_correlator\_framing\_t**](#enum-dp_correlator_framing_t)  <br>_How_ [_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _frames its input: maps or detections from whole frames, or a search over a stream._ |
 | typedef struct [**dp\_correlator\_search**](structdp__correlator__search.md) | [**dp\_correlator\_search\_t**](#typedef-dp_correlator_search_t)  <br>_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/correlator.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._ |
 | typedef void(\* | [**dp\_correlator\_surface\_sink\_fn**](#typedef-dp_correlator_surface_sink_fn)  <br>_A surface sink: called once per decided dwell (every_ `decim` _-th) with the dwell's surface in test-statistic units, row-major_`rows` _x_`cols` _(Doppler rows by code-phase columns), and the dwell's_`samples_consumed` _. The pointer is the engine's and is valid only for the call. See_[_**dp\_correlator\_set\_surface\_sink()**_](correlator__core_8h.md#function-dp_correlator_set_surface_sink) _._ |
 
@@ -95,6 +96,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  void | [**dp\_correlator\_cell\_corr\_grid**](#function-dp_correlator_cell_corr_grid) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**dp\_correlator\_cell\_corr()**_](correlator__core_8h.md#function-dp_correlator_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
 |  int | [**dp\_correlator\_configure\_search\_raw**](#function-dp_correlator_configure_search_raw) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  size\_t | [**dp\_correlator\_consumed**](#function-dp_correlator_consumed) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _took._ |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create**](#function-dp_correlator_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, [**dp\_correlator\_framing\_t**](correlator__core_8h.md#enum-dp_correlator_framing_t) framing, size\_t doppler\_rows, int detect, size\_t dwell, size\_t ny\_out, size\_t nx\_out, int col\_out, float threshold, size\_t noise\_lo, size\_t noise\_hi, int noise\_mode, double sample\_rate, double chip\_rate, double symbol\_rate, size\_t reps, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double doppler\_rate, size\_t rate\_hypotheses, size\_t code\_only\_epochs, int nthreads, const char \*\* why) <br>_Build the flavor the knobs name: the one constructor the Python class_ `Correlator` _calls._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_1d**](#function-dp_correlator_create_1d) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_2d**](#function-dp_correlator_create_2d) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**dp\_correlator\_create\_1d()**_](correlator__core_8h.md#function-dp_correlator_create_1d) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_burst**](#function-dp_correlator_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
@@ -117,6 +119,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_execute\_power\_max\_max\_out**](#function-dp_correlator_execute_power_max_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Values per output_ [_**dp\_correlator\_execute\_power\_max()**_](correlator__core_8h.md#function-dp_correlator_execute_power_max) _writes: n\_out._ |
 |  size\_t | [**dp\_correlator\_execute\_power\_sum**](#function-dp_correlator_execute_power_sum) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_The power of a batch's maps, summed cell by cell: each output cell is the sum over h of that cell's_ `|map_h|^2` _, summed in h order in float._ |
 |  size\_t | [**dp\_correlator\_execute\_power\_sum\_max\_out**](#function-dp_correlator_execute_power_sum_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Powers_ [_**dp\_correlator\_execute\_power\_sum()**_](correlator__core_8h.md#function-dp_correlator_execute_power_sum) _writes: n\_out._ |
+|  [**dp\_correlator\_flavor\_t**](correlator__core_8h.md#enum-dp_correlator_flavor_t) | [**dp\_correlator\_flavor**](#function-dp_correlator_flavor) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Which constructor built_ `state:` _what_[_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _chose from its knobs, so a caller can ask before reading a member only some flavors serve._ |
 |  double | [**dp\_correlator\_gate\_stat**](#function-dp_correlator_gate_stat) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The gate a dwell's statistic must clear to be a hit, in the units of_ [_**dp\_correlator\_hit\_t::test\_stat**_](structdp__correlator__hit__t.md#variable-test_stat) _:_`threshold` _on the coherent path (one look),_`eta_nc` _on the non-coherent one. A dwell hits when its strongest cell's statistic exceeds this, and every listed peak's statistic does too. Both statistics are linear in the cell's amplitude, so a list consumer can compare a peak's excess over another's against it in the same units. Configuration: fixed by the thresholds the grid was sized with._ |
 |  void | [**dp\_correlator\_get\_state**](#function-dp_correlator_get_state) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, void \* blob) <br>_Serialize the frame count and spectrum accumulator into_ `blob` _._ |
 |  size\_t | [**dp\_correlator\_period\_samples**](#function-dp_correlator_period_samples) (size\_t code\_len) <br>_The samples one code period should be searched at: the smallest power of two that holds at least two samples a chip._  |
@@ -298,6 +301,24 @@ Fixed at create and the state blob's first field: a blob restores only into a co
 
 
         
+
+<hr>
+
+
+
+### enum dp\_correlator\_framing\_t 
+
+_How_ [_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _frames its input: maps or detections from whole frames, or a search over a stream._
+```C++
+enum dp_correlator_framing_t {
+    DP_CORRELATOR_FRAMING_NONE = 0,
+    DP_CORRELATOR_FRAMING_CONTINUOUS = 1,
+    DP_CORRELATOR_FRAMING_BURST = 2
+};
+```
+
+
+
 
 <hr>
 
@@ -1045,6 +1066,145 @@ Samples of the last push's input consumed (including any kept as the carry).
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_create 
+
+_Build the flavor the knobs name: the one constructor the Python class_ `Correlator` _calls._
+```C++
+dp_correlator_state_t * dp_correlator_create (
+    const float _Complex * ref,
+    size_t ny,
+    size_t nx,
+    dp_correlator_framing_t framing,
+    size_t doppler_rows,
+    int detect,
+    size_t dwell,
+    size_t ny_out,
+    size_t nx_out,
+    int col_out,
+    float threshold,
+    size_t noise_lo,
+    size_t noise_hi,
+    int noise_mode,
+    double sample_rate,
+    double chip_rate,
+    double symbol_rate,
+    size_t reps,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    double doppler_rate,
+    size_t rate_hypotheses,
+    size_t code_only_epochs,
+    int nthreads,
+    const char ** why
+) 
+```
+
+
+
+A C caller names the flavor it wants and calls that flavor's own constructor; this one is the binding's entry point (docs/design/correlator-python.md section 3). It reads the knobs, picks the flavor, and calls that constructor with them:
+
+
+
+|framing   |ref rows   |doppler\_rows   |detect   |flavor    |
+|-----|-----|-----|-----|-----|
+|`NONE`   |1   |0   |0   |[**dp\_correlator\_create\_1d()**](correlator__core_8h.md#function-dp_correlator_create_1d)    |
+|`NONE`   |1   |0   |1   |[**dp\_correlator\_create\_detector\_1d()**](correlator__core_8h.md#function-dp_correlator_create_detector_1d)    |
+|`NONE`   |&gt; 1   |0   |0   |[**dp\_correlator\_create\_2d()**](correlator__core_8h.md#function-dp_correlator_create_2d)    |
+|`NONE`   |&gt; 1   |0   |1   |[**dp\_correlator\_create\_detector\_2d()**](correlator__core_8h.md#function-dp_correlator_create_detector_2d)    |
+|`NONE`   |1   |&gt; 0   |0   |[**dp\_correlator\_create\_delay\_doppler()**](correlator__core_8h.md#function-dp_correlator_create_delay_doppler)    |
+|`CONTINUOUS`   |1   |0   |any   |[**dp\_correlator\_create\_continuous()**](correlator__core_8h.md#function-dp_correlator_create_continuous)    |
+|`BURST`   |1   |0   |any   |[**dp\_correlator\_create\_burst()**](correlator__core_8h.md#function-dp_correlator_create_burst)   |
+
+
+
+
+
+
+A one-row reference is the 1-D flavor: [**dp\_correlator\_create\_1d()**](correlator__core_8h.md#function-dp_correlator_create_1d) is [**dp\_correlator\_create\_2d()**](correlator__core_8h.md#function-dp_correlator_create_2d) at one row, and `nx_out` is its padded length.
+
+
+**A value the flavor would not honor is refused**, never ignored: a knob the flavor does not read must hold its default, which is the value named with it below. A search honors `detect` = 1, so it may be either. The refusal returns NULL and points `why` at a sentence that names the knob.
+
+
+The continuous search's reference is NRZ chips as samples: exactly +1 (chip 0) or -1 (chip 1), with no imaginary part, the mapping of [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz); any other sample is refused, so a shaped or noisy reference is never quantized silently.
+
+
+
+
+**Parameters:**
+
+
+* `ref` Row-major `ny` x `nx` reference, CF32; borrowed. 
+* `ny` Rows of `ref` (1 for a 1-D reference). 
+* `nx` Samples a row. 
+* `framing` Maps and detections, or a search; default NONE. 
+* `doppler_rows` Doppler rows of the delay-Doppler map, the code periods one frame holds; 0 (default) for no map. 
+* `detect` 1 for detections from push(); default 0 (maps). 
+* `dwell` Frames integrated a dump; default 1. 
+* `ny_out` Padded Doppler rows; 0 (default) for native. 
+* `nx_out` Padded lags; 0 (default) for native. 
+* `col_out` The one lag to emit; -1 (default) for every lag. 
+* `threshold` Detection threshold on peak / noise; default 0. 
+* `noise_lo` First noise bin; default 0. 
+* `noise_hi` Last noise bin; default SIZE\_MAX, the last bin. 
+* `noise_mode` The noise statistic, a [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t); default DET\_NOISE\_MEAN. 
+* `sample_rate` Samples a second; 0 (default) is not given, which a search refuses. 
+* `chip_rate` Chips a second; 0 (default) is not given, which the continuous search refuses. 
+* `symbol_rate` Data symbols a second, read by the continuous search for a diagnostic only; 0 (default) is no known data clock. 
+* `reps` Preamble repetitions a burst; default 1. 
+* `cn0_dbhz` Design-point C/N0, dB-Hz; default DP\_CORRELATOR\_CN0\_NONE (NaN, none). The continuous search needs a finite one. 
+* `doppler_uncertainty` Half-width of the Doppler search, Hz; default 0. 
+* `pfa` False-alarm probability a search; default 1e-3. 
+* `pd` Detection probability at the design point; default 0.9. 
+* `doppler_rate` Doppler rate bound, Hz/s; default 0. 
+* `rate_hypotheses` Rate hypotheses of the burst search; default 1. 
+* `code_only_epochs` Code-only epochs of the continuous search; default 1. 
+* `nthreads` Worker threads of a map or detector; default 1. 
+* `why` Where a refusal's sentence goes; may be NULL. A static string, never freed. 
+
+
+
+**Returns:**
+
+The correlator, or NULL: refused (`why` says which knob) or out of memory.
+
+
+
+```C++
+#include "doppler/correlator/correlator_core.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int main (void)
+{
+  float _Complex ref[4] = { 1, 0, 0, 0 };
+  const char *why = NULL;
+  dp_correlator_state_t *c = dp_correlator_create (
+      ref, 1, 4, DP_CORRELATOR_FRAMING_NONE, 0, 1, 1, 0, 0, -1, 0.0f, 0,
+      SIZE_MAX, DET_NOISE_MEAN, 0.0, 0.0, 0.0, 1, DP_CORRELATOR_CN0_NONE,
+      0.0, 1e-3, 0.9, 0.0, 1, 1, 1, &why);
+  if (!c || dp_correlator_flavor (c) != DP_CORRELATOR_DETECTOR_1D)
+    return 1;
+  dp_correlator_destroy (c);
+  c = dp_correlator_create (
+      ref, 1, 4, DP_CORRELATOR_FRAMING_BURST, 0, 0, 1, 0, 0, -1, 0.0f, 0,
+      SIZE_MAX, DET_NOISE_MEAN, 0.0, 0.0, 0.0, 1, DP_CORRELATOR_CN0_NONE,
+      0.0, 1e-3, 0.9, 0.0, 1, 1, 1, &why);
+  printf ("%s\n", why);
+  return c == NULL ? 0 : 1;
+}
+```
+ 
 
 
         
@@ -2351,6 +2511,40 @@ n\_out, fixed at create().
 256
 ```
  
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_flavor 
+
+_Which constructor built_ `state:` _what_[_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _chose from its knobs, so a caller can ask before reading a member only some flavors serve._
+```C++
+dp_correlator_flavor_t dp_correlator_flavor (
+    const dp_correlator_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The flavor, fixed at create. 
 
 
 

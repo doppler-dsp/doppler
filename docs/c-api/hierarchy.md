@@ -42,7 +42,6 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) _AWGN generator state (opaque to callers; use the API)._ 
 * **struct** [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md) _BerMeter state._ 
 * **struct** [**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md) _Boxcar moving-average state (cf32)._ 
-* **struct** [**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md) _BurstAcquisition state: a pure wrapper around one shared_ [_**dp\_correlator\_state\_t**_](structdp__correlator__state__t.md) _engine._
 * **struct** [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md) _BurstCapture state._ 
 * **struct** [**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md) _BurstDemod state. Allocate with_ [_**dp\_burst\_demod\_create\_desc()**_](burst__demod__core_8h.md#function-dp_burst_demod_create_desc) _._
 * **struct** [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md) _BurstDespreader state._ 

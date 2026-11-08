@@ -14,7 +14,8 @@
  * child is currently active:
  *
  *   - **searching** (`tracking() == 0`): samples feed the embedded
- *     `Acquisition`. Nothing is emitted. On a hit, the carrier loop/
+ *     continuous search (the `Correlator` flavor). Nothing is emitted. On
+ *     a hit, the carrier loop/
  *     `Dll`/`RateConverter`/`MpskReceiver` are built from the hit's code
  *     phase and Doppler estimate (the exact `dp_correlator_hit_t::chip_phase`
  *     hand-off phase and `RateConverter`-bridged sample-rate hand-off
@@ -186,8 +187,8 @@ extern "C"
    *
    * Only `code`/`chip_rate`/`symbol_rate` describe the signal itself —
    * everything else is a physically-motivated default a caller can
-   * override, not a requirement. Internally: the embedded `Acquisition`
-   * is built via `dp_correlator_create_continuous()` (this receiver is inherently
+   * override, not a requirement. Internally: the embedded continuous
+   * search is built via `dp_correlator_create_continuous()` (this receiver is inherently
    * continuous/streaming) -- always window-tiles, never coherently
    * combines across epochs, sensitivity purely from an internally
    * auto-sized non-coherent look count (see `correlator_core.h`'s file doc
@@ -216,7 +217,7 @@ extern "C"
    * @param code_len             Chips in `code` (the spreading factor).
    * @param chip_rate            Chip rate, Hz. Required.
    * @param symbol_rate          Data-symbol rate, Hz. Required — passed
-   *                             straight to the embedded Acquisition's
+   *                             straight to the embedded search's
    *                             own `symbol_rate` (diagnostic there; see
    *                             `dp_correlator_create_continuous()`).
    * @param sample_rate          Input sample rate, Hz: a whole number of
@@ -253,7 +254,7 @@ extern "C"
    *         @p sample_rate not a whole number of samples a chip of at
    *         least one, @p sps < 2, a non-positive or non-finite rate, a
    *         symbol rate above the chip rate, a code/segments pair the Dll
-   *         refuses), or the embedded Acquisition refuses its own
+   *         refuses), or the embedded search refuses its own
    *         parameters (@p pfa, @p pd, @p cn0_dbhz, ...). An allocation
    *         failure aborts the process rather than returning NULL.
    * @code
@@ -306,7 +307,7 @@ extern "C"
 
   /**
    * @brief Return to the searching state.
-   * Resets the embedded Acquisition and rebuilds `dll`/`rc`/`rx` and the
+   * Resets the embedded search and rebuilds `dll`/`rc`/`rx` and the
    * carrier loop at the placeholder seed (phase 0, no Doppler) on the
    * current grid (a configure_chain_raw() pin survives), clearing the
    * carrier carry and the cached Doppler/C/N0 estimates. Any
@@ -339,14 +340,14 @@ extern "C"
   /**
    * @brief Stream raw cf32 samples; emit demodulated symbols once locked.
    *
-   * While searching, samples feed the embedded Acquisition and nothing
+   * While searching, samples feed the embedded search and nothing
    * is emitted (0 return is normal, not an error). The moment a hit fires,
    * `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and the
    * rest of THIS call from where the hit's frame ended — the hit's own
    * `samples_consumed`, so no samples are dropped or double-fed — is handed
    * straight to them in the same call. While tracking, samples feed `Dll ->
    * RateConverter -> MpskReceiver` in sequence. Accepts any block size; state
-   * carries across calls (`Acquisition`/`Dll`/ `RateConverter`/`MpskReceiver`
+   * carries across calls (the search/`Dll`/`RateConverter`/`MpskReceiver`
    * are all already block-size invariant; the only buffering this object
    * adds is the carrier loop's partial-code-period carry). While tracking,
    * each call allocates two scratch buffers (abort on OOM).
@@ -400,7 +401,7 @@ extern "C"
                               float _Complex *out, size_t max_out);
 
   /**
-   * @brief Pin the embedded Acquisition's search grid directly.
+   * @brief Pin the embedded search's grid directly.
    * Forwards to `dp_correlator_configure_search_raw()` — the escape hatch under
    * this object's own `symbol_rate`-driven auto-sizing, for a power user
    * who wants a specific `(doppler_bins, n_noncoh)` instead. Pinning
@@ -487,7 +488,7 @@ extern "C"
    * per symbol) are independently overridable here, still bridged by a
    * freshly-sized `RateConverter` -- never coupled to each other (see the
    * module docstring). It rebuilds `dll`/`rc`/`rx` at once, allocating
-   * every replacement before freeing the old ones (`Acquisition`'s
+   * every replacement before freeing the old ones (the search's
    * `dp_correlator_regrid()` discipline), and the pinned grid is the one every later
    * chain is built on: the next hit's hand-off and reset() both rebuild at
    * it.

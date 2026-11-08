@@ -36,7 +36,6 @@ native/src/agc/agc_core.c 1
 native/src/app/wfmgen.c 2  # caller-sized: --frame/--from-file and --symbols-file size theirs from ftell on a user-named path and already return NULL (#1041)
 native/src/awgn/awgn_core.c 1
 native/src/boxcar/boxcar_core.c 1
-native/src/burst_acq/burst_acq_core.c 1
 native/src/burst_demod/burst_demod_core.c 1
 native/src/burst_despreader/burst_despreader_core.c 3
 native/src/carrier_acq/carrier_acq_core.c 1

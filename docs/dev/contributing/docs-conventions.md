@@ -183,9 +183,9 @@ a backtick span or a markdown link's text — `` `SymbolSync` ``,
 `` [`track.SymbolSync`](../../api/python-track.md) ``, or
 `[SymbolSync](...)`. A bare, unformatted prose mention does **not** count.
 This is deliberate, not a bug: several doppler class names double as common
-English words (Plan, Segment, Reader, Writer, Push, Pull, Timeline, Corr,
+English words (Plan, Segment, Reader, Writer, Push, Pull, Timeline,
 Composer, spelled without backticks right here on purpose, so this
-paragraph doesn't itself show up as a related page for all nine of them) —
+paragraph doesn't itself show up as a related page for all eight of them) —
 a bare word-boundary match would produce constant false positives from
 ordinary prose. If you want your new gallery,
 guide, or design page to show up on a class's API page, just name the class

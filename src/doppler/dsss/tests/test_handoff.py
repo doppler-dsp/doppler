@@ -1,20 +1,23 @@
-"""Tests for the Acquisition hit's own ``chip_phase`` (the Dll seed).
+"""Tests for the continuous search hit's own ``chip_phase`` (the Dll seed).
 
-``Acquisition.push()`` reports ``code_phase`` as a correlation lag; each hit
-also carries ``chip_phase``, the code's own instantaneous phase at the
-hand-off instant, which C computes once (``dp_correlator_build_handoff``'s
-helper)
-and both faces read. Uncoupled, that phase is the lag's sign inversion
-modulo the spreading factor. Coupled to a carrier, it is further advanced by
-the chip drift over half the dwell -- the term the retired Python
-``dll_init_chip_from_acq`` could not carry (doppler#1257).
+``Correlator.push()`` (``framing="continuous"``) reports the code phase,
+``col``, as a correlation lag; each hit also carries ``chip_phase``, the
+code's own instantaneous phase at the hand-off instant, which C computes
+once (``dp_correlator_build_handoff``'s helper) and both faces read.
+Uncoupled, that phase is the lag's sign inversion modulo the spreading
+factor. Coupled to a carrier, it is further advanced by the chip drift over
+half the dwell -- the term the retired Python ``dll_init_chip_from_acq``
+could not carry (doppler#1257).
 
 The drifted case runs at 20 ppm: a 50 kHz Doppler on a 2.5 GHz carrier.
 """
 
 import warnings
 
-from doppler.acquire import Acquisition, bin_to_signed
+import numpy as np
+
+from doppler.acquire import bin_to_signed
+from doppler.correlation import Correlator
 from doppler.track.tests import test_acq_dll_handoff as _h
 
 SF = _h.SF
@@ -34,8 +37,9 @@ def _search(x, carrier_hz):
     """First hit of a continuous search, with the carrier coupling set."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        acq = Acquisition(
-            _h.CODE,
+        acq = Correlator(
+            _h._CSIGN.astype(np.complex64),
+            framing="continuous",
             sample_rate=SPC * _h.CHIP_RATE,
             chip_rate=_h.CHIP_RATE,
             cn0_dbhz=55.0,
@@ -49,7 +53,7 @@ def _search(x, carrier_hz):
     pos = 0
     while pos + frame <= len(x):
         hits = acq.push(x[pos : pos + frame])
-        if hits:
+        if len(hits):
             return hits[0], acq
         pos += frame
     return None, acq
@@ -63,15 +67,17 @@ def test_drifted_hit_chip_phase_carries_the_dwell_advance(monkeypatch):
     hit, acq = _search(x, CARRIER_HZ)
     assert hit is not None, "acquisition failed on the drifted signal"
 
-    doppler_hz = bin_to_signed(hit[0], acq.doppler_bins) * (acq.doppler_res_hz)
+    doppler_hz = bin_to_signed(int(hit["row"]), acq.doppler_bins) * (
+        acq.doppler_res_hz
+    )
     dwell_chips = acq.n_noncoh * acq.coherent_bins * SF
     advance = doppler_hz / CARRIER_HZ * 0.5 * dwell_chips
     assert abs(advance) > 1e-3, "the drift must be material to test"
 
-    expect = (_inversion(hit[1], acq) + advance) % SF
-    err = ((hit[7] - expect + SF / 2) % SF) - SF / 2
+    expect = (_inversion(int(hit["col"]), acq) + advance) % SF
+    err = ((float(hit["chip_phase"]) - expect + SF / 2) % SF) - SF / 2
     assert abs(err) < 1e-6, (
-        f"hit[7] disagrees with the C dwell advance by {err:.3e} "
+        f"chip_phase disagrees with the C dwell advance by {err:.3e} "
         f"chips (advance={advance:.4f})"
     )
 
@@ -83,5 +89,6 @@ def test_uncoupled_hit_chip_phase_is_the_inverted_lag(monkeypatch):
     x = _h._make_signal(cn0_dbhz=75.0, n_sym=1500, seed=6)
     hit, acq = _search(x, 0.0)
     assert hit is not None, "acquisition failed on the uncoupled signal"
-    err = ((hit[7] - _inversion(hit[1], acq) + SF / 2) % SF) - SF / 2
+    lag = _inversion(int(hit["col"]), acq)
+    err = ((float(hit["chip_phase"]) - lag + SF / 2) % SF) - SF / 2
     assert abs(err) < 1e-9

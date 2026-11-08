@@ -13,9 +13,9 @@ symbols ``_pydocs.discover()`` finds, this script writes:
     One page per domain: every public class and function with its API entry,
     guides, gallery pages, examples and design pages; the pages filed under
     the domain; and the pages of OTHER domains that mention its symbols, which
-    is where a class used for another task (``DelayDoppler`` is an
-    acquisition search that lives in ``spectral``) is found from both sides
-    without being re-filed.
+    is where a class used for another task (``Correlator`` is a spectral
+    map and an acquisition search that lives in ``correlation``) is found
+    from both sides without being re-filed.
 ``docs/api/a-z.md``
     Every public class, function and constant, alphabetical, each row
     linking its domain, API entry, guide, gallery and example.

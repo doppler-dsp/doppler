@@ -106,7 +106,7 @@ Against a **fixed** noise floor the answer is different and unsurprising: level 
 
 ### 2.5 Detection probability — the fraction it actually finds
 
-Everything above asks whether the receiver handles a burst CORRECTLY. This asks how often it gets one at all, which is the number a link is sized with — and until now no report in this chain gated one. `acq`'s certification pins `underpowered`, the engine's own *prediction*; `Acquisition` has a measured Pd gate in `test_acq_characterization.py`; the burst path had neither.
+Everything above asks whether the receiver handles a burst CORRECTLY. This asks how often it gets one at all, which is the number a link is sized with — and until now no report in this chain gated one. `acq`'s certification pins `underpowered`, the engine's own *prediction*; `Correlator`'s continuous search has a measured Pd gate in `test_acq_characterization.py`; the burst path had neither.
 
 This is the **end-to-end** figure and it is stricter than acquisition's: a trial counts only when the burst is found at its exact sample AND the CRC passes. It therefore folds in acquisition's own Pd, refine's period discrimination, and the demodulator's margin — one number for the whole chain, which is what a caller has.
 

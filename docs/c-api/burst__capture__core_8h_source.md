@@ -148,7 +148,7 @@ typedef struct
   /* ── Diagnostics ────────────────────────────────────────────────────
    * Mirrored from the engine at create() rather than read through it on
    * demand, because jm's declared warning needs a bare field on THIS
-   * struct; the sibling BurstAcquisition carries its own `underpowered`
+   * struct; the burst search (a `Correlator`) carries its own `underpowered`
    * field for the same reason. */
   int underpowered; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */

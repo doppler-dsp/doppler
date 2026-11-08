@@ -10,9 +10,10 @@ carrier-frequency offset** (Doppler), buried in additive white Gaussian noise.
 The receiver must *acquire* it: jointly estimate ``(Doppler bin, code phase)``
 and declare a detection.
 
-How ``CorrDetector2D`` is used
---------------------------
-``doppler.spectral.CorrDetector2D`` wraps a 2-D FFT correlator whose surface is
+How the 2-D detector is used
+----------------------------
+``doppler.correlation.Correlator``, built on a 2-D ``ref`` with ``detect=1``
+(the 2-D detector flavor), wraps a 2-D FFT correlator whose surface is
 
     R = IFFT2( FFT2(x) . conj(FFT2(ref)) ) / (ny*nx)
 
@@ -25,7 +26,7 @@ does — a parallel code-phase correlation on **fast-time** plus a Doppler FFT o
    segment (the **code-phase / fast-time** axis) and ``ny`` is the number of
    repeated segments (the **slow-time** axis).
 2. Pre-apply ``y = FFT(x, axis=0)`` — the slow-time Doppler FFT.
-3. Push ``y`` through ``CorrDetector2D`` with a **single-row** PN reference
+3. Push ``y`` through the 2-D detector with a **single-row** PN reference
    (the oversampled replica in row 0, zeros elsewhere).  The column axis
    then runs the circular code matched filter (peak at the code phase) and
    the row axis is a clean pass-through of the Doppler FFT (peak at the bin).
@@ -59,9 +60,9 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
+from doppler.correlation import Correlator
 from doppler.detection import det_pd, det_pfa_cell, det_threshold
 from doppler.examples._extra import require
-from doppler.spectral import Corr2D, CorrDetector2D
 from doppler.wfm import PN, mls_poly
 
 # ── Acquisition grid ─────────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ def build_ref(chips01: NDArray[np.uint8]) -> NDArray[np.complex64]:
     """Build the single-row matched-filter reference.
 
     The oversampled, undelayed BPSK replica of one PN segment is placed in
-    **row 0**; every other row is zero.  ``CorrDetector2D`` FFT2's this
+    **row 0**; every other row is zero.  The 2-D detector FFT2's this
     internally; the flat-in-slow-time row spectrum is what turns the row axis
     into a pass-through of the pre-applied Doppler FFT (see module docstring).
 
@@ -146,7 +147,7 @@ def build_acq_frame(
     code delay and a continuous carrier offset, adds complex AWGN at the target
     per-sample SNR, frames to ``(NY, NX)``, and applies the slow-time Doppler
     FFT (``axis=0``).  The returned array is ready to ``push`` into
-    ``CorrDetector2D`` built on :func:`build_ref`.
+    the 2-D detector built on :func:`build_ref`.
 
     Parameters
     ----------
@@ -165,7 +166,7 @@ def build_acq_frame(
     Returns
     -------
     y : NDArray[np.complex64]
-        ``(NY, NX)`` Doppler-FFT'd frame to push into ``CorrDetector2D``.
+        ``(NY, NX)`` Doppler-FFT'd frame to push into the 2-D detector.
     doppler_bin : int
         Ground-truth Doppler row, ``round(carrier_f*NX*NY) mod NY``.
     code_col : int
@@ -219,7 +220,7 @@ NOISE_HI = N - 1  # full surface (== the clamped default; passed for clarity)
 OP_SNR = -19.0  # per-sample SNR at the detection transition knee (ROC/op pt)
 
 
-def make_detector(ref: NDArray[np.complex64]) -> CorrDetector2D:
+def make_detector(ref: NDArray[np.complex64]) -> Correlator:
     """Build the acquisition detector with the canonical CFAR config.
 
     Passes the full-surface ``[0, N-1]`` noise band explicitly.  (Omitting
@@ -233,12 +234,13 @@ def make_detector(ref: NDArray[np.complex64]) -> CorrDetector2D:
 
     Returns
     -------
-    CorrDetector2D
-        ``dwell=1``, median CFAR over the full ``[0, N-1]`` surface,
-        ``threshold=0`` (gate applied in Python).
+    Correlator
+        The 2-D detector flavor: ``dwell=1``, median CFAR over the full
+        ``[0, N-1]`` surface, ``threshold=0`` (gate applied in Python).
     """
-    return CorrDetector2D(
+    return Correlator(
         ref,
+        detect=1,
         dwell=1,
         noise_lo=NOISE_LO,
         noise_hi=NOISE_HI,
@@ -247,7 +249,7 @@ def make_detector(ref: NDArray[np.complex64]) -> CorrDetector2D:
 
 
 def _calibrate_theta(
-    det: CorrDetector2D, rng: np.random.Generator, n_trials: int
+    det: Correlator, rng: np.random.Generator, n_trials: int
 ) -> float:
     """Empirical detection gate: the ``1 - PFA_SYS`` quantile of noise-only
     ``test_stat``.  The median noise estimate does not carry the analytic
@@ -261,7 +263,7 @@ def _calibrate_theta(
         y = np.fft.fft(x, axis=0).astype(np.complex64)
         det.reset()
         (res,) = det.push(y)
-        stats[i] = res[4]
+        stats[i] = res["test_stat"]
     return float(np.quantile(stats, 1.0 - PFA_SYS))
 
 
@@ -297,7 +299,8 @@ def _run_sweep(
             )
             det.reset()
             (res,) = det.push(y)
-            row, pcol, _, _, stat = res
+            row, pcol = int(res["row"]), int(res["col"])
+            stat = res["test_stat"]
             if op_store is not None:
                 op_store[i] = stat
             if stat > theta:
@@ -320,7 +323,7 @@ def _run_sweep(
         y = np.fft.fft(x, axis=0).astype(np.complex64)
         det.reset()
         (res,) = det.push(y)
-        noise_stats[i] = res[4]
+        noise_stats[i] = res["test_stat"]
 
     return {
         "theta": theta,
@@ -353,7 +356,7 @@ def main() -> None:
         carrier_f=carrier_for_bin(u_true),
         snr_db=-20.0,  # ~ +13 dB after the ~33 dB coherent gain
     )
-    with Corr2D(build_ref(code), dwell=1) as c:
+    with Correlator(build_ref(code), dwell=1) as c:
         surf = np.abs(c.execute(y)).reshape(NY, NX)
     peak_row, peak_col = np.unravel_index(surf.argmax(), (NY, NX))
 
@@ -405,7 +408,7 @@ def main() -> None:
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4.5))
     fig.suptitle(
-        f"DSSS burst acquisition — CorrDetector2D  "
+        f"DSSS burst acquisition — Correlator, 2-D detector  "
         f"({NY} Doppler x {NX} code-phase, SF={SF}, SPS={SPS}, "
         f"N={N} cells)",
         fontsize=10,

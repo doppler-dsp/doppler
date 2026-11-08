@@ -1,13 +1,13 @@
-"""Integration test: a real Acquisition hit seeding a real Dll.
+"""Integration test: a real continuous-search hit seeding a real Dll.
 
-Unlike ``test_dll.py`` (a genie-seeded ``Dll``, no ``Acquisition`` involved)
+Unlike ``test_dll.py`` (a genie-seeded ``Dll``, no search involved)
 and ``test_async_dsss_receiver.py`` (a genie-seeded ``Dll`` feeding
 ``Costas``/``SymbolSync``), this drives the actual hand-off: a real
-``Acquisition`` search over a continuous, asynchronous-data-modulated,
-carrier-present signal, converted via the hit's ``chip_phase`` into a
-real ``Dll`` seed, then verifies that seed is exact and that tracking
-holds up over an extended run. This is a fast, always-run regression
-check on the acquisition-to-DLL hand-off.
+``Correlator(framing="continuous")`` search over a continuous,
+asynchronous-data-modulated, carrier-present signal, converted via the
+hit's ``chip_phase`` into a real ``Dll`` seed, then verifies that seed is
+exact and that tracking holds up over an extended run. This is a fast,
+always-run regression check on the acquisition-to-DLL hand-off.
 """
 
 import warnings
@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 import pytest
 
-from doppler.acquire import Acquisition
+from doppler.correlation import Correlator
 from doppler.track import Dll
 from doppler.wfm import Gold
 
@@ -58,8 +58,9 @@ def _make_signal(cn0_dbhz, n_sym, seed):
 def _acquire(x):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        acq = Acquisition(
-            CODE,
+        acq = Correlator(
+            _CSIGN.astype(np.complex64),
+            framing="continuous",
             sample_rate=SPC * CHIP_RATE,
             chip_rate=CHIP_RATE,
             cn0_dbhz=55.0,
@@ -72,7 +73,7 @@ def _acquire(x):
     pos = 0
     while pos + frame <= len(x):
         hits = acq.push(x[pos : pos + frame])
-        if hits:
+        if len(hits):
             return hits[0], pos, acq
         pos += frame
     return None, None, acq
@@ -93,7 +94,7 @@ def test_acquisition_hit_seeds_dll_exactly():
         "the padded lag grid, or half a column is not the bound under test"
     )
 
-    chip_phase = hit[7]
+    chip_phase = float(hit["chip_phase"])
     s0 = hitpos + acq.code_bins * acq.doppler_bins
     ridx0 = s0 - int(PRE_SILENCE)
     true_phase0 = (ridx0 / SPC) % SF
@@ -107,15 +108,15 @@ def test_acquisition_hit_seeds_dll_exactly():
 
 @pytest.mark.parametrize("segments", [1, 4])
 def test_dll_tracks_after_handoff(segments):
-    """A Dll seeded from a real Acquisition hit tracks the true code phase
-    (small circular error, low code-rate bias) over an extended run --
+    """A Dll seeded from a real continuous-search hit tracks the true code
+    phase (small circular error, low code-rate bias) over an extended run --
     the hand-off produces a working despreader, not just a correctly
     -valued but otherwise untested seed."""
     x = _make_signal(cn0_dbhz=80.0, n_sym=900, seed=6)
     hit, hitpos, acq = _acquire(x)
     assert hit is not None
 
-    chip_phase = hit[7]
+    chip_phase = float(hit["chip_phase"])
     s0 = hitpos + acq.code_bins * acq.doppler_bins
 
     dll = Dll(CODE, SPC, chip_phase, 0.002, 0.707, 0.5, segments=segments)

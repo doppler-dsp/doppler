@@ -12,7 +12,8 @@ its own row:
 
 - ``search`` (here) — 64k of noise, nothing to find, into a receiver reset
   before each of a fixed `ROUNDS`. Every sample feeds the embedded
-  `Acquisition` (the 2-D correlation), nothing is emitted. The price of
+  continuous search (a `Correlator`, the 2-D correlation), nothing is
+  emitted. The price of
   listening, on the 1023-chip Gold operating point the receiver's own tests
   validate (`_async_stimulus.py`). The C twin's search row timed zeros on a
   7-chip code and was cut, so this is the honest one.

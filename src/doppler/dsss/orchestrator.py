@@ -1,6 +1,7 @@
 """Elastic multi-channel DSSS acquirer — a coarse-Doppler mixer bank.
 
-A single :class:`~doppler.acquire.BurstAcquisition` integrates coherently only
+A single burst-search :class:`~doppler.correlation.Correlator`
+(``framing="burst"``) integrates coherently only
 within its *native* Doppler span, ``±chip_rate/(2*sf)`` (the slow-time FFT's
 unambiguous range — beyond it the per-segment integrate-and-dump's ``sinc``
 rolloff nulls the correlation at ``±2*span``).  Given a wider
@@ -9,9 +10,10 @@ coherent depth, and ``BurstCapture`` captures across those tiles
 (doppler#1512).  To keep the coherent depth over a *wider* range, this tiles
 ``K`` coarse-Doppler **channels**: each
 down-mixes its sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs
-its own ``BurstAcquisition`` there, so the bank spans ``±doppler_uncertainty``.
+its own burst-search ``Correlator`` there, so the bank spans
+``±doppler_uncertainty``.
 
-Each channel is an independent ``DDC → BurstAcquisition`` pipeline over the
+Each channel is an independent ``DDC → Correlator`` pipeline over the
 elastic pure kernels, so the bank fans out across a thread pool (the C kernels
 release the GIL).  Given a ``burst_len`` the channel is ``DDC → BurstCapture``
 instead — the same search, plus the stage that turns its output into aligned
@@ -79,11 +81,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from doppler.acquire import (
-    BurstAcquisition,
     BurstCapture,
     PersistentBurstCapture,
     bin_to_signed,
 )
+from doppler.correlation import Correlator
 from doppler.cvt import bin_to_nrz
 from doppler.ddc import DDC
 
@@ -133,11 +135,12 @@ class Detection:
 
 
 class CoarseChannel:
-    """One ``DDC(mix → decimate) → BurstAcquisition`` pipeline at ``f_hz``.
+    """One ``DDC(mix → decimate) → Correlator`` burst pipeline at ``f_hz``.
 
     The DDC mixes ``f_hz`` to DC (``norm_freq = -f_hz/source_rate``) and
     decimates the input to the acquisition rate (``chip_rate*spc``); the
-    BurstAcquisition then searches the residual Doppler over its native span.
+    burst-search :class:`~doppler.correlation.Correlator` then searches the
+    residual Doppler over its native span.
     Stateful across :meth:`process` calls (one channel per stream).
     """
 
@@ -202,6 +205,7 @@ class CoarseChannel:
                 "pd": pd,
                 "noise_mode": noise_mode,
             }
+            self._acq: Correlator | BurstCapture | PersistentBurstCapture
             if burst_len:
                 self._acq = (
                     PersistentBurstCapture(
@@ -211,7 +215,11 @@ class CoarseChannel:
                     else BurstCapture(preamble, burst_len=burst_len, **kw)
                 )
             else:
-                self._acq = BurstAcquisition(preamble, **kw)
+                # The burst search names its rate `sample_rate`; the
+                # capture objects still call it `fs`.
+                search_kw = dict(kw)
+                search_kw["sample_rate"] = search_kw.pop("fs")
+                self._acq = Correlator(preamble, framing="burst", **search_kw)
             # Pin n_noncoh=1 explicitly: process() reports a hit per single
             # push() call (one block = one decision), which only holds for
             # coherent-only detection. With no caller-facing max_noncoh knob
@@ -231,8 +239,14 @@ class CoarseChannel:
         self._nbins = self._acq.doppler_bins
 
     @property
-    def acquisition(self) -> BurstAcquisition:
-        """The per-channel :class:`~doppler.acquire.BurstAcquisition`."""
+    def acquisition(
+        self,
+    ) -> Correlator | BurstCapture | PersistentBurstCapture:
+        """The per-channel search: a burst-search
+        :class:`~doppler.correlation.Correlator` (``framing="burst"``), or the
+        :class:`~doppler.acquire.BurstCapture` /
+        :class:`~doppler.acquire.PersistentBurstCapture` wrapping one when the
+        channel was built with a ``burst_len``."""
         return self._acq
 
     def _abs_doppler(self, doppler_bin: int) -> float:
@@ -284,26 +298,18 @@ class CoarseChannel:
                 )
                 for d in self._acq.detections()
             ]
-        hits = []
-        for (
-            dop_bin,
-            code_phase,
-            _peak,
-            _noise,
-            stat,
-            cn0,
-            *_rest,
-        ) in self._acq.push(baseband):
-            hits.append(
-                Detection(
-                    self._abs_doppler(dop_bin),
-                    int(code_phase),
-                    float(stat),
-                    float(cn0),
-                    index,
-                )
+        # The search's hits are a record array: `row` is the folded Doppler
+        # bin, `col` the code phase.
+        return [
+            Detection(
+                self._abs_doppler(int(h["row"])),
+                int(h["col"]),
+                float(h["test_stat"]),
+                float(h["cn0_dbhz_est"]),
+                index,
             )
-        return hits
+            for h in self._acq.push(baseband)
+        ]
 
     def bursts(self) -> tuple[NDArray[np.complex64], NDArray[np.void]]:
         """``(windows, events)`` for the bursts the last :meth:`process`
@@ -331,7 +337,7 @@ class CoarseChannel:
         """Serialize this channel's running state to a portable blob.
 
         Composes the two children's self-validating state blobs — the DDC
-        mixer/decimator and the Acquisition search — behind a small envelope
+        mixer/decimator and the burst search — behind a small envelope
         (magic + version + the two child lengths).  Together with the channel's
         construction parameters (the *descriptor*) this is the ``state`` half
         of the ``(descriptor, state, block)`` triple: rebuild an identical
@@ -425,9 +431,11 @@ class Acquirer:
     chip_rate : float
         Chip rate (Hz).
     reps : int, default 1
-        Max coherent code repetitions per channel (BurstAcquisition ceiling).
+        Max coherent code repetitions per channel (the burst search's
+        ceiling).
     cn0_dbhz, pfa, pd, noise_mode
-        Per-channel :class:`~doppler.acquire.BurstAcquisition` detect params.
+        Per-channel burst-search :class:`~doppler.correlation.Correlator`
+        detect params.
     max_workers : int, optional
         Thread-pool size; defaults to the channel count.
     burst_len : int, default 0

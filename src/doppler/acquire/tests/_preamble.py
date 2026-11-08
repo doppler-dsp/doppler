@@ -1,10 +1,12 @@
 """A PN code as preamble SAMPLES, for the burst objects' tests.
 
-``BurstAcquisition``, ``BurstCapture`` and ``PersistentBurstCapture`` take
-their preamble as its samples, one period at ``fs`` (doppler#1470). A PN
-code is one such preamble, built the way a caller builds it: the chips
-mapped by :func:`doppler.cvt.bin_to_nrz` (the library's one chip -> +-1
-rule) and each held ``spc`` samples, at ``fs = chip_rate * spc``.
+The burst search (``Correlator(ref, framing="burst")``), ``BurstCapture``
+and ``PersistentBurstCapture`` take their preamble as its samples, one
+period at the sample rate (doppler#1470). A PN code is one such preamble,
+built the way a caller builds it: the chips mapped by
+:func:`doppler.cvt.bin_to_nrz` (the library's one chip -> +-1 rule) and
+each held ``spc`` samples, at ``chip_rate * spc``. At ``spc = 1`` it is
+also the continuous search's reference: the chips as NRZ.
 
 One builder, so a test cannot quietly grow its own mapping. The C tests'
 twin is ``native/tests/dp_preamble_test.h``.

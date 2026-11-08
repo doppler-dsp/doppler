@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """acq_surface_demo.py -- watch the searcher: the 2-D test statistic and the
-dwell-by-dwell probes of a continuous :class:`~doppler.acquire.Acquisition`.
+dwell-by-dwell probes of the continuous search,
+:class:`~doppler.correlation.Correlator` with ``framing="continuous"``.
 
 Design §2.4: the searcher is the one stage a hit alone cannot vouch for,
 so the engine carries its own instruments, attach-on-demand. This page
@@ -38,7 +39,7 @@ import sys
 # --8<-- [start:setup]
 import numpy as np
 
-from doppler.acquire import Acquisition
+from doppler.correlation import Correlator
 from doppler.examples._extra import require
 from doppler.telemetry import Telemetry
 from doppler.wfm import Composer, Gold, Segment
@@ -57,6 +58,7 @@ UNCERTAINTY_HZ = 20.0e3
 N_DWELLS = 24
 SEED = 3
 CODE = Gold().generate(SF)
+REF = np.where(CODE & 1, -1, 1).astype(np.complex64)  # chips as NRZ
 
 
 def make_signal(n_samples: int) -> np.ndarray:
@@ -94,8 +96,9 @@ def watch() -> dict:
 
     Returns the last dwell's surface with its axes, the hits, and the
     probe series -- everything the figure and the asserts need."""
-    acq = Acquisition(
-        CODE,
+    acq = Correlator(
+        REF,
+        framing="continuous",
         sample_rate=SPC * CHIP_RATE,
         chip_rate=CHIP_RATE,
         symbol_rate=SYM_RATE,
@@ -164,14 +167,13 @@ def main(out_path: str = "acq_surface_demo.png") -> None:
         "a healthy emitter fires every dwell"
     )
     assert np.all(series["acq.stat"] > gate)
-    # a hit is (doppler_bin, code_phase, peak_mag, noise_est, test_stat,
-    # cn0_dbhz_est, samples_consumed)
+    # a hit is a record: row is the Doppler bin, col the code phase
     last = hits[-1]
     row, col = np.unravel_index(np.argmax(surf), surf.shape)
-    assert (row, col) == (last[0], last[1]), (row, col)
+    assert (row, col) == (int(last["row"]), int(last["col"])), (row, col)
     # to a float rounding: the SIMD build's fast-math may normalise the
     # surface with a reciprocal where the statistic took a divide
-    assert np.isclose(surf[row, col], last[4], rtol=4e-7, atol=0)
+    assert np.isclose(surf[row, col], last["test_stat"], rtol=4e-7, atol=0)
     assert np.isclose(surf[row, col], series["acq.stat"][-1], rtol=4e-7)
     tile_hz = CHIP_RATE / SF
     assert abs(fhz[row] - DOPPLER_HZ) <= tile_hz / 2 + 1e-6, fhz[row]

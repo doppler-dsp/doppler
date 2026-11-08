@@ -121,24 +121,72 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_execute\_power\_sum\_max\_out**](#function-dp_correlator_execute_power_sum_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Powers_ [_**dp\_correlator\_execute\_power\_sum()**_](correlator__core_8h.md#function-dp_correlator_execute_power_sum) _writes: n\_out._ |
 |  [**dp\_correlator\_flavor\_t**](correlator__core_8h.md#enum-dp_correlator_flavor_t) | [**dp\_correlator\_flavor**](#function-dp_correlator_flavor) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Which constructor built_ `state:` _what_[_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _chose from its knobs, so a caller can ask before reading a member only some flavors serve._ |
 |  double | [**dp\_correlator\_gate\_stat**](#function-dp_correlator_gate_stat) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The gate a dwell's statistic must clear to be a hit, in the units of_ [_**dp\_correlator\_hit\_t::test\_stat**_](structdp__correlator__hit__t.md#variable-test_stat) _:_`threshold` _on the coherent path (one look),_`eta_nc` _on the non-coherent one. A dwell hits when its strongest cell's statistic exceeds this, and every listed peak's statistic does too. Both statistics are linear in the cell's amplitude, so a list consumer can compare a peak's excess over another's against it in the same units. Configuration: fixed by the thresholds the grid was sized with._ |
+|  int | [**dp\_correlator\_get\_carrier\_freq\_hz**](#function-dp_correlator_get_carrier_freq_hz) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_RF carrier the Doppler is coupled to, Hz (0.0 = uncoupled); set with set\_carrier\_freq\_hz()._  |
+|  int | [**dp\_correlator\_get\_chip\_rate**](#function-dp_correlator_get_chip_rate) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Chip rate, Hz._  |
+|  int | [**dp\_correlator\_get\_cn0\_dbhz**](#function-dp_correlator_get_cn0_dbhz) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Carrier-to-noise density the search was sized for, dB-Hz; NaN for no design point (the burst search only)._  |
+|  int | [**dp\_correlator\_get\_code\_bins**](#function-dp_correlator_get_code_bins) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_One period of the reference in samples: the length of every forward transform and of a raw epoch._  |
+|  int | [**dp\_correlator\_get\_coherent\_bins**](#function-dp_correlator_get_coherent_bins) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_The block-coherent depth D inside every window tile: epochs per block and Doppler rows per tile. 1 without a code-only window._  |
+|  int | [**dp\_correlator\_get\_col\_out**](#function-dp_correlator_get_col_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int \* out) <br>_The one lag a dump emits per row, or -1 for every lag._  |
+|  int | [**dp\_correlator\_get\_count**](#function-dp_correlator_get_count) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Frames accumulated toward the next dump (0 ... dwell - 1)._  |
+|  int | [**dp\_correlator\_get\_doppler\_bins**](#function-dp_correlator_get_doppler_bins) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Doppler hypotheses searched, window tiles times the coherent depth: the count to fold a hit's row over (bin\_to\_signed(row, doppler\_bins) \* doppler\_res\_hz is the signed Doppler)._  |
+|  int | [**dp\_correlator\_get\_doppler\_rate**](#function-dp_correlator_get_doppler_rate) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Doppler rate the coherent depth is bounded against, Hz/s (0 = no bound); with rate\_hypotheses &gt; 1, the span of the hypotheses._  |
+|  int | [**dp\_correlator\_get\_doppler\_res\_hz**](#function-dp_correlator_get_doppler_res_hz) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Doppler bin width, Hz._  |
+|  int | [**dp\_correlator\_get\_doppler\_span\_hz**](#function-dp_correlator_get_doppler_span_hz) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Native unambiguous Doppler half-range, Hz: sample\_rate / (2 \* code\_bins)._  |
+|  int | [**dp\_correlator\_get\_doppler\_step**](#function-dp_correlator_get_doppler_step) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Doppler bin width of the delay-Doppler map, cycles per sample._  |
+|  int | [**dp\_correlator\_get\_dwell**](#function-dp_correlator_get_dwell) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Integration depth: a dump every_ `dwell` _frames._ |
+|  int | [**dp\_correlator\_get\_epochs\_per\_symbol**](#function-dp_correlator_get_epochs_per_symbol) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_(chip\_rate / sf) / symbol\_rate: code epochs per data symbol; 0 when symbol\_rate is 0._  |
+|  int | [**dp\_correlator\_get\_eta**](#function-dp_correlator_get_eta) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float \* out) <br>_Raw per-cell Rayleigh amplitude threshold._  |
+|  int | [**dp\_correlator\_get\_eta\_nc**](#function-dp_correlator_get_eta_nc) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float \* out) <br>_Non-coherent CFAR threshold (order-N\_nc Marcum)._  |
+|  int | [**dp\_correlator\_get\_keep\_surface**](#function-dp_correlator_get_keep_surface) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int \* out) <br>_Whether every decided dwell's surface is kept for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 or 0._ |
+|  int | [**dp\_correlator\_get\_lag\_bins**](#function-dp_correlator_get_lag_bins) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Code-phase columns of the surface: code\_bins unless code\_bins is not 7-smooth, then the next power of two (an exact interpolation). surface\_chip\_phase() gives each column in chips._  |
+|  int | [**dp\_correlator\_get\_max\_peaks**](#function-dp_correlator_get_max_peaks) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_The peak list's capacity per dwell (1 = the classic gated maximum); set with set\_max\_peaks()._  |
+|  int | [**dp\_correlator\_get\_n**](#function-dp_correlator_get_n) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Frame length in samples: the reference's length, ny \* nx._  |
+|  int | [**dp\_correlator\_get\_n\_held**](#function-dp_correlator_get_n_held) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Picks of the last decided dwell held as same-code-phase twins rather than listed (docs/design/async-dsss-receiver.md section 7.1)._  |
+|  int | [**dp\_correlator\_get\_n\_noncoh**](#function-dp_correlator_get_n_noncoh) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Non-coherent looks per detection (1 = pure coherent)._  |
+|  int | [**dp\_correlator\_get\_n\_peaks**](#function-dp_correlator_get_n_peaks) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Picks in the last decided dwell, held twins included._  |
+|  int | [**dp\_correlator\_get\_noise\_hi**](#function-dp_correlator_get_noise_hi) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Last noise (CFAR reference) bin, inclusive._  |
+|  int | [**dp\_correlator\_get\_noise\_lo**](#function-dp_correlator_get_noise_lo) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_First noise (CFAR reference) bin, inclusive._  |
+|  int | [**dp\_correlator\_get\_nx**](#function-dp_correlator_get_nx) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Samples a reference row: the correlation's native lag count._  |
+|  int | [**dp\_correlator\_get\_nx\_out**](#function-dp_correlator_get_nx_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Lags a dump writes per row: nx unless padded (nx\_out), which interpolates the lag axis. The one padding name at any row count._  |
+|  int | [**dp\_correlator\_get\_ny**](#function-dp_correlator_get_ny) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Rows of the reference: 1 for a 1-D one; the delay-Doppler map's Doppler rows (doppler\_rows)._  |
+|  int | [**dp\_correlator\_get\_ny\_out**](#function-dp_correlator_get_ny_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Rows a dump writes: ny unless padded (ny\_out), which interpolates the Doppler or row axis._  |
+|  int | [**dp\_correlator\_get\_pd**](#function-dp_correlator_get_pd) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Target detection probability._  |
+|  int | [**dp\_correlator\_get\_pd\_burst**](#function-dp_correlator_get_pd_burst) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Predicted Pd of one burst of reps repetitions at cn0\_dbhz: the number the sizer meets pd with. NaN with no design cn0\_dbhz or with n\_noncoh &gt; 1._  |
+|  int | [**dp\_correlator\_get\_pd\_predicted**](#function-dp_correlator_get_pd_predicted) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Predicted Pd at cn0\_dbhz and the chosen grid, averaged over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset): what the Monte-Carlo characterization measures, not the on- grid best case._  |
+|  int | [**dp\_correlator\_get\_peak\_conc**](#function-dp_correlator_get_peak_conc) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float \* out) <br>_Concentration of the last dwell's strongest peak: its main lobe's power over its code-phase column's, across every Doppler row and tile. Near 1 for a clean single emitter; about 0.5 when a data transition splits it into twins (docs/design/async-dsss-receiver.md section 2.4)._  |
+|  int | [**dp\_correlator\_get\_pfa\_cell**](#function-dp_correlator_get_pfa_cell) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Sidak per-cell false-alarm probability over the searched cells._  |
+|  int | [**dp\_correlator\_get\_psl\_db**](#function-dp_correlator_get_psl_db) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_The preamble's peak sidelobe level, dB: its periodic autocorrelation's largest lag outside the mainlobe, relative to the peak (-inf for a perfect sequence such as Zadoff-Chu)._  |
+|  int | [**dp\_correlator\_get\_rate\_hypotheses**](#function-dp_correlator_get_rate_hypotheses) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Doppler-rate hypotheses searched: as given, or the engine's choice when built with 0; 1 is none._  |
+|  int | [**dp\_correlator\_get\_reps**](#function-dp_correlator_get_reps) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Preamble repetitions a burst holds: the coherence ceiling._  |
+|  int | [**dp\_correlator\_get\_ring\_cap**](#function-dp_correlator_get_ring_cap) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Input ring capacity in complex samples._  |
+|  int | [**dp\_correlator\_get\_sample\_rate**](#function-dp_correlator_get_sample_rate) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Sample rate the search runs at, Hz: the constructor's sample\_rate._  |
+|  int | [**dp\_correlator\_get\_sf**](#function-dp_correlator_get_sf) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Chips per code period: len(ref)._  |
 |  void | [**dp\_correlator\_get\_state**](#function-dp_correlator_get_state) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, void \* blob) <br>_Serialize the frame count and spectrum accumulator into_ `blob` _._ |
+|  int | [**dp\_correlator\_get\_straddle\_loss**](#function-dp_correlator_get_straddle_loss) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Mean amplitude derating of the correlation peak from grid straddle, a diagnostic; 20\*log10(straddle\_loss) is the loss in dB._  |
+|  int | [**dp\_correlator\_get\_surface\_at**](#function-dp_correlator_get_surface_at) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_samples\_consumed of the dwell whose surface surface() returns (0 until one has been captured)._  |
+|  int | [**dp\_correlator\_get\_surface\_rows**](#function-dp_correlator_get_surface_rows) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t \* out) <br>_Rows of the surface surface() returns: the Doppler axis in surface units; its columns are lag\_bins._  |
+|  int | [**dp\_correlator\_get\_symbol\_rate**](#function-dp_correlator_get_symbol_rate) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double \* out) <br>_Data-symbol rate the search was built with, Hz (0 = no known data clock): a diagnostic, never sizing._  |
+|  int | [**dp\_correlator\_get\_threads**](#function-dp_correlator_get_threads) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int \* out) <br>_Workers the search fans its tiles across, the calling thread included; 1 = serial. Set with set\_threads()._  |
+|  int | [**dp\_correlator\_get\_threshold**](#function-dp_correlator_get_threshold) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float \* out) <br>_The gate on the test statistic: a detector's as given (0 fires on every dump); a search's derived from pfa (the coherent path's gate)._  |
+|  int | [**dp\_correlator\_get\_underpowered**](#function-dp_correlator_get_underpowered) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, bool \* out) <br>_True when the search cannot meet pd at cn0\_dbhz and its geometry: pd\_predicted &lt; pd for the continuous search, pd\_burst &lt; pd for the burst search. It still builds a best-effort grid, and construction warns (UserWarning)._  |
+|  int | [**dp\_correlator\_last\_corr\_status**](#function-dp_correlator_last_corr_status) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Whether this flavor has a last correlation vector to read: Python's Correlator.last\_corr asks it before it builds the view._  |
 |  size\_t | [**dp\_correlator\_period\_samples**](#function-dp_correlator_period_samples) (size\_t code\_len) <br>_The samples one code period should be searched at: the smallest power of two that holds at least two samples a chip._  |
 |  uint64\_t | [**dp\_correlator\_position**](#function-dp_correlator_position) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The engine's stream position: every sample its pushes have taken, framed ones and the carry, since create, reset, a regrid or set\_state's restore._  |
 |  double | [**dp\_correlator\_psl\_db**](#function-dp_correlator_psl_db) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**dp\_correlator\_shape\_t::psl**_](structdp__correlator__shape__t.md#variable-psl) _)._ |
-|  size\_t | [**dp\_correlator\_push**](#function-dp_correlator_push) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through a detector flavor._  |
+|  size\_t | [**dp\_correlator\_push**](#function-dp_correlator_push) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through a detector or a search flavor; return its detections._  |
 |  size\_t | [**dp\_correlator\_push\_max\_out**](#function-dp_correlator_push_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n\_in) <br>_The most hits_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _can return for_`n_in` _more samples: a result array this long is never short._ |
 |  size\_t | [**dp\_correlator\_rate\_hypotheses\_for**](#function-dp_correlator_rate_hypotheses_for) (double f\_epoch, double span, size\_t depth) <br>_The fewest rate hypotheses over_ `[-span, +span]` _that leave the residual_`span/(n - 1)` _within what a block of_`depth` _epochs tolerates,_`f_epoch^2/(2*depth^2)` __ _the drift rule behind the depth cap, inverted. At least 2 for a positive span; 1 for none; at most_[_**DP\_CORRELATOR\_RATE\_HYPS\_MAX**_](correlator__core_8h.md#define-dp_correlator_rate_hyps_max) _._ |
 |  double | [**dp\_correlator\_rate\_hypothesis**](#function-dp_correlator_rate_hypothesis) (double span, size\_t n, size\_t h) <br>_Rate hypothesis_ `h` _of_`n` _over_`[-span, +span]` _, Hz/s:_`-span + 2*span*h/(n - 1)` _; 0 for_`n <= 1` _._ |
 |  double \_Complex | [**dp\_correlator\_rate\_phasor**](#function-dp_correlator_rate_phasor) (double rate, double t) <br>_The de-chirp phasor_ `exp(-j*pi*rate*t^2)` _for a rate in Hz/s at time_`t` _seconds from the block's middle._ |
-|  void | [**dp\_correlator\_reset**](#function-dp_correlator_reset) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
+|  void | [**dp\_correlator\_reset**](#function-dp_correlator_reset) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Restart the correlator's running state, keeping how it was built._  |
 |  size\_t | [**dp\_correlator\_run**](#function-dp_correlator_run) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
 |  size\_t | [**dp\_correlator\_search\_period**](#function-dp_correlator_search_period) (size\_t code\_len, double sample\_rate, double chip\_rate) <br>_The samples one code period is searched at, for a caller feeding_ `sample_rate:` _its own period when that is already fast, else_[_**dp\_correlator\_period\_samples()**_](correlator__core_8h.md#function-dp_correlator_period_samples) _._ |
 |  int | [**dp\_correlator\_set\_carrier\_freq\_hz**](#function-dp_correlator_set_carrier_freq_hz) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
-|  void | [**dp\_correlator\_set\_keep\_surface**](#function-dp_correlator_set_keep_surface) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int keep) <br>_Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._ |
+|  int | [**dp\_correlator\_set\_keep\_surface**](#function-dp_correlator_set_keep_surface) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int keep) <br>_Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._ |
 |  int | [**dp\_correlator\_set\_max\_peaks**](#function-dp_correlator_set_max_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**dp\_correlator\_set\_ref**](#function-dp_correlator_set_ref) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**dp\_correlator\_set\_state**](#function-dp_correlator_set_state) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* blob) <br>_Restore a mid-dwell correlator from_ [_**dp\_correlator\_get\_state()**_](correlator__core_8h.md#function-dp_correlator_get_state) _'s blob._ |
-|  void | [**dp\_correlator\_set\_surface\_sink**](#function-dp_correlator_set_surface_sink) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, [**dp\_correlator\_surface\_sink\_fn**](correlator__core_8h.md#typedef-dp_correlator_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (docs/design/async-dsss-receiver.md §2.4)._ |
+|  int | [**dp\_correlator\_set\_surface\_sink**](#function-dp_correlator_set_surface_sink) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, [**dp\_correlator\_surface\_sink\_fn**](correlator__core_8h.md#typedef-dp_correlator_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (docs/design/async-dsss-receiver.md §2.4)._ |
 |  int | [**dp\_correlator\_set\_telemetry**](#function-dp_correlator_set_telemetry) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (docs/design/async-dsss-receiver.md §2.4)._  |
 |  int | [**dp\_correlator\_set\_threads**](#function-dp_correlator_set_threads) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (docs/design/acq-surface.md §13: a roll per thread on persistent workers)._  |
 |  int | [**dp\_correlator\_set\_threshold**](#function-dp_correlator_set_threshold) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float threshold) <br>_Change a detector flavor's threshold without rebuilding it._  |
@@ -188,7 +236,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 | Type | Name |
 | ---: | :--- |
 | define  | [**CORRELATOR\_STATE\_MAGIC**](correlator__core_8h.md#define-correlator_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','O','R','L')`<br>_State-blob magic ('CORL'); set\_state() rejects any other._  |
-| define  | [**CORRELATOR\_STATE\_VERSION**](correlator__core_8h.md#define-correlator_state_version)  `1u`<br>_State-blob layout version; set\_state() rejects any other._  |
+| define  | [**CORRELATOR\_STATE\_VERSION**](correlator__core_8h.md#define-correlator_state_version)  `2u`<br>_State-blob layout version; set\_state() rejects any other. 2: the search's extra block carries keep\_surface (#2022)._  |
 | define  | [**DP\_CORRELATOR\_CN0\_NONE**](correlator__core_8h.md#define-dp_correlator_cn0_none)  `NAN`<br>_The design C/N0 that means "none given" (doppler#1484): a burst engine then sizes for the whole preamble, its_ `pd_predicted` _is NaN and it is never_`underpowered` _._ |
 | define  | [**DP\_CORRELATOR\_DELAY\_LOSS\_NODES**](correlator__core_8h.md#define-dp_correlator_delay_loss_nodes)  `4`<br> |
 | define  | [**DP\_CORRELATOR\_MAX\_PEAKS**](correlator__core_8h.md#define-dp_correlator_max_peaks)  `64u`<br> |
@@ -298,7 +346,7 @@ enum dp_correlator_flavor_t {
 
 
 
-Fixed at create and the state blob's first field: a blob restores only into a correlator of its own flavor. 
+Fixed at create and the state blob's first field: a blob restores only into a correlator of its own flavor. Python's Correlator.flavor reads it by name, through the correlator\_flavor enum table in just-makeit.toml. 
 
 
         
@@ -388,7 +436,7 @@ The bank searches on `L_d` and resolves on `L_r` (docs/design/corr2d-hypotheses.
 
 * **Detect.** [**dp\_correlator\_bank\_power\_max()**](correlator__core_8h.md#function-dp_correlator_bank_power_max) over carriers `g_min` .. `g_max` on the `1 / (L_d nx)` grid, with every rate.
 * **Candidates.** Every cell whose power exceeds `t_candidate` and is at least each of its 8 neighbors, both axes circular (a delay lag and a Doppler bin both wrap).
-* **Refine.** For a candidate found by coarse carrier g\_d and rate r, the map value at its cell under every fine carrier g\_r from `m g_d - (m - 1)` to `m g_d + (m - 1)`, m = `L_r / L_d`: the carriers between its coarse neighbors, on the `1 / (L_r nx)` grid. On the fast path and DelayDoppler with a native delay axis each is a time-domain correlation at the cell's lag and a slow-time DFT at its Doppler row, in double, with no FFT: `2 ny nx` multiply-adds a carrier. Any other object makes that hypothesis's map and reads the cell. The best g\_r wins, the lowest on a tie.
+* **Refine.** For a candidate found by coarse carrier g\_d and rate r, the map value at its cell under every fine carrier g\_r from `m g_d - (m - 1)` to `m g_d + (m - 1)`, m = `L_r / L_d`: the carriers between its coarse neighbors, on the `1 / (L_r nx)` grid. On the fast path and the delay-Doppler map with a native delay axis each is a time-domain correlation at the cell's lag and a slow-time DFT at its Doppler row, in double, with no FFT: `2 ny nx` multiply-adds a carrier. Any other object makes that hypothesis's map and reads the cell. The best g\_r wins, the lowest on a tie.
 * **Confirm.** A candidate whose refined power exceeds `t_confirm` is a record.
 
 
@@ -421,14 +469,14 @@ Records come out in cell order (row-major), one entry of each output per record:
 Python: the tuple (power, g, rate, row, col), one entry per confirmed record (possibly none): float32 refined power, int32 refined carrier, uint32 rate, row and column, always new arrays (this call takes no `out=`); anything below is a ValueError. C: the record count (0 included), or SIZE\_MAX with nothing written for anything [**dp\_correlator\_bank\_fold()**](correlator__core_8h.md#function-dp_correlator_bank_fold) refuses, `L_d == 0`, an `L_r` that `L_d` does not divide, a refined carrier past int32, or `max_out` below `n_out`. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx, d = 8, 32, 5
 >>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
 >>> m = np.arange(ny * nx)
 >>> x = (np.tile(np.roll(code, d), ny)    # 1.25 bins: between L_d = 2
 ...      * np.exp(2j * np.pi * 1.25 / nx * m)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> no_rates = np.empty(0, np.complex64)
 >>> coarse, _ = dd.bank_power_max(x, 2, -4, 4, no_rates)
 >>> t = 0.5 * coarse.max()
@@ -512,7 +560,7 @@ A bank is what a frame batch of corrected copies would compute, without the copi
 The correction restarts at every period on purpose: the phase a carrier adds between periods is slow-time Doppler, which the slow-time FFT measures, so a signal stays on its own absolute Doppler row under every carrier hypothesis (docs/design/corr2d-hypotheses.md, rule 4).
 
 
-Every path runs a bank, and only the single-row fast path and DelayDoppler share work: whole bins (g a multiple of L) are a roll of the row spectrum, each fraction `g mod L` mixes and transforms the rows once for every whole bin that shares it. On DelayDoppler the one delay-Doppler map then runs in the order its rule picks for the bank's carriers per fraction and its rates (docs/design/acq-surface.md §18.1): rows first inverts each carrier's rows once for all its rates and pays a slow-time FFT per rate; slow first shares each fraction's slow time across its whole-bin carriers and pays their rows per rate. On Corr2D, whose rows are its periods, a rate scales the carrier's rows. The general 2-D path and a known column run each hypothesis's corrected frame through their own frame code, which is the definition with nothing shared.
+Every path runs a bank, and only the single-row fast path and the delay-Doppler map share work: whole bins (g a multiple of L) are a roll of the row spectrum, each fraction `g mod L` mixes and transforms the rows once for every whole bin that shares it. On the delay-Doppler map the one map then runs in the order its rule picks for the bank's carriers per fraction and its rates (docs/design/acq-surface.md §18.1): rows first inverts each carrier's rows once for all its rates and pays a slow-time FFT per rate; slow first shares each fraction's slow time across its whole-bin carriers and pays their rows per rate. On the 2-D map, whose rows are its periods, a rate scales the carrier's rows. The general 2-D path and a known column run each hypothesis's corrected frame through their own frame code, which is the definition with nothing shared.
 
 
 Maps reach `fold` in h order, so a reducer's tie rule is the batch's. The stages split across the object's workers exactly as execute() does, and every map is bit-identical for any worker count. The dwell accumulator, `count` and the state blob are never read or written.
@@ -523,7 +571,7 @@ Maps reach `fold` in h order, so a reducer's tie rule is the batch's. The stages
 **Parameters:**
 
 
-* `state` Any Corr2D or DelayDoppler object. 
+* `state` A map flavor (1-D, 2-D or delay-Doppler). 
 * `x` One frame, `x_len` samples. 
 * `x_len` Must be exactly `ny * nx`. 
 * `L` Fractions per whole bin; at least 1. 
@@ -612,14 +660,14 @@ size_t dp_correlator_bank_power_max (
 Python: the tuple (power, index), each (n\_out,): float32 powers and uint32 hypothesis indices, always new arrays (this call takes no `out=`); a refusal is a ValueError. C: `n_out`, or SIZE\_MAX with nothing written. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx, d = 8, 32, 5                  # code delayed by 5 samples
 >>> code = rng.choice([-1.0, 1.0], nx).astype(np.complex64)
 >>> m = np.arange(ny * nx)
 >>> x = (np.tile(np.roll(code, d), ny)    # on a carrier 1.5 bins off
 ...      * np.exp(2j * np.pi * 1.5 / nx * m)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> no_rates = np.empty(0, np.complex64)
 >>> pw, h = dd.bank_power_max(x, 2, -4, 4, no_rates)  # g / (2 nx), -4..4
 >>> cell = int(np.argmax(pw))
@@ -701,7 +749,7 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 * `tile` Tile index, `0 … window_bins-1` (native FFT order, the order the surface's rows are cut in). 
 * `col` Code-phase column, `0 … lag_bins-1`. 
 * `out` At least `coherent_bins` complex floats. 
-* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
 
 
 
@@ -710,13 +758,14 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no block is gathered), while a block is partial, for an index out of range, or when `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> b = Correlator(ref, framing="continuous", sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
 ...                 doppler_uncertainty=40e3, code_only_epochs=7)
 >>> b.coherent_bins                    # (7 + 1) // 2
 4
@@ -765,7 +814,7 @@ Copies the `coherent_bins * code_bins` samples the block-coherent engine gathere
 
 * `state` Must be non-NULL. 
 * `out` At least `coherent_bins * code_bins` complex floats. 
-* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
 
 
 
@@ -774,13 +823,14 @@ Copies the `coherent_bins * code_bins` samples the block-coherent engine gathere
 Samples written (`coherent_bins * code_bins`), or 0 at `coherent_bins == 1`, while a block is partial, or when `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> b = Correlator(ref, framing="continuous", sample_rate=4e6, chip_rate=1e6, cn0_dbhz=60.0,
 ...                 doppler_uncertainty=40e3, code_only_epochs=7)
 >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
 >>> _ = b.push(blk)
@@ -1012,18 +1062,20 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 0 on success, -1 if either argument is out of range (or `n_noncoh` &gt; 1 on an engine with rate hypotheses, which do not compose with non-coherent looks), or an allocation fails (the engine is left usable at its prior grid on failure). 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
 >>> a.doppler_bins, a.n_noncoh
 (1, 4)
 >>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
->>> a.push(burst)[0][:2]      # detects at the pinned grid
+>>> h = a.push(burst)
+>>> int(h["row"][0]), int(h["col"][0])      # detects at the pinned grid
 (0, 18)
 ```
  
@@ -1140,6 +1192,9 @@ A one-row reference is the 1-D flavor: [**dp\_correlator\_create\_1d()**](correl
 The continuous search's reference is NRZ chips as samples: exactly +1 (chip 0) or -1 (chip 1), with no imaginary part, the mapping of [**dp\_bin\_to\_nrz()**](cvt__core_8h.md#function-dp_bin_to_nrz); any other sample is refused, so a shaped or noisy reference is never quantized silently.
 
 
+The class `Correlator` calls it with the knobs as keywords, and the flavor follows from them; a refusal is a ValueError carrying the sentence `why` points at. The C call, `why` included, is the guide's (docs/guide/correlator.md, "From C").
+
+
 
 
 **Parameters:**
@@ -1182,28 +1237,19 @@ The correlator, or NULL: refused (`why` says which knob) or out of memory.
 
 
 ```C++
-#include "doppler/correlator/correlator_core.h"
-#include <stdint.h>
-#include <stdio.h>
-
-int main (void)
-{
-  float _Complex ref[4] = { 1, 0, 0, 0 };
-  const char *why = NULL;
-  dp_correlator_state_t *c = dp_correlator_create (
-      ref, 1, 4, DP_CORRELATOR_FRAMING_NONE, 0, 1, 1, 0, 0, -1, 0.0f, 0,
-      SIZE_MAX, DET_NOISE_MEAN, 0.0, 0.0, 0.0, 1, DP_CORRELATOR_CN0_NONE,
-      0.0, 1e-3, 0.9, 0.0, 1, 1, 1, &why);
-  if (!c || dp_correlator_flavor (c) != DP_CORRELATOR_DETECTOR_1D)
-    return 1;
-  dp_correlator_destroy (c);
-  c = dp_correlator_create (
-      ref, 1, 4, DP_CORRELATOR_FRAMING_BURST, 0, 0, 1, 0, 0, -1, 0.0f, 0,
-      SIZE_MAX, DET_NOISE_MEAN, 0.0, 0.0, 0.0, 1, DP_CORRELATOR_CN0_NONE,
-      0.0, 1e-3, 0.9, 0.0, 1, 1, 1, &why);
-  printf ("%s\n", why);
-  return c == NULL ? 0 : 1;
-}
+>>> import numpy as np
+>>> from doppler.correlation import Correlator
+>>> ref = np.zeros(8, np.complex64); ref[0] = 1.0
+>>> Correlator(ref).flavor                      # a 1-D map
+'1d'
+>>> Correlator(ref, detect=1).flavor            # a streaming detector
+'detector_1d'
+>>> Correlator(np.ones((4, 8), np.complex64)).flavor
+'2d'
+>>> Correlator(ref, doppler_rows=4).flavor      # a delay-Doppler map
+'delay_doppler'
+>>> Correlator(ref).execute(ref).shape          # one dump of nx lags
+(8,)
 ```
  
 
@@ -1249,10 +1295,10 @@ It is [**dp\_correlator\_create\_2d()**](correlator__core_8h.md#function-dp_corr
 
 Heap-allocated state (free with [**dp\_correlator\_destroy()**](correlator__core_8h.md#function-dp_correlator_destroy)), or NULL on a dwell of 0, an `n_out` below `ref_len`, or allocation failure. 
 ```C++
->>> from doppler.spectral import Corr
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
->>> corr = Corr(ref=ref, dwell=1, nthreads=1)
+>>> corr = Correlator(ref=ref, dwell=1, nthreads=1)
 >>> corr.n, corr.dwell, corr.count
 (4, 1, 0)
 ```
@@ -1306,10 +1352,10 @@ dp_correlator_state_t * dp_correlator_create_2d (
 
 Heap-allocated state, or NULL on failure. 
 ```C++
->>> from doppler.spectral import Corr2D
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
->>> c = Corr2D(ref=ref, dwell=1, nthreads=1)
+>>> c = Correlator(ref=ref, dwell=1, nthreads=1)
 >>> c.ny, c.nx, c.dwell, c.count
 (4, 4, 1, 0)
 ```
@@ -1480,15 +1526,17 @@ window-tiling mode")  unconditionally, so `window_bins = 1` when `doppler_uncert
 Heap-allocated state, or NULL on bad arguments / allocation failure. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
 >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
->>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
->>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> h = a.push(burst)
+>>> int(h["row"][0]), int(h["col"][0])    # detects (Doppler-window bin, code phase)
 (0, 18)
 >>> (a.code_bins, a.lag_bins)  # 124 samples, read on 128 columns
 (124, 128)
@@ -1496,7 +1544,7 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 17.44
 >>> a.coherent_bins            # no window given: one epoch
 1
->>> b = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
+>>> b = Correlator(ref, framing="continuous", sample_rate=4e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 code_only_epochs=7)
 >>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
 4
@@ -1529,7 +1577,7 @@ dp_correlator_state_t * dp_correlator_create_delay_doppler (
 
 
 
-Input to [**dp\_correlator\_execute()**](correlator__core_8h.md#function-dp_correlator_execute) is the raw stream  `ny` periods of `code_len` samples, back to back, no reshaping or reference padding by the caller. Each period (row) is correlated against `code` exactly as Corr2D's single-row fast path does (FFT, multiply by `conj(FFT(code))`, coherent `dwell` accumulation of the product spectrum, inverse scaled by `1/nx`), and on the dump the slow-time FFT runs down every delay column. The library's one delay-Doppler map computes it (docs/design/acq-surface.md §18) in the order its rule picks: here the rows first, each row inverted as it is accumulated, which is what makes the row stage fused. In numpy terms, for one frame `x` (dwell 1):  The output is `ny_out x nx` row-major: rows are Doppler bins, centered (zero Doppler on row `ny_out / 2`), columns are delay lags. A signal of amplitude `a` that is the code delayed by `d` samples and rotated by `f` cycles/sample peaks at column `d` and row `ny_out/2 + f / doppler_step`, where [**dp\_correlator\_state\_t::doppler\_step**](structdp__correlator__state__t.md#variable-doppler_step) is `1 / (ny_out * nx)` cycles/sample (times the sample rate for Hz). Its peak is `a * dwell * ny * sum(abs(code)**2)`: the 1/nx of the row inverse cancels the row correlation's own gain of nx, and the slow-time FFT is unnormalized, as numpy's is, so it sums the ny rows coherently.
+Input to [**dp\_correlator\_execute()**](correlator__core_8h.md#function-dp_correlator_execute) is the raw stream  `ny` periods of `code_len` samples, back to back, no reshaping or reference padding by the caller. Each period (row) is correlated against `code` exactly as the 2-D map's single-row fast path does (FFT, multiply by `conj(FFT(code))`, coherent `dwell` accumulation of the product spectrum, inverse scaled by `1/nx`), and on the dump the slow-time FFT runs down every delay column. The library's one delay-Doppler map computes it (docs/design/acq-surface.md §18) in the order its rule picks: here the rows first, each row inverted as it is accumulated, which is what makes the row stage fused. In numpy terms, for one frame `x` (dwell 1):  The output is `ny_out x nx` row-major: rows are Doppler bins, centered (zero Doppler on row `ny_out / 2`), columns are delay lags. A signal of amplitude `a` that is the code delayed by `d` samples and rotated by `f` cycles/sample peaks at column `d` and row `ny_out/2 + f / doppler_step`, where [**dp\_correlator\_state\_t::doppler\_step**](structdp__correlator__state__t.md#variable-doppler_step) is `1 / (ny_out * nx)` cycles/sample (times the sample rate for Hz). Its peak is `a * dwell * ny * sum(abs(code)**2)`: the 1/nx of the row inverse cancels the row correlation's own gain of nx, and the slow-time FFT is unnormalized, as numpy's is, so it sums the ny rows coherently.
 
 
 `ny_out > ny` zero-pads the slow-time samples after the ny rows: the ny\_out-point DFT then samples the same Doppler response on a grid ny\_out/ny times finer (band-limited interpolation). The pad adds no energy, so the peak at a bin center is unchanged and a Doppler between native bins is found at its fractional row.
@@ -1557,7 +1605,7 @@ Both stages fan out over `nthreads` workers  the rows, then the columns  each wo
 Heap-allocated state (free with [**dp\_correlator\_destroy()**](correlator__core_8h.md#function-dp_correlator_destroy)), or NULL if `code` is NULL, `code_len` or `ny` is 0, `dwell` is 0, or `ny_out` is below `ny`. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx, d, k = 16, 64, 5, 3       # delay 5, Doppler 3 bins
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
@@ -1565,7 +1613,7 @@ Heap-allocated state (free with [**dp\_correlator\_destroy()**](correlator__core
 >>> f = k / (ny * nx)                 # cycles/sample
 >>> x = (np.tile(np.roll(code, d), ny)
 ...      * np.exp(2j * np.pi * f * n)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny, dwell=2)
+>>> dd = Correlator(code, doppler_rows=ny, dwell=2)
 >>> out = np.empty(dd.execute_max_out(), np.complex64)
 >>> for _ in range(2):                # one preallocated map per dump
 ...     m = dd.execute(x, out=out)
@@ -1630,10 +1678,10 @@ After every dump the peak-to-noise test statistic is compared against `threshold
 
 Heap-allocated state, or NULL when the arguments are refused (an empty reference, `dwell` 0) or the stream's ring cannot be made. Out of memory for the detection buffers aborts, by the library's dp\_x\* convention ([**clib\_common.h**](clib__common_8h.md)). 
 ```C++
->>> from doppler.spectral import CorrDetector
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
->>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+>>> det = Correlator(ref=ref, detect=1, dwell=1, noise_lo=1, noise_hi=7,
 ...                noise_mode="mean", threshold=0.0)
 >>> det.n, det.dwell, det.ring_cap
 (8, 1, 512)
@@ -1693,10 +1741,10 @@ Input frames are flat row-major CF32 arrays of length ny\*nx, cut from the strea
 
 Heap-allocated state, or NULL when the arguments are refused (an empty axis, `dwell` 0) or the stream's ring cannot be made. Out of memory for the detection buffers aborts, by the library's dp\_x\* convention ([**clib\_common.h**](clib__common_8h.md)), as the map's plans do. 
 ```C++
->>> from doppler.spectral import CorrDetector2D
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
->>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+>>> det = Correlator(ref=ref, detect=1, dwell=1, noise_lo=1, noise_hi=15,
 ...                  noise_mode="mean", threshold=0.0)
 >>> det.ny, det.nx, det.n, det.dwell
 (4, 4, 16, 1)
@@ -1813,7 +1861,7 @@ size_t dp_correlator_execute (
 
 
 
-**Layout.** A frame is ny\*nx complex samples in row-major order: row i is samples i\*nx .. (i+1)\*nx - 1. For Corr2D that is a (ny, nx) image; for DelayDoppler it is the raw stream, ny code periods of nx = code\_len samples back to back. The map a dump produces is flat, n\_out = ny\_out \* nx\_out values (ny values with `col_out`), also row-major: reshape it to (ny\_out, nx\_out). On a DelayDoppler, axis 0 is Doppler (centered, zero Doppler on row ny\_out / 2) and axis 1 is delay (the lag, in samples).
+**Layout.** A frame is ny\*nx complex samples in row-major order: row i is samples i\*nx .. (i+1)\*nx - 1. For the 2-D map that is a (ny, nx) image; for the delay-Doppler map it is the raw stream, ny code periods of nx = code\_len samples back to back. The map a dump produces is flat, n\_out = ny\_out \* nx\_out values (ny values with `col_out`), also row-major: reshape it to (ny\_out, nx\_out). On the delay-Doppler map, axis 0 is Doppler (centered, zero Doppler on row ny\_out / 2) and axis 1 is delay (the lag, in samples).
 
 
 **Ownership.** In Python, a call that dumps returns a new array when no `out=` is given, and a view of `out=` when one is (a 1-D array holding at least n\_out values; it is written on a dump only, and the next dump overwrites it). A call that does not dump returns None and touches neither.
@@ -1836,10 +1884,10 @@ size_t dp_correlator_execute (
 
 Python: the map on a dump, None otherwise; a frame that is not ny\*nx samples is REFUSED with nothing read, written or counted, as a ValueError (#1925). C: n\_out on a dump (or `max_out` if smaller), 0 otherwise, and SIZE\_MAX for the refused frame. 
 ```C++
->>> from doppler.spectral import Corr2D
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
->>> c = Corr2D(ref=ref, dwell=2)
+>>> c = Correlator(ref=ref, dwell=2)
 >>> x = np.ones((2, 2), dtype=np.complex64)
 >>> c.execute(x) is None   # frame 1 — no dump
 True
@@ -1894,11 +1942,11 @@ Python: `x` is the H frames back to back, a flat array of H \* ny \* nx samples 
 Python: the (H, n\_out) array; a refused batch (empty, not a whole number of frames, or an `out=` with fewer than H rows) is a ValueError with nothing written. C: H \* n\_out, or SIZE\_MAX for the refused batch. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> maps = dd.execute_all(frames)
@@ -1948,11 +1996,11 @@ size_t dp_correlator_execute_all_max_out (
 The capacity `execute_all` needs for `n_in` samples: H \* n\_out values (C: SIZE\_MAX if that overflows). 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> dd.execute_all_max_out(len(frames))   # 2 maps of 8 x 32
@@ -2009,11 +2057,11 @@ The frames' product spectra are summed and the sum is inverted, as a dwell does:
 Python: the one map, a new (n\_out,) array; a refused batch is a ValueError with nothing written. C: n\_out, or SIZE\_MAX for the refused batch. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> x = np.tile(code, ny)
@@ -2058,11 +2106,11 @@ size_t dp_correlator_execute_coherent_max_out (
 n\_out, fixed at create(). 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> dd.execute_coherent_max_out()
@@ -2235,11 +2283,11 @@ Entry h of each output describes map h: `out` its largest `|map|^2`, `out1` and 
 Python: the tuple (peak, row, col, mean), each (H,): float32 peak power, uint32 row and column, float32 mean power, always new arrays (this call takes no `out=`); a refused batch is a ValueError. C: H, or SIZE\_MAX with nothing written. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> peak, row, col, mean = dd.execute_peaks(frames)
@@ -2346,11 +2394,11 @@ Each cell of `out` is the largest `|map_h|^2` that cell takes over the maps, and
 Python: the tuple (power, index), each (n\_out,): float32 powers and uint32 map indices, always new arrays (this call takes no `out=`); a refused batch, or H above 2\*\*32, is a ValueError. C: n\_out, or SIZE\_MAX with nothing written. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> power, index = dd.execute_power_max(frames)
@@ -2451,11 +2499,11 @@ Unlike the coherent sum, phase does not cancel: frames x and -x sum to twice one
 Python: the (n\_out,) float32 powers, a new array; a refused batch is a ValueError with nothing written. C: n\_out, or SIZE\_MAX for the refused batch. 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> x = np.tile(code, ny)
@@ -2501,11 +2549,11 @@ size_t dp_correlator_execute_power_sum_max_out (
 n\_out, fixed at create(). 
 ```C++
 >>> import numpy as np
->>> from doppler.spectral import DelayDoppler
+>>> from doppler.correlation import Correlator
 >>> rng = np.random.default_rng(0)
 >>> ny, nx = 8, 32
 >>> code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
->>> dd = DelayDoppler(code, ny=ny)
+>>> dd = Correlator(code, doppler_rows=ny)
 >>> frames = np.concatenate([np.tile(np.roll(code, d), ny)
 ...                          for d in (3, 11)])   # delays 3 and 11
 >>> dd.execute_power_sum_max_out()
@@ -2591,6 +2639,1566 @@ The gate, in [**dp\_correlator\_hit\_t::test\_stat**](structdp__correlator__hit_
 
 
 
+### function dp\_correlator\_get\_carrier\_freq\_hz 
+
+_RF carrier the Doppler is coupled to, Hz (0.0 = uncoupled); set with set\_carrier\_freq\_hz()._ 
+```C++
+int dp_correlator_get_carrier_freq_hz (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_chip\_rate 
+
+_Chip rate, Hz._ 
+```C++
+int dp_correlator_get_chip_rate (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_cn0\_dbhz 
+
+_Carrier-to-noise density the search was sized for, dB-Hz; NaN for no design point (the burst search only)._ 
+```C++
+int dp_correlator_get_cn0_dbhz (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_code\_bins 
+
+_One period of the reference in samples: the length of every forward transform and of a raw epoch._ 
+```C++
+int dp_correlator_get_code_bins (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_coherent\_bins 
+
+_The block-coherent depth D inside every window tile: epochs per block and Doppler rows per tile. 1 without a code-only window._ 
+```C++
+int dp_correlator_get_coherent_bins (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_col\_out 
+
+_The one lag a dump emits per row, or -1 for every lag._ 
+```C++
+int dp_correlator_get_col_out (
+    const dp_correlator_state_t * state,
+    int * out
+) 
+```
+
+
+
+Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_count 
+
+_Frames accumulated toward the next dump (0 ... dwell - 1)._ 
+```C++
+int dp_correlator_get_count (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_doppler\_bins 
+
+_Doppler hypotheses searched, window tiles times the coherent depth: the count to fold a hit's row over (bin\_to\_signed(row, doppler\_bins) \* doppler\_res\_hz is the signed Doppler)._ 
+```C++
+int dp_correlator_get_doppler_bins (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_doppler\_rate 
+
+_Doppler rate the coherent depth is bounded against, Hz/s (0 = no bound); with rate\_hypotheses &gt; 1, the span of the hypotheses._ 
+```C++
+int dp_correlator_get_doppler_rate (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_doppler\_res\_hz 
+
+_Doppler bin width, Hz._ 
+```C++
+int dp_correlator_get_doppler_res_hz (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_doppler\_span\_hz 
+
+_Native unambiguous Doppler half-range, Hz: sample\_rate / (2 \* code\_bins)._ 
+```C++
+int dp_correlator_get_doppler_span_hz (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_doppler\_step 
+
+_Doppler bin width of the delay-Doppler map, cycles per sample._ 
+```C++
+int dp_correlator_get_doppler_step (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the delay-Doppler map (doppler\_rows &gt; 0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_dwell 
+
+_Integration depth: a dump every_ `dwell` _frames._
+```C++
+int dp_correlator_get_dwell (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_epochs\_per\_symbol 
+
+_(chip\_rate / sf) / symbol\_rate: code epochs per data symbol; 0 when symbol\_rate is 0._ 
+```C++
+int dp_correlator_get_epochs_per_symbol (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_eta 
+
+_Raw per-cell Rayleigh amplitude threshold._ 
+```C++
+int dp_correlator_get_eta (
+    const dp_correlator_state_t * state,
+    float * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_eta\_nc 
+
+_Non-coherent CFAR threshold (order-N\_nc Marcum)._ 
+```C++
+int dp_correlator_get_eta_nc (
+    const dp_correlator_state_t * state,
+    float * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_keep\_surface 
+
+_Whether every decided dwell's surface is kept for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 or 0._
+```C++
+int dp_correlator_get_keep_surface (
+    const dp_correlator_state_t * state,
+    int * out
+) 
+```
+
+
+
+The continuous search only (docs/design/correlator-python.md section 18): any other flavor keeps no surface and refuses the read, and Python's read raises AttributeError.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives 1 if kept, else 0; untouched on a refusal. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the continuous search. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_lag\_bins 
+
+_Code-phase columns of the surface: code\_bins unless code\_bins is not 7-smooth, then the next power of two (an exact interpolation). surface\_chip\_phase() gives each column in chips._ 
+```C++
+int dp_correlator_get_lag_bins (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_max\_peaks 
+
+_The peak list's capacity per dwell (1 = the classic gated maximum); set with set\_max\_peaks()._ 
+```C++
+int dp_correlator_get_max_peaks (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_n 
+
+_Frame length in samples: the reference's length, ny \* nx._ 
+```C++
+int dp_correlator_get_n (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the 1-D map or a detector (detect=True); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_n\_held 
+
+_Picks of the last decided dwell held as same-code-phase twins rather than listed (docs/design/async-dsss-receiver.md section 7.1)._ 
+```C++
+int dp_correlator_get_n_held (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_n\_noncoh 
+
+_Non-coherent looks per detection (1 = pure coherent)._ 
+```C++
+int dp_correlator_get_n_noncoh (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_n\_peaks 
+
+_Picks in the last decided dwell, held twins included._ 
+```C++
+int dp_correlator_get_n_peaks (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_noise\_hi 
+
+_Last noise (CFAR reference) bin, inclusive._ 
+```C++
+int dp_correlator_get_noise_hi (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_noise\_lo 
+
+_First noise (CFAR reference) bin, inclusive._ 
+```C++
+int dp_correlator_get_noise_lo (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_nx 
+
+_Samples a reference row: the correlation's native lag count._ 
+```C++
+int dp_correlator_get_nx (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_nx\_out 
+
+_Lags a dump writes per row: nx unless padded (nx\_out), which interpolates the lag axis. The one padding name at any row count._ 
+```C++
+int dp_correlator_get_nx_out (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_ny 
+
+_Rows of the reference: 1 for a 1-D one; the delay-Doppler map's Doppler rows (doppler\_rows)._ 
+```C++
+int dp_correlator_get_ny (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_ny\_out 
+
+_Rows a dump writes: ny unless padded (ny\_out), which interpolates the Doppler or row axis._ 
+```C++
+int dp_correlator_get_ny_out (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a map (framing='none', detect=False); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_pd 
+
+_Target detection probability._ 
+```C++
+int dp_correlator_get_pd (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_pd\_burst 
+
+_Predicted Pd of one burst of reps repetitions at cn0\_dbhz: the number the sizer meets pd with. NaN with no design cn0\_dbhz or with n\_noncoh &gt; 1._ 
+```C++
+int dp_correlator_get_pd_burst (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_pd\_predicted 
+
+_Predicted Pd at cn0\_dbhz and the chosen grid, averaged over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset): what the Monte-Carlo characterization measures, not the on- grid best case._ 
+```C++
+int dp_correlator_get_pd_predicted (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_peak\_conc 
+
+_Concentration of the last dwell's strongest peak: its main lobe's power over its code-phase column's, across every Doppler row and tile. Near 1 for a clean single emitter; about 0.5 when a data transition splits it into twins (docs/design/async-dsss-receiver.md section 2.4)._ 
+```C++
+int dp_correlator_get_peak_conc (
+    const dp_correlator_state_t * state,
+    float * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_pfa\_cell 
+
+_Sidak per-cell false-alarm probability over the searched cells._ 
+```C++
+int dp_correlator_get_pfa_cell (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_psl\_db 
+
+_The preamble's peak sidelobe level, dB: its periodic autocorrelation's largest lag outside the mainlobe, relative to the peak (-inf for a perfect sequence such as Zadoff-Chu)._ 
+```C++
+int dp_correlator_get_psl_db (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_rate\_hypotheses 
+
+_Doppler-rate hypotheses searched: as given, or the engine's choice when built with 0; 1 is none._ 
+```C++
+int dp_correlator_get_rate_hypotheses (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_reps 
+
+_Preamble repetitions a burst holds: the coherence ceiling._ 
+```C++
+int dp_correlator_get_reps (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_ring\_cap 
+
+_Input ring capacity in complex samples._ 
+```C++
+int dp_correlator_get_ring_cap (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_sample\_rate 
+
+_Sample rate the search runs at, Hz: the constructor's sample\_rate._ 
+```C++
+int dp_correlator_get_sample_rate (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_sf 
+
+_Chips per code period: len(ref)._ 
+```C++
+int dp_correlator_get_sf (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_correlator\_get\_state 
 
 _Serialize the frame count and spectrum accumulator into_ `blob` _._
@@ -2610,6 +4218,316 @@ void dp_correlator_get_state (
 
 * `state` Must be non-NULL. 
 * `blob` Destination; at least [**dp\_correlator\_state\_bytes()**](correlator__core_8h.md#function-dp_correlator_state_bytes) bytes. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_straddle\_loss 
+
+_Mean amplitude derating of the correlation peak from grid straddle, a diagnostic; 20\*log10(straddle\_loss) is the loss in dB._ 
+```C++
+int dp_correlator_get_straddle_loss (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_surface\_at 
+
+_samples\_consumed of the dwell whose surface surface() returns (0 until one has been captured)._ 
+```C++
+int dp_correlator_get_surface_at (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_surface\_rows 
+
+_Rows of the surface surface() returns: the Doppler axis in surface units; its columns are lag\_bins._ 
+```C++
+int dp_correlator_get_surface_rows (
+    const dp_correlator_state_t * state,
+    size_t * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_symbol\_rate 
+
+_Data-symbol rate the search was built with, Hz (0 = no known data clock): a diagnostic, never sizing._ 
+```C++
+int dp_correlator_get_symbol_rate (
+    const dp_correlator_state_t * state,
+    double * out
+) 
+```
+
+
+
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_threads 
+
+_Workers the search fans its tiles across, the calling thread included; 1 = serial. Set with set\_threads()._ 
+```C++
+int dp_correlator_get_threads (
+    const dp_correlator_state_t * state,
+    int * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_threshold 
+
+_The gate on the test statistic: a detector's as given (0 fires on every dump); a search's derived from pfa (the coherent path's gate)._ 
+```C++
+int dp_correlator_get_threshold (
+    const dp_correlator_state_t * state,
+    float * out
+) 
+```
+
+
+
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_get\_underpowered 
+
+_True when the search cannot meet pd at cn0\_dbhz and its geometry: pd\_predicted &lt; pd for the continuous search, pd\_burst &lt; pd for the burst search. It still builds a best-effort grid, and construction warns (UserWarning)._ 
+```C++
+int dp_correlator_get_underpowered (
+    const dp_correlator_state_t * state,
+    bool * out
+) 
+```
+
+
+
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` Receives the value when served. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_last\_corr\_status 
+
+_Whether this flavor has a last correlation vector to read: Python's Correlator.last\_corr asks it before it builds the view._ 
+```C++
+int dp_correlator_last_corr_status (
+    const dp_correlator_state_t * state
+) 
+```
+
+
+
+Both detectors serve it (section 18); there, the view reads None until a push() has produced a result. Any other flavor refuses, and Python's read raises AttributeError.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+DP\_OK on a detector, DP\_ERR\_INVALID on any other flavor. 
+
 
 
 
@@ -2746,7 +4664,7 @@ Peak sidelobe level in dB (&lt;= 0), or -INFINITY.
 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import BurstAcquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.cvt import bin_to_nrz
 >>> from doppler.wfm import PN
 >>> chips = (np.asarray(PN(poly=0, seed=1, length=5).generate(31)) & 1
@@ -2754,12 +4672,12 @@ Peak sidelobe level in dB (&lt;= 0), or -INFINITY.
 >>> nrz = np.zeros(31, dtype=np.float32)
 >>> _ = bin_to_nrz(chips, nrz)
 >>> pre = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
->>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=61.0)
+>>> a = Correlator(pre, framing="burst", reps=4, sample_rate=4.0e6, cn0_dbhz=61.0)
 >>> round(a.psl_db, 2)          # an m-sequence: 1/31
 -29.83
 >>> k = np.arange(127)
 >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
->>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=53.0).psl_db
+>>> Correlator(zc, framing="burst", reps=8, sample_rate=1.0e6, cn0_dbhz=53.0).psl_db
 -inf
 ```
  
@@ -2773,7 +4691,7 @@ Peak sidelobe level in dB (&lt;= 0), or -INFINITY.
 
 ### function dp\_correlator\_push 
 
-_Stream an arbitrary-length CF32 chunk through a detector flavor._ 
+_Stream an arbitrary-length CF32 chunk through a detector or a search flavor; return its detections._ 
 ```C++
 size_t dp_correlator_push (
     dp_correlator_state_t * state,
@@ -2786,10 +4704,10 @@ size_t dp_correlator_push (
 
 
 
-Takes the input in order, runs each complete n-sample frame (n = ny\*nx) through the correlator, and on every dump computes the test statistic peak\_mag / noise\_est. Each dump that passes the threshold is one hit. In Python the result is always a list: of (row, col, peak\_mag, noise\_est, test\_stat) tuples from CorrDetector2D, and of (lag, peak\_mag, noise\_est, test\_stat) tuples from CorrDetector, whose lag is the hit's col.
+Takes the input in order and frames it. A detector runs each complete n-sample frame (n = ny\*nx) through the correlator and, on every dump, computes the test statistic peak\_mag / noise\_est: each dump that passes the threshold is one hit, row and col its cell (on one row, col is the lag). A search gates each decided dwell on its CFAR threshold and lists up to max\_peaks hits a dwell, each with its Doppler bin (row), code phase (col), C/N0 estimate and hand-off fields ([**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md)). A chunk that ends mid-frame keeps the rest as the carry, so the hits do not depend on how the stream is split into calls.
 
 
-Python's push() has room for 1024 detections a call, so a push that completes at most 1024 frames, counting the carry, loses nothing. One that fills the room loses the rest of its input, every later frame whether or not it would have made a detection, unless the rest is shorter than a frame: that is kept as the carry. The next push stays on the frame grid only when what was lost is a whole number of frames; otherwise its peaks are off by the remainder. #1992 and just-buildit/just-makeit#2184 track sizing the list to the call.
+In Python the hits are one structured array of [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) records, a field per member, sized from [**dp\_correlator\_push\_max\_out()**](correlator__core_8h.md#function-dp_correlator_push_max_out): a push never loses input to a full list. A map flavor refuses it.
 
 
 
@@ -2797,30 +4715,35 @@ Python's push() has room for 1024 detections a call, so a push that completes at
 **Parameters:**
 
 
-* `state` A detector flavor (non-NULL). 
+* `state` A detector or search flavor (non-NULL). 
 * `in` CF32 input chunk of arbitrary length. 
 * `n_in` Number of input samples in `in`. 
 * `result` Caller-supplied array of at least `max_results` hits; filled on return. 
-* `max_results` Capacity of `result` (maximum detections to emit). A full `result` never loses input: a frame yields at most one detection, and once `result` is full the push takes the rest of its input only if the rest completes no frame (it is then the carry); otherwise it takes nothing more, stopping on the boundary of its last frame. [**dp\_correlator\_consumed()**](correlator__core_8h.md#function-dp_correlator_consumed) says how many samples it took, and the caller offers the rest again. Input that runs out mid-frame is the carry, held inside (fewer than n samples). With room 0 the push is full from the start, so a resume loop needs room for at least one; with that, a push of any input takes at least one sample. 
+* `max_results` Capacity of `result` (maximum detections to emit). A full `result` never loses input: a detector's frame yields at most one detection (a search's at most max\_peaks), and once `result` is full the push takes the rest of its input only if the rest completes no frame (it is then the carry); otherwise it takes nothing more, stopping on the boundary of its last frame. [**dp\_correlator\_consumed()**](correlator__core_8h.md#function-dp_correlator_consumed) says how many samples it took, and the caller offers the rest again. Input that runs out mid-frame is the carry, held inside (fewer than n samples). With room 0 the push is full from the start, so a resume loop needs room for at least one; with that, a push of any input takes at least one sample. 
 
 
 
 **Returns:**
 
-Python: the list of hits, empty when no dump passed the gate. C: the number of hits written to `result`, or SIZE\_MAX (nothing taken, nothing changed) when `state` is a map flavor. 
+Python: the hits, a structured array, empty when no dump or dwell passed the gate. C: the number of hits written to `result`, or SIZE\_MAX (nothing taken, nothing changed) when `state` is a map flavor. 
 ```C++
->>> from doppler.spectral import CorrDetector, CorrDetector2D
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
->>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+>>> det = Correlator(ref=ref, detect=1, dwell=1, noise_lo=1, noise_hi=15,
 ...                  noise_mode="mean", threshold=0.0)
->>> results = det.push(np.ones((4, 4), dtype=np.complex64))
->>> row, col, peak, noise, stat = results[0]
+>>> h = det.push(np.ones((4, 4), dtype=np.complex64))[0]
+>>> row, col = int(h["row"]), int(h["col"])
+>>> peak, noise, stat = (float(h[f]) for f in ("peak_mag", "noise_est",
+...                                            "test_stat"))
 >>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
 (0, 0, 1.0, 1.0, 1.0)
->>> det1 = CorrDetector(ref=ref[0], dwell=1, noise_lo=1, noise_hi=3,
+>>> det1 = Correlator(ref=ref[0], detect=1, dwell=1, noise_lo=1, noise_hi=3,
 ...                 noise_mode="mean", threshold=0.0)
->>> lag, peak, noise, stat = det1.push(np.ones(4, dtype=np.complex64))[0]
+>>> h = det1.push(np.ones(4, dtype=np.complex64))[0]
+>>> lag = int(h["col"])               # one row: the lag is the column
+>>> peak, noise, stat = (float(h[f]) for f in ("peak_mag", "noise_est",
+...                                            "test_stat"))
 >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
 (0, 1.0, 1.0, 1.0)
 ```
@@ -2995,12 +4918,23 @@ What the engine multiplies a block's slow-time axis by, and what refine multipli
 
 ### function dp\_correlator\_reset 
 
-_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._ 
+_Restart the correlator's running state, keeping how it was built._ 
 ```C++
 void dp_correlator_reset (
     dp_correlator_state_t * state
 ) 
 ```
+
+
+
+What each flavor drops; the reference, its spectrum, the FFT plans and every knob stay:
+
+
+
+* a map: zeroes the accumulator and the integration counter, a fresh dwell cycle;
+* a detector: that, plus the carry (the partial frame held between pushes) and the last dump's fields, so it matches a fresh detector built with the same arguments; last\_corr reads None until the next dump;
+* a search: drains the input ring and clears the non-coherent power accumulator and the dwell bookkeeping, so the next push() begins a fresh search; the grid and thresholds are untouched.
+
 
 
 
@@ -3013,10 +4947,10 @@ void dp_correlator_reset (
 
 
 ```C++
->>> from doppler.spectral import Corr2D
+>>> from doppler.correlation import Correlator
 >>> import numpy as np
 >>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
->>> c = Corr2D(ref=ref, dwell=3)
+>>> c = Correlator(ref=ref, dwell=3)
 >>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
 >>> c.count
 1
@@ -3160,10 +5094,11 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 `DP_OK`, `DP_ERR_INVALID` for a carrier outside [**dp\_correlator\_carrier\_freq\_ok()**](correlator__core_8h.md#function-dp_correlator_carrier_freq_ok) at this engine's sample rate, or `DP_ERR_MEMORY` when the rebuild cannot allocate (the engine is left as it was). 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> a = Acquisition(code, sample_rate=1e7, chip_rate=5e6, symbol_rate=2700.0,
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=1e7, chip_rate=5e6, symbol_rate=2700.0,
 ...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)
 >>> a.carrier_freq_hz
 0.0
@@ -3187,7 +5122,7 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 
 _Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._
 ```C++
-void dp_correlator_set_keep_surface (
+int dp_correlator_set_keep_surface (
     dp_correlator_state_t * state,
     int keep
 ) 
@@ -3195,7 +5130,7 @@ void dp_correlator_set_keep_surface (
 
 
 
-Python's writable Acquisition.keep\_surface; [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) sets it too, and a search flavor's other setters leave it as it is. A flavor with no search does nothing.
+Python's writable Correlator.keep\_surface; [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) sets it too, and a search flavor's other setters leave it as it is. The continuous search only (docs/design/correlator-python.md section 18): any other flavor refuses it and keeps nothing.
 
 
 
@@ -3204,7 +5139,14 @@ Python's writable Acquisition.keep\_surface; [**dp\_correlator\_set\_surface\_si
 
 
 * `state` Must be non-NULL. 
-* `keep` 1 to keep, 0 not to. 
+* `keep` Non-zero to keep (stored as 1), 0 not to. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID on any flavor but the continuous search. 
+
 
 
 
@@ -3245,9 +5187,10 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 0, or -1 (state untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
->>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, symbol_rate=1e3,
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, symbol_rate=1e3,
 ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
 >>> a.max_peaks
 1
@@ -3346,7 +5289,7 @@ int dp_correlator_set_state (
 
 _Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (docs/design/async-dsss-receiver.md §2.4)._
 ```C++
-void dp_correlator_set_surface_sink (
+int dp_correlator_set_surface_sink (
     dp_correlator_state_t * state,
     dp_correlator_surface_sink_fn fn,
     void * ctx,
@@ -3368,6 +5311,13 @@ Sets `keep_surface`, so [**dp\_correlator\_surface()**](correlator__core_8h.md#f
 * `fn` The sink, or NULL to detach. 
 * `ctx` Passed through to `fn`. 
 * `decim` Hand over every decim-th dwell; 0 reads as 1. 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID, with nothing attached, off a search (a map or a detector decides no dwell). 
+
 
 
 
@@ -3412,12 +5362,13 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 DP\_OK; DP\_ERR\_INVALID for an overlong `prefix`, a `decim` of 0, or a probe table without room for all ten probes; DP\_ERR\_MEMORY when the dry run's scratch context cannot be allocated. A refusal registers nothing on `tlm` and leaves the previous attachment (or detachment) exactly as it was. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.telemetry import Telemetry
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> tlm = Telemetry(1 << 12)
 >>> a.set_telemetry(tlm, "acq")
 >>> sorted(tlm.probe_names)[:3]
@@ -3469,11 +5420,12 @@ A continuous engine is created with a pool of the machine's online cores when it
 DP\_OK. The count actually running is `threads`. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 doppler_uncertainty=4000.0)
 >>> a.threads >= 1               # at most one worker a tile
 True
@@ -3747,7 +5699,7 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows * lag_bins` floats. 
-* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
 
 
 
@@ -3756,11 +5708,12 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided with `keep_surface` set, or `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.keep_surface = 1
 >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
 >>> _ = a.push(x)
@@ -3807,7 +5760,7 @@ One value per surface column, in chips, the same mapping [**dp\_correlator\_buil
 
 * `state` Must be non-NULL. 
 * `out` At least `lag_bins` doubles. 
-* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
 
 
 
@@ -3816,11 +5769,12 @@ One value per surface column, in chips, the same mapping [**dp\_correlator\_buil
 Values written (`lag_bins`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0)
 >>> c = np.empty(a.lag_bins, dtype=np.float64)
 >>> a.surface_chip_phase(c) == a.lag_bins
 True
@@ -3862,7 +5816,7 @@ Copies the coherent sum the last dwell was decided on into `out`, row-major `sur
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows * lag_bins` complex floats. 
-* `n_out` Capacity of `out`. 0 on a map or detector flavor (no search record).
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on a map or detector flavor (no search record); 0 is "nothing yet".
 
 
 
@@ -3871,13 +5825,14 @@ Copies the coherent sum the last dwell was decided on into `out`, row-major `sur
 Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided, the path is non-coherent, or `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)
->>> a = Acquisition(code, sample_rate=4e6, chip_rate=1e6, cn0_dbhz=70.0)
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=4e6, chip_rate=1e6, cn0_dbhz=70.0)
 >>> a.n_noncoh                 # one look: the dwell is the coherent dump
 1
 >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
@@ -3922,7 +5877,7 @@ One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows` doubles. 
-* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
 
 
 
@@ -3931,11 +5886,12 @@ One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\
 Values written (`surface_rows`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.acquire import Acquisition
+>>> from doppler.correlation import Correlator
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
->>> a = Acquisition(code, sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
+>>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+>>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
 ...                 doppler_uncertainty=4000.0)
 >>> f = np.empty(a.surface_rows, dtype=np.float64)
 >>> a.surface_doppler_hz(f) == a.surface_rows
@@ -4017,9 +5973,9 @@ _State-blob magic ('CORL'); set\_state() rejects any other._
 
 ### define CORRELATOR\_STATE\_VERSION 
 
-_State-blob layout version; set\_state() rejects any other._ 
+_State-blob layout version; set\_state() rejects any other. 2: the search's extra block carries keep\_surface (#2022)._ 
 ```C++
-#define CORRELATOR_STATE_VERSION `1u`
+#define CORRELATOR_STATE_VERSION `2u`
 ```
 
 

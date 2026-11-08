@@ -129,7 +129,7 @@ default = "0"   # 0 => nx (native)
 
 `execute` is already `variable_output`, so the binding sizes the returned array
 to `dp_correlator_execute_max_out` = `ny_out*nx_out` automatically. New read-only
-properties `ny_out`, `nx_out`. Python: `Corr2D(ref, dwell=1, nthreads=1, ny_out=0, nx_out=0)` — the `(ny, nx)`-shaped `execute` input is unchanged; the returned
+properties `ny_out`, `nx_out`. Python: `Correlator(ref, dwell=1, nthreads=1, ny_out=0, nx_out=0)` — the `(ny, nx)`-shaped `execute` input is unchanged; the returned
 surface is flat, `ny_out·nx_out` long, row-major over `(ny_out, nx_out)`.
 
 ______________________________________________________________________
@@ -324,8 +324,9 @@ no silent corruption).
 
 ## 10. DelayDoppler: the slow-time FFT in C (#2666)
 
-**Status:** shipped. `DelayDoppler` is a view on `Corr2D`
-(`dp_correlator_create_delay_doppler`). It takes the raw stream, `ny` code periods
+**Status:** shipped. It is the delay-Doppler flavor of `Correlator`,
+`Correlator(code, doppler_rows=ny)` (`dp_correlator_create_delay_doppler`;
+until #2752 step 4 it was the `DelayDoppler` view on `Corr2D`). It takes the raw stream, `ny` code periods
 back to back, and returns the delay-Doppler map. Before it, a caller built a
 zero-padded `(ny, nx)` reference with the code in row 0, reshaped `Corr2D`'s
 output, and ran the slow-time FFT in numpy, which cost about 80% of the time.
@@ -374,12 +375,12 @@ A streaming caller hands the same preallocated map to every dump:
 
 ```python
 import numpy as np
-from doppler.spectral import DelayDoppler
+from doppler.correlation import Correlator
 
 ny, nx, delay, bins = 32, 256, 41, -4
 rng = np.random.default_rng(7)
 code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
-dd = DelayDoppler(code, ny=ny, dwell=2, ny_out=4 * ny)
+dd = Correlator(code, doppler_rows=ny, dwell=2, ny_out=4 * ny)
 f = bins * dd.doppler_step * 4  # -4 native bins, in cycles/sample
 n = np.arange(ny * nx)
 x = (np.tile(np.roll(code, delay), ny) * np.exp(2j * np.pi * f * n)).astype(
@@ -411,10 +412,13 @@ five 20-call means:
 | `DelayDoppler`, 20 threads, `out=`                 | 1.5 ms  |
 
 The C rows are `native/benchmarks/correlator/bench_correlator_core.c`'s `delay_doppler_*`
-rows. The Python rows are `src/doppler/spectral/benchmarks/bench_delay_doppler.py`.
+rows. The Python rows were `bench_delay_doppler.py`'s (now in
+`src/doppler/correlation/benchmarks/`)
+when measured; they now live in `src/doppler/correlation/benchmarks/`.
 
 ## See also
 
 - [DSSS acquisition design](acq-surface.md) — §14 (FFT-bound, the forward vs
     inverse split this implements).
-- [`Corr2D` / 2-D Acquisition gallery](../gallery/detection2d.md).
+- [2-D acquisition gallery](../gallery/detection2d.md) (the 2-D flavors of
+    [`Correlator`](../guide/correlator.md)).

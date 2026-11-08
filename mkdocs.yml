@@ -166,6 +166,8 @@ nav:
           - "Rate conversion & resampling": domains/resample.md
       - Down-conversion:
           - "Down-conversion (DDC)": domains/ddc.md
+      - Correlation:
+          - "Correlation": domains/correlation.md
       - Spectral:
           - "Spectral analysis": domains/spectral.md
           - "Spectrum analyzer": domains/analyzer.md
@@ -197,8 +199,10 @@ nav:
           - "Utilities": domains/util.md
   - Guides:
       - Guides: guide/index.md
-      - "Spectral analysis":
+      - "Correlation":
           - "Delay-Doppler Search": guide/delay-doppler.md
+          - "The Correlator": guide/correlator.md
+      - "Spectral analysis":
           - "Power Spectra & Measurements": guide/spectral-psd.md
           - "Streaming Spectrograms": guide/spectrogram.md
       - "Acquisition":
@@ -236,11 +240,12 @@ nav:
           - "RateConverter — Automatic Cascade Selection": gallery/rate-converter.md
       - "Down-conversion (DDC)":
           - "Ddcr — Real Passband to Baseband": gallery/ddc-fn.md
-      - "Spectral analysis":
+      - "Correlation":
           - "2-D Acquisition Grid": gallery/detection2d.md
-          - "A Streaming Spectrogram": gallery/spectrogram.md
           - "Correlation and Detection": gallery/corr.md
           - "Delay-Doppler Search": gallery/delay-doppler.md
+      - "Spectral analysis":
+          - "A Streaming Spectrogram": gallery/spectrogram.md
           - "Four WCDMA Carriers — PSD, band_power, AccTrace": gallery/wcdma-carriers.md
       - "Measurement suite":
           - "Measurement Suite — ADC characterisation": gallery/measure.md
@@ -314,7 +319,8 @@ nav:
       - "A-Z index": api/a-z.md
       - C API: c-api/index.md
       - "Python: FFT": api/python-fft.md
-      - "Python: Correlation & Detection": api/python-spectral.md
+      - "Python: Spectral Analysis (PSD / Spectrogram)": api/python-spectral.md
+      - "Python: Correlation (Correlator)": api/python-correlation.md
       - "Python: Spectrum Analyzer (Specan)": api/python-analyzer.md
       - "Python: Detection Statistics": api/python-detection.md
       - "Python: Error-Rate Measurement": api/python-ber.md

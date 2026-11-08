@@ -4,8 +4,9 @@
 
 The design of the DSSS search engine (`dp_acq_*`,
 `native/src/correlator/correlator_core.c`), the one C engine behind both
-`dp_correlator_create_continuous()` (`Acquisition`) and `dp_correlator_create_burst()`
-(`BurstAcquisition`). §1–§8 write what the continuous engine computes, from
+`dp_correlator_create_continuous()` and `dp_correlator_create_burst()`, which
+Python reaches as `Correlator(framing="continuous")` and
+`Correlator(framing="burst")`. §1–§8 write what the continuous engine computes, from
 the input samples to a hand-off, as equations, each step naming the
 function that performs it; §9 is the two front doors and what the burst
 door does differently; §10–§16 are the architecture, the trade space, the
@@ -616,7 +617,7 @@ mislock, not a graceful loss of gain, and the engine closes it at the
 constructor instead of pricing it as a tunable trade
 ([the guide's worked proof](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)).
 
-|               | `dp_correlator_create_continuous()` (`Acquisition`)                               | `dp_correlator_create_burst()` (`BurstAcquisition`)                          |
+|               | `dp_correlator_create_continuous()` (`Correlator(framing="continuous")`)          | `dp_correlator_create_burst()` (`Correlator(framing="burst")`)               |
 | ------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | signal        | a continuous, data-modulated code                                                 | a burst opening with a repeated, data-free preamble                          |
 | reference     | the code's chips, held `spc` samples each (§2)                                    | one period of the preamble, as samples (§9.1)                                |
@@ -924,7 +925,7 @@ serialized engine gives the same hand-off.
 
 **Inside one engine,** each stage of the one map (§18.3) fans once a block
 on a persistent worker pool (`dp_correlator_set_threads()`,
-`Acquisition.set_threads()`, read back as `threads`). Each worker slot owns
+`Correlator.set_threads()`, read back as `threads`). Each worker slot owns
 its plans and scratch, every output row is one slot's same arithmetic, and
 the per-cell passes that decide a surface merge serially in tile order, so
 the result is bit-identical at any thread count. A continuous engine with more than one tile starts with a pool of
@@ -1130,7 +1131,7 @@ one tile, and the burst door is too when its uncertainty exceeds its span
 (`acq_auto_config_burst`). What reads the absolute scale:
 
 - the hits' and the engine's `peak_mag` and `noise_est`, `surface_complex`
-    and `block_prompt`, on `Acquisition` and `BurstAcquisition`;
+    and `block_prompt`, on `Correlator`'s two searches;
 - `BurstCapture`'s `peak_mag`, whose tie-break compares hits of one
     engine, so its order does not move;
 - the telemetry probes `.peak` and `.noise`;
@@ -1300,7 +1301,7 @@ and tables it needs. Step 2.3 pins it with a C test: a mid-block split at
 a carrier, restored into a carrier-0 engine, resumes bit-exact against the
 unsplit run, and is shown red by sabotage (restore the field without the
 rebuild). Its line in `scripts/.mutator-state-exempt` retires when
-`Acquisition` gets its row in the serialization matrix (#2078, family
+the continuous `Correlator` gets its row in the serialization matrix (#2078, family
 #2083).
 
 ### 18.3 Threading ([#2744](https://github.com/doppler-dsp/doppler/issues/2744))
@@ -1361,15 +1362,16 @@ threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
 ## Related
 
 - [DSSS acquisition guide](../guide/dsss-acquisition.md): how to use
-    `BurstAcquisition` and `Acquisition`, and the coarse-mix widening loop
+    `Correlator`'s burst and continuous searches, and the coarse-mix widening
+    loop
 - [acq-fn.md](acq-fn.md): the pure-functional kernel and the serializable
     state behind the fan-out of §13
 - [detection.md](detection.md): `det_threshold`, `det_pd`, `marcum_q`, the
     order-$K$ primitives of §5 and §11
 - [corr2d-interpolated-inverse.md](corr2d-interpolated-inverse.md): the
     decoupled inverse and the single-row fast path of §14
-- [Gallery: 2-D Acquisition](../gallery/detection2d.md): the `CorrDetector2D`
-    surface the burst framing builds on
+- [Gallery: 2-D Acquisition](../gallery/detection2d.md): the 2-D detector
+    flavor of [`Correlator`](../guide/correlator.md), the surface the burst framing builds on
 - [async-dsss-receiver.md](async-dsss-receiver.md): the receiver that runs
     this engine, its depth and its dwell alignment (§2.3)
 - [async-dsss-receiver.md](async-dsss-receiver.md) §7: the pool's pick,

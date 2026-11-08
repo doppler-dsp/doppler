@@ -67,7 +67,7 @@ effect where it's cheap).
 | --- | ------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **Sources**                          | produce samples from nothing                                    | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                                       |
 | 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC`, `MovingAverage` |
-| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback   | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolynomialPhaseEstimator`                             |
+| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback   | `Correlator` (every flavor, §6.4), `PolynomialPhaseEstimator`                                                             |
 | 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample  | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `AGC`                                           |
 | 5   | **Composite receivers**              | combine layers 2+3+4 into one receiver, in exactly two framings | continuous: `dsss.Despreader`, `track.MpskReceiver`; burst: `dsss.BurstDespreader`, `BurstDemod`                          |
 | 6   | **Measurement & analysis**           | characterize signal quality                                     | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                                |
@@ -83,7 +83,7 @@ concentrated in layers 3–5, which never had one written down:
 | ---------------- | ------------------------------------------------------------------------- | ---------------------- |
 | 1 Sources        | mechanism (`NCO`, `PN`)                                                   | yes                    |
 | 2 Filtering      | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, since §4.2 landed |
-| 3 Detection      | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed |
+| 3 Detection      | mechanism (`Correlator`; `CorrDetector`, `CorrDetector2D` before §6.4)    | yes, since §4.4 landed |
 | 4 Tracking loops | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6      |
 | 5 Composites     | framing (continuous/burst) + role (despread/demod/receive)                | yes — §4.1, §4.7       |
 | 6 Measurement    | what it measures (`ToneMeasure`)                                          | yes                    |
@@ -541,9 +541,10 @@ on every pinned benchmark row.
     `Acquisition` or `BurstAcquisition` class survives** (owner,
     2026-10-31). The objects that compose one today (`BurstCapture`,
     `DsssReceiver`, `AsyncDsssReceiver`) compose `Correlator`, and
-    the forwarder step 1 folded in here goes: `native/inc/doppler/burst_acq/`,
-    `native/src/burst_acq/`, `native/src/acquire/acquire_ext_burst_acq.c`,
-    `objects/burst_acq.toml`, and burst_acq's test and bench directories. The name
+    the forwarder step 1 folded in here is gone: `burst_acq`'s object,
+    core, binding fragment, tests and benches
+    ([correlator-python.md §8](correlator-python.md#8-retiring-burst_acq)).
+    The name
     lives on in prose: `Correlator`'s docstring and guide say it is "also
     called acquisition when it is part of a detector or receiver", so a
     search for the word lands on it. Oracle: the composing objects' tests

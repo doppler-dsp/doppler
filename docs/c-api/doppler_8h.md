@@ -14,7 +14,6 @@
 * `#include "doppler/acc_cf64/acc_cf64_core.h"`
 * `#include "doppler/acc_trace/acc_trace_core.h"`
 * `#include "doppler/carrier_acq/carrier_acq_core.h"`
-* `#include "doppler/burst_acq/burst_acq_core.h"`
 * `#include "doppler/burst_capture/burst_capture_core.h"`
 * `#include "doppler/agc/agc_core.h"`
 * `#include "doppler/specan/specan_core.h"`
@@ -29,6 +28,7 @@
 * `#include "doppler/viterbi/viterbi_core.h"`
 * `#include "doppler/rs_codec/rs_codec_core.h"`
 * `#include "doppler/interleaver/interleaver_core.h"`
+* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/f32_to_i8/f32_to_i8_core.h"`
 * `#include "doppler/f32_to_i16/f32_to_i16_core.h"`
 * `#include "doppler/f32_to_i32/f32_to_i32_core.h"`
@@ -75,7 +75,6 @@
 * `#include "doppler/awgn/awgn_core.h"`
 * `#include "doppler/fft/fft_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
-* `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/psd/psd_core.h"`
 * `#include "doppler/spectrogram/spectrogram_core.h"`
 * `#include "doppler/dp_tlm/dp_tlm_core.h"`

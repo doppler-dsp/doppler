@@ -31,7 +31,7 @@
 #
 # key                                                   verdict           reason
 
-# -- LOST (14)
+# -- LOST (12)
 BurstCapture.configure_search_raw                       LOST              mid-stream it resets acq's position but not samples_fed, so a capture refuses its own later checkpoint (#2087)
 DDC.norm_freq                                           LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
 Ddcr.norm_freq                                          LOST              family 1, the LO/NCO root: norm_freq is not in the leaf blob (#2079)
@@ -45,7 +45,16 @@ RateSync.bn                                             LOST              family
 RateSync.configure_lock_raw                             LOST              family 5: the receivers' loop/lock setters (#2083)
 RateSync.configure                                      LOST              family 5: the receivers' loop/lock setters, bn and zeta (#2083)
 
-# -- UNPROBED (12)
+# -- UNPROBED (21)
+Correlator.keep_surface                                 UNPROBED          a flag: one value besides the default, so no two accepted values differ for the probe; the blob carries it (version 2), pinned in C by test_correlator_create's test_keep_surface_travels; replaces: Acquisition.keep_surface
+Correlator.block_prompt                                 UNPROBED          an out-buffer reader: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093); replaces: Acquisition.block_prompt
+Correlator.block_raw                                    UNPROBED          an out-buffer reader: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093); replaces: Acquisition.block_raw
+Correlator.set_carrier_freq_hz                          UNPROBED          the search refuses a carrier its chip arithmetic cannot use, and every candidate the probe makes is one; family 5 (#2083); replaces: Acquisition.set_carrier_freq_hz
+Correlator.set_threads                                  UNPROBED          the pool size changes no readback, output or blob the probe can see, so it shows nothing either way; replaces: Acquisition.set_threads
+Correlator.surface                                      UNPROBED          an out-buffer reader: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093); replaces: Acquisition.surface
+Correlator.surface_chip_phase                           UNPROBED          an out-buffer reader: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093); replaces: Acquisition.surface_chip_phase
+Correlator.surface_complex                              UNPROBED          an out-buffer reader: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093); replaces: Acquisition.surface_complex
+Correlator.surface_doppler_hz                           UNPROBED          an out-buffer reader: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093); replaces: Acquisition.surface_doppler_hz
 BurstCapture.release                                    UNPROBED          releases a captured burst by index, and the matrix feed captures none, so no index is valid; a feed that captures one is #2078
 PSD.band_power                                          UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
 PSD.occupied_bw                                         UNPROBED          a query taking a value: inert, and nothing exact says it only reads (its C takes a non-const state); C constness would classify it (#2093)
@@ -59,11 +68,11 @@ _SynthEngine.set_dsss_cont                              UNPROBED          hand-b
 _SynthEngine.set_rrc                                    UNPROBED          hand-bound, with no stub signature to make a value from; family 4 (#2082)
 _SynthEngine.set_symbols                                UNPROBED          hand-bound, with no stub signature to make a value from; family 4 (#2082)
 
-# -- C_ONLY (13)
-Corr2D.dp_correlator_set_surface_sink                   C_ONLY            a sink; confirm EXEMPT through the C twin (#2077); replaces: Acquisition.dp_acq_set_surface_sink
+# -- C_ONLY (12)
+Correlator.dp_correlator_set_surface_sink               C_ONLY            a sink; confirm EXEMPT through the C twin (#2077); replaces: Corr2D.dp_correlator_set_surface_sink
 BerMeter.dp_ber_meter_set_align                         C_ONLY            family 5 (#2083); C twin #2077
-Corr2D.dp_correlator_set_ref                            C_ONLY            family 3 (#2081); C twin #2077; replaces: Corr2D.dp_corr2d_set_ref
-Corr2D.dp_correlator_set_threshold                      C_ONLY            the blob carries it, pinned by test_correlator_detector_2d.c's restore (#2752 step 3.3); replaces: CorrDetector.dp_detector_set_threshold
+Correlator.dp_correlator_set_ref                        C_ONLY            family 3 (#2081); C twin #2077; replaces: Corr2D.dp_correlator_set_ref
+Correlator.dp_correlator_set_threshold                  C_ONLY            the blob carries it, pinned by test_correlator_detector_2d.c's restore (#2752 step 3.3); replaces: Corr2D.dp_correlator_set_threshold
 DDC.dp_ddc_set_telemetry                                C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
 Ddcr.dp_ddcr_set_telemetry                              C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
 Dll.dp_dll_set_coast                                    C_ONLY            no Python face; C twin #2077
@@ -73,19 +82,7 @@ _SynthEngine.dp_wfm_synth_reseed_noise                  C_ONLY            family
 _SynthEngine.dp_wfm_synth_set_refill                    C_ONLY            a sink; confirm EXEMPT through the C twin (#2077)
 _SynthEngine.dp_wfm_synth_set_refill_state              C_ONLY            family 4 (#2082); C twin #2077
 
-# -- NO_RECIPE (71)
-Acquisition.block_prompt                                NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.block_raw                                   NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.configure_search_raw                        NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.keep_surface                                NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.push                                        NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.set_carrier_freq_hz                         NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078); family 5 (#2083)
-Acquisition.set_max_peaks                               NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.set_threads                                 NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.surface                                     NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.surface_chip_phase                          NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.surface_complex                             NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
-Acquisition.surface_doppler_hz                          NO_RECIPE         Acquisition has no test_state_serialization CASES row (#2078)
+# -- NO_RECIPE (41)
 BerMeter.align                                          NO_RECIPE         BerMeter has no test_state_serialization CASES row (#2078); writes last and mk_*, which score reads, family 5 (#2083)
 BerMeter.ber                                            NO_RECIPE         BerMeter has no test_state_serialization CASES row (#2078)
 BerMeter.interval                                       NO_RECIPE         BerMeter has no test_state_serialization CASES row (#2078)

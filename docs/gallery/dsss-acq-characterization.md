@@ -4,7 +4,8 @@
 
 ![DSSS acquisition characterisation](../assets/dsss_acq_characterization.png)
 
-A performance characterisation of `doppler.acquire.BurstAcquisition` on a DSSS preamble: the probability
+A performance characterisation of the burst search,
+`Correlator(preamble, framing="burst", ...)`, on a DSSS preamble: the probability
 of detection (`Pd`) and probability of false alarm (`Pfa`) of a
 spread-spectrum burst acquirer, measured by Monte-Carlo against the data-link
 **Es/N0**.
@@ -71,9 +72,9 @@ per-Es/N0 estimates.
 
 ## How it works
 
-`BurstAcquisition` is constructed from physics, not tuning knobs — the
+The burst search is constructed from physics, not tuning knobs — the
 preamble's samples (the PN code by `bin_to_nrz`, each chip held `spc` samples),
-their rate `fs = chip_rate·spc`, the repetitions `reps`, a sizing sensitivity
+their rate `sample_rate = chip_rate·spc`, the repetitions `reps`, a sizing sensitivity
 (`cn0_dbhz`), and the detection targets (`pfa`, `pd`). It then:
 
 1. Frames the raw stream into `(doppler_bins, code_bins)` where
@@ -82,8 +83,8 @@ their rate `fs = chip_rate·spc`, the repetitions `reps`, a sizing sensitivity
 1. Runs a slow-time Doppler FFT along the segment axis.
 1. Correlates against the single-row PN reference (the circular code matched
     filter on the fast-time axis).
-1. Estimates a CFAR noise floor and gates the peak — emitting an
-    `(doppler_bin, code_phase, …)` event whenever the test statistic crosses an
+1. Estimates a CFAR noise floor and gates the peak — emitting a hit record
+    (`row` the Doppler bin, `col` the code phase, …) whenever the test statistic crosses an
     automatically configured, Šidák-corrected threshold.
 
 The script pins the coherent depth to all five repetitions with
@@ -132,11 +133,11 @@ git clone --branch v0.81.0 https://github.com/doppler-dsp/doppler && cd doppler
 make characterize          # every subject
 
 python -m \
-    doppler.acquire.tests.characterization.burst_acquisition.characterize
+    doppler.correlation.tests.characterization.burst_search.characterize
 ```
 
 The waveform geometry, signal construction, and the `(Doppler bin, code phase)`
 mapping live in
-`doppler.acquire.tests.characterization.burst_acquisition.characterize`, shared
-with the `test_acq_characterization` gate so the sweep and the test agree by
-construction.
+`doppler.correlation.tests.characterization.burst_search.characterize`,
+shared with the `test_correlator_burst_characterization` gate so the sweep
+and the test agree by construction.

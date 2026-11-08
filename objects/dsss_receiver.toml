@@ -14,7 +14,7 @@ serializable = "true"
 # no exception at all (gh-782).
 create_error = "ValueError"
 create_error_message = "DsssReceiver: invalid parameter (need a code of at least 2 chips, a finite chip_rate > 0, a finite symbol_rate > 0 and <= chip_rate, a sample_rate that is a whole number >= 1 of samples a chip, m in {2,4,8}, segments >= 1, sps >= 2 -- sps = 1 cannot carry an m_out, whose smallest legal value is 2 and which MpskReceiver requires sps to reach; a chain resampling ratio, sps * symbol_rate * code_len / (chip_rate * segments), that is a normal double; and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0)"
-# Composes Acquisition (this module) with Dll/MpskReceiver (track) and
+# Composes the continuous search (the correlator) with Dll/MpskReceiver (track) and
 # RateConverter (resample) -- the same cross-module composition shape
 # despreader.toml already uses for Costas+Dll.
 depends_on = [
@@ -115,7 +115,7 @@ default = "0"
 
 [[dsss_receiver.methods]]
 name = "steps"
-doc = "Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls."
+doc = "Stream raw cf32 samples through the receiver. While searching, samples feed the embedded continuous search (a Correlator) and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -125,7 +125,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[dsss_receiver.methods]]
 name = "configure_search_raw"
-doc = "Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing -- the escape hatch for a power user who wants a specific (doppler_bins, n_noncoh). Only meaningful while searching."
+doc = "Pin the embedded continuous search (a Correlator)'s search grid directly, bypassing the symbol_rate-driven auto-sizing -- the escape hatch for a power user who wants a specific (doppler_bins, n_noncoh). Only meaningful while searching."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -162,7 +162,7 @@ params = [
 
 [[dsss_receiver.methods]]
 name = "reset"
-doc = "Return to the searching state: resets the embedded Acquisition and frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next hit)."
+doc = "Return to the searching state: resets the embedded continuous search (a Correlator) and frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next hit)."
 arg_type = "void"
 return_type = "void"
 

@@ -38,7 +38,8 @@ Bottom-left
 
 Bottom-right
     Detection probability vs input SNR, one curve per ``acq_reps``, measured
-    by Monte Carlo through :class:`~doppler.acquire.BurstAcquisition` — the
+    by Monte Carlo through the burst search,
+    :class:`~doppler.correlation.Correlator` with ``framing="burst"`` — the
     object that actually integrates coherently across the repetitions and
     applies the CFAR threshold.  Each doubling of ``acq_reps`` moves the
     Pd = 0.5 threshold about 2.5 dB left against an ideal
@@ -65,8 +66,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.acquire import BurstAcquisition
-from doppler.spectral import PSD, Corr, Spectrogram
+from doppler.correlation import Correlator
+from doppler.spectral import PSD, Spectrogram
 from doppler.wfm import PN, Composer, FrameDesc, Segment, bpsk_map
 
 # ── burst geometry ───────────────────────────────────────────────────────────
@@ -193,9 +194,10 @@ def build_burst(
 def sliding_xcorr(x: np.ndarray, ref: np.ndarray) -> np.ndarray:
     """Magnitude of x cross-correlated with ref, sampled at chip-rate spacing.
 
-    Uses ``doppler.spectral.Corr`` (FFT-based, O(n log n) per frame) to
-    evaluate ``|R[0]|`` at each chip-aligned window.  Lag 0 is the matched
-    lag since windows are stepped by exactly one chip (``CHIP_SPS`` samples).
+    Uses ``doppler.correlation.Correlator`` (FFT-based, O(n log n) per
+    frame) to evaluate ``|R[0]|`` at each chip-aligned window.  Lag 0 is the
+    matched lag since windows are stepped by exactly one chip (``CHIP_SPS``
+    samples).
 
     Parameters
     ----------
@@ -210,7 +212,7 @@ def sliding_xcorr(x: np.ndarray, ref: np.ndarray) -> np.ndarray:
         Correlation magnitude; length ``(len(x) − len(ref)) // CHIP_SPS``.
     """
     indices = range(0, len(x) - len(ref) + 1, CHIP_SPS)
-    with Corr(ref.astype(np.complex64), dwell=1) as c:
+    with Correlator(ref.astype(np.complex64), dwell=1) as c:
         return np.array([abs(c.execute(x[i : i + c.n])[0]) for i in indices])
 
 
@@ -288,7 +290,7 @@ assert occ_pay / occ_acq > 0.5, (
 )
 
 # ── detection sweep: Pd vs input SNR, one curve per acq_reps ─────────────────
-# THIS IS THE OBJECT'S JOB, not a hand correlator's. `BurstAcquisition` is
+# THIS IS THE OBJECT'S JOB, not a hand correlator's. The burst search is
 # what integrates coherently across the preamble repetitions and applies the
 # CFAR threshold; a sliding one-period matched filter cannot, which is exactly
 # what this panel used to get wrong (doppler#980). Correlating against ONE
@@ -318,10 +320,11 @@ def detects(reps: int, snr_db: float, seed: int) -> bool:
     The acquirer is built at a FIXED design C/N0 while the sweep varies the
     true SNR, so no arm is ever handed the answer it is being tested on.
     """
-    acq = BurstAcquisition(
+    acq = Correlator(
         pn_reference().astype(np.complex64),  # the preamble's samples
+        framing="burst",
         reps=reps,
-        fs=FS,
+        sample_rate=FS,
         cn0_dbhz=DESIGN_CN0_DBHZ,
         doppler_uncertainty=0.0,  # this demo has no carrier offset
         pfa=1e-3,
@@ -334,7 +337,7 @@ def detects(reps: int, snr_db: float, seed: int) -> bool:
         silence_chips=0,
         seed=seed,
     )
-    return bool(acq.push(burst_only))
+    return len(acq.push(burst_only)) > 0
 
 
 pd_curves: dict[int, np.ndarray] = {

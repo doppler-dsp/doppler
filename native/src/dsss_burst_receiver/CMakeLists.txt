@@ -19,7 +19,6 @@ target_include_directories(
                                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/dsss_burst_receiver)
 target_link_libraries(dsss_burst_receiver_core PUBLIC
     burst_capture_core
-    burst_acq_core
     correlator_core
     fft2d_core
     fft_core
@@ -41,7 +40,6 @@ add_executable(test_dsss_burst_receiver_core
                ${CMAKE_SOURCE_DIR}/native/tests/dsss_burst_receiver/test_dsss_burst_receiver_symbols.c)
 target_link_libraries(test_dsss_burst_receiver_core
                       PRIVATE dsss_burst_receiver_core burst_capture_core
-    burst_acq_core
     correlator_core
     fft2d_core
     fft_core
@@ -68,7 +66,6 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/native/benchmarks/dsss_burst_receiver/bench_dsss_burst_receiver_core.c)
 target_link_libraries(bench_dsss_burst_receiver_core
                       PRIVATE dsss_burst_receiver_core burst_capture_core
-    burst_acq_core
     correlator_core
     fft2d_core
     fft_core

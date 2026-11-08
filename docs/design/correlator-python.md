@@ -32,8 +32,7 @@ constructor dispatcher (§3), `BurstCapture` calling the engine directly
 (§8), and #2901 (§12). This follows
 [Adding an algorithm](../dev/contributing/adding-algorithms.md) from phase 1.
 
-**This page proposes; it decides nothing until review.** §16 lists the
-decisions with a recommendation for each.
+§16 lists the decisions, accepted on review, and §17 what they left open.
 
 ## 1. Who calls it, and with what
 
@@ -101,12 +100,12 @@ dp_correlator_state_t *dp_correlator_create (
     dp_correlator_framing_t framing,  /* NONE, CONTINUOUS, BURST */
     size_t doppler_rows,              /* > 0: a code row, delay x Doppler */
     int detect,                       /* maps or detections (framing NONE) */
-    size_t dwell, size_t n_out, size_t ny_out, size_t nx_out, int col_out,
+    size_t dwell, size_t ny_out, size_t nx_out, int col_out,
     float threshold, size_t noise_lo, size_t noise_hi, int noise_mode,
     double sample_rate, double chip_rate, double symbol_rate, size_t reps,
     double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
     double doppler_rate, size_t rate_hypotheses, size_t code_only_epochs,
-    int nthreads);
+    int nthreads, const char **why);
 ```
 
 It is positional because jm's `init_params` map one to one onto the C
@@ -127,25 +126,30 @@ entry point, not one a C caller should write by hand.
 | `continuous` | 1-D chips | -              | implied  | `SEARCH_CONTINUOUS` | `Acquisition`      |
 | `burst`      | 1-D       | -              | implied  | `SEARCH_BURST`      | `BurstAcquisition` |
 
-Any other combination is refused with a `ValueError` naming the knob
-(`create_error`). For example, a 2-D `ref` with `framing = "burst"`, or
-`doppler_rows` with `detect`. A knob a flavor does not read is refused
-when set away from its default, never silently ignored.
+Any other combination is refused with a `ValueError` naming the knob. For
+example, a 2-D `ref` with `framing = "burst"`, or `doppler_rows` with
+`detect`. **A value the flavor would not honor is refused**, never
+silently ignored: a knob the flavor does not read, set away from its
+default, is one. The dispatcher writes the sentence through its trailing
+`why`, which the binding raises (`create_why`, just-makeit#2552; C callers
+pass NULL).
 
-**Proposed Python spelling:**
+**Python spelling** (defaults as §17 rules them):
 
 ```text
 Correlator(ref, *, framing="none", doppler_rows=0, detect=False,
-           dwell=1, n_out=0, ny_out=0, nx_out=0, col_out=-1,
-           threshold=0.0, noise_lo=0, noise_hi=0, noise_mode="mean",
-           sample_rate=0.0, chip_rate=0.0, symbol_rate=0.0, reps=0,
-           cn0_dbhz=50.0, doppler_uncertainty=0.0, pfa=1e-3, pd=0.9,
+           dwell=1, ny_out=0, nx_out=0, col_out=-1,
+           threshold=0.0, noise_lo=0, noise_hi=<last bin>,
+           noise_mode="mean",
+           sample_rate=0.0, chip_rate=0.0, symbol_rate=0.0, reps=1,
+           cn0_dbhz=nan, doppler_uncertainty=0.0, pfa=1e-3, pd=0.9,
            doppler_rate=0.0, rate_hypotheses=1, code_only_epochs=1,
            nthreads=1)
 ```
 
-One name for each quantity (§2): `ref` for every reference, and
-`sample_rate` on both search flavors. `fs` and `preamble` retire.
+One name for each quantity (§2): `ref` for every reference,
+`sample_rate` on both search flavors, and `nx_out` for the padded lag
+axis at any row count. `fs`, `preamble` and `Corr`'s `n_out` retire.
 
 **Three things jm must express, to confirm on a scratch project in phase 2
 before any code:**
@@ -470,9 +474,59 @@ class whose examples do not run.
 | D7  | #2900's shape                      | `benchmarks/renames.toml`, read by report, label gate and bench-ab (§11)                  |
 | D8  | #2901                              | drop `delay_doppler`, branch on `flavor`, if bench-ab ties (§12)                          |
 
-**Unknowns**, each checked before the code that depends on it:
+D1 to D8 were accepted as recommended (reviewer, 2026-11-08); §17 lists
+what they left open.
 
-- whether jm can take a 1-D or 2-D `ref` in one init param (§3);
-- whether a jm property getter can raise (§4); if not, a jm ask, fixed
-    before the class ships;
-- whether jm renders a record array on a method with an input array (§5).
+**The unknowns, checked on a scratch project with just-makeit 0.123.0**
+(2026-11-08), each the shape step 4 uses:
+
+| unknown                                      | answer                                                                                                                                                                 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a 1-D or 2-D `ref` in one init param (§3)    | yes: `rank = [1, 2]` on a `T[][]` init param (just-makeit#2537). A 1-D array arrives as one row, `(1, n)`, and a 3-D one is refused                                    |
+| a property getter that raises (§4)           | yes: `getter_status = true` with `error = "AttributeError"` (just-makeit#2538). The C getter returns non-zero, the read raises with the message, `hasattr` reads False |
+| a record array from a method with input (§5) | yes: `record_dtype` + `variable_output` on a cf32 `push`, sized by `push_max_out`; one call returned 10,000 records, with no stack cap                                 |
+| `framing` as a string enum (§3)              | yes, as `noise_mode`                                                                                                                                                   |
+
+## 17. What one constructor must choose
+
+Merging seven constructors into one leaves one default per knob, and the
+seven classes disagree on some of them today. A knob a flavor reads takes
+the one default, and a value the flavor would not honor is refused (§3).
+Measured from the manifests on main (84049024d); every row accepted on
+review (2026-11-08):
+
+| knob                         | today                                                                                    | recommended                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| a one-row `ref`              | `Corr` (1-D) and `Corr2D` at `ny = 1` are two flavors                                    | the 1-D flavor, given 1-D or `(1, n)`; `nx_out` pads it, `n_out` retires                 |
+| `noise_hi`                   | the detectors: the `SIZE_MAX` sentinel, clamped to the last bin                          | that sentinel; §3's `0` would make the floor one bin                                     |
+| `reps`                       | `BurstAcquisition`: 1                                                                    | 1                                                                                        |
+| `sample_rate`                | `BurstAcquisition`'s `fs`: 1.0; `Acquisition`: 4 MHz                                     | 0.0, not given: a search flavor refuses it                                               |
+| `chip_rate`, `symbol_rate`   | `Acquisition`: 1 MHz, 1 kHz                                                              | 0.0, not given: the continuous search refuses it                                         |
+| `cn0_dbhz`                   | `BurstAcquisition`: NaN, no design point; `Acquisition`: 50 dB-Hz, and a finite one only | NaN, no design point: the burst search's meaning today; the continuous search refuses it |
+| `detect` on a search framing | a search always detects                                                                  | `True` accepted: a search honors it, so the rule accepts it                              |
+
+**A one-row reference is the 1-D flavor.** `rank = [1, 2]` hands C a 1-D
+array as one row, so C cannot tell `ref` from `ref[None, :]`.
+`dp_correlator_create_1d` is `dp_correlator_create_2d` at one row, its
+`n_out` passed as `nx_out`, so the two differ only in their output's shape
+(1-D against `(1, n)`) and in `col_out`. The one-row detector already is
+the 2-D one at one row (correlator.md §2.1). So a one-row reference builds
+the 1-D flavor. Zero-padding it stays reachable under the one padding
+name, `nx_out`: `Corr`'s `n_out` was the same fact under a second name,
+and it retires. `ny_out` and `col_out` are refused at one row. No Python caller on
+main builds a one-row 2-D correlator: the `col_out` callers
+(`test_corr2d_batch.py`, the correlator validator) use four rows.
+
+**A rate is never a default.** `fs = 1.0` and the 4 MHz / 1 MHz / 1 kHz
+triple are facts about one caller's signal, and a search sized by
+omission with the wrong one detects at the wrong Doppler without a word.
+A search flavor refuses a rate it reads that is still 0, naming the knob;
+a flavor that does not read a rate is not asked for it. Normalized units
+stay one stated argument away, `sample_rate=1.0`. Every port states its
+rates, and the changelog names both old defaults.
+
+**`cn0_dbhz` defaults to no design point.** One default cannot be both
+NaN and 50 dB-Hz. NaN keeps the burst search as it is. The continuous
+search sizes its dwell from a finite design point and refuses NaN today,
+so it still does: `Acquisition`'s 50 dB-Hz was a design point chosen by
+omission, and a caller now names one.

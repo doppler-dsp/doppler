@@ -65,7 +65,6 @@ typedef struct
 } dsss_br_event_t;
 
 #include "doppler/burst_capture/burst_capture_core.h"
-#include "doppler/burst_acq/burst_acq_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/burst_despreader/burst_despreader_core.h"

@@ -128,7 +128,7 @@ dp_dsss_burst_receiver_create_desc (
    * The capture takes `burst_len` because that is the one thing acquisition
    * has no notion of -- and this object is where the frame is known, so it
    * is where the burst length comes from. noise_mode 0 = mean, matching
-   * burst_acq's own default. */
+   * the burst search's own default. */
   /* max_rate is the ONE statement of the Doppler rate this receiver
    * expects: the demod searches +/- max_rate for it, and the acquisition
    * bounds its coherent depth by it (doppler#1490). It is a frequency slope

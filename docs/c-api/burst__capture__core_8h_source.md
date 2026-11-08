@@ -16,7 +16,7 @@
 #include "doppler/jm_perf.h"
 #include "doppler/buffer/buffer.h"
 #include "doppler/dp_state.h"
-#include "doppler/burst_acq/burst_acq_core.h"
+#include "doppler/correlator/correlator_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft2d/fft2d_core.h"
@@ -80,7 +80,7 @@ typedef struct
   size_t code_period; 
   size_t burst_len;   
   /* ── The composed child ─────────────────────────────────────────────── */
-  dp_burst_acq_state_t *acq; 
+  dp_correlator_state_t *acq; 
   /* ── Look-back (docs/design/dsss-burst-receiver.md §7.1) ────────────── */
   dp_f32_t *hist;      
   uint64_t samples_fed; 

@@ -1197,7 +1197,7 @@ class BurstCapture:
         Parameters
         ----------
         doppler_bins : int
-            Coherent depth to pin (see dp_burst_acq_configure_search_raw()).
+            Coherent depth to pin (see dp_correlator_configure_search_raw()).
         n_noncoh : int
             Non-coherent looks to pin; `n_noncoh * doppler_bins` must not
             exceed the refine reach.
@@ -1983,7 +1983,7 @@ class PersistentBurstCapture:
         Parameters
         ----------
         doppler_bins : int
-            Coherent depth to pin (see dp_burst_acq_configure_search_raw()).
+            Coherent depth to pin (see dp_correlator_configure_search_raw()).
         n_noncoh : int
             Non-coherent looks to pin; `n_noncoh * doppler_bins` must not
             exceed the refine reach.

@@ -14,7 +14,6 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 * `#include "doppler/jm_perf.h"`
 * `#include "doppler/buffer/buffer.h"`
 * `#include "doppler/dp_state.h"`
-* `#include "doppler/burst_acq/burst_acq_core.h"`
 * `#include "doppler/correlator/correlator_core.h"`
 * `#include "doppler/fft2d/fft2d_core.h"`
 * `#include "doppler/fft/fft_core.h"`
@@ -210,7 +209,7 @@ The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh). F
 
 
 * `state` Capture. Must be non-NULL. 
-* `doppler_bins` Coherent depth to pin (see [**dp\_burst\_acq\_configure\_search\_raw()**](burst__acq__core_8h.md#function-dp_burst_acq_configure_search_raw)). 
+* `doppler_bins` Coherent depth to pin (see [**dp\_correlator\_configure\_search\_raw()**](correlator__core_8h.md#function-dp_correlator_configure_search_raw)). 
 * `n_noncoh` Non-coherent looks to pin; `n_noncoh * doppler_bins` must not exceed the refine reach. 
 
 

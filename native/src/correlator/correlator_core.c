@@ -32,6 +32,14 @@ corr2d_is_search (const dp_correlator_state_t *s)
          || s->flavor == DP_CORRELATOR_SEARCH_BURST;
 }
 
+/* The delay-Doppler flavor: `flavor` is its one record (#2901), and every
+   path that runs the slow-time map asks here. */
+static inline int
+corr2d_is_dd (const dp_correlator_state_t *s)
+{
+  return s->flavor == DP_CORRELATOR_DELAY_DOPPLER;
+}
+
 /* A map flavor: the ones execute, its batch family and the bank serve. */
 static inline int
 corr2d_is_map (const dp_correlator_state_t *s)
@@ -856,7 +864,7 @@ corr2d_rows_body (size_t t, void *ctx)
   size_t                 r0, r1;
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t i = r0; i < r1; i++)
-    if (s->delay_doppler)
+    if (corr2d_is_dd (s))
       corr2d_dd_row (s, t, i, c->in + i * nx, c->acc + i * nx,
                      c->work + i * nx, c->work + i * nx, c->dump);
     else
@@ -972,7 +980,7 @@ corr2d_execute_fast (dp_correlator_state_t *state, const float _Complex *in,
       state->count++;
       return 0;
     }
-  if (state->delay_doppler)
+  if (corr2d_is_dd (state))
     corr2d_dd_dump (state, -1, state->accum, state->work_fft, state->dd_fine,
                     out);
   state->count = 0;
@@ -1152,19 +1160,18 @@ dp_correlator_create_delay_doppler (const float _Complex *code,
   for (size_t i = 0; i < nyo; i++)
     state->dd_rows[i] = (i + nyo / 2) % nyo;
 
-  state->flavor        = DP_CORRELATOR_DELAY_DOPPLER;
-  state->delay_doppler = 1;
-  state->fast_path     = 1;
-  state->ny            = ny;
-  state->nx            = nx;
-  state->n             = n;
-  state->ny_out        = nyo;
-  state->nx_out        = nx;
-  state->n_out         = nyo * nx;
-  state->dwell         = dwell;
-  state->count         = 0;
-  state->col_out       = -1;
-  state->doppler_step  = 1.0 / ((double)nyo * (double)nx);
+  state->flavor       = DP_CORRELATOR_DELAY_DOPPLER;
+  state->fast_path    = 1;
+  state->ny           = ny;
+  state->nx           = nx;
+  state->n            = n;
+  state->ny_out       = nyo;
+  state->nx_out       = nx;
+  state->n_out        = nyo * nx;
+  state->dwell        = dwell;
+  state->count        = 0;
+  state->col_out      = -1;
+  state->doppler_step = 1.0 / ((double)nyo * (double)nx);
   return state;
 }
 
@@ -1198,7 +1205,7 @@ corr2d_batch_alloc (dp_correlator_state_t *s)
   s->bat_map      = dp_xmalloc (nw * s->n_out * sizeof *s->bat_map);
   if (s->fast_path && s->nx_out != s->nx)
     s->bat_pad = dp_xmalloc (nw * s->ny * s->nx_out * sizeof *s->bat_pad);
-  if (s->delay_doppler && !s->dd_fused)
+  if (corr2d_is_dd (s) && !s->dd_fused)
     s->bat_fine = dp_xmalloc (nw * corr2d_dd_work (s) * sizeof *s->bat_fine);
 }
 
@@ -1223,7 +1230,7 @@ corr2d_batch_frame (dp_correlator_state_t *s, const float _Complex *x,
   corr2d_rows_t rows
       = { s, x, s->bat_acc, s->bat_work, s->bat_pad, dst, dump };
   dp_pool_run (s->pool, (size_t)s->nworkers, corr2d_rows_body, &rows);
-  if (dump && s->delay_doppler)
+  if (dump && corr2d_is_dd (s))
     corr2d_dd_dump (s, -1, s->bat_acc, s->bat_work, s->bat_fine, dst);
 }
 
@@ -1251,13 +1258,13 @@ corr2d_whole_body (size_t t, void *ctx)
   float _Complex *pad = s->bat_pad ? s->bat_pad + t * s->ny * nxo : NULL;
   float _Complex *map = s->bat_map + t * s->n_out;
   for (size_t i = 0; i < s->ny; i++)
-    if (s->delay_doppler)
+    if (corr2d_is_dd (s))
       corr2d_dd_row (s, t, i, x + i * nx, acc + i * nx, work + i * nx,
                      work + i * nx, 1);
     else
       corr2d_row (s, t, x + i * nx, acc + i * nx, work + i * nx,
                   pad ? pad + i * nxo : NULL, map + i * nxo, 1);
-  if (s->delay_doppler)
+  if (corr2d_is_dd (s))
     corr2d_dd_dump (s, (int)t, acc, work,
                     s->bat_fine ? s->bat_fine + t * corr2d_dd_work (s) : NULL,
                     map);
@@ -1286,7 +1293,7 @@ corr2d_coh_body (size_t t, void *ctx)
   corr2d_chunk (s->ny, t, s->nworkers, &r0, &r1);
   for (size_t h = 0; h < c->H; h++)
     for (size_t i = r0; i < r1; i++)
-      if (s->delay_doppler)
+      if (corr2d_is_dd (s))
         corr2d_dd_row (s, t, i, c->in + h * s->n + i * nx, s->bat_acc + i * nx,
                        s->bat_work + i * nx, s->bat_work + i * nx,
                        h + 1 == c->H);
@@ -1314,7 +1321,7 @@ corr2d_batch (dp_correlator_state_t *s, const float _Complex *in, size_t n_in,
     {
       corr2d_coh_t c = { s, in, H, s->bat_map };
       dp_pool_run (s->pool, nw, corr2d_coh_body, &c);
-      if (s->delay_doppler)
+      if (corr2d_is_dd (s))
         corr2d_dd_dump (s, -1, s->bat_acc, s->bat_work, s->bat_fine,
                         s->bat_map);
       fold->fold (fold->ctx, 0, s->bat_map, s->n_out);
@@ -1706,7 +1713,7 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
       corr2d_bank_free (m);
       return 0;
     }
-  if (s->delay_doppler)
+  if (corr2d_is_dd (s))
     {
       /* The object's own sizes, allocated once by create(): abort on OOM
          (clib_common.h), as m->prod is. */
@@ -1879,7 +1886,7 @@ corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
      carriers one fraction's slow time serves and the rates (correlator_map.h);
      one slow row is the run's own case. */
   const int slow_first
-      = s->delay_doppler && s->ny_out > 1
+      = corr2d_is_dd (s) && s->ny_out > 1
         && dp__dd_map_pick (s->dd_map, (b->C + b->L - 1) / b->L, b->R, 0)
                == DP__DD_SLOW_FIRST;
   corr2d_bank_mem_t m;
@@ -1906,7 +1913,7 @@ corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
         }
       const long long kn   = (long long)s->nx;
       const size_t    roll = (size_t)(((k % kn) + kn) % kn);
-      if (s->delay_doppler && !slow_first)
+      if (corr2d_is_dd (s) && !slow_first)
         {
           /* The one block map's own driver, on one carrier: rows first,
              each carrier's inverses shared by its rates (at one tile the
@@ -1920,7 +1927,7 @@ corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
                                 corr2d_bank_fold_one, &f);
           continue;
         }
-      if (s->delay_doppler)
+      if (corr2d_is_dd (s))
         {
           /* Slow first: fraction j's slow time under rate r, made once and
              shared by every whole-bin carrier of the fraction, then this
@@ -1951,7 +1958,7 @@ corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
           corr2d_bank_rows_t rows = { s, m.spec + j * n, roll, &m, dst };
           corr2d_bank_stage (s, corr2d_bank_rows_body, &rows);
         }
-      if (!s->delay_doppler && b->rates)
+      if (!corr2d_is_dd (s) && b->rates)
         /* Corr2D's rows are its periods: weighting period i weights map
            row i, the correlation being linear in the row. */
         for (size_t r = 0; r < b->R; r++)
@@ -2042,11 +2049,11 @@ corr2d_cell_power (const dp_correlator_state_t *s, const float _Complex *x,
       ph[n] = cos (a) + I * sin (a);
     }
   const double bin
-      = s->delay_doppler ? (double)((row + nyo - nyo / 2) % nyo) : 0.0;
+      = corr2d_is_dd (s) ? (double)((row + nyo - nyo / 2) % nyo) : 0.0;
   double _Complex v = 0.0;
   for (size_t i = 0; i < ny; i++)
     {
-      if (!s->delay_doppler && i != row)
+      if (!corr2d_is_dd (s) && i != row)
         continue;
       const float _Complex *xi = x + i * nx;
       double _Complex sum      = 0.0;
@@ -2058,7 +2065,7 @@ corr2d_cell_power (const dp_correlator_state_t *s, const float _Complex *x,
         }
       if (w)
         sum *= (double _Complex)w[i];
-      if (s->delay_doppler)
+      if (corr2d_is_dd (s))
         {
           const double a = -2.0 * M_PI * bin * (double)i / (double)nyo;
           sum *= cos (a) + I * sin (a);

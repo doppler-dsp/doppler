@@ -53,7 +53,6 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  int | [**dd\_fused**](#variable-dd_fused)  <br> |
 |  struct dp\_\_dd\_map \* | [**dd\_map**](#variable-dd_map)  <br> |
 |  size\_t \* | [**dd\_rows**](#variable-dd_rows)  <br> |
-|  int | [**delay\_doppler**](#variable-delay_doppler)  <br> |
 |  float \_Complex \* | [**det\_out**](#variable-det_out)  <br> |
 |  double | [**doppler\_step**](#variable-doppler_step)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
@@ -454,24 +453,6 @@ size_t* dp_correlator_state_t::dd_rows;
 
 
 Output row of slow row i: the centered (i + ny\_out/2) mod ny\_out. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable delay\_doppler 
-
-```C++
-int dp_correlator_state_t::delay_doppler;
-```
-
-
-
-1 for the delay-Doppler flavor. 
  
 
 

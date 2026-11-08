@@ -255,12 +255,12 @@ typedef struct {
   dp_pool_t       *pool;      
   dp_fft_state_t **row_fwd;   
   dp_fft_state_t **row_inv;   
-  /* Delay-Doppler flavor (dp_correlator_create_delay_doppler).  The flavor is
-   * the fast path's accumulation plus the library's one delay-Doppler map
-   * at dump time (docs/design/acq-surface.md §18); it is fixed at create()
-   * and changes what the state blob means, so the blob carries its own
-   * magic. */
-  int              delay_doppler; 
+  /* Delay-Doppler flavor (dp_correlator_create_delay_doppler; `flavor` is
+   * DP_CORRELATOR_DELAY_DOPPLER, the one record of it, #2901). The flavor
+   * is the fast path's accumulation plus the library's one delay-Doppler
+   * map at dump time (docs/design/acq-surface.md §18); it is fixed at
+   * create() and changes what the state blob means, so the blob carries
+   * its own magic. */
   double           doppler_step;  
   struct dp__dd_map *dd_map;  
   float _Complex  *dd_fine;   

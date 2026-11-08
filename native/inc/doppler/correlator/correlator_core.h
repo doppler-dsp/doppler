@@ -712,12 +712,12 @@ typedef struct {
   dp_fft_state_t **row_inv;   /**< Per-worker inverse row plans, length
                                    nx_out; worker 0's is @ref inv1d.  Fast
                                    path only.                             */
-  /* Delay-Doppler flavor (dp_correlator_create_delay_doppler).  The flavor is
-   * the fast path's accumulation plus the library's one delay-Doppler map
-   * at dump time (docs/design/acq-surface.md §18); it is fixed at create()
-   * and changes what the state blob means, so the blob carries its own
-   * magic. */
-  int              delay_doppler; /**< 1 for the delay-Doppler flavor.     */
+  /* Delay-Doppler flavor (dp_correlator_create_delay_doppler; `flavor` is
+   * DP_CORRELATOR_DELAY_DOPPLER, the one record of it, #2901). The flavor
+   * is the fast path's accumulation plus the library's one delay-Doppler
+   * map at dump time (docs/design/acq-surface.md §18); it is fixed at
+   * create() and changes what the state blob means, so the blob carries
+   * its own magic. */
   double           doppler_step;  /**< Doppler spacing between adjacent
                                        output rows, cycles/sample:
                                        1 / (ny_out * nx).  0 for Corr2D.   */

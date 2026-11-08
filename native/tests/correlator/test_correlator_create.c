@@ -15,9 +15,11 @@
    outputs. */
 
 #include "doppler/correlator/correlator_core.h"
+#include "doppler/correlator/correlator_private.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -605,6 +607,126 @@ test_a_value_not_honored_is_refused (void)
   return 0;
 }
 
+/* A flavor's own refusal names its knob too: the dispatcher hands its
+   `why` to the flavor's constructor, so a knob the flavor refuses (not
+   the dispatcher) is still named, one sentence a knob. Each row breaks
+   exactly one knob of a configuration that builds. */
+static int
+test_a_flavor_names_the_knob_it_refuses (void)
+{
+  float _Complex ref2[4 * 8], silent[31] = { 0 };
+  for (size_t i = 0; i < 4 * 8; i++)
+    ref2[i] = 1.0f + (float)i * 0.1f * I;
+  knobs_t k, base;
+
+  /* The maps and detectors (corr2d_create, corr_dd_create). */
+  k       = defaults (NRZ, 1, 31);
+  k.dwell = 0;
+  DP_CHECK (refused (&k, "dwell must be at least 1"));
+  k        = defaults (NRZ, 1, 31);
+  k.nx_out = 10;
+  DP_CHECK (refused (&k, "nx_out pads the lags"));
+  k        = defaults (NRZ, 1, 31);
+  k.detect = 1;
+  k.dwell  = 0;
+  DP_CHECK (refused (&k, "dwell must be at least 1"));
+  k        = defaults (ref2, 4, 8);
+  k.ny_out = 3;
+  DP_CHECK (refused (&k, "ny_out pads the rows"));
+  k        = defaults (ref2, 4, 8);
+  k.nx_out = 7;
+  DP_CHECK (refused (&k, "nx_out pads the lags"));
+  k         = defaults (ref2, 4, 8);
+  k.col_out = 8;
+  DP_CHECK (refused (&k, "col_out must be -1 or a lag"));
+  k         = defaults (ref2, 4, 8);
+  k.col_out = 0; /* every row has energy: no single-row fast path */
+  DP_CHECK (refused (&k, "col_out needs a ref with energy"));
+  k              = defaults (NRZ, 1, 31);
+  k.doppler_rows = 4;
+  k.dwell        = 0;
+  DP_CHECK (refused (&k, "dwell must be at least 1"));
+  k              = defaults (NRZ, 1, 31);
+  k.doppler_rows = 4;
+  k.ny_out       = 3;
+  DP_CHECK (refused (&k, "ny_out pads the Doppler rows"));
+
+  /* The continuous search (search_continuous_create and the shared
+     search validation). */
+  base             = defaults (NRZ, 1, 31);
+  base.framing     = DP_CORRELATOR_FRAMING_CONTINUOUS;
+  base.sample_rate = 4.0e6;
+  base.chip_rate   = 1.0e6;
+  base.cn0_dbhz    = 55.0;
+  {
+    dp_correlator_state_t *ok = make (&base, NULL);
+    DP_REQUIRE (ok != NULL);
+    dp_correlator_destroy (ok);
+  }
+  k             = base;
+  k.sample_rate = 4.5e6; /* 139.5 samples a period */
+  DP_CHECK (refused (&k, "whole number of samples"));
+  k     = base;
+  k.pfa = 1.0;
+  DP_CHECK (refused (&k, "pfa must lie strictly between 0 and 1"));
+  k    = base;
+  k.pd = 0.0;
+  DP_CHECK (refused (&k, "pd must lie strictly between 0 and 1"));
+  k                     = base;
+  k.doppler_uncertainty = NAN;
+  DP_CHECK (refused (&k, "doppler_uncertainty must be finite and >= 0"));
+  k                  = base;
+  k.code_only_epochs = 0;
+  DP_CHECK (refused (&k, "code_only_epochs must be at least 1"));
+  k              = base;
+  k.doppler_rate = -1.0;
+  DP_CHECK (refused (&k, "doppler_rate must be finite and >= 0"));
+
+  /* The burst search (search_burst_create and the shared validation). */
+  base             = defaults (NRZ, 1, 31);
+  base.framing     = DP_CORRELATOR_FRAMING_BURST;
+  base.sample_rate = 1.0;
+  {
+    dp_correlator_state_t *ok = make (&base, NULL);
+    DP_REQUIRE (ok != NULL);
+    dp_correlator_destroy (ok);
+  }
+  k      = base;
+  k.reps = 0;
+  DP_CHECK (refused (&k, "reps must be at least 1"));
+  k     = base;
+  k.ref = silent;
+  DP_CHECK (refused (&k, "finite, non-zero energy"));
+  k          = base;
+  k.cn0_dbhz = INFINITY;
+  DP_CHECK (refused (&k, "cn0_dbhz must be finite, or NaN"));
+  k     = base;
+  k.pfa = 0.0;
+  DP_CHECK (refused (&k, "pfa must lie strictly between 0 and 1"));
+  k              = base;
+  k.doppler_rate = INFINITY;
+  DP_CHECK (refused (&k, "doppler_rate must be finite and >= 0"));
+  k                 = base;
+  k.doppler_rate    = 1e-6;
+  k.rate_hypotheses = 65;
+  DP_CHECK (refused (&k, "rate_hypotheses must be at most 64"));
+  k                 = base;
+  k.rate_hypotheses = 3;
+  DP_CHECK (refused (&k, "rate_hypotheses other than 1 needs doppler_rate"));
+  return 0;
+}
+
+static void
+null_sink (void *ctx, const float *surface, size_t rows, size_t cols,
+           uint64_t samples_consumed)
+{
+  (void)ctx;
+  (void)surface;
+  (void)rows;
+  (void)cols;
+  (void)samples_consumed;
+}
+
 /* The search-only entry points on a flavor without a search record:
    each refuses with its own refusal value and touches nothing
    (docs/design/correlator-python.md section 18). One class reaches every
@@ -621,17 +743,22 @@ search_members_refuse (dp_correlator_state_t *s)
   ok &= dp_correlator_set_max_peaks (s, 2) != 0;
   ok &= dp_correlator_set_carrier_freq_hz (s, 2.5e9) == DP_ERR_INVALID;
   ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1) == DP_ERR_INVALID;
-  ok &= dp_correlator_surface (s, f, 4) == 0;
-  ok &= dp_correlator_surface_doppler_hz (s, d, 4) == 0;
-  ok &= dp_correlator_surface_chip_phase (s, d, 4) == 0;
-  ok &= dp_correlator_surface_complex (s, z, 4) == 0;
-  ok &= dp_correlator_block_prompt (s, 0, 0, z, 4) == 0;
-  ok &= dp_correlator_block_raw (s, z, 4) == 0;
+  ok &= dp_correlator_surface (s, f, 4) == SIZE_MAX;
+  ok &= dp_correlator_surface_doppler_hz (s, d, 4) == SIZE_MAX;
+  ok &= dp_correlator_surface_chip_phase (s, d, 4) == SIZE_MAX;
+  ok &= dp_correlator_surface_complex (s, z, 4) == SIZE_MAX;
+  ok &= dp_correlator_block_prompt (s, 0, 0, z, 4) == SIZE_MAX;
+  ok &= dp_correlator_block_raw (s, z, 4) == SIZE_MAX;
   ok &= isnan (dp_correlator_psl_db (s));
   ok &= isnan (dp_correlator_gate_stat (s));
   ok &= isnan (dp_correlator_dsl_db (s));
   ok &= dp_correlator_position (s) == 0;
   ok &= dp_correlator_grid_bins (s) == 0;
+  ok &= dp_correlator_set_surface_sink (s, null_sink, NULL, 1)
+        == DP_ERR_INVALID;
+  int keep = 7;
+  ok &= dp_correlator_get_keep_surface (s, &keep) == DP_ERR_INVALID;
+  ok &= keep == 7;
   return ok;
 }
 
@@ -655,6 +782,7 @@ test_members_off_their_flavor (void)
     {
       DP_REQUIRE (maps[i] != NULL);
       DP_CHECK (search_members_refuse (maps[i]));
+      DP_CHECK (dp_correlator_last_corr_status (maps[i]) == DP_ERR_INVALID);
       DP_CHECK (dp_correlator_push_max_out (maps[i], 1000) == 0);
       DP_CHECK (dp_correlator_execute_max_out (maps[i]) > 0);
       dp_correlator_destroy (maps[i]);
@@ -663,6 +791,7 @@ test_members_off_their_flavor (void)
     {
       DP_REQUIRE (dets[i] != NULL);
       DP_CHECK (search_members_refuse (dets[i]));
+      DP_CHECK (dp_correlator_last_corr_status (dets[i]) == DP_OK);
       /* execute() refuses a detector, so nothing sizes a map for it. */
       DP_CHECK (dp_correlator_execute_max_out (dets[i]) == 0);
       DP_CHECK (dp_correlator_execute_all_max_out (dets[i], 64) == 0);
@@ -688,7 +817,23 @@ test_members_off_their_flavor (void)
       DP_CHECK (dp_correlator_execute_max_out (searches[i]) == 0);
       DP_CHECK (dp_correlator_execute_all_max_out (searches[i], 1000) == 0);
       DP_CHECK (dp_correlator_execute_peaks_max_out (searches[i], 1000) == 0);
+      DP_CHECK (dp_correlator_last_corr_status (searches[i])
+                == DP_ERR_INVALID);
+      /* Both searches decide dwells, so both take a sink. */
+      DP_CHECK (
+          dp_correlator_set_surface_sink (searches[i], null_sink, NULL, 1)
+          == DP_OK);
+      DP_CHECK (dp_correlator_set_surface_sink (searches[i], NULL, NULL, 0)
+                == DP_OK);
     }
+  /* keep_surface is the continuous search's: the burst refuses the read
+     although its sink just set the field, and the continuous serves it. */
+  int keep = 7;
+  DP_CHECK (b->search->keep_surface == 1);
+  DP_CHECK (dp_correlator_get_keep_surface (b, &keep) == DP_ERR_INVALID);
+  DP_CHECK (keep == 7);
+  DP_CHECK (dp_correlator_get_keep_surface (c, &keep) == DP_OK);
+  DP_CHECK (keep == 1);
 
   /* The burst search refuses what only the continuous one honors (the
      carrier coupling, telemetry, the surface and block read-outs), and
@@ -705,8 +850,8 @@ test_members_off_their_flavor (void)
   static float _Complex zb[BIG];
   DP_CHECK (dp_correlator_set_carrier_freq_hz (b, 2.5e9) == DP_ERR_INVALID);
   DP_CHECK (dp_correlator_set_telemetry (b, NULL, NULL, 1) == DP_ERR_INVALID);
-  DP_CHECK (dp_correlator_surface_doppler_hz (b, db, BIG) == 0);
-  DP_CHECK (dp_correlator_surface_chip_phase (b, db, BIG) == 0);
+  DP_CHECK (dp_correlator_surface_doppler_hz (b, db, BIG) == SIZE_MAX);
+  DP_CHECK (dp_correlator_surface_chip_phase (b, db, BIG) == SIZE_MAX);
   /* ...which the continuous search serves: the same calls succeed. */
   DP_CHECK (dp_correlator_set_carrier_freq_hz (c, 2.5e9) == DP_OK);
   DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1) == DP_OK);
@@ -738,13 +883,13 @@ test_members_off_their_flavor (void)
           && w->search->blk_epoch == 0)
         {
           saw_block = 1;
-          DP_CHECK (dp_correlator_block_raw (w, zb, BIG) == 0);
-          DP_CHECK (dp_correlator_block_prompt (w, 0, 0, zb, BIG) == 0);
+          DP_CHECK (dp_correlator_block_raw (w, zb, BIG) == SIZE_MAX);
+          DP_CHECK (dp_correlator_block_prompt (w, 0, 0, zb, BIG) == SIZE_MAX);
         }
       if (w->search->stat_surface && w->search->surface_at > 0)
         {
           saw_surface = 1;
-          DP_CHECK (dp_correlator_surface (w, fb, BIG) == 0);
+          DP_CHECK (dp_correlator_surface (w, fb, BIG) == SIZE_MAX);
         }
     }
   DP_REQUIRE_MSG (saw_block, "the wideband burst gathered no whole block");
@@ -820,13 +965,66 @@ test_push_never_passes_its_bound (void)
   return 0;
 }
 
+/* keep_surface is a mutator's value (#2022): it rides the search blob
+   (version 2), so a fresh engine restored from a blob keeps what the
+   source was asked to keep -- and a blob that says anything but 0 or 1 is
+   refused, the target untouched. */
+static int
+test_keep_surface_travels (void)
+{
+  dp_correlator_state_t *a = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  dp_correlator_state_t *b = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  DP_REQUIRE (a != NULL && b != NULL);
+  DP_REQUIRE (dp_correlator_set_keep_surface (a, 1) == DP_OK);
+  int keep = 7;
+  DP_REQUIRE (dp_correlator_get_keep_surface (b, &keep) == DP_OK);
+  DP_REQUIRE (keep == 0);
+  const size_t   nb   = dp_correlator_state_bytes (a);
+  unsigned char *blob = malloc (nb);
+  dp_correlator_get_state (a, blob);
+  DP_CHECK (dp_correlator_set_state (b, blob) == DP_OK);
+  DP_CHECK (dp_correlator_get_keep_surface (b, &keep) == DP_OK);
+  DP_CHECK (keep == 1);
+
+  /* A blob whose keep_surface is 2 is refused, and the target is the
+     same bytes after as before. */
+  dp_correlator_state_t *c = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  DP_REQUIRE (c != NULL);
+  unsigned char *before = malloc (nb), *after = malloc (nb);
+  dp_correlator_get_state (c, before);
+  const uint16_t two = 2;
+  memcpy (blob + DP_CORRELATOR_SEARCH_EXTRA_OFF
+              + offsetof (search_extra_t, keep_surface),
+          &two, sizeof two);
+  DP_CHECK (dp_correlator_set_state (c, blob) == DP_ERR_INVALID);
+  dp_correlator_get_state (c, after);
+  DP_CHECK (memcmp (before, after, nb) == 0);
+  DP_CHECK (dp_correlator_get_keep_surface (c, &keep) == DP_OK);
+  DP_CHECK (keep == 0);
+  free (before);
+  free (after);
+  free (blob);
+  dp_correlator_destroy (a);
+  dp_correlator_destroy (b);
+  dp_correlator_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
   make_code ();
   (void)test_each_row_builds_its_flavor ();
   (void)test_a_value_not_honored_is_refused ();
+  (void)test_a_flavor_names_the_knob_it_refuses ();
   (void)test_members_off_their_flavor ();
   (void)test_push_never_passes_its_bound ();
+  (void)test_keep_surface_travels ();
   DP_TEST_END ("test_correlator_create");
 }

@@ -2454,7 +2454,7 @@ corr2d-hypotheses-record: build ## Re-time the hypothesis-bank orderings; rewrit
 # entry would become the first script's argv[1]. Loop + derive the destination
 # before adding one — gh-694.
 GALLERY_CHARACTERIZATIONS := \
-    src/doppler/acquire/tests/characterization/burst_acquisition/characterize.py
+    src/doppler/correlation/tests/characterization/burst_search/characterize.py
 # Where `make gallery` tells the characterization to write its plot. Its
 # source cannot name the path (it takes it on argv), so release-freshness-check
 # is handed this too: a changed subject needs THIS file to change (#2609).

@@ -4,8 +4,8 @@ A receiver searching a carrier offset tries one frame under several
 hypotheses and keeps the best. Here a code delayed by 37 samples arrives on
 a carrier 2.4 code bins away from nominal. Each hypothesis removes one
 candidate offset (0, 0.5, ... 3.5 bins) from a copy of the frame, the copies
-go to ``DelayDoppler`` as ONE batch, and each map's own peak-to-mean picks
-the hypothesis that left the signal most compact.
+go to a delay-Doppler ``Correlator`` as ONE batch, and each map's own
+peak-to-mean picks the hypothesis that left the signal most compact.
 
 Why there is a search at all: a carrier left uncorrected within each period
 costs the code correlation its Dirichlet factor. Near a whole code bin the
@@ -35,7 +35,7 @@ matplotlib.use("Agg")  # headless: no display required
 # --8<-- [start:setup]
 import numpy as np
 
-from doppler.spectral import DelayDoppler
+from doppler.correlation import Correlator
 
 NX, NY, DELAY = 128, 16, 37  # code length, periods per frame, code delay
 OFFSET_BINS = 2.4  # true carrier offset, in code bins (1 / NX cycles/sample)
@@ -55,7 +55,7 @@ batch = np.concatenate(
 # --8<-- [end:setup]
 
 # --8<-- [start:search]
-dd = DelayDoppler(code, ny=NY, nthreads=0)  # 0: every core
+dd = Correlator(code, doppler_rows=NY, nthreads=0)  # 0: every core
 peak, row, col, mean = dd.execute_peaks(batch)
 ratio = peak / mean
 best = int(np.argmax(ratio))

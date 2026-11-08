@@ -488,7 +488,7 @@ double dp_correlator_state_t::doppler_step;
 
 
 
-Doppler spacing between adjacent output rows, cycles/sample: 1 / (ny\_out \* nx). 0 for Corr2D. 
+Doppler spacing between adjacent output rows, cycles/sample: 1 / (ny\_out \* nx). 0 for the 2-D map. 
  
 
 

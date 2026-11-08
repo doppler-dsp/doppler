@@ -62,14 +62,19 @@ Complex- and real-input digital down-converters, and their matched flavors.
 
 - [Ddcr — Real Passband to Baseband](ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling.
 
-## Spectral analysis
+## Correlation
 
-FFTs, correlators, power spectra and spectrograms.
+One Correlator for every FFT correlation: 1-D and 2-D maps, delay-Doppler maps, streaming detectors, and the continuous and burst searches (acquisition).
 
 - [2-D Acquisition Grid](detection2d.md) — GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR.
-- [A Streaming Spectrogram](spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis.
-- [Correlation and Detection](corr.md) — coherent integration, 2-D template matching, streaming CFAR.
+- [Correlation and Detection](corr.md) — coherent integration, 2-D template matching, streaming CFAR, with `Correlator`.
 - [Delay-Doppler Search](delay-doppler.md) — a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call.
+
+## Spectral analysis
+
+FFTs, power spectra and spectrograms.
+
+- [A Streaming Spectrogram](spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis.
 - [Four WCDMA Carriers — PSD, band_power, AccTrace](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 
 ## Measurement suite
@@ -128,8 +133,8 @@ Despreading, polynomial-phase estimation and the DSSS receivers.
 - [AsyncDsssReceiver: a signal's lifecycle](async-dsss-receiver-lifecycle.md) — one packaged receiver through an emitter's life: searched, tracked through a fade, released when it departs, reset, and re-acquired on its return, read from its own state after every push
 - [AsyncDsssReceiver: the specification link](async-dsss-receiver-spec.md) — one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass: carrier-to-code aiding, a missed hand-off searched again, and the decode scored by BER, EVM and M2M4
 - [DSSS Acquisition — Pd / Pfa vs Es/N0](dsss-acq-characterization.md) — detection characterisation curves.
-- [DsssBurstReceiver — the Composed Burst Chain](dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `BurstAcquisition -> refine -> BurstDemod` behind one `push()`, the same answer at every block size
-- [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
+- [DsssBurstReceiver — the Composed Burst Chain](dsss-burst-receiver.md) — the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `Correlator -> refine -> BurstDemod` behind one `push()`, the same answer at every block size
+- [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — `Correlator -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid.
 
 ## M-PSK modulation

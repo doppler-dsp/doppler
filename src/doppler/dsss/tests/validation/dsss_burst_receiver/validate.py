@@ -8,11 +8,11 @@ Phase 8 for the object designed in `docs/design/dsss-burst-receiver.md` and
 characterized in
 `src/doppler/dsss/tests/characterization/dsss_burst_receiver/`.
 
-The three parts it composes — `BurstAcquisition`, `BurstDespreader`,
-`BurstDemod` — are certified in their own folders and **nothing here
-re-derives them**. What this object owns is the seam: the epoch, the fold,
-the look-back that reaches back to a burst start already gone past, and the
-refine stage that decides which repetition of the preamble a detection
+The three parts it composes — the burst-search `Correlator`, `BurstDespreader`,
+`BurstDemod` — are certified in their own folders and **nothing here re-derives
+them**. What this object owns is the seam: the epoch, the fold, the look-back
+that reaches back to a burst start already gone past, and the refine stage that
+decides which repetition of the preamble a detection
 landed on. Every claim below is about that.
 
 The criterion the object was built against is stronger than "it decodes":
@@ -540,8 +540,9 @@ def _sec_pd(d: Data) -> None:
         "CORRECTLY. This asks how often it gets one at all, which is the "
         "number a link is sized with — and until now no report in this "
         "chain gated one. `acq`'s certification pins `underpowered`, the "
-        "engine's own *prediction*; `Acquisition` has a measured Pd gate in "
-        "`test_acq_characterization.py`; the burst path had neither."
+        "engine's own *prediction*; `Correlator`'s continuous search has a "
+        "measured Pd gate in `test_acq_characterization.py`; the burst path "
+        "had neither."
     )
     R.md()
     R.md(

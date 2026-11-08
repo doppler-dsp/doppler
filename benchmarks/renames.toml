@@ -24,3 +24,4 @@
 "c:detector" = "c:correlator"     # step 3.3
 "c:detector2d" = "c:correlator"   # step 3.3
 "c:acq" = "c:correlator"          # step 3.4b
+"c:burst_acq" = "c:correlator"    # step 4: burst_acq retired

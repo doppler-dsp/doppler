@@ -17,19 +17,15 @@ own gate: `validate.py --check`, run by `make validate-check`.
 Kept per-module rather than as one tree-wide collector because the
 validators import their own module's objects: this one pulls in
 `doppler.spectral`, and a shared collector would import every module's
-extension to run any object's limits. The correlator's report is the one
-exception: its parts three and four certify `Acquisition` and
-`BurstAcquisition` (#2752 step 3.5), so this test imports `doppler.acquire`
-too.
+extension to run any object's limits. The correlator's report moved with
+the class to `doppler.correlation` (#2752 step 4c), and its limits with it,
+to `correlation/tests/test_validation_limits.py`.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from doppler.spectral.tests.validation.correlator import (
-    validate as corr2d_validate,
-)
 from doppler.spectral.tests.validation.psd import validate as psd_validate
 from doppler.spectral.tests.validation.spectrogram import (
     validate as spectrogram_validate,
@@ -37,9 +33,6 @@ from doppler.spectral.tests.validation.spectrogram import (
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
-    # The correlator: Corr2D, CorrDetector2D, Acquisition and
-    # BurstAcquisition, one object, one report (#2752 steps 3.3 and 3.5).
-    "corr2d": corr2d_validate,
     "psd": psd_validate,
     "spectrogram": spectrogram_validate,
 }

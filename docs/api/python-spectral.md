@@ -1,96 +1,19 @@
-# Python Correlation & Detection API
+# Python Spectral Analysis API
 
 The `doppler.spectral` module is a single CPython extension over the C `spectral`
 core. Its FFT engines are documented on the [FFT page](python-fft.md); this page
-covers the rest of the module — **correlation** (`Corr`, `Corr2D`), **streaming
-detection** (`CorrDetector`, `CorrDetector2D`), and the **spectral helper functions**
-(windows, magnitude, peak-finding).
+covers the rest of the module — **streaming spectrograms** (`Spectrogram`), the
+**averaging PSD** (`PSD`), and the **spectral helper functions** (windows,
+magnitude, peak-finding).
+
+Correlation moved to its own module: every correlator and streaming detector
+is `doppler.correlation.Correlator`, on the
+[Correlation page](python-correlation.md).
 
 For the statistical-detection side (probability of detection, thresholds, dwell
 sizing), see the [Detection Statistics page](python-detection.md). For how
 `PSD` (below) anchors the dBFS reference for every measurement and display
 consumer, see the [Spectral & Measurement API Map](../design/spectral-api-map.md).
-
-______________________________________________________________________
-
-## Correlation
-
-`Corr` is a 1-D FFT correlator with coherent integrate-and-dump: it pre-computes
-`conj(FFT(ref))` once at construction, so each `execute()` costs one forward FFT
-and `n` complex multiplies, plus the inverse FFT on the call that dumps. With `dwell == 1` every call dumps; with a larger `dwell`,
-the accumulator coherently integrates that many frames before returning a result
-(and returns `None` in between).
-
-```python
-import numpy as np
-from doppler.spectral import Corr
-
-ref = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)
-corr = Corr(ref, dwell=1)
-frame = ref + 0.1 * (np.random.randn(1024) + 1j * np.random.randn(1024))
-out = corr.execute(frame.astype(np.complex64))   # ndarray on a dump, else None
-lag = int(np.argmax(np.abs(out)))                 # correlation peak position
-```
-
-`Corr2D` is the 2-D analogue over an `ny × nx` grid: the reference is a 2-D
-`(ny, nx)` array, `execute` takes the input in either shape, and it returns a
-flat row-major array.
-
-`DelayDoppler` is the `Corr2D` view for a delay-Doppler map. It takes the raw
-stream, `ny` code periods back to back, and returns the centered
-`ny_out × nx` map: rows are Doppler bins `doppler_step` cycles/sample apart,
-with zero Doppler on row `ny_out // 2`, and columns are delay lags. See
-[the design section](../design/corr2d-interpolated-inverse.md#10-delaydoppler-the-slow-time-fft-in-c-2666).
-
-::: doppler.spectral.Corr
-
-::: doppler.spectral.Corr2D
-
-::: doppler.spectral.DelayDoppler
-
-______________________________________________________________________
-
-## Streaming detection
-
-`CorrDetector` wraps a correlator with a **double-mapped ring buffer** so you can
-push arbitrary-sized chunks. After each integrate-and-dump it compares the
-peak-to-noise test statistic against `threshold` and emits a detection result
-when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
-`next_pow_two(max(n, 512))` complex samples.
-
-One `push()` has room for **1024 detections**, so a push that completes at
-most 1024 frames, counting the carry, loses nothing. One that fills the room
-loses the rest of its input, every later frame whether or not it would have
-made a detection, unless the rest is shorter than a frame; the next push
-stays on the frame grid only when what was lost is a whole number of frames
-([#1992](https://github.com/doppler-dsp/doppler/issues/1992)).
-
-```python
-import numpy as np
-from doppler.spectral import CorrDetector
-
-ref = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)
-det = CorrDetector(ref, dwell=4, threshold=12.0)      # peak 12x the noise (linear)
-
-
-def stream_chunks():                              # a real CF32 source
-    for _ in range(4):
-        yield (np.random.randn(1024)
-               + 1j * np.random.randn(1024)).astype(np.complex64)
-
-
-for chunk in stream_chunks():                     # at most 1024 frames each
-    for hit in det.push(chunk.astype(np.complex64)):
-        print("detection:", hit)                  # (lag, peak, noise, stat)
-```
-
-`CorrDetector2D` is the 2-D streaming detector over a grid, with the same
-room: 1024 detections per `push()`, the same bound of 1024 frames counting
-the carry, and the same loss past it.
-
-::: doppler.spectral.CorrDetector
-
-::: doppler.spectral.CorrDetector2D
 
 ______________________________________________________________________
 
@@ -224,9 +147,9 @@ against the values the library actually has:
 
 <!-- related-pages:start -->
 
-**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [Delay-Doppler Search](../gallery/delay-doppler.md), [2-D Acquisition Grid](../gallery/detection2d.md), [Gallery](../gallery/index.md), [A Streaming Spectrogram](../gallery/spectrogram.md), [Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`](../gallery/wcdma-carriers.md)
-**Guides** — [Delay-Doppler Search](../guide/delay-doppler.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Power Spectra & Measurements](../guide/spectral-psd.md), [Streaming Spectrograms](../guide/spectrogram.md)
-**Design** — [The acquisition surface — the measurement record](../design/acq-surface-measurements.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Corr2D batches: many maps in one call](../design/corr2d-batch.md), [Corr2D hypothesis bank: operation order](../design/corr2d-hypotheses.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [Spectrum Analyzer](../design/specan.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md)
-**Contributing** — [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md), [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [C Return-Code Convention](../dev/contributing/error-convention.md), [Validation log](../dev/contributing/validation-log.md), [Code coverage](../dev/coverage.md)
+**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Gallery](../gallery/index.md), [A Streaming Spectrogram](../gallery/spectrogram.md), [Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`](../gallery/wcdma-carriers.md)
+**Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md), [Streaming Spectrograms](../guide/spectrogram.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Design](../design/index.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [Spectrum Analyzer](../design/specan.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md)
+**Contributing** — [C Return-Code Convention](../dev/contributing/error-convention.md), [Validation log](../dev/contributing/validation-log.md), [Code coverage](../dev/coverage.md)
 
 <!-- related-pages:end -->

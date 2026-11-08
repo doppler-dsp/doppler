@@ -51,7 +51,7 @@ Python module `doppler.detection`. Area: [Estimation](index.md#estimation).
 
 Pages filed under another domain that name a symbol of this module, or link to or from a page filed here: a class used for another task is found from both sides, never re-filed.
 
-- [Spectral analysis](spectral.md): [2-D Acquisition Grid](../gallery/detection2d.md)
+- [Correlation](correlation.md): [2-D Acquisition Grid](../gallery/detection2d.md)
 - [Acquisition](acquire.md): [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
 - [Tracking & synchronization](track.md): [Lock Detection Across doppler.track](../guide/lock-detection.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
 - [Spread spectrum (DSSS)](dsss.md): [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [AsyncDsssReceiver and AsyncDsssPool — the measurement record](../design/async-dsss-receiver-measurements.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Streaming Async Despreader](../gallery/async-despread.md)

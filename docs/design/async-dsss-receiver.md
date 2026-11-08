@@ -100,17 +100,20 @@ ______________________________________________________________________
 
 ## 2. Acquisition
 
-### 2.1 Two front doors, one engine
+### 2.1 Two searches, one engine
 
-`Acquisition` (continuous) and `BurstAcquisition` are two public
-constructors over one `dp_correlator_state_t`
-(`native/inc/doppler/correlator/correlator_core.h`), each exposing only the parameters
-that mean something for it rather than one class with a `mode` and
-per-parameter "ignored here" caveats. State, auto-sizing, `push()` and
-serialization are shared. `Acquisition` takes the code, `sample_rate`,
-`chip_rate`, `symbol_rate`, a design `cn0_dbhz`, a one-sided
-`doppler_uncertainty`, `pfa`, `pd`, a CFAR `noise_mode`, and the two inputs
-that size its coherent depth, `code_only_epochs` and `doppler_rate`.
+The continuous and burst searches are two flavors of one Python class,
+`Correlator`, picked by `framing="continuous"` or `framing="burst"`, over
+one `dp_correlator_state_t`
+(`native/inc/doppler/correlator/correlator_core.h`). Until #2752 step 4
+they were two public constructors, `Acquisition` and `BurstAcquisition`;
+the one class refuses a knob its flavor would not honor instead of
+carrying "ignored here" caveats
+([Correlator in Python](correlator-python.md)). State, auto-sizing,
+`push()` and serialization are shared. The continuous search takes the code
+(as NRZ chips), `sample_rate`, `chip_rate`, `symbol_rate`, a design
+`cn0_dbhz`, a one-sided `doppler_uncertainty`, `pfa`, `pd`, a CFAR
+`noise_mode`, and the two inputs that size its coherent depth, `code_only_epochs` and `doppler_rate`.
 Everything else it derives; there is no `doppler_resolution` and no
 `max_noncoh`.
 
@@ -600,7 +603,7 @@ the composed continuous receiver, one C object, read back through the
 receiver in a pool is §6; this section is the chain under both.
 
 - **searching** — on its own, samples feed an embedded continuous
-    `Acquisition` (§2)
+    continuous search (§2)
     over `±doppler_uncertainty`, at the coherent depth `D` its code-only
     window sizes (§2.3; `D = 1`, one epoch a look, without one). A hit becomes
     a seed through `dp_correlator_build_handoff()` and `seed()`, and the
@@ -854,7 +857,7 @@ residual is a design input (doppler#2409).
 
 ### 7.1 The peak list
 
-`Acquisition.set_max_peaks` and `BurstAcquisition.set_max_peaks` list every
+`Correlator.set_max_peaks`, on either search, lists every
 peak above the dwell's gate, strongest first, with an exclusion zone of one
 Doppler bin by one chip around each and the two-epoch rule for a peak at an
 already-listed code phase. `det_peak_list`

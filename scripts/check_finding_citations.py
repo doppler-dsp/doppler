@@ -138,7 +138,7 @@ def scan_validators(root: Path, pat):
     dangling: list[tuple[str, str]] = []
     # A report is its validator's FOLDER: validate.py may render part of
     # the report from a sibling module (the correlator's renders
-    # CorrDetector2D's part from detector.py, #2752 step 3.3), so the keys
+    # 2-D detector flavor's part from detector.py, #2752 step 3.3), so the keys
     # one module records and another cites are the same report's. Every
     # tracked .py beside a validate.py is read with it.
     every_py = tracked(root, "*.py")

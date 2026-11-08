@@ -129,6 +129,18 @@ name = "wfm_type"
 values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
 
 [[enum]]
+# dp_correlator_flavor_t (correlator_core.h): which flavor Correlator's knobs
+# built, read by its `flavor` property (#2752 step 4). Bound by name, so the
+# C values (1 ... 7) are the compiler's to check.
+name = "correlator_flavor"
+values = ["1d", "2d", "delay_doppler", "detector_1d", "detector_2d", "continuous", "burst"]
+enumerators = [
+  "DP_CORRELATOR_1D", "DP_CORRELATOR_2D", "DP_CORRELATOR_DELAY_DOPPLER",
+  "DP_CORRELATOR_DETECTOR_1D", "DP_CORRELATOR_DETECTOR_2D",
+  "DP_CORRELATOR_SEARCH_CONTINUOUS", "DP_CORRELATOR_SEARCH_BURST",
+]
+
+[[enum]]
 # rc_pulse_t (RateConverter_core.h), bound by name: the C enum carries
 # `SSOT: enum=rc_pulse` and scripts/check_wfm_enum_tables.py holds its names
 # to these.

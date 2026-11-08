@@ -2,7 +2,8 @@
 
 # Corr2D batches: many maps in one call
 
-`Corr2D` and `DelayDoppler` make one map per dump, and the only way two maps
+`Correlator`'s 2-D and delay-Doppler flavors (`Corr2D` and `DelayDoppler`
+until #2752 step 4) make one map per dump, and the only way two maps
 combine is the coherent dwell. A batch takes H frames in one call and returns
 every map, or one reduction of them, from one C loop that never touches the
 dwell. It serves

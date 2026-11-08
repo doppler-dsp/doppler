@@ -1,11 +1,11 @@
-"""DsssReceiver: the single-object form of Acquisition -> Dll(segments) ->
+"""DsssReceiver: the single-object form of search -> Dll(segments) ->
 RateConverter -> MpskReceiver. Uses this repo's own validated CCSDS
 Gold-code/SEED=6/CN0=97dB-Hz signal as the
 known-good fixture -- if this test's DsssReceiver-based decode disagrees
 with that validated operating point, something in the composed object's
-wiring is wrong, not the underlying DSP (already covered by Acquisition/
-Dll/MpskReceiver's own tests). Like `Acquisition` (a frame/push object,
-not a simple block-`execute` shape), the state-serialization round trip is
+wiring is wrong, not the underlying DSP (already covered by Correlator/
+Dll/MpskReceiver's own tests). A frame/push composition, not a simple
+block-`execute` shape, so the state-serialization round trip is
 bespoke here rather than in the generic `test_state_serialization.py`
 matrix.
 """
@@ -152,8 +152,8 @@ def test_reset_returns_to_searching():
 
 def test_state_roundtrip_while_tracking():
     """Bespoke round trip (this is a frame/push composition, not a simple
-    block-execute object -- same precedent as Acquisition's own bespoke
-    test rather than the generic test_state_serialization.py matrix)."""
+    block-execute object -- so a bespoke test rather than the generic
+    test_state_serialization.py matrix)."""
     x, _data = _make_signal(CN0_DBHZ, SEED)
     rx = _new_receiver()
     chunk = TE

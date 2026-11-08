@@ -1,9 +1,8 @@
 /*
  * spectral_ext.c — Python extension module spectral
  *
- * Objects: FFT, FFT2D, Corr2D, PSD, Spectrogram, DelayDoppler, Corr,
- * CorrDetector2D, CorrDetector GENERATED — do not hand-edit. Patches belong in
- * the _ext_<obj>.c fragments.
+ * Objects: FFT, FFT2D, PSD, Spectrogram
+ * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -190,11 +189,6 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 }
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
-#include "spectral_ext_corr.c"
-#include "spectral_ext_corrdetector.c"
-#include "spectral_ext_corrdetector2d.c"
-#include "spectral_ext_correlator.c"
-#include "spectral_ext_delaydoppler.c"
 #include "spectral_ext_fft.c"
 #include "spectral_ext_fft2d.c"
 #include "spectral_ext_psd.c"
@@ -914,19 +908,20 @@ static PyMethodDef spectral_module_methods[] = {
 
 static PyModuleDef spectral_moduledef = {
   PyModuleDef_HEAD_INIT,
-  .m_name    = "spectral",
-  .m_doc     = "Spectral transforms: reusable FFT and FFT2D engines (fixed "
-               "length, pocketfft plans cached at construction) plus Corr / "
-               "Corr2D cross-correlators and PSD power-spectrum estimators.\n"
-               "\n"
-               "Examples\n"
-               "--------\n"
-               ">>> import numpy as np\n"
-               ">>> from doppler.spectral import FFT\n"
-               ">>> f = FFT(n=1024)\n"
-               ">>> X = f.execute_cf32(np.ones(1024, np.complex64))\n"
-               ">>> bool(abs(X[0].real - 1024) < 1)\n"
-               "True\n",
+  .m_name = "spectral",
+  .m_doc
+  = "Spectral transforms: reusable FFT and FFT2D engines (fixed length, "
+    "pocketfft plans cached at construction) and PSD power-spectrum "
+    "estimators. The correlators are doppler.correlation's Correlator.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.spectral import FFT\n"
+    ">>> f = FFT(n=1024)\n"
+    ">>> X = f.execute_cf32(np.ones(1024, np.complex64))\n"
+    ">>> bool(abs(X[0].real - 1024) < 1)\n"
+    "True\n",
   .m_size    = -1,
   .m_methods = spectral_module_methods,
 };
@@ -939,19 +934,9 @@ PyInit_spectral (void)
     return NULL;
   if (PyType_Ready (&FFT2DObjType) < 0)
     return NULL;
-  if (PyType_Ready (&Corr2DObjType) < 0)
-    return NULL;
   if (PyType_Ready (&PSDObjType) < 0)
     return NULL;
   if (PyType_Ready (&SpectrogramObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&DelayDopplerObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&CorrObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&CorrDetector2DObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&CorrDetectorObjType) < 0)
     return NULL;
   PyObject *m = PyModule_Create (&spectral_moduledef);
   if (!m)
@@ -970,13 +955,6 @@ PyInit_spectral (void)
       Py_DECREF (m);
       return NULL;
     }
-  Py_INCREF (&Corr2DObjType);
-  if (PyModule_AddObject (m, "Corr2D", (PyObject *)&Corr2DObjType) < 0)
-    {
-      Py_DECREF (&Corr2DObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
   Py_INCREF (&PSDObjType);
   if (PyModule_AddObject (m, "PSD", (PyObject *)&PSDObjType) < 0)
     {
@@ -989,38 +967,6 @@ PyInit_spectral (void)
       < 0)
     {
       Py_DECREF (&SpectrogramObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&DelayDopplerObjType);
-  if (PyModule_AddObject (m, "DelayDoppler", (PyObject *)&DelayDopplerObjType)
-      < 0)
-    {
-      Py_DECREF (&DelayDopplerObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CorrObjType);
-  if (PyModule_AddObject (m, "Corr", (PyObject *)&CorrObjType) < 0)
-    {
-      Py_DECREF (&CorrObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CorrDetector2DObjType);
-  if (PyModule_AddObject (m, "CorrDetector2D",
-                          (PyObject *)&CorrDetector2DObjType)
-      < 0)
-    {
-      Py_DECREF (&CorrDetector2DObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CorrDetectorObjType);
-  if (PyModule_AddObject (m, "CorrDetector", (PyObject *)&CorrDetectorObjType)
-      < 0)
-    {
-      Py_DECREF (&CorrDetectorObjType);
       Py_DECREF (m);
       return NULL;
     }

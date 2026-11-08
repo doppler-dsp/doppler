@@ -3,13 +3,12 @@
 The `doppler.acquire` module holds the searches that find a signal before
 anything tracks it:
 
-- **`Acquisition`** — the streaming code-phase × Doppler engine.
-- **`BurstAcquisition`** and **`BurstCapture`** — find a burst of any
-    repeated complex preamble (a PN code, Zadoff-Chu, a chirp or a QPSK
-    sequence), with **`PersistentBurstCapture`** keeping its ring in a file.
+- **`BurstCapture`** — finds a burst of any repeated complex preamble (a
+    PN code, Zadoff-Chu, a chirp or a QPSK sequence) and emits its samples,
+    with **`PersistentBurstCapture`** keeping its ring in a file.
 - **`CarrierAcquisition`** — a PSDMF (power-spectral-density
     matched-filter) residual-carrier frequency estimator. It runs after
-    `Acquisition`'s coarse Doppler search as a one-shot refinement stage:
+    the code-phase search's coarse Doppler search as a one-shot refinement stage:
     non-coherently average the incoming stream's power spectrum, then
     circularly correlate that average against a known power spectrum shape
     (the default is the average PSD of a random rectangular-pulse BPSK
@@ -18,7 +17,11 @@ anything tracks it:
 - **`bin_to_signed`** — the Doppler-bin fold convention the searches and
     their hand-offs share.
 
-The DSSS receivers in the [DSSS API](python-dsss.md) compose these objects.
+The code-phase × Doppler searches themselves, continuous and burst, are
+flavors of one class, `Correlator`, on the
+[Correlation page](python-correlation.md) (`framing="continuous"` and
+`framing="burst"`). The DSSS receivers in the [DSSS API](python-dsss.md)
+compose these objects.
 
 Source:
 [`src/doppler/acquire/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/acquire/__init__.py)
@@ -31,10 +34,10 @@ ______________________________________________________________________
 ## `CarrierAcquisition` — PSDMF residual-carrier estimation
 
 Composes `doppler.spectral.PSD` (FFT + window + non-coherent power
-averaging), `doppler.spectral.CorrDetector` (FFT-based correlation of the
-averaged power against the known template, plus a noise-referenced test
-statistic), and `doppler.detection`'s Pfa/Pd statistics (the same ones
-`Acquisition` itself is built on) for the detection gate. `sequential`
+averaging), the 1-D detector flavor of `doppler.correlation.Correlator`
+(FFT-based correlation of the averaged power against the known template, plus
+a noise-referenced test statistic), and `doppler.detection`'s Pfa/Pd
+statistics (the same ones the code-phase searches are built on) for the detection gate. `sequential`
 (test every block, adaptive) vs. non-sequential (a fixed `dwell_target`
 wait) mirror the two modes of the `FrequencyAcquisition` reference design —
 `max_n_blocks` is sequential mode's own give-up cap, deliberately
@@ -42,41 +45,11 @@ independent of `dwell_target`.
 
 ::: doppler.acquire.CarrierAcquisition
 
-## `Acquisition` — continuous acquisition
-
-`Acquisition` searches a continuous spread-spectrum signal (a code that repeats
-forever, data riding on it) over the joint (Doppler × code-phase) grid. It
-takes the `code`, `chip_rate` and the `sample_rate` it is fed at, always tiles the Doppler uncertainty
-with frequency windows, and sizes its non-coherent looks from
-`(cn0_dbhz, pfa, pd)` using `doppler.detection`; its coherent depth is set by
-the code-only epochs you declare (`code_only_epochs`) and capped by
-`doppler_rate`, never grown to meet `pd`. Push arbitrary-length blocks; it
-yields one 9-tuple per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, cn0_dbhz_est, samples_consumed, chip_phase, doppler_rate_hz_s)`, `chip_phase` being the `Dll` seed in chips and `doppler_rate_hz_s` the winning Doppler-rate hypothesis (0 unless the search was built with `rate_hypotheses`). See the
-[DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
-for when to use it.
-
-::: doppler.acquire.Acquisition
-
-## `BurstAcquisition` — the burst front door to acquisition
-
-`BurstAcquisition` is the burst front door to the same engine. It takes one
-period of any repeated complex preamble as samples, plus their rate `fs`, and
-sizes the coherent depth: the smallest number of repetitions whose Pd for the
-whole burst meets `pd`, with no non-coherent looks. Every dwell whose
-statistic clears the gate reports a hit, so one burst typically produces
-several; each is the same 9-tuple as
-[`Acquisition`](#acquisition-continuous-acquisition)'s, except that
-`chip_phase` counts preamble samples, one chip per sample. The two front doors
-differ in what they take (preamble samples against a code) and in how they
-size the search. See the [acquisition guide](../guide/acquisition.md) for a
-worked example on a non-PN preamble.
-
-::: doppler.acquire.BurstAcquisition
-
 ## `BurstCapture` — acquisition's output, turned into bursts
 
 `BurstCapture` is the stage between a detector and whatever consumes a burst.
-[`BurstAcquisition`](#burstacquisition-the-burst-front-door-to-acquisition)
+The burst search,
+[`Correlator(preamble, framing="burst", ...)`](python-correlation.md#doppler.correlation.Correlator),
 reports an END anchor and a code phase that is a lag **modulo one code
 period** (for a Zadoff-Chu preamble, shifted by any Doppler the search did not
 resolve first), so it names the alignment within a preamble repetition and
@@ -130,7 +103,8 @@ Maps a reported Doppler **bin index** to its **signed** frequency index —
 import numpy as np
 
 from doppler.cvt import bin_to_nrz
-from doppler.acquire import BurstAcquisition, bin_to_signed
+from doppler.acquire import bin_to_signed
+from doppler.correlation import Correlator
 from doppler.wfm import PN, mls_poly
 
 code = np.asarray(
@@ -140,11 +114,12 @@ code = np.asarray(
 nrz = np.zeros(code.size, np.float32)
 bin_to_nrz(code, nrz)
 preamble = np.repeat(nrz, 4).astype(np.complex64)
-acq = BurstAcquisition(preamble, reps=8, fs=4e6, cn0_dbhz=60.0)
+acq = Correlator(preamble, framing="burst", reps=8, sample_rate=4e6,
+                 cn0_dbhz=60.0)
 
 # One repeated-code burst, so push() reports a hit to read the bin off.
 burst = np.tile(preamble, 8)
-hit_bin = acq.push(burst)[0][0]
+hit_bin = int(acq.push(burst)[0]["row"])
 
 f0_hz = bin_to_signed(hit_bin, acq.doppler_bins) * acq.doppler_res_hz
 print(f"bin {hit_bin} -> {f0_hz:+.0f} Hz")
@@ -168,9 +143,9 @@ sample **rate** where numpy takes the sample **spacing**.
 
 <!-- related-pages:start -->
 
-**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md)
-**Guides** — [Acquiring a Repeated Preamble](../guide/acquisition.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
-**Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Validation log](../dev/contributing/validation-log.md), [Contributing](../dev/index.md)
+**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Gallery](../gallery/index.md)
+**Guides** — [Acquiring a Repeated Preamble](../guide/acquisition.md), [The Correlator](../guide/correlator.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
+**Design** — [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Contributing** — [Validation log](../dev/contributing/validation-log.md)
 
 <!-- related-pages:end -->

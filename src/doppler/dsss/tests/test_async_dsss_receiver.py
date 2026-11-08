@@ -1,4 +1,4 @@
-"""AsyncDsssReceiver: Acquisition -> hand-off -> CarrierAcquisition refine ->
+"""AsyncDsssReceiver: search -> hand-off -> CarrierAcquisition refine ->
 per-code-period Costas/Dll/RateConverter/MpskReceiver track, one object --
 the production C port of the validated Python prototype's own search ->
 refine -> track pipeline (validated in the coupled-despreader, freq-refine,

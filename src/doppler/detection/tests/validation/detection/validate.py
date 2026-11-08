@@ -132,7 +132,7 @@ def section_object() -> None:
         "`doppler.detection`'s `det_*` helpers turn a statistic's null "
         "distribution into a threshold and an integration time. They are "
         "stateless, thread-safe, and shared by every object in the library "
-        "that declares anything — `Acquisition`, `LockDet`, `Dll`, "
+        "that declares anything — `Correlator`, `LockDet`, `Dll`, "
         "`BurstDespreader`, `BerMeter`. A change here moves all of them at "
         "once, which is the reason this report exists."
     )

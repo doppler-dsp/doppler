@@ -385,7 +385,7 @@ search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t c
 typedef struct
 {
   uint16_t has_nc; 
-  uint16_t _pad;             
+  uint16_t keep_surface;     
   uint32_t n_noncoh;         
   uint64_t n;                
   uint64_t samples_consumed; 

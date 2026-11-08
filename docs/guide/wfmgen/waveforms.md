@@ -62,7 +62,8 @@ leaves no receiver, because a tracking loop has nothing to track in the gaps.
 "Stimulus only" is a statement about *demodulating*, not about finding the
 signal. A burst that starts with a complex preamble can still be **detected and
 located** with
-[`BurstAcquisition`](../../api/python-acquire.md#burstacquisition-the-burst-front-door-to-acquisition),
+the burst search,
+[`Correlator(..., framing="burst")`](../../api/python-correlation.md#doppler.correlation.Correlator),
 and [`BurstCapture`](../../api/python-acquire.md#burstcapture-acquisitions-output-turned-into-bursts)
 cuts the located bursts out of a stream; what you do with their samples next
 is yours. doppler does not ship a receiver for these: they exist to drive your

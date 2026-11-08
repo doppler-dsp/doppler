@@ -2,7 +2,7 @@
 
 # Spectral analysis
 
-FFTs, correlators, power spectra and spectrograms.
+FFTs, power spectra and spectrograms.
 
 Python module `doppler.spectral`. Area: [Spectral](index.md#spectral).
 
@@ -11,11 +11,6 @@ Python module `doppler.spectral`. Area: [Spectral](index.md#spectral).
 | Name | Kind | API | Guide | Gallery | Example | Design |
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
 | `blackman_harris_window` | function | [blackman_harris_window](../api/python-spectral.md) | &nbsp; | &nbsp; | [adc_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/adc_demo.py)<br>[cic_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/cic_demo.py)<br>[cvt_quantization_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/cvt_quantization_demo.py)<br>+4 more | &nbsp; |
-| `Corr` | class | [Corr](../api/python-spectral.md) | &nbsp; | [Correlation and Detection](../gallery/corr.md)<br>[CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md) | [corr_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/corr_demo.py)<br>[dsss_burst_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/dsss_burst_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[One Python class: the step-4 design](../design/correlator-python.md)<br>[One correlator: the step-3 design](../design/correlator.md)<br>+1 more |
-| `Corr2D` | class | [Corr2D](../api/python-spectral.md) | [Delay-Doppler Search](../guide/delay-doppler.md)<br>[DSSS Burst Acquisition](../guide/dsss-acquisition.md) | [2-D Acquisition Grid](../gallery/detection2d.md)<br>[Correlation and Detection](../gallery/corr.md) | [corr_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/corr_demo.py)<br>[detection2d_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/detection2d_demo.py)<br>[detector2d_acq_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/detector2d_acq_demo.py) | [Corr2D batches: many maps in one call](../design/corr2d-batch.md)<br>[Corr2D hypothesis bank: operation order](../design/corr2d-hypotheses.md)<br>[Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md)<br>+3 more |
-| `CorrDetector` | class | [CorrDetector](../api/python-spectral.md) | &nbsp; | [Correlation and Detection](../gallery/corr.md)<br>[CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md) | [corr_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/corr_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[One Python class: the step-4 design](../design/correlator-python.md)<br>[One correlator: the step-3 design](../design/correlator.md) |
-| `CorrDetector2D` | class | [CorrDetector2D](../api/python-spectral.md) | [DSSS Burst Acquisition](../guide/dsss-acquisition.md) | [2-D Acquisition Grid](../gallery/detection2d.md)<br>[Correlation and Detection](../gallery/corr.md) | [corr_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/corr_demo.py)<br>[detection2d_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/detection2d_demo.py)<br>[detector2d_acq_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/detector2d_acq_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[One Python class: the step-4 design](../design/correlator-python.md)<br>[One correlator: the step-3 design](../design/correlator.md)<br>+1 more |
-| `DelayDoppler` | class | [DelayDoppler](../api/python-spectral.md) | [Delay-Doppler Search](../guide/delay-doppler.md) | [Delay-Doppler Search](../gallery/delay-doppler.md) | [delay_doppler_bank_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/delay_doppler_bank_demo.py)<br>[delay_doppler_batch_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/delay_doppler_batch_demo.py) | [Corr2D batches: many maps in one call](../design/corr2d-batch.md)<br>[Corr2D hypothesis bank: operation order](../design/corr2d-hypotheses.md)<br>[Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md)<br>+5 more |
 | `FFT` | class | [FFT](../api/python-fft.md) | [DSSS Burst Acquisition](../guide/dsss-acquisition.md) | &nbsp; | [carrier_nda_seeding_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/carrier_nda_seeding_demo.py)<br>[fft_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/fft_demo.py)<br>[measure_imd_npr_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/measure_imd_npr_demo.py)<br>+2 more | [Spectral & Measurement API Map](../design/spectral-api-map.md)<br>[The Spectrogram — chunks in, rows out](../design/spectrogram.md)<br>[API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>+1 more |
 | `FFT2D` | class | [FFT2D](../api/python-fft.md) | &nbsp; | &nbsp; | [fft_demo](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/fft_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md) |
 | `find_peaks_f32` | function | [find_peaks_f32](../api/python-spectral.md) | [Power Spectra & Measurements](../guide/spectral-psd.md) | &nbsp; | &nbsp; | &nbsp; |
@@ -35,16 +30,12 @@ Python module `doppler.spectral`. Area: [Spectral](index.md#spectral).
 
 ## Guide pages in this domain
 
-- [Delay-Doppler Search](../guide/delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with `DelayDoppler`
 - [Power Spectra & Measurements](../guide/spectral-psd.md) — PSD estimation, tone and NPR measurement
 - [Streaming Spectrograms](../guide/spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python)
 
 ## Gallery pages in this domain
 
-- [2-D Acquisition Grid](../gallery/detection2d.md) — GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR.
 - [A Streaming Spectrogram](../gallery/spectrogram.md) — a chirp and a tone as one row per 64 samples, in power and in dB, on a DC-centred axis.
-- [Correlation and Detection](../gallery/corr.md) — coherent integration, 2-D template matching, streaming CFAR.
-- [Delay-Doppler Search](../gallery/delay-doppler.md) — a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call.
 - [Four WCDMA Carriers — PSD, band_power, AccTrace](../gallery/wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 
 ## Design pages in this domain
@@ -61,9 +52,10 @@ Python module `doppler.spectral`. Area: [Spectral](index.md#spectral).
 Pages filed under another domain that name a symbol of this module, or link to or from a page filed here: a class used for another task is found from both sides, never re-filed.
 
 - [Waveform generation (wfm)](wfm.md): [Composing a Scene — .sum(), .add(), and Headroom](../gallery/wfm-composition.md)
+- [Correlation](correlation.md): [2-D Acquisition Grid](../gallery/detection2d.md), [Delay-Doppler Search](../guide/delay-doppler.md), [The Correlator](../guide/correlator.md)
 - [Spectrum analyzer](analyzer.md): [Spectrum Analyzer](../design/specan.md)
 - [Measurement suite](measure.md): [Measurement Suite — ADC characterisation](../gallery/measure.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [Measurement Suite — two-tone IMD/TOI & notched-noise NPR](../gallery/measure-imd-npr.md)
-- [Acquisition](acquire.md): [Acquiring a Repeated Preamble](../guide/acquisition.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [The acquisition surface — the measurement record](../design/acq-surface-measurements.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
+- [Acquisition](acquire.md): [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md)
 - [Spread spectrum (DSSS)](dsss.md): [AsyncDsssReceiver and AsyncDsssPool — the measurement record](../design/async-dsss-receiver-measurements.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [DsssBurstReceiver: the burst chain, composed in C](../design/dsss-burst-receiver.md)
 - [Buffers](buffer.md): [The ring buffer — measurements and the record](../design/ring-buffer-measurements.md), [The ring buffer — one contiguous view of a stream](../design/ring-buffer.md)
 - [Sample-format conversion (cvt)](cvt.md): [cvt Quantization Noise](../gallery/cvt-quantization.md)

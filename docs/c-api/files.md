@@ -70,8 +70,6 @@ Here is a list of all files with brief descriptions:
             * **dir** [**buffer**](dir_bada8e9c2056a5c5c150b079933e5759.md)     
                 * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
                 * **file** [**buffer\_core.h**](buffer__core_8h.md) _Buffer module — public C API._ 
-            * **dir** [**burst\_acq**](dir_55efb80a743a0f920c38ee6730a791eb.md)     
-                * **file** [**burst\_acq\_core.h**](burst__acq__core_8h.md) _BurstAcquisition — thin forwarder onto correlator\_core.c's shared engine._     
             * **dir** [**burst\_capture**](dir_5fb975a28c31ccaec359941e78dbfe20.md)     
                 * **file** [**burst\_capture\_core.h**](burst__capture__core_8h.md) _BurstCapture — acquisition's output turned into aligned bursts._     
             * **dir** [**burst\_demod**](dir_ab0fdf036101e4998629894503e143b8.md)     
@@ -98,6 +96,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**conv\_core.h**](conv__core_8h.md) _Convolutional codes: the code description, the encoder, and the maximum-likelihood decoder that reads the same description._     
             * **dir** [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md)     
                 * **file** [**conv\_enc\_core.h**](conv__enc__core_8h.md) _The convolutional encoder, as a stateful object over_ `conv` _._    
+            * **dir** [**correlation**](dir_9360b0d8b0ed26b6dcce04fb43b6327f.md)     
+                * **file** [**correlation\_core.h**](correlation__core_8h.md) _Correlation module — public C API._ 
             * **dir** [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md)     
                 * **file** [**correlator\_core.h**](correlator__core_8h.md) _The one FFT cross-correlator, with coherent integrate-and-dump._     
                 * **file** [**correlator\_private.h**](correlator__private_8h.md) _The correlator's detection layer: the ring, the noise estimate, the one peak picker and the framed push._     

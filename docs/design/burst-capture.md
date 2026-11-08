@@ -119,8 +119,8 @@ child for read-backs and `configure_search_raw()`". **It is not reachable**:
 there is no child accessor and there is not going to be one. What is true
 instead:
 
-- **`BurstAcquisition` is public.** A caller who wants the search's own face
-    constructs one with the same parameters and gets every one of its
+- **The burst search is public** (`Correlator(preamble, framing="burst",   ...)`; `BurstAcquisition` when this was written). A caller who wants the
+    search's own face constructs one with the same parameters and gets every one of its
     read-backs. Nothing was taken away by this object existing, which is what
     makes the swallowing survivable.
 - **The search this capture will do is visible FROM the capture** —
@@ -503,10 +503,9 @@ The one that earns its place most is **`underpowered`**, because its failure
 mode is silence: a search that cannot meet the requested `pd` still builds a
 best-effort grid and then captures fewer bursts than arrived, which is
 indistinguishable from a stream with nothing in it. It is a *declared*
-warning, gated on a bool field. The sibling `BurstAcquisition` declares the
-same warning the same way: `dp_burst_acq_state_t` carries its own `underpowered`
-field for it, because jm's condition must be a bare identifier on the
-struct.
+warning, gated on a bool field. The sibling burst search declares the same
+warning the same way: `Correlator` (with `framing="burst"`; `BurstAcquisition`
+when this was written) gates it on its search's own `underpowered` field.
 
 `threshold` is **not** forwarded, though the engine carries it. `eta` and
 `eta_nc` are the gates, and `n_noncoh` says which is in force. A burst
@@ -824,8 +823,8 @@ Priced over the surface, it reads 0.95e-3. And the tiled grid is covered by
 the C tests (rate found, either sign, in a tile off the centre) but not by the
 Monte-Carlo above.
 
-Hits carry the winning hypothesis as `doppler_rate_hz_s` (BurstAcquisition's
-last field): the detecting dwell's, so reliable only from a block wholly inside
+Hits carry the winning hypothesis as `doppler_rate_hz_s` (a field of the burst
+search's hit record): the detecting dwell's, so reliable only from a block wholly inside
 the preamble. A capture's **events** carry refine's instead (#2219): the
 hypothesis whose de-chirp made the whole preamble's coherent sum largest at the
 refined start, on refine's own grid, which is at least as dense as the

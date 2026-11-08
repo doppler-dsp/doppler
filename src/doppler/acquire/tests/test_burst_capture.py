@@ -565,23 +565,23 @@ def test_psl_db_is_the_engines_on_every_class(tmp_path):
     so for one preamble all three report the same value -- and a perfect
     sequence reports -inf on each, not a rounding-noise floor.
     """
-    from doppler.acquire import BurstAcquisition
+    from doppler.correlation import Correlator
 
     k = np.arange(127)
     zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
     rng = np.random.default_rng(1470)
     qpsk = np.exp(1j * np.pi / 2 * rng.integers(0, 4, 96)).astype(np.complex64)
     for i, pre in enumerate((zc, qpsk)):
-        kw = {"reps": 8, "fs": 1.0e6, "cn0_dbhz": 50.0}
-        a = BurstAcquisition(pre, **kw).psl_db
-        assert BurstCapture(pre, burst_len=4096, **kw).psl_db == a
+        kw = {"reps": 8, "cn0_dbhz": 50.0}
+        a = Correlator(pre, framing="burst", sample_rate=1.0e6, **kw).psl_db
+        assert BurstCapture(pre, burst_len=4096, fs=1.0e6, **kw).psl_db == a
         with PersistentBurstCapture(
-            tmp_path / f"h{i}.bin", pre, burst_len=4096, **kw
+            tmp_path / f"h{i}.bin", pre, burst_len=4096, fs=1.0e6, **kw
         ) as p:
             assert p.psl_db == a
-    assert BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db == (
-        -np.inf
-    )
+    assert Correlator(
+        zc, framing="burst", reps=8, sample_rate=1.0e6, cn0_dbhz=50.0
+    ).psl_db == (-np.inf)
 
 
 # ── a Doppler rate compensated, not just capped ────────────────────────────

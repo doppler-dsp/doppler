@@ -5,9 +5,10 @@ that track and despread once a signal is acquired — **`Despreader`**, the
 continuous DLL+Costas receiver (GPS-like, always tracking), and
 **`BurstDespreader`**, the preamble-aware payload tracker for latency-bound
 bursts — and the receivers that compose them. The searches that find the
-code phase and Doppler in the first place (`Acquisition`,
-`BurstAcquisition`, `BurstCapture`) live in the
-[acquire API](python-acquire.md).
+code phase and Doppler in the first place are the searches of
+[`Correlator`](python-correlation.md) (`framing="continuous"` and
+`framing="burst"`) and the [acquire API](python-acquire.md)'s
+`BurstCapture`.
 
 Source:
 [`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/dsss/__init__.py)
@@ -58,8 +59,8 @@ from doppler.dsss import BurstDemod
 
 # Build a burst: 5x acquisition preamble, then a spread frame
 # [Barker-13 sync | payload | CRC-16]. A real receiver takes (f0, code
-# phase) from `BurstAcquisition`/`BurstCapture`; here we seed a known prior so
-# the block runs.
+# phase) from the burst `Correlator`/`BurstCapture`; here we seed a known
+# prior so the block runs.
 acq_code = ((np.arange(500) * 2654435761 >> 13) & 1).astype(np.uint8)
 data_code = ((np.arange(50) * 40503 >> 7) & 1).astype(np.uint8)
 sync_word = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
@@ -150,7 +151,8 @@ ______________________________________________________________________
 ## `BurstDespreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the
-`Corr2D`/`CorrDetector2D` acquisition engine or `BurstAcquisition`), the `BurstDespreader` locks
+2-D detector or the burst search, both flavors of `Correlator`), the
+`BurstDespreader` locks
 the signal with a code-tracking **delay-locked loop** and a carrier-tracking
 **Costas loop**, despreads the payload, and emits symbols.
 
@@ -223,7 +225,7 @@ ______________________________________________________________________
 
 ## `DsssReceiver` — the composed continuous receiver
 
-The single-object form of `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`: only `code`/`chip_rate`/`symbol_rate` are required,
+The single-object form of `Correlator -> Dll(segments) -> RateConverter -> MpskReceiver`: only `code`/`chip_rate`/`symbol_rate` are required,
 everything else defaults to this project's own validated values, with
 `configure_search_raw`/`configure_lock_raw`/`configure_chain_raw` as the
 power-user escape hatches. See the

@@ -14,12 +14,12 @@ Every acquisition method is built from two Doppler primitives — both already
 shipped in doppler — optionally wrapped in a coarse mixer/tiling layer and a
 non-coherent layer:
 
-| Method                                              | doppler API                                                                                                                                                                                                                                                          | Doppler res / span                    | Integration                                                          | Use when                                                 |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Column-FFT** (slow-time)                          | `acquire.BurstAcquisition`                                                                                                                                                                                                                                           | `1/(ny·nx)` / `±1/(2nx)`              | ny epochs **coherent**                                               | many coherent reps; need the gain                        |
-| **2-D roll** (2-D code FFT × signal FFT → 2-D IFFT) | `spectral.Corr2D` / `CorrDetector2D` (manual composition); natively via `acquire.BurstAcquisition`'s wideband fallback when `doppler_uncertainty` exceeds the native span, or unconditionally via `acquire.Acquisition` (continuous mode always uses this mechanism) | `1/nx` / `±1/2`                       | **1 epoch** (or a block of declared code-only epochs, `Acquisition`) | wide Δf, few reps, enough SNR — whole grid in one 2-D op |
-| **Mixer bank**                                      | caller loop ([guide](../../guide/dsss-acquisition.md))                                                                                                                                                                                                               | tiles either, `1/(2nx)` step          | —                                                                    | widen Δf at a fine resolution; linear cost               |
-| **Non-coherent**                                    | auto-selected `n_noncoh` (continuous `Acquisition` only; a burst engine's auto-sizer never adds looks), or pinned on any engine with `configure_search_raw(doppler_bins, n_noncoh)`                                                                                  | sensitivity past the coherent ceiling | `N_nc` looks                                                         | data-bit / burst-limited `M_coh`                         |
+| Method                                              | doppler API                                                                                                                                                                                                                                      | Doppler res / span                    | Integration                                                              | Use when                                                 |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| **Column-FFT** (slow-time)                          | the burst `Correlator` (`framing="burst"`)                                                                                                                                                                                                       | `1/(ny·nx)` / `±1/(2nx)`              | ny epochs **coherent**                                                   | many coherent reps; need the gain                        |
+| **2-D roll** (2-D code FFT × signal FFT → 2-D IFFT) | the 2-D map / 2-D detector `Correlator` (manual composition); natively via the burst search's wideband fallback when `doppler_uncertainty` exceeds the native span, or unconditionally via the continuous search (it always uses this mechanism) | `1/nx` / `±1/2`                       | **1 epoch** (or a block of declared code-only epochs, continuous search) | wide Δf, few reps, enough SNR — whole grid in one 2-D op |
+| **Mixer bank**                                      | caller loop ([guide](../../guide/dsss-acquisition.md))                                                                                                                                                                                           | tiles either, `1/(2nx)` step          | —                                                                        | widen Δf at a fine resolution; linear cost               |
+| **Non-coherent**                                    | auto-selected `n_noncoh` (the continuous search only; a burst engine's auto-sizer never adds looks), or pinned on any engine with `configure_search_raw(doppler_bins, n_noncoh)`                                                                 | sensitivity past the coherent ceiling | `N_nc` looks                                                             | data-bit / burst-limited `M_coh`                         |
 
 The two primitives are **exact duals**: the roll's *resolution* (`1/nx`) equals
 the column-FFT's *span* (`±1/(2nx)`). Roll = **coarse + wide** from one epoch;
@@ -47,12 +47,12 @@ ______________________________________________________________________
 
 |               | `M_coh` small (≈1)                                       | `M_coh` large                                                                                    |
 | ------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Δf narrow** | `BurstAcquisition`, `reps`=few                           | `BurstAcquisition` alone (fine + gain)                                                           |
+| **Δf narrow** | burst search, `reps`=few                                 | burst search alone (fine + gain)                                                                 |
 | **Δf wide**   | **2-D roll** (one op, all bins) + non-coherent over reps | 2-D-roll *coarse* **or** mixer-tile, then column-FFT *fine*; pick by channel-count vs one 2-D op |
 
 The cost asymmetry that decides the wide-Δf row: a 2-D roll sweeps all
 `~Δf/(1/T_epoch)` Doppler bins from **one** epoch, whereas the fine mixer bank
-runs that many channels, each a `Corr2D` tile **integrating `ny` epochs and
+runs that many channels, each a 2-D map `Correlator` tile **integrating `ny` epochs and
 resolving `ny`× finer bins**. So the bank costs roughly `ny`× more *per Doppler
 window* — and measurably more once the finer bin count is included: **≈40×** on a
 `16×2046` (`ny=16`) grid, **≈10×** on a `5×4094` (`ny=5`) grid — the factor
@@ -74,9 +74,9 @@ column-FFT/mixer when you must buy the coherent gain.**
     this project's own continuous receiver. See
     [Continuous, data-modulated signals](../../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case).
     On a data-bearing stretch, `M_coh` is effectively 1 regardless of what
-    the decision table above implies — reach for `Acquisition` (continuous)
-    instead of `BurstAcquisition`, not a larger `reps` on the same class. The
-    continuous class's `n_noncoh` auto-selects the non-coherent looks that
+    the decision table above implies — reach for the continuous search
+    (`framing="continuous"`) instead of the burst search, not a larger `reps`
+    on the same flavor. The continuous search's `n_noncoh` auto-selects the non-coherent looks that
     close the resulting Pd gap; there's no manual choice to make.
 
 ______________________________________________________________________
@@ -99,10 +99,10 @@ stretches; the **periodic code-only epochs** are the coherent windows
 
 **Approach — sensitivity-driven (time is plentiful):**
 
-- **Coherent inner:** run `BurstAcquisition` over the code-only pilot windows
+- **Coherent inner:** run the burst search over the code-only pilot windows
     for the fine `1/(ny·T_epoch)` Doppler and full coherent gain (safe here
     because those windows are genuinely data-free).
-- **Non-coherent across:** `Acquisition` (continuous)'s auto-selected
+- **Non-coherent across:** the continuous search's auto-selected
     `n_noncoh` (**P1**) accumulates looks across the always-on, data-bearing
     stream — the data-bit ceiling makes this the real sensitivity engine;
     "plenty of time" means you can spend many looks, up to the internal
@@ -153,7 +153,7 @@ ______________________________________________________________________
 
 For a Doppler span `Δf` requiring `C = Δf / (1/T_epoch)` native windows:
 
-- **Mixer + column-FFT:** `C` channels, each a `Corr2D(ny, nx)` tile — `C·ny`
+- **Mixer + column-FFT:** `C` channels, each a 2-D map `Correlator` tile (`ny × nx`) — `C·ny`
     **fine** bins, full `10·log10(ny·N)` coherent gain, but a 2-D FFT over `ny`
     epochs per channel.
 - **2-D roll:** `C` **coarse** bins from **one** epoch — one forward `FFT_nx`

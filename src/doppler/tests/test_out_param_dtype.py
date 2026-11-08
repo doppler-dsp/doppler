@@ -51,13 +51,14 @@ import pytest
 from numpy.typing import NDArray
 
 from doppler.agc import AGC
+from doppler.correlation import Correlator
 from doppler.cvt import F32ToI16, I16ToF32
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
 from doppler.filter import FIR
 from doppler.resample import CIC, Farrow, Resampler
 from doppler.source import LO, NCO
-from doppler.spectral import FFT, DelayDoppler
+from doppler.spectral import FFT
 from doppler.wfm import PN
 
 N = 64
@@ -190,8 +191,8 @@ _CASES: list[tuple[str, Callable[[], Any], _Invoke, Any, str, int]] = [
     (
         # One frame of 4 code periods of 16 samples is the whole N-sample
         # block, and the map is 4 Doppler rows of 16 lags: N again.
-        "DelayDoppler.execute",
-        lambda: DelayDoppler(_CF32[:16], ny=4),
+        "Correlator[delay_doppler].execute",
+        lambda: Correlator(_CF32[:16], doppler_rows=4),
         lambda o, out: o.execute(_CF32, out=out),
         np.complex64,
         "execute_max_out",

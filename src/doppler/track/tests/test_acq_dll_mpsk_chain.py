@@ -1,11 +1,11 @@
-"""Integration test: a real Acquisition hit seeding a real Dll seeding a
-real MpskReceiver -- the full receive chain, not just the Acquisition->Dll
+"""Integration test: a real continuous-search hit seeding a real Dll seeding a
+real MpskReceiver -- the full receive chain, not just the search->Dll
 leg ``test_acq_dll_handoff.py`` already covers.
 
 ``test_async_dsss_receiver.py`` (despite its name) composes a genie-seeded
 ``Dll`` with ``Costas``/``SymbolSync``, a different architecture -- it does
 not exercise ``MpskReceiver`` at all. This is the first test that drives
-``Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`` end to
+``Correlator -> Dll(segments) -> RateConverter -> MpskReceiver`` end to
 end with a real acquisition search in front. See
 ``src/doppler/examples/dsss_receiver_demo.py`` (the gallery counterpart,
 which runs the same chain composed into one ``DsssReceiver``, over more
@@ -26,7 +26,8 @@ import warnings
 
 import numpy as np
 
-from doppler.acquire import Acquisition, bin_to_signed
+from doppler.acquire import bin_to_signed
+from doppler.correlation import Correlator
 from doppler.resample import RateConverter
 from doppler.track import Dll, MpskReceiver
 from doppler.wfm import Gold
@@ -73,8 +74,9 @@ def _make_signal(n_sym, seed):
 def _acquire(x):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        acq = Acquisition(
-            CODE,
+        acq = Correlator(
+            _CSIGN.astype(np.complex64),
+            framing="continuous",
             sample_rate=SPC * CHIP_RATE,
             chip_rate=CHIP_RATE,
             cn0_dbhz=55.0,
@@ -87,7 +89,7 @@ def _acquire(x):
     pos = 0
     while pos + frame <= len(x):
         hits = acq.push(x[pos : pos + frame])
-        if hits:
+        if len(hits):
             return hits[0], pos, acq
         pos += frame
     return None, None, acq
@@ -152,7 +154,7 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
 def _handoff(x):
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
-    dop_bin = hit[0]
+    dop_bin = int(hit["row"])
     doppler_bins = acq.doppler_bins
     # The library's own mapping (clib_common.h, exposed as
     # doppler.acquire.bin_to_signed): fftfreq's convention except at the
@@ -162,7 +164,7 @@ def _handoff(x):
     # what the search meant.
     k_fold = bin_to_signed(dop_bin, doppler_bins)
     doppler_hz_est = k_fold * acq.doppler_res_hz
-    chip_phase = hit[7]
+    chip_phase = float(hit["chip_phase"])
     frame = acq.code_bins * acq.doppler_bins
     s0 = hitpos + frame
     data_start = round((s0 - PRE_SILENCE) / TSYM)

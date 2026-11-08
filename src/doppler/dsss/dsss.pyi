@@ -1797,7 +1797,7 @@ class DsssReceiver:
         Chip rate, Hz. Required.
     symbol_rate : float, default 1000.0
         Data-symbol rate, Hz. Required — passed straight to the embedded
-        Acquisition's own `symbol_rate` (diagnostic there; see
+        search's own `symbol_rate` (diagnostic there; see
         `dp_correlator_create_continuous()`).
     sample_rate : float, default 0.0
         Input sample rate, Hz: a whole number of samples a chip (to a part in
@@ -1898,26 +1898,26 @@ class DsssReceiver:
         out: npt.NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching,
-        samples feed the embedded Acquisition and nothing is emitted (an empty
-        array is normal, not an error). The moment a hit fires,
-        Dll/RateConverter/MpskReceiver are built and seeded from it -- the same
-        phase-inversion hand-off and rate-bridging this project's
+        samples feed the embedded continuous search (a Correlator) and nothing
+        is emitted (an empty array is normal, not an error). The moment a hit
+        fires, Dll/RateConverter/MpskReceiver are built and seeded from it --
+        the same phase-inversion hand-off and rate-bridging this project's
         async-DSSS-receiver gallery story validated by hand -- and the
         unconsumed tail of this same call is handed straight to them, so no
         samples are dropped at the transition. While tracking, samples feed Dll
         -> RateConverter -> MpskReceiver in sequence and demodulated symbols
         are returned. Accepts any block size; state carries across calls.
 
-        While searching, samples feed the embedded Acquisition and nothing is
+        While searching, samples feed the embedded search and nothing is
         emitted (0 return is normal, not an error). The moment a hit fires,
         `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and
         the rest of THIS call from where the hit's frame ended — the hit's own
         `samples_consumed`, so no samples are dropped or double-fed — is handed
         straight to them in the same call. While tracking, samples feed `Dll ->
         RateConverter -> MpskReceiver` in sequence. Accepts any block size;
-        state carries across calls (`Acquisition`/`Dll`/
-        `RateConverter`/`MpskReceiver` are all already block-size invariant;
-        the only buffering this object adds is the carrier loop's
+        state carries across calls (the
+        search/`Dll`/`RateConverter`/`MpskReceiver` are all already block-size
+        invariant; the only buffering this object adds is the carrier loop's
         partial-code-period carry). While tracking, each call allocates two
         scratch buffers (abort on OOM).
 
@@ -1983,10 +1983,10 @@ class DsssReceiver:
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
-        """Pin the embedded Acquisition's search grid directly, bypassing the
-        symbol_rate-driven auto-sizing -- the escape hatch for a power user who
-        wants a specific (doppler_bins, n_noncoh). Only meaningful while
-        searching.
+        """Pin the embedded continuous search (a Correlator)'s search grid
+        directly, bypassing the symbol_rate-driven auto-sizing -- the escape
+        hatch for a power user who wants a specific (doppler_bins, n_noncoh).
+        Only meaningful while searching.
 
         Parameters
         ----------
@@ -2082,7 +2082,7 @@ class DsssReceiver:
         independently overridable here, still bridged by a freshly-sized
         `RateConverter` -- never coupled to each other (see the module
         docstring). It rebuilds `dll`/`rc`/`rx` at once, allocating every
-        replacement before freeing the old ones (`Acquisition`'s
+        replacement before freeing the old ones (the search's
         `dp_correlator_regrid()` discipline), and the pinned grid is the one
         every later chain is built on: the next hit's hand-off and reset() both
         rebuild at it.
@@ -2129,9 +2129,9 @@ class DsssReceiver:
         """
 
     def reset(self) -> None:
-        """Return to the searching state: resets the embedded Acquisition and
-        frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next
-        hit).
+        """Return to the searching state: resets the embedded continuous search
+        (a Correlator) and frees Dll/RateConverter/MpskReceiver (rebuilt from
+        scratch on the next hit).
 
         Examples
         --------
@@ -2314,8 +2314,8 @@ class AsyncDsssReceiver:
     m : int, default 2
         PSK order, 2/4/8; default 2 (BPSK).
     cn0_dbhz : float, default 55.0
-        Design C/N0, dB-Hz; default 55.0 -- feeds BOTH the embedded
-        Acquisition's own sizing AND (derated by `refine_design_margin_db`)
+        Design C/N0, dB-Hz; default 55.0 -- feeds BOTH the embedded search's
+        own sizing AND (derated by `refine_design_margin_db`)
         CarrierAcquisition's `design_snr`.
     pfa : float, default 1e-3
         Acquisition false-alarm target; default 1e-3. Also CarrierAcquisition's
@@ -2674,7 +2674,7 @@ class AsyncDsssReceiver:
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
-        """Pin the embedded Acquisition's search grid directly. Forwards to
+        """Pin the embedded search's grid directly. Forwards to
         `dp_correlator_configure_search_raw()` -- the escape hatch under this
         object's `symbol_rate`-driven auto-sizing, for a power user who wants a
         specific `(doppler_bins, n_noncoh)`. The pin replaces the whole
@@ -2863,7 +2863,7 @@ class AsyncDsssReceiver:
         """
 
     def reset(self) -> None:
-        """Return to the searching state. Resets the embedded Acquisition and
+        """Return to the searching state. Resets the embedded search and
         rebuilds the refine-stage chain and the live tracking chain back to
         their placeholder seed (phase 0, no Doppler). A receiver that has
         locked cannot be "reset back to tracking the same signal," only back to
@@ -4002,10 +4002,10 @@ class DsssBurstReceiver:
         out: npt.NDArray[np.uint8] | None = None,
     ) -> NDArray[np.uint8]:
         """Stream raw cf32 samples and get back the FRAME BITS of every burst
-        that completed. Samples feed the embedded BurstAcquisition and are
-        retained in a history ring; when a detection fires, the refine stage
-        correlates the whole preamble to recover the exact preamble start --
-        the one quantity acquisition structurally cannot report, since its
+        that completed. Samples feed the embedded burst search (a Correlator)
+        and are retained in a history ring; when a detection fires, the refine
+        stage correlates the whole preamble to recover the exact preamble start
+        -- the one quantity acquisition structurally cannot report, since its
         code_phase is a lag modulo one code period -- and the burst is
         demodulated the moment its last sample has arrived. Every sample is
         consumed and every burst that completes is returned by the call that
@@ -4251,9 +4251,9 @@ class DsssBurstReceiver:
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
-        """Pin the embedded BurstAcquisition's search grid directly, bypassing
-        the auto-sizing -- the escape hatch for a caller who wants a specific
-        (doppler_bins, n_noncoh). Forwards to the engine unchanged.
+        """Pin the embedded burst search (a Correlator)'s search grid directly,
+        bypassing the auto-sizing -- the escape hatch for a caller who wants a
+        specific (doppler_bins, n_noncoh). Forwards to the engine unchanged.
 
         The escape hatch for a caller who wants a specific (doppler_bins,
         n_noncoh) rather than the grid the cn0_dbhz/pfa/pd sizing chooses.

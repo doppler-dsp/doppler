@@ -15,10 +15,9 @@
 #   summary   one line for the Domains index.
 #   synonyms  other words the title may use for the module.
 #
-# A class whose task is not its module's (DelayDoppler is an acquisition
-# search that lives in `spectral`) is NOT re-filed here. The generator lists
-# such a class on both domain pages as a cross-link, and the boundary goes to
-# an issue (#2830): move the class, or rename or split the module. When section 6's
+# A class whose task is not its module's is NOT re-filed here. The generator
+# lists such a class on both domain pages as a cross-link, and the boundary
+# goes to an issue (#2830): move the class, or rename or split the module. When section 6's
 # package tree is applied, the module names below are what change; this file
 # is the one place.
 #
@@ -67,10 +66,15 @@ title = "Down-conversion (DDC)"
 area = "downconversion"
 summary = "Complex- and real-input digital down-converters, and their matched flavors."
 
+[domain.correlation]
+title = "Correlation"
+area = "correlation"
+summary = "One Correlator for every FFT correlation: 1-D and 2-D maps, delay-Doppler maps, streaming detectors, and the continuous and burst searches (acquisition)."
+
 [domain.spectral]
 title = "Spectral analysis"
 area = "spectral"
-summary = "FFTs, correlators, power spectra and spectrograms."
+summary = "FFTs, power spectra and spectrograms."
 
 [domain.analyzer]
 title = "Spectrum analyzer"

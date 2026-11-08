@@ -27,6 +27,7 @@
 extern "C" {
 #endif
 
+/* SSOT: enum=correlator_flavor */
 typedef enum
 {
   DP_CORRELATOR_1D            = 1, 
@@ -361,7 +362,7 @@ size_t dp_correlator_execute(dp_correlator_state_t *state, const float _Complex 
  * h*ny*nx .. (h+1)*ny*nx - 1, each laid out as execute() takes it.  What a
  * hypothesis or a frame IS, is the caller's: the batch only knows H.  Each
  * map is n_out values (reshape to (ny_out, nx_out); Doppler is axis 0 and
- * delay axis 1 on a DelayDoppler), and map h is row h of the (H, n_out)
+ * delay axis 1 on the delay-Doppler map), and map h is row h of the (H, n_out)
  * result.  Map h is exactly
  * what a fresh object with dwell 1 returns for frame h -- the same
  * arithmetic, bit for bit, on every path (general 2-D, single-row fast
@@ -546,7 +547,7 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
  * count must name one stream point, or the blob is refused.  acq's
  * retired magic 'ACQR' is not reused. */
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
-#define CORRELATOR_STATE_VERSION 1u
+#define CORRELATOR_STATE_VERSION 2u
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
 void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
@@ -839,10 +840,10 @@ size_t dp_correlator_block_prompt (dp_correlator_state_t *state, size_t tile, si
 size_t dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *out,
                       size_t n_out);
 
-void dp_correlator_set_surface_sink (dp_correlator_state_t *state, dp_correlator_surface_sink_fn fn,
+int dp_correlator_set_surface_sink (dp_correlator_state_t *state, dp_correlator_surface_sink_fn fn,
                            void *ctx, uint32_t decim);
 
-void dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep);
+int dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep);
 
 
 
@@ -921,6 +922,55 @@ size_t dp_correlator_run (dp_correlator_state_t *state, const void *state_in, vo
                 const float _Complex *in, size_t n_in, dp_correlator_hit_t *result,
                 size_t max_results);
 
+int dp_correlator_get_keep_surface(const dp_correlator_state_t *state, int *out);
+
+int dp_correlator_last_corr_status(const dp_correlator_state_t *state);
+int dp_correlator_get_ny(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_nx(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_ny_out(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_nx_out(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_col_out(const dp_correlator_state_t *state, int *out);
+int dp_correlator_get_doppler_step(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_n(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_dwell(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_count(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_ring_cap(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_noise_lo(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_noise_hi(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_threshold(const dp_correlator_state_t *state, float *out);
+int dp_correlator_get_max_peaks(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_code_bins(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_doppler_bins(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_n_noncoh(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_eta(const dp_correlator_state_t *state, float *out);
+int dp_correlator_get_eta_nc(const dp_correlator_state_t *state, float *out);
+int dp_correlator_get_pfa_cell(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_pd_predicted(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_straddle_loss(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_sample_rate(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_cn0_dbhz(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_doppler_span_hz(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_doppler_res_hz(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_pd(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_underpowered(const dp_correlator_state_t *state, bool *out);
+int dp_correlator_get_threads(const dp_correlator_state_t *state, int *out);
+int dp_correlator_get_lag_bins(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_coherent_bins(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_sf(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_chip_rate(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_symbol_rate(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_epochs_per_symbol(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_n_peaks(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_n_held(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_peak_conc(const dp_correlator_state_t *state, float *out);
+int dp_correlator_get_carrier_freq_hz(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_surface_rows(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_surface_at(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_reps(const dp_correlator_state_t *state, size_t *out);
+int dp_correlator_get_pd_burst(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_psl_db(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_doppler_rate(const dp_correlator_state_t *state, double *out);
+int dp_correlator_get_rate_hypotheses(const dp_correlator_state_t *state, size_t *out);
 #ifdef __cplusplus
 }
 #endif

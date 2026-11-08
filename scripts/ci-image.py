@@ -95,6 +95,7 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+from typing import Callable
 
 PIN = Path(".github/ci-images.env")
 DOCKERFILE = Path("docker/ci.Dockerfile")
@@ -210,7 +211,9 @@ def _image_bytes(path: Path) -> bytes:
     return _tables_kept(path, lambda name: not _unread_by_the_image(name), True)
 
 
-def _tables_kept(path: Path, keep, start: bool) -> bytes:
+def _tables_kept(
+    path: Path, keep: Callable[[str], bool], start: bool
+) -> bytes:
     """The bytes of ``path`` whose table ``keep`` accepts, by its header's name.
 
     ``start`` says whether lines above the first table are kept. This one
@@ -334,7 +337,8 @@ def _inspect(ref: str) -> str:
             capture_output=True, text=True,
         )
         if r.returncode == 0:
-            return json.loads(r.stdout)["digest"]
+            digest: str = json.loads(r.stdout)["digest"]
+            return digest
         err = (r.stderr or r.stdout).strip()
         if _QUOTA.search(err):
             print(err, file=sys.stderr)
@@ -349,6 +353,9 @@ def _inspect(ref: str) -> str:
               f"{wait:g}s", file=sys.stderr)
         time.sleep(wait)
         wait *= 2
+    # Reached only when CI_IMAGE_PULL_ATTEMPTS is below 1, so nothing was
+    # tried: that is a ref left unreached, not a None digest for the caller.
+    raise _Unreachable(ref)
 
 
 def _official(ref: str) -> bool:
@@ -411,7 +418,8 @@ def _digest_once(ref: str) -> str:
          "--format", "{{json .Manifest}}"],
         check=True, capture_output=True, text=True,
     ).stdout
-    return json.loads(out)["digest"]
+    digest: str = json.loads(out)["digest"]
+    return digest
 
 
 def _digest(ref: str) -> str:

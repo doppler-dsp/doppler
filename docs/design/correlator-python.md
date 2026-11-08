@@ -535,3 +535,88 @@ NaN and 50 dB-Hz. NaN keeps the burst search as it is. The continuous
 search sizes its dwell from a finite design point and refuses NaN today,
 so it still does: `Acquisition`'s 50 dB-Hz was a design point chosen by
 omission, and a caller now names one.
+
+## 18. The one class's members, and who serves each
+
+One class can call any member on any flavor. Which flavors serve each is
+decided in one place for methods and one for properties, never in the
+binding (D3: the binding adds no refusal of its own):
+
+- **A method is served where the flavor honors it**, not merely where it
+    does not crash: §17's rule, applied to methods. The C refuses it
+    everywhere else, never the binding. The batch methods, which `Corr`
+    hid, serve the 1-D flavor, which is the 2-D one at one row
+    (`test_corr_equiv` holds them byte for byte). On the burst search, a
+    method the continuous search has is served only where a test shows it
+    does what its doc says, and refused in C otherwise:
+
+    | method on the burst search                                                                                                 | outcome                                                                                     |
+    | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+    | `push`, `configure_search_raw`, `set_max_peaks`                                                                            | served (`BurstAcquisition` had them)                                                        |
+    | `set_threads`                                                                                                              | served: `test_correlator_regrid_failure.c` runs it on burst engines                         |
+    | `surface_complex`                                                                                                          | served: `test_correlator_search.c`'s map-equivalence check reads it on burst engines        |
+    | `set_carrier_freq_hz`, `set_telemetry`, `surface`, `surface_doppler_hz`, `surface_chip_phase`, `block_prompt`, `block_raw` | refused: no caller and no test; the carrier feeds a chip arithmetic a sample template lacks |
+
+- **A property is served by the flavors whose class had it on main**,
+    through a new C getter that returns `DP_ERR_INVALID` elsewhere
+    (`getter_status`, raising `AttributeError` that names the flavors).
+    Two extensions follow the method rule: the 1-D flavor serves what the
+    2-D one does, and a property that reads a method's setting (`threads`,
+    `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`) is
+    served wherever that method is.
+
+| properties                                                                                                                                                                                                                                                                           | served by                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `flavor` (new)                                                                                                                                                                                                                                                                       | every flavor                                       |
+| `ny`, `nx`, `ny_out`, `nx_out`, `col_out`                                                                                                                                                                                                                                            | 1-D, 2-D (`ny`, `nx`, `ny_out` also delay-Doppler) |
+| `doppler_step`                                                                                                                                                                                                                                                                       | delay-Doppler                                      |
+| `n`                                                                                                                                                                                                                                                                                  | 1-D, both detectors                                |
+| `dwell`, `count`                                                                                                                                                                                                                                                                     | the maps and the detectors                         |
+| `last_corr`                                                                                                                                                                                                                                                                          | both detectors                                     |
+| `ring_cap`, `noise_lo`, `noise_hi`, `threshold`                                                                                                                                                                                                                                      | the detectors and searches                         |
+| `max_peaks`, `code_bins`, `doppler_bins`, `n_noncoh`, `eta`, `eta_nc`, `pfa_cell`, `pd_predicted`, `straddle_loss`, `sample_rate`, `cn0_dbhz`, `doppler_span_hz`, `doppler_res_hz`, `pd`, `underpowered`, `threads`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at` | both searches                                      |
+| `lag_bins`, `coherent_bins`, `sf`, `chip_rate`, `symbol_rate`, `epochs_per_symbol`, `n_peaks`, `n_held`, `peak_conc`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`                                                                                                | the continuous search                              |
+| `reps`, `pd_burst`, `psl_db`, `doppler_rate`, `rate_hypotheses`                                                                                                                                                                                                                      | the burst search                                   |
+
+`reset` is one method with one doc that says what it clears for each
+flavor; every flavor had one.
+
+**Two names change, so each quantity has one.** The searches' `fs`
+property is `sample_rate`, the constructor's knob. The maps' `n_out`
+property goes: on the 1-D flavor it was `nx_out`, the one padding name
+(§17), and on every map it is `execute_max_out()`.
+
+**The C refuses what Python can now reach.** Until now each view excluded
+the members its flavor does not serve, so some C entry points never
+checked the flavor. One class can call any member on any flavor, so the
+C must refuse first, measured on main (84049024d):
+
+- `configure_search_raw`, `set_threads`, `set_carrier_freq_hz`,
+    `set_telemetry`, the four `surface*`, `block_prompt`, `block_raw` and
+    `psl_db` dereference `search`, which is NULL off a search: each returns
+    its refusal (`DP_ERR_INVALID`, or 0 / NaN for a count / value) first.
+    The continuous-only ones also refuse the burst search, per the table.
+- `set_max_peaks` off a search allocates the peak list and never frees it
+    (the map's `destroy` does not own it): it refuses.
+- `execute_all_max_out` and `execute_peaks_max_out` divide by the frame
+    length, 0 on a search: they refuse (`SIZE_MAX`) off a map.
+    `execute_max_out` returns a detector's `n_out` although `execute`
+    refuses it: it returns 0 off a map.
+- Each property in the table above has a C getter that returns
+    `DP_ERR_INVALID` off its flavors (jm's `getter_status`).
+
+Each guard has a C test that calls it on a flavor it refuses, where the
+call would otherwise succeed (`test_correlator_create.c`), and each was
+proved by sabotage: 21 of 21 turn it red.
+
+**`push` sizes its record array from `push_max_out(n_in)`** (§5), which C
+does not have yet: the frames the input completes, counting the carry,
+times the hits one frame may make (1 for a detector, `max_peaks` for a
+search). It is a bound, not a count; the binding trims to what `push`
+wrote. The test pushes every chunk length from 1 to three frames with a
+result array exactly that long: push takes the whole chunk and never
+reports more, for a detector and for a search listing three peaks a
+dwell.
+
+**One under-powered warning** for both searches, on `underpowered`, whose
+meaning is each search's own (`pd_predicted < pd` continuous, `pd_burst < pd` burst), with one message that names both remedies.

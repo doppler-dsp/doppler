@@ -32,6 +32,17 @@ corr2d_is_search (const dp_correlator_state_t *s)
          || s->flavor == DP_CORRELATOR_SEARCH_BURST;
 }
 
+/* The continuous search: the one flavor the carrier coupling, telemetry,
+   surface and block read-outs are honored on (docs/design/
+   correlator-python.md section 18). The burst search shares the record but
+   nothing shows it honors them -- the carrier feeds a chip arithmetic a
+   sample template does not have -- so they refuse it. */
+static inline int
+corr2d_is_continuous (const dp_correlator_state_t *s)
+{
+  return s->flavor == DP_CORRELATOR_SEARCH_CONTINUOUS;
+}
+
 /* The delay-Doppler flavor: `flavor` is its one record (#2901), and every
    path that runs the slow-time map asks here. */
 static inline int
@@ -455,6 +466,19 @@ dp_correlator_push (dp_correlator_state_t *state, const float _Complex *in,
 }
 
 size_t
+dp_correlator_push_max_out (const dp_correlator_state_t *state, size_t n_in)
+{
+  if (corr2d_is_map (state))
+    return 0;
+  /* The frames the input completes, counting the carry: the framer's own
+     count (its frames tile the stream, hop = frame), times what one frame
+     may make -- one hit a detector's dump, max_peaks a search's dwell. */
+  const size_t frames = dp_f32_framer_frames_in (&state->framer, n_in);
+  const size_t per    = corr2d_is_search (state) ? state->max_peaks : 1;
+  return per && frames > SIZE_MAX / per ? SIZE_MAX : frames * per;
+}
+
+size_t
 dp_correlator_consumed (const dp_correlator_state_t *state)
 {
   return state->consumed;
@@ -752,7 +776,9 @@ dp_correlator_set_ref (dp_correlator_state_t *state, const float _Complex *ref)
 size_t
 dp_correlator_execute_max_out (dp_correlator_state_t *state)
 {
-  return state->n_out;
+  /* 0 off a map: execute() refuses there, and a detector's n_out is its
+     own frame, not a map this would size (#2752 step 4, §18). */
+  return corr2d_is_map (state) ? state->n_out : 0;
 }
 
 /* One fast-path row, on worker t's plans: forward-transform the period x
@@ -1493,6 +1519,10 @@ size_t
 dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
                                    size_t                       n_in)
 {
+  /* Off a map, 0: a search's n is 0 (its constructor never sets it), and
+     execute_all() refuses there whatever this sizes (§18). */
+  if (!corr2d_is_map (state))
+    return 0;
   const size_t H = n_in / state->n;
   if (H && state->n_out > SIZE_MAX / H)
     return SIZE_MAX;
@@ -1555,7 +1585,8 @@ size_t
 dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
                                      size_t                       n_in)
 {
-  return n_in / state->n;
+  /* As execute_all_max_out: a search's n is 0 (§18). */
+  return corr2d_is_map (state) ? n_in / state->n : 0;
 }
 
 size_t
@@ -5636,6 +5667,8 @@ dp_correlator_configure_search_raw (dp_correlator_state_t *st,
                                     size_t doppler_bins, size_t n_noncoh)
 {
   dp_correlator_search_t *const srch = st->search;
+  if (!srch) /* not a search flavor (§18) */
+    return DP_ERR_INVALID;
   if (doppler_bins < 1 || doppler_bins > srch->reps || n_noncoh < 1
       || n_noncoh > DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)
     return -1;
@@ -5728,7 +5761,9 @@ int
 dp_correlator_set_threads (dp_correlator_state_t *st, int n)
 {
   dp_correlator_search_t *const srch = st->search;
-  srch->threads_req                  = n;
+  if (!srch) /* not a search flavor (§18) */
+    return DP_ERR_INVALID;
+  srch->threads_req = n;
   search_apply_threads (st);
   return DP_OK;
 }
@@ -5736,7 +5771,9 @@ dp_correlator_set_threads (dp_correlator_state_t *st, int n)
 int
 dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n)
 {
-  if (n < 1 || n > DP_CORRELATOR_MAX_PEAKS)
+  /* Only a search lists peaks, and only a search's destroy frees the list:
+     off one this would leak it (§18). */
+  if (!st->search || n < 1 || n > DP_CORRELATOR_MAX_PEAKS)
     return -1;
   /* Fixed sizes from a validated argument: abort-on-OOM helpers, so there
      is no unwind path nothing can reach. */
@@ -6066,6 +6103,8 @@ uint64_t
 dp_correlator_position (const dp_correlator_state_t *state)
 {
   dp_correlator_search_t *const srch = state->search;
+  if (!srch) /* not a search flavor (§18) */
+    return 0;
   return srch->samples_consumed + dp_f32_framer_pending (&state->framer);
 }
 
@@ -6074,6 +6113,8 @@ dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state,
                                    double                 carrier_freq_hz)
 {
   dp_correlator_search_t *const srch = state->search;
+  if (!corr2d_is_continuous (state)) /* §18 */
+    return DP_ERR_INVALID;
   if (!dp_correlator_carrier_freq_ok (carrier_freq_hz, srch->fs))
     return DP_ERR_INVALID;
   if (carrier_freq_hz == srch->carrier_freq_hz)
@@ -6101,6 +6142,8 @@ double
 dp_correlator_psl_db (const dp_correlator_state_t *state)
 {
   dp_correlator_search_t *const srch = state->search;
+  if (!srch) /* not a search flavor (§18) */
+    return NAN;
   /* log10(0) is -HUGE_VAL, but say it: a perfect sequence has no sidelobe
      to be below, and -inf is that fact rather than a number to compare. */
   return srch->shape.psl > 0.0 ? 20.0 * log10 (srch->shape.psl) : -INFINITY;
@@ -6110,6 +6153,8 @@ double
 dp_correlator_gate_stat (const dp_correlator_state_t *state)
 {
   dp_correlator_search_t *const srch = state->search;
+  if (!srch) /* not a search flavor (§18) */
+    return NAN;
   /* The two dwell paths' gates, in the one statistic both report. */
   return srch->n_noncoh <= 1 ? (double)state->threshold : (double)srch->eta_nc;
 }
@@ -6118,6 +6163,8 @@ double
 dp_correlator_dsl_db (dp_correlator_state_t *state)
 {
   dp_correlator_search_t *const srch = state->search;
+  if (!srch) /* not a search flavor (§18) */
+    return NAN;
   if (!srch->dsl_ready)
     {
       search_doppler_sidelobe (
@@ -6367,6 +6414,8 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim)
 {
   dp_correlator_search_t *const srch = state->search;
+  if (!corr2d_is_continuous (state)) /* §18 */
+    return DP_ERR_INVALID;
   if (!tlm) /* detach: the probe site reverts to the single-branch cost */
     {
       srch->tlm.ctx = NULL;
@@ -6419,7 +6468,8 @@ size_t
 dp_correlator_surface (dp_correlator_state_t *state, float *out, size_t n_out)
 {
   dp_correlator_search_t *const srch = state->search;
-  if (!srch->stat_surface || srch->surface_at == 0 || n_out < srch->n_surf)
+  if (!corr2d_is_continuous (state) || !srch->stat_surface
+      || srch->surface_at == 0 || n_out < srch->n_surf)
     return 0;
   memcpy (out, srch->stat_surface, srch->n_surf * sizeof (float));
   return srch->n_surf;
@@ -6429,7 +6479,9 @@ dp_correlator_surface_doppler_hz (dp_correlator_state_t *state, double *out,
                                   size_t n_out)
 {
   dp_correlator_search_t *const srch = state->search;
-  const size_t                  rows = srch->n_surf / srch->lag_bins;
+  if (!corr2d_is_continuous (state)) /* §18 */
+    return 0;
+  const size_t rows = srch->n_surf / srch->lag_bins;
   if (n_out < rows)
     return 0;
   /* Row r is bin r/interp of the native axis (window_bins tiles, or the
@@ -6444,7 +6496,9 @@ dp_correlator_surface_chip_phase (dp_correlator_state_t *state, double *out,
                                   size_t n_out)
 {
   dp_correlator_search_t *const srch = state->search;
-  const size_t                  cols = srch->lag_bins;
+  if (!corr2d_is_continuous (state)) /* §18 */
+    return 0;
+  const size_t cols = srch->lag_bins;
   if (n_out < cols)
     return 0;
   for (size_t c = 0; c < cols; c++)
@@ -6459,7 +6513,9 @@ dp_correlator_surface_complex (dp_correlator_state_t *state,
   /* out_buf is the coherent dump the last dwell was decided on; a
      non-coherent dwell accumulates power elsewhere and out_buf is only
      its last look, so it is not the dwell's. */
-  if (srch->dwells == 0 || srch->n_noncoh > 1 || n_out < srch->n_surf)
+  /* Both searches: the map-equivalence test reads the burst search's
+     surface against the reference map (test_correlator_search eq_score). */
+  if (!srch || srch->dwells == 0 || srch->n_noncoh > 1 || n_out < srch->n_surf)
     return 0;
   memcpy (out, srch->out_buf, srch->n_surf * sizeof *out);
   return srch->n_surf;
@@ -6479,8 +6535,10 @@ dp_correlator_block_prompt (dp_correlator_state_t *state, size_t tile,
                             size_t col, float _Complex *out, size_t n_out)
 {
   dp_correlator_search_t *const srch = state->search;
-  const size_t                  D = srch->coherent_bins, cb = srch->code_bins;
-  const size_t                  lb = srch->lag_bins;
+  if (!corr2d_is_continuous (state)) /* §18 */
+    return 0;
+  const size_t D = srch->coherent_bins, cb = srch->code_bins;
+  const size_t lb = srch->lag_bins;
   if (!search_block_whole (state) || tile >= srch->window_bins || col >= lb
       || n_out < D)
     return 0;
@@ -6522,7 +6580,9 @@ dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *out,
                          size_t n_out)
 {
   dp_correlator_search_t *const srch = state->search;
-  const size_t                  n    = srch->coherent_bins * srch->code_bins;
+  if (!corr2d_is_continuous (state)) /* §18 */
+    return 0;
+  const size_t n = srch->coherent_bins * srch->code_bins;
   if (!search_block_whole (state) || n_out < n)
     return 0;
   memcpy (out, srch->blk_raw, n * sizeof *out);

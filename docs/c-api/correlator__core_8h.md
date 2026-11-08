@@ -126,6 +126,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  uint64\_t | [**dp\_correlator\_position**](#function-dp_correlator_position) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The engine's stream position: every sample its pushes have taken, framed ones and the carry, since create, reset, a regrid or set\_state's restore._  |
 |  double | [**dp\_correlator\_psl\_db**](#function-dp_correlator_psl_db) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**dp\_correlator\_shape\_t::psl**_](structdp__correlator__shape__t.md#variable-psl) _)._ |
 |  size\_t | [**dp\_correlator\_push**](#function-dp_correlator_push) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through a detector flavor._  |
+|  size\_t | [**dp\_correlator\_push\_max\_out**](#function-dp_correlator_push_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n\_in) <br>_The most hits_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _can return for_`n_in` _more samples: a result array this long is never short._ |
 |  size\_t | [**dp\_correlator\_rate\_hypotheses\_for**](#function-dp_correlator_rate_hypotheses_for) (double f\_epoch, double span, size\_t depth) <br>_The fewest rate hypotheses over_ `[-span, +span]` _that leave the residual_`span/(n - 1)` _within what a block of_`depth` _epochs tolerates,_`f_epoch^2/(2*depth^2)` __ _the drift rule behind the depth cap, inverted. At least 2 for a positive span; 1 for none; at most_[_**DP\_CORRELATOR\_RATE\_HYPS\_MAX**_](correlator__core_8h.md#define-dp_correlator_rate_hyps_max) _._ |
 |  double | [**dp\_correlator\_rate\_hypothesis**](#function-dp_correlator_rate_hypothesis) (double span, size\_t n, size\_t h) <br>_Rate hypothesis_ `h` _of_`n` _over_`[-span, +span]` _, Hz/s:_`-span + 2*span*h/(n - 1)` _; 0 for_`n <= 1` _._ |
 |  double \_Complex | [**dp\_correlator\_rate\_phasor**](#function-dp_correlator_rate_phasor) (double rate, double t) <br>_The de-chirp phasor_ `exp(-j*pi*rate*t^2)` _for a rate in Hz/s at time_`t` _seconds from the block's middle._ |
@@ -700,7 +701,7 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 * `tile` Tile index, `0 … window_bins-1` (native FFT order, the order the surface's rows are cut in). 
 * `col` Code-phase column, `0 … lag_bins-1`. 
 * `out` At least `coherent_bins` complex floats. 
-* `n_out` Capacity of `out`. 
+* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -764,7 +765,7 @@ Copies the `coherent_bins * code_bins` samples the block-coherent engine gathere
 
 * `state` Must be non-NULL. 
 * `out` At least `coherent_bins * code_bins` complex floats. 
-* `n_out` Capacity of `out`. 
+* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -1002,7 +1003,7 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 
 * `state` Allocated engine (non-NULL). 
 * `doppler_bins` Coherent depth to pin, in `[1, reps]`. 
-* `n_noncoh` Non-coherent look count to pin, in `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`. 
+* `n_noncoh` Non-coherent look count to pin, in `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`. Refused (DP\_ERR\_INVALID) on a map or detector flavor (no search record).
 
 
 
@@ -1758,7 +1759,7 @@ What it predicts: one emitter's peak list carries peaks up to this far below its
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL. NaN on a map or detector flavor (no search record).
 
 
 
@@ -1938,7 +1939,7 @@ size_t dp_correlator_execute_all_max_out (
 
 
 * `state` Must be non-NULL. 
-* `n_in` Input samples about to be passed. 
+* `n_in` Input samples about to be passed. 0 on a detector or search flavor, which execute\_all() refuses.
 
 
 
@@ -2171,9 +2172,9 @@ size_t dp_correlator_execute_max_out (
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
-
+0 on a detector or search flavor, which execute() refuses. 
 
 **Returns:**
 
@@ -2277,7 +2278,7 @@ size_t dp_correlator_execute_peaks_max_out (
 
 
 * `state` Must be non-NULL. 
-* `n_in` Input samples about to be passed. 
+* `n_in` Input samples about to be passed. 0 on a detector or search flavor, which execute\_peaks() refuses.
 
 
 
@@ -2572,7 +2573,7 @@ double dp_correlator_gate_stat (
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL. NaN on a map or detector flavor (no search record).
 
 
 
@@ -2696,7 +2697,7 @@ if (before != 0 || after != 300)
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL. 0 on a map or detector flavor (no search record).
 
 
 
@@ -2733,7 +2734,7 @@ What it predicts: a detection's sidelobes sit this far below it, at delays outsi
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL. NaN on a map or detector flavor (no search record).
 
 
 
@@ -2824,6 +2825,45 @@ Python: the list of hits, empty when no dump passed the gate. C: the number of h
 (0, 1.0, 1.0, 1.0)
 ```
  
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_correlator\_push\_max\_out 
+
+_The most hits_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _can return for_`n_in` _more samples: a result array this long is never short._
+```C++
+size_t dp_correlator_push_max_out (
+    const dp_correlator_state_t * state,
+    size_t n_in
+) 
+```
+
+
+
+The frames `n_in` completes, counting the carry the last push left, times what one frame can make: one hit for a detector (one per dump), `max_peaks` for a search (a frame that ends a dwell lists up to that many). A bound, not a count: most frames end no dump. 0 on a map flavor, which push() refuses. SIZE\_MAX if the product would overflow.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_in` Samples the next push() will be given. 
+
+
+
+**Returns:**
+
+The bound, in hits. 
 
 
 
@@ -3111,7 +3151,7 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 
 
 * `state` Must be non-NULL. 
-* `carrier_freq_hz` RF carrier, Hz; 0.0 = uncoupled. 
+* `carrier_freq_hz` RF carrier, Hz; 0.0 = uncoupled. Refused (DP\_ERR\_INVALID) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -3196,7 +3236,7 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 
 
 * `state` Must be non-NULL. 
-* `n` 1 … DP\_CORRELATOR\_MAX\_PEAKS. 
+* `n` 1 … DP\_CORRELATOR\_MAX\_PEAKS. Refused (-1) on a map or detector flavor (no search record), which lists no peaks.
 
 
 
@@ -3363,7 +3403,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 * `state` Must be non-NULL. 
 * `tlm` Telemetry context to attach, or NULL to detach. 
 * `prefix` Probe-name prefix, e.g. "acq" or "ch0.acq". 
-* `decim` Emit every decim-th decided dwell; &gt;= 1. 
+* `decim` Emit every decim-th decided dwell; &gt;= 1. Refused (DP\_ERR\_INVALID) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -3420,7 +3460,7 @@ A continuous engine is created with a pool of the machine's online cores when it
 
 
 * `state` Must be non-NULL. 
-* `n` Thread count; 0 = online cores, 1 = serial. 
+* `n` Thread count; 0 = online cores, 1 = serial. Refused (DP\_ERR\_INVALID) on a map or detector flavor (no search record).
 
 
 
@@ -3707,7 +3747,7 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows * lag_bins` floats. 
-* `n_out` Capacity of `out`. 
+* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -3767,7 +3807,7 @@ One value per surface column, in chips, the same mapping [**dp\_correlator\_buil
 
 * `state` Must be non-NULL. 
 * `out` At least `lag_bins` doubles. 
-* `n_out` Capacity of `out`. 
+* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -3822,7 +3862,7 @@ Copies the coherent sum the last dwell was decided on into `out`, row-major `sur
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows * lag_bins` complex floats. 
-* `n_out` Capacity of `out`. 
+* `n_out` Capacity of `out`. 0 on a map or detector flavor (no search record).
 
 
 
@@ -3882,7 +3922,7 @@ One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows` doubles. 
-* `n_out` Capacity of `out`. 
+* `n_out` Capacity of `out`. 0 on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -3949,7 +3989,7 @@ static inline size_t dp_correlator_grid_bins (
 
 
 
-One bin in a native search; the window-tile count once a `doppler_uncertainty` wider than the native span is tiled; tiles times the block depth on a continuous engine with code-only epochs. Every consumer that folds a `row` must fold it over THIS, not over `coherent_bins`: a capture that did read every tiled hit as 0 Hz (doppler#1512). 
+One bin in a native search; the window-tile count once a `doppler_uncertainty` wider than the native span is tiled; tiles times the block depth on a continuous engine with code-only epochs. Every consumer that folds a `row` must fold it over THIS, not over `coherent_bins`: a capture that did read every tiled hit as 0 Hz (doppler#1512). 0 on a map or detector flavor, which has no Doppler grid. 
 
 
         

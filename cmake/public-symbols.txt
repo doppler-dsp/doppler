@@ -535,6 +535,7 @@ dp_correlator_period_samples function
 dp_correlator_position function
 dp_correlator_psl_db function
 dp_correlator_push function
+dp_correlator_push_max_out function
 dp_correlator_rate_hypotheses_for function
 dp_correlator_rate_hypothesis function
 dp_correlator_rate_phasor function

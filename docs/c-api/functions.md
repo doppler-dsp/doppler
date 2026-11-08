@@ -636,6 +636,7 @@
 * **dp\_correlator\_position** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_psl\_db** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_push** ([**correlator\_core.h**](correlator__core_8h.md))
+* **dp\_correlator\_push\_max\_out** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_rate\_hypotheses\_for** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_rate\_hypothesis** ([**correlator\_core.h**](correlator__core_8h.md))
 * **dp\_correlator\_rate\_phasor** ([**correlator\_core.h**](correlator__core_8h.md))

@@ -230,9 +230,12 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
      ask for), refuse the configuration. */
   if (col_out >= 0 && (size_t)col_out >= nx)
     CORR_WHY ("Correlator: col_out must be -1 or a lag below len(ref[0])");
-  if (col_out >= 0 && (!fast || nxo != nx))
+  if (col_out >= 0 && (nyo != ny || nxo != nx))
+    CORR_WHY ("Correlator: col_out reads a native map; it needs ny_out and "
+              "nx_out at 0");
+  if (col_out >= 0 && !fast)
     CORR_WHY ("Correlator: col_out needs a ref with energy in its first row "
-              "only, and native ny_out and nx_out");
+              "only");
 
   dp_correlator_state_t *state
       = calloc (1, sizeof (*state)); /* NULL-init pointers */
@@ -3475,7 +3478,11 @@ search_dwell_decided (dp_correlator_state_t *st, const float *surf,
 {
   dp_correlator_search_t *const srch = st->search;
   srch->dwells++;
-  if (srch->keep_surface)
+  /* An attached sink keeps the surface computed whatever keep_surface
+     reads: a restore (keep_surface comes from the blob, the sink is the
+     caller's and stays attached) or set_keep_surface(0) must not silence
+     it. */
+  if (srch->keep_surface || srch->sink)
     {
       if (!srch->stat_surface)
         srch->stat_surface
@@ -4381,6 +4388,11 @@ search_cover_window_bins (double du, double span)
   double ns = search_ceil_bins ((du - 0.5 * res) / res);
   if (!(ns > 0.0))
     return 1;
+  /* A count past what size_t holds saturates: converting an out-of-range
+     double is undefined (x86 yields 2^63, which 2n + 1 wraps to ONE tile).
+     The constructor refuses a count no grid can hold before using it. */
+  if (!(ns < (double)(SIZE_MAX / 4u)))
+    return SIZE_MAX;
   return 2u * (size_t)ns + 1u;
 }
 
@@ -5250,9 +5262,11 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
   if (reps < 1)
     CORR_WHY ("Correlator: reps must be at least 1 (preamble repetitions a "
               "burst)");
+  /* A burst's chip rate is its sample rate (one chip = one sample). */
+  if (!(chip_rate > 0.0) && continuous)
+    CORR_WHY ("Correlator: chip_rate must be positive");
   if (!(chip_rate > 0.0))
-    CORR_WHY ("Correlator: a search's rate must be positive (sample_rate "
-              "for a burst, chip_rate for the continuous search)");
+    CORR_WHY ("Correlator: sample_rate must be positive");
   if (continuous && !isfinite (cn0_dbhz))
     CORR_WHY ("Correlator: the continuous search sizes its dwell from a "
               "design point; it needs a finite cn0_dbhz");
@@ -5266,6 +5280,17 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
     CORR_WHY ("Correlator: doppler_uncertainty must be finite and >= 0");
   if (code_only_epochs < 1)
     CORR_WHY ("Correlator: code_only_epochs must be at least 1");
+  /* A grid whose samples cannot even be counted in a size_t: refused
+     before anything is sized from it (a tile is one period of complex
+     samples, and a burst holds reps periods). */
+  const size_t period_bytes = n_period * sizeof (float _Complex);
+  if (search_cover_window_bins (doppler_uncertainty, span)
+      > SIZE_MAX / period_bytes)
+    CORR_WHY ("Correlator: doppler_uncertainty asks for more Doppler tiles "
+              "than any search grid can hold");
+  if (reps > SIZE_MAX / period_bytes)
+    CORR_WHY ("Correlator: reps asks for more periods than any search grid "
+              "can hold");
   if (!(doppler_rate >= 0.0) || !isfinite (doppler_rate))
     CORR_WHY ("Correlator: doppler_rate must be finite and >= 0");
   if (rate_hypotheses > DP_CORRELATOR_RATE_HYPS_MAX)
@@ -5343,7 +5368,19 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
   if (dp_correlator_regrid (st, best_d, best_nc, best_window_bins, replica,
                             st->search->carrier_freq_hz)
       != 0)
-    goto fail;
+    {
+      /* A grid too large to allocate is a value's doing when one of its
+         axes was asked for: name the knob that sized the larger one. A
+         grid with neither stays the generic out-of-memory refusal. */
+      dp__search_destroy (st);
+      if (best_window_bins > 1 && best_window_bins >= best_d)
+        CORR_WHY ("Correlator: doppler_uncertainty asks for more Doppler "
+                  "tiles than the search grid can allocate");
+      if (!continuous && best_d > 1)
+        CORR_WHY ("Correlator: reps asks for a coherent depth whose search "
+                  "grid cannot be allocated");
+      return NULL;
+    }
   /* dsl is defined on THIS grid; dp_correlator_dsl_db() computes it on first
      read. A sweep of pts x (2W - 1) transforms (0.15 s on the receivers'
      Gold-1023 search) that only a peak-list consumer reads. */
@@ -5585,32 +5622,41 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
     CORR_WHY ("Correlator: noise_mode must be 'mean', 'median', 'min' "
               "or 'max'");
 
-  /* The detector's knobs: refused on every flavor but a detector. */
-  const int detector_knob_set = threshold != 0.0f || noise_lo != 0
-                                || noise_hi != SIZE_MAX
-                                || noise_mode != DET_NOISE_MEAN;
+  /* Each refusal below names ONE knob: the first that does not hold
+     its default on a flavor that does not read it. */
+#define CORR_SEARCH_ONLY(cond, knob)                                          \
+  if (cond)                                                                   \
+  CORR_WHY ("Correlator: " knob " is a search's; it needs "                   \
+            "framing='continuous' or 'burst'")
+#define CORR_CONT_ONLY(cond, knob)                                            \
+  if (cond)                                                                   \
+  CORR_WHY ("Correlator: " knob " is the continuous search's; it needs "      \
+            "framing='continuous'")
+#define CORR_BURST_ONLY(cond, knob)                                           \
+  if (cond)                                                                   \
+  CORR_WHY ("Correlator: " knob " is the burst search's; it needs "           \
+            "framing='burst'")
+#define CORR_DETECTOR_ONLY(cond, knob)                                        \
+  if (cond)                                                                   \
+  CORR_WHY ("Correlator: " knob " is a detector's; it needs detect=True")
+#define CORR_MAP_ONLY(cond, knob, flavor)                                     \
+  if (cond)                                                                   \
+  CORR_WHY ("Correlator: " knob " shapes a map; " flavor)
 
   if (framing == DP_CORRELATOR_FRAMING_NONE)
     {
       /* A search's knobs, which no map or detector reads. */
-      if (sample_rate != 0.0)
-        CORR_WHY ("Correlator: sample_rate is a search's; it needs "
-                  "framing='continuous' or 'burst'");
-      if (!isnan (cn0_dbhz))
-        CORR_WHY ("Correlator: cn0_dbhz is a search's design point; it "
-                  "needs framing='continuous' or 'burst'");
-      if (doppler_uncertainty != 0.0 || pfa != 1e-3 || pd != 0.9
-          || doppler_rate != 0.0)
-        CORR_WHY ("Correlator: doppler_uncertainty, pfa, pd and "
-                  "doppler_rate size a search; they need "
-                  "framing='continuous' or 'burst'");
-      if (chip_rate != 0.0 || symbol_rate != 0.0 || code_only_epochs != 1)
-        CORR_WHY ("Correlator: chip_rate, symbol_rate and "
-                  "code_only_epochs are the continuous search's; they "
-                  "need framing='continuous'");
-      if (reps != 1 || rate_hypotheses != 1)
-        CORR_WHY ("Correlator: reps and rate_hypotheses are the burst "
-                  "search's; they need framing='burst'");
+      CORR_SEARCH_ONLY (sample_rate != 0.0, "sample_rate");
+      CORR_SEARCH_ONLY (!isnan (cn0_dbhz), "cn0_dbhz");
+      CORR_SEARCH_ONLY (doppler_uncertainty != 0.0, "doppler_uncertainty");
+      CORR_SEARCH_ONLY (pfa != 1e-3, "pfa");
+      CORR_SEARCH_ONLY (pd != 0.9, "pd");
+      CORR_SEARCH_ONLY (doppler_rate != 0.0, "doppler_rate");
+      CORR_CONT_ONLY (chip_rate != 0.0, "chip_rate");
+      CORR_CONT_ONLY (symbol_rate != 0.0, "symbol_rate");
+      CORR_CONT_ONLY (code_only_epochs != 1, "code_only_epochs");
+      CORR_BURST_ONLY (reps != 1, "reps");
+      CORR_BURST_ONLY (rate_hypotheses != 1, "rate_hypotheses");
 
       if (doppler_rows > 0)
         {
@@ -5620,23 +5666,19 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
           if (ny != 1)
             CORR_WHY ("Correlator: doppler_rows correlates a 1-D code, "
                       "and ref has more than one row");
-          if (nx_out != 0 || col_out != -1)
-            CORR_WHY ("Correlator: the delay-Doppler map's delay axis "
-                      "is native; nx_out and col_out shape a 2-D ref's "
-                      "map");
-          if (detector_knob_set)
-            CORR_WHY ("Correlator: threshold, noise_lo, noise_hi and "
-                      "noise_mode are a detector's; they need "
-                      "detect=True");
-          return corr_dd_create (ref, nx, doppler_rows, dwell, nthreads,
-                                 ny_out, why);
+          CORR_MAP_ONLY (nx_out != 0, "nx_out",
+                         "the delay-Doppler map's delay axis is native");
+          CORR_MAP_ONLY (col_out != -1, "col_out",
+                         "the delay-Doppler map's delay axis is native");
         }
-
-      if (detect)
+      else if (detect)
         {
-          if (ny_out != 0 || nx_out != 0 || col_out != -1)
-            CORR_WHY ("Correlator: ny_out, nx_out and col_out shape a "
-                      "map; a detector reports hits (detect=True)");
+          CORR_MAP_ONLY (ny_out != 0, "ny_out",
+                         "a detector reports hits (detect=True)");
+          CORR_MAP_ONLY (nx_out != 0, "nx_out",
+                         "a detector reports hits (detect=True)");
+          CORR_MAP_ONLY (col_out != -1, "col_out",
+                         "a detector reports hits (detect=True)");
           s = corr_detector_create (ref, ny, nx, dwell, noise_lo, noise_hi,
                                     (det_noise_mode_t)noise_mode, threshold,
                                     nthreads, why);
@@ -5645,9 +5687,14 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
           return s;
         }
 
-      if (detector_knob_set)
-        CORR_WHY ("Correlator: threshold, noise_lo, noise_hi and "
-                  "noise_mode are a detector's; they need detect=True");
+      /* A map: the detector's knobs are not read. */
+      CORR_DETECTOR_ONLY (threshold != 0.0f, "threshold");
+      CORR_DETECTOR_ONLY (noise_lo != 0, "noise_lo");
+      CORR_DETECTOR_ONLY (noise_hi != SIZE_MAX, "noise_hi");
+      CORR_DETECTOR_ONLY (noise_mode != DET_NOISE_MEAN, "noise_mode");
+      if (doppler_rows > 0)
+        return corr_dd_create (ref, nx, doppler_rows, dwell, nthreads, ny_out,
+                               why);
       if (ny == 1)
         {
           /* The 1-D flavor is the 2-D one at one row: nx_out pads it. */
@@ -5667,9 +5714,10 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
   if (doppler_rows != 0)
     CORR_WHY ("Correlator: a search sizes its own Doppler grid; "
               "doppler_rows needs framing='none'");
-  if (dwell != 1 || ny_out != 0 || nx_out != 0 || col_out != -1)
-    CORR_WHY ("Correlator: dwell, ny_out, nx_out and col_out are a "
-              "map's or a detector's; they need framing='none'");
+  CORR_MAP_ONLY (dwell != 1, "dwell", "a search sizes its own dwell");
+  CORR_MAP_ONLY (ny_out != 0, "ny_out", "a search reports hits");
+  CORR_MAP_ONLY (nx_out != 0, "nx_out", "a search reports hits");
+  CORR_MAP_ONLY (col_out != -1, "col_out", "a search reports hits");
   /* A search does take a thread count, through set_threads(), and sizes
      its own pool at create (every core across its tiles): nthreads' 1
      here would be a different request, so it is not passed through. */
@@ -5677,10 +5725,15 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
     CORR_WHY ("Correlator: a search sizes its own thread pool at "
               "create; nthreads applies to framing='none', and a "
               "search's count is set after create with set_threads()");
-  if (threshold != 0.0f || noise_lo != 0 || noise_hi != SIZE_MAX)
+  if (threshold != 0.0f)
     CORR_WHY ("Correlator: a search sets its threshold from pfa; "
-              "threshold, noise_lo and noise_hi need framing='none' "
-              "and detect=True");
+              "threshold needs framing='none' and detect=True");
+  if (noise_lo != 0)
+    CORR_WHY ("Correlator: a search estimates its own noise; noise_lo "
+              "needs framing='none' and detect=True");
+  if (noise_hi != SIZE_MAX)
+    CORR_WHY ("Correlator: a search estimates its own noise; noise_hi "
+              "needs framing='none' and detect=True");
   if (ny != 1)
     CORR_WHY ("Correlator: a search correlates a 1-D ref, and ref has "
               "more than one row");
@@ -5690,9 +5743,8 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
 
   if (framing == DP_CORRELATOR_FRAMING_CONTINUOUS)
     {
-      if (reps != 1 || rate_hypotheses != 1)
-        CORR_WHY ("Correlator: reps and rate_hypotheses are the burst "
-                  "search's; they need framing='burst'");
+      CORR_BURST_ONLY (reps != 1, "reps");
+      CORR_BURST_ONLY (rate_hypotheses != 1, "rate_hypotheses");
       if (!(chip_rate > 0.0))
         CORR_WHY ("Correlator: the continuous search needs chip_rate; 0 "
                   "is not given");
@@ -5711,10 +5763,14 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
       return s;
     }
 
-  if (chip_rate != 0.0 || symbol_rate != 0.0 || code_only_epochs != 1)
-    CORR_WHY ("Correlator: chip_rate, symbol_rate and code_only_epochs "
-              "are the continuous search's; they need "
-              "framing='continuous'");
+  CORR_CONT_ONLY (chip_rate != 0.0, "chip_rate");
+  CORR_CONT_ONLY (symbol_rate != 0.0, "symbol_rate");
+  CORR_CONT_ONLY (code_only_epochs != 1, "code_only_epochs");
+#undef CORR_SEARCH_ONLY
+#undef CORR_CONT_ONLY
+#undef CORR_BURST_ONLY
+#undef CORR_DETECTOR_ONLY
+#undef CORR_MAP_ONLY
   return search_burst_create (ref, nx, reps, sample_rate, cn0_dbhz,
                               doppler_uncertainty, pfa, pd, noise_mode,
                               doppler_rate, rate_hypotheses, why);
@@ -5833,7 +5889,9 @@ dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n)
 {
   /* Only a search lists peaks, and only a search's destroy frees the list:
      off one this would leak it (§18). */
-  if (!st->search || n < 1 || n > DP_CORRELATOR_MAX_PEAKS)
+  if (!st->search)
+    return DP_ERR_INVALID;
+  if (n < 1 || n > DP_CORRELATOR_MAX_PEAKS)
     return -1;
   /* Fixed sizes from a validated argument: abort-on-OOM helpers, so there
      is no unwind path nothing can reach. */

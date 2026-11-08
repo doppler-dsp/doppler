@@ -170,9 +170,11 @@ def _is_flavor_refusal(mut_name: str, e: BaseException) -> bool:
     setter's declared error), or a method's ValueError carrying the
     member's own declared message, which names the member first
     (`execute_all: ...`, `push: ...`). Any other exception is not."""
-    if isinstance(e, AttributeError):
-        return True
-    return isinstance(e, ValueError) and str(e).startswith(mut_name + ":")
+    # Both name the member first: Python's own AttributeError for a missing
+    # attribute ("'X' object has no attribute ...") is not a declaration.
+    return isinstance(e, (AttributeError, ValueError)) and str(e).startswith(
+        mut_name + ":"
+    )
 
 
 LISTABLE = ("LOST", "NONDETERMINISTIC", "UNPROBED", "CRASHES", "C_ONLY")
@@ -924,7 +926,11 @@ def _accepted(
     refs: list[tuple] = []
     returned = True
     seen_rb: set[bytes] = set()
-    flavor_only = True  # every refusal so far was the declared D3 one
+    # Every value tried was refused with the declared D3 refusal: true only
+    # once at least one was tried, so a row with no candidate is not left
+    # out of the aggregate as one its object does not serve.
+    refused_any = False
+    flavor_only = True
     if mut.kind == "property":
         seen_rb.add(_own(make(), mut))
     for v in itertools.islice(cands, 40):
@@ -932,6 +938,7 @@ def _accepted(
         try:
             got = _apply(o, mut, v)
         except Exception as e:  # the mutator refused this value: try the next
+            refused_any = True
             flavor_only = flavor_only and _is_flavor_refusal(mut.name, e)
             continue
         if mut.kind == "property":
@@ -945,7 +952,12 @@ def _accepted(
         returned = returned and got is not None
         vals.append(v)
         refs.append(ref)
-    return vals, refs, returned and mut.kind == "method", flavor_only
+    return (
+        vals,
+        refs,
+        returned and mut.kind == "method",
+        refused_any and flavor_only,
+    )
 
 
 def _restore_into(target: Any, blob: bytes) -> bool:
@@ -1506,6 +1518,38 @@ def test_a_refused_read_leaves_the_row_out() -> None:
     assert verdict == Verdict("UNPROBED", _REFUSES_EVERY_VALUE)
     assert _aggregate([verdict, Verdict("TRAVELS")]).name == "TRAVELS"
     assert _current("keep", Serves()) == (0, None)
+
+
+def test_an_undeclared_attribute_error_on_a_read_stays_red() -> None:
+    """Python's own AttributeError (a missing attribute, a typo) names no
+    member first: the read raises, and the row is not left out."""
+
+    class Broken:
+        @property
+        def keep(self):
+            raise AttributeError("'Broken' object has no attribute '_x'")
+
+    with pytest.raises(AttributeError):
+        _current("keep", Broken())
+    assert not _is_flavor_refusal("keep", AttributeError("'X' has no 'y'"))
+
+
+def test_a_row_with_no_candidate_is_not_left_out() -> None:
+    """An empty candidate list tried nothing, so it refused nothing: the
+    row is UNPROBED by other means and stays in the aggregate. A row that
+    tried values and saw only the declared refusal is the one left out."""
+
+    class Obj:
+        def go(self, v):
+            raise ValueError("go: only a search")
+
+    mut = Mutator(cls="Obj", comp="obj", name="go", kind="method")
+    _, _, _, flavor_only = _accepted(mut, Obj, lambda o, n: None, [])
+    assert flavor_only is False
+    _, _, _, flavor_only = _accepted(
+        mut, Obj, lambda o, n: None, [Call(args=(1,)), Call(args=(2,))]
+    )
+    assert flavor_only is True
 
 
 def test_only_the_declared_refusal_reads_as_a_flavor_refusal() -> None:

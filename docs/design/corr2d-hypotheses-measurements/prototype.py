@@ -7,9 +7,12 @@ per-hypothesis work runs in, and how a fractional carrier offset is applied,
 by checking each claim against the shipped pipeline:
 
 1. **The reference is the shipped pipeline.** ``full()`` is numpy's
-   statement of one hypothesis run through DelayDoppler end to end: mix,
+   statement of one hypothesis run through DelayDoppler (now the
+   delay-Doppler flavor of ``Correlator``) end to end: mix,
    weight, row correlation, slow-time FFT. It is first checked against
-   ``doppler.spectral.DelayDoppler`` itself, so every later comparison is a
+   ``doppler.spectral.DelayDoppler`` itself (since #2752 step 4c
+   ``doppler.correlation.Correlator(code, doppler_rows=ny)``), so every
+   later comparison is a
    comparison with what ships, not with a reading of it.
 2. **Both orderings equal the reference, for every hypothesis.** Rows are
    transformed once; carrier hypotheses (outer) pay the row inverses; rate
@@ -47,8 +50,9 @@ Usage::
     python prototype.py --check   # exit 1 if a claim fails or a block
                                   # differs (the gate, in docs-check)
 
-Claim 1 compares against the compiled ``DelayDoppler``, so it runs in
-``src/doppler/spectral/tests/test_corr2d_hypotheses_oracle.py`` where the
+Claim 1 compares against the compiled ``DelayDoppler`` (now the
+delay-Doppler ``Correlator``), so it runs in
+``src/doppler/correlation/tests/test_corr2d_hypotheses_oracle.py`` where the
 extension is built; everything here is numpy and runs anywhere.
 
 Examples

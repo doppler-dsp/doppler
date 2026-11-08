@@ -35,8 +35,6 @@ typedef struct
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/burst_despreader/burst_despreader_core.h"
 #include "doppler/ppe/ppe_core.h"
-#include "doppler/correlator/correlator_core.h"
-#include "doppler/correlator/correlator_core.h"
 #include "doppler/fft2d/fft2d_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"

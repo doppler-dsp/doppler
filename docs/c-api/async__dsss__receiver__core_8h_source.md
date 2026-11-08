@@ -30,7 +30,6 @@
 #include "doppler/psd/psd_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/spectral/spectral_core.h"
-#include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
 #include "doppler/ber/ber_core.h"

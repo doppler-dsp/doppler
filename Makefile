@@ -276,7 +276,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals named-args acq-pfa-split \
-               finding-citations test-all-ci changelog-fragments
+               finding-citations test-all-ci changelog-fragments dup-include
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -474,6 +474,14 @@ LINT_gnu-flags = $(UV) run python scripts/check_gnu_flags.py
 # threads (#1260). dp_lgamma() in clib_common.h wraps lgamma_r() once; a
 # bare lgamma in library C is the next race. No allowlist.
 LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
+
+# A header included twice in one preprocessor branch is invisible to the
+# compiler -- the include guard swallows the copy -- so nothing failed when
+# burst_capture_core.h included correlator_core.h three times and three
+# more headers did the same (gh-2752, step 4c). Scans every tracked .c/.h
+# except vendor/; C_FILES is not the list, because it leaves out the
+# native/inc headers where every one of those repeats was. No allowlist.
+LINT_dup-include = $(UV) run python scripts/check_dup_includes.py
 
 # The acquisition engine prices a gate at three sites, and only the commit
 # site has an exact pin (test_correlator_search.c). Each must split pfa over the one

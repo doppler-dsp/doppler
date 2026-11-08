@@ -328,6 +328,9 @@ typedef struct {
   dp_correlator_search_t search_rec; 
 } dp_correlator_state_t;
 
+dp_correlator_flavor_t
+dp_correlator_flavor (const dp_correlator_state_t *state);
+
 dp_correlator_state_t *dp_correlator_create_1d (const float _Complex *ref,
                                                 size_t ref_len, size_t dwell,
                                                 int nthreads, size_t n_out);
@@ -768,6 +771,23 @@ dp_correlator_state_t *dp_correlator_create_continuous (const uint8_t *code, siz
                                     double pd, int noise_mode,
                                     size_t code_only_epochs,
                                     double doppler_rate);
+
+typedef enum
+{
+  DP_CORRELATOR_FRAMING_NONE       = 0, 
+  DP_CORRELATOR_FRAMING_CONTINUOUS = 1, 
+  DP_CORRELATOR_FRAMING_BURST      = 2  
+} dp_correlator_framing_t;
+
+dp_correlator_state_t *dp_correlator_create (
+    const float _Complex *ref, size_t ny, size_t nx,
+    dp_correlator_framing_t framing, size_t doppler_rows, int detect,
+    size_t dwell, size_t ny_out, size_t nx_out, int col_out,
+    float threshold, size_t noise_lo, size_t noise_hi, int noise_mode,
+    double sample_rate, double chip_rate, double symbol_rate, size_t reps,
+    double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
+    double doppler_rate, size_t rate_hypotheses, size_t code_only_epochs,
+    int nthreads, const char **why);
 
 double dp_correlator_rate_hypothesis (double span, size_t n, size_t h);
 

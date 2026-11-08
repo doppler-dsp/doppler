@@ -501,7 +501,8 @@ review (2026-11-08):
 | `noise_hi`                   | the detectors: the `SIZE_MAX` sentinel, clamped to the last bin                          | that sentinel; §3's `0` would make the floor one bin                                     |
 | `reps`                       | `BurstAcquisition`: 1                                                                    | 1                                                                                        |
 | `sample_rate`                | `BurstAcquisition`'s `fs`: 1.0; `Acquisition`: 4 MHz                                     | 0.0, not given: a search flavor refuses it                                               |
-| `chip_rate`, `symbol_rate`   | `Acquisition`: 1 MHz, 1 kHz                                                              | 0.0, not given: the continuous search refuses it                                         |
+| `chip_rate`                  | `Acquisition`: 1 MHz                                                                     | 0.0, not given: the continuous search refuses it                                         |
+| `symbol_rate`                | `Acquisition`: 1 kHz                                                                     | 0.0, no known data clock: the continuous search honors it (a diagnostic, never sizing)   |
 | `cn0_dbhz`                   | `BurstAcquisition`: NaN, no design point; `Acquisition`: 50 dB-Hz, and a finite one only | NaN, no design point: the burst search's meaning today; the continuous search refuses it |
 | `detect` on a search framing | a search always detects                                                                  | `True` accepted: a search honors it, so the rule accepts it                              |
 
@@ -521,7 +522,10 @@ main builds a one-row 2-D correlator: the `col_out` callers
 triple are facts about one caller's signal, and a search sized by
 omission with the wrong one detects at the wrong Doppler without a word.
 A search flavor refuses a rate it reads that is still 0, naming the knob;
-a flavor that does not read a rate is not asked for it. Normalized units
+a flavor that does not read a rate is not asked for it. `symbol_rate` is
+not such a rate: the continuous search reads it only for a diagnostic
+(`epochs_per_symbol`), never to size the search, and its own 0 means no
+known data clock, so 0 is honored there. Normalized units
 stay one stated argument away, `sample_rate=1.0`. Every port states its
 rates, and the changelog names both old defaults.
 

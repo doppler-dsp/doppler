@@ -812,6 +812,16 @@ typedef struct {
 } dp_correlator_state_t;
 
 /**
+ * @brief Which constructor built @p state: what dp_correlator_create()
+ *        chose from its knobs, so a caller can ask before reading a member
+ *        only some flavors serve.
+ * @param state  Must be non-NULL.
+ * @return The flavor, fixed at create.
+ */
+dp_correlator_flavor_t
+dp_correlator_flavor (const dp_correlator_state_t *state);
+
+/**
  * @brief Allocate a 1-D FFT correlator with coherent integrate-and-dump.
  * Pre-computes conj(FFT(ref)) once at construction so each execute()
  * call costs only two FFTs and n complex multiplies.  @p ref may be freed
@@ -2537,6 +2547,125 @@ dp_correlator_state_t *dp_correlator_create_continuous (const uint8_t *code, siz
                                     double pd, int noise_mode,
                                     size_t code_only_epochs,
                                     double doppler_rate);
+
+/**
+ * @brief How dp_correlator_create() frames its input: maps or detections
+ *        from whole frames, or a search over a stream.
+ */
+typedef enum
+{
+  DP_CORRELATOR_FRAMING_NONE       = 0, /**< a map or detector flavor   */
+  DP_CORRELATOR_FRAMING_CONTINUOUS = 1, /**< the continuous search      */
+  DP_CORRELATOR_FRAMING_BURST      = 2  /**< the burst search           */
+} dp_correlator_framing_t;
+
+/**
+ * @brief Build the flavor the knobs name: the one constructor the Python
+ *        class `Correlator` calls.
+ *
+ * A C caller names the flavor it wants and calls that flavor's own
+ * constructor; this one is the binding's entry point
+ * (docs/design/correlator-python.md section 3). It reads the knobs, picks
+ * the flavor, and calls that constructor with them:
+ *
+ * | framing      | ref rows | doppler_rows | detect | flavor                                 |
+ * | ------------ | -------- | ------------ | ------ | -------------------------------------- |
+ * | `NONE`       | 1        | 0            | 0      | dp_correlator_create_1d()              |
+ * | `NONE`       | 1        | 0            | 1      | dp_correlator_create_detector_1d()     |
+ * | `NONE`       | > 1      | 0            | 0      | dp_correlator_create_2d()              |
+ * | `NONE`       | > 1      | 0            | 1      | dp_correlator_create_detector_2d()     |
+ * | `NONE`       | 1        | > 0          | 0      | dp_correlator_create_delay_doppler()   |
+ * | `CONTINUOUS` | 1        | 0            | any    | dp_correlator_create_continuous()      |
+ * | `BURST`      | 1        | 0            | any    | dp_correlator_create_burst()           |
+ *
+ * A one-row reference is the 1-D flavor: dp_correlator_create_1d() is
+ * dp_correlator_create_2d() at one row, and @p nx_out is its padded
+ * length.
+ *
+ * **A value the flavor would not honor is refused**, never ignored: a knob
+ * the flavor does not read must hold its default, which is the value named
+ * with it below. A search honors @p detect = 1, so it may be either. The
+ * refusal returns NULL and points @p why at a sentence that names the knob.
+ *
+ * The continuous search's reference is NRZ chips as samples: exactly +1
+ * (chip 0) or -1 (chip 1), with no imaginary part, the mapping of
+ * dp_bin_to_nrz(); any other sample is refused, so a shaped or noisy
+ * reference is never quantized silently.
+ *
+ * @param ref         Row-major @p ny x @p nx reference, CF32; borrowed.
+ * @param ny          Rows of @p ref (1 for a 1-D reference).
+ * @param nx          Samples a row.
+ * @param framing     Maps and detections, or a search; default NONE.
+ * @param doppler_rows Doppler rows of the delay-Doppler map, the code periods
+ *                    one frame holds; 0 (default) for no map.
+ * @param detect      1 for detections from push(); default 0 (maps).
+ * @param dwell       Frames integrated a dump; default 1.
+ * @param ny_out      Padded Doppler rows; 0 (default) for native.
+ * @param nx_out      Padded lags; 0 (default) for native.
+ * @param col_out     The one lag to emit; -1 (default) for every lag.
+ * @param threshold   Detection threshold on peak / noise; default 0.
+ * @param noise_lo    First noise bin; default 0.
+ * @param noise_hi    Last noise bin; default SIZE_MAX, the last bin.
+ * @param noise_mode  The noise statistic, a ::det_noise_mode_t; default
+ *                    DET_NOISE_MEAN.
+ * @param sample_rate Samples a second; 0 (default) is not given, which a
+ *                    search refuses.
+ * @param chip_rate   Chips a second; 0 (default) is not given, which the
+ *                    continuous search refuses.
+ * @param symbol_rate Data symbols a second, read by the continuous search
+ *                    for a diagnostic only; 0 (default) is no known data
+ *                    clock.
+ * @param reps        Preamble repetitions a burst; default 1.
+ * @param cn0_dbhz    Design-point C/N0, dB-Hz; default
+ *                    DP_CORRELATOR_CN0_NONE (NaN, none). The continuous
+ *                    search needs a finite one.
+ * @param doppler_uncertainty Half-width of the Doppler search, Hz; default 0.
+ * @param pfa         False-alarm probability a search; default 1e-3.
+ * @param pd          Detection probability at the design point; default 0.9.
+ * @param doppler_rate Doppler rate bound, Hz/s; default 0.
+ * @param rate_hypotheses Rate hypotheses of the burst search; default 1.
+ * @param code_only_epochs Code-only epochs of the continuous search;
+ *                    default 1.
+ * @param nthreads    Worker threads of a map or detector; default 1.
+ * @param why         Where a refusal's sentence goes; may be NULL. A
+ *                    static string, never freed.
+ * @return The correlator, or NULL: refused (@p why says which knob) or
+ *         out of memory.
+ *
+ * @code
+ * #include "doppler/correlator/correlator_core.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int main (void)
+ * {
+ *   float _Complex ref[4] = { 1, 0, 0, 0 };
+ *   const char *why = NULL;
+ *   dp_correlator_state_t *c = dp_correlator_create (
+ *       ref, 1, 4, DP_CORRELATOR_FRAMING_NONE, 0, 1, 1, 0, 0, -1, 0.0f, 0,
+ *       SIZE_MAX, DET_NOISE_MEAN, 0.0, 0.0, 0.0, 1, DP_CORRELATOR_CN0_NONE,
+ *       0.0, 1e-3, 0.9, 0.0, 1, 1, 1, &why);
+ *   if (!c || dp_correlator_flavor (c) != DP_CORRELATOR_DETECTOR_1D)
+ *     return 1;
+ *   dp_correlator_destroy (c);
+ *   c = dp_correlator_create (
+ *       ref, 1, 4, DP_CORRELATOR_FRAMING_BURST, 0, 0, 1, 0, 0, -1, 0.0f, 0,
+ *       SIZE_MAX, DET_NOISE_MEAN, 0.0, 0.0, 0.0, 1, DP_CORRELATOR_CN0_NONE,
+ *       0.0, 1e-3, 0.9, 0.0, 1, 1, 1, &why);
+ *   printf ("%s\n", why);
+ *   return c == NULL ? 0 : 1;
+ * }
+ * @endcode
+ */
+dp_correlator_state_t *dp_correlator_create (
+    const float _Complex *ref, size_t ny, size_t nx,
+    dp_correlator_framing_t framing, size_t doppler_rows, int detect,
+    size_t dwell, size_t ny_out, size_t nx_out, int col_out,
+    float threshold, size_t noise_lo, size_t noise_hi, int noise_mode,
+    double sample_rate, double chip_rate, double symbol_rate, size_t reps,
+    double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
+    double doppler_rate, size_t rate_hypotheses, size_t code_only_epochs,
+    int nthreads, const char **why);
 
 /**
  * @brief Rate hypothesis @p h of @p n over `[-span, +span]`, Hz/s:

@@ -50,8 +50,10 @@ target_link_libraries(bench_correlator_core PRIVATE pn_core cvt_core)
 # test_detector_equiv: the 1-D detector flavor against the 2-D one at one
 # row, hit for hit (docs/design/correlator.md section 7). It ran first on
 # the retired detector/ and detector2d/.
+# test_correlator_create: the one constructor (#2752 step 4a) builds each
+# flavor as its own constructor does, and refuses what it would not honor.
 foreach(_t test_detector_equiv test_correlator_detector_1d
-           test_correlator_detector_2d)
+           test_correlator_detector_2d test_correlator_create)
   add_executable(${_t} ${CMAKE_SOURCE_DIR}/native/tests/correlator/${_t}.c)
   target_link_libraries(${_t} PRIVATE correlator_core Threads::Threads
                                       fft2d_core fft_core detection_core dp_tlm_core cvt_core

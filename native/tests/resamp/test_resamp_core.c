@@ -49,6 +49,7 @@
 #include "dp_chunk_inv.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -437,9 +438,30 @@ ctrl_near_unity_consumes_input (void)
   return ok;
 }
 
+/* Two forms of the same interpolation agree to a few float ULPs, not to the
+ * bit.  Each call site inlines its own copy of the polyphase dot product,
+ * and under -ffast-math a compiler is free to sum each copy in a different
+ * order: GCC 15 on aarch64 does, and the forms then differ by 1-2 ULPs at
+ * unit amplitude (doppler#2697).  A last-bit difference is not a defect
+ * (owner ruling, #1561); what these checks exist to catch is a TIMING
+ * defect -- a load one sample early or late, a lost or doubled tick --
+ * and that moves a unit-amplitude tone at 0.023 cycles/sample by ~0.14,
+ * five orders above this bound. */
+#define RESAMP_FORMS_ULPS 8.0f
+
+static int
+cf32_forms_agree (float _Complex a, float _Complex b)
+{
+  float tol = RESAMP_FORMS_ULPS * FLT_EPSILON
+              * fmaxf (1.0f, fmaxf (cabsf (a), cabsf (b)));
+  return fabsf (crealf (a) - crealf (b)) <= tol
+         && fabsf (cimagf (a) - cimagf (b)) <= tol;
+}
+
 /* dp_resamp_execute_ctrl_push (one input at a time) must reproduce the block
- * dp_resamp_execute_ctrl on the same (in, ctrl[]) bit-for-bit — the property a
- * closed timing loop relies on to steer the strobe per output. Returns 1 ok.
+ * dp_resamp_execute_ctrl on the same (in, ctrl[]): the same outputs at the
+ * same ticks, each within RESAMP_FORMS_ULPS -- the property a closed timing
+ * loop relies on to steer the strobe per output. Returns 1 ok.
  */
 static int
 eq_ctrl_push (double rate)
@@ -472,8 +494,7 @@ eq_ctrl_push (double rate)
 
   int ok = (np == nref);
   for (size_t i = 0; i < nref && i < np; i++)
-    if (crealf (out_ref[i]) != crealf (out_push[i])
-        || cimagf (out_ref[i]) != cimagf (out_push[i]))
+    if (!cf32_forms_agree (out_ref[i], out_push[i]))
       ok = 0;
   return ok;
 }
@@ -1170,7 +1191,7 @@ image_floor_db (double rate, double f0)
  * unity. So the sentence has an observable consequence in both directions,
  * and asserting only one of them proves nothing:
  *
- *   rate >= 1  both are the interpolator -> bit-for-bit identical
+ *   rate >= 1  both are the interpolator -> identical to a few ULPs
  *   rate <  1  different structures      -> must DIFFER
  *
  * The inequality alone would be satisfied by any corruption, so it is
@@ -1207,7 +1228,7 @@ ctrl_rides_interpolator (double rate)
 
   int same = (na == nb);
   for (size_t i = 0; i < na && i < nb && same; i++)
-    if (a[i] != b[i])
+    if (!cf32_forms_agree (a[i], b[i]))
       same = 0;
 
   if (rate >= 1.0)

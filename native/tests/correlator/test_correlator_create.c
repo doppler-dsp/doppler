@@ -337,15 +337,18 @@ test_each_row_builds_its_flavor (void)
 }
 
 /* One refusal: NULL, and a sentence that names `knob`. */
+/* The whole sentence must match: a refusal names exactly one knob, and a
+   substring match would pass a sentence that lists several. */
+#define refused(k, sentence) refused_at ((k), (sentence), __LINE__)
 static int
-refused (const knobs_t *k, const char *knob)
+refused_at (const knobs_t *k, const char *knob, int line)
 {
   const char            *why = NULL;
   dp_correlator_state_t *s   = make (k, &why);
-  const int ok = s == NULL && why != NULL && strstr (why, knob) != NULL;
+  const int ok = s == NULL && why != NULL && strcmp (why, knob) == 0;
   if (!ok)
-    DP_TEST_ERR ("  expected a refusal naming '%s'; got %s: %s\n", knob,
-                 s ? "an object" : "NULL", why ? why : "(no sentence)");
+    DP_TEST_ERR ("  REFUSAL-MISMATCH line %d\n    want: %s\n    got:  %s\n",
+                 line, knob, why ? why : "(no sentence)");
   dp_correlator_destroy (s);
   /* NULL is a valid `why`: the same refusal, nothing written. */
   s                  = make (k, NULL);
@@ -365,135 +368,171 @@ test_a_value_not_honored_is_refused (void)
   /* Shared. */
   k         = defaults (NRZ, 1, 31);
   k.framing = (dp_correlator_framing_t)3;
-  DP_CHECK (refused (&k, "framing"));
+  DP_CHECK (refused (
+      &k, "Correlator: framing must be 'none', 'continuous' or 'burst'"));
   k = defaults (NULL, 1, 31);
-  DP_CHECK (refused (&k, "ref"));
+  DP_CHECK (refused (&k, "Correlator: ref is empty"));
   k = defaults (NRZ, 1, 0);
-  DP_CHECK (refused (&k, "ref"));
+  DP_CHECK (refused (&k, "Correlator: ref is empty"));
   /* noise_mode out of range, on the flavors that read it: a detector and
      both searches (on a map, any non-default mode is refused anyway). */
   k            = defaults (NRZ, 1, 31);
   k.detect     = 1;
   k.noise_mode = 4;
-  DP_CHECK (refused (&k, "noise_mode"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_mode must be 'mean', 'median', 'min' or 'max'"));
   k.noise_mode = -1;
-  DP_CHECK (refused (&k, "noise_mode"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_mode must be 'mean', 'median', 'min' or 'max'"));
   k             = defaults (NRZ, 1, 31);
   k.framing     = DP_CORRELATOR_FRAMING_BURST;
   k.sample_rate = 1.0;
   k.noise_mode  = 4;
-  DP_CHECK (refused (&k, "noise_mode"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_mode must be 'mean', 'median', 'min' or 'max'"));
   k             = defaults (NRZ, 1, 31);
   k.framing     = DP_CORRELATOR_FRAMING_CONTINUOUS;
   k.sample_rate = 4.0e6;
   k.chip_rate   = 1.0e6;
   k.cn0_dbhz    = 55.0;
   k.noise_mode  = 4;
-  DP_CHECK (refused (&k, "noise_mode"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_mode must be 'mean', 'median', 'min' or 'max'"));
 
   /* framing 'none': a search's knobs, each alone. */
   k             = defaults (NRZ, 1, 31);
   k.sample_rate = 1.0;
-  DP_CHECK (refused (&k, "sample_rate"));
+  DP_CHECK (refused (&k, "Correlator: sample_rate is a search's; it needs "
+                         "framing='continuous' or 'burst'"));
   k          = defaults (NRZ, 1, 31);
   k.cn0_dbhz = 50.0;
-  DP_CHECK (refused (&k, "cn0_dbhz"));
+  DP_CHECK (refused (&k, "Correlator: cn0_dbhz is a search's; it needs "
+                         "framing='continuous' or 'burst'"));
   k                     = defaults (NRZ, 1, 31);
   k.doppler_uncertainty = 1.0;
-  DP_CHECK (refused (&k, "doppler_uncertainty"));
+  DP_CHECK (refused (&k, "Correlator: doppler_uncertainty is a search's; it "
+                         "needs framing='continuous' or 'burst'"));
   k     = defaults (NRZ, 1, 31);
   k.pfa = 1e-2;
-  DP_CHECK (refused (&k, "pfa"));
+  DP_CHECK (refused (&k, "Correlator: pfa is a search's; it needs "
+                         "framing='continuous' or 'burst'"));
   k    = defaults (NRZ, 1, 31);
   k.pd = 0.5;
-  DP_CHECK (refused (&k, "pd"));
+  DP_CHECK (refused (&k, "Correlator: pd is a search's; it needs "
+                         "framing='continuous' or 'burst'"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rate = 1.0;
-  DP_CHECK (refused (&k, "doppler_rate"));
+  DP_CHECK (refused (&k, "Correlator: doppler_rate is a search's; it needs "
+                         "framing='continuous' or 'burst'"));
   k           = defaults (NRZ, 1, 31);
   k.chip_rate = 1.0;
-  DP_CHECK (refused (&k, "chip_rate"));
+  DP_CHECK (refused (&k, "Correlator: chip_rate is the continuous search's; "
+                         "it needs framing='continuous'"));
   k             = defaults (NRZ, 1, 31);
   k.symbol_rate = 1.0;
-  DP_CHECK (refused (&k, "symbol_rate"));
+  DP_CHECK (refused (&k, "Correlator: symbol_rate is the continuous search's; "
+                         "it needs framing='continuous'"));
   k                  = defaults (NRZ, 1, 31);
   k.code_only_epochs = 2;
-  DP_CHECK (refused (&k, "code_only_epochs"));
+  DP_CHECK (refused (&k, "Correlator: code_only_epochs is the continuous "
+                         "search's; it needs framing='continuous'"));
   k      = defaults (NRZ, 1, 31);
   k.reps = 2;
-  DP_CHECK (refused (&k, "reps"));
+  DP_CHECK (refused (
+      &k, "Correlator: reps is the burst search's; it needs framing='burst'"));
   k                 = defaults (NRZ, 1, 31);
   k.rate_hypotheses = 2;
-  DP_CHECK (refused (&k, "rate_hypotheses"));
+  DP_CHECK (refused (&k, "Correlator: rate_hypotheses is the burst search's; "
+                         "it needs framing='burst'"));
 
   /* A map's knobs a detector does not read, and the reverse. */
   k        = defaults (NRZ, 1, 31);
   k.detect = 1;
   k.nx_out = 64;
-  DP_CHECK (refused (&k, "nx_out"));
+  DP_CHECK (refused (&k, "Correlator: nx_out shapes a map; a detector reports "
+                         "hits (detect=True)"));
   k        = defaults (ref2, 4, 8);
   k.detect = 1;
   k.ny_out = 8;
-  DP_CHECK (refused (&k, "ny_out"));
+  DP_CHECK (refused (&k, "Correlator: ny_out shapes a map; a detector reports "
+                         "hits (detect=True)"));
   k         = defaults (ref2, 4, 8);
   k.detect  = 1;
   k.col_out = 0;
-  DP_CHECK (refused (&k, "col_out"));
+  DP_CHECK (refused (&k, "Correlator: col_out shapes a map; a detector "
+                         "reports hits (detect=True)"));
   k           = defaults (ref2, 4, 8);
   k.threshold = 1.0f;
-  DP_CHECK (refused (&k, "threshold"));
+  DP_CHECK (refused (
+      &k, "Correlator: threshold is a detector's; it needs detect=True"));
   k          = defaults (NRZ, 1, 31);
   k.noise_lo = 1;
-  DP_CHECK (refused (&k, "noise_lo"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_lo is a detector's; it needs detect=True"));
   k          = defaults (NRZ, 1, 31);
   k.noise_hi = 4;
-  DP_CHECK (refused (&k, "noise_hi"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_hi is a detector's; it needs detect=True"));
   k            = defaults (NRZ, 1, 31);
   k.noise_mode = DET_NOISE_MAX;
-  DP_CHECK (refused (&k, "noise_mode"));
+  DP_CHECK (refused (
+      &k, "Correlator: noise_mode is a detector's; it needs detect=True"));
 
   /* One row: the 1-D flavor, which nx_out pads and nothing else shapes. */
   k        = defaults (NRZ, 1, 31);
   k.ny_out = 2;
-  DP_CHECK (refused (&k, "ny_out"));
+  DP_CHECK (refused (
+      &k,
+      "Correlator: ny_out pads the rows of a 2-D ref, and ref has one row"));
   k         = defaults (NRZ, 1, 31);
   k.col_out = 0;
-  DP_CHECK (refused (&k, "col_out"));
+  DP_CHECK (refused (&k, "Correlator: col_out emits one lag of each row of a "
+                         "2-D ref, and ref has one row"));
 
   /* Delay-Doppler. */
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 8;
   k.detect       = 1;
-  DP_CHECK (refused (&k, "detect"));
+  DP_CHECK (refused (&k, "Correlator: doppler_rows builds a delay-Doppler "
+                         "map, which does not detect (detect=False)"));
   k              = defaults (ref2, 4, 8);
   k.doppler_rows = 8;
-  DP_CHECK (refused (&k, "doppler_rows"));
+  DP_CHECK (refused (&k, "Correlator: doppler_rows correlates a 1-D code, and "
+                         "ref has more than one row"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 8;
   k.nx_out       = 64;
-  DP_CHECK (refused (&k, "nx_out"));
+  DP_CHECK (refused (&k, "Correlator: nx_out shapes a map; the delay-Doppler "
+                         "map's delay axis is native"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 8;
   k.col_out      = 0;
-  DP_CHECK (refused (&k, "col_out"));
+  DP_CHECK (refused (&k, "Correlator: col_out shapes a map; the delay-Doppler "
+                         "map's delay axis is native"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 8;
   k.threshold    = 1.0f;
-  DP_CHECK (refused (&k, "threshold"));
+  DP_CHECK (refused (
+      &k, "Correlator: threshold is a detector's; it needs detect=True"));
 
   /* The flavor's own refusals reach the caller with a sentence too. */
   k       = defaults (NRZ, 1, 31);
   k.dwell = 0;
-  DP_CHECK (refused (&k, "dwell"));
+  DP_CHECK (
+      refused (&k, "Correlator: dwell must be at least 1 (frames a dump)"));
   k.detect = 1;
-  DP_CHECK (refused (&k, "dwell"));
+  DP_CHECK (
+      refused (&k, "Correlator: dwell must be at least 1 (frames a dump)"));
   k         = defaults (ref2, 4, 8);
   k.col_out = 3; /* energy outside row 0: no known column */
-  DP_CHECK (refused (&k, "col_out"));
+  DP_CHECK (refused (
+      &k,
+      "Correlator: col_out needs a ref with energy in its first row only"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 8;
   k.ny_out       = 4; /* fewer than doppler_rows */
-  DP_CHECK (refused (&k, "ny_out"));
+  DP_CHECK (refused (&k, "Correlator: ny_out pads the Doppler rows; it must "
+                         "be 0 (native) or at least doppler_rows"));
 
   /* Both searches: the map's and the detector's knobs, each alone. */
   for (int f = 1; f <= 2; f++)
@@ -510,49 +549,72 @@ test_a_value_not_honored_is_refused (void)
 
       k              = s;
       k.doppler_rows = 4;
-      DP_CHECK (refused (&k, "doppler_rows"));
+      DP_CHECK (refused (&k, "Correlator: a search sizes its own Doppler "
+                             "grid; doppler_rows needs framing='none'"));
       k       = s;
       k.dwell = 2;
-      DP_CHECK (refused (&k, "dwell"));
+      DP_CHECK (refused (
+          &k, "Correlator: dwell shapes a map; a search sizes its own dwell"));
       k        = s;
       k.ny_out = 2;
-      DP_CHECK (refused (&k, "ny_out"));
+      DP_CHECK (refused (
+          &k, "Correlator: ny_out shapes a map; a search reports hits"));
       k        = s;
       k.nx_out = 64;
-      DP_CHECK (refused (&k, "nx_out"));
+      DP_CHECK (refused (
+          &k, "Correlator: nx_out shapes a map; a search reports hits"));
       k         = s;
       k.col_out = 0;
-      DP_CHECK (refused (&k, "col_out"));
+      DP_CHECK (refused (
+          &k, "Correlator: col_out shapes a map; a search reports hits"));
       k = s;
       /* A search honors a thread count, but through set_threads() after
          create: the sentence must send the caller there (section 17). */
       k.nthreads = 2;
-      DP_CHECK (refused (&k, "nthreads"));
-      DP_CHECK (refused (&k, "set_threads()"));
+      DP_CHECK (refused (
+          &k, "Correlator: a search sizes its own thread pool at create; "
+              "nthreads applies to framing='none', and a search's count is "
+              "set after create with set_threads()"));
+      DP_CHECK (refused (
+          &k, "Correlator: a search sizes its own thread pool at create; "
+              "nthreads applies to framing='none', and a search's count is "
+              "set after create with set_threads()"));
       k.nthreads = 0;
-      DP_CHECK (refused (&k, "set_threads()"));
+      DP_CHECK (refused (
+          &k, "Correlator: a search sizes its own thread pool at create; "
+              "nthreads applies to framing='none', and a search's count is "
+              "set after create with set_threads()"));
       k           = s;
       k.threshold = 3.0f;
-      DP_CHECK (refused (&k, "threshold"));
+      DP_CHECK (refused (&k,
+                         "Correlator: a search sets its threshold from pfa; "
+                         "threshold needs framing='none' and detect=True"));
       k          = s;
       k.noise_lo = 1;
-      DP_CHECK (refused (&k, "noise_lo"));
+      DP_CHECK (refused (&k, "Correlator: a search estimates its own noise; "
+                             "noise_lo needs framing='none' and detect=True"));
       k          = s;
       k.noise_hi = 4;
-      DP_CHECK (refused (&k, "noise_hi"));
+      DP_CHECK (refused (&k, "Correlator: a search estimates its own noise; "
+                             "noise_hi needs framing='none' and detect=True"));
       /* A search correlates one row. */
       k     = s;
       k.ny  = 4;
       k.nx  = 8;
       k.ref = ref2;
-      DP_CHECK (refused (&k, "row"));
+      DP_CHECK (refused (&k, "Correlator: a search correlates a 1-D ref, and "
+                             "ref has more than one row"));
       /* No rate by omission (section 17). */
       k             = s;
       k.sample_rate = 0.0;
-      DP_CHECK (refused (&k, "sample_rate"));
+      DP_CHECK (refused (&k,
+                         "Correlator: a search needs sample_rate; 0 is not "
+                         "given (sample_rate=1.0 for normalized units)"));
       k             = s;
       k.sample_rate = NAN;
-      DP_CHECK (refused (&k, "sample_rate"));
+      DP_CHECK (refused (&k,
+                         "Correlator: a search needs sample_rate; 0 is not "
+                         "given (sample_rate=1.0 for normalized units)"));
     }
 
   /* The continuous search alone. */
@@ -563,30 +625,39 @@ test_a_value_not_honored_is_refused (void)
   c.cn0_dbhz    = 55.0;
   k             = c;
   k.chip_rate   = 0.0;
-  DP_CHECK (refused (&k, "chip_rate"));
+  DP_CHECK (refused (
+      &k,
+      "Correlator: the continuous search needs chip_rate; 0 is not given"));
   k          = c;
   k.cn0_dbhz = DP_CORRELATOR_CN0_NONE;
-  DP_CHECK (refused (&k, "cn0_dbhz"));
+  DP_CHECK (refused (&k, "Correlator: the continuous search sizes its dwell "
+                         "from a design point; it needs a finite cn0_dbhz"));
   k      = c;
   k.reps = 2;
-  DP_CHECK (refused (&k, "reps"));
+  DP_CHECK (refused (
+      &k, "Correlator: reps is the burst search's; it needs framing='burst'"));
   k                 = c;
   k.rate_hypotheses = 2;
-  DP_CHECK (refused (&k, "rate_hypotheses"));
+  DP_CHECK (refused (&k, "Correlator: rate_hypotheses is the burst search's; "
+                         "it needs framing='burst'"));
   /* The reference is NRZ chips, exactly: never quantized. */
   float _Complex bent[31];
   memcpy (bent, NRZ, sizeof bent);
   bent[5] = 0.5f;
   k       = c;
   k.ref   = bent;
-  DP_CHECK (refused (&k, "chips"));
+  DP_CHECK (refused (&k, "Correlator: the continuous search's ref is NRZ "
+                         "chips, each exactly +1 or -1"));
   memcpy (bent, NRZ, sizeof bent);
   bent[30] = -1.0f + 0.01f * I;
-  DP_CHECK (refused (&k, "chips"));
+  DP_CHECK (refused (&k, "Correlator: the continuous search's ref is NRZ "
+                         "chips, each exactly +1 or -1"));
   /* The flavor's own refusal: a code period that is not whole samples. */
   k             = c;
   k.sample_rate = 3.3e6;
-  DP_CHECK (refused (&k, "sample_rate"));
+  DP_CHECK (refused (&k, "Correlator: the continuous search needs a code "
+                         "period, sample_rate * len(ref) / chip_rate, that is "
+                         "a whole number of samples, at least len(ref)"));
 
   /* The burst search alone. */
   knobs_t b     = defaults (NRZ, 1, 31);
@@ -594,16 +665,19 @@ test_a_value_not_honored_is_refused (void)
   b.sample_rate = 1.0;
   k             = b;
   k.chip_rate   = 1.0e6;
-  DP_CHECK (refused (&k, "chip_rate"));
+  DP_CHECK (refused (&k, "Correlator: chip_rate is the continuous search's; "
+                         "it needs framing='continuous'"));
   k             = b;
   k.symbol_rate = 1.0e3;
-  DP_CHECK (refused (&k, "symbol_rate"));
+  DP_CHECK (refused (&k, "Correlator: symbol_rate is the continuous search's; "
+                         "it needs framing='continuous'"));
   k                  = b;
   k.code_only_epochs = 2;
-  DP_CHECK (refused (&k, "code_only_epochs"));
+  DP_CHECK (refused (&k, "Correlator: code_only_epochs is the continuous "
+                         "search's; it needs framing='continuous'"));
   k     = b;
   k.pfa = 1.5; /* the flavor's own refusal */
-  DP_CHECK (refused (&k, "pfa"));
+  DP_CHECK (refused (&k, "Correlator: pfa must lie strictly between 0 and 1"));
   return 0;
 }
 
@@ -622,34 +696,44 @@ test_a_flavor_names_the_knob_it_refuses (void)
   /* The maps and detectors (corr2d_create, corr_dd_create). */
   k       = defaults (NRZ, 1, 31);
   k.dwell = 0;
-  DP_CHECK (refused (&k, "dwell must be at least 1"));
+  DP_CHECK (
+      refused (&k, "Correlator: dwell must be at least 1 (frames a dump)"));
   k        = defaults (NRZ, 1, 31);
   k.nx_out = 10;
-  DP_CHECK (refused (&k, "nx_out pads the lags"));
+  DP_CHECK (refused (&k, "Correlator: nx_out pads the lags; it must be 0 "
+                         "(native) or at least len(ref)"));
   k        = defaults (NRZ, 1, 31);
   k.detect = 1;
   k.dwell  = 0;
-  DP_CHECK (refused (&k, "dwell must be at least 1"));
+  DP_CHECK (
+      refused (&k, "Correlator: dwell must be at least 1 (frames a dump)"));
   k        = defaults (ref2, 4, 8);
   k.ny_out = 3;
-  DP_CHECK (refused (&k, "ny_out pads the rows"));
+  DP_CHECK (refused (&k, "Correlator: ny_out pads the rows; it must be 0 "
+                         "(native) or at least the ref's rows"));
   k        = defaults (ref2, 4, 8);
   k.nx_out = 7;
-  DP_CHECK (refused (&k, "nx_out pads the lags"));
+  DP_CHECK (refused (&k, "Correlator: nx_out pads the lags; it must be 0 "
+                         "(native) or at least len(ref)"));
   k         = defaults (ref2, 4, 8);
   k.col_out = 8;
-  DP_CHECK (refused (&k, "col_out must be -1 or a lag"));
+  DP_CHECK (refused (
+      &k, "Correlator: col_out must be -1 or a lag below len(ref[0])"));
   k         = defaults (ref2, 4, 8);
   k.col_out = 0; /* every row has energy: no single-row fast path */
-  DP_CHECK (refused (&k, "col_out needs a ref with energy"));
+  DP_CHECK (refused (
+      &k,
+      "Correlator: col_out needs a ref with energy in its first row only"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 4;
   k.dwell        = 0;
-  DP_CHECK (refused (&k, "dwell must be at least 1"));
+  DP_CHECK (
+      refused (&k, "Correlator: dwell must be at least 1 (frames a dump)"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 4;
   k.ny_out       = 3;
-  DP_CHECK (refused (&k, "ny_out pads the Doppler rows"));
+  DP_CHECK (refused (&k, "Correlator: ny_out pads the Doppler rows; it must "
+                         "be 0 (native) or at least doppler_rows"));
 
   /* The continuous search (search_continuous_create and the shared
      search validation). */
@@ -665,22 +749,31 @@ test_a_flavor_names_the_knob_it_refuses (void)
   }
   k             = base;
   k.sample_rate = 4.5e6; /* 139.5 samples a period */
-  DP_CHECK (refused (&k, "whole number of samples"));
+  DP_CHECK (refused (&k, "Correlator: the continuous search needs a code "
+                         "period, sample_rate * len(ref) / chip_rate, that is "
+                         "a whole number of samples, at least len(ref)"));
   k     = base;
   k.pfa = 1.0;
-  DP_CHECK (refused (&k, "pfa must lie strictly between 0 and 1"));
+  DP_CHECK (refused (&k, "Correlator: pfa must lie strictly between 0 and 1"));
   k    = base;
   k.pd = 0.0;
-  DP_CHECK (refused (&k, "pd must lie strictly between 0 and 1"));
+  DP_CHECK (refused (&k, "Correlator: pd must lie strictly between 0 and 1"));
   k                     = base;
   k.doppler_uncertainty = NAN;
-  DP_CHECK (refused (&k, "doppler_uncertainty must be finite and >= 0"));
+  DP_CHECK (
+      refused (&k, "Correlator: doppler_uncertainty must be finite and >= 0"));
+  /* A uncertainty whose tile count no size_t holds: refused before any
+     size is taken from it (x86 once read it as ONE tile). */
+  k                     = base;
+  k.doppler_uncertainty = 1e300;
+  DP_CHECK (refused (&k, "Correlator: doppler_uncertainty asks for more "
+                         "Doppler tiles than any search grid can hold"));
   k                  = base;
   k.code_only_epochs = 0;
-  DP_CHECK (refused (&k, "code_only_epochs must be at least 1"));
+  DP_CHECK (refused (&k, "Correlator: code_only_epochs must be at least 1"));
   k              = base;
   k.doppler_rate = -1.0;
-  DP_CHECK (refused (&k, "doppler_rate must be finite and >= 0"));
+  DP_CHECK (refused (&k, "Correlator: doppler_rate must be finite and >= 0"));
 
   /* The burst search (search_burst_create and the shared validation). */
   base             = defaults (NRZ, 1, 31);
@@ -691,28 +784,42 @@ test_a_flavor_names_the_knob_it_refuses (void)
     DP_REQUIRE (ok != NULL);
     dp_correlator_destroy (ok);
   }
+  k                     = base;
+  k.doppler_uncertainty = 1e300;
+  DP_CHECK (refused (&k, "Correlator: doppler_uncertainty asks for more "
+                         "Doppler tiles than any search grid can hold"));
+  k      = base;
+  k.reps = SIZE_MAX;
+  DP_CHECK (refused (&k, "Correlator: reps asks for more periods than any "
+                         "search grid can hold"));
   k      = base;
   k.reps = 0;
-  DP_CHECK (refused (&k, "reps must be at least 1"));
+  DP_CHECK (refused (
+      &k,
+      "Correlator: reps must be at least 1 (preamble repetitions a burst)"));
   k     = base;
   k.ref = silent;
-  DP_CHECK (refused (&k, "finite, non-zero energy"));
+  DP_CHECK (refused (
+      &k, "Correlator: the burst search's ref needs finite, non-zero energy"));
   k          = base;
   k.cn0_dbhz = INFINITY;
-  DP_CHECK (refused (&k, "cn0_dbhz must be finite, or NaN"));
+  DP_CHECK (
+      refused (&k, "Correlator: cn0_dbhz must be finite, or NaN for none"));
   k     = base;
   k.pfa = 0.0;
-  DP_CHECK (refused (&k, "pfa must lie strictly between 0 and 1"));
+  DP_CHECK (refused (&k, "Correlator: pfa must lie strictly between 0 and 1"));
   k              = base;
   k.doppler_rate = INFINITY;
-  DP_CHECK (refused (&k, "doppler_rate must be finite and >= 0"));
+  DP_CHECK (refused (&k, "Correlator: doppler_rate must be finite and >= 0"));
   k                 = base;
   k.doppler_rate    = 1e-6;
   k.rate_hypotheses = 65;
-  DP_CHECK (refused (&k, "rate_hypotheses must be at most 64"));
+  DP_CHECK (refused (
+      &k, "Correlator: rate_hypotheses must be at most 64 (0 = auto)"));
   k                 = base;
   k.rate_hypotheses = 3;
-  DP_CHECK (refused (&k, "rate_hypotheses other than 1 needs doppler_rate"));
+  DP_CHECK (refused (&k, "Correlator: rate_hypotheses other than 1 needs "
+                         "doppler_rate > 0, the span the hypotheses cover"));
   return 0;
 }
 
@@ -740,7 +847,7 @@ search_members_refuse (dp_correlator_state_t *s)
   int ok = 1;
   ok &= dp_correlator_configure_search_raw (s, 1, 1) == DP_ERR_INVALID;
   ok &= dp_correlator_set_threads (s, 2) == DP_ERR_INVALID;
-  ok &= dp_correlator_set_max_peaks (s, 2) != 0;
+  ok &= dp_correlator_set_max_peaks (s, 2) == DP_ERR_INVALID;
   ok &= dp_correlator_set_carrier_freq_hz (s, 2.5e9) == DP_ERR_INVALID;
   ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1) == DP_ERR_INVALID;
   ok &= dp_correlator_surface (s, f, 4) == SIZE_MAX;
@@ -1016,6 +1123,76 @@ test_keep_surface_travels (void)
   return 0;
 }
 
+static void
+count_sink (void *ctx, const float *surface, size_t rows, size_t cols,
+            uint64_t samples_consumed)
+{
+  (void)surface;
+  (void)rows;
+  (void)cols;
+  (void)samples_consumed;
+  ++*(size_t *)ctx;
+}
+
+/* An attached sink keeps firing across a restore of a keep_surface = 0
+   blob, and across set_keep_surface(0): the blob carries keep_surface, not
+   the sink, which is the caller's and stays attached. Each case pushes the
+   same stream after the change and requires the sink to be handed a
+   dwell. */
+static int
+test_a_sink_survives_a_restore (void)
+{
+  dp_correlator_state_t *fresh = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  dp_correlator_state_t *c = dp_correlator_create_continuous (
+      CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  DP_REQUIRE (fresh != NULL && c != NULL);
+  const size_t   nb   = dp_correlator_state_bytes (fresh);
+  unsigned char *blob = malloc (nb);
+  DP_REQUIRE (blob != NULL);
+  dp_correlator_get_state (fresh, blob); /* keep_surface = 0 */
+  const size_t        n = 124 * 400;
+  float _Complex     *x = code_stream (n, 4, 11, 1.0f);
+  dp_correlator_hit_t hits[DP_CORRELATOR_MAX_PEAKS];
+
+  size_t fired = 0;
+  DP_REQUIRE (dp_correlator_set_surface_sink (c, count_sink, &fired, 1)
+              == DP_OK);
+  DP_REQUIRE (dp_correlator_set_state (c, blob) == DP_OK);
+  int keep = 7;
+  DP_REQUIRE (dp_correlator_get_keep_surface (c, &keep) == DP_OK);
+  DP_REQUIRE (keep == 0); /* the blob's value, restored */
+  for (size_t off = 0; off < n;)
+    {
+      (void)dp_correlator_push (c, x + off, n - off, hits,
+                                DP_CORRELATOR_MAX_PEAKS);
+      const size_t took = dp_correlator_consumed (c);
+      DP_REQUIRE (took > 0);
+      off += took;
+    }
+  DP_CHECK_MSG (fired > 0, "the sink fell silent after a restore");
+
+  const size_t before = fired;
+  DP_REQUIRE (dp_correlator_set_keep_surface (c, 0) == DP_OK);
+  for (size_t off = 0; off < n;)
+    {
+      (void)dp_correlator_push (c, x + off, n - off, hits,
+                                DP_CORRELATOR_MAX_PEAKS);
+      const size_t took = dp_correlator_consumed (c);
+      DP_REQUIRE (took > 0);
+      off += took;
+    }
+  DP_CHECK_MSG (fired > before,
+                "the sink fell silent after set_keep_surface(0)");
+  free (x);
+  free (blob);
+  dp_correlator_destroy (fresh);
+  dp_correlator_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1026,5 +1203,6 @@ main (void)
   (void)test_members_off_their_flavor ();
   (void)test_push_never_passes_its_bound ();
   (void)test_keep_surface_travels ();
+  (void)test_a_sink_survives_a_restore ();
   DP_TEST_END ("test_correlator_create");
 }

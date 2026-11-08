@@ -1918,6 +1918,27 @@ dp_correlator_state_t *dp_correlator_create_detector_1d (
  * ...                                            "test_stat"))
  * >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
  * (0, 1.0, 1.0, 1.0)
+ *
+ * A burst search over a PN preamble, 4 samples a chip, finds the burst's
+ * delay; any repeated preamble works, a Zadoff-Chu sequence included:
+ *
+ * >>> from doppler.wfm import PN, mls_poly
+ * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31),
+ * ...                   np.uint8)
+ * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+ * >>> b = Correlator(s0, framing="burst", reps=8, sample_rate=4e6,
+ * ...                cn0_dbhz=60.0)
+ * >>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]
+ * >>> int(h["row"]), int(h["col"])     # (Doppler bin, delay in samples)
+ * (0, 17)
+ * >>> k = np.arange(127)
+ * >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+ * >>> z = Correlator(zc, framing="burst", reps=8, sample_rate=1.0)
+ * >>> z.code_bins                      # samples a repetition
+ * 127
+ * >>> h = z.push(np.tile(np.roll(zc, 40), 10))[0]
+ * >>> int(h["row"]), int(h["col"])
+ * (0, 40)
  * @endcode
  */
 size_t dp_correlator_push (dp_correlator_state_t *state,
@@ -2697,6 +2718,17 @@ typedef enum
  * 'delay_doppler'
  * >>> Correlator(ref).execute(ref).shape          # one dump of nx lags
  * (8,)
+ * >>> from doppler.wfm import PN, mls_poly
+ * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31),
+ * ...                   np.uint8)
+ * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+ * >>> b = Correlator(s0, framing="burst", reps=8, sample_rate=4e6,
+ * ...                cn0_dbhz=60.0)       # a burst search: 8 repetitions
+ * >>> b.flavor
+ * 'burst'
+ * >>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]
+ * >>> int(h["row"]), int(h["col"])     # (Doppler bin, delay in samples)
+ * (0, 17)
  * @endcode
  */
 dp_correlator_state_t *dp_correlator_create (
@@ -2827,7 +2859,8 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
  * Refused (-1) on a map or detector flavor (no search record), which lists no
  * peaks.
  *
- * @return 0, or -1 (state untouched) when @p n is out of range.
+ * @return 0; DP_ERR_INVALID off a search (a map or detector lists no
+ *         peaks); -1 (state untouched) when @p n is out of range.
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator
@@ -3378,6 +3411,11 @@ size_t dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *ou
  *        pushing thread (docs/design/async-dsss-receiver.md §2.4).
  *
  * Sets `keep_surface`, so dp_correlator_surface() reads the same dwell afterwards.
+ * While a sink is attached every decided dwell's surface is computed and
+ * handed over whatever `keep_surface` reads: a dp_correlator_set_state()
+ * (whose blob carries `keep_surface`, not the sink, which is the caller's
+ * and stays attached) or dp_correlator_set_keep_surface(0) leaves it
+ * firing. Detach with @p fn NULL.
  * The pointer handed to @p fn is the engine's and is valid only for the
  * call: copy or write it out there. This is how a long run records the
  * surface decimated in time without a copy per dwell it does not keep.

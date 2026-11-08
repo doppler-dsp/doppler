@@ -2,69 +2,40 @@ import numpy as np
 
 from doppler.correlation import Correlator
 
+# Every test here builds the 2-D detector: a ref of at least two rows (a
+# one-row ref is the 1-D flavor, test_correlator_detector_1d.py's).
+_KW = {
+    "detect": 1,
+    "dwell": 1,
+    "noise_lo": 0,
+    "noise_hi": 7,
+    "noise_mode": "mean",
+    "threshold": 0.0,
+    "nthreads": 1,
+}
+
+
+def _det(ref: np.ndarray) -> Correlator:
+    obj = Correlator(ref, **_KW)
+    assert obj.flavor == "detector_2d"
+    return obj
+
 
 def test_create():
-    obj = Correlator(
-        np.zeros((1, 1), dtype=np.complex64),
-        detect=1,
-        dwell=1,
-        noise_lo=0,
-        noise_hi=0,
-        noise_mode="mean",
-        threshold=0.0,
-        nthreads=1,
-    )
-    assert obj is not None
-
-
-def test_getter_setter():
-    pass  # no auto-state; add assertions for your fields
-
-
-def test_reset():
-    pass  # no auto-state; add assertions for your reset
+    assert _det(np.zeros((2, 4), dtype=np.complex64)).ny == 2
 
 
 def test_context_manager():
-    with Correlator(
-        np.zeros((1, 1), dtype=np.complex64),
-        detect=1,
-        dwell=1,
-        noise_lo=0,
-        noise_hi=0,
-        noise_mode="mean",
-        threshold=0.0,
-        nthreads=1,
-    ):
-        pass
+    with _det(np.zeros((2, 4), dtype=np.complex64)) as obj:
+        assert obj.nx == 4
 
 
 def test_destroy():
-    obj = Correlator(
-        np.zeros((1, 1), dtype=np.complex64),
-        detect=1,
-        dwell=1,
-        noise_lo=0,
-        noise_hi=0,
-        noise_mode="mean",
-        threshold=0.0,
-        nthreads=1,
-    )
-    obj.destroy()
+    _det(np.zeros((2, 4), dtype=np.complex64)).destroy()
 
 
 def test_last_corr_none_before_any_hit():
-    obj = Correlator(
-        np.ones((1, 4), dtype=np.complex64),
-        detect=1,
-        dwell=1,
-        noise_lo=0,
-        noise_hi=3,
-        noise_mode="mean",
-        threshold=0.0,
-        nthreads=1,
-    )
-    assert obj.last_corr is None
+    assert _det(np.ones((2, 4), dtype=np.complex64)).last_corr is None
 
 
 def test_last_corr_aliases_across_pushes():
@@ -72,17 +43,8 @@ def test_last_corr_aliases_across_pushes():
     # push() (threshold=0.0 always fires), not an independent array. A
     # later push() with different data overwrites an earlier-returned view
     # in place, visible through the same handle.
-    ref = np.ones((1, 4), dtype=np.complex64)
-    obj = Correlator(
-        ref,
-        detect=1,
-        dwell=1,
-        noise_lo=0,
-        noise_hi=3,
-        noise_mode="mean",
-        threshold=0.0,
-        nthreads=1,
-    )
+    ref = np.ones((2, 4), dtype=np.complex64)
+    obj = _det(ref)
     obj.push(ref)
     first = obj.last_corr
     assert first is not None

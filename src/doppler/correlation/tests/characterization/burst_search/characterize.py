@@ -22,10 +22,10 @@ reaches the receiver at a **random integer code phase** and a **random carrier
 (Doppler) offset drawn uniformly across the engine's capture range**
 (``+/- chip_rate / (2*sf)``), buried in AWGN.
 
-``doppler.acquire.Acquisition`` must acquire the preamble: frame the stream,
-run a slow-time Doppler FFT, correlate against the PN reference, and gate the
-peak on an automatically configured CFAR threshold.  We sweep the noise floor
-and measure, as a function of the data-link **Es/N0**:
+``Correlator(..., framing="continuous")`` must acquire the preamble: frame
+the stream, run a slow-time Doppler FFT, correlate against the PN reference,
+and gate the peak on an automatically configured CFAR threshold.  We sweep
+the noise floor and measure, as a function of the data-link **Es/N0**:
 
 * ``Pd`` — fraction of trials whose detection lands on the true
   ``(Doppler bin, code phase)`` cell, averaged over random code phase and

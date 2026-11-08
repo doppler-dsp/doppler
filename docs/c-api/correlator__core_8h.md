@@ -1250,6 +1250,17 @@ The correlator, or NULL: refused (`why` says which knob) or out of memory.
 'delay_doppler'
 >>> Correlator(ref).execute(ref).shape          # one dump of nx lags
 (8,)
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31),
+...                   np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+>>> b = Correlator(s0, framing="burst", reps=8, sample_rate=4e6,
+...                cn0_dbhz=60.0)       # a burst search: 8 repetitions
+>>> b.flavor
+'burst'
+>>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]
+>>> int(h["row"]), int(h["col"])     # (Doppler bin, delay in samples)
+(0, 17)
 ```
  
 
@@ -4746,6 +4757,27 @@ Python: the hits, a structured array, empty when no dump or dwell passed the gat
 ...                                            "test_stat"))
 >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
 (0, 1.0, 1.0, 1.0)
+
+A burst search over a PN preamble, 4 samples a chip, finds the burst's
+delay; any repeated preamble works, a Zadoff-Chu sequence included:
+
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31),
+...                   np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+>>> b = Correlator(s0, framing="burst", reps=8, sample_rate=4e6,
+...                cn0_dbhz=60.0)
+>>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]
+>>> int(h["row"]), int(h["col"])     # (Doppler bin, delay in samples)
+(0, 17)
+>>> k = np.arange(127)
+>>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+>>> z = Correlator(zc, framing="burst", reps=8, sample_rate=1.0)
+>>> z.code_bins                      # samples a repetition
+127
+>>> h = z.push(np.tile(np.roll(zc, 40), 10))[0]
+>>> int(h["row"]), int(h["col"])
+(0, 40)
 ```
  
 
@@ -5184,7 +5216,7 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 
 **Returns:**
 
-0, or -1 (state untouched) when `n` is out of range. 
+0; DP\_ERR\_INVALID off a search (a map or detector lists no peaks); -1 (state untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator
@@ -5299,7 +5331,7 @@ int dp_correlator_set_surface_sink (
 
 
 
-Sets `keep_surface`, so [**dp\_correlator\_surface()**](correlator__core_8h.md#function-dp_correlator_surface) reads the same dwell afterwards. The pointer handed to `fn` is the engine's and is valid only for the call: copy or write it out there. This is how a long run records the surface decimated in time without a copy per dwell it does not keep.
+Sets `keep_surface`, so [**dp\_correlator\_surface()**](correlator__core_8h.md#function-dp_correlator_surface) reads the same dwell afterwards. While a sink is attached every decided dwell's surface is computed and handed over whatever `keep_surface` reads: a [**dp\_correlator\_set\_state()**](correlator__core_8h.md#function-dp_correlator_set_state) (whose blob carries `keep_surface`, not the sink, which is the caller's and stays attached) or dp\_correlator\_set\_keep\_surface(0) leaves it firing. Detach with `fn` NULL. The pointer handed to `fn` is the engine's and is valid only for the call: copy or write it out there. This is how a long run records the surface decimated in time without a copy per dwell it does not keep.
 
 
 

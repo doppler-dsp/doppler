@@ -314,6 +314,9 @@ fn = "dp_correlator_configure_search_raw"
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "configure_search_raw: only a search (framing='continuous' or 'burst') has a grid to pin; Correlator.flavor says which this is" },
+]
 params = [
   { name = "doppler_bins", type = "size_t" },
   { name = "n_noncoh", type = "size_t" },
@@ -325,6 +328,9 @@ fn = "dp_correlator_set_max_peaks"
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_max_peaks: only a search (framing='continuous' or 'burst') lists peaks; Correlator.flavor says which this is" },
+]
 params = [
   { name = "n", type = "size_t" },
 ]
@@ -336,6 +342,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_carrier_freq_hz: only the continuous search (framing='continuous') takes a carrier, and it must be 0 (none) or finite and above sample_rate / 2" },
   { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_carrier_freq_hz: rebuilding the delay-Doppler map for the new carrier could not allocate; the engine is unchanged" },
 ]
 params = [
@@ -348,6 +355,9 @@ fn = "dp_correlator_set_threads"
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_threads: only a search (framing='continuous' or 'burst') sizes its pool after create; a map or detector takes nthreads at create" },
+]
 params = [
   { name = "n", type = "int" },
 ]
@@ -358,6 +368,9 @@ fn = "dp_correlator_set_telemetry"
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_telemetry: only the continuous search (framing='continuous') is instrumented, with a prefix that fits a probe name, a decim the context accepts and room for its ten probes" },
+]
 params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
   { name = "prefix", type = "const char *" },

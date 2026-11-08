@@ -126,7 +126,6 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/fft/fft_core.h"
 #include "doppler/acc_trace/acc_trace_core.h"
-#include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"

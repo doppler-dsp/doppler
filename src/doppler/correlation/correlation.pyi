@@ -106,6 +106,17 @@ class Correlator:
     'delay_doppler'
     >>> Correlator(ref).execute(ref).shape          # one dump of nx lags
     (8,)
+    >>> from doppler.wfm import PN, mls_poly
+    >>> code = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31),
+    ...                   np.uint8)
+    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+    >>> b = Correlator(s0, framing="burst", reps=8, sample_rate=4e6,
+    ...                cn0_dbhz=60.0)       # a burst search: 8 repetitions
+    >>> b.flavor
+    'burst'
+    >>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]
+    >>> int(h["row"]), int(h["col"])     # (Doppler bin, delay in samples)
+    (0, 17)
 
     """
 
@@ -801,9 +812,13 @@ class Correlator:
         Raises
         ------
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``configure_search_raw failed``, with the return code appended
-            (gh-869).
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``configure_search_raw: only a search (framing='continuous' or
+            'burst') has a grid to pin; Correlator.flavor says which this is``.
+        ValueError
+            If the C call returns any other non-zero status. The exception
+            message is ``configure_search_raw failed``, with the return code
+            appended (gh-869).
 
         Examples
         --------
@@ -854,8 +869,13 @@ class Correlator:
         Raises
         ------
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``set_max_peaks failed``, with the return code appended (gh-869).
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``set_max_peaks: only a search (framing='continuous' or 'burst')
+            lists peaks; Correlator.flavor says which this is``.
+        ValueError
+            If the C call returns any other non-zero status. The exception
+            message is ``set_max_peaks failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -916,6 +936,11 @@ class Correlator:
 
         Raises
         ------
+        ValueError
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``set_carrier_freq_hz: only the continuous search
+            (framing='continuous') takes a carrier, and it must be 0 (none) or
+            finite and above sample_rate / 2``.
         MemoryError
             If the C call returns ``DP_ERR_MEMORY``. The exception message is
             ``set_carrier_freq_hz: rebuilding the delay-Doppler map for the new
@@ -971,8 +996,14 @@ class Correlator:
         Raises
         ------
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``set_threads failed``, with the return code appended (gh-869).
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``set_threads: only a search (framing='continuous' or 'burst')
+            sizes its pool after create; a map or detector takes nthreads at
+            create``.
+        ValueError
+            If the C call returns any other non-zero status. The exception
+            message is ``set_threads failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -1038,8 +1069,14 @@ class Correlator:
         Raises
         ------
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``set_telemetry failed``, with the return code appended (gh-869).
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``set_telemetry: only the continuous search (framing='continuous')
+            is instrumented, with a prefix that fits a probe name, a decim the
+            context accepts and room for its ten probes``.
+        ValueError
+            If the C call returns any other non-zero status. The exception
+            message is ``set_telemetry failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -1479,6 +1516,27 @@ class Correlator:
         ...                                            "test_stat"))
         >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
         (0, 1.0, 1.0, 1.0)
+
+        A burst search over a PN preamble, 4 samples a chip, finds the burst's
+        delay; any repeated preamble works, a Zadoff-Chu sequence included:
+
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31),
+        ...                   np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> b = Correlator(s0, framing="burst", reps=8, sample_rate=4e6,
+        ...                cn0_dbhz=60.0)
+        >>> h = b.push(np.tile(np.roll(s0, 17), 24))[0]
+        >>> int(h["row"]), int(h["col"])     # (Doppler bin, delay in samples)
+        (0, 17)
+        >>> k = np.arange(127)
+        >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+        >>> z = Correlator(zc, framing="burst", reps=8, sample_rate=1.0)
+        >>> z.code_bins                      # samples a repetition
+        127
+        >>> h = z.push(np.tile(np.roll(zc, 40), 10))[0]
+        >>> int(h["row"]), int(h["col"])
+        (0, 40)
 
         """
 

@@ -132,7 +132,10 @@ example, a 2-D `ref` with `framing = "burst"`, or `doppler_rows` with
 silently ignored: a knob the flavor does not read, set away from its
 default, is one. The dispatcher writes the sentence through its trailing
 `why`, which the binding raises (`create_why`, just-makeit#2552; C callers
-pass NULL).
+pass NULL). A value the flavor itself refuses (`dwell = 0`, `pfa = 1`, a
+fractional code period) is named too: the dispatcher calls each flavor's
+internal constructor with its `why`, and the public flavor constructors
+pass NULL, so every refusal is one sentence that names one knob.
 
 **Python spelling** (defaults as §17 rules them):
 
@@ -269,13 +272,16 @@ it is part of a detector or receiver", so a search for the word lands on it.
 
 ## 8. Retiring `burst_acq`
 
-What goes:
+What went, in step 4c: `burst_acq`'s object, its core, its binding
+fragment, its C tests and its C bench. What it held moved:
 
-- `native/inc/doppler/burst_acq/`, `native/src/burst_acq/`;
-- `native/src/acquire/acquire_ext_burst_acq.c`, `objects/burst_acq.toml`;
-- `native/tests/burst_acq/`, `native/benchmarks/burst_acq/`;
-- `src/doppler/acquire/tests/test_burst_acq.py`,
-    `src/doppler/acquire/benchmarks/bench_burst_acq.py`.
+- its Python tests, with the class, to
+    `src/doppler/correlation/tests/test_correlator_burst.py`;
+- its Python bench to `src/doppler/correlation/benchmarks/`, stem kept
+    (§13);
+- its C bench rows, under their names, into
+    `native/benchmarks/correlator/bench_correlator_core.c`, with
+    `c:burst_acq` mapped to `c:correlator` in `benchmarks/renames.toml`.
 
 **`BurstCapture` calls the engine directly.** It makes eight `burst_acq_*`
 calls (`create` x2, `destroy`, `reset`, `push`, `consumed`,
@@ -291,12 +297,12 @@ already was the engine's.
 
 ## 9. The objects that compose it
 
-| consumer            | today                                     | step 4                                                                                |
-| ------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| `BurstCapture`      | C, through the `burst_acq` forwarder      | C, `dp_correlator_*` directly (§8)                                                    |
-| `DsssReceiver`      | C, `dp_correlator_state_t`                | unchanged                                                                             |
-| `AsyncDsssReceiver` | C, `dp_correlator_state_t`                | unchanged                                                                             |
-| `dsss.orchestrator` | Python, `BurstAcquisition(preamble, ...)` | `Correlator(preamble, framing="burst", ...)`; its `acquisition` property returns that |
+| consumer            | today                                        | step 4                                                                                |
+| ------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `BurstCapture`      | C, through the `burst_acq` forwarder         | C, `dp_correlator_*` directly (§8)                                                    |
+| `DsssReceiver`      | C, `dp_correlator_state_t`                   | unchanged                                                                             |
+| `AsyncDsssReceiver` | C, `dp_correlator_state_t`                   | unchanged                                                                             |
+| `dsss.orchestrator` | Python, a `BurstAcquisition` on the preamble | `Correlator(preamble, framing="burst", ...)`; its `acquisition` property returns that |
 
 All three receivers forward `configure_search_raw` with their own
 docstrings. Those docstrings name `BurstAcquisition.doppler_bins` and
@@ -420,9 +426,15 @@ tested.
 switches to `Correlator`. The verdicts are the oracle (§14); the report is
 not re-certified unless a verdict moves.
 
-**Benches.** `bench_corr.py`, `bench_correlator.py`, `bench_acq.py` and
-`bench_burst_acq.py` become one `bench_correlator.py` in the
-`correlation` module's benchmarks, each row renamed through §11's table.
+**Benches.** The seven Python benches (`bench_corr.py`,
+`bench_correlator.py`, `bench_delay_doppler.py`, `bench_detector.py`,
+`bench_detector2d.py`, `bench_acq.py`, `bench_burst_acq.py`) move to the
+`correlation` module's benchmarks and keep their file stems. A Python
+row's ID is `py:<stem>::<test>`, so every published row keeps its ID and
+its history, and §11's table needs no entry. One merged file could not:
+`bench_detector` and `bench_detector2d` both have `test_bench_push_64k`,
+and the table maps one family to one family, never a single row (one
+row, one provenance; ruled 2026-11-08).
 
 ## 14. Oracle and speed gate
 
@@ -565,18 +577,19 @@ binding (D3: the binding adds no refusal of its own):
     `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`) is
     served wherever that method is.
 
-| properties                                                                                                                                                                                                                                                                           | served by                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
-| `flavor` (new)                                                                                                                                                                                                                                                                       | every flavor                                       |
-| `ny`, `nx`, `ny_out`, `nx_out`, `col_out`                                                                                                                                                                                                                                            | 1-D, 2-D (`ny`, `nx`, `ny_out` also delay-Doppler) |
-| `doppler_step`                                                                                                                                                                                                                                                                       | delay-Doppler                                      |
-| `n`                                                                                                                                                                                                                                                                                  | 1-D, both detectors                                |
-| `dwell`, `count`                                                                                                                                                                                                                                                                     | the maps and the detectors                         |
-| `last_corr`                                                                                                                                                                                                                                                                          | both detectors                                     |
-| `ring_cap`, `noise_lo`, `noise_hi`, `threshold`                                                                                                                                                                                                                                      | the detectors and searches                         |
-| `max_peaks`, `code_bins`, `doppler_bins`, `n_noncoh`, `eta`, `eta_nc`, `pfa_cell`, `pd_predicted`, `straddle_loss`, `sample_rate`, `cn0_dbhz`, `doppler_span_hz`, `doppler_res_hz`, `pd`, `underpowered`, `threads`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at` | both searches                                      |
-| `lag_bins`, `coherent_bins`, `sf`, `chip_rate`, `symbol_rate`, `epochs_per_symbol`, `n_peaks`, `n_held`, `peak_conc`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`                                                                                                | the continuous search                              |
-| `reps`, `pd_burst`, `psl_db`, `doppler_rate`, `rate_hypotheses`                                                                                                                                                                                                                      | the burst search                                   |
+| properties                                                                                                                                                                                                                                                                           | served by                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `flavor` (new)                                                                                                                                                                                                                                                                       | every flavor                                           |
+| `ny`, `nx`                                                                                                                                                                                                                                                                           | the maps and the detectors (`CorrDetector2D` had them) |
+| `ny_out`, `nx_out`, `col_out`                                                                                                                                                                                                                                                        | 1-D, 2-D (`ny_out` also delay-Doppler)                 |
+| `doppler_step`                                                                                                                                                                                                                                                                       | delay-Doppler                                          |
+| `n`                                                                                                                                                                                                                                                                                  | 1-D, both detectors                                    |
+| `dwell`, `count`                                                                                                                                                                                                                                                                     | the maps and the detectors                             |
+| `last_corr`                                                                                                                                                                                                                                                                          | both detectors                                         |
+| `ring_cap`, `noise_lo`, `noise_hi`, `threshold`                                                                                                                                                                                                                                      | the detectors and searches                             |
+| `max_peaks`, `code_bins`, `doppler_bins`, `n_noncoh`, `eta`, `eta_nc`, `pfa_cell`, `pd_predicted`, `straddle_loss`, `sample_rate`, `cn0_dbhz`, `doppler_span_hz`, `doppler_res_hz`, `pd`, `underpowered`, `threads`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at` | both searches                                          |
+| `lag_bins`, `coherent_bins`, `sf`, `chip_rate`, `symbol_rate`, `epochs_per_symbol`, `n_peaks`, `n_held`, `peak_conc`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`                                                                                                | the continuous search                                  |
+| `reps`, `pd_burst`, `psl_db`, `doppler_rate`, `rate_hypotheses`                                                                                                                                                                                                                      | the burst search                                       |
 
 `reset` is one method with one doc that says what it clears for each
 flavor; every flavor had one.
@@ -603,11 +616,27 @@ C must refuse first, measured on main (84049024d):
     `execute_max_out` returns a detector's `n_out` although `execute`
     refuses it: it returns 0 off a map.
 - Each property in the table above has a C getter that returns
-    `DP_ERR_INVALID` off its flavors (jm's `getter_status`).
+    `DP_ERR_INVALID` off its flavors (jm's `getter_status`). Two need
+    more than a plain getter: `keep_surface` is writable, so its read
+    names its own exception (`getter_error`), and `last_corr` is a buffer
+    view, asked through `dp_correlator_last_corr_status()` before the view
+    is built (both just-makeit#2543).
+- The six read-outs (`surface*`, `block_*`) return `SIZE_MAX` off their
+    flavors, which the binding raises as `ValueError` (`error_sentinel`,
+    just-makeit#2559); 0 stays "nothing yet".
+- `dp_correlator_set_surface_sink()` (C only) wrote through `search` on
+    any flavor: it returns `DP_ERR_INVALID` off a search. Both searches
+    keep it, since `test_search_equiv.c` records every burst dwell through
+    it.
 
 Each guard has a C test that calls it on a flavor it refuses, where the
 call would otherwise succeed (`test_correlator_create.c`), and each was
-proved by sabotage: 21 of 21 turn it red.
+proved by sabotage: all 32 of the harness's sabotages (the guards,
+`push_max_out` and `keep_surface`'s blob) turn it red, and so does
+replacing any one of the 18 flavor-level knob sentences with a generic
+one (`test_a_flavor_names_the_knob_it_refuses`). The Python face of
+the refusals is `test_correlator.py`, red when a read-out's
+sentinel or `last_corr`'s status is dropped from the manifest.
 
 **`push` sizes its record array from `push_max_out(n_in)`** (§5), which C
 does not have yet: the frames the input completes, counting the carry,

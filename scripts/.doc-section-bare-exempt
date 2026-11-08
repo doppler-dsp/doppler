@@ -17,7 +17,6 @@
 1 objects/dll.toml
 1 objects/dp_event_log.toml
 1 objects/dsss_burst_receiver.toml
-3 src/doppler/acquire/tests/test_acq_continuous.py
 1 src/doppler/examples/acq_surface_demo.py
 1 src/doppler/track/tests/validation/ratesync/validate.py
 1 src/doppler/track/track.pyi

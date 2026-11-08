@@ -34,7 +34,7 @@ matplotlib.use("Agg")  # headless: no display required
 # --8<-- [start:setup]
 import numpy as np
 
-from doppler.spectral import DelayDoppler
+from doppler.correlation import Correlator
 
 NX, NY, DELAY = 128, 16, 37  # code length, periods per frame, code delay
 CARRIER_BINS = 1.3  # the carrier, in code bins (1 / NX cycles/sample)
@@ -58,7 +58,7 @@ x = (10 ** (SNR_DB / 20) * signal + noise()).astype(np.complex64)
 # --8<-- [end:setup]
 
 # --8<-- [start:search]
-dd = DelayDoppler(code, ny=NY)
+dd = Correlator(code, doppler_rows=NY)
 COARSE = (-4, 5)  # carriers g / (2 NX): -2 to +2.5 bins, on half bins
 
 # Thresholds from noise alone: the strongest coarse cell in 50 noise frames,

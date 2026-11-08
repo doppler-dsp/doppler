@@ -1874,6 +1874,23 @@ _test_empty_axis (void)
   DP_CHECK (dp_correlator_create_1d (ref, 0, 1, 1, 0) == NULL);
   DP_CHECK (dp_correlator_create_2d (ref, 2, 0, 1, 1, 0, 0, -1) == NULL);
   DP_CHECK (dp_correlator_create_2d (ref, 0, 4, 1, 1, 0, 0, -1) == NULL);
+  /* The continuous search's chips: a NULL code reaches only its own
+     guard (the dispatcher refuses an empty ref before any flavor), and an
+     empty one has no code period. The control builds from 31 chips. */
+  uint8_t chips[31] = { 0, 1, 1, 0, 1 };
+  DP_CHECK (dp_correlator_create_continuous (NULL, 31, 4.0e6, 1.0e6, 0.0, 55.0,
+                                             5.0e3, 1e-3, 0.9, DET_NOISE_MEAN,
+                                             1, 0.0)
+            == NULL);
+  DP_CHECK (dp_correlator_create_continuous (chips, 0, 4.0e6, 1.0e6, 0.0, 55.0,
+                                             5.0e3, 1e-3, 0.9, DET_NOISE_MEAN,
+                                             1, 0.0)
+            == NULL);
+  dp_correlator_state_t *cs = dp_correlator_create_continuous (
+      chips, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
+      0.0);
+  DP_CHECK (cs != NULL);
+  dp_correlator_destroy (cs);
   /* The positive control: the same calls with a non-empty axis build. */
   dp_correlator_state_t *ok = dp_correlator_create_1d (ref, 8, 1, 1, 0);
   DP_CHECK (ok != NULL);

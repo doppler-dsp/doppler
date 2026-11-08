@@ -158,7 +158,7 @@ def test_a_validator_number_of_an_unrecorded_key_fails(
 def test_a_report_spans_its_validators_folder(tmp_path: Path) -> None:
     """A key a sibling module records is the report's own (#2752 step 3.3).
 
-    The correlator's validate.py renders CorrDetector2D's part from
+    The correlator's validate.py renders its 2-D detector flavor's part from
     detector.py beside it: validate.py cites a key detector.py records,
     and a page cites it too. Both resolve.
     """

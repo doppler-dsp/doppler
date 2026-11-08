@@ -58,8 +58,8 @@ import numpy as np
 import pytest
 
 import doppler
-from doppler.acquire import Acquisition
 from doppler.agc import AGC
+from doppler.correlation import Correlator
 from doppler.dsss import (
     AsyncDsssPool,
     AsyncDsssReceiver,
@@ -88,8 +88,12 @@ _CODE = (np.arange(31) % 2).astype(np.uint8)
 # from whatever these instances register, and the agc=0 case is pinned
 # separately in test_a_disabled_agc_still_bounds_the_receiver_prefix.
 FACES: dict[str, Callable[[], Any]] = {
-    "doppler.acquire.Acquisition": lambda: Acquisition(
-        _CODE, sample_rate=2 * 1e6, chip_rate=1e6, cn0_dbhz=50.0
+    "doppler.correlation.Correlator": lambda: Correlator(
+        np.where(_CODE & 1, -1, 1).astype(np.complex64),
+        framing="continuous",
+        sample_rate=2 * 1e6,
+        chip_rate=1e6,
+        cn0_dbhz=50.0,
     ),
     "doppler.agc.AGC": lambda: AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05),
     "doppler.dsss.AsyncDsssPool": lambda: AsyncDsssPool(
@@ -190,7 +194,7 @@ def _feed(obj: Any) -> None:
     if type(obj).__name__ == "AsyncDsssPool":  # a few code periods
         obj.push(np.ones(_CODE.size * 2 * 64, np.complex64))
         return
-    if hasattr(obj, "push"):  # Acquisition: a few dwells of its 31-chip code
+    if hasattr(obj, "push"):  # Correlator: a few dwells of its 31-chip code
         obj.push(np.ones(obj.n_noncoh * _CODE.size * 2 * 4, np.complex64))
         return
     real = type(obj).__name__ == "MpskReceiverR"

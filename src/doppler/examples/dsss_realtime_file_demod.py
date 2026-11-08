@@ -21,11 +21,12 @@ The whole pipeline through one growing file, with the project's own tools:
   assuming a fixed grid: it seeks to each burst's expected position (one PRI on
   from the last), reads a short window that absorbs the sub-code-period arrival
   jitter, then runs ``DDC`` (tune the predicted bulk Doppler out) ->
-  ``Acquisition`` (residual Doppler + code-phase search) -> ``BurstDemod``,
-  decoding it the moment it lands — while the writer is still producing later
-  bursts. The detected code phase and Doppler therefore change burst-to-burst.
+  ``Correlator`` (the burst search: residual Doppler + code phase) ->
+  ``BurstDemod``, decoding it the moment it lands — while the writer is still
+  producing later bursts. The detected code phase and Doppler therefore
+  change burst-to-burst.
 
-All DSP lives in the C objects (wfmgen engine, DDC, Acquisition, BurstDemod);
+All DSP lives in the C objects (wfmgen engine, DDC, Correlator, BurstDemod);
 this module is the orchestrator — it writes the scene spec, follows the file,
 and maps the detector output to the demod's prior.
 
@@ -44,7 +45,8 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler.acquire import BurstAcquisition, bin_to_signed
+from doppler.acquire import bin_to_signed
+from doppler.correlation import Correlator
 from doppler.cvt import bin_to_nrz
 from doppler.ddc import DDC
 from doppler.dsss import BurstDemod
@@ -96,8 +98,8 @@ def _deframer():
 
 
 # Doppler is drawn uniformly per burst in [DOPPLER_LO, DOPPLER_HI]; the
-# receiver DDCs by the band centre (NOMINAL_HZ) so the residual the Acquisition
-# searches stays inside its ±span (5 bins × ~391 Hz ≈ ±978 Hz here).
+# receiver DDCs by the band centre (NOMINAL_HZ) so the residual the burst
+# search stays inside its ±span (5 bins × ~391 Hz ≈ ±978 Hz here).
 DOPPLER_LO = 11_200.0
 DOPPLER_HI = 12_800.0
 NOMINAL_HZ = 0.5 * (DOPPLER_LO + DOPPLER_HI)  # 12.0 kHz: the receiver's guess
@@ -239,20 +241,22 @@ def _read_samples(path, start, count):
 
 
 def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
-    """DDC tunes the predicted bulk Doppler out; Acquisition detects (residual
-    Doppler search over the reps + a code-phase search); BurstDemod estimates
-    the residual feedforward, despreads, frame-syncs, and checks the CRC. The
-    returned ``code_phase`` is where in the window the preamble landed — the
-    per-burst arrival jitter — and ``est_freq_hz`` is the recovered Doppler."""
+    """DDC tunes the predicted bulk Doppler out; the burst search
+    (``Correlator``) detects (residual Doppler search over the reps + a
+    code-phase search); BurstDemod estimates the residual feedforward,
+    despreads, frame-syncs, and checks the CRC. The returned ``code_phase``
+    is where in the window the preamble landed — the per-burst arrival
+    jitter — and ``est_freq_hz`` is the recovered Doppler."""
     base = DDC(norm_freq=-nominal_hz / FS, rate=1.0).execute(chunk)
     # The acquisition takes the preamble as its SAMPLES: the code's chips
     # by the library's rule (bin_to_nrz: 0 -> +1, 1 -> -1), each held SPC.
     nrz = np.zeros(_ACODE.size, dtype=np.float32)
     bin_to_nrz(_ACODE, nrz)
-    acq = BurstAcquisition(
+    acq = Correlator(
         np.repeat(nrz, SPC).astype(np.complex64),
+        framing="burst",
         reps=REPS,
-        fs=CHIP_RATE * SPC,
+        sample_rate=CHIP_RATE * SPC,
         # 3 dB over this preamble's feasibility floor (45 dB-Hz), so the
         # object does not call its own sizing under-powered; the depth is
         # pinned just below, so this sets no detection behaviour.
@@ -265,11 +269,13 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     # ever fire.
     acq.configure_search_raw(REPS, 1)
     hits = acq.push(base)
-    if not hits:
+    if len(hits) == 0:
         return {"detected": False, "frame_valid": False, "code_phase": 0}
-    dop, cp, _peak, _noise, test_stat, _snr, *_rest = max(
-        hits, key=lambda h: h[4]
-    )
+    # The strongest hit (the first, on a tie): its row is the Doppler bin,
+    # its col the code phase.
+    best = hits[int(np.argmax(hits["test_stat"]))]
+    dop, cp = int(best["row"]), int(best["col"])
+    test_stat = best["test_stat"]
     # doppler.acquire.bin_to_signed is the library's own mapping
     # (clib_common.h): fftfreq's convention except at the Nyquist bin,
     # where it reports +n/2 rather than -n/2. Call it rather than
@@ -421,7 +427,7 @@ def main():
         f"{SNR_DB:.0f} dB chip SNR, fresh noise each burst)"
     )
     print(
-        f"reader: follow -> DDC(-{NOMINAL_HZ / 1e3:.1f} kHz) -> Acquisition "
+        f"reader: follow -> DDC(-{NOMINAL_HZ / 1e3:.1f} kHz) -> Correlator "
         f"-> BurstDemod, decoding each burst as it lands"
     )
     print(

@@ -68,7 +68,6 @@
 | dir | [**ber\_meter**](dir_88fe8aa1742881a2471cfb33f972e762.md) <br> |
 | dir | [**boxcar**](dir_5b2ea30dc12e54f23750507f860119fd.md) <br> |
 | dir | [**buffer**](dir_bada8e9c2056a5c5c150b079933e5759.md) <br> |
-| dir | [**burst\_acq**](dir_55efb80a743a0f920c38ee6730a791eb.md) <br> |
 | dir | [**burst\_capture**](dir_5fb975a28c31ccaec359941e78dbfe20.md) <br> |
 | dir | [**burst\_demod**](dir_ab0fdf036101e4998629894503e143b8.md) <br> |
 | dir | [**burst\_despreader**](dir_28ffcd911995597d422ebd972d69802b.md) <br> |
@@ -81,6 +80,7 @@
 | dir | [**coding**](dir_69d8a89cba5242a3dfe9624bc2e7c6f6.md) <br> |
 | dir | [**conv**](dir_dadcb1d47e07452fac6fef665f736671.md) <br> |
 | dir | [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md) <br> |
+| dir | [**correlation**](dir_9360b0d8b0ed26b6dcce04fb43b6327f.md) <br> |
 | dir | [**correlator**](dir_296d11a08af6c23b555f7cd87cd10cbd.md) <br> |
 | dir | [**costas**](dir_8ebd78c7800b34d5dee6ef27ff63e7b3.md) <br> |
 | dir | [**cvt**](dir_409c6e92c9ef1b7281540388592da57d.md) <br> |

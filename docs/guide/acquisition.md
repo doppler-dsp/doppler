@@ -1,4 +1,4 @@
-<!-- domain: acquire; summary: finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition` -->
+<!-- domain: acquire; summary: finding bursts of any repeated preamble with `BurstCapture` and the burst search, `Correlator` -->
 
 # Acquiring a Repeated Preamble
 
@@ -14,12 +14,12 @@ preamble and a spread-spectrum code are searched the same way.
 
 Two objects do the work, one layer apart:
 
-| object             | what it gives you                                                       |
-| ------------------ | ----------------------------------------------------------------------- |
-| `BurstAcquisition` | **detections**: a Doppler bin and a delay within one preamble period    |
-| `BurstCapture`     | **bursts**: each burst's samples, its exact start, a Doppler and a C/N0 |
+| object                             | what it gives you                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `Correlator(..., framing="burst")` | **detections**: a Doppler bin and a delay within one preamble period    |
+| `BurstCapture`                     | **bursts**: each burst's samples, its exact start, a Doppler and a C/N0 |
 
-Most applications want `BurstCapture`: it owns a `BurstAcquisition`, works
+Most applications want `BurstCapture`: it owns a burst search, works
 out which repetition a detection belongs to, and returns the burst itself.
 
 !!! note "Spread-spectrum links"
@@ -27,7 +27,8 @@ out which repetition a detection belongs to, and returns the burst itself.
     Everything here applies to a DSSS preamble, which is one repeated
     preamble among others. The [DSSS acquisition guide](dsss-acquisition.md)
     covers what is specific to spread spectrum: building the preamble from a
-    code, continuous data-modulated signals (`Acquisition`), and a coarse
+    code, continuous data-modulated signals (the continuous search,
+    `Correlator(..., framing="continuous")`), and a coarse
     Doppler bank for searches far wider than the native span.
 
 ______________________________________________________________________
@@ -127,10 +128,11 @@ differ. The engine reports each sequence's peak sidelobe (`psl_db`, cyclic,
 relative to the peak) alongside the depth it chose:
 
 ```pycon
->>> from doppler.acquire import BurstAcquisition
+>>> from doppler.correlation import Correlator
 >>> for name, p in (("Zadoff-Chu", zadoff_chu), ("m-sequence (PN)", pn),
 ...                 ("chirp", chirp), ("random QPSK", qpsk)):
-...     a = BurstAcquisition(p, reps=8, fs=1e6, cn0_dbhz=54)
+...     a = Correlator(p, framing="burst", reps=8, sample_rate=1e6,
+...                    cn0_dbhz=54)
 ...     print(f"{name:16s} psl {a.psl_db:6.1f} dB  depth {a.doppler_bins}"
 ...           f"  pd_burst {a.pd_burst:.3f}")
 Zadoff-Chu       psl   -inf dB  depth 1  pd_burst 0.958
@@ -161,22 +163,27 @@ sidelobes are the highest of the four.
 
 ______________________________________________________________________
 
-## Detections: `BurstAcquisition`
+## Detections: the burst search
 
-`BurstAcquisition` is the search on its own. Each call to `push` returns the
-detections completed in that block, as 9-tuples (the last field,
-`doppler_rate_hz_s`, is the winning Doppler-rate hypothesis, 0 unless the
-search was built with `rate_hypotheses`):
+`Correlator(preamble, framing="burst", ...)` is the search on its own (the
+[Correlator guide](correlator.md) covers the class's other flavors). Each
+call to `push` returns the detections completed in that block, as a NumPy
+structured array with one record per detection (its `doppler_rate_hz_s`
+field is the winning Doppler-rate hypothesis, 0 unless the search was built
+with `rate_hypotheses`):
 
 ```python
-from doppler.acquire import BurstAcquisition, bin_to_signed
+from doppler.acquire import bin_to_signed
+from doppler.correlation import Correlator
 
-acq = BurstAcquisition(zc, reps=8, fs=fs, cn0_dbhz=cn0_dbhz)
-hits = []
-for block in np.array_split(x, 7):              # any block size
-    hits += acq.push(block)
+acq = Correlator(zc, framing="burst", reps=8, sample_rate=fs,
+                 cn0_dbhz=cn0_dbhz)
+hits = np.concatenate([acq.push(block)          # any block size
+                       for block in np.array_split(x, 7)])
 
-dop, delay, peak, noise, stat, cn0_est, consumed, chip_phase, rate = hits[0]
+hit = hits[0]
+dop, delay = int(hit["row"]), int(hit["col"])
+chip_phase = hit["chip_phase"]
 doppler_hz = bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
 assert delay == 300 % 127                       # the delay WITHIN a period
 assert abs(doppler_hz - 1500.0) <= acq.doppler_res_hz / 2
@@ -185,8 +192,8 @@ assert chip_phase == (127 - delay) % 127        # the lag, inverted
 
 | field               | meaning                                                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `doppler_bin`       | Doppler bin, `0 … doppler_bins-1`; `bin_to_signed` folds it                                                  |
-| `code_phase`        | delay into one preamble period, in samples (`0 … N-1`)                                                       |
+| `row`               | Doppler bin, `0 … doppler_bins-1`; `bin_to_signed` folds it                                                  |
+| `col`               | delay into one preamble period, in samples (`0 … N-1`)                                                       |
 | `peak_mag`          | the peak's correlation magnitude                                                                             |
 | `noise_est`         | the CFAR reference it was divided by                                                                         |
 | `test_stat`         | `peak_mag / noise_est`, compared against `threshold`                                                         |
@@ -194,10 +201,11 @@ assert chip_phase == (127 - delay) % 127        # the lag, inverted
 | `samples_consumed`  | the stream position (from this engine's start) the dwell ended at                                            |
 | `chip_phase`        | the code loop's seed: the lag inverted, in preamble samples (`[0, N)`); divide by samples per chip for chips |
 | `doppler_rate_hz_s` | the winning Doppler-rate hypothesis (Hz/s); 0 without `rate_hypotheses`                                      |
+| `test_stat_peak`    | `test_stat` with the straddle loss of a delay between two lag columns put back                               |
 
 Two things a detection does **not** tell you:
 
-- **Which repetition.** `code_phase` is a delay modulo one period, so it
+- **Which repetition.** `col` is a delay modulo one period, so it
     fixes the alignment inside a repetition and never says which one. A
     burst's frame begins after one specific repetition.
 - **One hit per burst.** Every dwell that clears the gate reports, so a
@@ -275,7 +283,8 @@ The Zadoff-Chu preamble above (`reps=8`, 1 MS/s):
 >>> for cn0 in (55, 52, 47):
 ...     with warnings.catch_warnings():
 ...         warnings.simplefilter("ignore")   # 47 dB-Hz warns: under-powered
-...         a = BurstAcquisition(zadoff_chu, reps=8, fs=1e6, cn0_dbhz=cn0)
+...         a = Correlator(zadoff_chu, framing="burst", reps=8,
+...                        sample_rate=1e6, cn0_dbhz=cn0)
 ...     print(f"{cn0} dB-Hz: depth {a.doppler_bins}, "
 ...           f"{a.doppler_res_hz:.0f} Hz, pd_burst {a.pd_burst:.2f}, "
 ...           f"underpowered {a.underpowered}")
@@ -320,7 +329,7 @@ ______________________________________________________________________
 - **`doppler_uncertainty`** (Hz, one-sided) narrows or widens the search.
     Narrower than the span, the engine searches fewer bins, so the threshold
     covers fewer cells: more sensitivity at the same `pfa`. Wider than the
-    span, `BurstAcquisition` tiles the range with frequency windows one
+    span, the burst search tiles the range with frequency windows one
     native span wide, chooses the depth `D` again inside every tile, and
     `doppler_bins` counts tiles times depth at the same `fs / (N · D)`: with
     the Zadoff-Chu preamble at 50 dB-Hz, `doppler_uncertainty=20_000`

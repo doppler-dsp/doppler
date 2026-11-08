@@ -9,7 +9,8 @@ matched-filter) residual-carrier estimator: it non-coherently averages the
 incoming stream's power spectrum ([`PSD`](corr.md)), then circularly
 correlates that average against a *known* power spectrum shape to find the
 residual carrier offset. It runs as a one-shot refinement stage after
-`Acquisition`'s own coarse Doppler search — see
+the code-phase search's own coarse Doppler search (the continuous
+`Correlator`) — see
 [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) for that stage.
 
 ## The template is a property of the pulse shape, not a universal constant
@@ -66,7 +67,7 @@ and that bias grows as SNR degrades.
 
 `CarrierAcquisition`'s detection gate originally reused `doppler.detection`'s
 `det_threshold_noncoherent`/`det_n_noncoh` — the same Pfa/Pd statistics
-`Acquisition` itself is built on, derived for classic complex-correlator
+the code-phase search itself is built on, derived for classic complex-correlator
 (Rayleigh/Rician) detection. That model does NOT transfer to gating a
 *power-spectrum-vs-template* correlation — confirmed via Monte Carlo: the borrowed threshold
 was roughly **5x too conservative**, which is why an earlier version of
@@ -78,8 +79,8 @@ form (see the source comment for what's still open), but a large,
 measured improvement over the borrowed model.
 
 Source: [`src/doppler/examples/carrier_acq_rrc_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/carrier_acq_rrc_demo.py). See also
-[Correlation](corr.md) (the `PSD`/`Corr`/`CorrDetector` primitives this
-object composes), [2-D Acquisition](detection2d.md) (the same Pfa/Pd
-statistics applied to `Acquisition`'s own code-phase × Doppler search), and
+[Correlation](corr.md) (the `PSD` and `Correlator` detector primitives
+this object composes), [2-D Acquisition](detection2d.md) (the same Pfa/Pd
+statistics applied to a code-phase × Doppler search), and
 the [waveform generator API](../api/python-wfmgen.md#rrc-pulse-shaping-band-limited-carriers)
 (`rrc_taps` and RRC pulse shaping in general).

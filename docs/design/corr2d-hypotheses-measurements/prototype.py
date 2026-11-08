@@ -163,14 +163,15 @@ def oracle_error() -> float:
 
 
 def oracle(x: CF, code: CF, ny: int, ny_out: int, f: float, w: CF) -> CF:
-    """The same hypothesis through the SHIPPED DelayDoppler: mix and weight
-    the input here, then let the C kernel do the rest."""
-    from doppler.spectral import DelayDoppler
+    """The same hypothesis through the SHIPPED delay-Doppler map (the
+    delay-Doppler flavor of ``Correlator``): mix and weight the input here,
+    then let the C kernel do the rest."""
+    from doppler.correlation import Correlator
 
     nx = code.size
     n = np.arange(nx)
     y = x[: ny * nx].reshape(ny, nx) * np.exp(-2j * np.pi * f * n) * w[:, None]
-    dd = DelayDoppler(code.astype(np.complex64), ny=ny, ny_out=ny_out)
+    dd = Correlator(code.astype(np.complex64), doppler_rows=ny, ny_out=ny_out)
     out = dd.execute(y.astype(np.complex64).ravel())
     return np.asarray(out, dtype=np.complex128).reshape(ny_out, nx)
 

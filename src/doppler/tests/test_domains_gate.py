@@ -255,11 +255,12 @@ def test_a_symbols_kind_is_read_from_its_own_module(tmp_path: Path) -> None:
 
 
 def test_a_cross_domain_class_is_found_from_both_sides() -> None:
-    """DelayDoppler lives in `spectral` but is an acquisition search: its
-    guide is filed under `spectral`, and the acquisition guide links it."""
+    """The delay-Doppler guide is filed under `correlation` (#2752 step 4),
+    but a delay-Doppler Correlator is an acquisition search: the
+    acquisition guide links it."""
     out = _gd().render(REPO)
     assert "guide/delay-doppler.md" in out["docs/domains/acquire.md"]
-    assert "guide/acquisition.md" in out["docs/domains/spectral.md"]
+    assert "guide/acquisition.md" in out["docs/domains/correlation.md"]
 
 
 def _nav_entries() -> list[str]:
@@ -337,7 +338,8 @@ def test_a_summary_reaches_the_index_and_the_domain_page() -> None:
         REPO / "docs/guide/delay-doppler.md"
     )
     assert line in gd.index_blocks(REPO)["docs/guide/index.md"]
-    assert "guide/delay-doppler.md) — " in out["docs/domains/spectral.md"]
+    # The delay-Doppler guide is the correlation domain's (#2752 step 4).
+    assert "guide/delay-doppler.md) — " in out["docs/domains/correlation.md"]
 
 
 @pytest.mark.parametrize(

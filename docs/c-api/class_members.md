@@ -286,7 +286,6 @@
 * **excl** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **errors** ([**ber\_interval\_t**](structber__interval__t.md), [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md), [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md), [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**node\_sync\_t**](structnode__sync__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **epoch** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md))
-* **engine** ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md))
 * **ev** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md))
 * **ev\_cap** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md))
 * **ev\_len** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md))
@@ -500,7 +499,7 @@
 * **k\_hi** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **k\_lo** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **k\_fll** ([**dp\_carrier\_mpsk\_state\_t**](structdp__carrier__mpsk__state__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md))
-* **keep\_surface** ([**dp\_correlator\_search**](structdp__correlator__search.md))
+* **keep\_surface** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**search\_extra\_t**](structsearch__extra__t.md))
 * **K** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **K\_pad** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
 * **kind** ([**dp\_header\_t**](structdp__header__t.md), [**dp\_pn\_state\_t**](structdp__pn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md), [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md), [**wfm\_stage\_t**](structwfm__stage__t.md), [**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
@@ -1091,7 +1090,7 @@
 ## u
 
 * **uncorrectable** ([**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md))
-* **underpowered** ([**dp\_burst\_acq\_state\_t**](structdp__burst__acq__state__t.md), [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
+* **underpowered** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **unit\_bits** ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md), [**wfm\_stage\_t**](structwfm__stage__t.md))
 * **up\_thresh** ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md))
 * **underruns** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
@@ -1142,7 +1141,7 @@
 
 ## _
 
-* **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md), [**search\_extra\_t**](structsearch__extra__t.md))
+* **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md))
 * **\_hot\_pad** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_last\_corr\_valid** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_pad2** ([**search\_extra\_t**](structsearch__extra__t.md))

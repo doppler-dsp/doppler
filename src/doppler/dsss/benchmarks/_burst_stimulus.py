@@ -1,6 +1,7 @@
 """One 64k burst stimulus, shared by the burst chain's benchmarks.
 
-`DsssBurstReceiver` composes `BurstAcquisition` -> refine -> `BurstDemod`,
+`DsssBurstReceiver` composes the burst search (a `Correlator`) -> refine
+-> `BurstDemod`,
 with `BurstDespreader` as the tracked alternative and
 `PolynomialPhaseEstimator` as the estimator `BurstDemod` drives. All five
 benchmarks want the same thing: **one 64k block that carries bursts and one

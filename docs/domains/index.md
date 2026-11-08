@@ -47,13 +47,21 @@ Every guide, gallery and design page is filed under one domain: the Python modul
 | ------ | ------ | ------------- |
 | [Down-conversion (DDC)](ddc.md) | `doppler.ddc` | Complex- and real-input digital down-converters, and their matched flavors. |
 
+<a id="correlation"></a>
+
+## Correlation
+
+| Domain | Module | What it holds |
+| ------ | ------ | ------------- |
+| [Correlation](correlation.md) | `doppler.correlation` | One Correlator for every FFT correlation: 1-D and 2-D maps, delay-Doppler maps, streaming detectors, and the continuous and burst searches (acquisition). |
+
 <a id="spectral"></a>
 
 ## Spectral
 
 | Domain | Module | What it holds |
 | ------ | ------ | ------------- |
-| [Spectral analysis](spectral.md) | `doppler.spectral` | FFTs, correlators, power spectra and spectrograms. |
+| [Spectral analysis](spectral.md) | `doppler.spectral` | FFTs, power spectra and spectrograms. |
 | [Spectrum analyzer](analyzer.md) | `doppler.analyzer` | Specan: a windowed, averaged power spectrum in dBFS. |
 | [Measurement suite](measure.md) | `doppler.measure` | Tone, NPR and two-tone IMD metrics returned as named records. |
 

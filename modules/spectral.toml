@@ -1,6 +1,6 @@
 [module.spectral]
 doc = """
-Spectral transforms: reusable FFT and FFT2D engines (fixed length, pocketfft plans cached at construction) plus Corr / Corr2D cross-correlators and PSD power-spectrum estimators.
+Spectral transforms: reusable FFT and FFT2D engines (fixed length, pocketfft plans cached at construction) and PSD power-spectrum estimators. The correlators are doppler.correlation's Correlator.
 
 Examples
 --------
@@ -12,7 +12,7 @@ Examples
 True
 
 """
-objects = ["fft", "fft2d", "correlator", "psd", "spectrogram"]
+objects = ["fft", "fft2d", "psd", "spectrogram"]
 # psd_core composes acc_trace_core (the AccTrace averager); its OBJECT symbols
 # are linked into the spectral .so via psd.toml's depends_on link=true (gh-225).
 

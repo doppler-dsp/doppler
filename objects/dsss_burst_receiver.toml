@@ -145,7 +145,7 @@ default = "10"
 
 [[dsss_burst_receiver.methods]]
 name = "push"
-doc = "Stream raw cf32 samples and get back the FRAME BITS of every burst that completed. Samples feed the embedded BurstAcquisition and are retained in a history ring; when a detection fires, the refine stage correlates the whole preamble to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the burst is demodulated the moment its last sample has arrived. Every sample is consumed and every burst that completes is returned by the call that completed it, with frames concatenated: burst i occupies frame_syms bits starting at i*frame_syms, and events() returns the matching record for each. The bits are the frame as RECEIVED -- sync word first, every symbol after it -- because this object stops at decisions: undoing the frame (a CRC, an outer code, a randomiser) needs its description and is `wfm.Frame.deframe`'s job. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size -- the history ring is a contiguous window over the stream and is never reset between bursts, so a payload whose tail falls outside one call is completed by a later one."
+doc = "Stream raw cf32 samples and get back the FRAME BITS of every burst that completed. Samples feed the embedded burst search (a Correlator) and are retained in a history ring; when a detection fires, the refine stage correlates the whole preamble to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the burst is demodulated the moment its last sample has arrived. Every sample is consumed and every burst that completes is returned by the call that completed it, with frames concatenated: burst i occupies frame_syms bits starting at i*frame_syms, and events() returns the matching record for each. The bits are the frame as RECEIVED -- sync word first, every symbol after it -- because this object stops at decisions: undoing the frame (a CRC, an outer code, a randomiser) needs its description and is `wfm.Frame.deframe`'s job. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size -- the history ring is a contiguous window over the stream and is never reset between bursts, so a payload whose tail falls outside one call is completed by a later one."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
@@ -189,7 +189,7 @@ result_fields = [
 
 [[dsss_burst_receiver.methods]]
 name = "configure_search_raw"
-doc = "Pin the embedded BurstAcquisition's search grid directly, bypassing the auto-sizing -- the escape hatch for a caller who wants a specific (doppler_bins, n_noncoh). Forwards to the engine unchanged."
+doc = "Pin the embedded burst search (a Correlator)'s search grid directly, bypassing the auto-sizing -- the escape hatch for a caller who wants a specific (doppler_bins, n_noncoh). Forwards to the engine unchanged."
 arg_type = "void"
 return_type = "int"
 status_return = true

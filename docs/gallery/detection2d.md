@@ -1,4 +1,4 @@
-<!-- domain: spectral; summary: GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR. -->
+<!-- domain: correlation; summary: GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR. -->
 
 # 2-D Acquisition Grid
 
@@ -7,7 +7,8 @@
 ## What you're seeing
 
 GPS/CDMA-style acquisition over a 16×16 Doppler × code-phase grid.
-`Corr2D` evaluates all 256 cells in a single FFT2 call.
+The 2-D map flavor of `Correlator` evaluates all 256 cells in a single
+FFT2 call.
 
 **Left — `|R[i,j]|` acquisition surface.** The white cross marks the
 injected (Doppler bin, code-phase) offset; the red circle marks the
@@ -50,24 +51,24 @@ One dwell of frames through the streaming detector, gated against
 ```python
 signal_block = np.concatenate([signal_frame().ravel() for _ in range(M)])
 
-det = CorrDetector2D(
-    ref2d, dwell=M, noise_lo=1, noise_hi=N - 1, threshold=0.0
+det = Correlator(
+    ref2d, detect=1, dwell=M, noise_lo=1, noise_hi=N - 1, threshold=0.0
 )
-for *_, stat in det.push(signal_block):
+for stat in det.push(signal_block)["test_stat"]:
     detected = stat > theta
 ```
 
-`CorrDetector2D.push()` returns one tuple per dwell,
-`(row, col, peak_mag, noise_est, test_stat)`; compare `test_stat` against
-`theta` to declare acquisition. A block may be any length, since a partial
-frame waits for the next push, but one push reports at most 1024 detections:
-a block that completes at most 1024 frames, counting that carry, loses
-nothing.
+The 2-D detector's `push()` returns a structured array, one record per
+dwell, with the fields `row`, `col`, `peak_mag`, `noise_est` and
+`test_stat`; compare `test_stat` against `theta` to declare acquisition. A
+block may be any length, since a partial frame waits for the next push, and
+the record array is sized for the whole block, so a push never drops a
+detection.
 
 ## Coherent integration is accumulated in the frequency domain
 
-The `dwell=M` coherent integration is the engine room of this demo, and `Corr2D`
-computes it cheaply: it sums the per-frame cross-spectra
+The `dwell=M` coherent integration is the engine room of this demo, and the
+2-D map computes it cheaply: it sums the per-frame cross-spectra
 `P_k = FFT2(x_k)·conj(FFT2(ref))` and inverts **once** on the dump, instead of
 inverting every frame and summing the surfaces. By linearity of the inverse FFT,
 
@@ -88,7 +89,7 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.detection2d_demo  # → detection2d_demo.png  (~10 s)
 ```
 
-See [Correlation and Detection](corr.md) for the base `Corr2D` /
-`CorrDetector2D` classes, and the full script
+See [Correlation and Detection](corr.md) for the 2-D map and detector
+flavors of `Correlator`, and the full script
 [`src/doppler/examples/detection2d_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/detection2d_demo.py) for the ROC construction and
 Monte Carlo validation behind the right-hand panels.

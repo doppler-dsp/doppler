@@ -24,7 +24,7 @@ live socket.
 
 | face                                                                   | what it is                                                                      | for                                                 |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **OO object** (`Acquisition`, `Ddcr`)                                  | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
+| **OO object** (`Correlator`, `Ddcr`)                                   | stateful engine holding its own mutable state, threaded across `push`/`execute` | the simple single-stream case; unchanged public API |
 | **pure run** (`dp_correlator_run`, `dp_ddcr_run` + serializable state) | `f(engine-as-config, state_in, input) → (state_out, hits)`                      | the orchestrator, pods, Rust FFI — anything elastic |
 
 The two faces are the *same* engine: the OO object owns its state; the pure
@@ -129,7 +129,8 @@ main (void)
 }
 ```
 
-`Acquisition` (the object) owns one `dp_correlator_state_t` and forwards `push` →
+`Correlator` (the object; `Acquisition` until #2752 step 4) owns one
+`dp_correlator_state_t` and forwards `push` →
 `dp_correlator_push`; the pure `dp_correlator_run` face reuses the same engine with explicit
 `state_in`/`state_out`. Bit-identical to an uninterrupted run.
 

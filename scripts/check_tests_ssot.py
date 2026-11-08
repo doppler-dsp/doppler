@@ -966,9 +966,13 @@ def mutator_list_added(base: str) -> list[str]:
 
     A new key may carry a rename (`replaces: <old key>` ending the reason)
     under carry_refusals' four conditions; a key is live while its C
-    function is still declared (`declared_functions()`). One more, this
-    list's own: **the verdict is unchanged across the carry**, so a rename
-    cannot move a row into another verdict.
+    function is still declared (`declared_functions()`) -- unless the new
+    key names the SAME function: a class renamed around an unchanged C
+    function is the one entry under a new name, not a fixed entry traded
+    for a new one (#2752 step 4). One more, this list's own: **the verdict
+    is unchanged across the carry**, so a rename cannot move a row into
+    another verdict -- except out of `NO_RECIPE` or `C_ONLY`, which is free
+    for the reason it is free above: the probe newly ran.
     """
 
     def pairs(text: str) -> list[tuple[str, str]]:
@@ -999,11 +1003,21 @@ def mutator_list_added(base: str) -> list[str]:
     new = sorted({k for k, _ in added if k not in was})
     carries = {k: now[k].replaces for k in new}
     funcs = declared_functions() if any(carries.values()) else set()
-    refused = carry_refusals(
-        was, now, carries, lambda o: o.partition(".")[2] in funcs
-    )
+    carrier = {o: k for k, old in carries.items() for o in old}
+
+    def live(o: str) -> bool:
+        fn = o.partition(".")[2]
+        return fn in funcs and fn != carrier[o].partition(".")[2]
+
+    refused = carry_refusals(was, now, carries, live)
     for k, old in carries.items():
-        if moved := [o for o in old if o in was and was[o] != now[k].verdict]:
+        if moved := [
+            o
+            for o in old
+            if o in was
+            and was[o] != now[k].verdict
+            and was[o] not in MUTATOR_UNPROBED_BEFORE
+        ]:
             refused[k].append(
                 f"it replaces {moved} under another verdict "
                 f"({', '.join(was[o] for o in moved)} -> {now[k].verdict}); "

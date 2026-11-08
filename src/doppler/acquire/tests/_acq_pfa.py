@@ -2,8 +2,9 @@
 
 The certification (the correlator report's part three,
 `spectral/tests/validation/correlator/search.py`) and the characterization
-(`characterization/burst_acquisition/`) both need to know what false-alarm
-rate the detector actually delivers against the rate the caller asked for.
+(`correlation/tests/characterization/burst_search/`) both need to know what
+false-alarm rate the detector actually delivers against the rate the caller
+asked for.
 They need it at different scales — the certification wants a number fast
 enough to run in `make validate-check`, the characterization wants enough
 frames to resolve a small excursion — but that is a difference in `n_frames`,

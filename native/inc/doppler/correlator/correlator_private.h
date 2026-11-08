@@ -608,7 +608,8 @@ search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t c
 typedef struct
 {
   uint16_t has_nc; /**< 1 if `nc_surface[n]` follows the samples.     */
-  uint16_t _pad;             /**< Alignment padding; written as 0.      */
+  uint16_t keep_surface;     /**< The keep_surface mutator, 0 or 1
+                                  (#2022; version 2).                    */
   uint32_t n_noncoh;         /**< Non-coherent looks (consistency).     */
   uint64_t n;                /**< Frame size; must equal engine's n.    */
   uint64_t samples_consumed; /**< Stream offset framed so far.          */

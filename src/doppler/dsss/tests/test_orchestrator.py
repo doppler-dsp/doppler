@@ -1,10 +1,11 @@
 """Tests for the elastic coarse-Doppler acquirer (``dsss.orchestrator``).
 
-A single Acquisition only searches its native span (``±chip_rate/(2*sf)``); the
-bank tiles coarse-Doppler channels to cover a wider uncertainty.  These drive
-the bank with a noisy DSSS burst at an absolute Doppler that lands *outside*
-the center channel and check it is acquired in the right channel at the right
-absolute Doppler — and that the threaded fan-out matches a serial run.
+A single burst search (``Correlator(framing="burst")``) only searches its
+native span (``±chip_rate/(2*sf)``); the bank tiles coarse-Doppler channels to
+cover a wider uncertainty. These drive the bank with a noisy DSSS burst at an
+absolute Doppler that lands *outside* the center channel and check it is
+acquired in the right channel at the right absolute Doppler — and that the
+threaded fan-out matches a serial run.
 """
 
 import math
@@ -214,7 +215,7 @@ def test_the_doppler_fold_is_the_librarys_and_not_a_copy():
 
 
 def test_channel_state_roundtrip_and_reject():
-    """A CoarseChannel serializes its DDC + Acquisition state and restores it
+    """A CoarseChannel serializes its DDC + search state and restores it
     idempotently into a fresh identical channel; a corrupt blob is rejected."""
     a = CoarseChannel(0.0, **_CH_KW)
     a.process(_burst(0.0, REPS, snr_amp=0.5, seed=1), 0)
@@ -259,7 +260,7 @@ def test_bank_pod_handoff_resumes_bit_exact():
 
     # The resumed continuation is detection-for-detection identical to the
     # uninterrupted run — and the target survived the migration. (The blobs
-    # themselves aren't byte-compared: the Acquisition ring leaves its unused
+    # themselves aren't byte-compared: the search's ring leaves its unused
     # tail uninitialized, so behavioral equality is the meaningful invariant.)
     assert r2b == r2
     assert any(abs(d.doppler_hz - f_true) <= ref.res_hz for d in r1 + r2)
@@ -318,8 +319,8 @@ def test_a_detector_channel_is_unchanged():
     """No `burst_len` means the object that was always there.
 
     The migration is additive: a caller who wants detections gets exactly the
-    channel they had, built on `BurstAcquisition`, and `bursts()` is empty
-    rather than an error.
+    channel they had, built on `Correlator(framing="burst")`, and
+    `bursts()` is empty rather than an error.
     """
     code, x, _ = _burst_scene()
     ch = CoarseChannel(0.0, code=code, **_CAP_KW)

@@ -41,6 +41,11 @@ main (void)
     dp_fft2d_reset (obj);
     dp_fft2d_destroy (obj);
     dp_fft2d_destroy (NULL);
+    /* A side vendored pocketfft cannot size its plan for (its Bluestein
+       count, up to 10n doubles, would wrap) is refused before the vendor
+       code runs, on either axis (#2958). */
+    DP_CHECK (dp_fft2d_create (SIZE_MAX / 8, 4, -1, 1) == NULL);
+    DP_CHECK (dp_fft2d_create (4, SIZE_MAX / 8, -1, 1) == NULL);
   }
 
   /* ── max_out == ny*nx ───────────────────────────────────────────── */

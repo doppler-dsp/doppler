@@ -220,7 +220,7 @@ The bank is copied, so the caller keeps ownership of `bank`.
 **Parameters:**
 
 
-* `num_phases` Number of polyphase branches; a power of two (any other count is refused, since the branch select would read past the bank). 
+* `num_phases` Number of polyphase branches; a power of two, at most 2^32 (any other count is refused: the branch select would read past the bank, and its 32-bit phase word cannot address more than 2^32 branches). 
 * `num_taps` Taps per branch; &gt; 0. 
 * `bank` Row-major float32 array, shape num\_phases × num\_taps. 
 * `rate` Initial output-to-input sample rate ratio; finite and &gt; 0 ([**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok)). 
@@ -229,7 +229,7 @@ The bank is copied, so the caller keeps ownership of `bank`.
 
 **Returns:**
 
-Non-NULL on success, owned by the caller and released with [**dp\_Resampler\_destroy()**](Resampler__core_8h.md#function-dp_resampler_destroy); NULL if `num_phases` is 0 or not a power of two, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or on OOM. 
+Non-NULL on success, owned by the caller and released with [**dp\_Resampler\_destroy()**](Resampler__core_8h.md#function-dp_resampler_destroy); NULL if `num_phases` is 0, not a power of two or above 2^32, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or on OOM. 
 
 
 

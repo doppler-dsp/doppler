@@ -71,16 +71,17 @@ extern "C"
    *
    * The bank is copied, so the caller keeps ownership of @p bank.
    *
-   * @param num_phases  Number of polyphase branches; a power of two (any
-   *                    other count is refused, since the branch select would
-   *                    read past the bank).
+   * @param num_phases  Number of polyphase branches; a power of two, at
+   *                    most 2^32 (any other count is refused: the branch
+   *                    select would read past the bank, and its 32-bit
+   *                    phase word cannot address more than 2^32 branches).
    * @param num_taps    Taps per branch; > 0.
    * @param bank        Row-major float32 array, shape num_phases × num_taps.
    * @param rate        Initial output-to-input sample rate ratio; finite
    *                    and > 0 (dp_resamp_rate_ok()).
    * @return Non-NULL on success, owned by the caller and released with
-   *         dp_Resampler_destroy(); NULL if @p num_phases is 0 or not a
-   *         power of two, @p num_taps is 0, @p bank is NULL, @p rate is
+   *         dp_Resampler_destroy(); NULL if @p num_phases is 0, not a
+   *         power of two or above 2^32, @p num_taps is 0, @p bank is NULL, @p rate is
    *         outside dp_resamp_rate_ok(), or on OOM.
    */
   dp_Resampler_state_t *dp_Resampler_create_custom (size_t num_phases,

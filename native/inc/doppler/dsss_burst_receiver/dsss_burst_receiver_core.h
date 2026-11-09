@@ -503,7 +503,9 @@ size_t dp_dsss_burst_receiver_events(dp_dsss_burst_receiver_state_t *state, size
  * @param state  Must be non-NULL.
  * @param doppler_bins  Coherent depth to pin, in `[1, reps]`.
  * @param n_noncoh  Non-coherent looks to combine.
- * @return 0 on success, non-zero if the grid is out of range.
+ * @return 0 on success; DP_ERR_INVALID if the grid is out of range (this
+ *         receiver's capture or its engine refused it); DP_ERR_MEMORY if
+ *         the engine's rebuild could not allocate (its prior grid stays).
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import DsssBurstReceiver

@@ -602,6 +602,30 @@ on every flavor. -->
 | `execute`, `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks`, `bank_power_max`, `bank_detect` | the maps                   |
 | `push`                                                                                                                                   | the detectors and searches |
 
+**When a method can name its refusal** (just-makeit#2574, `why` on
+methods; the doppler side is #2961). Until that jm release is pinned, a
+method's refusal is one declared sentence a status (or a sentinel), so a
+method refused for more than one reason states every rule at once. At the
+pin each C function below takes a trailing `const char **why` and writes
+one of these, and the binding raises it verbatim; the off-flavor one is
+the "name: only …" sentence the method already declares, so the mutator
+gate's reading of a flavor refusal does not move.
+
+| method                                                                                       | refusal (C code)   | sentence                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `set_telemetry`                                                                              | prefix (`INVALID`) | `set_telemetry: the prefix is too long: prefix + "." + each probe name must fit DP_TLM_NAME_MAX bytes`                                                                                     |
+|                                                                                              | decim (`INVALID`)  | `set_telemetry: decim must be at least 1`                                                                                                                                                  |
+|                                                                                              | room (`INVALID`)   | `set_telemetry: the context has no room for this search's ten probes`                                                                                                                      |
+| `configure_search_raw`                                                                       | `INVALID`          | `configure_search_raw: doppler_bins must lie in 1..reps` / `n_noncoh must lie in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING` / `non-coherent looks need rate_hypotheses 1`                   |
+| `set_max_peaks`                                                                              | `INVALID`          | `set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)`                                                                                                                             |
+| `execute`                                                                                    | `SIZE_MAX`         | off a map: its "only" sentence; else `execute: takes exactly one frame: the input length must be the frame length n (ny*nx)`                                                               |
+| `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks` | `SIZE_MAX`         | off a map: the "only" sentence; else `<name>: the input must be a whole, nonzero number of frames` / `<name>: out= must hold …` (each its own) / `execute_power_max: at most 2**32 frames` |
+| `bank_power_max`, `bank_detect`                                                              | `SIZE_MAX`         | off a map: the "only" sentence; else one each for one frame, `L`/`L_d >= 1`, `L_d` dividing `L_r`, `g_min <= g_max`, rates a whole number of ny-long vectors, and `out=`                   |
+
+`push` has one cause (a map) and `set_carrier_freq_hz` one per code
+already; neither changes. `set_telemetry` checks `decim` before its dry
+run, so "decim" and "room" are told apart in C now, ahead of the pin.
+
 `reset` is one method with one doc that says what it clears for each
 flavor; every flavor had one.
 

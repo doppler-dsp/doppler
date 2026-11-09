@@ -394,3 +394,15 @@ def test_records_refuses_a_count_outside_size_t(bad):
     with pytest.raises(OverflowError, match="out of range for size_t"):
         cap.records(bad)
     assert len(cap.records()) == 8
+
+
+@pytest.mark.parametrize("bad", [-1, 2**64, 2**64 + 5])
+def test_read_dict_refuses_a_count_outside_size_t(bad):
+    # records() is the spec: read_dict() converts `n` the same way, so
+    # read_dict(2**64 + 5) no longer hands back five records.
+    tlm, pid = _tlm()
+    with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+        _run(tlm, pid, cap)
+    with pytest.raises(OverflowError, match=r"n: .* out of range for size_t"):
+        cap.read_dict(bad)
+    assert cap.read_dict()["bench.x"].size == 8

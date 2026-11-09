@@ -270,6 +270,19 @@ def test_set_now_accepts_the_uint64_edges():
     assert tlm.read()["n"].tolist() == [0, 2**64 - 1]
 
 
+@pytest.mark.parametrize("bad", BAD_COUNTS)
+def test_read_dict_refuses_a_count_outside_size_t(bad):
+    # read() is the spec: read_dict() converts `n` the same way and raises
+    # the same OverflowError, so a wrapped count never drains the ring.
+    tlm = Telemetry(1 << 12)
+    pid = tlm.probe("x")
+    for i in range(8):
+        tlm.emit(pid, float(i))
+    with pytest.raises(OverflowError, match=r"n: .* out of range for size_t"):
+        tlm.read_dict(bad)
+    assert tlm.read_dict()["x"].size == 8
+
+
 def test_stats_takes_no_arguments():
     # stats() was METH_VARARGS and silently ignored whatever it was given.
     tlm = Telemetry(1 << 12)

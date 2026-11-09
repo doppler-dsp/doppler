@@ -1944,6 +1944,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 gallery blazing \
                 gen-c-api just-build docs-invariants \
                 jm-apply jm-apply-downstream jm-adopt jm-adopt-downstream jm-revendor \
+                jm-status-docs \
                 jm-migrate-fragments \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
@@ -4066,6 +4067,9 @@ jm-revendor: ## Re-vendor every jm_*.h that is behind the pinned jm (both projec
 	$(UV) run python scripts/check_jm_status.py --fix
 	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
 	    python $(CURDIR)/scripts/check_jm_status.py --fix
+
+jm-status-docs: ## List members whose docstring falls back to their name (jm status --docs)
+	$(UV) run --group dev just-makeit status --docs
 
 jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
 	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) just-makeit apply

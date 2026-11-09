@@ -133,10 +133,12 @@ dp_size_mul_sat (size_t a, size_t b)
 /* when n is large, returns a SMALL buffer, and the loop that fills    */
 /* all n elements writes past it. These are malloc / dp_xmalloc /      */
 /* dp_xrealloc with the product taken out of the caller's hands, as    */
-/* calloc already takes it for a zeroed allocation (calloc and         */
-/* dp_xcalloc check nmemb * size themselves, so they need no sibling   */
-/* -- but neither checks a product written INSIDE an argument:         */
-/* `calloc (a * b, size)` wraps `a * b` first).                        */
+/* calloc already takes it for a zeroed allocation. calloc and         */
+/* dp_xcalloc check nmemb * size themselves, but not a product written */
+/* INSIDE an argument: `calloc (a * b, size)` wraps `a * b` first, and */
+/* `dp_xcalloc (dp_size_mul_sat (a, b), size)` hands calloc SIZE_MAX,  */
+/* which gcc's -Walloc-size-larger-than sees. dp_callocn and           */
+/* dp_xcallocn take that count as two factors and check it inside.     */
 /*                                                                     */
 /* Which one:                                                          */
 /*                                                                     */
@@ -146,8 +148,14 @@ dp_size_mul_sat (size_t a, size_t b)
 /*  - dp_reallocn, its resizing twin on the same kind of path: NULL on */
 /*    overflow or OOM, with the old block untouched and still the      */
 /*    caller's, exactly as a failed realloc leaves it.                 */
-/*  - dp_xmallocn / dp_xreallocn, when the count is already validated  */
-/*    and only genuine OOM could fail it: they abort, like dp_xmalloc. */
+/*  - dp_callocn, the ZEROED one, when the element count is itself a   */
+/*    product `n * m` (rows x columns, lanes x taps): NULL when n * m  */
+/*    overflows, when calloc refuses n * m * size (its own check), or  */
+/*    on OOM. A count that is one factor needs no helper: plain calloc */
+/*    already checks `nmemb * size`.                                   */
+/*  - dp_xmallocn / dp_xreallocn / dp_xcallocn, when the count is      */
+/*    already validated and only genuine OOM could fail it: they       */
+/*    abort, like dp_xmalloc.                                          */
 /*    An overflow there is a broken internal guarantee, not a caller's */
 /*    mistake, so it aborts too rather than handing back a short      */
 /*    buffer.                                                          */
@@ -176,6 +184,17 @@ dp_reallocn (void *p, size_t n, size_t size)
 }
 
 static inline void *
+dp_callocn (size_t n, size_t m, size_t size)
+{
+  size_t count;
+  if (!dp_size_mul (n, m, &count))
+    return NULL;
+  if (count == 0 || size == 0)
+    return calloc (1u, 1u); /* zero: one byte (@note) */
+  return calloc (count, size);
+}
+
+static inline void *
 dp_xmallocn (size_t n, size_t size)
 {
   size_t bytes;
@@ -192,6 +211,17 @@ dp_xreallocn (void *p, size_t n, size_t size)
     abort ();
   /* zero: one byte, never realloc (p, 0) -- see the @note */
   return dp_xrealloc (p, bytes ? bytes : 1u);
+}
+
+static inline void *
+dp_xcallocn (size_t n, size_t m, size_t size)
+{
+  size_t count;
+  if (!dp_size_mul (n, m, &count))
+    abort ();
+  if (count == 0 || size == 0)
+    return dp_xcalloc (1u, 1u); /* zero: one byte (@note) */
+  return dp_xcalloc (count, size);
 }
 
 static inline int

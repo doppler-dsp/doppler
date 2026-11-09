@@ -83,6 +83,24 @@ def _run(root: Path, files: dict[str, str], *args: str):
             },
             "native/src/w/w_core.c: 1",
         ),
+        # A double checked against SIZE_MAX: on LP64 the cast rounds up to
+        # 2^64, so 2^64 passes. That is dp_size_from_double's job.
+        (
+            {
+                "native/src/d/d_core.c": "int d (double x)\n{\n"
+                "  return x >= 0.0 && x <= (double)SIZE_MAX;\n}\n"
+            },
+            "native/src/d/d_core.c:3: return x >= 0.0 && x <= "
+            "(double)SIZE_MAX;  -- use dp_size_from_double (clib_common.h)",
+        ),
+        # Spelled with a parenthesised quotient, it is one site, not two.
+        (
+            {
+                "native/src/e/e_core.c": "int e (double r)\n{\n"
+                "  return r > (double) (SIZE_MAX / 2);\n}\n"
+            },
+            "native/src/e/e_core.c: 1 hand-written",
+        ),
     ],
 )
 def test_a_hand_written_guard_is_named(
@@ -122,6 +140,11 @@ def test_a_hand_written_guard_is_named(
             "native/src/s/s_core.c": "int s (uint64_t len, size_t a)\n{\n"
             "  if (len > SIZE_MAX) return 0;\n"
             "  return a > SIZE_MAX - 1;\n}\n"
+        },
+        # A double compared with a power of two, not with SIZE_MAX.
+        {
+            "native/src/f/f_core.c": "int f (double x)\n{\n"
+            "  return x < 0x1p64;\n}\n"
         },
     ],
 )

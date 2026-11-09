@@ -99,14 +99,14 @@ flag_uint (const char *a, const char *v, uint64_t max, uint64_t *out)
 }
 
 /* Non-zero when @p d is a count a size_t can hold: whole, non-negative and
- * in range. On LP64 SIZE_MAX rounds UP to 2^64 as a double, so the strict
- * `< 2^64` is the bound there; `<= SIZE_MAX` is the bound where size_t is
- * 32 bits and exact. NaN fails `>= 0`. */
+ * in range. The range and the refusal of NaN and negatives are
+ * dp_size_from_double's (clib_common.h), the one home of that bound; being
+ * WHOLE is this flag's own rule. */
 static int
 whole_count (double d)
 {
-  return d >= 0.0 && d < 18446744073709551616.0 && d == floor (d)
-         && d <= (double)SIZE_MAX;
+  size_t n;
+  return dp_size_from_double (d, &n) && d == floor (d);
 }
 
 /* Parse a numeric flag value as a scalar (`12000`) or a uniform range

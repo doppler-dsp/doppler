@@ -119,6 +119,17 @@ dp_size_mul_sat (size_t a, size_t b)
 }
 
 static inline int
+dp_size_from_double (double d, size_t *out)
+{
+  /* 2^w, exactly: see the comment above. */
+  const double two_w = (double)(SIZE_MAX / 2 + 1) * 2.0;
+  if (!(d >= 0.0 && d < two_w))
+    return 0;
+  *out = (size_t)d;
+  return 1;
+}
+
+static inline int
 dp_positive_finite (double x)
 {
   return isfinite (x) && x > 0.0;

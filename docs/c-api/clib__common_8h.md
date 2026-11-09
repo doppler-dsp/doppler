@@ -69,6 +69,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 |  double | [**dp\_fftfreq**](#function-dp_fftfreq) (size\_t bin, size\_t n, double fs) <br>_The frequency of an FFT bin, in the units of_ `fs` _._ |
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
 |  int | [**dp\_positive\_finite**](#function-dp_positive_finite) (double x) <br>_Whether_ `x` _is a positive, finite number._ |
+|  int | [**dp\_size\_from\_double**](#function-dp_size_from_double) (double d, size\_t \* out) <br>`d` _as a_`size_t` _, truncated, or a refusal when it does not fit._ |
 |  int | [**dp\_size\_mul**](#function-dp_size_mul) (size\_t a, size\_t b, size\_t \* out) <br>`a * b` _as a_`size_t` _, or a refusal when the product does not fit._ |
 |  size\_t | [**dp\_size\_mul\_sat**](#function-dp_size_mul_sat) (size\_t a, size\_t b) <br>`a * b` _, or_`SIZE_MAX` _when the product does not fit._ |
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
@@ -329,6 +330,80 @@ The domain of a scale or gain that a constructor stores and later divides by or 
 **Returns:**
 
 1 when `0 < x < inf`, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_size\_from\_double 
+
+`d` _as a_`size_t` _, truncated, or a refusal when it does not fit._
+```C++
+static inline int dp_size_from_double (
+    double d,
+    size_t * out
+) 
+```
+
+
+
+The "does this double fit a size\_t" check, which every site wrote as `d <= (double)SIZE_MAX`  and that is wrong where size\_t is 64 bits: SIZE\_MAX is 2^64 - 1, which a double cannot hold, so the cast rounds UP to 2^64, the bound admits 2^64 itself, and the conversion of 2^64 to `size_t` is undefined behaviour (in practice 0 or SIZE\_MAX, by target). The right bound is a strict `<` against 2^w, w the width of size\_t: a power of two, so exactly representable whatever w is. It is formed as `(SIZE_MAX / 2 + 1) * 2.0`: SIZE\_MAX / 2 + 1 is 2^(w-1), exact as a double, and doubling it is exact. Where size\_t is 32 bits this is the same as `<= SIZE_MAX` for a whole number, and every double below 2^32 truncates into range. `scripts/check_size_mul_sites.py` fails on a `(double)SIZE_MAX` written anywhere else in library C.
+
+
+The contract:
+
+
+
+* it returns 1 and writes `(size_t)d`, truncated toward zero, when `0 <= d < 2^w`. -0.0 compares equal to 0 and converts to 0;
+* it returns 0 and leaves `out` UNTOUCHED for a negative `d`, for 2^w and above, for +inf and for NaN (every comparison with NaN is false, and doppler builds with -fno-finite-math-only so that holds).
+
+
+
+
+Whether `d` must also be whole is the caller's rule, not this one's: test `d == floor (d)` beside it.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdio.h>
+
+int
+main (void)
+{
+  size_t n = 7;
+  if (!dp_size_from_double (4096.75, &n))
+    return 1;
+  printf ("%zu\n", n); // 4096
+
+  if (dp_size_from_double (-1.0, &n) || dp_size_from_double (NAN, &n))
+    return 1;
+  printf ("%zu\n", n); // 4096: a refusal leaves it alone
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `d` The value to convert. 
+* `out` Receives `(size_t)d` when it fits; untouched otherwise. 
+
+
+
+**Returns:**
+
+1 when `0 <= d < 2^w`, else 0. 
 
 
 

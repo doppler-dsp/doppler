@@ -34,6 +34,7 @@
 * **dp\_fmod\_pos** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_lgamma** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_positive\_finite** ([**clib\_common.h**](clib__common_8h.md))
+* **dp\_size\_from\_double** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_size\_mul** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_size\_mul\_sat** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xcalloc** ([**clib\_common.h**](clib__common_8h.md))

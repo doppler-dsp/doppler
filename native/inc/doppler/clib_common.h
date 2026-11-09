@@ -246,6 +246,67 @@ dp_size_mul_sat (size_t a, size_t b)
 }
 
 /**
+ * @brief @p d as a `size_t`, truncated, or a refusal when it does not fit.
+ *
+ * The "does this double fit a size_t" check, which every site wrote as
+ * `d <= (double)SIZE_MAX` -- and that is wrong where size_t is 64 bits:
+ * SIZE_MAX is 2^64 - 1, which a double cannot hold, so the cast rounds UP
+ * to 2^64, the bound admits 2^64 itself, and the conversion of 2^64 to
+ * `size_t` is undefined behaviour (in practice 0 or SIZE_MAX, by target).
+ * The right bound is a strict `<` against 2^w, w the width of size_t: a
+ * power of two, so exactly representable whatever w is. It is formed as
+ * `(SIZE_MAX / 2 + 1) * 2.0`: SIZE_MAX / 2 + 1 is 2^(w-1), exact as a
+ * double, and doubling it is exact. Where size_t is 32 bits this is the
+ * same as `<= SIZE_MAX` for a whole number, and every double below 2^32
+ * truncates into range. `scripts/check_size_mul_sites.py` fails on a
+ * `(double)SIZE_MAX` written anywhere else in library C.
+ *
+ * The contract:
+ *
+ * - it returns 1 and writes `(size_t)d`, truncated toward zero, when
+ *   `0 <= d < 2^w`. -0.0 compares equal to 0 and converts to 0;
+ * - it returns 0 and leaves @p out UNTOUCHED for a negative @p d, for
+ *   2^w and above, for +inf and for NaN (every comparison with NaN is
+ *   false, and doppler builds with -fno-finite-math-only so that holds).
+ *
+ * Whether @p d must also be whole is the caller's rule, not this one's:
+ * test `d == floor (d)` beside it.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   size_t n = 7;
+ *   if (!dp_size_from_double (4096.75, &n))
+ *     return 1;
+ *   printf ("%zu\n", n); // 4096
+ *
+ *   if (dp_size_from_double (-1.0, &n) || dp_size_from_double (NAN, &n))
+ *     return 1;
+ *   printf ("%zu\n", n); // 4096: a refusal leaves it alone
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param d    The value to convert.
+ * @param out  Receives `(size_t)d` when it fits; untouched otherwise.
+ * @return 1 when `0 <= d < 2^w`, else 0.
+ */
+static inline int
+dp_size_from_double (double d, size_t *out)
+{
+  /* 2^w, exactly: see the comment above. */
+  const double two_w = (double)(SIZE_MAX / 2 + 1) * 2.0;
+  if (!(d >= 0.0 && d < two_w))
+    return 0;
+  *out = (size_t)d;
+  return 1;
+}
+
+/**
  * @brief Whether @p x is a positive, finite number.
  *
  * The domain of a scale or gain that a constructor stores and later

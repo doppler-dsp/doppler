@@ -1355,10 +1355,7 @@ corr2d_batch_alloc (dp_correlator_state_t *s)
   const size_t nw = (size_t)s->nworkers;
   /* Trusted (nw workers x a frame already allocated): an overflow aborts
      as the allocation itself would. */
-  size_t acc_n;
-  s->bat_acc  = dp_size_mul (nw, s->n, &acc_n)
-                    ? dp_xcalloc (acc_n, sizeof *s->bat_acc)
-                    : dp_xnn (NULL);
+  s->bat_acc  = dp_xcallocn (nw, s->n, sizeof *s->bat_acc);
   s->bat_work = dp_xmallocn (dp_size_mul_sat (nw, s->n), sizeof *s->bat_work);
   s->bat_map
       = dp_xmallocn (dp_size_mul_sat (nw, s->n_out), sizeof *s->bat_map);
@@ -1958,15 +1955,10 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
       /* Every fraction's slow time under every rate, made once and shared
          by the whole-bin carriers that roll it: slow first only. */
       const size_t fl = dp__dd_map_fine_len (s->dd_map);
-      size_t       fine_bytes;
-      ok = dp_size_mul (L, b->R, &fine_bytes)
-           && dp_size_mul (fine_bytes, fl, &fine_bytes)
-           && dp_size_mul (fine_bytes, sizeof (float _Complex), &fine_bytes);
-      m->fine = ok ? malloc (fine_bytes) : NULL;
-      size_t fine_n;
-      m->have_fine
-          = dp_size_mul (L, b->R, &fine_n) ? calloc (fine_n, 1) : NULL;
-      ok = m->fine && m->have_fine;
+      m->fine = dp_mallocn (dp_size_mul_sat (dp_size_mul_sat (L, b->R), fl),
+                            sizeof *m->fine);
+      m->have_fine = dp_callocn (L, b->R, 1);
+      ok           = m->fine && m->have_fine;
     }
   if (!ok)
     {
@@ -2646,11 +2638,8 @@ dd_slot_build (const dp__dd_map_t *m, dd_slot_t *s)
   if (ok && m->fdi > 1)
     {
       s->slow = dp_fft_create (m->fdi, -1, 1);
-      size_t col_n;
-      s->col = dp_size_mul (DD_SLOW_TILE, m->fdi, &col_n)
-                   ? calloc (col_n, sizeof *s->col)
-                   : NULL;
-      ok     = s->slow && s->col;
+      s->col  = dp_callocn (DD_SLOW_TILE, m->fdi, sizeof *s->col);
+      ok      = s->slow && s->col;
     }
   if (ok && g->l != g->n)
     {
@@ -2660,13 +2649,10 @@ dd_slot_build (const dp__dd_map_t *m, dd_slot_t *s)
   if (ok && g->di > 1)
     {
       s->slowr = dp_fft_create (g->di, -1, 1);
-      size_t colr_n;
-      s->colr = dp_size_mul (DD_SLOW_TILE, g->di, &colr_n)
-                    ? calloc (colr_n, sizeof *s->colr)
-                    : NULL;
-      s->colo = dp_mallocn (dp_size_mul_sat (DD_SLOW_TILE, g->di),
-                            sizeof *s->colo);
-      ok      = s->slowr && s->colr && s->colo;
+      s->colr  = dp_callocn (DD_SLOW_TILE, g->di, sizeof *s->colr);
+      s->colo  = dp_mallocn (dp_size_mul_sat (DD_SLOW_TILE, g->di),
+                             sizeof *s->colo);
+      ok       = s->slowr && s->colr && s->colo;
     }
   if (!ok)
     dd_slot_free (s);
@@ -2716,8 +2702,7 @@ dp__dd_map_reserve (dp__dd_map_t *m, int slots)
 {
   if (slots <= m->slots)
     return 0;
-  dd_slot_t *grown
-      = realloc (m->slot, dp_size_mul_sat ((size_t)slots, sizeof *grown));
+  dd_slot_t *grown = dp_reallocn (m->slot, (size_t)slots, sizeof *grown);
   if (!grown)
     return -1;
   m->slot = grown;

@@ -890,7 +890,9 @@ test_restore_forged_table (const wfm_plan_t *p, const float _Complex *base)
    * 9e18 complex samples does not fit a size_t of bytes. The cache buffer
    * used to be sized by an unchecked num_samples * 8, which wrapped, and the
    * render wrote past it. It is now dp_mallocn, which refuses the product,
-   * and the restore fails cleanly rather than crashing. */
+   * and the restore fails cleanly rather than crashing. Restore has no
+   * `why`, so this checks the NULL and the absence of a crash; it cannot
+   * name which check refused. */
   char *at_ns = NULL;
   for (size_t i = 24; !at_ns && i + 14 <= 24 + (size_t)splen; i++)
     if (memcmp (blob + i, "\"num_samples\":", 14) == 0)
@@ -916,7 +918,8 @@ test_restore_forged_table (const wfm_plan_t *p, const float _Complex *base)
 
 /* The same count through prepare(): 2^61 samples is a count a size_t holds
  * (a stream may be that long), so the parser reads it; the cache cannot
- * buffer 2^64 bytes of it, so prepare refuses. */
+ * buffer 2^64 bytes of it, so prepare refuses. prepare() has no `why`
+ * either: the NULL is what is checked, not which check produced it. */
 static int
 test_prepare_refuses_an_unbufferable_count (void)
 {

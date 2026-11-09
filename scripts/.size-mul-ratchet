@@ -1,10 +1,13 @@
 # Ratchet for scripts/check_size_mul_sites.py (make lint-size-mul).
 #
-# Files that still guard a size product by hand (`SIZE_MAX /`), or check
-# that a double fits a size_t against `(double)SIZE_MAX`, instead of calling
-# dp_size_mul / dp_size_mul_sat / dp_size_from_double
-# (native/inc/doppler/clib_common.h), with how many sites and why. One
-# expression is one site: `(double)(SIZE_MAX / 2)` counts once.
+# Files that still guard a size by hand instead of calling dp_size_mul /
+# dp_size_add / dp_size_mul_sat / dp_size_from_double
+# (native/inc/doppler/clib_common.h), with how many sites and why. A site
+# is one OCCURRENCE of SIZE_MAX -- spelled SIZE_MAX, ~(size_t)0,
+# (size_t)~0, (size_t)-1 or the like -- that is in the numerator of a
+# division, cast to a floating type, or compared in a floating clause; the
+# gate's docstring has the full rule. One spelling read by two shapes,
+# `(double)(SIZE_MAX / 2)`, counts once; two guards on one line count twice.
 #
 # THIS LIST MAY ONLY SHRINK. A file not listed may not hold one at all, a
 # count left above what its file now has is stale and fails, and nothing

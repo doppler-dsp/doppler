@@ -36,8 +36,10 @@ SIZE_MAX spelled any of the ways C spells it (`SIZE_MAX`, `~(size_t)0`,
    nothing in its clause says so is not caught. Review is the gate for
    that one.
 
-One LINE is one site, whatever the number of shapes on it:
-`(double)(SIZE_MAX / 2)` is a single guard. Comments are blanked first
+A site is one OCCURRENCE of SIZE_MAX in a guard shape: one spelling read
+by two shapes -- `(double)(SIZE_MAX / 2)` -- is one site, and a second
+guard appended to a ratcheted line is a second site, so it raises the
+count. Comments are blanked first
 (_c_source.strip_comments), so a comment that quotes the idiom is not one.
 Not scanned: clib_common.h (the home), `native/tests/**` (tests build
 boundary values on purpose), `vendor/**` (not ours), and any file whose
@@ -75,12 +77,19 @@ SCAN_DIRS = ("native", "ffi")
 EXCLUDE_DIRS = ("native/tests/",)
 GENERATED = "/* jm:generated"
 #: SIZE_MAX as C spells it: the macro, all-ones by complement, or -1 cast.
-#: `sizeof (size_t) - 1` is a width, not a cast of -1: the look-behinds
-#: keep it out (`sizeof(` and `sizeof (`, the two spellings clang-format
-#: leaves).
+#: SIZE_MAX as C spells it: the macro; all-ones by complement, `~(size_t)0`,
+#: `~((size_t)0)` or `(size_t)~0`; and -1 cast, `(size_t)-1`, `(size_t)(-1)`,
+#: with any integer suffix. `sizeof (size_t) - 1` is a width, not a cast of
+#: -1: the look-behinds keep it out (`sizeof(` and `sizeof (`, the two
+#: spellings clang-format leaves).
+_SFX = r"[uUlL]*"
 MAXV = (
-    r"(?:\bSIZE_MAX\b|~\s*\(\s*size_t\s*\)\s*0[uUlL]*\b"
-    r"|(?<!sizeof)(?<!sizeof )\(\s*size_t\s*\)\s*-\s*1\b)"
+    r"(?:\bSIZE_MAX\b"
+    r"|~\s*\(\s*size_t\s*\)\s*0" + _SFX + r"\b"
+    r"|~\s*\(\s*\(\s*size_t\s*\)\s*0" + _SFX + r"\s*\)"
+    r"|\(\s*size_t\s*\)\s*~\s*0" + _SFX + r"\b"
+    r"|(?<!sizeof)(?<!sizeof )\(\s*size_t\s*\)\s*"
+    r"(?:-\s*1" + _SFX + r"\b|\(\s*-\s*1" + _SFX + r"\s*\)))"
 )
 _MAXV = re.compile(MAXV)
 #: Shape 1, the direct spelling: SIZE_MAX right before a `/`.
@@ -105,8 +114,8 @@ FLOATY = re.compile(
 )
 
 
-def _paren_before(text: str, close: int) -> str | None:
-    """The balanced `( ... )` group whose `)` is at ``close``."""
+def _paren_before(text: str, close: int) -> int | None:
+    """Where the `(` matching the `)` at ``close`` is."""
     depth = 0
     for i in range(close, -1, -1):
         if text[i] == ")":
@@ -114,8 +123,38 @@ def _paren_before(text: str, close: int) -> str | None:
         elif text[i] == "(":
             depth -= 1
             if depth == 0:
-                return text[i : close + 1]
+                return i
     return None
+
+
+def _enclosing(text: str, at: int) -> tuple[int, int]:
+    """The span inside the innermost parentheses around offset ``at``, or
+    the whole text when there are none. The `)` that closes an `if`'s
+    controlling expression ends the comparison's context there, so the
+    `1.0` of a brace-less `if (n == SIZE_MAX) return 1.0;` is not in it."""
+    depth = 0
+    lo = -1
+    for i in range(at - 1, -1, -1):
+        c = text[i]
+        if c == ")":
+            depth += 1
+        elif c == "(":
+            if depth == 0:
+                lo = i
+                break
+            depth -= 1
+    if lo < 0:
+        return 0, len(text)
+    depth = 0
+    for j in range(at, len(text)):
+        c = text[j]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            if depth == 0:
+                return lo + 1, j
+            depth -= 1
+    return lo + 1, len(text)
 
 
 #: What ends a clause around a comparison.
@@ -123,21 +162,30 @@ _CLAUSE_END = re.compile(r"&&|\|\||[,;?:{}]")
 
 
 def _clause(text: str, at: int) -> str:
-    """The clause of ``text`` holding offset ``at``."""
-    lo = 0
-    for m in _CLAUSE_END.finditer(text, 0, at):
+    """The clause of ``text`` holding offset ``at``: bounded by the
+    innermost parentheses around it, and within them by `&&`, `||`, `,`,
+    `;`, `?`, `:` and braces."""
+    lo, hi = _enclosing(text, at)
+    for m in _CLAUSE_END.finditer(text, lo, at):
         lo = m.end()
-    m = _CLAUSE_END.search(text, at)
-    return text[lo : m.start() if m else len(text)]
+    m = _CLAUSE_END.search(text, at, hi)
+    return text[lo : m.start() if m else hi]
 
 
-def _division_lines(text: str) -> set[int]:
-    """Line indexes where SIZE_MAX is in the numerator of a division."""
-    out = {text.count("\n", 0, m.start()) for m in DIV_DIRECT.finditer(text)}
+def _maxv_in(text: str, lo: int, hi: int) -> set[int]:
+    """Where each SIZE_MAX spelling in ``text[lo:hi]`` starts."""
+    return {m.start() for m in _MAXV.finditer(text, lo, hi)}
+
+
+def _divisions(text: str) -> set[int]:
+    """Each SIZE_MAX occurrence in the numerator of a division, by offset."""
+    out: set[int] = set()
+    for m in DIV_DIRECT.finditer(text):
+        out |= _maxv_in(text, m.start(), m.end())
     for m in re.finditer(r"\)\s*/(?![/*=])", text):
-        group = _paren_before(text, m.start())
-        if group and _MAXV.search(group):
-            out.add(text.count("\n", 0, m.start()))
+        open_at = _paren_before(text, m.start())
+        if open_at is not None:
+            out |= _maxv_in(text, open_at, m.start() + 1)
     return out
 
 
@@ -166,17 +214,21 @@ def sites(root: Path) -> dict[str, list[tuple[int, str]]]:
             continue
         text = strip_comments(raw)
         lines = text.splitlines()
-        floating: set[int] = {
-            text.count("\n", 0, m.start()) for m in FLOAT_CAST.finditer(text)
-        }
+        # A site is one SIZE_MAX OCCURRENCE in a guard shape, keyed by its
+        # offset: one spelling read by two shapes -- `(double)(SIZE_MAX /
+        # 2)` -- is one site, and a second guard appended to a ratcheted
+        # line is a second one.
+        floating: set[int] = set()
+        for m in FLOAT_CAST.finditer(text):
+            floating |= _maxv_in(text, m.start(), m.end())
         for m in CMP.finditer(text):
             if FLOATY.search(_clause(text, m.start())):
-                floating.add(text.count("\n", 0, m.start()))
-        division = _division_lines(text)
-        for at in sorted(floating | division):
+                floating |= _maxv_in(text, m.start(), m.end())
+        for off in sorted(floating | _divisions(text)):
+            at = text.count("\n", 0, off)
             home = (
                 "dp_size_from_double"
-                if at in floating
+                if off in floating
                 else "dp_size_mul (dp_size_add for a sum)"
             )
             found.setdefault(rel, []).append(

@@ -138,14 +138,6 @@ dp_size_mul_sat (size_t a, size_t b)
 /* -- but neither checks a product written INSIDE an argument:         */
 /* `calloc (a * b, size)` wraps `a * b` first).                        */
 /*                                                                     */
-/* A zero count asks for ONE byte, in all three. malloc (0) may return */
-/* NULL, which would read as a refusal from dp_mallocn and abort       */
-/* dp_xmallocn; glibc's realloc (p, 0) frees p and returns NULL, which */
-/* would abort dp_xreallocn on a request that is not out of memory,    */
-/* and C23 makes realloc (p, 0) undefined. So NULL from these means    */
-/* overflow or OOM and nothing else, and a zero-count result is a live */
-/* pointer the caller frees as usual and never dereferences.           */
-/*                                                                     */
 /* Which one:                                                          */
 /*                                                                     */
 /*  - dp_mallocn, when the count comes from a CALLER on a path that    */
@@ -176,7 +168,7 @@ dp_xmallocn (size_t n, size_t size)
   size_t bytes;
   if (!dp_size_mul (n, size, &bytes))
     abort ();
-  return dp_xmalloc (bytes ? bytes : 1u); /* zero: one byte, see above */
+  return dp_xmalloc (bytes ? bytes : 1u); /* zero: one byte (@note) */
 }
 
 static inline void *
@@ -185,7 +177,7 @@ dp_xreallocn (void *p, size_t n, size_t size)
   size_t bytes;
   if (!dp_size_mul (n, size, &bytes))
     abort ();
-  /* zero: one byte, never realloc (p, 0) -- see above */
+  /* zero: one byte, never realloc (p, 0) -- see the @note */
   return dp_xrealloc (p, bytes ? bytes : 1u);
 }
 

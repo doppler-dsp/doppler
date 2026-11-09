@@ -34,6 +34,11 @@ main (void)
   if (!obj)
     return 1;
   DP_CHECK (dp_hbdecim_r2c_create (4, NULL) == NULL); /* NULL taps rejected */
+  /* A tap count too large to size is refused: 2^(w-2) float taps is 2^w
+     bytes, which used to wrap to a 0-byte copy create() then wrote every
+     tap into. obj above is the positive control: the same taps at 4. */
+  DP_CHECK (dp_hbdecim_r2c_create (SIZE_MAX / sizeof (float) + 1u, H4)
+            == NULL);
   dp_hbdecim_r2c_destroy (obj);
 
   /* ── serializable state round-trip + reject ─────────────────────────── */

@@ -911,8 +911,9 @@ int dp_burst_capture_release (dp_burst_capture_state_t *state, size_t i);
  *                      dp_correlator_configure_search_raw()).
  * @param n_noncoh      Non-coherent looks to pin; `n_noncoh *
  *                      doppler_bins` must not exceed the refine reach.
- * @return DP_OK, or DP_ERR_INVALID if this object or the engine refused the
- *         grid.
+ * @return DP_OK; DP_ERR_INVALID if this object or the engine refused the
+ *         grid; DP_ERR_MEMORY if the engine's rebuild could not allocate
+ *         (it keeps its prior grid).
  *
  * @code
  * >>> import numpy as np

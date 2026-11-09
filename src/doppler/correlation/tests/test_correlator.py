@@ -284,5 +284,8 @@ def test_a_method_is_served_as_the_table_says(name, flavor):
     if flavor in _METHODS[name]:
         _CALLS[name](c)
     else:
-        with pytest.raises(ValueError, match="^" + re.escape(_REFUSALS[name])):
+        # The whole message, both ends: a method's refusal is exactly its
+        # declared sentence (a property's read appends its rc).
+        refusal = "^" + re.escape(_REFUSALS[name]) + "$"
+        with pytest.raises(ValueError, match=refusal):
             _CALLS[name](c)

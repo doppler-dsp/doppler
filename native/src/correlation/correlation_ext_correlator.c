@@ -2115,6 +2115,12 @@ CorrelatorObj_configure_search_raw (CorrelatorObject *self, PyObject *args,
                            "non-coherent looks "
                            "need rate_hypotheses 1");
           return NULL;
+        case DP_ERR_MEMORY:
+          PyErr_SetString (PyExc_MemoryError,
+                           "configure_search_raw: rebuilding the grid could "
+                           "not allocate; the "
+                           "engine keeps its prior grid");
+          return NULL;
         default:
           break;
         }
@@ -5477,6 +5483,10 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "    ``configure_search_raw: doppler_bins must lie in 1..reps and\n"
     "    n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and\n"
     "    non-coherent looks need rate_hypotheses 1``.\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    ``configure_search_raw: rebuilding the grid could not allocate; the\n"
+    "    engine keeps its prior grid``.\n"
     "ValueError\n"
     "    If the C call returns any other non-zero status. The exception\n"
     "    message is ``configure_search_raw failed``, with the return code\n"

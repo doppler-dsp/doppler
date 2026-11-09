@@ -216,7 +216,7 @@ The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh). F
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if this object or the engine refused the grid.
+DP\_OK; DP\_ERR\_INVALID if this object or the engine refused the grid; DP\_ERR\_MEMORY if the engine's rebuild could not allocate (it keeps its prior grid).
 
 
 

@@ -824,6 +824,10 @@ class Correlator:
             ``configure_search_raw: doppler_bins must lie in 1..reps and
             n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and
             non-coherent looks need rate_hypotheses 1``.
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``configure_search_raw: rebuilding the grid could not allocate; the
+            engine keeps its prior grid``.
         ValueError
             If the C call returns any other non-zero status. The exception
             message is ``configure_search_raw failed``, with the return code

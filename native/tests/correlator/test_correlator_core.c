@@ -2122,7 +2122,7 @@ main (void)
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
-    DP_CHECK (dp_correlator_set_ref (obj, bad_ref) == -1);
+    DP_CHECK (dp_correlator_set_ref (obj, bad_ref) == DP_ERR_INVALID);
     dp_correlator_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 

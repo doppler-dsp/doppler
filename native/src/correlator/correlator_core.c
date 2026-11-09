@@ -214,11 +214,13 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
               "at least len(ref)");
   /* A padded length whose map (or transform buffer) no size_t can count
      is refused before anything is sized from it (#2958). */
-  if (nxo > SIZE_MAX / (2 * sizeof (double)))
+  size_t bytes = 0;
+  if (!dp_size_mul (nxo, 2 * sizeof (double), &bytes))
     CORR_WHY ("Correlator: nx_out asks for a map no size_t can hold");
   /* The native ny x nx is the caller's ref, so a product that does not
      fit is a pad's doing: ny_out's when it pads, else nx_out's. */
-  if (nyo > SIZE_MAX / sizeof (float _Complex) / nxo)
+  if (!dp_size_mul (nyo, nxo, &bytes)
+      || !dp_size_mul (bytes, sizeof (float _Complex), &bytes))
     CORR_WHY (nyo != ny
                   ? "Correlator: ny_out asks for a map no size_t can hold"
                   : "Correlator: nx_out asks for a map no size_t can hold");
@@ -276,8 +278,12 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
                              col_out >= 0 ? 1 : ny))
         {
           dp_correlator_destroy (state);
-          CORR_WHY ("Correlator: nx_out asks for a transform that cannot be "
-                    "allocated");
+          /* Only a padded length is the caller's knob; at native nx_out
+             the ref's own transform failed, which is memory. */
+          if (nxo != nx)
+            CORR_WHY ("Correlator: nx_out asks for a transform that cannot "
+                      "be allocated");
+          return NULL;
         }
 
       if (nxo != nx)
@@ -543,7 +549,8 @@ dp_correlator_push_max_out (const dp_correlator_state_t *state, size_t n_in)
      may make -- one hit a detector's dump, max_peaks a search's dwell. */
   const size_t frames = dp_f32_framer_frames_in (&state->framer, n_in);
   const size_t per    = corr2d_is_search (state) ? state->max_peaks : 1;
-  return per && frames > SIZE_MAX / per ? SIZE_MAX : frames * per;
+  size_t       bound;
+  return dp_size_mul (frames, per, &bound) ? bound : SIZE_MAX;
 }
 
 size_t
@@ -807,6 +814,13 @@ dp_correlator_set_state (dp_correlator_state_t *s, const void *blob)
 int
 dp_correlator_set_ref (dp_correlator_state_t *state, const float _Complex *ref)
 {
+  /* §18: the 1-D and 2-D maps and both detectors (each has a set_ref
+     test); a search has no forward plan for a reference, and the
+     delay-Doppler map's tables were sized from its code at create. */
+  const dp_correlator_flavor_t f = dp_correlator_flavor (state);
+  if (f != DP_CORRELATOR_1D && f != DP_CORRELATOR_2D
+      && f != DP_CORRELATOR_DETECTOR_1D && f != DP_CORRELATOR_DETECTOR_2D)
+    return DP_ERR_UNSUPPORTED;
   /* A detector resets even when the reference is then refused, as
      CorrDetector2D always did: its carry and last dump belong to the old
      reference either way. */
@@ -818,7 +832,7 @@ dp_correlator_set_ref (dp_correlator_state_t *state, const float _Complex *ref)
        * comment) — reject rather than silently truncating a ref that no
        * longer fits the single-row assumption row_ref_spec relies on. */
       if (!corr2d_is_single_row_ref (ref, state->ny, state->nx))
-        return -1;
+        return DP_ERR_INVALID;
       dp_fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec,
                            state->nx);
       for (size_t k = 0; k < state->nx; k++)
@@ -1230,6 +1244,18 @@ corr_dd_create (const float _Complex *code, size_t code_len, size_t ny,
   if (nyo < ny)
     CORR_WHY ("Correlator: ny_out pads the Doppler rows; it must be 0 "
               "(native) or at least doppler_rows");
+  /* Every buffer below is at most ny_out x len complex samples (the
+     frame, the accumulator, the map's rows and its scratch): a product
+     that does not fit a size_t is refused by name before anything is
+     sized from it, where it once allocated small and was written past
+     (#2958). */
+  size_t bytes = 0;
+  if (!dp_size_mul (ny, nx, &bytes)
+      || !dp_size_mul (bytes, sizeof (float _Complex), &bytes))
+    CORR_WHY ("Correlator: doppler_rows asks for a map no size_t can hold");
+  if (!dp_size_mul (nyo, nx, &bytes)
+      || !dp_size_mul (bytes, sizeof (float _Complex), &bytes))
+    CORR_WHY ("Correlator: ny_out asks for a map no size_t can hold");
 
   /* Every size below follows from the arguments just validated, so the
      allocations abort on OOM rather than unwind (clib_common.h). */
@@ -1252,7 +1278,12 @@ corr_dd_create (const float _Complex *code, size_t code_len, size_t ny,
   /* The one block map (correlator_map.h): ny epochs of nx, read on ny_out
      slow rows, no code-rate ramp (F = 1), a slot per worker. */
   const dp__dd_geom_t geom = { nx, nx, ny, nyo, 1 };
-  state->dd_map  = dp_xnn (dp__dd_map_create (&geom, state->nworkers));
+  state->dd_map            = dp__dd_map_create (&geom, state->nworkers);
+  if (!state->dd_map)
+    {
+      dp_correlator_destroy (state);
+      return NULL; /* the map's tables could not be allocated */
+    }
   state->dd_rows = dp_xmalloc (nyo * sizeof *state->dd_rows);
   /* The schedule, decided once: the rule's, for one tile and one rate.
      Rows first (fused) inverts into work_fft and needs no scratch of the
@@ -1612,9 +1643,8 @@ dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
   if (!corr2d_is_map (state))
     return 0;
   const size_t H = n_in / state->n;
-  if (H && state->n_out > SIZE_MAX / H)
-    return SIZE_MAX;
-  return H * state->n_out;
+  size_t       need;
+  return dp_size_mul (H, state->n_out, &need) ? need : SIZE_MAX;
 }
 
 size_t
@@ -1809,8 +1839,11 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
 {
   const size_t nw = (size_t)s->nworkers, L = b->L;
   memset (m, 0, sizeof *m);
-  if (L > SIZE_MAX / s->n / sizeof (float _Complex)
-      || b->R > SIZE_MAX / s->n_out / sizeof (float _Complex))
+  size_t spec_bytes, maps_bytes;
+  if (!dp_size_mul (L, s->n, &spec_bytes)
+      || !dp_size_mul (spec_bytes, sizeof (float _Complex), &spec_bytes)
+      || !dp_size_mul (b->R, s->n_out, &maps_bytes)
+      || !dp_size_mul (maps_bytes, sizeof (float _Complex), &maps_bytes))
     return 0;
   m->spec  = malloc (L * s->n * sizeof *m->spec);
   m->have  = calloc (L, 1);
@@ -1822,10 +1855,13 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
       /* Every fraction's slow time under every rate, made once and shared
          by the whole-bin carriers that roll it: slow first only. */
       const size_t fl = dp__dd_map_fine_len (s->dd_map);
-      ok              = L * b->R <= SIZE_MAX / fl / sizeof (float _Complex);
-      m->fine         = ok ? malloc (L * b->R * fl * sizeof *m->fine) : NULL;
-      m->have_fine    = calloc (L * b->R, 1);
-      ok              = m->fine && m->have_fine;
+      size_t       fine_bytes;
+      ok = dp_size_mul (L, b->R, &fine_bytes)
+           && dp_size_mul (fine_bytes, fl, &fine_bytes)
+           && dp_size_mul (fine_bytes, sizeof (float _Complex), &fine_bytes);
+      m->fine      = ok ? malloc (fine_bytes) : NULL;
+      m->have_fine = calloc (L * b->R, 1);
+      ok           = m->fine && m->have_fine;
     }
   if (!ok)
     {
@@ -2450,7 +2486,10 @@ dp__dd_map_create (const dp__dd_geom_t *g, int slots)
   if (!g || g->n == 0 || g->l < g->n || g->d == 0 || g->di < g->d
       || (g->f != 1 && g->f != DP__DD_MAP_FINE)
       || (g->di == 1 && g->f > 1) /* one slow row has no fine grid */
-      || slots < 1 || g->di > SIZE_MAX / g->f)
+      || slots < 1)
+    return NULL;
+  size_t fdi;
+  if (!dp_size_mul (g->f, g->di, &fdi))
     return NULL;
   dp__dd_map_t *m = calloc (1, sizeof *m);
   if (!m)
@@ -4757,18 +4796,6 @@ search_apply_threads (dp_correlator_state_t *st)
   srch->threads = dp_pool_threads (st->pool);
 }
 
-/* *out = a * b, or 0 (and *out untouched) when the product does not fit a
-   size_t: the grid's sizes are products of four axes, and one that wraps
-   allocates small and is then written past. */
-static int
-corr_size_mul (size_t a, size_t b, size_t *out)
-{
-  if (b != 0 && a > SIZE_MAX / b)
-    return 0;
-  *out = a * b;
-  return 1;
-}
-
 static int
 dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
                       size_t new_freq_bins, const float _Complex *replica,
@@ -4816,13 +4843,19 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
      lag_bins, so the frame, the map's spectra and the raw block are no
      larger) or of the tiles: check the products once, in bytes, before
      anything is sized from them (#2958). */
-  size_t surf_bytes = 0, parts_bytes = 0;
-  if (!corr_size_mul (new_db, new_freq_bins, &surf_bytes)
-      || !corr_size_mul (surf_bytes, new_interp, &surf_bytes)
-      || !corr_size_mul (surf_bytes, lb, &surf_bytes)
-      || !corr_size_mul (surf_bytes, sizeof (float _Complex), &surf_bytes)
-      || !corr_size_mul (new_freq_bins, sizeof (dp_correlator_part_t),
-                         &parts_bytes))
+  size_t surf_bytes = 0, parts_bytes = 0, work_bytes = 0;
+  if (!dp_size_mul (new_db, new_freq_bins, &surf_bytes)
+      || !dp_size_mul (surf_bytes, new_interp, &surf_bytes)
+      || !dp_size_mul (surf_bytes, lb, &surf_bytes)
+      || !dp_size_mul (surf_bytes, sizeof (float _Complex), &surf_bytes)
+      || !dp_size_mul (new_freq_bins, sizeof (dp_correlator_part_t),
+                       &parts_bytes)
+      /* The map's slow-first scratch, f x DI x code_bins at the finest
+         f, can be twice the surface: part of the same truth. */
+      || !dp_size_mul (new_db, new_interp, &work_bytes)
+      || !dp_size_mul (work_bytes, DP__DD_MAP_FINE, &work_bytes)
+      || !dp_size_mul (work_bytes, cb, &work_bytes)
+      || !dp_size_mul (work_bytes, sizeof (float _Complex), &work_bytes))
     goto fail;
   if (grid_changed)
     {
@@ -5336,12 +5369,17 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
   /* A grid whose samples cannot even be counted in a size_t: refused
      before anything is sized from it (a tile is one period of complex
      samples, and a burst holds reps periods). */
-  const size_t period_bytes = n_period * sizeof (float _Complex);
-  if (search_cover_window_bins (doppler_uncertainty, span)
-      > SIZE_MAX / period_bytes)
+  size_t period_bytes = 0, held = 0;
+  /* A burst's period is its ref, already in memory; a continuous one is
+     sample_rate * len(ref) / chip_rate samples. */
+  if (!dp_size_mul (n_period, sizeof (float _Complex), &period_bytes))
+    CORR_WHY ("Correlator: sample_rate asks for a code period no search "
+              "grid can hold");
+  if (!dp_size_mul (search_cover_window_bins (doppler_uncertainty, span),
+                    period_bytes, &held))
     CORR_WHY ("Correlator: doppler_uncertainty asks for more Doppler tiles "
               "than any search grid can hold");
-  if (reps > SIZE_MAX / period_bytes)
+  if (!dp_size_mul (reps, period_bytes, &held))
     CORR_WHY ("Correlator: reps asks for more periods than any search grid "
               "can hold");
   if (!(doppler_rate >= 0.0) || !isfinite (doppler_rate))
@@ -5497,7 +5535,8 @@ search_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
 size_t
 dp_correlator_period_samples (size_t code_len)
 {
-  if (code_len == 0 || code_len > SIZE_MAX / 4)
+  size_t four;
+  if (code_len == 0 || !dp_size_mul (code_len, 4, &four))
     return 0;
   return dp_next_pow_two (2 * code_len);
 }
@@ -5800,7 +5839,7 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
     CORR_WHY ("Correlator: a search needs sample_rate; 0 is not given "
               "(sample_rate=1.0 for normalized units)");
   if (!isfinite (sample_rate))
-    CORR_WHY ("Correlator: sample_rate must be finite");
+    CORR_WHY ("Correlator: sample_rate must be finite and positive");
 
   if (framing == DP_CORRELATOR_FRAMING_CONTINUOUS)
     {
@@ -5810,7 +5849,7 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
         CORR_WHY ("Correlator: the continuous search needs chip_rate; 0 "
                   "is not given");
       if (!isfinite (chip_rate))
-        CORR_WHY ("Correlator: chip_rate must be finite");
+        CORR_WHY ("Correlator: chip_rate must be finite and positive");
       if (!isfinite (cn0_dbhz))
         CORR_WHY ("Correlator: the continuous search sizes its dwell "
                   "from a design point; it needs a finite cn0_dbhz");

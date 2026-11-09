@@ -825,7 +825,7 @@ class Ddcr:
         Parameters
         ----------
         x : npt.NDArray[np.float32]
-            Input.
+            Real float32 input block.
         out : npt.NDArray[np.complex64] | None
             CF32 output buffer (C-only, hidden from Python).
 
@@ -1203,7 +1203,7 @@ class MatchedDdcr:
         Parameters
         ----------
         x : npt.NDArray[np.float32]
-            Input.
+            Real float32 input block.
         out : npt.NDArray[np.complex64] | None
             CF32 output buffer (C-only, hidden from Python).
 

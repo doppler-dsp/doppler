@@ -73,7 +73,7 @@ class InterpolatedTable:
         Parameters
         ----------
         x : npt.NDArray[np.float64]
-            Input.
+            Points to evaluate, length n_in.
         out : npt.NDArray[np.complex128] | None
             Output buffer; must hold at least n_in values.
 

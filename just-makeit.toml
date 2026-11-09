@@ -2,7 +2,7 @@ include = ["objects/*.toml", "modules/*.toml"]
 
 [project]
 applied_layout = "mirrored"
-jm_version = "0.126.0"
+jm_version = "0.126.1"
 name = "doppler"
 version = "0.81.0"
 build = "cmake"

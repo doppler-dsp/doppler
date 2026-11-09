@@ -461,7 +461,7 @@ static PyMethodDef CICObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    CF32 input block, |Re| and |Im| <= 2.0 (clipped otherwise).\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    Output buffer; must hold at least max_out elements.\n"
     "\n"

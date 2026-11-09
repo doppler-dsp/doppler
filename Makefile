@@ -515,7 +515,10 @@ LINT_text-encoding = $(UV) run python scripts/check_text_encoding.py
 # line has to satisfy. The helpers landed 2026-07-21 and the rule then lived
 # in a memory file and nowhere else, so nothing extended it and a bare malloc
 # beside a helper call passed every gate the repo had. Ratcheted: the 313
-# sites that predate it may only shrink.
+# sites that predate it may only shrink. Its second rule: no malloc /
+# realloc / dp_xmalloc / dp_xrealloc sized by an inline product, which wraps
+# to a short buffer; dp_mallocn / dp_xmallocn / dp_xreallocn check it.
+# scripts/.alloc-product-ratchet holds the sites that predate it, shrink-only.
 LINT_alloc-helpers = $(UV) run python scripts/check_alloc_helpers.py
 
 # The list of files exempt from the -Wall -Wextra gate (`warnings-check`, below):
@@ -524,7 +527,7 @@ LINT_alloc-helpers = $(UV) run python scripts/check_alloc_helpers.py
 # CI gate (GATES_DEPS), not a lint.
 LINT_warnings-exempt = $(UV) run python scripts/check_warnings.py --exempt-only
 
-lint-alloc-helpers-baseline: ## Re-record the alloc ratchet after converting some
+lint-alloc-helpers-baseline: ## Re-record both alloc ratchets after converting some
 	@$(UV) run python scripts/check_alloc_helpers.py --update-baseline
 
 # A rename is finished when the old name appears NOWHERE, and that is a

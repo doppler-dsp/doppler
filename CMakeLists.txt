@@ -1294,6 +1294,12 @@ target_include_directories(test_clib_common
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(test_clib_common PRIVATE ${DP_MATH_LIBRARY})
 add_test(NAME test_clib_common COMMAND test_clib_common)
+# The aborting array allocators abort on an overflowing count: each run
+# passes only by catching SIGABRT and exiting 0 from the handler.
+add_test(NAME test_clib_common_xmallocn_aborts
+         COMMAND test_clib_common --abort xmallocn)
+add_test(NAME test_clib_common_xreallocn_aborts
+         COMMAND test_clib_common --abort xreallocn)
 
 # native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
 # rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot

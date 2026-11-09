@@ -118,6 +118,54 @@ dp_size_mul_sat (size_t a, size_t b)
   return p;
 }
 
+/* ------------------------------------------------------------------ */
+/* Array allocations: @p n elements of @p size bytes, the product      */
+/* checked by dp_size_mul(). `malloc (n * sizeof *p)` wraps silently   */
+/* when n is large, returns a SMALL buffer, and the loop that fills    */
+/* all n elements writes past it. These are malloc / dp_xmalloc /      */
+/* dp_xrealloc with the product taken out of the caller's hands, as    */
+/* calloc already takes it for a zeroed allocation (calloc and         */
+/* dp_xcalloc check nmemb * size themselves, so they need no sibling). */
+/* Which one:                                                          */
+/*                                                                     */
+/*  - dp_mallocn, when the count comes from a CALLER on a path that    */
+/*    can refuse (a create(), a resize, a decode): it returns NULL on  */
+/*    overflow as well as on OOM, and the caller refuses.              */
+/*  - dp_xmallocn / dp_xreallocn, when the count is already validated  */
+/*    and only genuine OOM could fail it: they abort, like dp_xmalloc. */
+/*    An overflow there is a broken internal guarantee, not a caller's */
+/*    mistake, so it aborts too rather than handing back a short      */
+/*    buffer.                                                          */
+/*                                                                     */
+/* scripts/check_alloc_helpers.py fails on a new malloc / realloc /    */
+/* dp_xmalloc / dp_xrealloc whose size is a product written inline.    */
+/* ------------------------------------------------------------------ */
+
+static inline void *
+dp_mallocn (size_t n, size_t size)
+{
+  size_t bytes;
+  return dp_size_mul (n, size, &bytes) ? malloc (bytes) : NULL;
+}
+
+static inline void *
+dp_xmallocn (size_t n, size_t size)
+{
+  size_t bytes;
+  if (!dp_size_mul (n, size, &bytes))
+    abort ();
+  return dp_xmalloc (bytes);
+}
+
+static inline void *
+dp_xreallocn (void *p, size_t n, size_t size)
+{
+  size_t bytes;
+  if (!dp_size_mul (n, size, &bytes))
+    abort ();
+  return dp_xrealloc (p, bytes);
+}
+
 static inline int
 dp_size_from_double (double d, size_t *out)
 {

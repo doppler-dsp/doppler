@@ -68,14 +68,17 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 | ---: | :--- |
 |  double | [**dp\_fftfreq**](#function-dp_fftfreq) (size\_t bin, size\_t n, double fs) <br>_The frequency of an FFT bin, in the units of_ `fs` _._ |
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
+|  void \* | [**dp\_mallocn**](#function-dp_mallocn) (size\_t n, size\_t size) <br>_malloc for_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM._ |
 |  int | [**dp\_positive\_finite**](#function-dp_positive_finite) (double x) <br>_Whether_ `x` _is a positive, finite number._ |
 |  int | [**dp\_size\_from\_double**](#function-dp_size_from_double) (double d, size\_t \* out) <br>`d` _as a_`size_t` _, truncated, or a refusal when it does not fit._ |
 |  int | [**dp\_size\_mul**](#function-dp_size_mul) (size\_t a, size\_t b, size\_t \* out) <br>`a * b` _as a_`size_t` _, or a refusal when the product does not fit._ |
 |  size\_t | [**dp\_size\_mul\_sat**](#function-dp_size_mul_sat) (size\_t a, size\_t b) <br>`a * b` _, or_`SIZE_MAX` _when the product does not fit._ |
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
 |  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
+|  void \* | [**dp\_xmallocn**](#function-dp_xmallocn) (size\_t n, size\_t size) <br>_dp\_xmalloc for_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._ |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
 |  void \* | [**dp\_xrealloc**](#function-dp_xrealloc) (void \* p, size\_t n) <br> |
+|  void \* | [**dp\_xreallocn**](#function-dp_xreallocn) (void \* p, size\_t n, size\_t size) <br>_dp\_xrealloc to_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._ |
 
 
 
@@ -293,6 +296,67 @@ What must not vary is the READER: a consumer seeded on one side of the fold whil
 **Returns:**
 
 Signed index in `[-(n/2), +((n-1)/2)]`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_mallocn 
+
+_malloc for_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM._
+```C++
+static inline void * dp_mallocn (
+    size_t n,
+    size_t size
+) 
+```
+
+
+
+For a count a caller chose, on a path that refuses: check the result and refuse, exactly as for malloc. `n == 0` behaves as `malloc (0)`.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  float *x = dp_mallocn (256, sizeof *x);
+  if (!x)
+    return 1;
+  x[255] = 1.0f;
+  free (x);
+  // 2^(w-1) elements of 2 bytes is 2^w bytes: refused, not wrapped to 0
+  printf ("%d\n", dp_mallocn (SIZE_MAX / 2 + 1, 2) == NULL); // 1
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n` Element count. 
+* `size` Bytes per element. 
+
+
+
+**Returns:**
+
+The allocation, or NULL on overflow or OOM. 
 
 
 
@@ -594,6 +658,61 @@ malloc that aborts on OOM (for a trusted internal allocation).
 
 
 
+### function dp\_xmallocn 
+
+_dp\_xmalloc for_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._
+```C++
+static inline void * dp_xmallocn (
+    size_t n,
+    size_t size
+) 
+```
+
+
+
+For a trusted internal allocation whose count is already validated.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+
+int
+main (void)
+{
+  double *acc = dp_xmallocn (1024, sizeof *acc);
+  acc[1023]   = 0.0;
+  free (acc);
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n` Element count. 
+* `size` Bytes per element. 
+
+
+
+**Returns:**
+
+The allocation; never NULL. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_xnn 
 
 ```C++
@@ -628,6 +747,64 @@ realloc that aborts on OOM — the third member of the family.
 
 
 A grow-on-demand scratch buffer is the shape that wants it: the new size scales with the caller's block, but the only way the call fails is still genuine exhaustion, so the unwind path is as uncoverable as malloc's. Passing NULL for `p` is a fresh allocation, exactly as realloc defines. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_xreallocn 
+
+_dp\_xrealloc to_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._
+```C++
+static inline void * dp_xreallocn (
+    void * p,
+    size_t n,
+    size_t size
+) 
+```
+
+
+
+The grow-on-demand scratch buffer's helper, for a count the caller has already bounded. Passing NULL for `p` is a fresh allocation.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+
+int
+main (void)
+{
+  float *buf = dp_xreallocn (NULL, 64, sizeof *buf);
+  buf        = dp_xreallocn (buf, 4096, sizeof *buf);
+  buf[4095]  = 0.0f;
+  free (buf);
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `p` The block to resize, or NULL. 
+* `n` Element count. 
+* `size` Bytes per element. 
+
+
+
+**Returns:**
+
+The resized allocation; never NULL. 
+
+
+
 
 
         

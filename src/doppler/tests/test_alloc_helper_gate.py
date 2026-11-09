@@ -27,6 +27,8 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -303,3 +305,216 @@ def test_a_tree_that_is_not_a_repo_skips_the_raise_check(
     a = _seed(tmp_path, {"native/src/x/x_core.c": CLEAN}, allow="")
     r = _run(tmp_path, a, "--base", "origin/main")
     assert r.returncode == 0, r.stdout
+
+
+# --------------------------------------------------------------------------- #
+# The second rule: a size written as an inline product                        #
+# --------------------------------------------------------------------------- #
+#: An allocation sized by a product that can wrap.
+PRODUCT = "void f (void) { s->b = malloc (n * sizeof *s->b); }\n"
+PRODUCTS = "scripts/.alloc-product-ratchet"
+
+
+def _seed_products(
+    tmp_path: Path, files: dict[str, str], bare: str, products: str = ""
+) -> Path:
+    """A tree for the product rule: the bare-allocation allowance is given
+    explicitly, so the case isolates the rule it is about."""
+    a = _seed(tmp_path, files, allow=bare)
+    (tmp_path / PRODUCTS).write_text(products, encoding="utf-8")
+    return a
+
+
+@pytest.mark.parametrize(
+    ("body", "said"),
+    [
+        # The defect: a product that wraps, in a file nothing lists.
+        (PRODUCT, "native/src/x/x_core.c:1"),
+        # A sizeof first, then the count: still a product.
+        (
+            "void f (void) { p = malloc (sizeof (float) * n); }\n",
+            "the ratchet allows 0",
+        ),
+        # realloc's size is its SECOND argument.
+        ("void f (void) { p = realloc (p, n * 8); }\n", "allows 0"),
+        # The aborting helpers are no exception: the product still wraps.
+        (
+            "void f (void) { p = dp_xmalloc (n * sizeof *p); }\n",
+            "allows 0",
+        ),
+        (
+            "void f (void) { p = dp_xrealloc (p, (n) * 4); }\n",
+            "allows 0",
+        ),
+        # clang-format breaks a long call across lines: the call is read
+        # whole, and reported where it starts.
+        (
+            "void f (void)\n{\n  p = malloc (\n      n\n      * sizeof "
+            "*p);\n}\n",
+            "native/src/x/x_core.c:3",
+        ),
+    ],
+)
+def test_an_inline_product_size_is_named(
+    tmp_path: Path, body: str, said: str
+) -> None:
+    a = _seed_products(
+        tmp_path, {"native/src/x/x_core.c": body}, "native/src/x/x_core.c 1\n"
+    )
+    r = _run(tmp_path, a)
+    assert r.returncode == 1, r.stdout
+    assert "sized by an inline product" in r.stdout, r.stdout
+    assert said in r.stdout, r.stdout
+    assert "dp_mallocn / dp_xmallocn / dp_xreallocn" in r.stdout
+
+
+@pytest.mark.parametrize(
+    ("files", "bare"),
+    [
+        # The checked helpers are the point.
+        (
+            {
+                "native/src/x/x_core.c": "void f (void)\n{\n"
+                "  a = dp_xmallocn (n, sizeof *a);\n"
+                "  b = dp_mallocn (n, sizeof *b);\n"
+                "  c = dp_xreallocn (c, n, sizeof *c);\n}\n"
+            },
+            "",
+        ),
+        # calloc checks nmemb * size itself.
+        (
+            {
+                "native/src/x/x_core.c": "void f (void) "
+                "{ p = calloc (n, sizeof *p); }\n"
+            },
+            "native/src/x/x_core.c 1\n",
+        ),
+        # A dereference after sizeof, a cast and a product inside
+        # parentheses are not the size's own product.
+        (
+            {
+                "native/src/x/x_core.c": "void f (void)\n{\n"
+                "  a = malloc (sizeof *a);\n"
+                "  b = (int *)malloc (bytes);\n"
+                "  c = malloc (sizeof (struct { int *q; }));\n"
+                "  d = malloc (round_up (n * 4));\n}\n"
+            },
+            "native/src/x/x_core.c 4\n",
+        ),
+        # A jm:generated file is the generator's to fix.
+        (
+            {
+                "native/src/x/x_core.c": "/* jm:generated x_core.c */\n"
+                + PRODUCT
+            },
+            "native/src/x/x_core.c 1\n",
+        ),
+        # Comments that quote the idiom are not one.
+        (
+            {
+                "native/src/x/x_core.c": "/* never malloc (n * size) */\n"
+                "// nor realloc (p, n * size)\n"
+            },
+            # the bare rule reads raw text, so it counts both quotes
+            "native/src/x/x_core.c 2\n",
+        ),
+        # Tests are oracles.
+        ({"native/tests/test_x.c": PRODUCT}, ""),
+    ],
+)
+def test_what_is_not_an_inline_product_passes(
+    tmp_path: Path, files: dict[str, str], bare: str
+) -> None:
+    a = _seed_products(tmp_path, files, bare)
+    r = _run(tmp_path, a)
+    assert r.returncode == 0, r.stdout
+    assert "alloc-product gate: OK" in r.stdout
+
+
+def test_a_ratcheted_product_passes_at_its_count(tmp_path: Path) -> None:
+    a = _seed_products(
+        tmp_path,
+        {"native/src/x/x_core.c": PRODUCT * 2},
+        "native/src/x/x_core.c 2\n",
+        "native/src/x/x_core.c 2\n",
+    )
+    r = _run(tmp_path, a)
+    assert r.returncode == 0, r.stdout
+    assert "2 inline-product size(s) across 1 file(s)" in r.stdout
+
+
+@pytest.mark.parametrize(
+    ("products", "said"),
+    [
+        # One more site than the line allows.
+        ("native/src/x/x_core.c 1\n", "the ratchet allows 1"),
+        # A count left above what the file has: it only shrinks.
+        ("native/src/x/x_core.c 3\n", "allows 3 but the file has 2"),
+    ],
+)
+def test_the_product_ratchet_is_held_to_the_file(
+    tmp_path: Path, products: str, said: str
+) -> None:
+    a = _seed_products(
+        tmp_path,
+        {"native/src/x/x_core.c": PRODUCT * 2},
+        "native/src/x/x_core.c 2\n",
+        products,
+    )
+    r = _run(tmp_path, a)
+    assert r.returncode == 1, r.stdout
+    assert said in r.stdout, r.stdout
+
+
+def test_a_raised_product_count_fails_even_with_a_reason(
+    tmp_path: Path,
+) -> None:
+    """Unlike the bare rule, a raise has no escape: every site has a
+    checked spelling."""
+    a = _seed_products(
+        tmp_path,
+        {"native/src/x/x_core.c": PRODUCT},
+        "native/src/x/x_core.c 1\n",
+        "native/src/x/x_core.c 1\n",
+    )
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "add", "-A")
+    _git(
+        tmp_path,
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-qm",
+        "base",
+    )
+    _git(tmp_path, "branch", "-f", "origin/main", "main")
+    assert _run(tmp_path, a, "--base", "origin/main").returncode == 0
+
+    (tmp_path / "native/src/x/x_core.c").write_text(
+        PRODUCT * 2, encoding="utf-8"
+    )
+    # the bare rule's own raise, explained, so only the product rule speaks
+    a.write_text("native/src/x/x_core.c 2  # caller-sized\n", encoding="utf-8")
+    (tmp_path / PRODUCTS).write_text(
+        "native/src/x/x_core.c 2  # a reason does not help\n",
+        encoding="utf-8",
+    )
+    r = _run(tmp_path, a, "--base", "origin/main")
+    assert r.returncode == 1, r.stdout
+    assert "'native/src/x/x_core.c' rose to 2" in r.stdout
+    # the file matches its line: only the RISE is refused
+    assert "the ratchet allows" not in r.stdout
+
+
+def test_update_baseline_records_the_products(tmp_path: Path) -> None:
+    a = _seed_products(
+        tmp_path, {"native/src/x/x_core.c": PRODUCT * 3}, "", ""
+    )
+    r = _run(tmp_path, a, "--update-baseline")
+    assert r.returncode == 0, r.stdout
+    text = (tmp_path / PRODUCTS).read_text(encoding="utf-8")
+    assert "native/src/x/x_core.c 3" in text
+    assert "MAY ONLY SHRINK" in text
+    assert _run(tmp_path, a).returncode == 0

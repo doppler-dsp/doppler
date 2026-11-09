@@ -940,7 +940,7 @@ static PyMethodDef MatchedRateConverterObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    CF32 input block.\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    Output buffer; must hold at least max_out samples.\n"
     "\n"

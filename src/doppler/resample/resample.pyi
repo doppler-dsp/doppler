@@ -657,7 +657,7 @@ class CIC:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            CF32 input block, |Re| and |Im| <= 2.0 (clipped otherwise).
         out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out elements.
 
@@ -877,7 +877,7 @@ class RateConverter:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            CF32 input block.
         out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out samples.
 
@@ -1292,7 +1292,7 @@ class MatchedRateConverter:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            CF32 input block.
         out : npt.NDArray[np.complex64] | None
             Output buffer; must hold at least max_out samples.
 
@@ -1888,7 +1888,8 @@ class HalfbandDecimatorQ15:
         Parameters
         ----------
         x : npt.NDArray[np.int16]
-            Input.
+            Interleaved int16_t IQ input array of 2*n_in elements (I₀ Q₀ I₁ Q₁
+            …).
         out : npt.NDArray[np.int16] | None
             Output buffer; caller must provide space for 2*max_out int16_t
             values (one interleaved I/Q pair per output).

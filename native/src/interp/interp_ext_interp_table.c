@@ -358,7 +358,7 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.float64]\n"
-    "    Input.\n"
+    "    Points to evaluate, length n_in.\n"
     "out : npt.NDArray[np.complex128] | None\n"
     "    Output buffer; must hold at least n_in values.\n"
     "\n"

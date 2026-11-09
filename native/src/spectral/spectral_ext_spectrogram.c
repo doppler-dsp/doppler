@@ -955,7 +955,7 @@ static PyMethodDef SpectrogramObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    Complex baseband samples (cf32).\n"
     "out : npt.NDArray[np.float32] | None\n"
     "    Rows, row-major, nfft floats each.\n"
     "\n"

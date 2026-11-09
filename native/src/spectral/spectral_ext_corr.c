@@ -537,7 +537,7 @@ static PyMethodDef CorrObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    Input frame, flat row-major CF32, length ny*nx.\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    Output buffer for the correlation map (CF32, length n_out:\n"
     "    ny_out*nx_out, or ny with col_out); written only on a dump call.\n"

@@ -1004,7 +1004,7 @@ static PyMethodDef _SynthEngine_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    Input block of ``n`` cf32 samples.\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    Output block of ``n`` cf32 samples (may be the input block itself).\n"
     "\n"

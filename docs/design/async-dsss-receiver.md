@@ -649,25 +649,25 @@ blocks and ignores its chain's lag, so the refine decides at `D`, past the
 estimate `S` by up to that lag. A caller feeding a few samples a call has
 already passed `S` when the refine decides. The receiver keeps the last
 `refine_hist_cap` refine samples so the live chain starts at `S` at any
-chunking. The cap is derived at create from the configuration: the refine
-`RateConverter`'s group delay (`dp_RateConverter_get_delay()`, in partials
+chunking. The cap is derived at create from the configuration: how far
+the refine `RateConverter`'s output count can trail its input
+(`dp_RateConverter_get_count_lag()`, about one output a stage, in partials
 of `period / refine_segments` samples), plus one partial of `Dll` framing,
-one code period of the estimate's round-up and one `tsamps` block. A
-decimator's outputs are never that late in number (its count lags by about
-one output a stage), so the bound is loose, and it is checked against
-measurements:
+one code period of the estimate's round-up and one `tsamps` block. It is
+checked against measurements:
 
 | sweep (CODE7 unless noted)                                | geometries | largest `D − S`                 | smallest margin (cap − (`D − S`)) |
 | --------------------------------------------------------- | ---------- | ------------------------------- | --------------------------------- |
-| signal, 90 dB-Hz, 2–7.25 samples a chip, 3000–35714 sym/s | 108        | 299 samples (5.9 periods)       | 149 samples (10.6 periods)        |
-| noise, refine Dll free-running, CODE7 and Gold-1023       | 1320       | 16368 samples (Gold, 4 periods) | 8 samples                         |
+| signal, 90 dB-Hz, 2–7.25 samples a chip, 3000–35714 sym/s | 108        | 299 samples (5.9 periods)       | 44 samples (3.1 periods)          |
+| noise, refine Dll free-running, CODE7 and Gold-1023       | 1320       | 16368 samples (Gold, 4 periods) | 30 over the cap: the fallback     |
 
-The cap ranges over 149–9439 samples on the signal sweep, and is 9109
-(4.5 periods, 71 KiB) for Gold-1023 at 2 samples a chip and 1136 chips a
-symbol. A refine that decides further past than the cap starts the live
+The cap ranges over 44–1225 samples on the signal sweep, and is 4847
+(2.4 periods, 38 KiB) for Gold-1023 at 2 samples a chip and 1136 chips a
+symbol. A refine that decides further past than the cap -- a refine `Dll`
+drifting on noise, in 30 of the 1320 noise geometries -- starts the live
 chain at the first `ceil(k · period)` at or past `D − cap`, the oldest
-sample held at every chunking. No measured geometry reaches that, and a
-white-box test narrows the ring to pin it.
+sample held at every chunking, so the start is still the same at any
+chunking.
 
 Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK

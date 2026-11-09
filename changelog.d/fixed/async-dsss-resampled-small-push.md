@@ -4,5 +4,5 @@
     samples a chip. The refine decides past the live chain's start by its
     chain's lag, and the start was taken only from the deciding call. The
     receiver now keeps a ring of its last refine samples, sized at create
-    from the new `dp_RateConverter_get_delay()`, and waits for a start not
+    from the new `dp_RateConverter_get_count_lag()`, and waits for a start not
     yet reached. Output fed whole is unchanged.

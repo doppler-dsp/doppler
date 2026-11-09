@@ -4587,7 +4587,6 @@ typedef struct
   double sym_rate; /* symbols per second */
   double err_db;   /* refine_max_error_db */
   int    seeded;   /* seeded at phase 0, 0 Hz: refining from the start */
-  size_t hist_cap; /* 0: the receiver's own ring; else forced smaller */
 } chunking_geom_t;
 
 static void *
@@ -4599,11 +4598,6 @@ _chunking_create (void *arg)
       g->err_db, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
   if (rx && g->seeded)
     (void)dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 58.0);
-  /* A smaller ring than the derived one, a white-box reach into the
-     fallback: the buffer stays the derived size, so this only narrows what
-     the hand-over may read. */
-  if (rx && g->hist_cap && g->hist_cap < rx->refine_hist_cap)
-    rx->refine_hist_cap = g->hist_cap;
   return rx;
 }
 
@@ -4690,8 +4684,8 @@ _test_chunking_changes_nothing (void)
   for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
     {
       const size_t    n_sym = rows[r].n_sym;
-      chunking_geom_t g     = { rows[r].fs_chips * 1.0e6, rows[r].sym_rate,
-                                rows[r].err_db, 0, 0 };
+      chunking_geom_t g
+          = { rows[r].fs_chips * 1.0e6, rows[r].sym_rate, rows[r].err_db, 0 };
       double         *data;
       size_t          n;
       float _Complex *x = _chunking_capture (rows[r].fs_chips, rows[r].dec,
@@ -4860,7 +4854,7 @@ _test_handover_round_trips (void)
       = { { 3.5, 2, 16, _at_waiting }, { 2.5, 2, 3, _at_last_refine_call } };
   for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
     {
-      chunking_geom_t g = { rows[r].fs_chips * 1.0e6, 35714.29, 0.5, 0, 0 };
+      chunking_geom_t g = { rows[r].fs_chips * 1.0e6, 35714.29, 0.5, 0 };
       double         *data;
       size_t          n;
       float _Complex *x = _chunking_capture (rows[r].fs_chips, rows[r].dec,
@@ -4898,7 +4892,7 @@ _test_handover_round_trips (void)
 static int
 _test_ring_blob_rejects (void)
 {
-  chunking_geom_t g = { 2.5e6, 35714.29, 0.5, 0, 0 };
+  chunking_geom_t g = { 2.5e6, 35714.29, 0.5, 0 };
   double         *data;
   size_t          n;
   float _Complex *x = _chunking_capture (2.5, 2, g.sym_rate, 300, &n, &data);
@@ -4951,18 +4945,20 @@ _test_ring_blob_rejects (void)
   return 0;
 }
 
-/* The fallback, for a refine whose lag the ring does not cover: no
- * measured geometry reaches it (the 1320-geometry noise sweep's largest
- * reach is 9 samples inside its ring), so the ring is narrowed to one tsamps
- * block here, white-box. A seeded refine fed noise at 2 samples a chip,
- * 3000 sym/s, refine_max_error_db 2 decides at its dwell with the Dll
- * drifted, hundreds of samples past its estimate. The start then moves on
- * to the first start the ring holds at every chunking, and the output is
- * invariant across chunkings. The premise is a DP_REQUIRE: the narrowed
- * ring's one-shot differs from the full ring's (the fallback moved the
- * start), and both refines decided. Sabotage: fall back to the oldest sample
- * this call's ring holds (before - refine_hist_len) instead of D - cap ->
- * the chunkings differ. */
+/* The fallback, for a refine that decides further past its estimate than
+ * the ring holds. No signal geometry measured does (the ring's smallest
+ * margin is 44 samples); a refine Dll drifting on noise can, in 30 of 1320
+ * noise geometries measured. One is this: seeded, fed noise, at 4 samples a
+ * chip, 10000 sym/s, refine_max_error_db 2, the refine decides further past
+ * its estimate than its 170-sample ring holds (532 samples in the sweep).
+ * The live chain then starts at the first whole period (28 samples here)
+ * at or past D - cap (22540, D 22708), the
+ * oldest sample held at every chunking, and the output is invariant across
+ * chunkings. The premise is a DP_REQUIRE on the one-shot: its live chain
+ * started exactly there (samples_in - state_samples, tracking since the
+ * hand-over), D read from the refine's own period count. Sabotage: fall
+ * back to the oldest sample this call's ring holds (before -
+ * refine_hist_len) instead of D - cap -> the chunkings differ. */
 static int
 _test_fallback_is_chunk_invariant (void)
 {
@@ -4972,27 +4968,20 @@ _test_fallback_is_chunk_invariant (void)
   DP_REQUIRE (x != NULL);
   for (size_t i = 0; i < n; i++)
     x[i] = dp_cgauss (&rng);
-  chunking_geom_t full   = { 2.0e6, 3000.0, 2.0, 1, 0 };
-  chunking_geom_t narrow = full;
-  narrow.hist_cap        = 14; /* one tsamps block at 2 samples a chip */
+  chunking_geom_t g = { 4.0e6, 10000.0, 2.0, 1 };
 
-  float _Complex                 *a, *b;
-  dp_async_dsss_receiver_state_t *one = _chunking_create (&full);
-  dp_async_dsss_receiver_state_t *two = _chunking_create (&narrow);
-  DP_REQUIRE (one != NULL && two != NULL);
-  DP_REQUIRE (two->tsamps == narrow.hist_cap
-              && narrow.hist_cap < one->refine_hist_cap);
+  float _Complex                 *a;
+  dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
+  DP_REQUIRE (one != NULL);
   const size_t n_a = _stream (one, x, n, n, &a);
-  const size_t n_b = _stream (two, x, n, n, &b);
-  /* Both refines decided on noise: at their dwell (a non-sequential
-     estimator reports there whatever it holds). */
-  DP_REQUIRE (_refine_decided (one) && _refine_decided (two));
-  DP_REQUIRE (n_a > 0 && n_b > 0);
-  DP_REQUIRE (n_a != n_b || memcmp (a, b, n_a * sizeof *a) != 0);
+  DP_REQUIRE (dp_async_dsss_receiver_get_tracking (one) == 1 && n_a > 0);
+  const uint64_t d     = one->refine_periods * one->tsamps;
+  const uint64_t cap   = one->refine_hist_cap;
+  const uint64_t start = one->samples_in - one->state_samples;
+  DP_REQUIRE (one->tsamps == 28 && d > cap);
+  DP_REQUIRE (start == (d - cap + 27) / 28 * 28);
   free (a);
-  free (b);
   dp_async_dsss_receiver_destroy (one);
-  dp_async_dsss_receiver_destroy (two);
 
   static const size_t sizes[] = { 2, 3, 5, 13, 15, 29, 230, 1000, 0 };
   const dp_ci_spec_t  spec    = {
@@ -5000,11 +4989,11 @@ _test_fallback_is_chunk_invariant (void)
     .create      = _chunking_create,
     .destroy     = _chunking_destroy,
     .process     = _chunking_process,
-    .arg         = &narrow,
+    .arg         = &g,
     .in_size     = sizeof (float _Complex),
     .out_size    = sizeof (float _Complex),
     .out_cap     = n,
-    .frame_n     = 14,
+    .frame_n     = 28,
     .extra_sizes = sizes,
   };
   DP_CHECK (dp_chunk_invariance (&spec, x, n) == 0);

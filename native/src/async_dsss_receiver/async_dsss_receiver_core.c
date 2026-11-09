@@ -1358,9 +1358,9 @@ dp_async_dsss_receiver_create (
   {
     const double period  = (double)code_len * spc;
     const double partial = period / (double)obj->refine_segments;
-    obj->refine_hist_cap
-        = (size_t)ceil (dp_RateConverter_get_delay (obj->refine_rc) * partial
-                        + partial + period + (double)obj->tsamps);
+    obj->refine_hist_cap = (size_t)ceil (
+        dp_RateConverter_get_count_lag (obj->refine_rc) * partial + partial
+        + period + (double)obj->tsamps);
     obj->refine_hist
         = dp_xmallocn (obj->refine_hist_cap, sizeof *obj->refine_hist);
     obj->refine_hist_len  = 0;
@@ -1853,13 +1853,13 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * chunking. A start the input has not reached yet is waited for, the
        * refine decided and the receiver still refining.
        *
-       * The fallback, for a refine whose lag the cap does not cover (none
-       * of the measured geometries, signal or noise): a start before
-       * D - cap, the oldest sample held at every chunking, moves on to the
-       * first ceil(k * period) at or past it, k whole periods, the
-       * fraction carried in the phase. Where the cap covers the lag that
-       * point is at or before the estimate, so the estimate stands. A call
-       * that took nothing (the refine decided before it) holds a start at
+       * The fallback, for a refine whose lag the cap does not cover (a
+       * refine Dll drifting on noise; no signal geometry measured): a
+       * start before D - cap, the oldest sample held at every chunking,
+       * moves on to the first ceil(k * period) at or past it, k whole
+       * periods, the fraction carried in the phase. Where the cap covers the
+       * lag that point is at or before the estimate, so the estimate stands. A
+       * call that took nothing (the refine decided before it) holds a start at
        * or past its first sample, so it needs nothing older. */
       const uint64_t fed_total = state->refine_samples_fed;
       uint64_t       held      = before;

@@ -166,7 +166,7 @@ corr2d_build_fast (dp_correlator_state_t *state, const float _Complex *code,
   state->fwd1d = state->row_fwd[0];
   state->inv1d = state->row_inv[0];
 
-  state->row_ref_spec = dp_xmalloc (nx * sizeof (*state->row_ref_spec));
+  state->row_ref_spec = dp_xmallocn (nx, sizeof (*state->row_ref_spec));
   /* row_ref_spec = conj(FFT_nx(code)) -- the only row of the reference
    * with energy in it. */
   dp_fft_execute_cf32 (state->fwd1d, code, nx, state->row_ref_spec, nx);
@@ -262,7 +262,7 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
   if (!state)
     return NULL;
 
-  state->work_fft = malloc (n * sizeof (*state->work_fft));
+  state->work_fft = dp_mallocn (n, sizeof (*state->work_fft));
   state->accum    = calloc (n, sizeof (*state->accum));
   if (!state->work_fft || !state->accum)
     goto fail;
@@ -288,7 +288,8 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
 
       if (nxo != nx)
         {
-          state->work_pad = malloc (ny * nxo * sizeof (float _Complex));
+          state->work_pad = dp_mallocn (dp_size_mul_sat (ny, nxo),
+                                        sizeof (float _Complex));
           if (!state->work_pad)
             goto fail;
         }
@@ -300,16 +301,18 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
       if (!state->fwd || !state->inv)
         goto fail;
 
-      state->ref_spec = malloc (n * sizeof (*state->ref_spec));
+      state->ref_spec = dp_mallocn (n, sizeof (*state->ref_spec));
       if (!state->ref_spec)
         goto fail;
 
       if (decoupled)
         {
-          state->work_pad = malloc (nyo * nxo * sizeof (float _Complex));
-          state->ztmp     = malloc (ny * nxo * sizeof (float _Complex));
-          state->zcol     = malloc (ny * sizeof (float _Complex));
-          state->zcolout  = malloc (nyo * sizeof (float _Complex));
+          state->work_pad = dp_mallocn (dp_size_mul_sat (nyo, nxo),
+                                        sizeof (float _Complex));
+          state->ztmp     = dp_mallocn (dp_size_mul_sat (ny, nxo),
+                                        sizeof (float _Complex));
+          state->zcol     = dp_mallocn (ny, sizeof (float _Complex));
+          state->zcolout  = dp_mallocn (nyo, sizeof (float _Complex));
           if (!state->work_pad || !state->ztmp || !state->zcol
               || !state->zcolout)
             goto fail;
@@ -351,7 +354,7 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
          skips the forward FFT too: O(nx) per row against the full map's
          O(nx log nx), which is the whole reason a caller who knows its lag
          would otherwise write the sum out by hand beside this kernel. */
-      state->col_ref = dp_xmalloc (nx * sizeof (*state->col_ref));
+      state->col_ref = dp_xmallocn (nx, sizeof (*state->col_ref));
       for (size_t v = 0; v < nx; v++)
         state->col_ref[v] = conjf (ref[v]);
     }
@@ -424,10 +427,10 @@ corr2d_detection_build (dp_correlator_state_t *s, size_t noise_lo,
     return -1;
   /* Sized from the map's own n, already built: only genuine OOM fails
      here, so these abort through the helpers (clib_common.h). */
-  s->det_out       = dp_xmalloc (n * sizeof *s->det_out);
-  s->mag_buf       = dp_xmalloc (n * sizeof *s->mag_buf);
-  s->noise_scratch = dp_xmalloc ((s->noise_hi - s->noise_lo + 1)
-                                 * sizeof *s->noise_scratch);
+  s->det_out       = dp_xmallocn (n, sizeof *s->det_out);
+  s->mag_buf       = dp_xmallocn (n, sizeof *s->mag_buf);
+  s->noise_scratch = dp_xmallocn ((s->noise_hi - s->noise_lo + 1),
+                                  sizeof *s->noise_scratch);
   return 0;
 }
 
@@ -1261,7 +1264,7 @@ corr_dd_create (const float _Complex *code, size_t code_len, size_t ny,
      allocations abort on OOM rather than unwind (clib_common.h). */
   dp_correlator_state_t *state = dp_xcalloc (1, sizeof (*state));
   const size_t           n     = ny * nx;
-  state->work_fft              = dp_xmalloc (n * sizeof (*state->work_fft));
+  state->work_fft              = dp_xmallocn (n, sizeof (*state->work_fft));
   state->accum                 = dp_xcalloc (n, sizeof (*state->accum));
   /* The delay axis is native (nx_out == nx), so the row stage is exactly
      Corr2D's fast path over a reference whose row 0 is the code. */
@@ -1284,7 +1287,7 @@ corr_dd_create (const float _Complex *code, size_t code_len, size_t ny,
       dp_correlator_destroy (state);
       return NULL; /* the map's tables could not be allocated */
     }
-  state->dd_rows = dp_xmalloc (nyo * sizeof *state->dd_rows);
+  state->dd_rows = dp_xmallocn (nyo, sizeof *state->dd_rows);
   /* The schedule, decided once: the rule's, for one tile and one rate.
      Rows first (fused) inverts into work_fft and needs no scratch of the
      map's own; only the run (slow first, or one slow row) does. */
@@ -1293,7 +1296,7 @@ corr_dd_create (const float _Complex *code, size_t code_len, size_t ny,
         && dp__dd_map_pick (state->dd_map, 1, 1, 1) == DP__DD_ROWS_FIRST;
   if (!state->dd_fused)
     state->dd_fine
-        = dp_xmalloc (corr2d_dd_work (state) * sizeof (float _Complex));
+        = dp_xmallocn (corr2d_dd_work (state), sizeof (float _Complex));
   for (size_t i = 0; i < nyo; i++)
     state->dd_rows[i] = (i + nyo / 2) % nyo;
 
@@ -1345,13 +1348,22 @@ corr2d_batch_alloc (dp_correlator_state_t *s)
   if (s->bat_acc)
     return;
   const size_t nw = (size_t)s->nworkers;
-  s->bat_acc      = dp_xcalloc (nw * s->n, sizeof *s->bat_acc);
-  s->bat_work     = dp_xmalloc (nw * s->n * sizeof *s->bat_work);
-  s->bat_map      = dp_xmalloc (nw * s->n_out * sizeof *s->bat_map);
+  /* Trusted (nw workers x a frame already allocated): an overflow aborts
+     as the allocation itself would. */
+  size_t acc_n;
+  s->bat_acc  = dp_size_mul (nw, s->n, &acc_n)
+                    ? dp_xcalloc (acc_n, sizeof *s->bat_acc)
+                    : dp_xnn (NULL);
+  s->bat_work = dp_xmallocn (dp_size_mul_sat (nw, s->n), sizeof *s->bat_work);
+  s->bat_map
+      = dp_xmallocn (dp_size_mul_sat (nw, s->n_out), sizeof *s->bat_map);
   if (s->fast_path && s->nx_out != s->nx)
-    s->bat_pad = dp_xmalloc (nw * s->ny * s->nx_out * sizeof *s->bat_pad);
+    s->bat_pad = dp_xmallocn (
+        dp_size_mul_sat (dp_size_mul_sat (nw, s->ny), s->nx_out),
+        sizeof *s->bat_pad);
   if (corr2d_is_dd (s) && !s->dd_fused)
-    s->bat_fine = dp_xmalloc (nw * corr2d_dd_work (s) * sizeof *s->bat_fine);
+    s->bat_fine = dp_xmallocn (dp_size_mul_sat (nw, corr2d_dd_work (s)),
+                               sizeof *s->bat_fine);
 }
 
 /* One frame into slot 0 of the batch scratch, split across the workers as
@@ -1845,10 +1857,10 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
       || !dp_size_mul (b->R, s->n_out, &maps_bytes)
       || !dp_size_mul (maps_bytes, sizeof (float _Complex), &maps_bytes))
     return 0;
-  m->spec  = malloc (L * s->n * sizeof *m->spec);
+  m->spec  = dp_mallocn (dp_size_mul_sat (L, s->n), sizeof *m->spec);
   m->have  = calloc (L, 1);
-  m->phase = malloc (L * s->nx * sizeof *m->phase);
-  m->maps  = malloc (b->R * s->n_out * sizeof *m->maps);
+  m->phase = dp_mallocn (dp_size_mul_sat (L, s->nx), sizeof *m->phase);
+  m->maps  = dp_mallocn (dp_size_mul_sat (b->R, s->n_out), sizeof *m->maps);
   int ok   = m->spec && m->have && m->phase && m->maps;
   if (ok && slow_first)
     {
@@ -1859,9 +1871,11 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
       ok = dp_size_mul (L, b->R, &fine_bytes)
            && dp_size_mul (fine_bytes, fl, &fine_bytes)
            && dp_size_mul (fine_bytes, sizeof (float _Complex), &fine_bytes);
-      m->fine      = ok ? malloc (fine_bytes) : NULL;
-      m->have_fine = calloc (L * b->R, 1);
-      ok           = m->fine && m->have_fine;
+      m->fine = ok ? malloc (fine_bytes) : NULL;
+      size_t fine_n;
+      m->have_fine
+          = dp_size_mul (L, b->R, &fine_n) ? calloc (fine_n, 1) : NULL;
+      ok = m->fine && m->have_fine;
     }
   if (!ok)
     {
@@ -1872,19 +1886,19 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
     {
       /* The object's own sizes, allocated once by create(): abort on OOM
          (clib_common.h), as m->prod is. */
-      m->wt  = dp_xmalloc (s->nx * sizeof *m->wt);
-      m->blk = dp_xmalloc (s->n * sizeof *m->blk);
+      m->wt  = dp_xmallocn (s->nx, sizeof *m->wt);
+      m->blk = dp_xmallocn (s->n, sizeof *m->blk);
       for (size_t q = 0; q < s->nx; q++)
         m->wt[q] = s->row_ref_spec[q] / (float)s->nx;
     }
-  m->prod = dp_xmalloc (nw * s->nx * sizeof *m->prod);
+  m->prod = dp_xmallocn (dp_size_mul_sat (nw, s->nx), sizeof *m->prod);
   if (s->nx_out != s->nx)
-    m->pad = dp_xmalloc (nw * s->nx_out * sizeof *m->pad);
-  m->surf = dp_xmalloc (s->ny * s->nx_out * sizeof *m->surf);
+    m->pad = dp_xmallocn (dp_size_mul_sat (nw, s->nx_out), sizeof *m->pad);
+  m->surf = dp_xmallocn (dp_size_mul_sat (s->ny, s->nx_out), sizeof *m->surf);
   if (!(s->fast_path && s->col_out < 0))
     {
       m->acc  = dp_xcalloc (s->n, sizeof *m->acc);
-      m->copy = dp_xmalloc (s->n * sizeof *m->copy);
+      m->copy = dp_xmallocn (s->n, sizeof *m->copy);
     }
   /* The within-period mix of each fraction, formed in double and rounded
      once: the phase restarts at every period (rule 4 of the design page),
@@ -2290,10 +2304,10 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
   /* The time-domain refine needs whole lags on a shared row stage. */
   const int direct
       = state->fast_path && state->col_out < 0 && state->nx_out == nx;
-  float           *pw   = dp_xmalloc (n_out * sizeof *pw);
-  uint32_t        *ix   = dp_xmalloc (n_out * sizeof *ix);
-  float _Complex  *code = direct ? dp_xmalloc (nx * sizeof *code) : NULL;
-  double _Complex *ph   = direct ? dp_xmalloc (nx * sizeof *ph) : NULL;
+  float           *pw   = dp_xmallocn (n_out, sizeof *pw);
+  uint32_t        *ix   = dp_xmallocn (n_out, sizeof *ix);
+  float _Complex  *code = direct ? dp_xmallocn (nx, sizeof *code) : NULL;
+  double _Complex *ph   = direct ? dp_xmallocn (nx, sizeof *ph) : NULL;
   /* 1. Detect: the strongest cell over the coarse bank, and which carrier
      and rate it came from. */
   corr2d_max_t         c = { pw, ix };
@@ -2455,25 +2469,32 @@ dd_slot_build (const dp__dd_map_t *m, dd_slot_t *s)
   memset (s, 0, sizeof *s);
   s->fwd  = dp_fft_create (g->n, -1, 1);
   s->inv  = dp_fft_create (g->l, +1, 1);
-  s->prod = malloc (DD_ROW_GROUP * g->n * sizeof *s->prod);
+  s->prod = dp_mallocn (dp_size_mul_sat (DD_ROW_GROUP, g->n), sizeof *s->prod);
   int ok  = s->fwd && s->inv && s->prod;
   if (ok && m->fdi > 1)
     {
       s->slow = dp_fft_create (m->fdi, -1, 1);
-      s->col  = calloc (DD_SLOW_TILE * m->fdi, sizeof *s->col);
-      ok      = s->slow && s->col;
+      size_t col_n;
+      s->col = dp_size_mul (DD_SLOW_TILE, m->fdi, &col_n)
+                   ? calloc (col_n, sizeof *s->col)
+                   : NULL;
+      ok     = s->slow && s->col;
     }
   if (ok && g->l != g->n)
     {
-      s->pad = malloc (g->l * sizeof *s->pad);
+      s->pad = dp_mallocn (g->l, sizeof *s->pad);
       ok     = s->pad != NULL;
     }
   if (ok && g->di > 1)
     {
       s->slowr = dp_fft_create (g->di, -1, 1);
-      s->colr  = calloc (DD_SLOW_TILE * g->di, sizeof *s->colr);
-      s->colo  = malloc (DD_SLOW_TILE * g->di * sizeof *s->colo);
-      ok       = s->slowr && s->colr && s->colo;
+      size_t colr_n;
+      s->colr = dp_size_mul (DD_SLOW_TILE, g->di, &colr_n)
+                    ? calloc (colr_n, sizeof *s->colr)
+                    : NULL;
+      s->colo = dp_mallocn (dp_size_mul_sat (DD_SLOW_TILE, g->di),
+                            sizeof *s->colo);
+      ok      = s->slowr && s->colr && s->colo;
     }
   if (!ok)
     dd_slot_free (s);
@@ -2500,7 +2521,7 @@ dp__dd_map_create (const dp__dd_geom_t *g, int slots)
   m->force = -1;
   if (m->fdi > 1)
     {
-      m->tw = malloc (m->fdi * sizeof *m->tw);
+      m->tw = dp_mallocn (m->fdi, sizeof *m->tw);
       if (!m->tw)
         {
           free (m);
@@ -2523,7 +2544,8 @@ dp__dd_map_reserve (dp__dd_map_t *m, int slots)
 {
   if (slots <= m->slots)
     return 0;
-  dd_slot_t *grown = realloc (m->slot, (size_t)slots * sizeof *grown);
+  dd_slot_t *grown
+      = realloc (m->slot, dp_size_mul_sat ((size_t)slots, sizeof *grown));
   if (!grown)
     return -1;
   m->slot = grown;
@@ -3554,7 +3576,7 @@ search_dwell_decided (dp_correlator_state_t *st, const float *surf,
     {
       if (!srch->stat_surface)
         srch->stat_surface
-            = (float *)dp_xmalloc (srch->n_surf * sizeof (float));
+            = (float *)dp_xmallocn (srch->n_surf, sizeof (float));
       for (size_t k = 0; k < srch->n_surf; k++)
         srch->stat_surface[k] = stat_of (st, surf[k]);
       srch->surface_at = srch->samples_consumed;
@@ -3714,7 +3736,7 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
      three sums with nothing carried from sample to sample -- the shape
      the compiler vectorizes. The mixer is referenced to the epoch's own
      first sample; each epoch's start phase is applied once, below. */
-  double _Complex *rm = dp_xmalloc (nx * sizeof *rm);
+  double _Complex *rm = dp_xmallocn (nx, sizeof *rm);
   {
     const double _Complex step = cexp (-I * w0 * fb);
     double _Complex ph         = 1.0;
@@ -3727,8 +3749,8 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
       }
   }
 
-  double          *w    = dp_xmalloc (n_f * sizeof *w);
-  double _Complex *rot  = dp_xmalloc (5u * n_f * sizeof *rot);
+  double          *w    = dp_xmallocn (n_f, sizeof *w);
+  double _Complex *rot  = dp_xmallocn (dp_size_mul_sat (5u, n_f), sizeof *rot);
   double _Complex *adv  = rot + n_f;
   double _Complex *base = rot + 2u * n_f;
   double _Complex *p    = rot + 3u * n_f; /* per cell, this epoch */
@@ -3741,7 +3763,7 @@ dp_correlator_cell_corr_grid (const dp_correlator_state_t *st,
       base[j] = cexp (-I * w[j] * (t0 + c0));  /* epoch 0, block 0 */
     }
 
-  double _Complex (*S)[3] = dp_xmalloc (B * sizeof *S);
+  double _Complex (*S)[3] = dp_xmallocn (B, sizeof *S);
   for (size_t e = 0; e < n_epochs; e++)
     {
       const float _Complex *xe = x + e * nx;
@@ -4459,9 +4481,11 @@ search_cover_window_bins (double du, double span)
   /* A count past what size_t holds saturates: converting an out-of-range
      double is undefined (x86 yields 2^63, which 2n + 1 wraps to ONE tile).
      The constructor refuses a count no grid can hold before using it. */
-  if (!(ns < (double)(SIZE_MAX / 4u)))
+  size_t whole, tiles;
+  if (!dp_size_from_double (ns, &whole) || !dp_size_mul (whole, 2, &tiles)
+      || !dp_size_add (tiles, 1, &tiles))
     return SIZE_MAX;
-  return 2u * (size_t)ns + 1u;
+  return tiles;
 }
 
 /* Search the grid for a BURST-mode engine: WHICH (coherent_bins, n_noncoh,
@@ -4693,13 +4717,13 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
   m->f                     = search_map_f (carrier, D, W);
   const dp__dd_geom_t geom = { cb, lb, D, DI, m->f };
   m->map                   = dp__dd_map_create (&geom, 1);
-  m->ref_spec              = malloc (cb * sizeof *m->ref_spec);
-  m->spec                  = malloc (D * cb * sizeof *m->spec);
-  m->tiles                 = malloc (W * sizeof *m->tiles);
-  m->rows                  = malloc (W * DI * sizeof *m->rows);
-  m->wt                    = malloc ((m->f > 1 ? W : 1) * cb * sizeof *m->wt);
+  m->ref_spec              = dp_mallocn (cb, sizeof *m->ref_spec);
+  m->spec  = dp_mallocn (dp_size_mul_sat (D, cb), sizeof *m->spec);
+  m->tiles = dp_mallocn (W, sizeof *m->tiles);
+  m->rows  = dp_mallocn (dp_size_mul_sat (W, DI), sizeof *m->rows);
+  m->wt = dp_mallocn (dp_size_mul_sat ((m->f > 1 ? W : 1), cb), sizeof *m->wt);
   if (m->f > 1)
-    m->off = malloc (W * cb * sizeof *m->off);
+    m->off = dp_mallocn (dp_size_mul_sat (W, cb), sizeof *m->off);
   dp_fft_state_t *fwd = dp_fft_create (cb, -1, 1);
   if (!m->map || !m->ref_spec || !m->spec || !m->tiles || !m->rows || !m->wt
       || (m->f > 1 && !m->off) || !fwd)
@@ -4710,7 +4734,7 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
     }
   const size_t wl = dp__dd_map_work_len (
       m->map, W, search_rate_count_at (srch->rate_hyps, D));
-  m->work = malloc ((wl ? wl : 1) * sizeof *m->work);
+  m->work = dp_mallocn ((wl ? wl : 1), sizeof *m->work);
   if (!m->work)
     {
       dp_fft_destroy (fwd);
@@ -4722,7 +4746,7 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
      every tile shares them; with one, each tile's are its own, ramped. */
   dp_fft_execute_cf32 (fwd, ref, cb, m->ref_spec, cb);
   dp_fft_destroy (fwd);
-  float _Complex *base = m->f > 1 ? malloc (cb * sizeof *base) : m->wt;
+  float _Complex *base = m->f > 1 ? dp_mallocn (cb, sizeof *base) : m->wt;
   if (!base)
     {
       search_map_release (m);
@@ -4868,9 +4892,9 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
       memcpy (new_ref, replica ? replica : srch->ref,
               cb * sizeof (float _Complex));
       new_out
-          = (float _Complex *)malloc (new_n_surf * sizeof (float _Complex));
-      new_mag     = (float *)malloc (new_n_surf * sizeof (float));
-      new_scratch = (float *)malloc (new_n_surf * sizeof (float));
+          = (float _Complex *)dp_mallocn (new_n_surf, sizeof (float _Complex));
+      new_mag     = (float *)dp_mallocn (new_n_surf, sizeof (float));
+      new_scratch = (float *)dp_mallocn (new_n_surf, sizeof (float));
       /* The masks are fixed-size, trusted allocations: abort-on-OOM, no
          unwind path (clib_common.h). */
       new_band  = (uint8_t *)dp_xcalloc (new_n_surf, 1);
@@ -4881,12 +4905,12 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
          map runs on them (and search_resolve_tile_alias asks about them). A
          fixed size from validated arguments: abort-on-OOM. */
       if (new_freq_bins > 1 && new_db > 1)
-        new_blk_raw = (float _Complex *)dp_xmalloc (new_db * cb
-                                                    * sizeof (float _Complex));
+        new_blk_raw = (float _Complex *)dp_xmallocn (
+            dp_size_mul_sat (new_db, cb), sizeof (float _Complex));
       /* The partial slots (one per tile) follow the grid, built here with
          the rest so nothing fails after the commit (#2761). */
-      new_parts = (dp_correlator_part_t *)dp_xmalloc (new_freq_bins
-                                                      * sizeof *new_parts);
+      new_parts = (dp_correlator_part_t *)dp_xmallocn (new_freq_bins,
+                                                       sizeof *new_parts);
     }
   if (map_changed
       && search_map_build (st, new_ref ? new_ref : srch->ref, new_db,
@@ -5078,7 +5102,7 @@ search_autocorr (const float _Complex *x, size_t n)
   dp_correlator_state_t *c = dp_correlator_create_1d (x, n, 1, 1, 0);
   if (!c)
     return NULL;
-  float _Complex *R   = dp_xmalloc (n * sizeof *R);
+  float _Complex *R   = dp_xmallocn (n, sizeof *R);
   const size_t    got = dp_correlator_execute (c, x, n, R, n);
   (void)got; /* n in, dwell 1: one dump of n, always */
   dp_correlator_destroy (c);
@@ -5100,9 +5124,9 @@ search_shape_of_template (const float _Complex *t, size_t n,
       dp_fft_destroy (fwd);
       return -1;
     }
-  double _Complex *buf   = dp_xmalloc (n * sizeof *buf);
-  double _Complex *spec  = dp_xmalloc (n * sizeof *spec);
-  double          *P     = dp_xmalloc (n * sizeof *P);
+  double _Complex *buf   = dp_xmallocn (n, sizeof *buf);
+  double _Complex *spec  = dp_xmallocn (n, sizeof *spec);
+  double          *P     = dp_xmallocn (n, sizeof *P);
   double           p_sum = 0.0;
 
   /* The power spectrum, for the delay-loss model below: a spectrum, not a
@@ -5234,10 +5258,10 @@ search_doppler_sidelobe (const float _Complex *replica, size_t n,
      (design correlator.md U4, 3.4b-pre). */
   const dp__dd_geom_t g   = { .n = n, .l = n, .d = 1, .di = 1, .f = 1 };
   dp__dd_map_t       *map = dp_xnn (dp__dd_map_create (&g, 1));
-  float _Complex     *wt  = dp_xmalloc (n * sizeof *wt);
-  float _Complex     *sig = dp_xmalloc (n * sizeof *sig);
-  float _Complex     *X   = dp_xmalloc (n * sizeof *X);
-  float _Complex     *chi = dp_xmalloc (n * sizeof *chi);
+  float _Complex     *wt  = dp_xmallocn (n, sizeof *wt);
+  float _Complex     *sig = dp_xmallocn (n, sizeof *sig);
+  float _Complex     *X   = dp_xmallocn (n, sizeof *X);
+  float _Complex     *chi = dp_xmallocn (n, sizeof *chi);
   dp__dd_map_forward (map, NULL, 0, replica, wt); /* the replica's spectrum */
   for (size_t b = 0; b < n; b++)
     wt[b] = conjf (wt[b]);
@@ -5531,7 +5555,7 @@ search_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
   /* The period's bytes fit a size_t: search_period_at refused one whose
      do not, where the period is made (#2958). */
   float _Complex *replica
-      = (float _Complex *)dp_xmalloc (n_period * sizeof *replica);
+      = (float _Complex *)dp_xmallocn (n_period, sizeof *replica);
   for (size_t k = 0; k < n_period; k++)
     {
       const size_t c
@@ -5576,21 +5600,23 @@ search_period_at (size_t code_len, double sample_rate, double chip_rate,
     return 0;
   const double n = sample_rate * (double)code_len / chip_rate;
   const double r = nearbyint (n);
-  if (!(r >= (double)code_len) || r > (double)(SIZE_MAX / 2)
-      || fabs (n - r) > 1e-9 * r)
+  if (!(r >= (double)code_len) || fabs (n - r) > 1e-9 * r)
     return 0;
   /* Every caller sizes a period of complex samples from it (the replica,
-     the template's transforms), so a period whose bytes no size_t holds
-     is refused here, where it is made (#2958): sample_rate 7.438e22 over
-     a 31-chip code at 1 MHz is ~2^61 samples, 2^64 bytes. */
-  size_t bytes;
-  if (!dp_size_mul ((size_t)r, sizeof (float _Complex), &bytes))
+     the template's transforms), and a continuous search pads its lags to
+     the next power of two, up to twice it: a period whose bytes, or whose
+     padding, no size_t holds is refused here, where it is made (#2958).
+     sample_rate 7.438e22 over a 31-chip code at 1 MHz is ~2^61 samples,
+     2^64 bytes. */
+  size_t period, bytes;
+  if (!dp_size_from_double (r, &period) || !dp_size_mul (period, 2, &bytes)
+      || !dp_size_mul (period, sizeof (float _Complex), &bytes))
     {
       if (too_long)
         *too_long = 1;
       return 0;
     }
-  return (size_t)r;
+  return period;
 }
 
 size_t
@@ -5676,7 +5702,7 @@ search_burst_create (const float _Complex *tmpl, size_t n, size_t reps,
     CORR_WHY ("Correlator: the burst search's ref needs finite, non-zero "
               "energy");
   const float     g       = (float)sqrt ((double)n / e);
-  float _Complex *replica = dp_xmalloc (n * sizeof *replica);
+  float _Complex *replica = dp_xmallocn (n, sizeof *replica);
   for (size_t i = 0; i < n; i++)
     replica[i] = tmpl[i] * g;
 
@@ -6043,9 +6069,9 @@ dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n)
   free (st->peaks);
   free (st->twin_row);
   free (st->twin_col);
-  st->peaks     = (det_peak_t *)dp_xmalloc (n * sizeof (det_peak_t));
-  st->twin_row  = (uint32_t *)dp_xmalloc (n * sizeof (uint32_t));
-  st->twin_col  = (uint32_t *)dp_xmalloc (n * sizeof (uint32_t));
+  st->peaks     = (det_peak_t *)dp_xmallocn (n, sizeof (det_peak_t));
+  st->twin_row  = (uint32_t *)dp_xmallocn (n, sizeof (uint32_t));
+  st->twin_col  = (uint32_t *)dp_xmallocn (n, sizeof (uint32_t));
   st->max_peaks = n;
   st->n_peaks   = 0;
   st->n_twins   = 0;
@@ -6128,7 +6154,8 @@ search_rate_table (dp_correlator_state_t *st)
       || (srch->rate_chirp && srch->rate_chirp_d == D))
     return;
   free (srch->rate_chirp);
-  srch->rate_chirp   = dp_xmalloc (R * D * sizeof *srch->rate_chirp);
+  srch->rate_chirp
+      = dp_xmallocn (dp_size_mul_sat (R, D), sizeof *srch->rate_chirp);
   srch->rate_chirp_d = D;
   const double T     = (double)srch->sf / srch->chip_rate;
   for (size_t h = 0; h < R; h++)
@@ -6193,7 +6220,7 @@ search_make_surface (dp_correlator_state_t *st)
   if (R > 1 && srch->rate_best_cap != srch->n_surf)
     {
       free (srch->rate_best);
-      srch->rate_best = dp_xmalloc (srch->n_surf * sizeof *srch->rate_best);
+      srch->rate_best = dp_xmallocn (srch->n_surf, sizeof *srch->rate_best);
       srch->rate_best_cap = srch->n_surf;
     }
   search_rates_t c = { st, R, 0, -1.0f };
@@ -6596,9 +6623,10 @@ dp_correlator_sidelobe_ratio (dp_correlator_state_t     *state,
       const dp__dd_geom_t gc = { .n = cb, .l = cb, .d = 1, .di = 1, .f = 1 };
       srch->sl_map           = dp_xnn (dp__dd_map_create (&g, 1));
       srch->sl_map_cb        = dp_xnn (dp__dd_map_create (&gc, 1));
-      srch->sl_scratch = dp_xmalloc ((6 * cb + lb) * sizeof *srch->sl_scratch);
-      srch->sl_cmax    = dp_xmalloc (DP_CORRELATOR_SIDELOBE_SLOTS * lb
-                                     * sizeof *srch->sl_cmax);
+      srch->sl_scratch = dp_xmallocn ((6 * cb + lb), sizeof *srch->sl_scratch);
+      srch->sl_cmax
+          = dp_xmallocn (dp_size_mul_sat (DP_CORRELATOR_SIDELOBE_SLOTS, lb),
+                         sizeof *srch->sl_cmax);
       srch->sl_cn = srch->sl_cnext = 0;
       float _Complex *C            = srch->sl_scratch;
       dp__dd_map_forward (srch->sl_map, NULL, 0, srch->ref, C);
@@ -6814,7 +6842,8 @@ dp_correlator_block_prompt (dp_correlator_state_t *state, size_t tile,
     return 0;
   if (!srch->prompt_scratch)
     {
-      srch->prompt_scratch = malloc ((2 * cb + lb) * sizeof (float _Complex));
+      srch->prompt_scratch
+          = dp_mallocn ((2 * cb + lb), sizeof (float _Complex));
       if (!srch->prompt_scratch)
         return 0;
     }

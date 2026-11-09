@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Gate: a checked size product has ONE home, `dp_size_mul()`.
+"""Gate: a checked size product, and a double-to-size_t range check, each
+have ONE home: `dp_size_mul()` and `dp_size_from_double()`.
 
 A size product that wraps allocates small and is then written past. The
 guard against it is one line -- `n > SIZE_MAX / k` -- and that is why it
@@ -10,15 +11,23 @@ three wrapping products in two review rounds. `dp_size_mul()` in
 `native/inc/doppler/clib_common.h` is its one home, with a saturating face
 `dp_size_mul_sat()` for an upper bound; this gate keeps it there.
 
+Its sibling is the "does this double fit a size_t" check, spelled
+`d <= (double)SIZE_MAX`. Where size_t is 64 bits that bound is wrong:
+SIZE_MAX rounds UP to 2^64 as a double, so 2^64 itself passes and its
+conversion is undefined. `dp_size_from_double()` bounds against 2^w
+exactly; a `(double)SIZE_MAX` cast anywhere else is a site too.
+
 **A site is `SIZE_MAX` used as a divisor's dividend** (`SIZE_MAX\\s*/`),
-the signature of a hand-written multiply guard, in C under `native/` and
-`ffi/`. Comments are blanked first (_c_source.strip_comments), so a
-comment that quotes the idiom is not one. Not scanned: clib_common.h (the
-home), `native/tests/**` (tests build boundary values on purpose),
-`vendor/**` (not ours), and any file whose first line is
-`/* jm:generated` (owned by the just-makeit generator; a fix there is a jm
-fix). A `SIZE_MAX` that is not divided -- a u64-to-size_t range check, a
-saturating SUM -- is not a product and is not a site.
+the signature of a hand-written multiply guard, or `SIZE_MAX` cast to a
+double (`(double)SIZE_MAX`, `(double)(SIZE_MAX ...`), in C under `native/`
+and `ffi/`. One expression is one site: `(double)(SIZE_MAX / 2)` counts
+once, not once per idiom. Comments are blanked first
+(_c_source.strip_comments), so a comment that quotes the idiom is not one.
+Not scanned: clib_common.h (the home), `native/tests/**` (tests build
+boundary values on purpose), `vendor/**` (not ours), and any file whose
+first line is `/* jm:generated` (owned by the just-makeit generator; a fix
+there is a jm fix). A `SIZE_MAX` that is not divided -- a u64-to-size_t
+range check, a saturating SUM -- is not a product and is not a site.
 
 **What is left is a RATCHET that only shrinks.** `scripts/.size-mul-ratchet`
 holds lines `<path> <count>  # reason`. A file may hold no more sites than
@@ -48,7 +57,9 @@ BASELINE = "scripts/.size-mul-ratchet"
 SCAN_DIRS = ("native", "ffi")
 EXCLUDE_DIRS = ("native/tests/",)
 GENERATED = "/* jm:generated"
-SITE = re.compile(r"\bSIZE_MAX\s*/")
+#: The cast alternative comes first, so `(double)(SIZE_MAX / 2)` is
+#: consumed as one site rather than matched twice.
+SITE = re.compile(r"\(\s*double\s*\)\s*\(?\s*SIZE_MAX\b|\bSIZE_MAX\s*/")
 
 
 def _sources(root: Path) -> list[str]:
@@ -67,7 +78,8 @@ def _sources(root: Path) -> list[str]:
 
 
 def sites(root: Path) -> dict[str, list[tuple[int, str]]]:
-    """``{path: [(line, text)]}`` of every hand-written multiply guard."""
+    """``{path: [(line, text)]}`` of every hand-written guard; ``text`` ends
+    with the primitive that replaces it."""
     found: dict[str, list[tuple[int, str]]] = {}
     for rel in _sources(root):
         raw = (root / rel).read_text(encoding="utf-8", errors="replace")
@@ -77,7 +89,14 @@ def sites(root: Path) -> dict[str, list[tuple[int, str]]]:
         lines = text.splitlines()
         for m in SITE.finditer(text):
             at = text.count("\n", 0, m.start())
-            found.setdefault(rel, []).append((at + 1, lines[at].strip()))
+            home = (
+                "dp_size_from_double"
+                if m.group(0).startswith("(")
+                else "dp_size_mul"
+            )
+            found.setdefault(rel, []).append(
+                (at + 1, f"{lines[at].strip()}  -- use {home} (clib_common.h)")
+            )
     return found
 
 
@@ -143,10 +162,7 @@ def main() -> int:
                 f"{rel}: {len(at)} hand-written SIZE_MAX guard(s), "
                 f"the ratchet allows {cap}"
             )
-            bad += [
-                f"    {rel}:{n}: {line}  -- use dp_size_mul (clib_common.h)"
-                for n, line in at
-            ]
+            bad += [f"    {rel}:{n}: {line}" for n, line in at]
     for rel, (n, _) in sorted(allowed.items()):
         now = len(found.get(rel, []))
         if now < n:
@@ -189,7 +205,9 @@ def main() -> int:
         print(
             "\n  Use dp_size_mul (clib_common.h): it returns 0 and leaves\n"
             "  *out untouched when a * b would wrap, or dp_size_mul_sat for\n"
-            "  an upper bound that saturates at SIZE_MAX."
+            "  an upper bound that saturates at SIZE_MAX; and\n"
+            "  dp_size_from_double for a double that must fit a size_t\n"
+            "  ((double)SIZE_MAX rounds up to 2^64 on LP64)."
         )
         return 1
     total = sum(len(v) for v in found.values())

@@ -83,10 +83,10 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**dp\_correlator\_bank\_detect**](#function-dp_correlator_bank_detect) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L\_d, size\_t L\_r, int g\_min, int g\_max, float t\_candidate, float t\_confirm, const float \_Complex \* rates, size\_t rates\_len, float \* out, int32\_t \* out1, uint32\_t \* out2, uint32\_t \* out3, uint32\_t \* out4, size\_t max\_out) <br>_Detect on a coarse carrier grid, refine each candidate at its own cell on a fine one, and keep what confirms._  |
+|  size\_t | [**dp\_correlator\_bank\_detect**](#function-dp_correlator_bank_detect) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L\_d, size\_t L\_r, int g\_min, int g\_max, float t\_candidate, float t\_confirm, const float \_Complex \* rates, size\_t rates\_len, float \* out, int32\_t \* out1, uint32\_t \* out2, uint32\_t \* out3, uint32\_t \* out4, size\_t max\_out, const char \*\* why) <br>_Detect on a coarse carrier grid, refine each candidate at its own cell on a fine one, and keep what confirms._  |
 |  size\_t | [**dp\_correlator\_bank\_detect\_max\_out**](#function-dp_correlator_bank_detect_max_out) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_correlator\_bank\_detect()**_](correlator__core_8h.md#function-dp_correlator_bank_detect) _needs: one record per map cell._ |
 |  size\_t | [**dp\_correlator\_bank\_fold**](#function-dp_correlator_bank_fold) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, const [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md) \* fold) <br>_Run one frame through a bank of carrier and rate hypotheses and hand each map to a reducer._  |
-|  size\_t | [**dp\_correlator\_bank\_power\_max**](#function-dp_correlator_bank_power_max) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, float \* out, uint32\_t \* out1, size\_t max\_out) <br>_The strongest power at every cell over a bank, and which hypothesis it came from._  |
+|  size\_t | [**dp\_correlator\_bank\_power\_max**](#function-dp_correlator_bank_power_max) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, float \* out, uint32\_t \* out1, size\_t max\_out, const char \*\* why) <br>_The strongest power at every cell over a bank, and which hypothesis it came from._  |
 |  size\_t | [**dp\_correlator\_bank\_power\_max\_max\_out**](#function-dp_correlator_bank_power_max_max_out) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_correlator\_bank\_power\_max()**_](correlator__core_8h.md#function-dp_correlator_bank_power_max) _needs: one map._ |
 |  size\_t | [**dp\_correlator\_block\_prompt**](#function-dp_correlator_block_prompt) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
 |  size\_t | [**dp\_correlator\_block\_raw**](#function-dp_correlator_block_raw) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
@@ -94,7 +94,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  int | [**dp\_correlator\_carrier\_freq\_ok**](#function-dp_correlator_carrier_freq_ok) (double carrier\_freq\_hz, double sample\_rate\_hz) <br>_Whether_ `carrier_freq_hz` _is a carrier the code can be coupled to at_`sample_rate_hz:` _0 (uncoupled), or finite and above half the sample rate._ |
 |  double \_Complex | [**dp\_correlator\_cell\_corr**](#function-dp_correlator_cell_corr) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
 |  void | [**dp\_correlator\_cell\_corr\_grid**](#function-dp_correlator_cell_corr_grid) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**dp\_correlator\_cell\_corr()**_](correlator__core_8h.md#function-dp_correlator_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
-|  int | [**dp\_correlator\_configure\_search\_raw**](#function-dp_correlator_configure_search_raw) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
+|  int | [**dp\_correlator\_configure\_search\_raw**](#function-dp_correlator_configure_search_raw) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh, const char \*\* why) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  size\_t | [**dp\_correlator\_consumed**](#function-dp_correlator_consumed) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Input samples the last_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _took._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create**](#function-dp_correlator_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, [**dp\_correlator\_framing\_t**](correlator__core_8h.md#enum-dp_correlator_framing_t) framing, size\_t doppler\_rows, int detect, size\_t dwell, size\_t ny\_out, size\_t nx\_out, int col\_out, float threshold, size\_t noise\_lo, size\_t noise\_hi, int noise\_mode, double sample\_rate, double chip\_rate, double symbol\_rate, size\_t reps, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, double doppler\_rate, size\_t rate\_hypotheses, size\_t code\_only\_epochs, int nthreads, const char \*\* why) <br>_Build the flavor the knobs name: the one constructor the Python class_ `Correlator` _calls._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_1d**](#function-dp_correlator_create_1d) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
@@ -106,18 +106,18 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_detector\_2d**](#function-dp_correlator_create_detector_2d) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming detector: the 2-D correlator with the stream and detection layers._  |
 |  void | [**dp\_correlator\_destroy**](#function-dp_correlator_destroy) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Destroy and free a correlator, any flavor._  |
 |  double | [**dp\_correlator\_dsl\_db**](#function-dp_correlator_dsl_db) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The search's Doppler-offset sidelobe level, dB: 20\*log10 of the largest lag of the code's periodic ambiguity outside the mainlobe, at any Doppler offset the grid's tiles can put between an emitter and a tile, relative to the emitter's own peak (_ [_**dp\_correlator\_shape\_t::dsl**_](structdp__correlator__shape__t.md#variable-dsl) _)._ |
-|  size\_t | [**dp\_correlator\_execute**](#function-dp_correlator_execute) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse._ |
-|  size\_t | [**dp\_correlator\_execute\_all**](#function-dp_correlator_execute_all) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Every map of a batch, unreduced: row h of the (H, n\_out) result is the map of frame h (in C, map h is at_ `out + h * n_out` _)._ |
+|  size\_t | [**dp\_correlator\_execute**](#function-dp_correlator_execute) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out, const char \*\* why) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse._ |
+|  size\_t | [**dp\_correlator\_execute\_all**](#function-dp_correlator_execute_all) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out, const char \*\* why) <br>_Every map of a batch, unreduced: row h of the (H, n\_out) result is the map of frame h (in C, map h is at_ `out + h * n_out` _)._ |
 |  size\_t | [**dp\_correlator\_execute\_all\_max\_out**](#function-dp_correlator_execute_all_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n\_in) <br>_Samples_ [_**dp\_correlator\_execute\_all()**_](correlator__core_8h.md#function-dp_correlator_execute_all) _writes for_`n_in` _input samples: H \* n\_out, H = n\_in / (ny \* nx)._ |
-|  size\_t | [**dp\_correlator\_execute\_coherent**](#function-dp_correlator_execute_coherent) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_The coherent sum of a batch's maps, inverted once._  |
+|  size\_t | [**dp\_correlator\_execute\_coherent**](#function-dp_correlator_execute_coherent) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out, const char \*\* why) <br>_The coherent sum of a batch's maps, inverted once._  |
 |  size\_t | [**dp\_correlator\_execute\_coherent\_max\_out**](#function-dp_correlator_execute_coherent_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Samples_ [_**dp\_correlator\_execute\_coherent()**_](correlator__core_8h.md#function-dp_correlator_execute_coherent) _writes: n\_out._ |
 |  size\_t | [**dp\_correlator\_execute\_fold**](#function-dp_correlator_execute_fold) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, const [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md) \* fold) <br>_Make the map of every frame in a batch and hand each to a reducer._  |
 |  size\_t | [**dp\_correlator\_execute\_max\_out**](#function-dp_correlator_execute_max_out) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**dp\_correlator\_state\_t::n\_out**_](structdp__correlator__state__t.md#variable-n_out) __ _ny\_out\*nx\_out normally, or ny when a single_[_**dp\_correlator\_state\_t::col\_out**_](structdp__correlator__state__t.md#variable-col_out) _was selected)._ |
-|  size\_t | [**dp\_correlator\_execute\_peaks**](#function-dp_correlator_execute_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, uint32\_t \* out2, float \* out3, size\_t max\_out) <br>_One record per map of a batch: its peak power, where the peak is, and its mean power._  |
+|  size\_t | [**dp\_correlator\_execute\_peaks**](#function-dp_correlator_execute_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, uint32\_t \* out2, float \* out3, size\_t max\_out, const char \*\* why) <br>_One record per map of a batch: its peak power, where the peak is, and its mean power._  |
 |  size\_t | [**dp\_correlator\_execute\_peaks\_max\_out**](#function-dp_correlator_execute_peaks_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n\_in) <br>_Records_ [_**dp\_correlator\_execute\_peaks()**_](correlator__core_8h.md#function-dp_correlator_execute_peaks) _writes for_`n_in` _samples: H._ |
-|  size\_t | [**dp\_correlator\_execute\_power\_max**](#function-dp_correlator_execute_power_max) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, size\_t max\_out) <br>_The largest power over a batch's maps, cell by cell, and the map it came from._  |
+|  size\_t | [**dp\_correlator\_execute\_power\_max**](#function-dp_correlator_execute_power_max) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, uint32\_t \* out1, size\_t max\_out, const char \*\* why) <br>_The largest power over a batch's maps, cell by cell, and the map it came from._  |
 |  size\_t | [**dp\_correlator\_execute\_power\_max\_max\_out**](#function-dp_correlator_execute_power_max_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Values per output_ [_**dp\_correlator\_execute\_power\_max()**_](correlator__core_8h.md#function-dp_correlator_execute_power_max) _writes: n\_out._ |
-|  size\_t | [**dp\_correlator\_execute\_power\_sum**](#function-dp_correlator_execute_power_sum) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out) <br>_The power of a batch's maps, summed cell by cell: each output cell is the sum over h of that cell's_ `|map_h|^2` _, summed in h order in float._ |
+|  size\_t | [**dp\_correlator\_execute\_power\_sum**](#function-dp_correlator_execute_power_sum) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \* out, size\_t max\_out, const char \*\* why) <br>_The power of a batch's maps, summed cell by cell: each output cell is the sum over h of that cell's_ `|map_h|^2` _, summed in h order in float._ |
 |  size\_t | [**dp\_correlator\_execute\_power\_sum\_max\_out**](#function-dp_correlator_execute_power_sum_max_out) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Powers_ [_**dp\_correlator\_execute\_power\_sum()**_](correlator__core_8h.md#function-dp_correlator_execute_power_sum) _writes: n\_out._ |
 |  [**dp\_correlator\_flavor\_t**](correlator__core_8h.md#enum-dp_correlator_flavor_t) | [**dp\_correlator\_flavor**](#function-dp_correlator_flavor) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Which constructor built_ `state:` _what_[_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _chose from its knobs, so a caller can ask before reading a member only some flavors serve._ |
 |  double | [**dp\_correlator\_gate\_stat**](#function-dp_correlator_gate_stat) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The gate a dwell's statistic must clear to be a hit, in the units of_ [_**dp\_correlator\_hit\_t::test\_stat**_](structdp__correlator__hit__t.md#variable-test_stat) _:_`threshold` _on the coherent path (one look),_`eta_nc` _on the non-coherent one. A dwell hits when its strongest cell's statistic exceeds this, and every listed peak's statistic does too. Both statistics are linear in the cell's amplitude, so a list consumer can compare a peak's excess over another's against it in the same units. Configuration: fixed by the thresholds the grid was sized with._ |
@@ -183,11 +183,11 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_search\_period**](#function-dp_correlator_search_period) (size\_t code\_len, double sample\_rate, double chip\_rate) <br>_The samples one code period is searched at, for a caller feeding_ `sample_rate:` _its own period when that is already fast, else_[_**dp\_correlator\_period\_samples()**_](correlator__core_8h.md#function-dp_correlator_period_samples) _._ |
 |  int | [**dp\_correlator\_set\_carrier\_freq\_hz**](#function-dp_correlator_set_carrier_freq_hz) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
 |  int | [**dp\_correlator\_set\_keep\_surface**](#function-dp_correlator_set_keep_surface) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int keep) <br>_Ask to keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision; 0 (the default) keeps none unless a sink is attached (_[_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _states the rule)._ |
-|  int | [**dp\_correlator\_set\_max\_peaks**](#function-dp_correlator_set_max_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
+|  int | [**dp\_correlator\_set\_max\_peaks**](#function-dp_correlator_set_max_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n, const char \*\* why) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**dp\_correlator\_set\_ref**](#function-dp_correlator_set_ref) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**dp\_correlator\_set\_state**](#function-dp_correlator_set_state) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* blob) <br>_Restore a mid-dwell correlator from_ [_**dp\_correlator\_get\_state()**_](correlator__core_8h.md#function-dp_correlator_get_state) _'s blob._ |
 |  int | [**dp\_correlator\_set\_surface\_sink**](#function-dp_correlator_set_surface_sink) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, [**dp\_correlator\_surface\_sink\_fn**](correlator__core_8h.md#typedef-dp_correlator_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (docs/design/async-dsss-receiver.md §2.4)._ |
-|  int | [**dp\_correlator\_set\_telemetry**](#function-dp_correlator_set_telemetry) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (docs/design/async-dsss-receiver.md §2.4)._  |
+|  int | [**dp\_correlator\_set\_telemetry**](#function-dp_correlator_set_telemetry) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim, const char \*\* why) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (docs/design/async-dsss-receiver.md §2.4)._  |
 |  int | [**dp\_correlator\_set\_threads**](#function-dp_correlator_set_threads) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (docs/design/acq-surface.md §13: a roll per thread on persistent workers)._  |
 |  int | [**dp\_correlator\_set\_threshold**](#function-dp_correlator_set_threshold) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float threshold) <br>_Change a detector flavor's threshold without rebuilding it._  |
 |  double | [**dp\_correlator\_sidelobe\_ratio**](#function-dp_correlator_sidelobe_ratio) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* from, const [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* to) <br>_How far up the sidelobes of the emitter behind one hit can reach at another hit's cell, relative to that emitter's own peak._  |
@@ -293,7 +293,8 @@ dp_correlator_state_t *c
     = dp_correlator_create_2d (ref, NY, NX, 4, 1, 0, 0, -1);
 size_t dumps = 0;
 for (int i = 0; i < 4; i++)
-  dumps += dp_correlator_execute (c, frame, NY * NX, out, NY * NX) != 0;
+  dumps += dp_correlator_execute (c, frame, NY * NX, out, NY * NX, NULL)
+           != 0;
 printf ("dumps: %zu, peak %.1f\n", dumps, crealf (out[0])); // 1, on i == 3
 dp_correlator_destroy (c);
 ```
@@ -424,7 +425,8 @@ size_t dp_correlator_bank_detect (
     uint32_t * out2,
     uint32_t * out3,
     uint32_t * out4,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -461,6 +463,7 @@ Records come out in cell order (row-major), one entry of each output per record:
 * `out3` Rows. 
 * `out4` Columns. 
 * `max_out` Capacity of each output; at least `n_out`. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -634,7 +637,8 @@ size_t dp_correlator_bank_power_max (
     size_t rates_len,
     float * out,
     uint32_t * out1,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -652,6 +656,7 @@ size_t dp_correlator_bank_power_max (
 * `out` `n_out` powers. 
 * `out1` `n_out` hypothesis indices. 
 * `max_out` Capacity of each output; at least `n_out`. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -1037,7 +1042,8 @@ _Pin the search grid directly, bypassing both auto-sizing searches — the advan
 int dp_correlator_configure_search_raw (
     dp_correlator_state_t * state,
     size_t doppler_bins,
-    size_t n_noncoh
+    size_t n_noncoh,
+    const char ** why
 ) 
 ```
 
@@ -1054,6 +1060,7 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 * `state` Allocated engine (non-NULL). 
 * `doppler_bins` Coherent depth to pin, in `[1, reps]`. 
 * `n_noncoh` Non-coherent look count to pin, in `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -1866,7 +1873,8 @@ size_t dp_correlator_execute (
     const float _Complex * in,
     size_t n_in,
     float _Complex * out,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -1888,6 +1896,7 @@ size_t dp_correlator_execute (
 * `n_in` Number of input samples; must equal ny\*nx; else REFUSED. 
 * `out` Output buffer for the correlation map (CF32, length n\_out: ny\_out\*nx\_out, or ny with `col_out`); written only on a dump call. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -1926,7 +1935,8 @@ size_t dp_correlator_execute_all (
     const float _Complex * in,
     size_t n_in,
     float _Complex * out,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -1945,6 +1955,7 @@ Python: `x` is the H frames back to back, a flat array of H \* ny \* nx samples 
 * `n_in` A nonzero multiple of ny \* nx. 
 * `out` H \* n\_out values (CF32). 
 * `max_out` Capacity of `out`; at least [**dp\_correlator\_execute\_all\_max\_out()**](correlator__core_8h.md#function-dp_correlator_execute_all_max_out). 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -2038,7 +2049,8 @@ size_t dp_correlator_execute_coherent (
     const float _Complex * in,
     size_t n_in,
     float _Complex * out,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -2060,6 +2072,7 @@ The frames' product spectra are summed and the sum is inverted, as a dwell does:
 * `n_in` A nonzero multiple of ny \* nx. 
 * `out` n\_out values (CF32). 
 * `max_out` Capacity of `out`; at least n\_out. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -2261,7 +2274,8 @@ size_t dp_correlator_execute_peaks (
     uint32_t * out1,
     uint32_t * out2,
     float * out3,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -2286,6 +2300,7 @@ Entry h of each output describes map h: `out` its largest `|map|^2`, `out1` and 
 * `out2` H peak columns (uint32). 
 * `out3` H mean powers (float). 
 * `max_out` Capacity of each output; at least H. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -2374,7 +2389,8 @@ size_t dp_correlator_execute_power_max (
     size_t n_in,
     float * out,
     uint32_t * out1,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -2397,6 +2413,7 @@ Each cell of `out` is the largest `|map_h|^2` that cell takes over the maps, and
 * `out` n\_out powers (float). 
 * `out1` n\_out map indices (uint32). 
 * `max_out` Capacity of each of `out` and `out1`; at least n\_out. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -2480,7 +2497,8 @@ size_t dp_correlator_execute_power_sum (
     const float _Complex * in,
     size_t n_in,
     float * out,
-    size_t max_out
+    size_t max_out,
+    const char ** why
 ) 
 ```
 
@@ -2502,6 +2520,7 @@ Unlike the coherent sum, phase does not cancel: frames x and -x sum to twice one
 * `n_in` A nonzero multiple of ny \* nx. 
 * `out` n\_out powers (float). 
 * `max_out` Capacity of `out`; at least n\_out. 
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -5195,7 +5214,8 @@ _How many peaks a dwell may report: the peak list's capacity._
 ```C++
 int dp_correlator_set_max_peaks (
     dp_correlator_state_t * state,
-    size_t n
+    size_t n,
+    const char ** why
 ) 
 ```
 
@@ -5211,6 +5231,7 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 
 * `state` Must be non-NULL. 
 * `n` 1 … DP\_CORRELATOR\_MAX\_PEAKS.
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
@@ -5368,7 +5389,8 @@ int dp_correlator_set_telemetry (
     dp_correlator_state_t * state,
     dp_tlm_t * tlm,
     const char * prefix,
-    uint32_t decim
+    uint32_t decim,
+    const char ** why
 ) 
 ```
 
@@ -5386,6 +5408,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 * `tlm` Telemetry context to attach, or NULL to detach. 
 * `prefix` Probe-name prefix, e.g. "acq" or "ch0.acq". 
 * `decim` Emit every decim-th decided dwell; &gt;= 1. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 

@@ -156,7 +156,7 @@ templates (tmpl_t *out)
 static void
 pin (dp_correlator_state_t *a)
 {
-  if (dp_correlator_configure_search_raw (a, D, 1) != 0)
+  if (dp_correlator_configure_search_raw (a, D, 1, NULL) != 0)
     {
       DP_TEST_ERR ("dp_correlator_configure_search_raw (D=%u, 1) refused\n",
                    D);

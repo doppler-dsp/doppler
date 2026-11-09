@@ -185,13 +185,13 @@ _test_delay_doppler (void)
         /* Every frame but the last is accumulated silently. */
         for (size_t f = 0; f + 1 < cases[c].dwell; f++)
           {
-            DP_CHECK (
-                dp_correlator_execute (dd, frames[f], ny * nx, out, nyo * nx)
-                == 0);
+            DP_CHECK (dp_correlator_execute (dd, frames[f], ny * nx, out,
+                                             nyo * nx, NULL)
+                      == 0);
             DP_CHECK (dd->count == f + 1);
           }
         DP_CHECK (dp_correlator_execute (dd, frames[cases[c].dwell - 1],
-                                         ny * nx, out, nyo * nx)
+                                         ny * nx, out, nyo * nx, NULL)
                   == nyo * nx);
         DP_CHECK (dd->count == 0);
         _dd_direct ((const float _Complex *const *)frames, cases[c].dwell,
@@ -204,8 +204,8 @@ _test_delay_doppler (void)
            the same map, to the byte. */
         float _Complex *again = malloc (nyo * nx * sizeof *again);
         for (size_t f = 0; f < cases[c].dwell; f++)
-          (void)dp_correlator_execute (dd, frames[f], ny * nx, again,
-                                       nyo * nx);
+          (void)dp_correlator_execute (dd, frames[f], ny * nx, again, nyo * nx,
+                                       NULL);
         DP_CHECK (memcmp (out, again, nyo * nx * sizeof *out) == 0);
         free (again);
         for (size_t f = 0; f < cases[c].dwell; f++)
@@ -231,7 +231,8 @@ _test_delay_doppler (void)
         = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, 0);
     DP_CHECK (dd != NULL);
     DP_CHECK (fabs (dd->doppler_step - 1.0 / (double)(ny * nx)) < 1e-15);
-    DP_CHECK (dp_correlator_execute (dd, x, ny * nx, out, ny * nx) == ny * nx);
+    DP_CHECK (dp_correlator_execute (dd, x, ny * nx, out, ny * nx, NULL)
+              == ny * nx);
     size_t pk = _dd_argmax (out, ny * nx);
     DP_CHECK (pk / nx == ny / 2 - 3 && pk % nx == d);
     DP_CHECK (cabsf (out[pk]) > 0.9f * (float)(ny * nx));
@@ -253,7 +254,7 @@ _test_delay_doppler (void)
         = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, nyo);
     DP_CHECK (dd != NULL);
     DP_CHECK (fabs (dd->doppler_step - 1.0 / (double)(nyo * nx)) < 1e-15);
-    DP_CHECK (dp_correlator_execute (dd, x, ny * nx, out, nyo * nx)
+    DP_CHECK (dp_correlator_execute (dd, x, ny * nx, out, nyo * nx, NULL)
               == nyo * nx);
     size_t pk = _dd_argmax (out, nyo * nx);
     DP_CHECK (pk / nx == nyo / 2 + 10 && pk % nx == d);
@@ -281,8 +282,8 @@ _test_delay_doppler (void)
         DP_CHECK (dd != NULL);
         DP_CHECK (dd->nworkers == threads[t]);
         outs[t] = malloc (nyo * nx * sizeof **outs);
-        (void)dp_correlator_execute (dd, x, n, outs[t], nyo * nx);
-        DP_CHECK (dp_correlator_execute (dd, x + n, n, outs[t], nyo * nx)
+        (void)dp_correlator_execute (dd, x, n, outs[t], nyo * nx, NULL);
+        DP_CHECK (dp_correlator_execute (dd, x + n, n, outs[t], nyo * nx, NULL)
                   == nyo * nx);
         dp_correlator_destroy (dd);
       }
@@ -302,7 +303,7 @@ _test_delay_doppler (void)
         DP_CHECK (c != NULL && c->fast_path == 1);
         DP_CHECK (c->nworkers == (t ? 7 : 1));
         c_out[t] = malloc (n * sizeof **c_out);
-        DP_CHECK (dp_correlator_execute (c, x, n, c_out[t], n) == n);
+        DP_CHECK (dp_correlator_execute (c, x, n, c_out[t], n, NULL) == n);
         dp_correlator_destroy (c);
       }
     DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
@@ -313,7 +314,7 @@ _test_delay_doppler (void)
     dp_correlator_state_t *big
         = dp_correlator_create_2d (ref, ny, nx, 1, 2000, 0, 0, -1);
     DP_CHECK (big != NULL && big->nworkers == (int)ny);
-    DP_CHECK (dp_correlator_execute (big, x, n, c_out[1], n) == n);
+    DP_CHECK (dp_correlator_execute (big, x, n, c_out[1], n, NULL) == n);
     DP_CHECK (memcmp (c_out[0], c_out[1], n * sizeof **c_out) == 0);
     dp_correlator_destroy (big);
     float _Complex *dd_out[2];
@@ -324,7 +325,7 @@ _test_delay_doppler (void)
         DP_CHECK (dd != NULL);
         DP_CHECK (dd->nworkers == (t ? 37 : 1));
         dd_out[t] = malloc (nyo * nx * sizeof **dd_out);
-        DP_CHECK (dp_correlator_execute (dd, x, n, dd_out[t], nyo * nx)
+        DP_CHECK (dp_correlator_execute (dd, x, n, dd_out[t], nyo * nx, NULL)
                   == nyo * nx);
         dp_correlator_destroy (dd);
       }
@@ -385,7 +386,7 @@ _test_delay_doppler (void)
         = dp_correlator_create_delay_doppler (code, nx, ny, 3, 2, 8);
     DP_CHECK (a != NULL && b != NULL);
     float _Complex out_a[64], out_b[64];
-    (void)dp_correlator_execute (a, x, n, out_a, 64);
+    (void)dp_correlator_execute (a, x, n, out_a, 64, NULL);
     DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
     /* Mid-dwell split: b resumes a's dwell and dumps the same map. */
     {
@@ -396,8 +397,8 @@ _test_delay_doppler (void)
     }
     for (int f = 0; f < 2; f++)
       {
-        (void)dp_correlator_execute (a, x, n, out_a, 64);
-        (void)dp_correlator_execute (b, x, n, out_b, 64);
+        (void)dp_correlator_execute (a, x, n, out_a, 64, NULL);
+        (void)dp_correlator_execute (b, x, n, out_b, 64, NULL);
       }
     DP_CHECK (memcmp (out_a, out_b, sizeof out_a) == 0);
 
@@ -439,8 +440,9 @@ _test_delay_doppler (void)
        8 over the same ny*nx (a (4, 8) accumulator read as (8, 4)), and a
        count the target's shorter dwell would never dump. */
     {
-      (void)dp_correlator_execute (a, x, n, out_a, 64);
-      (void)dp_correlator_execute (a, x, n, out_a, 64); /* count 2 of 3 */
+      (void)dp_correlator_execute (a, x, n, out_a, 64, NULL);
+      (void)dp_correlator_execute (a, x, n, out_a, 64,
+                                   NULL); /* count 2 of 3 */
       DP_CHECK (a->count == 2);
       void *blob = malloc (dp_correlator_state_bytes (a));
       dp_correlator_get_state (a, blob);
@@ -539,7 +541,7 @@ _batch_reference (int kind, const float _Complex *x, size_t H)
     {
       dp_correlator_destroy (f);
       f = _batch_make (kind, 1, 1);
-      DP_CHECK (dp_correlator_execute (f, x + h * n, n, ref + h * no, no)
+      DP_CHECK (dp_correlator_execute (f, x + h * n, n, ref + h * no, no, NULL)
                 == no);
     }
   dp_correlator_destroy (f);
@@ -594,9 +596,10 @@ _test_batch_ranking (void)
   DP_REQUIRE (dd != NULL && dd->n == DN && dd->n_out == DN);
   float    pk[2], mn[2], pm[DN];
   uint32_t pr[2], pc[2], pi[DN];
-  DP_REQUIRE (dp_correlator_execute_peaks (dd, x, 2 * DN, pk, pr, pc, mn, 2)
-              == 2);
-  DP_REQUIRE (dp_correlator_execute_power_max (dd, x, 2 * DN, pm, pi, DN)
+  DP_REQUIRE (
+      dp_correlator_execute_peaks (dd, x, 2 * DN, pk, pr, pc, mn, 2, NULL)
+      == 2);
+  DP_REQUIRE (dp_correlator_execute_power_max (dd, x, 2 * DN, pm, pi, DN, NULL)
               == DN);
   /* each map's own peak sits at its own code delay */
   DP_CHECK (pc[0] == D0 && pc[1] == D1);
@@ -640,7 +643,7 @@ _test_batch (void)
 
           /* A dwell in progress: one frame in, its blob kept. */
           float _Complex *dump = malloc (no * sizeof *dump);
-          DP_CHECK (dp_correlator_execute (c, x, n, dump, no) == 0);
+          DP_CHECK (dp_correlator_execute (c, x, n, dump, no, NULL) == 0);
           const size_t   nb     = dp_correlator_state_bytes (c);
           unsigned char *before = malloc (nb), *after = malloc (nb);
           dp_correlator_get_state (c, before);
@@ -648,7 +651,7 @@ _test_batch (void)
           /* ALL: every map is the fresh object's, bit for bit. */
           float _Complex *all = malloc (H * no * sizeof *all);
           DP_CHECK (dp_correlator_execute_all_max_out (c, H * n) == H * no);
-          DP_CHECK (dp_correlator_execute_all (c, x, H * n, all, H * no)
+          DP_CHECK (dp_correlator_execute_all (c, x, H * n, all, H * no, NULL)
                     == H * no);
           DP_CHECK_MSG (memcmp (all, want, H * no * sizeof *all) == 0,
                         "batch map h == a fresh dwell-1 object's map");
@@ -660,10 +663,10 @@ _test_batch (void)
           {
             dp_correlator_state_t *f = _batch_make (kind, H, 1);
             for (size_t h = 0; h < H; h++)
-              (void)dp_correlator_execute (f, x + h * n, n, cw, no);
+              (void)dp_correlator_execute (f, x + h * n, n, cw, no, NULL);
             dp_correlator_destroy (f);
           }
-          DP_CHECK (dp_correlator_execute_coherent (c, x, H * n, coh, no)
+          DP_CHECK (dp_correlator_execute_coherent (c, x, H * n, coh, no, NULL)
                     == no);
           DP_CHECK_MSG (memcmp (coh, cw, no * sizeof *coh) == 0,
                         "coherent == a fresh object with dwell = H");
@@ -686,14 +689,15 @@ _test_batch (void)
           float *pk = malloc (H * sizeof *pk), *mn = malloc (H * sizeof *mn);
           uint32_t *pr = malloc (H * sizeof *pr),
                    *pc = malloc (H * sizeof *pc);
-          DP_CHECK (dp_correlator_execute_power_sum (c, x, H * n, ps, no)
+          DP_CHECK (dp_correlator_execute_power_sum (c, x, H * n, ps, no, NULL)
                     == no);
-          DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, pm, pi, no)
-                    == no);
-          DP_CHECK (dp_correlator_execute_peaks_max_out (c, H * n) == H);
           DP_CHECK (
-              dp_correlator_execute_peaks (c, x, H * n, pk, pr, pc, mn, H)
-              == H);
+              dp_correlator_execute_power_max (c, x, H * n, pm, pi, no, NULL)
+              == no);
+          DP_CHECK (dp_correlator_execute_peaks_max_out (c, H * n) == H);
+          DP_CHECK (dp_correlator_execute_peaks (c, x, H * n, pk, pr, pc, mn,
+                                                 H, NULL)
+                    == H);
           int sum_ok = 1, max_ok = 1, peak_ok = 1;
           for (size_t k = 0; k < no; k++)
             {
@@ -741,11 +745,12 @@ _test_batch (void)
             float                 *mn1 = malloc (H * sizeof *mn1);
             uint32_t              *pr1 = malloc (H * sizeof *pr1);
             uint32_t              *pc1 = malloc (H * sizeof *pc1);
-            (void)dp_correlator_execute_power_sum (one, x, H * n, ps1, no);
-            (void)dp_correlator_execute_power_max (one, x, H * n, pm1, pi1,
-                                                   no);
+            (void)dp_correlator_execute_power_sum (one, x, H * n, ps1, no,
+                                                   NULL);
+            (void)dp_correlator_execute_power_max (one, x, H * n, pm1, pi1, no,
+                                                   NULL);
             (void)dp_correlator_execute_peaks (one, x, H * n, pk1, pr1, pc1,
-                                               mn1, H);
+                                               mn1, H, NULL);
             DP_CHECK_MSG (memcmp (ps, ps1, no * sizeof *ps) == 0
                               && memcmp (pm, pm1, no * sizeof *pm) == 0
                               && memcmp (pi, pi1, no * sizeof *pi) == 0
@@ -770,12 +775,13 @@ _test_batch (void)
           {
             dp_correlator_state_t *twin = _batch_make (kind, 3, 1);
             float _Complex        *td   = malloc (no * sizeof *td);
-            (void)dp_correlator_execute (twin, x, n, td, no);
+            (void)dp_correlator_execute (twin, x, n, td, no, NULL);
             for (size_t f = 1; f < 3; f++)
               {
                 const float _Complex *xf = x + (f % H) * n;
-                DP_CHECK (dp_correlator_execute (c, xf, n, dump, no)
-                          == dp_correlator_execute (twin, xf, n, td, no));
+                DP_CHECK (
+                    dp_correlator_execute (c, xf, n, dump, no, NULL)
+                    == dp_correlator_execute (twin, xf, n, td, no, NULL));
               }
             DP_CHECK (memcmp (dump, td, no * sizeof *td) == 0);
             dp_correlator_destroy (twin);
@@ -800,9 +806,11 @@ _test_batch (void)
       float                 *ps = malloc (no * sizeof *ps);
       for (size_t k = 0; k < n; k++)
         x[n + k] = -x[k];
-      DP_CHECK (dp_correlator_execute (c, x, n, m, no) == no);
-      DP_CHECK (dp_correlator_execute_coherent (c, x, 2 * n, co, no) == no);
-      DP_CHECK (dp_correlator_execute_power_sum (c, x, 2 * n, ps, no) == no);
+      DP_CHECK (dp_correlator_execute (c, x, n, m, no, NULL) == no);
+      DP_CHECK (dp_correlator_execute_coherent (c, x, 2 * n, co, no, NULL)
+                == no);
+      DP_CHECK (dp_correlator_execute_power_sum (c, x, 2 * n, ps, no, NULL)
+                == no);
       int cancel = 1, doubled = 1;
       for (size_t k = 0; k < no; k++)
         {
@@ -825,7 +833,7 @@ _test_batch (void)
       uint32_t              *pi = malloc (no * sizeof *pi);
       for (size_t h = 1; h < H; h++)
         memcpy (x + h * n, x, n * sizeof *x);
-      DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, pm, pi, no)
+      DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, pm, pi, no, NULL)
                 == no);
       int zero = 1;
       for (size_t k = 0; k < no; k++)
@@ -859,32 +867,36 @@ _test_batch (void)
       for (size_t b = 0; b < sizeof bad / sizeof *bad; b++)
         {
           const size_t m = bad[b];
-          DP_CHECK (dp_correlator_execute_all (c, x, m, cf, CAN) == SIZE_MAX);
-          DP_CHECK (dp_correlator_execute_coherent (c, x, m, cf, CAN)
+          DP_CHECK (dp_correlator_execute_all (c, x, m, cf, CAN, NULL)
                     == SIZE_MAX);
-          DP_CHECK (dp_correlator_execute_power_sum (c, x, m, ff, CAN)
+          DP_CHECK (dp_correlator_execute_coherent (c, x, m, cf, CAN, NULL)
                     == SIZE_MAX);
-          DP_CHECK (dp_correlator_execute_power_max (c, x, m, ff, u1, CAN)
+          DP_CHECK (dp_correlator_execute_power_sum (c, x, m, ff, CAN, NULL)
                     == SIZE_MAX);
-          DP_CHECK (dp_correlator_execute_peaks (c, x, m, ff, u1, u2, f3, CAN)
-                    == SIZE_MAX);
+          DP_CHECK (
+              dp_correlator_execute_power_max (c, x, m, ff, u1, CAN, NULL)
+              == SIZE_MAX);
+          DP_CHECK (
+              dp_correlator_execute_peaks (c, x, m, ff, u1, u2, f3, CAN, NULL)
+              == SIZE_MAX);
           size_t               calls = 0;
           dp_correlator_fold_t f     = { NULL, &calls };
           /* A NULL fold would crash if called: refusal must come first. */
           DP_CHECK (dp_correlator_execute_fold (c, x, m, &f) == SIZE_MAX);
         }
       /* Room for one value less than the whole result. */
-      DP_CHECK (dp_correlator_execute_all (c, x, H * n, cf, H * no - 1)
+      DP_CHECK (dp_correlator_execute_all (c, x, H * n, cf, H * no - 1, NULL)
                 == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_coherent (c, x, H * n, cf, no - 1)
+      DP_CHECK (dp_correlator_execute_coherent (c, x, H * n, cf, no - 1, NULL)
                 == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_power_sum (c, x, H * n, ff, no - 1)
-                == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_power_max (c, x, H * n, ff, u1, no - 1)
+      DP_CHECK (dp_correlator_execute_power_sum (c, x, H * n, ff, no - 1, NULL)
                 == SIZE_MAX);
       DP_CHECK (
-          dp_correlator_execute_peaks (c, x, H * n, ff, u1, u2, f3, H - 1)
+          dp_correlator_execute_power_max (c, x, H * n, ff, u1, no - 1, NULL)
           == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_peaks (c, x, H * n, ff, u1, u2, f3,
+                                             H - 1, NULL)
+                == SIZE_MAX);
       int untouched = 1;
       for (size_t k = 0; k < CAN; k++)
         untouched &= crealf (cf[k]) == -7.0f && ff[k] == -7.0f
@@ -1042,7 +1054,8 @@ _test_bank (void)
               {
                 _bank_correct (x, BNY, BNX, gmin + (long)ci, L,
                                rv ? rv + r * BNY : NULL, y);
-                DP_CHECK (dp_correlator_execute (o, y, BN, want, no) == no);
+                DP_CHECK (dp_correlator_execute (o, y, BN, want, no, NULL)
+                          == no);
                 const float _Complex *got = maps + (ci * R + r) * no;
                 for (size_t k = 0; k < no; k++)
                   {
@@ -1068,7 +1081,7 @@ _test_bank (void)
           uint32_t *pi = malloc (no * sizeof *pi);
           DP_CHECK (dp_correlator_bank_power_max_max_out (c, BN) == no);
           DP_CHECK (dp_correlator_bank_power_max (c, x, BN, L, gmin, gmax, rv,
-                                                  rl, pw, pi, no)
+                                                  rl, pw, pi, no, NULL)
                     == no);
           int pm_ok = 1;
           for (size_t k = 0; k < no; k++)
@@ -1140,16 +1153,17 @@ _test_bank (void)
                   oy[i * ONX + n] = ox[i * ONX + n]
                                     * ((float)cos (a) + (float)sin (a) * I);
                 }
-            DP_REQUIRE (dp_correlator_execute (d, oy, ON, map, ON) == ON);
+            DP_REQUIRE (dp_correlator_execute (d, oy, ON, map, ON, NULL)
+                        == ON);
             double exact = 0.0;
             for (size_t k = 0; k < ON; k++)
               exact = fmax (exact,
                             (double)(crealf (map[k]) * crealf (map[k])
                                      + cimagf (map[k]) * cimagf (map[k])));
-            DP_REQUIRE (
-                dp_correlator_bank_power_max (d, ox, ON, L2, -2 * (int)L2,
-                                              2 * (int)L2, NULL, 0, pw, pi, ON)
-                == ON);
+            DP_REQUIRE (dp_correlator_bank_power_max (
+                            d, ox, ON, L2, -2 * (int)L2, 2 * (int)L2, NULL, 0,
+                            pw, pi, ON, NULL)
+                        == ON);
             double best = 0.0;
             for (size_t k = 0; k < ON; k++)
               best = fmax (best, (double)pw[k]);
@@ -1219,25 +1233,29 @@ _test_bank (void)
     for (size_t k = 0; k < CAN; k++)
       po[k] = o0[k] = -7.0f, pi[k] = u2[k] = u3[k] = u4[k] = 77u, g1[k] = 77;
     DP_CHECK (dp_correlator_bank_power_max (dd, rx, RN, 2, 0, 1, NULL, 0, po,
-                                            pi, RN - 1)
+                                            pi, RN - 1, NULL)
               == SIZE_MAX);
     /* detect: a zero search grid, a grid that does not divide, a resolution
        below the search, a short output, and a refined carrier past int32 */
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 0, 4, 0, 1, 0.f, 0.f,
-                                         NULL, 0, o0, g1, u2, u3, u4, CAN)
+                                         NULL, 0, o0, g1, u2, u3, u4, CAN,
+                                         NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 3, 4, 0, 1, 0.f, 0.f,
-                                         NULL, 0, o0, g1, u2, u3, u4, CAN)
+                                         NULL, 0, o0, g1, u2, u3, u4, CAN,
+                                         NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 4, 2, 0, 1, 0.f, 0.f,
-                                         NULL, 0, o0, g1, u2, u3, u4, CAN)
+                                         NULL, 0, o0, g1, u2, u3, u4, CAN,
+                                         NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 2, 4, 0, 1, 0.f, 0.f,
-                                         NULL, 0, o0, g1, u2, u3, u4, RN - 1)
+                                         NULL, 0, o0, g1, u2, u3, u4, RN - 1,
+                                         NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 1, 4, INT32_MAX / 2,
                                          INT32_MAX / 2, 0.f, 0.f, NULL, 0, o0,
-                                         g1, u2, u3, u4, CAN)
+                                         g1, u2, u3, u4, CAN, NULL)
               == SIZE_MAX);
     int clean = 1;
     for (size_t k = 0; k < CAN; k++)
@@ -1289,14 +1307,14 @@ _test_bank_detect (void)
                            * ((float)cos (a) + (float)sin (a) * I);
         }
       DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0,
-                                                pw, pi, DN)
+                                                pw, pi, DN, NULL)
                   == DN);
       float top = 0.0f;
       for (size_t k = 0; k < DN; k++)
         top = fmaxf (top, pw[k]);
       const size_t nrec = dp_correlator_bank_detect (
           d, x, DN, 2, 4, -4, 4, 0.5f * top, 0.5f * top, NULL, 0, po, gr, ur,
-          urow, ucol, DN);
+          urow, ucol, DN, NULL);
       DP_CHECK_MSG (nrec == 1, "one signal, one record");
       const int32_t want_g = (int32_t)lround (4.0 * phi);
       DP_CHECK_MSG (nrec >= 1 && gr[0] == want_g && ucol[0] == DLAG
@@ -1304,7 +1322,7 @@ _test_bank_detect (void)
                     "the record is the signal's fine carrier and lag");
       /* the refined power is the fine (L = 4) bank's map at that cell */
       DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 4, want_g, want_g,
-                                                NULL, 0, fp, fi, DN)
+                                                NULL, 0, fp, fi, DN, NULL)
                   == DN);
       const size_t cell = (size_t)urow[0] * DNX + ucol[0];
       DP_CHECK_MSG (nrec >= 1 && fabsf (po[0] - fp[cell]) <= 1e-5f * fp[cell],
@@ -1320,11 +1338,11 @@ _test_bank_detect (void)
          does a candidate threshold above the coarse peak */
       DP_CHECK (dp_correlator_bank_detect (d, x, DN, 2, 4, -4, 4, 0.5f * top,
                                            1.01f * po[0], NULL, 0, po, gr, ur,
-                                           urow, ucol, DN)
+                                           urow, ucol, DN, NULL)
                 == 0);
       DP_CHECK (dp_correlator_bank_detect (d, x, DN, 2, 4, -4, 4, 1.01f * top,
                                            0.0f, NULL, 0, po, gr, ur, urow,
-                                           ucol, DN)
+                                           ucol, DN, NULL)
                 == 0);
     }
 
@@ -1339,9 +1357,9 @@ _test_bank_detect (void)
         x[m]           = code[(m + DNX - DLAG) % DNX]
                          * ((float)cos (a) + (float)sin (a) * I);
       }
-    DP_REQUIRE (
-        dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw, pi, DN)
-        == DN);
+    DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw,
+                                              pi, DN, NULL)
+                == DN);
     size_t at = 0;
     for (size_t k = 0; k < DN; k++)
       at = pw[k] > pw[at] ? k : at;
@@ -1351,7 +1369,7 @@ _test_bank_detect (void)
     DP_REQUIRE (pw[nb] > 0.1f * top);
     const size_t nrec = dp_correlator_bank_detect (
         d, x, DN, 2, 4, -4, 4, 0.1f * top, 0.1f * top, NULL, 0, po, gr, ur,
-        urow, ucol, DN);
+        urow, ucol, DN, NULL);
     DP_CHECK_MSG (nrec == 1 && gr[0] == 1 && ucol[0] == DLAG,
                   "a candidate is a local maximum: one signal, one record");
   }
@@ -1371,14 +1389,14 @@ _test_bank_detect (void)
                            * ((float)cos (a) + (float)sin (a) * I);
       }
     DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -2, 2, w, 2 * DNY,
-                                              pw, pi, DN)
+                                              pw, pi, DN, NULL)
                 == DN);
     float top = 0.0f;
     for (size_t k = 0; k < DN; k++)
       top = fmaxf (top, pw[k]);
     const size_t nrec = dp_correlator_bank_detect (
         d, x, DN, 2, 4, -2, 2, 0.5f * top, 0.5f * top, w, 2 * DNY, po, gr, ur,
-        urow, ucol, DN);
+        urow, ucol, DN, NULL);
     DP_CHECK_MSG (nrec == 1 && ur[0] == 1 && gr[0] == 0 && ucol[0] == DLAG,
                   "the de-chirping rate is the rate reported");
   }
@@ -1418,21 +1436,22 @@ _test_bank_detect (void)
         uint32_t *rc  = malloc (no * sizeof *rc);
         int32_t  *rg  = malloc (no * sizeof *rg);
         DP_REQUIRE (dp_correlator_bank_power_max (k, px, PN, 2, -3, 3, NULL, 0,
-                                                  cp, ci, no)
+                                                  cp, ci, no, NULL)
                     == no);
         float top = 0.0f;
         for (size_t q = 0; q < no; q++)
           top = fmaxf (top, cp[q]);
         const size_t nrec = dp_correlator_bank_detect (
             k, px, PN, 2, 4, -3, 3, 0.3f * top, 0.0f, NULL, 0, rp, rg, rr, rw2,
-            rc, no);
+            rc, no, NULL);
         DP_REQUIRE (nrec != SIZE_MAX);
         kinds += nrec > 0;
         const size_t width = k->col_out >= 0 ? 1 : k->nx_out;
         for (size_t q = 0; q < nrec; q++)
           {
-            DP_REQUIRE (dp_correlator_bank_power_max (
-                            k, px, PN, 4, rg[q], rg[q], NULL, 0, fpw, fi2, no)
+            DP_REQUIRE (dp_correlator_bank_power_max (k, px, PN, 4, rg[q],
+                                                      rg[q], NULL, 0, fpw, fi2,
+                                                      no, NULL)
                         == no);
             const size_t col  = k->col_out >= 0 ? 0 : rc[q];
             const float  want = fpw[(size_t)rw2[q] * width + col];
@@ -1779,7 +1798,7 @@ _cross_load_refused (dp_correlator_state_t *src, dp_correlator_state_t *dst,
   DP_REQUIRE (src && dst);
   DP_REQUIRE (dp_correlator_state_bytes (src)
               == dp_correlator_state_bytes (dst));
-  (void)dp_correlator_execute (src, x, n, out, 256); /* count 1 of 3 */
+  (void)dp_correlator_execute (src, x, n, out, 256, NULL); /* count 1 of 3 */
   DP_REQUIRE (src->count == 1);
   const size_t   sb   = dp_correlator_state_bytes (src);
   unsigned char *blob = malloc (sb);
@@ -1937,7 +1956,7 @@ main (void)
     dp_correlator_state_t *obj
         = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     float _Complex out[16];
-    size_t n_out = dp_correlator_execute (obj, ref, N, out, N);
+    size_t n_out = dp_correlator_execute (obj, ref, N, out, N, NULL);
 
     DP_CHECK (n_out == N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
@@ -1956,11 +1975,11 @@ main (void)
         = dp_correlator_create_2d (ref, NY, NX, 2, 1, 0, 0, -1);
     float _Complex out[16];
 
-    size_t n1 = dp_correlator_execute (obj, ref, N, out, N);
+    size_t n1 = dp_correlator_execute (obj, ref, N, out, N, NULL);
     DP_CHECK (n1 == 0);
     DP_CHECK (obj->count == 1);
 
-    size_t n2 = dp_correlator_execute (obj, ref, N, out, N);
+    size_t n2 = dp_correlator_execute (obj, ref, N, out, N, NULL);
     DP_CHECK (n2 == N); /* dump on second call */
     DP_CHECK (obj->count == 0);
 
@@ -1983,7 +2002,7 @@ main (void)
     dp_correlator_state_t *obj
         = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
     float _Complex out[16];
-    dp_correlator_execute (obj, in, N, out, N);
+    dp_correlator_execute (obj, in, N, out, N, NULL);
 
     /* Peak should be at row=1, col=0 → flat index = 1*NX + 0 = NX */
     size_t peak_idx = NX;
@@ -2026,7 +2045,7 @@ main (void)
     DP_CHECK (dp_correlator_execute_max_out (obj) == 64);
 
     float _Complex out[64];
-    size_t no = dp_correlator_execute (obj, in, N, out, 64);
+    size_t no = dp_correlator_execute (obj, in, N, out, 64, NULL);
     DP_CHECK (no == 64);
     size_t pk = 0;
     for (size_t k = 1; k < 64; k++)
@@ -2050,7 +2069,7 @@ main (void)
     dp_correlator_state_t *fast
         = dp_correlator_create_2d (dense_ref, ny, nx, 1, 1, 0, 0, -1);
     DP_CHECK (fast != NULL && fast->fast_path == 1);
-    dp_correlator_execute (fast, dense_in, n, out, n);
+    dp_correlator_execute (fast, dense_in, n, out, n, NULL);
     _brute_corr2d (dense_in, dense_ref, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
@@ -2064,7 +2083,7 @@ main (void)
     dp_correlator_state_t *slow
         = dp_correlator_create_2d (dense_ref2, ny, nx, 1, 1, 0, 0, -1);
     DP_CHECK (slow != NULL && slow->fast_path == 0);
-    dp_correlator_execute (slow, dense_in, n, out, n);
+    dp_correlator_execute (slow, dense_in, n, out, n, NULL);
     _brute_corr2d (dense_in, dense_ref2, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (dp_cnearf (out[k], expect[k], TOL));
@@ -2088,7 +2107,7 @@ main (void)
     DP_CHECK (dp_correlator_execute_max_out (obj) == NY * 8);
 
     float _Complex out[32];
-    size_t no = dp_correlator_execute (obj, in, N, out, 32);
+    size_t no = dp_correlator_execute (obj, in, N, out, 32, NULL);
     DP_CHECK (no == NY * 8);
     size_t pk = 0;
     for (size_t k = 1; k < NY * 8; k++)
@@ -2117,13 +2136,13 @@ main (void)
     float _Complex in[16] = { 0 };
     in[1]                 = 1.0f; /* row 0, col 1 -- matches ref2's replica */
     float _Complex out[16];
-    dp_correlator_execute (obj, in, N, out, N);
+    dp_correlator_execute (obj, in, N, out, N, NULL);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
     DP_CHECK (dp_correlator_set_ref (obj, bad_ref) == DP_ERR_INVALID);
-    dp_correlator_execute (obj, in, N, out, N);
+    dp_correlator_execute (obj, in, N, out, N, NULL);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
     dp_correlator_destroy (obj);
@@ -2159,8 +2178,8 @@ main (void)
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
 
-        DP_CHECK (dp_correlator_execute (a, input, n, full, n) == n);
-        DP_CHECK (dp_correlator_execute (b, input, n, part, 6) == 6);
+        DP_CHECK (dp_correlator_execute (a, input, n, full, n, NULL) == n);
+        DP_CHECK (dp_correlator_execute (b, input, n, part, 6, NULL) == 6);
         for (size_t k = 0; k < 6; k++)
           DP_CHECK (dp_cnearf (part[k], full[k],
                                TOL)); /* prefix is the same surface */
@@ -2170,7 +2189,7 @@ main (void)
 
         for (size_t k = 0; k < n; k++)
           part[k] = 42.0f + 42.0f * I;
-        DP_CHECK (dp_correlator_execute (b, input, n, part, 0) == 0);
+        DP_CHECK (dp_correlator_execute (b, input, n, part, 0, NULL) == 0);
         for (size_t k = 0; k < n; k++)
           DP_CHECK (dp_cnearf (part[k], 42.0f + 42.0f * I, TOL));
         dp_correlator_destroy (a);
@@ -2192,7 +2211,7 @@ main (void)
     dp_correlator_state_t *b
         = dp_correlator_create_2d (ref, 4, 4, 3, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
-    (void)dp_correlator_execute (a, in, 16, out, 16);
+    (void)dp_correlator_execute (a, in, 16, out, 16, NULL);
     DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     dp_correlator_destroy (a);
@@ -2214,7 +2233,7 @@ main (void)
         = dp_correlator_create_2d (ref, 4, 4, 3, 1, 0, 0, -1);
     DP_CHECK (a != NULL && b != NULL);
     DP_CHECK (a->fast_path == 1 && b->fast_path == 1);
-    (void)dp_correlator_execute (a, in, 16, out, 16);
+    (void)dp_correlator_execute (a, in, 16, out, 16, NULL);
     DP_STATE_ROUNDTRIP_TEST (dp_correlator, a, b);
     DP_CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     dp_correlator_destroy (a);
@@ -2256,7 +2275,7 @@ main (void)
     /* `a` takes one frame of a dwell-2 cycle, so its accumulator is
        non-zero and its counter is 1 -- the precondition the old test
        lacked. Assert it, or this test can go vacuous the same way. */
-    DP_CHECK (dp_correlator_execute (a, stale, n, out_a, n) == 0);
+    DP_CHECK (dp_correlator_execute (a, stale, n, out_a, n, NULL) == 0);
     DP_CHECK (a->count == 1);
     int accum_nonzero = 0;
     for (size_t k = 0; k < n; k++)
@@ -2268,10 +2287,10 @@ main (void)
     DP_CHECK (a->count == 0);
 
     /* Both now drive a full dwell-2 cycle over identical input. */
-    DP_CHECK (dp_correlator_execute (a, fresh, n, out_a, n) == 0);
-    DP_CHECK (dp_correlator_execute (b, fresh, n, out_b, n) == 0);
-    size_t na = dp_correlator_execute (a, fresh, n, out_a, n);
-    size_t nb = dp_correlator_execute (b, fresh, n, out_b, n);
+    DP_CHECK (dp_correlator_execute (a, fresh, n, out_a, n, NULL) == 0);
+    DP_CHECK (dp_correlator_execute (b, fresh, n, out_b, n, NULL) == 0);
+    size_t na = dp_correlator_execute (a, fresh, n, out_a, n, NULL);
+    size_t nb = dp_correlator_execute (b, fresh, n, out_b, n, NULL);
     DP_CHECK (na == n && nb == n);
     for (size_t k = 0; k < n; k++)
       DP_CHECK (out_a[k] == out_b[k]); /* bit-for-bit: same arithmetic */
@@ -2308,7 +2327,7 @@ main (void)
         dp_correlator_state_t *c0
             = dp_correlator_create_2d (r, ny, nx, 1, 1, 0, 0, -1);
         DP_CHECK (c0 != NULL && c0->fast_path == (path ? 0 : 1));
-        DP_CHECK (dp_correlator_execute (c0, in, n, base, n) == n);
+        DP_CHECK (dp_correlator_execute (c0, in, n, base, n, NULL) == n);
         dp_correlator_destroy (c0);
 
         for (size_t nt = 2; nt <= 8; nt *= 2)
@@ -2316,7 +2335,7 @@ main (void)
             dp_correlator_state_t *c
                 = dp_correlator_create_2d (r, ny, nx, 1, nt, 0, 0, -1);
             DP_CHECK (c != NULL);
-            DP_CHECK (dp_correlator_execute (c, in, n, other, n) == n);
+            DP_CHECK (dp_correlator_execute (c, in, n, other, n, NULL) == n);
             for (size_t k = 0; k < n; k++)
               DP_CHECK (other[k] == base[k]);
             dp_correlator_destroy (c);
@@ -2408,7 +2427,8 @@ main (void)
             dp_correlator_state_t *fine
                 = dp_correlator_create_2d (ref, 1, nx, 1, 1, 0, nx * up, -1);
             DP_CHECK (fine != NULL);
-            size_t no = dp_correlator_execute (fine, in, nx, out, nx * up);
+            size_t no
+                = dp_correlator_execute (fine, in, nx, out, nx * up, NULL);
             DP_CHECK (no == nx * up);
 
             size_t pk = 0;
@@ -2444,7 +2464,7 @@ main (void)
               = dp_correlator_create_2d (ref, 1, nx, 1, 1, 0, 0, -1);
           DP_CHECK (nat != NULL);
           float _Complex onat[16];
-          DP_CHECK (dp_correlator_execute (nat, in, nx, onat, nx) == nx);
+          DP_CHECK (dp_correlator_execute (nat, in, nx, onat, nx, NULL) == nx);
           size_t pk = 0;
           for (size_t k = 1; k < nx; k++)
             if (cabsf (onat[k]) > cabsf (onat[pk]))
@@ -2483,7 +2503,7 @@ main (void)
     dp_correlator_state_t *fine
         = dp_correlator_create_2d (ref, 1, nx, 1, 1, 0, nx * up, -1);
     DP_CHECK (fine != NULL);
-    size_t no = dp_correlator_execute (fine, in, nx, out, nx * up);
+    size_t no = dp_correlator_execute (fine, in, nx, out, nx * up, NULL);
     DP_CHECK (no == nx * up);
 
     float worst = 0.0f;
@@ -2577,8 +2597,9 @@ main (void)
         DP_CHECK (full != NULL);
         float _Complex *map = malloc (ny * nxo * sizeof (*map));
         DP_CHECK (map != NULL);
-        DP_CHECK (dp_correlator_execute (full, in, ny * nx, map, ny * nxo)
-                  == ny * nxo);
+        DP_CHECK (
+            dp_correlator_execute (full, in, ny * nx, map, ny * nxo, NULL)
+            == ny * nxo);
 
         for (size_t j0 = 0; j0 < nxo; j0++)
           {
@@ -2590,7 +2611,8 @@ main (void)
             DP_CHECK (dp_correlator_execute_max_out (one) == ny);
 
             float _Complex col[ny];
-            DP_CHECK (dp_correlator_execute (one, in, ny * nx, col, ny) == ny);
+            DP_CHECK (dp_correlator_execute (one, in, ny * nx, col, ny, NULL)
+                      == ny);
             for (size_t i = 0; i < ny; i++)
               {
                 const float _Complex want = map[i * nxo + j0];
@@ -2630,9 +2652,9 @@ main (void)
         = dp_correlator_create_2d (r0, ny, nx, 1, 1, 0, 0, 0);
     DP_CHECK (c != NULL);
     float _Complex a[ny], b[ny];
-    DP_CHECK (dp_correlator_execute (c, in, ny * nx, a, ny) == ny);
+    DP_CHECK (dp_correlator_execute (c, in, ny * nx, a, ny, NULL) == ny);
     DP_CHECK (dp_correlator_set_ref (c, r1) == 0);
-    DP_CHECK (dp_correlator_execute (c, in, ny * nx, b, ny) == ny);
+    DP_CHECK (dp_correlator_execute (c, in, ny * nx, b, ny, NULL) == ny);
     /* A stale replica would return the same answer for both codes. */
     DP_CHECK (cabsf (a[0] - b[0]) > 1e-3f);
     /* ... and the new answer is the one r1 actually selects. */
@@ -2640,7 +2662,7 @@ main (void)
         = dp_correlator_create_2d (r1, ny, nx, 1, 1, 0, 0, 0);
     DP_CHECK (fresh != NULL);
     float _Complex f[ny];
-    DP_CHECK (dp_correlator_execute (fresh, in, ny * nx, f, ny) == ny);
+    DP_CHECK (dp_correlator_execute (fresh, in, ny * nx, f, ny, NULL) == ny);
     for (size_t i = 0; i < ny; i++)
       DP_CHECK (cabsf (b[i] - f[i]) <= 1e-5f);
     dp_correlator_destroy (fresh);
@@ -2692,13 +2714,15 @@ main (void)
         good[i] = 1.0f;
         out[i]  = CMPLXF (-7.0f, -7.0f);
       }
-    DP_CHECK (dp_correlator_execute (obj, good, N, out, N) == 0); /* frame 1 */
+    DP_CHECK (dp_correlator_execute (obj, good, N, out, N, NULL)
+              == 0); /* frame 1 */
     const size_t bad[] = { 0, 1, N - 1, N + 1, 2 * N };
     for (size_t k = 0; k < sizeof bad / sizeof *bad; k++)
       {
         float _Complex *x
             = (float _Complex *)calloc (bad[k] ? bad[k] : 1, sizeof *x);
-        DP_CHECK (dp_correlator_execute (obj, x, bad[k], out, N) == SIZE_MAX);
+        DP_CHECK (dp_correlator_execute (obj, x, bad[k], out, N, NULL)
+                  == SIZE_MAX);
         DP_CHECK (obj->count == 1); /* not counted */
         free (x);
       }
@@ -2706,7 +2730,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       untouched &= crealf (out[i]) == -7.0f;
     DP_CHECK (untouched);
-    DP_CHECK (dp_correlator_execute (obj, good, N, out, N) == N); /* dumps */
+    DP_CHECK (dp_correlator_execute (obj, good, N, out, N, NULL)
+              == N); /* dumps */
     dp_correlator_destroy (obj);
   }
 

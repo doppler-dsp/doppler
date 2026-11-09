@@ -112,7 +112,8 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
   DP_CHECK (ra != NULL);
   if (!ra)
     return 0;
-  DP_CHECK (dp_correlator_configure_search_raw (ra, 8, n_noncoh_pin) == 0);
+  DP_CHECK (dp_correlator_configure_search_raw (ra, 8, n_noncoh_pin, NULL)
+            == 0);
   DP_CHECK (ra->search->n_noncoh == n_noncoh_pin);
 
   const size_t rn = ra->search->n;
@@ -144,8 +145,10 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
   DP_CHECK (r1 && r2);
   if (r1 && r2)
     {
-      DP_CHECK (dp_correlator_configure_search_raw (r1, 8, n_noncoh_pin) == 0);
-      DP_CHECK (dp_correlator_configure_search_raw (r2, 8, n_noncoh_pin) == 0);
+      DP_CHECK (dp_correlator_configure_search_raw (r1, 8, n_noncoh_pin, NULL)
+                == 0);
+      DP_CHECK (dp_correlator_configure_search_raw (r2, 8, n_noncoh_pin, NULL)
+                == 0);
       size_t              cb   = dp_correlator_state_bytes (r1);
       void               *blob = malloc (cb);
       dp_correlator_hit_t hB[16];
@@ -166,7 +169,8 @@ _acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
        */
       dp_correlator_state_t *r3 = burst_from_code (
           CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9, 0, 0.0);
-      DP_CHECK (dp_correlator_configure_search_raw (r3, 8, n_noncoh_pin) == 0);
+      DP_CHECK (dp_correlator_configure_search_raw (r3, 8, n_noncoh_pin, NULL)
+                == 0);
       dp_correlator_get_state (r3, blob);
       ((char *)blob)[0] ^= (char)0xFF; /* clobber the state header magic */
       DP_CHECK (dp_correlator_run (r3, blob, NULL, s, cut, hB, 16) == 0);
@@ -205,7 +209,7 @@ _acq_cn0_calibration (void)
     return 0;
   /* Pin coherent-only (n_noncoh == 1): the test below pushes exactly one
    * frame expecting exactly one immediate dump. */
-  DP_CHECK (dp_correlator_configure_search_raw (a, 16, 1) == 0);
+  DP_CHECK (dp_correlator_configure_search_raw (a, 16, 1, NULL) == 0);
 
   const size_t    n = a->search->n; /* coherent_bins * code_bins */
   float _Complex *x = malloc (n * sizeof (float _Complex));
@@ -256,19 +260,19 @@ _acq_configure_search_raw_check (void)
 
   size_t orig_db = a->search->coherent_bins, orig_nc = a->search->n_noncoh;
 
-  DP_CHECK (dp_correlator_configure_search_raw (a, 0, 1)
+  DP_CHECK (dp_correlator_configure_search_raw (a, 0, 1, NULL)
             == DP_ERR_INVALID); /* doppler_bins < 1 */
-  DP_CHECK (dp_correlator_configure_search_raw (a, 9, 1)
+  DP_CHECK (dp_correlator_configure_search_raw (a, 9, 1, NULL)
             == DP_ERR_INVALID); /* > reps (8) */
-  DP_CHECK (dp_correlator_configure_search_raw (a, 1, 0)
+  DP_CHECK (dp_correlator_configure_search_raw (a, 1, 0, NULL)
             == DP_ERR_INVALID); /* n_noncoh < 1 */
   DP_CHECK (dp_correlator_configure_search_raw (
-                a, 1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING + 1)
+                a, 1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING + 1, NULL)
             == DP_ERR_INVALID); /* > the internal safety-valve ceiling */
   DP_CHECK (a->search->coherent_bins == orig_db
             && a->search->n_noncoh == orig_nc);
 
-  DP_CHECK (dp_correlator_configure_search_raw (a, 3, 2) == 0);
+  DP_CHECK (dp_correlator_configure_search_raw (a, 3, 2, NULL) == 0);
   DP_CHECK (a->search->coherent_bins == 3 && a->search->n_noncoh == 2);
   DP_CHECK (a->search->n == 3 * a->search->code_bins);
   DP_CHECK (a->search->eta_nc > 0.0f && a->threshold == 0.0f);
@@ -349,7 +353,7 @@ _acq_band_edge_check (void)
           = burst_from_code (code31, sf, reps, spc, crate,
                              DP_CORRELATOR_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
       DP_REQUIRE (a != NULL);
-      DP_CHECK (dp_correlator_configure_search_raw (a, reps, 1) == 0);
+      DP_CHECK (dp_correlator_configure_search_raw (a, reps, 1, NULL) == 0);
       DP_CHECK (a->search->coherent_bins == reps);
       const size_t nx = sf * spc, n = reps * nx;
       /* Native span in cycles/sample is 1/(2*nx): one half-cycle per code
@@ -425,7 +429,7 @@ _acq_pfa_split_check (void)
           1e-3, 0.9, 0, 0.0);
       DP_REQUIRE (a != NULL);
       DP_REQUIRE (
-          dp_correlator_configure_search_raw (a, grids[g].D, grids[g].nc)
+          dp_correlator_configure_search_raw (a, grids[g].D, grids[g].nc, NULL)
           == 0);
       DP_REQUIRE (a->search->coherent_bins == grids[g].D);
       if (grids[g].du > 0.0)
@@ -481,7 +485,8 @@ _acq_searched_bins_boundary_check (void)
               CODE31, sf, reps, spc, crate, DP_CORRELATOR_CN0_NONE,
               (double)k * bin_hz * at[i].scale, 1e-3, 0.9, 0, 0.0);
           DP_REQUIRE (a != NULL);
-          DP_REQUIRE (dp_correlator_configure_search_raw (a, reps, 1) == 0);
+          DP_REQUIRE (dp_correlator_configure_search_raw (a, reps, 1, NULL)
+                      == 0);
           DP_CHECK_MSG (a->search->searched_bins == at[i].want,
                         "a prior of k bins searches 2k+1; a real excess "
                         "searches 2k+3");
@@ -523,8 +528,8 @@ _acq_band_mask_check (void)
   dp_correlator_state_t *a
       = burst_from_code (code31, sf, reps, spc, crate, DP_CORRELATOR_CN0_NONE,
                          bin_hz, 1e-3, 0.9, 0, 0.0);
-  DP_REQUIRE (a != NULL && dp_correlator_set_max_peaks (a, 4) == 0);
-  DP_CHECK (dp_correlator_configure_search_raw (a, reps, 1) == 0);
+  DP_REQUIRE (a != NULL && dp_correlator_set_max_peaks (a, 4, NULL) == 0);
+  DP_CHECK (dp_correlator_configure_search_raw (a, reps, 1, NULL) == 0);
   DP_REQUIRE (a->search->coherent_bins == reps
               && a->search->searched_bins == 3);
   const size_t nx = sf * spc, n = reps * nx;
@@ -608,7 +613,7 @@ _acq_half_bin_check (void)
   /* The depth that makes the null sharp -- PINNED, not asserted of the
      sizer: sizing on the burst's alignment picks a shallower depth here
      (doppler#1498), and this test is about the geometry, not the sizer. */
-  DP_REQUIRE (dp_correlator_configure_search_raw (a, reps, 1) == 0);
+  DP_REQUIRE (dp_correlator_configure_search_raw (a, reps, 1, NULL) == 0);
   DP_CHECK (a->search->coherent_bins == reps);
   DP_CHECK (a->search->interp > 1);
   DP_CHECK (a->search->n_surf == a->search->n * a->search->interp);
@@ -726,7 +731,7 @@ _acq_wideband_check (void)
 
   /* configure_search_raw always exits wideband mode back to the native
    * (doppler_bins, n_noncoh) grid, per its documented contract. */
-  DP_CHECK (dp_correlator_configure_search_raw (w, 2, 1) == 0);
+  DP_CHECK (dp_correlator_configure_search_raw (w, 2, 1, NULL) == 0);
   DP_CHECK (w->search->window_bins == 1 && w->search->coherent_bins == 2);
 
   dp_correlator_destroy (w);
@@ -1277,9 +1282,10 @@ _acq_rate_hypotheses_check (void)
                                                  DP_CORRELATOR_CN0_NONE, 0.0,
                                                  1e-3, 0.9, 0, rate, 1);
     DP_REQUIRE (a != NULL && z != NULL);
-    DP_CHECK (dp_correlator_configure_search_raw (a, 3, 2) == DP_ERR_INVALID);
-    DP_CHECK (dp_correlator_configure_search_raw (a, 3, 1) == 0);
-    DP_CHECK (dp_correlator_configure_search_raw (z, 3, 2) == 0);
+    DP_CHECK (dp_correlator_configure_search_raw (a, 3, 2, NULL)
+              == DP_ERR_INVALID);
+    DP_CHECK (dp_correlator_configure_search_raw (a, 3, 1, NULL) == 0);
+    DP_CHECK (dp_correlator_configure_search_raw (z, 3, 2, NULL) == 0);
     dp_correlator_destroy (a);
     dp_correlator_destroy (z);
   }
@@ -2042,7 +2048,8 @@ _acq_map_equivalence_check (void)
         }
       DP_REQUIRE_MSG (a != NULL, sc.name);
       if (pin_db)
-        DP_REQUIRE (dp_correlator_configure_search_raw (a, pin_db, 1) == 0);
+        DP_REQUIRE (dp_correlator_configure_search_raw (a, pin_db, 1, NULL)
+                    == 0);
       DP_REQUIRE_MSG (a->search->n_noncoh == 1,
                       "a coherent dwell, so a surface");
       if (fc > 0.0)
@@ -2608,17 +2615,17 @@ _acq_burst_pd_check (void)
     DP_REQUIRE (a != NULL);
     for (size_t d = 1; d <= reps; d++)
       {
-        DP_REQUIRE (dp_correlator_configure_search_raw (a, d, 1) == 0);
+        DP_REQUIRE (dp_correlator_configure_search_raw (a, d, 1, NULL) == 0);
         DP_CHECK (!isnan (a->search->pd_burst));
         if (2 * d <= reps + 1)
           DP_CHECK (a->search->pd_burst >= a->search->pd_predicted);
       }
     DP_CHECK (a->search->pd_burst < a->search->pd_predicted); /* d == reps */
     /* underpowered reads the burst, at a depth where the two differ. */
-    DP_REQUIRE (dp_correlator_configure_search_raw (a, 6, 1) == 0);
+    DP_REQUIRE (dp_correlator_configure_search_raw (a, 6, 1, NULL) == 0);
     DP_CHECK (a->search->underpowered == (a->search->pd_burst < 0.9));
     /* Non-coherent looks on a burst have no alignment model. */
-    DP_REQUIRE (dp_correlator_configure_search_raw (a, 2, 2) == 0);
+    DP_REQUIRE (dp_correlator_configure_search_raw (a, 2, 2, NULL) == 0);
     DP_CHECK (isnan (a->search->pd_burst) && !isnan (a->search->pd_predicted));
     dp_correlator_destroy (a);
   }
@@ -2895,8 +2902,9 @@ ci_acq_create (void *arg)
                           c->kind >= 3 ? 3.5 * span : 0.0, 1e-3, 0.9, 0,
                           c->kind == 4 ? 7 : 1, 0.0);
   if (a
-      && ((c->kind == 1 && dp_correlator_configure_search_raw (a, 2, 3) != 0)
-          || dp_correlator_set_max_peaks (a, 4) != 0))
+      && ((c->kind == 1
+           && dp_correlator_configure_search_raw (a, 2, 3, NULL) != 0)
+          || dp_correlator_set_max_peaks (a, 4, NULL) != 0))
     {
       dp_correlator_destroy (a);
       return NULL;
@@ -3290,7 +3298,7 @@ _acq_resume_check (void)
         dp_correlator_state_t *ref = ci_acq_create ((void *)&cfg);
         dp_correlator_state_t *d   = ci_acq_create ((void *)&cfg);
         DP_REQUIRE (ref != NULL && d != NULL);
-        DP_CHECK (dp_correlator_set_max_peaks (ref, 1) == 0);
+        DP_CHECK (dp_correlator_set_max_peaks (ref, 1, NULL) == 0);
         const size_t n_ref = dp_correlator_push (ref, x, len, want, all);
         size_t       stops, wrong_stop, stalls, overfull;
         const size_t n_got
@@ -3639,7 +3647,7 @@ _search_flavor_cross_load_check (void)
   DP_REQUIRE (c && b && d);
   /* One look at depth 1 on both: the grid, n, n_noncoh, max_peaks, the
      rate count and the carrier then agree, and so does the size. */
-  DP_REQUIRE (dp_correlator_configure_search_raw (c, 1, 1) == 0);
+  DP_REQUIRE (dp_correlator_configure_search_raw (c, 1, 1, NULL) == 0);
   DP_REQUIRE (dp_correlator_state_bytes (c) == dp_correlator_state_bytes (b));
   /* Three frames into each, so no blob is a fresh one. */
   float _Complex x[42];
@@ -3750,7 +3758,7 @@ main (void)
         DP_CHECK (free_->threshold > 0.0f); /* pfa alone sets the gate */
         /* Re-deriving the thresholds keeps the contract: still no
          * target. */
-        DP_CHECK (dp_correlator_configure_search_raw (free_, 4, 1) == 0);
+        DP_CHECK (dp_correlator_configure_search_raw (free_, 4, 1, NULL) == 0);
         DP_CHECK (!free_->search->underpowered
                   && isnan (free_->search->pd_predicted));
         dp_correlator_destroy (free_);
@@ -3795,8 +3803,10 @@ main (void)
         pairs[2][k] = burst_from_code (CODE7, 7, 16, spc, crate, 45.0, 0.0,
                                        1e-3, 0.9, 0, 0.0);
       }
-    DP_CHECK (dp_correlator_configure_search_raw (pairs[2][0], 8, 2) == 0);
-    DP_CHECK (dp_correlator_configure_search_raw (pairs[2][1], 8, 2) == 0);
+    DP_CHECK (dp_correlator_configure_search_raw (pairs[2][0], 8, 2, NULL)
+              == 0);
+    DP_CHECK (dp_correlator_configure_search_raw (pairs[2][1], 8, 2, NULL)
+              == 0);
     /* not a whole frame of the template's grid either */
     DP_CHECK (n_in % (pairs[3][0]->search->coherent_bins * 31) != 0);
     for (int e = 0; e < 4; e++)
@@ -3915,7 +3925,7 @@ main (void)
   if (!b)
     return 1;
   DP_CHECK (b->search->coherent_bins == 8); /* exhausted to reps */
-  DP_CHECK (dp_correlator_configure_search_raw (b, 8, 1) == 0);
+  DP_CHECK (dp_correlator_configure_search_raw (b, 8, 1, NULL) == 0);
   const size_t ny = b->search->coherent_bins;
   const size_t n  = b->search->n; /* ny * nx */
 
@@ -3970,7 +3980,7 @@ main (void)
     DP_CHECK (ra != NULL);
     if (ra)
       {
-        DP_CHECK (dp_correlator_configure_search_raw (ra, 8, 1)
+        DP_CHECK (dp_correlator_configure_search_raw (ra, 8, 1, NULL)
                   == 0);                  /* pin nc=1 */
         const size_t rn  = ra->search->n; /* frame size (ny*nx)            */
         const size_t L3  = 3 * rn + 5;    /* 3 full frames + a partial tail */
@@ -3997,8 +4007,10 @@ main (void)
         DP_CHECK (r1 && r2);
         if (r1 && r2)
           {
-            DP_CHECK (dp_correlator_configure_search_raw (r1, 8, 1) == 0);
-            DP_CHECK (dp_correlator_configure_search_raw (r2, 8, 1) == 0);
+            DP_CHECK (dp_correlator_configure_search_raw (r1, 8, 1, NULL)
+                      == 0);
+            DP_CHECK (dp_correlator_configure_search_raw (r2, 8, 1, NULL)
+                      == 0);
             dp_correlator_hit_t hB[8];
             size_t              nB = dp_correlator_push (r1, s, cut, hB, 8);
 
@@ -4108,7 +4120,7 @@ main (void)
                several frames, and the anchor stride would then be a
                multiple of that rather than of a->n. Pinning makes the
                stride claim exact instead of approximately right. */
-            DP_CHECK (dp_correlator_configure_search_raw (a, 8, 1) == 0);
+            DP_CHECK (dp_correlator_configure_search_raw (a, 8, 1, NULL) == 0);
             dp_correlator_hit_t hits[32];
             size_t nh = dp_correlator_push (a, x, eps * nxl, hits, 32);
             DP_CHECK (nh >= 2); /* several epochs in ONE call */
@@ -4187,7 +4199,8 @@ main (void)
                    mode. Measured while writing this, and it reads as
                    "the modes are broken" rather than "the dwell never
                    completed". */
-                DP_CHECK (dp_correlator_configure_search_raw (a, 8, 1) == 0);
+                DP_CHECK (dp_correlator_configure_search_raw (a, 8, 1, NULL)
+                          == 0);
                 dp_correlator_hit_t hits[16];
                 size_t nh = dp_correlator_push (a, x, eps * nxl, hits, 16);
                 if (nh >= 1)
@@ -4341,11 +4354,13 @@ main (void)
         CODE7, 7, 4.0 * 1.0e6, 1.0e6, 1000.0, 50.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->max_peaks == 1);
-    DP_CHECK (dp_correlator_set_max_peaks (a, 0) == DP_ERR_INVALID
+    DP_CHECK (dp_correlator_set_max_peaks (a, 0, NULL) == DP_ERR_INVALID
               && a->max_peaks == 1);
-    DP_CHECK (dp_correlator_set_max_peaks (a, DP_CORRELATOR_MAX_PEAKS + 1)
-              == DP_ERR_INVALID);
-    DP_CHECK (dp_correlator_set_max_peaks (a, 4) == 0 && a->max_peaks == 4);
+    DP_CHECK (
+        dp_correlator_set_max_peaks (a, DP_CORRELATOR_MAX_PEAKS + 1, NULL)
+        == DP_ERR_INVALID);
+    DP_CHECK (dp_correlator_set_max_peaks (a, 4, NULL) == 0
+              && a->max_peaks == 4);
     /* Held twins are running state: they ride the blob and come back. */
     a->n_twins               = 2;
     a->twin_row[0]           = 3;
@@ -4354,7 +4369,7 @@ main (void)
     a->twin_col[1]           = 27;
     dp_correlator_state_t *b = dp_correlator_create_continuous (
         CODE7, 7, 4.0 * 1.0e6, 1.0e6, 1000.0, 50.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
-    DP_REQUIRE (b != NULL && dp_correlator_set_max_peaks (b, 4) == 0);
+    DP_REQUIRE (b != NULL && dp_correlator_set_max_peaks (b, 4, NULL) == 0);
     size_t nb   = dp_correlator_state_bytes (a);
     void  *blob = malloc (nb);
     dp_correlator_get_state (a, blob);
@@ -4363,11 +4378,12 @@ main (void)
               && b->twin_row[1] == 0 && b->twin_col[1] == 27);
     /* A blob from a list of another capacity is refused, not resized
      * from. */
-    DP_CHECK (dp_correlator_set_max_peaks (b, 2) == 0);
+    DP_CHECK (dp_correlator_set_max_peaks (b, 2, NULL) == 0);
     DP_CHECK (dp_correlator_set_state (b, blob) == DP_ERR_INVALID);
     free (blob);
     /* set_max_peaks clears the held candidates. */
-    DP_CHECK (dp_correlator_set_max_peaks (a, 4) == 0 && a->n_twins == 0);
+    DP_CHECK (dp_correlator_set_max_peaks (a, 4, NULL) == 0
+              && a->n_twins == 0);
     dp_correlator_destroy (b);
     dp_correlator_destroy (a);
   }
@@ -4392,7 +4408,7 @@ main (void)
     DP_CHECK (rows == 3); /* rows = tiles at D = 1 */
     dp_tlm_t *t = dp_tlm_create (1 << 12);
     DP_REQUIRE (t != NULL);
-    DP_CHECK (dp_correlator_set_telemetry (c, t, "acq", 1) == DP_OK);
+    DP_CHECK (dp_correlator_set_telemetry (c, t, "acq", 1, NULL) == DP_OK);
     DP_CHECK (dp_tlm_probe_count (t) == 10);
     DP_CHECK (dp_tlm_probe_id (t, "acq.conc") >= 0);
     DP_CHECK (c->search->keep_surface == 0); /* off until a reader asks */
@@ -4609,7 +4625,7 @@ main (void)
     /* Detach the sink and the probes: nothing more is written or kept.
      */
     DP_CHECK (dp_correlator_set_surface_sink (c, NULL, NULL, 0) == DP_OK);
-    DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1) == DP_OK);
+    DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1, NULL) == DP_OK);
     c->search->keep_surface = 0;
     dp_correlator_reset (c);
     DP_CHECK (c->search->surface_at == 0 && c->search->dwells == 0);
@@ -4664,7 +4680,7 @@ main (void)
         (void)dp_tlm_probe (full, nm, 1);
       }
     const size_t n_pad = dp_tlm_probe_count (full);
-    DP_CHECK (dp_correlator_set_telemetry (c, full, "acq", 1)
+    DP_CHECK (dp_correlator_set_telemetry (c, full, "acq", 1, NULL)
               == DP_ERR_INVALID);
     DP_CHECK (c->search->tlm.ctx == NULL);
     /* Nothing registered: the refused attach used to leave its first three
@@ -4676,19 +4692,19 @@ main (void)
        three ids with full's, while ctx stayed on `t`, so later emits went
        to t's records under full's ids. Now nothing registers on `full`
        and every id is still t's. */
-    DP_REQUIRE (dp_correlator_set_telemetry (c, t, "acq", 1) == DP_OK);
+    DP_REQUIRE (dp_correlator_set_telemetry (c, t, "acq", 1, NULL) == DP_OK);
     const dp_correlator_tlm_t before = c->search->tlm;
     const size_t              n_full = dp_tlm_probe_count (full);
-    DP_CHECK (dp_correlator_set_telemetry (c, full, "acq", 1)
+    DP_CHECK (dp_correlator_set_telemetry (c, full, "acq", 1, NULL)
               == DP_ERR_INVALID);
     DP_CHECK (dp_tlm_probe_count (full) == n_full);
     DP_CHECK (memcmp (&before, &c->search->tlm, sizeof before) == 0);
     DP_CHECK (c->search->tlm.ctx == t);
     /* A decim of 0 is refused the same way, before anything registers. */
-    DP_CHECK (dp_correlator_set_telemetry (c, full, "acq", 0)
+    DP_CHECK (dp_correlator_set_telemetry (c, full, "acq", 0, NULL)
               == DP_ERR_INVALID);
     DP_CHECK (memcmp (&before, &c->search->tlm, sizeof before) == 0);
-    DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1) == DP_OK);
+    DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1, NULL) == DP_OK);
     dp_tlm_destroy (full);
     free (s);
     free (x);
@@ -4973,7 +4989,7 @@ main (void)
         0, 7, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->search->window_bins == 3 && c->search->coherent_bins == D);
-    DP_REQUIRE (dp_correlator_set_max_peaks (c, 4) == 0);
+    DP_REQUIRE (dp_correlator_set_max_peaks (c, 4, NULL) == 0);
     DP_CHECK_MSG (c->search->threads >= 1,
                   "a tiled engine starts with a pool");
     /* A standalone engine fans its per-epoch stages too (#2775); only a
@@ -5069,7 +5085,7 @@ main (void)
        explicitly, so the premise holds on a one-core box too. */
     DP_REQUIRE (dp_correlator_set_threads (c, 2) == DP_OK
                 && c->search->threads == 2);
-    DP_REQUIRE (dp_correlator_configure_search_raw (c, 1, 1) == 0);
+    DP_REQUIRE (dp_correlator_configure_search_raw (c, 1, 1, NULL) == 0);
     DP_CHECK_MSG (c->search->window_bins == 1 && c->search->threads == 1
                       && c->pool == NULL,
                   "a regrid to one tile re-applies the thread cap");
@@ -5167,7 +5183,7 @@ main (void)
     DP_CHECK (!a->search->dsl_ready && a->search->shape.dsl == 0.0);
     const double built = dp_correlator_dsl_db (a);
     DP_CHECK (a->search->dsl_ready && isfinite (built));
-    DP_REQUIRE (dp_correlator_configure_search_raw (b, 1, 1) == 0);
+    DP_REQUIRE (dp_correlator_configure_search_raw (b, 1, 1, NULL) == 0);
     DP_REQUIRE (b->search->window_bins == 1);
     DP_CHECK (dp_correlator_dsl_db (b) == built);
     dp_correlator_destroy (a);
@@ -5527,9 +5543,9 @@ main (void)
               if (grid == 0)
                 for (int e = 0; e < 2; e++)
                   {
-                    DP_REQUIRE (
-                        dp_correlator_configure_search_raw (eng[e], d1, 1)
-                        == 0);
+                    DP_REQUIRE (dp_correlator_configure_search_raw (eng[e], d1,
+                                                                    1, NULL)
+                                == 0);
                     DP_REQUIRE (eng[e]->search->window_bins == 1
                                 && eng[e]->search->coherent_bins == d1);
                   }

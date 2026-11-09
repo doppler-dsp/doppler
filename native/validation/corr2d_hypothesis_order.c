@@ -321,7 +321,8 @@ run_full (geo_t *g, stages_t *st)
           for (size_t k = 0; k < g->nx; k++)
             g->hin[r * g->nx + k] = g->x[r * g->nx + k] * ph[k] * w[r];
         double t1 = now_s ();
-        (void)dp_correlator_execute (g->dd, g->hin, g->ny * g->nx, g->hout, n);
+        (void)dp_correlator_execute (g->dd, g->hin, g->ny * g->nx, g->hout, n,
+                                     NULL);
         double      t2 = now_s ();
         const float wt = (float)(j * g->rates + i + 1);
         for (size_t k = 0; k < n; k++)

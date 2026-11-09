@@ -407,7 +407,8 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
      scratch context of its own, checked before it registers anything), so
      an out-of-memory refusal comes before any loop has put a name on the
      caller's table (#2846). The loops after it only register. */
-  int r = s->acq ? dp_correlator_set_telemetry (s->acq, t, acq, d) : DP_OK;
+  int r
+      = s->acq ? dp_correlator_set_telemetry (s->acq, t, acq, d, NULL) : DP_OK;
   if (r == DP_OK)
     r = dp_costas_set_telemetry (&s->car, t, car, d);
   if (r == DP_OK)
@@ -453,7 +454,7 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   (void)dp_RateConverter_set_telemetry (s->rc, NULL, p, 1);
   (void)dp_mpsk_receiver_set_telemetry (s->rx, NULL, p, 1);
   if (s->acq)
-    (void)dp_correlator_set_telemetry (s->acq, NULL, p, 1);
+    (void)dp_correlator_set_telemetry (s->acq, NULL, p, 1, NULL);
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
 }
@@ -1291,7 +1292,7 @@ dp_async_dsss_receiver_create (
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
-  (void)dp_correlator_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS);
+  (void)dp_correlator_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS, NULL);
   /* A deep block bounds rule 2 with the code's worst sidelobe as a floor
      (adr_sidelobe_bound()), which the searcher computes on the first read.
      Read it here, so that sweep is this create's cost and never a stall
@@ -1991,7 +1992,7 @@ dp_async_dsss_receiver_configure_search_raw (
     size_t n_noncoh)
 {
   const int rc = dp_correlator_configure_search_raw (state->acq, doppler_bins,
-                                                     n_noncoh);
+                                                     n_noncoh, NULL);
   /* An accepted search config drains the engine (dp_correlator_reset()), so
      its next dwell starts on the block grid like any restarted search's. */
   if (rc == 0)

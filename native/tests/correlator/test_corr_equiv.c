@@ -137,13 +137,15 @@ run_case (size_t n, size_t dwell, size_t pad, int nthreads, uint32_t seed,
       const size_t cap = (*dumps == 1) ? no / 2 + 1 : no;
 
       /* A frame one sample short is refused by both, counted by neither. */
-      DP_CHECK (dp_correlator_execute (a, x, n - 1, o1, cap) == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute (b, x, n - 1, o2, cap) == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute (a, x, n - 1, o1, cap, NULL)
+                == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute (b, x, n - 1, o2, cap, NULL)
+                == SIZE_MAX);
 
       memset (o1, 0xA5, no * sizeof *o1);
       memset (o2, 0xA5, no * sizeof *o2);
-      const size_t r1 = dp_correlator_execute (a, x, n, o1, cap);
-      const size_t r2 = dp_correlator_execute (b, x, n, o2, cap);
+      const size_t r1 = dp_correlator_execute (a, x, n, o1, cap, NULL);
+      const size_t r2 = dp_correlator_execute (b, x, n, o2, cap, NULL);
       DP_CHECK (r1 == r2);
       DP_CHECK (a->count == b->count);
       DP_CHECK (memcmp (o1, o2, no * sizeof *o1) == 0);

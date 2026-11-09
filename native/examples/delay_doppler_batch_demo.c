@@ -94,7 +94,8 @@ main (void)
   const size_t nrec = dp_correlator_execute_peaks_max_out (dd, n_in);
   float        peak[H], mean[H];
   uint32_t     row[H], col[H];
-  if (dp_correlator_execute_peaks (dd, batch, n_in, peak, row, col, mean, nrec)
+  if (dp_correlator_execute_peaks (dd, batch, n_in, peak, row, col, mean, nrec,
+                                   NULL)
       != H)
     return 1;
 
@@ -114,10 +115,10 @@ main (void)
   const size_t    n_all = dp_correlator_execute_all_max_out (dd, n_in);
   float _Complex *maps  = malloc (n_all * sizeof *maps);
   const size_t    wrote
-      = dp_correlator_execute_all (dd, batch, n_in, maps, n_all);
+      = dp_correlator_execute_all (dd, batch, n_in, maps, n_all, NULL);
   /* A buffer one value short is refused, and nothing is written. */
   const size_t short_call
-      = dp_correlator_execute_all (dd, batch, n_in, maps, n_all - 1);
+      = dp_correlator_execute_all (dd, batch, n_in, maps, n_all - 1, NULL);
   printf ("execute_all wrote %zu values (%d maps); one short: %s\n", wrote, H,
           short_call == SIZE_MAX ? "refused" : "ACCEPTED");
 

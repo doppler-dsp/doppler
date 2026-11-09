@@ -499,18 +499,21 @@ CorrelatorObj_execute (CorrelatorObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t n_out = dp_correlator_execute (
+      const char *_why  = NULL;
+      size_t      n_out = dp_correlator_execute (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
+          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap, &_why);
       Py_DECREF (in_arr);
       if (n_out == (SIZE_MAX))
         {
           Py_DECREF (out_arr);
-          PyErr_SetString (PyExc_ValueError,
-                           "execute: only a map (framing='none', "
-                           "detect=False) executes, and it takes exactly one "
-                           "frame: the input length must be the frame length "
-                           "n (the reference's length, ny*nx)");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "execute: only a map (framing='none', "
+                             "detect=False) executes; Correlator.flavor "
+                             "says which this is");
           return NULL;
         }
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -578,18 +581,21 @@ CorrelatorObj_execute (CorrelatorObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t n_out = dp_correlator_execute (
+  const char *_why  = NULL;
+  size_t      n_out = dp_correlator_execute (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0, _cap);
+      _d0, _cap, &_why);
   Py_DECREF (in_arr);
   if (n_out == (SIZE_MAX))
     {
       Py_DECREF (arr0);
-      PyErr_SetString (PyExc_ValueError,
-                       "execute: only a map (framing='none', detect=False) "
-                       "executes, and it takes exactly one frame: the input "
-                       "length must be the frame length n (the reference's "
-                       "length, ny*nx)");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "execute: only a map (framing='none', "
+                         "detect=False) executes; Correlator.flavor says "
+                         "which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -733,6 +739,7 @@ CorrelatorObj_execute_all (CorrelatorObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
+      const char *_why = NULL;
       /* nogil: GIL released across the pure-C kernel. Two calls on
        * one object may run at once only if its kernel allows it; a
        * teardown waits for a running call (gh-2272). */
@@ -743,18 +750,21 @@ CorrelatorObj_execute_all (CorrelatorObject *self, PyObject *args,
       void           *_jm_h = self->handle;
       jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
-        n_out = dp_correlator_execute_all (_jm_h, _ng0, (size_t)n, _ng1, _cap);
+        n_out = dp_correlator_execute_all (_jm_h, _ng0, (size_t)n, _ng1, _cap,
+                                           &_why);
       Py_END_ALLOW_THREADS
       jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
       if (n_out == (SIZE_MAX))
         {
           Py_DECREF (out_arr);
-          PyErr_SetString (PyExc_ValueError,
-                           "execute_all: only a map (framing='none', "
-                           "detect=False) runs a batch: the input must be a "
-                           "whole, nonzero number of frames, and out= must "
-                           "hold every map");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "execute_all: only a map (framing='none', "
+                             "detect=False) runs a batch; "
+                             "Correlator.flavor says which this is");
           return NULL;
         }
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -827,6 +837,7 @@ CorrelatorObj_execute_all (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -835,18 +846,21 @@ CorrelatorObj_execute_all (CorrelatorObject *self, PyObject *args,
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_correlator_execute_all (_jm_h, _ng0, (size_t)n, _d0, _cap);
+    n_out
+        = dp_correlator_execute_all (_jm_h, _ng0, (size_t)n, _d0, _cap, &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
   if (n_out == (SIZE_MAX))
     {
       Py_DECREF (arr0);
-      PyErr_SetString (PyExc_ValueError,
-                       "execute_all: only a map (framing='none', "
-                       "detect=False) runs a batch: the input must be a "
-                       "whole, nonzero number of frames, and out= must hold "
-                       "every map");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "execute_all: only a map (framing='none', "
+                         "detect=False) runs a batch; Correlator.flavor "
+                         "says which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -963,6 +977,7 @@ CorrelatorObj_execute_coherent (CorrelatorObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
+      const char *_why = NULL;
       /* nogil: GIL released across the pure-C kernel. Two calls on
        * one object may run at once only if its kernel allows it; a
        * teardown waits for a running call (gh-2272). */
@@ -974,18 +989,20 @@ CorrelatorObj_execute_coherent (CorrelatorObject *self, PyObject *args,
       jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         n_out = dp_correlator_execute_coherent (_jm_h, _ng0, (size_t)n, _ng1,
-                                                _cap);
+                                                _cap, &_why);
       Py_END_ALLOW_THREADS
       jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
       if (n_out == (SIZE_MAX))
         {
           Py_DECREF (out_arr);
-          PyErr_SetString (PyExc_ValueError,
-                           "execute_coherent: only a map (framing='none', "
-                           "detect=False) runs a batch: the input must be a "
-                           "whole, nonzero number of frames, and out= must "
-                           "hold one map");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "execute_coherent: only a map "
+                             "(framing='none', detect=False) runs a batch; "
+                             "Correlator.flavor says which this is");
           return NULL;
         }
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -1049,6 +1066,7 @@ CorrelatorObj_execute_coherent (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1057,18 +1075,21 @@ CorrelatorObj_execute_coherent (CorrelatorObject *self, PyObject *args,
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out = dp_correlator_execute_coherent (_jm_h, _ng0, (size_t)n, _d0, _cap);
+    n_out = dp_correlator_execute_coherent (_jm_h, _ng0, (size_t)n, _d0, _cap,
+                                            &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
   if (n_out == (SIZE_MAX))
     {
       Py_DECREF (arr0);
-      PyErr_SetString (PyExc_ValueError,
-                       "execute_coherent: only a map (framing='none', "
-                       "detect=False) runs a batch: the input must be a "
-                       "whole, nonzero number of frames, and out= must hold "
-                       "one map");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "execute_coherent: only a map (framing='none', "
+                         "detect=False) runs a batch; Correlator.flavor "
+                         "says which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -1179,6 +1200,7 @@ CorrelatorObj_execute_power_sum (CorrelatorObject *self, PyObject *args,
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
+      const char *_why = NULL;
       /* nogil: GIL released across the pure-C kernel. Two calls on
        * one object may run at once only if its kernel allows it; a
        * teardown waits for a running call (gh-2272). */
@@ -1190,18 +1212,20 @@ CorrelatorObj_execute_power_sum (CorrelatorObject *self, PyObject *args,
       jm_inflight_enter (&self->_jm_inflight);
       Py_BEGIN_ALLOW_THREADS
         n_out = dp_correlator_execute_power_sum (_jm_h, _ng0, (size_t)n, _ng1,
-                                                 _cap);
+                                                 _cap, &_why);
       Py_END_ALLOW_THREADS
       jm_inflight_leave (&self->_jm_inflight);
       Py_DECREF (in_arr);
       if (n_out == (SIZE_MAX))
         {
           Py_DECREF (out_arr);
-          PyErr_SetString (PyExc_ValueError,
-                           "execute_power_sum: only a map (framing='none', "
-                           "detect=False) runs a batch: the input must be a "
-                           "whole, nonzero number of frames, and out= must "
-                           "hold one map");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "execute_power_sum: only a map "
+                             "(framing='none', detect=False) runs a batch; "
+                             "Correlator.flavor says which this is");
           return NULL;
         }
       if ((size_t)(n_out) > (size_t)(_cap))
@@ -1265,6 +1289,7 @@ CorrelatorObj_execute_power_sum (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1273,19 +1298,21 @@ CorrelatorObj_execute_power_sum (CorrelatorObject *self, PyObject *args,
   void                 *_jm_h = self->handle;
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
-    n_out
-        = dp_correlator_execute_power_sum (_jm_h, _ng0, (size_t)n, _d0, _cap);
+    n_out = dp_correlator_execute_power_sum (_jm_h, _ng0, (size_t)n, _d0, _cap,
+                                             &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
   if (n_out == (SIZE_MAX))
     {
       Py_DECREF (arr0);
-      PyErr_SetString (PyExc_ValueError,
-                       "execute_power_sum: only a map (framing='none', "
-                       "detect=False) runs a batch: the input must be a "
-                       "whole, nonzero number of frames, and out= must hold "
-                       "one map");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "execute_power_sum: only a map (framing='none', "
+                         "detect=False) runs a batch; Correlator.flavor "
+                         "says which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -1371,6 +1398,7 @@ CorrelatorObj_execute_power_max (CorrelatorObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1380,7 +1408,7 @@ CorrelatorObj_execute_power_max (CorrelatorObject *self, PyObject *args)
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_correlator_execute_power_max (_jm_h, _ng0, (size_t)n, _d0, _d1,
-                                             _cap);
+                                             _cap, &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -1388,11 +1416,13 @@ CorrelatorObj_execute_power_max (CorrelatorObject *self, PyObject *args)
     {
       Py_DECREF (arr0);
       Py_DECREF (arr1);
-      PyErr_SetString (PyExc_ValueError,
-                       "execute_power_max: only a map (framing='none', "
-                       "detect=False) runs a batch: the input must be a "
-                       "whole, nonzero number of frames (at most 2**32), and "
-                       "out= must hold one map");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "execute_power_max: only a map (framing='none', "
+                         "detect=False) runs a batch; Correlator.flavor "
+                         "says which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -1502,6 +1532,7 @@ CorrelatorObj_execute_peaks (CorrelatorObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1511,7 +1542,7 @@ CorrelatorObj_execute_peaks (CorrelatorObject *self, PyObject *args)
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_correlator_execute_peaks (_jm_h, _ng0, (size_t)n, _d0, _d1, _d2,
-                                         _d3, _cap);
+                                         _d3, _cap, &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (in_arr);
@@ -1521,11 +1552,13 @@ CorrelatorObj_execute_peaks (CorrelatorObject *self, PyObject *args)
       Py_DECREF (arr1);
       Py_DECREF (arr2);
       Py_DECREF (arr3);
-      PyErr_SetString (PyExc_ValueError,
-                       "execute_peaks: only a map (framing='none', "
-                       "detect=False) runs a batch: the input must be a "
-                       "whole, nonzero number of frames, and out= must hold "
-                       "one record per frame");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "execute_peaks: only a map (framing='none', "
+                         "detect=False) runs a batch; Correlator.flavor "
+                         "says which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -1703,6 +1736,7 @@ CorrelatorObj_bank_power_max (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1711,7 +1745,8 @@ CorrelatorObj_bank_power_max (CorrelatorObject *self, PyObject *args,
   jm_inflight_enter (&self->_jm_inflight);
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_correlator_bank_power_max (_jm_h, x, x_len, L, g_min, g_max,
-                                          rates, rates_len, _d0, _d1, _cap);
+                                          rates, rates_len, _d0, _d1, _cap,
+                                          &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
@@ -1720,11 +1755,13 @@ CorrelatorObj_bank_power_max (CorrelatorObject *self, PyObject *args,
     {
       Py_DECREF (arr0);
       Py_DECREF (arr1);
-      PyErr_SetString (PyExc_ValueError,
-                       "bank_power_max: only a map (framing='none', "
-                       "detect=False) has a bank: it needs one frame, L >= "
-                       "1, g_min <= g_max, rates a whole number of ny-long "
-                       "vectors, and out= holding one map");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "bank_power_max: only a map (framing='none', "
+                         "detect=False) has a bank; Correlator.flavor says "
+                         "which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -1909,6 +1946,7 @@ CorrelatorObj_bank_detect (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1918,7 +1956,7 @@ CorrelatorObj_bank_detect (CorrelatorObject *self, PyObject *args,
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_correlator_bank_detect (
         _jm_h, x, x_len, L_d, L_r, g_min, g_max, t_candidate, t_confirm, rates,
-        rates_len, _d0, _d1, _d2, _d3, _d4, _cap);
+        rates_len, _d0, _d1, _d2, _d3, _d4, _cap, &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
@@ -1930,12 +1968,13 @@ CorrelatorObj_bank_detect (CorrelatorObject *self, PyObject *args,
       Py_DECREF (arr2);
       Py_DECREF (arr3);
       Py_DECREF (arr4);
-      PyErr_SetString (PyExc_ValueError,
-                       "bank_detect: only a map (framing='none', "
-                       "detect=False) has a bank: it needs one frame, L_d >= "
-                       "1 dividing L_r, g_min <= g_max, rates a whole number "
-                       "of ny-long vectors, and out= holding one record per "
-                       "map cell");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "bank_detect: only a map (framing='none', "
+                         "detect=False) has a bank; Correlator.flavor says "
+                         "which this is");
       return NULL;
     }
   if ((size_t)(n_out) > (size_t)(_cap))
@@ -2094,38 +2133,51 @@ CorrelatorObj_configure_search_raw (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  const char *_why = NULL;
   int _rc = dp_correlator_configure_search_raw (self->handle, doppler_bins,
-                                                n_noncoh);
+                                                n_noncoh, &_why);
   if (_rc != 0)
     {
       switch (_rc)
         {
         case DP_ERR_UNSUPPORTED:
-          PyErr_SetString (
-              PyExc_ValueError,
-              "configure_search_raw: only a search (framing='continuous' or "
-              "'burst') has a grid to pin; Correlator.flavor says which this "
-              "is");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (
+                PyExc_ValueError,
+                "configure_search_raw: only a search (framing='continuous' or "
+                "'burst') has a grid to pin; Correlator.flavor says which "
+                "this is");
           return NULL;
         case DP_ERR_INVALID:
-          PyErr_SetString (PyExc_ValueError,
-                           "configure_search_raw: doppler_bins must lie in "
-                           "1..reps and n_noncoh "
-                           "in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and "
-                           "non-coherent looks "
-                           "need rate_hypotheses 1");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "configure_search_raw: doppler_bins must lie in "
+                             "1..reps and n_noncoh "
+                             "in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, "
+                             "and non-coherent looks "
+                             "need rate_hypotheses 1");
           return NULL;
         case DP_ERR_MEMORY:
-          PyErr_SetString (PyExc_MemoryError,
-                           "configure_search_raw: rebuilding the grid could "
-                           "not allocate; the "
-                           "engine keeps its prior grid");
+          if (_why)
+            PyErr_SetString (PyExc_MemoryError, _why);
+          else
+            PyErr_SetString (PyExc_MemoryError,
+                             "configure_search_raw: rebuilding the grid could "
+                             "not allocate; the "
+                             "engine keeps its prior grid");
           return NULL;
         default:
           break;
         }
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "configure_search_raw failed", (long long)_rc);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                      "configure_search_raw failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -2170,27 +2222,37 @@ CorrelatorObj_set_max_peaks (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_correlator_set_max_peaks (self->handle, n);
+  const char *_why = NULL;
+  int         _rc  = dp_correlator_set_max_peaks (self->handle, n, &_why);
   if (_rc != 0)
     {
       switch (_rc)
         {
         case DP_ERR_UNSUPPORTED:
-          PyErr_SetString (PyExc_ValueError,
-                           "set_max_peaks: only a search "
-                           "(framing='continuous' or 'burst') lists "
-                           "peaks; Correlator.flavor says which this is");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "set_max_peaks: only a search "
+                             "(framing='continuous' or 'burst') lists "
+                             "peaks; Correlator.flavor says which this is");
           return NULL;
         case DP_ERR_INVALID:
-          PyErr_SetString (
-              PyExc_ValueError,
-              "set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "set_max_peaks: n must lie in 1..64 "
+                             "(DP_CORRELATOR_MAX_PEAKS)");
           return NULL;
         default:
           break;
         }
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
-                    (long long)_rc);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
+                      (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -2347,31 +2409,51 @@ CorrelatorObj_set_telemetry (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int _rc = dp_correlator_set_telemetry (self->handle, tlm, prefix, decim);
+  const char *_why = NULL;
+  int         _rc
+      = dp_correlator_set_telemetry (self->handle, tlm, prefix, decim, &_why);
   if (_rc != 0)
     {
       switch (_rc)
         {
         case DP_ERR_UNSUPPORTED:
-          PyErr_SetString (
-              PyExc_ValueError,
-              "set_telemetry: only the continuous search "
-              "(framing='continuous') is "
-              "instrumented; Correlator.flavor says which this is");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (
+                PyExc_ValueError,
+                "set_telemetry: only the continuous search "
+                "(framing='continuous') is "
+                "instrumented; Correlator.flavor says which this is");
           return NULL;
         case DP_ERR_INVALID:
-          PyErr_SetString (PyExc_ValueError,
-                           "set_telemetry: refused, nothing attached: the "
-                           "prefix joined to each "
-                           "probe name must fit DP_TLM_NAME_MAX, decim must "
-                           "be at least 1, and "
-                           "the context must have room for all ten probes");
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "set_telemetry: refused, nothing attached: the "
+                             "prefix joined to each "
+                             "probe name must fit DP_TLM_NAME_MAX, decim must "
+                             "be at least 1, and "
+                             "the context must have room for all ten probes");
+          return NULL;
+        case DP_ERR_MEMORY:
+          if (_why)
+            PyErr_SetString (PyExc_MemoryError, _why);
+          else
+            PyErr_SetString (PyExc_MemoryError,
+                             "set_telemetry: the attach's scratch context "
+                             "could not be allocated; "
+                             "nothing is attached");
           return NULL;
         default:
           break;
         }
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
-                    (long long)_rc);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                      (long long)_rc);
       return NULL;
     }
   /* retain: the kernel keeps `tlm`, so this object keeps its owner
@@ -4919,10 +5001,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``execute: only a map\n"
-    "    (framing='none', detect=False) executes, and it takes exactly one\n"
-    "    frame: the input length must be the frame length n (the reference's\n"
-    "    length, ny*nx)``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``execute: only a map (framing='none', detect=False) executes;\n"
+    "    Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -4980,9 +5061,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``execute_all: only a map\n"
-    "    (framing='none', detect=False) runs a batch: the input must be a\n"
-    "    whole, nonzero number of frames, and out= must hold every map``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``execute_all: only a map (framing='none', detect=False) runs a\n"
+    "    batch; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5064,9 +5145,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``execute_coherent: only a map\n"
-    "    (framing='none', detect=False) runs a batch: the input must be a\n"
-    "    whole, nonzero number of frames, and out= must hold one map``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``execute_coherent: only a map (framing='none', detect=False) runs\n"
+    "    a batch; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5137,9 +5218,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``execute_power_sum: only a map\n"
-    "    (framing='none', detect=False) runs a batch: the input must be a\n"
-    "    whole, nonzero number of frames, and out= must hold one map``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``execute_power_sum: only a map (framing='none', detect=False) runs\n"
+    "    a batch; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5211,10 +5292,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``execute_power_max: only a map\n"
-    "    (framing='none', detect=False) runs a batch: the input must be a\n"
-    "    whole, nonzero number of frames (at most 2**32), and out= must hold\n"
-    "    one map``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``execute_power_max: only a map (framing='none', detect=False) runs\n"
+    "    a batch; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5264,10 +5344,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``execute_peaks: only a map\n"
-    "    (framing='none', detect=False) runs a batch: the input must be a\n"
-    "    whole, nonzero number of frames, and out= must hold one record per\n"
-    "    frame``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``execute_peaks: only a map (framing='none', detect=False) runs a\n"
+    "    batch; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5324,10 +5403,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``bank_power_max: only a map\n"
-    "    (framing='none', detect=False) has a bank: it needs one frame, L >=\n"
-    "    1, g_min <= g_max, rates a whole number of ny-long vectors, and\n"
-    "    out= holding one map``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``bank_power_max: only a map (framing='none', detect=False) has a\n"
+    "    bank; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5421,10 +5499,9 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
-    "    a count. The exception message is ``bank_detect: only a map\n"
-    "    (framing='none', detect=False) has a bank: it needs one frame, L_d\n"
-    "    >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long\n"
-    "    vectors, and out= holding one record per map cell``.\n"
+    "    a count. The exception message is the reason the C call gives, or\n"
+    "    ``bank_detect: only a map (framing='none', detect=False) has a\n"
+    "    bank; Correlator.flavor says which this is`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5476,21 +5553,25 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message\n"
-    "    is ``configure_search_raw: only a search (framing='continuous' or\n"
-    "    'burst') has a grid to pin; Correlator.flavor says which this is``.\n"
+    "    is the reason the C call gives, or ``configure_search_raw: only a\n"
+    "    search (framing='continuous' or 'burst') has a grid to pin;\n"
+    "    Correlator.flavor says which this is`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
-    "    ``configure_search_raw: doppler_bins must lie in 1..reps and\n"
-    "    n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and\n"
-    "    non-coherent looks need rate_hypotheses 1``.\n"
+    "    the reason the C call gives, or ``configure_search_raw:\n"
+    "    doppler_bins must lie in 1..reps and n_noncoh in\n"
+    "    1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks\n"
+    "    need rate_hypotheses 1`` when it gives none.\n"
     "MemoryError\n"
     "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
-    "    ``configure_search_raw: rebuilding the grid could not allocate; the\n"
-    "    engine keeps its prior grid``.\n"
+    "    the reason the C call gives, or ``configure_search_raw: rebuilding\n"
+    "    the grid could not allocate; the engine keeps its prior grid`` when\n"
+    "    it gives none.\n"
     "ValueError\n"
     "    If the C call returns any other non-zero status. The exception\n"
-    "    message is ``configure_search_raw failed``, with the return code\n"
-    "    appended (gh-869).\n"
+    "    message is the reason the C call gives, or ``configure_search_raw\n"
+    "    failed``, with the return code appended (gh-869), when it gives\n"
+    "    none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5543,15 +5624,18 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message\n"
-    "    is ``set_max_peaks: only a search (framing='continuous' or 'burst')\n"
-    "    lists peaks; Correlator.flavor says which this is``.\n"
+    "    is the reason the C call gives, or ``set_max_peaks: only a search\n"
+    "    (framing='continuous' or 'burst') lists peaks; Correlator.flavor\n"
+    "    says which this is`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
-    "    ``set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)``.\n"
+    "    the reason the C call gives, or ``set_max_peaks: n must lie in\n"
+    "    1..64 (DP_CORRELATOR_MAX_PEAKS)`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns any other non-zero status. The exception\n"
-    "    message is ``set_max_peaks failed``, with the return code appended\n"
-    "    (gh-869).\n"
+    "    message is the reason the C call gives, or ``set_max_peaks\n"
+    "    failed``, with the return code appended (gh-869), when it gives\n"
+    "    none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -5754,18 +5838,25 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message\n"
-    "    is ``set_telemetry: only the continuous search\n"
-    "    (framing='continuous') is instrumented; Correlator.flavor says\n"
-    "    which this is``.\n"
+    "    is the reason the C call gives, or ``set_telemetry: only the\n"
+    "    continuous search (framing='continuous') is instrumented;\n"
+    "    Correlator.flavor says which this is`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
-    "    ``set_telemetry: refused, nothing attached: the prefix joined to\n"
-    "    each probe name must fit DP_TLM_NAME_MAX, decim must be at least 1,\n"
-    "    and the context must have room for all ten probes``.\n"
+    "    the reason the C call gives, or ``set_telemetry: refused, nothing\n"
+    "    attached: the prefix joined to each probe name must fit\n"
+    "    DP_TLM_NAME_MAX, decim must be at least 1, and the context must\n"
+    "    have room for all ten probes`` when it gives none.\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    the reason the C call gives, or ``set_telemetry: the attach's\n"
+    "    scratch context could not be allocated; nothing is attached`` when\n"
+    "    it gives none.\n"
     "ValueError\n"
     "    If the C call returns any other non-zero status. The exception\n"
-    "    message is ``set_telemetry failed``, with the return code appended\n"
-    "    (gh-869).\n"
+    "    message is the reason the C call gives, or ``set_telemetry\n"
+    "    failed``, with the return code appended (gh-869), when it gives\n"
+    "    none.\n"
     "\n"
     "Examples\n"
     "--------\n"

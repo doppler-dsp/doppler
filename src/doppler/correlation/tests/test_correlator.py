@@ -287,3 +287,176 @@ def test_a_method_is_served_as_the_table_says(name, flavor):
         refusal = "^" + re.escape(_REFUSALS[name]) + "$"
         with pytest.raises(ValueError, match=refusal):
             _CALLS[name](c)
+
+
+# ── A refusal names the argument it refused (#2961, just-makeit#2574) ───────
+#
+# Each method that refuses for more than one reason writes the reason
+# through its `why`, and the binding raises that sentence; off the flavors
+# that serve it, the method's declared "only" sentence is raised instead
+# (above). One case per cause, the whole sentence matched. An `out=` too
+# small is the binding's own refusal (it sizes and checks `out=` before the
+# call), so the C's `out=` sentences, which C callers read, are
+# test_correlator_create's.
+
+_NO_RATES = np.empty(0, np.complex64)
+_ONE = 1 << 31  # an int beyond what an index or a refined carrier fits
+
+
+def _cont() -> Correlator:
+    return _build("continuous")
+
+
+def _burst_rates() -> Correlator:
+    return Correlator(
+        _ZC,
+        framing="burst",
+        reps=8,
+        sample_rate=1.0,
+        doppler_rate=1e-6,
+        rate_hypotheses=3,
+    )
+
+
+def _tlm_full():
+    from doppler.telemetry import Telemetry
+
+    tlm = Telemetry(1 << 12)
+    i = 0
+    while True:  # fill the probe table, so ten more have no room
+        try:
+            tlm.probe(f"pad.{i}")
+        except Exception:
+            return tlm
+        i += 1
+
+
+_CAUSES = [
+    (
+        lambda c: c.execute(np.ones(30, np.complex64)),
+        "1d",
+        "execute: takes exactly one frame: the input length must be the "
+        "frame length n (ny*nx)",
+    ),
+    (
+        lambda c: c.execute_all(np.ones(45, np.complex64)),
+        "1d",
+        "execute_all: the input must be a whole, nonzero number of frames "
+        "(multiples of ny*nx)",
+    ),
+    (
+        lambda c: c.execute_coherent(np.ones(45, np.complex64)),
+        "1d",
+        "execute_coherent: the input must be a whole, nonzero number of "
+        "frames (multiples of ny*nx)",
+    ),
+    (
+        lambda c: c.execute_power_sum(np.ones(45, np.complex64)),
+        "1d",
+        "execute_power_sum: the input must be a whole, nonzero number of "
+        "frames (multiples of ny*nx)",
+    ),
+    (
+        lambda c: c.execute_power_max(np.ones(45, np.complex64)),
+        "1d",
+        "execute_power_max: the input must be a whole, nonzero number of "
+        "frames (multiples of ny*nx)",
+    ),
+    (
+        lambda c: c.execute_peaks(np.ones(45, np.complex64)),
+        "1d",
+        "execute_peaks: the input must be a whole, nonzero number of frames "
+        "(multiples of ny*nx)",
+    ),
+    (
+        lambda c: c.bank_power_max(
+            np.ones(30, np.complex64), 1, 0, 0, _NO_RATES
+        ),
+        "1d",
+        "bank_power_max: takes exactly one frame (ny*nx samples)",
+    ),
+    (
+        lambda c: c.bank_power_max(_NRZ, 0, 0, 0, _NO_RATES),
+        "1d",
+        "bank_power_max: L must be at least 1",
+    ),
+    (
+        lambda c: c.bank_power_max(_NRZ, 1, 1, 0, _NO_RATES),
+        "1d",
+        "bank_power_max: g_min must not exceed g_max",
+    ),
+    (
+        lambda c: c.bank_power_max(_NRZ, 1, -_ONE, _ONE - 1, _NO_RATES),
+        "1d",
+        "bank_power_max: (g_max - g_min + 1) x the rate count must fit the "
+        "uint32 hypothesis index",
+    ),
+    (
+        lambda c: c.bank_detect(_NRZ, 0, 1, 0, 0, 0.0, 0.0, _NO_RATES),
+        "1d",
+        "bank_detect: L_d must be at least 1",
+    ),
+    (
+        lambda c: c.bank_detect(_NRZ, 3, 4, 0, 0, 0.0, 0.0, _NO_RATES),
+        "1d",
+        "bank_detect: L_d must divide L_r",
+    ),
+    (
+        lambda c: c.bank_detect(
+            _NRZ, 1, 4, _ONE >> 2, _ONE >> 2, 0.0, 0.0, _NO_RATES
+        ),
+        "1d",
+        "bank_detect: every refined carrier (g x L_r / L_d) must fit an int32",
+    ),
+    (
+        lambda c: c.configure_search_raw(0, 1),
+        "burst",
+        "configure_search_raw: doppler_bins must lie in 1..reps",
+    ),
+    (
+        lambda c: c.configure_search_raw(1, 257),
+        "burst",
+        "configure_search_raw: n_noncoh must lie in 1..256 "
+        "(DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)",
+    ),
+    (
+        lambda c: c.set_max_peaks(65),
+        "burst",
+        "set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)",
+    ),
+    (
+        lambda c: c.set_telemetry(_tlm_full(), "acq"),
+        "continuous",
+        "set_telemetry: the context has no room for this search's ten probes",
+    ),
+]
+
+
+@pytest.mark.parametrize(("call", "flavor", "sentence"), _CAUSES)
+def test_a_refusal_names_the_argument(call, flavor, sentence):
+    c = _build(flavor)
+    with pytest.raises(ValueError, match="^" + re.escape(sentence) + "$"):
+        call(c)
+
+
+def test_non_coherent_looks_need_one_rate_hypothesis():
+    with pytest.raises(
+        ValueError,
+        match="^"
+        + re.escape(
+            "configure_search_raw: non-coherent looks (n_noncoh > 1) need "
+            "rate_hypotheses 1"
+        )
+        + "$",
+    ):
+        _burst_rates().configure_search_raw(1, 2)
+
+
+def test_set_telemetry_names_a_zero_decim():
+    from doppler.telemetry import Telemetry
+
+    with pytest.raises(
+        ValueError,
+        match="^" + re.escape("set_telemetry: decim must be at least 1") + "$",
+    ):
+        _cont().set_telemetry(Telemetry(1 << 12), "acq", 0)

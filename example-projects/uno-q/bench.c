@@ -128,7 +128,7 @@ run_corr2d (void *c)
 {
   corr_ctx_t  *k = c;
   const size_t n = (size_t)C2_NY * C2_NX;
-  dp_correlator_execute (k->obj, k->in, n, k->out, n);
+  dp_correlator_execute (k->obj, k->in, n, k->out, n, NULL);
 }
 
 /* ── fft / fft2d, forward, complex float ─────────────────────────────── */

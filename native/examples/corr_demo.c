@@ -79,7 +79,7 @@ demo_corr_1d (void)
     x[k] = ref[(k + N - LAG) % N];
 
   dp_correlator_state_t *c = dp_correlator_create_1d (ref, N, 1, 1, 0);
-  dp_correlator_execute (c, x, N, out, N);
+  dp_correlator_execute (c, x, N, out, N, NULL);
   dp_correlator_destroy (c);
 
   /* Find peak. */
@@ -133,7 +133,7 @@ demo_corr_dwell (void)
   dp_correlator_state_t *c = dp_correlator_create_1d (ref, N, DWELL, 1, 0);
   for (size_t i = 0; i < DWELL; i++)
     {
-      size_t n_out = dp_correlator_execute (c, ref, N, out, N);
+      size_t n_out = dp_correlator_execute (c, ref, N, out, N, NULL);
       if (n_out == 0)
         printf ("  frame %zu/%zu : accumulating  (count=%zu)\n", i + 1, DWELL,
                 c->count);
@@ -160,7 +160,7 @@ demo_corr2d (void)
 
   dp_correlator_state_t *c
       = dp_correlator_create_2d (ref, NY, NX, 1, 1, 0, 0, -1);
-  dp_correlator_execute (c, x, N, out, N);
+  dp_correlator_execute (c, x, N, out, N, NULL);
   dp_correlator_destroy (c);
 
   size_t peak_flat = 0;

@@ -17,7 +17,32 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .util import square_clip, saturate, ema_step, ema_alpha_decim, next_pow_two, complement_power, sinc, mean_sinc, simpson_weights, midpoint_nodes, gauss_hermite  # noqa: E402
 from .paths import fromto  # noqa: E402
+from .util import (  # noqa: E402
+    complement_power,
+    ema_alpha_decim,
+    ema_step,
+    gauss_hermite,
+    mean_sinc,
+    midpoint_nodes,
+    next_pow_two,
+    saturate,
+    simpson_weights,
+    sinc,
+    square_clip,
+)
 
-__all__ = ["square_clip", "saturate", "ema_step", "ema_alpha_decim", "next_pow_two", "complement_power", "sinc", "mean_sinc", "simpson_weights", "midpoint_nodes", "gauss_hermite", "fromto"]
+__all__ = [
+    "square_clip",
+    "saturate",
+    "ema_step",
+    "ema_alpha_decim",
+    "next_pow_two",
+    "complement_power",
+    "sinc",
+    "mean_sinc",
+    "simpson_weights",
+    "midpoint_nodes",
+    "gauss_hermite",
+    "fromto",
+]

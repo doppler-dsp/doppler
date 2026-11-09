@@ -1,10 +1,13 @@
 # wfm_compose.pyi — composer OO types (jm; gh-287).
 from __future__ import annotations
+
 from typing import Any, Iterator
-from typing_extensions import disjoint_base
+
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray
+from typing_extensions import disjoint_base
+
 from doppler.wfm import FrameDesc
 
 @disjoint_base

@@ -6,6 +6,11 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .capture import METADATA_SOURCE, Capture, CaptureSummary, RawCapture  # noqa: E402
+from .capture import (  # noqa: E402
+    METADATA_SOURCE,
+    Capture,
+    CaptureSummary,
+    RawCapture,
+)
 
 __all__ = ["METADATA_SOURCE", "Capture", "CaptureSummary", "RawCapture"]

@@ -1,6 +1,7 @@
 # capture/capture.pyi — type stubs for the capture C extension.
-from typing import final, Literal
 import os
+from typing import Literal, final
+
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray

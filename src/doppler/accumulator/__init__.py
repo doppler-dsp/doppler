@@ -18,6 +18,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .accumulator import AccF32, AccCf64, AccTrace  # noqa: E402
+from .accumulator import AccCf64, AccF32, AccTrace  # noqa: E402
 
 __all__ = ["AccF32", "AccCf64", "AccTrace"]

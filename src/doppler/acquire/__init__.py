@@ -19,6 +19,20 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .acquire import CarrierAcquisition, Acquisition, BurstAcquisition, BurstCapture, PersistentBurstCapture, bin_to_signed  # noqa: E402
+from .acquire import (  # noqa: E402
+    Acquisition,
+    BurstAcquisition,
+    BurstCapture,
+    CarrierAcquisition,
+    PersistentBurstCapture,
+    bin_to_signed,
+)
 
-__all__ = ["CarrierAcquisition", "Acquisition", "BurstAcquisition", "BurstCapture", "PersistentBurstCapture", "bin_to_signed"]
+__all__ = [
+    "CarrierAcquisition",
+    "Acquisition",
+    "BurstAcquisition",
+    "BurstCapture",
+    "PersistentBurstCapture",
+    "bin_to_signed",
+]

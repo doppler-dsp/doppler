@@ -1,5 +1,6 @@
 # spectral/spectral.pyi — type stubs for the spectral C extension.
-from typing import Any, final, Literal
+from typing import Any, Literal, final
+
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray

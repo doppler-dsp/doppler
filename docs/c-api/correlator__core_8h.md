@@ -5263,13 +5263,13 @@ Also resets accumulator and counter on success. The object's fast-path mode (see
 
 
 * `state` Must be non-NULL. 
-* `ref` New reference, flat row-major CF32, length ny\*nx. 
+* `ref` New reference, flat row-major CF32, length ny\*nx. Served by the 1-D and 2-D maps and both detectors (docs/design/ correlator-python.md section 18); the delay-Doppler map and the searches refuse it, touching nothing (a detector is not reset either).
 
 
 
 **Returns:**
 
-0 on success, -1 if `state` is fast-path and `ref` is no longer single-row. 
+0 on success; DP\_ERR\_UNSUPPORTED on the delay-Doppler map or a search; DP\_ERR\_INVALID if `state` is fast-path and `ref` is no longer single-row. 
 
 
 

@@ -1048,8 +1048,13 @@ void dp_correlator_reset(dp_correlator_state_t *state);
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, flat row-major CF32, length ny*nx.
- * @return 0 on success, -1 if @p state is fast-path and @p ref is no longer
- *         single-row.
+ * Served by the 1-D and 2-D maps and both detectors (docs/design/
+ * correlator-python.md section 18); the delay-Doppler map and the searches
+ * refuse it, touching nothing (a detector is not reset either).
+ *
+ * @return 0 on success; DP_ERR_UNSUPPORTED on the delay-Doppler map or a
+ *         search; DP_ERR_INVALID if @p state is fast-path and @p ref is no
+ *         longer single-row.
  */
 int dp_correlator_set_ref(dp_correlator_state_t *state, const float _Complex *ref);
 

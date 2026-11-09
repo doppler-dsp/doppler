@@ -749,6 +749,19 @@ test_a_flavor_names_the_knob_it_refuses (void)
   k.dwell        = 0;
   DP_CHECK (
       refused (&k, "Correlator: dwell must be at least 1 (frames a dump)"));
+  /* A delay-Doppler map whose bytes wrap a size_t (doppler_rows x 31 x 8
+     is 2^64 + 232 here): refused by name before anything is allocated,
+     where the unchecked product allocated 232 bytes and the build wrote
+     the whole frame past them (#2958). */
+  k              = defaults (NRZ, 1, 31);
+  k.doppler_rows = (size_t)74382032555280451ULL;
+  DP_CHECK (refused (&k, "Correlator: doppler_rows asks for a map no "
+                         "size_t can hold"));
+  k              = defaults (NRZ, 1, 31);
+  k.doppler_rows = 4;
+  k.ny_out       = (size_t)74382032555280451ULL;
+  DP_CHECK (refused (&k, "Correlator: ny_out asks for a map no size_t can "
+                         "hold"));
   k              = defaults (NRZ, 1, 31);
   k.doppler_rows = 4;
   k.ny_out       = 3;
@@ -769,7 +782,7 @@ test_a_flavor_names_the_knob_it_refuses (void)
   }
   k           = base;
   k.chip_rate = INFINITY;
-  DP_CHECK (refused (&k, "Correlator: chip_rate must be finite"));
+  DP_CHECK (refused (&k, "Correlator: chip_rate must be finite and positive"));
   k             = base;
   k.sample_rate = 4.5e6; /* 139.5 samples a period */
   DP_CHECK (refused (&k, "Correlator: the continuous search needs a code "
@@ -844,7 +857,8 @@ test_a_flavor_names_the_knob_it_refuses (void)
                          "search grid can hold"));
   k             = base;
   k.sample_rate = INFINITY;
-  DP_CHECK (refused (&k, "Correlator: sample_rate must be finite"));
+  DP_CHECK (
+      refused (&k, "Correlator: sample_rate must be finite and positive"));
   k      = base;
   k.reps = 0;
   DP_CHECK (refused (
@@ -944,6 +958,17 @@ test_members_off_their_flavor (void)
       DP_CHECK (search_members_refuse (maps[i]));
       DP_CHECK (dp_correlator_last_corr_status (maps[i])
                 == DP_ERR_UNSUPPORTED);
+      /* set_ref: the 1-D and 2-D maps serve it, the delay-Doppler map
+         refuses (its tables were sized from its code at create). */
+      {
+        float _Complex r[4 * 31] = { 0 };
+        r[0]                     = 1.0f;
+        DP_CHECK (
+            dp_correlator_set_ref (maps[i], r)
+            == (dp_correlator_flavor (maps[i]) == DP_CORRELATOR_DELAY_DOPPLER
+                    ? DP_ERR_UNSUPPORTED
+                    : DP_OK));
+      }
       DP_CHECK (dp_correlator_push_max_out (maps[i], 1000) == 0);
       DP_CHECK (dp_correlator_execute_max_out (maps[i]) > 0);
       dp_correlator_destroy (maps[i]);
@@ -953,6 +978,11 @@ test_members_off_their_flavor (void)
       DP_REQUIRE (dets[i] != NULL);
       DP_CHECK (search_members_refuse (dets[i]));
       DP_CHECK (dp_correlator_last_corr_status (dets[i]) == DP_OK);
+      {
+        float _Complex r[4 * 31] = { 0 };
+        r[0]                     = 1.0f;
+        DP_CHECK (dp_correlator_set_ref (dets[i], r) == DP_OK);
+      }
       /* execute() refuses a detector, so nothing sizes a map for it. */
       DP_CHECK (dp_correlator_execute_max_out (dets[i]) == 0);
       DP_CHECK (dp_correlator_execute_all_max_out (dets[i], 64) == 0);
@@ -980,6 +1010,13 @@ test_members_off_their_flavor (void)
       DP_CHECK (dp_correlator_execute_peaks_max_out (searches[i], 1000) == 0);
       DP_CHECK (dp_correlator_last_corr_status (searches[i])
                 == DP_ERR_UNSUPPORTED);
+      {
+        /* A search has no forward plan for a reference: refused, never
+           run through a NULL plan. */
+        float _Complex r[124] = { 0 };
+        DP_CHECK (dp_correlator_set_ref (searches[i], r)
+                  == DP_ERR_UNSUPPORTED);
+      }
       /* Both searches decide dwells, so both take a sink. */
       DP_CHECK (
           dp_correlator_set_surface_sink (searches[i], null_sink, NULL, 1)

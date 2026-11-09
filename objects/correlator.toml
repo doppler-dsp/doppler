@@ -317,6 +317,7 @@ status_return = true
 status_errors = [
   { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "configure_search_raw: only a search (framing='continuous' or 'burst') has a grid to pin; Correlator.flavor says which this is" },
   { status = "DP_ERR_INVALID", error = "ValueError", message = "configure_search_raw: doppler_bins must lie in 1..reps and n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks need rate_hypotheses 1" },
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "configure_search_raw: rebuilding the grid could not allocate; the engine keeps its prior grid" },
 ]
 params = [
   { name = "doppler_bins", type = "size_t" },

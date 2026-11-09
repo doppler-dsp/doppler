@@ -619,16 +619,15 @@ receiver in a pool is §6; this section is the chain under both.
     estimator reports ready or gives up, the live chain is built **fresh**
     from the seed's chip phase, advanced by the clock dilation over the
     refine (doppler#1249) — not wherever the refine `Dll` drifted to — and
-    the refined Doppler, or the seed's on a give-up. It starts at
-    `ceil(k · period)` samples from the hand-off, k whole code periods, the
-    period's fraction carried in its phase, and on the same input sample at
-    any chunking (doppler#2974): the estimate of where the refine stopped,
-    moved no earlier than the first such start inside the code period the
-    refine decided in, which the receiver holds whatever the call sizes. A
-    start
-    past the input so far is waited for, the receiver still refining. A
-    refined Doppler outside the seed domain is refused like a hit, and the
-    receiver searches again.
+    the refined Doppler, or the seed's on a give-up. It starts at the
+    refine's estimate of where it stopped, `ceil(k · period)` samples from
+    the hand-off (k whole code periods, the fraction carried in its phase),
+    on the same input sample at any chunking: the refine decides up to its
+    chain's lag past that estimate, and a ring of its last samples, sized
+    for that lag, holds the start when it is behind the call (the hand-over
+    ring, below). A start past the input so far is waited for, the receiver
+    still refining. A refined Doppler outside the seed domain is refused like
+    a hit, and the receiver searches again.
 - **tracking** — the refined carrier is unfrozen into a live pre-despread
     Costas → `Dll` (§3) → `RateConverter` → `MpskReceiver`.
     `costas_update()` runs once per code period on a **non-data-aided
@@ -644,6 +643,31 @@ receiver in a pool is §6; this section is the chain under both.
 - **lost** — the release verdict without `reacquire` (§10). The loops stop
     updating and samples are discarded until `reset()`. With `reacquire` a
     release returns the receiver to searching, and it never reads lost.
+
+**The hand-over ring** (doppler#2974). The refine's estimate counts its
+blocks and ignores its chain's lag, so the refine decides at `D`, past the
+estimate `S` by up to that lag. A caller feeding a few samples a call has
+already passed `S` when the refine decides. The receiver keeps the last
+`refine_hist_cap` refine samples so the live chain starts at `S` at any
+chunking. The cap is derived at create from the configuration: the refine
+`RateConverter`'s group delay (`dp_RateConverter_get_delay()`, in partials
+of `period / refine_segments` samples), plus one partial of `Dll` framing,
+one code period of the estimate's round-up and one `tsamps` block. A
+decimator's outputs are never that late in number (its count lags by about
+one output a stage), so the bound is loose, and it is checked against
+measurements:
+
+| sweep (CODE7 unless noted)                                | geometries | largest `D − S`                 | smallest margin (cap − (`D − S`)) |
+| --------------------------------------------------------- | ---------- | ------------------------------- | --------------------------------- |
+| signal, 90 dB-Hz, 2–7.25 samples a chip, 3000–35714 sym/s | 108        | 299 samples (5.9 periods)       | 149 samples (10.6 periods)        |
+| noise, refine Dll free-running, CODE7 and Gold-1023       | 1320       | 16368 samples (Gold, 4 periods) | 8 samples                         |
+
+The cap ranges over 149–9439 samples on the signal sweep, and is 9109
+(4.5 periods, 71 KiB) for Gold-1023 at 2 samples a chip and 1136 chips a
+symbol. A refine that decides further past than the cap starts the live
+chain at the first `ceil(k · period)` at or past `D − cap`, the oldest
+sample held at every chunking. No measured geometry reaches that, and a
+white-box test narrows the ring to pin it.
 
 Two lock detectors run while tracking: the `Dll`'s CFAR-based **code lock**
 (§3.5) and a hysteretic **symbol lock** on the emitted symbols — the BPSK

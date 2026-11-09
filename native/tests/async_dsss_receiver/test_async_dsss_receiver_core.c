@@ -2416,16 +2416,19 @@ _test_carry_tail_is_zeros (void)
   DP_CHECK (rx != NULL);
   if (!rx)
     return 1;
-  const size_t   cb    = dp_async_dsss_receiver_state_bytes (rx);
-  const size_t   carry = rx->tsamps * sizeof (float _Complex);
-  unsigned char *blob  = malloc (cb);
-  unsigned char *back  = malloc (cb);
+  const size_t cb    = dp_async_dsss_receiver_state_bytes (rx);
+  const size_t carry = rx->tsamps * sizeof (float _Complex);
+  /* The hand-over ring follows the carry (v17). */
+  const size_t   ring = rx->refine_hist_cap * sizeof (float _Complex);
+  unsigned char *blob = malloc (cb);
+  unsigned char *back = malloc (cb);
   dp_async_dsss_receiver_get_state (rx, blob);
   DP_CHECK (rx->car_carry_len == 0);
   for (size_t i = 0; i < rx->tsamps; i++)
     {
       const float re_im[2] = { (float)(i + 1), 0.5f };
-      memcpy (blob + cb - carry + i * sizeof re_im, re_im, sizeof re_im);
+      memcpy (blob + cb - ring - carry + i * sizeof re_im, re_im,
+              sizeof re_im);
     }
   DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_OK);
   /* The restore really put real samples in the buffer: a set_state that
@@ -2437,7 +2440,7 @@ _test_carry_tail_is_zeros (void)
   memset (back, 0xA5, cb);
   dp_async_dsss_receiver_get_state (rx, back);
   size_t nonzero = 0;
-  for (size_t i = cb - carry; i < cb; i++)
+  for (size_t i = cb - ring - carry; i < cb; i++)
     nonzero += back[i] != 0;
   DP_CHECK (nonzero == 0);
 
@@ -4577,22 +4580,31 @@ _test_resampled_search_hands_off_into_its_history (void)
   return 0;
 }
 
-/* _test_chunking_changes_nothing()'s receiver geometry, the harness's arg:
- * CODE7 at 1 Mchip/s, searching. */
+/* The #2974 tests' receiver, the harness's arg: CODE7 at 1 Mchip/s. */
 typedef struct
 {
   double fs;       /* sample rate, Hz */
   double sym_rate; /* symbols per second */
   double err_db;   /* refine_max_error_db */
+  int    seeded;   /* seeded at phase 0, 0 Hz: refining from the start */
+  size_t hist_cap; /* 0: the receiver's own ring; else forced smaller */
 } chunking_geom_t;
 
 static void *
 _chunking_create (void *arg)
 {
-  const chunking_geom_t *g = arg;
-  return dp_async_dsss_receiver_create (
+  const chunking_geom_t          *g  = arg;
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       CODE7, 7, 1.0e6, g->sym_rate, g->fs, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0,
       g->err_db, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+  if (rx && g->seeded)
+    (void)dp_async_dsss_receiver_seed (rx, 0.0, 0.0, 58.0);
+  /* A smaller ring than the derived one, a white-box reach into the
+     fallback: the buffer stays the derived size, so this only narrows what
+     the hand-over may read. */
+  if (rx && g->hist_cap && g->hist_cap < rx->refine_hist_cap)
+    rx->refine_hist_cap = g->hist_cap;
+  return rx;
 }
 
 static void
@@ -4608,37 +4620,56 @@ _chunking_process (void *rx, const void *in, size_t n, void *out,
   return dp_async_dsss_receiver_steps (rx, in, n, out, out_cap);
 }
 
+/* The #2974 tests' capture: the shared builder's (dp_dsss_capture()) at a
+ * whole `dec * fs_chips` samples a chip, every `dec`-th sample kept --
+ * rectangular chips at the fractional rate from the one stimulus, never
+ * rendered here -- with its C/N0 raised by 10*log10(dec) so the kept
+ * samples carry 90 dB-Hz. Returns the capture (caller frees) and fills
+ * `*n` and `*data` (caller frees). */
+static float _Complex *
+_chunking_capture (double fs_chips, size_t dec, double sym_rate, size_t n_sym,
+                   size_t *n, double **data)
+{
+  const double    chip_rate = 1.0e6, fs_r = fs_chips * chip_rate * (double)dec;
+  float _Complex *xr;
+  size_t          n_r;
+  dp_dsss_capture (CODE7, 7, (size_t)llround (fs_r / chip_rate), fs_r,
+                   fs_r / sym_rate, 0.0, 90.0 + 10.0 * log10 ((double)dec),
+                   n_sym, (5 * 18 + 3) * dec, 11u, &xr, &n_r, data);
+  *n                = n_r / dec;
+  float _Complex *x = malloc (*n * sizeof *x);
+  if (x)
+    for (size_t i = 0; i < *n; i++)
+      x[i] = xr[i * dec];
+  free (xr);
+  return x;
+}
+
 /* A streaming receiver gives the same answer for any chunking of the same
  * input (doppler#2974): dp_chunk_invariance() over 1..17 samples a call and
  * the harness's own sizes and random splits, each run the one-shot's symbols
  * bit for bit, same count. What chunking reached was the hand-over from
  * refine to tracking: the live chain starts at an estimate of where the
  * refine stopped, which ignores the refine chain's own lag, so the refine
- * decides a little past it or a little short of it, and the start was taken
- * only from the call that decided. Each row puts it somewhere else:
+ * decides past it or short of it, and the start was taken only from the
+ * call that decided. Each row puts it somewhere else:
  *
  *   2.5 samples a chip, 35714 sym/s: the refine decides 7 samples past the
- *       start, so a call of fewer leaves it in the carry (the issue's table,
- *       BER 0.03-0.13 at 1-5 samples a call);
+ *       start, so a call of fewer reaches into the ring (the issue's table,
+ *       BER up to 0.13 at 1-5 samples a call);
  *   3.5, 35714: it decides 16 samples SHORT of the start, which is waited
  *       for (it was started at once, early);
  *   3.0, 35714: the control, decided exactly at the start;
  *   3.0, 3000 sym/s, refine_max_error_db 2: a whole period, no resampler,
- *       and the estimate 210 samples (10 periods) before the period the
- *       refine decided in, so the start moves on to that period, the input
- *       held at every chunking (BER 0.008 at 100 a call before).
+ *       and the refine decides 231 samples (11 periods) past the start,
+ *       inside the 2390-sample ring (BER 0.008 at 100 a call before).
  *
  * The 2.5 and 3.5 rows also run the search resampled (srch_rs): 17.5 and
- * 24.5 samples a period. The capture is the shared builder's
- * (dp_dsss_capture()) at a whole `dec * fs` samples a chip, every `dec`-th
- * sample kept: rectangular chips at the fractional rate from the one
- * stimulus, never rendered here, its C/N0 raised by 10*log10(dec) so the
- * kept samples carry the stated 90 dB-Hz.
+ * 24.5 samples a period.
  *
  * Sabotages: start a start that is still to come at once -> the 3.5 row goes
- * red; drop the carry's head of the decided period (no tail when the start
- * is behind the call) -> the 2.5 row; skip the move onto the held period ->
- * the 3000 sym/s row (and the carry is read out of bounds). */
+ * red; take no tail from the ring (start at the call when the start is
+ * behind it) -> the 2.5 and 3000 sym/s rows. */
 static int
 _test_chunking_changes_nothing (void)
 {
@@ -4656,32 +4687,22 @@ _test_chunking_changes_nothing (void)
   /* With the harness's own 1, 7, 64 and 4093: 1..17, then past them. */
   static const size_t sizes[] = { 2,  3,  4,  5,  6,  8,  9,   10,  11,   12,
                                   13, 14, 15, 16, 17, 23, 230, 257, 1000, 0 };
-  const double        chip_rate = 1.0e6;
   for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
     {
-      const size_t    dec   = rows[r].dec;
       const size_t    n_sym = rows[r].n_sym;
-      chunking_geom_t g
-          = { rows[r].fs_chips * chip_rate, rows[r].sym_rate, rows[r].err_db };
-      const double    fs_r = g.fs * (double)dec;
-      float _Complex *xr;
+      chunking_geom_t g     = { rows[r].fs_chips * 1.0e6, rows[r].sym_rate,
+                                rows[r].err_db, 0, 0 };
       double         *data;
-      size_t          n_r;
-      dp_dsss_capture (CODE7, 7, (size_t)llround (fs_r / chip_rate), fs_r,
-                       fs_r / g.sym_rate, 0.0,
-                       90.0 + 10.0 * log10 ((double)dec), n_sym,
-                       (5 * 18 + 3) * dec, 11u, &xr, &n_r, &data);
-      const size_t    n = n_r / dec;
-      float _Complex *x = malloc (n * sizeof *x);
+      size_t          n;
+      float _Complex *x = _chunking_capture (rows[r].fs_chips, rows[r].dec,
+                                             g.sym_rate, n_sym, &n, &data);
       DP_REQUIRE (x != NULL);
-      for (size_t i = 0; i < n; i++)
-        x[i] = xr[i * dec];
 
       /* The premise, on the one-shot: resampled exactly when the period is
          not whole, tracking, and every symbol right. */
       dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
       DP_REQUIRE (one != NULL);
-      DP_CHECK ((one->srch_rs != NULL) == (dec != 1));
+      DP_CHECK ((one->srch_rs != NULL) == (rows[r].dec != 1));
       float _Complex *a;
       const size_t    n_a = _stream (one, x, n, n, &a);
       DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
@@ -4709,69 +4730,85 @@ _test_chunking_changes_nothing (void)
       DP_CHECK (bad == 0);
       free (a);
       free (x);
-      free (xr);
       free (data);
     }
   return 0;
 }
 
-/* A receiver checkpointed while it WAITS for its live chain's start resumes
- * bit for bit (doppler#2974, the state rule). At 3.5 samples a chip the
- * refine decides 16 samples short of the start, so fed 16 samples a call
- * one call ends inside that window: refining, the refine decided, no live
- * chain yet. The blob taken there, restored into a fresh receiver and fed
- * the rest, must give the uninterrupted run's symbols, count included. The
- * window is reached by DP_REQUIRE, never by an `if`: a run that never stops
- * in it fails instead of passing on nothing. Sabotage: don't restore
- * refine_samples_fed in set_state -> the restored receiver waits from 0 for
- * a start ~5488 samples on, and its symbols differ. */
+/* Stopping points for _split_resumes(): where a checkpoint is taken. */
 static int
-_test_waiting_handover_round_trips (void)
+_refine_decided (const dp_async_dsss_receiver_state_t *rx)
 {
-  const double    fsc = 3.5, chip_rate = 1.0e6, sym_rate = 35714.29;
-  const size_t    dec = 2, n_sym = 300, chunk = 16;
-  chunking_geom_t g    = { fsc * chip_rate, sym_rate, 0.5 };
-  const double    fs_r = g.fs * (double)dec;
-  float _Complex *xr;
-  double         *data;
-  size_t          n_r;
-  dp_dsss_capture (CODE7, 7, (size_t)llround (fs_r / chip_rate), fs_r,
-                   fs_r / sym_rate, 0.0, 90.0 + 10.0 * log10 ((double)dec),
-                   n_sym, (5 * 18 + 3) * dec, 11u, &xr, &n_r, &data);
-  const size_t    n = n_r / dec;
-  float _Complex *x = malloc (n * sizeof *x);
+  const dp_carrier_acq_state_t *ca = rx->ca;
+  return ca->ready
+         || ca->n_blocks
+                >= (ca->sequential ? ca->max_n_blocks : ca->dwell_target);
+}
+
+/* Refining, the refine decided, the live chain's start still to come. */
+static int
+_at_waiting (const dp_async_dsss_receiver_state_t *rx)
+{
+  return dp_async_dsss_receiver_status (rx).state == ASYNC_DSSS_RX_REFINING
+         && _refine_decided (rx);
+}
+
+/* Refining, undecided, the hand-over's ring full and wrapped. */
+static int
+_at_wrapped_ring (const dp_async_dsss_receiver_state_t *rx)
+{
+  return dp_async_dsss_receiver_status (rx).state == ASYNC_DSSS_RX_REFINING
+         && !_refine_decided (rx) && rx->refine_hist_len == rx->refine_hist_cap
+         && rx->refine_hist_head != 0;
+}
+
+/* The refine samples fed when the call before the deciding one ends, from
+   a run that went through: _at_last_refine_call()'s stopping point. */
+static uint64_t split_fed_before_decision;
+
+/* Refining, undecided, and the next call decides: what the hand-over reads
+   from the ring is all in the checkpoint. */
+static int
+_at_last_refine_call (const dp_async_dsss_receiver_state_t *rx)
+{
+  return _at_wrapped_ring (rx)
+         && rx->refine_samples_fed >= split_fed_before_decision;
+}
+
+/* Feed @p g's receiver @p x in calls of @p chunk until @p at holds (it
+ * must: DP_REQUIRE, never an `if`), checkpoint it, restore the blob into a
+ * fresh receiver, feed both the rest, and require the restored one's
+ * symbols to be the uninterrupted one's, count included. Returns the number
+ * of failed checks. */
+static int
+_split_resumes (const chunking_geom_t *g, const float _Complex *x, size_t n,
+                size_t chunk,
+                int (*at) (const dp_async_dsss_receiver_state_t *))
+{
   float _Complex *a = malloc (n * sizeof *a);
   float _Complex *b = malloc (n * sizeof *b);
-  DP_REQUIRE (x != NULL && a != NULL && b != NULL);
-  for (size_t i = 0; i < n; i++)
-    x[i] = xr[i * dec];
-
-  dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
+  DP_REQUIRE (a != NULL && b != NULL);
+  dp_async_dsss_receiver_state_t *one = _chunking_create ((void *)g);
   DP_REQUIRE (one != NULL);
   size_t pos = 0, n_a = 0;
-  int    waiting = 0;
-  while (pos < n && !waiting)
+  int    there = 0;
+  while (pos < n && !there)
     {
       const size_t take = n - pos < chunk ? n - pos : chunk;
       n_a += dp_async_dsss_receiver_steps (one, x + pos, take, a + n_a,
                                            n - n_a);
       pos += take;
-      const dp_carrier_acq_state_t *ca = one->ca;
-      waiting
-          = dp_async_dsss_receiver_status (one).state == ASYNC_DSSS_RX_REFINING
-            && (ca->ready
-                || ca->n_blocks >= (ca->sequential ? ca->max_n_blocks
-                                                   : ca->dwell_target));
+      there = at (one);
     }
-  /* The premise: stopped in the window, with nothing emitted yet. */
-  DP_REQUIRE (waiting);
+  /* The premise: stopped where asked, with nothing emitted yet. */
+  DP_REQUIRE (there);
   DP_REQUIRE (n_a == 0);
 
   const size_t   nb   = dp_async_dsss_receiver_state_bytes (one);
   unsigned char *blob = malloc (nb);
   DP_REQUIRE (blob != NULL);
   dp_async_dsss_receiver_get_state (one, blob);
-  dp_async_dsss_receiver_state_t *two = _chunking_create (&g);
+  dp_async_dsss_receiver_state_t *two = _chunking_create ((void *)g);
   DP_REQUIRE (two != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_state (two, blob) == DP_OK);
 
@@ -4785,17 +4822,193 @@ _test_waiting_handover_round_trips (void)
                                            n - n_b);
     }
   DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
-  DP_CHECK (n_a > n_sym / 2);
+  DP_CHECK (n_a > 100);
   DP_CHECK (n_a == n_b && memcmp (a, b, n_a * sizeof *a) == 0);
-
   free (blob);
   dp_async_dsss_receiver_destroy (one);
   dp_async_dsss_receiver_destroy (two);
   free (b);
   free (a);
+  return 0;
+}
+
+/* A receiver checkpointed inside the hand-over resumes bit for bit
+ * (doppler#2974, the state rule), at the two places it holds what the
+ * hand-over needs:
+ *
+ *   waiting: at 3.5 samples a chip the refine decides 16 samples short of
+ *       the start, so fed 16 a call one call ends refining, the refine
+ *       decided, no live chain yet. Sabotage: don't restore
+ *       refine_samples_fed -> the restored receiver waits from 0 for a
+ *       start ~5488 samples on, and its symbols differ.
+ *   the ring: at 2.5 samples a chip fed 3 a call, the refine decides 7
+ *       past the start, so the hand-over reads 4 samples back into the
+ *       ring. The checkpoint is taken the call before the deciding one
+ *       (found by a run that went through), the ring full and wrapped, so
+ *       what the hand-over reads is the restored ring's. Sabotage: restore
+ *       the ring's count but not its samples -> the restored live chain
+ *       starts on zeros, and its symbols differ. */
+static int
+_test_handover_round_trips (void)
+{
+  static const struct
+  {
+    double fs_chips;
+    size_t dec, chunk;
+    int (*at) (const dp_async_dsss_receiver_state_t *);
+  } rows[]
+      = { { 3.5, 2, 16, _at_waiting }, { 2.5, 2, 3, _at_last_refine_call } };
+  for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
+    {
+      chunking_geom_t g = { rows[r].fs_chips * 1.0e6, 35714.29, 0.5, 0, 0 };
+      double         *data;
+      size_t          n;
+      float _Complex *x = _chunking_capture (rows[r].fs_chips, rows[r].dec,
+                                             g.sym_rate, 300, &n, &data);
+      DP_REQUIRE (x != NULL);
+      /* Where the refine decides at this chunking: the call before it is
+         the ring row's stopping point. */
+      dp_async_dsss_receiver_state_t *pre = _chunking_create (&g);
+      DP_REQUIRE (pre != NULL);
+      float _Complex out[64];
+      size_t pos = 0;
+      while (pos < n
+             && dp_async_dsss_receiver_status (pre).state
+                    != ASYNC_DSSS_RX_TRACKING)
+        {
+          split_fed_before_decision = pre->refine_samples_fed;
+          (void)dp_async_dsss_receiver_steps (pre, x + pos, rows[r].chunk, out,
+                                              64);
+          pos += rows[r].chunk;
+        }
+      dp_async_dsss_receiver_destroy (pre);
+      DP_CHECK (_split_resumes (&g, x, n, rows[r].chunk, rows[r].at) == 0);
+      free (x);
+      free (data);
+    }
+  return 0;
+}
+
+/* The ring in the blob (v17): its size is a layout key, its count is held
+ * to the size and to the samples the refine was fed, the largest legal count
+ * is taken back byte for byte, and a v16 blob is refused. The receiver is
+ * refining with a full ring (2.5 samples a chip, fed whole periods until
+ * the ring wraps). Sabotages: drop the size check -> the size forge is
+ * taken; drop the count's bound against the samples fed -> that forge. */
+static int
+_test_ring_blob_rejects (void)
+{
+  chunking_geom_t g = { 2.5e6, 35714.29, 0.5, 0, 0 };
+  double         *data;
+  size_t          n;
+  float _Complex *x = _chunking_capture (2.5, 2, g.sym_rate, 300, &n, &data);
+  DP_REQUIRE (x != NULL);
+  dp_async_dsss_receiver_state_t *rx = _chunking_create (&g);
+  DP_REQUIRE (rx != NULL);
+  float _Complex out[64];
+  size_t pos = 0;
+  while (pos + 17 <= n && !_at_wrapped_ring (rx))
+    {
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, 17, out, 64);
+      pos += 17;
+    }
+  DP_REQUIRE (_at_wrapped_ring (rx));
+
+  const size_t hdr = sizeof (dp_state_hdr_t);
+  const size_t off_cap
+      = hdr + offsetof (async_dsss_receiver_extra_t, refine_hist_cap);
+  const size_t off_len
+      = hdr + offsetof (async_dsss_receiver_extra_t, refine_hist_len);
+  const size_t off_fed
+      = hdr + offsetof (async_dsss_receiver_extra_t, refine_samples_fed);
+  const uint64_t cap = rx->refine_hist_cap, fed = rx->refine_samples_fed;
+  DP_REQUIRE (fed > cap);
+  const uint64_t cap_plus = cap + 1, len_over = cap + 1, small_fed = cap - 1;
+  DP_STATE_FORGE_TEST (
+      dp_async_dsss_receiver, rx, ASYNC_DSSS_RECEIVER_STATE_MAGIC,
+      ASYNC_DSSS_RECEIVER_STATE_VERSION, off_cap, &cap_plus, sizeof cap_plus);
+  DP_STATE_FORGE_TEST (
+      dp_async_dsss_receiver, rx, ASYNC_DSSS_RECEIVER_STATE_MAGIC,
+      ASYNC_DSSS_RECEIVER_STATE_VERSION, off_len, &len_over, sizeof len_over);
+  DP_STATE_FORGE_TEST (dp_async_dsss_receiver, rx,
+                       ASYNC_DSSS_RECEIVER_STATE_MAGIC,
+                       ASYNC_DSSS_RECEIVER_STATE_VERSION, off_fed, &small_fed,
+                       sizeof small_fed);
+  DP_STATE_ACCEPT_TEST (dp_async_dsss_receiver, rx, off_len, &cap, sizeof cap);
+
+  /* A v16 blob, its layout without the ring, is refused. */
+  const size_t   nb   = dp_async_dsss_receiver_state_bytes (rx);
+  unsigned char *blob = malloc (nb);
+  DP_REQUIRE (blob != NULL);
+  dp_async_dsss_receiver_get_state (rx, blob);
+  const uint16_t v16 = 16u;
+  memcpy (blob + offsetof (dp_state_hdr_t, version), &v16, sizeof v16);
+  DP_CHECK (dp_async_dsss_receiver_set_state (rx, blob) == DP_ERR_INVALID);
+  free (blob);
+  dp_async_dsss_receiver_destroy (rx);
   free (x);
-  free (xr);
   free (data);
+  return 0;
+}
+
+/* The fallback, for a refine whose lag the ring does not cover: no
+ * measured geometry reaches it (the 1320-geometry noise sweep's largest
+ * reach is 9 samples inside its ring), so the ring is narrowed to one tsamps
+ * block here, white-box. A seeded refine fed noise at 2 samples a chip,
+ * 3000 sym/s, refine_max_error_db 2 decides at its dwell with the Dll
+ * drifted, hundreds of samples past its estimate. The start then moves on
+ * to the first start the ring holds at every chunking, and the output is
+ * invariant across chunkings. The premise is a DP_REQUIRE: the narrowed
+ * ring's one-shot differs from the full ring's (the fallback moved the
+ * start), and both refines decided. Sabotage: fall back to the oldest sample
+ * this call's ring holds (before - refine_hist_len) instead of D - cap ->
+ * the chunkings differ. */
+static int
+_test_fallback_is_chunk_invariant (void)
+{
+  const size_t    n   = 60000;
+  float _Complex *x   = malloc (n * sizeof *x);
+  uint32_t        rng = 0x2974u;
+  DP_REQUIRE (x != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = dp_cgauss (&rng);
+  chunking_geom_t full   = { 2.0e6, 3000.0, 2.0, 1, 0 };
+  chunking_geom_t narrow = full;
+  narrow.hist_cap        = 14; /* one tsamps block at 2 samples a chip */
+
+  float _Complex                 *a, *b;
+  dp_async_dsss_receiver_state_t *one = _chunking_create (&full);
+  dp_async_dsss_receiver_state_t *two = _chunking_create (&narrow);
+  DP_REQUIRE (one != NULL && two != NULL);
+  DP_REQUIRE (two->tsamps == narrow.hist_cap
+              && narrow.hist_cap < one->refine_hist_cap);
+  const size_t n_a = _stream (one, x, n, n, &a);
+  const size_t n_b = _stream (two, x, n, n, &b);
+  /* Both refines decided on noise: at their dwell (a non-sequential
+     estimator reports there whatever it holds). */
+  DP_REQUIRE (_refine_decided (one) && _refine_decided (two));
+  DP_REQUIRE (n_a > 0 && n_b > 0);
+  DP_REQUIRE (n_a != n_b || memcmp (a, b, n_a * sizeof *a) != 0);
+  free (a);
+  free (b);
+  dp_async_dsss_receiver_destroy (one);
+  dp_async_dsss_receiver_destroy (two);
+
+  static const size_t sizes[] = { 2, 3, 5, 13, 15, 29, 230, 1000, 0 };
+  const dp_ci_spec_t  spec    = {
+    .name        = "AsyncDsssReceiver fallback",
+    .create      = _chunking_create,
+    .destroy     = _chunking_destroy,
+    .process     = _chunking_process,
+    .arg         = &narrow,
+    .in_size     = sizeof (float _Complex),
+    .out_size    = sizeof (float _Complex),
+    .out_cap     = n,
+    .frame_n     = 14,
+    .extra_sizes = sizes,
+  };
+  DP_CHECK (dp_chunk_invariance (&spec, x, n) == 0);
+  free (x);
   return 0;
 }
 
@@ -4856,7 +5069,9 @@ main (void)
   DP_CHECK (_test_pooled_and_search_only () == 0);
   DP_CHECK (_test_resampled_search_hands_off_into_its_history () == 0);
   DP_CHECK (_test_chunking_changes_nothing () == 0);
-  DP_CHECK (_test_waiting_handover_round_trips () == 0);
+  DP_CHECK (_test_handover_round_trips () == 0);
+  DP_CHECK (_test_ring_blob_rejects () == 0);
+  DP_CHECK (_test_fallback_is_chunk_invariant () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

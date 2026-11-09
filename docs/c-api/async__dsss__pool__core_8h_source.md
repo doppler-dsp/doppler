@@ -46,7 +46,10 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 6u /* v6: the receivers' search child is
+#define ASYNC_DSSS_POOL_STATE_VERSION 7u /* v7: its receivers' blobs carry
+                                              the refine hand-over ring
+                                              (ADRX v17, #2974); v6: the
+                                              receivers' search child is
                                               the correlator's ('CORL',
                                               #2752 3.4b); v5: the
                                               controller's search */

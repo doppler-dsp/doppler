@@ -111,6 +111,21 @@ typedef enum
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
     uint64_t refine_periods;     
+    /* The hand-over starts the live chain at the refine's estimate, and
+     * the refine decides up to its chain's lag past it, so the start can
+     * lie in input an earlier call already passed (#2974). The last
+     * refine_hist_cap refine samples are kept, a ring, so the start is
+     * reached at any chunking. The cap is the most the refine decides past
+     * its estimate, from the configuration at create: the refine
+     * RateConverter's group delay (dp_RateConverter_get_delay(), in
+     * partials of code_len * spc / refine_segments samples each), plus one
+     * partial of Dll framing, one code period of the estimate's round-up
+     * and one tsamps block of the refine's own. Running state: it travels
+     * in the blob (v17). */
+    float _Complex *refine_hist;      
+    size_t          refine_hist_cap;  
+    size_t          refine_hist_len;  
+    size_t          refine_hist_head; 
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
@@ -422,10 +437,12 @@ typedef enum
     double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS];   
     double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; 
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
+    uint64_t refine_hist_cap; 
+    uint64_t refine_hist_len; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 16u /* v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 17u /* v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

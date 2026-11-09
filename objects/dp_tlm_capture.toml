@@ -19,6 +19,10 @@ class_name = "MemoryCapture"
 no_state = "true"
 no_step = "true"
 no_reset = "true"
+# jm owns the binding, the Capture view's included (fragment = "generated");
+# read_dict, the one method with no manifest spelling, lives in
+# telemetry_ext_dp_tlm_capture_extra.c.
+fragment = "generated"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 create_fn = "dp_tlm_capture_open_memory"
@@ -216,3 +220,56 @@ link = true
 [[dp_tlm_capture.depends_on]]
 name = "timing"
 link = true
+
+# ── hand-written methods ────────────────────────────────────────────────────
+
+# read_dict returns {probe_name: array}, a shape with no manifest spelling.
+# Its C is hand-written in
+# native/src/telemetry/telemetry_ext_dp_tlm_capture_extra.c, which jm
+# includes and never writes; this row gives it its PyMethodDef row, prototype
+# and stub (gh-1997). It shares tlm_read_dict.h with Telemetry.read_dict().
+[[dp_tlm_capture.extra_methods]]
+name = "read_dict"
+fn = "MemoryCaptureObj_read_dict"
+flags = "METH_VARARGS | METH_KEYWORDS"
+args = "n: int = 0, index: bool = False"
+returns = "dict[str, NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]]]"
+doc = """The captured records, grouped by probe name.
+
+records() hands back one structured array carrying every probe
+interleaved; this splits it, so a consumer never writes the
+``recs[recs["probe"] == id]["value"]`` filter or the id-to-name
+inversion by hand. Every REGISTERED probe gets a key, including one
+that captured nothing, so the key set is stable.
+
+Like records(), this does NOT consume — call it as often as you like.
+
+Parameters
+----------
+n : int, optional
+    Records to take from the front; 0 (the default) means all.
+index : bool, optional
+    When True each value is ``(n, values)`` — the sample indices
+    alongside the values, so a real time axis is ``n / fs``.
+
+Returns
+-------
+dict
+    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+    `index` is True.
+
+Examples
+--------
+>>> from doppler.telemetry import MemoryCapture, Telemetry
+>>> tlm = Telemetry(1 << 12)
+>>> eid = tlm.probe("sync.e")
+>>> with MemoryCapture(tlm, 64, None) as cap:
+...     tlm.set_now(0)
+...     tlm.emit(eid, 0.25)
+...     tlm.set_now(64)
+>>> n, v = cap.read_dict(index=True)["sync.e"]
+>>> v
+array([0.25], dtype=float32)
+>>> n
+array([0], dtype=uint64)
+"""

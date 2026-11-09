@@ -36,7 +36,10 @@ def test_create_rejects_bad_sizes():
     # identical C return.
     with pytest.raises(ValueError):
         Telemetry(0)
-    with pytest.raises(ValueError):
+    # A negative size never reaches dp_tlm_create: it is outside size_t, so
+    # the binding refuses it (jm 0.125.0). `K` used to mask -4 into a huge
+    # ring that create then rejected as a ValueError.
+    with pytest.raises(OverflowError, match="out of range for size_t"):
         Telemetry(-4)
     # Any size from 1 up is a ring of exactly that many records; it need
     # not be a power of two (the ring rounds its mapping, not its capacity).
@@ -226,6 +229,53 @@ def test_set_decim_accepts_the_uint32_edges():
     tlm.set_decim("x", 1)
     with pytest.raises(ValueError):  # in range; the core refuses 0
         tlm.set_decim("x", 0)
+
+
+# A size_t / uint64_t argument outside its C range. `K` used to MASK these:
+# -1 became 2**64 - 1 and 2**64 + 5 became 5, so read(2**64 + 5) quietly
+# drained five records. jm 0.125.0's binding range-checks before the cast.
+BAD_COUNTS = [-1, 2**64, 2**64 + 5]
+
+
+@pytest.mark.parametrize("bad", BAD_COUNTS)
+def test_read_refuses_a_count_outside_size_t(bad):
+    tlm = Telemetry(1 << 12)
+    pid = tlm.probe("x")
+    for i in range(8):
+        tlm.emit(pid, float(i))
+    with pytest.raises(OverflowError, match="out of range for size_t"):
+        tlm.read(bad)
+    # Refused before the drain: every record is still there.
+    assert len(tlm.read()) == 8
+
+
+@pytest.mark.parametrize("bad", BAD_COUNTS)
+def test_set_now_refuses_an_index_outside_uint64(bad):
+    tlm = Telemetry(1 << 12)
+    pid = tlm.probe("x")
+    tlm.set_now(7)
+    with pytest.raises(OverflowError, match="out of range for uint64_t"):
+        tlm.set_now(bad)
+    # The stamp is unchanged: the next record still carries 7.
+    tlm.emit(pid, 1.0)
+    assert tlm.read()["n"].tolist() == [7]
+
+
+def test_set_now_accepts_the_uint64_edges():
+    tlm = Telemetry(1 << 12)
+    pid = tlm.probe("x")
+    for edge in (0, 2**64 - 1):
+        tlm.set_now(edge)
+        tlm.emit(pid, 1.0)
+    assert tlm.read()["n"].tolist() == [0, 2**64 - 1]
+
+
+def test_stats_takes_no_arguments():
+    # stats() was METH_VARARGS and silently ignored whatever it was given.
+    tlm = Telemetry(1 << 12)
+    assert tlm.stats().capacity >= 1
+    with pytest.raises(TypeError):
+        tlm.stats(1)
 
 
 def test_destroy_then_use_raises():

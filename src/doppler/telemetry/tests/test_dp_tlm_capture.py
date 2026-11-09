@@ -382,3 +382,15 @@ class TestExitFinalizesRatherThanFrees:
             _make_a_hole(tlm, pid)
             with pytest.raises(ValueError, match="block bound"):
                 teardown(cap)
+
+
+@pytest.mark.parametrize("bad", [-1, 2**64, 2**64 + 5])
+def test_records_refuses_a_count_outside_size_t(bad):
+    # `K` used to mask these, so records(2**64 + 5) handed back five records
+    # and records(-1) everything; the binding now refuses them outright.
+    tlm, pid = _tlm()
+    with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+        _run(tlm, pid, cap)
+    with pytest.raises(OverflowError, match="out of range for size_t"):
+        cap.records(bad)
+    assert len(cap.records()) == 8

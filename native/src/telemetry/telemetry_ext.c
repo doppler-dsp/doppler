@@ -187,10 +187,19 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 }
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
+/* extra_methods (gh-1190): defined in the hand-written _extra.c,
+ * included after the types; declared here for the method tables. */
+static PyObject *TelemetryObj_read_dict (PyObject *, PyObject *, PyObject *);
+#include "telemetry_ext_dp_tlm.c"
+#include "telemetry_ext_dp_tlm_extra.c" /* hand-written — jm never modifies */
+/* extra_methods (gh-1190): defined in the hand-written _extra.c,
+ * included after the types; declared here for the method tables. */
+static PyObject *MemoryCaptureObj_read_dict (PyObject *, PyObject *,
+                                             PyObject *);
 #include "telemetry_ext_capture.c"
 #include "telemetry_ext_dp_event_log.c"
-#include "telemetry_ext_dp_tlm.c"
 #include "telemetry_ext_dp_tlm_capture.c"
+#include "telemetry_ext_dp_tlm_capture_extra.c" /* hand-written — jm never modifies */
 
 /* ======================================================== */
 /* Module                                                    */

@@ -623,7 +623,7 @@ main (void)
           = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
       float _Complex y[64];
       const size_t lie = SIZE_MAX / sizeof (double) + 1u;
-      DP_CHECK (ch != NULL);
+      DP_REQUIRE (ch != NULL);
       DP_CHECK (dp_doppler_channel_execute_profile (ch, xs, m, ppm, m, y, lie)
                 == DP_ERR_INVALID);
       DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);

@@ -46,6 +46,20 @@ main (void)
     dp_delay_destroy (d);
   }
 
+  /* ── a num_taps too large to size is refused ───────────────────── *
+   * 2^(w-2) + 1 rounds to a capacity of 2^(w-1), whose two ring copies are
+   * 2^w elements: that count used to wrap to 0, and create() handed back a
+   * one-byte ring the first push wrote past. Above 2^(w-1) there is no
+   * power of two to round to at all (capacity 0, mask all ones). Both are
+   * refused; the positive control is the same create at 5, which builds. */
+  {
+    DP_CHECK (dp_delay_create (SIZE_MAX / 4 + 2u) == NULL);
+    DP_CHECK (dp_delay_create (SIZE_MAX) == NULL);
+    dp_delay_state_t *ok = dp_delay_create (5);
+    DP_CHECK (ok != NULL);
+    dp_delay_destroy (ok);
+  }
+
   /* ── push / ptr round-trip ──────────────────────────────────────── */
   {
     /* 3-tap delay: after pushing A B C the window is [C, B, A]

@@ -1078,7 +1078,7 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
    * against the capture, up to 1224 Hz and 6.0 dB out (doppler#1086). The
    * exact half is what stopped anyone looking at the other. */
   size_t      n_rows = dp_wfm_compose_draws (segs, n_segs, NULL, 0);
-  wfm_draw_t *rows   = n_rows ? malloc (n_rows * sizeof *rows) : NULL;
+  wfm_draw_t *rows   = n_rows ? dp_mallocn (n_rows, sizeof *rows) : NULL;
   if (rows)
     (void)dp_wfm_compose_draws (segs, n_segs, rows, n_rows);
   for (size_t r = 0; rows && r < n_rows; r++)

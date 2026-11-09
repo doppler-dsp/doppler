@@ -185,7 +185,7 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
    * raw dp_wfm_rrc_taps() output gets byte-identical shaping. */
   int    sps    = state->nsps;
   float  scale  = (float)sqrt ((double)sps);
-  float *scaled = malloc (ntaps * sizeof (float));
+  float *scaled = dp_mallocn (ntaps, sizeof (float));
   if (!scaled)
     return -1;
   for (size_t i = 0; i < ntaps; i++)
@@ -201,7 +201,10 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
     {
       size_t nphases = (size_t)sps;
       size_t nptaps  = (ntaps + nphases - 1) / nphases;
-      float *bank    = malloc (nphases * nptaps * sizeof (float));
+      size_t nbank;
+      float *bank = dp_size_mul (nphases, nptaps, &nbank)
+                        ? dp_mallocn (nbank, sizeof (float))
+                        : NULL;
       if (!bank)
         {
           free (scaled);
@@ -457,7 +460,7 @@ dp_wfm_synth_set_symbols (dp_wfm_synth_state_t *state,
     return 0; /* no-op for every other type */
   if (!symbols || n == 0)
     return -1;
-  float _Complex *copy = malloc (n * sizeof *copy);
+  float _Complex *copy = dp_mallocn (n, sizeof *copy);
   if (!copy)
     return -1;
   for (size_t i = 0; i < n; i++)

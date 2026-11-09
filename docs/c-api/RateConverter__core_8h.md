@@ -89,6 +89,7 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  double | [**dp\_RateConverter\_gain**](#function-dp_rateconverter_gain) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The cascade's response to a constant input, from its stages' own coefficients — computed, never measured._  |
 |  double | [**dp\_RateConverter\_get\_bank\_sps**](#function-dp_rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
 |  bool | [**dp\_RateConverter\_get\_clipped**](#function-dp_rateconverter_get_clipped) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
+|  double | [**dp\_RateConverter\_get\_delay**](#function-dp_rateconverter_get_delay) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Group delay of the whole cascade, in INPUT samples, from its stages' geometry: output_ `k` _of a fresh converter carries the input at index_`k / rate - delay` _._ |
 |  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
 |  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. A rate that is not finite and &gt; 0 is refused and leaves the converter as it was._  |
 |  void | [**dp\_RateConverter\_get\_state**](#function-dp_rateconverter_get_state) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
@@ -1068,6 +1069,60 @@ Sticky, cleared by [**dp\_RateConverter\_reset()**](RateConverter__core_8h.md#fu
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_delay 
+
+_Group delay of the whole cascade, in INPUT samples, from its stages' geometry: output_ `k` _of a fresh converter carries the input at index_`k / rate - delay` _._
+```C++
+double dp_RateConverter_get_delay (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+Each stage's own delay, in its input samples, scaled to the converter's input by the rate the stages before it apply:
+
+
+
+* halfband: `2 * centre`  output m is formed as input 2m + 1 arrives, centred on the half-weight branch `centre` back on its half-rate line;
+* CIC(R): `(CIC_N / 2 - 1) * (R - 1)`, plus `(taps - 1) / 2 * R` for the droop compensator when there is one;
+* Resampler: [**dp\_resamp\_get\_execute\_delay()**](resamp__core_8h.md#function-dp_resamp_get_execute_delay), or [**dp\_resamp\_get\_delay()**](resamp__core_8h.md#function-dp_resamp_get_delay) for a matched cascade's terminal (it runs the interpolating structure).
+
+
+
+
+Computed, never measured; `test_RateConverter_core.c` holds it to a phase-differenced tone at rates that build each plan. What it is for: a caller that maps a position on the output timeline back to the input, or that sizes how far behind its input the output can be. NB it is the delay of the signal, not of the output COUNT: a decimator emits from its first input, so its outputs are never this many samples late in number.
+
+
+
+
+**Parameters:**
+
+
+* `s` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The delay, in input samples (&gt;= 0).
+
+
+
+```C++
+dp_RateConverter_state_t *rc = dp_RateConverter_create (0.5, 0);
+printf ("%.1f\n", dp_RateConverter_get_delay (rc));   // 18.0
+dp_RateConverter_destroy (rc);
+```
+ 
 
 
         

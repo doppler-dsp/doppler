@@ -30,13 +30,17 @@
  *     is ready or gives up; then the live tracking chain is built FRESH,
  *     from the hand-off's chip phase advanced by the clock dilation over the
  *     refine (not wherever the refine-stage `Dll` drifted) and the refined
- *     -- on a give-up, the seed's -- Doppler. It starts at
- *     `ceil(k * period)` samples from the hand-off, k whole code periods,
- *     the period's fraction carried in its phase, and on the same input sample
- *     at any chunking (doppler#2974): the estimate of where the refine
- *     stopped, moved no earlier than the code period the refine decided in,
- *     which the receiver holds whatever the call sizes. A start the input
- *     has not reached yet is waited for, the receiver still refining.
+ *     -- on a give-up, the seed's -- Doppler. It starts at the refine's
+ *     estimate of where it stopped, `ceil(k * period)` samples from the
+ *     hand-off (k whole code periods, the fraction carried in its phase),
+ *     on the same input sample at any chunking (doppler#2974). The refine
+ *     decides up to its chain's lag past that estimate, so the receiver
+ *     keeps its last refine samples in a ring sized at create for that lag
+ *     (`refine_hist_cap`, from dp_RateConverter_get_delay()), and the start
+ *     is read from it when it is behind the call. A start the input has not
+ *     reached yet is waited for, the receiver still refining. A refine that
+ *     decides further past than the ring holds (none measured, signal or
+ *     noise) starts at the first such point the ring still holds.
  *   - **tracking**: the pre-despread carrier loop (`costas_wipeoff`/
  *     `costas_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`. The
  *     carrier loop updates once per code period from a NON-DATA-AIDED
@@ -285,12 +289,11 @@ typedef enum
                                        At the hand-over, fed minus the
                                        live chain's start is the tail that
                                        goes straight on to it: this call's,
-                                       and the decided period's head from
-                                       the carry when that is behind it.
-                                       The clock dilation is taken over the
-                                       live chain's start -- the estimate
-                                       from the refine's blocks, moved onto
-                                       the held period -- not over this. */
+                                       and the ring's newest samples when
+                                       the start is behind it. The clock
+                                       dilation is taken over the live
+                                       chain's start, the estimate from the
+                                       refine's blocks, not over this. */
     uint64_t refine_periods;     /**< Diagnostic: code periods the refine
                                       stage processed since its chain was
                                       built. It stops at the period the
@@ -299,6 +302,21 @@ typedef enum
                                       (#2395). Not in the state blob: it
                                       changes nothing, and a restore
                                       restarts it. */
+    /* The hand-over starts the live chain at the refine's estimate, and
+     * the refine decides up to its chain's lag past it, so the start can
+     * lie in input an earlier call already passed (#2974). The last
+     * refine_hist_cap refine samples are kept, a ring, so the start is
+     * reached at any chunking. The cap is the most the refine decides past
+     * its estimate, from the configuration at create: the refine
+     * RateConverter's group delay (dp_RateConverter_get_delay(), in
+     * partials of code_len * spc / refine_segments samples each), plus one
+     * partial of Dll framing, one code period of the estimate's round-up
+     * and one tsamps block of the refine's own. Running state: it travels
+     * in the blob (v17). */
+    float _Complex *refine_hist;      /**< Owned ring, refine_hist_cap. */
+    size_t          refine_hist_cap;  /**< Config: derived at create.   */
+    size_t          refine_hist_len;  /**< Running: samples held.       */
+    size_t          refine_hist_head; /**< Running: the next write.     */
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
@@ -1665,19 +1683,24 @@ typedef enum
     double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; /**< Dopplers and    */
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     /**< C/N0s, the unused
                                  tails zeroed.                           */
+    uint64_t refine_hist_cap; /**< v17: layout key, the hand-over ring's
+                                   size; must match the receiver.       */
+    uint64_t refine_hist_len; /**< v17: the ring's live count, packed
+                                   oldest first after the carry.        */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 16u /* v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 17u /* v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()
    *        writes.
    *
    * Envelope + async_dsss_receiver_extra_t + every child's blob + a fixed
-   * tsamps-sample carry region; fixed for a given configuration.
+   * tsamps-sample carry region + the hand-over ring (refine_hist_cap
+   * samples); fixed for a given configuration.
    *
    * @param state  Must be non-NULL.
    * @return Blob size, bytes.

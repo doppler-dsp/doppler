@@ -241,6 +241,8 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->refine_samples_fed = 0;
   s->refine_periods     = 0;
   s->car_carry_len      = 0;
+  s->refine_hist_len    = 0;
+  s->refine_hist_head   = 0;
 }
 
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
@@ -610,6 +612,41 @@ adr_period_start_at (double period, uint64_t at)
   return (uint64_t)ceil ((double)k * period - 1e-9);
 }
 
+/* Keep a refine call's input in the hand-over's ring: its last
+ * refine_hist_cap samples at most, so one bounded copy a call. */
+static void
+adr_refine_hist_push (dp_async_dsss_receiver_state_t *s,
+                      const float _Complex *x, size_t x_len)
+{
+  const size_t cap = s->refine_hist_cap;
+  if (x_len >= cap)
+    {
+      memcpy (s->refine_hist, x + x_len - cap, cap * sizeof *x);
+      s->refine_hist_head = 0;
+      s->refine_hist_len  = cap;
+      return;
+    }
+  const size_t first
+      = cap - s->refine_hist_head < x_len ? cap - s->refine_hist_head : x_len;
+  memcpy (s->refine_hist + s->refine_hist_head, x, first * sizeof *x);
+  memcpy (s->refine_hist, x + first, (x_len - first) * sizeof *x);
+  s->refine_hist_head = (s->refine_hist_head + x_len) % cap;
+  s->refine_hist_len
+      = s->refine_hist_len + x_len < cap ? s->refine_hist_len + x_len : cap;
+}
+
+/* The ring's newest @p n samples, oldest first, into @p dst (n <= len). */
+static void
+adr_refine_hist_tail (const dp_async_dsss_receiver_state_t *s,
+                      float _Complex *dst, size_t n)
+{
+  const size_t cap   = s->refine_hist_cap;
+  const size_t start = (s->refine_hist_head + cap - n) % cap;
+  const size_t first = cap - start < n ? cap - start : n;
+  memcpy (dst, s->refine_hist + start, first * sizeof *dst);
+  memcpy (dst + first, s->refine_hist, (n - first) * sizeof *dst);
+}
+
 /* Refine-stage entry point: buffer raw samples into whole `tsamps`-sample
  * periods (the shared car_carry_buf -- refine and track never run
  * concurrently) and run adr_refine_period() on each complete one, up to
@@ -617,8 +654,7 @@ adr_period_start_at (double period, uint64_t at)
  * chain's: steps() feeds it the tail, so folding it here too would pay for
  * those samples twice (#2395). Returns how many of x the refine took: all
  * of them until it decides, up to the end of the period it decides in on
- * that call, and none after. When that period straddled calls it is left
- * whole in car_carry_buf, which the hand-over reaches back into. */
+ * that call, and none after. */
 static size_t
 adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
                     size_t x_len)
@@ -1316,6 +1352,20 @@ dp_async_dsss_receiver_create (
                           &obj->refine_dll_out_cap, &obj->refine_rc_out_buf,
                           &obj->refine_rc_out_cap);
   obj->refine_samples_fed = 0;
+  /* How far past its estimate the refine can decide, from the
+     configuration (the field's comment has the terms). The refine's
+     RateConverter is the same at every rebuild: its rate is fixed here. */
+  {
+    const double period  = (double)code_len * spc;
+    const double partial = period / (double)obj->refine_segments;
+    obj->refine_hist_cap
+        = (size_t)ceil (dp_RateConverter_get_delay (obj->refine_rc) * partial
+                        + partial + period + (double)obj->tsamps);
+    obj->refine_hist
+        = dp_xmallocn (obj->refine_hist_cap, sizeof *obj->refine_hist);
+    obj->refine_hist_len  = 0;
+    obj->refine_hist_head = 0;
+  }
 
   adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_m_out (sps),
                          &obj->car, &obj->dll, &obj->rc, &obj->rx);
@@ -1355,6 +1405,7 @@ dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state)
   dp_resamp_destroy (state->srch_rs);
   free (state->srch_buf);
   free (state->srch_hist);
+  free (state->refine_hist);
   free (state->code);
   free (state);
 }
@@ -1737,7 +1788,10 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
 
       dp_carrier_acq_state_t *ca = state->ca;
       if (!adr_refine_decided (state))
-        return 0; /* still refining, no output yet */
+        {
+          adr_refine_hist_push (state, x, x_len);
+          return 0; /* still refining, no output yet */
+        }
 
       double refined_doppler_hz_est
           = state->seed_doppler_hz_est
@@ -1788,48 +1842,57 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
       samples_consumed_refine
           = (uint64_t)ceil (n_periods_consumed * period - 1e-9);
 
-      /* The live chain starts there whatever the chunking (#2974), so no
-       * earlier than the input the receiver holds at EVERY chunking: the
-       * period the refine decided in. It is in this call, or, when it
-       * straddled calls, its head is the carry's first tsamps - taken
-       * samples; a call that took nothing (the refine decided before it)
-       * holds only its own. The estimate above ignores the refine chain's
-       * lag (the Dll's framing and the RateConverter's), so the refine can
-       * decide past it -- 7 samples past at 2.5 samples a chip, where a
-       * call shorter than that left the start in a buffer already gone and
-       * the live chain began late. A start before the held input moves on
-       * to the first start inside it: the first ceil(k * period) at or past
-       * it, the smallest k, so a fractional period skips no start the grid
-       * has (the period's fraction is carried in the phase, as for the
-       * estimate). A start past the input so far
-       * is waited for, the refine decided and the receiver still refining,
-       * where starting at once began the live chain early (16 samples at
-       * 3.5 samples a chip) against a phase computed for the start. Fed
-       * whole, the start moves only where the estimate falls before the
-       * decided period. */
+      /* The live chain starts there whatever the chunking (#2974). The
+       * estimate ignores the refine chain's lag (the Dll's framing, the
+       * RateConverter's), so the refine decides at D, up to that lag past
+       * it -- 7 samples at 2.5 samples a chip, 231 at 3 samples a chip and
+       * 3000 sym/s -- and the start can lie in input an earlier call
+       * passed. The ring holds the last refine_hist_cap samples before
+       * this call, the most the refine can decide past its estimate (the
+       * field's comment derives it), so the start is reached at every
+       * chunking. A start the input has not reached yet is waited for, the
+       * refine decided and the receiver still refining.
+       *
+       * The fallback, for a refine whose lag the cap does not cover (none
+       * of the measured geometries, signal or noise): a start before
+       * D - cap, the oldest sample held at every chunking, moves on to the
+       * first ceil(k * period) at or past it, k whole periods, the
+       * fraction carried in the phase. Where the cap covers the lag that
+       * point is at or before the estimate, so the estimate stands. A call
+       * that took nothing (the refine decided before it) holds a start at
+       * or past its first sample, so it needs nothing older. */
       const uint64_t fed_total = state->refine_samples_fed;
-      const size_t   behind
-          = taken && taken < state->tsamps ? state->tsamps - taken : 0;
-      uint64_t held = before;
+      uint64_t       held      = before;
       if (taken)
-        held = before + taken > state->tsamps ? before + taken - state->tsamps
-                                              : 0;
+        {
+          const uint64_t d   = before + (uint64_t)taken;
+          const uint64_t cap = (uint64_t)state->refine_hist_cap;
+          held               = d > cap ? d - cap : 0;
+          /* Never older than the ring holds (a blob can say less). */
+          const uint64_t oldest = before > state->refine_hist_len
+                                      ? before - state->refine_hist_len
+                                      : 0;
+          if (held < oldest)
+            held = oldest;
+        }
       const uint64_t held_start = adr_period_start_at (period, held);
       if (samples_consumed_refine < held_start)
         samples_consumed_refine = held_start;
       if (samples_consumed_refine > fed_total)
-        return 0; /* the live chain's first sample is still to come */
+        {
+          adr_refine_hist_push (state, x, x_len);
+          return 0; /* the live chain's first sample is still to come */
+        }
       const size_t tail_len = (size_t)(fed_total - samples_consumed_refine);
       const float _Complex *tail = x + x_len - tail_len;
       float _Complex       *join = NULL;
       if (tail_len > x_len)
         {
-          /* Behind this call: the decided period's head, the carry's first
-             `behind` samples, which end at x[0]. */
+          /* Behind this call: the ring's newest samples, which end at
+             x[0]. */
           const size_t need = tail_len - x_len;
           join              = dp_xmallocn (tail_len, sizeof *join);
-          memcpy (join, state->car_carry_buf + behind - need,
-                  need * sizeof *join);
+          adr_refine_hist_tail (state, join, need);
           memcpy (join + need, x, x_len * sizeof *join);
           tail = join;
         }
@@ -2286,7 +2349,8 @@ dp_async_dsss_receiver_state_bytes (const dp_async_dsss_receiver_state_t *s)
          + dp_mpsk_receiver_state_bytes (s->rx)
          + (s->srch_rs ? dp_resamp_state_bytes (s->srch_rs) : 0)
          + s->srch_hist_cap * sizeof (float _Complex)
-         + s->tsamps * sizeof (float _Complex);
+         + s->tsamps * sizeof (float _Complex)
+         + s->refine_hist_cap * sizeof (float _Complex);
 }
 
 void
@@ -2329,6 +2393,8 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .pooled              = (uint64_t)(s->pooled != 0),
     .pick_want           = (uint64_t)s->pick_want,
     .n_picks             = (uint64_t)s->n_picks,
+    .refine_hist_cap     = (uint64_t)s->refine_hist_cap,
+    .refine_hist_len     = (uint64_t)s->refine_hist_len,
   };
   memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
   memcpy (extra.pick_phase, s->pick_phase, sizeof extra.pick_phase);
@@ -2357,6 +2423,16 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
      earlier period's or dp_xmalloc's, not state (#2076's sibling). */
   dp_w_cf32 (&_w, s->car_carry_buf, s->car_carry_len);
   dp_w_zeros (&_w, (s->tsamps - s->car_carry_len) * sizeof (float _Complex));
+  /* The hand-over's ring, oldest first, then zeros. */
+  {
+    const size_t cap   = s->refine_hist_cap;
+    const size_t len   = s->refine_hist_len;
+    const size_t start = (s->refine_hist_head + cap - len) % cap;
+    const size_t first = cap - start < len ? cap - start : len;
+    dp_w_cf32 (&_w, s->refine_hist + start, first);
+    dp_w_cf32 (&_w, s->refine_hist, len - first);
+    dp_w_zeros (&_w, (cap - len) * sizeof (float _Complex));
+  }
 }
 
 int
@@ -2381,7 +2457,10 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.rank >= ASYNC_DSSS_RX_MAX_PEAKS
       || extra.n_excl > ASYNC_DSSS_RX_MAX_EXCLUSIONS
       || extra.srch_origin > extra.samples_in
-      || extra.srch_hist_len > (uint64_t)s->srch_hist_cap)
+      || extra.srch_hist_len > (uint64_t)s->srch_hist_cap
+      || extra.refine_hist_cap != (uint64_t)s->refine_hist_cap
+      || extra.refine_hist_len > extra.refine_hist_cap
+      || extra.refine_hist_len > extra.refine_samples_fed)
     return DP_ERR_INVALID;
   /* Only what set_exclusions() can leave: folded phases, a zeroed tail. */
   for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
@@ -2426,6 +2505,9 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   if (s->srch_hist_cap)
     dp_r_cf32 (&_r, s->srch_hist, s->srch_hist_cap);
   dp_r_cf32 (&_r, s->car_carry_buf, s->tsamps);
+  dp_r_cf32 (&_r, s->refine_hist, s->refine_hist_cap);
+  s->refine_hist_len     = (size_t)extra.refine_hist_len;
+  s->refine_hist_head    = s->refine_hist_len % s->refine_hist_cap;
   s->state               = extra.state;
   s->seed_chip_phase     = extra.seed_chip_phase;
   s->seed_doppler_hz_est = extra.seed_doppler_hz_est;

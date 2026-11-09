@@ -961,6 +961,17 @@ PersistentBurstCaptureObj_configure_search_raw (
     {
       switch (_rc)
         {
+        case DP_ERR_INVALID:
+          PyErr_SetString (
+              PyExc_ValueError,
+              "configure_search_raw: doppler_bins must lie in 1..reps, "
+              "n_noncoh in "
+              "1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent "
+              "looks "
+              "(n_noncoh > 1) need rate_hypotheses 1; and n_noncoh x "
+              "doppler_bins "
+              "must not exceed the code periods refine reaches back (k_lo)");
+          return NULL;
         case DP_ERR_MEMORY:
           PyErr_SetString (
               PyExc_MemoryError,
@@ -1935,6 +1946,12 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
+    "ValueError\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    ``configure_search_raw: doppler_bins must lie in 1..reps, n_noncoh\n"
+    "    in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks\n"
+    "    (n_noncoh > 1) need rate_hypotheses 1; and n_noncoh x doppler_bins\n"
+    "    must not exceed the code periods refine reaches back (k_lo)``.\n"
     "MemoryError\n"
     "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
     "    ``configure_search_raw: rebuilding the engine's grid could not\n"

@@ -129,6 +129,10 @@ doc = "Pin the embedded continuous search (a Correlator)'s search grid directly,
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "configure_search_raw: doppler_bins must lie in 1..reps, n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks (n_noncoh > 1) need rate_hypotheses 1" },
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "configure_search_raw: rebuilding the engine's grid could not allocate; the engine keeps its prior grid" },
+]
 params = [
     { name = "doppler_bins", type = "size_t" },
     { name = "n_noncoh", type = "size_t" },

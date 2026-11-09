@@ -338,7 +338,15 @@ C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_s
 # them in its own style -- as it does the module's `_ext.c` aggregator, which
 # the `_ext\.c$` alternative above already leaves alone. Formatting them here
 # would make its drift check report them STALE; that check is their gate.
-DOWNSTREAM_GEN_C_RE = ^examples/downstream-jm/native/src/[^/]+/[^/]+_ext_[^/]+\.c$$
+#
+# The set is read from jm's own ownership stamp, the `/* jm:generated` banner
+# on a fragment's first line, not from a file-name pattern. A pattern on
+# `_ext_<obj>.c` also caught the HAND-WRITTEN `_ext_<obj>_extra.c` the
+# example's README tells authors to use, which then went unformatted by
+# anyone. An empty set yields `^()$`, which matches no file.
+DOWNSTREAM_GEN_C_RE := ^($(shell git grep -l '^/\* jm:generated ' -- \
+    'examples/downstream-jm/native/src/*.c' 2>/dev/null \
+    | sed 's/\./\\./g' | paste -sd'|'))$$
 
 # ...except the `_ext.c` of a `no_generate` module, which is HAND-WRITTEN: the
 # blanket exclusion left it formatted by nobody until `jm apply`, whose c_style

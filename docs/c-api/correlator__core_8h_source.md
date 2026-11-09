@@ -443,7 +443,8 @@ size_t dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                                  size_t L, int g_min, int g_max,
                                  const float _Complex *rates,
                                  size_t rates_len, float *out, uint32_t *out1,
-                                 size_t max_out, const char **why);
+                                 size_t max_out, int *status,
+                                 const char **why);
 
 size_t dp_correlator_bank_detect_max_out (dp_correlator_state_t *state,
                                       size_t x_len);
@@ -454,7 +455,8 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
                               float t_candidate, float t_confirm,
                               const float _Complex *rates, size_t rates_len,
                               float *out, int32_t *out1, uint32_t *out2,
-                              uint32_t *out3, uint32_t *out4, size_t max_out, const char **why);
+                              uint32_t *out3, uint32_t *out4, size_t max_out,
+                              int *status, const char **why);
 
 /* ── Detector flavors ──────────────────────────────────────────────────────
  * The correlator with the stream and detection layers on top

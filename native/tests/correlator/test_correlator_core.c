@@ -1081,7 +1081,7 @@ _test_bank (void)
           uint32_t *pi = malloc (no * sizeof *pi);
           DP_CHECK (dp_correlator_bank_power_max_max_out (c, BN) == no);
           DP_CHECK (dp_correlator_bank_power_max (c, x, BN, L, gmin, gmax, rv,
-                                                  rl, pw, pi, no, NULL)
+                                                  rl, pw, pi, no, NULL, NULL)
                     == no);
           int pm_ok = 1;
           for (size_t k = 0; k < no; k++)
@@ -1162,7 +1162,7 @@ _test_bank (void)
                                      + cimagf (map[k]) * cimagf (map[k])));
             DP_REQUIRE (dp_correlator_bank_power_max (
                             d, ox, ON, L2, -2 * (int)L2, 2 * (int)L2, NULL, 0,
-                            pw, pi, ON, NULL)
+                            pw, pi, ON, NULL, NULL)
                         == ON);
             double best = 0.0;
             for (size_t k = 0; k < ON; k++)
@@ -1233,29 +1233,29 @@ _test_bank (void)
     for (size_t k = 0; k < CAN; k++)
       po[k] = o0[k] = -7.0f, pi[k] = u2[k] = u3[k] = u4[k] = 77u, g1[k] = 77;
     DP_CHECK (dp_correlator_bank_power_max (dd, rx, RN, 2, 0, 1, NULL, 0, po,
-                                            pi, RN - 1, NULL)
+                                            pi, RN - 1, NULL, NULL)
               == SIZE_MAX);
     /* detect: a zero search grid, a grid that does not divide, a resolution
        below the search, a short output, and a refined carrier past int32 */
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 0, 4, 0, 1, 0.f, 0.f,
                                          NULL, 0, o0, g1, u2, u3, u4, CAN,
-                                         NULL)
+                                         NULL, NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 3, 4, 0, 1, 0.f, 0.f,
                                          NULL, 0, o0, g1, u2, u3, u4, CAN,
-                                         NULL)
+                                         NULL, NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 4, 2, 0, 1, 0.f, 0.f,
                                          NULL, 0, o0, g1, u2, u3, u4, CAN,
-                                         NULL)
+                                         NULL, NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 2, 4, 0, 1, 0.f, 0.f,
                                          NULL, 0, o0, g1, u2, u3, u4, RN - 1,
-                                         NULL)
+                                         NULL, NULL)
               == SIZE_MAX);
     DP_CHECK (dp_correlator_bank_detect (dd, rx, RN, 1, 4, INT32_MAX / 2,
                                          INT32_MAX / 2, 0.f, 0.f, NULL, 0, o0,
-                                         g1, u2, u3, u4, CAN, NULL)
+                                         g1, u2, u3, u4, CAN, NULL, NULL)
               == SIZE_MAX);
     int clean = 1;
     for (size_t k = 0; k < CAN; k++)
@@ -1307,14 +1307,14 @@ _test_bank_detect (void)
                            * ((float)cos (a) + (float)sin (a) * I);
         }
       DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0,
-                                                pw, pi, DN, NULL)
+                                                pw, pi, DN, NULL, NULL)
                   == DN);
       float top = 0.0f;
       for (size_t k = 0; k < DN; k++)
         top = fmaxf (top, pw[k]);
       const size_t nrec = dp_correlator_bank_detect (
           d, x, DN, 2, 4, -4, 4, 0.5f * top, 0.5f * top, NULL, 0, po, gr, ur,
-          urow, ucol, DN, NULL);
+          urow, ucol, DN, NULL, NULL);
       DP_CHECK_MSG (nrec == 1, "one signal, one record");
       const int32_t want_g = (int32_t)lround (4.0 * phi);
       DP_CHECK_MSG (nrec >= 1 && gr[0] == want_g && ucol[0] == DLAG
@@ -1322,7 +1322,8 @@ _test_bank_detect (void)
                     "the record is the signal's fine carrier and lag");
       /* the refined power is the fine (L = 4) bank's map at that cell */
       DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 4, want_g, want_g,
-                                                NULL, 0, fp, fi, DN, NULL)
+                                                NULL, 0, fp, fi, DN, NULL,
+                                                NULL)
                   == DN);
       const size_t cell = (size_t)urow[0] * DNX + ucol[0];
       DP_CHECK_MSG (nrec >= 1 && fabsf (po[0] - fp[cell]) <= 1e-5f * fp[cell],
@@ -1338,11 +1339,11 @@ _test_bank_detect (void)
          does a candidate threshold above the coarse peak */
       DP_CHECK (dp_correlator_bank_detect (d, x, DN, 2, 4, -4, 4, 0.5f * top,
                                            1.01f * po[0], NULL, 0, po, gr, ur,
-                                           urow, ucol, DN, NULL)
+                                           urow, ucol, DN, NULL, NULL)
                 == 0);
       DP_CHECK (dp_correlator_bank_detect (d, x, DN, 2, 4, -4, 4, 1.01f * top,
                                            0.0f, NULL, 0, po, gr, ur, urow,
-                                           ucol, DN, NULL)
+                                           ucol, DN, NULL, NULL)
                 == 0);
     }
 
@@ -1358,7 +1359,7 @@ _test_bank_detect (void)
                          * ((float)cos (a) + (float)sin (a) * I);
       }
     DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -4, 4, NULL, 0, pw,
-                                              pi, DN, NULL)
+                                              pi, DN, NULL, NULL)
                 == DN);
     size_t at = 0;
     for (size_t k = 0; k < DN; k++)
@@ -1369,7 +1370,7 @@ _test_bank_detect (void)
     DP_REQUIRE (pw[nb] > 0.1f * top);
     const size_t nrec = dp_correlator_bank_detect (
         d, x, DN, 2, 4, -4, 4, 0.1f * top, 0.1f * top, NULL, 0, po, gr, ur,
-        urow, ucol, DN, NULL);
+        urow, ucol, DN, NULL, NULL);
     DP_CHECK_MSG (nrec == 1 && gr[0] == 1 && ucol[0] == DLAG,
                   "a candidate is a local maximum: one signal, one record");
   }
@@ -1389,14 +1390,14 @@ _test_bank_detect (void)
                            * ((float)cos (a) + (float)sin (a) * I);
       }
     DP_REQUIRE (dp_correlator_bank_power_max (d, x, DN, 2, -2, 2, w, 2 * DNY,
-                                              pw, pi, DN, NULL)
+                                              pw, pi, DN, NULL, NULL)
                 == DN);
     float top = 0.0f;
     for (size_t k = 0; k < DN; k++)
       top = fmaxf (top, pw[k]);
     const size_t nrec = dp_correlator_bank_detect (
         d, x, DN, 2, 4, -2, 2, 0.5f * top, 0.5f * top, w, 2 * DNY, po, gr, ur,
-        urow, ucol, DN, NULL);
+        urow, ucol, DN, NULL, NULL);
     DP_CHECK_MSG (nrec == 1 && ur[0] == 1 && gr[0] == 0 && ucol[0] == DLAG,
                   "the de-chirping rate is the rate reported");
   }
@@ -1436,14 +1437,14 @@ _test_bank_detect (void)
         uint32_t *rc  = malloc (no * sizeof *rc);
         int32_t  *rg  = malloc (no * sizeof *rg);
         DP_REQUIRE (dp_correlator_bank_power_max (k, px, PN, 2, -3, 3, NULL, 0,
-                                                  cp, ci, no, NULL)
+                                                  cp, ci, no, NULL, NULL)
                     == no);
         float top = 0.0f;
         for (size_t q = 0; q < no; q++)
           top = fmaxf (top, cp[q]);
         const size_t nrec = dp_correlator_bank_detect (
             k, px, PN, 2, 4, -3, 3, 0.3f * top, 0.0f, NULL, 0, rp, rg, rr, rw2,
-            rc, no, NULL);
+            rc, no, NULL, NULL);
         DP_REQUIRE (nrec != SIZE_MAX);
         kinds += nrec > 0;
         const size_t width = k->col_out >= 0 ? 1 : k->nx_out;
@@ -1451,7 +1452,7 @@ _test_bank_detect (void)
           {
             DP_REQUIRE (dp_correlator_bank_power_max (k, px, PN, 4, rg[q],
                                                       rg[q], NULL, 0, fpw, fi2,
-                                                      no, NULL)
+                                                      no, NULL, NULL)
                         == no);
             const size_t col  = k->col_out >= 0 ? 0 : rc[q];
             const float  want = fpw[(size_t)rw2[q] * width + col];

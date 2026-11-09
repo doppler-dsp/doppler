@@ -187,7 +187,8 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   dp_correlator_state_t *dd
       = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, 0);
   /* a candidate threshold at half the coarse peak: one signal, one record */
-  dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n, NULL);
+  dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n, NULL,
+                                NULL);
   float top = 0.0f;
   for (size_t k = 0; k < n; k++)
     top = pw[k] > top ? pw[k] : top;
@@ -210,17 +211,17 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
                                              NULL);
           else if (which == 1)
             dp_correlator_bank_power_max (dd, x, n, 4, -4, 7, NULL, 0, pw, idx,
-                                          n, NULL);
+                                          n, NULL, NULL);
           else if (which == 2)
             dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx,
-                                          n, NULL);
+                                          n, NULL, NULL);
           else if (which == 4)
             dp_correlator_bank_power_max (dd, xr, n, 4, -4, 7, rates, R * ny,
-                                          pw, idx, n, NULL);
+                                          pw, idx, n, NULL, NULL);
           else
-            recs
-                = dp_correlator_bank_detect (dd, x, n, 2, 4, -2, 3, t, t, NULL,
-                                             0, rp, rg, ra, rr, rc, n, NULL);
+            recs = dp_correlator_bank_detect (dd, x, n, 2, 4, -2, 3, t, t,
+                                              NULL, 0, rp, rg, ra, rr, rc, n,
+                                              NULL, NULL);
           bt[r]       = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
           best[which] = bt[r] < best[which] ? bt[r] : best[which];
         }

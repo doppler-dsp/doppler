@@ -1736,7 +1736,8 @@ CorrelatorObj_bank_power_max (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  const char *_why = NULL;
+  int         _status = 0;
+  const char *_why    = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1746,7 +1747,7 @@ CorrelatorObj_bank_power_max (CorrelatorObject *self, PyObject *args,
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_correlator_bank_power_max (_jm_h, x, x_len, L, g_min, g_max,
                                           rates, rates_len, _d0, _d1, _cap,
-                                          &_why);
+                                          &_status, &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
@@ -1755,6 +1756,18 @@ CorrelatorObj_bank_power_max (CorrelatorObject *self, PyObject *args,
     {
       Py_DECREF (arr0);
       Py_DECREF (arr1);
+      switch (_status)
+        {
+        case DP_ERR_MEMORY:
+          if (_why)
+            PyErr_SetString (PyExc_MemoryError, _why);
+          else
+            PyErr_SetString (PyExc_MemoryError,
+                             "bank_power_max: out of memory");
+          return NULL;
+        default:
+          break;
+        }
       if (_why)
         PyErr_SetString (PyExc_ValueError, _why);
       else
@@ -1946,7 +1959,8 @@ CorrelatorObj_bank_detect (CorrelatorObject *self, PyObject *args,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  const char *_why = NULL;
+  int         _status = 0;
+  const char *_why    = NULL;
   /* nogil: GIL released across the pure-C kernel. Two calls on
    * one object may run at once only if its kernel allows it; a
    * teardown waits for a running call (gh-2272). */
@@ -1956,7 +1970,7 @@ CorrelatorObj_bank_detect (CorrelatorObject *self, PyObject *args,
   Py_BEGIN_ALLOW_THREADS
     n_out = dp_correlator_bank_detect (
         _jm_h, x, x_len, L_d, L_r, g_min, g_max, t_candidate, t_confirm, rates,
-        rates_len, _d0, _d1, _d2, _d3, _d4, _cap, &_why);
+        rates_len, _d0, _d1, _d2, _d3, _d4, _cap, &_status, &_why);
   Py_END_ALLOW_THREADS
   jm_inflight_leave (&self->_jm_inflight);
   Py_DECREF (x_arr);
@@ -1968,6 +1982,17 @@ CorrelatorObj_bank_detect (CorrelatorObject *self, PyObject *args,
       Py_DECREF (arr2);
       Py_DECREF (arr3);
       Py_DECREF (arr4);
+      switch (_status)
+        {
+        case DP_ERR_MEMORY:
+          if (_why)
+            PyErr_SetString (PyExc_MemoryError, _why);
+          else
+            PyErr_SetString (PyExc_MemoryError, "bank_detect: out of memory");
+          return NULL;
+        default:
+          break;
+        }
       if (_why)
         PyErr_SetString (PyExc_ValueError, _why);
       else
@@ -5376,31 +5401,34 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "refusal is dp_correlator_bank_fold()'s; in addition max_out below\n"
     "`n_out` is refused with nothing written.\n"
     "\n"
-    "As dp_correlator_bank_fold().\n"
-    "\n"
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    One frame, x_len samples.\n"
     "L : int\n"
-    "    Input.\n"
+    "    Fractions per whole bin; at least 1.\n"
     "g_min : int\n"
-    "    Input.\n"
+    "    Lowest carrier, in units of `1 / (L * nx)` cycles/sample.\n"
     "g_max : int\n"
-    "    Input.\n"
+    "    Highest carrier; at least g_min.\n"
     "rates : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    Per-period weights, R vectors of ny, or empty (NULL with rates_len\n"
+    "    0 in C) for one unit vector.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "tuple[NDArray[np.float32], NDArray[np.uint32]]\n"
     "    Python: the tuple (power, index), each (n_out,): float32 powers and\n"
     "    uint32 hypothesis indices, always new arrays (this call takes no\n"
-    "    `out=`); a refusal is a ValueError. C: `n_out`, or SIZE_MAX with\n"
-    "    nothing written.\n"
+    "    `out=`); out of memory is a MemoryError, any other refusal a\n"
+    "    ValueError. C: `n_out`, or SIZE_MAX with nothing written.\n"
     "\n"
     "Raises\n"
     "------\n"
+    "MemoryError\n"
+    "    If the C call refuses and reports ``DP_ERR_MEMORY`` in ``*status``.\n"
+    "    The exception message is the reason the C call gives, or\n"
+    "    ``bank_power_max: out of memory`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
     "    a count. The exception message is the reason the C call gives, or\n"
@@ -5489,14 +5517,19 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "    Python: the tuple (power, g, rate, row, col), one entry per\n"
     "    confirmed record (possibly none): float32 refined power, int32\n"
     "    refined carrier, uint32 rate, row and column, always new arrays\n"
-    "    (this call takes no `out=`); anything below is a ValueError. C: the\n"
-    "    record count (0 included), or SIZE_MAX with nothing written for\n"
-    "    anything dp_correlator_bank_fold() refuses, `L_d == 0`, an L_r that\n"
-    "    L_d does not divide, a refined carrier past int32, or max_out below\n"
-    "    `n_out`.\n"
+    "    (this call takes no `out=`); out of memory is a MemoryError, and\n"
+    "    anything else below a ValueError. C: the record count (0 included),\n"
+    "    or SIZE_MAX with nothing written for anything\n"
+    "    dp_correlator_bank_fold() refuses, `L_d == 0`, an L_r that L_d does\n"
+    "    not divide, a refined carrier past int32, max_out below `n_out`, or\n"
+    "    memory for the detector's work or the refine's scratch.\n"
     "\n"
     "Raises\n"
     "------\n"
+    "MemoryError\n"
+    "    If the C call refuses and reports ``DP_ERR_MEMORY`` in ``*status``.\n"
+    "    The exception message is the reason the C call gives, or\n"
+    "    ``bank_detect: out of memory`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns ``SIZE_MAX``, its refusal value, in place of\n"
     "    a count. The exception message is the reason the C call gives, or\n"

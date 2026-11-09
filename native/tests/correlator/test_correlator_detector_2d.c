@@ -492,11 +492,11 @@ _test_flavor_refusals (void)
           dp_correlator_execute_peaks (d, x, RN, fout, u1, u2, f3, 4, NULL)
           == SIZE_MAX);
       DP_CHECK (dp_correlator_bank_power_max (d, x, RN, 1, 0, 0, NULL, 0, fout,
-                                              u1, 4 * RN, NULL)
+                                              u1, 4 * RN, NULL, NULL)
                 == SIZE_MAX);
       DP_CHECK (dp_correlator_bank_detect (d, x, RN, 1, 1, 0, 0, 1.0f, 1.0f,
                                            NULL, 0, fout, i1, u1, u3, u4,
-                                           4 * RN, NULL)
+                                           4 * RN, NULL, NULL)
                 == SIZE_MAX);
       DP_CHECK (d->count == 0 && d->_last_corr_valid == 0);
       dp_correlator_destroy (d);

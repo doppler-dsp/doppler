@@ -18,7 +18,8 @@
  *   §13 dp_resamp_dc_gain is the bank's own gain, computed, on both paths
  *   §14 dp_resamp_destroy(NULL) is a no-op; create_custom rejects;
  *       every rate entry point refuses a non-finite or non-positive rate
- *   §14b a num_phases that is not a power of two is refused
+ *   §14b a num_phases that is not a power of two, or above 2^32, is
+ *       refused, and so is a bank whose size wraps
  *   §14c a set_rate that crosses 1 equals a fresh create at the new rate
  *   §15 set_rate preserves the accumulator and the delay line
  *   §16 reset zeroes every accumulator and every delay buffer
@@ -1967,24 +1968,53 @@ main (void)
   /* ── §14 — destroy(NULL) is a no-op; create_custom rejects ──────────── */
   DP_CHECK (lifecycle_rejects ());
 
-  /* ── §14b — a bank whose size num_phases * num_taps wraps is refused ───
-   * 2^(w-1) phases of 2 taps is 2^w coefficients, which used to wrap to 0:
-   * a 0-byte copy create_custom() accepted, and the first execute read arms
-   * past it. The preconditions put the count past the other guards: it is a
-   * power of two, so the arm-count guard lets it through, and the product
-   * really wraps. The positive control is the same bank, taps and rate at 2
-   * phases, which builds. Sabotage, red: a plain `num_phases * num_taps`
-   * (returns a live state for the wrapped bank). */
+  /* ── §14b — num_phases above 2^32 is refused before any allocation ────
+   * get_branch() shifts the 32-bit phase word right by 32 - log2(num_phases),
+   * defined only while log2(num_phases) <= 32. 2^33 is the first power of
+   * two past the cap (2^32 + 1 is refused as a non-power of two, so it would
+   * not reach the cap at all). One tap keeps the bank product far from
+   * wrapping, so only the cap can refuse it. The positive control is a
+   * small count over the same bank. Sabotage, red: drop the cap -- the
+   * guard then copies 2^33 floats (32 GiB) from this 4-float bank, which
+   * under ASan is reported (an OOM abort or the over-read); a plain build
+   * whose malloc refuses 32 GiB returns NULL for that other reason. */
+#if SIZE_MAX > UINT32_MAX
   {
     const float  bank4[4] = { 1.0f, 0.0f, 1.0f, 0.0f };
-    const size_t phases   = SIZE_MAX / 2 + 1;
+    const size_t over     = (size_t)1 << 33;
+    DP_REQUIRE ((over & (over - 1u)) == 0u);
+    DP_REQUIRE (over <= SIZE_MAX / sizeof (float)); /* no wrap: cap only */
+    resamp_state_t *sane = dp_resamp_create_custom (4, 1, bank4, 1.0);
+    DP_REQUIRE (sane != NULL);
+    dp_resamp_destroy (sane);
+    DP_CHECK (dp_resamp_create_custom (over, 1, bank4, 1.0) == NULL);
+  }
+
+  /* ── §14b — a bank whose size num_phases * num_taps wraps is refused ───
+   * Still reachable under the cap: 2^32 phases (the cap itself) of 2^32
+   * taps is 2^64 coefficients, which wraps to 0 -- a 0-byte copy that
+   * create_custom() would accept, after which every execute reads arms
+   * past it. The preconditions put the count past the other guards: a
+   * power of two at the cap, and a product that really wraps. The positive
+   * control is the same bank and rate at 2 x 2. Sabotage, red under ASan:
+   * a plain `num_phases * num_taps` (the create then asks for a 64 GiB
+   * delay line, which ASan either grants -- a live state for the wrapped
+   * bank -- or aborts on). A plain build whose calloc refuses 64 GiB returns
+   * NULL for that other reason, so only a machine that can grant it shows
+   * the wrong answer, and the sanitizer is that machine. */
+  {
+    const float  bank4[4] = { 1.0f, 0.0f, 1.0f, 0.0f };
+    const size_t phases   = (size_t)1 << 32;
+    const size_t taps     = (size_t)1 << 32;
     DP_REQUIRE ((phases & (phases - 1u)) == 0u);
-    DP_REQUIRE (phases * 2u == 0u);
+    DP_REQUIRE ((uint64_t)phases <= (uint64_t)1 << 32);
+    DP_REQUIRE (phases * taps == 0u);
     resamp_state_t *sane = dp_resamp_create_custom (2, 2, bank4, 1.0);
     DP_REQUIRE (sane != NULL);
     dp_resamp_destroy (sane);
-    DP_CHECK (dp_resamp_create_custom (phases, 2, bank4, 1.0) == NULL);
+    DP_CHECK (dp_resamp_create_custom (phases, taps, bank4, 1.0) == NULL);
   }
+#endif
   DP_CHECK (non_power_of_two_phases_refused ());
   DP_CHECK (crossing_set_rate_is_a_fresh_create ());
   DP_CHECK (builtin_bank_uses_public_kaiser ());

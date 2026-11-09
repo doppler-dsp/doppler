@@ -76,8 +76,8 @@ ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "Resampler: invalid parameter (need rate finite and > "
-                       "0; a bank of num_phases a power of two, num_taps >= "
-                       "1)");
+                       "0; a bank of num_phases a power of two <= 2^32, "
+                       "num_taps >= 1)");
       return -1;
     }
   return 0;
@@ -960,7 +960,7 @@ static PyTypeObject ResamplerObjType = {
     "invalid\n"
     "    parameter (need rate finite and > 0; a bank of num_phases a power "
     "of\n"
-    "    two, num_taps >= 1)``.\n"
+    "    two <= 2^32, num_taps >= 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

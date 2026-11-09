@@ -331,7 +331,14 @@ LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
 # regenerates it on every apply and does NOT run c_format_command over it, so
 # formatting it here made all 84 STALE in `jm status --check` -- a drift gate
 # red on files nobody edited.
-C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_symbols\.c$$
+C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_symbols\.c$$|$(DOWNSTREAM_GEN_C_RE)
+
+# The downstream example's per-object fragments are jm-owned
+# (`fragment = "generated"`), and that project sets no c_style, so jm renders
+# them in its own style -- as it does the module's `_ext.c` aggregator, which
+# the `_ext\.c$` alternative above already leaves alone. Formatting them here
+# would make its drift check report them STALE; that check is their gate.
+DOWNSTREAM_GEN_C_RE = ^examples/downstream-jm/native/src/[^/]+/[^/]+_ext_[^/]+\.c$$
 
 # ...except the `_ext.c` of a `no_generate` module, which is HAND-WRITTEN: the
 # blanket exclusion left it formatted by nobody until `jm apply`, whose c_style
@@ -1910,7 +1917,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 corr2d-hypotheses-record \
                 gallery blazing \
                 gen-c-api just-build docs-invariants \
-                jm-apply jm-apply-downstream jm-adopt jm-revendor \
+                jm-apply jm-apply-downstream jm-adopt jm-adopt-downstream jm-revendor \
                 jm-migrate-fragments \
                 jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
@@ -4028,6 +4035,16 @@ jm-revendor: ## Re-vendor every jm_*.h that is behind the pinned jm (both projec
 
 jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
 	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) just-makeit apply
+
+# jm-adopt for the downstream example: same arguments, same pin, run from
+# its directory so `adopt` reads its manifest rather than doppler's.
+jm-adopt-downstream: ## JM_ADOPT_ARGS='<obj>... | --check --all' — jm-adopt for the downstream example
+	@test -n "$(JM_ADOPT_ARGS)" || { \
+	    echo "usage: make jm-adopt-downstream JM_ADOPT_ARGS='--check --all'"; \
+	    exit 2; }
+	$(UV) sync --group dev --no-install-project
+	cd $(DOWNSTREAM_DIR) && $(UV) run --project $(CURDIR) \
+	    just-makeit adopt $(JM_ADOPT_ARGS)
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.

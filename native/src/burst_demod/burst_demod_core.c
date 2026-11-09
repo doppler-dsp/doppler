@@ -121,9 +121,13 @@ dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
      same way an invalid argument is: the object keeps whatever preamble it
      had (none, on a fresh one, so demod() returns 0). Wrapped, the count
      used to size a short buffer that form_partials() then filled past its
-     end. So every replacement (partials, code, ppe) is acquired first and
-     the object is touched only once all three are held: an OOM on any one
-     can no longer leave a live ppe beside a NULL acq_code or part. */
+     end. So every replacement is acquired first -- the ppe, then the
+     partials, then the code -- and the object is touched only once all
+     three are held; a failure on any one frees what was acquired and
+     returns, so it cannot leave a live ppe beside a NULL acq_code or part.
+     The ppe goes first because it sizes an FFT from n_part and refuses a
+     count it cannot size (dp_ppe_create), so a count that is merely far
+     too large is refused before the partials are requested at all. */
   size_t n_part;
   if (!dp_size_mul (reps, s->est_segments, &n_part))
     return;
@@ -137,14 +141,13 @@ dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
   double lseg         = (double)lseg_chips * (double)s->spc;
   double ppe_max_rate = s->max_rate * lseg * lseg;
 
-  float _Complex *part = dp_mallocn (n_part, sizeof *part);
-  uint8_t        *code = malloc (acq_code_len);
-  dp_ppe_state_t *ppe
-      = (part && code) ? dp_ppe_create (n_part, ppe_max_rate) : NULL;
-  if (!part || !code || !ppe)
+  dp_ppe_state_t *ppe  = dp_ppe_create (n_part, ppe_max_rate);
+  float _Complex *part = ppe ? dp_mallocn (n_part, sizeof *part) : NULL;
+  uint8_t        *code = part ? malloc (acq_code_len) : NULL;
+  if (!ppe || !part || !code)
     {
       free (part);
-      free (code);
+      dp_ppe_destroy (ppe); /* NULL-safe */
       return;
     }
   memcpy (code, acq_code, acq_code_len);

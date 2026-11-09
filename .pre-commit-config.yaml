@@ -370,7 +370,7 @@ repos:
         entry: make -s lint-alloc-helpers
         language: system
         pass_filenames: false
-        files: ^(.*\.[ch]|scripts/(\.alloc-helper-allow|\.alloc-product-ratchet|check_alloc_helpers\.py))$
+        files: ^(.*\.[ch]|scripts/(\.alloc-helper-allow|\.alloc-product-ratchet|check_alloc_helpers\.py|_alloc_products\.py|_c_source\.py|_gitbase\.py))$
 
       # The files exempt from the -Wall -Wextra gate may only shrink: every
       # entry exists and none was added since the merge base. Fires on the

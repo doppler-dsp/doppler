@@ -98,8 +98,8 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
       return NULL;
     }
 
-  float          *tmpl = malloc (s->nfft * sizeof (float));
-  float _Complex *ref  = malloc (s->nfft * sizeof (float _Complex));
+  float          *tmpl = dp_mallocn (s->nfft, sizeof (float));
+  float _Complex *ref  = dp_mallocn (s->nfft, sizeof (float _Complex));
   if (!tmpl || !ref)
     {
       free (tmpl);
@@ -143,9 +143,9 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
       return NULL;
     }
 
-  s->pwr_buf   = malloc (s->nfft * sizeof (float));
-  s->power_buf = malloc (s->nfft * sizeof (float _Complex));
-  s->carry_buf = malloc (n_fft * sizeof (float _Complex));
+  s->pwr_buf   = dp_mallocn (s->nfft, sizeof (float));
+  s->power_buf = dp_mallocn (s->nfft, sizeof (float _Complex));
+  s->carry_buf = dp_mallocn (n_fft, sizeof (float _Complex));
   if (!s->pwr_buf || !s->power_buf || !s->carry_buf)
     {
       free (s->pwr_buf);

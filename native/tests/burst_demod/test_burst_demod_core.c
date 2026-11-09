@@ -457,6 +457,28 @@ run_edge_cases (void)
   dp_burst_demod_set_preamble (d, ac, ACQ_SF,
                                ACQ_REPS); /* re-arm: frees old ppe */
 
+  /* A partial count that wraps is REFUSED, not sized short. With 10
+     segments, reps = SIZE_MAX/10 + 1 makes reps * 10 wrap to 4: the old
+     code allocated 4 partials and armed a ppe for them, and form_partials
+     then wrote one per segment per period past the end. Refused, the
+     armed object keeps its preamble, and a fresh one stays unarmed. */
+  {
+    const size_t wrap_reps = SIZE_MAX / 10u + 1u;
+    dp_burst_demod_set_preamble (d, ac, ACQ_SF, wrap_reps);
+    DP_CHECK_MSG (d->acq_reps == ACQ_REPS && d->n_part == ACQ_REPS * 10u,
+                  "a wrapping reps leaves the armed preamble as it was");
+    dp_burst_demod_state_t *d3 = make_demod (dc, 0.0, 10);
+    DP_CHECK (d3 != NULL);
+    if (d3)
+      {
+        dp_burst_demod_set_preamble (d3, ac, ACQ_SF, wrap_reps);
+        DP_CHECK_MSG (d3->ppe == NULL && d3->part == NULL
+                          && d3->acq_reps == 0u,
+                      "a wrapping reps does not arm a fresh object");
+        dp_burst_demod_destroy (d3);
+      }
+  }
+
   /* Too-short input → clean failure: no frame, so no bits and no LLRs. */
   float _Complex tiny[8] = { 0 };
   uint8_t eb[MAX_FRAME];

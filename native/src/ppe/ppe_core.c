@@ -46,12 +46,12 @@ dp_ppe_create (size_t max_len, double max_rate)
     }
 
   s->fft    = dp_fft_create (s->nfft, -1, 1); /* forward */
-  s->buf    = malloc (s->nfft * sizeof (float _Complex));
-  s->spec   = malloc (s->nfft * sizeof (float _Complex));
-  s->mag    = malloc (s->nfft * sizeof (float));
-  s->win    = malloc (max_len * sizeof (float));
-  s->rowpk  = malloc (s->n_rate * sizeof (double));
-  s->rowfrq = malloc (s->n_rate * sizeof (double));
+  s->buf    = dp_mallocn (s->nfft, sizeof (float _Complex));
+  s->spec   = dp_mallocn (s->nfft, sizeof (float _Complex));
+  s->mag    = dp_mallocn (s->nfft, sizeof (float));
+  s->win    = dp_mallocn (max_len, sizeof (float));
+  s->rowpk  = dp_mallocn (s->n_rate, sizeof (double));
+  s->rowfrq = dp_mallocn (s->n_rate, sizeof (double));
   if (!s->fft || !s->buf || !s->spec || !s->mag || !s->win || !s->rowpk
       || !s->rowfrq)
     {

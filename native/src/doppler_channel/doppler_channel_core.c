@@ -47,7 +47,7 @@ dp_doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
       free (obj);
       return NULL;
     }
-  obj->ctrl     = dp_xmalloc (DOPPLER_CHANNEL_MAX_BLOCK * sizeof (*obj->ctrl));
+  obj->ctrl     = dp_xmallocn (DOPPLER_CHANNEL_MAX_BLOCK, sizeof (*obj->ctrl));
   obj->ctrl_cap = DOPPLER_CHANNEL_MAX_BLOCK;
   return obj;
 }
@@ -233,7 +233,12 @@ dp_doppler_channel_execute_profile (dp_doppler_channel_state_t *state,
      serialized: it is a work area, not state. */
   if (state->pos_cap < max_out)
     {
-      state->pos     = dp_xrealloc (state->pos, max_out * sizeof (double));
+      /* A capacity whose positions cannot be sized is no buffer the caller
+         can hold either: refused, before any output, rather than wrapped. */
+      size_t bytes;
+      if (!dp_size_mul (max_out, sizeof (double), &bytes))
+        return DP_ERR_INVALID;
+      state->pos     = dp_xrealloc (state->pos, bytes);
       state->pos_cap = max_out;
     }
 

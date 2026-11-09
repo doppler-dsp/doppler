@@ -17,7 +17,10 @@ dp_delay_create (size_t num_taps)
   state->head     = 0;
 
   /* Two copies so any num_taps-length window is always contiguous. */
-  state->buf = calloc (2 * state->capacity, sizeof (double _Complex));
+  size_t ring_n;
+  state->buf = dp_size_mul (2, state->capacity, &ring_n)
+                   ? calloc (ring_n, sizeof (double _Complex))
+                   : NULL;
   if (!state->buf)
     {
       free (state);

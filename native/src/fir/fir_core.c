@@ -37,7 +37,7 @@ dp_fir_create (const float _Complex *taps, size_t num_taps)
   if (!f)
     return NULL;
 
-  f->taps = (float _Complex *)malloc (num_taps * sizeof (float _Complex));
+  f->taps = (float _Complex *)dp_mallocn (num_taps, sizeof (float _Complex));
   if (!f->taps)
     {
       free (f);
@@ -71,7 +71,7 @@ dp_fir_create_real (const float *taps, size_t num_taps)
   if (!f)
     return NULL;
 
-  f->rtaps = (float *)malloc (num_taps * sizeof (float));
+  f->rtaps = (float *)dp_mallocn (num_taps, sizeof (float));
   if (!f->rtaps)
     {
       free (f);
@@ -193,11 +193,16 @@ dp_fir_execute_max_out (dp_fir_state_t *state)
 static int
 ensure_scratch (dp_fir_state_t *f, size_t num_samples)
 {
-  size_t needed = (f->num_taps - 1) + num_samples + FIR_PAD;
+  /* A block too long to size is refused like an allocation failure. */
+  size_t needed, bytes;
+  if (!dp_size_add (f->num_taps - 1, num_samples, &needed)
+      || !dp_size_add (needed, FIR_PAD, &needed))
+    return -1;
   if (needed <= f->scratch_cap)
     return 0;
-  float _Complex *tmp = (float _Complex *)realloc (
-      f->scratch, needed * sizeof (float _Complex));
+  if (!dp_size_mul (needed, sizeof (float _Complex), &bytes))
+    return -1;
+  float _Complex *tmp = (float _Complex *)realloc (f->scratch, bytes);
   if (!tmp)
     return -1;
   f->scratch     = tmp;

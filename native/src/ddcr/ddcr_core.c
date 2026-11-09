@@ -219,7 +219,7 @@ ddcr_scratch (dp_ddcr_state_t *s, size_t need)
 {
   if (s->scratch_cap < need)
     {
-      s->scratch     = dp_xrealloc (s->scratch, need * sizeof *s->scratch);
+      s->scratch     = dp_xreallocn (s->scratch, need, sizeof *s->scratch);
       s->scratch_cap = need;
     }
   return s->scratch;

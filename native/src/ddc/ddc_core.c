@@ -136,7 +136,7 @@ dp_ddc_execute (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
   if (n_in == 0)
     return 0;
 
-  float _Complex *mix = malloc (n_in * sizeof (float _Complex));
+  float _Complex *mix = dp_mallocn (n_in, sizeof (float _Complex));
   if (!mix)
     return 0;
 
@@ -176,7 +176,7 @@ dp_ddc_execute_ctrl (dp_ddc_state_t *s, const float _Complex *in, size_t n_in,
   if (n_in == 0)
     return 0;
 
-  float _Complex *mix = malloc (n_in * sizeof (float _Complex));
+  float _Complex *mix = dp_mallocn (n_in, sizeof (float _Complex));
   if (!mix)
     return 0;
 

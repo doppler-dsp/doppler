@@ -238,9 +238,6 @@ dp_resamp_create (double rate)
   return resamp_create_from_bank (NUM_PHASES, num_taps, bank, rate);
 }
 
-/* The most arms get_branch() can address: see dp_resamp_create_custom(). */
-#define RESAMP_MAX_PHASES ((uint64_t)1 << 32)
-
 resamp_state_t *
 dp_resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
                          double rate)

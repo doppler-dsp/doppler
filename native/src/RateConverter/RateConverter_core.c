@@ -835,10 +835,14 @@ dp_RateConverter_create_matched (double rate, int compensate, int pulse,
                                  double beta, size_t span, double pulse_sps,
                                  size_t num_phases)
 {
-  /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
+  /* Written as !(x >= y) so a NaN parameter is rejected, not accepted.
+     num_phases is capped here, by the terminal stage's own constant, so a
+     count dp_resamp_create_custom() would refuse is refused before its
+     num_phases x ntaps bank is built rather than after. */
   if (!dp_resamp_rate_ok (rate) || !(beta >= 0.0) || !(beta <= 1.0) || span < 1
       || !(pulse_sps > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
+      || (uint64_t)num_phases > RESAMP_MAX_PHASES
       || (pulse != RC_PULSE_IANDD && pulse != RC_PULSE_RRC))
     return NULL;
 

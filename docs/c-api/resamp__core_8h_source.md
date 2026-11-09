@@ -88,6 +88,8 @@ extern "C"
    * reaches it. */
 #define RESAMP_CTRL_RATE_MIN 1e-6
 
+#define RESAMP_MAX_PHASES ((uint64_t)1 << 32)
+
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
 #define RESAMP_STATE_VERSION 2u
 

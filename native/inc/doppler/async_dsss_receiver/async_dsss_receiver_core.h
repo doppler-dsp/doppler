@@ -36,12 +36,15 @@
  *     on the same input sample at any chunking (doppler#2974). The refine
  *     decides up to its chain's lag past that estimate, so the receiver
  *     keeps its last refine samples in a ring sized at create for that lag
- *     (`refine_hist_cap`, from dp_RateConverter_get_count_lag()), and the start
- *     is read from it when it is behind the call. A start the input has not
- *     reached yet is waited for, the receiver still refining. A refine that
- *     decides further past than the ring holds (a refine Dll drifting on
- *     noise; no signal geometry measured) starts at the first such point the
- *     ring still holds, still the same at any chunking.
+ *     (`refine_hist_cap`, from dp_RateConverter_get_count_lag()), and the
+ *     start is read from it when it is behind the call. A start the input
+ *     has not reached yet is waited for, the receiver still refining. A
+ *     refine that decides further past than the ring holds (a refine Dll
+ *     drifting on noise; no signal geometry measured) starts at the first
+ *     such point the ring still holds, still the same at any chunking. The
+ *     ring is held for the receiver's lifetime -- up to ~38 KiB (Gold-1023
+ *     at 2 samples a chip) -- and carried in every blob, a pool member's
+ *     included.
  *   - **tracking**: the pre-despread carrier loop (`costas_wipeoff`/
  *     `costas_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`. The
  *     carrier loop updates once per code period from a NON-DATA-AIDED
@@ -554,8 +557,10 @@ typedef enum
      * (dp_RateConverter_get_count_lag(), in partials of code_len * spc /
      * refine_segments samples each), plus one partial of Dll framing, one
      * code period of the estimate's round-up and one tsamps block of the
-     * refine's own. Running state: it travels in the blob (v17). Last in the struct, so every field the search and
-     * tracking touch keeps the offset it had before the ring. */
+     * refine's own. Running state: it travels in the blob (v17). Held for
+     * the receiver's lifetime, up to ~38 KiB (Gold-1023 at 2 samples a
+     * chip). Last in the struct, so every field the search and tracking
+     * touch keeps the offset it had before the ring. */
     float _Complex *refine_hist;      /**< Owned ring, refine_hist_cap. */
     size_t          refine_hist_cap;  /**< Config: derived at create.   */
     size_t          refine_hist_len;  /**< Running: samples held.       */
@@ -1688,7 +1693,8 @@ typedef enum
                                  tails zeroed.                           */
     uint64_t refine_hist_cap; /**< v17: layout key, the hand-over ring's
                                    size; must match the receiver.       */
-    uint64_t refine_hist_len; /**< v17: the ring's live count, packed
+    uint64_t refine_hist_len; /**< v17: the ring's live count, always
+                                   min(refine_samples_fed, cap); packed
                                    oldest first after the carry.        */
   } async_dsss_receiver_extra_t;
 

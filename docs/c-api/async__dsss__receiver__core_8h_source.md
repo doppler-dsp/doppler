@@ -254,8 +254,10 @@ typedef enum
      * (dp_RateConverter_get_count_lag(), in partials of code_len * spc /
      * refine_segments samples each), plus one partial of Dll framing, one
      * code period of the estimate's round-up and one tsamps block of the
-     * refine's own. Running state: it travels in the blob (v17). Last in the struct, so every field the search and
-     * tracking touch keeps the offset it had before the ring. */
+     * refine's own. Running state: it travels in the blob (v17). Held for
+     * the receiver's lifetime, up to ~38 KiB (Gold-1023 at 2 samples a
+     * chip). Last in the struct, so every field the search and tracking
+     * touch keeps the offset it had before the ring. */
     float _Complex *refine_hist;      
     size_t          refine_hist_cap;  
     size_t          refine_hist_len;  

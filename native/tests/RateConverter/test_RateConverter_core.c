@@ -18,6 +18,7 @@
 #include "doppler/cic/cic_core.h"
 #include "doppler/fir/fir_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 
 #include "doppler/resamp/resamp_core.h"
@@ -1959,18 +1960,52 @@ test_huge_block_refused (void)
   return 0;
 }
 
-/* dp_RateConverter_get_count_lag() against the count: a fresh converter fed
- * one sample a call, the worst of `m * rate - outputs` over every m, in
- * outputs, must be at most the computed lag (times the rate) and within a
- * hundredth of an output of it (of 0 where the count runs ahead) -- the
- * bound is reached, not just respected. One rate per plan: Resampler
- * decimating and
- * interpolating, one and two halfbands, CIC alone, CIC with its droop
- * compensator, CIC then Resampler, and a matched cascade (its terminal runs
- * the push path, never behind). Sabotages: count the halfband as 0 -> the
- * 0.5 and 0.25 rows; drop the Resampler's term -> the decimating Resampler
- * rows; scale a later stage by the wrong rate -> the CIC + Resampler rows;
- * give the matched terminal the decimator's term -> the matched rows. */
+/* The worst of `m * rate - outputs` over the call boundaries of one feed:
+ * a fresh converter of @p row's plan fed @p n zeros, one sample a call
+ * (@p rng NULL, so every m is a boundary) or in seeded random calls of
+ * 1..257. In outputs. */
+static double
+count_lag_measured (double rate, int compensate, int matched, size_t n,
+                    uint32_t *rng)
+{
+  dp_RateConverter_state_t *rc
+      = matched ? dp_RateConverter_create_matched (rate, 0, RC_PULSE_RRC, 0.35,
+                                                   4, 4.0, 32)
+                : dp_RateConverter_create (rate, compensate);
+  if (!rc)
+    return 1e9;
+  static float _Complex in[257], out[1024];
+  size_t got = 0, m = 0;
+  double worst = -1e9;
+  while (m < n)
+    {
+      size_t c = rng ? 1 + dp_xs32 (rng) % 257u : 1;
+      if (c > n - m)
+        c = n - m;
+      got += dp_RateConverter_execute (rc, in, c, out, 1024);
+      m += c;
+      const double lag = (double)m * rate - (double)got;
+      if (lag > worst)
+        worst = lag;
+    }
+  dp_RateConverter_destroy (rc);
+  return worst;
+}
+
+/* dp_RateConverter_get_count_lag() against the count, at every call size:
+ * fed one sample a call, the worst of `m * rate - outputs` over every m,
+ * in outputs, must be at most the computed lag (times the rate) and within
+ * a hundredth of an output of it (of 0 where the count runs ahead) -- the
+ * bound is reached, not just respected; fed in seeded random calls of
+ * 1..257, the worst at every call boundary must still be at most it. One
+ * rate per plan: Resampler decimating and interpolating, one and two
+ * halfbands, CIC alone, CIC with its droop compensator, CIC then
+ * Resampler, and matched cascades (their terminal runs the push path, never
+ * behind), one of them two halfbands and a rate-1 terminal. Sabotages:
+ * count the halfband as 0 -> the 0.5, 0.25 and matched 0.25 rows; drop the
+ * Resampler's term -> the decimating Resampler rows; scale a later stage
+ * by the wrong rate -> the CIC + Resampler rows; give the matched terminal
+ * the decimator's term -> the matched 0.3 and 0.0588 rows. */
 static int
 test_count_lag_matches_the_count (void)
 {
@@ -1978,43 +2013,39 @@ test_count_lag_matches_the_count (void)
   {
     double rate;
     int    compensate, matched;
-  } rows[]
-      = { { 0.91, 0, 0 },       { 0.51, 0, 0 },      { 1.01, 0, 0 },
-          { 1.5, 0, 0 },        { 3.7, 0, 0 },       { 0.5, 0, 0 },
-          { 0.25, 0, 0 },       { 0.125, 0, 0 },     { 0.125, 1, 0 },
-          { 1.0 / 12.0, 1, 0 }, { 0.0588235, 0, 0 }, { 0.028, 0, 0 },
-          { 0.0125, 0, 0 },     { 0.3, 0, 1 },       { 0.0588235, 0, 1 } };
+  } rows[] = { { 0.91, 0, 0 },       { 0.51, 0, 0 },      { 1.01, 0, 0 },
+               { 1.5, 0, 0 },        { 3.7, 0, 0 },       { 0.5, 0, 0 },
+               { 0.25, 0, 0 },       { 0.125, 0, 0 },     { 0.125, 1, 0 },
+               { 1.0 / 12.0, 1, 0 }, { 0.0588235, 0, 0 }, { 0.028, 0, 0 },
+               { 0.0125, 0, 0 },     { 0.3, 0, 1 },       { 0.0588235, 0, 1 },
+               { 0.25, 0, 1 } };
   for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
     {
-      const double              rate = rows[r].rate;
+      const double rate = rows[r].rate;
+      const size_t n    = (size_t)(400.0 / (rate < 1.0 ? rate : 1.0));
       dp_RateConverter_state_t *rc
           = rows[r].matched
                 ? dp_RateConverter_create_matched (rate, 0, RC_PULSE_RRC, 0.35,
                                                    4, 4.0, 32)
                 : dp_RateConverter_create (rate, rows[r].compensate);
       DP_REQUIRE (rc != NULL);
-      const size_t n    = (size_t)(400.0 / (rate < 1.0 ? rate : 1.0));
-      float _Complex in = 0.0f, out[8];
-      size_t got        = 0;
-      double worst      = -1e9;
-      for (size_t m = 1; m <= n; m++)
-        {
-          got += dp_RateConverter_execute (rc, &in, 1, out, 8);
-          const double lag = (double)m * rate - (double)got;
-          if (lag > worst)
-            worst = lag;
-        }
       const double computed = dp_RateConverter_get_count_lag (rc) * rate;
+      dp_RateConverter_destroy (rc);
+      const double one = count_lag_measured (rate, rows[r].compensate,
+                                             rows[r].matched, n, NULL);
+      uint32_t     rng = 0x2974u + (uint32_t)r;
+      const double any = count_lag_measured (rate, rows[r].compensate,
+                                             rows[r].matched, 4 * n, &rng);
       /* A stage that is never behind can run ahead (negative): the bound
          it is held to is then 0. */
-      const double reached = worst > 0.0 ? worst : 0.0;
-      const int    ok = worst <= computed + 1e-9 && computed - reached <= 0.01;
+      const double reached = one > 0.0 ? one : 0.0;
+      const int    ok      = one <= computed + 1e-9 && any <= computed + 1e-9
+                             && computed - reached <= 0.01;
       if (!ok)
         printf ("  rate %.6g comp %d matched %d: lag %.4f outputs, "
-                "measured %.4f\n",
-                rate, rows[r].compensate, rows[r].matched, computed, worst);
+                "measured %.4f one a call, %.4f random calls\n",
+                rate, rows[r].compensate, rows[r].matched, computed, one, any);
       DP_CHECK (ok);
-      dp_RateConverter_destroy (rc);
     }
   return 0;
 }

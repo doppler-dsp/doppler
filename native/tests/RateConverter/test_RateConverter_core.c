@@ -968,6 +968,31 @@ test_matched_invalid_params (void)
       == NULL);
 }
 
+/* num_phases past RESAMP_MAX_PHASES (2^32) is refused at the top of
+   create_matched, before the terminal stage's num_phases x ntaps bank is
+   built: dp_resamp_create_custom() would refuse it too, but only after that
+   bank existed. 2^33 is the first power of two past the cap. Sabotage, red
+   under make test-asan: drop the cap from create_matched, and the bank
+   build asks ASan for 2^33 x ntaps floats and aborts (a plain build's
+   calloc refuses that and returns NULL for that other reason). */
+static int
+test_matched_num_phases_cap_refused_before_the_bank (void)
+{
+#if SIZE_MAX > UINT32_MAX
+  const size_t over = (size_t)1 << 33;
+  DP_REQUIRE ((over & (over - 1u)) == 0u);
+  DP_REQUIRE ((uint64_t)over > RESAMP_MAX_PHASES);
+  dp_RateConverter_state_t *ok = dp_RateConverter_create_matched (
+      0.5, 0, RC_PULSE_RRC, 0.35, 8, 2.0, 1024);
+  DP_REQUIRE (ok != NULL);
+  dp_RateConverter_destroy (ok);
+  DP_CHECK (dp_RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 0.35, 8,
+                                             2.0, over)
+            == NULL);
+#endif
+  return 1;
+}
+
 static void
 test_matched_always_has_terminal_stage (void)
 {
@@ -1961,6 +1986,7 @@ main (void)
   DP_CHECK (stage_refusal_is_returned (0.37, 0, RESAMP_STATE_MAGIC, -1));
   test_execute_ctrl ();
   test_matched_invalid_params ();
+  DP_CHECK (test_matched_num_phases_cap_refused_before_the_bank ());
   test_matched_always_has_terminal_stage ();
   test_matched_bank_is_constant_in_input_rate ();
   test_matched_droop_folds_into_bank ();

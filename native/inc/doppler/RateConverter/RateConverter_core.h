@@ -223,9 +223,13 @@ dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);
  *                   two samples per symbol out). This is a shape parameter,
  *                   not a rate-planning one: a matched filter has a symbol
  *                   duration, and the planner still knows nothing of symbols.
- * @param num_phases Terminal-stage arms; power of two. Sets the fractional
- *                   timing resolution to `1/num_phases` of an output period.
- * @return Non-NULL on success; NULL on a bad parameter or OOM.
+ * @param num_phases Terminal-stage arms; a power of two from 2 to
+ *                   RESAMP_MAX_PHASES (2^32), the most the terminal
+ *                   resampler's 32-bit phase word can address. Sets the
+ *                   fractional timing resolution to `1/num_phases` of an
+ *                   output period.
+ * @return Non-NULL on success; NULL on a bad parameter (a larger
+ *         @p num_phases is refused before its bank is built) or OOM.
  */
 dp_RateConverter_state_t *
 dp_RateConverter_create_matched (double rate, int compensate, int pulse,

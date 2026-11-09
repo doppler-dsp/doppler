@@ -276,6 +276,41 @@ main (void)
       dp_specan_destroy (sb);
     }
 
+  /* An x_len whose scratch byte size wraps is refused with 0, before x is
+   * read, and leaves the analyzer exactly as it was. The unchecked
+   * `x_len * sizeof` asked realloc for 0 bytes at x_len = 2^61 (freeing
+   * the scratch and leaving it dangling) and for 8 bytes at 2^61 + 1, which
+   * dp_ddc_execute then wrote far past. a and b see the same stream; only
+   * b is also handed the refused lengths, so a is the positive control:
+   * the same calls at a sane length emit the same frame. */
+  {
+    gen_tone (tone, NTONE, 0.01, 0.5);
+    dp_specan_state_t *a
+        = dp_specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1);
+    dp_specan_state_t *b
+        = dp_specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1);
+    DP_REQUIRE (a != NULL && b != NULL);
+    float *bout = malloc (OUTCAP * sizeof *bout);
+    DP_REQUIRE (bout != NULL);
+    /* a first call so b's scratch is a live heap block when refused */
+    (void)dp_specan_execute (a, tone, 1024, out, OUTCAP);
+    (void)dp_specan_execute (b, tone, 1024, bout, OUTCAP);
+
+    const size_t wrap[2] = { SIZE_MAX / sizeof (float _Complex) + 1,
+                             SIZE_MAX / sizeof (float _Complex) + 2 };
+    for (int w = 0; w < 2; w++)
+      DP_CHECK (dp_specan_execute (b, tone, wrap[w], bout, OUTCAP) == 0);
+
+    size_t na = drive_first_frame (a, tone, NTONE, NTONE, out, OUTCAP);
+    size_t nb = drive_first_frame (b, tone, NTONE, NTONE, bout, OUTCAP);
+    DP_CHECK (na > 0); /* the sane length emits a frame */
+    DP_CHECK (nb == na);
+    DP_CHECK (memcmp (out, bout, na * sizeof *out) == 0);
+    free (bout);
+    dp_specan_destroy (a);
+    dp_specan_destroy (b);
+  }
+
   free (tone);
   free (out);
 

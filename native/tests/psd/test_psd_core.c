@@ -247,13 +247,21 @@ main (void)
     DP_CHECK (dp_psd_create (3, 1.0, DP_PSD_WINDOW_RECT, 0.0f, big, 1.0, 0,
                              ACC_TRACE_MEAN, 0.1)
               == NULL);
-    /* n * pad = 2^60 makes a 2^63-byte frame: a size_t holds the count,
-     * but no object can be that large, so it is refused, not handed to
-     * malloc. */
-    DP_CHECK (dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, big / 8, 1.0, 0,
+    /* n * pad = SIZE_MAX / 16 + 1 (2^60 on a 64-bit size_t) makes a frame
+     * of PTRDIFF_MAX + 1 bytes (2^63): a size_t holds the count, but no
+     * object can be that large, so it is refused, not handed to malloc.
+     * Only ASan tells this refusal from the old one: the old bound passed
+     * it and asked malloc for 2^63 bytes, which glibc refuses with a NULL,
+     * so plain ctest reads NULL either way; ASan reports the request as
+     * allocation-size-too-big. */
+    const size_t pad_obj = SIZE_MAX / 32 + 1;
+    DP_REQUIRE ((size_t)PTRDIFF_MAX / sizeof (float _Complex) + 1
+                == 2 * pad_obj);
+    DP_CHECK (dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, pad_obj, 1.0, 0,
                              ACC_TRACE_MEAN, 0.1)
               == NULL);
-    /* precondition: n = 2 under rect, at an ordinary pad, still builds */
+    /* precondition, and the positive control for each refusal above: n = 2
+     * under rect, at an ordinary pad, still builds */
     dp_psd_state_t *r2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 4,
                                         1.0, 0, ACC_TRACE_MEAN, 0.1);
     DP_CHECK (r2 != NULL && r2->k.nfft == 8);

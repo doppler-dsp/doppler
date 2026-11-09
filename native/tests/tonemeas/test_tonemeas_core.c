@@ -204,39 +204,32 @@ main (void)
     dp_tonemeas_destroy (ms);
   }
 
-  /* ── 12. an n_harmonics whose scratch size wraps reads "no harmonics" ──
-   *  compute_metrics sizes its harmonic-bin scratch as (n_harm + 1) slots.
-   *  When the slot count or its byte size does not fit, the scratch is
-   * refused and the measurement is the one an instance tracking no
-   * harmonics (n_harmonics = 1) gives, bit for bit.  The unchecked product
-   * sized a 0-byte scratch and wrote every kept harmonic past it. */
+  /* ── 12. an n_harmonics whose scratch cannot be held is refused ──
+   *  create() holds (n_harmonics + 1) harmonic-bin slots.  When the slot
+   *  count (n + 1) or its byte size wraps, create refuses with NULL.  On
+   *  main it accepted the count and every analyze sized the scratch by the
+   *  unchecked product: a 0-byte block that each kept harmonic was written
+   *  past.  Positive control: the same create at a sane count (8) builds
+   *  and tracks the -40 dBc 2nd harmonic. */
   {
     for (size_t i = 0; i < NCAP; i++)
       x[i] = 0.0f;
     add_cos (x, NCAP, 200.0, 1.0);
     add_cos (x, NCAP, 400.0, 0.01); /* 2nd harmonic, -40 dBc */
 
-    dp_tonemeas_state_t *m1
-        = dp_tonemeas_create (NCAP, 1.0, 1, 1.0, 0, 90.0, 0);
-    DP_REQUIRE (m1 != NULL);
-    tone_meas_t none = dp_tonemeas_analyze (m1, x, NCAP);
-    DP_REQUIRE (none.thd < -100.0); /* nothing tracked: THD at the floor */
-    dp_tonemeas_destroy (m1);
+    dp_tonemeas_state_t *m8
+        = dp_tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
+    DP_REQUIRE (m8 != NULL);
+    tone_meas_t r8 = dp_tonemeas_analyze (m8, x, NCAP);
+    DP_CHECK (fabs (r8.thd - (-40.0)) < 0.5);
+    dp_tonemeas_destroy (m8);
 
     /* byte size wraps: (n + 1) slots of size_t; slot count wraps: n + 1 */
     const size_t wrap[2] = { SIZE_MAX / sizeof (size_t), SIZE_MAX };
     DP_REQUIRE (wrap[0] + 1 > SIZE_MAX / sizeof (size_t));
     for (int w = 0; w < 2; w++)
-      {
-        dp_tonemeas_state_t *mw
-            = dp_tonemeas_create (NCAP, 1.0, wrap[w], 1.0, 0, 90.0, 0);
-        DP_REQUIRE (mw != NULL);
-        tone_meas_t rw = dp_tonemeas_analyze (mw, x, NCAP);
-        DP_CHECK (rw.thd == none.thd);
-        DP_CHECK (rw.sinad == none.sinad);
-        DP_CHECK (rw.snr == none.snr);
-        dp_tonemeas_destroy (mw);
-      }
+      DP_CHECK (dp_tonemeas_create (NCAP, 1.0, wrap[w], 1.0, 0, 90.0, 0)
+                == NULL);
   }
 
   /* (measure_min_samples round-trip is covered by the Python measure tests,

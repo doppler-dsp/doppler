@@ -81,7 +81,15 @@ dp_tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
 
   s->pwr  = (float *)dp_mallocn (s->nfft, sizeof (float));
   s->excl = (unsigned char *)dp_mallocn (s->nfft, sizeof (unsigned char));
-  if (!s->pwr || !s->excl)
+  /* The harmonic-bin scratch holds n_harmonics + 1 slots and is held here,
+   * so an n_harmonics whose slot count or byte size does not fit, or that
+   * malloc cannot serve, is refused by create rather than accepted and
+   * then measured as if no harmonic were tracked. */
+  size_t n_slots;
+  s->hbin = dp_size_add (n_harmonics, 1, &n_slots)
+                ? (size_t *)dp_mallocn (n_slots, sizeof (size_t))
+                : NULL;
+  if (!s->pwr || !s->excl || !s->hbin)
     {
       dp_tonemeas_destroy (s);
       return NULL;
@@ -113,6 +121,7 @@ dp_tonemeas_destroy (dp_tonemeas_state_t *state)
     dp_psd_destroy (state->psd);
   free (state->pwr);
   free (state->excl);
+  free (state->hbin);
   free (state);
 }
 
@@ -216,16 +225,10 @@ compute_metrics (dp_tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
   double p_fund = lobe_power (s, nbins, k0, 1);
 
   /* 3. harmonics: fold k*f0, integrate each non-overlapping lobe */
-  double p_harm = 0.0;
-  size_t n_kept = 0;
-  /* n_harm is the caller's: a slot count or byte count that does not fit
-   * leaves hbin NULL, which the loop below already reads as "no harmonics",
-   * exactly as it reads an OOM. */
-  size_t  n_slots;
-  size_t *hbin = dp_size_add (s->n_harm, 1, &n_slots)
-                     ? (size_t *)dp_mallocn (n_slots, sizeof (size_t))
-                     : NULL;
-  for (size_t h = 2; h <= s->n_harm && hbin; h++)
+  double  p_harm = 0.0;
+  size_t  n_kept = 0;
+  size_t *hbin   = s->hbin; /* n_harm + 1 slots, held since create() */
+  for (size_t h = 2; h <= s->n_harm; h++)
     {
       double fh = fold_harmonic ((double)h * f0, s->fs, is_real);
       long   kh = (long)lround (fh / df) + dc_bin;
@@ -285,7 +288,6 @@ compute_metrics (dp_tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
         if (labs ((long)hbin[i] - ks) <= (long)s->lobe_bins)
           out->worst_spur_is_harm = 1;
     }
-  free (hbin);
 
   if (p_fund < TM_EPS)
     p_fund = TM_EPS;

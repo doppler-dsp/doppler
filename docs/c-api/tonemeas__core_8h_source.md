@@ -29,6 +29,7 @@ typedef struct {
     dp_psd_state_t *psd;     
     float         *pwr;     
     unsigned char *excl;    
+    size_t        *hbin;    
     double enbw;            
     double beta;            
     size_t lobe_bins;       

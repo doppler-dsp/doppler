@@ -134,7 +134,7 @@ dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
   size_t lseg_chips = acq_code_len / s->est_segments;
   if (lseg_chips == 0)
     lseg_chips = 1;
-  double lseg         = (double)(lseg_chips * s->spc);
+  double lseg         = (double)lseg_chips * (double)s->spc;
   double ppe_max_rate = s->max_rate * lseg * lseg;
 
   float _Complex *part = dp_mallocn (n_part, sizeof *part);

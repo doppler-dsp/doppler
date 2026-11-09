@@ -309,37 +309,43 @@ size_t dp_RateConverter_num_stages (const dp_RateConverter_state_t *s);
  */
 double dp_RateConverter_gain (const dp_RateConverter_state_t *s);
 /**
- * @brief Group delay of the whole cascade, in INPUT samples, from its
- *        stages' geometry: output `k` of a fresh converter carries the
- *        input at index `k / rate - delay`.
+ * @brief How far the output COUNT can trail the rate, in INPUT samples:
+ *        after `m` inputs a fresh converter has emitted at least
+ *        `(m - lag) * rate` outputs, whatever the call sizes.
  *
- * Each stage's own delay, in its input samples, scaled to the converter's
- * input by the rate the stages before it apply:
+ * Not the group delay -- the signal's -- but when outputs appear: a
+ * decimator emits from its first input, so its outputs are about one
+ * output late in number, not a filter's length. Each stage's worst lag, in
+ * its input samples, scaled to the converter's input by the rate the
+ * stages before it apply (a late stage hands every later one its input
+ * late by as much):
  *
- * - halfband: `2 * centre` -- output m is formed as input 2m + 1 arrives,
- *   centred on the half-weight branch `centre` back on its half-rate line;
- * - CIC(R): `(CIC_N / 2 - 1) * (R - 1)`, plus `(taps - 1) / 2 * R` for the
- *   droop compensator when there is one;
- * - Resampler: dp_resamp_get_execute_delay(), or dp_resamp_get_delay() for
- *   a matched cascade's terminal (it runs the interpolating structure).
+ * - halfband: 1 -- output m is formed as input 2m + 1 arrives;
+ * - CIC(R): R - 1 -- output k as input kR + R - 1 arrives; the droop
+ *   compensator runs one output per input and adds none;
+ * - Resampler: `1 / rate` decimating (each output is emitted as its interval
+ *   closes, so the count is floor(m * rate)); 0 interpolating, and 0 for a
+ *   matched cascade's terminal at any rate (its push path emits every output
+ *   the newest input reaches with it).
  *
- * Computed, never measured; `test_RateConverter_core.c` holds it to a
- * phase-differenced tone at rates that build each plan. What it is for: a
- * caller that maps a position on the output timeline back to the input,
- * or that sizes how far behind its input the output can be. NB it is the
- * delay of the signal, not of the output COUNT: a decimator emits from its
- * first input, so its outputs are never this many samples late in number.
+ * Computed from the plan, never measured; `test_RateConverter_core.c` feeds
+ * one sample a call at rates that build every plan and holds the measured
+ * worst lag to it: never above it, and on a plain decimating cascade within
+ * a hundredth of an output (the bound is reached). What it
+ * is for: a caller that waits on the output count -- a block of N outputs
+ * -- and must bound how much input it will have taken by then
+ * (AsyncDsssReceiver sizes its hand-over ring from it).
  *
  * @param s State. Must be non-NULL.
- * @return The delay, in input samples (>= 0).
+ * @return The worst count lag, in input samples (>= 0).
  *
  * @code
  * dp_RateConverter_state_t *rc = dp_RateConverter_create (0.5, 0);
- * printf ("%.1f\n", dp_RateConverter_get_delay (rc));   // 18.0
+ * printf ("%.1f\n", dp_RateConverter_get_count_lag (rc));   // 1.0
  * dp_RateConverter_destroy (rc);
  * @endcode
  */
-double dp_RateConverter_get_delay (const dp_RateConverter_state_t *s);
+double dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s);
 /**
  * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
  *

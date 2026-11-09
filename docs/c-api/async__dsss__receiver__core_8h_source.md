@@ -116,12 +116,12 @@ typedef enum
      * lie in input an earlier call already passed (#2974). The last
      * refine_hist_cap refine samples are kept, a ring, so the start is
      * reached at any chunking. The cap is the most the refine decides past
-     * its estimate, from the configuration at create: the refine
-     * RateConverter's group delay (dp_RateConverter_get_delay(), in
-     * partials of code_len * spc / refine_segments samples each), plus one
-     * partial of Dll framing, one code period of the estimate's round-up
-     * and one tsamps block of the refine's own. Running state: it travels
-     * in the blob (v17). */
+     * its estimate, from the configuration at create: how far the refine
+     * RateConverter's output count can trail its input
+     * (dp_RateConverter_get_count_lag(), in partials of code_len * spc /
+     * refine_segments samples each), plus one partial of Dll framing, one
+     * code period of the estimate's round-up and one tsamps block of the
+     * refine's own. Running state: it travels in the blob (v17). */
     float _Complex *refine_hist;      
     size_t          refine_hist_cap;  
     size_t          refine_hist_len;  

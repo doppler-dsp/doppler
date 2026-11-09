@@ -5067,22 +5067,29 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
           = (float _Complex *)dp_mallocn (new_n_surf, sizeof (float _Complex));
       new_mag     = (float *)dp_mallocn (new_n_surf, sizeof (float));
       new_scratch = (float *)dp_mallocn (new_n_surf, sizeof (float));
-      /* The masks are fixed-size, trusted allocations: abort-on-OOM, no
-         unwind path (clib_common.h). */
-      new_band  = (uint8_t *)dp_xcalloc (new_n_surf, 1);
-      new_pmask = (uint8_t *)dp_xmalloc (new_n_surf);
-      if (!new_out || !new_mag || !new_scratch)
+      /* The masks are surface-sized, like the buffers above, and this
+         function has an unwind: a grid too large to allocate is refused
+         (DP_ERR_MEMORY to configure_search_raw), never an abort. */
+      new_band  = (uint8_t *)dp_mallocn (new_n_surf, 1);
+      new_pmask = (uint8_t *)dp_mallocn (new_n_surf, 1);
+      if (!new_out || !new_mag || !new_scratch || !new_band || !new_pmask)
         goto fail;
+      memset (new_band, 0, new_n_surf);
       /* A tiled block's raw epochs, held until the block's end, when the
-         map runs on them (and search_resolve_tile_alias asks about them). A
-         fixed size from validated arguments: abort-on-OOM. */
+         map runs on them (and search_resolve_tile_alias asks about them). */
       if (new_freq_bins > 1 && new_db > 1)
-        new_blk_raw = (float _Complex *)dp_xmallocn (
-            dp_size_mul_sat (new_db, cb), sizeof (float _Complex));
+        {
+          new_blk_raw = (float _Complex *)dp_mallocn (
+              dp_size_mul_sat (new_db, cb), sizeof (float _Complex));
+          if (!new_blk_raw)
+            goto fail;
+        }
       /* The partial slots (one per tile) follow the grid, built here with
          the rest so nothing fails after the commit (#2761). */
-      new_parts = (dp_correlator_part_t *)dp_xmallocn (new_freq_bins,
-                                                       sizeof *new_parts);
+      new_parts = (dp_correlator_part_t *)dp_mallocn (new_freq_bins,
+                                                      sizeof *new_parts);
+      if (!new_parts)
+        goto fail;
     }
   if (map_changed
       && search_map_build (st, new_ref ? new_ref : srch->ref, new_db,

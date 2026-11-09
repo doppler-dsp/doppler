@@ -113,6 +113,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 | Type | Name |
 | ---: | :--- |
 | define  | [**RESAMP\_CTRL\_RATE\_MIN**](resamp__core_8h.md#define-resamp_ctrl_rate_min)  `1e-6`<br>_Floor on the composite rate_ `rate + ctrl` _in the ctrl paths._ |
+| define  | [**RESAMP\_MAX\_PHASES**](resamp__core_8h.md#define-resamp_max_phases)  `((uint64\_t)1 &lt;&lt; 32)`<br>_Most polyphase arms a bank may have: 2^32. The arm is the top log2(num\_phases) bits of the 32-bit phase word, selected by a right shift of 32 - log2(num\_phases), which is defined only while that count is &gt;= 0; a 32-bit word cannot name more arms anyway. A uint64\_t, since 2^32 does not fit a 32-bit size\_t._ [_**dp\_resamp\_create\_custom()**_](resamp__core_8h.md#function-dp_resamp_create_custom) _refuses a larger count, and so does every create that builds a bank for it._ |
 | define  | [**RESAMP\_STATE\_MAGIC**](resamp__core_8h.md#define-resamp_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'M', 'P')`<br>_State-blob magic for the resampler (FourCC "RSMP")._  |
 | define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `2u`<br>_State-blob layout version (v2: uint32 ctrl phase + debt)._  |
 
@@ -1077,6 +1078,20 @@ Blob size in bytes; depends on num\_taps (via delay\_cap).
 _Floor on the composite rate_ `rate + ctrl` _in the ctrl paths._
 ```C++
 #define RESAMP_CTRL_RATE_MIN `1e-6`
+```
+
+
+
+
+<hr>
+
+
+
+### define RESAMP\_MAX\_PHASES 
+
+_Most polyphase arms a bank may have: 2^32. The arm is the top log2(num\_phases) bits of the 32-bit phase word, selected by a right shift of 32 - log2(num\_phases), which is defined only while that count is &gt;= 0; a 32-bit word cannot name more arms anyway. A uint64\_t, since 2^32 does not fit a 32-bit size\_t._ [_**dp\_resamp\_create\_custom()**_](resamp__core_8h.md#function-dp_resamp_create_custom) _refuses a larger count, and so does every create that builds a bank for it._
+```C++
+#define RESAMP_MAX_PHASES `((uint64_t)1 << 32)`
 ```
 
 

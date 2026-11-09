@@ -120,7 +120,7 @@ MatchedRateConverterObj_init (MatchedRateConverterObject *self, PyObject *args,
       PyErr_SetString (PyExc_ValueError,
                        "RateConverter: invalid parameter (need rate > 0, 0 "
                        "<= beta <= 1, span >= 1, pulse_sps > 0, num_phases a "
-                       "power of two >= 2)");
+                       "power of two in [2, 2^32])");
       return -1;
     }
   if (self->handle->narrow_pulse)
@@ -1241,8 +1241,12 @@ static PyTypeObject MatchedRateConverterObjType = {
     "    matched filter has a symbol duration, and the planner still knows\n"
     "    nothing of symbols.\n"
     "num_phases : int, default 1024\n"
-    "    Terminal-stage arms; power of two. Sets the fractional timing\n"
-    "    resolution to `1/num_phases` of an output period.\n"
+    "    Terminal-stage arms; a power of two from 2 to RESAMP_MAX_PHASES "
+    "(2^32),\n"
+    "    the most the terminal resampler's 32-bit phase word can address. "
+    "Sets\n"
+    "    the fractional timing resolution to `1/num_phases` of an output "
+    "period.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1250,7 +1254,7 @@ static PyTypeObject MatchedRateConverterObjType = {
     "    If construction fails. The exception message is ``RateConverter:\n"
     "    invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, "
     "pulse_sps\n"
-    "    > 0, num_phases a power of two >= 2)``.\n"
+    "    > 0, num_phases a power of two in [2, 2^32])``.\n"
     "\n"
     "Warns\n"
     "-----\n"

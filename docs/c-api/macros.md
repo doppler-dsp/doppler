@@ -388,6 +388,7 @@
 * **RATESYNC\_STATE\_MAGIC** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **RATESYNC\_STATE\_VERSION** ([**ratesync\_core.h**](ratesync__core_8h.md))
 * **RESAMP\_CTRL\_RATE\_MIN** ([**resamp\_core.h**](resamp__core_8h.md))
+* **RESAMP\_MAX\_PHASES** ([**resamp\_core.h**](resamp__core_8h.md))
 * **RESAMP\_STATE\_MAGIC** ([**resamp\_core.h**](resamp__core_8h.md))
 * **RESAMP\_STATE\_VERSION** ([**resamp\_core.h**](resamp__core_8h.md))
 * **RS\_NROOTS\_MAX** ([**rs\_core.h**](rs__core_8h.md))

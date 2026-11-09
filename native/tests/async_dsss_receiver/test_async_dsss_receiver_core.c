@@ -4656,7 +4656,7 @@ _chunking_capture (double fs_chips, size_t dec, double sym_rate, size_t n_sym,
  *   3.0, 35714: the control, decided exactly at the start;
  *   3.0, 3000 sym/s, refine_max_error_db 2: a whole period, no resampler,
  *       and the refine decides 231 samples (11 periods) past the start,
- *       inside the 2390-sample ring (BER 0.008 at 100 a call before).
+ *       inside the 516-sample ring (BER 0.008 at 100 a call before).
  *
  * The 2.5 and 3.5 rows also run the search resampled (srch_rs): 17.5 and
  * 24.5 samples a period.
@@ -4702,6 +4702,13 @@ _test_chunking_changes_nothing (void)
       DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
       DP_CHECK (n_a > n_sym / 2);
       DP_CHECK (_best_ber (a, n_a, data, n_sym + 4) == 0.0);
+      /* Tracking after one call that refined and handed over: its blob is
+         one set_state takes (the ring's count kept up through the
+         hand-over), and a fresh receiver re-serializes it byte for byte. */
+      dp_async_dsss_receiver_state_t *two = _chunking_create (&g);
+      DP_REQUIRE (two != NULL);
+      DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_receiver, one, two);
+      dp_async_dsss_receiver_destroy (two);
       dp_async_dsss_receiver_destroy (one);
 
       const dp_ci_spec_t spec = {
@@ -4883,12 +4890,16 @@ _test_handover_round_trips (void)
   return 0;
 }
 
-/* The ring in the blob (v17): its size is a layout key, its count is held
- * to the size and to the samples the refine was fed, the largest legal count
- * is taken back byte for byte, and a v16 blob is refused. The receiver is
- * refining with a full ring (2.5 samples a chip, fed whole periods until
- * the ring wraps). Sabotages: drop the size check -> the size forge is
- * taken; drop the count's bound against the samples fed -> that forge. */
+/* The ring in the blob (v17): its size is a layout key, and its count must
+ * be min(refine_samples_fed, cap), the only count a receiver reaches -- one
+ * more, one fewer, or a samples-fed count that disagrees is refused; the
+ * exact count is taken back byte for byte. Both regimes: a full ring (2.5
+ * samples a chip, fed whole periods until the ring wraps) and one still
+ * filling (seeded, fed under a ring's worth). A v16 blob is refused.
+ * Sabotages: drop the size check -> the filling ring's size forge is taken;
+ * hold the count only to `<= cap` and `<= samples fed` -> the one-fewer
+ * forges are taken. The chunking test's round trip after a one-call
+ * hand-over goes red if the hand-over call skips the ring. */
 static int
 _test_ring_blob_rejects (void)
 {
@@ -4917,7 +4928,8 @@ _test_ring_blob_rejects (void)
       = hdr + offsetof (async_dsss_receiver_extra_t, refine_samples_fed);
   const uint64_t cap = rx->refine_hist_cap, fed = rx->refine_samples_fed;
   DP_REQUIRE (fed > cap);
-  const uint64_t cap_plus = cap + 1, len_over = cap + 1, small_fed = cap - 1;
+  const uint64_t cap_plus = cap + 1, len_over = cap + 1, len_under = cap - 1,
+                 small_fed = cap - 1;
   DP_STATE_FORGE_TEST (
       dp_async_dsss_receiver, rx, ASYNC_DSSS_RECEIVER_STATE_MAGIC,
       ASYNC_DSSS_RECEIVER_STATE_VERSION, off_cap, &cap_plus, sizeof cap_plus);
@@ -4928,7 +4940,31 @@ _test_ring_blob_rejects (void)
                        ASYNC_DSSS_RECEIVER_STATE_MAGIC,
                        ASYNC_DSSS_RECEIVER_STATE_VERSION, off_fed, &small_fed,
                        sizeof small_fed);
+  DP_STATE_FORGE_TEST (dp_async_dsss_receiver, rx,
+                       ASYNC_DSSS_RECEIVER_STATE_MAGIC,
+                       ASYNC_DSSS_RECEIVER_STATE_VERSION, off_len, &len_under,
+                       sizeof len_under);
   DP_STATE_ACCEPT_TEST (dp_async_dsss_receiver, rx, off_len, &cap, sizeof cap);
+
+  /* Still filling: the count is the samples fed. */
+  chunking_geom_t                 gs = { 2.5e6, 35714.29, 0.5, 1 };
+  dp_async_dsss_receiver_state_t *rf = _chunking_create (&gs);
+  DP_REQUIRE (rf != NULL);
+  (void)dp_async_dsss_receiver_steps (rf, x, 20, out, 64);
+  DP_REQUIRE (rf->refine_samples_fed == 20 && rf->refine_hist_cap > 20
+              && rf->refine_hist_len == 20);
+  const uint64_t fed20 = 20, len19 = 19, cap_rf = rf->refine_hist_cap + 1;
+  /* A size the count rule cannot tell apart (min(20, cap + 1) is still 20):
+     only the layout key refuses it. */
+  DP_STATE_FORGE_TEST (
+      dp_async_dsss_receiver, rf, ASYNC_DSSS_RECEIVER_STATE_MAGIC,
+      ASYNC_DSSS_RECEIVER_STATE_VERSION, off_cap, &cap_rf, sizeof cap_rf);
+  DP_STATE_FORGE_TEST (
+      dp_async_dsss_receiver, rf, ASYNC_DSSS_RECEIVER_STATE_MAGIC,
+      ASYNC_DSSS_RECEIVER_STATE_VERSION, off_len, &len19, sizeof len19);
+  DP_STATE_ACCEPT_TEST (dp_async_dsss_receiver, rf, off_len, &fed20,
+                        sizeof fed20);
+  dp_async_dsss_receiver_destroy (rf);
 
   /* A v16 blob, its layout without the ring, is refused. */
   const size_t   nb   = dp_async_dsss_receiver_state_bytes (rx);

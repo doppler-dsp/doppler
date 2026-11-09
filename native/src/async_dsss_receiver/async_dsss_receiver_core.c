@@ -1869,13 +1869,9 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
         {
           const uint64_t d   = before + (uint64_t)taken;
           const uint64_t cap = (uint64_t)state->refine_hist_cap;
-          held               = d > cap ? d - cap : 0;
-          /* Never older than the ring holds (a blob can say less). */
-          const uint64_t oldest = before > state->refine_hist_len
-                                      ? before - state->refine_hist_len
-                                      : 0;
-          if (held < oldest)
-            held = oldest;
+          /* The ring holds min(before, cap) samples behind x (set_state
+             takes no other count), so a start at or past this is held. */
+          held = d > cap ? d - cap : 0;
         }
       const uint64_t held_start = adr_period_start_at (period, held);
       if (samples_consumed_refine < held_start)
@@ -1886,7 +1882,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           return 0; /* the live chain's first sample is still to come */
         }
       const size_t tail_len = (size_t)(fed_total - samples_consumed_refine);
-      const float _Complex *tail = x + x_len - tail_len;
+      const float _Complex *tail;
       float _Complex       *join = NULL;
       if (tail_len > x_len)
         {
@@ -1898,6 +1894,12 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           memcpy (join + need, x, x_len * sizeof *join);
           tail = join;
         }
+      else
+        tail = x + (x_len - tail_len);
+      /* This call is the refine's too, so the ring keeps every refine
+         sample, the hand-over's included: it always holds
+         min(refine_samples_fed, cap), the one count set_state accepts. */
+      adr_refine_hist_push (state, x, x_len);
 
       /* The code phase the live chain starts from: the seed's, ADVANCED by
        * the clock dilation over the refine. A whole number of periods is
@@ -2461,8 +2463,10 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.srch_origin > extra.samples_in
       || extra.srch_hist_len > (uint64_t)s->srch_hist_cap
       || extra.refine_hist_cap != (uint64_t)s->refine_hist_cap
-      || extra.refine_hist_len > extra.refine_hist_cap
-      || extra.refine_hist_len > extra.refine_samples_fed)
+      || extra.refine_hist_len
+             != (extra.refine_samples_fed < extra.refine_hist_cap
+                     ? extra.refine_samples_fed
+                     : extra.refine_hist_cap))
     return DP_ERR_INVALID;
   /* Only what set_exclusions() can leave: folded phases, a zeroed tail. */
   for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)

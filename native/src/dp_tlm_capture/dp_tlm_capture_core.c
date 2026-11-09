@@ -82,9 +82,8 @@ acc_append (dp_tlm_capture_t *c, const dp_tlm_rec_t *src, size_t n)
       size_t cap = c->acc_cap ? c->acc_cap : DP_TLM_CAP_ACC_MIN;
       while (cap < c->acc_n + n)
         {
-          if (cap > (size_t)-1 / 2)
+          if (!dp_size_mul (cap, 2, &cap))
             return DP_ERR_MEMORY;
-          cap *= 2;
         }
       dp_tlm_rec_t *q = (dp_tlm_rec_t *)realloc (c->acc, cap * sizeof *q);
       if (!q)

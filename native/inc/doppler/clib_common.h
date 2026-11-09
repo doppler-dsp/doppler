@@ -209,6 +209,49 @@ dp_size_mul (size_t a, size_t b, size_t *out)
 }
 
 /**
+ * @brief `a + b` as a `size_t`, or a refusal when the sum does not fit.
+ *
+ * The other half of a multiply-add guard, `k * hop + frame_n` fits: a
+ * product checked by dp_size_mul() and then a sum checked here, rather than
+ * the one-line `k <= (SIZE_MAX - frame_n) / hop` that folds both into a
+ * division nobody can read twice the same way. The same contract as
+ * dp_size_mul(): 1 and the sum when it fits; 0 and @p out UNTOUCHED when it
+ * wraps; @p out may alias a summand, so a product chains into a sum.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   size_t end = 0;
+ *   // 3 hops of 256 past a 1024-sample frame
+ *   if (!dp_size_mul (3, 256, &end) || !dp_size_add (end, 1024, &end))
+ *     return 1;
+ *   printf ("%zu\n", end); // 1792
+ *   printf ("%d\n", dp_size_add (SIZE_MAX, 1, &end)); // 0
+ *   printf ("%zu\n", end); // 1792: a refusal leaves it alone
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param a    First summand.
+ * @param b    Second summand.
+ * @param out  Receives `a + b` when it fits; untouched otherwise.
+ * @return 1 when the sum fits in a `size_t`, 0 when it would wrap.
+ */
+static inline int
+dp_size_add (size_t a, size_t b, size_t *out)
+{
+  if (a > SIZE_MAX - b)
+    return 0;
+  *out = a + b;
+  return 1;
+}
+
+/**
  * @brief `a * b`, or `SIZE_MAX` when the product does not fit.
  *
  * The saturating face of dp_size_mul(), for a function whose job is an
@@ -395,6 +438,12 @@ dp_xreallocn (void *p, size_t n, size_t size)
  * - it returns 0 and leaves @p out UNTOUCHED for a negative @p d, for
  *   2^w and above, for +inf and for NaN (every comparison with NaN is
  *   false, and doppler builds with -fno-finite-math-only so that holds).
+ *
+ * This is a static inline, so it is compiled under the INCLUDING
+ * translation unit's flags. A consumer that builds with -ffast-math (or
+ * -ffinite-math-only) tells its compiler no value is NaN or infinite, and
+ * the compiler may then fold the refusal of NaN and +inf away; such a
+ * caller must rule those out itself before calling this.
  *
  * Whether @p d must also be whole is the caller's rule, not this one's:
  * test `d == floor (d)` beside it.

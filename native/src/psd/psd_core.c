@@ -19,6 +19,7 @@
 #include "doppler/psd/psd_core.h"
 #include "doppler/spectral/spectral_core.h"
 #include "doppler/util/util_core.h"
+#include <limits.h> /* CHAR_BIT: the width of size_t */
 #include <math.h>
 #include <string.h>
 
@@ -45,11 +46,13 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
   memset (k, 0, sizeof *k);
   /* full_scale divides every reading, so it must be a finite positive
    * number; the negated form also refuses a NaN, which passed a plain
-   * `<= 0.0` and built an estimator that read NaN. */
+   * `<= 0.0` and built an estimator that read NaN. Two frames' worth of
+   * complex floats must have a byte count a size_t holds. */
+  size_t two_frames;
   if (n < 2 || pad < 1 || window < DP_PSD_WINDOW_HANN
       || window > DP_PSD_WINDOW_RECT
       || !(full_scale > 0.0 && isfinite (full_scale))
-      || n > ((size_t)-1) / (2 * sizeof (float _Complex)))
+      || !dp_size_mul (n, 2 * sizeof (float _Complex), &two_frames))
     return DP_ERR_INVALID;
   /* Every buffer is sized from n or nfft = next_pow_two(n * pad), the
    * largest nfft complex floats, so n * pad may not pass the largest power
@@ -60,7 +63,11 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
    * counts, n = 2^62 asking malloc for 0 bytes that the window fill then
    * ran off.  Not left to calloc's own overflow check: ASan and TSan
    * report an overflowing calloc as an error rather than a NULL. */
-  const size_t top_pow2 = (((size_t)-1 / sizeof (float _Complex)) >> 1) + 1;
+  /* The largest power of two a size_t holds, 2^(w-1), over the element
+   * size, itself a power of two (8): the largest power-of-two count whose
+   * byte count fits. */
+  const size_t top_pow2 = ((size_t)1 << (CHAR_BIT * sizeof (size_t) - 1))
+                          / sizeof (float _Complex);
   if (pad > top_pow2 / n)
     return DP_ERR_INVALID;
 

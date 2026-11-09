@@ -12,6 +12,7 @@ _Util module — public C API._ [More...](#detailed-description)
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/jm_perf.h"`
+* `#include <limits.h>`
 * `#include <math.h>`
 
 

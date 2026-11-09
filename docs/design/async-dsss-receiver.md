@@ -619,11 +619,13 @@ receiver in a pool is §6; this section is the chain under both.
     estimator reports ready or gives up, the live chain is built **fresh**
     from the seed's chip phase, advanced by the clock dilation over the
     refine (doppler#1249) — not wherever the refine `Dll` drifted to — and
-    the refined Doppler, or the seed's on a give-up. It starts on a whole
-    code period from the hand-off, the same input sample at any chunking
-    (doppler#2974): the estimate of where the refine stopped, moved no
-    earlier than the first whole period of the code period the refine
-    decided in, which the receiver holds whatever the call sizes. A start
+    the refined Doppler, or the seed's on a give-up. It starts at
+    `ceil(k · period)` samples from the hand-off, k whole code periods, the
+    period's fraction carried in its phase, and on the same input sample at
+    any chunking (doppler#2974): the estimate of where the refine stopped,
+    moved no earlier than the first such start inside the code period the
+    refine decided in, which the receiver holds whatever the call sizes. A
+    start
     past the input so far is waited for, the receiver still refining. A
     refined Doppler outside the seed domain is refused like a hit, and the
     receiver searches again.

@@ -1408,16 +1408,13 @@ dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
      is a way to lose the burst quietly. */
   if (n_noncoh * doppler_bins > state->k_lo)
     return DP_ERR_INVALID;
-  /* The child forwards acq's own -1, which is NOT one of the eight codes
-     `clib_common.h` defines -- and this header promises DP_ERR_INVALID. A C
-     caller branching on the documented code would mis-read a refusal, so the
-     translation happens here rather than the doc being weakened to match.
-     (The DSP layer returns only DP_OK / DP_ERR_MEMORY / DP_ERR_INVALID; see
-     docs/dev/contributing/error-convention.md.) */
-  int rc = dp_correlator_configure_search_raw (state->acq, doppler_bins,
-                                               n_noncoh);
-  if (rc != 0)
-    return DP_ERR_INVALID;
+  /* The child's code is the caller's: DP_ERR_INVALID for a grid it
+     refuses, DP_ERR_MEMORY when the rebuild cannot allocate (never
+     DP_ERR_UNSUPPORTED: the child is a burst search, which serves it). */
+  const int rc = dp_correlator_configure_search_raw (state->acq, doppler_bins,
+                                                     n_noncoh);
+  if (rc != DP_OK)
+    return rc;
   /* The grid moved, so the child's blob size may have moved with it. This is
      the one call that can legitimately change it underneath a bound that
      state_bytes() promises is a pure function of configuration. */

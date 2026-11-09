@@ -8,8 +8,10 @@ ______________________________________________________________________
 ## `int`-returning functions — status codes
 
 Functions that return `int` use the named constants from `clib_common.h`.
-The core DSP algorithm path only ever returns three of these; the rest are
-meaningful to the streaming layer (below):
+The core DSP algorithm path only ever returns four of these (`DP_OK`,
+`DP_ERR_MEMORY`, `DP_ERR_INVALID`, and `DP_ERR_UNSUPPORTED` from an object
+whose flavors serve different members); the rest are meaningful to the
+streaming layer (below):
 
 | Constant             | Value | Meaning                                                                                       |
 | -------------------- | ----- | --------------------------------------------------------------------------------------------- |
@@ -26,7 +28,7 @@ meaningful to the streaming layer (below):
 | `DP_ERR_EOF`         | `−10` | Producer finished, no more data ever — distinct from `DP_ERR_TIMEOUT` ("not yet")             |
 | `DP_ERR_UNSUPPORTED` | `−11` | This object's flavor does not serve the call — distinct from `DP_ERR_INVALID`, a bad argument |
 
-All eleven are `#define`s in one place, `clib_common.h` — `stream.h` doesn't
+All twelve are `#define`s in one place, `clib_common.h` — `stream.h` doesn't
 define its own codes, it just includes this header, so a value never means
 two things in one TU.
 

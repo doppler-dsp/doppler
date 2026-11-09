@@ -1,6 +1,7 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
-from typing import Any, final
 import os
+from typing import Any, final
+
 import numpy.typing as npt
 from numpy.typing import NDArray
 import numpy as np

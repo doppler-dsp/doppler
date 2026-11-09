@@ -1,5 +1,6 @@
 # analyzer/analyzer.pyi — type stubs for the analyzer C extension.
 from typing import final
+
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray

@@ -1,5 +1,6 @@
 # detection/detection.pyi — type stubs for the detection C extension.
 from typing import final
+
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray

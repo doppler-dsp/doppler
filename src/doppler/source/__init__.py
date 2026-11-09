@@ -16,7 +16,7 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .source import NCO, LO, AWGN  # noqa: E402
+from .source import AWGN, LO, NCO  # noqa: E402
 
 
 def awgn(n, amplitude=1.0, seed=0):

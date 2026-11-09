@@ -1,7 +1,8 @@
 # wfm/wfm_writer.pyi — type stubs for the wfm_writer C extension.
-from typing import final, Literal
-from collections.abc import Sequence
 import os
+from collections.abc import Sequence
+from typing import Literal, final
+
 import numpy as np
 import numpy.typing as npt
 

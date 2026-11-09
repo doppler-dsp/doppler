@@ -4,9 +4,9 @@
 # class over an opaque wfm_plan_t resource handle.
 from __future__ import annotations
 
+import os
 from typing import Any, final
 
-import os
 from numpy.typing import NDArray
 
 @final

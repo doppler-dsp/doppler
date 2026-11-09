@@ -283,3 +283,17 @@ def test_missing_file_raises_the_declared_error(tmp_path):
 def test_view_reports_the_same_error_for_a_missing_file(tmp_path):
     with pytest.raises(ValueError):
         RawCapture(str(tmp_path / "does-not-exist.raw"), sample_type="ci16")
+
+
+@pytest.mark.parametrize("make", [Capture, RawCapture])
+def test_read_refuses_an_output_size_past_npy_max_intp(make, blue):
+    """jm's output-size guard: a size no ndarray can hold is refused.
+
+    `count` reaches C as a `size_t`, so `read(-1)` asks for SIZE_MAX samples.
+    Without the guard that size was cast straight to `npy_intp` and wrapped
+    to a negative dimension; with it, the binding names the oversized output
+    as an `OverflowError` before allocating anything.
+    """
+    cap = make(str(blue))
+    with pytest.raises(OverflowError, match="too large"):
+        cap.read(-1)

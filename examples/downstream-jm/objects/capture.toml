@@ -9,6 +9,11 @@
 #   no_state — the state struct is hand-written (it wraps a doppler handle,
 #              which jm has no way to infer)
 #   no_step  — a file is not a per-sample transducer
+#   fragment — "generated": jm owns capture_ext_{capture,rawcapture}.c and
+#              re-renders them on every apply, so a codegen fix (an output-
+#              size guard, say) reaches them instead of stopping at a sacred
+#              copy. Hand-written binding code goes in the
+#              capture_ext_<obj>_extra.c beside each fragment.
 [capture]
 arg_type = "float _Complex"
 return_type = "float _Complex"
@@ -16,6 +21,7 @@ mutable = "true"
 no_state = "true"
 no_step = "true"
 class_name = "Capture"
+fragment = "generated"
 create_error = "ValueError"
 create_error_message = "cannot open capture: no such file, or an unrecognised file type"
 

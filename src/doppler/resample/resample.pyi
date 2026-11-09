@@ -29,7 +29,7 @@ class Resampler:
     ValueError
         If construction fails. The exception message is ``Resampler: invalid
         parameter (need rate finite and > 0; a bank of num_phases a power of
-        two, num_taps >= 1)``.
+        two <= 2^32, num_taps >= 1)``.
 
     Examples
     --------

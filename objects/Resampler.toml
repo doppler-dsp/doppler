@@ -9,7 +9,7 @@ depends_on = ["resamp"]
 fragment = "generated"
 # A NULL create means a parameter was out of range, not OOM (gh-482).
 create_error = "ValueError"
-create_error_message = "Resampler: invalid parameter (need rate finite and > 0; a bank of num_phases a power of two, num_taps >= 1)"
+create_error_message = "Resampler: invalid parameter (need rate finite and > 0; a bank of num_phases a power of two <= 2^32, num_taps >= 1)"
 
 [[Resampler.init_params]]
 name = "rate"

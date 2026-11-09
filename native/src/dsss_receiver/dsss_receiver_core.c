@@ -308,7 +308,7 @@ dsss_rx_scratch (float _Complex **buf, size_t *cap, size_t need)
 {
   if (*cap < need)
     {
-      *buf = dp_xrealloc (*buf, need * sizeof **buf);
+      *buf = dp_xreallocn (*buf, need, sizeof **buf);
       *cap = need;
     }
   return *buf;
@@ -410,8 +410,8 @@ dp_dsss_receiver_create (const uint8_t *code, size_t code_len,
    * carrier scratch/carry buffers are allocated ONCE here, never
    * per-rebuild, and freed once in destroy(). */
   obj->tsamps        = code_len * spc;
-  obj->car_wiped_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
-  obj->car_carry_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_carry_buf));
+  obj->car_wiped_buf = dp_xmallocn (obj->tsamps, sizeof (*obj->car_wiped_buf));
+  obj->car_carry_buf = dp_xmallocn (obj->tsamps, sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
 
   /* Placeholder chain (phase 0, no Doppler) -- always allocated, seeded

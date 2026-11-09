@@ -36,6 +36,7 @@
 #include "doppler/carrier_acq/carrier_acq_core.h" /* its blob magic, for forging */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
+#include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
@@ -4576,6 +4577,144 @@ _test_resampled_search_hands_off_into_its_history (void)
   return 0;
 }
 
+/* _test_chunking_changes_nothing()'s receiver geometry, the harness's arg:
+ * CODE7 at 1 Mchip/s, searching. */
+typedef struct
+{
+  double fs;       /* sample rate, Hz */
+  double sym_rate; /* symbols per second */
+  double err_db;   /* refine_max_error_db */
+} chunking_geom_t;
+
+static void *
+_chunking_create (void *arg)
+{
+  const chunking_geom_t *g = arg;
+  return dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, g->sym_rate, g->fs, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0,
+      g->err_db, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+}
+
+static void
+_chunking_destroy (void *rx)
+{
+  dp_async_dsss_receiver_destroy (rx);
+}
+
+static size_t
+_chunking_process (void *rx, const void *in, size_t n, void *out,
+                   size_t out_cap)
+{
+  return dp_async_dsss_receiver_steps (rx, in, n, out, out_cap);
+}
+
+/* A streaming receiver gives the same answer for any chunking of the same
+ * input (doppler#2974): dp_chunk_invariance() over 1..17 samples a call and
+ * the harness's own sizes and random splits, each run the one-shot's symbols
+ * bit for bit, same count. What chunking reached was the hand-over from
+ * refine to tracking: the live chain starts at an estimate of where the
+ * refine stopped, which ignores the refine chain's own lag, so the refine
+ * decides a little past it or a little short of it, and the start was taken
+ * only from the call that decided. Each row puts it somewhere else:
+ *
+ *   2.5 samples a chip, 35714 sym/s: the refine decides 7 samples past the
+ *       start, so a call of fewer leaves it in the carry (the issue's table,
+ *       BER 0.03-0.13 at 1-5 samples a call);
+ *   3.5, 35714: it decides 16 samples SHORT of the start, which is waited
+ *       for (it was started at once, early);
+ *   3.0, 35714: the control, decided exactly at the start;
+ *   3.0, 3000 sym/s, refine_max_error_db 2: a whole period, no resampler,
+ *       and the estimate 210 samples (10 periods) before the period the
+ *       refine decided in, so the start moves on to that period, the input
+ *       held at every chunking (BER 0.008 at 100 a call before).
+ *
+ * The 2.5 and 3.5 rows also run the search resampled (srch_rs): 17.5 and
+ * 24.5 samples a period. The capture is the shared builder's
+ * (dp_dsss_capture()) at a whole `dec * fs` samples a chip, every `dec`-th
+ * sample kept: rectangular chips at the fractional rate from the one
+ * stimulus, never rendered here, its C/N0 raised by 10*log10(dec) so the
+ * kept samples carry the stated 90 dB-Hz.
+ *
+ * Sabotages: start a start that is still to come at once -> the 3.5 row goes
+ * red; drop the carry's head of the decided period (no tail when the start
+ * is behind the call) -> the 2.5 row; skip the move onto the held period ->
+ * the 3000 sym/s row (and the carry is read out of bounds). */
+static int
+_test_chunking_changes_nothing (void)
+{
+  static const struct
+  {
+    double fs_chips; /* samples per chip at the receiver */
+    size_t dec;      /* rendered at fs_chips * dec, kept 1 of dec */
+    double sym_rate; /* symbols per second */
+    double err_db;   /* refine_max_error_db */
+    size_t n_sym;    /* symbols in the capture */
+  } rows[] = { { 2.5, 2, 35714.29, 0.5, 300 },
+               { 3.5, 2, 35714.29, 0.5, 300 },
+               { 3.0, 1, 35714.29, 0.5, 300 },
+               { 3.0, 1, 3000.0, 2.0, 150 } };
+  /* With the harness's own 1, 7, 64 and 4093: 1..17, then past them. */
+  static const size_t sizes[] = { 2,  3,  4,  5,  6,  8,  9,   10,  11,   12,
+                                  13, 14, 15, 16, 17, 23, 230, 257, 1000, 0 };
+  const double        chip_rate = 1.0e6;
+  for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
+    {
+      const size_t    dec   = rows[r].dec;
+      const size_t    n_sym = rows[r].n_sym;
+      chunking_geom_t g
+          = { rows[r].fs_chips * chip_rate, rows[r].sym_rate, rows[r].err_db };
+      const double    fs_r = g.fs * (double)dec;
+      float _Complex *xr;
+      double         *data;
+      size_t          n_r;
+      dp_dsss_capture (CODE7, 7, (size_t)llround (fs_r / chip_rate), fs_r,
+                       fs_r / g.sym_rate, 0.0,
+                       90.0 + 10.0 * log10 ((double)dec), n_sym,
+                       (5 * 18 + 3) * dec, 11u, &xr, &n_r, &data);
+      const size_t    n = n_r / dec;
+      float _Complex *x = malloc (n * sizeof *x);
+      DP_REQUIRE (x != NULL);
+      for (size_t i = 0; i < n; i++)
+        x[i] = xr[i * dec];
+
+      /* The premise, on the one-shot: resampled exactly when the period is
+         not whole, tracking, and every symbol right. */
+      dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
+      DP_REQUIRE (one != NULL);
+      DP_CHECK ((one->srch_rs != NULL) == (dec != 1));
+      float _Complex *a;
+      const size_t    n_a = _stream (one, x, n, n, &a);
+      DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
+      DP_CHECK (n_a > n_sym / 2);
+      DP_CHECK (_best_ber (a, n_a, data, n_sym + 4) == 0.0);
+      dp_async_dsss_receiver_destroy (one);
+
+      const dp_ci_spec_t spec = {
+        .name        = "AsyncDsssReceiver",
+        .create      = _chunking_create,
+        .destroy     = _chunking_destroy,
+        .process     = _chunking_process,
+        .arg         = &g,
+        .in_size     = sizeof (float _Complex),
+        .out_size    = sizeof (float _Complex),
+        .out_cap     = n,
+        .frame_n     = (size_t)floor (7.0 * rows[r].fs_chips),
+        .extra_sizes = sizes,
+      };
+      const int bad = dp_chunk_invariance (&spec, x, n);
+      if (bad)
+        printf ("  %.1f samples a chip, %.0f sym/s: %d partition(s) "
+                "differ\n",
+                rows[r].fs_chips, g.sym_rate, bad);
+      DP_CHECK (bad == 0);
+      free (a);
+      free (x);
+      free (xr);
+      free (data);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4632,6 +4771,7 @@ main (void)
   DP_CHECK (_test_nested_trace_version_refused () == 0);
   DP_CHECK (_test_pooled_and_search_only () == 0);
   DP_CHECK (_test_resampled_search_hands_off_into_its_history () == 0);
+  DP_CHECK (_test_chunking_changes_nothing () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

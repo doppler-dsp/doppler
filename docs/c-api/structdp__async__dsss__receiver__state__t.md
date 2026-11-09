@@ -1187,7 +1187,7 @@ uint64_t dp_async_dsss_receiver_state_t::refine_samples_fed;
 
 
 
-Raw samples fed into the refine pipeline since it was last (re)built. At the hand-over, fed minus consumed is the tail of the last call that goes straight on to the live chain. The clock dilation is taken over the consumed count, from the refine's blocks, not over this. 
+Raw samples fed into the refine pipeline since it was last (re)built. At the hand-over, fed minus the live chain's start is the tail that goes straight on to it: this call's, and the decided period's head from the carry when that is behind it. The clock dilation is taken over the consumed count, from the refine's blocks, not over this. 
 
 
         

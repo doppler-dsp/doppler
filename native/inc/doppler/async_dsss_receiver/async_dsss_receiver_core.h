@@ -30,7 +30,12 @@
  *     is ready or gives up; then the live tracking chain is built FRESH,
  *     from the hand-off's chip phase advanced by the clock dilation over the
  *     refine (not wherever the refine-stage `Dll` drifted) and the refined
- *     -- on a give-up, the seed's -- Doppler.
+ *     -- on a give-up, the seed's -- Doppler. It starts on a whole code
+ *     period from the hand-off and on the same input sample at any
+ *     chunking (doppler#2974): the estimate of where the refine stopped,
+ *     moved no earlier than the code period the refine decided in, which
+ *     the receiver holds whatever the call sizes. A start the input has not
+ *     reached yet is waited for, the receiver still refining.
  *   - **tracking**: the pre-despread carrier loop (`costas_wipeoff`/
  *     `costas_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`. The
  *     carrier loop updates once per code period from a NON-DATA-AIDED
@@ -276,9 +281,11 @@ typedef enum
                                   set_state's check. */
     uint64_t refine_samples_fed; /**< Raw samples fed into the refine
                                        pipeline since it was last (re)built.
-                                       At the hand-over, fed minus consumed
-                                       is the tail of the last call that
-                                       goes straight on to the live chain.
+                                       At the hand-over, fed minus the
+                                       live chain's start is the tail that
+                                       goes straight on to it: this call's,
+                                       and the decided period's head from
+                                       the carry when that is behind it.
                                        The clock dilation is taken over the
                                        consumed count, from the refine's
                                        blocks, not over this. */

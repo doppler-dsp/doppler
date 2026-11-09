@@ -1724,9 +1724,13 @@ dp_wfm_plan_restore (const void *blob, size_t n)
   uint64_t hash, splen64;
   memcpy (&hash, q + 8, 8);
   memcpy (&splen64, q + 16, 8);
-  size_t splen = (size_t)splen64;
-  if (24 + splen + 8 > n)
+  /* The spec and the 8-byte signal count must both fit in the blob. Read
+   * as a subtraction from n (n >= 24 above), never as a sum: a forged
+   * splen64 near 2^64 made `24 + splen + 8` wrap small, pass, and copy
+   * splen bytes out of a blob that does not hold them. */
+  if (splen64 > (uint64_t)(n - 24) || (n - 24) - (size_t)splen64 < 8)
     return NULL;
+  size_t splen = (size_t)splen64;
 
   /* Embedded spec is NUL-terminated into a scratch copy for the parser. */
   char *spec = malloc (splen + 1);
@@ -1750,14 +1754,22 @@ dp_wfm_plan_restore (const void *blob, size_t n)
   const float _Complex **bufs      = NULL;
   int                    fp_ok     = (hash == (uint64_t)WFM_PLAN_DSP_HASH_U64);
   int                    layout_ok = 1;
-  /* The table's two arrays are sized from a count the blob claims, so the
-   * byte counts are checked products: a wrapped one would allocate small
-   * and the loop below would write past it. A count a size_t cannot hold
-   * (a 32-bit build) is refused the same way. */
-  size_t lens_bytes = 0, bufs_bytes = 0;
-  if (n_sig > 0 && (uint64_t)(size_t)n_sig == n_sig
-      && dp_size_mul ((size_t)n_sig, sizeof *lens, &lens_bytes)
-      && dp_size_mul ((size_t)n_sig, sizeof *bufs, &bufs_bytes))
+  /* The table's two arrays are sized from a count the blob claims. Every
+   * entry takes at least its 8-byte length in the blob, so a count above
+   * what is left of the blob is a truncated or forged table: it is not
+   * trusted, and the Plan is rebuilt from the spec, as the loop below does
+   * for a table that runs out mid-way. That bound also keeps the count in a
+   * size_t, and the byte counts are checked products, so nothing is sized
+   * from a wrapped value. A table that is not allocated leaves layout_ok 0:
+   * the fast path below never sees NULL arrays (#2962). */
+  const size_t left       = n - (size_t)(r - q);
+  size_t       lens_bytes = 0, bufs_bytes = 0;
+  if (n_sig > 0
+      && (n_sig > left / 8
+          || !dp_size_mul ((size_t)n_sig, sizeof *lens, &lens_bytes)
+          || !dp_size_mul ((size_t)n_sig, sizeof *bufs, &bufs_bytes)))
+    layout_ok = 0;
+  else if (n_sig > 0)
     {
       lens = (size_t *)malloc (lens_bytes);
       bufs = (const float _Complex **)malloc (bufs_bytes);
@@ -1770,7 +1782,7 @@ dp_wfm_plan_restore (const void *blob, size_t n)
         }
       for (uint64_t k = 0; k < n_sig; k++)
         {
-          if ((size_t)(r - q) + 8 > n)
+          if (n - (size_t)(r - q) < 8)
             {
               layout_ok = 0;
               break;
@@ -1778,8 +1790,12 @@ dp_wfm_plan_restore (const void *blob, size_t n)
           uint64_t len;
           memcpy (&len, r, 8);
           r += 8;
-          size_t nbytes = (size_t)len * sizeof (float _Complex);
-          if ((size_t)(r - q) + nbytes > n)
+          /* A forged length must not wrap the byte count, nor the bound
+           * check: compare against what is left, never r + nbytes. */
+          size_t nbytes;
+          if (len > (uint64_t)(n - (size_t)(r - q))
+              || !dp_size_mul ((size_t)len, sizeof (float _Complex), &nbytes)
+              || nbytes > n - (size_t)(r - q))
             {
               layout_ok = 0;
               break;
@@ -1792,7 +1808,7 @@ dp_wfm_plan_restore (const void *blob, size_t n)
 
   /* Trust the buffers only when the DSP fingerprint AND the payload layout are
    * intact; otherwise rebuild from the (authoritative) embedded spec. */
-  if (fp_ok && layout_ok && n_sig > 0)
+  if (fp_ok && layout_ok && lens)
     {
       loaded.n    = (size_t)n_sig;
       loaded.lens = lens;

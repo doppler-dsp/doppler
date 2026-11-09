@@ -406,3 +406,29 @@ def test_read_dict_refuses_a_count_outside_size_t(bad):
     with pytest.raises(OverflowError, match=r"n: .* out of range for size_t"):
         cap.read_dict(bad)
     assert cap.read_dict()["bench.x"].size == 8
+
+
+def test_memory_capture_refuses_a_negative_block_samples():
+    # `K` used to mask -1 to 2**64 - 1 and hand that to the C open, which
+    # refused it with a ValueError; the binding now refuses the value itself.
+    tlm, _ = _tlm()
+    with pytest.raises(
+        OverflowError, match=r"block_samples: -1 is out of range for size_t"
+    ):
+        MemoryCapture(tlm, -1, None)
+    # Positive control: the same arguments at a sane size open a capture, so
+    # the refusal above comes from the value and not from the context.
+    with MemoryCapture(tlm, BLOCK, None) as cap:
+        cap.close()
+
+
+def test_file_capture_refuses_a_negative_block_samples(tmp_path):
+    tlm, _ = _tlm()
+    path = str(tmp_path / "s.tlm")
+    with pytest.raises(
+        OverflowError, match=r"block_samples: -1 is out of range for size_t"
+    ):
+        Capture(tlm, -1, path, SampleClock(1e6))
+    # Positive control: a valid block_samples opens the same path.
+    with Capture(tlm, BLOCK, path, SampleClock(1e6)) as cap:
+        cap.close()

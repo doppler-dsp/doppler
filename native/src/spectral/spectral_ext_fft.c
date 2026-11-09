@@ -161,7 +161,13 @@ FFTObj_execute_cf64 (FFTObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -320,7 +326,13 @@ FFTObj_execute_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -599,7 +611,13 @@ FFTObj_execute_inplace_cf64 (FFTObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -761,7 +779,13 @@ FFTObj_execute_inplace_cf32 (FFTObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;

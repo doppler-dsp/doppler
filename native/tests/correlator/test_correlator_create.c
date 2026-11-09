@@ -780,6 +780,13 @@ test_a_flavor_names_the_knob_it_refuses (void)
     DP_REQUIRE (ok != NULL);
     dp_correlator_destroy (ok);
   }
+  /* A period of ~2^61 samples (sample_rate * 31 / chip_rate): its bytes
+     wrap 2^64 to almost nothing, which the replica's unchecked size once
+     allocated and the fill loop wrote 2^61 samples past (#2958). */
+  k             = base;
+  k.sample_rate = 7.438203255528045e22;
+  DP_CHECK (refused (&k, "Correlator: sample_rate asks for a code period no "
+                         "search grid can hold"));
   k           = base;
   k.chip_rate = INFINITY;
   DP_CHECK (refused (&k, "Correlator: chip_rate must be finite and positive"));

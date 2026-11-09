@@ -662,10 +662,14 @@ class BurstCapture:
 
         Raises
         ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``configure_search_raw: rebuilding the engine's grid could not
+            allocate; the engine keeps its prior grid``.
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``configure_search_raw failed``, with the return code appended
-            (gh-869).
+            If the C call returns any other non-zero status. The exception
+            message is ``configure_search_raw failed``, with the return code
+            appended (gh-869).
 
         Examples
         --------
@@ -1448,10 +1452,14 @@ class PersistentBurstCapture:
 
         Raises
         ------
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            ``configure_search_raw: rebuilding the engine's grid could not
+            allocate; the engine keeps its prior grid``.
         ValueError
-            If the C call returns a non-zero status. The exception message is
-            ``configure_search_raw failed``, with the return code appended
-            (gh-869).
+            If the C call returns any other non-zero status. The exception
+            message is ``configure_search_raw failed``, with the return code
+            appended (gh-869).
 
         Examples
         --------

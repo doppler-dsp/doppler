@@ -5073,22 +5073,36 @@ search_lag_amplitude (const double *P, size_t n, double delta, double p_sum)
 static float _Complex *
 search_autocorr (const float _Complex *x, size_t n)
 {
-  dp_correlator_state_t *c = dp_xnn (dp_correlator_create_1d (x, n, 1, 1, 0));
-  float _Complex        *R = dp_xmalloc (n * sizeof *R);
-  const size_t           got = dp_correlator_execute (c, x, n, R, n);
+  /* n is the caller's period: a correlator of that length that cannot be
+     built is a refusal on the create path (NULL), not an abort. */
+  dp_correlator_state_t *c = dp_correlator_create_1d (x, n, 1, 1, 0);
+  if (!c)
+    return NULL;
+  float _Complex *R   = dp_xmalloc (n * sizeof *R);
+  const size_t    got = dp_correlator_execute (c, x, n, R, n);
   (void)got; /* n in, dwell 1: one dump of n, always */
   dp_correlator_destroy (c);
   return R;
 }
 
-static void
+/* 0, or -1 (nothing left allocated) when a transform of the caller's
+   period cannot be built: the create refuses rather than aborts. */
+static int
 search_shape_of_template (const float _Complex *t, size_t n,
                           dp_correlator_shape_t *sh)
 {
+  dp_fft_state_t *fwd = dp_fft_create (n, -1, 1);
+  if (!fwd)
+    return -1;
+  float _Complex *R = search_autocorr (t, n);
+  if (!R)
+    {
+      dp_fft_destroy (fwd);
+      return -1;
+    }
   double _Complex *buf   = dp_xmalloc (n * sizeof *buf);
   double _Complex *spec  = dp_xmalloc (n * sizeof *spec);
   double          *P     = dp_xmalloc (n * sizeof *P);
-  dp_fft_state_t  *fwd   = dp_xnn (dp_fft_create (n, -1, 1));
   double           p_sum = 0.0;
 
   /* The power spectrum, for the delay-loss model below: a spectrum, not a
@@ -5103,11 +5117,10 @@ search_shape_of_template (const float _Complex *t, size_t n,
       p_sum += P[k];
     }
 
-  float _Complex *R    = search_autocorr (t, n);
-  const double    r0   = cabsf (R[0]);
-  const size_t    half = n / 2;
-  size_t          zone = half > 0 ? half : 1;
-  const double    tol  = 1e-6 * r0;
+  const double r0   = cabsf (R[0]);
+  const size_t half = n / 2;
+  size_t       zone = half > 0 ? half : 1;
+  const double tol  = 1e-6 * r0;
   for (size_t m = 1; m <= half; m++)
     {
       double here = cabsf (R[m]);
@@ -5136,6 +5149,7 @@ search_shape_of_template (const float _Complex *t, size_t n,
   free (P);
   free (spec);
   free (buf);
+  return 0;
 }
 
 /* The periodic autocorrelation OFF the peak, relative to it: its energy
@@ -5146,14 +5160,16 @@ search_shape_of_template (const float _Complex *t, size_t n,
  * of all three, for a code and a template alike (doppler#1501,
  * doppler#1470). A perfect sequence's off-peak lags are rounding (~1e-9 of
  * R(0)); below 1e-6 they are counted as nothing. */
-static void
+static int
 search_off_peak (const float _Complex *replica, size_t n,
                  dp_correlator_shape_t *sh)
 {
-  float _Complex *R  = search_autocorr (replica, n); /* R(m) / n */
-  const double    r0 = cabsf (R[0]);
-  double          e1 = 0.0, e2 = 0.0, psl = 0.0;
-  const size_t    z = sh->zone;
+  float _Complex *R = search_autocorr (replica, n); /* R(m) / n */
+  if (!R)
+    return -1; /* the create refuses: see search_autocorr */
+  const double r0 = cabsf (R[0]);
+  double       e1 = 0.0, e2 = 0.0, psl = 0.0;
+  const size_t z = sh->zone;
   for (size_t m = 1; m < n; m++)
     {
       const double r = r0 > 0.0 ? cabsf (R[m]) / r0 : 0.0;
@@ -5168,6 +5184,7 @@ search_off_peak (const float _Complex *replica, size_t n,
   sh->off_peak_amp = e1;
   sh->psl          = psl;
   free (R);
+  return 0;
 }
 
 /* Residual points per tile width in the Doppler-offset sidelobe's sweep.
@@ -5369,12 +5386,11 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
   /* A grid whose samples cannot even be counted in a size_t: refused
      before anything is sized from it (a tile is one period of complex
      samples, and a burst holds reps periods). */
-  size_t period_bytes = 0, held = 0;
-  /* A burst's period is its ref, already in memory; a continuous one is
-     sample_rate * len(ref) / chip_rate samples. */
-  if (!dp_size_mul (n_period, sizeof (float _Complex), &period_bytes))
-    CORR_WHY ("Correlator: sample_rate asks for a code period no search "
-              "grid can hold");
+  size_t held = 0;
+  /* The period's bytes always fit: a burst's period is its ref, already
+     in memory, and a continuous one was bounded where it was made
+     (search_period_at). */
+  const size_t period_bytes = n_period * sizeof (float _Complex);
   if (!dp_size_mul (search_cover_window_bins (doppler_uncertainty, span),
                     period_bytes, &held))
     CORR_WHY ("Correlator: doppler_uncertainty asks for more Doppler tiles "
@@ -5400,7 +5416,8 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
 
   st->search->sf    = sf;
   st->search->shape = *shape;
-  search_off_peak (replica, n_period, &st->search->shape);
+  if (search_off_peak (replica, n_period, &st->search->shape))
+    goto fail;
   st->search->reps      = reps;
   st->search->code_bins = n_period;
   /* The surface's lag axis (the field's doc): a continuous engine whose
@@ -5511,6 +5528,8 @@ search_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
 {
   if (!code || code_len < 1 || n_period < code_len)
     return NULL; /* the dispatcher refuses an empty ref first */
+  /* The period's bytes fit a size_t: search_period_at refused one whose
+     do not, where the period is made (#2958). */
   float _Complex *replica
       = (float _Complex *)dp_xmalloc (n_period * sizeof *replica);
   for (size_t k = 0; k < n_period; k++)
@@ -5522,8 +5541,11 @@ search_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
   dp_correlator_shape_t shape;
   if (n_period % code_len == 0)
     shape = search_shape_of_chips (n_period / code_len);
-  else
-    search_shape_of_template (replica, n_period, &shape);
+  else if (search_shape_of_template (replica, n_period, &shape))
+    {
+      free (replica);
+      return NULL; /* the period's transform could not be built */
+    }
   dp_correlator_state_t *st = search_acq_create_impl (
       replica, code_len, &shape, reps, n_period, chip_rate, symbol_rate,
       cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, continuous,
@@ -5546,7 +5568,8 @@ dp_correlator_period_samples (size_t code_len)
    code_len: the search's transforms are that long, and a fractional period
    has no grid to correlate on. */
 static size_t
-search_period_at (size_t code_len, double sample_rate, double chip_rate)
+search_period_at (size_t code_len, double sample_rate, double chip_rate,
+                  int *too_long)
 {
   if (code_len < 1 || !(sample_rate > 0.0) || !isfinite (sample_rate)
       || !(chip_rate > 0.0) || !isfinite (chip_rate))
@@ -5556,6 +5579,17 @@ search_period_at (size_t code_len, double sample_rate, double chip_rate)
   if (!(r >= (double)code_len) || r > (double)(SIZE_MAX / 2)
       || fabs (n - r) > 1e-9 * r)
     return 0;
+  /* Every caller sizes a period of complex samples from it (the replica,
+     the template's transforms), so a period whose bytes no size_t holds
+     is refused here, where it is made (#2958): sample_rate 7.438e22 over
+     a 31-chip code at 1 MHz is ~2^61 samples, 2^64 bytes. */
+  size_t bytes;
+  if (!dp_size_mul ((size_t)r, sizeof (float _Complex), &bytes))
+    {
+      if (too_long)
+        *too_long = 1;
+      return 0;
+    }
   return (size_t)r;
 }
 
@@ -5563,7 +5597,7 @@ size_t
 dp_correlator_search_period (size_t code_len, double sample_rate,
                              double chip_rate)
 {
-  const size_t own = search_period_at (code_len, sample_rate, chip_rate);
+  const size_t own = search_period_at (code_len, sample_rate, chip_rate, NULL);
   if (own != 0)
     return own;
   return (sample_rate > 0.0 && isfinite (sample_rate) && chip_rate > 0.0
@@ -5586,7 +5620,12 @@ search_continuous_create (const uint8_t *code, size_t code_len,
     CORR_WHY ("Correlator: sample_rate must be finite and positive");
   if (!(chip_rate > 0.0 && isfinite (chip_rate)))
     CORR_WHY ("Correlator: chip_rate must be finite and positive");
-  const size_t n_period = search_period_at (code_len, sample_rate, chip_rate);
+  int          too_long = 0;
+  const size_t n_period
+      = search_period_at (code_len, sample_rate, chip_rate, &too_long);
+  if (too_long)
+    CORR_WHY ("Correlator: sample_rate asks for a code period no search "
+              "grid can hold");
   if (n_period == 0)
     CORR_WHY ("Correlator: the continuous search needs a code period, "
               "sample_rate * len(ref) / chip_rate, that is a whole number "
@@ -5642,7 +5681,11 @@ search_burst_create (const float _Complex *tmpl, size_t n, size_t reps,
     replica[i] = tmpl[i] * g;
 
   dp_correlator_shape_t shape;
-  search_shape_of_template (replica, n, &shape);
+  if (search_shape_of_template (replica, n, &shape))
+    {
+      free (replica);
+      return NULL; /* the template's transform could not be built */
+    }
   /* One chip = one sample: sf = n, a period of n samples, chip_rate = fs. */
   dp_correlator_state_t *st = search_acq_create_impl (
       replica, n, &shape, reps, /* n_period= */ n, fs, /* symbol_rate= */ 0.0,
@@ -6654,13 +6697,17 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
   for (size_t i = 0; i < 10; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, suffix[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+  /* decim apart from room, so each refusal can name its argument once
+     methods take a `why` (just-makeit#2574); the dry run below then
+     refuses only a context with no room. */
+  if (decim < 1)
+    return DP_ERR_INVALID;
   /* Whole or nothing (#2647). The dry run registers every name on a
-     scratch context, which refuses a bad decim the way the caller's would,
-     and then asks whether the caller's table has room for the names it
-     lacks; only then does anything register there. The ids land in a
-     temporary and commit together with ctx, so a refusal leaves the
-     previous attachment exactly as it was -- not ctx on one context with
-     some ids from another. */
+     scratch context (decim is already known good), and then asks whether
+     the caller's table has room for the names it lacks; only then does
+     anything register there. The ids land in a temporary and commit together
+     with ctx, so a refusal leaves the previous attachment exactly as it was --
+     not ctx on one context with some ids from another. */
   dp_tlm_t *scratch = dp_tlm_create (1);
   if (!scratch)
     return DP_ERR_MEMORY;

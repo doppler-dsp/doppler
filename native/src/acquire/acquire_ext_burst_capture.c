@@ -952,6 +952,17 @@ BurstCaptureObj_configure_search_raw (BurstCaptureObject *self, PyObject *args,
                                                    n_noncoh);
   if (_rc != 0)
     {
+      switch (_rc)
+        {
+        case DP_ERR_MEMORY:
+          PyErr_SetString (
+              PyExc_MemoryError,
+              "configure_search_raw: rebuilding the engine's grid could not "
+              "allocate; the engine keeps its prior grid");
+          return NULL;
+        default:
+          break;
+        }
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
                     "configure_search_raw failed", (long long)_rc);
       return NULL;
@@ -1904,10 +1915,14 @@ static PyMethodDef BurstCaptureObj_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
+    "MemoryError\n"
+    "    If the C call returns ``DP_ERR_MEMORY``. The exception message is\n"
+    "    ``configure_search_raw: rebuilding the engine's grid could not\n"
+    "    allocate; the engine keeps its prior grid``.\n"
     "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``configure_search_raw failed``, with the return code appended\n"
-    "    (gh-869).\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is ``configure_search_raw failed``, with the return code\n"
+    "    appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

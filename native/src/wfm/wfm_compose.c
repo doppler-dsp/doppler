@@ -83,9 +83,10 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   dst->symbols        = NULL;
   if (src->symbols && src->n_symbols)
     {
-      size_t nbytes = src->n_symbols * sizeof *src->symbols;
-      dst->symbols  = dp_xmalloc (nbytes);
-      memcpy (dst->symbols, src->symbols, nbytes);
+      size_t n     = src->n_symbols;
+      dst->symbols = dp_xmallocn (n, sizeof *dst->symbols);
+      for (size_t i = 0; i < n; i++)
+        dst->symbols[i] = src->symbols[i];
     }
   /* The data source's members (#1619). A path is borrowed by a source like
      everything above, so the composer owns a copy of it too: the data

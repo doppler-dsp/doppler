@@ -140,10 +140,11 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
   dst->data_code.bits = NULL;
   if (src->symbols && src->n_symbols)
     {
-      size_t nbytes = src->n_symbols * sizeof *src->symbols;
-      if (!(dst->symbols = malloc (nbytes)))
+      size_t n = src->n_symbols;
+      if (!(dst->symbols = dp_mallocn (n, sizeof *dst->symbols)))
         return -1;
-      memcpy (dst->symbols, src->symbols, nbytes);
+      for (size_t i = 0; i < n; i++)
+        dst->symbols[i] = src->symbols[i];
     }
   if (src->acq_code.bits && src->acq_code.len)
     if (!(dst->acq_code.bits = dup_u8 (src->acq_code.bits, src->acq_code.len)))
@@ -1043,7 +1044,7 @@ fold_background (wfm_plan_t *p, const wfm_plan_segment_t *ps,
    * contributes at, baked in here because the composite carries no level. */
   size_t *bg_idx = dp_mallocn (n_bg, sizeof *bg_idx);
   float  *gain   = dp_mallocn (n_bg, sizeof *gain);
-  size_t  per    = n * sizeof *acc;
+  size_t  per    = dp_size_mul_sat (n, sizeof *acc); /* the budget's unit */
   size_t  grp    = WFM_PLAN_FOLD_BUDGET_BYTES / (per ? per : 1);
   if (grp == 0)
     grp = 1;
@@ -1054,7 +1055,7 @@ fold_background (wfm_plan_t *p, const wfm_plan_segment_t *ps,
   int rc = (bg_idx && gain && tmp) ? 0 : -1;
   for (size_t j = 0; rc == 0 && j < grp; j++)
     {
-      tmp[j] = malloc (per);
+      tmp[j] = dp_mallocn (n, sizeof *acc);
       if (!tmp[j])
         rc = -1;
     }
@@ -1762,20 +1763,16 @@ dp_wfm_plan_restore (const void *blob, size_t n)
    * what is left of the blob is a truncated or forged table: it is not
    * trusted, and the Plan is rebuilt from the spec, as the loop below does
    * for a table that runs out mid-way. That bound also keeps the count in a
-   * size_t, and the byte counts are checked products, so nothing is sized
-   * from a wrapped value. A table that is not allocated leaves layout_ok 0:
-   * the fast path below never sees NULL arrays (#2962). */
-  const size_t left       = n - (size_t)(r - q);
-  size_t       lens_bytes = 0, bufs_bytes = 0;
-  if (n_sig > 0
-      && (n_sig > left / 8
-          || !dp_size_mul ((size_t)n_sig, sizeof *lens, &lens_bytes)
-          || !dp_size_mul ((size_t)n_sig, sizeof *bufs, &bufs_bytes)))
+   * size_t, and the arrays are checked products (dp_mallocn), so nothing is
+   * sized from a wrapped value. A table that is not allocated leaves
+   * layout_ok 0: the fast path below never sees NULL arrays (#2962). */
+  const size_t left = n - (size_t)(r - q);
+  if (n_sig > 0 && n_sig > left / 8)
     layout_ok = 0;
   else if (n_sig > 0)
     {
-      lens = (size_t *)malloc (lens_bytes);
-      bufs = (const float _Complex **)malloc (bufs_bytes);
+      lens = dp_mallocn ((size_t)n_sig, sizeof *lens);
+      bufs = dp_mallocn ((size_t)n_sig, sizeof *bufs);
       if (!lens || !bufs)
         {
           free (lens);

@@ -183,9 +183,13 @@ main (void)
     DP_CHECK (dp_wfm_synth_set_rrc (rs, NULL, 0) == -1);
     /* A tap count whose byte size wraps is refused, never a short buffer:
        unchecked, `ntaps * sizeof (float)` asked malloc for 4 bytes and the
-       scaling loop then ran 2^62 taps past it. The taps are never read. */
+       scaling loop then ran 2^62 taps past it. The taps are never read.
+       The refusal must come from the count: rs is a QPSK synth that shapes,
+       and the same taps at a sane count still install. */
+    DP_REQUIRE (rs && rs->wtype == WFM_SYNTH_QPSK);
     DP_CHECK (dp_wfm_synth_set_rrc (rs, taps, SIZE_MAX / sizeof taps[0] + 2)
               == -1);
+    DP_CHECK (dp_wfm_synth_set_rrc (rs, taps, 5) == 0);
 
     dp_wfm_synth_destroy (rs);
     dp_wfm_synth_destroy (rs2);
@@ -437,11 +441,15 @@ main (void)
     /* A symbol count whose byte size wraps is refused, never a short copy:
        unchecked, `n * sizeof *copy` asked malloc for 8 bytes and the copy
        loop then ran 2^61 symbols past it. The refusal leaves the stream it
-       had: the next sample is still y[1]. */
+       had: the next sample is still y[1]. The refusal must come from the
+       count: ss is a symbols synth, and the same symbols at a sane count
+       still install. */
+    DP_REQUIRE (ss && ss->wtype == WFM_SYNTH_SYMBOLS);
     DP_CHECK (
         dp_wfm_synth_set_symbols (ss, syms, SIZE_MAX / sizeof syms[0] + 2)
         == -1);
     DP_CHECK (dp_wfm_synth_step (ss) == y[1]);
+    DP_CHECK (dp_wfm_synth_set_symbols (ss, syms, 4) == 0);
 
     dp_wfm_synth_destroy (ss);
     dp_wfm_synth_destroy (ss2);

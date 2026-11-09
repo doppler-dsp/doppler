@@ -168,9 +168,12 @@ class DopplerChannel:
             ppm_len that differs from x_len, or a profile sample that is
             non-finite or below -5e5 ppm (a scale under 1/2: past the 2x
             expansion the output is sized for, and at -1e6 ppm time stops,
-            which create() already refuses for the scalar). All checked over
-            the whole profile BEFORE any output is produced, so a bad call
-            writes nothing rather than a valid prefix.
+            which create() already refuses for the scalar). Also refused: a
+            max_out too large to size the position scratch (`max_out * sizeof
+            (double)` overflows a `size_t`, i.e. above `SIZE_MAX / 8`), which
+            no real buffer can be. All checked BEFORE any output is produced,
+            so a bad call writes nothing rather than a valid prefix: elapsed_s
+            is unchanged and dp_doppler_channel_consumed() reads 0.
 
         Raises
         ------

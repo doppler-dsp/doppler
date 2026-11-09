@@ -73,14 +73,14 @@ dp_viterbi_create_code (const conv_code_t *c, size_t depth)
   s->depth  = depth;
   s->nstate = conv_states (c);
 
-  s->pm    = (float *)malloc (s->nstate * sizeof *s->pm);
-  s->pm2   = (float *)malloc (s->nstate * sizeof *s->pm2);
-  s->dec   = (uint8_t *)malloc (depth * s->nstate);
-  s->pred0 = (uint32_t *)malloc (s->nstate * sizeof *s->pred0);
-  s->pred1 = (uint32_t *)malloc (s->nstate * sizeof *s->pred1);
-  s->out0  = (unsigned *)malloc (s->nstate * sizeof *s->out0);
-  s->out1  = (unsigned *)malloc (s->nstate * sizeof *s->out1);
-  s->inbit = (unsigned *)malloc (s->nstate * sizeof *s->inbit);
+  s->pm    = (float *)dp_mallocn (s->nstate, sizeof *s->pm);
+  s->pm2   = (float *)dp_mallocn (s->nstate, sizeof *s->pm2);
+  s->dec   = (uint8_t *)dp_mallocn (depth, s->nstate);
+  s->pred0 = (uint32_t *)dp_mallocn (s->nstate, sizeof *s->pred0);
+  s->pred1 = (uint32_t *)dp_mallocn (s->nstate, sizeof *s->pred1);
+  s->out0  = (unsigned *)dp_mallocn (s->nstate, sizeof *s->out0);
+  s->out1  = (unsigned *)dp_mallocn (s->nstate, sizeof *s->out1);
+  s->inbit = (unsigned *)dp_mallocn (s->nstate, sizeof *s->inbit);
   if (!s->pm || !s->pm2 || !s->dec || !s->pred0 || !s->pred1 || !s->out0
       || !s->out1 || !s->inbit)
     {

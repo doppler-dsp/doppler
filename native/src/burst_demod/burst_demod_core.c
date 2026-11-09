@@ -48,7 +48,7 @@ dp_burst_demod_create_desc (const uint8_t *data_code, size_t data_code_len,
              parameter, so it must not be reported as one. */
           s            = dp_xcalloc (1, sizeof (*s));
           s->data_code = dp_xmalloc (data_code_len);
-          s->sync      = dp_xmalloc (sync_len * sizeof (int8_t));
+          s->sync      = dp_xmallocn (sync_len, sizeof (int8_t));
           memcpy (s->data_code, data_code, data_code_len);
           s->data_sf      = data_code_len;
           s->spc          = spc;
@@ -116,17 +116,31 @@ dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
 {
   if (!acq_code || acq_code_len == 0 || reps == 0)
     return;
+  /* One partial per segment per period. A count that wraps -- or whose
+     buffer cannot be had -- is refused BEFORE anything changes, the same
+     way an invalid argument is: the object keeps whatever preamble it had
+     (none, on a fresh one, so demod() returns 0). Wrapped, it used to size
+     a short buffer that form_partials() then filled past its end. */
+  size_t n_part;
+  if (!dp_size_mul (reps, s->est_segments, &n_part))
+    return;
+  float _Complex *part = dp_mallocn (n_part, sizeof *part);
+  if (!part)
+    return;
   free (s->acq_code);
   s->acq_code = malloc (acq_code_len);
   if (!s->acq_code)
-    return;
+    {
+      free (part);
+      return;
+    }
   memcpy (s->acq_code, acq_code, acq_code_len);
   s->acq_sf   = acq_code_len;
   s->acq_reps = reps;
 
-  s->n_part = reps * s->est_segments; /* one partial per segment per period */
+  s->n_part = n_part;
   free (s->part);
-  s->part = malloc (s->n_part * sizeof (float _Complex));
+  s->part = part;
 
   /* Size ppe's rate search in PARTIAL units: a partial spans Lseg samples, so
    * a physical rate of max_rate cyc/sample^2 maps to max_rate*Lseg^2 per
@@ -375,7 +389,7 @@ dp_burst_demod_demod (dp_burst_demod_state_t *s, const float _Complex *x,
       /* Fixed size, argument already validated: only genuine OOM can fail
          it, so it takes the abort-on-OOM helper rather than an unwind path
          no test can reach. */
-      double *en = dp_xmalloc ((span + fwd + 1) * sizeof *en);
+      double *en = dp_xmallocn (span + fwd + 1, sizeof *en);
       for (size_t i = 0; i <= span + fwd; i++)
         {
           /* An offset that would read before the buffer, or past its end, is
@@ -468,8 +482,8 @@ dp_burst_demod_demod (dp_burst_demod_state_t *s, const float _Complex *x,
    */
   const size_t    tsym     = s->data_sf * s->spc;
   const size_t    nsym_max = (x_len - data0) / tsym + 1;
-  float _Complex *sym      = malloc (nsym_max * sizeof (float _Complex));
-  float _Complex *sym2     = malloc (nsym_max * sizeof (float _Complex));
+  float _Complex *sym      = dp_mallocn (nsym_max, sizeof (float _Complex));
+  float _Complex *sym2     = dp_mallocn (nsym_max, sizeof (float _Complex));
   if (!sym || !sym2)
     {
       free (sym);
@@ -570,8 +584,8 @@ dp_burst_demod_demod (dp_burst_demod_state_t *s, const float _Complex *x,
        estimate are both made from it -- and freeing it cost a caller the
        quadrature, the one axis a phase-coherence problem shows in
        (doppler#1087). */
-    float          *llr  = dp_xnn (realloc (s->llr, frame * sizeof *llr));
-    float _Complex *unit = dp_xnn (realloc (s->sym, frame * sizeof *unit));
+    float          *llr  = dp_xreallocn (s->llr, frame, sizeof *llr);
+    float _Complex *unit = dp_xreallocn (s->sym, frame, sizeof *unit);
     {
       s->llr   = llr;
       s->sym   = unit;

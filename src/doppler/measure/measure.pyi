@@ -332,7 +332,9 @@ class ToneMeasure:
     fs : float, default 1.0
         Sample rate (Hz, > 0).
     n_harmonics : int, default 8
-        Harmonics to track (k = 2..n_harmonics).
+        Harmonics to track (k = 2..n_harmonics). Its n_harmonics + 1 bin slots
+        are allocated here, so a count whose slots do not fit in memory is
+        refused here, not at analysis.
     full_scale : float, default 1.0
         Amplitude that equals 0 dBFS (> 0). Ignored if bits > 0.
     bits : int, default 0

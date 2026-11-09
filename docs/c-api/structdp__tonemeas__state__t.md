@@ -41,6 +41,7 @@ _ToneMeasure state: owned window, FFT plan and analysis scratch._ [More...](#det
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  unsigned char \* | [**excl**](#variable-excl)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
+|  size\_t \* | [**hbin**](#variable-hbin)  <br> |
 |  size\_t | [**lobe\_bins**](#variable-lobe_bins)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_harm**](#variable-n_harm)  <br> |
@@ -185,6 +186,24 @@ double dp_tonemeas_state_t::fs;
 
 
 Sample rate, Hz. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable hbin 
+
+```C++
+size_t* dp_tonemeas_state_t::hbin;
+```
+
+
+
+Owned kept-harmonic bin scratch, n\_harm + 1 slots, from create(). 
  
 
 

@@ -51,6 +51,8 @@ typedef struct {
                                  nfft; overwritten by every call.      */
     unsigned char *excl;    /**< Owned DC/fundamental/harmonic exclusion
                                  mask scratch, length nfft.            */
+    size_t        *hbin;    /**< Owned kept-harmonic bin scratch,
+                                 n_harm + 1 slots, from create().      */
     double enbw;            /**< Window equivalent noise bandwidth, bins.    */
     double beta;            /**< Kaiser shape auto-selected at create()
                                  from the dynamic-range target.        */
@@ -75,7 +77,10 @@ typedef struct {
  *
  * @param n                Capture/frame length (>= 2).
  * @param fs               Sample rate (Hz, > 0).
- * @param n_harmonics      Harmonics to track (k = 2..n_harmonics).
+ * @param n_harmonics      Harmonics to track (k = 2..n_harmonics).  Its
+ *                         n_harmonics + 1 bin slots are allocated here, so
+ *                         a count whose slots do not fit in memory is
+ *                         refused here, not at analysis.
  * @param full_scale       Amplitude that equals 0 dBFS (> 0).  Ignored if
  *                         bits > 0.
  * @param bits             ADC depth: bits>0 sets the 0-dBFS reference to
@@ -85,7 +90,8 @@ typedef struct {
  *                         when > 0, else derived from @p bits (or a deep
  *                         default when both are 0).
  * @param dc_guard         Extra bins excluded beyond L around DC.
- * @return Heap state, or NULL on bad args / allocation failure.
+ * @return Heap state, or NULL on bad args / allocation failure,
+ *         including an @p n_harmonics too large to hold.
  * @note Caller must dp_tonemeas_destroy() when done.
  */
 dp_tonemeas_state_t *dp_tonemeas_create(size_t n, double fs, size_t n_harmonics,

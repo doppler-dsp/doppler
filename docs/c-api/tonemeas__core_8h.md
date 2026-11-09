@@ -258,7 +258,7 @@ The window is always Kaiser; its shape is chosen automatically so the sidelobes 
 
 * `n` Capture/frame length (&gt;= 2). 
 * `fs` Sample rate (Hz, &gt; 0). 
-* `n_harmonics` Harmonics to track (k = 2..n\_harmonics). 
+* `n_harmonics` Harmonics to track (k = 2..n\_harmonics). Its n\_harmonics + 1 bin slots are allocated here, so a count whose slots do not fit in memory is refused here, not at analysis. 
 * `full_scale` Amplitude that equals 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
 * `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target (6.02\*bits + 1.76 + headroom). 
 * `dynamic_range_db` Explicit sidelobe/dynamic-range target (dB); used when &gt; 0, else derived from `bits` (or a deep default when both are 0). 
@@ -268,7 +268,7 @@ The window is always Kaiser; its shape is chosen automatically so the sidelobes 
 
 **Returns:**
 
-Heap state, or NULL on bad args / allocation failure. 
+Heap state, or NULL on bad args / allocation failure, including an `n_harmonics` too large to hold. 
 
 
 

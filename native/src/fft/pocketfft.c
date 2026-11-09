@@ -156,9 +156,23 @@ pffft_try_setup (pocketfft_plan *p)
 /* ----------------------------------------------------------------------
  * Plan lifecycle
  * -------------------------------------------------------------------- */
+/* Whether vendored pocketfft can size a plan of length @p n. Its Bluestein
+   plan (make_fftblue_plan) allocates 2n + 2*n2 doubles with n2 =
+   good_size(2n - 1) < 4n, so at most 10n doubles, and computes that count
+   unchecked: a length past this bound wraps it (#2958, found by ASan). The
+   check belongs to the caller of the vendored code, which is this file. */
+static int
+plan_len_ok (size_t n)
+{
+  size_t bytes;
+  return dp_size_mul (n, 10 * sizeof (double), &bytes);
+}
+
 pocketfft_plan *
 dp_pocketfft_plan_1d (size_t n, int sign)
 {
+  if (!plan_len_ok (n))
+    return NULL;
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
     return NULL;
@@ -179,6 +193,8 @@ dp_pocketfft_plan_1d (size_t n, int sign)
 pocketfft_plan *
 dp_pocketfft_plan_2d (size_t ny, size_t nx, int sign)
 {
+  if (!plan_len_ok (ny) || !plan_len_ok (nx))
+    return NULL;
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
     return NULL;

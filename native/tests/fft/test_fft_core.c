@@ -40,9 +40,9 @@ main (void)
     dp_fft_reset (obj); /* no-op; must not crash */
     dp_fft_destroy (obj);
     dp_fft_destroy (NULL); /* must not crash */
-    /* A length whose plan buffers (2n doubles) no size_t can count is
-       refused before anything is sized: the product once wrapped to a
-       small buffer the transform wrote past (#2958). */
+    /* A length vendored pocketfft cannot size its plan for (its Bluestein
+       count, up to 10n doubles, would wrap) is refused before the vendor
+       code runs: ASan caught the wrapped request (#2958). */
     DP_CHECK (dp_fft_create (SIZE_MAX / 8, -1, 1) == NULL);
   }
 

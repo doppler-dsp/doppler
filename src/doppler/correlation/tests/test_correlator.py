@@ -18,12 +18,12 @@ raised everywhere fails too.
 import inspect
 import re
 import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
 
 from doppler.correlation import Correlator
+from doppler.tests._repo import repo_root
 from doppler.wfm import PN, mls_poly
 
 if sys.version_info >= (3, 11):
@@ -129,9 +129,7 @@ def test_last_corr_is_a_detectors(flavor):
 # against the code -- a served flavor reads or calls it, every other
 # refuses with the member's own declared sentence.
 
-_DESIGN = (
-    Path(__file__).resolve().parents[4] / "docs/design/correlator-python.md"
-)
+_DESIGN = repo_root() / "docs/design/correlator-python.md"
 #: Each "served by" phrase the tables use, as the flavors it names.
 _PHRASES = {
     "every flavor": set(FLAVORS),
@@ -237,7 +235,7 @@ def _declared_refusals() -> dict[str, str]:
     """Each method's declared off-flavor sentence, from its manifest: the
     DP_ERR_UNSUPPORTED status message, or a sentinel method's own message,
     when it is the off-flavor kind ("name: only ...")."""
-    manifest = Path(__file__).resolve().parents[4] / "objects/correlator.toml"
+    manifest = repo_root() / "objects/correlator.toml"
     with manifest.open("rb") as f:
         methods = tomllib.load(f)["correlator"]["methods"]
     out = {}

@@ -310,10 +310,9 @@ hdr_add (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
   wfm_keyword_t *p = dp_reallocn (r->hdr, r->nhdr + 1u, sizeof *p);
   if (!p)
     return;
-  r->hdr             = p;
-  wfm_keyword_t *k   = &r->hdr[r->nhdr];
-  size_t         nby = count * esz;
-  k->value           = (uint8_t *)malloc (nby);
+  r->hdr           = p;
+  wfm_keyword_t *k = &r->hdr[r->nhdr];
+  k->value         = (uint8_t *)dp_mallocn (count, esz);
   if (!k->value)
     return;
   snprintf (k->tag, sizeof k->tag, "%s", tag);
@@ -321,7 +320,7 @@ hdr_add (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
   k->elem_size = esz;
   k->count     = count;
   if (type == 'A')
-    memcpy (k->value, src, nby); /* ASCII is not byte-order dependent */
+    memcpy (k->value, src, count); /* ASCII: 1-byte elements, no swap */
   else
     for (size_t e = 0; e < count; e++)
       swab_copy (k->value + e * esz, src + e * esz, esz, be);

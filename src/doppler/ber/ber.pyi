@@ -1,5 +1,6 @@
 # ber/ber.pyi — type stubs for the ber C extension.
 from typing import final
+
 import numpy as np
 import numpy.typing as npt
 

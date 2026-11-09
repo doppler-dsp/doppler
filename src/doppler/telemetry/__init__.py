@@ -17,6 +17,22 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .telemetry import Telemetry, MemoryCapture, Capture, TelemetryStats, EventLog, STYPE, ENDIAN  # noqa: E402
+from .telemetry import (  # noqa: E402
+    ENDIAN,
+    STYPE,
+    Capture,
+    EventLog,
+    MemoryCapture,
+    Telemetry,
+    TelemetryStats,
+)
 
-__all__ = ["Telemetry", "MemoryCapture", "Capture", "TelemetryStats", "EventLog", "STYPE", "ENDIAN"]
+__all__ = [
+    "Telemetry",
+    "MemoryCapture",
+    "Capture",
+    "TelemetryStats",
+    "EventLog",
+    "STYPE",
+    "ENDIAN",
+]

@@ -37,6 +37,18 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .coding import ConvEncoder, Viterbi, ReedSolomon, Interleaver, Deinterleaver  # noqa: E402
+from .coding import (  # noqa: E402
+    ConvEncoder,
+    Deinterleaver,
+    Interleaver,
+    ReedSolomon,
+    Viterbi,
+)
 
-__all__ = ["ConvEncoder", "Viterbi", "ReedSolomon", "Interleaver", "Deinterleaver"]
+__all__ = [
+    "ConvEncoder",
+    "Viterbi",
+    "ReedSolomon",
+    "Interleaver",
+    "Deinterleaver",
+]

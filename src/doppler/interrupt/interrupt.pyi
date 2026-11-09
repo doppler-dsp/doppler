@@ -1,5 +1,6 @@
 # interrupt/interrupt.pyi — type stubs for the interrupt C extension.
 from typing import final
+
 import numpy as np
 import numpy.typing as npt
 

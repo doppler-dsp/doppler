@@ -1,5 +1,6 @@
 # interp/interp.pyi — type stubs for the interp C extension.
-from typing import final, Literal
+from typing import Literal, final
+
 import numpy as np
 import numpy.typing as npt
 from numpy.typing import NDArray

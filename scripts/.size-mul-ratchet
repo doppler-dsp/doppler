@@ -14,4 +14,3 @@
 # may be added or raised against the merge base with origin/main.
 #
 # Format:  <path> <count>  # why
-native/src/correlator/correlator_core.c 7  # being rewritten in its own PR (#2958), which moves these onto dp_size_mul / dp_size_from_double and removes this line

@@ -159,10 +159,6 @@ pffft_try_setup (pocketfft_plan *p)
 pocketfft_plan *
 dp_pocketfft_plan_1d (size_t n, int sign)
 {
-  /* The promote buffer is 2n doubles: a length whose bytes do not fit a
-     size_t would wrap to a small buffer the transform writes past. */
-  if (n > SIZE_MAX / (2 * sizeof (double)))
-    return NULL;
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
     return NULL;
@@ -170,7 +166,7 @@ dp_pocketfft_plan_1d (size_t n, int sign)
   p->sign    = sign;
   p->is2d    = 0;
   p->row     = make_cfft_plan (n);
-  p->promote = (double *)malloc (sizeof (double) * 2 * n);
+  p->promote = (double *)dp_mallocn (dp_size_mul_sat (2, n), sizeof (double));
   if (!p->row || !p->promote)
     {
       dp_pocketfft_destroy_plan (p);
@@ -193,10 +189,13 @@ dp_pocketfft_plan_2d (size_t ny, size_t nx, int sign)
   p->use_transpose = is_pow2 (nx);
   p->row           = make_cfft_plan (nx);
   p->col           = make_cfft_plan (ny);
-  p->rowscratch    = (double *)malloc (sizeof (double) * 2 * nx);
-  p->colscratch    = (double *)malloc (sizeof (double) * 2 * ny);
+  p->rowscratch
+      = (double *)dp_mallocn (dp_size_mul_sat (2, nx), sizeof (double));
+  p->colscratch
+      = (double *)dp_mallocn (dp_size_mul_sat (2, ny), sizeof (double));
   if (p->use_transpose)
-    p->tbuf = (double *)malloc (sizeof (double) * 2 * ny * nx);
+    p->tbuf = (double *)dp_mallocn (
+        dp_size_mul_sat (dp_size_mul_sat (2, ny), nx), sizeof (double));
   if (!p->row || !p->col || !p->rowscratch || !p->colscratch
       || (p->use_transpose && !p->tbuf))
     {

@@ -1300,6 +1300,8 @@ add_test(NAME test_clib_common_xmallocn_aborts
          COMMAND test_clib_common --abort xmallocn)
 add_test(NAME test_clib_common_xreallocn_aborts
          COMMAND test_clib_common --abort xreallocn)
+add_test(NAME test_clib_common_xcallocn_aborts
+         COMMAND test_clib_common --abort xcallocn)
 
 # native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
 # rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot

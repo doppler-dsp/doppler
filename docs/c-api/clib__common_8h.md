@@ -66,6 +66,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
+|  void \* | [**dp\_callocn**](#function-dp_callocn) (size\_t n, size\_t m, size\_t size) <br>_calloc for_ `n * m` _zeroed elements of_`size` _bytes; NULL when_`n * m` _overflows, or when calloc refuses._ |
 |  double | [**dp\_fftfreq**](#function-dp_fftfreq) (size\_t bin, size\_t n, double fs) <br>_The frequency of an FFT bin, in the units of_ `fs` _._ |
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
 |  void \* | [**dp\_mallocn**](#function-dp_mallocn) (size\_t n, size\_t size) <br>_malloc for_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM._ |
@@ -76,6 +77,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 |  int | [**dp\_size\_mul**](#function-dp_size_mul) (size\_t a, size\_t b, size\_t \* out) <br>`a * b` _as a_`size_t` _, or a refusal when the product does not fit._ |
 |  size\_t | [**dp\_size\_mul\_sat**](#function-dp_size_mul_sat) (size\_t a, size\_t b) <br>`a * b` _, or_`SIZE_MAX` _when the product does not fit._ |
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
+|  void \* | [**dp\_xcallocn**](#function-dp_xcallocn) (size\_t n, size\_t m, size\_t size) <br>_dp\_xcalloc for_ `n * m` _zeroed elements of_`size` _bytes: aborts on overflow or OOM._ |
 |  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
 |  void \* | [**dp\_xmallocn**](#function-dp_xmallocn) (size\_t n, size\_t size) <br>_dp\_xmalloc for_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._ |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
@@ -220,6 +222,77 @@ C's `lgamma()` writes the sign of Gamma into the global `signgam`, so two thread
 <hr>
 ## Public Static Functions Documentation
 
+
+
+
+### function dp\_callocn 
+
+_calloc for_ `n * m` _zeroed elements of_`size` _bytes; NULL when_`n * m` _overflows, or when calloc refuses._
+```C++
+static inline void * dp_callocn (
+    size_t n,
+    size_t m,
+    size_t size
+) 
+```
+
+
+
+The zeroed allocation whose element count is a PRODUCT  rows times columns, lanes times taps  on a path that can refuse (a create(), a resize, a decode): check the result and refuse, exactly as for calloc. `n * m` is checked by dp\_size\_mul(); the product is then handed to `calloc (n * m, size)` as its element count, so calloc keeps its own `nmemb * size` check. NULL therefore means one of three things, and a caller refuses on all of them: `n * m` overflowed, `n * m * size` overflowed (calloc's refusal), or memory ran out. Pick dp\_xcallocn() instead when the count is already bounded and only a genuine OOM could fail it; pick plain calloc when the count is a single factor.
+
+
+
+
+**Note:**
+
+When `n * m == 0` or `size == 0` this asks for ONE zeroed byte, not zero: `calloc (0, s)` may return NULL, which a caller would read as a refusal. So NULL from dp\_callocn means overflow or OOM and nothing else, and a zero-count result is a live pointer the caller frees as usual and never dereferences.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  // 3 rows of 5 floats, zeroed
+  float *grid = dp_callocn (3, 5, sizeof *grid);
+  if (!grid)
+    return 1;
+  printf ("%g\n", grid[14]); // 0
+  free (grid);
+  // 2^(w-1) x 2 elements is 2^w: refused, not wrapped to 0
+  printf ("%d\n", dp_callocn (SIZE_MAX / 2 + 1, 2, 1) == NULL); // 1
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n` First factor of the element count. 
+* `m` Second factor of the element count. 
+* `size` Bytes per element. 
+
+
+
+**Returns:**
+
+The zeroed allocation, or NULL on overflow or OOM. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -783,6 +856,71 @@ static inline void * dp_xcalloc (
 
 
 calloc that aborts on OOM (zero-initialised trusted allocation). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_xcallocn 
+
+_dp\_xcalloc for_ `n * m` _zeroed elements of_`size` _bytes: aborts on overflow or OOM._
+```C++
+static inline void * dp_xcallocn (
+    size_t n,
+    size_t m,
+    size_t size
+) 
+```
+
+
+
+For a trusted internal zeroed allocation whose count is a product of two already-validated factors. `n * m` is checked by dp\_size\_mul() and an overflow aborts; `calloc (n * m, size)` then keeps its own `nmemb * size` check, and its refusal aborts through dp\_xnn() like an OOM. Either overflow is a broken internal guarantee, so the answer is an abort, never a short buffer.
+
+
+
+
+**Note:**
+
+When `n * m == 0` or `size == 0` this asks for ONE zeroed byte, not zero: `calloc (0, s)` may return NULL, and dp\_xnn would abort on it as if out of memory. The result is a live pointer the caller frees as usual and never dereferences.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+
+int
+main (void)
+{
+  // 4 lanes of 64 taps, zeroed
+  double *taps = dp_xcallocn (4, 64, sizeof *taps);
+  taps[255]    = taps[0] + 1.0;
+  free (taps);
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n` First factor of the element count. 
+* `m` Second factor of the element count. 
+* `size` Bytes per element. 
+
+
+
+**Returns:**
+
+The zeroed allocation; never NULL. 
+
+
+
 
 
         

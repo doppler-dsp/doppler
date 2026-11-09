@@ -29,6 +29,7 @@
 
 ## d
 
+* **dp\_callocn** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_fftfreq** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_fftfreq\_index** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_fmod\_pos** ([**clib\_common.h**](clib__common_8h.md))
@@ -41,6 +42,7 @@
 * **dp\_size\_mul** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_size\_mul\_sat** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xcalloc** ([**clib\_common.h**](clib__common_8h.md))
+* **dp\_xcallocn** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xmalloc** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xmallocn** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xnn** ([**clib\_common.h**](clib__common_8h.md))

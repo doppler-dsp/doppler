@@ -2,8 +2,8 @@
  * test_clib_common.c — the checked size product, dp_size_mul() and its
  * saturating face dp_size_mul_sat(), and the double-to-size_t range check
  * dp_size_from_double(), and the array allocators built on the product,
- * dp_mallocn() / dp_reallocn() / dp_xmallocn() / dp_xreallocn()
- * (clib_common.h).
+ * dp_mallocn() / dp_reallocn() / dp_callocn() / dp_xmallocn() /
+ * dp_xreallocn() / dp_xcallocn() (clib_common.h).
  *
  * A size product that wraps allocates small and is then written past.
  * The guard had been hand-written at every site, a different way each
@@ -36,15 +36,22 @@
  *      request of ~SIZE_MAX bytes cannot be allocated to prove it). A
  *      zero count is a live block that does not free p, and a grow then
  *      a shrink keeps the prefix.
- *   9. dp_xmallocn and dp_xreallocn ABORT on an overflowing count: run as
- *      `test_clib_common --abort <which>` by two more ctests, which pass
- *      only when SIGABRT is raised.
+ *   8c. dp_callocn / dp_xcallocn: the element count n * m is refused at
+ *      its first overflowing value, for several m (the fitting side is
+ *      section 3's again); an n * m that fits but whose n * m * size does
+ *      not is refused by calloc's own check; the block really is zeroed,
+ *      over a freed block of the same size filled with a pattern; and a
+ *      zero factor, of either count or size, is a live one-byte block.
+ *   9. dp_xmallocn, dp_xreallocn and dp_xcallocn ABORT on an overflowing
+ *      count: run as `test_clib_common --abort <which>` by three more
+ *      ctests, which pass only when SIGABRT is raised.
  *
  * Each section was proven by sabotage: the guard widened by one and then
  * removed, and this file went red each time; for section 7, the bound
  * loosened to `<= (double)SIZE_MAX`; for 8 and 9, the product checked
  * by dp_size_mul replaced with a plain `n * size` (for 8b, in
- * dp_reallocn).
+ * dp_reallocn; for 8c and xcallocn, `n * m` in dp_callocn and
+ * dp_xcallocn).
  *
  * The factors go through volatile reads so the compiler cannot fold the
  * checks at build time: the function under test runs on every build type.
@@ -73,6 +80,45 @@ opaque_d (double x)
   return v;
 }
 
+/* Section 8c: malloc a block of nb bytes, fill it with 0xA5 and free it,
+ * so the next same-size allocation is likely handed that block back. The
+ * stores go through a volatile pointer, or the compiler may drop them as
+ * dead before the free. 0 on OOM. */
+static int
+leave_dirty_block (size_t nb)
+{
+  unsigned char *d = malloc (nb);
+  if (!d)
+    return 0;
+  volatile unsigned char *v = d;
+  for (size_t i = 0; i < nb; ++i)
+    v[i] = 0xA5;
+  free (d);
+  return 1;
+}
+
+/* Section 8c asks calloc for an n * size that overflows and expects the
+ * NULL the C standard promises. ASan's allocator reports that request as
+ * a fatal calloc-overflow instead, unless allocator_may_return_null is
+ * set; set it for this binary alone, so the case runs under ASan too
+ * rather than being skipped there. ASAN_OPTIONS from the environment
+ * still applies on top, and none of the repo's sets this key. */
+#if defined(__SANITIZE_ADDRESS__)
+#define CLIB_TEST_ASAN 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define CLIB_TEST_ASAN 1
+#endif
+#endif
+#if defined(CLIB_TEST_ASAN) && !defined(_MSC_VER)
+const char *__asan_default_options (void);
+const char *
+__asan_default_options (void)
+{
+  return "allocator_may_return_null=1";
+}
+#endif
+
 /* Section 9: abort() raises SIGABRT; catching it and leaving with status
  * 0 is the pass. Returning from the allocator at all is the failure. */
 static void
@@ -98,6 +144,8 @@ abort_mode (const char *which)
     p = dp_xmallocn (n, 2);
   else if (strcmp (which, "xreallocn") == 0)
     p = dp_xreallocn (NULL, n, 2);
+  else if (strcmp (which, "xcallocn") == 0)
+    p = dp_xcallocn (n, 2, 1);
   else
     return 2;
   /* Reached only when the overflow was not caught: a wrapped request of 0
@@ -367,6 +415,76 @@ main (int argc, char **argv)
     p = g;
     DP_CHECK (p[0] == 1);
     free (p);
+  }
+
+  /* 8c. dp_callocn / dp_xcallocn: a zeroed block of n * m elements. */
+  {
+    /* The n * m boundary, refused side: SIZE_MAX / m + 1 rows of m is
+     * the first count that wraps (to 0 for a power of two, to 2 for
+     * m = 3), which `calloc (n * m, size)` would grant as a tiny block.
+     * SIZE_MAX / m itself fits (section 3); with size 1 that count is
+     * still ~SIZE_MAX bytes, which cannot be allocated to prove it. */
+    static const size_t m[] = { 2, 3, 8, 16, 24 };
+    for (size_t k = 0; k < sizeof m / sizeof m[0]; ++k)
+      {
+        size_t fits;
+        DP_CHECK (dp_size_mul (opaque (SIZE_MAX / m[k]), m[k], &fits) == 1);
+        DP_CHECK (dp_callocn (opaque (SIZE_MAX / m[k] + 1), m[k], 1) == NULL);
+      }
+    DP_CHECK (dp_callocn (opaque (SIZE_MAX), opaque (SIZE_MAX), 1) == NULL);
+
+    /* n * m fits (SIZE_MAX / 4 * 2 < SIZE_MAX) but n * m * size does
+     * not: refused by calloc's own nmemb * size check, which dp_callocn
+     * keeps by passing the count and size separately. */
+    size_t cnt;
+    DP_CHECK (dp_size_mul (opaque (SIZE_MAX / 4), 2, &cnt) == 1);
+    DP_CHECK (dp_callocn (opaque (SIZE_MAX / 4), 2, 4) == NULL);
+
+    /* Zeroing really happens: free a same-size block filled with a
+     * pattern first, so an allocator that reuses it (glibc's tcache
+     * does) would hand the pattern back to a malloc. Every byte of the
+     * 3 x 5 floats must read 0. */
+    const size_t rows = opaque (3), cols = opaque (5);
+    const size_t nb = sizeof (float[3][5]);
+    DP_REQUIRE (leave_dirty_block (nb));
+    float *z = dp_callocn (rows, cols, sizeof *z);
+    DP_REQUIRE (z != NULL);
+    const unsigned char *zb    = (const unsigned char *)z;
+    int                  clean = 1;
+    for (size_t i = 0; i < nb; ++i)
+      clean &= zb[i] == 0;
+    DP_CHECK (clean);
+    free (z);
+
+    DP_REQUIRE (leave_dirty_block (nb));
+    z     = dp_xcallocn (rows, cols, sizeof *z);
+    zb    = (const unsigned char *)z;
+    clean = 1;
+    for (size_t i = 0; i < nb; ++i)
+      clean &= zb[i] == 0;
+    DP_CHECK (clean);
+    free (z);
+
+    /* A zero factor -- either half of the count, or the size -- is a
+     * live one-byte zeroed block, never NULL. */
+    unsigned char *one = dp_callocn (opaque (0), 5, 4);
+    DP_REQUIRE (one != NULL);
+    DP_CHECK (one[0] == 0);
+    free (one);
+    one = dp_callocn (5, opaque (0), 4);
+    DP_REQUIRE (one != NULL);
+    DP_CHECK (one[0] == 0);
+    free (one);
+    one = dp_callocn (5, 3, opaque (0));
+    DP_REQUIRE (one != NULL);
+    DP_CHECK (one[0] == 0);
+    free (one);
+    one = dp_xcallocn (opaque (0), 5, 4);
+    DP_CHECK (one != NULL && one[0] == 0);
+    free (one);
+    one = dp_xcallocn (5, 3, opaque (0));
+    DP_CHECK (one != NULL && one[0] == 0);
+    free (one);
   }
 
   DP_TEST_END ("test_clib_common");

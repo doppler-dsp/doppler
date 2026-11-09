@@ -1691,15 +1691,16 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
               return adr_steps (state, x + off, x_len - off, out, max_out);
             }
           const size_t need = (size_t)(in0 - (uint64_t)i0);
-          /* need is at most the history ring's length and x_len counts
-             elements the caller already holds, so the sum cannot wrap;
-             the product with the element size is checked. */
-          float _Complex *join = dp_xmallocn (need + x_len, sizeof *join);
+          /* Trusted, like every allocation on this path: a sum that does
+             not fit aborts, and so does the byte product (dp_xmallocn). */
+          size_t join_len;
+          if (!dp_size_add (need, x_len, &join_len))
+            abort ();
+          float _Complex *join = dp_xmallocn (join_len, sizeof *join);
           memcpy (join, state->srch_hist + state->srch_hist_len - need,
                   need * sizeof *join);
           memcpy (join + need, x, x_len * sizeof *join);
-          const size_t n_out
-              = adr_steps (state, join, need + x_len, out, max_out);
+          const size_t n_out = adr_steps (state, join, join_len, out, max_out);
           free (join);
           return n_out;
         }

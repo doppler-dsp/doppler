@@ -184,6 +184,13 @@ main (void)
     /* A gate above everything returns nothing -- and an empty result is
        not an error. */
     DP_CHECK (dp_find_peaks_f32 (db, 32, 4, 0.0f, pk) == 0);
+
+    /* A length whose candidate buffer's byte size wraps is refused before
+       db is read: 0 peaks. The unchecked product sized a 0-byte buffer and
+       the scan then walked db far past its 32 elements. */
+    size_t huge = 2 * (SIZE_MAX / sizeof (dp_peak_t));
+    DP_REQUIRE (huge / 2 + 1 > SIZE_MAX / sizeof (dp_peak_t));
+    DP_CHECK (dp_find_peaks_f32 (db, huge, 4, -30.0f, pk) == 0);
   }
 
   /* ── noise_floor_db: a MEDIAN, so tones must not move it ────────── */
@@ -212,6 +219,13 @@ main (void)
     DP_CHECK (fabs (dp_noise_floor_db (db, 101) - (-50.0)) < 1e-6);
 
     DP_CHECK (dp_noise_floor_db (db, 0) == 0.0);
+
+    /* A length whose copy's byte size wraps is refused before db is read,
+       with the same 0.0 as an empty spectrum. The unchecked product sized
+       a 0-byte copy and qsort then ran over it at the full length. */
+    size_t huge = SIZE_MAX / sizeof (float) + 1;
+    DP_REQUIRE (huge > SIZE_MAX / sizeof (float));
+    DP_CHECK (dp_noise_floor_db (db, huge) == 0.0);
   }
 
   /* ── obw_from_power: (1-frac)/2 excluded at EACH end ─────────────── */

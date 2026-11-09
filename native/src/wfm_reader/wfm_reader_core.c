@@ -281,13 +281,15 @@ kw_append (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
   size_t esz = dp_wfm_kw_elem_size (type);
   if (esz == 0 || count == 0)
     return;
-  wfm_keyword_t *p
-      = (wfm_keyword_t *)realloc (r->kw, (r->nkw + 1) * sizeof *p);
+  size_t         bytes;
+  wfm_keyword_t *p = dp_size_mul (r->nkw + 1u, sizeof *p, &bytes)
+                         ? (wfm_keyword_t *)realloc (r->kw, bytes)
+                         : NULL;
   if (!p)
     return;
   r->kw            = p;
   wfm_keyword_t *k = &r->kw[r->nkw];
-  k->value         = (uint8_t *)malloc (count * esz);
+  k->value         = (uint8_t *)dp_mallocn (count, esz);
   if (!k->value)
     return;
   snprintf (k->tag, sizeof k->tag, "%s", tag);
@@ -308,8 +310,10 @@ hdr_add (dp_wfm_reader_state_t *r, const char *tag, char type, size_t count,
   size_t esz = dp_wfm_kw_elem_size (type);
   if (esz == 0 || count == 0)
     return;
-  wfm_keyword_t *p
-      = (wfm_keyword_t *)realloc (r->hdr, (r->nhdr + 1) * sizeof *p);
+  size_t         bytes;
+  wfm_keyword_t *p = dp_size_mul (r->nhdr + 1u, sizeof *p, &bytes)
+                         ? (wfm_keyword_t *)realloc (r->hdr, bytes)
+                         : NULL;
   if (!p)
     return;
   r->hdr             = p;

@@ -1102,7 +1102,7 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
           || src->type == WFM_SYNTH_SYMBOLS || src->type == WFM_SYNTH_DSSS))
     {
       int    ntaps = wfm_rrc_ntaps (src->sps, src->rrc_span);
-      float *taps  = (float *)malloc ((size_t)ntaps * sizeof *taps);
+      float *taps  = dp_mallocn ((size_t)ntaps, sizeof *taps);
       if (taps)
         {
           dp_wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);

@@ -181,6 +181,11 @@ main (void)
     /* set_rrc is a no-op on a non-modulated synth, and rejects bad args */
     DP_CHECK (dp_wfm_synth_set_rrc (obj, taps, 5) == 0); /* obj is a tone */
     DP_CHECK (dp_wfm_synth_set_rrc (rs, NULL, 0) == -1);
+    /* A tap count whose byte size wraps is refused, never a short buffer:
+       unchecked, `ntaps * sizeof (float)` asked malloc for 4 bytes and the
+       scaling loop then ran 2^62 taps past it. The taps are never read. */
+    DP_CHECK (dp_wfm_synth_set_rrc (rs, taps, SIZE_MAX / sizeof taps[0] + 2)
+              == -1);
 
     dp_wfm_synth_destroy (rs);
     dp_wfm_synth_destroy (rs2);
@@ -429,6 +434,14 @@ main (void)
     DP_CHECK (dp_wfm_synth_set_symbols (obj, syms, 4)
               == 0); /* obj is a tone */
     DP_CHECK (dp_wfm_synth_set_symbols (ss, NULL, 0) == -1);
+    /* A symbol count whose byte size wraps is refused, never a short copy:
+       unchecked, `n * sizeof *copy` asked malloc for 8 bytes and the copy
+       loop then ran 2^61 symbols past it. The refusal leaves the stream it
+       had: the next sample is still y[1]. */
+    DP_CHECK (
+        dp_wfm_synth_set_symbols (ss, syms, SIZE_MAX / sizeof syms[0] + 2)
+        == -1);
+    DP_CHECK (dp_wfm_synth_step (ss) == y[1]);
 
     dp_wfm_synth_destroy (ss);
     dp_wfm_synth_destroy (ss2);

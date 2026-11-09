@@ -19,25 +19,13 @@
 # Format:  <path> <count>
 
 native/inc/doppler/dp_parallel.h 2
-native/src/RateConverter/RateConverter_core.c 5
 native/src/async_dsss_pool/async_dsss_pool_core.c 3
 native/src/async_dsss_receiver/async_dsss_receiver_core.c 9
 native/src/burst_capture/burst_capture_core.c 7
 native/src/correlator/correlator_core.c 78
-native/src/ddc/ddc_core.c 2
-native/src/ddcr/ddcr_core.c 1
-native/src/delay/delay_core.c 1
-native/src/doppler_channel/doppler_channel_core.c 2
 native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 4
 native/src/dsss_receiver/dsss_receiver_core.c 3
 native/src/fft/pocketfft.c 4
-native/src/fft2d/fft2d_core.c 1
-native/src/fir/fir_core.c 3
-native/src/hbdecim/hbdecim_core.c 3
-native/src/hbdecim_q15/hbdecim_q15_core.c 4
-native/src/interp_table/interp_table_core.c 1
-native/src/resamp/resamp_core.c 3
-native/src/resample/hbdecim_r2c_core.c 3
 native/src/wfm/wfm_compose.c 5
 native/src/wfm/wfm_dsp.c 1
 native/src/wfm/wfm_json.c 3

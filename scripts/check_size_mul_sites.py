@@ -17,17 +17,34 @@ SIZE_MAX rounds UP to 2^64 as a double, so 2^64 itself passes and its
 conversion is undefined. `dp_size_from_double()` bounds against 2^w
 exactly; a `(double)SIZE_MAX` cast anywhere else is a site too.
 
-**A site is `SIZE_MAX` used as a divisor's dividend** (`SIZE_MAX\\s*/`),
-the signature of a hand-written multiply guard, or `SIZE_MAX` cast to a
-double (`(double)SIZE_MAX`, `(double)(SIZE_MAX ...`), in C under `native/`
-and `ffi/`. One expression is one site: `(double)(SIZE_MAX / 2)` counts
-once, not once per idiom. Comments are blanked first
+**A site is one of three shapes**, in C under `native/` and `ffi/`, with
+SIZE_MAX spelled any of the ways C spells it (`SIZE_MAX`, `~(size_t)0`,
+`(size_t)-1`):
+
+1. *SIZE_MAX in the numerator of a division* -- `SIZE_MAX / k`,
+   `(SIZE_MAX - x) / k`, `(SIZE_MAX) / k`: the hand-written multiply (or
+   multiply-add) guard. Use dp_size_mul, and dp_size_add for the sum.
+2. *SIZE_MAX cast to a floating type* -- `(double)SIZE_MAX`,
+   `(float)(SIZE_MAX ...)`, `(long double)SIZE_MAX`: the double-fits check.
+   Use dp_size_from_double.
+3. *SIZE_MAX compared in a clause that also holds a floating literal or
+   a floating cast* -- `d * 1.0 <= SIZE_MAX`, `(double)n > SIZE_MAX`: the
+   same check, spelled with an implicit conversion. A clause is the text
+   between `&&`, `||`, `,`, `;`, `?` and `:`, so `x != 0.0f || n !=
+   SIZE_MAX` is two clauses and not a site. **The limit:** the script
+   cannot type-check, so `d <= SIZE_MAX` where `d` is a double and
+   nothing in its clause says so is not caught. Review is the gate for
+   that one.
+
+One LINE is one site, whatever the number of shapes on it:
+`(double)(SIZE_MAX / 2)` is a single guard. Comments are blanked first
 (_c_source.strip_comments), so a comment that quotes the idiom is not one.
 Not scanned: clib_common.h (the home), `native/tests/**` (tests build
 boundary values on purpose), `vendor/**` (not ours), and any file whose
-first line is `/* jm:generated` (owned by the just-makeit generator; a fix
-there is a jm fix). A `SIZE_MAX` that is not divided -- a u64-to-size_t
-range check, a saturating SUM -- is not a product and is not a site.
+first line is `/* jm:generated` (owned by the just-makeit generator; a
+fix there is a jm fix). A `SIZE_MAX` that is neither divided, cast to a
+floating type nor compared beside one -- a u64-to-size_t range check, a
+saturating sum -- is not a site.
 
 **What is left is a RATCHET that only shrinks.** `scripts/.size-mul-ratchet`
 holds lines `<path> <count>  # reason`. A file may hold no more sites than
@@ -57,9 +74,71 @@ BASELINE = "scripts/.size-mul-ratchet"
 SCAN_DIRS = ("native", "ffi")
 EXCLUDE_DIRS = ("native/tests/",)
 GENERATED = "/* jm:generated"
-#: The cast alternative comes first, so `(double)(SIZE_MAX / 2)` is
-#: consumed as one site rather than matched twice.
-SITE = re.compile(r"\(\s*double\s*\)\s*\(?\s*SIZE_MAX\b|\bSIZE_MAX\s*/")
+#: SIZE_MAX as C spells it: the macro, all-ones by complement, or -1 cast.
+#: `sizeof (size_t) - 1` is a width, not a cast of -1: the look-behinds
+#: keep it out (`sizeof(` and `sizeof (`, the two spellings clang-format
+#: leaves).
+MAXV = (
+    r"(?:\bSIZE_MAX\b|~\s*\(\s*size_t\s*\)\s*0[uUlL]*\b"
+    r"|(?<!sizeof)(?<!sizeof )\(\s*size_t\s*\)\s*-\s*1\b)"
+)
+_MAXV = re.compile(MAXV)
+#: Shape 1, the direct spelling: SIZE_MAX right before a `/`.
+DIV_DIRECT = re.compile(MAXV + r"\s*/(?![/*=])")
+#: Shape 2: SIZE_MAX cast to a floating type, through any parentheses.
+FLOAT_CAST = re.compile(
+    r"\(\s*(?:long\s+)?(?:double|float)\s*\)\s*\(*\s*" + MAXV
+)
+#: Shape 3: SIZE_MAX on either side of a comparison ...
+CMP = re.compile(
+    r"(?:[<>]=?|[!=]=)\s*\(*\s*"
+    + MAXV
+    + r"|"
+    + MAXV
+    + r"\s*\)*\s*(?:[<>]=?|[!=]=)"
+)
+#: ... in a clause that says it is floating: a floating literal or cast.
+FLOATY = re.compile(
+    r"(?<![\w.])(?:\d+\.\d*|\.\d+|\d+[eE][+-]?\d+|0[xX][\da-fA-F.]*[pP][+-]?\d+)"
+    r"(?:[eE][+-]?\d+)?[fFlL]?(?![\w.])"
+    r"|\(\s*(?:long\s+)?(?:double|float)\s*\)"
+)
+
+
+def _paren_before(text: str, close: int) -> str | None:
+    """The balanced `( ... )` group whose `)` is at ``close``."""
+    depth = 0
+    for i in range(close, -1, -1):
+        if text[i] == ")":
+            depth += 1
+        elif text[i] == "(":
+            depth -= 1
+            if depth == 0:
+                return text[i : close + 1]
+    return None
+
+
+#: What ends a clause around a comparison.
+_CLAUSE_END = re.compile(r"&&|\|\||[,;?:{}]")
+
+
+def _clause(text: str, at: int) -> str:
+    """The clause of ``text`` holding offset ``at``."""
+    lo = 0
+    for m in _CLAUSE_END.finditer(text, 0, at):
+        lo = m.end()
+    m = _CLAUSE_END.search(text, at)
+    return text[lo : m.start() if m else len(text)]
+
+
+def _division_lines(text: str) -> set[int]:
+    """Line indexes where SIZE_MAX is in the numerator of a division."""
+    out = {text.count("\n", 0, m.start()) for m in DIV_DIRECT.finditer(text)}
+    for m in re.finditer(r"\)\s*/(?![/*=])", text):
+        group = _paren_before(text, m.start())
+        if group and _MAXV.search(group):
+            out.add(text.count("\n", 0, m.start()))
+    return out
 
 
 def _sources(root: Path) -> list[str]:
@@ -87,12 +166,18 @@ def sites(root: Path) -> dict[str, list[tuple[int, str]]]:
             continue
         text = strip_comments(raw)
         lines = text.splitlines()
-        for m in SITE.finditer(text):
-            at = text.count("\n", 0, m.start())
+        floating: set[int] = {
+            text.count("\n", 0, m.start()) for m in FLOAT_CAST.finditer(text)
+        }
+        for m in CMP.finditer(text):
+            if FLOATY.search(_clause(text, m.start())):
+                floating.add(text.count("\n", 0, m.start()))
+        division = _division_lines(text)
+        for at in sorted(floating | division):
             home = (
                 "dp_size_from_double"
-                if m.group(0).startswith("(")
-                else "dp_size_mul"
+                if at in floating
+                else "dp_size_mul (dp_size_add for a sum)"
             )
             found.setdefault(rel, []).append(
                 (at + 1, f"{lines[at].strip()}  -- use {home} (clib_common.h)")

@@ -70,6 +70,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
 |  void \* | [**dp\_mallocn**](#function-dp_mallocn) (size\_t n, size\_t size) <br>_malloc for_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM._ |
 |  int | [**dp\_positive\_finite**](#function-dp_positive_finite) (double x) <br>_Whether_ `x` _is a positive, finite number._ |
+|  int | [**dp\_size\_add**](#function-dp_size_add) (size\_t a, size\_t b, size\_t \* out) <br>`a + b` _as a_`size_t` _, or a refusal when the sum does not fit._ |
 |  int | [**dp\_size\_from\_double**](#function-dp_size_from_double) (double d, size\_t \* out) <br>`d` _as a_`size_t` _, truncated, or a refusal when it does not fit._ |
 |  int | [**dp\_size\_mul**](#function-dp_size_mul) (size\_t a, size\_t b, size\_t \* out) <br>`a * b` _as a_`size_t` _, or a refusal when the product does not fit._ |
 |  size\_t | [**dp\_size\_mul\_sat**](#function-dp_size_mul_sat) (size\_t a, size\_t b) <br>`a * b` _, or_`SIZE_MAX` _when the product does not fit._ |
@@ -405,6 +406,69 @@ The domain of a scale or gain that a constructor stores and later divides by or 
 
 
 
+### function dp\_size\_add 
+
+`a + b` _as a_`size_t` _, or a refusal when the sum does not fit._
+```C++
+static inline int dp_size_add (
+    size_t a,
+    size_t b,
+    size_t * out
+) 
+```
+
+
+
+The other half of a multiply-add guard, `k * hop + frame_n` fits: a product checked by dp\_size\_mul() and then a sum checked here, rather than the one-line `k <= (SIZE_MAX - frame_n) / hop` that folds both into a division nobody can read twice the same way. The same contract as dp\_size\_mul(): 1 and the sum when it fits; 0 and `out` UNTOUCHED when it wraps; `out` may alias a summand, so a product chains into a sum.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  size_t end = 0;
+  // 3 hops of 256 past a 1024-sample frame
+  if (!dp_size_mul (3, 256, &end) || !dp_size_add (end, 1024, &end))
+    return 1;
+  printf ("%zu\n", end); // 1792
+  printf ("%d\n", dp_size_add (SIZE_MAX, 1, &end)); // 0
+  printf ("%zu\n", end); // 1792: a refusal leaves it alone
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `a` First summand. 
+* `b` Second summand. 
+* `out` Receives `a + b` when it fits; untouched otherwise. 
+
+
+
+**Returns:**
+
+1 when the sum fits in a `size_t`, 0 when it would wrap. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_size\_from\_double 
 
 `d` _as a_`size_t` _, truncated, or a refusal when it does not fit._
@@ -428,6 +492,9 @@ The contract:
 * it returns 0 and leaves `out` UNTOUCHED for a negative `d`, for 2^w and above, for +inf and for NaN (every comparison with NaN is false, and doppler builds with -fno-finite-math-only so that holds).
 
 
+
+
+This is a static inline, so it is compiled under the INCLUDING translation unit's flags. A consumer that builds with -ffast-math (or -ffinite-math-only) tells its compiler no value is NaN or infinite, and the compiler may then fold the refusal of NaN and +inf away; such a caller must rule those out itself before calling this.
 
 
 Whether `d` must also be whole is the caller's rule, not this one's: test `d == floor (d)` beside it.

@@ -19,6 +19,8 @@
  *   4. a refusal leaves *out untouched;
  *   5. *out may alias a factor, so a product chains in place;
  *   6. dp_size_mul_sat returns SIZE_MAX exactly when dp_size_mul refuses.
+ *   6b. dp_size_add: the sum when it fits, 0 and *out untouched at the
+ *      first sum that wraps, and it chains after dp_size_mul.
  *   7. dp_size_from_double takes [0, 2^w), w the width of size_t, and
  *      nothing else: 2^w itself is refused, which the `(double)SIZE_MAX`
  *      bound it replaced got wrong on LP64 (SIZE_MAX rounds up to 2^64).
@@ -183,6 +185,23 @@ main (int argc, char **argv)
     DP_CHECK (dp_size_mul_sat (SIZE_MAX / b, b) != SIZE_MAX);
     DP_CHECK (dp_size_mul_sat (SIZE_MAX / b + 1, b) == SIZE_MAX);
     DP_CHECK (dp_size_mul_sat (opaque (SIZE_MAX), opaque (2)) == SIZE_MAX);
+  }
+
+  /* 6b. dp_size_add: exact at the edge, both orders, and chained. */
+  {
+    size_t out = 5;
+    DP_CHECK (dp_size_add (opaque (0), opaque (0), &out) == 1 && out == 0);
+    DP_CHECK (dp_size_add (opaque (SIZE_MAX - 7), opaque (7), &out) == 1);
+    DP_CHECK (out == SIZE_MAX);
+    out = 5;
+    DP_CHECK (dp_size_add (opaque (SIZE_MAX - 7), opaque (8), &out) == 0);
+    DP_CHECK (dp_size_add (opaque (8), opaque (SIZE_MAX - 7), &out) == 0);
+    DP_CHECK (dp_size_add (opaque (SIZE_MAX), opaque (SIZE_MAX), &out) == 0);
+    DP_CHECK (out == 5);
+    size_t end = 0;
+    DP_CHECK (dp_size_mul (opaque (3), opaque (256), &end)
+              && dp_size_add (end, opaque (1024), &end));
+    DP_CHECK (end == 1792);
   }
 
   /* 7. dp_size_from_double. 2^w is taken from the type's width, spelled

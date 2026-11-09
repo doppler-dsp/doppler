@@ -12,6 +12,7 @@
 
 #include "doppler/clib_common.h"
 #include "doppler/jm_perf.h"
+#include <limits.h> /* CHAR_BIT */
 #include <math.h>
 
 #ifdef __cplusplus
@@ -94,7 +95,10 @@ extern "C"
     size_t c = 1u;
     while (c < n)
       {
-        if (c > ((size_t)-1) / 2u)
+        /* c is a power of two, so doubling it wraps exactly when its top
+           bit is already set. Not dp_size_mul: this is an external inline,
+           and C99 6.7.4 forbids it from calling a static one. */
+        if (c >> (CHAR_BIT * sizeof (size_t) - 1))
           return 0u;
         c <<= 1;
       }

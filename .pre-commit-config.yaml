@@ -349,7 +349,7 @@ repos:
         entry: make -s lint-size-mul
         language: system
         pass_filenames: false
-        files: ^((native|ffi)/.*\.[ch]|scripts/(\.size-mul-ratchet|check_size_mul_sites\.py))$
+        files: ^((native|ffi)/.*\.[ch]|scripts/(\.size-mul-ratchet|check_size_mul_sites\.py|_c_source\.py|_gitbase\.py))$
 
       # A docs fence or an example that computes a claim and drops it (a bare
       # `np.array_equal(...)` statement) runs green and checks nothing; so

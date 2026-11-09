@@ -8,16 +8,18 @@
  */
 #include "doppler/interleaver/interleaver_core.h"
 
+#include "doppler/clib_common.h" /* dp_size_mul */
+
 #include <stdlib.h>
 
-/* Would `rows * cols * unit_bits` overflow? Checked by division rather than
-   by multiplying and looking at the result, which is the check overflowing. */
+/* Would `rows * cols * unit_bits` overflow? Both products checked by
+   dp_size_mul, the one home of that check. */
 static int
 block_overflows (size_t rows, size_t cols, size_t unit_bits)
 {
-  if (rows > (size_t)-1 / cols)
-    return 1;
-  return (rows * cols) > (size_t)-1 / unit_bits;
+  size_t bits;
+  return !dp_size_mul (rows, cols, &bits)
+         || !dp_size_mul (bits, unit_bits, &bits);
 }
 
 dp_interleaver_state_t *

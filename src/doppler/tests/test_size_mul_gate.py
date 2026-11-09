@@ -60,7 +60,7 @@ def _run(root: Path, files: dict[str, str], *args: str):
         (
             {"native/src/x/x_core.c": _GUARD},
             "native/src/x/x_core.c:3: if (x > SIZE_MAX / y)  -- use "
-            "dp_size_mul (clib_common.h)",
+            "dp_size_mul (dp_size_add for a sum) (clib_common.h)",
         ),
         # A public header other than the home.
         (
@@ -100,6 +100,69 @@ def _run(root: Path, files: dict[str, str], *args: str):
                 "  return r > (double) (SIZE_MAX / 2);\n}\n"
             },
             "native/src/e/e_core.c: 1 hand-written",
+        ),
+        # SIZE_MAX in any numerator, spelled any way C spells it: the
+        # multiply-add guard buffer.h's framer used, a parenthesised
+        # macro, and the two all-ones casts.
+        (
+            {
+                "native/src/m/m_core.c": "int m (size_t k, size_t f, "
+                "size_t h)\n{\n  return k <= (SIZE_MAX - f) / h;\n}\n"
+            },
+            "native/src/m/m_core.c:3: return k <= (SIZE_MAX - f) / h;  -- "
+            "use dp_size_mul (dp_size_add for a sum)",
+        ),
+        (
+            {
+                "native/src/m/m_core.c": "int m (size_t k)\n{\n"
+                "  return k > (SIZE_MAX) / 4;\n}\n"
+            },
+            "native/src/m/m_core.c: 1 hand-written",
+        ),
+        (
+            {
+                "native/src/m/m_core.c": "int m (size_t k)\n{\n"
+                "  return k > ~(size_t)0 / 4;\n}\n"
+            },
+            "native/src/m/m_core.c: 1 hand-written",
+        ),
+        (
+            {
+                "native/src/m/m_core.c": "int m (size_t k)\n{\n"
+                "  return k > (size_t)-1 / 4;\n}\n"
+            },
+            "native/src/m/m_core.c: 1 hand-written",
+        ),
+        # A cast of SIZE_MAX to any floating type.
+        (
+            {
+                "native/src/g/g_core.c": "int g (float x)\n{\n"
+                "  return x <= (float)SIZE_MAX;\n}\n"
+            },
+            "use dp_size_from_double",
+        ),
+        (
+            {
+                "native/src/g/g_core.c": "int g (long double x)\n{\n"
+                "  return x <= (long double) SIZE_MAX;\n}\n"
+            },
+            "use dp_size_from_double",
+        ),
+        # The implicit conversion, in a clause that says it is floating.
+        (
+            {
+                "native/src/g/g_core.c": "int g (double x)\n{\n"
+                "  return x * 1.0 <= SIZE_MAX;\n}\n"
+            },
+            "native/src/g/g_core.c:3: return x * 1.0 <= SIZE_MAX;  -- use "
+            "dp_size_from_double",
+        ),
+        (
+            {
+                "native/src/g/g_core.c": "int g (size_t n, double r)\n{\n"
+                "  return SIZE_MAX > (double)n * r;\n}\n"
+            },
+            "use dp_size_from_double",
         ),
     ],
 )
@@ -145,6 +208,18 @@ def test_a_hand_written_guard_is_named(
         {
             "native/src/f/f_core.c": "int f (double x)\n{\n"
             "  return x < 0x1p64;\n}\n"
+        },
+        # A width, not an all-ones cast: sizeof (size_t) - 1.
+        {
+            "native/src/f/f_core.c": "size_t f (void)\n{\n"
+            "  return ((size_t)1 << (CHAR_BIT * sizeof (size_t) - 1)) / 8;"
+            "\n}\n"
+        },
+        # A float literal in ANOTHER clause does not make SIZE_MAX's
+        # comparison floating.
+        {
+            "native/src/f/f_core.c": "int f (float t, size_t hi)\n{\n"
+            "  return t != 0.0f || hi != SIZE_MAX;\n}\n"
         },
     ],
 )

@@ -110,6 +110,15 @@ dp_size_mul (size_t a, size_t b, size_t *out)
   return 1;
 }
 
+static inline int
+dp_size_add (size_t a, size_t b, size_t *out)
+{
+  if (a > SIZE_MAX - b)
+    return 0;
+  *out = a + b;
+  return 1;
+}
+
 static inline size_t
 dp_size_mul_sat (size_t a, size_t b)
 {

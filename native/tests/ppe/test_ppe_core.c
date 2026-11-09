@@ -2,6 +2,7 @@
 #include "doppler/ppe/ppe_core.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -26,6 +27,10 @@ main (void)
   /* Argument validation. */
   DP_CHECK (dp_ppe_create (2, 0.0) == NULL);   /* max_len < 4 */
   DP_CHECK (dp_ppe_create (64, -1.0) == NULL); /* negative rate span */
+  /* A length whose 4x power-of-two FFT is not a size: the smallest is
+     SIZE_MAX/8 + 2 (2^61 + 1 on LP64), whose next power of two quadrupled
+     wraps. Refused before any allocation, so no huge request is made. */
+  DP_CHECK (dp_ppe_create (SIZE_MAX / 8u + 2u, 0.0) == NULL);
 
   float _Complex *y = malloc (L * sizeof *y);
   DP_CHECK (y != NULL);

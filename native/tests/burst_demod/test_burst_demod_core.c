@@ -5,6 +5,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -481,9 +482,9 @@ run_edge_cases (void)
      so a burst sent with the old preamble still demodulates. A refusal that
      freed acq_code first would leave it dangling or NULL beside a live ppe,
      and demod() would read it in form_partials(). This exercises the
-     refusal that happens before any allocation; an OOM in one of the three
-     allocations cannot be injected here (there is no fault injection), so
-     that path rests on set_preamble()'s acquire-all-then-commit order. */
+     refusal that happens before any allocation; the failure branch that
+     frees what was acquired is reached by the next block, through a count
+     ppe refuses (an OOM on part or code cannot be injected here). */
   {
     uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
     for (size_t i = 0; i < ACQ_SF; i++)
@@ -521,6 +522,60 @@ run_edge_cases (void)
                   "after a refused set_preamble, the old preamble still "
                   "demodulates a burst");
     dp_burst_demod_destroy (d4);
+    free (y);
+  }
+
+  /* A count that does NOT wrap but that ppe cannot size is refused too, and
+     reaches the failure branch that frees what was acquired. dp_ppe_create
+     refuses a max_len past SIZE_MAX/8 + 1 (its 4x power-of-two FFT would
+     wrap), and set_preamble asks ppe FIRST, so the smallest reps over that
+     line is refused before the partials -- 8 bytes each -- are requested:
+     no huge allocation reaches malloc, so ASan has nothing to abort on. */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+    float _Complex *y = malloc (BURST_CAP * sizeof *y);
+    DP_REQUIRE (y != NULL);
+    const double f0 = 0.012;
+    const size_t n  = build_burst (y, acode, dcode, payload, f0, 0.0);
+
+    dp_burst_demod_state_t *d5 = make_demod (dcode, 0.0, 10);
+    DP_REQUIRE (d5 != NULL);
+    dp_burst_demod_set_preamble (d5, acode, ACQ_SF, ACQ_REPS);
+    const uint8_t        *code0 = d5->acq_code;
+    const float _Complex *part0 = d5->part;
+    const dp_ppe_state_t *ppe0  = d5->ppe;
+    DP_REQUIRE (code0 != NULL && part0 != NULL && ppe0 != NULL);
+
+    /* The largest length ppe sizes, and the smallest reps past it. */
+    const size_t ppe_max  = SIZE_MAX / 8u + 1u;
+    const size_t big_reps = ppe_max / d5->est_segments + 1u;
+    size_t       big_part;
+    DP_REQUIRE (dp_size_mul (big_reps, d5->est_segments, &big_part)
+                && big_part > ppe_max);
+    DP_REQUIRE (dp_ppe_create (big_part, 0.0) == NULL);
+
+    dp_burst_demod_set_preamble (d5, ac, ACQ_SF, big_reps);
+    DP_CHECK_MSG (d5->acq_code == code0 && d5->part == part0
+                      && d5->ppe == ppe0,
+                  "a set_preamble ppe refuses keeps acq_code, part and ppe");
+    DP_CHECK_MSG (d5->acq_sf == ACQ_SF && d5->acq_reps == ACQ_REPS
+                      && memcmp (d5->acq_code, acode, ACQ_SF) == 0,
+                  "a set_preamble ppe refuses keeps the old code's chips");
+
+    uint8_t bits[MAX_FRAME];
+    dp_burst_demod_set_prior (d5, f0, 0);
+    DP_CHECK_MSG (dp_burst_demod_demod (d5, y, n, bits, frame_syms ())
+                          == frame_syms ()
+                      && frame_ok (bits, frame_syms ()),
+                  "after a set_preamble ppe refuses, the old preamble still "
+                  "demodulates a burst");
+    dp_burst_demod_destroy (d5);
     free (y);
   }
 

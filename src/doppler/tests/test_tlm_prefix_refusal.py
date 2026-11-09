@@ -223,20 +223,27 @@ def test_every_face_is_covered() -> None:
 #: The sentence each class's overlong-prefix refusal raises, in one table: a
 #: class whose set_telemetry names the argument it refused (the Correlator's,
 #: through `why`, just-makeit#2574; docs/design/correlator-python.md section
-#: 18) is listed here in full; every other class raises jm's generic one.
-#: Matched from the start, so a class cannot pass by raising some other
-#: refusal that merely names set_telemetry.
+#: 18) is listed here in full, as is a class whose manifest declares its own
+#: sentence (AsyncDsssPool's); every other class raises jm's generic one.
+#: Matched from the start to the end, so a class cannot pass by raising
+#: some other refusal that merely names set_telemetry.
 REFUSALS: dict[str, str] = {
     "doppler.correlation.Correlator": (
         'set_telemetry: the prefix is too long: prefix + "." + each probe '
         "name must fit DP_TLM_NAME_MAX bytes"
+    ),
+    "doppler.dsss.AsyncDsssPool": (
+        "set_telemetry failed: the pool must run on one worker (threads 1), "
+        "decim must be >= 1, and every receiver's names must fit the prefix "
+        "and the context's table"
     ),
 }
 _GENERIC = "set_telemetry failed"
 
 
 def _refusal(face: str) -> str:
-    return "^" + re.escape(REFUSALS.get(face, _GENERIC))
+    # Both ends: the sentence and nothing after it but the binding's rc.
+    return "^" + re.escape(REFUSALS.get(face, _GENERIC)) + r"( \(rc=-?\d+\))?$"
 
 
 def _refuse(face: str) -> tuple[Telemetry, str, set[str]]:

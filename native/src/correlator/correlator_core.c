@@ -1844,28 +1844,10 @@ typedef struct
    that are not whole ny-long vectors, and a hypothesis count the uint32
    index cannot name.  Every path runs a bank; only the fast path and
    DelayDoppler share work across hypotheses. */
-static int
-corr2d_bank_check (const dp_correlator_state_t *s, size_t x_len, size_t L,
-                   int g_min, int g_max, size_t rates_len, corr2d_bank_t *b)
-{
-  if (x_len != s->n || L == 0 || g_min > g_max || rates_len % s->ny != 0)
-    return 0;
-  const size_t C = (size_t)((long long)g_max - (long long)g_min + 1);
-  const size_t R = rates_len ? rates_len / s->ny : 1;
-  if (C > UINT32_MAX / R)
-    return 0;
-  b->L     = L;
-  b->g_min = g_min;
-  b->C     = C;
-  b->R     = R;
-  b->rates = NULL;
-  return 1;
-}
-
-/* Which of the bank's argument rules a refused call broke, for its `why`
-   (just-makeit#2574): tested in corr2d_bank_check's own order, and the
-   last (the hypothesis index fitting a uint32) by calling it, so the rules
-   are stated once. Called only on a refusal, never on the bank's path. */
+/* The bank's argument rules, and the cause a refused call names through its
+   `why` (just-makeit#2574): corr2d_bank_check returns BANK_OK or the first
+   rule broken, so each rule is stated once. BANK_OUT and the scratch's
+   causes come from the entry points and corr2d_bank_alloc. */
 enum
 {
   BANK_OK,
@@ -1874,14 +1856,16 @@ enum
   BANK_G,
   BANK_RATES,
   BANK_INDEX,
-  BANK_OUT
+  BANK_OUT,
+  BANK_SCRATCH_L,     /* the fractions' scratch (L x n) cannot be counted */
+  BANK_SCRATCH_RATES, /* the maps' scratch (rates x n_out) cannot be counted */
+  BANK_SCRATCH_MEMORY /* the scratch could not be allocated */
 };
 
 static int
-corr2d_bank_cause (const dp_correlator_state_t *s, size_t x_len, size_t L,
-                   int g_min, int g_max, size_t rates_len, size_t max_out)
+corr2d_bank_check (const dp_correlator_state_t *s, size_t x_len, size_t L,
+                   int g_min, int g_max, size_t rates_len, corr2d_bank_t *b)
 {
-  corr2d_bank_t b;
   if (x_len != s->n)
     return BANK_FRAME;
   if (L == 0)
@@ -1890,9 +1874,16 @@ corr2d_bank_cause (const dp_correlator_state_t *s, size_t x_len, size_t L,
     return BANK_G;
   if (rates_len % s->ny != 0)
     return BANK_RATES;
-  if (!corr2d_bank_check (s, x_len, L, g_min, g_max, rates_len, &b))
+  const size_t C = (size_t)((long long)g_max - (long long)g_min + 1);
+  const size_t R = rates_len ? rates_len / s->ny : 1;
+  if (C > UINT32_MAX / R)
     return BANK_INDEX;
-  return max_out < s->n_out ? BANK_OUT : BANK_OK;
+  b->L     = L;
+  b->g_min = g_min;
+  b->C     = C;
+  b->R     = R;
+  b->rates = NULL;
+  return BANK_OK;
 }
 
 /* floor(a / b) and the matching non-negative remainder, for any sign. */
@@ -1952,10 +1943,11 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
   memset (m, 0, sizeof *m);
   size_t spec_bytes, maps_bytes;
   if (!dp_size_mul (L, s->n, &spec_bytes)
-      || !dp_size_mul (spec_bytes, sizeof (float _Complex), &spec_bytes)
-      || !dp_size_mul (b->R, s->n_out, &maps_bytes)
+      || !dp_size_mul (spec_bytes, sizeof (float _Complex), &spec_bytes))
+    return BANK_SCRATCH_L;
+  if (!dp_size_mul (b->R, s->n_out, &maps_bytes)
       || !dp_size_mul (maps_bytes, sizeof (float _Complex), &maps_bytes))
-    return 0;
+    return BANK_SCRATCH_RATES;
   m->spec  = dp_mallocn (dp_size_mul_sat (L, s->n), sizeof *m->spec);
   m->have  = calloc (L, 1);
   m->phase = dp_mallocn (dp_size_mul_sat (L, s->nx), sizeof *m->phase);
@@ -1979,7 +1971,7 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
   if (!ok)
     {
       corr2d_bank_free (m);
-      return 0;
+      return BANK_SCRATCH_MEMORY;
     }
   if (corr2d_is_dd (s))
     {
@@ -2009,7 +2001,7 @@ corr2d_bank_alloc (const dp_correlator_state_t *s, const corr2d_bank_t *b,
                                   / ((double)L * (double)s->nx);
         m->phase[j * s->nx + p] = (float)cos (a) + (float)sin (a) * I;
       }
-  return 1;
+  return BANK_OK;
 }
 
 /* Fraction j's row spectra: chunk t mixes rows r0..r1-1 and transforms them
@@ -2146,9 +2138,12 @@ corr2d_bank_fold_one (void *ctx, size_t r, const float _Complex *out)
   f->fold->fold (f->fold->ctx, f->h0 + r, out, f->n_out);
 }
 
+/* SIZE_MAX when the scratch cannot be made, its cause (a BANK_SCRATCH_*)
+   in *cause; the hypothesis count otherwise. */
 static size_t
 corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
-                 const corr2d_bank_t *b, const dp_correlator_fold_t *fold)
+                 const corr2d_bank_t *b, const dp_correlator_fold_t *fold,
+                 int *cause)
 {
   /* The delay-Doppler map's schedule, decided once by its rule over the
      carriers one fraction's slow time serves and the rates (correlator_map.h);
@@ -2158,8 +2153,12 @@ corr2d_bank_run (const dp_correlator_state_t *s, const float _Complex *x,
         && dp__dd_map_pick (s->dd_map, (b->C + b->L - 1) / b->L, b->R, 0)
                == DP__DD_SLOW_FIRST;
   corr2d_bank_mem_t m;
-  if (!corr2d_bank_alloc (s, b, slow_first, &m))
-    return SIZE_MAX;
+  const int         made = corr2d_bank_alloc (s, b, slow_first, &m);
+  if (made != BANK_OK)
+    {
+      *cause = made;
+      return SIZE_MAX;
+    }
   if (!(s->fast_path && s->col_out < 0))
     {
       corr2d_bank_unshared (s, x, b, fold, &m);
@@ -2255,10 +2254,12 @@ dp_correlator_bank_fold (const dp_correlator_state_t *state,
   if (!corr2d_is_map (state))
     return SIZE_MAX;
   corr2d_bank_t b;
-  if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b))
+  int           cause;
+  if (corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
+      != BANK_OK)
     return SIZE_MAX;
   b.rates = rates_len ? rates : NULL;
-  return corr2d_bank_run (state, x, &b, fold);
+  return corr2d_bank_run (state, x, &b, fold, &cause);
 }
 
 size_t
@@ -2284,34 +2285,39 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
      box). */
   if (!corr2d_is_map (state))
     return SIZE_MAX;
+  static const char *const said[] = {
+    [BANK_FRAME] = "bank_power_max: takes exactly one frame (ny*nx samples)",
+    [BANK_L]     = "bank_power_max: L must be at least 1",
+    [BANK_G]     = "bank_power_max: g_min must not exceed g_max",
+    [BANK_RATES] = "bank_power_max: rates must be a whole number of ny-long "
+                   "vectors",
+    [BANK_INDEX] = "bank_power_max: (g_max - g_min + 1) x the rate count must "
+                   "fit the uint32 hypothesis index",
+    [BANK_OUT]   = "bank_power_max: out= must hold one map (n_out values)",
+    [BANK_SCRATCH_L]      = "bank_power_max: L asks for more fractions than "
+                            "the bank's scratch can hold",
+    [BANK_SCRATCH_RATES]  = "bank_power_max: rates ask for more maps than the "
+                            "bank's scratch can hold",
+    [BANK_SCRATCH_MEMORY] = "bank_power_max: the bank's scratch could not be "
+                            "allocated (out of memory)",
+  };
   corr2d_bank_t b;
-  if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
-      || max_out < state->n_out)
+  int cause = corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b);
+  if (cause == BANK_OK && max_out < state->n_out)
+    cause = BANK_OUT;
+  if (cause != BANK_OK)
     {
-      static const char *const said[] = {
-        [BANK_FRAME] = "bank_power_max: takes exactly one frame (ny*nx "
-                       "samples)",
-        [BANK_L]     = "bank_power_max: L must be at least 1",
-        [BANK_G]     = "bank_power_max: g_min must not exceed g_max",
-        [BANK_RATES] = "bank_power_max: rates must be a whole number of "
-                       "ny-long vectors",
-        [BANK_INDEX] = "bank_power_max: (g_max - g_min + 1) x the rate "
-                       "count must fit the uint32 hypothesis index",
-        [BANK_OUT]   = "bank_power_max: out= must hold one map (n_out "
-                       "values)",
-      };
       if (why)
-        *why = said[corr2d_bank_cause (state, x_len, L, g_min, g_max,
-                                       rates_len, max_out)];
+        *why = said[cause];
       return SIZE_MAX;
     }
   b.rates                = rates_len ? rates : NULL;
   corr2d_max_t         c = { out, out1 };
   dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
-  if (corr2d_bank_run (state, x, &b, &f) == SIZE_MAX)
+  if (corr2d_bank_run (state, x, &b, &f, &cause) == SIZE_MAX)
     {
       if (why)
-        *why = "bank_power_max: the bank's scratch could not be allocated";
+        *why = said[cause];
       return SIZE_MAX;
     }
   return state->n_out;
@@ -2408,27 +2414,38 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
      box). */
   if (!corr2d_is_map (state))
     return SIZE_MAX;
+  static const char *const said[] = {
+    [BANK_FRAME] = "bank_detect: takes exactly one frame (ny*nx samples)",
+    [BANK_L]     = "bank_detect: L_d must be at least 1",
+    [BANK_G]     = "bank_detect: g_min must not exceed g_max",
+    [BANK_RATES] = "bank_detect: rates must be a whole number of ny-long "
+                   "vectors",
+    [BANK_INDEX] = "bank_detect: (g_max - g_min + 1) x the rate count must "
+                   "fit the uint32 hypothesis index",
+    [BANK_OUT]   = "bank_detect: out= must hold one record per map cell",
+    [BANK_SCRATCH_L]      = "bank_detect: L_d asks for more fractions than "
+                            "the bank's scratch can hold",
+    [BANK_SCRATCH_RATES]  = "bank_detect: rates ask for more maps than the "
+                            "bank's scratch can hold",
+    [BANK_SCRATCH_MEMORY] = "bank_detect: the bank's scratch could not be "
+                            "allocated (out of memory)",
+  };
   corr2d_bank_t b;
-  if (L_d == 0 || L_r < L_d || L_r % L_d != 0
-      || !corr2d_bank_check (state, x_len, L_d, g_min, g_max, rates_len, &b)
-      || max_out < state->n_out)
+  int           cause
+      = corr2d_bank_check (state, x_len, L_d, g_min, g_max, rates_len, &b);
+  if (cause == BANK_OK && max_out < state->n_out)
+    cause = BANK_OUT;
+  /* L_d == 0 is the check's own BANK_L; a refine factor is the caller's. */
+  if (L_d != 0 && (L_r < L_d || L_r % L_d != 0))
     {
-      static const char *const said[] = {
-        [BANK_FRAME] = "bank_detect: takes exactly one frame (ny*nx "
-                       "samples)",
-        [BANK_L]     = "bank_detect: L_d must be at least 1",
-        [BANK_G]     = "bank_detect: g_min must not exceed g_max",
-        [BANK_RATES] = "bank_detect: rates must be a whole number of ny-long "
-                       "vectors",
-        [BANK_INDEX] = "bank_detect: (g_max - g_min + 1) x the rate count "
-                       "must fit the uint32 hypothesis index",
-        [BANK_OUT]   = "bank_detect: out= must hold one record per map cell",
-      };
       if (why)
-        *why = (L_d != 0 && (L_r < L_d || L_r % L_d != 0))
-                   ? "bank_detect: L_d must divide L_r"
-                   : said[corr2d_bank_cause (state, x_len, L_d, g_min, g_max,
-                                             rates_len, max_out)];
+        *why = "bank_detect: L_r must be a positive multiple of L_d";
+      return SIZE_MAX;
+    }
+  if (cause != BANK_OK)
+    {
+      if (why)
+        *why = said[cause];
       return SIZE_MAX;
     }
   const long long m = (long long)(L_r / L_d);
@@ -2457,11 +2474,11 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
      and rate it came from. */
   corr2d_max_t         c = { pw, ix };
   dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
-  if (corr2d_bank_run (state, x, &b, &f) == SIZE_MAX)
+  if (corr2d_bank_run (state, x, &b, &f, &cause) == SIZE_MAX)
     {
       free (pw), free (ix), free (code), free (ph);
       if (why)
-        *why = "bank_detect: the bank's scratch could not be allocated";
+        *why = said[cause];
       return SIZE_MAX;
     }
   if (direct)
@@ -2520,7 +2537,7 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
               corr2d_bank_t        one = { L_r, (int)gr, 1, 1, w };
               corr2d_cell_t        cc  = { cell, 0.0 };
               dp_correlator_fold_t cf  = { corr2d_fold_cell, &cc };
-              if (corr2d_bank_run (state, x, &one, &cf) == SIZE_MAX)
+              if (corr2d_bank_run (state, x, &one, &cf, &cause) == SIZE_MAX)
                 {
                   ok = 0;
                   break;
@@ -2544,6 +2561,14 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
       nrec++;
     }
   free (pw), free (ix), free (code), free (ph);
+  if (!ok && why)
+    /* The refine's scratch is the time-domain bank at L_r, one carrier:
+       L_r x n the caller chose, or memory. */
+    *why = cause == BANK_SCRATCH_L
+               ? "bank_detect: L_r asks for more fractions than the "
+                 "refine's scratch can hold"
+               : "bank_detect: the refine's scratch could not be allocated "
+                 "(out of memory)";
   return ok ? nrec : SIZE_MAX;
 }
 
@@ -6095,6 +6120,13 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
 }
 
 #undef CORR_WHY
+
+/* The refusal sentences below state these limits as numbers: a change to
+   either macro fails the build here rather than leaving a sentence stale. */
+_Static_assert (DP_CORRELATOR_N_NONCOH_SAFETY_CEILING == 256u,
+                "configure_search_raw's sentence states 1..256: update it");
+_Static_assert (DP_CORRELATOR_MAX_PEAKS == 64u,
+                "set_max_peaks' sentence states 1..64: update it");
 
 int
 dp_correlator_configure_search_raw (dp_correlator_state_t *st,

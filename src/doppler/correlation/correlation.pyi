@@ -210,7 +210,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Input frame, flat row-major CF32, length ny*nx.
         out : npt.NDArray[np.complex64] | None
             Output buffer for the correlation map (CF32, length n_out:
             ny_out*nx_out, or ny with col_out); written only on a dump call.
@@ -276,7 +276,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            H frames back to back (CF32).
         out : npt.NDArray[np.complex64] | None
             H * n_out values (CF32).
 
@@ -365,7 +365,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            H frames back to back (CF32).
         out : npt.NDArray[np.complex64] | None
             n_out values (CF32).
 
@@ -442,7 +442,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            H frames back to back (CF32).
         out : npt.NDArray[np.float32] | None
             n_out powers (float).
 
@@ -521,7 +521,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            H frames back to back (CF32); H at most 2^32.
 
         Returns
         -------
@@ -577,7 +577,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            H frames back to back (CF32).
 
         Returns
         -------
@@ -1495,7 +1495,7 @@ class Correlator:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            CF32 input chunk of arbitrary length.
         out : npt.NDArray[Any] | None
             Optional pre-allocated output buffer. When given, the result is
             written into it and the returned array is a view of exactly the

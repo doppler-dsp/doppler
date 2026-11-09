@@ -63,7 +63,7 @@ class FFT:
         Parameters
         ----------
         x : npt.NDArray[np.complex128]
-            Input.
+            Input buffer of length state->n (CF64, row-major).
         out : npt.NDArray[np.complex128] | None
             Output buffer of length >= state->n (CF64, caller-allocated).
 
@@ -108,7 +108,7 @@ class FFT:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Input buffer of length state->n (CF32, row-major).
         out : npt.NDArray[np.complex64] | None
             Output buffer of length >= state->n (CF32, caller-allocated).
 
@@ -153,7 +153,7 @@ class FFT:
         Parameters
         ----------
         x : npt.NDArray[np.complex128]
-            Input.
+            Source buffer, state->n CF64 samples; not modified.
         out : npt.NDArray[np.complex128] | None
             Destination buffer, length >= state->n; must not alias in.
 
@@ -197,7 +197,7 @@ class FFT:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Source buffer, state->n CF32 samples; not modified.
         out : npt.NDArray[np.complex64] | None
             Destination buffer, length >= state->n; must not alias in.
 
@@ -388,7 +388,7 @@ class FFT2D:
         Parameters
         ----------
         x : npt.NDArray[np.complex128]
-            Input.
+            Flat row-major CF64 input, length ny*nx.
         out : npt.NDArray[np.complex128] | None
             Flat row-major CF64 output, length >= ny*nx (caller-allocated).
 
@@ -442,7 +442,7 @@ class FFT2D:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Flat row-major CF32 input, length ny*nx.
         out : npt.NDArray[np.complex64] | None
             Flat row-major CF32 output, length >= ny*nx (caller-allocated).
 
@@ -496,7 +496,7 @@ class FFT2D:
         Parameters
         ----------
         x : npt.NDArray[np.complex128]
-            Input.
+            Source, ny*nx CF64 flat row-major; not modified.
         out : npt.NDArray[np.complex128] | None
             Destination, length >= ny*nx; must not alias in.
 
@@ -547,7 +547,7 @@ class FFT2D:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Source, ny*nx CF32 flat row-major; not modified.
         out : npt.NDArray[np.complex64] | None
             Destination, length >= ny*nx; must not alias in.
 
@@ -1288,7 +1288,7 @@ class Spectrogram:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Complex baseband samples (cf32).
         out : npt.NDArray[np.float32] | None
             Rows, row-major, nfft floats each.
 

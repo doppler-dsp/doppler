@@ -4,4 +4,4 @@
     `OverflowError`, as do `Telemetry(-4)` (was `ValueError`) and a bad
     `block_samples`. `stats()` takes no arguments. jm now owns all three
     bindings; `FFT` keeps its hand-written binding with jm's output guards
-    added. [#2971](https://github.com/doppler-dsp/doppler/pull/2971)
+    added. [#2972](https://github.com/doppler-dsp/doppler/pull/2972)

@@ -204,10 +204,7 @@ dp_specan_set_state (dp_specan_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   if (s->pend_cap < pend_len)
     {
-      size_t          bytes;
-      float _Complex *p = dp_size_mul (need, sizeof *p, &bytes)
-                              ? realloc (s->pend, bytes)
-                              : NULL;
+      float _Complex *p = dp_reallocn (s->pend, need, sizeof *p);
       if (!p)
         return DP_ERR_INVALID;
       s->pend     = p;
@@ -231,10 +228,7 @@ dp_specan_execute (dp_specan_state_t *state, const float _Complex *x,
   /* Mix to DC and decimate; output length <= x_len since rate <= 1. */
   if (state->scratch_cap < x_len)
     {
-      size_t          bytes;
-      float _Complex *p = dp_size_mul (x_len, sizeof *p, &bytes)
-                              ? realloc (state->scratch, bytes)
-                              : NULL;
+      float _Complex *p = dp_reallocn (state->scratch, x_len, sizeof *p);
       if (!p)
         return 0;
       state->scratch     = p;
@@ -251,10 +245,7 @@ dp_specan_execute (dp_specan_state_t *state, const float _Complex *x,
       size_t cap = state->pend_len + m;
       if (cap < need)
         cap = need;
-      size_t          bytes;
-      float _Complex *p = dp_size_mul (cap, sizeof *p, &bytes)
-                              ? realloc (state->pend, bytes)
-                              : NULL;
+      float _Complex *p = dp_reallocn (state->pend, cap, sizeof *p);
       if (!p)
         return 0;
       state->pend     = p;

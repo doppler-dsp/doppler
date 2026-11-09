@@ -615,6 +615,12 @@ main (void)
     DP_CHECK (dp_viterbi_create_code (&bad, 60u) == NULL);
     DP_CHECK_MSG (dp_viterbi_create_code (&CCSDS, 0u) == NULL,
                   "depth 0 is not a decoder");
+    /* The decision buffer is depth * nstate bytes. CCSDS has 64 states, so
+       depth = SIZE_MAX/64 + 1 = 2^58 makes the product wrap to exactly 0:
+       the old malloc (0) handed back a live pointer and the decoder wrote
+       its traceback past it. Refused, not sized short. */
+    DP_CHECK_MSG (dp_viterbi_create_code (&CCSDS, SIZE_MAX / 64u + 1u) == NULL,
+                  "a depth whose decision buffer wraps is refused");
     dp_viterbi_destroy (NULL); /* a no-op, not a crash */
 
     dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, 4u);

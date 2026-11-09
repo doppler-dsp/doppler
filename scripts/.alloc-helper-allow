@@ -38,9 +38,9 @@ native/src/app/wfmgen.c 2  # caller-sized: --frame/--from-file and --symbols-fil
 native/src/awgn/awgn_core.c 1
 native/src/boxcar/boxcar_core.c 1
 native/src/burst_acq/burst_acq_core.c 1
-native/src/burst_demod/burst_demod_core.c 6
+native/src/burst_demod/burst_demod_core.c 1
 native/src/burst_despreader/burst_despreader_core.c 3
-native/src/carrier_acq/carrier_acq_core.c 6
+native/src/carrier_acq/carrier_acq_core.c 1
 native/src/carrier_mpsk/carrier_mpsk_core.c 1
 native/src/carrier_nda/carrier_nda_core.c 1
 native/src/cic/cic_core.c 1
@@ -85,7 +85,7 @@ native/src/mpsk_receiver/mpsk_receiver_core.c 1
 native/src/nco/nco_core.c 1
 native/src/nprmeas/nprmeas_core.c 2
 native/src/pn/pn_core.c 1
-native/src/ppe/ppe_core.c 7
+native/src/ppe/ppe_core.c 1
 native/src/psd/psd_core.c 6
 native/src/ratesync/ratesync_core.c 1
 native/src/resamp/resamp_core.c 7
@@ -102,7 +102,7 @@ native/src/syncword/syncword_core.c 2
 native/src/timing/timing_core.c 1
 native/src/tonemeas/tonemeas_core.c 4
 native/src/uq15_to_f32/uq15_to_f32_core.c 1
-native/src/viterbi/viterbi_core.c 9
+native/src/viterbi/viterbi_core.c 1
 native/src/wfm/wfm_compose.c 7
 native/src/wfm/wfm_frame.c 2
 native/src/wfm/wfm_json.c 5

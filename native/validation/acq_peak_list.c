@@ -205,7 +205,7 @@ scene_open (scene_t *sc, const uint8_t *code, const emitter_t *em, size_t n_em,
                                            CHIP_RATE, SYM_RATE, size_cn0, DU,
                                            PFA, PD, 0, 1, 0.0);
   if (!sc->a || sc->a->search->lag_bins != LB
-      || dp_correlator_set_max_peaks (sc->a, max_peaks) != 0)
+      || dp_correlator_set_max_peaks (sc->a, max_peaks, NULL) != 0)
     return 1;
   sc->W        = sc->a->search->window_bins;
   sc->n_noncoh = sc->a->search->n_noncoh;
@@ -471,7 +471,8 @@ main (int argc, char **argv)
             dp_correlator_state_t *a = dp_correlator_create_continuous (
                 code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, 45.0,
                 DU, 1e-2, PD, 0, 1, 0.0);
-            DP_REQUIRE (a != NULL && dp_correlator_set_max_peaks (a, mp) == 0);
+            DP_REQUIRE (a != NULL
+                        && dp_correlator_set_max_peaks (a, mp, NULL) == 0);
             dp_awgn_state_t *g = dp_awgn_create (
                 31u, dp_awgn_amplitude_for_snr (
                          (float)(45.0 - 10.0 * log10 (FS)), 1.0f));
@@ -580,7 +581,7 @@ main (int argc, char **argv)
       dp_correlator_state_t *a = dp_correlator_create_continuous (
           code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, 45.0, DU,
           1e-2, PD, 0, 1, 0.0);
-      if (!a || dp_correlator_set_max_peaks (a, mps[mi]) != 0)
+      if (!a || dp_correlator_set_max_peaks (a, mps[mi], NULL) != 0)
         return 1;
       dp_awgn_state_t *g = dp_awgn_create (
           41u + (uint32_t)mi,

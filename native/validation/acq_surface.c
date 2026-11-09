@@ -401,7 +401,7 @@ engine (const uint8_t *code, int deep)
   dp_correlator_state_t *a = dp_correlator_create_continuous (
       code, SF, CHIP_RATE * (double)SPC, CHIP_RATE, SYM_RATE, CN0_SIZED, U_HZ,
       PFA, PD, 0, deep ? CODE_ONLY_EPOCHS : 1, deep ? DOPPLER_RATE : 0.0);
-  if (!a || dp_correlator_set_max_peaks (a, MAX_PEAKS) != 0)
+  if (!a || dp_correlator_set_max_peaks (a, MAX_PEAKS, NULL) != 0)
     {
       (void)fprintf (stderr, "validate_acq_surface: the engine refused the "
                              "operating point\n");

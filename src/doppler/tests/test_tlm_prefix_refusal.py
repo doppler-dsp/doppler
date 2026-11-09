@@ -221,16 +221,15 @@ def test_every_face_is_covered() -> None:
 
 
 #: The sentence each class's overlong-prefix refusal raises, in one table: a
-#: class that declares its own (the Correlator, whose set_telemetry also
-#: refuses a flavor that is not instrumented, docs/design/correlator-
-#: python.md section 18) is listed here in full; every other class raises
-#: jm's generic one. Matched from the start, so a class cannot pass by
-#: raising some other refusal that merely names set_telemetry.
+#: class whose set_telemetry names the argument it refused (the Correlator's,
+#: through `why`, just-makeit#2574; docs/design/correlator-python.md section
+#: 18) is listed here in full; every other class raises jm's generic one.
+#: Matched from the start, so a class cannot pass by raising some other
+#: refusal that merely names set_telemetry.
 REFUSALS: dict[str, str] = {
     "doppler.correlation.Correlator": (
-        "set_telemetry: refused, nothing attached: the prefix joined to "
-        "each probe name must fit DP_TLM_NAME_MAX, decim must be at least "
-        "1, and the context must have room for all ten probes"
+        'set_telemetry: the prefix is too long: prefix + "." + each probe '
+        "name must fit DP_TLM_NAME_MAX bytes"
     ),
 }
 _GENERIC = "set_telemetry failed"

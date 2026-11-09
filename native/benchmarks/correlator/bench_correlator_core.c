@@ -77,8 +77,8 @@ bench_batches (jm_bench_t *bench, uint32_t *seed)
       dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
           code, bnx, bny, 1, bc[c].nthreads, 0);
       /* warmup: one of each, which also makes the batch scratch */
-      dp_correlator_execute (dd, x, bn, maps, bn);
-      dp_correlator_execute_all (dd, x, H * bn, maps, H * bn);
+      dp_correlator_execute (dd, x, bn, maps, bn, NULL);
+      dp_correlator_execute_all (dd, x, H * bn, maps, H * bn, NULL);
       for (int which = 0; which < 3; which++)
         {
           double best = 1e30;
@@ -87,12 +87,13 @@ bench_batches (jm_bench_t *bench, uint32_t *seed)
               const uint64_t t0 = jm_bench_now_ns ();
               if (which == 0)
                 for (size_t h = 0; h < H; h++)
-                  dp_correlator_execute (dd, x + h * bn, bn, maps + h * bn,
-                                         bn);
+                  dp_correlator_execute (dd, x + h * bn, bn, maps + h * bn, bn,
+                                         NULL);
               else if (which == 1)
-                dp_correlator_execute_all (dd, x, H * bn, maps, H * bn);
+                dp_correlator_execute_all (dd, x, H * bn, maps, H * bn, NULL);
               else
-                dp_correlator_execute_power_max (dd, x, H * bn, pw, idx, bn);
+                dp_correlator_execute_power_max (dd, x, H * bn, pw, idx, bn,
+                                                 NULL);
               bt[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
               best  = bt[r] < best ? bt[r] : best;
             }
@@ -186,7 +187,7 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
   dp_correlator_state_t *dd
       = dp_correlator_create_delay_doppler (code, nx, ny, 1, 1, 0);
   /* a candidate threshold at half the coarse peak: one signal, one record */
-  dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n);
+  dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx, n, NULL);
   float top = 0.0f;
   for (size_t k = 0; k < n; k++)
     top = pw[k] > top ? pw[k] : top;
@@ -205,19 +206,21 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
         {
           const uint64_t t0 = jm_bench_now_ns ();
           if (which == 0)
-            dp_correlator_execute_power_max (dd, copies, H * n, pw, idx, n);
+            dp_correlator_execute_power_max (dd, copies, H * n, pw, idx, n,
+                                             NULL);
           else if (which == 1)
             dp_correlator_bank_power_max (dd, x, n, 4, -4, 7, NULL, 0, pw, idx,
-                                          n);
+                                          n, NULL);
           else if (which == 2)
             dp_correlator_bank_power_max (dd, x, n, 2, -2, 3, NULL, 0, pw, idx,
-                                          n);
+                                          n, NULL);
           else if (which == 4)
             dp_correlator_bank_power_max (dd, xr, n, 4, -4, 7, rates, R * ny,
-                                          pw, idx, n);
+                                          pw, idx, n, NULL);
           else
-            recs = dp_correlator_bank_detect (dd, x, n, 2, 4, -2, 3, t, t,
-                                              NULL, 0, rp, rg, ra, rr, rc, n);
+            recs
+                = dp_correlator_bank_detect (dd, x, n, 2, 4, -2, 3, t, t, NULL,
+                                             0, rp, rg, ra, rr, rc, n, NULL);
           bt[r]       = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
           best[which] = bt[r] < best[which] ? bt[r] : best[which];
         }
@@ -334,7 +337,7 @@ dump_peak (dp_correlator_state_t *c, size_t dwell, const float _Complex *in,
   dp_correlator_reset (c);
   size_t got = 0;
   for (size_t f = 0; f < dwell; f++)
-    got = dp_correlator_execute (c, in, n, out, n);
+    got = dp_correlator_execute (c, in, n, out, n, NULL);
   if (got != n)
     return n;
   size_t peak = 0;
@@ -370,12 +373,12 @@ bench_small (jm_bench_t *bench)
           dp_correlator_reset (acc);
           uint64_t t0 = jm_bench_now_ns ();
           for (int q = 0; q < REPS; q++)
-            (void)dp_correlator_execute (acc, in, n, out, n);
+            (void)dp_correlator_execute (acc, in, n, out, n, NULL);
           uint64_t t1                = jm_bench_now_ns ();
           t[s * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
           t0                         = jm_bench_now_ns ();
           for (int q = 0; q < REPS; q++)
-            (void)dp_correlator_execute (dump, in, n, out, n);
+            (void)dp_correlator_execute (dump, in, n, out, n, NULL);
           t1                          = jm_bench_now_ns ();
           t[s * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
         }
@@ -441,8 +444,8 @@ bench_correlator_1d (jm_bench_t *bench)
   printf ("=== corr (coherent cross-correlator, dwell = %d) ===\n", DWELL);
   printf ("%d rounds, min over rounds\n\n", ITERATIONS_1D);
 
-  DP_BENCH_SETTLE (
-      (void)dp_correlator_execute (corr[0], in, frame_n[0], out, frame_n[0]));
+  DP_BENCH_SETTLE ((void)dp_correlator_execute (corr[0], in, frame_n[0], out,
+                                                frame_n[0], NULL));
 
   /* Rounds outside, (length, call kind) inside. The dump/accumulate ratio
      is the file's whole output, so both halves of it must see the same
@@ -457,15 +460,15 @@ bench_correlator_1d (jm_bench_t *bench)
 
         dp_correlator_reset (corr[l]);
         for (size_t f = 0; f + 2 < DWELL; f++)
-          (void)dp_correlator_execute (corr[l], in, n, out, n);
+          (void)dp_correlator_execute (corr[l], in, n, out, n, NULL);
 
         t0 = jm_bench_now_ns ();
-        (void)dp_correlator_execute (corr[l], in, n, out, n);
+        (void)dp_correlator_execute (corr[l], in, n, out, n, NULL);
         t1                         = jm_bench_now_ns ();
         t[l * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
 
         t0 = jm_bench_now_ns ();
-        (void)dp_correlator_execute (corr[l], in, n, out, n);
+        (void)dp_correlator_execute (corr[l], in, n, out, n, NULL);
         t1                          = jm_bench_now_ns ();
         t[l * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -1424,11 +1427,11 @@ main (void)
 
     dp_correlator_state_t *obj
         = dp_correlator_create_2d (ref, ny, nx, 1, 1, 0, 0, -1);
-    dp_correlator_execute (obj, in, n, out, n); /* warmup */
+    dp_correlator_execute (obj, in, n, out, n, NULL); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        dp_correlator_execute (obj, in, n, out, n);
+        dp_correlator_execute (obj, in, n, out, n, NULL);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -1452,11 +1455,11 @@ main (void)
 
     dp_correlator_state_t *obj
         = dp_correlator_create_2d (ref, ny, nx, 1, 1, 0, 0, -1);
-    dp_correlator_execute (obj, in, n, out, n); /* warmup */
+    dp_correlator_execute (obj, in, n, out, n, NULL); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         t0 = jm_bench_now_ns ();
-        dp_correlator_execute (obj, in, n, out, n);
+        dp_correlator_execute (obj, in, n, out, n, NULL);
         t1       = jm_bench_now_ns ();
         times[r] = jm_bench_elapsed_sec (t0, t1);
       }
@@ -1520,7 +1523,7 @@ main (void)
                                                    * 10.0 * (double)i / 64.0));
         dp_correlator_state_t *dd = dp_correlator_create_delay_doppler (
             code, dnx, dny, 1, dd_cases[c].nthreads, dd_cases[c].ny_out);
-        dp_correlator_execute (dd, x, dn, map, dno); /* warmup */
+        dp_correlator_execute (dd, x, dn, map, dno, NULL); /* warmup */
         if (dd_cases[c].ny_out)
           {
             size_t k = 0;
@@ -1539,7 +1542,7 @@ main (void)
         for (int r = 0; r < ITERATIONS; r++)
           {
             t0 = jm_bench_now_ns ();
-            dp_correlator_execute (dd, x, dn, map, dno);
+            dp_correlator_execute (dd, x, dn, map, dno, NULL);
             t1       = jm_bench_now_ns ();
             times[r] = jm_bench_elapsed_sec (t0, t1);
             sum += times[r];

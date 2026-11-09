@@ -602,14 +602,15 @@ on every flavor. -->
 | `execute`, `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks`, `bank_power_max`, `bank_detect` | the maps                   |
 | `push`                                                                                                                                   | the detectors and searches |
 
-**When a method can name its refusal** (just-makeit#2574, `why` on
-methods; the doppler side is #2961). Until that jm release is pinned, a
-method's refusal is one declared sentence a status (or a sentinel), so a
-method refused for more than one reason states every rule at once. At the
-pin each C function below takes a trailing `const char **why` and writes
-one of these, and the binding raises it verbatim; the off-flavor one is
-the "name: only …" sentence the method already declares, so the mutator
-gate's reading of a flavor refusal does not move.
+**A method names its refusal** (just-makeit#2574, `why` on methods;
+#2961). Each C function below takes a trailing `const char **why` and,
+refusing a value, writes one sentence that names the argument; the binding
+raises it verbatim. Off the flavors that serve the call it writes nothing,
+and the binding raises the method's declared "only" sentence instead, so
+each off-flavor sentence has one home (the manifest) and the mutator
+gate's reading of a flavor refusal does not move. C callers pass NULL when
+they do not want the sentence. An `out=` too small is the binding's own
+refusal in Python; the C sentence for it is a C caller's.
 
 | method                                                                                       | refusal (C code)   | sentence                                                                                                                                                                                   |
 | -------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -622,9 +623,11 @@ gate's reading of a flavor refusal does not move.
 | `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks` | `SIZE_MAX`         | off a map: the "only" sentence; else `<name>: the input must be a whole, nonzero number of frames` / `<name>: out= must hold …` (each its own) / `execute_power_max: at most 2**32 frames` |
 | `bank_power_max`, `bank_detect`                                                              | `SIZE_MAX`         | off a map: the "only" sentence; else one each for one frame, `L`/`L_d >= 1`, `L_d` dividing `L_r`, `g_min <= g_max`, rates a whole number of ny-long vectors, and `out=`                   |
 
-`push` has one cause (a map) and `set_carrier_freq_hz` one per code
-already; neither changes. `set_telemetry` checks `decim` before its dry
-run, so "decim" and "room" are told apart in C now, ahead of the pin.
+`push` has one cause (a map) and `set_carrier_freq_hz` one per code;
+neither takes a `why`. `set_telemetry` checks `decim` before its dry run,
+so "decim" and "room" are told apart. Two causes have no test: more than
+2^32 frames to `execute_power_max` (the input alone would be terabytes)
+and a bank's scratch failing to allocate.
 
 `reset` is one method with one doc that says what it clears for each
 flavor; every flavor had one.

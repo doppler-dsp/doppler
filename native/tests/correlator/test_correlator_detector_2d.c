@@ -239,7 +239,7 @@ _det_cross_load_refused (dp_correlator_state_t *src,
   if (dp_correlator_push (src, x, n + 3, hits, 4) == SIZE_MAX)
     {
       float _Complex out[4 * 64];
-      DP_REQUIRE (dp_correlator_execute (src, x, n, out, 4 * 64) == 0);
+      DP_REQUIRE (dp_correlator_execute (src, x, n, out, 4 * 64, NULL) == 0);
     }
   DP_REQUIRE (src->count == 1);
   const size_t   sb   = dp_correlator_state_bytes (src);
@@ -478,23 +478,25 @@ _test_flavor_refusals (void)
       DP_CHECK (dp_correlator_bank_fold (d, x, RN, 1, 0, 0, NULL, 0, &fold)
                 == SIZE_MAX);
       DP_CHECK (calls == 0);
-      DP_CHECK (dp_correlator_execute (d, x, RN, cout, RN) == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_all (d, x, RN, cout, 4 * RN)
+      DP_CHECK (dp_correlator_execute (d, x, RN, cout, RN, NULL) == SIZE_MAX);
+      DP_CHECK (dp_correlator_execute_all (d, x, RN, cout, 4 * RN, NULL)
                 == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_coherent (d, x, RN, cout, 4 * RN)
+      DP_CHECK (dp_correlator_execute_coherent (d, x, RN, cout, 4 * RN, NULL)
                 == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_power_sum (d, x, RN, fout, 4 * RN)
+      DP_CHECK (dp_correlator_execute_power_sum (d, x, RN, fout, 4 * RN, NULL)
                 == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_power_max (d, x, RN, fout, u1, 4 * RN)
-                == SIZE_MAX);
-      DP_CHECK (dp_correlator_execute_peaks (d, x, RN, fout, u1, u2, f3, 4)
-                == SIZE_MAX);
+      DP_CHECK (
+          dp_correlator_execute_power_max (d, x, RN, fout, u1, 4 * RN, NULL)
+          == SIZE_MAX);
+      DP_CHECK (
+          dp_correlator_execute_peaks (d, x, RN, fout, u1, u2, f3, 4, NULL)
+          == SIZE_MAX);
       DP_CHECK (dp_correlator_bank_power_max (d, x, RN, 1, 0, 0, NULL, 0, fout,
-                                              u1, 4 * RN)
+                                              u1, 4 * RN, NULL)
                 == SIZE_MAX);
       DP_CHECK (dp_correlator_bank_detect (d, x, RN, 1, 1, 0, 0, 1.0f, 1.0f,
                                            NULL, 0, fout, i1, u1, u3, u4,
-                                           4 * RN)
+                                           4 * RN, NULL)
                 == SIZE_MAX);
       DP_CHECK (d->count == 0 && d->_last_corr_valid == 0);
       dp_correlator_destroy (d);

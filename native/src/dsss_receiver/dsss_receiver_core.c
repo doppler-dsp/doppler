@@ -524,7 +524,7 @@ dp_dsss_receiver_configure_search_raw (dp_dsss_receiver_state_t *state,
                                        size_t doppler_bins, size_t n_noncoh)
 {
   return dp_correlator_configure_search_raw (state->acq, doppler_bins,
-                                             n_noncoh);
+                                             n_noncoh, NULL);
 }
 
 void

@@ -171,10 +171,11 @@ stream (const scene_t *sc, size_t n)
       return NULL;                                                            \
     /* A setter that refuses leaves the scene unbuilt: NULL, which the        \
        run's DP_REQUIRE reports. */                                           \
-    if ((sc->pin_d && P##configure_search_raw (e, sc->pin_d, sc->pin_nc))     \
+    if ((sc->pin_d                                                            \
+         && P##configure_search_raw (e, sc->pin_d, sc->pin_nc, NULL))         \
         || (sc->carrier > 0.0                                                 \
             && P##set_carrier_freq_hz (e, sc->carrier) != DP_OK)              \
-        || P##set_max_peaks (e, sc->max_peaks) != DP_OK                       \
+        || P##set_max_peaks (e, sc->max_peaks, NULL) != DP_OK                 \
         || P##set_threads (e, sc->threads) != DP_OK)                          \
       {                                                                       \
         P##destroy (e);                                                       \

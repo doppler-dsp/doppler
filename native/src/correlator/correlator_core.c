@@ -1224,11 +1224,16 @@ corr2d_execute (dp_correlator_state_t *state, const float _Complex *in,
 
 size_t
 dp_correlator_execute (dp_correlator_state_t *state, const float _Complex *in,
-                       size_t n_in, float _Complex *out, size_t max_out)
+                       size_t n_in, float _Complex *out, size_t max_out,
+                       const char **why)
 {
   if (!corr2d_is_map (state))
-    return SIZE_MAX;
-  return corr2d_execute (state, in, n_in, out, max_out);
+    return SIZE_MAX; /* off-flavor: the binding's declared sentence */
+  const size_t got = corr2d_execute (state, in, n_in, out, max_out);
+  if (got == SIZE_MAX && why) /* corr2d_execute refuses one thing */
+    *why = "execute: takes exactly one frame: the input length must be the "
+           "frame length n (ny*nx)";
+  return got;
 }
 
 static dp_correlator_state_t *
@@ -1659,14 +1664,38 @@ dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
   return dp_size_mul (H, state->n_out, &need) ? need : SIZE_MAX;
 }
 
+/* Why a batch refused, for its `why` (just-makeit#2574): `frames` and
+   `out` are the method's own sentences. Off a map the binding raises the
+   method's declared "only" sentence, so nothing is written there. */
+static void
+corr2d_batch_why (const dp_correlator_state_t *s, size_t n_in, size_t need,
+                  size_t max_out, const char *frames, const char *out,
+                  const char **why)
+{
+  if (!why || !corr2d_is_map (s))
+    return;
+  *why = (corr2d_frames (s, n_in) == 0 || need == SIZE_MAX) ? frames
+         : max_out < need                                   ? out
+                                                            : NULL;
+}
+
 size_t
 dp_correlator_execute_all (dp_correlator_state_t *state,
                            const float _Complex *in, size_t n_in,
-                           float _Complex *out, size_t max_out)
+                           float _Complex *out, size_t max_out,
+                           const char **why)
 {
   const size_t need = dp_correlator_execute_all_max_out (state, n_in);
   if (corr2d_frames (state, n_in) == 0 || need == SIZE_MAX || max_out < need)
-    return SIZE_MAX;
+    {
+      corr2d_batch_why (state, n_in, need, max_out,
+                        "execute_all: the input must be a whole, nonzero "
+                        "number of frames (multiples of ny*nx)",
+                        "execute_all: out= must hold every map (frames x "
+                        "n_out values)",
+                        why);
+      return SIZE_MAX;
+    }
   dp_correlator_fold_t f = { corr2d_fold_copy, out };
   corr2d_batch (state, in, n_in, 0, &f);
   return need;
@@ -1675,10 +1704,19 @@ dp_correlator_execute_all (dp_correlator_state_t *state,
 size_t
 dp_correlator_execute_coherent (dp_correlator_state_t *state,
                                 const float _Complex *in, size_t n_in,
-                                float _Complex *out, size_t max_out)
+                                float _Complex *out, size_t max_out,
+                                const char **why)
 {
   if (corr2d_frames (state, n_in) == 0 || max_out < state->n_out)
-    return SIZE_MAX;
+    {
+      corr2d_batch_why (state, n_in, state->n_out, max_out,
+                        "execute_coherent: the input must be a whole, "
+                        "nonzero number of frames (multiples of ny*nx)",
+                        "execute_coherent: out= must hold one map (n_out "
+                        "values)",
+                        why);
+      return SIZE_MAX;
+    }
   dp_correlator_fold_t f = { corr2d_fold_copy, out };
   corr2d_batch (state, in, n_in, 1, &f);
   return state->n_out;
@@ -1687,10 +1725,18 @@ dp_correlator_execute_coherent (dp_correlator_state_t *state,
 size_t
 dp_correlator_execute_power_sum (dp_correlator_state_t *state,
                                  const float _Complex *in, size_t n_in,
-                                 float *out, size_t max_out)
+                                 float *out, size_t max_out, const char **why)
 {
   if (corr2d_frames (state, n_in) == 0 || max_out < state->n_out)
-    return SIZE_MAX;
+    {
+      corr2d_batch_why (state, n_in, state->n_out, max_out,
+                        "execute_power_sum: the input must be a whole, "
+                        "nonzero number of frames (multiples of ny*nx)",
+                        "execute_power_sum: out= must hold one map (n_out "
+                        "values)",
+                        why);
+      return SIZE_MAX;
+    }
   dp_correlator_fold_t f = { corr2d_fold_power_sum, out };
   corr2d_batch (state, in, n_in, 0, &f);
   return state->n_out;
@@ -1699,12 +1745,25 @@ dp_correlator_execute_power_sum (dp_correlator_state_t *state,
 size_t
 dp_correlator_execute_power_max (dp_correlator_state_t *state,
                                  const float _Complex *in, size_t n_in,
-                                 float *out, uint32_t *out1, size_t max_out)
+                                 float *out, uint32_t *out1, size_t max_out,
+                                 const char **why)
 {
   const size_t H = corr2d_frames (state, n_in);
   /* The index is a uint32: map H - 1 must fit in one. */
   if (H == 0 || H - 1 > UINT32_MAX || max_out < state->n_out)
-    return SIZE_MAX;
+    {
+      if (H != 0 && H - 1 > UINT32_MAX && why)
+        *why = "execute_power_max: at most 2**32 frames (the index of the "
+               "winning map is a uint32)";
+      else
+        corr2d_batch_why (state, n_in, state->n_out, max_out,
+                          "execute_power_max: the input must be a whole, "
+                          "nonzero number of frames (multiples of ny*nx)",
+                          "execute_power_max: out= must hold one map (n_out "
+                          "values)",
+                          why);
+      return SIZE_MAX;
+    }
   corr2d_max_t         c = { out, out1 };
   dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
   corr2d_batch (state, in, n_in, 0, &f);
@@ -1723,11 +1782,18 @@ size_t
 dp_correlator_execute_peaks (dp_correlator_state_t *state,
                              const float _Complex *in, size_t n_in, float *out,
                              uint32_t *out1, uint32_t *out2, float *out3,
-                             size_t max_out)
+                             size_t max_out, const char **why)
 {
   const size_t H = corr2d_frames (state, n_in);
   if (H == 0 || max_out < H)
-    return SIZE_MAX;
+    {
+      corr2d_batch_why (state, n_in, H, max_out,
+                        "execute_peaks: the input must be a whole, nonzero "
+                        "number of frames (multiples of ny*nx)",
+                        "execute_peaks: out= must hold one record per frame",
+                        why);
+      return SIZE_MAX;
+    }
   corr2d_peaks_t       c = { state, out, out1, out2, out3 };
   dp_correlator_fold_t f = { corr2d_fold_peaks, &c };
   corr2d_batch (state, in, n_in, 0, &f);
@@ -1794,6 +1860,39 @@ corr2d_bank_check (const dp_correlator_state_t *s, size_t x_len, size_t L,
   b->R     = R;
   b->rates = NULL;
   return 1;
+}
+
+/* Which of the bank's argument rules a refused call broke, for its `why`
+   (just-makeit#2574): tested in corr2d_bank_check's own order, and the
+   last (the hypothesis index fitting a uint32) by calling it, so the rules
+   are stated once. Called only on a refusal, never on the bank's path. */
+enum
+{
+  BANK_OK,
+  BANK_FRAME,
+  BANK_L,
+  BANK_G,
+  BANK_RATES,
+  BANK_INDEX,
+  BANK_OUT
+};
+
+static int
+corr2d_bank_cause (const dp_correlator_state_t *s, size_t x_len, size_t L,
+                   int g_min, int g_max, size_t rates_len, size_t max_out)
+{
+  corr2d_bank_t b;
+  if (x_len != s->n)
+    return BANK_FRAME;
+  if (L == 0)
+    return BANK_L;
+  if (g_min > g_max)
+    return BANK_G;
+  if (rates_len % s->ny != 0)
+    return BANK_RATES;
+  if (!corr2d_bank_check (s, x_len, L, g_min, g_max, rates_len, &b))
+    return BANK_INDEX;
+  return max_out < s->n_out ? BANK_OUT : BANK_OK;
 }
 
 /* floor(a / b) and the matching non-negative remainder, for any sign. */
@@ -2175,7 +2274,8 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                               const float _Complex *x, size_t x_len, size_t L,
                               int g_min, int g_max,
                               const float _Complex *rates, size_t rates_len,
-                              float *out, uint32_t *out1, size_t max_out)
+                              float *out, uint32_t *out1, size_t max_out,
+                              const char **why)
 {
   /* A detector has no bank. Refused here, at each entry, and not in
      corr2d_bank_check: that helper is inlined into all three, and the one
@@ -2187,12 +2287,34 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
   corr2d_bank_t b;
   if (!corr2d_bank_check (state, x_len, L, g_min, g_max, rates_len, &b)
       || max_out < state->n_out)
-    return SIZE_MAX;
+    {
+      static const char *const said[] = {
+        [BANK_FRAME] = "bank_power_max: takes exactly one frame (ny*nx "
+                       "samples)",
+        [BANK_L]     = "bank_power_max: L must be at least 1",
+        [BANK_G]     = "bank_power_max: g_min must not exceed g_max",
+        [BANK_RATES] = "bank_power_max: rates must be a whole number of "
+                       "ny-long vectors",
+        [BANK_INDEX] = "bank_power_max: (g_max - g_min + 1) x the rate "
+                       "count must fit the uint32 hypothesis index",
+        [BANK_OUT]   = "bank_power_max: out= must hold one map (n_out "
+                       "values)",
+      };
+      if (why)
+        *why = said[corr2d_bank_cause (state, x_len, L, g_min, g_max,
+                                       rates_len, max_out)];
+      return SIZE_MAX;
+    }
   b.rates                = rates_len ? rates : NULL;
   corr2d_max_t         c = { out, out1 };
   dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
-  return corr2d_bank_run (state, x, &b, &f) == SIZE_MAX ? SIZE_MAX
-                                                        : state->n_out;
+  if (corr2d_bank_run (state, x, &b, &f) == SIZE_MAX)
+    {
+      if (why)
+        *why = "bank_power_max: the bank's scratch could not be allocated";
+      return SIZE_MAX;
+    }
+  return state->n_out;
 }
 
 /* ── Detect coarse, refine the candidate (corr2d-hypotheses.md section 6) */
@@ -2277,7 +2399,7 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
                            float t_confirm, const float _Complex *rates,
                            size_t rates_len, float *out, int32_t *out1,
                            uint32_t *out2, uint32_t *out3, uint32_t *out4,
-                           size_t max_out)
+                           size_t max_out, const char **why)
 {
   /* A detector has no bank. Refused here, at each entry, and not in
      corr2d_bank_check: that helper is inlined into all three, and the one
@@ -2290,12 +2412,35 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
   if (L_d == 0 || L_r < L_d || L_r % L_d != 0
       || !corr2d_bank_check (state, x_len, L_d, g_min, g_max, rates_len, &b)
       || max_out < state->n_out)
-    return SIZE_MAX;
+    {
+      static const char *const said[] = {
+        [BANK_FRAME] = "bank_detect: takes exactly one frame (ny*nx "
+                       "samples)",
+        [BANK_L]     = "bank_detect: L_d must be at least 1",
+        [BANK_G]     = "bank_detect: g_min must not exceed g_max",
+        [BANK_RATES] = "bank_detect: rates must be a whole number of ny-long "
+                       "vectors",
+        [BANK_INDEX] = "bank_detect: (g_max - g_min + 1) x the rate count "
+                       "must fit the uint32 hypothesis index",
+        [BANK_OUT]   = "bank_detect: out= must hold one record per map cell",
+      };
+      if (why)
+        *why = (L_d != 0 && (L_r < L_d || L_r % L_d != 0))
+                   ? "bank_detect: L_d must divide L_r"
+                   : said[corr2d_bank_cause (state, x_len, L_d, g_min, g_max,
+                                             rates_len, max_out)];
+      return SIZE_MAX;
+    }
   const long long m = (long long)(L_r / L_d);
   /* every refined carrier must fit the int32 the record carries */
   if ((long long)g_min * m - (m - 1) < INT32_MIN
       || (long long)g_max * m + (m - 1) > INT32_MAX)
-    return SIZE_MAX;
+    {
+      if (why)
+        *why = "bank_detect: every refined carrier (g x L_r / L_d) must fit "
+               "an int32";
+      return SIZE_MAX;
+    }
   b.rates            = rates_len ? rates : NULL;
   const size_t n_out = state->n_out, nx = state->nx;
   /* The map's own geometry: a known column is ny rows of one. */
@@ -2315,6 +2460,8 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
   if (corr2d_bank_run (state, x, &b, &f) == SIZE_MAX)
     {
       free (pw), free (ix), free (code), free (ph);
+      if (why)
+        *why = "bank_detect: the bank's scratch could not be allocated";
       return SIZE_MAX;
     }
   if (direct)
@@ -5103,7 +5250,7 @@ search_autocorr (const float _Complex *x, size_t n)
   if (!c)
     return NULL;
   float _Complex *R   = dp_xmallocn (n, sizeof *R);
-  const size_t    got = dp_correlator_execute (c, x, n, R, n);
+  const size_t    got = dp_correlator_execute (c, x, n, R, n, NULL);
   (void)got; /* n in, dwell 1: one dump of n, always */
   dp_correlator_destroy (c);
   return R;
@@ -5518,7 +5665,7 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
      Gold-1023 search) that only a peak-list consumer reads. */
   st->search->dsl_window_bins = st->search->window_bins;
   search_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
-  if (dp_correlator_set_max_peaks (st, 1) != 0)
+  if (dp_correlator_set_max_peaks (st, 1, NULL) != 0)
     goto fail;
   st->search->epoch_fan = 1;
   dp__search_reset (st); /* binds the framer at the grid just chosen */
@@ -5951,21 +6098,37 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
 
 int
 dp_correlator_configure_search_raw (dp_correlator_state_t *st,
-                                    size_t doppler_bins, size_t n_noncoh)
+                                    size_t doppler_bins, size_t n_noncoh,
+                                    const char **why)
 {
   dp_correlator_search_t *const srch = st->search;
   if (!srch) /* not a search flavor (§18) */
     return DP_ERR_UNSUPPORTED;
-  if (doppler_bins < 1 || doppler_bins > srch->reps || n_noncoh < 1
-      || n_noncoh > DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)
-    return DP_ERR_INVALID;
+  if (doppler_bins < 1 || doppler_bins > srch->reps)
+    {
+      if (why)
+        *why = "configure_search_raw: doppler_bins must lie in 1..reps";
+      return DP_ERR_INVALID;
+    }
+  if (n_noncoh < 1 || n_noncoh > DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)
+    {
+      if (why)
+        *why = "configure_search_raw: n_noncoh must lie in 1..256 "
+               "(DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)";
+      return DP_ERR_INVALID;
+    }
   /* Non-coherent looks and rate hypotheses do not compose: the search scores
      each hypothesis with the COHERENT statistic, against a gate the
      non-coherent path sets to zero, and sums per-look maxima into a surface
      eta_nc was never derived for. A burst engine buys no looks on its own
      (search_auto_config_burst), so this refuses only a pinned grid. */
   if (n_noncoh > 1 && srch->rate_hyps > 1)
-    return DP_ERR_INVALID;
+    {
+      if (why)
+        *why = "configure_search_raw: non-coherent looks (n_noncoh > 1) need "
+               "rate_hypotheses 1";
+      return DP_ERR_INVALID;
+    }
 
   /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
    * -- it exits wideband mode (window_bins back to 1) if that was active,
@@ -6056,14 +6219,19 @@ dp_correlator_set_threads (dp_correlator_state_t *st, int n)
 }
 
 int
-dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n)
+dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n,
+                             const char **why)
 {
   /* Only a search lists peaks, and only a search's destroy frees the list:
      off one this would leak it (§18). */
   if (!st->search)
     return DP_ERR_UNSUPPORTED;
   if (n < 1 || n > DP_CORRELATOR_MAX_PEAKS)
-    return DP_ERR_INVALID;
+    {
+      if (why)
+        *why = "set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)";
+      return DP_ERR_INVALID;
+    }
   /* Fixed sizes from a validated argument: abort-on-OOM helpers, so there
      is no unwind path nothing can reach. */
   free (st->peaks);
@@ -6702,7 +6870,8 @@ dp_correlator_build_handoff (const dp_correlator_state_t *state,
 /* ── Observability (docs/design/async-dsss-receiver.md §2.4) ─────────── */
 int
 dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
-                             const char *prefix, uint32_t decim)
+                             const char *prefix, uint32_t decim,
+                             const char **why)
 {
   dp_correlator_search_t *const srch = state->search;
   if (!corr2d_is_continuous (state)) /* §18 */
@@ -6724,12 +6893,21 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
   char name[10][DP_TLM_NAME_MAX];
   for (size_t i = 0; i < 10; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, suffix[i]) != DP_OK)
-      return DP_ERR_INVALID; /* overlong prefix: nothing registered */
+      {
+        if (why) /* overlong prefix: nothing registered */
+          *why = "set_telemetry: the prefix is too long: prefix + \".\" + "
+                 "each probe name must fit DP_TLM_NAME_MAX bytes";
+        return DP_ERR_INVALID;
+      }
   /* decim apart from room, so each refusal can name its argument once
      methods take a `why` (just-makeit#2574); the dry run below then
      refuses only a context with no room. */
   if (decim < 1)
-    return DP_ERR_INVALID;
+    {
+      if (why)
+        *why = "set_telemetry: decim must be at least 1";
+      return DP_ERR_INVALID;
+    }
   /* Whole or nothing (#2647). The dry run registers every name on a
      scratch context (decim is already known good), and then asks whether
      the caller's table has room for the names it lacks; only then does
@@ -6745,7 +6923,12 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
   fits = fits && dp_tlm_has_room_for (tlm, scratch);
   dp_tlm_destroy (scratch);
   if (!fits)
-    return DP_ERR_INVALID; /* bad decim or a full table: nothing registered */
+    {
+      if (why) /* decim is known good: the table is full */
+        *why = "set_telemetry: the context has no room for this search's ten "
+               "probes";
+      return DP_ERR_INVALID;
+    }
   int32_t got[10];
   for (size_t i = 0; i < 10; i++)
     {

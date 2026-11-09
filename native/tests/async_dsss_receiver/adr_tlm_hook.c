@@ -40,12 +40,12 @@ adr_test_acq_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
                             const char *prefix, uint32_t decim)
 {
   if (!tlm)
-    return dp_correlator_set_telemetry (state, tlm, prefix, decim);
+    return dp_correlator_set_telemetry (state, tlm, prefix, decim, NULL);
   g_acq_calls++;
   if (g_acq_fail_at && g_acq_calls == g_acq_fail_at)
     {
       g_fired = 1;
       return DP_ERR_MEMORY;
     }
-  return dp_correlator_set_telemetry (state, tlm, prefix, decim);
+  return dp_correlator_set_telemetry (state, tlm, prefix, decim, NULL);
 }

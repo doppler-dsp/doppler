@@ -249,7 +249,7 @@ resamp_state_t * dp_resamp_create_custom (
 **Parameters:**
 
 
-* `num_phases` Arms in the bank; a power of two (1 included). The arm is the top log2(num\_phases) bits of the phase word, so any other count would address arms past the end of the bank; it is refused. 
+* `num_phases` Arms in the bank; a power of two (1 included), at most 2^32. The arm is the top log2(num\_phases) bits of the 32-bit phase word, so any other count would address arms past the end of the bank, and a word that wide cannot name more than 2^32; both are refused, before the bank is copied. 
 * `num_taps` Taps per arm. 
 * `bank` num\_phases x num\_taps floats, row-major (one row per arm); copied, so the caller keeps ownership. 
 * `rate` Output/input rate ratio; must satisfy [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok). 
@@ -258,7 +258,7 @@ resamp_state_t * dp_resamp_create_custom (
 
 **Returns:**
 
-Heap-allocated state, or NULL if `num_phases` is 0 or not a power of two, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or allocation fails. 
+Heap-allocated state, or NULL if `num_phases` is 0, not a power of two or above 2^32, `num_taps` is 0, `bank` is NULL, `rate` is outside [**dp\_resamp\_rate\_ok()**](resamp__core_8h.md#function-dp_resamp_rate_ok), or allocation fails. 
 
 
 

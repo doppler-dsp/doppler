@@ -144,17 +144,19 @@ extern "C"
 
   /**
    * @brief Create a resampler over a user-supplied polyphase bank.
-   * @param num_phases  Arms in the bank; a power of two (1 included).
-   *                    The arm is the top log2(num_phases) bits of the
-   *                    phase word, so any other count would address arms
-   *                    past the end of the bank; it is refused.
+   * @param num_phases  Arms in the bank; a power of two (1 included),
+   *                    at most 2^32.  The arm is the top log2(num_phases)
+   *                    bits of the 32-bit phase word, so any other count
+   *                    would address arms past the end of the bank, and
+   *                    a word that wide cannot name more than 2^32; both
+   *                    are refused, before the bank is copied.
    * @param num_taps    Taps per arm.
    * @param bank        num_phases x num_taps floats, row-major (one row
    *                    per arm); copied, so the caller keeps ownership.
    * @param rate        Output/input rate ratio; must satisfy
    *                    dp_resamp_rate_ok().
-   * @return Heap-allocated state, or NULL if @p num_phases is 0 or not a
-   *         power of two, @p num_taps is 0, @p bank is NULL, @p rate is
+   * @return Heap-allocated state, or NULL if @p num_phases is 0, not a
+   *         power of two or above 2^32, @p num_taps is 0, @p bank is NULL, @p rate is
    *         outside dp_resamp_rate_ok(), or allocation fails.
    */
   resamp_state_t *dp_resamp_create_custom (size_t num_phases, size_t num_taps,

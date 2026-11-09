@@ -10,8 +10,10 @@
 #include "dp_mf_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ── Serializable state: mid-stream split resumes bit-for-bit ──────────────
  */
@@ -398,6 +400,45 @@ test_matched_state_roundtrip (void)
   free (outB);
 }
 
+/* A block too long to size is refused, the state untouched.
+ *
+ * Both block forms mix into a scratch of n_in complex samples. n_in =
+ * 2^(w-3) is 2^w bytes, which used to wrap to a 0-byte scratch the LO then
+ * wrote n_in phasors into. Each form now returns 0 before reading any input.
+ * The positive control: the same object then runs the same input at a sane
+ * length bit-exact against a fresh twin, so the refusal came from the
+ * wrapping length and left nothing behind. */
+static int
+test_huge_block_refused (void)
+{
+  enum
+  {
+    N = 256
+  };
+  const size_t wrap = SIZE_MAX / sizeof (float _Complex) + 1u;
+  float _Complex x[N], ya[N], yb[N];
+  for (int k = 0; k < N; k++)
+    x[k] = CMPLXF ((float)cos (0.05 * k), (float)sin (0.03 * k));
+
+  dp_ddc_state_t *a = dp_ddc_create (0.01, 0.5);
+  dp_ddc_state_t *b = dp_ddc_create (0.01, 0.5);
+  DP_REQUIRE (a && b);
+  DP_CHECK (dp_ddc_execute (a, x, wrap, ya, N) == 0);
+  DP_CHECK (dp_ddc_execute_ctrl (a, x, wrap, 0.0, 0.0, ya, N) == 0);
+
+  size_t na = dp_ddc_execute (a, x, N, ya, N);
+  size_t nb = dp_ddc_execute (b, x, N, yb, N);
+  DP_CHECK (na > 0 && na == nb);
+  DP_CHECK (memcmp (ya, yb, na * sizeof ya[0]) == 0);
+  na = dp_ddc_execute_ctrl (a, x, N, 0.0, 0.0, ya, N);
+  nb = dp_ddc_execute_ctrl (b, x, N, 0.0, 0.0, yb, N);
+  DP_CHECK (na > 0 && na == nb);
+  DP_CHECK (memcmp (ya, yb, na * sizeof ya[0]) == 0);
+  dp_ddc_destroy (a);
+  dp_ddc_destroy (b);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -416,6 +457,7 @@ main (void)
   test_carrier_loop_pulls_in ();
   test_clipped_forwards ();
   test_matched_state_roundtrip ();
+  test_huge_block_refused ();
 
   DP_TEST_END ("test_ddc_core");
 }

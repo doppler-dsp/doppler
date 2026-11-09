@@ -14,6 +14,7 @@
 #include "doppler/interp_table/interp_table_core.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -140,6 +141,19 @@ main (void)
         DP_CHECK (ok != NULL);
         dp_interp_table_destroy (ok);
       }
+  }
+
+  /* A table too long to size is refused: 2^(w-4) complex doubles is 2^w
+     bytes, which used to wrap to a 0-byte copy that create() accepted and
+     execute() then read past. Positive control: the same table at its own
+     length builds, so the refusal comes from the wrapping length. */
+  {
+    const double _Complex t[3] = { 0.0, 1.0, 2.0 };
+    const size_t wrap          = SIZE_MAX / sizeof (double _Complex) + 1u;
+    DP_CHECK (dp_interp_table_create (t, wrap, 2) == NULL);
+    dp_interp_table_state_t *ok = dp_interp_table_create (t, 3, 2);
+    DP_CHECK (ok != NULL);
+    dp_interp_table_destroy (ok);
   }
 
   DP_TEST_END ("test_interp_table_core");

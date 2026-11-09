@@ -93,6 +93,16 @@ test_create_destroy (void)
   /* zero num_taps must be rejected */
   bad = dp_hbdecim_create (0, H4_FIR);
   DP_CHECK_MSG (bad == NULL, "create rejects zero num_taps");
+
+  /* A tap count too large to size is refused: 2^(w-2) float taps is 2^w
+     bytes, which used to wrap to a 0-byte copy create() then wrote every
+     tap into. Positive control: the same taps at a sane count build, so
+     the refusal comes from the wrapping count. */
+  bad = dp_hbdecim_create (SIZE_MAX / sizeof (float) + 1u, H4_FIR);
+  DP_CHECK_MSG (bad == NULL, "create rejects a num_taps it cannot size");
+  bad = dp_hbdecim_create (N_TAPS, H4_FIR);
+  DP_CHECK_MSG (bad != NULL, "the same taps at N_TAPS build");
+  dp_hbdecim_destroy (bad);
 }
 
 static void

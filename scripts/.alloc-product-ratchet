@@ -1,11 +1,13 @@
 # Baseline for scripts/check_alloc_helpers.py's second rule -- a RATCHET.
 #
-# Allocations in doppler's library C whose size is an inline product
-# (`malloc (n * sizeof *p)`, `dp_xrealloc (p, n * size)`), per file. A
-# product that wraps asks for a SMALL buffer and the code then writes past
-# it. Each one moves to dp_mallocn (NULL on overflow, for a path that
-# refuses) or dp_xmallocn / dp_xreallocn (abort, for a trusted count), all
-# in native/inc/doppler/clib_common.h.
+# Allocations in doppler's library C with an inline product in a size
+# argument (`malloc (n * sizeof *p)`, `dp_xrealloc (p, n * size)`,
+# `calloc (a * b, size)`), per file. A product that wraps asks for a SMALL
+# buffer and the code then writes past it. Each one moves to dp_mallocn
+# (NULL on overflow, for a path that refuses) or dp_xmallocn /
+# dp_xreallocn (abort, for a trusted count), all in
+# native/inc/doppler/clib_common.h, with the product passed as their two
+# factors.
 #
 # THIS LIST MAY ONLY SHRINK, with no reason escape: every site has a
 # checked spelling. A file not listed may hold none, a count left above
@@ -17,30 +19,33 @@
 # Format:  <path> <count>
 
 native/inc/doppler/dp_parallel.h 2
-native/src/RateConverter/RateConverter_core.c 4
-native/src/async_dsss_pool/async_dsss_pool_core.c 1
+native/src/RateConverter/RateConverter_core.c 5
+native/src/async_dsss_pool/async_dsss_pool_core.c 3
 native/src/async_dsss_receiver/async_dsss_receiver_core.c 9
 native/src/burst_capture/burst_capture_core.c 7
 native/src/burst_demod/burst_demod_core.c 7
 native/src/carrier_acq/carrier_acq_core.c 5
-native/src/correlator/correlator_core.c 74
+native/src/correlator/correlator_core.c 78
 native/src/ddc/ddc_core.c 2
 native/src/ddcr/ddcr_core.c 1
+native/src/delay/delay_core.c 1
 native/src/doppler_channel/doppler_channel_core.c 2
 native/src/dp_event_log/dp_event_log_core.c 1
 native/src/dp_tlm_capture/dp_tlm_capture_core.c 2
 native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 4
 native/src/dsss_receiver/dsss_receiver_core.c 3
 native/src/fft/pocketfft.c 4
+native/src/fft2d/fft2d_core.c 1
 native/src/fir/fir_core.c 3
-native/src/hbdecim/hbdecim_core.c 1
+native/src/hbdecim/hbdecim_core.c 3
+native/src/hbdecim_q15/hbdecim_q15_core.c 4
 native/src/imdmeas/imdmeas_core.c 1
 native/src/interp_table/interp_table_core.c 1
 native/src/nprmeas/nprmeas_core.c 1
 native/src/ppe/ppe_core.c 6
 native/src/psd/psd_core.c 5
-native/src/resamp/resamp_core.c 2
-native/src/resample/hbdecim_r2c_core.c 1
+native/src/resamp/resamp_core.c 3
+native/src/resample/hbdecim_r2c_core.c 3
 native/src/specan/specan_core.c 4
 native/src/spectral/find_peaks_f32.c 1
 native/src/spectral/noise_floor_db.c 1

@@ -346,6 +346,24 @@ def _seed_products(
             "void f (void) { p = dp_xrealloc (p, (n) * 4); }\n",
             "allows 0",
         ),
+        # calloc checks nmemb * size, but not a product INSIDE either
+        # argument: `a * b` has wrapped before calloc sees it.
+        ("void f (void) { p = calloc (a * b, sizeof *p); }\n", "allows 0"),
+        ("void f (void) { p = calloc (n, a * b); }\n", "allows 0"),
+        (
+            "void f (void) { p = dp_xcalloc (2 * cap, sizeof *p); }\n",
+            "allows 0",
+        ),
+        # The checked helpers take the factors; a product passed as one of
+        # them wraps just the same.
+        (
+            "void f (void) { p = dp_xmallocn (a * b, sizeof *p); }\n",
+            "allows 0",
+        ),
+        (
+            "void f (void) { p = dp_xreallocn (p, n, a * b); }\n",
+            "allows 0",
+        ),
         # clang-format breaks a long call across lines: the call is read
         # whole, and reported where it starts.
         (
@@ -381,7 +399,7 @@ def test_an_inline_product_size_is_named(
             },
             "",
         ),
-        # calloc checks nmemb * size itself.
+        # calloc checks nmemb * size itself when each is a plain value.
         (
             {
                 "native/src/x/x_core.c": "void f (void) "
@@ -518,3 +536,44 @@ def test_update_baseline_records_the_products(tmp_path: Path) -> None:
     assert "native/src/x/x_core.c 3" in text
     assert "MAY ONLY SHRINK" in text
     assert _run(tmp_path, a).returncode == 0
+
+
+def test_a_renamed_product_list_cannot_hide_a_raise(tmp_path: Path) -> None:
+    """The list's `since` is the rule's own module, not the list: a raise
+    made in the same change as moving the list to a new path is read
+    against an EMPTY list at the base, so every entry is added, and the
+    rise is refused. With the list as its own `since`, the moved list was
+    "new", nothing counted as added, and the raise passed."""
+    a = _seed_products(
+        tmp_path,
+        {
+            "native/src/x/x_core.c": PRODUCT,
+            "scripts/_alloc_products.py": "# the rule\n",
+        },
+        "native/src/x/x_core.c 1\n",
+        "native/src/x/x_core.c 1\n",
+    )
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "add", "-A")
+    _git(
+        tmp_path,
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-qm",
+        "base",
+    )
+    _git(tmp_path, "branch", "-f", "origin/main", "main")
+
+    (tmp_path / "native/src/x/x_core.c").write_text(
+        PRODUCT * 2, encoding="utf-8"
+    )
+    a.write_text("native/src/x/x_core.c 2  # caller-sized\n", encoding="utf-8")
+    moved = tmp_path / "scripts" / ".alloc-product-ratchet-moved"
+    moved.write_text("native/src/x/x_core.c 2\n", encoding="utf-8")
+    (tmp_path / PRODUCTS).unlink()
+    r = _run(tmp_path, a, "--base", "origin/main", "--products", str(moved))
+    assert r.returncode == 1, r.stdout
+    assert "'native/src/x/x_core.c' rose to 2" in r.stdout

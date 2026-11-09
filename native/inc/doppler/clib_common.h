@@ -295,7 +295,18 @@ dp_size_mul_sat (size_t a, size_t b)
 /* all n elements writes past it. These are malloc / dp_xmalloc /      */
 /* dp_xrealloc with the product taken out of the caller's hands, as    */
 /* calloc already takes it for a zeroed allocation (calloc and         */
-/* dp_xcalloc check nmemb * size themselves, so they need no sibling). */
+/* dp_xcalloc check nmemb * size themselves, so they need no sibling   */
+/* -- but neither checks a product written INSIDE an argument:         */
+/* `calloc (a * b, size)` wraps `a * b` first).                        */
+/*                                                                     */
+/* A zero count asks for ONE byte, in all three. malloc (0) may return */
+/* NULL, which would read as a refusal from dp_mallocn and abort       */
+/* dp_xmallocn; glibc's realloc (p, 0) frees p and returns NULL, which */
+/* would abort dp_xreallocn on a request that is not out of memory,    */
+/* and C23 makes realloc (p, 0) undefined. So NULL from these means    */
+/* overflow or OOM and nothing else, and a zero-count result is a live */
+/* pointer the caller frees as usual and never dereferences.           */
+/*                                                                     */
 /* Which one:                                                          */
 /*                                                                     */
 /*  - dp_mallocn, when the count comes from a CALLER on a path that    */
@@ -307,8 +318,8 @@ dp_size_mul_sat (size_t a, size_t b)
 /*    mistake, so it aborts too rather than handing back a short      */
 /*    buffer.                                                          */
 /*                                                                     */
-/* scripts/check_alloc_helpers.py fails on a new malloc / realloc /    */
-/* dp_xmalloc / dp_xrealloc whose size is a product written inline.    */
+/* scripts/check_alloc_helpers.py fails on a new allocation with a    */
+/* product written inline in any size argument.                        */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -316,7 +327,8 @@ dp_size_mul_sat (size_t a, size_t b)
  *        count would overflow, or on OOM.
  *
  * For a count a caller chose, on a path that refuses: check the result
- * and refuse, exactly as for malloc. `n == 0` behaves as `malloc (0)`.
+ * and refuse, exactly as for malloc. A zero count (or size) asks for one
+ * byte, so NULL always means overflow or OOM (see above).
  *
  * @code
  * #include "doppler/clib_common.h"
@@ -345,7 +357,9 @@ static inline void *
 dp_mallocn (size_t n, size_t size)
 {
   size_t bytes;
-  return dp_size_mul (n, size, &bytes) ? malloc (bytes) : NULL;
+  if (!dp_size_mul (n, size, &bytes))
+    return NULL;
+  return malloc (bytes ? bytes : 1u);
 }
 
 /**
@@ -377,7 +391,7 @@ dp_xmallocn (size_t n, size_t size)
   size_t bytes;
   if (!dp_size_mul (n, size, &bytes))
     abort ();
-  return dp_xmalloc (bytes);
+  return dp_xmalloc (bytes ? bytes : 1u); /* zero: one byte, see above */
 }
 
 /**
@@ -412,7 +426,8 @@ dp_xreallocn (void *p, size_t n, size_t size)
   size_t bytes;
   if (!dp_size_mul (n, size, &bytes))
     abort ();
-  return dp_xrealloc (p, bytes);
+  /* zero: one byte, never realloc (p, 0) -- see above */
+  return dp_xrealloc (p, bytes ? bytes : 1u);
 }
 
 /**

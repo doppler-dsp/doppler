@@ -515,9 +515,11 @@ LINT_text-encoding = $(UV) run python scripts/check_text_encoding.py
 # line has to satisfy. The helpers landed 2026-07-21 and the rule then lived
 # in a memory file and nowhere else, so nothing extended it and a bare malloc
 # beside a helper call passed every gate the repo had. Ratcheted: the 313
-# sites that predate it may only shrink. Its second rule: no malloc /
-# realloc / dp_xmalloc / dp_xrealloc sized by an inline product, which wraps
-# to a short buffer; dp_mallocn / dp_xmallocn / dp_xreallocn check it.
+# sites that predate it may only shrink. Its second rule
+# (scripts/_alloc_products.py): no inline product in ANY size argument of an
+# allocator -- malloc, realloc, calloc and the dp_x/dp_*n helpers -- since
+# `calloc (a * b, size)` has wrapped `a * b` before calloc's own check;
+# dp_mallocn / dp_xmallocn / dp_xreallocn take the factors instead.
 # scripts/.alloc-product-ratchet holds the sites that predate it, shrink-only.
 LINT_alloc-helpers = $(UV) run python scripts/check_alloc_helpers.py
 

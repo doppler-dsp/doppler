@@ -320,7 +320,7 @@ static inline void * dp_mallocn (
 
 
 
-For a count a caller chose, on a path that refuses: check the result and refuse, exactly as for malloc. `n == 0` behaves as `malloc (0)`.
+For a count a caller chose, on a path that refuses: check the result and refuse, exactly as for malloc. A zero count (or size) asks for one byte, so NULL always means overflow or OOM (see above).
 
 
 

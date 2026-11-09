@@ -27,7 +27,8 @@
  *   8. dp_mallocn allocates n * size when it fits and returns NULL at the
  *      first count that overflows, where `malloc (n * size)` wraps to a
  *      small request and SUCCEEDS; dp_xmallocn / dp_xreallocn allocate
- *      the same sizes.
+ *      the same sizes, and all three answer a zero count with a live
+ *      one-byte allocation, never NULL.
  *   9. dp_xmallocn and dp_xreallocn ABORT on an overflowing count: run as
  *      `test_clib_common --abort <which>` by two more ctests, which pass
  *      only when SIGABRT is raised.
@@ -77,6 +78,12 @@ static int
 abort_mode (const char *which)
 {
   const size_t n = opaque (SIZE_MAX / 2 + 1); /* n * 2 is 2^w: overflows */
+#ifdef _MSC_VER
+  /* The Debug CRT's abort() opens a report dialog and waits on it, which
+     hangs a ctest run; turn the message box and the fault report off so
+     SIGABRT is raised straight away, on every build type. */
+  _set_abort_behavior (0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
   (void)signal (SIGABRT, on_abort);
   void *p = NULL;
   if (strcmp (which, "xmallocn") == 0)
@@ -278,6 +285,23 @@ main (int argc, char **argv)
     DP_CHECK (dp_mallocn (opaque (SIZE_MAX / 2 + 1), 2) == NULL);
     DP_CHECK (dp_mallocn (opaque (SIZE_MAX / 8 + 1), 8) == NULL);
     DP_CHECK (dp_mallocn (opaque (SIZE_MAX), opaque (SIZE_MAX)) == NULL);
+
+    /* A zero count is one byte, never NULL: NULL means overflow or OOM.
+     * The realloc case is the one that bites: glibc's realloc (p, 0) frees
+     * p and returns NULL, which dp_xnn would read as OOM and abort on. */
+    void *z = dp_mallocn (opaque (0), 8);
+    DP_CHECK (z != NULL);
+    free (z);
+    z = dp_mallocn (opaque (8), 0);
+    DP_CHECK (z != NULL);
+    free (z);
+    z = dp_xmallocn (opaque (0), 8);
+    DP_CHECK (z != NULL);
+    z                = dp_xreallocn (z, opaque (16), 8);
+    ((char *)z)[127] = 1;
+    z                = dp_xreallocn (z, opaque (0), 8);
+    DP_CHECK (z != NULL);
+    free (z);
   }
 
   DP_TEST_END ("test_clib_common");

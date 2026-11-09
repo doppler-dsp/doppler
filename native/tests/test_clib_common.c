@@ -2,7 +2,8 @@
  * test_clib_common.c — the checked size product, dp_size_mul() and its
  * saturating face dp_size_mul_sat(), and the double-to-size_t range check
  * dp_size_from_double(), and the array allocators built on the product,
- * dp_mallocn() / dp_xmallocn() / dp_xreallocn() (clib_common.h).
+ * dp_mallocn() / dp_reallocn() / dp_xmallocn() / dp_xreallocn()
+ * (clib_common.h).
  *
  * A size product that wraps allocates small and is then written past.
  * The guard had been hand-written at every site, a different way each
@@ -29,6 +30,12 @@
  *      small request and SUCCEEDS; dp_xmallocn / dp_xreallocn allocate
  *      the same sizes, and all three answer a zero count with a live
  *      one-byte allocation, never NULL.
+ *   8b. dp_reallocn returns NULL at the first count that overflows, for
+ *      several element sizes, and leaves p live with its contents
+ *      unchanged; the fitting side of that boundary is section 3's (a
+ *      request of ~SIZE_MAX bytes cannot be allocated to prove it). A
+ *      zero count is a live block that does not free p, and a grow then
+ *      a shrink keeps the prefix.
  *   9. dp_xmallocn and dp_xreallocn ABORT on an overflowing count: run as
  *      `test_clib_common --abort <which>` by two more ctests, which pass
  *      only when SIGABRT is raised.
@@ -36,7 +43,8 @@
  * Each section was proven by sabotage: the guard widened by one and then
  * removed, and this file went red each time; for section 7, the bound
  * loosened to `<= (double)SIZE_MAX`; for 8 and 9, the product checked
- * by dp_size_mul replaced with a plain `n * size`.
+ * by dp_size_mul replaced with a plain `n * size` (for 8b, in
+ * dp_reallocn).
  *
  * The factors go through volatile reads so the compiler cannot fold the
  * checks at build time: the function under test runs on every build type.
@@ -302,6 +310,63 @@ main (int argc, char **argv)
     z                = dp_xreallocn (z, opaque (0), 8);
     DP_CHECK (z != NULL);
     free (z);
+  }
+
+  /* 8b. dp_reallocn: the refusing resize. The block is filled with a
+   * known pattern first, so a refusal that freed, moved or rewrote it
+   * shows as an ASan error or a wrong byte. */
+  {
+    const size_t   len = 64;
+    unsigned char *p   = dp_reallocn (NULL, opaque (len), 1);
+    DP_REQUIRE (p != NULL);
+    for (size_t i = 0; i < len; ++i)
+      p[i] = (unsigned char)(i + 1);
+
+    /* The boundary, refused side: SIZE_MAX / b + 1 elements of b bytes
+     * is the first count whose product wraps (to 0 for a power of two,
+     * to 2 for b = 3), which a plain `realloc (p, n * size)` would grant
+     * as a tiny block. SIZE_MAX / b itself fits (section 3). */
+    static const size_t b[] = { 2, 3, 8, 16, 24 };
+    for (size_t k = 0; k < sizeof b / sizeof b[0]; ++k)
+      {
+        size_t fits;
+        DP_CHECK (dp_size_mul (opaque (SIZE_MAX / b[k]), b[k], &fits) == 1);
+        DP_CHECK (dp_reallocn (p, opaque (SIZE_MAX / b[k] + 1), b[k]) == NULL);
+      }
+    DP_CHECK (dp_reallocn (p, opaque (SIZE_MAX), opaque (SIZE_MAX)) == NULL);
+    int intact = 1;
+    for (size_t i = 0; i < len; ++i)
+      intact &= p[i] == (unsigned char)(i + 1);
+    DP_CHECK (intact);
+
+    /* Grow, then shrink: the prefix survives both. */
+    unsigned char *g = dp_reallocn (p, opaque (4096), 2);
+    DP_REQUIRE (g != NULL);
+    p       = g;
+    p[8191] = 0xAA;
+    intact  = 1;
+    for (size_t i = 0; i < len; ++i)
+      intact &= p[i] == (unsigned char)(i + 1);
+    DP_CHECK (intact);
+    g = dp_reallocn (p, opaque (len / 2), 1);
+    DP_REQUIRE (g != NULL);
+    p      = g;
+    intact = 1;
+    for (size_t i = 0; i < len / 2; ++i)
+      intact &= p[i] == (unsigned char)(i + 1);
+    DP_CHECK (intact);
+
+    /* A zero count, either factor, is a live one-byte block, never a
+     * free: realloc (p, 0) would free p and return NULL. */
+    g = dp_reallocn (p, opaque (0), 8);
+    DP_REQUIRE (g != NULL);
+    p    = g;
+    p[0] = 1;
+    g    = dp_reallocn (p, opaque (8), 0);
+    DP_REQUIRE (g != NULL);
+    p = g;
+    DP_CHECK (p[0] == 1);
+    free (p);
   }
 
   DP_TEST_END ("test_clib_common");

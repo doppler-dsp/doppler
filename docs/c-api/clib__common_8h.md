@@ -70,6 +70,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
 |  void \* | [**dp\_mallocn**](#function-dp_mallocn) (size\_t n, size\_t size) <br>_malloc for_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM._ |
 |  int | [**dp\_positive\_finite**](#function-dp_positive_finite) (double x) <br>_Whether_ `x` _is a positive, finite number._ |
+|  void \* | [**dp\_reallocn**](#function-dp_reallocn) (void \* p, size\_t n, size\_t size) <br>_realloc to_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM, with_`p` _untouched._ |
 |  int | [**dp\_size\_add**](#function-dp_size_add) (size\_t a, size\_t b, size\_t \* out) <br>`a + b` _as a_`size_t` _, or a refusal when the sum does not fit._ |
 |  int | [**dp\_size\_from\_double**](#function-dp_size_from_double) (double d, size\_t \* out) <br>`d` _as a_`size_t` _, truncated, or a refusal when it does not fit._ |
 |  int | [**dp\_size\_mul**](#function-dp_size_mul) (size\_t a, size\_t b, size\_t \* out) <br>`a * b` _as a_`size_t` _, or a refusal when the product does not fit._ |
@@ -402,6 +403,83 @@ The domain of a scale or gain that a constructor stores and later divides by or 
 **Returns:**
 
 1 when `0 < x < inf`, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_reallocn 
+
+_realloc to_ `n` _elements of_`size` _bytes; NULL when the byte count would overflow, or on OOM, with_`p` _untouched._
+```C++
+static inline void * dp_reallocn (
+    void * p,
+    size_t n,
+    size_t size
+) 
+```
+
+
+
+The refusing twin of dp\_xreallocn(), for a buffer that grows on a path that can refuse (a resize, a decode, a create()): on NULL, `p` is neither freed nor moved and is still the caller's, exactly as after a failed realloc, so the usual pattern keeps working: `tmp = dp_reallocn (p, n, s); if (!tmp) refuse; p = tmp;`. Pick dp\_xreallocn() instead when the count is already bounded and only a genuine OOM could fail it. Passing NULL for `p` is a fresh allocation.
+
+
+
+
+**Note:**
+
+When `n * size == 0` this resizes `p` to ONE byte rather than calling `realloc (p, 0)`: glibc's frees `p` and returns NULL, which a caller would read as a refusal while still owning a freed pointer, and C23 makes it undefined. So dp\_reallocn never frees, NULL means overflow or OOM and nothing else, and a zero-count result is a live pointer the caller frees as usual.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  float *buf = dp_reallocn (NULL, 64, sizeof *buf);
+  if (!buf)
+    return 1;
+  float *tmp = dp_reallocn (buf, 4096, sizeof *buf);
+  if (!tmp)
+    {
+      free (buf); // a refusal leaves buf the caller's to free
+      return 1;
+    }
+  buf       = tmp;
+  buf[4095] = 0.0f;
+  // 2^(w-1) elements of 2 bytes is 2^w bytes: refused, buf untouched
+  printf ("%d\n", dp_reallocn (buf, SIZE_MAX / 2 + 1, 2) == NULL); // 1
+  free (buf);
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `p` The block to resize, or NULL. 
+* `n` Element count. 
+* `size` Bytes per element. 
+
+
+
+**Returns:**
+
+The resized allocation, or NULL on overflow or OOM (`p` then unchanged and still owned by the caller). 
 
 
 

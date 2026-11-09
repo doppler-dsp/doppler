@@ -529,7 +529,7 @@ uint64_t async_dsss_receiver_extra_t::refine_hist_len;
 
 
 
-v17: the ring's live count, packed oldest first after the carry. 
+v17: the ring's live count, always min(refine\_samples\_fed, cap); packed oldest first after the carry. 
  
 
 

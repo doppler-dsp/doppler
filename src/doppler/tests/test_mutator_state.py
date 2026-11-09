@@ -170,10 +170,12 @@ def _is_flavor_refusal(mut_name: str, e: BaseException) -> bool:
     setter's declared error), or a method's ValueError carrying the
     member's own declared message, which names the member first
     (`execute_all: ...`, `push: ...`). Any other exception is not."""
-    # Both name the member first: Python's own AttributeError for a missing
-    # attribute ("'X' object has no attribute ...") is not a declaration.
+    # Only the off-flavor sentence counts ("name: only ..."; DP_ERR_UNSUPPORTED
+    # in C): a bad value on a served flavor ("name: must ...") is a value
+    # refusal, and Python's own AttributeError for a missing attribute is not
+    # a declaration at all.
     return isinstance(e, (AttributeError, ValueError)) and str(e).startswith(
-        mut_name + ":"
+        mut_name + ": only "
     )
 
 
@@ -916,7 +918,7 @@ def _built(
 
 def _accepted(
     mut: Mutator, make, feed, cands: Iterable[Any]
-) -> tuple[list[Any], list[tuple], bool]:
+) -> tuple[list[Any], list[tuple], bool, bool]:
     """Values M takes without raising, deduplicated by what the probe
     observes, with their observations; and whether every call handed back
     a value. A property's are deduplicated by readback too, starting from a
@@ -1552,10 +1554,47 @@ def test_a_row_with_no_candidate_is_not_left_out() -> None:
     assert flavor_only is True
 
 
+def test_a_value_refusal_on_a_served_flavor_keeps_the_row() -> None:
+    """Every value refused as out of range ("name: must ..."), on a flavor
+    that serves the member: that row observed a refusal of VALUES, so it is
+    not left out as one its object does not serve."""
+
+    class Obj:
+        def go(self, v):
+            raise ValueError("go: must lie in 0..1")
+
+    mut = Mutator(cls="Obj", comp="obj", name="go", kind="method")
+    _, _, _, flavor_only = _accepted(
+        mut, Obj, lambda o, n: None, [Call(args=(2,)), Call(args=(3,))]
+    )
+    assert flavor_only is False
+
+
+def test_an_empty_candidate_list_is_unprobed_by_other_means() -> None:
+    """End to end through _judge: no candidate tried is UNPROBED with the
+    reason that keeps the row in the aggregate, not the left-out one."""
+
+    class Obj:
+        def go(self, v):
+            return None
+
+    mut = Mutator(cls="Obj", comp="obj", name="go", kind="method")
+    verdict, vals = _judge(
+        mut, Obj, lambda o, n: None, [], valued=False, may_read=False
+    )
+    assert vals == []
+    assert verdict == Verdict("UNPROBED", _REFUSES_OTHERWISE)
+
+
 def test_only_the_declared_refusal_reads_as_a_flavor_refusal() -> None:
     assert _is_flavor_refusal("eta", AttributeError("eta: only a search"))
+    # A bad value on a flavor that serves the member is a value refusal.
+    assert not _is_flavor_refusal(
+        "set_carrier_freq_hz",
+        ValueError("set_carrier_freq_hz: must be 0 (no carrier) or finite"),
+    )
     assert _is_flavor_refusal(
-        "push", ValueError("push: a map does not detect")
+        "push", ValueError("push: only a detector or a search pushes")
     )
     assert not _is_flavor_refusal("push", ValueError("bad length"))
     assert not _is_flavor_refusal("push", TypeError("push: wrong type"))

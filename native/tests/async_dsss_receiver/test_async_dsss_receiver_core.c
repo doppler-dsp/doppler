@@ -2761,7 +2761,8 @@ _test_accessor_coverage (void)
    * accept + both reject branches (segments < 1, and sps not a multiple of n).
    */
   DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
-  DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
+  DP_CHECK (dp_async_dsss_receiver_configure_search_raw (rx, 100000, 1)
+            == DP_ERR_INVALID);
   dp_async_dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
   DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);

@@ -1277,7 +1277,7 @@ _acq_rate_hypotheses_check (void)
                                                  DP_CORRELATOR_CN0_NONE, 0.0,
                                                  1e-3, 0.9, 0, rate, 1);
     DP_REQUIRE (a != NULL && z != NULL);
-    DP_CHECK (dp_correlator_configure_search_raw (a, 3, 2) == -1);
+    DP_CHECK (dp_correlator_configure_search_raw (a, 3, 2) == DP_ERR_INVALID);
     DP_CHECK (dp_correlator_configure_search_raw (a, 3, 1) == 0);
     DP_CHECK (dp_correlator_configure_search_raw (z, 3, 2) == 0);
     dp_correlator_destroy (a);
@@ -4341,7 +4341,8 @@ main (void)
         CODE7, 7, 4.0 * 1.0e6, 1.0e6, 1000.0, 50.0, 0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->max_peaks == 1);
-    DP_CHECK (dp_correlator_set_max_peaks (a, 0) == -1 && a->max_peaks == 1);
+    DP_CHECK (dp_correlator_set_max_peaks (a, 0) == DP_ERR_INVALID
+              && a->max_peaks == 1);
     DP_CHECK (dp_correlator_set_max_peaks (a, DP_CORRELATOR_MAX_PEAKS + 1)
               == -1);
     DP_CHECK (dp_correlator_set_max_peaks (a, 4) == 0 && a->max_peaks == 4);

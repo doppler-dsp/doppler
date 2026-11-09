@@ -182,7 +182,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  size\_t | [**dp\_correlator\_run**](#function-dp_correlator_run) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
 |  size\_t | [**dp\_correlator\_search\_period**](#function-dp_correlator_search_period) (size\_t code\_len, double sample\_rate, double chip\_rate) <br>_The samples one code period is searched at, for a caller feeding_ `sample_rate:` _its own period when that is already fast, else_[_**dp\_correlator\_period\_samples()**_](correlator__core_8h.md#function-dp_correlator_period_samples) _._ |
 |  int | [**dp\_correlator\_set\_carrier\_freq\_hz**](#function-dp_correlator_set_carrier_freq_hz) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, double carrier\_freq\_hz) <br>_Couple the code clock to the carrier: the chip rate dilates by_ `doppler_hz / carrier_freq_hz` _, and the engine accounts for it._ |
-|  int | [**dp\_correlator\_set\_keep\_surface**](#function-dp_correlator_set_keep_surface) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int keep) <br>_Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._ |
+|  int | [**dp\_correlator\_set\_keep\_surface**](#function-dp_correlator_set_keep_surface) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, int keep) <br>_Ask to keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision; 0 (the default) keeps none unless a sink is attached (_[_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _states the rule)._ |
 |  int | [**dp\_correlator\_set\_max\_peaks**](#function-dp_correlator_set_max_peaks) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**dp\_correlator\_set\_ref**](#function-dp_correlator_set_ref) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**dp\_correlator\_set\_state**](#function-dp_correlator_set_state) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const void \* blob) <br>_Restore a mid-dwell correlator from_ [_**dp\_correlator\_get\_state()**_](correlator__core_8h.md#function-dp_correlator_get_state) _'s blob._ |
@@ -1053,13 +1053,13 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 
 * `state` Allocated engine (non-NULL). 
 * `doppler_bins` Coherent depth to pin, in `[1, reps]`. 
-* `n_noncoh` Non-coherent look count to pin, in `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`. Refused (DP\_ERR\_INVALID) on a map or detector flavor (no search record).
+* `n_noncoh` Non-coherent look count to pin, in `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
 
 
 
 **Returns:**
 
-0 on success, -1 if either argument is out of range (or `n_noncoh` &gt; 1 on an engine with rate hypotheses, which do not compose with non-coherent looks), or an allocation fails (the engine is left usable at its prior grid on failure). 
+0 on success; DP\_ERR\_UNSUPPORTED on a map or detector flavor (no search record); DP\_ERR\_INVALID if either argument is out of range (or `n_noncoh` &gt; 1 on an engine with rate hypotheses, which do not compose with non-coherent looks); DP\_ERR\_MEMORY if an allocation fails (the engine is left usable at its prior grid). 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator
@@ -2677,7 +2677,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2716,7 +2716,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2755,7 +2755,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2794,7 +2794,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2833,7 +2833,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2872,7 +2872,7 @@ Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); an
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2911,7 +2911,7 @@ Served by a map or a detector (framing='none'); any other flavor refuses it, and
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2950,7 +2950,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -2989,7 +2989,7 @@ Served by the burst search (framing='burst'); any other flavor refuses it, and P
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3028,7 +3028,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3067,7 +3067,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3106,7 +3106,7 @@ Served by the delay-Doppler map (doppler\_rows &gt; 0); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3145,7 +3145,7 @@ Served by a map or a detector (framing='none'); any other flavor refuses it, and
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3184,7 +3184,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3223,7 +3223,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3262,7 +3262,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3301,7 +3301,7 @@ The continuous search only (docs/design/correlator-python.md section 18): any ot
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the continuous search. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the continuous search. 
 
 
 
@@ -3340,7 +3340,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3379,7 +3379,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3418,7 +3418,7 @@ Served by the 1-D map or a detector (detect=True); any other flavor refuses it, 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3457,7 +3457,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3496,7 +3496,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3535,7 +3535,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3574,7 +3574,7 @@ Served by a detector (detect=True) or a search (framing='continuous' or 'burst')
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3613,7 +3613,7 @@ Served by a detector (detect=True) or a search (framing='continuous' or 'burst')
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3652,7 +3652,7 @@ Served by a map or a detector (framing='none'); any other flavor refuses it, and
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3691,7 +3691,7 @@ Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); an
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3730,7 +3730,7 @@ Served by a map or a detector (framing='none'); any other flavor refuses it, and
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3769,7 +3769,7 @@ Served by a map (framing='none', detect=False); any other flavor refuses it, and
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3808,7 +3808,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3847,7 +3847,7 @@ Served by the burst search (framing='burst'); any other flavor refuses it, and P
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3886,7 +3886,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3925,7 +3925,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -3964,7 +3964,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4003,7 +4003,7 @@ Served by the burst search (framing='burst'); any other flavor refuses it, and P
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4042,7 +4042,7 @@ Served by the burst search (framing='burst'); any other flavor refuses it, and P
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4081,7 +4081,7 @@ Served by the burst search (framing='burst'); any other flavor refuses it, and P
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4120,7 +4120,7 @@ Served by a detector (detect=True) or a search (framing='continuous' or 'burst')
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4159,7 +4159,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4198,7 +4198,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4266,7 +4266,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4305,7 +4305,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4344,7 +4344,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4383,7 +4383,7 @@ Served by the continuous search (framing='continuous'); any other flavor refuses
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4422,7 +4422,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4461,7 +4461,7 @@ Served by a detector (detect=True) or a search (framing='continuous' or 'burst')
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4500,7 +4500,7 @@ Served by a search (framing='continuous' or 'burst'); any other flavor refuses i
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID off the flavors that serve it. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED off the flavors that serve it. 
 
 
 
@@ -4537,7 +4537,7 @@ Both detectors serve it (section 18); there, the view reads None until a push() 
 
 **Returns:**
 
-DP\_OK on a detector, DP\_ERR\_INVALID on any other flavor. 
+DP\_OK on a detector, DP\_ERR\_UNSUPPORTED on any other flavor. 
 
 
 
@@ -5117,7 +5117,7 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 
 
 * `state` Must be non-NULL. 
-* `carrier_freq_hz` RF carrier, Hz; 0.0 = uncoupled. Refused (DP\_ERR\_INVALID) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `carrier_freq_hz` RF carrier, Hz; 0.0 = uncoupled. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -5152,7 +5152,7 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 
 ### function dp\_correlator\_set\_keep\_surface 
 
-_Keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision, 0 (the default) costs nothing._
+_Ask to keep, or stop keeping, every decided dwell's surface for_ [_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _: 1 normalises each one into the gate's units at its decision; 0 (the default) keeps none unless a sink is attached (_[_**dp\_correlator\_surface()**_](correlator__core_8h.md#function-dp_correlator_surface) _states the rule)._
 ```C++
 int dp_correlator_set_keep_surface (
     dp_correlator_state_t * state,
@@ -5177,7 +5177,7 @@ Python's writable Correlator.keep\_surface; [**dp\_correlator\_set\_surface\_sin
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID on any flavor but the continuous search. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED on any flavor but the continuous search. 
 
 
 
@@ -5210,13 +5210,13 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 
 
 * `state` Must be non-NULL. 
-* `n` 1 … DP\_CORRELATOR\_MAX\_PEAKS. Refused (-1) on a map or detector flavor (no search record), which lists no peaks.
+* `n` 1 … DP\_CORRELATOR\_MAX\_PEAKS.
 
 
 
 **Returns:**
 
-0; DP\_ERR\_INVALID off a search (a map or detector lists no peaks); -1 (state untouched) when `n` is out of range. 
+0; DP\_ERR\_UNSUPPORTED off a search (a map or detector lists no peaks); DP\_ERR\_INVALID (state untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator
@@ -5348,7 +5348,7 @@ Sets `keep_surface`, so [**dp\_correlator\_surface()**](correlator__core_8h.md#f
 
 **Returns:**
 
-DP\_OK; DP\_ERR\_INVALID, with nothing attached, off a search (a map or a detector decides no dwell). 
+DP\_OK; DP\_ERR\_UNSUPPORTED, with nothing attached, off a search (a map or a detector decides no dwell). 
 
 
 
@@ -5385,7 +5385,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 * `state` Must be non-NULL. 
 * `tlm` Telemetry context to attach, or NULL to detach. 
 * `prefix` Probe-name prefix, e.g. "acq" or "ch0.acq". 
-* `decim` Emit every decim-th decided dwell; &gt;= 1. Refused (DP\_ERR\_INVALID) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `decim` Emit every decim-th decided dwell; &gt;= 1. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
 
 
 
@@ -5443,7 +5443,7 @@ A continuous engine is created with a pool of the machine's online cores when it
 
 
 * `state` Must be non-NULL. 
-* `n` Thread count; 0 = online cores, 1 = serial. Refused (DP\_ERR\_INVALID) on a map or detector flavor (no search record).
+* `n` Thread count; 0 = online cores, 1 = serial. Refused (DP\_ERR\_UNSUPPORTED) on a map or detector flavor (no search record).
 
 
 
@@ -5504,7 +5504,7 @@ The value is part of the state blob, so set\_state restores it. A search flavor 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID (nothing changed) for a map or search flavor. 
+DP\_OK, or DP\_ERR\_UNSUPPORTED (nothing changed) for a map or search flavor. 
 
 
 
@@ -5721,7 +5721,10 @@ size_t dp_correlator_surface (
 
 
 
-Copies the surface the last dwell was decided on into `out`, row-major `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by `lag_bins` (code phase), every cell divided by the same CFAR reference the gate used — so a cell reads as its own test statistic, to a float rounding (the SIMD build's fast-math may take a reciprocal in this loop and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on the non-coherent path) is a flat plane on a plot. The engine keeps this only while `keep_surface` is set (a caller sets it, or [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) does): set it, push, then read. `surface_at` says which dwell it is; a time-decimated record is the caller reading every k-th dwell, or a sink with `decim`.
+Copies the surface the last dwell was decided on into `out`, row-major `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by `lag_bins` (code phase), every cell divided by the same CFAR reference the gate used — so a cell reads as its own test statistic, to a float rounding (the SIMD build's fast-math may take a reciprocal in this loop and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on the non-coherent path) is a flat plane on a plot.
+
+
+**A surface is kept while `keep_surface` is set OR a sink is attached** ([**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink)); this is the one statement of that rule. Set either, push, then read. `surface_at` says which dwell it is; a time-decimated record is the caller reading every k-th dwell, or a sink with `decim`.
 
 
 
@@ -5737,7 +5740,7 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 
 **Returns:**
 
-Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided with `keep_surface` set, or `out` is too small. 
+Cells written (`surface_rows * lag_bins`), or 0 when no dwell has been decided while a surface was kept, or `out` is too small. 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator

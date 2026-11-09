@@ -64,6 +64,12 @@
              state, not a failure, and distinct from DP_ERR_TIMEOUT, which  \
              means "not yet". Every transport spells it the same way -- see \
              docs/design/io-termination.md. */
+#define DP_ERR_UNSUPPORTED                                                    \
+  (-11) /**< This object's flavor does not serve the call: a member only    \
+             some of its constructions honor, asked of one that does not   \
+             (docs/design/correlator-python.md section 18). The call       \
+             changed nothing. Distinct from DP_ERR_INVALID, a bad          \
+             argument to a call the object does serve. */
 
 /**
  * @brief Marks a function whose status must not be dropped.

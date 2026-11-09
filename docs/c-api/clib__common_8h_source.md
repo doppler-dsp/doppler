@@ -51,6 +51,8 @@
   (-9) 
 #define DP_ERR_EOF                                                            \
   (-10) 
+#define DP_ERR_UNSUPPORTED                                                    \
+  (-11) 
 #if defined(__GNUC__) || defined(__clang__)
 #define DP_NODISCARD __attribute__ ((warn_unused_result))
 #else

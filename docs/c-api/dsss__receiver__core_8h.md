@@ -303,7 +303,7 @@ int dp_dsss_receiver_configure_search_raw (
 
 **Returns:**
 
-0 on success, -1 on an invalid grid (including `n_noncoh` &gt; 1 on an engine with rate hypotheses) or a failed allocation (the engine keeps its prior grid; see [**dp\_correlator\_configure\_search\_raw()**](correlator__core_8h.md#function-dp_correlator_configure_search_raw)). 
+0 on success; DP\_ERR\_INVALID on an invalid grid (including `n_noncoh` &gt; 1 on an engine with rate hypotheses); DP\_ERR\_MEMORY on a failed allocation (the engine keeps its prior grid; see [**dp\_correlator\_configure\_search\_raw()**](correlator__core_8h.md#function-dp_correlator_configure_search_raw)). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import DsssReceiver

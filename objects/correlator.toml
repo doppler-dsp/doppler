@@ -205,7 +205,7 @@ none_on_empty = true
 # with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute: the input length is not the frame length (n: the reference's length, ny*nx), and execute takes exactly one frame; or this flavor does not execute (a detector or a search pushes)"
+error_message = "execute: only a map (framing='none', detect=False) executes, and it takes exactly one frame: the input length must be the frame length n (the reference's length, ny*nx)"
 
 # Batches (#2683): H frames back to back in one call, every map or one
 # reduction of them, on the C fold loop dp_correlator_execute_fold. One typed
@@ -225,7 +225,7 @@ pass_capacity = true
 out_cols = "(state->n_out ? state->n_out : 1)"
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_all: the input must be a whole, nonzero number of frames, and out= must hold every map"
+error_message = "execute_all: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold every map"
 nogil = true
 
 [[correlator.methods]]
@@ -240,7 +240,7 @@ pass_capacity = true
 exact_max_out = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_coherent: the input must be a whole, nonzero number of frames, and out= must hold one map"
+error_message = "execute_coherent: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold one map"
 nogil = true
 
 [[correlator.methods]]
@@ -255,7 +255,7 @@ pass_capacity = true
 exact_max_out = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_power_sum: the input must be a whole, nonzero number of frames, and out= must hold one map"
+error_message = "execute_power_sum: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold one map"
 nogil = true
 
 [[correlator.methods]]
@@ -267,7 +267,7 @@ pass_capacity = true
 multi_output = ["uint32_t"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_power_max: the input must be a whole, nonzero number of frames (at most 2**32), and out= must hold one map"
+error_message = "execute_power_max: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames (at most 2**32), and out= must hold one map"
 nogil = true
 
 [[correlator.methods]]
@@ -279,7 +279,7 @@ pass_capacity = true
 multi_output = ["uint32_t", "uint32_t", "float"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_peaks: the input must be a whole, nonzero number of frames, and out= must hold one record per frame"
+error_message = "execute_peaks: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold one record per frame"
 nogil = true
 
 [[correlator.methods]]
@@ -291,7 +291,7 @@ pass_capacity = true
 multi_output = ["uint32_t"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "bank_power_max: needs one frame, L >= 1, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one map"
+error_message = "bank_power_max: only a map (framing='none', detect=False) has a bank: it needs one frame, L >= 1, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one map"
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}, {name = "L", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "rates", type = "float _Complex[]"}]
 
@@ -304,7 +304,7 @@ pass_capacity = true
 multi_output = ["int32_t", "uint32_t", "uint32_t", "uint32_t"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "bank_detect: needs one frame, L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one record per map cell"
+error_message = "bank_detect: only a map (framing='none', detect=False) has a bank: it needs one frame, L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one record per map cell"
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}, {name = "L_d", type = "size_t"}, {name = "L_r", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "t_candidate", type = "float"}, {name = "t_confirm", type = "float"}, {name = "rates", type = "float _Complex[]"}]
 
@@ -315,7 +315,8 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
-  { status = "DP_ERR_INVALID", error = "ValueError", message = "configure_search_raw: only a search (framing='continuous' or 'burst') has a grid to pin; Correlator.flavor says which this is" },
+  { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "configure_search_raw: only a search (framing='continuous' or 'burst') has a grid to pin; Correlator.flavor says which this is" },
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "configure_search_raw: doppler_bins must lie in 1..reps and n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks need rate_hypotheses 1" },
 ]
 params = [
   { name = "doppler_bins", type = "size_t" },
@@ -329,7 +330,8 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
-  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_max_peaks: only a search (framing='continuous' or 'burst') lists peaks; Correlator.flavor says which this is" },
+  { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_max_peaks: only a search (framing='continuous' or 'burst') lists peaks; Correlator.flavor says which this is" },
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)" },
 ]
 params = [
   { name = "n", type = "size_t" },
@@ -342,7 +344,8 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
-  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_carrier_freq_hz: only the continuous search (framing='continuous') takes a carrier, and it must be 0 (none) or finite and above sample_rate / 2" },
+  { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_carrier_freq_hz: only the continuous search (framing='continuous') takes a carrier; Correlator.flavor says which this is" },
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_carrier_freq_hz: must be 0 (no carrier) or finite and above sample_rate / 2" },
   { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_carrier_freq_hz: rebuilding the delay-Doppler map for the new carrier could not allocate; the engine is unchanged" },
 ]
 params = [
@@ -356,7 +359,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
-  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_threads: only a search (framing='continuous' or 'burst') sizes its pool after create; a map or detector takes nthreads at create" },
+  { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_threads: only a search (framing='continuous' or 'burst') sizes its pool after create; a map or detector takes nthreads at create" },
 ]
 params = [
   { name = "n", type = "int" },
@@ -369,7 +372,8 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 status_errors = [
-  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_telemetry: only the continuous search (framing='continuous') is instrumented, with a prefix that fits a probe name, a decim the context accepts and room for its ten probes" },
+  { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_telemetry: only the continuous search (framing='continuous') is instrumented; Correlator.flavor says which this is" },
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_telemetry: refused, nothing attached: the prefix joined to each probe name must fit DP_TLM_NAME_MAX, decim must be at least 1, and the context must have room for all ten probes" },
 ]
 params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
@@ -466,7 +470,7 @@ pass_capacity = true
 nogil = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "push: a map does not detect; build a detector (detect=True) or a search (framing='continuous' or 'burst')"
+error_message = "push: only a detector or a search pushes; a map does not detect (build one with detect=True, or framing='continuous' or 'burst')"
 result_fields = [
   { name = "row", type = "size_t" },
   { name = "col", type = "size_t" },

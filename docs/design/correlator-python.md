@@ -570,7 +570,7 @@ binding (D3: the binding adds no refusal of its own):
     | `set_carrier_freq_hz`, `set_telemetry`, `surface`, `surface_doppler_hz`, `surface_chip_phase`, `block_prompt`, `block_raw` | refused: no caller and no test; the carrier feeds a chip arithmetic a sample template lacks |
 
 - **A property is served by the flavors whose class had it on main**,
-    through a new C getter that returns `DP_ERR_INVALID` elsewhere
+    through a new C getter that returns `DP_ERR_UNSUPPORTED` elsewhere
     (`getter_status`, raising `AttributeError` that names the flavors).
     Two extensions follow the method rule: the 1-D flavor serves what the
     2-D one does, and a property that reads a method's setting (`threads`,
@@ -595,10 +595,12 @@ on every flavor. -->
 | `lag_bins`, `coherent_bins`, `sf`, `chip_rate`, `symbol_rate`, `epochs_per_symbol`, `n_peaks`, `n_held`, `peak_conc`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`                               | the continuous search      |
 | `reps`, `pd_burst`, `psl_db`, `doppler_rate`, `rate_hypotheses`                                                                                                                                                     | the burst search           |
 
-| methods                                                                                                                    | served by             |
-| -------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `set_max_peaks`, `configure_search_raw`, `set_threads`, `surface_complex`                                                  | both searches         |
-| `set_carrier_freq_hz`, `set_telemetry`, `surface`, `surface_doppler_hz`, `surface_chip_phase`, `block_prompt`, `block_raw` | the continuous search |
+| methods                                                                                                                                  | served by                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `set_max_peaks`, `configure_search_raw`, `set_threads`, `surface_complex`                                                                | both searches              |
+| `set_carrier_freq_hz`, `set_telemetry`, `surface`, `surface_doppler_hz`, `surface_chip_phase`, `block_prompt`, `block_raw`               | the continuous search      |
+| `execute`, `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks`, `bank_power_max`, `bank_detect` | the maps                   |
+| `push`                                                                                                                                   | the detectors and searches |
 
 `reset` is one method with one doc that says what it clears for each
 flavor; every flavor had one.
@@ -616,7 +618,10 @@ C must refuse first, measured on main (84049024d):
 - `configure_search_raw`, `set_threads`, `set_carrier_freq_hz`,
     `set_telemetry`, the four `surface*`, `block_prompt`, `block_raw` and
     `psl_db` dereference `search`, which is NULL off a search: each returns
-    its refusal (`DP_ERR_INVALID`, or 0 / NaN for a count / value) first.
+    its refusal (`DP_ERR_UNSUPPORTED`, or 0 / NaN for a count / value) first.
+    `DP_ERR_UNSUPPORTED` (-11) means the flavor does not serve the call;
+    `DP_ERR_INVALID` keeps meaning a bad argument to one it does serve, so
+    the binding can say which happened.
     The continuous-only ones also refuse the burst search, per the table.
 - `set_max_peaks` off a search allocates the peak list and never frees it
     (the map's `destroy` does not own it): it refuses.
@@ -625,7 +630,7 @@ C must refuse first, measured on main (84049024d):
     `execute_max_out` returns a detector's `n_out` although `execute`
     refuses it: it returns 0 off a map.
 - Each property in the table above has a C getter that returns
-    `DP_ERR_INVALID` off its flavors (jm's `getter_status`). Two need
+    `DP_ERR_UNSUPPORTED` off its flavors (jm's `getter_status`). Two need
     more than a plain getter: `keep_surface` is writable, so its read
     names its own exception (`getter_error`), and `last_corr` is a buffer
     view, asked through `dp_correlator_last_corr_status()` before the view
@@ -634,7 +639,7 @@ C must refuse first, measured on main (84049024d):
     flavors, which the binding raises as `ValueError` (`error_sentinel`,
     just-makeit#2559); 0 stays "nothing yet".
 - `dp_correlator_set_surface_sink()` (C only) wrote through `search` on
-    any flavor: it returns `DP_ERR_INVALID` off a search. Both searches
+    any flavor: it returns `DP_ERR_UNSUPPORTED` off a search. Both searches
     keep it, since `test_search_equiv.c` records every burst dwell through
     it.
 

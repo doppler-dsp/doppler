@@ -2,17 +2,22 @@
 section 18).
 
 One class reaches every member from every flavor, and the C refuses a
-member off the flavors that serve it, never the binding. These tests hold
-the Python face of that table for the members whose refusal is a sentinel
-or a status the binding translates: the six read-out methods (SIZE_MAX,
-raised as ValueError), ``keep_surface``'s read (a getter status raised as
-AttributeError) and ``last_corr``'s view (a status asked before the view is
-built). Each refusal is checked beside a flavor that serves the member, so
-a binding that raised everywhere would fail too.
+member off the flavors that serve it, never the binding. These tests read
+section 18's two tables (properties and methods) from the design page and
+hold every row against the code, on every flavor: a served flavor reads or
+calls the member, and every other raises the member's own declared
+off-flavor sentence (a property's AttributeError, a method's ValueError).
+
+Both tables are complete by derivation: every public property of the class
+is a row, every method whose manifest declares an off-flavor sentence
+("name: only ...") is a row, and no member is in two rows. A refusal is
+always checked beside a flavor that serves the member, so a binding that
+raised everywhere fails too.
 """
 
 import inspect
 import re
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +25,11 @@ import pytest
 
 from doppler.correlation import Correlator
 from doppler.wfm import PN, mls_poly
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 _CHIPS = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31))
 _NRZ = np.where(_CHIPS & 1, -1, 1).astype(np.complex64)
@@ -125,6 +135,7 @@ _DESIGN = (
 #: Each "served by" phrase the tables use, as the flavors it names.
 _PHRASES = {
     "every flavor": set(FLAVORS),
+    "the maps": {"1d", "2d", "delay_doppler"},
     "the maps and the detectors": {
         "1d",
         "2d",
@@ -176,8 +187,30 @@ def _telemetry():
     return Telemetry(1 << 12)
 
 
+def _frame(c: Correlator) -> np.ndarray:
+    """One frame for a map (ny x nx samples); any length off a map, where
+    the flavor is refused before the length is read."""
+    n = c.ny * c.nx if c.flavor in ("1d", "2d", "delay_doppler") else 64
+    return np.ones(n, np.complex64)
+
+
+_NO_RATES = np.empty(0, np.complex64)
+
 #: How each table method is called: a served flavor must accept the call.
 _CALLS = {
+    "execute": lambda c: c.execute(_frame(c)),
+    "execute_all": lambda c: c.execute_all(_frame(c)),
+    "execute_coherent": lambda c: c.execute_coherent(_frame(c)),
+    "execute_power_sum": lambda c: c.execute_power_sum(_frame(c)),
+    "execute_power_max": lambda c: c.execute_power_max(_frame(c)),
+    "execute_peaks": lambda c: c.execute_peaks(_frame(c)),
+    "bank_power_max": lambda c: c.bank_power_max(
+        _frame(c), 1, 0, 0, _NO_RATES
+    ),
+    "bank_detect": lambda c: c.bank_detect(
+        _frame(c), 1, 1, 0, 0, 0.0, 0.0, _NO_RATES
+    ),
+    "push": lambda c: c.push(np.ones(64, np.complex64)),
     "set_max_peaks": lambda c: c.set_max_peaks(2),
     "configure_search_raw": lambda c: c.configure_search_raw(1, 1),
     "set_threads": lambda c: c.set_threads(1),
@@ -200,6 +233,39 @@ def test_every_property_has_a_row():
     assert set(_METHODS) == set(_CALLS)
 
 
+def _declared_refusals() -> dict[str, str]:
+    """Each method's declared off-flavor sentence, from its manifest: the
+    DP_ERR_UNSUPPORTED status message, or a sentinel method's own message,
+    when it is the off-flavor kind ("name: only ...")."""
+    manifest = Path(__file__).resolve().parents[4] / "objects/correlator.toml"
+    with manifest.open("rb") as f:
+        methods = tomllib.load(f)["correlator"]["methods"]
+    out = {}
+    for m in methods:
+        msgs = [
+            s["message"]
+            for s in m.get("status_errors", [])
+            if s["status"] == "DP_ERR_UNSUPPORTED"
+        ] + ([m["error_message"]] if "error_message" in m else [])
+        for msg in msgs:
+            if msg.startswith(m["name"] + ": only "):
+                out[m["name"]] = msg
+    return out
+
+
+_REFUSALS = _declared_refusals()
+
+
+def test_every_flavor_refusing_method_has_a_row():
+    """A method that declares an off-flavor refusal is a §18 row, and a row
+    names a method that declares one: derived from the manifest, so a new
+    flavor-only method is covered the moment it is declared."""
+    assert set(_REFUSALS) == set(_METHODS), (
+        f"declared but no row: {sorted(set(_REFUSALS) - set(_METHODS))}; "
+        f"a row but nothing declared: {sorted(set(_METHODS) - set(_REFUSALS))}"
+    )
+
+
 @pytest.mark.parametrize("name", sorted(_PROPS))
 @pytest.mark.parametrize("flavor", FLAVORS)
 def test_a_property_is_served_as_the_table_says(name, flavor):
@@ -218,5 +284,5 @@ def test_a_method_is_served_as_the_table_says(name, flavor):
     if flavor in _METHODS[name]:
         _CALLS[name](c)
     else:
-        with pytest.raises(ValueError, match=f"^{name}: only "):
+        with pytest.raises(ValueError, match="^" + re.escape(_REFUSALS[name])):
             _CALLS[name](c)

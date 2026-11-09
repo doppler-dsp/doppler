@@ -35,6 +35,7 @@
 * **dp\_lgamma** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_mallocn** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_positive\_finite** ([**clib\_common.h**](clib__common_8h.md))
+* **dp\_reallocn** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_size\_add** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_size\_from\_double** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_size\_mul** ([**clib\_common.h**](clib__common_8h.md))

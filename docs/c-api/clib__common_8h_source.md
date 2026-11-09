@@ -143,6 +143,9 @@ dp_size_mul_sat (size_t a, size_t b)
 /*  - dp_mallocn, when the count comes from a CALLER on a path that    */
 /*    can refuse (a create(), a resize, a decode): it returns NULL on  */
 /*    overflow as well as on OOM, and the caller refuses.              */
+/*  - dp_reallocn, its resizing twin on the same kind of path: NULL on */
+/*    overflow or OOM, with the old block untouched and still the      */
+/*    caller's, exactly as a failed realloc leaves it.                 */
 /*  - dp_xmallocn / dp_xreallocn, when the count is already validated  */
 /*    and only genuine OOM could fail it: they abort, like dp_xmalloc. */
 /*    An overflow there is a broken internal guarantee, not a caller's */
@@ -160,6 +163,16 @@ dp_mallocn (size_t n, size_t size)
   if (!dp_size_mul (n, size, &bytes))
     return NULL;
   return malloc (bytes ? bytes : 1u);
+}
+
+static inline void *
+dp_reallocn (void *p, size_t n, size_t size)
+{
+  size_t bytes;
+  if (!dp_size_mul (n, size, &bytes))
+    return NULL;
+  /* zero: one byte, never realloc (p, 0) -- see the @note */
+  return realloc (p, bytes ? bytes : 1u);
 }
 
 static inline void *

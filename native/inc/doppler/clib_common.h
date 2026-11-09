@@ -304,6 +304,9 @@ dp_size_mul_sat (size_t a, size_t b)
 /*  - dp_mallocn, when the count comes from a CALLER on a path that    */
 /*    can refuse (a create(), a resize, a decode): it returns NULL on  */
 /*    overflow as well as on OOM, and the caller refuses.              */
+/*  - dp_reallocn, its resizing twin on the same kind of path: NULL on */
+/*    overflow or OOM, with the old block untouched and still the      */
+/*    caller's, exactly as a failed realloc leaves it.                 */
 /*  - dp_xmallocn / dp_xreallocn, when the count is already validated  */
 /*    and only genuine OOM could fail it: they abort, like dp_xmalloc. */
 /*    An overflow there is a broken internal guarantee, not a caller's */
@@ -357,6 +360,67 @@ dp_mallocn (size_t n, size_t size)
   if (!dp_size_mul (n, size, &bytes))
     return NULL;
   return malloc (bytes ? bytes : 1u);
+}
+
+/**
+ * @brief realloc to @p n elements of @p size bytes; NULL when the byte
+ *        count would overflow, or on OOM, with @p p untouched.
+ *
+ * The refusing twin of dp_xreallocn(), for a buffer that grows on a path
+ * that can refuse (a resize, a decode, a create()): on NULL, @p p is
+ * neither freed nor moved and is still the caller's, exactly as after a
+ * failed realloc, so the usual pattern keeps working:
+ * `tmp = dp_reallocn (p, n, s); if (!tmp) refuse; p = tmp;`. Pick
+ * dp_xreallocn() instead when the count is already bounded and only a
+ * genuine OOM could fail it. Passing NULL for @p p is a fresh allocation.
+ *
+ * @note When `n * size == 0` this resizes @p p to ONE byte rather than
+ *       calling `realloc (p, 0)`: glibc's frees @p p and returns NULL,
+ *       which a caller would read as a refusal while still owning a freed
+ *       pointer, and C23 makes it undefined. So dp_reallocn never frees,
+ *       NULL means overflow or OOM and nothing else, and a zero-count
+ *       result is a live pointer the caller frees as usual.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   float *buf = dp_reallocn (NULL, 64, sizeof *buf);
+ *   if (!buf)
+ *     return 1;
+ *   float *tmp = dp_reallocn (buf, 4096, sizeof *buf);
+ *   if (!tmp)
+ *     {
+ *       free (buf); // a refusal leaves buf the caller's to free
+ *       return 1;
+ *     }
+ *   buf       = tmp;
+ *   buf[4095] = 0.0f;
+ *   // 2^(w-1) elements of 2 bytes is 2^w bytes: refused, buf untouched
+ *   printf ("%d\n", dp_reallocn (buf, SIZE_MAX / 2 + 1, 2) == NULL); // 1
+ *   free (buf);
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param p     The block to resize, or NULL.
+ * @param n     Element count.
+ * @param size  Bytes per element.
+ * @return The resized allocation, or NULL on overflow or OOM (@p p then
+ *         unchanged and still owned by the caller).
+ */
+static inline void *
+dp_reallocn (void *p, size_t n, size_t size)
+{
+  size_t bytes;
+  if (!dp_size_mul (n, size, &bytes))
+    return NULL;
+  /* zero: one byte, never realloc (p, 0) -- see the @note */
+  return realloc (p, bytes ? bytes : 1u);
 }
 
 /**

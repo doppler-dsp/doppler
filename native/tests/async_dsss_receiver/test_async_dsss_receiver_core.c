@@ -4514,6 +4514,68 @@ _test_nested_trace_version_refused (void)
   return 0;
 }
 
+/* A search at a rate that is not the input's (srch_rs) hands off into the
+ * input it has already seen. At 2.5 samples a chip a 7-chip period is 17.5
+ * samples, so the search runs resampled to a whole number a period, and
+ * the hit it reports is a few samples behind the call that framed it: the
+ * resampler's lag. When the hit lands before the current call's first
+ * sample, the live chain starts from the history (srch_hist) joined to the
+ * call's input. That join must be the input the receiver saw: one call
+ * over the whole capture, where the hit is always inside the call, and the
+ * same capture fed nine samples at a time, where it is not (the hit lands
+ * three samples back), must decode the same symbols bit for bit.
+ * Sabotage: copy the history from one sample later -> the chunked run's
+ * symbols differ. */
+static int
+_test_resampled_search_hands_off_into_its_history (void)
+{
+  const size_t sf = 7, n_sym = 300;
+  const double chip_rate = 1.0e6, fs = 2.5 * chip_rate;
+  const double tsym = fs / 35714.29;
+  const size_t pre  = 5 * 18 + 3; /* noise-only samples before the signal */
+
+  /* A rectangular-chip capture at the fractional rate, clean enough that
+     the hand-off is the only thing under test. */
+  const size_t    n_sig = (size_t)((double)n_sym * tsym);
+  const size_t    n     = pre + n_sig;
+  float _Complex *x     = calloc (n, sizeof *x);
+  uint32_t        st    = 11;
+  const double    sigma = 1.0 / sqrt (pow (10.0, 90.0 / 10.0) / fs);
+  for (size_t i = 0; i < n; i++)
+    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+  for (size_t i = 0; i < n_sig; i++)
+    {
+      const size_t chip = (size_t)((double)i * chip_rate / fs) % sf;
+      const size_t si   = (size_t)((double)i / tsym);
+      const double d    = (si * 2654435761u >> 7) & 1u ? -1.0 : 1.0;
+      x[pre + i] += (float)(d * (CODE7[chip] ? -1.0 : 1.0));
+    }
+
+  dp_async_dsss_receiver_state_t *one = dp_async_dsss_receiver_create (
+      CODE7, sf, chip_rate, 35714.29, fs, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0,
+      0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+  dp_async_dsss_receiver_state_t *chunked = dp_async_dsss_receiver_create (
+      CODE7, sf, chip_rate, 35714.29, fs, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0,
+      0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+  DP_REQUIRE (one != NULL && chunked != NULL);
+  /* The premise: the search is resampled, with a history to reach into. */
+  DP_REQUIRE (one->srch_rs != NULL && one->srch_hist != NULL);
+
+  float _Complex *a, *b;
+  const size_t    n_a = _stream (one, x, n, n, &a);
+  const size_t    n_b = _stream (chunked, x, n, 9, &b);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
+  DP_CHECK (n_a > 20);
+  DP_CHECK (n_a == n_b && memcmp (a, b, n_a * sizeof *a) == 0);
+
+  free (a);
+  free (b);
+  dp_async_dsss_receiver_destroy (one);
+  dp_async_dsss_receiver_destroy (chunked);
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4569,6 +4631,7 @@ main (void)
   DP_CHECK (_test_refining_reports_the_seed_phase () == 0);
   DP_CHECK (_test_nested_trace_version_refused () == 0);
   DP_CHECK (_test_pooled_and_search_only () == 0);
+  DP_CHECK (_test_resampled_search_hands_off_into_its_history () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

@@ -4715,6 +4715,90 @@ _test_chunking_changes_nothing (void)
   return 0;
 }
 
+/* A receiver checkpointed while it WAITS for its live chain's start resumes
+ * bit for bit (doppler#2974, the state rule). At 3.5 samples a chip the
+ * refine decides 16 samples short of the start, so fed 16 samples a call
+ * one call ends inside that window: refining, the refine decided, no live
+ * chain yet. The blob taken there, restored into a fresh receiver and fed
+ * the rest, must give the uninterrupted run's symbols, count included. The
+ * window is reached by DP_REQUIRE, never by an `if`: a run that never stops
+ * in it fails instead of passing on nothing. Sabotage: don't restore
+ * refine_samples_fed in set_state -> the restored receiver waits from 0 for
+ * a start ~5488 samples on, and its symbols differ. */
+static int
+_test_waiting_handover_round_trips (void)
+{
+  const double    fsc = 3.5, chip_rate = 1.0e6, sym_rate = 35714.29;
+  const size_t    dec = 2, n_sym = 300, chunk = 16;
+  chunking_geom_t g    = { fsc * chip_rate, sym_rate, 0.5 };
+  const double    fs_r = g.fs * (double)dec;
+  float _Complex *xr;
+  double         *data;
+  size_t          n_r;
+  dp_dsss_capture (CODE7, 7, (size_t)llround (fs_r / chip_rate), fs_r,
+                   fs_r / sym_rate, 0.0, 90.0 + 10.0 * log10 ((double)dec),
+                   n_sym, (5 * 18 + 3) * dec, 11u, &xr, &n_r, &data);
+  const size_t    n = n_r / dec;
+  float _Complex *x = malloc (n * sizeof *x);
+  float _Complex *a = malloc (n * sizeof *a);
+  float _Complex *b = malloc (n * sizeof *b);
+  DP_REQUIRE (x != NULL && a != NULL && b != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = xr[i * dec];
+
+  dp_async_dsss_receiver_state_t *one = _chunking_create (&g);
+  DP_REQUIRE (one != NULL);
+  size_t pos = 0, n_a = 0;
+  int    waiting = 0;
+  while (pos < n && !waiting)
+    {
+      const size_t take = n - pos < chunk ? n - pos : chunk;
+      n_a += dp_async_dsss_receiver_steps (one, x + pos, take, a + n_a,
+                                           n - n_a);
+      pos += take;
+      const dp_carrier_acq_state_t *ca = one->ca;
+      waiting
+          = dp_async_dsss_receiver_status (one).state == ASYNC_DSSS_RX_REFINING
+            && (ca->ready
+                || ca->n_blocks >= (ca->sequential ? ca->max_n_blocks
+                                                   : ca->dwell_target));
+    }
+  /* The premise: stopped in the window, with nothing emitted yet. */
+  DP_REQUIRE (waiting);
+  DP_REQUIRE (n_a == 0);
+
+  const size_t   nb   = dp_async_dsss_receiver_state_bytes (one);
+  unsigned char *blob = malloc (nb);
+  DP_REQUIRE (blob != NULL);
+  dp_async_dsss_receiver_get_state (one, blob);
+  dp_async_dsss_receiver_state_t *two = _chunking_create (&g);
+  DP_REQUIRE (two != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_state (two, blob) == DP_OK);
+
+  size_t n_b = 0;
+  for (; pos < n; pos += chunk)
+    {
+      const size_t take = n - pos < chunk ? n - pos : chunk;
+      n_a += dp_async_dsss_receiver_steps (one, x + pos, take, a + n_a,
+                                           n - n_a);
+      n_b += dp_async_dsss_receiver_steps (two, x + pos, take, b + n_b,
+                                           n - n_b);
+    }
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (one) == 1);
+  DP_CHECK (n_a > n_sym / 2);
+  DP_CHECK (n_a == n_b && memcmp (a, b, n_a * sizeof *a) == 0);
+
+  free (blob);
+  dp_async_dsss_receiver_destroy (one);
+  dp_async_dsss_receiver_destroy (two);
+  free (b);
+  free (a);
+  free (x);
+  free (xr);
+  free (data);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4772,6 +4856,7 @@ main (void)
   DP_CHECK (_test_pooled_and_search_only () == 0);
   DP_CHECK (_test_resampled_search_hands_off_into_its_history () == 0);
   DP_CHECK (_test_chunking_changes_nothing () == 0);
+  DP_CHECK (_test_waiting_handover_round_trips () == 0);
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

@@ -1,7 +1,8 @@
 /*
  * test_clib_common.c — the checked size product, dp_size_mul() and its
  * saturating face dp_size_mul_sat(), and the double-to-size_t range check
- * dp_size_from_double() (clib_common.h).
+ * dp_size_from_double(), and the array allocators built on the product,
+ * dp_mallocn() / dp_xmallocn() / dp_xreallocn() (clib_common.h).
  *
  * A size product that wraps allocates small and is then written past.
  * The guard had been hand-written at every site, a different way each
@@ -21,10 +22,18 @@
  *   7. dp_size_from_double takes [0, 2^w), w the width of size_t, and
  *      nothing else: 2^w itself is refused, which the `(double)SIZE_MAX`
  *      bound it replaced got wrong on LP64 (SIZE_MAX rounds up to 2^64).
+ *   8. dp_mallocn allocates n * size when it fits and returns NULL at the
+ *      first count that overflows, where `malloc (n * size)` wraps to a
+ *      small request and SUCCEEDS; dp_xmallocn / dp_xreallocn allocate
+ *      the same sizes.
+ *   9. dp_xmallocn and dp_xreallocn ABORT on an overflowing count: run as
+ *      `test_clib_common --abort <which>` by two more ctests, which pass
+ *      only when SIGABRT is raised.
  *
  * Each section was proven by sabotage: the guard widened by one and then
  * removed, and this file went red each time; for section 7, the bound
- * loosened to `<= (double)SIZE_MAX`.
+ * loosened to `<= (double)SIZE_MAX`; for 8 and 9, the product checked
+ * by dp_size_mul replaced with a plain `n * size`.
  *
  * The factors go through volatile reads so the compiler cannot fold the
  * checks at build time: the function under test runs on every build type.
@@ -34,7 +43,10 @@
 #include "doppler/clib_common.h"
 #include <limits.h>
 #include <math.h>
+#include <signal.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 static size_t
 opaque (size_t x)
@@ -50,9 +62,40 @@ opaque_d (double x)
   return v;
 }
 
-int
-main (void)
+/* Section 9: abort() raises SIGABRT; catching it and leaving with status
+ * 0 is the pass. Returning from the allocator at all is the failure. */
+static void
+on_abort (int sig)
 {
+  (void)sig;
+  _Exit (0);
+}
+
+static int
+abort_mode (const char *which)
+{
+  const size_t n = opaque (SIZE_MAX / 2 + 1); /* n * 2 is 2^w: overflows */
+  (void)signal (SIGABRT, on_abort);
+  void *p = NULL;
+  if (strcmp (which, "xmallocn") == 0)
+    p = dp_xmallocn (n, 2);
+  else if (strcmp (which, "xreallocn") == 0)
+    p = dp_xreallocn (NULL, n, 2);
+  else
+    return 2;
+  /* Reached only when the overflow was not caught: a wrapped request of 0
+     bytes came back as a live allocation. */
+  free (p);
+  DP_TEST_ERR ("FAIL: dp_%s returned on an overflowing count\n", which);
+  return 1;
+}
+
+int
+main (int argc, char **argv)
+{
+  if (argc == 3 && strcmp (argv[1], "--abort") == 0)
+    return abort_mode (argv[2]);
+
   /* 1. A zero factor, either side, fits and is 0. */
   {
     size_t out = 99;
@@ -192,6 +235,30 @@ main (void)
     DP_CHECK (dp_size_from_double (opaque_d (INFINITY), &out) == 0);
     DP_CHECK (dp_size_from_double (opaque_d (-INFINITY), &out) == 0);
     DP_CHECK (out == 9);
+  }
+
+  /* 8. The array allocators. Each fitting size is allocated and written
+   * end to end, so a short buffer is an ASan error as well as a wrong
+   * answer. */
+  {
+    const size_t n = opaque (1000);
+    double      *a = dp_mallocn (n, sizeof *a);
+    DP_REQUIRE (a != NULL);
+    a[n - 1] = 1.0;
+    free (a);
+
+    double *b    = dp_xmallocn (n, sizeof *b);
+    b[n - 1]     = 1.0;
+    b            = dp_xreallocn (b, 2 * n, sizeof *b);
+    b[2 * n - 1] = 2.0;
+    DP_CHECK (b[n - 1] == 1.0);
+    free (b);
+
+    /* The first overflowing count, for an element size of 2 and of 8:
+     * `n * size` is exactly 2^w, which wraps to a 0-byte request. */
+    DP_CHECK (dp_mallocn (opaque (SIZE_MAX / 2 + 1), 2) == NULL);
+    DP_CHECK (dp_mallocn (opaque (SIZE_MAX / 8 + 1), 8) == NULL);
+    DP_CHECK (dp_mallocn (opaque (SIZE_MAX), opaque (SIZE_MAX)) == NULL);
   }
 
   DP_TEST_END ("test_clib_common");

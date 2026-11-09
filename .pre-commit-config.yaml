@@ -362,14 +362,15 @@ repos:
         types_or: [markdown, python]
 
       # A trusted internal allocation goes through clib_common.h's
-      # abort-on-OOM helpers. Fires on any C change: a bare malloc can
-      # appear in any core, and the point is to catch the FIRST one.
+      # abort-on-OOM helpers, and no allocation is sized by an inline
+      # product (dp_mallocn / dp_xmallocn / dp_xreallocn check it). Fires on
+      # any C change, and on a change to either ratchet or the gate.
       - id: alloc-helpers
         name: allocation helpers
         entry: make -s lint-alloc-helpers
         language: system
         pass_filenames: false
-        types_or: [c]
+        files: ^(.*\.[ch]|scripts/(\.alloc-helper-allow|\.alloc-product-ratchet|check_alloc_helpers\.py))$
 
       # The files exempt from the -Wall -Wextra gate may only shrink: every
       # entry exists and none was added since the merge base. Fires on the

@@ -48,8 +48,30 @@ third could be added without the gate noticing. Every entry here has the same
 reason (it predates the helpers), so nothing is lost by counting, and a count
 cannot be fooled by duplicate lines or churn when one moves.
 
+**A second rule: no size written as an inline product.** `malloc (n *
+sizeof *p)` wraps when `n` is large, asks for a SMALL buffer, gets it, and
+the loop that fills `n` elements writes past it. Review found five of
+those in correlator_core.c alone. The checked spellings are
+`dp_mallocn (n, size)` (NULL on overflow, for a path that refuses),
+`dp_xmallocn` and `dp_xreallocn` (abort, for trusted counts), all in
+clib_common.h and built on `dp_size_mul`; `calloc` already checks its
+own product. So a `malloc`, `realloc`, `dp_xmalloc` or `dp_xrealloc`
+whose SIZE argument has a top-level binary `*` is a site. Read as the
+compiler reads it: comments are blanked, the call's parentheses are
+matched (clang-format breaks long ones across lines), and a `*` inside
+parentheses or after `sizeof` is not the product. What it cannot see is a
+product computed into a variable first; that is a code-review finding.
+
+Scope is library C, as above, less clib_common.h and any file whose first
+line is `/* jm:generated` (jm's to fix). Its baseline is
+`scripts/.alloc-product-ratchet`, and unlike the bare-allocation one it
+has no reason escape: every site has a checked spelling, so a count may
+only shrink, a file not listed may hold none, a slack count fails, and a
+rise against the merge base fails whatever the line says.
+
 Usage:
     python3 scripts/check_alloc_helpers.py [--root DIR] [--allow FILE]
+        [--products FILE] [--base REF]
     python3 scripts/check_alloc_helpers.py --update-baseline
 
 Run it with `make lint-alloc-helpers`; `make lint` includes it and a
@@ -63,11 +85,18 @@ import re
 import sys
 from pathlib import Path
 
-from _gitbase import BaseUnreadableError, in_git_repo, show_at_base
+from _c_source import strip_comments
+from _gitbase import (
+    BaseUnreadableError,
+    added_since_base,
+    in_git_repo,
+    show_at_base,
+)
 from _layout import GLUE_FRAGMENT, header
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOW = Path(__file__).parent / ".alloc-helper-allow"
+PRODUCTS = Path(__file__).parent / ".alloc-product-ratchet"
 
 #: Library C. Tests, benchmarks and validation harnesses are out of scope --
 #: they are oracles, they allocate freely, and a crash there is a test
@@ -219,45 +248,234 @@ def write_baseline(path: Path, found: dict[str, int]) -> None:
     path.write_text(HEADER + "\n" + body)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", type=Path, default=ROOT)
-    ap.add_argument("--allow", type=Path, default=None)
-    ap.add_argument(
-        "--base",
-        default="origin/main",
-        help="ref to compare the baseline against, to detect a raise",
-    )
-    ap.add_argument(
-        "--update-baseline",
-        action="store_true",
-        help="re-record the ratchet after converting some call sites",
-    )
-    a = ap.parse_args()
-    root = a.root.resolve()
-    allow = a.allow or (root / ALLOW.relative_to(ROOT))
+# --------------------------------------------------------------------------- #
+# The second rule: a size written as an inline product                        #
+# --------------------------------------------------------------------------- #
 
-    found = counts(root)
+#: The calls whose size is one argument (malloc, dp_xmalloc) or the second
+#: (realloc, dp_xrealloc). The look-behind keeps `dp_xmalloc` from matching
+#: `malloc` and a member such as `p->realloc_hook` from matching at all.
+SIZED = re.compile(r"(?<![\w.>])(malloc|realloc|dp_xmalloc|dp_xrealloc)\s*\(")
+SIZE_ARG = {"malloc": 0, "dp_xmalloc": 0, "realloc": 1, "dp_xrealloc": 1}
+#: A `*` right after one of these is a dereference, not a product.
+_UNARY_AFTER = {"sizeof", "return", "case"}
+#: The jm generator's marker, on a file's first line.
+JM_GENERATED = "/* jm:generated"
 
-    if a.update_baseline:
-        write_baseline(allow, found)
-        total = sum(found.values())
+
+def _call_args(text: str, at: int) -> list[str] | None:
+    """The comma-separated arguments of the call whose `(` ends at ``at``,
+    split at depth 0 only; None when the parentheses never close."""
+    depth, start, out = 0, at, []
+    for j in range(at, len(text)):
+        c = text[j]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                out.append(text[start:j])
+                return out
+            depth -= 1
+        elif c == "," and depth == 0:
+            out.append(text[start:j])
+            start = j + 1
+    return None
+
+
+def top_level_product(arg: str) -> bool:
+    """Does ``arg`` multiply at its top level? A `*` is binary when an
+    operand ends right before it (a name other than `sizeof`, a number,
+    `)` or `]`); one inside parentheses is not the size's own product."""
+    depth = 0
+    for k, c in enumerate(arg):
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "*" and depth == 0:
+            before = arg[:k].rstrip()
+            if not before:
+                continue
+            word = re.search(r"(\w+)$", before)
+            if word and word.group(1) not in _UNARY_AFTER:
+                return True
+            if before[-1] in ")]":
+                return True
+    return False
+
+
+def product_sites(root: Path) -> dict[str, list[tuple[int, str]]]:
+    """``{path: [(line, text)]}`` of every allocation sized by an inline
+    product, in hand-written library C."""
+    found: dict[str, list[tuple[int, str]]] = {}
+    for d in SCAN_DIRS:
+        base = root / d
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix not in (".c", ".h"):
+                continue
+            rel = path.relative_to(root).as_posix()
+            if rel == SANCTIONED:
+                continue
+            raw = path.read_text(encoding="utf-8", errors="replace")
+            if raw.lstrip().startswith(JM_GENERATED):
+                continue
+            text = strip_comments(raw)
+            lines = text.splitlines()
+            for m in SIZED.finditer(text):
+                args = _call_args(text, m.end())
+                i = SIZE_ARG[m.group(1)]
+                if args is None or i >= len(args):
+                    continue
+                if top_level_product(args[i]):
+                    at = text.count("\n", 0, m.start())
+                    found.setdefault(rel, []).append(
+                        (at + 1, lines[at].strip())
+                    )
+    return found
+
+
+PRODUCTS_HEADER = """\
+# Baseline for scripts/check_alloc_helpers.py's second rule -- a RATCHET.
+#
+# Allocations in doppler's library C whose size is an inline product
+# (`malloc (n * sizeof *p)`, `dp_xrealloc (p, n * size)`), per file. A
+# product that wraps asks for a SMALL buffer and the code then writes past
+# it. Each one moves to dp_mallocn (NULL on overflow, for a path that
+# refuses) or dp_xmallocn / dp_xreallocn (abort, for a trusted count), all
+# in native/inc/doppler/clib_common.h.
+#
+# THIS LIST MAY ONLY SHRINK, with no reason escape: every site has a
+# checked spelling. A file not listed may hold none, a count left above
+# what its file now has fails, and nothing may be added or raised against
+# the merge base with origin/main. Re-record after converting some with
+#
+#     make lint-alloc-helpers-baseline
+#
+# Format:  <path> <count>
+"""
+
+
+def _parse_products(text: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for raw in text.splitlines():
+        body = raw.partition("#")[0].strip()
+        if not body:
+            continue
+        rel, _, n = body.rpartition(" ")
+        out[rel.strip()] = int(n)
+    return out
+
+
+def _product_entries(text: str) -> list[str]:
+    """A count N as the entries ``path 0`` .. ``path N``: what makes a raise
+    an ADDED entry for added_since_base, and a shrink not one."""
+    return [
+        f"{rel} {k}"
+        for rel, n in _parse_products(text).items()
+        for k in range(n + 1)
+    ]
+
+
+def write_products(path: Path, found: dict[str, list]) -> None:
+    body = "".join(f"{rel} {len(at)}\n" for rel, at in sorted(found.items()))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(PRODUCTS_HEADER + "\n" + body, encoding="utf-8")
+
+
+def check_products(root: Path, path: Path, base: str) -> int:
+    """The second rule. 0 when every site is within the ratchet."""
+    found = product_sites(root)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    allowed = _parse_products(text)
+    rel_list = path.resolve().relative_to(root).as_posix()
+    bad: list[str] = []
+    for rel, at in sorted(found.items()):
+        cap = allowed.get(rel, 0)
+        if len(at) > cap:
+            bad.append(
+                f"  {rel}: {len(at)} allocation(s) sized by an inline "
+                f"product, the ratchet allows {cap}"
+            )
+            bad += [
+                f"      {rel}:{n}  {line}  -- use dp_mallocn / dp_xmallocn "
+                "/ dp_xreallocn (clib_common.h)"
+                for n, line in at
+            ]
+    for rel, cap in sorted(allowed.items()):
+        now = len(found.get(rel, []))
+        if now < cap:
+            bad.append(
+                f"  {rel_list}: '{rel}' allows {cap} but the file has "
+                f"{now} -- bring the count down; it only shrinks"
+            )
+    if in_git_repo(root):
+        try:
+            # `since` is the list itself: the PR that introduces it has no
+            # list at the base, so nothing counts as added. After that, a
+            # base without it means it was deleted or renamed, and the gate
+            # reads only this path, so every site is then unlisted and red.
+            added = added_since_base(
+                root,
+                base,
+                rel_list,
+                _product_entries(text),
+                _product_entries,
+                since=rel_list,
+            )
+        except BaseUnreadableError:
+            bad.append(
+                f"  {rel_list}: cannot resolve {base}, so a raised count "
+                "cannot be told from an old one. Fetch it: git fetch "
+                "--no-tags --depth=1 origin "
+                "+refs/heads/main:refs/remotes/origin/main"
+            )
+            added = []
+        grown: dict[str, int] = {}
+        for entry in added:
+            rel, _, k = entry.rpartition(" ")
+            grown[rel] = max(grown.get(rel, 0), int(k))
+        bad += [
+            f"  {rel_list}: '{rel}' rose to {k} since the merge base with "
+            f"{base} -- the list only shrinks"
+            for rel, k in sorted(grown.items())
+        ]
+    if bad:
         print(
-            f"alloc-helper gate: baseline re-recorded -- {total} call(s) "
-            f"across {len(found)} file(s)"
+            "FAIL: an allocation is sized by an inline product.\n"
+            "\n"
+            "`malloc (n * size)` wraps when n is large and returns a SMALL\n"
+            "buffer. Let the allocator check the product:\n"
+            "\n"
+            "    p = dp_mallocn (n, sizeof *p);   /* NULL on overflow: "
+            "refuse */\n"
+            "    p = dp_xmallocn (n, sizeof *p);  /* trusted count: aborts "
+            "*/\n"
+            "    p = dp_xreallocn (p, n, sizeof *p);\n"
         )
-        return 0
+        print("\n".join(bad))
+        return 1
+    total = sum(len(v) for v in found.values())
+    print(
+        f"alloc-product gate: OK -- {total} inline-product size(s) across "
+        f"{len(found)} file(s), all ratcheted (may only shrink)"
+    )
+    return 0
 
+
+def check_bare(root: Path, allow: Path, base: str, found: dict) -> int:
+    """The first rule: bare allocations against their ratchet."""
     allowed = load_allow(allow)
     rel_allow = allow.resolve().relative_to(root).as_posix()
-    base_allowed = allow_at(root, a.base, rel_allow)
+    base_allowed = allow_at(root, base, rel_allow)
     problems: list[str] = []
 
     # A RAISE without a reason on the line. Checked before the counts, so the
     # message is about the policy rather than about a stray malloc.
     if base_allowed is None:
         print(
-            f"FAIL: cannot read {rel_allow} at {a.base}, so a raised count\n"
+            f"FAIL: cannot read {rel_allow} at {base}, so a raised count\n"
             "  cannot be told from an untouched one. A ratchet that cannot\n"
             "  read its baseline has not passed.\n"
             "  Fetch it:  git fetch --no-tags --depth=1 origin \\\n"
@@ -312,7 +530,7 @@ def main() -> int:
             "validated -- can only fail on genuine OOM, so it goes through\n"
             "the abort-on-OOM helpers in native/inc/doppler/clib_common.h:\n"
             "\n"
-            "    s->buf = dp_xmalloc (n * sizeof *s->buf);\n"
+            "    s->buf = dp_xmallocn (n, sizeof *s->buf);\n"
             "    s->tab = dp_xcalloc (n, sizeof *s->tab);\n"
             "    s->kid = dp_xnn (kid_create (...));\n"
             "\n"
@@ -361,6 +579,49 @@ def main() -> int:
         f"sanctioned home is {SANCTIONED}"
     )
     return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--root", type=Path, default=ROOT)
+    ap.add_argument("--allow", type=Path, default=None)
+    ap.add_argument(
+        "--products",
+        type=Path,
+        default=None,
+        help="the inline-product ratchet (default: "
+        "scripts/.alloc-product-ratchet under --root)",
+    )
+    ap.add_argument(
+        "--base",
+        default="origin/main",
+        help="ref to compare the baseline against, to detect a raise",
+    )
+    ap.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="re-record the ratchet after converting some call sites",
+    )
+    a = ap.parse_args()
+    root = a.root.resolve()
+    allow = a.allow or (root / ALLOW.relative_to(ROOT))
+    products = a.products or (root / PRODUCTS.relative_to(ROOT))
+
+    found = counts(root)
+
+    if a.update_baseline:
+        write_baseline(allow, found)
+        write_products(products, product_sites(root))
+        total = sum(found.values())
+        print(
+            f"alloc-helper gate: baseline re-recorded -- {total} call(s) "
+            f"across {len(found)} file(s)"
+        )
+        return 0
+
+    bare = check_bare(root, allow, a.base, found)
+    prod = check_products(root, products, a.base)
+    return 1 if bare or prod else 0
 
 
 if __name__ == "__main__":

@@ -245,6 +245,133 @@ dp_size_mul_sat (size_t a, size_t b)
   return p;
 }
 
+/* ------------------------------------------------------------------ */
+/* Array allocations: @p n elements of @p size bytes, the product      */
+/* checked by dp_size_mul(). `malloc (n * sizeof *p)` wraps silently   */
+/* when n is large, returns a SMALL buffer, and the loop that fills    */
+/* all n elements writes past it. These are malloc / dp_xmalloc /      */
+/* dp_xrealloc with the product taken out of the caller's hands, as    */
+/* calloc already takes it for a zeroed allocation (calloc and         */
+/* dp_xcalloc check nmemb * size themselves, so they need no sibling). */
+/* Which one:                                                          */
+/*                                                                     */
+/*  - dp_mallocn, when the count comes from a CALLER on a path that    */
+/*    can refuse (a create(), a resize, a decode): it returns NULL on  */
+/*    overflow as well as on OOM, and the caller refuses.              */
+/*  - dp_xmallocn / dp_xreallocn, when the count is already validated  */
+/*    and only genuine OOM could fail it: they abort, like dp_xmalloc. */
+/*    An overflow there is a broken internal guarantee, not a caller's */
+/*    mistake, so it aborts too rather than handing back a short      */
+/*    buffer.                                                          */
+/*                                                                     */
+/* scripts/check_alloc_helpers.py fails on a new malloc / realloc /    */
+/* dp_xmalloc / dp_xrealloc whose size is a product written inline.    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief malloc for @p n elements of @p size bytes; NULL when the byte
+ *        count would overflow, or on OOM.
+ *
+ * For a count a caller chose, on a path that refuses: check the result
+ * and refuse, exactly as for malloc. `n == 0` behaves as `malloc (0)`.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   float *x = dp_mallocn (256, sizeof *x);
+ *   if (!x)
+ *     return 1;
+ *   x[255] = 1.0f;
+ *   free (x);
+ *   // 2^(w-1) elements of 2 bytes is 2^w bytes: refused, not wrapped to 0
+ *   printf ("%d\n", dp_mallocn (SIZE_MAX / 2 + 1, 2) == NULL); // 1
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param n     Element count.
+ * @param size  Bytes per element.
+ * @return The allocation, or NULL on overflow or OOM.
+ */
+static inline void *
+dp_mallocn (size_t n, size_t size)
+{
+  size_t bytes;
+  return dp_size_mul (n, size, &bytes) ? malloc (bytes) : NULL;
+}
+
+/**
+ * @brief dp_xmalloc for @p n elements of @p size bytes: aborts on overflow
+ *        or OOM.
+ *
+ * For a trusted internal allocation whose count is already validated.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ *
+ * int
+ * main (void)
+ * {
+ *   double *acc = dp_xmallocn (1024, sizeof *acc);
+ *   acc[1023]   = 0.0;
+ *   free (acc);
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param n     Element count.
+ * @param size  Bytes per element.
+ * @return The allocation; never NULL.
+ */
+static inline void *
+dp_xmallocn (size_t n, size_t size)
+{
+  size_t bytes;
+  if (!dp_size_mul (n, size, &bytes))
+    abort ();
+  return dp_xmalloc (bytes);
+}
+
+/**
+ * @brief dp_xrealloc to @p n elements of @p size bytes: aborts on overflow
+ *        or OOM.
+ *
+ * The grow-on-demand scratch buffer's helper, for a count the caller has
+ * already bounded. Passing NULL for @p p is a fresh allocation.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ *
+ * int
+ * main (void)
+ * {
+ *   float *buf = dp_xreallocn (NULL, 64, sizeof *buf);
+ *   buf        = dp_xreallocn (buf, 4096, sizeof *buf);
+ *   buf[4095]  = 0.0f;
+ *   free (buf);
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param p     The block to resize, or NULL.
+ * @param n     Element count.
+ * @param size  Bytes per element.
+ * @return The resized allocation; never NULL.
+ */
+static inline void *
+dp_xreallocn (void *p, size_t n, size_t size)
+{
+  size_t bytes;
+  if (!dp_size_mul (n, size, &bytes))
+    abort ();
+  return dp_xrealloc (p, bytes);
+}
+
 /**
  * @brief @p d as a `size_t`, truncated, or a refusal when it does not fit.
  *

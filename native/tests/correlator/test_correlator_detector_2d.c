@@ -506,7 +506,7 @@ _test_flavor_refusals (void)
   dp_correlator_hit_t hits[2];
   DP_CHECK (dp_correlator_push (m, x, RN, hits, 2) == SIZE_MAX);
   DP_CHECK (dp_correlator_consumed (m) == 0);
-  DP_CHECK (dp_correlator_set_threshold (m, 3.0f) == DP_ERR_INVALID);
+  DP_CHECK (dp_correlator_set_threshold (m, 3.0f) == DP_ERR_UNSUPPORTED);
   DP_CHECK (m->count == 0 && m->threshold == 0.0f);
   dp_correlator_destroy (m);
   return 0;

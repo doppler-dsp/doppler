@@ -60,6 +60,7 @@ def test_dwell_defaults_to_one():
     # that never int-dumps -- push() could never emit a result.
     ref = np.ones((2, 2), dtype=np.complex64)
     obj = Correlator(ref, detect=1, threshold=0.0)
+    assert obj.flavor == "detector_2d"
     assert obj.dwell == 1
     assert obj.push(ref) is not None
 
@@ -75,6 +76,7 @@ def test_a_long_push_reports_every_frame_and_stays_frame_aligned():
     ref = np.zeros((ny, nx), dtype=np.complex64)
     ref[0, 0] = 1
     obj = Correlator(ref, detect=1, threshold=0.0)
+    assert obj.flavor == "detector_2d"
     frames = np.zeros((1030, ny, nx), dtype=np.complex64)
     frames[:, 0, 0] = 1
     x = frames.ravel()
@@ -93,6 +95,7 @@ def test_last_corr_none_after_set_state():
     # view of a buffer it never filled.
     ref = np.ones((2, 2), dtype=np.complex64)
     a = Correlator(ref, detect=1, threshold=0.0)
+    assert a.flavor == "detector_2d"
     a.push(ref.ravel())
     assert a.last_corr is not None
     b = Correlator(ref, detect=1, threshold=0.0)
@@ -116,6 +119,7 @@ def test_a_full_push_keeps_a_remainder_shorter_than_a_frame():
     ref = np.zeros((ny, nx), dtype=np.complex64)
     ref[0, 0] = 1
     obj = Correlator(ref, detect=1, threshold=0.0)
+    assert obj.flavor == "detector_2d"
     stream = np.zeros(2048 * ny * nx, dtype=np.complex64)
     stream[:: ny * nx] = 1
     assert len(obj.push(stream[:8191])) == 1023

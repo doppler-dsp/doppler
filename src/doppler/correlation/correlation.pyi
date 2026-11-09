@@ -227,10 +227,10 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute: the input length is
-            not the frame length (n: the reference's length, ny*nx), and
-            execute takes exactly one frame; or this flavor does not execute (a
-            detector or a search pushes)``.
+            a count. The exception message is ``execute: only a map
+            (framing='none', detect=False) executes, and it takes exactly one
+            frame: the input length must be the frame length n (the reference's
+            length, ny*nx)``.
 
         Examples
         --------
@@ -292,8 +292,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_all: the input must be
-            a whole, nonzero number of frames, and out= must hold every map``.
+            a count. The exception message is ``execute_all: only a map
+            (framing='none', detect=False) runs a batch: the input must be a
+            whole, nonzero number of frames, and out= must hold every map``.
 
         Examples
         --------
@@ -379,9 +380,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_coherent: the input
-            must be a whole, nonzero number of frames, and out= must hold one
-            map``.
+            a count. The exception message is ``execute_coherent: only a map
+            (framing='none', detect=False) runs a batch: the input must be a
+            whole, nonzero number of frames, and out= must hold one map``.
 
         Examples
         --------
@@ -456,9 +457,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_power_sum: the input
-            must be a whole, nonzero number of frames, and out= must hold one
-            map``.
+            a count. The exception message is ``execute_power_sum: only a map
+            (framing='none', detect=False) runs a batch: the input must be a
+            whole, nonzero number of frames, and out= must hold one map``.
 
         Examples
         --------
@@ -534,9 +535,10 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_power_max: the input
-            must be a whole, nonzero number of frames (at most 2**32), and out=
-            must hold one map``.
+            a count. The exception message is ``execute_power_max: only a map
+            (framing='none', detect=False) runs a batch: the input must be a
+            whole, nonzero number of frames (at most 2**32), and out= must hold
+            one map``.
 
         Examples
         --------
@@ -590,9 +592,10 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_peaks: the input must
-            be a whole, nonzero number of frames, and out= must hold one record
-            per frame``.
+            a count. The exception message is ``execute_peaks: only a map
+            (framing='none', detect=False) runs a batch: the input must be a
+            whole, nonzero number of frames, and out= must hold one record per
+            frame``.
 
         Examples
         --------
@@ -656,9 +659,10 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``bank_power_max: needs one
-            frame, L >= 1, g_min <= g_max, rates a whole number of ny-long
-            vectors, and out= holding one map``.
+            a count. The exception message is ``bank_power_max: only a map
+            (framing='none', detect=False) has a bank: it needs one frame, L >=
+            1, g_min <= g_max, rates a whole number of ny-long vectors, and
+            out= holding one map``.
 
         Examples
         --------
@@ -759,9 +763,10 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``bank_detect: needs one frame,
-            L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of
-            ny-long vectors, and out= holding one record per map cell``.
+            a count. The exception message is ``bank_detect: only a map
+            (framing='none', detect=False) has a bank: it needs one frame, L_d
+            >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long
+            vectors, and out= holding one record per map cell``.
 
         Examples
         --------
@@ -806,15 +811,19 @@ class Correlator:
             Coherent depth to pin, in `[1, reps]`.
         n_noncoh : int
             Non-coherent look count to pin, in `[1,
-            DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`. Refused (DP_ERR_INVALID)
-            on a map or detector flavor (no search record).
+            DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
 
         Raises
         ------
         ValueError
-            If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``configure_search_raw: only a search (framing='continuous' or
+            If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
+            is ``configure_search_raw: only a search (framing='continuous' or
             'burst') has a grid to pin; Correlator.flavor says which this is``.
+        ValueError
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``configure_search_raw: doppler_bins must lie in 1..reps and
+            n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and
+            non-coherent looks need rate_hypotheses 1``.
         ValueError
             If the C call returns any other non-zero status. The exception
             message is ``configure_search_raw failed``, with the return code
@@ -863,15 +872,17 @@ class Correlator:
         Parameters
         ----------
         n : int
-            1 … DP_CORRELATOR_MAX_PEAKS. Refused (-1) on a map or detector
-            flavor (no search record), which lists no peaks.
+            1 … DP_CORRELATOR_MAX_PEAKS.
 
         Raises
         ------
         ValueError
-            If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``set_max_peaks: only a search (framing='continuous' or 'burst')
+            If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
+            is ``set_max_peaks: only a search (framing='continuous' or 'burst')
             lists peaks; Correlator.flavor says which this is``.
+        ValueError
+            If the C call returns ``DP_ERR_INVALID``. The exception message is
+            ``set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)``.
         ValueError
             If the C call returns any other non-zero status. The exception
             message is ``set_max_peaks failed``, with the return code appended
@@ -930,17 +941,21 @@ class Correlator:
         Parameters
         ----------
         carrier_freq_hz : float
-            RF carrier, Hz; 0.0 = uncoupled. Refused (DP_ERR_INVALID) on every
-            flavor but the continuous search (docs/design/correlator-python.md
-            section 18).
+            RF carrier, Hz; 0.0 = uncoupled. Refused (DP_ERR_UNSUPPORTED) on
+            every flavor but the continuous search
+            (docs/design/correlator-python.md section 18).
 
         Raises
         ------
         ValueError
+            If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
+            is ``set_carrier_freq_hz: only the continuous search
+            (framing='continuous') takes a carrier; Correlator.flavor says
+            which this is``.
+        ValueError
             If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``set_carrier_freq_hz: only the continuous search
-            (framing='continuous') takes a carrier, and it must be 0 (none) or
-            finite and above sample_rate / 2``.
+            ``set_carrier_freq_hz: must be 0 (no carrier) or finite and above
+            sample_rate / 2``.
         MemoryError
             If the C call returns ``DP_ERR_MEMORY``. The exception message is
             ``set_carrier_freq_hz: rebuilding the delay-Doppler map for the new
@@ -991,13 +1006,14 @@ class Correlator:
         ----------
         n : int
             Thread count; 0 = online cores, 1 = serial. Refused
-            (DP_ERR_INVALID) on a map or detector flavor (no search record).
+            (DP_ERR_UNSUPPORTED) on a map or detector flavor (no search
+            record).
 
         Raises
         ------
         ValueError
-            If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``set_threads: only a search (framing='continuous' or 'burst')
+            If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
+            is ``set_threads: only a search (framing='continuous' or 'burst')
             sizes its pool after create; a map or detector takes nthreads at
             create``.
         ValueError
@@ -1062,17 +1078,22 @@ class Correlator:
         prefix : str
             Probe-name prefix, e.g. "acq" or "ch0.acq".
         decim : int
-            Emit every decim-th decided dwell; >= 1. Refused (DP_ERR_INVALID)
-            on every flavor but the continuous search
+            Emit every decim-th decided dwell; >= 1. Refused
+            (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
             (docs/design/correlator-python.md section 18).
 
         Raises
         ------
         ValueError
+            If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
+            is ``set_telemetry: only the continuous search
+            (framing='continuous') is instrumented; Correlator.flavor says
+            which this is``.
+        ValueError
             If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``set_telemetry: only the continuous search (framing='continuous')
-            is instrumented, with a prefix that fits a probe name, a decim the
-            context accepts and room for its ten probes``.
+            ``set_telemetry: refused, nothing attached: the prefix joined to
+            each probe name must fit DP_TLM_NAME_MAX, decim must be at least 1,
+            and the context must have room for all ten probes``.
         ValueError
             If the C call returns any other non-zero status. The exception
             message is ``set_telemetry failed``, with the return code appended
@@ -1108,11 +1129,13 @@ class Correlator:
         the gate used — so a cell reads as its own test statistic, to a float
         rounding (the SIMD build's fast-math may take a reciprocal in this loop
         and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on
-        the non-coherent path) is a flat plane on a plot. The engine keeps this
-        only while `keep_surface` is set (a caller sets it, or
-        dp_correlator_set_surface_sink() does): set it, push, then read.
-        `surface_at` says which dwell it is; a time-decimated record is the
-        caller reading every k-th dwell, or a sink with `decim`.
+        the non-coherent path) is a flat plane on a plot.
+
+        **A surface is kept while `keep_surface` is set OR a sink is attached**
+        (dp_correlator_set_surface_sink()); this is the one statement of that
+        rule. Set either, push, then read. `surface_at` says which dwell it is;
+        a time-decimated record is the caller reading every k-th dwell, or a
+        sink with `decim`.
 
         Parameters
         ----------
@@ -1123,7 +1146,7 @@ class Correlator:
         -------
         int
             Cells written (`surface_rows * lag_bins`), or 0 when no dwell has
-            been decided with `keep_surface` set, or out is too small.
+            been decided while a surface was kept, or out is too small.
 
         Raises
         ------
@@ -1491,9 +1514,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``push: a map does not detect;
-            build a detector (detect=True) or a search (framing='continuous' or
-            'burst')``.
+            a count. The exception message is ``push: only a detector or a
+            search pushes; a map does not detect (build one with detect=True,
+            or framing='continuous' or 'burst')``.
 
         Examples
         --------

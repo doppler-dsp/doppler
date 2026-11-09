@@ -573,12 +573,14 @@ typedef struct dp_correlator_search
   /* Observability (docs/design/async-dsss-receiver.md §2.4):
      attach-on-demand, nothing in blobs. */
   dp_correlator_tlm_t tlm;       /**< telemetry attachment; ctx NULL = detached      */
-  int       keep_surface; /**< 1 = normalise every decided dwell into
-                               `stat_surface` for acq_surface(); set by a
-                               caller or by dp_correlator_set_surface_sink()        */
+  int       keep_surface; /**< 1 = the caller asked to keep surfaces; set
+                               by a caller or by
+                               dp_correlator_set_surface_sink(). A
+                               surface is kept while this OR a sink is
+                               set (dp_correlator_surface())               */
   float *stat_surface; /**< n_surf: the last decided dwell in the gate's
                             units; allocated on the first dwell decided
-                            with keep_surface set                       */
+                            while a surface is kept                     */
   dp_correlator_surface_sink_fn sink; /**< NULL = none                              */
   void    *sink_ctx;   /**< caller's opaque pointer, passed to sink      */
   uint32_t sink_decim; /**< the sink sees every sink_decim-th dwell       */
@@ -1984,8 +1986,8 @@ size_t dp_correlator_consumed (const dp_correlator_state_t *state);
  *
  * @param state     Must be non-NULL.
  * @param threshold New threshold; 0.0 = always fire.
- * @return DP_OK, or DP_ERR_INVALID (nothing changed) for a map or search
- *         flavor.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED (nothing changed) for a map or
+ *         search flavor.
  */
 int dp_correlator_set_threshold (dp_correlator_state_t *state,
                                  float threshold);
@@ -2805,13 +2807,13 @@ size_t dp_correlator_rate_hypotheses_for (double f_epoch, double span,
  * @param doppler_bins Coherent depth to pin, in `[1, reps]`.
  * @param n_noncoh     Non-coherent look count to pin, in
  *                     `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
- * Refused (DP_ERR_INVALID) on a map or detector flavor (no search record).
  *
- * @return 0 on success, -1 if either argument is out of range (or
- *         @p n_noncoh > 1 on an engine with rate hypotheses, which do not
- *         compose with non-coherent looks), or an
- *         allocation fails (the engine is left usable at its prior grid
- *         on failure).
+ * @return 0 on success; DP_ERR_UNSUPPORTED on a map or detector flavor
+ *         (no search record); DP_ERR_INVALID if either argument is out
+ *         of range (or @p n_noncoh > 1 on an engine with rate hypotheses,
+ *         which do not compose with non-coherent looks); DP_ERR_MEMORY if
+ *         an allocation fails (the engine is left usable at its prior
+ *         grid).
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator
@@ -2856,11 +2858,10 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
  *
  * @param state  Must be non-NULL.
  * @param n      1 … DP_CORRELATOR_MAX_PEAKS.
- * Refused (-1) on a map or detector flavor (no search record), which lists no
- * peaks.
  *
- * @return 0; DP_ERR_INVALID off a search (a map or detector lists no
- *         peaks); -1 (state untouched) when @p n is out of range.
+ * @return 0; DP_ERR_UNSUPPORTED off a search (a map or detector lists
+ *         no peaks); DP_ERR_INVALID (state untouched) when @p n is out of
+ *         range.
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator
@@ -2913,7 +2914,7 @@ int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n);
  *
  * @param state           Must be non-NULL.
  * @param carrier_freq_hz RF carrier, Hz; 0.0 = uncoupled.
- * Refused (DP_ERR_INVALID) on every flavor but the continuous search
+ * Refused (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
  * (docs/design/correlator-python.md section 18).
  *
  * @return `DP_OK`, `DP_ERR_INVALID` for a carrier outside
@@ -2986,7 +2987,7 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  *
  * @param state Must be non-NULL.
  * @param n     Thread count; 0 = online cores, 1 = serial.
- * Refused (DP_ERR_INVALID) on a map or detector flavor (no search record).
+ * Refused (DP_ERR_UNSUPPORTED) on a map or detector flavor (no search record).
  *
  * @return DP_OK. The count actually running is `threads`.
  * @code
@@ -3039,7 +3040,7 @@ int dp_correlator_set_threads (dp_correlator_state_t *state, int n);
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "acq" or "ch0.acq".
  * @param decim  Emit every decim-th decided dwell; >= 1.
- * Refused (DP_ERR_INVALID) on every flavor but the continuous search
+ * Refused (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
  * (docs/design/correlator-python.md section 18).
  *
  * @return DP_OK; DP_ERR_INVALID for an overlong @p prefix, a @p decim
@@ -3079,10 +3080,13 @@ int dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
  * the gate used — so a cell reads as its own test statistic, to a float
  * rounding (the SIMD build's fast-math may take a reciprocal in this
  * loop and a divide in the gate's), and the gate (`threshold`, or
- * `eta_nc` on the non-coherent path) is a flat plane on a plot. The engine keeps this only while `keep_surface` is set (a
- * caller sets it, or dp_correlator_set_surface_sink() does): set it, push, then
- * read. `surface_at` says which dwell it is; a time-decimated record is
- * the caller reading every k-th dwell, or a sink with `decim`.
+ * `eta_nc` on the non-coherent path) is a flat plane on a plot.
+ *
+ * **A surface is kept while `keep_surface` is set OR a sink is attached**
+ * (dp_correlator_set_surface_sink()); this is the one statement of that
+ * rule. Set either, push, then read. `surface_at` says which dwell it is;
+ * a time-decimated record is the caller reading every k-th dwell, or a
+ * sink with `decim`.
  *
  * @param state Must be non-NULL.
  * @param out   At least `surface_rows * lag_bins` floats.
@@ -3091,7 +3095,8 @@ int dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
  * (docs/design/correlator-python.md section 18); 0 is "nothing yet".
  *
  * @return Cells written (`surface_rows * lag_bins`), or 0 when no dwell
- *         has been decided with `keep_surface` set, or @p out is too small.
+ *         has been decided while a surface was kept, or @p out is too
+ *         small.
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator
@@ -3424,16 +3429,17 @@ size_t dp_correlator_block_raw (dp_correlator_state_t *state, float _Complex *ou
  * @param fn    The sink, or NULL to detach.
  * @param ctx   Passed through to @p fn.
  * @param decim Hand over every decim-th dwell; 0 reads as 1.
- * @return DP_OK; DP_ERR_INVALID, with nothing attached, off a search
+ * @return DP_OK; DP_ERR_UNSUPPORTED, with nothing attached, off a search
  *         (a map or a detector decides no dwell).
  */
 int dp_correlator_set_surface_sink (dp_correlator_state_t *state, dp_correlator_surface_sink_fn fn,
                            void *ctx, uint32_t decim);
 
 /**
- * @brief Keep, or stop keeping, every decided dwell's surface for
+ * @brief Ask to keep, or stop keeping, every decided dwell's surface for
  *        dp_correlator_surface(): 1 normalises each one into the gate's
- *        units at its decision, 0 (the default) costs nothing.
+ *        units at its decision; 0 (the default) keeps none unless a sink
+ *        is attached (dp_correlator_surface() states the rule).
  *
  * Python's writable Correlator.keep_surface; dp_correlator_set_surface_sink()
  * sets it too, and a search flavor's other setters leave it as it is.  The
@@ -3442,7 +3448,8 @@ int dp_correlator_set_surface_sink (dp_correlator_state_t *state, dp_correlator_
  *
  * @param state  Must be non-NULL.
  * @param keep   Non-zero to keep (stored as 1), 0 not to.
- * @return DP_OK, or DP_ERR_INVALID on any flavor but the continuous search.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED on any flavor but the continuous
+ *         search.
  */
 int dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep);
 
@@ -3868,7 +3875,7 @@ size_t dp_correlator_run (dp_correlator_state_t *state, const void *state_in, vo
  *
  * @param state  Must be non-NULL.
  * @param out    Receives 1 if kept, else 0; untouched on a refusal.
- * @return DP_OK, or DP_ERR_INVALID off the continuous search.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the continuous search.
  */
 int dp_correlator_get_keep_surface(const dp_correlator_state_t *state, int *out);
 
@@ -3881,7 +3888,7 @@ int dp_correlator_get_keep_surface(const dp_correlator_state_t *state, int *out)
  * raises AttributeError.
  *
  * @param state  Must be non-NULL.
- * @return DP_OK on a detector, DP_ERR_INVALID on any other flavor.
+ * @return DP_OK on a detector, DP_ERR_UNSUPPORTED on any other flavor.
  */
 int dp_correlator_last_corr_status(const dp_correlator_state_t *state);
 /**
@@ -3894,7 +3901,7 @@ int dp_correlator_last_corr_status(const dp_correlator_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_ny(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -3906,7 +3913,7 @@ int dp_correlator_get_ny(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_nx(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -3919,7 +3926,7 @@ int dp_correlator_get_nx(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_ny_out(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -3932,7 +3939,7 @@ int dp_correlator_get_ny_out(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_nx_out(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -3944,7 +3951,7 @@ int dp_correlator_get_nx_out(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_col_out(const dp_correlator_state_t *state, int *out);
 /**
@@ -3956,7 +3963,7 @@ int dp_correlator_get_col_out(const dp_correlator_state_t *state, int *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_doppler_step(const dp_correlator_state_t *state, double *out);
 /**
@@ -3968,7 +3975,7 @@ int dp_correlator_get_doppler_step(const dp_correlator_state_t *state, double *o
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_n(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -3980,7 +3987,7 @@ int dp_correlator_get_n(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_dwell(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -3992,7 +3999,7 @@ int dp_correlator_get_dwell(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_count(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4004,7 +4011,7 @@ int dp_correlator_get_count(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_ring_cap(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4016,7 +4023,7 @@ int dp_correlator_get_ring_cap(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_noise_lo(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4028,7 +4035,7 @@ int dp_correlator_get_noise_lo(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_noise_hi(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4041,7 +4048,7 @@ int dp_correlator_get_noise_hi(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_threshold(const dp_correlator_state_t *state, float *out);
 /**
@@ -4054,7 +4061,7 @@ int dp_correlator_get_threshold(const dp_correlator_state_t *state, float *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_max_peaks(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4067,7 +4074,7 @@ int dp_correlator_get_max_peaks(const dp_correlator_state_t *state, size_t *out)
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_code_bins(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4081,7 +4088,7 @@ int dp_correlator_get_code_bins(const dp_correlator_state_t *state, size_t *out)
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_doppler_bins(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4093,7 +4100,7 @@ int dp_correlator_get_doppler_bins(const dp_correlator_state_t *state, size_t *o
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_n_noncoh(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4105,7 +4112,7 @@ int dp_correlator_get_n_noncoh(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_eta(const dp_correlator_state_t *state, float *out);
 /**
@@ -4117,7 +4124,7 @@ int dp_correlator_get_eta(const dp_correlator_state_t *state, float *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_eta_nc(const dp_correlator_state_t *state, float *out);
 /**
@@ -4129,7 +4136,7 @@ int dp_correlator_get_eta_nc(const dp_correlator_state_t *state, float *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_pfa_cell(const dp_correlator_state_t *state, double *out);
 /**
@@ -4144,7 +4151,7 @@ int dp_correlator_get_pfa_cell(const dp_correlator_state_t *state, double *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_pd_predicted(const dp_correlator_state_t *state, double *out);
 /**
@@ -4157,7 +4164,7 @@ int dp_correlator_get_pd_predicted(const dp_correlator_state_t *state, double *o
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_straddle_loss(const dp_correlator_state_t *state, double *out);
 /**
@@ -4169,7 +4176,7 @@ int dp_correlator_get_straddle_loss(const dp_correlator_state_t *state, double *
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_sample_rate(const dp_correlator_state_t *state, double *out);
 /**
@@ -4182,7 +4189,7 @@ int dp_correlator_get_sample_rate(const dp_correlator_state_t *state, double *ou
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_cn0_dbhz(const dp_correlator_state_t *state, double *out);
 /**
@@ -4195,7 +4202,7 @@ int dp_correlator_get_cn0_dbhz(const dp_correlator_state_t *state, double *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_doppler_span_hz(const dp_correlator_state_t *state, double *out);
 /**
@@ -4207,7 +4214,7 @@ int dp_correlator_get_doppler_span_hz(const dp_correlator_state_t *state, double
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_doppler_res_hz(const dp_correlator_state_t *state, double *out);
 /**
@@ -4219,7 +4226,7 @@ int dp_correlator_get_doppler_res_hz(const dp_correlator_state_t *state, double 
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_pd(const dp_correlator_state_t *state, double *out);
 /**
@@ -4234,7 +4241,7 @@ int dp_correlator_get_pd(const dp_correlator_state_t *state, double *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_underpowered(const dp_correlator_state_t *state, bool *out);
 /**
@@ -4247,7 +4254,7 @@ int dp_correlator_get_underpowered(const dp_correlator_state_t *state, bool *out
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_threads(const dp_correlator_state_t *state, int *out);
 /**
@@ -4261,7 +4268,7 @@ int dp_correlator_get_threads(const dp_correlator_state_t *state, int *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_lag_bins(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4274,7 +4281,7 @@ int dp_correlator_get_lag_bins(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_coherent_bins(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4286,7 +4293,7 @@ int dp_correlator_get_coherent_bins(const dp_correlator_state_t *state, size_t *
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_sf(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4298,7 +4305,7 @@ int dp_correlator_get_sf(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_chip_rate(const dp_correlator_state_t *state, double *out);
 /**
@@ -4311,7 +4318,7 @@ int dp_correlator_get_chip_rate(const dp_correlator_state_t *state, double *out)
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_symbol_rate(const dp_correlator_state_t *state, double *out);
 /**
@@ -4324,7 +4331,7 @@ int dp_correlator_get_symbol_rate(const dp_correlator_state_t *state, double *ou
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_epochs_per_symbol(const dp_correlator_state_t *state, double *out);
 /**
@@ -4336,7 +4343,7 @@ int dp_correlator_get_epochs_per_symbol(const dp_correlator_state_t *state, doub
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_n_peaks(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4349,7 +4356,7 @@ int dp_correlator_get_n_peaks(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_n_held(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4364,7 +4371,7 @@ int dp_correlator_get_n_held(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_peak_conc(const dp_correlator_state_t *state, float *out);
 /**
@@ -4377,7 +4384,7 @@ int dp_correlator_get_peak_conc(const dp_correlator_state_t *state, float *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_carrier_freq_hz(const dp_correlator_state_t *state, double *out);
 /**
@@ -4390,7 +4397,7 @@ int dp_correlator_get_carrier_freq_hz(const dp_correlator_state_t *state, double
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_surface_rows(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4403,7 +4410,7 @@ int dp_correlator_get_surface_rows(const dp_correlator_state_t *state, size_t *o
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_surface_at(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4415,7 +4422,7 @@ int dp_correlator_get_surface_at(const dp_correlator_state_t *state, size_t *out
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_reps(const dp_correlator_state_t *state, size_t *out);
 /**
@@ -4429,7 +4436,7 @@ int dp_correlator_get_reps(const dp_correlator_state_t *state, size_t *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_pd_burst(const dp_correlator_state_t *state, double *out);
 /**
@@ -4443,7 +4450,7 @@ int dp_correlator_get_pd_burst(const dp_correlator_state_t *state, double *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_psl_db(const dp_correlator_state_t *state, double *out);
 /**
@@ -4456,7 +4463,7 @@ int dp_correlator_get_psl_db(const dp_correlator_state_t *state, double *out);
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_doppler_rate(const dp_correlator_state_t *state, double *out);
 /**
@@ -4469,7 +4476,7 @@ int dp_correlator_get_doppler_rate(const dp_correlator_state_t *state, double *o
  *
  * @param state  Must be non-NULL.
  * @param out    Receives the value when served.
- * @return DP_OK, or DP_ERR_INVALID off the flavors that serve it.
+ * @return DP_OK, or DP_ERR_UNSUPPORTED off the flavors that serve it.
  */
 int dp_correlator_get_rate_hypotheses(const dp_correlator_state_t *state, size_t *out);
 #ifdef __cplusplus

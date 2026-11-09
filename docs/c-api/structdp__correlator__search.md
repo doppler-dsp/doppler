@@ -600,7 +600,7 @@ int dp_correlator_search::keep_surface;
 
 
 
-1 = normalise every decided dwell into `stat_surface` for acq\_surface(); set by a caller or by [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) 
+1 = the caller asked to keep surfaces; set by a caller or by [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink). A surface is kept while this OR a sink is set ([**dp\_correlator\_surface()**](correlator__core_8h.md#function-dp_correlator_surface)) 
  
 
 
@@ -1470,7 +1470,7 @@ float* dp_correlator_search::stat_surface;
 
 
 
-n\_surf: the last decided dwell in the gate's units; allocated on the first dwell decided with keep\_surface set 
+n\_surf: the last decided dwell in the gate's units; allocated on the first dwell decided while a surface is kept 
  
 
 

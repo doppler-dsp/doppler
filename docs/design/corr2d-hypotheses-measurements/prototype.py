@@ -149,7 +149,8 @@ ORACLE_TEST = "test_corr2d_hypotheses_oracle.py"
 
 def oracle_error() -> float:
     """Claim 1: the worst relative error between the numpy reference and
-    the shipped DelayDoppler, over signed fractional carrier offsets and
+    the shipped DelayDoppler (now the delay-Doppler ``Correlator``), over
+    signed fractional carrier offsets and
     two rate weightings. Needs the extension (``make pyext``)."""
     rng = np.random.default_rng(2683)
     code = code_of(NX, rng)
@@ -305,7 +306,8 @@ def run() -> list[tuple[str, bool, str, str]]:
     x = stream(code, NY, 5.4, f0)
     res.append(
         (
-            "the numpy reference equals the shipped `DelayDoppler`",
+            "the numpy reference equals the shipped delay-Doppler "
+            "`Correlator` (then `DelayDoppler`)",
             True,
             f"held by {ORACLE_TEST}",
             f"2e-5 (float32 kernel), `{ORACLE_TEST}`",

@@ -159,6 +159,10 @@ pffft_try_setup (pocketfft_plan *p)
 pocketfft_plan *
 dp_pocketfft_plan_1d (size_t n, int sign)
 {
+  /* The promote buffer is 2n doubles: a length whose bytes do not fit a
+     size_t would wrap to a small buffer the transform writes past. */
+  if (n > SIZE_MAX / (2 * sizeof (double)))
+    return NULL;
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
     return NULL;

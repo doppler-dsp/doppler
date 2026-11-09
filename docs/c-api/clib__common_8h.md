@@ -123,6 +123,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 | define  | [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send)  `(-2)`<br> |
 | define  | [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout)  `(-5)`<br> |
 | define  | [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large)  `(-7)`<br> |
+| define  | [**DP\_ERR\_UNSUPPORTED**](clib__common_8h.md#define-dp_err_unsupported)  `(-11)`<br> |
 | define  | [**DP\_NODISCARD**](clib__common_8h.md#define-dp_nodiscard)  <br>_Marks a function whose status must not be dropped._  |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
@@ -1313,6 +1314,23 @@ Operation timed out.
 
 
 Frame exceeds transport max payload. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_UNSUPPORTED 
+
+```C++
+#define DP_ERR_UNSUPPORTED `(-11)`
+```
+
+
+
+This object's flavor does not serve the call: a member only \ some of its constructions honor, asked of one that does not \ (docs/design/correlator-python.md section 18). The call \ changed nothing. Distinct from DP\_ERR\_INVALID, a bad \ argument to a call the object does serve. 
 
 
         

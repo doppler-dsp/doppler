@@ -135,7 +135,7 @@ corr2d_chunk (size_t n, size_t t, int nworkers, size_t *r0, size_t *r1)
  * and never get a chunk with work in it -- and a cap of 1 builds no pool.
  * Every size here comes from arguments create() already validated, so the
  * allocations abort on OOM (clib_common.h). */
-static void
+static int
 corr2d_build_fast (dp_correlator_state_t *state, const float _Complex *code,
                    size_t nx, size_t nxo, int nthreads, size_t max_chunks)
 {
@@ -154,8 +154,12 @@ corr2d_build_fast (dp_correlator_state_t *state, const float _Complex *code,
   state->row_inv  = dp_xcalloc (nw, sizeof *state->row_inv);
   for (size_t t = 0; t < nw; t++)
     {
-      state->row_fwd[t] = dp_xnn (dp_fft_create (nx, -1, 1));
-      state->row_inv[t] = dp_xnn (dp_fft_create (nxo, +1, 1));
+      /* A transform too long to plan is a refusal the caller names, not
+         an abort: the lengths come from the caller's ref and nx_out. */
+      state->row_fwd[t] = dp_fft_create (nx, -1, 1);
+      state->row_inv[t] = dp_fft_create (nxo, +1, 1);
+      if (!state->row_fwd[t] || !state->row_inv[t])
+        return -1;
     }
   /* Worker 0's plans are the ones every serial caller (set_ref, the tests)
      names; they are aliases, freed once through the arrays. */
@@ -168,6 +172,7 @@ corr2d_build_fast (dp_correlator_state_t *state, const float _Complex *code,
   dp_fft_execute_cf32 (state->fwd1d, code, nx, state->row_ref_spec, nx);
   for (size_t k = 0; k < nx; k++)
     state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
+  return 0;
 }
 
 /* A flavor constructor's refusal: point @p why (when given) at the
@@ -207,6 +212,16 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
   if (nxo < nx)
     CORR_WHY ("Correlator: nx_out pads the lags; it must be 0 (native) or "
               "at least len(ref)");
+  /* A padded length whose map (or transform buffer) no size_t can count
+     is refused before anything is sized from it (#2958). */
+  if (nxo > SIZE_MAX / (2 * sizeof (double)))
+    CORR_WHY ("Correlator: nx_out asks for a map no size_t can hold");
+  /* The native ny x nx is the caller's ref, so a product that does not
+     fit is a pad's doing: ny_out's when it pads, else nx_out's. */
+  if (nyo > SIZE_MAX / sizeof (float _Complex) / nxo)
+    CORR_WHY (nyo != ny
+                  ? "Correlator: ny_out asks for a map no size_t can hold"
+                  : "Correlator: nx_out asks for a map no size_t can hold");
   /* The header says dwell "must be >= 1" and nothing enforced it. dwell = 0
      is not a degenerate configuration, it is a black hole: the dump test is
      `++count == dwell`, which a zero dwell never satisfies, so the object
@@ -230,9 +245,12 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
      ask for), refuse the configuration. */
   if (col_out >= 0 && (size_t)col_out >= nx)
     CORR_WHY ("Correlator: col_out must be -1 or a lag below len(ref[0])");
-  if (col_out >= 0 && (nyo != ny || nxo != nx))
-    CORR_WHY ("Correlator: col_out reads a native map; it needs ny_out and "
-              "nx_out at 0");
+  if (col_out >= 0 && nyo != ny)
+    CORR_WHY ("Correlator: col_out reads a native map; ny_out pads it, so it "
+              "must be 0 with col_out");
+  if (col_out >= 0 && nxo != nx)
+    CORR_WHY ("Correlator: col_out reads a native map; nx_out pads it, so it "
+              "must be 0 with col_out");
   if (col_out >= 0 && !fast)
     CORR_WHY ("Correlator: col_out needs a ref with energy in its first row "
               "only");
@@ -254,7 +272,13 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
       /* The row stage splits into at most ny chunks.  The known-lag path
          (col_out >= 0) never runs the row stage at all, so it gets no
          workers. */
-      corr2d_build_fast (state, ref, nx, nxo, nthreads, col_out >= 0 ? 1 : ny);
+      if (corr2d_build_fast (state, ref, nx, nxo, nthreads,
+                             col_out >= 0 ? 1 : ny))
+        {
+          dp_correlator_destroy (state);
+          CORR_WHY ("Correlator: nx_out asks for a transform that cannot be "
+                    "allocated");
+        }
 
       if (nxo != nx)
         {
@@ -532,7 +556,7 @@ int
 dp_correlator_set_threshold (dp_correlator_state_t *state, float threshold)
 {
   if (!corr2d_is_detector (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   state->threshold = threshold;
   return DP_OK;
 }
@@ -1218,7 +1242,12 @@ corr_dd_create (const float _Complex *code, size_t code_len, size_t ny,
   /* Rows split into at most ny chunks, columns into at most one per tile:
      the larger is the most workers either stage can keep busy. */
   const size_t ntiles = corr2d_ntiles (nx);
-  corr2d_build_fast (state, code, nx, nx, nthreads, ny > ntiles ? ny : ntiles);
+  if (corr2d_build_fast (state, code, nx, nx, nthreads,
+                         ny > ntiles ? ny : ntiles))
+    {
+      dp_correlator_destroy (state);
+      return NULL; /* the native length could not be planned: memory */
+    }
 
   /* The one block map (correlator_map.h): ny epochs of nx, read on ny_out
      slow rows, no code-rate ramp (F = 1), a slot per worker. */
@@ -4728,6 +4757,18 @@ search_apply_threads (dp_correlator_state_t *st)
   srch->threads = dp_pool_threads (st->pool);
 }
 
+/* *out = a * b, or 0 (and *out untouched) when the product does not fit a
+   size_t: the grid's sizes are products of four axes, and one that wraps
+   allocates small and is then written past. */
+static int
+corr_size_mul (size_t a, size_t b, size_t *out)
+{
+  if (b != 0 && a > SIZE_MAX / b)
+    return 0;
+  *out = a * b;
+  return 1;
+}
+
 static int
 dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
                       size_t new_freq_bins, const float _Complex *replica,
@@ -4771,6 +4812,18 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
   float _Complex       *new_blk_raw  = NULL;
   dp_correlator_part_t *new_parts    = NULL;
   search_map_t          new_map      = { 0 };
+  /* Every buffer below is sized from a factor of the surface (code_bins <=
+     lag_bins, so the frame, the map's spectra and the raw block are no
+     larger) or of the tiles: check the products once, in bytes, before
+     anything is sized from them (#2958). */
+  size_t surf_bytes = 0, parts_bytes = 0;
+  if (!corr_size_mul (new_db, new_freq_bins, &surf_bytes)
+      || !corr_size_mul (surf_bytes, new_interp, &surf_bytes)
+      || !corr_size_mul (surf_bytes, lb, &surf_bytes)
+      || !corr_size_mul (surf_bytes, sizeof (float _Complex), &surf_bytes)
+      || !corr_size_mul (new_freq_bins, sizeof (dp_correlator_part_t),
+                         &parts_bytes))
+    goto fail;
   if (grid_changed)
     {
       /* Single-row reference: row 0 (indices [0, cb)) carries one period
@@ -5263,10 +5316,10 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
     CORR_WHY ("Correlator: reps must be at least 1 (preamble repetitions a "
               "burst)");
   /* A burst's chip rate is its sample rate (one chip = one sample). */
-  if (!(chip_rate > 0.0) && continuous)
-    CORR_WHY ("Correlator: chip_rate must be positive");
-  if (!(chip_rate > 0.0))
-    CORR_WHY ("Correlator: sample_rate must be positive");
+  if (!(chip_rate > 0.0 && isfinite (chip_rate)) && continuous)
+    CORR_WHY ("Correlator: chip_rate must be finite and positive");
+  if (!(chip_rate > 0.0 && isfinite (chip_rate)))
+    CORR_WHY ("Correlator: sample_rate must be finite and positive");
   if (continuous && !isfinite (cn0_dbhz))
     CORR_WHY ("Correlator: the continuous search sizes its dwell from a "
               "design point; it needs a finite cn0_dbhz");
@@ -5488,6 +5541,12 @@ search_continuous_create (const uint8_t *code, size_t code_len,
                           int noise_mode, size_t code_only_epochs,
                           double doppler_rate, const char **why)
 {
+  /* Each rate on its own first, so the period sentence below is only ever
+     about their ratio. */
+  if (!(sample_rate > 0.0 && isfinite (sample_rate)))
+    CORR_WHY ("Correlator: sample_rate must be finite and positive");
+  if (!(chip_rate > 0.0 && isfinite (chip_rate)))
+    CORR_WHY ("Correlator: chip_rate must be finite and positive");
   const size_t n_period = search_period_at (code_len, sample_rate, chip_rate);
   if (n_period == 0)
     CORR_WHY ("Correlator: the continuous search needs a code period, "
@@ -5740,6 +5799,8 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
   if (!(sample_rate > 0.0))
     CORR_WHY ("Correlator: a search needs sample_rate; 0 is not given "
               "(sample_rate=1.0 for normalized units)");
+  if (!isfinite (sample_rate))
+    CORR_WHY ("Correlator: sample_rate must be finite");
 
   if (framing == DP_CORRELATOR_FRAMING_CONTINUOUS)
     {
@@ -5748,6 +5809,8 @@ dp_correlator_create (const float _Complex *ref, size_t ny, size_t nx,
       if (!(chip_rate > 0.0))
         CORR_WHY ("Correlator: the continuous search needs chip_rate; 0 "
                   "is not given");
+      if (!isfinite (chip_rate))
+        CORR_WHY ("Correlator: chip_rate must be finite");
       if (!isfinite (cn0_dbhz))
         CORR_WHY ("Correlator: the continuous search sizes its dwell "
                   "from a design point; it needs a finite cn0_dbhz");
@@ -5784,17 +5847,17 @@ dp_correlator_configure_search_raw (dp_correlator_state_t *st,
 {
   dp_correlator_search_t *const srch = st->search;
   if (!srch) /* not a search flavor (§18) */
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   if (doppler_bins < 1 || doppler_bins > srch->reps || n_noncoh < 1
       || n_noncoh > DP_CORRELATOR_N_NONCOH_SAFETY_CEILING)
-    return -1;
+    return DP_ERR_INVALID;
   /* Non-coherent looks and rate hypotheses do not compose: the search scores
      each hypothesis with the COHERENT statistic, against a gate the
      non-coherent path sets to zero, and sums per-look maxima into a surface
      eta_nc was never derived for. A burst engine buys no looks on its own
      (search_auto_config_burst), so this refuses only a pinned grid. */
   if (n_noncoh > 1 && srch->rate_hyps > 1)
-    return -1;
+    return DP_ERR_INVALID;
 
   /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
    * -- it exits wideband mode (window_bins back to 1) if that was active,
@@ -5802,7 +5865,7 @@ dp_correlator_configure_search_raw (dp_correlator_state_t *st,
   if (dp_correlator_regrid (st, doppler_bins, n_noncoh, 1, NULL,
                             srch->carrier_freq_hz)
       != 0)
-    return -1;
+    return DP_ERR_MEMORY;
 
   const double snr = search_design_snr (srch->cn0_dbhz, srch->fs);
   search_commit_thresholds (st, srch->pfa, srch->pd, snr,
@@ -5878,7 +5941,7 @@ dp_correlator_set_threads (dp_correlator_state_t *st, int n)
 {
   dp_correlator_search_t *const srch = st->search;
   if (!srch) /* not a search flavor (§18) */
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   srch->threads_req = n;
   search_apply_threads (st);
   return DP_OK;
@@ -5890,9 +5953,9 @@ dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n)
   /* Only a search lists peaks, and only a search's destroy frees the list:
      off one this would leak it (§18). */
   if (!st->search)
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   if (n < 1 || n > DP_CORRELATOR_MAX_PEAKS)
-    return -1;
+    return DP_ERR_INVALID;
   /* Fixed sizes from a validated argument: abort-on-OOM helpers, so there
      is no unwind path nothing can reach. */
   free (st->peaks);
@@ -6232,7 +6295,7 @@ dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state,
 {
   dp_correlator_search_t *const srch = state->search;
   if (!corr2d_is_continuous (state)) /* §18 */
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   if (!dp_correlator_carrier_freq_ok (carrier_freq_hz, srch->fs))
     return DP_ERR_INVALID;
   if (carrier_freq_hz == srch->carrier_freq_hz)
@@ -6533,7 +6596,7 @@ dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
 {
   dp_correlator_search_t *const srch = state->search;
   if (!corr2d_is_continuous (state)) /* §18 */
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   if (!tlm) /* detach: the probe site reverts to the single-branch cost */
     {
       srch->tlm.ctx = NULL;
@@ -6718,7 +6781,7 @@ dp_correlator_set_surface_sink (dp_correlator_state_t        *state,
   /* Both searches decide dwells (test_search_equiv records every burst
      dwell through it); a map or detector has no dwell to hand over. */
   if (!srch)
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   srch->sink       = fn;
   srch->sink_ctx   = ctx;
   srch->sink_decim = decim ? decim : 1u;
@@ -6731,7 +6794,7 @@ int
 dp_correlator_set_keep_surface (dp_correlator_state_t *state, int keep)
 {
   if (!corr2d_is_continuous (state)) /* §18 */
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   /* A flag: what is kept is what the blob carries (0 or 1, version 2). */
   state->search->keep_surface = keep != 0;
   return DP_OK;
@@ -7036,7 +7099,7 @@ int
 dp_correlator_get_keep_surface (const dp_correlator_state_t *state, int *out)
 {
   if (!corr2d_is_continuous (state)) /* §18: the continuous search only */
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->keep_surface;
   return DP_OK;
 }
@@ -7047,14 +7110,14 @@ dp_correlator_last_corr_status (const dp_correlator_state_t *state)
   const dp_correlator_flavor_t f = dp_correlator_flavor (state);
   return f == DP_CORRELATOR_DETECTOR_1D || f == DP_CORRELATOR_DETECTOR_2D
              ? DP_OK
-             : DP_ERR_INVALID; /* §18: both detectors only */
+             : DP_ERR_UNSUPPORTED; /* §18: both detectors only */
 }
 
 int
 dp_correlator_get_ny (const dp_correlator_state_t *state, size_t *out)
 {
   if (corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->ny;
   return DP_OK;
 }
@@ -7063,7 +7126,7 @@ int
 dp_correlator_get_nx (const dp_correlator_state_t *state, size_t *out)
 {
   if (corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->nx;
   return DP_OK;
 }
@@ -7072,7 +7135,7 @@ int
 dp_correlator_get_ny_out (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_map (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->ny_out;
   return DP_OK;
 }
@@ -7082,7 +7145,7 @@ dp_correlator_get_nx_out (const dp_correlator_state_t *state, size_t *out)
 {
   if (!(state->flavor == DP_CORRELATOR_1D
         || state->flavor == DP_CORRELATOR_2D))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->nx_out;
   return DP_OK;
 }
@@ -7092,7 +7155,7 @@ dp_correlator_get_col_out (const dp_correlator_state_t *state, int *out)
 {
   if (!(state->flavor == DP_CORRELATOR_1D
         || state->flavor == DP_CORRELATOR_2D))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->col_out;
   return DP_OK;
 }
@@ -7102,7 +7165,7 @@ dp_correlator_get_doppler_step (const dp_correlator_state_t *state,
                                 double                      *out)
 {
   if (!corr2d_is_dd (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->doppler_step;
   return DP_OK;
 }
@@ -7111,7 +7174,7 @@ int
 dp_correlator_get_n (const dp_correlator_state_t *state, size_t *out)
 {
   if (!(state->flavor == DP_CORRELATOR_1D || corr2d_is_detector (state)))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->n;
   return DP_OK;
 }
@@ -7120,7 +7183,7 @@ int
 dp_correlator_get_dwell (const dp_correlator_state_t *state, size_t *out)
 {
   if (!!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->dwell;
   return DP_OK;
 }
@@ -7129,7 +7192,7 @@ int
 dp_correlator_get_count (const dp_correlator_state_t *state, size_t *out)
 {
   if (!!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->count;
   return DP_OK;
 }
@@ -7138,7 +7201,7 @@ int
 dp_correlator_get_ring_cap (const dp_correlator_state_t *state, size_t *out)
 {
   if (!!corr2d_is_map (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->ring_cap;
   return DP_OK;
 }
@@ -7147,7 +7210,7 @@ int
 dp_correlator_get_noise_lo (const dp_correlator_state_t *state, size_t *out)
 {
   if (!!corr2d_is_map (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->noise_lo;
   return DP_OK;
 }
@@ -7156,7 +7219,7 @@ int
 dp_correlator_get_noise_hi (const dp_correlator_state_t *state, size_t *out)
 {
   if (!!corr2d_is_map (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->noise_hi;
   return DP_OK;
 }
@@ -7165,7 +7228,7 @@ int
 dp_correlator_get_threshold (const dp_correlator_state_t *state, float *out)
 {
   if (!!corr2d_is_map (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->threshold;
   return DP_OK;
 }
@@ -7174,7 +7237,7 @@ int
 dp_correlator_get_max_peaks (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->max_peaks;
   return DP_OK;
 }
@@ -7183,7 +7246,7 @@ int
 dp_correlator_get_code_bins (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->code_bins;
   return DP_OK;
 }
@@ -7193,7 +7256,7 @@ dp_correlator_get_doppler_bins (const dp_correlator_state_t *state,
                                 size_t                      *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = dp_correlator_grid_bins (state);
   return DP_OK;
 }
@@ -7202,7 +7265,7 @@ int
 dp_correlator_get_n_noncoh (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->n_noncoh;
   return DP_OK;
 }
@@ -7211,7 +7274,7 @@ int
 dp_correlator_get_eta (const dp_correlator_state_t *state, float *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->eta;
   return DP_OK;
 }
@@ -7220,7 +7283,7 @@ int
 dp_correlator_get_eta_nc (const dp_correlator_state_t *state, float *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->eta_nc;
   return DP_OK;
 }
@@ -7229,7 +7292,7 @@ int
 dp_correlator_get_pfa_cell (const dp_correlator_state_t *state, double *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->pfa_cell;
   return DP_OK;
 }
@@ -7239,7 +7302,7 @@ dp_correlator_get_pd_predicted (const dp_correlator_state_t *state,
                                 double                      *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->pd_predicted;
   return DP_OK;
 }
@@ -7249,7 +7312,7 @@ dp_correlator_get_straddle_loss (const dp_correlator_state_t *state,
                                  double                      *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->straddle_loss;
   return DP_OK;
 }
@@ -7258,7 +7321,7 @@ int
 dp_correlator_get_sample_rate (const dp_correlator_state_t *state, double *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->fs;
   return DP_OK;
 }
@@ -7267,7 +7330,7 @@ int
 dp_correlator_get_cn0_dbhz (const dp_correlator_state_t *state, double *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->cn0_dbhz;
   return DP_OK;
 }
@@ -7277,7 +7340,7 @@ dp_correlator_get_doppler_span_hz (const dp_correlator_state_t *state,
                                    double                      *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->doppler_span_hz;
   return DP_OK;
 }
@@ -7287,7 +7350,7 @@ dp_correlator_get_doppler_res_hz (const dp_correlator_state_t *state,
                                   double                      *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->doppler_res_hz;
   return DP_OK;
 }
@@ -7296,7 +7359,7 @@ int
 dp_correlator_get_pd (const dp_correlator_state_t *state, double *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->pd;
   return DP_OK;
 }
@@ -7305,7 +7368,7 @@ int
 dp_correlator_get_underpowered (const dp_correlator_state_t *state, bool *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->underpowered != 0;
   return DP_OK;
 }
@@ -7314,7 +7377,7 @@ int
 dp_correlator_get_threads (const dp_correlator_state_t *state, int *out)
 {
   if (!corr2d_is_search (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->threads;
   return DP_OK;
 }
@@ -7323,7 +7386,7 @@ int
 dp_correlator_get_lag_bins (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->lag_bins;
   return DP_OK;
 }
@@ -7333,7 +7396,7 @@ dp_correlator_get_coherent_bins (const dp_correlator_state_t *state,
                                  size_t                      *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->coherent_bins;
   return DP_OK;
 }
@@ -7342,7 +7405,7 @@ int
 dp_correlator_get_sf (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->sf;
   return DP_OK;
 }
@@ -7351,7 +7414,7 @@ int
 dp_correlator_get_chip_rate (const dp_correlator_state_t *state, double *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->chip_rate;
   return DP_OK;
 }
@@ -7360,7 +7423,7 @@ int
 dp_correlator_get_symbol_rate (const dp_correlator_state_t *state, double *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->symbol_rate;
   return DP_OK;
 }
@@ -7370,7 +7433,7 @@ dp_correlator_get_epochs_per_symbol (const dp_correlator_state_t *state,
                                      double                      *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->epochs_per_symbol;
   return DP_OK;
 }
@@ -7379,7 +7442,7 @@ int
 dp_correlator_get_n_peaks (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->n_peaks;
   return DP_OK;
 }
@@ -7388,7 +7451,7 @@ int
 dp_correlator_get_n_held (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->n_held;
   return DP_OK;
 }
@@ -7397,7 +7460,7 @@ int
 dp_correlator_get_peak_conc (const dp_correlator_state_t *state, float *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->peak_conc;
   return DP_OK;
 }
@@ -7407,7 +7470,7 @@ dp_correlator_get_carrier_freq_hz (const dp_correlator_state_t *state,
                                    double                      *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->carrier_freq_hz;
   return DP_OK;
 }
@@ -7417,7 +7480,7 @@ dp_correlator_get_surface_rows (const dp_correlator_state_t *state,
                                 size_t                      *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->n_surf / state->search->lag_bins;
   return DP_OK;
 }
@@ -7426,7 +7489,7 @@ int
 dp_correlator_get_surface_at (const dp_correlator_state_t *state, size_t *out)
 {
   if (!corr2d_is_continuous (state))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = (size_t)state->search->surface_at;
   return DP_OK;
 }
@@ -7435,7 +7498,7 @@ int
 dp_correlator_get_reps (const dp_correlator_state_t *state, size_t *out)
 {
   if (!(state->flavor == DP_CORRELATOR_SEARCH_BURST))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->reps;
   return DP_OK;
 }
@@ -7444,7 +7507,7 @@ int
 dp_correlator_get_pd_burst (const dp_correlator_state_t *state, double *out)
 {
   if (!(state->flavor == DP_CORRELATOR_SEARCH_BURST))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->pd_burst;
   return DP_OK;
 }
@@ -7453,7 +7516,7 @@ int
 dp_correlator_get_psl_db (const dp_correlator_state_t *state, double *out)
 {
   if (!(state->flavor == DP_CORRELATOR_SEARCH_BURST))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = dp_correlator_psl_db (state);
   return DP_OK;
 }
@@ -7463,7 +7526,7 @@ dp_correlator_get_doppler_rate (const dp_correlator_state_t *state,
                                 double                      *out)
 {
   if (!(state->flavor == DP_CORRELATOR_SEARCH_BURST))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->doppler_rate;
   return DP_OK;
 }
@@ -7473,7 +7536,7 @@ dp_correlator_get_rate_hypotheses (const dp_correlator_state_t *state,
                                    size_t                      *out)
 {
   if (!(state->flavor == DP_CORRELATOR_SEARCH_BURST))
-    return DP_ERR_INVALID;
+    return DP_ERR_UNSUPPORTED;
   *out = state->search->rate_hyps;
   return DP_OK;
 }

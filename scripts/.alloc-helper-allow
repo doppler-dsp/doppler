@@ -26,7 +26,7 @@ native/inc/doppler/ccsds_tm/ccsds_tm_frame.h 1
 native/inc/doppler/doppler_channel/doppler_channel_core.h 1
 native/inc/doppler/dp_parallel.h 1
 native/inc/doppler/frame/frame_core.h 1
-native/src/RateConverter/RateConverter_core.c 8
+native/src/RateConverter/RateConverter_core.c 4
 native/src/acc_cf64/acc_cf64_core.c 1
 native/src/acc_f32/acc_f32_core.c 1
 native/src/acc_q15/acc_q15_core.c 1
@@ -47,7 +47,7 @@ native/src/cic/cic_core.c 1
 native/src/conv_enc/conv_enc_core.c 1
 native/src/correlator/correlator_core.c 38  # caller-sized: a hypothesis bank's fraction spectra, phases, flags and slow-time cache scale with its L and rate count (#2683, #2831); the delay-Doppler map's create fails cleanly so a caller's regrid can unwind (correlator_map.h, #2831); and the search flavors' 16, acq_core.c's moved here (#2752 3.4b): a regrid builds the map and its buffers before it commits, so a failure leaves the engine as it was (#2761, #2831), block_prompt's scratch is a refusal on failure
 native/src/costas/costas_core.c 1
-native/src/ddc/ddc_core.c 3
+native/src/ddc/ddc_core.c 1
 native/src/ddcr/ddcr_core.c 1
 native/src/delay/delay_core.c 2
 native/src/despreader/despreader_core.c 3
@@ -64,11 +64,11 @@ native/src/farrow/farrow_core.c 1
 native/src/fft/fft_core.c 1
 native/src/fft/pocketfft.c 6
 native/src/fft2d/fft2d_core.c 1
-native/src/fir/fir_core.c 7
+native/src/fir/fir_core.c 5
 native/src/frame/frame_core.c 1  # caller-sized: add_hex expands 4*strlen(hex)
 native/src/frame_meter/frame_meter_core.c 1
 native/src/gold/gold_core.c 1
-native/src/hbdecim/hbdecim_core.c 4
+native/src/hbdecim/hbdecim_core.c 3
 native/src/hbdecim_q15/hbdecim_q15_core.c 5
 native/src/i16_to_f32/i16_to_f32_core.c 1
 native/src/i16u32_to_f32/i16u32_to_f32_core.c 1
@@ -77,7 +77,7 @@ native/src/i32_to_f32/i32_to_f32_core.c 1
 native/src/i8_to_f32/i8_to_f32_core.c 1
 native/src/imdmeas/imdmeas_core.c 2
 native/src/interleaver/interleaver_core.c 1
-native/src/interp_table/interp_table_core.c 2
+native/src/interp_table/interp_table_core.c 1
 native/src/lo/lo_core.c 1
 native/src/lockdet/lockdet_core.c 1
 native/src/loop_filter/loop_filter_core.c 1
@@ -88,8 +88,8 @@ native/src/pn/pn_core.c 1
 native/src/ppe/ppe_core.c 1
 native/src/psd/psd_core.c 6
 native/src/ratesync/ratesync_core.c 1
-native/src/resamp/resamp_core.c 7
-native/src/resample/hbdecim_r2c_core.c 4
+native/src/resamp/resamp_core.c 5
+native/src/resample/hbdecim_r2c_core.c 3
 native/src/rs_codec/rs_codec_core.c 1
 native/src/specan/specan_core.c 5
 native/src/spectral/find_peaks_f32.c 1

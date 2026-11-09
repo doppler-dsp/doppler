@@ -96,7 +96,7 @@ dp_hbdecim_create (size_t num_taps, const float *h)
   r->centre      = num_taps / 2;
   r->fir_on_even = !(num_taps & 1); /* even N → FIR on even inputs */
 
-  r->h = malloc (num_taps * sizeof (float));
+  r->h = dp_mallocn (num_taps, sizeof (float));
   if (!r->h)
     goto fail;
 
@@ -111,8 +111,12 @@ dp_hbdecim_create (size_t num_taps, const float *h)
     r->even_cap <<= 1;
   r->even_mask = r->even_cap - 1;
 
-  r->even_buf = calloc (2 * r->even_cap, sizeof (float _Complex));
-  r->odd_buf  = calloc (2 * r->even_cap, sizeof (float _Complex));
+  /* Two copies of the ring, so any window is contiguous. */
+  size_t ring_n;
+  if (!dp_size_mul (2, r->even_cap, &ring_n))
+    goto fail;
+  r->even_buf = calloc (ring_n, sizeof (float _Complex));
+  r->odd_buf  = calloc (ring_n, sizeof (float _Complex));
   if (!r->even_buf || !r->odd_buf)
     goto fail;
 

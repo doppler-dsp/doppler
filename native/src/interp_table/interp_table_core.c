@@ -14,7 +14,7 @@ dp_interp_table_create (const double _Complex *table, size_t table_len,
   dp_interp_table_state_t *obj = malloc (sizeof (*obj));
   if (!obj)
     return NULL;
-  obj->table = malloc (table_len * sizeof (double _Complex));
+  obj->table = dp_mallocn (table_len, sizeof (double _Complex));
   if (!obj->table)
     {
       free (obj);

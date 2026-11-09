@@ -593,6 +593,23 @@ adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
   return ca->ready || ca->n_blocks >= cap;
 }
 
+/* The first sample a live chain can start on at or past @p at: the smallest
+ * ceil(k * period), k whole periods from the hand-off, that is >= at. With a
+ * fractional period (17.5) the starts are 0, 18, 35, 53 ...; the phase
+ * carries each one's fraction (adr_handover_phase()). The same rounding as
+ * the hand-over's estimate, `ceil(k * period - 1e-9)`. The first guess is
+ * within one of k, so each loop runs at most once or twice. */
+static uint64_t
+adr_period_start_at (double period, uint64_t at)
+{
+  uint64_t k = (uint64_t)floor ((double)at / period);
+  while (k > 0 && (uint64_t)ceil ((double)(k - 1) * period - 1e-9) >= at)
+    k--;
+  while ((uint64_t)ceil ((double)k * period - 1e-9) < at)
+    k++;
+  return (uint64_t)ceil ((double)k * period - 1e-9);
+}
+
 /* Refine-stage entry point: buffer raw samples into whole `tsamps`-sample
  * periods (the shared car_carry_buf -- refine and track never run
  * concurrently) and run adr_refine_period() on each complete one, up to
@@ -1781,7 +1798,10 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * decide past it -- 7 samples past at 2.5 samples a chip, where a
        * call shorter than that left the start in a buffer already gone and
        * the live chain began late. A start before the held input moves on
-       * to the first whole period inside it. A start past the input so far
+       * to the first start inside it: the first ceil(k * period) at or past
+       * it, the smallest k, so a fractional period skips no start the grid
+       * has (the period's fraction is carried in the phase, as for the
+       * estimate). A start past the input so far
        * is waited for, the refine decided and the receiver still refining,
        * where starting at once began the live chain early (16 samples at
        * 3.5 samples a chip) against a phase computed for the start. Fed
@@ -1794,8 +1814,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
       if (taken)
         held = before + taken > state->tsamps ? before + taken - state->tsamps
                                               : 0;
-      const uint64_t held_start = (uint64_t)ceil (
-          ceil ((double)held / period - 1e-9) * period - 1e-9);
+      const uint64_t held_start = adr_period_start_at (period, held);
       if (samples_consumed_refine < held_start)
         samples_consumed_refine = held_start;
       if (samples_consumed_refine > fed_total)

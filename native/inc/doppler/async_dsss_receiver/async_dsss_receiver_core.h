@@ -30,12 +30,13 @@
  *     is ready or gives up; then the live tracking chain is built FRESH,
  *     from the hand-off's chip phase advanced by the clock dilation over the
  *     refine (not wherever the refine-stage `Dll` drifted) and the refined
- *     -- on a give-up, the seed's -- Doppler. It starts on a whole code
- *     period from the hand-off and on the same input sample at any
- *     chunking (doppler#2974): the estimate of where the refine stopped,
- *     moved no earlier than the code period the refine decided in, which
- *     the receiver holds whatever the call sizes. A start the input has not
- *     reached yet is waited for, the receiver still refining.
+ *     -- on a give-up, the seed's -- Doppler. It starts at
+ *     `ceil(k * period)` samples from the hand-off, k whole code periods,
+ *     the period's fraction carried in its phase, and on the same input sample
+ *     at any chunking (doppler#2974): the estimate of where the refine
+ *     stopped, moved no earlier than the code period the refine decided in,
+ *     which the receiver holds whatever the call sizes. A start the input
+ *     has not reached yet is waited for, the receiver still refining.
  *   - **tracking**: the pre-despread carrier loop (`costas_wipeoff`/
  *     `costas_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`. The
  *     carrier loop updates once per code period from a NON-DATA-AIDED
@@ -287,8 +288,9 @@ typedef enum
                                        and the decided period's head from
                                        the carry when that is behind it.
                                        The clock dilation is taken over the
-                                       consumed count, from the refine's
-                                       blocks, not over this. */
+                                       live chain's start -- the estimate
+                                       from the refine's blocks, moved onto
+                                       the held period -- not over this. */
     uint64_t refine_periods;     /**< Diagnostic: code periods the refine
                                       stage processed since its chain was
                                       built. It stops at the period the

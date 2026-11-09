@@ -65,7 +65,7 @@ dp_wfm_rrc_polyphase_bank (double beta, int sps, int span, float *bank)
   /* Unit-energy prototype, then the sqrt(sps) unit-average-power scale that
      dp_wfm_synth_set_rrc applies to the dense taps — folded in here so the
      polyphase shaper matches the dense FIR amplitude. */
-  float *proto = dp_xmalloc (proto_len * sizeof (float));
+  float *proto = dp_xmallocn (proto_len, sizeof (float));
   dp_wfm_rrc_taps (beta, sps, span, proto);
   float scale = (float)sqrt ((double)sps);
   for (size_t i = 0; i < proto_len; i++)

@@ -10,6 +10,8 @@
 #include "doppler/dp_complex.h"
 #include <errno.h>
 #include <inttypes.h> /* PRIx64: a record's dp_hash64 */
+#include <limits.h>   /* INT_MIN/INT_MAX: an int row's range */
+#include <math.h>     /* floor: a count row is whole */
 #include <stdarg.h>
 #include <stddef.h> /* offsetof — the frame key tables name members once */
 #include <stdio.h>
@@ -590,34 +592,85 @@ row_get (const wfm_surface_row_t *r, const void *base, size_t off)
   return 0.0;
 }
 
-static void
-row_set (const wfm_surface_row_t *r, void *base, size_t off, double v)
+/* The longest path a refusal names: "segments[N].sum[N].frame.fields[N]".
+   A segment or field index past this many digits is truncated in the
+   message, never in the check. */
+#define WFM_JSON_PATH_MAX 96
+
+/* Store @p v, the double cJSON read, into the row's member at `off`.
+ *
+ * Converting a double to an integer type is undefined behaviour when the
+ * truncated value does not fit, and for NaN. A scene is untrusted text -- a
+ * record, a restored Plan's embedded spec -- so every integer row is range
+ * checked first: a forged `"num_samples": 2.3e18` used to land in size_t,
+ * size a buffer whose byte count wrapped, and be rendered past its end.
+ * The bounds are open intervals on exact doubles: (INT_MIN - 1, INT_MAX + 1)
+ * for an int, (-1, 2^32) and (-1, 2^64) for the unsigned ones -- never
+ * `(double)UINT64_MAX`, which rounds up to 2^64 and admits it -- so
+ * truncation toward zero always lands in range. A size_t row is a COUNT
+ * (samples, symbols, repeats), so it must also be whole, and its range is
+ * dp_size_from_double's. A double row takes anything.
+ *
+ * Returns 0, or -1 with *why naming the key and where it sits; the reason
+ * is formatted into a thread-local buffer, as refuse_unknown_keys does. */
+static int
+row_set (const wfm_surface_row_t *r, void *base, size_t off, double v,
+         const char *where, const char **why)
 {
-  char *p = (char *)base + off;
+  static _Thread_local char buf[WFM_JSON_PATH_MAX + 160];
+  char                     *p    = (char *)base + off;
+  const char               *want = NULL;
   switch (r->kind)
     {
     case WFM_SV_DOUBLE:
       *(double *)p = v;
-      break;
+      return 0;
     case WFM_SV_INT:
     case WFM_SV_CHOICE:
-      *(int *)p = (int)v;
+      if (v > (double)INT_MIN - 1.0 && v < (double)INT_MAX + 1.0)
+        {
+          *(int *)p = (int)v;
+          return 0;
+        }
+      want = "a number that fits an int";
       break;
     case WFM_SV_SIZE:
-      *(size_t *)p = (size_t)v;
-      break;
+      {
+        size_t n;
+        if (dp_size_from_double (v, &n) && v == floor (v))
+          {
+            *(size_t *)p = n;
+            return 0;
+          }
+        want = "a whole, non-negative count that fits a size_t";
+        break;
+      }
     case WFM_SV_U32:
-      *(uint32_t *)p = (uint32_t)v;
+      if (v > -1.0 && v < 0x1p32) /* 2^32, exact */
+        {
+          *(uint32_t *)p = (uint32_t)v;
+          return 0;
+        }
+      want = "a number from 0 to 4294967295";
       break;
     case WFM_SV_U64:
-      *(uint64_t *)p = (uint64_t)v;
+      if (v > -1.0 && v < 0x1p64) /* 2^64, exact */
+        {
+          *(uint64_t *)p = (uint64_t)v;
+          return 0;
+        }
+      want = "a number from 0 to 18446744073709551615";
       break;
     /* A Field and a bespoke row have their own owners: not a double. */
     case WFM_SV_FIELD:
     case WFM_SV_BESPOKE:
     case WFM_SV_SYMBOLS:
-      break;
+      return 0;
     }
+  snprintf (buf, sizeof buf, "%s: \"%s\" takes %s -- not %.17g", where,
+            r->json, want, v);
+  *why = buf;
+  return -1;
 }
 
 /* A choice row's index, with an out-of-range value read as the default. */
@@ -681,11 +734,12 @@ add_rows (cJSON *o, wfm_surf_owner_t owner, const void *base)
 }
 
 /* Read every JSON row of `owner` into `base`; an absent key, or an unknown
-   choice name, is the row's default. Returns -1 only for a REQUIRED row that
-   is absent or unrecognised (a source's `type`). */
+   choice name, is the row's default. Returns -1 for a REQUIRED row that is
+   absent or unrecognised (a source's `type`), and for a number its row
+   cannot hold (row_set), naming the key at `where`. */
 static int
 read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
-           const char **why)
+           const char *where, const char **why)
 {
   const void *def    = row_defaults (owner);
   unsigned   *ranged = (unsigned *)((char *)base + row_ranged_off (owner));
@@ -743,21 +797,29 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
                 }
               i = (int)dv;
             }
-          row_set (r, base, r->off, i);
+          if (row_set (r, base, r->off, i, where, why) != 0)
+            return -1;
         }
       else if (r->json_bool)
-        row_set (r, base, r->off, cJSON_IsTrue (it) ? 1.0 : 0.0);
+        {
+          if (row_set (r, base, r->off, cJSON_IsTrue (it) ? 1.0 : 0.0, where,
+                       why)
+              != 0)
+            return -1;
+        }
       else if (r->range_bit)
         {
           double       hi = 0.0;
           int          rg = 0;
           const double v  = num_or_range (o, r->json, dv, &hi, &rg);
-          row_set (r, base, r->off, v);
-          row_set (r, base, r->hi_off, hi);
+          if (row_set (r, base, r->off, v, where, why) != 0
+              || row_set (r, base, r->hi_off, hi, where, why) != 0)
+            return -1;
           *ranged = rg ? (*ranged | r->range_bit) : (*ranged & ~r->range_bit);
         }
-      else
-        row_set (r, base, r->off, num (o, r->json, dv));
+      else if (row_set (r, base, r->off, num (o, r->json, dv), where, why)
+               != 0)
+        return -1;
     }
   return 0;
 }
@@ -789,10 +851,6 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
  * free_src_bits() releases all of it, including on the partial-failure paths
  * below: every slot is counted into n_fields/n_stages as it is claimed, so a
  * description abandoned half-built still frees completely. */
-/* The longest path a refusal names: "segments[N].sum[N].frame.fields[N]".
-   A segment or field index past this many digits is truncated in the
-   message, never in the check. */
-#define WFM_JSON_PATH_MAX 96
 
 /* Write a refusal's path, `segments[1].sum[0].frame`, into @p out. One
    writer for every level: a nested path is its parent's plus a step, so it
@@ -1034,7 +1092,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
      default is not "absent"; every table row is read -- or defaulted -- by
      read_rows, which refuses a missing or unknown `type`. */
   *out = (wfm_source_t){ .acq_reps = DEF_SRC.acq_reps };
-  if (read_rows (so, WFM_SURF_SOURCE, out, why) != 0)
+  if (read_rows (so, WFM_SURF_SOURCE, out, where, why) != 0)
     {
       free_src_bits (out, 1); /* a Field parsed before the refused one */
       return -1;
@@ -1324,8 +1382,15 @@ dp_wfm_compose_from_json_data (const char *json, const char *base,
           }
       }
     segs[i] = (wfm_segment_t){ .sources = srcs, .n_sources = ns };
-    /* A segment has no required row, so this cannot refuse. */
-    (void)read_rows (s, WFM_SURF_SEGMENT, &segs[i], why);
+    /* A segment has no required row, but a count it cannot hold -- a
+       forged num_samples past what a size_t holds -- is refused here, with
+       this segment's sources freed beside the ones before it. */
+    if (read_rows (s, WFM_SURF_SEGMENT, &segs[i], where, why) != 0)
+      {
+        free_src_bits (srcs, ns);
+        free (srcs);
+        goto reject;
+      }
     /* A count beside sources that set the segment's length is refused
        by dp_wfm_scene_error() below, the one rule every face asks; an
        absent one is the default 0, "derive it". */

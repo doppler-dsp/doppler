@@ -50,7 +50,7 @@ native/src/viterbi/viterbi_core.c 8
 native/src/wfm/wfm_compose.c 5
 native/src/wfm/wfm_dsp.c 1
 native/src/wfm/wfm_json.c 3
-native/src/wfm/wfm_plan.c 14
+native/src/wfm/wfm_plan.c 13
 native/src/wfm/wfm_resolve.c 1
 native/src/wfm/wfm_synth_bridge.c 1
 native/src/wfm_compose/wfm_compose_ext.c 1

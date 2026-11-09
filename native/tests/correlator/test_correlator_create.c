@@ -1369,6 +1369,14 @@ test_out_refusals_are_named (void)
             && strcmp (why, "bank_detect: out= must hold one record per map "
                             "cell")
                    == 0);
+  why = NULL;
+  DP_CHECK (
+      dp_correlator_bank_power_max (c, x, 30, 1, 0, 0, NULL, 0, f, u, 31, &why)
+      == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "bank_power_max: takes exactly one frame (ny*nx "
+                            "samples)")
+                   == 0);
   /* Off a map, why stays NULL: the binding raises the declared sentence. */
   dp_correlator_state_t *d = dp_correlator_create_detector_1d (
       NRZ, 31, 1, 0, SIZE_MAX, DET_NOISE_MEAN, 0.0f, 1);

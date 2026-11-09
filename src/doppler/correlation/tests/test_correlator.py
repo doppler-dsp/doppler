@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 
 from doppler.correlation import Correlator
+from doppler.tests._oom import linux_only, run_capped
 from doppler.tests._repo import repo_root
 from doppler.wfm import PN, mls_poly
 
@@ -399,7 +400,67 @@ _CAUSES = [
     (
         lambda c: c.bank_detect(_NRZ, 3, 4, 0, 0, 0.0, 0.0, _NO_RATES),
         "1d",
-        "bank_detect: L_d must divide L_r",
+        "bank_detect: L_r must be a positive multiple of L_d",
+    ),
+    (
+        lambda c: c.bank_detect(_NRZ, 3, 2, 0, 0, 0.0, 0.0, _NO_RATES),
+        "1d",
+        "bank_detect: L_r must be a positive multiple of L_d",
+    ),
+    (
+        lambda c: c.bank_detect(
+            np.ones(30, np.complex64), 1, 1, 0, 0, 0.0, 0.0, _NO_RATES
+        ),
+        "1d",
+        "bank_detect: takes exactly one frame (ny*nx samples)",
+    ),
+    (
+        lambda c: c.bank_detect(_NRZ, 1, 1, 1, 0, 0.0, 0.0, _NO_RATES),
+        "1d",
+        "bank_detect: g_min must not exceed g_max",
+    ),
+    (
+        lambda c: c.bank_detect(
+            np.ones(32, np.complex64),
+            1,
+            1,
+            0,
+            0,
+            0.0,
+            0.0,
+            np.ones(3, np.complex64),
+        ),
+        "2d",
+        "bank_detect: rates must be a whole number of ny-long vectors",
+    ),
+    (
+        lambda c: c.bank_detect(
+            _NRZ, 1, 1, -_ONE, _ONE - 1, 0.0, 0.0, _NO_RATES
+        ),
+        "1d",
+        "bank_detect: (g_max - g_min + 1) x the rate count must fit the "
+        "uint32 hypothesis index",
+    ),
+    (
+        lambda c: c.bank_detect(
+            _NRZ, 1 << 62, 1 << 62, 0, 0, 0.0, 0.0, _NO_RATES
+        ),
+        "1d",
+        "bank_detect: L_d asks for more fractions than the bank's scratch "
+        "can hold",
+    ),
+    (
+        lambda c: c.bank_power_max(
+            np.ones(32, np.complex64), 1, 0, 0, np.ones(3, np.complex64)
+        ),
+        "2d",
+        "bank_power_max: rates must be a whole number of ny-long vectors",
+    ),
+    (
+        lambda c: c.bank_power_max(_NRZ, 1 << 62, 0, 0, _NO_RATES),
+        "1d",
+        "bank_power_max: L asks for more fractions than the bank's scratch "
+        "can hold",
     ),
     (
         lambda c: c.bank_detect(
@@ -460,3 +521,34 @@ def test_set_telemetry_names_a_zero_decim():
         match="^" + re.escape("set_telemetry: decim must be at least 1") + "$",
     ):
         _cont().set_telemetry(Telemetry(1 << 12), "acq", 0)
+
+
+# The refine stage of bank_detect runs the time-domain bank at L_r, one
+# carrier, wherever the direct refine does not apply (a padded map). Its
+# scratch is L_r x n: under a cap that cannot hold it, the refusal names
+# the refine's scratch, never "only a map" (that is the off-flavor
+# sentence, and this is a map). The exception type becomes MemoryError at
+# just-makeit#2584's pin; the sentence is pinned here now.
+_REFINE_OOM_SETUP = """
+import numpy as np
+from doppler.correlation import Correlator
+from doppler.wfm import PN, mls_poly
+
+chips = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31))
+nrz = np.where(chips & 1, -1, 1).astype(np.complex64)
+c = Correlator(nrz, nx_out=64)
+"""
+
+
+@linux_only
+def test_a_refine_that_cannot_allocate_names_the_refine() -> None:
+    r = run_capped(
+        _REFINE_OOM_SETUP,
+        "c.bank_detect(nrz, 1, 1 << 20, 0, 0, 0.0, 0.0,"
+        " np.empty(0, np.complex64))",
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.splitlines()[0] == (
+        "ValueError: bank_detect: the refine's scratch could not be "
+        "allocated (out of memory)"
+    )

@@ -102,7 +102,7 @@ main (void)
      col_out: emit only that correlation lag, one value per row; < 0 for
      the whole map. */
   size_t (*execute) (dp_correlator_state_t *, const float complex *, size_t,
-                     float complex *, size_t)
+                     float complex *, size_t, const char **)
       = dp_correlator_execute; /* writes min(ny_out*nx_out, max_out) */
   size_t (*max_out) (dp_correlator_state_t *) = dp_correlator_execute_max_out;
 

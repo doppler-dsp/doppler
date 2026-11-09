@@ -888,7 +888,7 @@ class Correlator:
         ValueError
             If the C call returns ``DP_ERR_INVALID``. The exception message is
             the reason the C call gives, or ``set_max_peaks: n must lie in
-            1..64 (DP_CORRELATOR_MAX_PEAKS)`` when it gives none.
+            1..DP_CORRELATOR_MAX_PEAKS`` when it gives none.
         ValueError
             If the C call returns any other non-zero status. The exception
             message is the reason the C call gives, or ``set_max_peaks

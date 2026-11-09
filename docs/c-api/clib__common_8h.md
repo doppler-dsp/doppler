@@ -79,7 +79,7 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 |  void \* | [**dp\_xmallocn**](#function-dp_xmallocn) (size\_t n, size\_t size) <br>_dp\_xmalloc for_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._ |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
 |  void \* | [**dp\_xrealloc**](#function-dp_xrealloc) (void \* p, size\_t n) <br> |
-|  void \* | [**dp\_xreallocn**](#function-dp_xreallocn) (void \* p, size\_t n, size\_t size) <br>_dp\_xrealloc to_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._ |
+|  void \* | [**dp\_xreallocn**](#function-dp_xreallocn) (void \* p, size\_t n, size\_t size) <br>_dp\_xrealloc to_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._`n * size == 0` _is a 1-byte request:_`dp_xreallocn (p, 0, s)` _does NOT free_`p` _._ |
 
 
 
@@ -320,7 +320,14 @@ static inline void * dp_mallocn (
 
 
 
-For a count a caller chose, on a path that refuses: check the result and refuse, exactly as for malloc. A zero count (or size) asks for one byte, so NULL always means overflow or OOM (see above).
+For a count a caller chose, on a path that refuses: check the result and refuse, exactly as for malloc.
+
+
+
+
+**Note:**
+
+When `n * size == 0` this asks for ONE byte, not zero: `malloc (0)` may return NULL, which a caller would read as a refusal. So NULL from dp\_mallocn means overflow or OOM and nothing else, and a zero-count result is a live pointer the caller frees as usual and never dereferences.
 
 
 
@@ -741,6 +748,13 @@ For a trusted internal allocation whose count is already validated.
 
 
 
+
+**Note:**
+
+When `n * size == 0` this asks for ONE byte, not zero: `malloc (0)` may return NULL, and dp\_xmalloc would abort on it as if out of memory. The result is a live pointer the caller frees as usual and never dereferences.
+
+
+
 ```C++
 #include "doppler/clib_common.h"
 
@@ -824,7 +838,7 @@ A grow-on-demand scratch buffer is the shape that wants it: the new size scales 
 
 ### function dp\_xreallocn 
 
-_dp\_xrealloc to_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._
+_dp\_xrealloc to_ `n` _elements of_`size` _bytes: aborts on overflow or OOM._`n * size == 0` _is a 1-byte request:_`dp_xreallocn (p, 0, s)` _does NOT free_`p` _._
 ```C++
 static inline void * dp_xreallocn (
     void * p,
@@ -836,6 +850,13 @@ static inline void * dp_xreallocn (
 
 
 The grow-on-demand scratch buffer's helper, for a count the caller has already bounded. Passing NULL for `p` is a fresh allocation.
+
+
+
+
+**Note:**
+
+A zero count resizes `p` to ONE byte rather than calling `realloc (p, 0)`: glibc's frees `p` and returns NULL, which dp\_xrealloc would abort on as if out of memory, and C23 makes it undefined. The result is a live pointer the caller frees as usual.
 
 
 

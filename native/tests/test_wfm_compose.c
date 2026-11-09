@@ -2385,6 +2385,14 @@ test_every_data_refusal_names_its_fix (void)
         "segments[0]: \"seed\" takes a number from 0 to 4294967295" },
       { "{\"segments\":[{\"type\":\"tone\",\"seed\":-1}]}",
         "segments[0]: \"seed\" takes a number from 0 to 4294967295" },
+      /* int: the first value past INT_MAX, 2^31. */
+      { "{\"segments\":[{\"type\":\"tone\",\"rrc_span\":2147483648}]}",
+        "segments[0]: \"rrc_span\" takes a number that fits an int" },
+      /* uint64_t: 2^64 itself, which (double)UINT64_MAX would admit. */
+      { "{\"segments\":[{\"type\":\"tone\","
+        "\"pn_poly\":18446744073709551616}]}",
+        "segments[0]: \"pn_poly\" takes a number from 0 to "
+        "18446744073709551615" },
     };
     for (size_t k = 0; k < sizeof BADNUM / sizeof *BADNUM; k++)
       {
@@ -2402,6 +2410,14 @@ test_every_data_refusal_names_its_fix (void)
         "\"seed\":4294967295}]}",
         &why);
     DP_CHECK_MSG (ok != NULL, "in-range counts and seeds are read");
+    dp_wfm_compose_destroy (ok);
+    /* INT_MAX, and the largest double below 2^64 for a uint64_t row. */
+    why = NULL;
+    ok  = dp_wfm_compose_from_json_why (
+        "{\"segments\":[{\"type\":\"tone\",\"num_samples\":64,"
+        "\"rrc_span\":2147483647,\"pn_poly\":18446744073709549568}]}",
+        &why);
+    DP_CHECK_MSG (ok != NULL, "INT_MAX and 2^64 - 2048 are read");
     dp_wfm_compose_destroy (ok);
   }
 #undef REFUSED

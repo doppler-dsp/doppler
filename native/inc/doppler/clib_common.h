@@ -299,14 +299,6 @@ dp_size_mul_sat (size_t a, size_t b)
 /* -- but neither checks a product written INSIDE an argument:         */
 /* `calloc (a * b, size)` wraps `a * b` first).                        */
 /*                                                                     */
-/* A zero count asks for ONE byte, in all three. malloc (0) may return */
-/* NULL, which would read as a refusal from dp_mallocn and abort       */
-/* dp_xmallocn; glibc's realloc (p, 0) frees p and returns NULL, which */
-/* would abort dp_xreallocn on a request that is not out of memory,    */
-/* and C23 makes realloc (p, 0) undefined. So NULL from these means    */
-/* overflow or OOM and nothing else, and a zero-count result is a live */
-/* pointer the caller frees as usual and never dereferences.           */
-/*                                                                     */
 /* Which one:                                                          */
 /*                                                                     */
 /*  - dp_mallocn, when the count comes from a CALLER on a path that    */
@@ -327,8 +319,13 @@ dp_size_mul_sat (size_t a, size_t b)
  *        count would overflow, or on OOM.
  *
  * For a count a caller chose, on a path that refuses: check the result
- * and refuse, exactly as for malloc. A zero count (or size) asks for one
- * byte, so NULL always means overflow or OOM (see above).
+ * and refuse, exactly as for malloc.
+ *
+ * @note When `n * size == 0` this asks for ONE byte, not zero: `malloc (0)`
+ *       may return NULL, which a caller would read as a refusal. So NULL
+ *       from dp_mallocn means overflow or OOM and nothing else, and a
+ *       zero-count result is a live pointer the caller frees as usual and
+ *       never dereferences.
  *
  * @code
  * #include "doppler/clib_common.h"
@@ -368,6 +365,11 @@ dp_mallocn (size_t n, size_t size)
  *
  * For a trusted internal allocation whose count is already validated.
  *
+ * @note When `n * size == 0` this asks for ONE byte, not zero: `malloc (0)`
+ *       may return NULL, and dp_xmalloc would abort on it as if out of
+ *       memory. The result is a live pointer the caller frees as usual and
+ *       never dereferences.
+ *
  * @code
  * #include "doppler/clib_common.h"
  *
@@ -391,15 +393,21 @@ dp_xmallocn (size_t n, size_t size)
   size_t bytes;
   if (!dp_size_mul (n, size, &bytes))
     abort ();
-  return dp_xmalloc (bytes ? bytes : 1u); /* zero: one byte, see above */
+  return dp_xmalloc (bytes ? bytes : 1u); /* zero: one byte (@note) */
 }
 
 /**
  * @brief dp_xrealloc to @p n elements of @p size bytes: aborts on overflow
- *        or OOM.
+ *        or OOM. `n * size == 0` is a 1-byte request:
+ *        `dp_xreallocn (p, 0, s)` does NOT free @p p.
  *
  * The grow-on-demand scratch buffer's helper, for a count the caller has
  * already bounded. Passing NULL for @p p is a fresh allocation.
+ *
+ * @note A zero count resizes @p p to ONE byte rather than calling
+ *       `realloc (p, 0)`: glibc's frees @p p and returns NULL, which
+ *       dp_xrealloc would abort on as if out of memory, and C23 makes it
+ *       undefined. The result is a live pointer the caller frees as usual.
  *
  * @code
  * #include "doppler/clib_common.h"
@@ -426,7 +434,7 @@ dp_xreallocn (void *p, size_t n, size_t size)
   size_t bytes;
   if (!dp_size_mul (n, size, &bytes))
     abort ();
-  /* zero: one byte, never realloc (p, 0) -- see above */
+  /* zero: one byte, never realloc (p, 0) -- see the @note */
   return dp_xrealloc (p, bytes ? bytes : 1u);
 }
 

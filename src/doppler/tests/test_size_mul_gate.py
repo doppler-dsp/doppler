@@ -164,6 +164,25 @@ def _run(root: Path, files: dict[str, str], *args: str):
             },
             "use dp_size_from_double",
         ),
+        # The rest of C's spellings of all-ones.
+        *[
+            (
+                {
+                    "native/src/m/m_core.c": "int m (size_t k)\n{\n"
+                    f"  return k > {spelling} / 4;\n}}\n"
+                },
+                "native/src/m/m_core.c: 1 hand-written",
+            )
+            for spelling in (
+                "(size_t)~0",
+                "(size_t)(-1)",
+                "~((size_t)0)",
+                "(size_t)-1u",
+                "(size_t)-1L",
+                "(size_t)-1UL",
+                "~(size_t)0u",
+            )
+        ],
     ],
 )
 def test_a_hand_written_guard_is_named(
@@ -214,6 +233,12 @@ def test_a_hand_written_guard_is_named(
             "native/src/f/f_core.c": "size_t f (void)\n{\n"
             "  return ((size_t)1 << (CHAR_BIT * sizeof (size_t) - 1)) / 8;"
             "\n}\n"
+        },
+        # A brace-less `if`: the `)` closing its controlling expression
+        # ends the comparison's context, so the 1.0 it returns is not in it.
+        {
+            "native/src/f/f_core.c": "double f (size_t n)\n{\n"
+            "  if (n == SIZE_MAX) return 1.0;\n  return 0.0;\n}\n"
         },
         # A float literal in ANOTHER clause does not make SIZE_MAX's
         # comparison floating.
@@ -375,3 +400,25 @@ def test_the_live_tree_passes_through_make() -> None:
     )
     assert r.returncode == 0, r.stdout + r.stderr
     assert "size-mul: OK" in r.stdout
+
+
+def test_a_second_guard_on_a_ratcheted_line_raises_the_count(
+    tmp_path: Path,
+) -> None:
+    """Sites are occurrences, not lines: appending a guard to a line the
+    ratchet already counts is a new site, and refused."""
+    one = "int f (size_t a, size_t b)\n{\n  return a > SIZE_MAX / b;\n}\n"
+    two = (
+        "int f (size_t a, size_t b)\n{\n"
+        "  return a > SIZE_MAX / b || b > SIZE_MAX / 4;\n}\n"
+    )
+    line = "native/src/x/x_core.c 1  # why\n"
+    assert (
+        _run(
+            tmp_path, {"native/src/x/x_core.c": one, BASELINE: line}
+        ).returncode
+        == 0
+    )
+    r = _run(tmp_path, {"native/src/x/x_core.c": two, BASELINE: line})
+    assert r.returncode == 1, r.stdout
+    assert "2 hand-written SIZE_MAX guard(s), the ratchet allows 1" in r.stdout

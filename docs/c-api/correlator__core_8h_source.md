@@ -354,7 +354,7 @@ int dp_correlator_set_ref(dp_correlator_state_t *state, const float _Complex *re
 size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
 
 size_t dp_correlator_execute(dp_correlator_state_t *state, const float _Complex *in,
-                      size_t n_in, float _Complex *out, size_t max_out);
+                      size_t n_in, float _Complex *out, size_t max_out, const char **why);
 
 /* ── Batches: many frames in one call (#2683) ──────────────────────────────
  *
@@ -399,26 +399,26 @@ size_t dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
 
 size_t dp_correlator_execute_all (dp_correlator_state_t *state,
                               const float _Complex *in, size_t n_in,
-                              float _Complex *out, size_t max_out);
+                              float _Complex *out, size_t max_out, const char **why);
 
 size_t dp_correlator_execute_coherent_max_out (const dp_correlator_state_t *state);
 
 size_t dp_correlator_execute_coherent (dp_correlator_state_t *state,
                                    const float _Complex *in, size_t n_in,
-                                   float _Complex *out, size_t max_out);
+                                   float _Complex *out, size_t max_out, const char **why);
 
 size_t dp_correlator_execute_power_sum_max_out (const dp_correlator_state_t *state);
 
 size_t dp_correlator_execute_power_sum (dp_correlator_state_t *state,
                                     const float _Complex *in, size_t n_in,
-                                    float *out, size_t max_out);
+                                    float *out, size_t max_out, const char **why);
 
 size_t dp_correlator_execute_power_max_max_out (const dp_correlator_state_t *state);
 
 size_t dp_correlator_execute_power_max (dp_correlator_state_t *state,
                                     const float _Complex *in, size_t n_in,
                                     float *out, uint32_t *out1,
-                                    size_t max_out);
+                                    size_t max_out, const char **why);
 
 size_t dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
                                         size_t n_in);
@@ -426,7 +426,7 @@ size_t dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
 size_t dp_correlator_execute_peaks (dp_correlator_state_t *state,
                                 const float _Complex *in, size_t n_in,
                                 float *out, uint32_t *out1, uint32_t *out2,
-                                float *out3, size_t max_out);
+                                float *out3, size_t max_out, const char **why);
 
 /* ── The hypothesis bank (#2683 phase 3) ───────────────────────────────── */
 
@@ -443,7 +443,7 @@ size_t dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                                  size_t L, int g_min, int g_max,
                                  const float _Complex *rates,
                                  size_t rates_len, float *out, uint32_t *out1,
-                                 size_t max_out);
+                                 size_t max_out, const char **why);
 
 size_t dp_correlator_bank_detect_max_out (dp_correlator_state_t *state,
                                       size_t x_len);
@@ -454,7 +454,7 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
                               float t_candidate, float t_confirm,
                               const float _Complex *rates, size_t rates_len,
                               float *out, int32_t *out1, uint32_t *out2,
-                              uint32_t *out3, uint32_t *out4, size_t max_out);
+                              uint32_t *out3, uint32_t *out4, size_t max_out, const char **why);
 
 /* ── Detector flavors ──────────────────────────────────────────────────────
  * The correlator with the stream and detection layers on top
@@ -803,9 +803,9 @@ size_t dp_correlator_rate_hypotheses_for (double f_epoch, double span,
 
 
 int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t doppler_bins,
-                              size_t n_noncoh);
+                              size_t n_noncoh, const char **why);
 
-int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n);
+int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n, const char **why);
 
 int dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state, double carrier_freq_hz);
 
@@ -813,7 +813,7 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
 
 int dp_correlator_set_threads (dp_correlator_state_t *state, int n);
 int dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
-                       const char *prefix, uint32_t decim);
+                       const char *prefix, uint32_t decim, const char **why);
 
 size_t dp_correlator_surface (dp_correlator_state_t *state, float *out, size_t n_out);
 

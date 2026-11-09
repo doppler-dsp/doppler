@@ -126,9 +126,9 @@ same_object (dp_correlator_state_t *a, dp_correlator_state_t *b,
       for (size_t f = 0; ok && f < frames; f++)
         {
           const size_t ka
-              = dp_correlator_execute (a, x + f * frame, frame, oa, cap);
+              = dp_correlator_execute (a, x + f * frame, frame, oa, cap, NULL);
           const size_t kb
-              = dp_correlator_execute (b, x + f * frame, frame, ob, cap);
+              = dp_correlator_execute (b, x + f * frame, frame, ob, cap, NULL);
           ok = ka == kb && memcmp (oa, ob, ka * sizeof *oa) == 0;
         }
       free (oa);
@@ -919,11 +919,13 @@ search_members_refuse (dp_correlator_state_t *s)
   double d[4];
   float _Complex z[4];
   int ok = 1;
-  ok &= dp_correlator_configure_search_raw (s, 1, 1) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_configure_search_raw (s, 1, 1, NULL)
+        == DP_ERR_UNSUPPORTED;
   ok &= dp_correlator_set_threads (s, 2) == DP_ERR_UNSUPPORTED;
-  ok &= dp_correlator_set_max_peaks (s, 2) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_set_max_peaks (s, 2, NULL) == DP_ERR_UNSUPPORTED;
   ok &= dp_correlator_set_carrier_freq_hz (s, 2.5e9) == DP_ERR_UNSUPPORTED;
-  ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1, NULL)
+        == DP_ERR_UNSUPPORTED;
   ok &= dp_correlator_surface (s, f, 4) == SIZE_MAX;
   ok &= dp_correlator_surface_doppler_hz (s, d, 4) == SIZE_MAX;
   ok &= dp_correlator_surface_chip_phase (s, d, 4) == SIZE_MAX;
@@ -1055,13 +1057,13 @@ test_members_off_their_flavor (void)
   static float _Complex zb[BIG];
   DP_CHECK (dp_correlator_set_carrier_freq_hz (b, 2.5e9)
             == DP_ERR_UNSUPPORTED);
-  DP_CHECK (dp_correlator_set_telemetry (b, NULL, NULL, 1)
+  DP_CHECK (dp_correlator_set_telemetry (b, NULL, NULL, 1, NULL)
             == DP_ERR_UNSUPPORTED);
   DP_CHECK (dp_correlator_surface_doppler_hz (b, db, BIG) == SIZE_MAX);
   DP_CHECK (dp_correlator_surface_chip_phase (b, db, BIG) == SIZE_MAX);
   /* ...which the continuous search serves: the same calls succeed. */
   DP_CHECK (dp_correlator_set_carrier_freq_hz (c, 2.5e9) == DP_OK);
-  DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1) == DP_OK);
+  DP_CHECK (dp_correlator_set_telemetry (c, NULL, NULL, 1, NULL) == DP_OK);
   DP_CHECK (dp_correlator_surface_doppler_hz (c, db, BIG) > 0);
   DP_CHECK (dp_correlator_surface_chip_phase (c, db, BIG)
             == c->search->lag_bins);
@@ -1104,7 +1106,7 @@ test_members_off_their_flavor (void)
   free (xs);
   dp_correlator_destroy (w);
   /* set_max_peaks and set_threads are honored by both searches. */
-  DP_CHECK (dp_correlator_set_max_peaks (b, 2) == 0);
+  DP_CHECK (dp_correlator_set_max_peaks (b, 2, NULL) == 0);
   DP_CHECK (dp_correlator_set_threads (b, 1) == DP_OK);
   DP_CHECK (dp_correlator_grid_bins (b) > 0);
   dp_correlator_destroy (b);
@@ -1163,7 +1165,7 @@ test_push_never_passes_its_bound (void)
   dp_correlator_state_t *c = dp_correlator_create_continuous (
       CHIPS, 31, 4.0e6, 1.0e6, 0.0, 55.0, 5.0e3, 1e-3, 0.9, DET_NOISE_MEAN, 1,
       0.0);
-  DP_REQUIRE (c != NULL && dp_correlator_set_max_peaks (c, 3) == 0);
+  DP_REQUIRE (c != NULL && dp_correlator_set_max_peaks (c, 3, NULL) == 0);
   was = hits_seen;
   DP_CHECK (bound_holds (c, x4, 124 * 300, c->search->frame_n));
   DP_CHECK (hits_seen > was + 1);
@@ -1301,6 +1303,84 @@ test_a_sink_survives_a_restore (void)
   return 0;
 }
 
+/* The out= sentences a C caller reads through `why` (the binding checks
+   out= itself, so Python never reaches these): each batch and bank method
+   given a buffer one value short names it, and a too-short frame names
+   the frame. */
+static int
+test_out_refusals_are_named (void)
+{
+  dp_correlator_state_t *c = dp_correlator_create_1d (NRZ, 31, 1, 1, 0);
+  DP_REQUIRE (c != NULL);
+  float _Complex x[62], z[62];
+  float    f[62];
+  uint32_t u[62], u2[62];
+  float    f2[62];
+  for (size_t i = 0; i < 62; i++)
+    x[i] = NRZ[i % 31];
+  const char *why = NULL;
+  DP_CHECK (dp_correlator_execute_all (c, x, 62, z, 61, &why) == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "execute_all: out= must hold every map (frames "
+                            "x n_out values)")
+                   == 0);
+  why = NULL;
+  DP_CHECK (dp_correlator_execute_coherent (c, x, 62, z, 30, &why)
+            == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "execute_coherent: out= must hold one map (n_out "
+                            "values)")
+                   == 0);
+  why = NULL;
+  DP_CHECK (dp_correlator_execute_power_sum (c, x, 62, f, 30, &why)
+            == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "execute_power_sum: out= must hold one map "
+                            "(n_out values)")
+                   == 0);
+  why = NULL;
+  DP_CHECK (dp_correlator_execute_power_max (c, x, 62, f, u, 30, &why)
+            == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "execute_power_max: out= must hold one map "
+                            "(n_out values)")
+                   == 0);
+  why = NULL;
+  DP_CHECK (dp_correlator_execute_peaks (c, x, 62, f, u, u2, f2, 1, &why)
+            == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "execute_peaks: out= must hold one record per "
+                            "frame")
+                   == 0);
+  why = NULL;
+  DP_CHECK (
+      dp_correlator_bank_power_max (c, x, 31, 1, 0, 0, NULL, 0, f, u, 30, &why)
+      == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "bank_power_max: out= must hold one map (n_out "
+                            "values)")
+                   == 0);
+  why = NULL;
+  int32_t i32[62];
+  DP_CHECK (dp_correlator_bank_detect (c, x, 31, 1, 1, 0, 0, 0.0f, 0.0f, NULL,
+                                       0, f, i32, u, u2, u2, 30, &why)
+            == SIZE_MAX);
+  DP_CHECK (why
+            && strcmp (why, "bank_detect: out= must hold one record per map "
+                            "cell")
+                   == 0);
+  /* Off a map, why stays NULL: the binding raises the declared sentence. */
+  dp_correlator_state_t *d = dp_correlator_create_detector_1d (
+      NRZ, 31, 1, 0, SIZE_MAX, DET_NOISE_MEAN, 0.0f, 1);
+  DP_REQUIRE (d != NULL);
+  why = NULL;
+  DP_CHECK (dp_correlator_execute_all (d, x, 62, z, 62, &why) == SIZE_MAX);
+  DP_CHECK (why == NULL);
+  dp_correlator_destroy (d);
+  dp_correlator_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1312,5 +1392,6 @@ main (void)
   (void)test_push_never_passes_its_bound ();
   (void)test_keep_surface_travels ();
   (void)test_a_sink_survives_a_restore ();
+  (void)test_out_refusals_are_named ();
   DP_TEST_END ("test_correlator_create");
 }

@@ -1413,7 +1413,7 @@ dp_burst_capture_configure_search_raw (dp_burst_capture_state_t *state,
      refuses, DP_ERR_MEMORY when the rebuild cannot allocate (never
      DP_ERR_UNSUPPORTED: the child is a burst search, which serves it). */
   const int rc = dp_correlator_configure_search_raw (state->acq, doppler_bins,
-                                                     n_noncoh);
+                                                     n_noncoh, NULL);
   if (rc != DP_OK)
     return rc;
   /* The grid moved, so the child's blob size may have moved with it. This is

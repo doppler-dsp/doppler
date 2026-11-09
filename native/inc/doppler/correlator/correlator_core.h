@@ -55,7 +55,8 @@
  *     = dp_correlator_create_2d (ref, NY, NX, 4, 1, 0, 0, -1);
  * size_t dumps = 0;
  * for (int i = 0; i < 4; i++)
- *   dumps += dp_correlator_execute (c, frame, NY * NX, out, NY * NX) != 0;
+ *   dumps += dp_correlator_execute (c, frame, NY * NX, out, NY * NX, NULL)
+ *            != 0;
  * printf ("dumps: %zu, peak %.1f\n", dumps, crealf (out[0])); // 1, on i == 3
  * dp_correlator_destroy (c);
  * @endcode
@@ -1099,6 +1100,10 @@ size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
  *               dump call.
  * @param max_out Capacity of @p out in elements. Emission stops there, so the
  *               return value is the number actually written.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the map on a dump, None otherwise; a frame that is not
  *         ny*nx samples is REFUSED with nothing read, written or counted, as a
  *         ValueError (#1925).  C: n_out on a dump (or @p max_out if smaller),
@@ -1116,7 +1121,7 @@ size_t dp_correlator_execute_max_out(dp_correlator_state_t *state);
  * @endcode
  */
 size_t dp_correlator_execute(dp_correlator_state_t *state, const float _Complex *in,
-                      size_t n_in, float _Complex *out, size_t max_out);
+                      size_t n_in, float _Complex *out, size_t max_out, const char **why);
 
 /* ── Batches: many frames in one call (#2683) ──────────────────────────────
  *
@@ -1253,6 +1258,10 @@ size_t dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
  * @param out      H * n_out values (CF32).
  * @param max_out  Capacity of @p out; at least
  *                 dp_correlator_execute_all_max_out().
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the (H, n_out) array; a refused batch (empty, not a whole
  *         number of frames, or an `out=` with fewer than H rows) is a
  *         ValueError with nothing written.  C: H * n_out, or SIZE_MAX for the
@@ -1277,7 +1286,7 @@ size_t dp_correlator_execute_all_max_out (const dp_correlator_state_t *state,
  */
 size_t dp_correlator_execute_all (dp_correlator_state_t *state,
                               const float _Complex *in, size_t n_in,
-                              float _Complex *out, size_t max_out);
+                              float _Complex *out, size_t max_out, const char **why);
 
 /**
  * @brief Samples dp_correlator_execute_coherent() writes: n_out.
@@ -1314,6 +1323,10 @@ size_t dp_correlator_execute_coherent_max_out (const dp_correlator_state_t *stat
  * @param n_in     A nonzero multiple of ny * nx.
  * @param out      n_out values (CF32).
  * @param max_out  Capacity of @p out; at least n_out.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the one map, a new (n_out,) array; a refused batch is a
  *         ValueError with nothing written.  C: n_out, or SIZE_MAX for the
  *         refused batch.
@@ -1334,7 +1347,7 @@ size_t dp_correlator_execute_coherent_max_out (const dp_correlator_state_t *stat
  */
 size_t dp_correlator_execute_coherent (dp_correlator_state_t *state,
                                    const float _Complex *in, size_t n_in,
-                                   float _Complex *out, size_t max_out);
+                                   float _Complex *out, size_t max_out, const char **why);
 
 /**
  * @brief Powers dp_correlator_execute_power_sum() writes: n_out.
@@ -1371,6 +1384,10 @@ size_t dp_correlator_execute_power_sum_max_out (const dp_correlator_state_t *sta
  * @param n_in     A nonzero multiple of ny * nx.
  * @param out      n_out powers (float).
  * @param max_out  Capacity of @p out; at least n_out.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the (n_out,) float32 powers, a new array; a refused batch
  *         is a ValueError with nothing written.  C: n_out, or SIZE_MAX for the
  *         refused batch.
@@ -1392,7 +1409,7 @@ size_t dp_correlator_execute_power_sum_max_out (const dp_correlator_state_t *sta
  */
 size_t dp_correlator_execute_power_sum (dp_correlator_state_t *state,
                                     const float _Complex *in, size_t n_in,
-                                    float *out, size_t max_out);
+                                    float *out, size_t max_out, const char **why);
 
 /**
  * @brief Values per output dp_correlator_execute_power_max() writes: n_out.
@@ -1427,6 +1444,10 @@ size_t dp_correlator_execute_power_max_max_out (const dp_correlator_state_t *sta
  * @param out      n_out powers (float).
  * @param out1     n_out map indices (uint32).
  * @param max_out  Capacity of each of @p out and @p out1; at least n_out.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the tuple (power, index), each (n_out,): float32 powers and
  *         uint32 map indices, always new arrays (this call takes no `out=`);
  *         a refused batch, or H above 2**32, is a ValueError.  C: n_out, or
@@ -1448,7 +1469,7 @@ size_t dp_correlator_execute_power_max_max_out (const dp_correlator_state_t *sta
 size_t dp_correlator_execute_power_max (dp_correlator_state_t *state,
                                     const float _Complex *in, size_t n_in,
                                     float *out, uint32_t *out1,
-                                    size_t max_out);
+                                    size_t max_out, const char **why);
 
 /**
  * @brief Records dp_correlator_execute_peaks() writes for @p n_in samples: H.
@@ -1492,6 +1513,10 @@ size_t dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
  * @param out2     H peak columns (uint32).
  * @param out3     H mean powers (float).
  * @param max_out  Capacity of each output; at least H.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the tuple (peak, row, col, mean), each (H,): float32 peak
  *         power, uint32 row and column, float32 mean power, always new arrays
  *         (this call takes no `out=`); a refused batch is a ValueError.  C: H,
@@ -1515,7 +1540,7 @@ size_t dp_correlator_execute_peaks_max_out (const dp_correlator_state_t *state,
 size_t dp_correlator_execute_peaks (dp_correlator_state_t *state,
                                 const float _Complex *in, size_t n_in,
                                 float *out, uint32_t *out1, uint32_t *out2,
-                                float *out3, size_t max_out);
+                                float *out3, size_t max_out, const char **why);
 
 /* ── The hypothesis bank (#2683 phase 3) ───────────────────────────────── */
 
@@ -1622,6 +1647,10 @@ size_t dp_correlator_bank_power_max_max_out (dp_correlator_state_t *state,
  * @param out       `n_out` powers.
  * @param out1      `n_out` hypothesis indices.
  * @param max_out   Capacity of each output; at least `n_out`.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the tuple (power, index), each (n_out,): float32 powers
  *         and uint32 hypothesis indices, always new arrays (this call takes
  *         no `out=`); a refusal is a ValueError.  C: `n_out`, or SIZE_MAX
@@ -1648,7 +1677,7 @@ size_t dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                                  size_t L, int g_min, int g_max,
                                  const float _Complex *rates,
                                  size_t rates_len, float *out, uint32_t *out1,
-                                 size_t max_out);
+                                 size_t max_out, const char **why);
 
 /**
  * @brief Capacity dp_correlator_bank_detect() needs: one record per map cell.
@@ -1705,6 +1734,10 @@ size_t dp_correlator_bank_detect_max_out (dp_correlator_state_t *state,
  * @param out3         Rows.
  * @param out4         Columns.
  * @param max_out      Capacity of each output; at least `n_out`.
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the tuple (power, g, rate, row, col), one entry per
  *         confirmed record (possibly none): float32 refined power, int32
  *         refined carrier, uint32 rate, row and column, always new arrays
@@ -1740,7 +1773,7 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
                               float t_candidate, float t_confirm,
                               const float _Complex *rates, size_t rates_len,
                               float *out, int32_t *out1, uint32_t *out2,
-                              uint32_t *out3, uint32_t *out4, size_t max_out);
+                              uint32_t *out3, uint32_t *out4, size_t max_out, const char **why);
 
 /* ── Detector flavors ──────────────────────────────────────────────────────
  * The correlator with the stream and detection layers on top
@@ -2814,6 +2847,10 @@ size_t dp_correlator_rate_hypotheses_for (double f_epoch, double span,
  * @param n_noncoh     Non-coherent look count to pin, in
  *                     `[1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING]`.
  *
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return 0 on success; DP_ERR_UNSUPPORTED on a map or detector flavor
  *         (no search record); DP_ERR_INVALID if either argument is out
  *         of range (or @p n_noncoh > 1 on an engine with rate hypotheses,
@@ -2841,7 +2878,7 @@ size_t dp_correlator_rate_hypotheses_for (double f_epoch, double span,
  * @endcode
  */
 int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t doppler_bins,
-                              size_t n_noncoh);
+                              size_t n_noncoh, const char **why);
 
 /**
  * @brief How many peaks a dwell may report: the peak list's capacity.
@@ -2865,6 +2902,10 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
  * @param state  Must be non-NULL.
  * @param n      1 … DP_CORRELATOR_MAX_PEAKS.
  *
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return 0; DP_ERR_UNSUPPORTED off a search (a map or detector lists
  *         no peaks); DP_ERR_INVALID (state untouched) when @p n is out of
  *         range.
@@ -2882,7 +2923,7 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
  * 8
  * @endcode
  */
-int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n);
+int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n, const char **why);
 
 /**
  * @brief Couple the code clock to the carrier: the chip rate dilates by
@@ -3049,6 +3090,10 @@ int dp_correlator_set_threads (dp_correlator_state_t *state, int n);
  * Refused (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
  * (docs/design/correlator-python.md section 18).
  *
+ * @param why   Where the refusal's sentence goes, naming the argument it
+ *              refused; may be NULL. A static string, never freed. Off the
+ *              flavors that serve the call it stays NULL (the binding then
+ *              raises the declared "only" sentence; just-makeit#2574).
  * @return DP_OK; DP_ERR_INVALID for an overlong @p prefix, a @p decim
  *         of 0, or a probe table without room for all ten probes;
  *         DP_ERR_MEMORY when the dry run's scratch context cannot be
@@ -3075,7 +3120,7 @@ int dp_correlator_set_threads (dp_correlator_state_t *state, int n);
  * @endcode
  */
 int dp_correlator_set_telemetry (dp_correlator_state_t *state, dp_tlm_t *tlm,
-                       const char *prefix, uint32_t decim);
+                       const char *prefix, uint32_t decim, const char **why);
 
 /**
  * @brief The last decided dwell's surface, in the gate's own units.

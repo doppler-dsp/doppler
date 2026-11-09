@@ -189,6 +189,7 @@ default = "1"
 
 [[correlator.methods]]
 name = "execute"
+why = true
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
@@ -205,7 +206,7 @@ none_on_empty = true
 # with SIZE_MAX (nothing read, written or counted) and jm raises (#1925).
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute: only a map (framing='none', detect=False) executes, and it takes exactly one frame: the input length must be the frame length n (the reference's length, ny*nx)"
+error_message = "execute: only a map (framing='none', detect=False) executes; Correlator.flavor says which this is"
 
 # Batches (#2683): H frames back to back in one call, every map or one
 # reduction of them, on the C fold loop dp_correlator_execute_fold. One typed
@@ -215,6 +216,7 @@ error_message = "execute: only a map (framing='none', detect=False) executes, an
 # across the kernel; every map flavor serves them (section 18).
 [[correlator.methods]]
 name = "execute_all"
+why = true
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
@@ -225,11 +227,12 @@ pass_capacity = true
 out_cols = "(state->n_out ? state->n_out : 1)"
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_all: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold every map"
+error_message = "execute_all: only a map (framing='none', detect=False) runs a batch; Correlator.flavor says which this is"
 nogil = true
 
 [[correlator.methods]]
 name = "execute_coherent"
+why = true
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
@@ -240,11 +243,12 @@ pass_capacity = true
 exact_max_out = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_coherent: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold one map"
+error_message = "execute_coherent: only a map (framing='none', detect=False) runs a batch; Correlator.flavor says which this is"
 nogil = true
 
 [[correlator.methods]]
 name = "execute_power_sum"
+why = true
 arg_type = "float _Complex"
 return_type = "float"
 variable_output = true
@@ -255,11 +259,12 @@ pass_capacity = true
 exact_max_out = true
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_power_sum: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold one map"
+error_message = "execute_power_sum: only a map (framing='none', detect=False) runs a batch; Correlator.flavor says which this is"
 nogil = true
 
 [[correlator.methods]]
 name = "execute_power_max"
+why = true
 arg_type = "float _Complex"
 return_type = "float"
 variable_output = true
@@ -267,11 +272,12 @@ pass_capacity = true
 multi_output = ["uint32_t"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_power_max: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames (at most 2**32), and out= must hold one map"
+error_message = "execute_power_max: only a map (framing='none', detect=False) runs a batch; Correlator.flavor says which this is"
 nogil = true
 
 [[correlator.methods]]
 name = "execute_peaks"
+why = true
 arg_type = "float _Complex"
 return_type = "float"
 variable_output = true
@@ -279,11 +285,12 @@ pass_capacity = true
 multi_output = ["uint32_t", "uint32_t", "float"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "execute_peaks: only a map (framing='none', detect=False) runs a batch: the input must be a whole, nonzero number of frames, and out= must hold one record per frame"
+error_message = "execute_peaks: only a map (framing='none', detect=False) runs a batch; Correlator.flavor says which this is"
 nogil = true
 
 [[correlator.methods]]
 name = "bank_power_max"
+why = true
 arg_type = "void"
 return_type = "float"
 variable_output = true
@@ -291,12 +298,13 @@ pass_capacity = true
 multi_output = ["uint32_t"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "bank_power_max: only a map (framing='none', detect=False) has a bank: it needs one frame, L >= 1, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one map"
+error_message = "bank_power_max: only a map (framing='none', detect=False) has a bank; Correlator.flavor says which this is"
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}, {name = "L", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "rates", type = "float _Complex[]"}]
 
 [[correlator.methods]]
 name = "bank_detect"
+why = true
 arg_type = "void"
 return_type = "float"
 variable_output = true
@@ -304,12 +312,13 @@ pass_capacity = true
 multi_output = ["int32_t", "uint32_t", "uint32_t", "uint32_t"]
 error_sentinel = "SIZE_MAX"
 error = "ValueError"
-error_message = "bank_detect: only a map (framing='none', detect=False) has a bank: it needs one frame, L_d >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long vectors, and out= holding one record per map cell"
+error_message = "bank_detect: only a map (framing='none', detect=False) has a bank; Correlator.flavor says which this is"
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}, {name = "L_d", type = "size_t"}, {name = "L_r", type = "size_t"}, {name = "g_min", type = "int"}, {name = "g_max", type = "int"}, {name = "t_candidate", type = "float"}, {name = "t_confirm", type = "float"}, {name = "rates", type = "float _Complex[]"}]
 
 [[correlator.methods]]
 name = "configure_search_raw"
+why = true
 fn = "dp_correlator_configure_search_raw"
 arg_type = "void"
 return_type = "int"
@@ -326,6 +335,7 @@ params = [
 
 [[correlator.methods]]
 name = "set_max_peaks"
+why = true
 fn = "dp_correlator_set_max_peaks"
 arg_type = "void"
 return_type = "int"
@@ -368,6 +378,7 @@ params = [
 
 [[correlator.methods]]
 name = "set_telemetry"
+why = true
 fn = "dp_correlator_set_telemetry"
 arg_type = "void"
 return_type = "int"
@@ -375,6 +386,7 @@ status_return = true
 status_errors = [
   { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_telemetry: only the continuous search (framing='continuous') is instrumented; Correlator.flavor says which this is" },
   { status = "DP_ERR_INVALID", error = "ValueError", message = "set_telemetry: refused, nothing attached: the prefix joined to each probe name must fit DP_TLM_NAME_MAX, decim must be at least 1, and the context must have room for all ten probes" },
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "set_telemetry: the attach's scratch context could not be allocated; nothing is attached" },
 ]
 params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },

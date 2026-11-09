@@ -886,7 +886,7 @@ _test_ghost_is_released (void)
       false, 0.0, 0.0);
   DP_REQUIRE (p && pr);
   (void)dp_async_dsss_receiver_set_threads (pr, 1);
-  DP_REQUIRE (dp_correlator_set_max_peaks (pr->acq, 16) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_max_peaks (pr->acq, 16, NULL) == DP_OK);
   int    seeded = 0, tracked = 0;
   double ghost_ph = 0.0;
   for (size_t b = 0; b + te <= n && !p->released_ghost; b += te)

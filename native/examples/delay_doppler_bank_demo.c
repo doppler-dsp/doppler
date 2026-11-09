@@ -65,7 +65,8 @@ static float
 coarse_peak (dp_correlator_state_t *dd, const float _Complex *x, float *pw,
              uint32_t *ix)
 {
-  if (dp_correlator_bank_power_max (dd, x, N, 2, -4, 5, NULL, 0, pw, ix, N)
+  if (dp_correlator_bank_power_max (dd, x, N, 2, -4, 5, NULL, 0, pw, ix, N,
+                                    NULL)
       != N)
     return -1.0f;
   float top = 0.0f;
@@ -121,7 +122,7 @@ main (void)
   const float  peak = coarse_peak (dd, x, pw, ix);
   const size_t nrec = dp_correlator_bank_detect (
       dd, x, N, 2, 4, -4, 5, t_candidate, t_confirm, NULL, 0, pow_, g, rate,
-      row, col, cap);
+      row, col, cap, NULL);
   printf ("record  delay  Doppler row  carrier (bins)  refined / coarse\n");
   for (size_t k = 0; k < nrec && nrec != SIZE_MAX; k++)
     printf ("  %zu      %3u      %3u          %+5.2f           %.3f\n", k,
@@ -135,7 +136,7 @@ main (void)
   for (int gi = -16; gi <= 24; gi++)
     {
       if (dp_correlator_bank_power_max (dd, x, N, 8, gi, gi, NULL, 0, pw, ix,
-                                        N)
+                                        N, NULL)
           != N)
         return 1;
       for (size_t k = 0; k < N; k++)

@@ -228,10 +228,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute: only a map
-            (framing='none', detect=False) executes, and it takes exactly one
-            frame: the input length must be the frame length n (the reference's
-            length, ny*nx)``.
+            a count. The exception message is the reason the C call gives, or
+            ``execute: only a map (framing='none', detect=False) executes;
+            Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -293,9 +292,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_all: only a map
-            (framing='none', detect=False) runs a batch: the input must be a
-            whole, nonzero number of frames, and out= must hold every map``.
+            a count. The exception message is the reason the C call gives, or
+            ``execute_all: only a map (framing='none', detect=False) runs a
+            batch; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -381,9 +380,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_coherent: only a map
-            (framing='none', detect=False) runs a batch: the input must be a
-            whole, nonzero number of frames, and out= must hold one map``.
+            a count. The exception message is the reason the C call gives, or
+            ``execute_coherent: only a map (framing='none', detect=False) runs
+            a batch; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -458,9 +457,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_power_sum: only a map
-            (framing='none', detect=False) runs a batch: the input must be a
-            whole, nonzero number of frames, and out= must hold one map``.
+            a count. The exception message is the reason the C call gives, or
+            ``execute_power_sum: only a map (framing='none', detect=False) runs
+            a batch; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -536,10 +535,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_power_max: only a map
-            (framing='none', detect=False) runs a batch: the input must be a
-            whole, nonzero number of frames (at most 2**32), and out= must hold
-            one map``.
+            a count. The exception message is the reason the C call gives, or
+            ``execute_power_max: only a map (framing='none', detect=False) runs
+            a batch; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -593,10 +591,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``execute_peaks: only a map
-            (framing='none', detect=False) runs a batch: the input must be a
-            whole, nonzero number of frames, and out= must hold one record per
-            frame``.
+            a count. The exception message is the reason the C call gives, or
+            ``execute_peaks: only a map (framing='none', detect=False) runs a
+            batch; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -660,10 +657,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``bank_power_max: only a map
-            (framing='none', detect=False) has a bank: it needs one frame, L >=
-            1, g_min <= g_max, rates a whole number of ny-long vectors, and
-            out= holding one map``.
+            a count. The exception message is the reason the C call gives, or
+            ``bank_power_max: only a map (framing='none', detect=False) has a
+            bank; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -764,10 +760,9 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
-            a count. The exception message is ``bank_detect: only a map
-            (framing='none', detect=False) has a bank: it needs one frame, L_d
-            >= 1 dividing L_r, g_min <= g_max, rates a whole number of ny-long
-            vectors, and out= holding one record per map cell``.
+            a count. The exception message is the reason the C call gives, or
+            ``bank_detect: only a map (framing='none', detect=False) has a
+            bank; Correlator.flavor says which this is`` when it gives none.
 
         Examples
         --------
@@ -818,21 +813,25 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
-            is ``configure_search_raw: only a search (framing='continuous' or
-            'burst') has a grid to pin; Correlator.flavor says which this is``.
+            is the reason the C call gives, or ``configure_search_raw: only a
+            search (framing='continuous' or 'burst') has a grid to pin;
+            Correlator.flavor says which this is`` when it gives none.
         ValueError
             If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``configure_search_raw: doppler_bins must lie in 1..reps and
-            n_noncoh in 1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and
-            non-coherent looks need rate_hypotheses 1``.
+            the reason the C call gives, or ``configure_search_raw:
+            doppler_bins must lie in 1..reps and n_noncoh in
+            1..DP_CORRELATOR_N_NONCOH_SAFETY_CEILING, and non-coherent looks
+            need rate_hypotheses 1`` when it gives none.
         MemoryError
             If the C call returns ``DP_ERR_MEMORY``. The exception message is
-            ``configure_search_raw: rebuilding the grid could not allocate; the
-            engine keeps its prior grid``.
+            the reason the C call gives, or ``configure_search_raw: rebuilding
+            the grid could not allocate; the engine keeps its prior grid`` when
+            it gives none.
         ValueError
             If the C call returns any other non-zero status. The exception
-            message is ``configure_search_raw failed``, with the return code
-            appended (gh-869).
+            message is the reason the C call gives, or ``configure_search_raw
+            failed``, with the return code appended (gh-869), when it gives
+            none.
 
         Examples
         --------
@@ -883,15 +882,18 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
-            is ``set_max_peaks: only a search (framing='continuous' or 'burst')
-            lists peaks; Correlator.flavor says which this is``.
+            is the reason the C call gives, or ``set_max_peaks: only a search
+            (framing='continuous' or 'burst') lists peaks; Correlator.flavor
+            says which this is`` when it gives none.
         ValueError
             If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)``.
+            the reason the C call gives, or ``set_max_peaks: n must lie in
+            1..64 (DP_CORRELATOR_MAX_PEAKS)`` when it gives none.
         ValueError
             If the C call returns any other non-zero status. The exception
-            message is ``set_max_peaks failed``, with the return code appended
-            (gh-869).
+            message is the reason the C call gives, or ``set_max_peaks
+            failed``, with the return code appended (gh-869), when it gives
+            none.
 
         Examples
         --------
@@ -1091,18 +1093,25 @@ class Correlator:
         ------
         ValueError
             If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message
-            is ``set_telemetry: only the continuous search
-            (framing='continuous') is instrumented; Correlator.flavor says
-            which this is``.
+            is the reason the C call gives, or ``set_telemetry: only the
+            continuous search (framing='continuous') is instrumented;
+            Correlator.flavor says which this is`` when it gives none.
         ValueError
             If the C call returns ``DP_ERR_INVALID``. The exception message is
-            ``set_telemetry: refused, nothing attached: the prefix joined to
-            each probe name must fit DP_TLM_NAME_MAX, decim must be at least 1,
-            and the context must have room for all ten probes``.
+            the reason the C call gives, or ``set_telemetry: refused, nothing
+            attached: the prefix joined to each probe name must fit
+            DP_TLM_NAME_MAX, decim must be at least 1, and the context must
+            have room for all ten probes`` when it gives none.
+        MemoryError
+            If the C call returns ``DP_ERR_MEMORY``. The exception message is
+            the reason the C call gives, or ``set_telemetry: the attach's
+            scratch context could not be allocated; nothing is attached`` when
+            it gives none.
         ValueError
             If the C call returns any other non-zero status. The exception
-            message is ``set_telemetry failed``, with the return code appended
-            (gh-869).
+            message is the reason the C call gives, or ``set_telemetry
+            failed``, with the return code appended (gh-869), when it gives
+            none.
 
         Examples
         --------

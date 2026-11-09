@@ -1129,8 +1129,9 @@ test_a_refused_blob_changes_nothing (void)
     dp_burst_capture_state_t *d = make ();
     DP_REQUIRE (d != NULL);
     (void)dp_burst_capture_push (d, cap, LEAD, NULL, 0);
-    DP_REQUIRE (dp_correlator_set_max_peaks (d->acq, DP_CORRELATOR_MAX_PEAKS)
-                == 0);
+    DP_REQUIRE (
+        dp_correlator_set_max_peaks (d->acq, DP_CORRELATOR_MAX_PEAKS, NULL)
+        == 0);
     DP_REQUIRE (dp_correlator_state_bytes (d->acq) > d->acq_blob_max);
     memset (now, 0, cb);
     memset (bad, 0, cb);

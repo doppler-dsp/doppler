@@ -126,9 +126,13 @@ dp_async_dsss_pool_create (
                                      / (double)code_len);
   if (s->ghost_window < 2)
     s->ghost_window = 2;
-  s->car_hist
-      = dp_xcalloc (n_receivers * s->ghost_window, sizeof *s->car_hist);
-  s->cl_hist  = dp_xcalloc (n_receivers * s->ghost_window, sizeof *s->cl_hist);
+  /* A row of ghost_window per receiver. The count saturates rather than
+     wraps, so a product too large for memory is calloc's refusal -- an
+     abort here -- never a short buffer. */
+  s->car_hist = dp_xcalloc (dp_size_mul_sat (n_receivers, s->ghost_window),
+                            sizeof *s->car_hist);
+  s->cl_hist  = dp_xcalloc (dp_size_mul_sat (n_receivers, s->ghost_window),
+                            sizeof *s->cl_hist);
   s->hist_len = dp_xcalloc (n_receivers, sizeof *s->hist_len);
   build_workers (s, threads);
   return s;
@@ -456,7 +460,10 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
   if (need > s->sym_cap)
     {
       free (s->sym_buf);
-      s->sym_buf = dp_xmalloc (s->n_receivers * need * sizeof *s->sym_buf);
+      /* Saturated, so a count too large for memory aborts in dp_xmallocn
+         rather than wrapping to a short buffer. */
+      s->sym_buf = dp_xmallocn (dp_size_mul_sat (s->n_receivers, need),
+                                sizeof *s->sym_buf);
       s->sym_cap = need;
     }
   for (size_t i = 0; i < s->n_receivers; i++)

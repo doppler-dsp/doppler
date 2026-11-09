@@ -451,7 +451,7 @@ run_edge_cases (void)
   dp_burst_demod_destroy (NULL); /* no-op on NULL */
 
   dp_burst_demod_state_t *d = make_demod (dc, 0.0, 10);
-  DP_CHECK (d != NULL);
+  DP_REQUIRE (d != NULL);
   dp_burst_demod_set_preamble (d, NULL, 0, 0); /* guard: ignored */
   dp_burst_demod_set_preamble (d, ac, ACQ_SF, ACQ_REPS);
   dp_burst_demod_set_preamble (d, ac, ACQ_SF,
@@ -468,15 +468,60 @@ run_edge_cases (void)
     DP_CHECK_MSG (d->acq_reps == ACQ_REPS && d->n_part == ACQ_REPS * 10u,
                   "a wrapping reps leaves the armed preamble as it was");
     dp_burst_demod_state_t *d3 = make_demod (dc, 0.0, 10);
-    DP_CHECK (d3 != NULL);
-    if (d3)
-      {
-        dp_burst_demod_set_preamble (d3, ac, ACQ_SF, wrap_reps);
-        DP_CHECK_MSG (d3->ppe == NULL && d3->part == NULL
-                          && d3->acq_reps == 0u,
-                      "a wrapping reps does not arm a fresh object");
-        dp_burst_demod_destroy (d3);
-      }
+    DP_REQUIRE (d3 != NULL);
+    dp_burst_demod_set_preamble (d3, ac, ACQ_SF, wrap_reps);
+    DP_CHECK_MSG (d3->ppe == NULL && d3->part == NULL && d3->acq_code == NULL
+                      && d3->acq_reps == 0u,
+                  "a wrapping reps does not arm a fresh object");
+    dp_burst_demod_destroy (d3);
+  }
+
+  /* ...and the refused call leaves EVERY buffer of an armed object in
+     place: the same acq_code (still holding the old chips), part and ppe,
+     so a burst sent with the old preamble still demodulates. A refusal that
+     freed acq_code first would leave it dangling or NULL beside a live ppe,
+     and demod() would read it in form_partials(). This exercises the
+     refusal that happens before any allocation; an OOM in one of the three
+     allocations cannot be injected here (there is no fault injection), so
+     that path rests on set_preamble()'s acquire-all-then-commit order. */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+    float _Complex *y = malloc (BURST_CAP * sizeof *y);
+    DP_REQUIRE (y != NULL);
+    const double f0 = 0.012;
+    const size_t n  = build_burst (y, acode, dcode, payload, f0, 0.0);
+
+    dp_burst_demod_state_t *d4 = make_demod (dcode, 0.0, 10);
+    DP_REQUIRE (d4 != NULL);
+    dp_burst_demod_set_preamble (d4, acode, ACQ_SF, ACQ_REPS);
+    const uint8_t        *code0 = d4->acq_code;
+    const float _Complex *part0 = d4->part;
+    const dp_ppe_state_t *ppe0  = d4->ppe;
+    DP_REQUIRE (code0 != NULL && part0 != NULL && ppe0 != NULL);
+
+    dp_burst_demod_set_preamble (d4, ac, ACQ_SF, SIZE_MAX / 10u + 1u);
+    DP_CHECK_MSG (d4->acq_code == code0 && d4->part == part0
+                      && d4->ppe == ppe0,
+                  "a refused set_preamble keeps acq_code, part and ppe");
+    DP_CHECK_MSG (d4->acq_sf == ACQ_SF
+                      && memcmp (d4->acq_code, acode, ACQ_SF) == 0,
+                  "a refused set_preamble keeps the old code's chips");
+
+    uint8_t bits[MAX_FRAME];
+    dp_burst_demod_set_prior (d4, f0, 0);
+    DP_CHECK_MSG (dp_burst_demod_demod (d4, y, n, bits, frame_syms ())
+                          == frame_syms ()
+                      && frame_ok (bits, frame_syms ()),
+                  "after a refused set_preamble, the old preamble still "
+                  "demodulates a burst");
+    dp_burst_demod_destroy (d4);
+    free (y);
   }
 
   /* Too-short input → clean failure: no frame, so no bits and no LLRs. */

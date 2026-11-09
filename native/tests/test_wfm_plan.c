@@ -837,8 +837,9 @@ test_restore_forged_table (const wfm_plan_t *p, const float _Complex *base)
   memcpy (&len0, blob + at_l, 8);
   DP_REQUIRE_MSG (n_sig == 2, "two cached signals");
 
-  /* The old guard's boundary, one above it (the NULL-table crash), the
-   * largest count, and the first count the blob cannot hold entries for. */
+  /* The old guard's boundary and one above it -- the strict `<` refused
+   * both, so both left NULL tables and crashed -- the largest count, and the
+   * first count the blob cannot hold entries for. */
   const uint64_t counts[] = { (uint64_t)(SIZE_MAX / sizeof (size_t)),
                               (uint64_t)(SIZE_MAX / sizeof (size_t)) + 1u,
                               UINT64_MAX, (uint64_t)((blen - at_l) / 8) + 1u };
@@ -876,15 +877,55 @@ test_restore_forged_table (const wfm_plan_t *p, const float _Complex *base)
                   "a forged spec length is refused");
   memcpy (blob + 16, &splen, 8);
 
-  /* And the untouched blob still takes the fast path. */
+  /* And the untouched blob still restores, bit-exact. (Which path it took
+   * is not observable from here; what is checked is the result.) */
   wfm_plan_t *ok = dp_wfm_plan_restore (blob, blen);
   DP_REQUIRE_MSG (ok, "the untouched blob restores");
   DP_REQUIRE (dp_wfm_plan_render (ok, "{}", got) == L
               && memcmp (base, got, bytes) == 0);
   dp_wfm_plan_destroy (ok);
+
+  /* A forged SPEC inside the blob: "num_samples":1024 rewritten in place,
+   * same length, to 9e18 -- a whole count a size_t holds, whose buffer of
+   * 9e18 complex samples does not fit a size_t of bytes. The cache buffer
+   * used to be sized by an unchecked num_samples * 8, which wrapped, and the
+   * render wrote past it. It is now dp_mallocn, which refuses the product,
+   * and the restore fails cleanly rather than crashing. */
+  char *at_ns = NULL;
+  for (size_t i = 24; !at_ns && i + 14 <= 24 + (size_t)splen; i++)
+    if (memcmp (blob + i, "\"num_samples\":", 14) == 0)
+      {
+        /* the value follows the colon, after any whitespace the writer
+           put there */
+        size_t v = i + 14;
+        while (v < 24 + (size_t)splen && (blob[v] == ' ' || blob[v] == '\t'))
+          v++;
+        if (v + 4 <= 24 + (size_t)splen && memcmp (blob + v, "1024", 4) == 0)
+          at_ns = (char *)blob + v;
+      }
+  DP_REQUIRE_MSG (at_ns, "the embedded spec names num_samples 1024");
+  memcpy (at_ns, "9e18", 4);
+  DP_REQUIRE_MSG (dp_wfm_plan_restore (blob, blen) == NULL,
+                  "a forged spec count too large to buffer is refused");
+  memcpy (at_ns, "1024", 4);
+
   free (blob);
   free (got);
   return dp_test_fails_ != 0;
+}
+
+/* The same count through prepare(): 2^61 samples is a count a size_t holds
+ * (a stream may be that long), so the parser reads it; the cache cannot
+ * buffer 2^64 bytes of it, so prepare refuses. */
+static int
+test_prepare_refuses_an_unbufferable_count (void)
+{
+  DP_REQUIRE_MSG (
+      dp_wfm_plan_prepare ("{\"segments\":[{\"type\":\"tone\","
+                           "\"num_samples\":2305843009213693952}]}")
+          == NULL,
+      "prepare refuses a count whose buffer overflows a size_t");
+  return 0;
 }
 
 int
@@ -897,6 +938,8 @@ main (void)
       || test_framed_scene_matches_compose () || test_data_source_scene ())
     return 1;
   if (test_parallel_build_bit_exact ())
+    return 1;
+  if (test_prepare_refuses_an_unbufferable_count ())
     return 1;
 
   size_t          bytes = L * sizeof (float _Complex);

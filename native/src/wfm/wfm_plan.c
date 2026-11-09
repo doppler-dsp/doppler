@@ -921,7 +921,10 @@ cache_build_one (size_t w, void *ctx)
   /* base_gain is a pure function of the source level — always cheap. */
   cw->p->base_gain[slot] = (float)pow (10.0, src->level / 20.0);
 
-  float _Complex *buf = malloc (cw->g->num_samples * sizeof *buf);
+  /* num_samples comes from the spec, which a restored blob carries: the
+     byte count is a checked product, and an overflow fails the build like
+     an OOM does. */
+  float _Complex *buf = dp_mallocn (cw->g->num_samples, sizeof *buf);
   if (!buf
       || render_source_into (cw->g, cw->ps, src, cw->loaded, slot, buf) != 0)
     {

@@ -108,9 +108,8 @@ native/src/wfm/wfm_frame.c 2
 native/src/wfm/wfm_json.c 3
 native/src/wfm/wfm_keywords.c 1
 native/src/wfm/wfm_plan.c 14
-native/src/wfm/wfm_resolve.c 1
 native/src/wfm/wfm_sink.c 2
 native/src/wfm/wfm_synth_bridge.c 1
-native/src/wfm_reader/wfm_reader_core.c 7
+native/src/wfm_reader/wfm_reader_core.c 5
 native/src/wfm_synth/wfm_synth_core.c 5
 native/src/wfm_writer/wfm_writer_core.c 4

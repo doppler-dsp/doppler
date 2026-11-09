@@ -201,10 +201,9 @@ dp_wfm_synth_set_rrc (dp_wfm_synth_state_t *state, const float *taps,
     {
       size_t nphases = (size_t)sps;
       size_t nptaps  = (ntaps + nphases - 1) / nphases;
-      size_t nbank;
-      float *bank = dp_size_mul (nphases, nptaps, &nbank)
-                        ? dp_mallocn (nbank, sizeof (float))
-                        : NULL;
+      /* A count that would wrap saturates, and dp_mallocn refuses it. */
+      float *bank
+          = dp_mallocn (dp_size_mul_sat (nphases, nptaps), sizeof (float));
       if (!bank)
         {
           free (scaled);

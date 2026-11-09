@@ -1352,20 +1352,6 @@ dp_async_dsss_receiver_create (
                           &obj->refine_dll_out_cap, &obj->refine_rc_out_buf,
                           &obj->refine_rc_out_cap);
   obj->refine_samples_fed = 0;
-  /* How far past its estimate the refine can decide, from the
-     configuration (the field's comment has the terms). The refine's
-     RateConverter is the same at every rebuild: its rate is fixed here. */
-  {
-    const double period  = (double)code_len * spc;
-    const double partial = period / (double)obj->refine_segments;
-    obj->refine_hist_cap = (size_t)ceil (
-        dp_RateConverter_get_count_lag (obj->refine_rc) * partial + partial
-        + period + (double)obj->tsamps);
-    obj->refine_hist
-        = dp_xmallocn (obj->refine_hist_cap, sizeof *obj->refine_hist);
-    obj->refine_hist_len  = 0;
-    obj->refine_hist_head = 0;
-  }
 
   adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_m_out (sps),
                          &obj->car, &obj->dll, &obj->rc, &obj->rx);
@@ -1387,6 +1373,22 @@ dp_async_dsss_receiver_create (
                    ASYNC_DSSS_RX_LOCK_DOWN, ASYNC_DSSS_RX_LOCK_N_UP,
                    ASYNC_DSSS_RX_LOCK_N_DOWN);
   adr_reset_lock (obj);
+  /* How far past its estimate the refine can decide, from the
+     configuration (the field's comment has the terms). The refine's
+     RateConverter is the same at every rebuild: its rate is fixed here.
+     Allocated last, so everything the search and tracking use is where it
+     was before the ring. */
+  {
+    const double period  = (double)code_len * spc;
+    const double partial = period / (double)obj->refine_segments;
+    obj->refine_hist_cap = (size_t)ceil (
+        dp_RateConverter_get_count_lag (obj->refine_rc) * partial + partial
+        + period + (double)obj->tsamps);
+    obj->refine_hist
+        = dp_xmallocn (obj->refine_hist_cap, sizeof *obj->refine_hist);
+    obj->refine_hist_len  = 0;
+    obj->refine_hist_head = 0;
+  }
   return obj;
 }
 

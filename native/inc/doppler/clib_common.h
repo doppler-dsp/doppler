@@ -294,10 +294,12 @@ dp_size_mul_sat (size_t a, size_t b)
 /* when n is large, returns a SMALL buffer, and the loop that fills    */
 /* all n elements writes past it. These are malloc / dp_xmalloc /      */
 /* dp_xrealloc with the product taken out of the caller's hands, as    */
-/* calloc already takes it for a zeroed allocation (calloc and         */
-/* dp_xcalloc check nmemb * size themselves, so they need no sibling   */
-/* -- but neither checks a product written INSIDE an argument:         */
-/* `calloc (a * b, size)` wraps `a * b` first).                        */
+/* calloc already takes it for a zeroed allocation. calloc and         */
+/* dp_xcalloc check nmemb * size themselves, but not a product written */
+/* INSIDE an argument: `calloc (a * b, size)` wraps `a * b` first, and */
+/* `dp_xcalloc (dp_size_mul_sat (a, b), size)` hands calloc SIZE_MAX,  */
+/* which gcc's -Walloc-size-larger-than sees. dp_callocn and           */
+/* dp_xcallocn take that count as two factors and check it inside.     */
 /*                                                                     */
 /* Which one:                                                          */
 /*                                                                     */
@@ -307,8 +309,14 @@ dp_size_mul_sat (size_t a, size_t b)
 /*  - dp_reallocn, its resizing twin on the same kind of path: NULL on */
 /*    overflow or OOM, with the old block untouched and still the      */
 /*    caller's, exactly as a failed realloc leaves it.                 */
-/*  - dp_xmallocn / dp_xreallocn, when the count is already validated  */
-/*    and only genuine OOM could fail it: they abort, like dp_xmalloc. */
+/*  - dp_callocn, the ZEROED one, when the element count is itself a   */
+/*    product `n * m` (rows x columns, lanes x taps): NULL when n * m  */
+/*    overflows, when calloc refuses n * m * size (its own check), or  */
+/*    on OOM. A count that is one factor needs no helper: plain calloc */
+/*    already checks `nmemb * size`.                                   */
+/*  - dp_xmallocn / dp_xreallocn / dp_xcallocn, when the count is      */
+/*    already validated and only genuine OOM could fail it: they       */
+/*    abort, like dp_xmalloc.                                          */
 /*    An overflow there is a broken internal guarantee, not a caller's */
 /*    mistake, so it aborts too rather than handing back a short      */
 /*    buffer.                                                          */
@@ -424,6 +432,63 @@ dp_reallocn (void *p, size_t n, size_t size)
 }
 
 /**
+ * @brief calloc for `n * m` zeroed elements of @p size bytes; NULL when
+ *        `n * m` overflows, or when calloc refuses.
+ *
+ * The zeroed allocation whose element count is a PRODUCT -- rows times
+ * columns, lanes times taps -- on a path that can refuse (a create(), a
+ * resize, a decode): check the result and refuse, exactly as for calloc.
+ * `n * m` is checked by dp_size_mul(); the product is then handed to
+ * `calloc (n * m, size)` as its element count, so calloc keeps its own
+ * `nmemb * size` check. NULL therefore means one of three things, and a
+ * caller refuses on all of them: `n * m` overflowed, `n * m * size`
+ * overflowed (calloc's refusal), or memory ran out. Pick dp_xcallocn()
+ * instead when the count is already bounded and only a genuine OOM could
+ * fail it; pick plain calloc when the count is a single factor.
+ *
+ * @note When `n * m == 0` or `size == 0` this asks for ONE zeroed byte,
+ *       not zero: `calloc (0, s)` may return NULL, which a caller would
+ *       read as a refusal. So NULL from dp_callocn means overflow or OOM
+ *       and nothing else, and a zero-count result is a live pointer the
+ *       caller frees as usual and never dereferences.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   // 3 rows of 5 floats, zeroed
+ *   float *grid = dp_callocn (3, 5, sizeof *grid);
+ *   if (!grid)
+ *     return 1;
+ *   printf ("%g\n", grid[14]); // 0
+ *   free (grid);
+ *   // 2^(w-1) x 2 elements is 2^w: refused, not wrapped to 0
+ *   printf ("%d\n", dp_callocn (SIZE_MAX / 2 + 1, 2, 1) == NULL); // 1
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param n     First factor of the element count.
+ * @param m     Second factor of the element count.
+ * @param size  Bytes per element.
+ * @return The zeroed allocation, or NULL on overflow or OOM.
+ */
+static inline void *
+dp_callocn (size_t n, size_t m, size_t size)
+{
+  size_t count;
+  if (!dp_size_mul (n, m, &count))
+    return NULL;
+  if (count == 0 || size == 0)
+    return calloc (1u, 1u); /* zero: one byte (@note) */
+  return calloc (count, size);
+}
+
+/**
  * @brief dp_xmalloc for @p n elements of @p size bytes: aborts on overflow
  *        or OOM.
  *
@@ -500,6 +565,52 @@ dp_xreallocn (void *p, size_t n, size_t size)
     abort ();
   /* zero: one byte, never realloc (p, 0) -- see the @note */
   return dp_xrealloc (p, bytes ? bytes : 1u);
+}
+
+/**
+ * @brief dp_xcalloc for `n * m` zeroed elements of @p size bytes: aborts
+ *        on overflow or OOM.
+ *
+ * For a trusted internal zeroed allocation whose count is a product of
+ * two already-validated factors. `n * m` is checked by dp_size_mul() and
+ * an overflow aborts; `calloc (n * m, size)` then keeps its own
+ * `nmemb * size` check, and its refusal aborts through dp_xnn() like an
+ * OOM. Either overflow is a broken internal guarantee, so the answer is
+ * an abort, never a short buffer.
+ *
+ * @note When `n * m == 0` or `size == 0` this asks for ONE zeroed byte,
+ *       not zero: `calloc (0, s)` may return NULL, and dp_xnn would abort
+ *       on it as if out of memory. The result is a live pointer the
+ *       caller frees as usual and never dereferences.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ *
+ * int
+ * main (void)
+ * {
+ *   // 4 lanes of 64 taps, zeroed
+ *   double *taps = dp_xcallocn (4, 64, sizeof *taps);
+ *   taps[255]    = taps[0] + 1.0;
+ *   free (taps);
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param n     First factor of the element count.
+ * @param m     Second factor of the element count.
+ * @param size  Bytes per element.
+ * @return The zeroed allocation; never NULL.
+ */
+static inline void *
+dp_xcallocn (size_t n, size_t m, size_t size)
+{
+  size_t count;
+  if (!dp_size_mul (n, m, &count))
+    abort ();
+  if (count == 0 || size == 0)
+    return dp_xcalloc (1u, 1u); /* zero: one byte (@note) */
+  return dp_xcalloc (count, size);
 }
 
 /**

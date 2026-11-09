@@ -1,0 +1,12 @@
+# Ratchet for scripts/check_size_mul_sites.py (make lint-size-mul).
+#
+# Files that still guard a size product by hand (`SIZE_MAX /`) instead of
+# calling dp_size_mul / dp_size_mul_sat (native/inc/doppler/clib_common.h),
+# with how many sites and why.
+#
+# THIS LIST MAY ONLY SHRINK. A file not listed may not hold one at all, a
+# count left above what its file now has is stale and fails, and nothing
+# may be added or raised against the merge base with origin/main.
+#
+# Format:  <path> <count>  # why
+native/src/correlator/correlator_core.c 7  # being rewritten in its own PR (#2958), which moves these onto dp_size_mul and removes this line

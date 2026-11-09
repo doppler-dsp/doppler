@@ -245,9 +245,9 @@ parse_literal (const char *p, size_t n, wfm_seq_t *q, uint8_t **owned,
   const size_t digits = is_hex ? n - 2u : n;
   if (digits == 0)
     return field_refuse (why, "a hex literal needs a digit after 0x");
-  if (is_hex && digits > SIZE_MAX / 4u)
+  size_t nbits = digits;
+  if (is_hex && !dp_size_mul (4u, digits, &nbits))
     return field_refuse (why, "a hex literal is too long");
-  const size_t nbits = is_hex ? 4u * digits : digits;
 
   /* Both buffers are at most 4x the spec, which is already in memory, so
      only a genuine OOM fails them -- the abort-on-OOM helpers, not an unwind

@@ -1284,6 +1284,17 @@ target_link_libraries(test_fp_policy PRIVATE ${DP_MATH_LIBRARY})
 dp_gnu_compile_options(test_fp_policy PRIVATE -O2)
 add_test(NAME test_fp_policy COMMAND test_fp_policy)
 
+# clib_common.h's checked size product, dp_size_mul / dp_size_mul_sat: the
+# one home of the `SIZE_MAX /` overflow guard (scripts/check_size_mul_sites.py
+# keeps it so). Header-only and owned by no object, so it is registered
+# here, and it links nothing but libm.
+add_executable(test_clib_common native/tests/test_clib_common.c)
+target_include_directories(test_clib_common
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(test_clib_common PRIVATE ${DP_MATH_LIBRARY})
+add_test(NAME test_clib_common COMMAND test_clib_common)
+
 # native/tests/dp_tx_test.h is the harness STIMULUS SSOT, and docs/design/
 # rx-test.md section 5.4 records it as the ONE place the stimulus rule cannot
 # reach: check_stimulus_sources.py requires every test, validator and example

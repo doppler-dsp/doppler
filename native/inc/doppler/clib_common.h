@@ -141,6 +141,111 @@ dp_xrealloc (void *p, size_t n)
 }
 
 /**
+ * @brief `a * b` as a `size_t`, or a refusal when the product does not fit.
+ *
+ * A size product that wraps is the worst way an allocation can go wrong:
+ * the buffer comes back SMALL, every check against it passes, and the
+ * writes that follow run past its end. The guard is one line, and that is
+ * the trouble with it -- written by hand at each site it was spelled a
+ * different way every time (`n > SIZE_MAX / k`, `SIZE_MAX / a / b`, a
+ * strict `<` against the quotient), and one file grew three wrapping
+ * products in two review rounds. Spelled once here so every product that
+ * sizes memory is checked the same way; `scripts/check_size_mul_sites.py`
+ * fails on a `SIZE_MAX /` written anywhere else in library C.
+ *
+ * Divide before multiplying, so nothing overflows on the way to the
+ * answer: `a * b` fits exactly when `b == 0` or `a <= SIZE_MAX / b`. It is
+ * plain C99 on purpose, not `__builtin_mul_overflow`: clang-cl on Windows
+ * builds this header too.
+ *
+ * The contract a caller can lean on:
+ *
+ * - it returns 1 and writes `a * b` to @p out when the product fits,
+ *   including a zero factor (the product is then 0);
+ * - it returns 0 and leaves @p out UNTOUCHED when it overflows, so a
+ *   refusal never hands back a wrapped count;
+ * - @p out may alias the storage a factor was read from:
+ *   `dp_size_mul (n, k, &n)` is safe, because both factors are taken by
+ *   value before anything is written. Chain a three-way product that way.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   size_t bytes = 0;
+ *   if (!dp_size_mul (1024, sizeof (float), &bytes))
+ *     return 1;
+ *   printf ("%zu\n", bytes); // 4096
+ *
+ *   size_t n = 7;
+ *   if (!dp_size_mul (n, 3, &n) || !dp_size_mul (n, 2, &n))
+ *     return 1;
+ *   printf ("%zu\n", n); // 42
+ *
+ *   size_t kept = 5;
+ *   if (dp_size_mul (SIZE_MAX / 2 + 1, 2, &kept))
+ *     return 1;
+ *   printf ("%zu\n", kept); // 5: a refusal leaves it alone
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param a    First factor.
+ * @param b    Second factor.
+ * @param out  Receives `a * b` when it fits; untouched otherwise.
+ * @return 1 when the product fits in a `size_t`, 0 when it would wrap.
+ */
+static inline int
+dp_size_mul (size_t a, size_t b, size_t *out)
+{
+  if (b != 0 && a > SIZE_MAX / b)
+    return 0;
+  *out = a * b;
+  return 1;
+}
+
+/**
+ * @brief `a * b`, or `SIZE_MAX` when the product does not fit.
+ *
+ * The saturating face of dp_size_mul(), for a function whose job is an
+ * UPPER BOUND -- the most output a call can produce, the records a ring
+ * must hold. A wrapped bound sizes a buffer small, which is the one
+ * failure such a function exists to prevent; `SIZE_MAX` instead is a size
+ * no allocation satisfies, so a caller that trusts it is refused at the
+ * allocation rather than overrun after it. Built on dp_size_mul() so the
+ * overflow test has one spelling.
+ *
+ * @code
+ * #include "doppler/clib_common.h"
+ * #include <stdint.h>
+ * #include <stdio.h>
+ *
+ * int
+ * main (void)
+ * {
+ *   printf ("%zu\n", dp_size_mul_sat (6, 7));                   // 42
+ *   printf ("%d\n", dp_size_mul_sat (SIZE_MAX, 2) == SIZE_MAX); // 1
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * @param a  First factor.
+ * @param b  Second factor.
+ * @return `a * b` when it fits in a `size_t`, else `SIZE_MAX`.
+ */
+static inline size_t
+dp_size_mul_sat (size_t a, size_t b)
+{
+  size_t p = SIZE_MAX;
+  (void)dp_size_mul (a, b, &p);
+  return p;
+}
+
+/**
  * @brief Whether @p x is a positive, finite number.
  *
  * The domain of a scale or gain that a constructor stores and later

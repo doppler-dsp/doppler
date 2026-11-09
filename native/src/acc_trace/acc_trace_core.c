@@ -40,8 +40,9 @@ dp_acc_trace_create (size_t n, int mode, double alpha)
   /* n doubles must have a byte count a size_t holds: refused here, not
      left to calloc's own overflow check, which ASan and TSan report as an
      error rather than a NULL. */
-  if (n == 0 || n > SIZE_MAX / sizeof (double) || mode < ACC_TRACE_MEAN
-      || mode > ACC_TRACE_MINHOLD)
+  size_t bytes;
+  if (n == 0 || !dp_size_mul (n, sizeof (double), &bytes)
+      || mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
   if (!acc_trace_alpha_ok (mode, alpha))
     return NULL;
@@ -50,7 +51,7 @@ dp_acc_trace_create (size_t n, int mode, double alpha)
   if (!s)
     return NULL;
 
-  s->acc = (double *)calloc (n, sizeof (double));
+  s->acc = (double *)calloc (1, bytes);
   if (!s->acc)
     {
       free (s);

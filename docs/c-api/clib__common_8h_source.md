@@ -102,6 +102,23 @@ dp_xrealloc (void *p, size_t n)
 }
 
 static inline int
+dp_size_mul (size_t a, size_t b, size_t *out)
+{
+  if (b != 0 && a > SIZE_MAX / b)
+    return 0;
+  *out = a * b;
+  return 1;
+}
+
+static inline size_t
+dp_size_mul_sat (size_t a, size_t b)
+{
+  size_t p = SIZE_MAX;
+  (void)dp_size_mul (a, b, &p);
+  return p;
+}
+
+static inline int
 dp_positive_finite (double x)
 {
   return isfinite (x) && x > 0.0;

@@ -720,7 +720,7 @@ sweep_sizing (int emit)
            nfft overflows, and must read SIZE_MAX, never a wrapped count */
         dp_spectrogram_reset (t);
         const size_t big      = dp_spectrogram_rows_for (t, SIZE_MAX);
-        const size_t sat_want = big > SIZE_MAX / nfft ? SIZE_MAX : big * nfft;
+        const size_t sat_want = dp_size_mul_sat (big, nfft);
         const int    sat
             = big == nrows (SIZE_MAX, nfft, hop)
               && dp_spectrogram_push_max_out (t, SIZE_MAX) == sat_want;

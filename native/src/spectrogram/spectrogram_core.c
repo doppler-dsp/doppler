@@ -52,7 +52,8 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
     return NULL;
   if (mode != DP_SPECTROGRAM_POWER && mode != DP_SPECTROGRAM_DB)
     return NULL;
-  if (nfft > SIZE_MAX / SPECTROGRAM_RING_FRAMES)
+  size_t ring_n;
+  if (!dp_size_mul (SPECTROGRAM_RING_FRAMES, nfft, &ring_n))
     return NULL;
 
   /* The kernel alone, not a PSD: a row is one frame's spectrum, so PSD's
@@ -74,9 +75,8 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
 
   dp_spectrogram_state_t *s
       = (dp_spectrogram_state_t *)dp_xcalloc (1, sizeof *s);
-  s->k = k;
-  s->ring
-      = (dp_f32_t *)dp_xnn (dp_f32_create (SPECTROGRAM_RING_FRAMES * nfft));
+  s->k      = k;
+  s->ring   = (dp_f32_t *)dp_xnn (dp_f32_create (ring_n));
   s->last   = (float _Complex *)dp_xmalloc (nfft * sizeof *s->last);
   s->nfft   = nfft;
   s->hop    = hop;
@@ -157,8 +157,7 @@ dp_spectrogram_rows_for (const dp_spectrogram_state_t *s, size_t n_in)
 size_t
 dp_spectrogram_push_max_out (const dp_spectrogram_state_t *s, size_t n_in)
 {
-  size_t rows = dp_spectrogram_rows_for (s, n_in);
-  return rows > SIZE_MAX / s->nfft ? SIZE_MAX : rows * s->nfft;
+  return dp_size_mul_sat (dp_spectrogram_rows_for (s, n_in), s->nfft);
 }
 
 size_t

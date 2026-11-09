@@ -1584,24 +1584,79 @@ test_one_frame_two_spellings_of_its_description (void)
   return same_receivers (cap, 50000);
 }
 
-/* A preamble too long to hold is refused, not built short. The preamble the
- * receiver hands its capture is acq_code_len * spc samples; with an spc that
- * puts that count's BYTE size past SIZE_MAX, the size product used to wrap to
- * a small buffer that the chip-hold loop then wrote far past. Every argument
- * is otherwise valid, so the refusal is the size check's alone, and `why`
- * says so. */
+/* Build with every argument valid except an extreme spc (and, for the
+ * power-of-two cases, a 1024-chip acquisition code); return 1 iff the
+ * receiver is refused with a `why` containing `want`. */
 static int
-test_refuses_a_preamble_too_long_to_hold (void)
+refused_for_spc (const uint8_t *acq, size_t acq_len, size_t reps, size_t spc,
+                 const char *want)
 {
   wfm_frame_desc_t d;
   frame_desc (&d);
-  const size_t spc = SIZE_MAX / sizeof (float _Complex) / ACQ_SF + 1u;
-  const char  *why = NULL;
-  dp_dsss_burst_receiver_state_t *r = dp_dsss_burst_receiver_create_desc (
-      acq_code (), ACQ_SF, data_code (), DATA_SF, &d, REPS, spc, 1.0e6, 55.0,
-      0.0, 1e-3, 0.9, 0.0, 0.0, 10, &why);
-  DP_CHECK (r == NULL && why && strstr (why, "does not fit in memory"));
+  const char                     *why = NULL;
+  dp_dsss_burst_receiver_state_t *r   = dp_dsss_burst_receiver_create_desc (
+      acq, acq_len, data_code (), DATA_SF, &d, reps, spc, 1.0e6, 55.0, 0.0,
+      1e-3, 0.9, 0.0, 0.0, 10, &why);
+  const int ok = r == NULL && why && strstr (why, want);
+  if (!ok)
+    DP_TEST_ERR ("spc %zu: why = %s\n", spc, why ? why : "(null)");
   dp_dsss_burst_receiver_destroy (r);
+  return ok;
+}
+
+/* The positive control for refused_for_spc: the same acquisition code and
+ * reps at a sane spc build a receiver, so a refusal at an extreme spc is the
+ * size check's and not some other argument's. Returns 1 iff it builds. */
+static int
+builds_at_spc (const uint8_t *acq, size_t acq_len, size_t reps, size_t spc)
+{
+  wfm_frame_desc_t d;
+  frame_desc (&d);
+  const char                     *why = NULL;
+  dp_dsss_burst_receiver_state_t *r   = dp_dsss_burst_receiver_create_desc (
+      acq, acq_len, data_code (), DATA_SF, &d, reps, spc, 1.0e6, 55.0, 0.0,
+      1e-3, 0.9, 0.0, 0.0, 10, &why);
+  if (!r)
+    DP_TEST_ERR ("spc %zu: refused: %s\n", spc, why ? why : "(null)");
+  const int ok = r != NULL;
+  dp_dsss_burst_receiver_destroy (r);
+  return ok;
+}
+
+/* An spc whose sample counts cannot be held is refused, never built short.
+ * The counts are products of the caller's arguments, so each one that can
+ * wrap is checked before it sizes anything:
+ *
+ *  - one code period, acq_code_len * spc: past SIZE_MAX it used to wrap to
+ *    a small count -- to exactly 0 when acq_code_len is a power of two --
+ *    and the preamble and code_period were built that short;
+ *  - one burst, (reps * acq_code_len + frame_syms * data_code_len) * spc,
+ *    which wraps for an spc whose code period still fits;
+ *  - the preamble's BYTE size, which overflows while its sample count fits:
+ *    a 1024-chip code held once, so the burst fits too. */
+static int
+test_refuses_an_spc_too_large_to_hold (void)
+{
+  static uint8_t long_code[1024];
+  for (size_t i = 0; i < sizeof long_code; i++)
+    long_code[i] = acq_code ()[i % ACQ_SF];
+  const size_t lc = sizeof long_code;
+
+  /* The premise: each argument set below builds at the suite's spc, so the
+     only thing wrong with it there is the spc. */
+  DP_REQUIRE (builds_at_spc (acq_code (), ACQ_SF, REPS, SPC));
+  DP_REQUIRE (builds_at_spc (long_code, lc, REPS, SPC));
+  DP_REQUIRE (builds_at_spc (long_code, lc, 1u, SPC));
+
+  DP_CHECK (refused_for_spc (acq_code (), ACQ_SF, REPS, SIZE_MAX / ACQ_SF + 1u,
+                             "one code period"));
+  DP_CHECK (refused_for_spc (long_code, lc, REPS, SIZE_MAX / lc + 1u,
+                             "one code period"));
+  DP_CHECK (refused_for_spc (acq_code (), ACQ_SF, REPS, SIZE_MAX / ACQ_SF,
+                             "one burst"));
+  DP_CHECK (refused_for_spc (long_code, lc, 1u,
+                             SIZE_MAX / sizeof (float _Complex) / lc + 1u,
+                             "does not fit in memory"));
   return 0;
 }
 
@@ -1731,7 +1786,7 @@ main (void)
     return 1;
   if (test_a_refused_description_names_its_fix ())
     return 1;
-  if (test_refuses_a_preamble_too_long_to_hold ())
+  if (test_refuses_an_spc_too_large_to_hold ())
     return 1;
   if (test_silence_yields_no_burst ())
     return 1;

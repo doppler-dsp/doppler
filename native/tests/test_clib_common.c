@@ -98,22 +98,38 @@ leave_dirty_block (size_t nb)
 }
 
 /* Section 8c asks calloc for an n * size that overflows and expects the
- * NULL the C standard promises. ASan's allocator reports that request as
- * a fatal calloc-overflow instead, unless allocator_may_return_null is
- * set; set it for this binary alone, so the case runs under ASan too
- * rather than being skipped there. ASAN_OPTIONS from the environment
- * still applies on top, and none of the repo's sets this key. */
+ * NULL the C standard promises. ASan's and TSan's allocators both report
+ * that request as a fatal calloc-overflow instead, unless
+ * allocator_may_return_null is set; set it for this binary alone, under
+ * whichever sanitizer it is built with, so the case runs there too rather
+ * than being skipped. *SAN_OPTIONS from the environment still applies on
+ * top, and none of the repo's sets this key. */
 #if defined(__SANITIZE_ADDRESS__)
 #define CLIB_TEST_ASAN 1
-#elif defined(__has_feature)
+#endif
+#if defined(__SANITIZE_THREAD__)
+#define CLIB_TEST_TSAN 1
+#endif
+#if defined(__has_feature)
 #if __has_feature(address_sanitizer)
 #define CLIB_TEST_ASAN 1
+#endif
+#if __has_feature(thread_sanitizer)
+#define CLIB_TEST_TSAN 1
 #endif
 #endif
 #if defined(CLIB_TEST_ASAN) && !defined(_MSC_VER)
 const char *__asan_default_options (void);
 const char *
 __asan_default_options (void)
+{
+  return "allocator_may_return_null=1";
+}
+#endif
+#if defined(CLIB_TEST_TSAN) && !defined(_MSC_VER)
+const char *__tsan_default_options (void);
+const char *
+__tsan_default_options (void)
 {
   return "allocator_may_return_null=1";
 }

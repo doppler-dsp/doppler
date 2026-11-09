@@ -14,13 +14,22 @@ dp_ppe_create (size_t max_len, double max_rate)
 {
   if (max_len < 4 || max_rate < 0.0)
     return NULL;
+  /* The FFT is 4x the next power of two of max_len, so that power must
+     survive being quadrupled. Past SIZE_MAX/8 + 1 (2^61 on LP64) it does
+     not: the shift would wrap nfft to 0 while win is still sized from
+     max_len, an allocation no machine can meet. Refused here, before
+     anything is allocated -- the length is not a size this object can
+     have. */
+  size_t p2 = dp_next_pow_two (max_len), nfft;
+  if (p2 == 0u || !dp_size_mul (p2, 4u, &nfft))
+    return NULL;
   dp_ppe_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
   s->max_len = max_len;
   /* 4x zero-pad: finer frequency grid + accurate parabolic peak interpolation
    * (the input is often short — preamble partials / symbol streams). */
-  s->nfft     = dp_next_pow_two (max_len) << 2;
+  s->nfft     = nfft;
   s->max_rate = max_rate;
 
   /* Chirp-rate grid: resolution ~ 1/L^2 (a rate error r smears the dechirped

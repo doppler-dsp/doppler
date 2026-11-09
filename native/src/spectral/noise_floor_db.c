@@ -22,7 +22,7 @@ dp_noise_floor_db (const float *db, size_t db_len)
   if (db_len == 0)
     return 0.0;
 
-  float *tmp = (float *)malloc (db_len * sizeof (float));
+  float *tmp = (float *)dp_mallocn (db_len, sizeof (float));
   if (!tmp)
     return 0.0;
   memcpy (tmp, db, db_len * sizeof (float));

@@ -79,8 +79,8 @@ dp_tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
   s->n_harm   = n_harmonics;
   s->dc_guard = dc_guard;
 
-  s->pwr  = (float *)malloc (s->nfft * sizeof (float));
-  s->excl = (unsigned char *)malloc (s->nfft * sizeof (unsigned char));
+  s->pwr  = (float *)dp_mallocn (s->nfft, sizeof (float));
+  s->excl = (unsigned char *)dp_mallocn (s->nfft, sizeof (unsigned char));
   if (!s->pwr || !s->excl)
     {
       dp_tonemeas_destroy (s);
@@ -216,9 +216,15 @@ compute_metrics (dp_tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
   double p_fund = lobe_power (s, nbins, k0, 1);
 
   /* 3. harmonics: fold k*f0, integrate each non-overlapping lobe */
-  double  p_harm = 0.0;
-  size_t  n_kept = 0;
-  size_t *hbin   = (size_t *)malloc ((s->n_harm + 1) * sizeof (size_t));
+  double p_harm = 0.0;
+  size_t n_kept = 0;
+  /* n_harm is the caller's: a slot count or byte count that does not fit
+   * leaves hbin NULL, which the loop below already reads as "no harmonics",
+   * exactly as it reads an OOM. */
+  size_t  n_slots;
+  size_t *hbin = dp_size_add (s->n_harm, 1, &n_slots)
+                     ? (size_t *)dp_mallocn (n_slots, sizeof (size_t))
+                     : NULL;
   for (size_t h = 2; h <= s->n_harm && hbin; h++)
     {
       double fh = fold_harmonic ((double)h * f0, s->fs, is_real);

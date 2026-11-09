@@ -45,7 +45,7 @@ dp_nprmeas_create (size_t n, double fs, double full_scale, size_t bits,
   s->fs   = fs;
   s->enbw = s->psd->enbw;
   s->beta = beta;
-  s->pwr  = (float *)malloc (s->nfft * sizeof (float));
+  s->pwr  = (float *)dp_mallocn (s->nfft, sizeof (float));
   if (!s->pwr)
     {
       dp_nprmeas_destroy (s);

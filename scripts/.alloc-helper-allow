@@ -75,7 +75,7 @@ native/src/i16u32_to_f32/i16u32_to_f32_core.c 1
 native/src/i16u64_to_f32/i16u64_to_f32_core.c 1
 native/src/i32_to_f32/i32_to_f32_core.c 1
 native/src/i8_to_f32/i8_to_f32_core.c 1
-native/src/imdmeas/imdmeas_core.c 2
+native/src/imdmeas/imdmeas_core.c 1
 native/src/interleaver/interleaver_core.c 1
 native/src/interp_table/interp_table_core.c 2
 native/src/lo/lo_core.c 1
@@ -83,24 +83,22 @@ native/src/lockdet/lockdet_core.c 1
 native/src/loop_filter/loop_filter_core.c 1
 native/src/mpsk_receiver/mpsk_receiver_core.c 1
 native/src/nco/nco_core.c 1
-native/src/nprmeas/nprmeas_core.c 2
+native/src/nprmeas/nprmeas_core.c 1
 native/src/pn/pn_core.c 1
 native/src/ppe/ppe_core.c 1
-native/src/psd/psd_core.c 6
+native/src/psd/psd_core.c 1
 native/src/ratesync/ratesync_core.c 1
 native/src/resamp/resamp_core.c 7
 native/src/resample/hbdecim_r2c_core.c 4
 native/src/rs_codec/rs_codec_core.c 1
-native/src/specan/specan_core.c 5
-native/src/spectral/find_peaks_f32.c 1
-native/src/spectral/noise_floor_db.c 1
+native/src/specan/specan_core.c 4
 native/src/stream/stream_core.c 2  # wire-sized: a chunk's total_bytes and count come from the sender, so a forged frame must get DP_ERR_MEMORY, not abort (moved from stream_nats.c, which drops 7 -> 5)
 native/src/stream/stream_nats.c 5
 native/src/stream/tlm_sink.c 1
 native/src/symsync/symsync_core.c 1
 native/src/syncword/syncword_core.c 2
 native/src/timing/timing_core.c 1
-native/src/tonemeas/tonemeas_core.c 4
+native/src/tonemeas/tonemeas_core.c 1
 native/src/uq15_to_f32/uq15_to_f32_core.c 1
 native/src/viterbi/viterbi_core.c 1
 native/src/wfm/wfm_compose.c 7

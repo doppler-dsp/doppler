@@ -303,21 +303,6 @@ typedef enum
                                       (#2395). Not in the state blob: it
                                       changes nothing, and a restore
                                       restarts it. */
-    /* The hand-over starts the live chain at the refine's estimate, and
-     * the refine decides up to its chain's lag past it, so the start can
-     * lie in input an earlier call already passed (#2974). The last
-     * refine_hist_cap refine samples are kept, a ring, so the start is
-     * reached at any chunking. The cap is the most the refine decides past
-     * its estimate, from the configuration at create: how far the refine
-     * RateConverter's output count can trail its input
-     * (dp_RateConverter_get_count_lag(), in partials of code_len * spc /
-     * refine_segments samples each), plus one partial of Dll framing, one
-     * code period of the estimate's round-up and one tsamps block of the
-     * refine's own. Running state: it travels in the blob (v17). */
-    float _Complex *refine_hist;      /**< Owned ring, refine_hist_cap. */
-    size_t          refine_hist_cap;  /**< Config: derived at create.   */
-    size_t          refine_hist_len;  /**< Running: samples held.       */
-    size_t          refine_hist_head; /**< Running: the next write.     */
     /* Scratch, not state -- sized once per refine-chain (re)build (no
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
@@ -558,6 +543,23 @@ typedef enum
     int32_t   tlm_state;      /**< "<prefix>.state" id, -1 detached.      */
     int32_t   tlm_handover;   /**< "<prefix>.handover_hz" id, -1 detached.*/
     int32_t   tlm_refused;    /**< "<prefix>.refused" id, -1 detached.    */
+
+    /* The hand-over starts the live chain at the refine's estimate, and
+     * the refine decides up to its chain's lag past it, so the start can
+     * lie in input an earlier call already passed (#2974). The last
+     * refine_hist_cap refine samples are kept, a ring, so the start is
+     * reached at any chunking. The cap is the most the refine decides past
+     * its estimate, from the configuration at create: how far the refine
+     * RateConverter's output count can trail its input
+     * (dp_RateConverter_get_count_lag(), in partials of code_len * spc /
+     * refine_segments samples each), plus one partial of Dll framing, one
+     * code period of the estimate's round-up and one tsamps block of the
+     * refine's own. Running state: it travels in the blob (v17). Last in the struct, so every field the search and
+     * tracking touch keeps the offset it had before the ring. */
+    float _Complex *refine_hist;      /**< Owned ring, refine_hist_cap. */
+    size_t          refine_hist_cap;  /**< Config: derived at create.   */
+    size_t          refine_hist_len;  /**< Running: samples held.       */
+    size_t          refine_hist_head; /**< Running: the next write.     */
   } dp_async_dsss_receiver_state_t;
 
   /**

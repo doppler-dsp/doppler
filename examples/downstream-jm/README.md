@@ -339,21 +339,26 @@ ______________________________________________________________________
 
 ## Two things worth knowing
 
-- **`_ext_<obj>.c` fragments are sacred.** A fresh `jm apply` *adds* a new
-    method or record to a fragment, but it will not rewrite generated code that
-    is already there — so to pick up a change to an existing method (or to
-    regenerate a whole method cleanly), delete the fragment and re-apply. That
-    is how `CaptureSummary` was added: `objects/capture.toml` grew a method,
-    the fragment was deleted, and `jm apply` rebuilt it — `capture_core.c` and
-    the tests untouched.
+- **The `_ext_<obj>.c` fragments are jm's, not yours.**
+    `fragment = "generated"` in `objects/capture.toml` stamps them
+    `/* jm:generated */`, so every `jm apply` re-renders them whole from the
+    manifest and `jm status --check` fails on a hand edit. Without the key a
+    fragment is *sacred*: `apply` only adds new members to it and never
+    rewrites an existing one, so it falls behind every codegen fix. That is
+    not hypothetical. These two fragments sat sacred while jm learned to
+    refuse an output size past `NPY_MAX_INTP` and a kernel that writes past
+    its buffer; `apply` warned that they no longer matched the manifest, and
+    `read(-1)` still wrapped SIZE_MAX to a negative dimension. Code a
+    fragment cannot express goes in the `_extra.c` beside it, which jm wires
+    in and never touches.
 - **This example does not set `[project] c_style`.** `jm apply` would format
     the regenerated `*_ext.c` aggregator while `jm status --check` compares
     against an *unformatted* regeneration, so the drift gate could never pass
-    ([jm#635](https://github.com/just-buildit/just-makeit/issues/635)). The
-    aggregator stays in jm's own style and is excluded from clang-format
-    (`_ext\.c$`) — the same posture doppler itself takes. The per-object
-    fragments *are* formatted; jm treats their bodies as sacred and does not
-    diff them, so that causes no drift.
+    ([jm#635](https://github.com/just-buildit/just-makeit/issues/635)). Every
+    jm-owned C file therefore stays in jm's own style, and doppler's
+    clang-format pass leaves both the aggregator (`_ext\.c$`) and the
+    generated fragments (`DOWNSTREAM_GEN_C_RE`) alone; the drift gate is
+    what checks them.
 
 ______________________________________________________________________
 

@@ -199,11 +199,8 @@ dp_wfm_resolve_noise (wfm_segment_t *segs, size_t n)
        */
       if (noise_idx < 0)
         {
-          size_t        nn = g->n_sources + 1;
-          size_t        bytes;
-          wfm_source_t *more = dp_size_mul (nn, sizeof (wfm_source_t), &bytes)
-                                   ? realloc (g->sources, bytes)
-                                   : NULL;
+          size_t        nn   = g->n_sources + 1;
+          wfm_source_t *more = dp_reallocn (g->sources, nn, sizeof *more);
           if (!more)
             return -1;
           g->sources               = more;

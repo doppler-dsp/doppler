@@ -1750,10 +1750,17 @@ dp_wfm_plan_restore (const void *blob, size_t n)
   const float _Complex **bufs      = NULL;
   int                    fp_ok     = (hash == (uint64_t)WFM_PLAN_DSP_HASH_U64);
   int                    layout_ok = 1;
-  if (n_sig > 0 && n_sig < (SIZE_MAX / sizeof (size_t)))
+  /* The table's two arrays are sized from a count the blob claims, so the
+   * byte counts are checked products: a wrapped one would allocate small
+   * and the loop below would write past it. A count a size_t cannot hold
+   * (a 32-bit build) is refused the same way. */
+  size_t lens_bytes = 0, bufs_bytes = 0;
+  if (n_sig > 0 && (uint64_t)(size_t)n_sig == n_sig
+      && dp_size_mul ((size_t)n_sig, sizeof *lens, &lens_bytes)
+      && dp_size_mul ((size_t)n_sig, sizeof *bufs, &bufs_bytes))
     {
-      lens = (size_t *)malloc ((size_t)n_sig * sizeof *lens);
-      bufs = (const float _Complex **)malloc ((size_t)n_sig * sizeof *bufs);
+      lens = (size_t *)malloc (lens_bytes);
+      bufs = (const float _Complex **)malloc (bufs_bytes);
       if (!lens || !bufs)
         {
           free (lens);

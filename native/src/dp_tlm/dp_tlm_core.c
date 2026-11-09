@@ -140,12 +140,9 @@ dp_tlm_block_bound (const dp_tlm_t *t, size_t block_samples)
 {
   if (!t || block_samples == 0 || t->n_probes == 0)
     return 0;
-  size_t probes = t->n_probes;
   /* Saturate rather than wrap: a wrapped bound would size the ring SMALL,
    * which is the one failure mode this function exists to make impossible. */
-  if (block_samples > SIZE_MAX / probes)
-    return SIZE_MAX;
-  return probes * block_samples;
+  return dp_size_mul_sat (t->n_probes, block_samples);
 }
 
 size_t

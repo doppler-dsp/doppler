@@ -275,7 +275,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                why-param header-file-blocks doc-claims public-symbols \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
-               ring-internals named-args acq-pfa-split \
+               ring-internals size-mul named-args acq-pfa-split \
                finding-citations test-all-ci changelog-fragments
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
@@ -419,6 +419,16 @@ LINT_fmod-fold = $(UV) run python scripts/check_fmod_fold_sites.py
 RING_INTERNALS_BASE ?= origin/main
 LINT_ring-internals = $(UV) run python scripts/check_ring_internals.py \
     --base $(RING_INTERNALS_BASE)
+
+# A checked size product has one home, dp_size_mul() in clib_common.h (and
+# dp_size_mul_sat() for an upper bound). The `n > SIZE_MAX / k` guard was
+# hand-written at every site, spelled a different way each time, and one
+# file grew three wrapping products in two review rounds. What is left is a
+# ratchet that only shrinks: scripts/.size-mul-ratchet, against the merge
+# base with SIZE_MUL_BASE.
+SIZE_MUL_BASE ?= origin/main
+LINT_size-mul = $(UV) run python scripts/check_size_mul_sites.py \
+    --base $(SIZE_MUL_BASE)
 
 # A wire format's full scale has one home, dp_format_full_scale(). doppler
 # had FOUR private copies of the constant plus the arithmetic around it

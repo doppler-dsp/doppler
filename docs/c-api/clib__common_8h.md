@@ -69,6 +69,8 @@ _Common C99 types and performance macros for doppler._ [More...](#detailed-descr
 |  double | [**dp\_fftfreq**](#function-dp_fftfreq) (size\_t bin, size\_t n, double fs) <br>_The frequency of an FFT bin, in the units of_ `fs` _._ |
 |  long | [**dp\_fftfreq\_index**](#function-dp_fftfreq_index) (size\_t bin, size\_t n) <br>`numpy.fft.fftfreq(n)[bin] * n` _— the SIGNED index of an FFT bin._ |
 |  int | [**dp\_positive\_finite**](#function-dp_positive_finite) (double x) <br>_Whether_ `x` _is a positive, finite number._ |
+|  int | [**dp\_size\_mul**](#function-dp_size_mul) (size\_t a, size\_t b, size\_t \* out) <br>`a * b` _as a_`size_t` _, or a refusal when the product does not fit._ |
+|  size\_t | [**dp\_size\_mul\_sat**](#function-dp_size_mul_sat) (size\_t a, size\_t b) <br>`a * b` _, or_`SIZE_MAX` _when the product does not fit._ |
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
 |  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
@@ -327,6 +329,146 @@ The domain of a scale or gain that a constructor stores and later divides by or 
 **Returns:**
 
 1 when `0 < x < inf`, else 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_size\_mul 
+
+`a * b` _as a_`size_t` _, or a refusal when the product does not fit._
+```C++
+static inline int dp_size_mul (
+    size_t a,
+    size_t b,
+    size_t * out
+) 
+```
+
+
+
+A size product that wraps is the worst way an allocation can go wrong: the buffer comes back SMALL, every check against it passes, and the writes that follow run past its end. The guard is one line, and that is the trouble with it  written by hand at each site it was spelled a different way every time (`n > SIZE_MAX / k`, `SIZE_MAX / a / b`, a strict `<` against the quotient), and one file grew three wrapping products in two review rounds. Spelled once here so every product that sizes memory is checked the same way; `scripts/check_size_mul_sites.py` fails on a `SIZE_MAX /` written anywhere else in library C.
+
+
+Divide before multiplying, so nothing overflows on the way to the answer: `a * b` fits exactly when `b == 0` or `a <= SIZE_MAX / b`. It is plain C99 on purpose, not `__builtin_mul_overflow`: clang-cl on Windows builds this header too.
+
+
+The contract a caller can lean on:
+
+
+
+* it returns 1 and writes `a * b` to `out` when the product fits, including a zero factor (the product is then 0);
+* it returns 0 and leaves `out` UNTOUCHED when it overflows, so a refusal never hands back a wrapped count;
+* `out` may alias the storage a factor was read from: `dp_size_mul (n, k, &n)` is safe, because both factors are taken by value before anything is written. Chain a three-way product that way.
+
+
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  size_t bytes = 0;
+  if (!dp_size_mul (1024, sizeof (float), &bytes))
+    return 1;
+  printf ("%zu\n", bytes); // 4096
+
+  size_t n = 7;
+  if (!dp_size_mul (n, 3, &n) || !dp_size_mul (n, 2, &n))
+    return 1;
+  printf ("%zu\n", n); // 42
+
+  size_t kept = 5;
+  if (dp_size_mul (SIZE_MAX / 2 + 1, 2, &kept))
+    return 1;
+  printf ("%zu\n", kept); // 5: a refusal leaves it alone
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `a` First factor. 
+* `b` Second factor. 
+* `out` Receives `a * b` when it fits; untouched otherwise. 
+
+
+
+**Returns:**
+
+1 when the product fits in a `size_t`, 0 when it would wrap. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_size\_mul\_sat 
+
+`a * b` _, or_`SIZE_MAX` _when the product does not fit._
+```C++
+static inline size_t dp_size_mul_sat (
+    size_t a,
+    size_t b
+) 
+```
+
+
+
+The saturating face of dp\_size\_mul(), for a function whose job is an UPPER BOUND  the most output a call can produce, the records a ring must hold. A wrapped bound sizes a buffer small, which is the one failure such a function exists to prevent; `SIZE_MAX` instead is a size no allocation satisfies, so a caller that trusts it is refused at the allocation rather than overrun after it. Built on dp\_size\_mul() so the overflow test has one spelling.
+
+
+
+```C++
+#include "doppler/clib_common.h"
+#include <stdint.h>
+#include <stdio.h>
+
+int
+main (void)
+{
+  printf ("%zu\n", dp_size_mul_sat (6, 7));                   // 42
+  printf ("%d\n", dp_size_mul_sat (SIZE_MAX, 2) == SIZE_MAX); // 1
+  return 0;
+}
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `a` First factor. 
+* `b` Second factor. 
+
+
+
+**Returns:**
+
+`a * b` when it fits in a `size_t`, else `SIZE_MAX`. 
 
 
 

@@ -341,6 +341,16 @@ repos:
         pass_filenames: false
         files: ^(native/.*\.[ch]|scripts/(\.ring-internals-ratchet|check_ring_internals\.py))$
 
+      # A size product is checked by dp_size_mul() (clib_common.h) and
+      # nowhere else; the hand-written `SIZE_MAX /` guards left are a
+      # ratchet that only shrinks.
+      - id: size-mul
+        name: checked size products have one home
+        entry: make -s lint-size-mul
+        language: system
+        pass_filenames: false
+        files: ^((native|ffi)/.*\.[ch]|scripts/(\.size-mul-ratchet|check_size_mul_sites\.py))$
+
       # A docs fence or an example that computes a claim and drops it (a bare
       # `np.array_equal(...)` statement) runs green and checks nothing; so
       # does an example with no assert at all. doppler#1682.

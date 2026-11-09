@@ -652,7 +652,8 @@ _test_accessor_coverage (void)
   (void)dp_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
 
   DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
-  DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
+  DP_CHECK (dp_dsss_receiver_configure_search_raw (rx, 100000, 1)
+            == DP_ERR_INVALID);
   dp_dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
   DP_CHECK (dp_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);

@@ -14,7 +14,7 @@ constructor whose knobs pick the flavor.
 | `"continuous"`    | `Correlator(chips, framing="continuous", ...)` | `push(chunk)`     |
 | `"burst"`         | `Correlator(preamble, framing="burst", ...)`   | `push(chunk)`     |
 
-The [Correlator guide](../guide/correlator.md) is where to start: what each
+The [Correlator guide](../guide/correlator.md#what-a-flavor-does-not-do-is-refused) is where to start: what each
 flavor is for, which knobs pick it, and the refusal rule. In short, a knob the
 flavor would not honor is refused with `ValueError` naming the knob. A
 property the flavor does not serve raises `AttributeError` (`hasattr` reads

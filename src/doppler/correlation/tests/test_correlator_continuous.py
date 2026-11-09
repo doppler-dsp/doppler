@@ -18,6 +18,7 @@ so its round trip is bespoke here rather than in the generic
 own pre-split tests and ``DsssReceiver``'s).
 """
 
+import re
 import subprocess
 import sys
 import warnings
@@ -353,7 +354,13 @@ def test_carrier_and_prior_refusals_are_raised():
         **kw,
     )
     a.set_carrier_freq_hz(2.5e9)
-    refused = "set_carrier_freq_hz: only the continuous search"
+    # On the continuous search the carrier is served: an out-of-range one is
+    # a bad value (DP_ERR_INVALID), with its own sentence, not the
+    # off-flavor one (DP_ERR_UNSUPPORTED).
+    refused = re.escape(
+        "set_carrier_freq_hz: must be 0 (no carrier) or finite and above "
+        "sample_rate / 2"
+    )
     with pytest.raises(ValueError, match=refused):
         a.set_carrier_freq_hz(1e-305)
     with pytest.raises(ValueError, match=refused):

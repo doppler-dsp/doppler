@@ -336,19 +336,19 @@ test_each_row_builds_its_flavor (void)
   return 0;
 }
 
-/* One refusal: NULL, and a sentence that names `knob`. */
-/* The whole sentence must match: a refusal names exactly one knob, and a
-   substring match would pass a sentence that lists several. */
+/* One refusal: NULL, and exactly @p sentence. The whole sentence must
+   match: a refusal names exactly one knob, and a substring match would
+   pass a sentence that lists several. */
 #define refused(k, sentence) refused_at ((k), (sentence), __LINE__)
 static int
-refused_at (const knobs_t *k, const char *knob, int line)
+refused_at (const knobs_t *k, const char *sentence, int line)
 {
   const char            *why = NULL;
   dp_correlator_state_t *s   = make (k, &why);
-  const int ok = s == NULL && why != NULL && strcmp (why, knob) == 0;
+  const int ok = s == NULL && why != NULL && strcmp (why, sentence) == 0;
   if (!ok)
     DP_TEST_ERR ("  REFUSAL-MISMATCH line %d\n    want: %s\n    got:  %s\n",
-                 line, knob, why ? why : "(no sentence)");
+                 line, sentence, why ? why : "(no sentence)");
   dp_correlator_destroy (s);
   /* NULL is a valid `why`: the same refusal, nothing written. */
   s                  = make (k, NULL);
@@ -719,6 +719,26 @@ test_a_flavor_names_the_knob_it_refuses (void)
   k.col_out = 8;
   DP_CHECK (refused (
       &k, "Correlator: col_out must be -1 or a lag below len(ref[0])"));
+  /* A padded length whose map no size_t can count: refused by name before
+     a transform is planned (#2958). */
+  k        = defaults (NRZ, 1, 31);
+  k.nx_out = SIZE_MAX / 8;
+  DP_CHECK (refused (&k, "Correlator: nx_out asks for a map no size_t can "
+                         "hold"));
+  k        = defaults (ref2, 4, 8);
+  k.ny_out = SIZE_MAX / 16;
+  DP_CHECK (refused (&k, "Correlator: ny_out asks for a map no size_t can "
+                         "hold"));
+  k         = defaults (ref2, 4, 8);
+  k.col_out = 0;
+  k.ny_out  = 8;
+  DP_CHECK (refused (&k, "Correlator: col_out reads a native map; ny_out "
+                         "pads it, so it must be 0 with col_out"));
+  k         = defaults (ref2, 4, 8);
+  k.col_out = 0;
+  k.nx_out  = 16;
+  DP_CHECK (refused (&k, "Correlator: col_out reads a native map; nx_out "
+                         "pads it, so it must be 0 with col_out"));
   k         = defaults (ref2, 4, 8);
   k.col_out = 0; /* every row has energy: no single-row fast path */
   DP_CHECK (refused (
@@ -747,6 +767,9 @@ test_a_flavor_names_the_knob_it_refuses (void)
     DP_REQUIRE (ok != NULL);
     dp_correlator_destroy (ok);
   }
+  k           = base;
+  k.chip_rate = INFINITY;
+  DP_CHECK (refused (&k, "Correlator: chip_rate must be finite"));
   k             = base;
   k.sample_rate = 4.5e6; /* 139.5 samples a period */
   DP_CHECK (refused (&k, "Correlator: the continuous search needs a code "
@@ -788,10 +811,40 @@ test_a_flavor_names_the_knob_it_refuses (void)
   k.doppler_uncertainty = 1e300;
   DP_CHECK (refused (&k, "Correlator: doppler_uncertainty asks for more "
                          "Doppler tiles than any search grid can hold"));
+  /* A depth whose grid's bytes do not fit a size_t (reps x 2 x 31 x 8):
+     regrid's checked product refuses it before any allocation, and the
+     create names reps. It passes the guard below (reps x 31 x 8 fits). */
+  k      = base;
+  k.reps = (size_t)37191016277640226ULL;
+  DP_CHECK (refused (&k, "Correlator: reps asks for a coherent depth whose "
+                         "search grid cannot be allocated"));
+  /* The overflow the checked product closes (#2958): a burst at -20 dB-Hz
+     over a 127-sample Zadoff-Chu preamble sizes depth 8, interpolation 2
+     and 9078122083518481 tiles, inside the tile guard, and the surface's
+     ELEMENT count 8 x 2 x 9078122083518481 x 127 wraps 2^64 to 1776. The
+     unchecked build allocated those 1776 and wrote the whole grid past
+     them; now the create refuses, naming doppler_uncertainty. */
+  {
+    float _Complex zc[127];
+    for (int i = 0; i < 127; i++)
+      zc[i] = cexpf (-(float)M_PI * 5.0f * (float)(i * (i + 1)) / 127.0f * I);
+    knobs_t w             = defaults (zc, 1, 127);
+    w.framing             = DP_CORRELATOR_FRAMING_BURST;
+    w.sample_rate         = 1.0;
+    w.reps                = 8;
+    w.cn0_dbhz            = -20.0;
+    w.doppler_uncertainty = 35740638124088.51;
+    DP_CHECK (refused (&w, "Correlator: doppler_uncertainty asks for more "
+                           "Doppler tiles than the search grid can "
+                           "allocate"));
+  }
   k      = base;
   k.reps = SIZE_MAX;
   DP_CHECK (refused (&k, "Correlator: reps asks for more periods than any "
                          "search grid can hold"));
+  k             = base;
+  k.sample_rate = INFINITY;
+  DP_CHECK (refused (&k, "Correlator: sample_rate must be finite"));
   k      = base;
   k.reps = 0;
   DP_CHECK (refused (
@@ -845,11 +898,11 @@ search_members_refuse (dp_correlator_state_t *s)
   double d[4];
   float _Complex z[4];
   int ok = 1;
-  ok &= dp_correlator_configure_search_raw (s, 1, 1) == DP_ERR_INVALID;
-  ok &= dp_correlator_set_threads (s, 2) == DP_ERR_INVALID;
-  ok &= dp_correlator_set_max_peaks (s, 2) == DP_ERR_INVALID;
-  ok &= dp_correlator_set_carrier_freq_hz (s, 2.5e9) == DP_ERR_INVALID;
-  ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1) == DP_ERR_INVALID;
+  ok &= dp_correlator_configure_search_raw (s, 1, 1) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_set_threads (s, 2) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_set_max_peaks (s, 2) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_set_carrier_freq_hz (s, 2.5e9) == DP_ERR_UNSUPPORTED;
+  ok &= dp_correlator_set_telemetry (s, NULL, NULL, 1) == DP_ERR_UNSUPPORTED;
   ok &= dp_correlator_surface (s, f, 4) == SIZE_MAX;
   ok &= dp_correlator_surface_doppler_hz (s, d, 4) == SIZE_MAX;
   ok &= dp_correlator_surface_chip_phase (s, d, 4) == SIZE_MAX;
@@ -862,9 +915,9 @@ search_members_refuse (dp_correlator_state_t *s)
   ok &= dp_correlator_position (s) == 0;
   ok &= dp_correlator_grid_bins (s) == 0;
   ok &= dp_correlator_set_surface_sink (s, null_sink, NULL, 1)
-        == DP_ERR_INVALID;
+        == DP_ERR_UNSUPPORTED;
   int keep = 7;
-  ok &= dp_correlator_get_keep_surface (s, &keep) == DP_ERR_INVALID;
+  ok &= dp_correlator_get_keep_surface (s, &keep) == DP_ERR_UNSUPPORTED;
   ok &= keep == 7;
   return ok;
 }
@@ -889,7 +942,8 @@ test_members_off_their_flavor (void)
     {
       DP_REQUIRE (maps[i] != NULL);
       DP_CHECK (search_members_refuse (maps[i]));
-      DP_CHECK (dp_correlator_last_corr_status (maps[i]) == DP_ERR_INVALID);
+      DP_CHECK (dp_correlator_last_corr_status (maps[i])
+                == DP_ERR_UNSUPPORTED);
       DP_CHECK (dp_correlator_push_max_out (maps[i], 1000) == 0);
       DP_CHECK (dp_correlator_execute_max_out (maps[i]) > 0);
       dp_correlator_destroy (maps[i]);
@@ -925,7 +979,7 @@ test_members_off_their_flavor (void)
       DP_CHECK (dp_correlator_execute_all_max_out (searches[i], 1000) == 0);
       DP_CHECK (dp_correlator_execute_peaks_max_out (searches[i], 1000) == 0);
       DP_CHECK (dp_correlator_last_corr_status (searches[i])
-                == DP_ERR_INVALID);
+                == DP_ERR_UNSUPPORTED);
       /* Both searches decide dwells, so both take a sink. */
       DP_CHECK (
           dp_correlator_set_surface_sink (searches[i], null_sink, NULL, 1)
@@ -937,7 +991,7 @@ test_members_off_their_flavor (void)
      although its sink just set the field, and the continuous serves it. */
   int keep = 7;
   DP_CHECK (b->search->keep_surface == 1);
-  DP_CHECK (dp_correlator_get_keep_surface (b, &keep) == DP_ERR_INVALID);
+  DP_CHECK (dp_correlator_get_keep_surface (b, &keep) == DP_ERR_UNSUPPORTED);
   DP_CHECK (keep == 7);
   DP_CHECK (dp_correlator_get_keep_surface (c, &keep) == DP_OK);
   DP_CHECK (keep == 1);
@@ -955,8 +1009,10 @@ test_members_off_their_flavor (void)
   static float  fb[BIG];
   static double db[BIG];
   static float _Complex zb[BIG];
-  DP_CHECK (dp_correlator_set_carrier_freq_hz (b, 2.5e9) == DP_ERR_INVALID);
-  DP_CHECK (dp_correlator_set_telemetry (b, NULL, NULL, 1) == DP_ERR_INVALID);
+  DP_CHECK (dp_correlator_set_carrier_freq_hz (b, 2.5e9)
+            == DP_ERR_UNSUPPORTED);
+  DP_CHECK (dp_correlator_set_telemetry (b, NULL, NULL, 1)
+            == DP_ERR_UNSUPPORTED);
   DP_CHECK (dp_correlator_surface_doppler_hz (b, db, BIG) == SIZE_MAX);
   DP_CHECK (dp_correlator_surface_chip_phase (b, db, BIG) == SIZE_MAX);
   /* ...which the continuous search serves: the same calls succeed. */
@@ -1173,6 +1229,14 @@ test_a_sink_survives_a_restore (void)
       off += took;
     }
   DP_CHECK_MSG (fired > 0, "the sink fell silent after a restore");
+  /* The rule (dp_correlator_surface()): a surface is kept while
+     keep_surface OR a sink is set, so with keep_surface 0 and the sink
+     attached, surface() hands out the last dwell, not "nothing yet". */
+  const size_t nsurf = c->search->n_surf;
+  float       *surf  = malloc (nsurf * sizeof *surf);
+  DP_REQUIRE (surf != NULL);
+  DP_CHECK (dp_correlator_surface (c, surf, nsurf) == nsurf);
+  free (surf);
 
   const size_t before = fired;
   DP_REQUIRE (dp_correlator_set_keep_surface (c, 0) == DP_OK);

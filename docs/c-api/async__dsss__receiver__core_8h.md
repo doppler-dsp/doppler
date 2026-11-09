@@ -388,7 +388,7 @@ int dp_async_dsss_receiver_configure_search_raw (
 
 **Returns:**
 
-0 on success, -1 on invalid grid (see dp\_correlator\_configure\_search\_raw). 
+0 on success; DP\_ERR\_INVALID on an invalid grid, DP\_ERR\_MEMORY on a failed allocation (see dp\_correlator\_configure\_search\_raw). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import AsyncDsssReceiver

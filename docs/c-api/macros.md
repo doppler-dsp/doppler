@@ -134,6 +134,7 @@
 * **DP\_ERR\_SEND** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_ERR\_TIMEOUT** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_ERR\_TOO\_LARGE** ([**clib\_common.h**](clib__common_8h.md))
+* **DP\_ERR\_UNSUPPORTED** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_NODISCARD** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_OK** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_FMT** ([**dp\_format.h**](dp__format_8h.md))

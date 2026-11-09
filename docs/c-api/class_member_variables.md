@@ -421,6 +421,7 @@
 * **hop** ([**dp\_psd\_state\_t**](structdp__psd__state__t.md), [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md))
 * **has\_anchor** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
 * **have\_ontime** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
+* **hbin** ([**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
 * **h** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **have\_prev\_idx** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **has\_nc** ([**search\_extra\_t**](structsearch__extra__t.md))

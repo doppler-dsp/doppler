@@ -138,10 +138,20 @@ dp_dsss_burst_receiver_create_desc (
    * The capture takes its preamble as SAMPLES; this receiver is DSSS end to
    * end and takes a PN code, so it maps the chips with dp_bin_to_nrz() (the
    * library's one chip -> +-1 rule) and holds each `spc` samples. */
-  const double    fs  = chip_rate * (double)spc;
-  const size_t    n   = acq_code_len * spc;
-  float          *nrz = dp_xmalloc (acq_code_len * sizeof *nrz);
-  float _Complex *pre = dp_xmalloc (n * sizeof *pre);
+  const double fs  = chip_rate * (double)spc;
+  const size_t n   = acq_code_len * spc;
+  float       *nrz = dp_xmallocn (acq_code_len, sizeof *nrz);
+  /* n is the caller's code length times the caller's spc: a preamble too
+     long to hold is refused, never a short buffer the loop below overruns. */
+  float _Complex *pre = dp_mallocn (n, sizeof *pre);
+  if (!pre)
+    {
+      free (nrz);
+      if (why)
+        *why = "DsssBurstReceiver: the preamble (acq_code_len * spc "
+               "samples) does not fit in memory";
+      goto fail;
+    }
   (void)dp_bin_to_nrz (s->acq_code, acq_code_len, nrz, acq_code_len);
   for (size_t i = 0; i < n; i++)
     pre[i] = nrz[i / spc];
@@ -294,7 +304,7 @@ dsss_br_demod_one (dp_dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
         size_t cap = s->llr_cap ? s->llr_cap * 2u : (s->frame_syms * 4u);
         while (cap < want)
           cap *= 2u;
-        s->llr     = dp_xrealloc (s->llr, cap * sizeof *s->llr);
+        s->llr     = dp_xreallocn (s->llr, cap, sizeof *s->llr);
         s->llr_cap = cap;
       }
     if (s->llr_len + s->frame_syms <= s->llr_cap)
@@ -307,7 +317,7 @@ dsss_br_demod_one (dp_dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
   if (s->ev_len == s->ev_cap)
     {
       size_t cap = s->ev_cap ? s->ev_cap * 2u : 8u;
-      s->ev      = dp_xrealloc (s->ev, cap * sizeof *s->ev);
+      s->ev      = dp_xreallocn (s->ev, cap, sizeof *s->ev);
       s->ev_cap  = cap;
     }
   {

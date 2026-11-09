@@ -22,7 +22,7 @@
 #ifndef DP_PARALLEL_H
 #define DP_PARALLEL_H
 
-#include "doppler/clib_common.h" /* dp_xmalloc / dp_xcalloc */
+#include "doppler/clib_common.h" /* dp_mallocn / dp_xmallocn / dp_xcalloc */
 #include "doppler/dp_thread.h"
 #include <stdatomic.h>
 #include <stddef.h>
@@ -110,8 +110,9 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
   /* Spawn nt-1 helpers; the caller is the nt-th worker. A malloc or
    * A thread-create failure just leaves fewer (or zero) helpers — the caller's
    * own dp_pf_worker() below still drains everything left on the cursor. */
-  dp_thread_t *th      = (dp_thread_t *)malloc ((size_t)(nt - 1) * sizeof *th);
-  int        spawned = 0;
+  dp_thread_t *th
+      = (dp_thread_t *)dp_mallocn ((size_t)(nt - 1), sizeof *th);
+  int          spawned = 0;
   if (th)
     for (int t = 0; t < nt - 1; t++)
       {
@@ -225,7 +226,7 @@ dp_pool_create (int max_threads)
   atomic_init (&p->work.next, (size_t)0);
   if (nt > 1)
     {
-      p->th = (dp_thread_t *)dp_xmalloc ((size_t)(nt - 1) * sizeof *p->th);
+      p->th = (dp_thread_t *)dp_xmallocn ((size_t)(nt - 1), sizeof *p->th);
       for (int t = 0; t < nt - 1; t++)
         {
           if (dp_thread_create (&p->th[t], dp_pool_worker, p) != 0)

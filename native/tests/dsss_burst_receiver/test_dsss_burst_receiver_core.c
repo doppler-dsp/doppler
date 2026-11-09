@@ -22,6 +22,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1583,6 +1584,27 @@ test_one_frame_two_spellings_of_its_description (void)
   return same_receivers (cap, 50000);
 }
 
+/* A preamble too long to hold is refused, not built short. The preamble the
+ * receiver hands its capture is acq_code_len * spc samples; with an spc that
+ * puts that count's BYTE size past SIZE_MAX, the size product used to wrap to
+ * a small buffer that the chip-hold loop then wrote far past. Every argument
+ * is otherwise valid, so the refusal is the size check's alone, and `why`
+ * says so. */
+static int
+test_refuses_a_preamble_too_long_to_hold (void)
+{
+  wfm_frame_desc_t d;
+  frame_desc (&d);
+  const size_t spc = SIZE_MAX / sizeof (float _Complex) / ACQ_SF + 1u;
+  const char  *why = NULL;
+  dp_dsss_burst_receiver_state_t *r = dp_dsss_burst_receiver_create_desc (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, &d, REPS, spc, 1.0e6, 55.0,
+      0.0, 1e-3, 0.9, 0.0, 0.0, 10, &why);
+  DP_CHECK (r == NULL && why && strstr (why, "does not fit in memory"));
+  dp_dsss_burst_receiver_destroy (r);
+  return 0;
+}
+
 /* A refused description is a NULL receiver whose `why` names the fix, and
  * the bad-parameter refusal speaks through the same channel.
  *
@@ -1708,6 +1730,8 @@ main (void)
   if (test_one_frame_two_spellings_of_its_description ())
     return 1;
   if (test_a_refused_description_names_its_fix ())
+    return 1;
+  if (test_refuses_a_preamble_too_long_to_hold ())
     return 1;
   if (test_silence_yields_no_burst ())
     return 1;

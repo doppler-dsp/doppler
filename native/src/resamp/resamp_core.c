@@ -178,10 +178,7 @@ resamp_create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
     s->delay_cap <<= 1;
   s->delay_mask = s->delay_cap - 1;
   s->delay_head = 0;
-  size_t ring_n;
-  s->delay_buf = dp_size_mul (2, s->delay_cap, &ring_n)
-                     ? calloc (ring_n, sizeof (float _Complex))
-                     : NULL;
+  s->delay_buf  = dp_callocn (2, s->delay_cap, sizeof (float _Complex));
   if (!s->delay_buf)
     {
       free (s->bank);

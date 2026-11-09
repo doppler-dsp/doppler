@@ -26,7 +26,7 @@ native/inc/doppler/ccsds_tm/ccsds_tm_frame.h 1
 native/inc/doppler/doppler_channel/doppler_channel_core.h 1
 native/inc/doppler/dp_parallel.h 1
 native/inc/doppler/frame/frame_core.h 1
-native/src/RateConverter/RateConverter_core.c 4
+native/src/RateConverter/RateConverter_core.c 3
 native/src/acc_cf64/acc_cf64_core.c 1
 native/src/acc_f32/acc_f32_core.c 1
 native/src/acc_q15/acc_q15_core.c 1
@@ -49,7 +49,7 @@ native/src/correlator/correlator_core.c 38  # caller-sized: a hypothesis bank's 
 native/src/costas/costas_core.c 1
 native/src/ddc/ddc_core.c 1
 native/src/ddcr/ddcr_core.c 1
-native/src/delay/delay_core.c 2
+native/src/delay/delay_core.c 1
 native/src/despreader/despreader_core.c 3
 native/src/dll/dll_core.c 9
 native/src/dp_interrupt_guard/dp_interrupt_guard_core.c 1
@@ -64,12 +64,12 @@ native/src/farrow/farrow_core.c 1
 native/src/fft/fft_core.c 1
 native/src/fft/pocketfft.c 6
 native/src/fft2d/fft2d_core.c 1
-native/src/fir/fir_core.c 5
+native/src/fir/fir_core.c 4
 native/src/frame/frame_core.c 1  # caller-sized: add_hex expands 4*strlen(hex)
 native/src/frame_meter/frame_meter_core.c 1
 native/src/gold/gold_core.c 1
-native/src/hbdecim/hbdecim_core.c 3
-native/src/hbdecim_q15/hbdecim_q15_core.c 5
+native/src/hbdecim/hbdecim_core.c 1
+native/src/hbdecim_q15/hbdecim_q15_core.c 1
 native/src/i16_to_f32/i16_to_f32_core.c 1
 native/src/i16u32_to_f32/i16u32_to_f32_core.c 1
 native/src/i16u64_to_f32/i16u64_to_f32_core.c 1
@@ -88,8 +88,8 @@ native/src/pn/pn_core.c 1
 native/src/ppe/ppe_core.c 1
 native/src/psd/psd_core.c 6
 native/src/ratesync/ratesync_core.c 1
-native/src/resamp/resamp_core.c 5
-native/src/resample/hbdecim_r2c_core.c 3
+native/src/resamp/resamp_core.c 4
+native/src/resample/hbdecim_r2c_core.c 1
 native/src/rs_codec/rs_codec_core.c 1
 native/src/specan/specan_core.c 5
 native/src/spectral/find_peaks_f32.c 1

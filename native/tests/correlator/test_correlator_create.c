@@ -1353,26 +1353,32 @@ test_out_refusals_are_named (void)
                             "frame")
                    == 0);
   why = NULL;
-  DP_CHECK (
-      dp_correlator_bank_power_max (c, x, 31, 1, 0, 0, NULL, 0, f, u, 30, &why)
-      == SIZE_MAX);
+  /* A bank's refused argument says DP_ERR_INVALID in *status, the cause
+     the binding switches on (just-makeit#2584). */
+  int status = 0;
+  DP_CHECK (dp_correlator_bank_power_max (c, x, 31, 1, 0, 0, NULL, 0, f, u, 30,
+                                          &status, &why)
+            == SIZE_MAX);
+  DP_CHECK (status == DP_ERR_INVALID);
   DP_CHECK (why
             && strcmp (why, "bank_power_max: out= must hold one map (n_out "
                             "values)")
                    == 0);
   why = NULL;
   int32_t i32[62];
+  status = 0;
   DP_CHECK (dp_correlator_bank_detect (c, x, 31, 1, 1, 0, 0, 0.0f, 0.0f, NULL,
-                                       0, f, i32, u, u2, u2, 30, &why)
+                                       0, f, i32, u, u2, u2, 30, &status, &why)
             == SIZE_MAX);
+  DP_CHECK (status == DP_ERR_INVALID);
   DP_CHECK (why
             && strcmp (why, "bank_detect: out= must hold one record per map "
                             "cell")
                    == 0);
   why = NULL;
-  DP_CHECK (
-      dp_correlator_bank_power_max (c, x, 30, 1, 0, 0, NULL, 0, f, u, 31, &why)
-      == SIZE_MAX);
+  DP_CHECK (dp_correlator_bank_power_max (c, x, 30, 1, 0, 0, NULL, 0, f, u, 31,
+                                          NULL, &why)
+            == SIZE_MAX);
   DP_CHECK (why
             && strcmp (why, "bank_power_max: takes exactly one frame (ny*nx "
                             "samples)")
@@ -1384,6 +1390,29 @@ test_out_refusals_are_named (void)
   why = NULL;
   DP_CHECK (dp_correlator_execute_all (d, x, 62, z, 62, &why) == SIZE_MAX);
   DP_CHECK (why == NULL);
+  /* Off a map a bank says DP_ERR_UNSUPPORTED, its sentence the binding's. */
+  status = 0;
+  DP_CHECK (dp_correlator_bank_power_max (d, x, 31, 1, 0, 0, NULL, 0, f, u, 31,
+                                          &status, &why)
+                == SIZE_MAX
+            && status == DP_ERR_UNSUPPORTED && why == NULL);
+  status = 0;
+  DP_CHECK (dp_correlator_bank_detect (d, x, 31, 1, 1, 0, 0, 0.0f, 0.0f, NULL,
+                                       0, f, i32, u, u2, u2, 31, &status, &why)
+                == SIZE_MAX
+            && status == DP_ERR_UNSUPPORTED && why == NULL);
+  /* A call that succeeds leaves *status as it was. */
+  status = 12345;
+  DP_CHECK (dp_correlator_bank_power_max (c, x, 31, 1, 0, 0, NULL, 0, f, u, 31,
+                                          &status, &why)
+                == 31
+            && status == 12345);
+  status = 12345;
+  DP_CHECK (dp_correlator_bank_detect (c, x, 31, 1, 1, 0, 0, 1e30f, 1e30f,
+                                       NULL, 0, f, i32, u, u2, u2, 31, &status,
+                                       &why)
+                == 0
+            && status == 12345);
   dp_correlator_destroy (d);
   dp_correlator_destroy (c);
   return 0;

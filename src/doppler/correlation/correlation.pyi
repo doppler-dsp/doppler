@@ -630,31 +630,34 @@ class Correlator:
         refusal is dp_correlator_bank_fold()'s; in addition max_out below
         `n_out` is refused with nothing written.
 
-        As dp_correlator_bank_fold().
-
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            One frame, x_len samples.
         L : int
-            Input.
+            Fractions per whole bin; at least 1.
         g_min : int
-            Input.
+            Lowest carrier, in units of `1 / (L * nx)` cycles/sample.
         g_max : int
-            Input.
+            Highest carrier; at least g_min.
         rates : npt.NDArray[np.complex64]
-            Input.
+            Per-period weights, R vectors of ny, or empty (NULL with rates_len
+            0 in C) for one unit vector.
 
         Returns
         -------
         tuple[NDArray[np.float32], NDArray[np.uint32]]
             Python: the tuple (power, index), each (n_out,): float32 powers and
             uint32 hypothesis indices, always new arrays (this call takes no
-            `out=`); a refusal is a ValueError. C: `n_out`, or SIZE_MAX with
-            nothing written.
+            `out=`); out of memory is a MemoryError, any other refusal a
+            ValueError. C: `n_out`, or SIZE_MAX with nothing written.
 
         Raises
         ------
+        MemoryError
+            If the C call refuses and reports ``DP_ERR_MEMORY`` in ``*status``.
+            The exception message is the reason the C call gives, or
+            ``bank_power_max: out of memory`` when it gives none.
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
             a count. The exception message is the reason the C call gives, or
@@ -750,14 +753,19 @@ class Correlator:
             Python: the tuple (power, g, rate, row, col), one entry per
             confirmed record (possibly none): float32 refined power, int32
             refined carrier, uint32 rate, row and column, always new arrays
-            (this call takes no `out=`); anything below is a ValueError. C: the
-            record count (0 included), or SIZE_MAX with nothing written for
-            anything dp_correlator_bank_fold() refuses, `L_d == 0`, an L_r that
-            L_d does not divide, a refined carrier past int32, or max_out below
-            `n_out`.
+            (this call takes no `out=`); out of memory is a MemoryError, and
+            anything else below a ValueError. C: the record count (0 included),
+            or SIZE_MAX with nothing written for anything
+            dp_correlator_bank_fold() refuses, `L_d == 0`, an L_r that L_d does
+            not divide, a refined carrier past int32, max_out below `n_out`, or
+            memory for the detector's work or the refine's scratch.
 
         Raises
         ------
+        MemoryError
+            If the C call refuses and reports ``DP_ERR_MEMORY`` in ``*status``.
+            The exception message is the reason the C call gives, or
+            ``bank_detect: out of memory`` when it gives none.
         ValueError
             If the C call returns ``SIZE_MAX``, its refusal value, in place of
             a count. The exception message is the reason the C call gives, or

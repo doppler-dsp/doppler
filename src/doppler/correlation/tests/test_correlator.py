@@ -523,32 +523,74 @@ def test_set_telemetry_names_a_zero_decim():
         _cont().set_telemetry(Telemetry(1 << 12), "acq", 0)
 
 
-# The refine stage of bank_detect runs the time-domain bank at L_r, one
-# carrier, wherever the direct refine does not apply (a padded map). Its
-# scratch is L_r x n: under a cap that cannot hold it, the refusal names
-# the refine's scratch, never "only a map" (that is the off-flavor
-# sentence, and this is a map). The exception type becomes MemoryError at
-# just-makeit#2584's pin; the sentence is pinned here now.
-_REFINE_OOM_SETUP = """
+# A bank that cannot allocate raises MemoryError with the sentence naming
+# what it could not hold (the kernel's DP_ERR_MEMORY, through
+# just-makeit#2584's status_out), never "only a map": that is the
+# off-flavor sentence, and this is a map. The coarse bank's scratch holds
+# L fractions of the frame's spectrum, so L = 2^20 cannot fit the cap. The
+# refine stage of bank_detect runs the time-domain bank at L_r, one carrier,
+# wherever the direct refine does not apply (a padded map): its scratch is
+# L_r x n, so a coarse L_d = 1 fits and L_r = 2^20 does not.
+_BANK_OOM_SETUP = """
 import numpy as np
 from doppler.correlation import Correlator
 from doppler.wfm import PN, mls_poly
 
 chips = np.asarray(PN(poly=mls_poly(5), seed=1, length=5).generate(31))
 nrz = np.where(chips & 1, -1, 1).astype(np.complex64)
-c = Correlator(nrz, nx_out=64)
+c = Correlator(nrz, nx_out={nx_out})
 """
 
 
+_EMPTY_RATES = " np.empty(0, np.complex64))"
+
+
+#: A 64-lag map, under the harness's default 2 MiB headroom.
+_SMALL = (64, 2 << 20)
+#: A 4M-cell map: the binding's five record arrays (80 MiB) fit an 88 MiB
+#: headroom and the kernel's own 16 MiB power map then does not (measured:
+#: 84 to 96 MiB all reach it).
+_WORK = (1 << 22, 88 << 20)
+
+
 @linux_only
-def test_a_refine_that_cannot_allocate_names_the_refine() -> None:
+@pytest.mark.parametrize(
+    ("shape", "call", "sentence"),
+    [
+        (
+            _SMALL,
+            "c.bank_power_max(nrz, 1 << 20, 0, 0," + _EMPTY_RATES,
+            "bank_power_max: the bank's scratch could not be allocated "
+            "(out of memory)",
+        ),
+        (
+            _SMALL,
+            "c.bank_detect(nrz, 1 << 20, 1 << 20, 0, 0, 0.0, 0.0,"
+            + _EMPTY_RATES,
+            "bank_detect: the bank's scratch could not be allocated "
+            "(out of memory)",
+        ),
+        (
+            _SMALL,
+            "c.bank_detect(nrz, 1, 1 << 20, 0, 0, 0.0, 0.0," + _EMPTY_RATES,
+            "bank_detect: the refine's scratch could not be allocated "
+            "(out of memory)",
+        ),
+        (
+            _WORK,
+            "c.bank_detect(nrz, 1, 1, 0, 0, 0.0, 0.0," + _EMPTY_RATES,
+            "bank_detect: the detector's work buffers could not be "
+            "allocated (out of memory)",
+        ),
+    ],
+    ids=["power_max", "detect_coarse", "detect_refine", "detect_work"],
+)
+def test_a_bank_that_cannot_allocate_raises_memoryerror(
+    shape: tuple[int, int], call: str, sentence: str
+) -> None:
+    nx_out, headroom = shape
     r = run_capped(
-        _REFINE_OOM_SETUP,
-        "c.bank_detect(nrz, 1, 1 << 20, 0, 0, 0.0, 0.0,"
-        " np.empty(0, np.complex64))",
+        _BANK_OOM_SETUP.format(nx_out=nx_out), call, headroom=headroom
     )
     assert r.returncode == 0, r.stderr[-2000:]
-    assert r.stdout.splitlines()[0] == (
-        "ValueError: bank_detect: the refine's scratch could not be "
-        "allocated (out of memory)"
-    )
+    assert r.stdout.splitlines()[0] == "MemoryError: " + sentence

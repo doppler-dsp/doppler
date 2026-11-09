@@ -2262,13 +2262,34 @@ dp_correlator_bank_power_max_max_out (dp_correlator_state_t *state,
   return state->n_out;
 }
 
+/* A bank refusal, said once: its status (just-makeit#2584), memory being
+   DP_ERR_MEMORY and every other cause the caller's argument, and its
+   sentence. Both outputs may be NULL; SIZE_MAX always. */
+static size_t
+bank_refuse (int status_code, const char *sentence, int *status,
+             const char **why)
+{
+  if (status)
+    *status = status_code;
+  if (why)
+    *why = sentence;
+  return SIZE_MAX;
+}
+
+/* The status of a bank cause: only the scratch's allocation is memory. */
+static int
+bank_status (int cause)
+{
+  return cause == BANK_SCRATCH_MEMORY ? DP_ERR_MEMORY : DP_ERR_INVALID;
+}
+
 size_t
 dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                               const float _Complex *x, size_t x_len, size_t L,
                               int g_min, int g_max,
                               const float _Complex *rates, size_t rates_len,
                               float *out, uint32_t *out1, size_t max_out,
-                              const char **why)
+                              int *status, const char **why)
 {
   /* A detector has no bank. Refused here, at each entry, and not in
      corr2d_bank_check: that helper is inlined into all three, and the one
@@ -2276,7 +2297,7 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
      slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
      box). */
   if (!corr2d_is_map (state))
-    return SIZE_MAX;
+    return bank_refuse (DP_ERR_UNSUPPORTED, NULL, status, why);
   static const char *const said[] = {
     [BANK_FRAME] = "bank_power_max: takes exactly one frame (ny*nx samples)",
     [BANK_L]     = "bank_power_max: L must be at least 1",
@@ -2298,20 +2319,12 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
   if (cause == BANK_OK && max_out < state->n_out)
     cause = BANK_OUT;
   if (cause != BANK_OK)
-    {
-      if (why)
-        *why = said[cause];
-      return SIZE_MAX;
-    }
+    return bank_refuse (bank_status (cause), said[cause], status, why);
   b.rates                = rates_len ? rates : NULL;
   corr2d_max_t         c = { out, out1 };
   dp_correlator_fold_t f = { corr2d_fold_power_max, &c };
   if (corr2d_bank_run (state, x, &b, &f, &cause) == SIZE_MAX)
-    {
-      if (why)
-        *why = said[cause];
-      return SIZE_MAX;
-    }
+    return bank_refuse (bank_status (cause), said[cause], status, why);
   return state->n_out;
 }
 
@@ -2397,7 +2410,7 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
                            float t_confirm, const float _Complex *rates,
                            size_t rates_len, float *out, int32_t *out1,
                            uint32_t *out2, uint32_t *out3, uint32_t *out4,
-                           size_t max_out, const char **why)
+                           size_t max_out, int *status, const char **why)
 {
   /* A detector has no bank. Refused here, at each entry, and not in
      corr2d_bank_check: that helper is inlined into all three, and the one
@@ -2405,7 +2418,7 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
      slower on bank_64x512_detect_l2_l4_1t (#2911, bisected on the bench
      box). */
   if (!corr2d_is_map (state))
-    return SIZE_MAX;
+    return bank_refuse (DP_ERR_UNSUPPORTED, NULL, status, why);
   static const char *const said[] = {
     [BANK_FRAME] = "bank_detect: takes exactly one frame (ny*nx samples)",
     [BANK_L]     = "bank_detect: L_d must be at least 1",
@@ -2429,27 +2442,19 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
     cause = BANK_OUT;
   /* L_d == 0 is the check's own BANK_L; a refine factor is the caller's. */
   if (L_d != 0 && (L_r < L_d || L_r % L_d != 0))
-    {
-      if (why)
-        *why = "bank_detect: L_r must be a positive multiple of L_d";
-      return SIZE_MAX;
-    }
+    return bank_refuse (DP_ERR_INVALID,
+                        "bank_detect: L_r must be a positive multiple of L_d",
+                        status, why);
   if (cause != BANK_OK)
-    {
-      if (why)
-        *why = said[cause];
-      return SIZE_MAX;
-    }
+    return bank_refuse (bank_status (cause), said[cause], status, why);
   const long long m = (long long)(L_r / L_d);
   /* every refined carrier must fit the int32 the record carries */
   if ((long long)g_min * m - (m - 1) < INT32_MIN
       || (long long)g_max * m + (m - 1) > INT32_MAX)
-    {
-      if (why)
-        *why = "bank_detect: every refined carrier (g x L_r / L_d) must fit "
-               "an int32";
-      return SIZE_MAX;
-    }
+    return bank_refuse (DP_ERR_INVALID,
+                        "bank_detect: every refined carrier (g x L_r / L_d) "
+                        "must fit an int32",
+                        status, why);
   b.rates            = rates_len ? rates : NULL;
   const size_t n_out = state->n_out, nx = state->nx;
   /* The map's own geometry: a known column is ny rows of one. */
@@ -2458,10 +2463,20 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
   /* The time-domain refine needs whole lags on a shared row stage. */
   const int direct
       = state->fast_path && state->col_out < 0 && state->nx_out == nx;
-  float           *pw   = dp_xmallocn (n_out, sizeof *pw);
-  uint32_t        *ix   = dp_xmallocn (n_out, sizeof *ix);
-  float _Complex  *code = direct ? dp_xmallocn (nx, sizeof *code) : NULL;
-  double _Complex *ph   = direct ? dp_xmallocn (nx, sizeof *ph) : NULL;
+  /* The detector's own work: the coarse map's power and index, and the
+     direct refine's code and phase. Out of memory is a refusal. */
+  float           *pw   = dp_mallocn (n_out, sizeof *pw);
+  uint32_t        *ix   = dp_mallocn (n_out, sizeof *ix);
+  float _Complex  *code = direct ? dp_mallocn (nx, sizeof *code) : NULL;
+  double _Complex *ph   = direct ? dp_mallocn (nx, sizeof *ph) : NULL;
+  if (!pw || !ix || (direct && (!code || !ph)))
+    {
+      free (pw), free (ix), free (code), free (ph);
+      return bank_refuse (DP_ERR_MEMORY,
+                          "bank_detect: the detector's work buffers could "
+                          "not be allocated (out of memory)",
+                          status, why);
+    }
   /* 1. Detect: the strongest cell over the coarse bank, and which carrier
      and rate it came from. */
   corr2d_max_t         c = { pw, ix };
@@ -2469,9 +2484,7 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
   if (corr2d_bank_run (state, x, &b, &f, &cause) == SIZE_MAX)
     {
       free (pw), free (ix), free (code), free (ph);
-      if (why)
-        *why = said[cause];
-      return SIZE_MAX;
+      return bank_refuse (bank_status (cause), said[cause], status, why);
     }
   if (direct)
     {
@@ -2553,15 +2566,17 @@ dp_correlator_bank_detect (const dp_correlator_state_t *state,
       nrec++;
     }
   free (pw), free (ix), free (code), free (ph);
-  if (!ok && why)
+  if (!ok)
     /* The refine's scratch is the time-domain bank at L_r, one carrier:
        L_r x n the caller chose, or memory. */
-    *why = cause == BANK_SCRATCH_L
-               ? "bank_detect: L_r asks for more fractions than the "
-                 "refine's scratch can hold"
-               : "bank_detect: the refine's scratch could not be allocated "
-                 "(out of memory)";
-  return ok ? nrec : SIZE_MAX;
+    return bank_refuse (bank_status (cause),
+                        cause == BANK_SCRATCH_L
+                            ? "bank_detect: L_r asks for more fractions than "
+                              "the refine's scratch can hold"
+                            : "bank_detect: the refine's scratch could not "
+                              "be allocated (out of memory)",
+                        status, why);
+  return nrec;
 }
 
 /* ── The one delay-Doppler block map (#2752 step 2, correlator_map.h)

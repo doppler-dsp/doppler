@@ -137,11 +137,8 @@ dp_hbdecim_r2c_create (size_t num_taps, const float *h)
   r->even_mask = r->even_cap - 1;
 
   /* Two copies of the ring, so any window is contiguous. */
-  size_t ring_n;
-  if (!dp_size_mul (2, r->even_cap, &ring_n))
-    goto fail;
-  r->even_buf = calloc (ring_n, sizeof (float));
-  r->odd_buf  = calloc (ring_n, sizeof (float));
+  r->even_buf = dp_callocn (2, r->even_cap, sizeof (float));
+  r->odd_buf  = dp_callocn (2, r->even_cap, sizeof (float));
   if (!r->even_buf || !r->odd_buf)
     goto fail;
 

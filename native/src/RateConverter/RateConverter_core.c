@@ -325,10 +325,7 @@ rc_build_bank (int pulse, double beta, double sps, size_t span,
   size_t raw = (size_t)ceil ((2.0 * support + 1.0 / sps) * sps) + 1u;
   size_t nt  = comp ? raw + n_comp - 1u : raw;
 
-  size_t bank_n;
-  if (!dp_size_mul (num_phases, nt, &bank_n))
-    return NULL;
-  float *bank = (float *)calloc (bank_n, sizeof (float));
+  float *bank = (float *)dp_callocn (num_phases, nt, sizeof (float));
   if (!bank)
     return NULL;
 

@@ -51,6 +51,7 @@
 #include "dp_test.h"
 #include <float.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -868,6 +869,10 @@ lifecycle_rejects (void)
     ok = 0; /* rate NaN: `rate <= 0` let it through (doppler#2640) */
   if (dp_resamp_create_custom (2, 2, ok_bank, INFINITY) != NULL)
     ok = 0; /* rate infinite   */
+  /* A power-of-two phase count whose bank size num_phases * num_taps wraps:
+     refused, not copied into a short buffer. */
+  if (dp_resamp_create_custom (SIZE_MAX / 2 + 1, 2, ok_bank, 1.0) != NULL)
+    ok = 0; /* bank size wraps */
 
   /* The built-in constructor checked nothing at all (doppler#2640). */
   const double bad[] = { 0.0, -1.0, -0.5, NAN, INFINITY, -INFINITY };

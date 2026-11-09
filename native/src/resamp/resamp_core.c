@@ -70,7 +70,10 @@ resamp_build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
       g[i]       = w * wc / M_PI * s * (double)num_phases;
     }
 
-  float *bank = malloc (num_phases * num_taps * sizeof (float));
+  size_t bank_n;
+  float *bank = dp_size_mul (num_phases, num_taps, &bank_n)
+                    ? dp_mallocn (bank_n, sizeof (float))
+                    : NULL;
   if (!bank)
     {
       free (g);
@@ -175,7 +178,10 @@ resamp_create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
     s->delay_cap <<= 1;
   s->delay_mask = s->delay_cap - 1;
   s->delay_head = 0;
-  s->delay_buf  = calloc (2 * s->delay_cap, sizeof (float _Complex));
+  size_t ring_n;
+  s->delay_buf = dp_size_mul (2, s->delay_cap, &ring_n)
+                     ? calloc (ring_n, sizeof (float _Complex))
+                     : NULL;
   if (!s->delay_buf)
     {
       free (s->bank);
@@ -243,8 +249,10 @@ dp_resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
       || !bank || !dp_resamp_rate_ok (rate))
     return NULL;
 
-  size_t len = num_phases * num_taps;
-  float *b   = malloc (len * sizeof (float));
+  size_t len;
+  if (!dp_size_mul (num_phases, num_taps, &len))
+    return NULL;
+  float *b = dp_mallocn (len, sizeof (float));
   if (!b)
     return NULL;
   memcpy (b, bank, len * sizeof (float));

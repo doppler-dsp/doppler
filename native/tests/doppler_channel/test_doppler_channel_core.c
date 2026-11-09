@@ -611,6 +611,26 @@ main (void)
       dp_doppler_channel_destroy (ch);
     }
 
+    /* 8c3. A max_out whose position scratch cannot be sized in a size_t is
+       refused, not wrapped: 2^(w-3) doubles is 2^w bytes, which used to
+       wrap to a 0-byte scratch the kernel then wrote one position per
+       output into. Nothing is produced and the clocks stay put. The output
+       buffer is small on purpose -- the capacity is a lie the channel must
+       catch before it writes. */
+    {
+      const size_t                m = 8u;
+      dp_doppler_channel_state_t *ch
+          = dp_doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
+      float _Complex y[64];
+      const size_t lie = SIZE_MAX / sizeof (double) + 1u;
+      DP_CHECK (ch != NULL);
+      DP_CHECK (dp_doppler_channel_execute_profile (ch, xs, m, ppm, m, y, lie)
+                == DP_ERR_INVALID);
+      DP_CHECK (dp_doppler_channel_get_elapsed_s (ch) == 0.0);
+      DP_CHECK (dp_doppler_channel_consumed (ch) == 0u);
+      dp_doppler_channel_destroy (ch);
+    }
+
     /* 8d. A mid-stream split resumes bit-exact through the blob, and the
        restored stream still reports the profile's last d. */
     {

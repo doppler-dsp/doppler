@@ -325,7 +325,10 @@ rc_build_bank (int pulse, double beta, double sps, size_t span,
   size_t raw = (size_t)ceil ((2.0 * support + 1.0 / sps) * sps) + 1u;
   size_t nt  = comp ? raw + n_comp - 1u : raw;
 
-  float *bank = (float *)calloc (num_phases * nt, sizeof (float));
+  size_t bank_n;
+  if (!dp_size_mul (num_phases, nt, &bank_n))
+    return NULL;
+  float *bank = (float *)calloc (bank_n, sizeof (float));
   if (!bank)
     return NULL;
 
@@ -1064,8 +1067,10 @@ dp_RateConverter_execute (dp_RateConverter_state_t *s,
     {
       free (s->bufs[0]);
       free (s->bufs[1]);
-      s->bufs[0] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
-      s->bufs[1] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
+      s->bufs[0]
+          = (float _Complex *)dp_mallocn (n_in, sizeof (float _Complex));
+      s->bufs[1]
+          = (float _Complex *)dp_mallocn (n_in, sizeof (float _Complex));
       if (!s->bufs[0] || !s->bufs[1])
         {
           free (s->bufs[0]);
@@ -1137,8 +1142,10 @@ dp_RateConverter_execute_ctrl (dp_RateConverter_state_t *s,
     {
       free (s->bufs[0]);
       free (s->bufs[1]);
-      s->bufs[0] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
-      s->bufs[1] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
+      s->bufs[0]
+          = (float _Complex *)dp_mallocn (n_in, sizeof (float _Complex));
+      s->bufs[1]
+          = (float _Complex *)dp_mallocn (n_in, sizeof (float _Complex));
       if (!s->bufs[0] || !s->bufs[1])
         {
           free (s->bufs[0]);

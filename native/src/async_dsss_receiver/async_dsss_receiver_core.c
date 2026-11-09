@@ -598,8 +598,11 @@ adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
  * concurrently) and run adr_refine_period() on each complete one, up to
  * the period the refine decides in. The rest of the call is the tracking
  * chain's: steps() feeds it the tail, so folding it here too would pay for
- * those samples twice (#2395). */
-static void
+ * those samples twice (#2395). Returns how many of x the refine took: all
+ * of them until it decides, up to the end of the period it decides in on
+ * that call, and none after. When that period straddled calls it is left
+ * whole in car_carry_buf, which the hand-over reaches back into. */
+static size_t
 adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
                     size_t x_len)
 {
@@ -613,7 +616,7 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
       s->car_carry_len += take;
       pos = take;
       if (s->car_carry_len < s->tsamps)
-        return;
+        return pos;
       adr_refine_period (s, s->car_carry_buf);
       s->refine_periods++;
       s->car_carry_len = 0;
@@ -633,12 +636,13 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
   if (adr_refine_decided (s))
     {
       s->car_carry_len = 0;
-      return;
+      return pos;
     }
   size_t leftover = x_len - pos;
   if (leftover > 0)
     memcpy (s->car_carry_buf, x + pos, leftover * sizeof (*x));
   s->car_carry_len = leftover;
+  return x_len;
 }
 
 /* One carrier-wiped code period through dll -> ONE costas_update() call per
@@ -1710,9 +1714,9 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
 
   if (state->state == ASYNC_DSSS_RX_REFINING)
     {
-      uint64_t before = state->refine_samples_fed;
+      const uint64_t before = state->refine_samples_fed; /* x[0]'s index */
       state->refine_samples_fed += x_len;
-      adr_process_refine (state, x, x_len);
+      const size_t taken = adr_process_refine (state, x, x_len);
 
       dp_carrier_acq_state_t *ca = state->ca;
       if (!adr_refine_decided (state))
@@ -1767,18 +1771,49 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
       samples_consumed_refine
           = (uint64_t)ceil (n_periods_consumed * period - 1e-9);
 
-      /* Only a tail within THIS call's own x can be safely recovered --
-       * a prior call's buffer is already gone (the same rule
-       * dsss_receiver_core.c's own search->track transition follows).
-       * If the estimate implies more was unused than this call
-       * provided, there's nothing left to recover; start tracking from
-       * zero backlog rather than guess. */
-      uint64_t fed_total = before + (uint64_t)x_len;
-      uint64_t unused    = (fed_total > samples_consumed_refine)
-                               ? (fed_total - samples_consumed_refine)
-                               : 0;
-      size_t   tail_len  = (unused > (uint64_t)x_len) ? 0 : (size_t)unused;
-      const float _Complex *tail = x + (x_len - tail_len);
+      /* The live chain starts there whatever the chunking (#2974), so no
+       * earlier than the input the receiver holds at EVERY chunking: the
+       * period the refine decided in. It is in this call, or, when it
+       * straddled calls, its head is the carry's first tsamps - taken
+       * samples; a call that took nothing (the refine decided before it)
+       * holds only its own. The estimate above ignores the refine chain's
+       * lag (the Dll's framing and the RateConverter's), so the refine can
+       * decide past it -- 7 samples past at 2.5 samples a chip, where a
+       * call shorter than that left the start in a buffer already gone and
+       * the live chain began late. A start before the held input moves on
+       * to the first whole period inside it. A start past the input so far
+       * is waited for, the refine decided and the receiver still refining,
+       * where starting at once began the live chain early (16 samples at
+       * 3.5 samples a chip) against a phase computed for the start. Fed
+       * whole, the start moves only where the estimate falls before the
+       * decided period. */
+      const uint64_t fed_total = state->refine_samples_fed;
+      const size_t   behind
+          = taken && taken < state->tsamps ? state->tsamps - taken : 0;
+      uint64_t held = before;
+      if (taken)
+        held = before + taken > state->tsamps ? before + taken - state->tsamps
+                                              : 0;
+      const uint64_t held_start = (uint64_t)ceil (
+          ceil ((double)held / period - 1e-9) * period - 1e-9);
+      if (samples_consumed_refine < held_start)
+        samples_consumed_refine = held_start;
+      if (samples_consumed_refine > fed_total)
+        return 0; /* the live chain's first sample is still to come */
+      const size_t tail_len = (size_t)(fed_total - samples_consumed_refine);
+      const float _Complex *tail = x + x_len - tail_len;
+      float _Complex       *join = NULL;
+      if (tail_len > x_len)
+        {
+          /* Behind this call: the decided period's head, the carry's first
+             `behind` samples, which end at x[0]. */
+          const size_t need = tail_len - x_len;
+          join              = dp_xmallocn (tail_len, sizeof *join);
+          memcpy (join, state->car_carry_buf + behind - need,
+                  need * sizeof *join);
+          memcpy (join + need, x, x_len * sizeof *join);
+          tail = join;
+        }
 
       /* The code phase the live chain starts from: the seed's, ADVANCED by
        * the clock dilation over the refine. A whole number of periods is
@@ -1822,16 +1857,18 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           state->doppler_hz_est      = 0.0;
           adr_restart_search (state, state->samples_in - tail_len);
           adr_enter (state, adr_unheld (state));
-          return adr_steps (state, tail, tail_len, out, max_out);
         }
-      adr_rebuild_track_chain (state, handover_chip_phase,
-                               refined_doppler_hz_est, state->segments,
-                               state->sps, state->n);
-
-      adr_enter (state, ASYNC_DSSS_RX_TRACKING);
-      state->doppler_hz_est = refined_doppler_hz_est;
-
-      return adr_steps (state, tail, tail_len, out, max_out);
+      else
+        {
+          adr_rebuild_track_chain (state, handover_chip_phase,
+                                   refined_doppler_hz_est, state->segments,
+                                   state->sps, state->n);
+          adr_enter (state, ASYNC_DSSS_RX_TRACKING);
+          state->doppler_hz_est = refined_doppler_hz_est;
+        }
+      const size_t n_out = adr_steps (state, tail, tail_len, out, max_out);
+      free (join);
+      return n_out;
     }
 
   size_t n_out = adr_track_chain (state, x, x_len, out, max_out);

@@ -1642,19 +1642,31 @@ size_t dp_correlator_bank_power_max_max_out (dp_correlator_state_t *state,
  * is dp_correlator_bank_fold()'s; in addition @p max_out below `n_out` is
  * refused with nothing written.
  *
- * @param state, x, x_len, L, g_min, g_max, rates, rates_len
- *                  As dp_correlator_bank_fold().
+ * @param state      The map; a detector is refused.
+ * @param x          One frame, @p x_len samples.
+ * @param x_len      Must be exactly `ny * nx`.
+ * @param L          Fractions per whole bin; at least 1.
+ * @param g_min      Lowest carrier, in units of `1 / (L * nx)` cycles/sample.
+ * @param g_max      Highest carrier; at least @p g_min.
+ * @param rates      Per-period weights, R vectors of ny, or empty (NULL with
+ *                   @p rates_len 0 in C) for one unit vector.
+ * @param rates_len  A whole multiple of ny, 0 included.
  * @param out       `n_out` powers.
  * @param out1      `n_out` hypothesis indices.
  * @param max_out   Capacity of each output; at least `n_out`.
+ * @param status  Where the refusal's cause goes (just-makeit#2584); may be
+ *              NULL. `DP_ERR_MEMORY` when memory ran out (Python:
+ *              MemoryError), `DP_ERR_UNSUPPORTED` off the flavors that
+ *              serve the call, `DP_ERR_INVALID` for a refused argument.
+ *              Untouched on success.
  * @param why   Where the refusal's sentence goes, naming the argument it
  *              refused; may be NULL. A static string, never freed. Off the
  *              flavors that serve the call it stays NULL (the binding then
  *              raises the declared "only" sentence; just-makeit#2574).
  * @return Python: the tuple (power, index), each (n_out,): float32 powers
  *         and uint32 hypothesis indices, always new arrays (this call takes
- *         no `out=`); a refusal is a ValueError.  C: `n_out`, or SIZE_MAX
- *         with nothing written.
+ *         no `out=`); out of memory is a MemoryError, any other refusal
+ *         a ValueError.  C: `n_out`, or SIZE_MAX with nothing written.
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator
@@ -1677,7 +1689,8 @@ size_t dp_correlator_bank_power_max (const dp_correlator_state_t *state,
                                  size_t L, int g_min, int g_max,
                                  const float _Complex *rates,
                                  size_t rates_len, float *out, uint32_t *out1,
-                                 size_t max_out, const char **why);
+                                 size_t max_out, int *status,
+                                 const char **why);
 
 /**
  * @brief Capacity dp_correlator_bank_detect() needs: one record per map cell.
@@ -1734,6 +1747,11 @@ size_t dp_correlator_bank_detect_max_out (dp_correlator_state_t *state,
  * @param out3         Rows.
  * @param out4         Columns.
  * @param max_out      Capacity of each output; at least `n_out`.
+ * @param status  Where the refusal's cause goes (just-makeit#2584); may be
+ *              NULL. `DP_ERR_MEMORY` when memory ran out (Python:
+ *              MemoryError), `DP_ERR_UNSUPPORTED` off the flavors that
+ *              serve the call, `DP_ERR_INVALID` for a refused argument.
+ *              Untouched on success.
  * @param why   Where the refusal's sentence goes, naming the argument it
  *              refused; may be NULL. A static string, never freed. Off the
  *              flavors that serve the call it stays NULL (the binding then
@@ -1741,11 +1759,13 @@ size_t dp_correlator_bank_detect_max_out (dp_correlator_state_t *state,
  * @return Python: the tuple (power, g, rate, row, col), one entry per
  *         confirmed record (possibly none): float32 refined power, int32
  *         refined carrier, uint32 rate, row and column, always new arrays
- *         (this call takes no `out=`); anything below is a ValueError.  C: the
- *         record count (0 included), or SIZE_MAX with nothing written for
- *         anything dp_correlator_bank_fold() refuses, `L_d == 0`, an @p L_r that
- *         @p L_d does not divide, a refined carrier past int32, or @p max_out
- *         below `n_out`.
+ *         (this call takes no `out=`); out of memory is a MemoryError, and
+ *         anything else below a ValueError.  C: the record count (0
+ *         included), or SIZE_MAX with nothing written for anything
+ *         dp_correlator_bank_fold() refuses, `L_d == 0`, an @p L_r that
+ *         @p L_d does not divide, a refined carrier past int32, @p max_out
+ *         below `n_out`, or memory for the detector's work or the refine's
+ *         scratch.
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator
@@ -1773,7 +1793,8 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
                               float t_candidate, float t_confirm,
                               const float _Complex *rates, size_t rates_len,
                               float *out, int32_t *out1, uint32_t *out2,
-                              uint32_t *out3, uint32_t *out4, size_t max_out, const char **why);
+                              uint32_t *out3, uint32_t *out4, size_t max_out,
+                              int *status, const char **why);
 
 /* ── Detector flavors ──────────────────────────────────────────────────────
  * The correlator with the stream and detection layers on top

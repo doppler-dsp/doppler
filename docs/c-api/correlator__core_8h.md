@@ -83,10 +83,10 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**dp\_correlator\_bank\_detect**](#function-dp_correlator_bank_detect) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L\_d, size\_t L\_r, int g\_min, int g\_max, float t\_candidate, float t\_confirm, const float \_Complex \* rates, size\_t rates\_len, float \* out, int32\_t \* out1, uint32\_t \* out2, uint32\_t \* out3, uint32\_t \* out4, size\_t max\_out, const char \*\* why) <br>_Detect on a coarse carrier grid, refine each candidate at its own cell on a fine one, and keep what confirms._  |
+|  size\_t | [**dp\_correlator\_bank\_detect**](#function-dp_correlator_bank_detect) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L\_d, size\_t L\_r, int g\_min, int g\_max, float t\_candidate, float t\_confirm, const float \_Complex \* rates, size\_t rates\_len, float \* out, int32\_t \* out1, uint32\_t \* out2, uint32\_t \* out3, uint32\_t \* out4, size\_t max\_out, int \* status, const char \*\* why) <br>_Detect on a coarse carrier grid, refine each candidate at its own cell on a fine one, and keep what confirms._  |
 |  size\_t | [**dp\_correlator\_bank\_detect\_max\_out**](#function-dp_correlator_bank_detect_max_out) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_correlator\_bank\_detect()**_](correlator__core_8h.md#function-dp_correlator_bank_detect) _needs: one record per map cell._ |
 |  size\_t | [**dp\_correlator\_bank\_fold**](#function-dp_correlator_bank_fold) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, const [**dp\_correlator\_fold\_t**](structdp__correlator__fold__t.md) \* fold) <br>_Run one frame through a bank of carrier and rate hypotheses and hand each map to a reducer._  |
-|  size\_t | [**dp\_correlator\_bank\_power\_max**](#function-dp_correlator_bank_power_max) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, float \* out, uint32\_t \* out1, size\_t max\_out, const char \*\* why) <br>_The strongest power at every cell over a bank, and which hypothesis it came from._  |
+|  size\_t | [**dp\_correlator\_bank\_power\_max**](#function-dp_correlator_bank_power_max) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, size\_t L, int g\_min, int g\_max, const float \_Complex \* rates, size\_t rates\_len, float \* out, uint32\_t \* out1, size\_t max\_out, int \* status, const char \*\* why) <br>_The strongest power at every cell over a bank, and which hypothesis it came from._  |
 |  size\_t | [**dp\_correlator\_bank\_power\_max\_max\_out**](#function-dp_correlator_bank_power_max_max_out) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t x\_len) <br>_Capacity_ [_**dp\_correlator\_bank\_power\_max()**_](correlator__core_8h.md#function-dp_correlator_bank_power_max) _needs: one map._ |
 |  size\_t | [**dp\_correlator\_block\_prompt**](#function-dp_correlator_block_prompt) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
 |  size\_t | [**dp\_correlator\_block\_raw**](#function-dp_correlator_block_raw) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
@@ -426,6 +426,7 @@ size_t dp_correlator_bank_detect (
     uint32_t * out3,
     uint32_t * out4,
     size_t max_out,
+    int * status,
     const char ** why
 ) 
 ```
@@ -463,13 +464,14 @@ Records come out in cell order (row-major), one entry of each output per record:
 * `out3` Rows. 
 * `out4` Columns. 
 * `max_out` Capacity of each output; at least `n_out`. 
+* `status` Where the refusal's cause goes (just-makeit#2584); may be NULL. `DP_ERR_MEMORY` when memory ran out (Python: MemoryError), `DP_ERR_UNSUPPORTED` off the flavors that serve the call, `DP_ERR_INVALID` for a refused argument. Untouched on success. 
 * `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
 **Returns:**
 
-Python: the tuple (power, g, rate, row, col), one entry per confirmed record (possibly none): float32 refined power, int32 refined carrier, uint32 rate, row and column, always new arrays (this call takes no `out=`); anything below is a ValueError. C: the record count (0 included), or SIZE\_MAX with nothing written for anything [**dp\_correlator\_bank\_fold()**](correlator__core_8h.md#function-dp_correlator_bank_fold) refuses, `L_d == 0`, an `L_r` that `L_d` does not divide, a refined carrier past int32, or `max_out` below `n_out`. 
+Python: the tuple (power, g, rate, row, col), one entry per confirmed record (possibly none): float32 refined power, int32 refined carrier, uint32 rate, row and column, always new arrays (this call takes no `out=`); out of memory is a MemoryError, and anything else below a ValueError. C: the record count (0 included), or SIZE\_MAX with nothing written for anything [**dp\_correlator\_bank\_fold()**](correlator__core_8h.md#function-dp_correlator_bank_fold) refuses, `L_d == 0`, an `L_r` that `L_d` does not divide, a refined carrier past int32, `max_out` below `n_out`, or memory for the detector's work or the refine's scratch. 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator
@@ -638,6 +640,7 @@ size_t dp_correlator_bank_power_max (
     float * out,
     uint32_t * out1,
     size_t max_out,
+    int * status,
     const char ** why
 ) 
 ```
@@ -652,17 +655,25 @@ size_t dp_correlator_bank_power_max (
 **Parameters:**
 
 
-* `state` As [**dp\_correlator\_bank\_fold()**](correlator__core_8h.md#function-dp_correlator_bank_fold). 
+* `state` The map; a detector is refused. 
+* `x` One frame, `x_len` samples. 
+* `x_len` Must be exactly `ny * nx`. 
+* `L` Fractions per whole bin; at least 1. 
+* `g_min` Lowest carrier, in units of `1 / (L * nx)` cycles/sample. 
+* `g_max` Highest carrier; at least `g_min`. 
+* `rates` Per-period weights, R vectors of ny, or empty (NULL with `rates_len` 0 in C) for one unit vector. 
+* `rates_len` A whole multiple of ny, 0 included. 
 * `out` `n_out` powers. 
 * `out1` `n_out` hypothesis indices. 
 * `max_out` Capacity of each output; at least `n_out`. 
+* `status` Where the refusal's cause goes (just-makeit#2584); may be NULL. `DP_ERR_MEMORY` when memory ran out (Python: MemoryError), `DP_ERR_UNSUPPORTED` off the flavors that serve the call, `DP_ERR_INVALID` for a refused argument. Untouched on success. 
 * `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
 
 **Returns:**
 
-Python: the tuple (power, index), each (n\_out,): float32 powers and uint32 hypothesis indices, always new arrays (this call takes no `out=`); a refusal is a ValueError. C: `n_out`, or SIZE\_MAX with nothing written. 
+Python: the tuple (power, index), each (n\_out,): float32 powers and uint32 hypothesis indices, always new arrays (this call takes no `out=`); out of memory is a MemoryError, any other refusal a ValueError. C: `n_out`, or SIZE\_MAX with nothing written. 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator

@@ -291,6 +291,10 @@ nogil = true
 [[correlator.methods]]
 name = "bank_power_max"
 why = true
+status_out = true
+status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "bank_power_max: out of memory" },
+]
 arg_type = "void"
 return_type = "float"
 variable_output = true
@@ -305,6 +309,10 @@ params = [{name = "x", type = "float _Complex[]"}, {name = "L", type = "size_t"}
 [[correlator.methods]]
 name = "bank_detect"
 why = true
+status_out = true
+status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "bank_detect: out of memory" },
+]
 arg_type = "void"
 return_type = "float"
 variable_output = true

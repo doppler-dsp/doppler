@@ -16,8 +16,13 @@ dp_delay_create (size_t num_taps)
   state->mask     = state->capacity - 1;
   state->head     = 0;
 
-  /* Two copies so any num_taps-length window is always contiguous. */
-  state->buf = dp_callocn (2, state->capacity, sizeof (double _Complex));
+  /* Two copies so any num_taps-length window is always contiguous. A
+     num_taps above 2^(w-1) has no power of two to round to (capacity 0),
+     and one above 2^(w-2) rounds to a ring whose two copies wrap the
+     count: both are refused like the allocation failure they would be. */
+  state->buf = state->capacity
+                   ? dp_callocn (2, state->capacity, sizeof (double _Complex))
+                   : NULL;
   if (!state->buf)
     {
       free (state);

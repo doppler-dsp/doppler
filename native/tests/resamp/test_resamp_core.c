@@ -869,10 +869,6 @@ lifecycle_rejects (void)
     ok = 0; /* rate NaN: `rate <= 0` let it through (doppler#2640) */
   if (dp_resamp_create_custom (2, 2, ok_bank, INFINITY) != NULL)
     ok = 0; /* rate infinite   */
-  /* A power-of-two phase count whose bank size num_phases * num_taps wraps:
-     refused, not copied into a short buffer. */
-  if (dp_resamp_create_custom (SIZE_MAX / 2 + 1, 2, ok_bank, 1.0) != NULL)
-    ok = 0; /* bank size wraps */
 
   /* The built-in constructor checked nothing at all (doppler#2640). */
   const double bad[] = { 0.0, -1.0, -0.5, NAN, INFINITY, -INFINITY };
@@ -1970,6 +1966,25 @@ main (void)
 
   /* ── §14 — destroy(NULL) is a no-op; create_custom rejects ──────────── */
   DP_CHECK (lifecycle_rejects ());
+
+  /* ── §14b — a bank whose size num_phases * num_taps wraps is refused ───
+   * 2^(w-1) phases of 2 taps is 2^w coefficients, which used to wrap to 0:
+   * a 0-byte copy create_custom() accepted, and the first execute read arms
+   * past it. The preconditions put the count past the other guards: it is a
+   * power of two, so the arm-count guard lets it through, and the product
+   * really wraps. The positive control is the same bank, taps and rate at 2
+   * phases, which builds. Sabotage, red: a plain `num_phases * num_taps`
+   * (returns a live state for the wrapped bank). */
+  {
+    const float  bank4[4] = { 1.0f, 0.0f, 1.0f, 0.0f };
+    const size_t phases   = SIZE_MAX / 2 + 1;
+    DP_REQUIRE ((phases & (phases - 1u)) == 0u);
+    DP_REQUIRE (phases * 2u == 0u);
+    resamp_state_t *sane = dp_resamp_create_custom (2, 2, bank4, 1.0);
+    DP_REQUIRE (sane != NULL);
+    dp_resamp_destroy (sane);
+    DP_CHECK (dp_resamp_create_custom (phases, 2, bank4, 1.0) == NULL);
+  }
   DP_CHECK (non_power_of_two_phases_refused ());
   DP_CHECK (crossing_set_rate_is_a_fresh_create ());
   DP_CHECK (builtin_bank_uses_public_kaiser ());

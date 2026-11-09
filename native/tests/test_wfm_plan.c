@@ -809,6 +809,84 @@ test_every_source_kind_renders_as_it_composes (void)
   return bad;
 }
 
+/* A forged table in a saved blob is never trusted, and never crashes the
+ * restore (#2962). The blob keeps its DSP fingerprint, so the fast path is
+ * what a forged count or length reaches. Before the fix, a signal count
+ * whose table could not be allocated left the arrays NULL with the layout
+ * still marked intact, and the build dereferenced NULL; a length near 2^61
+ * wrapped the bound check. Each forged count and length now rebuilds from
+ * the embedded spec, bit-exact, as a table that runs out mid-way always
+ * did; a forged spec length is a malformed blob and refused. */
+static int
+test_restore_forged_table (const wfm_plan_t *p, const float _Complex *base)
+{
+  const size_t    bytes = L * sizeof (float _Complex);
+  float _Complex *got   = malloc (bytes);
+  const size_t    blen  = dp_wfm_plan_save_bytes (p);
+  uint8_t        *blob  = malloc (blen);
+  DP_REQUIRE_MSG (got && blob, "alloc forged-table buffers");
+  DP_REQUIRE_MSG (dp_wfm_plan_save (p, blob) == blen, "save forged blob");
+
+  uint64_t splen;
+  memcpy (&splen, blob + 16, 8);
+  const size_t at_n = 24 + (size_t)splen; /* the signal count */
+  const size_t at_l = at_n + 8;           /* the first entry's length */
+  DP_REQUIRE_MSG (at_l + 8 <= blen, "the blob holds a first entry");
+  uint64_t n_sig, len0;
+  memcpy (&n_sig, blob + at_n, 8);
+  memcpy (&len0, blob + at_l, 8);
+  DP_REQUIRE_MSG (n_sig == 2, "two cached signals");
+
+  /* The old guard's boundary, one above it (the NULL-table crash), the
+   * largest count, and the first count the blob cannot hold entries for. */
+  const uint64_t counts[] = { (uint64_t)(SIZE_MAX / sizeof (size_t)),
+                              (uint64_t)(SIZE_MAX / sizeof (size_t)) + 1u,
+                              UINT64_MAX, (uint64_t)((blen - at_l) / 8) + 1u };
+  /* A length whose byte count is just under 2^64 (wraps the old bound
+   * check), and the largest. */
+  const uint64_t lens[]
+      = { (uint64_t)(SIZE_MAX / sizeof (float _Complex)), UINT64_MAX };
+
+  for (size_t i = 0; i < sizeof counts / sizeof counts[0]; i++)
+    {
+      memcpy (blob + at_n, &counts[i], 8);
+      wfm_plan_t *r = dp_wfm_plan_restore (blob, blen);
+      DP_REQUIRE_MSG (r, "a forged signal count rebuilds from the spec");
+      DP_REQUIRE (dp_wfm_plan_render (r, "{}", got) == L
+                  && memcmp (base, got, bytes) == 0);
+      dp_wfm_plan_destroy (r);
+    }
+  memcpy (blob + at_n, &n_sig, 8);
+
+  for (size_t i = 0; i < sizeof lens / sizeof lens[0]; i++)
+    {
+      memcpy (blob + at_l, &lens[i], 8);
+      wfm_plan_t *r = dp_wfm_plan_restore (blob, blen);
+      DP_REQUIRE_MSG (r, "a forged signal length rebuilds from the spec");
+      DP_REQUIRE (dp_wfm_plan_render (r, "{}", got) == L
+                  && memcmp (base, got, bytes) == 0);
+      dp_wfm_plan_destroy (r);
+    }
+  memcpy (blob + at_l, &len0, 8);
+
+  /* A spec length that would wrap `24 + splen + 8` is a malformed blob. */
+  const uint64_t big = UINT64_MAX;
+  memcpy (blob + 16, &big, 8);
+  DP_REQUIRE_MSG (dp_wfm_plan_restore (blob, blen) == NULL,
+                  "a forged spec length is refused");
+  memcpy (blob + 16, &splen, 8);
+
+  /* And the untouched blob still takes the fast path. */
+  wfm_plan_t *ok = dp_wfm_plan_restore (blob, blen);
+  DP_REQUIRE_MSG (ok, "the untouched blob restores");
+  DP_REQUIRE (dp_wfm_plan_render (ok, "{}", got) == L
+              && memcmp (base, got, bytes) == 0);
+  dp_wfm_plan_destroy (ok);
+  free (blob);
+  free (got);
+  return dp_test_fails_ != 0;
+}
+
 int
 main (void)
 {
@@ -1372,6 +1450,8 @@ main (void)
     blob[0] = m0;
     DP_REQUIRE_MSG (dp_wfm_plan_restore (blob, 10) == NULL,
                     "reject truncated blob");
+    DP_REQUIRE_MSG (!test_restore_forged_table (p, base),
+                    "a forged table never crashes the restore (#2962)");
 
     free (blob);
 

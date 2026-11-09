@@ -1,9 +1,11 @@
+/* jm:generated telemetry_ext_dp_tlm_capture.c */
 /*
  * telemetry_ext_dp_tlm_capture.c — MemoryCapture type for the telemetry
  * module.
  *
  * Included by telemetry_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in telemetry_ext_dp_tlm_capture_extra.c.
  * Do NOT compile this file directly — only telemetry_ext.c is compiled.
  */
 /* ======================================================== */
@@ -11,7 +13,6 @@
 /* ======================================================== */
 
 #include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
-#include "tlm_read_dict.h"
 
 typedef struct
 {
@@ -40,6 +41,9 @@ MemoryCaptureObj_dealloc (MemoryCaptureObject *self)
 static PyObject *
 MemoryCaptureObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   MemoryCaptureObject *self = (MemoryCaptureObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -52,13 +56,14 @@ MemoryCaptureObj_init (MemoryCaptureObject *self, PyObject *args,
 {
   static char       *kwlist[] = { "tlm", "block_samples", "clock", NULL };
   PyObject          *tlm_obj  = NULL;
+  PyObject          *block_samples_obj = NULL;
   unsigned long long block_samples_raw = 0ULL;
   PyObject          *clock_obj         = NULL;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OKO", kwlist, &tlm_obj,
-                                    &block_samples_raw, &clock_obj))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OOO", kwlist, &tlm_obj,
+                                    &block_samples_obj, &clock_obj))
     return -1;
-  dp_tlm_t *tlm = NULL;
+  dp_tlm_state_t *tlm = NULL;
   if (tlm_obj == Py_None || tlm_obj == NULL)
     {
       PyErr_SetString (
@@ -87,12 +92,33 @@ MemoryCaptureObj_init (MemoryCaptureObject *self, PyObject *args,
           return -1;
         }
     }
-  tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap, "doppler.telemetry.dp_tlm");
+  tlm = (dp_tlm_state_t *)PyCapsule_GetPointer (tlm_cap,
+                                                "doppler.telemetry.dp_tlm");
   Py_DECREF (tlm_cap);
   if (!tlm)
     return -1;
   Py_INCREF (tlm_obj);
   Py_XSETREF (self->_tlm_owner, tlm_obj);
+  if (block_samples_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (block_samples_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      block_samples_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((block_samples_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || block_samples_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "block_samples: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t                   block_samples = (size_t)block_samples_raw;
   const dp_sample_clock_t *clock         = NULL;
   if (clock_obj != Py_None)
@@ -214,11 +240,31 @@ MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
       return NULL;
     }
   static char       *_kwlist[] = { "n", "out", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0;
   PyObject          *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KO", _kwlist, &n_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OO", _kwlist, &n_obj,
                                     &out_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n = (size_t)n_raw;
   if (out_obj && out_obj != Py_None)
     {
@@ -254,7 +300,13 @@ MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
       }
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_tlm_capture_read_max_out (self->handle);
       size_t _min_cap = _omax > dp_tlm_capture_read_max_out (self->handle)
                             ? _omax
@@ -266,8 +318,23 @@ MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t n_out = dp_tlm_capture_read (
           self->handle, n, (dp_tlm_rec_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "MemoryCapture.records: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp       _odim   = (npy_intp)n_out;
       PyArray_Descr *_vdescr = MemoryCaptureObj_records_get_dtype ();
       if (!_vdescr)
@@ -283,14 +350,34 @@ MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   size_t _need = dp_tlm_capture_read_max_out (self->handle);
   size_t _cap  = dp_tlm_capture_read_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp       _adim  = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "MemoryCapture.records: output of %zu elements is too large",
+          _adim_need);
+      return NULL;
+    }
+  npy_intp       _adim  = (npy_intp)_adim_need;
   PyArray_Descr *_descr = MemoryCaptureObj_records_get_dtype ();
   if (!_descr)
     {
@@ -302,8 +389,23 @@ MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
     {
       return NULL;
     }
-  dp_tlm_rec_t *_d0   = (dp_tlm_rec_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t        n_out = dp_tlm_capture_read (self->handle, n, _d0, _cap);
+  dp_tlm_rec_t *_d0 = (dp_tlm_rec_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_tlm_capture_read (self->handle, n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "MemoryCapture.records: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -329,6 +431,11 @@ MemoryCaptureObj_block (MemoryCaptureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_tlm_capture_block (self->handle);
   if (_rc != 0)
     {
@@ -343,6 +450,11 @@ static PyObject *
 MemoryCaptureObj_close (MemoryCaptureObject *self,
                         PyObject            *Py_UNUSED (ignored))
 {
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
@@ -393,7 +505,7 @@ static PyGetSetDef MemoryCapture_getset[]
           "Records the ring dropped during THIS capture (latched at open "
           "against the context's monotonic counter). Non-zero means a hole.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 MemoryCaptureObj_destroy (MemoryCaptureObject *self,
@@ -451,87 +563,7 @@ MemoryCaptureObj_exit (MemoryCaptureObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* Hand-written, sharing tlm_read_dict.h with Telemetry.read_dict(); only the
-   record SOURCE differs. Here it is the capture's own accumulator, borrowed
-   and only read — every array handed back is a fresh numpy allocation — and
-   unlike the ring drain this does NOT consume, exactly as records() does not.
- */
-static PyObject *
-MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
-                            PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", "index", NULL };
-  unsigned long long n_raw     = 0;
-  int                with_idx  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
-                                    &with_idx))
-    return NULL;
-
-  /* The context carries the registry the ids resolve against. */
-  dp_tlm_t *tlm = dp_tlm_capture_context (self->handle);
-  if (!tlm)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "read_dict: no context");
-      return NULL;
-    }
-
-  const dp_tlm_rec_t *recs  = dp_tlm_capture_records (self->handle);
-  size_t              n_out = dp_tlm_capture_count (self->handle);
-  if (n_raw != 0 && n_out > (size_t)n_raw)
-    n_out = (size_t)n_raw;
-
-  return tlm_build_read_dict (tlm, recs, n_out, with_idx);
-}
-
 static PyMethodDef MemoryCaptureObj_methods[] = {
-
-  { "read_dict", (PyCFunction)(void *)MemoryCaptureObj_read_dict,
-    METH_VARARGS | METH_KEYWORDS,
-    "read_dict(n=0, index=False) -> dict\n"
-    "\n"
-    "The captured records, grouped by probe name.\n"
-    "\n"
-    "records() hands back one structured array carrying every probe\n"
-    "interleaved; this splits it, so a consumer never writes the\n"
-    "`recs[recs[\"probe\"] == id][\"value\"]` filter or the id-to-name\n"
-    "inversion by hand. Every REGISTERED probe gets a key, including one\n"
-    "that captured nothing, so the key set is stable.\n"
-    "\n"
-    "Like records(), this does NOT consume — call it as often as you like.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n : int, optional\n"
-    "    Records to take from the front; 0 (the default) means all.\n"
-    "index : bool, optional\n"
-    "    When True each value is ``(n, values)`` — the sample indices\n"
-    "    alongside the values, so a real time axis is ``n / fs``.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "dict\n"
-    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
-    "    `index` is True.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from doppler.telemetry import MemoryCapture, Telemetry\n"
-    ">>> tlm = Telemetry(1 << 12)\n"
-    ">>> eid = tlm.probe(\"sync.e\")\n"
-    ">>> with MemoryCapture(tlm, 64, None) as cap:\n"
-    "...     tlm.set_now(0)\n"
-    "...     tlm.emit(eid, 0.25)\n"
-    "...     tlm.set_now(64)\n"
-    ">>> n, v = cap.read_dict(index=True)[\"sync.e\"]\n"
-    ">>> v\n"
-    "array([0.25], dtype=float32)\n"
-    ">>> n\n"
-    "array([0], dtype=uint64)\n" },
 
   { "records", (PyCFunction)(void *)MemoryCaptureObj_records,
     METH_VARARGS | METH_KEYWORDS,
@@ -682,6 +714,46 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     ">>> bad.close()  # doctest: +ELLIPSIS\n"
     "Traceback (most recent call last):\n"
     "ValueError: the capture has a hole: ...\n" },
+  { "read_dict", (PyCFunction)(void (*) (void))MemoryCaptureObj_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "The captured records, grouped by probe name.\n"
+    "\n"
+    "records() hands back one structured array carrying every probe\n"
+    "interleaved; this splits it, so a consumer never writes the\n"
+    "``recs[recs[\"probe\"] == id][\"value\"]`` filter or the id-to-name\n"
+    "inversion by hand. Every REGISTERED probe gets a key, including one\n"
+    "that captured nothing, so the key set is stable.\n"
+    "\n"
+    "Like records(), this does NOT consume — call it as often as you like.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, optional\n"
+    "    Records to take from the front; 0 (the default) means all.\n"
+    "index : bool, optional\n"
+    "    When True each value is ``(n, values)`` — the sample indices\n"
+    "    alongside the values, so a real time axis is ``n / fs``.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
+    "    `index` is True.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import MemoryCapture, Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> eid = tlm.probe(\"sync.e\")\n"
+    ">>> with MemoryCapture(tlm, 64, None) as cap:\n"
+    "...     tlm.set_now(0)\n"
+    "...     tlm.emit(eid, 0.25)\n"
+    "...     tlm.set_now(64)\n"
+    ">>> n, v = cap.read_dict(index=True)[\"sync.e\"]\n"
+    ">>> v\n"
+    "array([0.25], dtype=float32)\n"
+    ">>> n\n"
+    "array([0], dtype=uint64)\n" },
   { "destroy", (PyCFunction)MemoryCaptureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -735,11 +807,11 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "    If ``close()`` reports failure. ``__exit__`` calls it and raises\n"
     "    what it raises, so a failed finalize propagates out of the ``with``\n"
     "    block (gh-805 §H).\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject MemoryCaptureObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "telemetry.MemoryCapture",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.telemetry.MemoryCapture",
   .tp_basicsize                           = sizeof (MemoryCaptureObject),
   .tp_dealloc = (destructor)MemoryCaptureObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,

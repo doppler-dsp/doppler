@@ -116,43 +116,50 @@ dp_burst_demod_set_preamble (dp_burst_demod_state_t *s,
 {
   if (!acq_code || acq_code_len == 0 || reps == 0)
     return;
-  /* One partial per segment per period. A count that wraps -- or whose
-     buffer cannot be had -- is refused BEFORE anything changes, the same
-     way an invalid argument is: the object keeps whatever preamble it had
-     (none, on a fresh one, so demod() returns 0). Wrapped, it used to size
-     a short buffer that form_partials() then filled past its end. */
+  /* One partial per segment per period. A count that wraps -- or any new
+     buffer that cannot be had -- is refused BEFORE anything changes, the
+     same way an invalid argument is: the object keeps whatever preamble it
+     had (none, on a fresh one, so demod() returns 0). Wrapped, the count
+     used to size a short buffer that form_partials() then filled past its
+     end. So every replacement (partials, code, ppe) is acquired first and
+     the object is touched only once all three are held: an OOM on any one
+     can no longer leave a live ppe beside a NULL acq_code or part. */
   size_t n_part;
   if (!dp_size_mul (reps, s->est_segments, &n_part))
     return;
-  float _Complex *part = dp_mallocn (n_part, sizeof *part);
-  if (!part)
-    return;
-  free (s->acq_code);
-  s->acq_code = malloc (acq_code_len);
-  if (!s->acq_code)
-    {
-      free (part);
-      return;
-    }
-  memcpy (s->acq_code, acq_code, acq_code_len);
-  s->acq_sf   = acq_code_len;
-  s->acq_reps = reps;
-
-  s->n_part = n_part;
-  free (s->part);
-  s->part = part;
 
   /* Size ppe's rate search in PARTIAL units: a partial spans Lseg samples, so
    * a physical rate of max_rate cyc/sample^2 maps to max_rate*Lseg^2 per
    * partial.*/
-  size_t lseg_chips = s->acq_sf / s->est_segments;
+  size_t lseg_chips = acq_code_len / s->est_segments;
   if (lseg_chips == 0)
     lseg_chips = 1;
   double lseg         = (double)(lseg_chips * s->spc);
   double ppe_max_rate = s->max_rate * lseg * lseg;
+
+  float _Complex *part = dp_mallocn (n_part, sizeof *part);
+  uint8_t        *code = malloc (acq_code_len);
+  dp_ppe_state_t *ppe
+      = (part && code) ? dp_ppe_create (n_part, ppe_max_rate) : NULL;
+  if (!part || !code || !ppe)
+    {
+      free (part);
+      free (code);
+      return;
+    }
+  memcpy (code, acq_code, acq_code_len);
+
+  /* Commit: nothing below can fail. */
+  free (s->acq_code);
+  s->acq_code = code;
+  s->acq_sf   = acq_code_len;
+  s->acq_reps = reps;
+  free (s->part);
+  s->part   = part;
+  s->n_part = n_part;
   if (s->ppe)
     dp_ppe_destroy (s->ppe);
-  s->ppe = dp_ppe_create (s->n_part, ppe_max_rate);
+  s->ppe = ppe;
 }
 
 void

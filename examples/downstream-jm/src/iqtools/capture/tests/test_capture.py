@@ -297,3 +297,18 @@ def test_read_refuses_an_output_size_past_npy_max_intp(make, blue):
     cap = make(str(blue))
     with pytest.raises(OverflowError, match="too large"):
         cap.read(-1)
+
+
+@pytest.mark.parametrize("make", [Capture, RawCapture])
+def test_regenerated_binding_names_its_package_and_refuses_extra_args(
+    make, blue
+):
+    """What the jm-owned re-render changed besides the guards.
+
+    The types are named for the package they are imported from, and
+    `summary()` is a no-argument method: the old sacred fragment parsed it
+    as METH_VARARGS and silently ignored whatever it was handed.
+    """
+    assert make.__module__ == "iqtools.capture"
+    with pytest.raises(TypeError):
+        make(str(blue)).summary(1)

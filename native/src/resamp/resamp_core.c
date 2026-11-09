@@ -29,8 +29,11 @@ resamp_bessel_i0 (double x)
 static unsigned
 resamp_log2_u (size_t v)
 {
+  /* A size_t shift: an unsigned-int one never reaches a count above 2^31,
+     so it shifted past its width and looped forever. v is a power of two
+     (create_custom refuses any other), so r stops at most at w - 1. */
   unsigned r = 0;
-  while ((1u << r) < v)
+  while (((size_t)1 << r) < v)
     r++;
   return r;
 }

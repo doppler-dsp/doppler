@@ -77,7 +77,7 @@ dp_spectrogram_create (size_t nfft, size_t hop, int window, float beta,
       = (dp_spectrogram_state_t *)dp_xcalloc (1, sizeof *s);
   s->k      = k;
   s->ring   = (dp_f32_t *)dp_xnn (dp_f32_create (ring_n));
-  s->last   = (float _Complex *)dp_xmalloc (nfft * sizeof *s->last);
+  s->last   = (float _Complex *)dp_xmallocn (nfft, sizeof *s->last);
   s->nfft   = nfft;
   s->hop    = hop;
   s->window = window;

@@ -85,7 +85,10 @@ acc_append (dp_tlm_capture_t *c, const dp_tlm_rec_t *src, size_t n)
           if (!dp_size_mul (cap, 2, &cap))
             return DP_ERR_MEMORY;
         }
-      dp_tlm_rec_t *q = (dp_tlm_rec_t *)realloc (c->acc, cap * sizeof *q);
+      size_t        bytes;
+      dp_tlm_rec_t *q = dp_size_mul (cap, sizeof *q, &bytes)
+                            ? (dp_tlm_rec_t *)realloc (c->acc, bytes)
+                            : NULL;
       if (!q)
         return DP_ERR_MEMORY;
       c->acc     = q;
@@ -209,8 +212,10 @@ resize_for (dp_tlm_capture_t *c, size_t bound)
         }
       for (int i = 0; i < 2; i++)
         {
-          dp_tlm_rec_t *q
-              = (dp_tlm_rec_t *)realloc (c->stage[i], want * sizeof *q);
+          size_t        bytes;
+          dp_tlm_rec_t *q = dp_size_mul (want, sizeof *q, &bytes)
+                                ? (dp_tlm_rec_t *)realloc (c->stage[i], bytes)
+                                : NULL;
           if (!q)
             return DP_ERR_MEMORY;
           c->stage[i] = q;

@@ -22,7 +22,7 @@ dp_find_peaks_f32 (const float *db, size_t db_len, size_t n_peaks,
     return 0;
 
   size_t     max_cands = n / 2 + 1;
-  dp_peak_t *cands     = malloc (max_cands * sizeof (dp_peak_t));
+  dp_peak_t *cands     = dp_mallocn (max_cands, sizeof (dp_peak_t));
   if (!cands)
     return 0;
 

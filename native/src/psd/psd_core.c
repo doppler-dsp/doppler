@@ -80,10 +80,10 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
   /* n + 1, not n: the periodic window is filled at n + 1 points and read
    * at the first n (see below).  n + 1 cannot wrap: the refusal above
    * holds n * pad, so n, under 2^62. */
-  k->w     = (float *)malloc ((n + 1) * sizeof (float));
-  k->frame = (float _Complex *)malloc (nfft * sizeof (float _Complex));
-  k->spec  = (float _Complex *)malloc (nfft * sizeof (float _Complex));
-  k->pwr   = (float *)malloc (nfft * sizeof (float));
+  k->w     = (float *)dp_mallocn (n + 1, sizeof (float));
+  k->frame = (float _Complex *)dp_mallocn (nfft, sizeof (float _Complex));
+  k->spec  = (float _Complex *)dp_mallocn (nfft, sizeof (float _Complex));
+  k->pwr   = (float *)dp_mallocn (nfft, sizeof (float));
   if (!k->w || !k->frame || !k->spec || !k->pwr)
     {
       dp_psd_kernel_free (k);
@@ -190,7 +190,7 @@ dp_psd_create_hop (size_t n, double fs, int window, float beta, size_t pad,
   s->fs             = fs;
   s->bits           = bits;
   s->enbw           = s->k.enbw;
-  s->dbbuf          = (float *)malloc (nfft * sizeof (float));
+  s->dbbuf          = (float *)dp_mallocn (nfft, sizeof (float));
   s->avg            = dp_acc_trace_create (nfft, mode, alpha);
   /* The framer owns a ring of two frames: the carry (< n) plus what one feed
    * admits, so a call loops once per frame, not once per sample. Its checks

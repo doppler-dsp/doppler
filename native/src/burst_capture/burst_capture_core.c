@@ -59,7 +59,7 @@ burst_capture_rate_phasors (dp_burst_capture_state_t *s)
   const size_t                 reps = s->reps;
   const size_t                 R_h  = burst_capture_rate_hyps (eng, reps);
   s->rate_ph_n                      = R_h;
-  s->rate_ph = dp_xmalloc (R_h * reps * sizeof *s->rate_ph);
+  s->rate_ph = dp_xmallocn (dp_size_mul_sat (R_h, reps), sizeof *s->rate_ph);
   for (size_t h = 0; h < R_h; h++)
     {
       const double a
@@ -109,8 +109,9 @@ burst_capture_size_cells (dp_burst_capture_state_t *s)
   s->max_cells = 2u * ((s->reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u
                  + 2u * burst_capture_rate_cells (s->acq, s->reps)
                  + BURST_CAPTURE_EDGE_TWINS;
-  s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
-  s->cell_f    = dp_xmalloc (s->max_cells * sizeof *s->cell_f);
+  s->cell_buf  = dp_xmallocn (dp_size_mul_sat (s->corr_len, s->max_cells),
+                              sizeof *s->cell_buf);
+  s->cell_f    = dp_xmallocn (s->max_cells, sizeof *s->cell_f);
 }
 
 /**
@@ -960,15 +961,15 @@ burst_capture_emit (dp_burst_capture_state_t *s)
         size_t cap = s->win_cap ? s->win_cap * 2u : s->burst_len;
         while (cap < want)
           cap *= 2u;
-        s->win     = dp_xrealloc (s->win, cap * sizeof *s->win);
+        s->win     = dp_xreallocn (s->win, cap, sizeof *s->win);
         s->win_cap = cap;
       }
   }
   if (s->ev_len == s->ev_cap)
     {
       size_t cap  = s->ev_cap ? s->ev_cap * 2u : 8u;
-      s->ev       = dp_xrealloc (s->ev, cap * sizeof *s->ev);
-      s->released = dp_xrealloc (s->released, cap * sizeof *s->released);
+      s->ev       = dp_xreallocn (s->ev, cap, sizeof *s->ev);
+      s->released = dp_xreallocn (s->released, cap, sizeof *s->released);
       s->ev_cap   = cap;
     }
   s->released[s->ev_len] = 0;
@@ -1178,7 +1179,7 @@ dp_burst_capture_push (dp_burst_capture_state_t *state,
                 {
                   size_t cap = state->det_cap ? state->det_cap * 2u : 16u;
                   state->det
-                      = dp_xrealloc (state->det, cap * sizeof *state->det);
+                      = dp_xreallocn (state->det, cap, sizeof *state->det);
                   state->det_cap = cap;
                 }
               {

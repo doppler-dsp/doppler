@@ -43,7 +43,7 @@ native/src/carrier_mpsk/carrier_mpsk_core.c 1
 native/src/carrier_nda/carrier_nda_core.c 1
 native/src/cic/cic_core.c 1
 native/src/conv_enc/conv_enc_core.c 1
-native/src/correlator/correlator_core.c 38  # caller-sized: a hypothesis bank's fraction spectra, phases, flags and slow-time cache scale with its L and rate count (#2683, #2831); the delay-Doppler map's create fails cleanly so a caller's regrid can unwind (correlator_map.h, #2831); and the search flavors' 16, acq_core.c's moved here (#2752 3.4b): a regrid builds the map and its buffers before it commits, so a failure leaves the engine as it was (#2761, #2831), block_prompt's scratch is a refusal on failure
+native/src/correlator/correlator_core.c 12  # caller-sized: a hypothesis bank's fraction spectra, phases, flags and slow-time cache scale with its L and rate count (#2683, #2831); the delay-Doppler map's create fails cleanly so a caller's regrid can unwind (correlator_map.h, #2831); and the search flavors' 16, acq_core.c's moved here (#2752 3.4b): a regrid builds the map and its buffers before it commits, so a failure leaves the engine as it was (#2761, #2831), block_prompt's scratch is a refusal on failure
 native/src/costas/costas_core.c 1
 native/src/ddc/ddc_core.c 1
 native/src/ddcr/ddcr_core.c 1
@@ -60,7 +60,7 @@ native/src/f32_to_i16u64/f32_to_i16u64_core.c 1
 native/src/f32_to_uq15/f32_to_uq15_core.c 1
 native/src/farrow/farrow_core.c 1
 native/src/fft/fft_core.c 1
-native/src/fft/pocketfft.c 6
+native/src/fft/pocketfft.c 2
 native/src/fft2d/fft2d_core.c 1
 native/src/fir/fir_core.c 4
 native/src/frame/frame_core.c 1  # caller-sized: add_hex expands 4*strlen(hex)

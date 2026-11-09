@@ -263,7 +263,7 @@ add_noise (dp_wfm_synth_state_t *syn, float _Complex *out, size_t n,
 {
   if (n == 0)
     return;
-  float _Complex *tmp = malloc (n * sizeof *tmp);
+  float _Complex *tmp = dp_mallocn (n, sizeof *tmp);
   if (!tmp)
     return;
   dp_wfm_synth_noise_steps (syn, tmp, n);
@@ -314,7 +314,7 @@ plan_feed (void *ctx, float _Complex *dst, size_t n, int signal)
     {
       if (f->tmp_cap < n)
         {
-          f->tmp     = dp_xrealloc (f->tmp, n * sizeof *f->tmp);
+          f->tmp     = dp_xreallocn (f->tmp, n, sizeof *f->tmp);
           f->tmp_cap = n;
         }
       dp_wfm_synth_noise_steps (f->noise, f->tmp, n);
@@ -348,7 +348,7 @@ render_doppler_source (const wfm_source_t *d, double fs, double doppler,
   float _Complex *y = NULL;
   if (r)
     {
-      y = dp_xmalloc (out_len * sizeof *y);
+      y = dp_xmallocn (out_len, sizeof *y);
       dp_wfm_render_steps (r, y, out_len);
       dp_wfm_render_destroy (r);
     }
@@ -537,7 +537,7 @@ materialize_instance (const mat_ctx_t *m, size_t si, size_t inst, size_t pos,
   if (ps->dop)
     {
       y           = dp_xcalloc (ps->n_sig, sizeof *y);
-      size_t *kks = dp_xmalloc (ps->n_sig * sizeof *kks);
+      size_t *kks = dp_xmallocn (ps->n_sig, sizeof *kks);
       size_t  nk  = 0;
       for (size_t kk = 0; kk < ps->n_sig; kk++)
         if (ps->dop_k[kk] != DOP_NONE
@@ -689,7 +689,7 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
       if (ps->dop && !ps->chain && ps->repeats > 1
           && ps->num_samples * ps->repeats >= PLAN_RENDER_PARALLEL_MIN)
         {
-          size_t *starts = dp_xmalloc (ps->repeats * sizeof *starts);
+          size_t *starts = dp_xmallocn (ps->repeats, sizeof *starts);
           size_t  cur    = pos;
           for (size_t inst = 0; inst < ps->repeats; inst++)
             {
@@ -1041,8 +1041,8 @@ fold_background (wfm_plan_t *p, const wfm_plan_segment_t *ps,
 
   /* Flatten the background prefix: source indices plus the gain each one
    * contributes at, baked in here because the composite carries no level. */
-  size_t *bg_idx = malloc (n_bg * sizeof *bg_idx);
-  float  *gain   = malloc (n_bg * sizeof *gain);
+  size_t *bg_idx = dp_mallocn (n_bg, sizeof *bg_idx);
+  float  *gain   = dp_mallocn (n_bg, sizeof *gain);
   size_t  per    = n * sizeof *acc;
   size_t  grp    = WFM_PLAN_FOLD_BUDGET_BYTES / (per ? per : 1);
   if (grp == 0)
@@ -1135,8 +1135,8 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
 {
   /* Flatten the foreground sources to work items with their distinct cache
    * slots (serial, O(n_sources), no DSP) so the heavy build can fan out. */
-  size_t *src_idx = malloc (g->n_sources * sizeof *src_idx);
-  size_t *slot    = malloc (g->n_sources * sizeof *slot);
+  size_t *src_idx = dp_mallocn (g->n_sources, sizeof *src_idx);
+  size_t *slot    = dp_mallocn (g->n_sources, sizeof *slot);
   if (!src_idx || !slot)
     {
       free (src_idx);
@@ -1158,7 +1158,7 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
           if (!ps->dop)
             {
               ps->dop   = dp_xcalloc (ps->n_sig, sizeof *ps->dop);
-              ps->dop_k = dp_xmalloc (ps->n_sig * sizeof *ps->dop_k);
+              ps->dop_k = dp_xmallocn (ps->n_sig, sizeof *ps->dop_k);
               for (size_t i = 0; i < ps->n_sig; i++)
                 ps->dop_k[i] = DOP_NONE;
             }
@@ -1536,8 +1536,8 @@ dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
           seed       = (uint64_t)sd->valuedouble;
           seed_given = 1;
         }
-      double *gbuf = malloc (p->n_sig * sizeof *gbuf);
-      double *pbuf = malloc (p->n_sig * sizeof *pbuf);
+      double *gbuf = dp_mallocn (p->n_sig, sizeof *gbuf);
+      double *pbuf = dp_mallocn (p->n_sig, sizeof *pbuf);
       if (gbuf && read_dbl_array (root, "gains", gbuf, p->n_sig))
         gains = gbuf;
       else
@@ -1549,7 +1549,7 @@ dp_wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
       const cJSON *en = cJSON_GetObjectItemCaseSensitive (root, "enable");
       if (en)
         {
-          int *ebuf = malloc (p->n_sig * sizeof *ebuf);
+          int *ebuf = dp_mallocn (p->n_sig, sizeof *ebuf);
           if (ebuf)
             {
               size_t       i = 0;

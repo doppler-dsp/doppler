@@ -1120,7 +1120,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out, const char *base,
       size_t       ns = (size_t)(n2 / 2); /* flat interleaved [re, im] pairs */
       if (ns)
         {
-          float _Complex *buf = malloc (ns * sizeof *buf);
+          float _Complex *buf = dp_mallocn (ns, sizeof *buf);
           if (!buf)
             return -1;
           for (size_t i = 0; i < ns; i++)
@@ -1347,7 +1347,7 @@ dp_wfm_compose_from_json_data (const char *json, const char *base,
         ns = (size_t)cJSON_GetArraySize (sum);
         if (ns < 1)
           goto reject;
-        srcs = malloc (ns * sizeof (wfm_source_t));
+        srcs = dp_mallocn (ns, sizeof (wfm_source_t));
         if (!srcs)
           goto reject;
         size_t       k  = 0;
@@ -1508,7 +1508,7 @@ char *
 dp_wfm_draws_json (const wfm_segment_t *segs, size_t n_segs)
 {
   const size_t n_rows = dp_wfm_compose_draws (segs, n_segs, NULL, 0);
-  wfm_draw_t  *rows   = n_rows ? dp_xmalloc (n_rows * sizeof *rows) : NULL;
+  wfm_draw_t  *rows   = n_rows ? dp_xmallocn (n_rows, sizeof *rows) : NULL;
   if (rows)
     (void)dp_wfm_compose_draws (segs, n_segs, rows, n_rows);
 

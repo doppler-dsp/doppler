@@ -3,6 +3,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -146,6 +147,29 @@ main (void)
           || cimagf (outA[i]) != cimagf (outB[i]))
         ok = 0;
     DP_CHECK (ok);
+  }
+
+  /* ── a block too long to size is refused, the state untouched ──────
+   * Scratch holds (num_taps - 1) + n + FIR_PAD samples. n = SIZE_MAX wraps
+   * that count; n = SIZE_MAX / 8 fits it but wraps its byte size. Both are
+   * refused (0 outputs) before any input is read, so the delay line carries
+   * on as if neither call happened. */
+  {
+    const float taps[3] = { 0.5f, 0.25f, 0.125f };
+    float _Complex x[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
+    float _Complex ref[4], got[4];
+    dp_fir_state_t *a = dp_fir_create_real (taps, 3);
+    dp_fir_state_t *b = dp_fir_create_real (taps, 3);
+    DP_REQUIRE_MSG (a && b, "refusal: create");
+    dp_fir_execute (a, x, 2, ref);
+    dp_fir_execute (a, x + 2, 2, ref + 2);
+    dp_fir_execute (b, x, 2, got);
+    DP_CHECK (dp_fir_execute (b, x, SIZE_MAX, got + 2) == 0);
+    DP_CHECK (dp_fir_execute (b, x, SIZE_MAX / 8, got + 2) == 0);
+    DP_CHECK (dp_fir_execute (b, x + 2, 2, got + 2) == 2);
+    DP_CHECK (memcmp (ref, got, sizeof ref) == 0);
+    dp_fir_destroy (a);
+    dp_fir_destroy (b);
   }
 
   /* ── pull-size invariance ─────────────────────────────────────────── */

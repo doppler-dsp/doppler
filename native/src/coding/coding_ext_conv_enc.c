@@ -395,7 +395,7 @@ static PyMethodDef ConvEncoderObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
-    "    Input.\n"
+    "    n_in unpacked input bits, one per byte.\n"
     "out : npt.NDArray[np.uint8] | None\n"
     "    Receives `n_in * n` unpacked symbols, one per byte.\n"
     "\n"

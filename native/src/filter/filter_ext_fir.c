@@ -424,7 +424,7 @@ static PyMethodDef FIRObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.complex64]\n"
-    "    Input.\n"
+    "    Input array of n_in CF32 samples.\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    Output buffer; caller must provide space for n_in CF32 values.\n"
     "\n"

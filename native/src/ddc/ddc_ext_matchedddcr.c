@@ -906,7 +906,7 @@ static PyMethodDef MatchedDdcrObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.float32]\n"
-    "    Input.\n"
+    "    Real float32 input block.\n"
     "out : npt.NDArray[np.complex64] | None\n"
     "    CF32 output buffer (C-only, hidden from Python).\n"
     "\n"

@@ -72,7 +72,7 @@ class FIR:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Input array of n_in CF32 samples.
         out : npt.NDArray[np.complex64] | None
             Output buffer; caller must provide space for n_in CF32 values.
 

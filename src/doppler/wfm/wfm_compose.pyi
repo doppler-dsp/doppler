@@ -393,7 +393,7 @@ class Synth:
         Parameters
         ----------
         x : npt.NDArray[np.complex64]
-            Input.
+            Input block of ``n`` cf32 samples.
         out : npt.NDArray[np.complex64] | None
             Output block of ``n`` cf32 samples (may be the input block itself).
 

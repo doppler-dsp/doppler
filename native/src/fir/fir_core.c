@@ -194,15 +194,14 @@ static int
 ensure_scratch (dp_fir_state_t *f, size_t num_samples)
 {
   /* A block too long to size is refused like an allocation failure. */
-  size_t needed, bytes;
+  size_t needed;
   if (!dp_size_add (f->num_taps - 1, num_samples, &needed)
       || !dp_size_add (needed, FIR_PAD, &needed))
     return -1;
   if (needed <= f->scratch_cap)
     return 0;
-  if (!dp_size_mul (needed, sizeof (float _Complex), &bytes))
-    return -1;
-  float _Complex *tmp = (float _Complex *)realloc (f->scratch, bytes);
+  float _Complex *tmp = (float _Complex *)dp_reallocn (
+      f->scratch, needed, sizeof (float _Complex));
   if (!tmp)
     return -1;
   f->scratch     = tmp;

@@ -12,6 +12,9 @@ state-triplet round trip, and its relationship with the continuous search
 flavors.
 """
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -674,3 +677,57 @@ def test_a_hit_without_hypotheses_reports_no_rate():
     b = Correlator(_ZC, framing="burst", reps=8, sample_rate=1.0)
     hits = b.push(np.tile(_ZC, 16).astype(np.complex64))
     assert len(hits) and hits[0]["doppler_rate_hz_s"] == 0.0
+
+
+# A grid rebuild that cannot allocate raises MemoryError with its declared
+# sentence, and the engine keeps its prior grid (doppler#2846's shape, as
+# test_correlator_continuous's carrier case). A burst over a 65536-sample
+# preamble at 64 repetitions is pinned to depth 32, tens of MB more, in a
+# child whose address space is capped just above its current size: only
+# the rebuild's allocation can fail, so Python itself running out cannot
+# pass. With the cap lifted the blob is byte for byte the one before.
+_CSR_OOM_CHILD = r"""
+import resource
+import numpy as np
+from doppler.correlation import Correlator
+
+def vm_bytes():
+    for line in open("/proc/self/status"):
+        if line.startswith("VmSize"):
+            return int(line.split()[1]) * 1024
+
+rng = np.random.default_rng(5)
+pre = np.exp(2j * np.pi * rng.random(1 << 16)).astype(np.complex64)
+a = Correlator(pre, framing="burst", reps=64, sample_rate=1.0)
+before = a.get_state()
+soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+resource.setrlimit(resource.RLIMIT_AS, (vm_bytes() + (2 << 20), hard))
+try:
+    a.configure_search_raw(32, 1)
+    outcome = "no error"
+except MemoryError as e:
+    outcome = "MemoryError: " + str(e)
+except Exception as e:
+    outcome = type(e).__name__ + ": " + str(e)
+resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+print(outcome)
+print("unchanged" if a.get_state() == before else "CHANGED")
+"""
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="reads /proc/self/status"
+)
+def test_a_grid_rebuild_that_cannot_allocate_raises_memoryerror() -> None:
+    r = subprocess.run(
+        [sys.executable, "-c", _CSR_OOM_CHILD],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.splitlines() == [
+        "MemoryError: configure_search_raw: rebuilding the grid could not "
+        "allocate; the engine keeps its prior grid",
+        "unchanged",
+    ]

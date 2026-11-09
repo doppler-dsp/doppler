@@ -214,6 +214,9 @@ doc = "Pin the embedded burst search (a Correlator)'s search grid directly, bypa
 arg_type = "void"
 return_type = "int"
 status_return = true
+status_errors = [
+  { status = "DP_ERR_MEMORY", error = "MemoryError", message = "configure_search_raw: rebuilding the engine's grid could not allocate; the engine keeps its prior grid" },
+]
 params = [
     { name = "doppler_bins", type = "size_t" },
     { name = "n_noncoh", type = "size_t" },

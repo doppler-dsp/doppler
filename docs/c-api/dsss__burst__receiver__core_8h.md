@@ -209,7 +209,7 @@ The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh) ra
 
 **Returns:**
 
-0 on success, non-zero if the grid is out of range. 
+0 on success; DP\_ERR\_INVALID if the grid is out of range (this receiver's capture or its engine refused it); DP\_ERR\_MEMORY if the engine's rebuild could not allocate (its prior grid stays). 
 ```C++
 >>> import numpy as np
 >>> from doppler.dsss import DsssBurstReceiver

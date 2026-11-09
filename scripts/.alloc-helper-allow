@@ -24,7 +24,6 @@
 native/inc/doppler/buffer/buffer.h 1
 native/inc/doppler/ccsds_tm/ccsds_tm_frame.h 1
 native/inc/doppler/doppler_channel/doppler_channel_core.h 1
-native/inc/doppler/dp_parallel.h 1
 native/inc/doppler/frame/frame_core.h 1
 native/src/RateConverter/RateConverter_core.c 8
 native/src/acc_cf64/acc_cf64_core.c 1

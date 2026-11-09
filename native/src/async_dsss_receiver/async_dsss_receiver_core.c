@@ -177,11 +177,11 @@ adr_build_refine_chain (
   dp_carrier_acq_state_t *ca = adr_new_carrier_acq (s, target_rate);
 
   float _Complex *dll_out_buf
-      = dp_xmalloc (s->refine_segments * sizeof (*dll_out_buf));
+      = dp_xmallocn (s->refine_segments, sizeof (*dll_out_buf));
 
   size_t rc_out_cap
       = (size_t)((double)s->refine_segments * refine_rc->rate) + 64;
-  float _Complex *rc_out_buf = dp_xmalloc (rc_out_cap * sizeof (*rc_out_buf));
+  float _Complex *rc_out_buf = dp_xmallocn (rc_out_cap, sizeof (*rc_out_buf));
 
   *refine_dll_out  = refine_dll;
   *refine_rc_out   = refine_rc;
@@ -469,13 +469,13 @@ adr_size_track_scratch (dp_async_dsss_receiver_state_t *s)
     {
       free (s->track_dll_out_buf);
       s->track_dll_out_buf
-          = dp_xmalloc (need_dll * sizeof *s->track_dll_out_buf);
+          = dp_xmallocn (need_dll, sizeof *s->track_dll_out_buf);
       s->track_dll_out_cap = need_dll;
     }
   if (s->track_rc_out_cap < need_rc)
     {
       free (s->track_rc_out_buf);
-      s->track_rc_out_buf = dp_xmalloc (need_rc * sizeof *s->track_rc_out_buf);
+      s->track_rc_out_buf = dp_xmallocn (need_rc, sizeof *s->track_rc_out_buf);
       s->track_rc_out_cap = need_rc;
     }
 }
@@ -1207,7 +1207,7 @@ dp_async_dsss_receiver_create (
                               * obj->srch_ratio)
                 + 1;
           obj->srch_hist
-              = dp_xmalloc (obj->srch_hist_cap * sizeof *obj->srch_hist);
+              = dp_xmallocn (obj->srch_hist_cap, sizeof *obj->srch_hist);
         }
     }
   if (!obj->acq)
@@ -1283,8 +1283,8 @@ dp_async_dsss_receiver_create (
   obj->tsamps = (size_t)floor ((double)code_len * spc + 1e-9);
   obj->refine_segments
       = dp_dll_lookback_segments (obj->tsamps, refine_max_error_db);
-  obj->car_wiped_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
-  obj->car_carry_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_carry_buf));
+  obj->car_wiped_buf = dp_xmallocn (obj->tsamps, sizeof (*obj->car_wiped_buf));
+  obj->car_carry_buf = dp_xmallocn (obj->tsamps, sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
 
   /* Placeholder chains (phase 0, no Doppler) -- always allocated, seeded
@@ -1593,7 +1593,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           if (need > state->srch_cap)
             {
               free (state->srch_buf);
-              state->srch_buf = dp_xmalloc (need * sizeof *state->srch_buf);
+              state->srch_buf = dp_xmallocn (need, sizeof *state->srch_buf);
               state->srch_cap = need;
             }
           ny = dp_resamp_execute (state->srch_rs, x, x_len, state->srch_buf,
@@ -1690,8 +1690,11 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
               const size_t off = (size_t)((uint64_t)i0 - in0);
               return adr_steps (state, x + off, x_len - off, out, max_out);
             }
-          const size_t    need = (size_t)(in0 - (uint64_t)i0);
-          float _Complex *join = dp_xmalloc ((need + x_len) * sizeof *join);
+          const size_t need = (size_t)(in0 - (uint64_t)i0);
+          /* need is at most the history ring's length and x_len counts
+             elements the caller already holds, so the sum cannot wrap;
+             the product with the element size is checked. */
+          float _Complex *join = dp_xmallocn (need + x_len, sizeof *join);
           memcpy (join, state->srch_hist + state->srch_hist_len - need,
                   need * sizeof *join);
           memcpy (join + need, x, x_len * sizeof *join);

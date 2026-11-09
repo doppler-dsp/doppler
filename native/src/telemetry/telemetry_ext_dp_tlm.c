@@ -1,8 +1,10 @@
+/* jm:generated telemetry_ext_dp_tlm.c */
 /*
  * telemetry_ext_dp_tlm.c — Telemetry type for the telemetry module.
  *
  * Included by telemetry_ext.c (the module aggregator).
- * Hand-patches to this file are preserved across jm commands.
+ * jm regenerates this file on every apply; do not edit it.
+ * Hand-written code belongs in telemetry_ext_dp_tlm_extra.c.
  * Do NOT compile this file directly — only telemetry_ext.c is compiled.
  */
 /* ======================================================== */
@@ -10,7 +12,6 @@
 /* ======================================================== */
 
 #include "doppler/dp_tlm/dp_tlm_core.h"
-#include "tlm_read_dict.h"
 
 typedef struct
 {
@@ -21,6 +22,9 @@ typedef struct
 static void
 TelemetryObj_dealloc (TelemetryObject *self)
 {
+  /* gh-2187: destroy() parks the state here instead of
+     freeing it under the capsule this object lent; it is
+     gone now, so the free is now. */
   if (self->handle)
     dp_tlm_destroy (self->handle);
   if (self->_jm_parked)
@@ -31,6 +35,9 @@ TelemetryObj_dealloc (TelemetryObject *self)
 static PyObject *
 TelemetryObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+  /* tp_new allocates only; __init__ reads the arguments. */
+  (void)args;
+  (void)kwds;
   TelemetryObject *self = (TelemetryObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
@@ -41,11 +48,32 @@ static int
 TelemetryObj_init (TelemetryObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]         = { "ring_records", NULL };
+  PyObject          *ring_records_obj = NULL;
   unsigned long long ring_records_raw = 16384;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", kwlist,
-                                    &ring_records_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|O", kwlist,
+                                    &ring_records_obj))
     return -1;
+  if (ring_records_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (ring_records_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      ring_records_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((ring_records_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || ring_records_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (
+              PyExc_OverflowError,
+              "ring_records: %S is out of range for size_t [0, %llu]", _ix,
+              (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
   size_t ring_records = (size_t)ring_records_raw;
   self->handle        = dp_tlm_create (ring_records);
   if (!self->handle)
@@ -132,11 +160,31 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "n", "out", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0;
   PyObject          *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KO", _kwlist, &n_raw,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|OO", _kwlist, &n_obj,
                                     &out_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   size_t n = (size_t)n_raw;
   if (out_obj && out_obj != Py_None)
     {
@@ -172,7 +220,13 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
       }
       PyArrayObject *out_arr = (PyArrayObject *)out_obj;
       Py_INCREF (out_arr);
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t _omax    = dp_tlm_read_max_out (self->handle);
       size_t _min_cap = _omax > dp_tlm_read_max_out (self->handle)
                             ? _omax
@@ -184,8 +238,23 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
       size_t n_out = dp_tlm_read (
           self->handle, n, (dp_tlm_rec_t *)PyArray_DATA (out_arr), _cap);
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Telemetry.read: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
       npy_intp       _odim   = (npy_intp)n_out;
       PyArray_Descr *_vdescr = TelemetryObj_read_get_dtype ();
       if (!_vdescr)
@@ -201,14 +270,33 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   size_t _need = dp_tlm_read_max_out (self->handle);
   size_t _cap  = dp_tlm_read_max_out (self->handle);
   if (!_cap || _cap < _need)
     _cap = _need;
-  npy_intp       _adim  = (npy_intp)_cap;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Telemetry.read: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp       _adim  = (npy_intp)_adim_need;
   PyArray_Descr *_descr = TelemetryObj_read_get_dtype ();
   if (!_descr)
     {
@@ -220,8 +308,22 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  dp_tlm_rec_t *_d0   = (dp_tlm_rec_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t        n_out = dp_tlm_read (self->handle, n, _d0, _cap);
+  dp_tlm_rec_t *_d0 = (dp_tlm_rec_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t n_out = dp_tlm_read (self->handle, n, _d0, _cap);
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Telemetry.read: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -248,9 +350,7 @@ TelemetryObj_probe (TelemetryObject *self, PyObject *args, PyObject *kwds)
     }
   static char *_kwlist[] = { "name", "decim", NULL };
   const char  *name      = NULL;
-  /* Parsed wide and range-tested, not through `k`: `k` masks, so 2**32 + 3
-   * would register decim 3 and -1 would register 4294967295 (#2271). */
-  long long decim_raw = 1LL;
+  long long    decim_raw = 1;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|L", _kwlist, &name,
                                     &decim_raw))
     return NULL;
@@ -262,7 +362,12 @@ TelemetryObj_probe (TelemetryObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = dp_tlm_probe (self->handle, name, decim);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_tlm_probe (self->handle, name, decim);
   if (_rc < 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
@@ -286,6 +391,11 @@ TelemetryObj_probe_id (TelemetryObject *self, PyObject *args, PyObject *kwds)
   const char  *name      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &name))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   int _rc = dp_tlm_probe_id (self->handle, name);
   if (_rc < 0)
     {
@@ -306,9 +416,7 @@ TelemetryObj_set_decim (TelemetryObject *self, PyObject *args, PyObject *kwds)
     }
   static char *_kwlist[] = { "name", "decim", NULL };
   const char  *name      = NULL;
-  /* Wide and range-tested for the same reason as probe(): `k` would retune a
-   * running probe to a wrapped factor (#2272). */
-  long long decim_raw = 0LL;
+  long long    decim_raw = 0LL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "sL", _kwlist, &name,
                                     &decim_raw))
     return NULL;
@@ -320,7 +428,12 @@ TelemetryObj_set_decim (TelemetryObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = dp_tlm_set_decim (self->handle, name, decim);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_tlm_set_decim (self->handle, name, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_decim failed",
@@ -339,13 +452,11 @@ TelemetryObj_emit (TelemetryObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char *_kwlist[] = { "id", "v", NULL };
-  long         id_raw    = 0L;
+  long long    id_raw    = 0LL;
   double       v         = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ld", _kwlist, &id_raw, &v))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ld", _kwlist, &id_raw, &v))
     return NULL;
-  /* `long` is 64 bits on LP64, so the cast alone would alias 2**32 onto
-   * probe 0 and record into the wrong signal (#2270). */
-  if (id_raw < (long)INT32_MIN || id_raw > (long)INT32_MAX)
+  if (id_raw < (long long)INT32_MIN || id_raw > (long long)INT32_MAX)
     {
       PyErr_Format (PyExc_OverflowError,
                     "id: %lld is out of range for int32_t [%lld, %lld]",
@@ -353,8 +464,13 @@ TelemetryObj_emit (TelemetryObject *self, PyObject *args, PyObject *kwds)
                     (long long)INT32_MAX);
       return NULL;
     }
-  int32_t id  = (int32_t)id_raw;
-  int     _rc = dp_tlm_emit_checked (self->handle, id, v);
+  int32_t id = (int32_t)id_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_tlm_emit_checked (self->handle, id, v);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "emit failed",
@@ -373,10 +489,35 @@ TelemetryObj_set_now (TelemetryObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "n", NULL };
+  PyObject          *n_obj     = NULL;
   unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &n_obj))
     return NULL;
+  if (n_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (n_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      n_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((n_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || n_raw > (unsigned long long)UINT64_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "n: %S is out of range for uint64_t [0, %llu]", _ix,
+                        (unsigned long long)UINT64_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
   uint64_t n = (uint64_t)n_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_tlm_set_now (self->handle, n);
   Py_RETURN_NONE;
 }
@@ -393,6 +534,11 @@ TelemetryObj_emitted (TelemetryObject *self, PyObject *args, PyObject *kwds)
   int          id        = 0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &id))
     return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   uint64_t y = dp_tlm_emitted (self->handle, id);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
@@ -413,7 +559,7 @@ static PyStructSequence_Desc TelemetryObj_stats_desc
 static PyTypeObject *TelemetryObj_stats_type = NULL;
 
 static PyObject *
-TelemetryObj_stats (TelemetryObject *self, PyObject *args)
+TelemetryObj_stats (TelemetryObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -426,6 +572,11 @@ TelemetryObj_stats (TelemetryObject *self, PyObject *args)
           = PyStructSequence_NewType (&TelemetryObj_stats_desc);
       if (!TelemetryObj_stats_type)
         return NULL;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
   dp_tlm_stats_t _r = dp_tlm_stats (self->handle);
   PyObject      *_o = PyStructSequence_New (TelemetryObj_stats_type);
@@ -535,9 +686,8 @@ Telemetry_getprop__capsule (TelemetryObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Lent, not borrowed: the capsule holds a strong reference to self, so
-     a consumer that retains the capsule (retain = true, jm#2327) keeps this
-     Telemetry, and therefore its handle, alive. */
+  /* Lent, not owned: the capsule never frees the pointer, and
+     holds Telemetry, so the pointer lives as long as it. */
   return jm_capsule_lend ((void *)(self->handle), "doppler.telemetry.dp_tlm",
                           (PyObject *)self);
 }
@@ -566,14 +716,14 @@ static PyGetSetDef Telemetry_getset[]
           NULL },
         { "_capsule", (getter)Telemetry_getprop__capsule, NULL, " capsule.\n",
           NULL },
-        { NULL } };
+        { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *
 TelemetryObj_destroy (TelemetryObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      /* gh-2187: the views this object lent point into the
+      /* gh-2187: the capsule this object lent points into the
          state; the free waits for tp_dealloc, and every method
          refuses from here on. */
       self->_jm_parked = self->handle;
@@ -595,7 +745,7 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      /* gh-2187: the views this object lent point into the
+      /* gh-2187: the capsule this object lent points into the
          state; the free waits for tp_dealloc, and every method
          refuses from here on. */
       self->_jm_parked = self->handle;
@@ -604,91 +754,7 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* Hand-written: the return is a dict whose KEYS come from the probe registry
-   and whose VALUES are numpy arrays of data-dependent length — a shape with no
-   manifest spelling. The marshalling is shared with MemoryCapture.read_dict()
-   in tlm_read_dict.h; only the record SOURCE differs, and for this face that
-   is a drain of the ring. */
-static PyObject *
-TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", "index", NULL };
-  unsigned long long n_raw     = 0;
-  int                with_idx  = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
-                                    &with_idx))
-    return NULL;
-
-  size_t        cap   = dp_tlm_read_max_out (self->handle);
-  dp_tlm_rec_t *recs  = NULL;
-  size_t        n_out = 0;
-  if (cap > 0)
-    {
-      recs = (dp_tlm_rec_t *)PyMem_Malloc (cap * sizeof *recs);
-      if (!recs)
-        return PyErr_NoMemory ();
-      n_out = dp_tlm_read (self->handle, (size_t)n_raw, recs, cap);
-    }
-
-  PyObject *out = tlm_build_read_dict (self->handle, recs, n_out, with_idx);
-  PyMem_Free (recs);
-  return out;
-}
-
 static PyMethodDef TelemetryObj_methods[] = {
-
-  { "read_dict", (PyCFunction)(void *)TelemetryObj_read_dict,
-    METH_VARARGS | METH_KEYWORDS,
-    "read_dict(n=0, index=False) -> dict\n"
-    "\n"
-    "Drains like read(), but grouped by probe name.\n"
-    "\n"
-    "The same records read() returns, split per probe so a consumer never\n"
-    "writes the `recs[recs[\"probe\"] == tlm.probe_id(name)][\"value\"]`\n"
-    "filter or the id-to-name inversion by hand. Every REGISTERED probe\n"
-    "gets a key, including one that emitted nothing this drain, so the key\n"
-    "set is stable across calls.\n"
-    "\n"
-    "Consuming: this DRAINS the ring, exactly as read() does. Calling both\n"
-    "in one loop splits the records between them.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n : int, optional\n"
-    "    Records wanted; 0 (the default) means everything available.\n"
-    "index : bool, optional\n"
-    "    When True each value is ``(n, values)`` — the sample indices\n"
-    "    alongside the values, so a real time axis is ``n / fs``. When\n"
-    "    False (the default) each value is just the values array.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "dict\n"
-    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
-    "    `index` is True.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from doppler.telemetry import Telemetry\n"
-    ">>> tlm = Telemetry(1 << 12)\n"
-    ">>> eid = tlm.probe(\"sync.e\")\n"
-    ">>> lid = tlm.probe(\"sync.lock\")\n"
-    ">>> tlm.set_now(7)\n"
-    ">>> tlm.emit(eid, 0.5)\n"
-    ">>> tlm.emit(lid, 1.0)\n"
-    ">>> d = tlm.read_dict()\n"
-    ">>> sorted(d)\n"
-    "['sync.e', 'sync.lock']\n"
-    ">>> d[\"sync.e\"]\n"
-    "array([0.5], dtype=float32)\n"
-    ">>> n, v = tlm.read_dict(index=True)[\"sync.e\"]\n"
-    ">>> n.size          # drained by the call above\n"
-    "0\n" },
 
   { "read", (PyCFunction)(void *)TelemetryObj_read,
     METH_VARARGS | METH_KEYWORDS,
@@ -967,7 +1033,7 @@ static PyMethodDef TelemetryObj_methods[] = {
     "2\n"
     ">>> tlm.dropped\n"
     "0\n" },
-  { "stats", (PyCFunction)TelemetryObj_stats, METH_VARARGS,
+  { "stats", (PyCFunction)TelemetryObj_stats, METH_NOARGS,
     "stats() -> TelemetryStats record (dropped, emitted, capacity, probes)\n"
     "\n"
     "Snapshots the context's counters. Zeroed for a NULL context.\n"
@@ -988,6 +1054,51 @@ static PyMethodDef TelemetryObj_methods[] = {
     "probes=1)\n"
     ">>> tlm.stats().emitted\n"
     "1\n" },
+  { "read_dict", (PyCFunction)(void (*) (void))TelemetryObj_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "Drains like read(), but grouped by probe name.\n"
+    "\n"
+    "The same records read() returns, split per probe so a consumer never\n"
+    "writes the ``recs[recs[\"probe\"] == tlm.probe_id(name)][\"value\"]``\n"
+    "filter or the id-to-name inversion by hand. Every REGISTERED probe\n"
+    "gets a key, including one that emitted nothing this drain, so the key\n"
+    "set is stable across calls.\n"
+    "\n"
+    "Consuming: this DRAINS the ring, exactly as read() does. Calling both\n"
+    "in one loop splits the records between them.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, optional\n"
+    "    Records wanted; 0 (the default) means everything available.\n"
+    "index : bool, optional\n"
+    "    When True each value is ``(n, values)`` — the sample indices\n"
+    "    alongside the values, so a real time axis is ``n / fs``. When\n"
+    "    False (the default) each value is just the values array.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
+    "    `index` is True.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> eid = tlm.probe(\"sync.e\")\n"
+    ">>> lid = tlm.probe(\"sync.lock\")\n"
+    ">>> tlm.set_now(7)\n"
+    ">>> tlm.emit(eid, 0.5)\n"
+    ">>> tlm.emit(lid, 1.0)\n"
+    ">>> d = tlm.read_dict()\n"
+    ">>> sorted(d)\n"
+    "['sync.e', 'sync.lock']\n"
+    ">>> d[\"sync.e\"]\n"
+    "array([0.5], dtype=float32)\n"
+    ">>> n, v = tlm.read_dict(index=True)[\"sync.e\"]\n"
+    ">>> n.size          # drained by the call above\n"
+    "0\n" },
   { "destroy", (PyCFunction)TelemetryObj_destroy, METH_NOARGS,
     "Close the object; the memory goes with its last user.\n"
     "\n"
@@ -1025,11 +1136,11 @@ static PyMethodDef TelemetryObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { NULL }
+  { NULL, NULL, 0, NULL }
 };
 
 static PyTypeObject TelemetryObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "telemetry.Telemetry",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.telemetry.Telemetry",
   .tp_basicsize                           = sizeof (TelemetryObject),
   .tp_dealloc                             = (destructor)TelemetryObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

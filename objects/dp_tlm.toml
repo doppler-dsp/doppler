@@ -38,6 +38,9 @@ return_type = "float _Complex"
 # These two keys MUST stay above the [[dp_tlm.init_params]] header: TOML binds
 # every key after a table header to that table, so written below they land
 # inside the init-param, where jm never looks for them and says nothing.
+# jm owns the binding (fragment = "generated"); read_dict, the one method
+# with no manifest spelling, lives in telemetry_ext_dp_tlm_extra.c.
+fragment = "generated"
 create_error = "ValueError"
 create_error_message = "ring_records must be at least 1, and small enough to map"
 
@@ -64,7 +67,7 @@ record_dtype = "dp_tlm_rec_t"
 # `n` records wanted, 0 = everything available. jm used to DROP the declared
 # default on a variable_output method (generating "K", not "|K", where a plain
 # method with a default correctly generated "s|k") -- fixed upstream in
-# just-makeit#803. The fragment carries that fix by hand until the pin bump.
+# just-makeit#803.
 params = [{ name = "n", type = "size_t", default = "0" }]
 result_fields = [
   { name = "n", type = "uint64_t", doc = "Caller-stamped sample index (dp_tlm_set_now)." },
@@ -207,3 +210,62 @@ doc = "Records currently readable, without consuming them. A lower bound while a
 name = "_capsule"
 type = "capsule"
 capsule = "doppler.telemetry.dp_tlm"
+
+# ── hand-written methods ────────────────────────────────────────────────────
+
+# read_dict returns {probe_name: array} -- KEYS from the probe registry,
+# VALUES of data-dependent length -- a shape with no manifest spelling. Its C
+# is hand-written in native/src/telemetry/telemetry_ext_dp_tlm_extra.c, which
+# jm includes and never writes; this row gives it its PyMethodDef row,
+# prototype and stub (gh-1997). The marshalling is shared with
+# MemoryCapture.read_dict() through tlm_read_dict.h.
+[[dp_tlm.extra_methods]]
+name = "read_dict"
+fn = "TelemetryObj_read_dict"
+flags = "METH_VARARGS | METH_KEYWORDS"
+args = "n: int = 0, index: bool = False"
+returns = "dict[str, NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]]]"
+doc = """Drains like read(), but grouped by probe name.
+
+The same records read() returns, split per probe so a consumer never
+writes the ``recs[recs["probe"] == tlm.probe_id(name)]["value"]``
+filter or the id-to-name inversion by hand. Every REGISTERED probe
+gets a key, including one that emitted nothing this drain, so the key
+set is stable across calls.
+
+Consuming: this DRAINS the ring, exactly as read() does. Calling both
+in one loop splits the records between them.
+
+Parameters
+----------
+n : int, optional
+    Records wanted; 0 (the default) means everything available.
+index : bool, optional
+    When True each value is ``(n, values)`` — the sample indices
+    alongside the values, so a real time axis is ``n / fs``. When
+    False (the default) each value is just the values array.
+
+Returns
+-------
+dict
+    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+    `index` is True.
+
+Examples
+--------
+>>> from doppler.telemetry import Telemetry
+>>> tlm = Telemetry(1 << 12)
+>>> eid = tlm.probe("sync.e")
+>>> lid = tlm.probe("sync.lock")
+>>> tlm.set_now(7)
+>>> tlm.emit(eid, 0.5)
+>>> tlm.emit(lid, 1.0)
+>>> d = tlm.read_dict()
+>>> sorted(d)
+['sync.e', 'sync.lock']
+>>> d["sync.e"]
+array([0.5], dtype=float32)
+>>> n, v = tlm.read_dict(index=True)["sync.e"]
+>>> n.size          # drained by the call above
+0
+"""

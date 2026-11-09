@@ -257,14 +257,14 @@ _acq_configure_search_raw_check (void)
   size_t orig_db = a->search->coherent_bins, orig_nc = a->search->n_noncoh;
 
   DP_CHECK (dp_correlator_configure_search_raw (a, 0, 1)
-            == -1); /* doppler_bins < 1 */
+            == DP_ERR_INVALID); /* doppler_bins < 1 */
   DP_CHECK (dp_correlator_configure_search_raw (a, 9, 1)
-            == -1); /* > reps (8) */
+            == DP_ERR_INVALID); /* > reps (8) */
   DP_CHECK (dp_correlator_configure_search_raw (a, 1, 0)
-            == -1); /* n_noncoh < 1 */
+            == DP_ERR_INVALID); /* n_noncoh < 1 */
   DP_CHECK (dp_correlator_configure_search_raw (
                 a, 1, DP_CORRELATOR_N_NONCOH_SAFETY_CEILING + 1)
-            == -1); /* > the internal safety-valve ceiling */
+            == DP_ERR_INVALID); /* > the internal safety-valve ceiling */
   DP_CHECK (a->search->coherent_bins == orig_db
             && a->search->n_noncoh == orig_nc);
 
@@ -4344,7 +4344,7 @@ main (void)
     DP_CHECK (dp_correlator_set_max_peaks (a, 0) == DP_ERR_INVALID
               && a->max_peaks == 1);
     DP_CHECK (dp_correlator_set_max_peaks (a, DP_CORRELATOR_MAX_PEAKS + 1)
-              == -1);
+              == DP_ERR_INVALID);
     DP_CHECK (dp_correlator_set_max_peaks (a, 4) == 0 && a->max_peaks == 4);
     /* Held twins are running state: they ride the blob and come back. */
     a->n_twins               = 2;

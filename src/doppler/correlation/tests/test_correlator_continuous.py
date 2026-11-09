@@ -19,8 +19,6 @@ own pre-split tests and ``DsssReceiver``'s).
 """
 
 import re
-import subprocess
-import sys
 import warnings
 
 import numpy as np
@@ -28,6 +26,7 @@ import pytest
 
 from doppler.acquire.tests._preamble import code_preamble
 from doppler.correlation import Correlator
+from doppler.tests._oom import linux_only, run_capped
 from doppler.wfm import PN, mls_poly
 
 SF = 31  # length-31 MLS (5-stage) -- small and fast, matches test_acq.py's
@@ -384,50 +383,33 @@ def test_carrier_and_prior_refusals_are_raised():
 # much. The message is the one the manifest declares for DP_ERR_MEMORY, so
 # Python running out of memory itself cannot pass the test. With the cap
 # lifted, the engine's blob is byte for byte the one before.
-_OOM_CHILD = r"""
-import resource, sys
+_OOM_SETUP = """
 import numpy as np
 from doppler.acquire.tests._preamble import code_preamble
 from doppler.correlation import Correlator
 from doppler.wfm import Gold
-
-def vm_bytes():
-    for line in open("/proc/self/status"):
-        if line.startswith("VmSize"):
-            return int(line.split()[1]) * 1024
 
 code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 kw = dict(sample_rate=10.0e6, chip_rate=5.0e6, symbol_rate=2700.0,
           cn0_dbhz=37.31, doppler_uncertainty=50000.0, pfa=1e-3, pd=0.9,
           code_only_epochs=150, doppler_rate=500.0)
 a = Correlator(code_preamble(code, 1), framing="continuous", **kw)
-if sys.argv[1] == "set_state":
-    b = Correlator(code_preamble(code, 1), framing="continuous", **kw)
-    b.set_carrier_freq_hz(2.2e9)
-    blob = b.get_state()
-    call = lambda: a.set_state(blob)
-else:
-    call = lambda: a.set_carrier_freq_hz(2.2e9)
+b = Correlator(code_preamble(code, 1), framing="continuous", **kw)
+b.set_carrier_freq_hz(2.2e9)
+blob = b.get_state()
 before = a.get_state()
-soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-resource.setrlimit(resource.RLIMIT_AS, (vm_bytes() + (2 << 20), hard))
-try:
-    call()
-    outcome = "no error"
-except MemoryError as e:
-    outcome = "MemoryError: " + str(e)
-except Exception as e:
-    outcome = type(e).__name__ + ": " + str(e)
-resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
-print(outcome)
+"""
+_OOM_CALLS = {
+    "set_carrier_freq_hz": "a.set_carrier_freq_hz(2.2e9)",
+    "set_state": "a.set_state(blob)",
+}
+_OOM_AFTER = """
 print("unchanged" if a.get_state() == before else "CHANGED")
 print("carrier", a.carrier_freq_hz)
 """
 
 
-@pytest.mark.skipif(
-    not sys.platform.startswith("linux"), reason="reads /proc/self/status"
-)
+@linux_only
 @pytest.mark.parametrize(
     ("entry", "message"),
     [
@@ -447,12 +429,7 @@ print("carrier", a.carrier_freq_hz)
 def test_a_carrier_rebuild_that_cannot_allocate_raises_memoryerror(
     entry: str, message: str
 ) -> None:
-    r = subprocess.run(
-        [sys.executable, "-c", _OOM_CHILD, entry],
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
+    r = run_capped(_OOM_SETUP, _OOM_CALLS[entry], after=_OOM_AFTER)
     lines = r.stdout.splitlines()
     assert r.returncode == 0, r.stderr[-2000:]
     assert lines == [f"MemoryError: {message}", "unchanged", "carrier 0.0"]

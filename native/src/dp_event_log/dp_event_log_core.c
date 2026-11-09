@@ -389,7 +389,7 @@ read_lines (FILE *f, size_t *n_out)
           if (n >= cap)
             {
               cap   = cap ? cap * 2u : 64u;
-              lines = (char **)dp_xrealloc (lines, cap * sizeof *lines);
+              lines = (char **)dp_xreallocn (lines, cap, sizeof *lines);
             }
           lines[n] = (char *)dp_xmalloc (blen + 1u);
           memcpy (lines[n], buf, blen + 1u);

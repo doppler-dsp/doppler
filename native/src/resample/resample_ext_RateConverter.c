@@ -55,7 +55,7 @@ RateConverterObj_init (RateConverterObject *self, PyObject *args,
       PyErr_SetString (PyExc_ValueError,
                        "RateConverter: invalid parameter (need rate > 0, 0 "
                        "<= beta <= 1, span >= 1, pulse_sps > 0, num_phases a "
-                       "power of two >= 2)");
+                       "power of two in [2, 2^32])");
       return -1;
     }
   return 0;
@@ -1151,7 +1151,7 @@ static PyTypeObject RateConverterObjType = {
     "    If construction fails. The exception message is ``RateConverter:\n"
     "    invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, "
     "pulse_sps\n"
-    "    > 0, num_phases a power of two >= 2)``.\n"
+    "    > 0, num_phases a power of two in [2, 2^32])``.\n"
     "\n"
     "Examples\n"
     "--------\n"

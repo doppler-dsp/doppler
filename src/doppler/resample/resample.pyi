@@ -851,7 +851,7 @@ class RateConverter:
     ValueError
         If construction fails. The exception message is ``RateConverter:
         invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
-        > 0, num_phases a power of two >= 2)``.
+        > 0, num_phases a power of two in [2, 2^32])``.
 
     Examples
     --------
@@ -1239,15 +1239,16 @@ class MatchedRateConverter:
         matched filter has a symbol duration, and the planner still knows
         nothing of symbols.
     num_phases : int, default 1024
-        Terminal-stage arms; power of two. Sets the fractional timing
-        resolution to `1/num_phases` of an output period.
+        Terminal-stage arms; a power of two from 2 to RESAMP_MAX_PHASES (2^32),
+        the most the terminal resampler's 32-bit phase word can address. Sets
+        the fractional timing resolution to `1/num_phases` of an output period.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``RateConverter:
         invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
-        > 0, num_phases a power of two >= 2)``.
+        > 0, num_phases a power of two in [2, 2^32])``.
 
     Warns
     -----

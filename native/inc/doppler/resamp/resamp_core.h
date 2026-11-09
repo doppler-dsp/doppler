@@ -204,6 +204,14 @@ extern "C"
   /** @brief Floor on the composite rate `rate + ctrl` in the ctrl paths. */
 #define RESAMP_CTRL_RATE_MIN 1e-6
 
+/** @brief Most polyphase arms a bank may have: 2^32.  The arm is the top
+ *  log2(num_phases) bits of the 32-bit phase word, selected by a right
+ *  shift of 32 - log2(num_phases), which is defined only while that count
+ *  is >= 0; a 32-bit word cannot name more arms anyway.  A uint64_t, since
+ *  2^32 does not fit a 32-bit size_t.  dp_resamp_create_custom() refuses a
+ *  larger count, and so does every create that builds a bank for it. */
+#define RESAMP_MAX_PHASES ((uint64_t)1 << 32)
+
 /** @brief State-blob magic for the resampler (FourCC "RSMP"). */
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
 /** @brief State-blob layout version (v2: uint32 ctrl phase + debt). */

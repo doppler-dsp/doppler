@@ -481,13 +481,13 @@ Keep the INPUT inside +-2.0 whenever the plan contains a CIC stage — see the f
 * `beta` RRC roll-off in `[0, 1]` (ignored for the rectangle). 
 * `span` One-sided RRC span in symbols (ignored for the rectangle, whose support is always exactly one symbol). 
 * `pulse_sps` The pulse's period measured in **output** samples (2 = two samples per symbol out). This is a shape parameter, not a rate-planning one: a matched filter has a symbol duration, and the planner still knows nothing of symbols. 
-* `num_phases` Terminal-stage arms; power of two. Sets the fractional timing resolution to `1/num_phases` of an output period. 
+* `num_phases` Terminal-stage arms; a power of two from 2 to RESAMP\_MAX\_PHASES (2^32), the most the terminal resampler's 32-bit phase word can address. Sets the fractional timing resolution to `1/num_phases` of an output period. 
 
 
 
 **Returns:**
 
-Non-NULL on success; NULL on a bad parameter or OOM. 
+Non-NULL on success; NULL on a bad parameter (a larger `num_phases` is refused before its bank is built) or OOM. 
 
 
 

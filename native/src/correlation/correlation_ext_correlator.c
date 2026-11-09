@@ -2241,9 +2241,9 @@ CorrelatorObj_set_max_peaks (CorrelatorObject *self, PyObject *args,
           if (_why)
             PyErr_SetString (PyExc_ValueError, _why);
           else
-            PyErr_SetString (PyExc_ValueError,
-                             "set_max_peaks: n must lie in 1..64 "
-                             "(DP_CORRELATOR_MAX_PEAKS)");
+            PyErr_SetString (
+                PyExc_ValueError,
+                "set_max_peaks: n must lie in 1..DP_CORRELATOR_MAX_PEAKS");
           return NULL;
         default:
           break;
@@ -5630,7 +5630,7 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "ValueError\n"
     "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
     "    the reason the C call gives, or ``set_max_peaks: n must lie in\n"
-    "    1..64 (DP_CORRELATOR_MAX_PEAKS)`` when it gives none.\n"
+    "    1..DP_CORRELATOR_MAX_PEAKS`` when it gives none.\n"
     "ValueError\n"
     "    If the C call returns any other non-zero status. The exception\n"
     "    message is the reason the C call gives, or ``set_max_peaks\n"

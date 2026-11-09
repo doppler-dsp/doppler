@@ -342,7 +342,7 @@ return_type = "int"
 status_return = true
 status_errors = [
   { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_max_peaks: only a search (framing='continuous' or 'burst') lists peaks; Correlator.flavor says which this is" },
-  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)" },
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_max_peaks: n must lie in 1..DP_CORRELATOR_MAX_PEAKS" },
 ]
 params = [
   { name = "n", type = "size_t" },

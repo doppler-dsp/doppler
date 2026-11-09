@@ -54,7 +54,7 @@ native/src/despreader/despreader_core.c 3
 native/src/dll/dll_core.c 9
 native/src/dp_interrupt_guard/dp_interrupt_guard_core.c 1
 native/src/dp_tlm/dp_tlm_core.c 1
-native/src/dp_tlm_capture/dp_tlm_capture_core.c 5
+native/src/dp_tlm_capture/dp_tlm_capture_core.c 3
 native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 3
 native/src/f32_to_i16/f32_to_i16_core.c 1
 native/src/f32_to_i16u32/f32_to_i16u32_core.c 1
@@ -91,7 +91,7 @@ native/src/ratesync/ratesync_core.c 1
 native/src/resamp/resamp_core.c 7
 native/src/resample/hbdecim_r2c_core.c 4
 native/src/rs_codec/rs_codec_core.c 1
-native/src/specan/specan_core.c 4
+native/src/specan/specan_core.c 1
 native/src/stream/stream_core.c 2  # wire-sized: a chunk's total_bytes and count come from the sender, so a forged frame must get DP_ERR_MEMORY, not abort (moved from stream_nats.c, which drops 7 -> 5)
 native/src/stream/stream_nats.c 5
 native/src/stream/tlm_sink.c 1

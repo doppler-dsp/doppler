@@ -247,6 +247,12 @@ main (void)
     DP_CHECK (dp_psd_create (3, 1.0, DP_PSD_WINDOW_RECT, 0.0f, big, 1.0, 0,
                              ACC_TRACE_MEAN, 0.1)
               == NULL);
+    /* n * pad = 2^60 makes a 2^63-byte frame: a size_t holds the count,
+     * but no object can be that large, so it is refused, not handed to
+     * malloc. */
+    DP_CHECK (dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, big / 8, 1.0, 0,
+                             ACC_TRACE_MEAN, 0.1)
+              == NULL);
     /* precondition: n = 2 under rect, at an ordinary pad, still builds */
     dp_psd_state_t *r2 = dp_psd_create (2, 1.0, DP_PSD_WINDOW_RECT, 0.0f, 4,
                                         1.0, 0, ACC_TRACE_MEAN, 0.1);

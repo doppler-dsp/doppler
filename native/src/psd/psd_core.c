@@ -55,31 +55,41 @@ dp_psd_kernel_init (dp_psd_kernel_t *k, size_t n, int window, float beta,
       || !dp_size_mul (n, 2 * sizeof (float _Complex), &two_frames))
     return DP_ERR_INVALID;
   /* Every buffer is sized from n or nfft = next_pow_two(n * pad), the
-   * largest nfft complex floats, so n * pad may not pass the largest power
-   * of two whose complex buffer has a byte count a size_t holds (2^60 on a
-   * 64-bit size_t).  Refused here, before the product is formed and before
-   * any allocation: n * pad wrapped -- n = 2, pad = 2^63 read nfft = 1 and
-   * a frame of n samples into a 1-sample buffer -- and so did the byte
-   * counts, n = 2^62 asking malloc for 0 bytes that the window fill then
-   * ran off.  Not left to calloc's own overflow check: ASan and TSan
-   * report an overflowing calloc as an error rather than a NULL. */
-  /* The largest power of two a size_t holds, 2^(w-1), over the element
-   * size, itself a power of two (8): the largest power-of-two count whose
-   * byte count fits. */
-  const size_t top_pow2 = ((size_t)1 << (CHAR_BIT * sizeof (size_t) - 1))
+   * largest nfft complex floats, so nfft may not pass the largest power of
+   * two whose complex buffer is an object malloc can serve (2^59 on a
+   * 64-bit size_t).  Refused here, before any allocation: n * pad wrapped
+   * -- n = 2, pad = 2^63 read nfft = 1 and a frame of n samples into a
+   * 1-sample buffer -- and so did the byte counts, n = 2^62 asking malloc
+   * for 0 bytes that the window fill then ran off.  Not left to calloc's
+   * own overflow check: ASan and TSan report an overflowing calloc as an
+   * error rather than a NULL.  n <= n * pad <= nfft, so the n-sized
+   * buffers fit too, and n + 1 cannot wrap. */
+  /* The largest power of two no larger than PTRDIFF_MAX, the largest
+   * object C allows, is 2^(w-2); over the element size, itself a power of
+   * two (8), it is the largest power-of-two count whose buffer can exist.
+   * Not 2^(w-1), which a size_t holds but no object can: nfft = 2^60 then
+   * passed and asked malloc for 2^63 bytes.  The bound is checked on nfft
+   * itself, the count each buffer is sized by, so the compiler sees it
+   * too: checked on n * pad alone, gcc's -Walloc-size-larger-than saw an
+   * nfft it could not bound and flagged the malloc. */
+  const size_t top_pow2 = ((size_t)1 << (CHAR_BIT * sizeof (size_t) - 2))
                           / sizeof (float _Complex);
-  if (pad > top_pow2 / n)
+  size_t       n_pad;
+  if (!dp_size_mul (n, pad, &n_pad))
+    return DP_ERR_INVALID;
+  /* 0 is next_pow_two's saturation: no power of two holds n * pad. */
+  const size_t nfft = dp_next_pow_two (n_pad);
+  if (nfft == 0 || nfft > top_pow2)
     return DP_ERR_INVALID;
 
   /* Caller-sized, so each can still fail, and does return an error: not
    * dp_xmalloc, which is for trusted sizes and would abort instead. */
-  const size_t nfft = dp_next_pow_two (n * pad);
-  k->n              = n;
-  k->nfft           = nfft;
-  k->full_scale     = full_scale;
+  k->n          = n;
+  k->nfft       = nfft;
+  k->full_scale = full_scale;
   /* n + 1, not n: the periodic window is filled at n + 1 points and read
    * at the first n (see below).  n + 1 cannot wrap: the refusal above
-   * holds n * pad, so n, under 2^62. */
+   * holds n to nfft, at most 2^59. */
   k->w     = (float *)dp_mallocn (n + 1, sizeof (float));
   k->frame = (float _Complex *)dp_mallocn (nfft, sizeof (float _Complex));
   k->spec  = (float _Complex *)dp_mallocn (nfft, sizeof (float _Complex));

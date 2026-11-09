@@ -1959,55 +1959,61 @@ test_huge_block_refused (void)
   return 0;
 }
 
-/* dp_RateConverter_get_delay() against the signal: a slow tone through a
- * fresh converter, the output's phase against the input's at k / rate,
- * read as a delay in input samples. One rate per plan: Resampler alone
- * (decimating and interpolating), one and two halfbands, CIC alone, CIC
- * with its droop compensator, CIC then Resampler. The tone sits at 2e-4 of
- * the output rate, deep in every passband, so the phase is the delay's;
- * it must agree within 0.01 output samples (measured: 0.005 at worst).
- * Sabotage: drop the halfband's factor 2 -> the 0.5 and 0.25 rows; drop
- * the compensator's term -> the compensated 1/8 row; scale a later stage
- * by the wrong rate -> the CIC+Resampler rows. */
+/* dp_RateConverter_get_count_lag() against the count: a fresh converter fed
+ * one sample a call, the worst of `m * rate - outputs` over every m, in
+ * outputs, must be at most the computed lag (times the rate) and within a
+ * hundredth of an output of it (of 0 where the count runs ahead) -- the
+ * bound is reached, not just respected. One rate per plan: Resampler
+ * decimating and
+ * interpolating, one and two halfbands, CIC alone, CIC with its droop
+ * compensator, CIC then Resampler, and a matched cascade (its terminal runs
+ * the push path, never behind). Sabotages: count the halfband as 0 -> the
+ * 0.5 and 0.25 rows; drop the Resampler's term -> the decimating Resampler
+ * rows; scale a later stage by the wrong rate -> the CIC + Resampler rows;
+ * give the matched terminal the decimator's term -> the matched rows. */
 static int
-test_get_delay_matches_the_signal (void)
+test_count_lag_matches_the_count (void)
 {
   static const struct
   {
     double rate;
-    int    compensate;
-  } rows[] = { { 0.91, 0 },      { 0.67, 0 },  { 1.5, 0 },   { 0.5, 0 },
-               { 0.25, 0 },      { 0.125, 0 }, { 0.125, 1 }, { 1.0 / 12.0, 1 },
-               { 0.0588235, 0 }, { 0.028, 0 }, { 0.0125, 0 } };
+    int    compensate, matched;
+  } rows[]
+      = { { 0.91, 0, 0 },       { 0.51, 0, 0 },      { 1.01, 0, 0 },
+          { 1.5, 0, 0 },        { 3.7, 0, 0 },       { 0.5, 0, 0 },
+          { 0.25, 0, 0 },       { 0.125, 0, 0 },     { 0.125, 1, 0 },
+          { 1.0 / 12.0, 1, 0 }, { 0.0588235, 0, 0 }, { 0.028, 0, 0 },
+          { 0.0125, 0, 0 },     { 0.3, 0, 1 },       { 0.0588235, 0, 1 } };
   for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
     {
       const double              rate = rows[r].rate;
       dp_RateConverter_state_t *rc
-          = dp_RateConverter_create (rate, rows[r].compensate);
+          = rows[r].matched
+                ? dp_RateConverter_create_matched (rate, 0, RC_PULSE_RRC, 0.35,
+                                                   4, 4.0, 32)
+                : dp_RateConverter_create (rate, rows[r].compensate);
       DP_REQUIRE (rc != NULL);
-      const size_t    n   = (size_t)(16384.0 / (rate < 1.0 ? rate : 1.0));
-      const size_t    cap = (size_t)((double)n * rate) + 64;
-      float _Complex *x   = malloc (n * sizeof *x);
-      float _Complex *y   = malloc (cap * sizeof *y);
-      DP_REQUIRE (x != NULL && y != NULL);
-      const double f = 2e-4 * (rate < 1.0 ? rate : 1.0); /* per input */
-      for (size_t i = 0; i < n; i++)
-        x[i] = (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
-      const size_t ny = dp_RateConverter_execute (rc, x, n, y, cap);
-      DP_REQUIRE (ny > 1000);
-      double _Complex acc = 0.0;
-      for (size_t k = ny / 2; k < ny; k++)
-        acc += y[k] * cexp (-I * 2.0 * M_PI * f * (double)k / rate);
-      const double measured = -carg (acc) / (2.0 * M_PI * f);
-      const double computed = dp_RateConverter_get_delay (rc);
-      if (fabs (measured - computed)
-          > 0.01 * (1.0 / rate > 1.0 ? 1.0 / rate : 1.0))
-        printf ("  rate %.6g comp %d: delay %.4f, measured %.4f\n", rate,
-                rows[r].compensate, computed, measured);
-      DP_CHECK (fabs (measured - computed)
-                <= 0.01 * (1.0 / rate > 1.0 ? 1.0 / rate : 1.0));
-      free (x);
-      free (y);
+      const size_t n    = (size_t)(400.0 / (rate < 1.0 ? rate : 1.0));
+      float _Complex in = 0.0f, out[8];
+      size_t got        = 0;
+      double worst      = -1e9;
+      for (size_t m = 1; m <= n; m++)
+        {
+          got += dp_RateConverter_execute (rc, &in, 1, out, 8);
+          const double lag = (double)m * rate - (double)got;
+          if (lag > worst)
+            worst = lag;
+        }
+      const double computed = dp_RateConverter_get_count_lag (rc) * rate;
+      /* A stage that is never behind can run ahead (negative): the bound
+         it is held to is then 0. */
+      const double reached = worst > 0.0 ? worst : 0.0;
+      const int    ok = worst <= computed + 1e-9 && computed - reached <= 0.01;
+      if (!ok)
+        printf ("  rate %.6g comp %d matched %d: lag %.4f outputs, "
+                "measured %.4f\n",
+                rate, rows[r].compensate, rows[r].matched, computed, worst);
+      DP_CHECK (ok);
       dp_RateConverter_destroy (rc);
     }
   return 0;
@@ -2018,7 +2024,7 @@ main (void)
 {
   test_invalid_rate ();
   test_huge_block_refused ();
-  DP_CHECK (test_get_delay_matches_the_signal () == 0);
+  DP_CHECK (test_count_lag_matches_the_count () == 0);
   test_set_rate_refusal_changes_nothing ();
   test_set_rate_rollback_on_a_failed_build ();
   test_bank_shape_value_without_a_bank ();

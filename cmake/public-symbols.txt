@@ -55,7 +55,7 @@ dp_RateConverter_execute_max_out function
 dp_RateConverter_gain function
 dp_RateConverter_get_bank_sps function
 dp_RateConverter_get_clipped function
-dp_RateConverter_get_delay function
+dp_RateConverter_get_count_lag function
 dp_RateConverter_get_narrow_pulse function
 dp_RateConverter_get_rate function
 dp_RateConverter_get_state function

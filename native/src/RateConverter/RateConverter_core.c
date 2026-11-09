@@ -1336,51 +1336,47 @@ dp_RateConverter_gain (const dp_RateConverter_state_t *s)
 }
 
 double
-dp_RateConverter_get_delay (const dp_RateConverter_state_t *s)
+dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s)
 {
-  /* Each stage's delay in ITS input samples, scaled to the converter's
-     input by the rate the stages before it have already applied. */
-  double d = 0.0, rate_in = 1.0;
+  /* Each stage's worst count lag in ITS input samples, scaled to the
+     converter's input by the rate the stages before it have applied: a
+     stage that is late hands every later stage its input late by as much. */
+  double lag = 0.0, rate_in = 1.0;
   for (int i = 0; i < s->n_stages; i++)
     switch (s->stage_types[i])
       {
       case RC_STAGE_HB:
-        {
-          /* Output m is formed as input 2m + 1 arrives; the half-weight
-             branch it is centred on reads `centre` back on its own
-             (half-rate) line, so 2 * centre input samples back. */
-          const hbdecim_state_t *h = (const hbdecim_state_t *)s->stage_ptrs[i];
-          d += 2.0 * (double)h->centre / rate_in;
-          rate_in *= 0.5;
-        }
+        /* Output m is formed as input 2m + 1 arrives: one input behind. */
+        lag += 1.0 / rate_in;
+        rate_in *= 0.5;
         break;
       case RC_STAGE_CIC:
         {
-          /* N boxcars of R, centred N (R - 1) / 2 back from the newest
-             input; output k is formed as input kR + R - 1 arrives, so it
-             carries kR - (N / 2 - 1) (R - 1). The droop compensator, when
-             there is one, is a symmetric FIR at the output rate: (taps -
-             1) / 2 more output samples, R input samples each. */
-          const rc_cic_stage_t *cs = (const rc_cic_stage_t *)s->stage_ptrs[i];
-          const double          R  = (double)cs->R;
-          double                dc = (0.5 * (double)CIC_N - 1.0) * (R - 1.0);
-          if (cs->fir)
-            dc += 0.5 * (double)(cs->fir->num_taps - 1) * R;
-          d += dc / rate_in;
+          /* Output k is formed as input kR + R - 1 arrives: R - 1 behind.
+             The droop compensator is an FIR at the output rate, one output
+             per input, so it adds none. */
+          const double R
+              = (double)((const rc_cic_stage_t *)s->stage_ptrs[i])->R;
+          lag += (R - 1.0) / rate_in;
           rate_in /= R;
         }
         break;
       case RC_STAGE_RESAMP:
         {
-          const resamp_state_t *r = (const resamp_state_t *)s->stage_ptrs[i];
-          d += (s->pulse != RC_PULSE_NONE ? dp_resamp_get_delay (r)
-                                          : dp_resamp_get_execute_delay (r))
-               / rate_in;
-          rate_in *= dp_resamp_get_rate (r);
+          /* dp_resamp_execute() decimating emits each output as its
+             interval closes, so the count is floor(m * rate): under one
+             output, 1 / rate inputs. Interpolating, and on a matched
+             cascade's push path at any rate, every output the newest input
+             reaches is emitted with it: never behind. */
+          const double r
+              = dp_resamp_get_rate ((const resamp_state_t *)s->stage_ptrs[i]);
+          if (r < 1.0 && s->pulse == RC_PULSE_NONE)
+            lag += 1.0 / (r * rate_in);
+          rate_in *= r;
         }
         break;
       }
-  return d;
+  return lag;
 }
 
 size_t

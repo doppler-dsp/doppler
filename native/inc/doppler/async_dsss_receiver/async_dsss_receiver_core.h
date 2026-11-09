@@ -36,11 +36,12 @@
  *     on the same input sample at any chunking (doppler#2974). The refine
  *     decides up to its chain's lag past that estimate, so the receiver
  *     keeps its last refine samples in a ring sized at create for that lag
- *     (`refine_hist_cap`, from dp_RateConverter_get_delay()), and the start
+ *     (`refine_hist_cap`, from dp_RateConverter_get_count_lag()), and the start
  *     is read from it when it is behind the call. A start the input has not
  *     reached yet is waited for, the receiver still refining. A refine that
- *     decides further past than the ring holds (none measured, signal or
- *     noise) starts at the first such point the ring still holds.
+ *     decides further past than the ring holds (a refine Dll drifting on
+ *     noise; no signal geometry measured) starts at the first such point the
+ *     ring still holds, still the same at any chunking.
  *   - **tracking**: the pre-despread carrier loop (`costas_wipeoff`/
  *     `costas_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`. The
  *     carrier loop updates once per code period from a NON-DATA-AIDED
@@ -307,12 +308,12 @@ typedef enum
      * lie in input an earlier call already passed (#2974). The last
      * refine_hist_cap refine samples are kept, a ring, so the start is
      * reached at any chunking. The cap is the most the refine decides past
-     * its estimate, from the configuration at create: the refine
-     * RateConverter's group delay (dp_RateConverter_get_delay(), in
-     * partials of code_len * spc / refine_segments samples each), plus one
-     * partial of Dll framing, one code period of the estimate's round-up
-     * and one tsamps block of the refine's own. Running state: it travels
-     * in the blob (v17). */
+     * its estimate, from the configuration at create: how far the refine
+     * RateConverter's output count can trail its input
+     * (dp_RateConverter_get_count_lag(), in partials of code_len * spc /
+     * refine_segments samples each), plus one partial of Dll framing, one
+     * code period of the estimate's round-up and one tsamps block of the
+     * refine's own. Running state: it travels in the blob (v17). */
     float _Complex *refine_hist;      /**< Owned ring, refine_hist_cap. */
     size_t          refine_hist_cap;  /**< Config: derived at create.   */
     size_t          refine_hist_len;  /**< Running: samples held.       */

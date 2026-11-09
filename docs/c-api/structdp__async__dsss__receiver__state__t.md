@@ -84,6 +84,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**refine\_dll**](#variable-refine_dll)  <br> |
 |  float \_Complex \* | [**refine\_dll\_out\_buf**](#variable-refine_dll_out_buf)  <br> |
 |  size\_t | [**refine\_dll\_out\_cap**](#variable-refine_dll_out_cap)  <br> |
+|  float \_Complex \* | [**refine\_hist**](#variable-refine_hist)  <br> |
+|  size\_t | [**refine\_hist\_cap**](#variable-refine_hist_cap)  <br> |
+|  size\_t | [**refine\_hist\_head**](#variable-refine_hist_head)  <br> |
+|  size\_t | [**refine\_hist\_len**](#variable-refine_hist_len)  <br> |
 |  double | [**refine\_max\_error\_db**](#variable-refine_max_error_db)  <br> |
 |  size\_t | [**refine\_max\_n\_blocks**](#variable-refine_max_n_blocks)  <br> |
 |  size\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
@@ -1038,6 +1042,77 @@ Capacity of refine\_dll\_out\_buf, samples.
 
 
 
+### variable refine\_hist 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::refine_hist;
+```
+
+
+
+Owned ring, refine\_hist\_cap. 
+
+
+        
+
+<hr>
+
+
+
+### variable refine\_hist\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::refine_hist_cap;
+```
+
+
+
+Config: derived at create. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable refine\_hist\_head 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::refine_hist_head;
+```
+
+
+
+Running: the next write. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable refine\_hist\_len 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::refine_hist_len;
+```
+
+
+
+Running: samples held. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable refine\_max\_error\_db 
 
 ```C++
@@ -1187,7 +1262,7 @@ uint64_t dp_async_dsss_receiver_state_t::refine_samples_fed;
 
 
 
-Raw samples fed into the refine pipeline since it was last (re)built. At the hand-over, fed minus the live chain's start is the tail that goes straight on to it: this call's, and the decided period's head from the carry when that is behind it. The clock dilation is taken over the live chain's start  the estimate from the refine's blocks, moved onto the held period  not over this. 
+Raw samples fed into the refine pipeline since it was last (re)built. At the hand-over, fed minus the live chain's start is the tail that goes straight on to it: this call's, and the ring's newest samples when the start is behind it. The clock dilation is taken over the live chain's start, the estimate from the refine's blocks, not over this. 
 
 
         

@@ -57,6 +57,8 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  uint64\_t | [**pick\_want**](#variable-pick_want)  <br> |
 |  uint64\_t | [**pooled**](#variable-pooled)  <br> |
 |  uint64\_t | [**rank**](#variable-rank)  <br> |
+|  uint64\_t | [**refine\_hist\_cap**](#variable-refine_hist_cap)  <br> |
+|  uint64\_t | [**refine\_hist\_len**](#variable-refine_hist_len)  <br> |
 |  uint64\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  uint64\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
@@ -492,6 +494,42 @@ uint64_t async_dsss_receiver_extra_t::rank;
 
 
 v13: set\_rank()'s value (#2022). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable refine\_hist\_cap 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::refine_hist_cap;
+```
+
+
+
+v17: layout key, the hand-over ring's size; must match the receiver. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable refine\_hist\_len 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::refine_hist_len;
+```
+
+
+
+v17: the ring's live count, packed oldest first after the carry. 
  
 
 

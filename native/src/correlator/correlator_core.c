@@ -2334,7 +2334,18 @@ dp_correlator_bank_power_max (const dp_correlator_state_t *state,
    with no transform: row i's correlation at lag tau is the time-domain sum
    the known-column path computes, over the row mixed within its period;
    DelayDoppler then takes the slow-time DFT at the cell's Doppler bin.  It
-   is the bank's map at that cell, up to float rounding. */
+   is the bank's map at that cell, up to float rounding.
+
+   GCC's SLP vectorizer is off for this one function. GCC 16.2.1 on x86
+   packs its complex multiply-accumulate into a 45-instruction loop a term
+   where the scalar form is 38: +3.2% instructions and +4.8% cycles on
+   bank_64x512_detect_l2_l4_1t (perf_event_open counts on the bench box),
+   with the outputs bit-identical either way. Whether GCC packs it depends
+   on the code around it, so the choice is pinned here; #2982 is the
+   instructions-per-call ratchet that guards it. */
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__ ((optimize ("no-tree-slp-vectorize")))
+#endif
 static double
 corr2d_cell_power (const dp_correlator_state_t *s, const float _Complex *x,
                    const float _Complex *code_conj, long long g, size_t L,

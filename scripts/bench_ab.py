@@ -28,6 +28,17 @@ B (a gate cannot pass on a row it never saw), and writes nothing under
 ``benchmarks/published/``. ``BENCH_ARGS`` narrows the suite exactly as it
 does for ``make bench``, e.g. ``BENCH_ARGS="--c-only acq"``.
 
+**A SLOWER row is confirmed by a second run before it stops anything**
+(#2984). An A/A run of one commit on a pinned bench box read 11 of 884 rows
+SLOWER and 16 FASTER: about 1% of rows cross the tolerance by chance, so a
+whole-suite run is rarely clean even on identical code. Rerun with
+``--confirm FIRST.json`` (``make bench-ab ... CONFIRM=first.json``), the
+first run's ``--json``, narrowed with ``BENCH_ARGS`` to the flagged
+components if you like. Then a row fails only when it is SLOWER in BOTH
+runs; one SLOWER in a single run is UNCONFIRMED and passes. A row the first
+run flagged that the rerun did not measure is UNCHECKED and fails: absent
+is not a pass. See `confirm`.
+
 A renamed family is paired through ``benchmarks/renames.toml`` (#2900),
 the table the benchmarks page and the label gate read: every row is keyed
 by the ID it has NOW (``c:<component>::<row>``, ``py:<module>::<test>``),
@@ -42,6 +53,8 @@ Examples
     make bench-ab A=origin/main B=HEAD K=7 \\
         BENCH_ARGS="--c-only async_dsss_pool"              # one C component
     make bench-ab A=v0.78.0 B=HEAD BUILD=native JSON=ab.json
+    make bench-ab A=origin/main B=HEAD CONFIRM=ab.json \\
+        BENCH_ARGS="--c-only tonemeas"                     # confirm a row
 """
 
 from __future__ import annotations
@@ -293,15 +306,74 @@ def failures(result: dict) -> list:
     ...         "z": {"verdict": "MISSING"},
     ...         "w": {"verdict": "NEW"},
     ...         "u": {"verdict": "UNPAIRED"},
+    ...         "c": {"verdict": "UNCHECKED"},
+    ...         "f": {"verdict": "UNCONFIRMED"},
     ...     }
     ... )
-    ['y', 'z', 'u']
+    ['y', 'z', 'u', 'c']
     """
-    return [
-        r
-        for r, v in result.items()
-        if v["verdict"] in ("SLOWER", "MISSING", "UNPAIRED")
-    ]
+    return [r for r, v in result.items() if v["verdict"] in FAILING]
+
+
+#: The verdicts that fail the run. UNCONFIRMED (SLOWER in one run of two)
+#: is not one of them; UNCHECKED (flagged, then never re-measured) is.
+FAILING = ("SLOWER", "MISSING", "UNPAIRED", "UNCHECKED")
+
+
+def confirm(result: dict, prior: dict) -> dict:
+    """This run's verdicts, held against a first run of the same pair.
+
+    A SLOWER row stands only when the first run (`prior`, its ``rows``)
+    also read it SLOWER; then it carries ``confirmed``. SLOWER now but TIE or
+    FASTER then is UNCONFIRMED, which passes: a chance crossing of the
+    tolerance does not repeat on the same row. A row this run measured that
+    the first did not has nothing to confirm it, so it keeps its verdict.
+
+    A row the first run read SLOWER that this run did not measure (a rerun
+    narrowed with ``BENCH_ARGS`` to other components) is UNCHECKED, which
+    fails. Every other row only the first run measured keeps its first
+    verdict, so the table is the whole suite either way.
+
+    >>> first = {
+    ...     "noise": {"verdict": "SLOWER"},
+    ...     "real": {"verdict": "SLOWER"},
+    ...     "skipped": {"verdict": "SLOWER"},
+    ...     "kept": {"verdict": "TIE", "ratio": 1.0},
+    ... }
+    >>> now = {
+    ...     "noise": {"verdict": "TIE", "ratio": 1.0},
+    ...     "real": {"verdict": "SLOWER", "ratio": 1.1},
+    ...     "fresh": {"verdict": "SLOWER", "ratio": 1.1},
+    ... }
+    >>> r = confirm(now, first)
+    >>> {k: v["verdict"] for k, v in sorted(r.items())}
+    ... # doctest: +NORMALIZE_WHITESPACE
+    {'fresh': 'SLOWER', 'kept': 'TIE', 'noise': 'TIE', 'real': 'SLOWER',
+     'skipped': 'UNCHECKED'}
+    >>> r["real"]["confirmed"]
+    True
+    >>> confirm({"x": {"verdict": "SLOWER"}}, {"x": {"verdict": "TIE"}})["x"][
+    ...     "verdict"
+    ... ]
+    'UNCONFIRMED'
+    """
+    out = {}
+    for row, then in prior.items():
+        if row in result:
+            continue
+        if then["verdict"] == "SLOWER":
+            out[row] = {**then, "verdict": "UNCHECKED"}
+        else:
+            out[row] = then
+    for row, v in result.items():
+        then = prior.get(row, {}).get("verdict")
+        if v["verdict"] == "SLOWER" and then == "SLOWER":
+            out[row] = {**v, "confirmed": True}
+        elif v["verdict"] == "SLOWER" and then is not None:
+            out[row] = {**v, "verdict": "UNCONFIRMED", "first": then}
+        else:
+            out[row] = v
+    return dict(sorted(out.items()))
 
 
 def judge(samples: dict, renames: dict) -> tuple:
@@ -419,6 +491,12 @@ def main(argv=None) -> int:
         help="the flags BOTH sides build at",
     )
     ap.add_argument("--json", help="also write the result here")
+    ap.add_argument(
+        "--confirm",
+        metavar="FIRST_JSON",
+        help="a first run's --json of the same A and B: a row then fails "
+        "only if it is SLOWER in both runs (#2984)",
+    )
     args = ap.parse_args(argv)
     # The table in THIS checkout: a branch that renames a family declares
     # the rename in the same commit.
@@ -432,6 +510,19 @@ def main(argv=None) -> int:
         return 2
 
     commits = {"A": _resolve(args.a), "B": _resolve(args.b)}
+    prior = None
+    if args.confirm:
+        with open(args.confirm) as fh:
+            prior = json.load(fh)
+        # The rerun confirms THIS pair. A first run of other commits says
+        # nothing about it, and would clear a row it never measured.
+        theirs = (prior.get("a"), prior.get("b"))
+        if theirs != (commits["A"], commits["B"]):
+            print(
+                f"bench-ab: {args.confirm} compared {theirs[0]} with "
+                f"{theirs[1]}, not {commits['A']} with {commits['B']}"
+            )
+            return 2
     for ref in (args.a, args.b):
         why = dirty_head(ref, _resolve(ref))
         if why:
@@ -486,6 +577,10 @@ def main(argv=None) -> int:
     if not any("ratio" in v for v in result.values()):
         print("bench-ab: no row was measured on both sides")
         return 1
+    if prior is not None:
+        result = confirm(result, prior["rows"])
+        print(f"confirming against {args.confirm}: a row fails only if it")
+        print("is SLOWER in both runs, or flagged then and not rerun")
     print(render(result))
     if args.json:
         with open(args.json, "w") as fh:
@@ -505,11 +600,30 @@ def main(argv=None) -> int:
     bad = failures(result)
     counts = {
         v: sum(r["verdict"] == v for r in result.values())
-        for v in ("FASTER", "TIE", "SLOWER", "MISSING", "UNPAIRED", "NEW")
+        for v in (
+            "FASTER",
+            "TIE",
+            "UNCONFIRMED",
+            "SLOWER",
+            "UNCHECKED",
+            "MISSING",
+            "UNPAIRED",
+            "NEW",
+        )
     }
     print(", ".join(f"{n} {v.lower()}" for v, n in counts.items() if n))
     if bad:
         print(f"bench-ab: B fails on {len(bad)} row(s): {', '.join(bad)}")
+        if prior is None and any(
+            result[r]["verdict"] == "SLOWER" for r in bad
+        ):
+            first = args.json or "first.json"
+            kept = "" if args.json else f" (this run kept none: JSON={first})"
+            print(
+                "bench-ab: one run cannot tell a SLOWER row from noise; "
+                f"rerun with CONFIRM={first}{kept}, and only a row SLOWER "
+                "in both runs fails"
+            )
         return 1
     return 0
 

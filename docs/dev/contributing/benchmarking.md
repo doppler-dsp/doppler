@@ -609,17 +609,28 @@ A's min. Each part is set by a measurement:
 `JSON=out.json` keeps the table for a PR body. It writes nothing under
 `benchmarks/published/`, and nothing in CI runs it.
 
-**One run is the verdict.** A performance PR is judged by a single
-`bench-ab` run of its main base (A) against its head (B). The K passes
-inside that run are the repetition: the band and the 1% floor already
-separate noise from a regression, so a second whole-suite run measures
-the same thing twice. When a row reads SLOWER, rerun only its component
-(`BENCH_ARGS="--c-only <component>"`, minutes instead of hours):
+**A SLOWER row needs a second run to confirm it.** A performance PR is
+judged by a `bench-ab` run of its main base (A) against its head (B), kept
+with `JSON=first.json`. A clean run ends there. The band and the 1% floor
+hold each row's chance of a false verdict to about 1%, but over some 880
+rows that still flags rows on identical code: an A/A run of one commit
+on a pinned box read 11 SLOWER and 16 FASTER (#2984). So when a row reads
+SLOWER, rerun the pair against the first run's JSON, narrowed to the
+flagged components if you like (`BENCH_ARGS="--c-only <component>"`,
+minutes instead of hours):
 
-| the rerun reads | then                                              |
-| --------------- | ------------------------------------------------- |
-| SLOWER again    | it is a regression: find the cause before merging |
-| TIE             | a one-off: quote both runs in the PR body         |
+```text
+make bench-ab A=origin/main B=HEAD CONFIRM=first.json
+```
+
+| the row in the rerun | verdict     | then                                   |
+| -------------------- | ----------- | -------------------------------------- |
+| SLOWER again         | SLOWER      | a regression: find it before merging   |
+| TIE or FASTER        | UNCONFIRMED | passes; quote both runs in the PR body |
+| not measured         | UNCHECKED   | fails: absent is not a pass            |
+
+The confirm run is refused when its first run compared other commits. A
+row SLOWER only in the rerun has nothing to confirm it and fails.
 
 A pair against an older base, such as the start of a multi-PR step, shows
 the step's total effect. That is a characterization for the changelog, and

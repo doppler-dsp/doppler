@@ -457,3 +457,82 @@ def test_two_rows_the_table_makes_one_are_refused():
         {"c:old": "c:new"},
     )
     assert any("makes one row, c:new::x" in p for p in bad), bad
+
+
+# --- a SLOWER row is confirmed by a second run (#2984) -------------------
+
+
+def _first_run(monkeypatch, tmp_path, a_rows, b_rows):
+    """Run main() once with --json; return the path of the JSON it wrote."""
+    first = tmp_path / "first.json"
+    _fake_main(monkeypatch, a_rows, b_rows)
+    AB.main(["A", "B", "-k", "3", "--json", str(first)])
+    return str(first)
+
+
+def _confirm(monkeypatch, first, a_rows, b_rows, a="A", b="B"):
+    _fake_main(monkeypatch, a_rows, b_rows)
+    return AB.main([a, b, "-k", "3", "--confirm", first])
+
+
+def test_a_first_run_slower_row_asks_for_a_confirming_run(
+    monkeypatch, tmp_path, capsys
+):
+    first = tmp_path / "first.json"
+    _fake_main(monkeypatch, [{"r": 1.0}] * 3, [{"r": 1.5}] * 3)
+    assert AB.main(["A", "B", "-k", "3", "--json", str(first)]) == 1
+    assert f"rerun with CONFIRM={first}" in capsys.readouterr().out
+
+
+def test_a_row_slower_in_both_runs_fails(monkeypatch, tmp_path, capsys):
+    slow = ([{"r": 1.0}] * 3, [{"r": 1.5}] * 3)
+    first = _first_run(monkeypatch, tmp_path, *slow)
+    assert _confirm(monkeypatch, first, *slow) == 1
+    assert "B fails on 1 row(s): c:r" in capsys.readouterr().out
+
+
+def test_a_row_slower_in_one_run_only_passes(monkeypatch, tmp_path, capsys):
+    """The A/A noise floor: about 1% of rows cross the tolerance by chance,
+    and a chance crossing does not repeat on the same row."""
+    tie = ([{"r": 1.0}] * 3, [{"r": 1.0}] * 3)
+    slow = ([{"r": 1.0}] * 3, [{"r": 1.5}] * 3)
+    first = _first_run(monkeypatch, tmp_path, *slow)
+    assert _confirm(monkeypatch, first, *tie) == 0
+    first = _first_run(monkeypatch, tmp_path, *tie)
+    assert _confirm(monkeypatch, first, *slow) == 0
+    assert "1 unconfirmed" in capsys.readouterr().out
+
+
+def test_a_flagged_row_the_rerun_did_not_measure_fails(monkeypatch, tmp_path):
+    """A rerun narrowed to other components has not cleared the row."""
+    first = _first_run(
+        monkeypatch,
+        tmp_path,
+        [{"r": 1.0, "s": 1.0}] * 3,
+        [{"r": 1.5, "s": 1.0}] * 3,
+    )
+    assert (
+        _confirm(monkeypatch, first, [{"s": 1.0}] * 3, [{"s": 1.0}] * 3) == 1
+    )
+
+
+def test_a_new_slower_row_in_the_rerun_still_fails(monkeypatch, tmp_path):
+    """Nothing in the first run clears a row it never measured."""
+    first = _first_run(
+        monkeypatch, tmp_path, [{"r": 1.0}] * 3, [{"r": 1.0}] * 3
+    )
+    assert (
+        _confirm(
+            monkeypatch,
+            first,
+            [{"r": 1.0, "n": 1.0}] * 3,
+            [{"r": 1.0, "n": 1.5}] * 3,
+        )
+        == 1
+    )
+
+
+def test_a_first_run_of_other_commits_is_refused(monkeypatch, tmp_path):
+    slow = ([{"r": 1.0}] * 3, [{"r": 1.5}] * 3)
+    first = _first_run(monkeypatch, tmp_path, *slow)
+    assert _confirm(monkeypatch, first, *slow, b="C") == 2

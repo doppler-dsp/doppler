@@ -173,7 +173,7 @@ P = V(E) / q^(n-k),        V(E) = sum_{i<=E} C(n, i) (q-1)^i
 
 0.99 at `E = 1`, 0.49 at `E = 2`, 0.039 at `E = 4`, 2.6e-14 at CCSDS's
 `E = 16`. Two consequences a caller acts on, both measured in
-[`rs`'s certification report](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/tests/validation/rs/results.md)
+[`rs`'s certification report](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/tests/validation/rs/results.md)
 §2.2: the rate depends on `E` and **not** on how far past the radius the word
 is, so a badly broken frame is no more likely to be caught than a marginal
 one; and the textbook `1/E!` is what is left of the expression above after

@@ -188,7 +188,7 @@ assert d2.get_state() == ref.get_state()
 `Despreader` doesn't expose its carrier phase or code-loop NCO as separate
 properties — the equal-`get_state()` check above *is* the observable, and
 it's exactly what
-[`src/doppler/tests/test_state_serialization.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/tests/test_state_serialization.py)
+[`src/doppler/tests/test_state_serialization.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/tests/test_state_serialization.py)
 asserts for every composed type in the library.
 
 ## The payoff: elastic hand-off across pods
@@ -199,7 +199,7 @@ from the descriptor anywhere — a different thread, a different process, a
 different pod — restore the state blob, and it continues as if it had never
 moved.
 
-[`doppler.dsss.orchestrator`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/dsss/orchestrator.py)
+[`doppler.dsss.orchestrator`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/dsss/orchestrator.py)
 is this cashed in for real: `CoarseChannel` composes a `DDC` mixer/decimator
 with a burst search (`Correlator(..., framing="burst")`; a `BurstCapture` when
 given a `burst_len`), and `Acquirer` composes a whole bank of
@@ -251,7 +251,7 @@ assert resumed_hits == ref_hits
 length-prefixed concatenation of every channel's blob — so a whole
 coarse-Doppler bank checkpoints and resumes as one call. See
 `test_bank_pod_handoff_resumes_bit_exact` in
-[`test_orchestrator.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/dsss/tests/test_orchestrator.py)
+[`test_orchestrator.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/dsss/tests/test_orchestrator.py)
 for the full-bank version of the same proof.
 
 ## What's covered
@@ -276,7 +276,7 @@ These run from a clone of the repository at the release you installed
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.81.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.82.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->

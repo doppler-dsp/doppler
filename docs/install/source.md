@@ -9,7 +9,7 @@ Clone the release you want to build:
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.81.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.82.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->

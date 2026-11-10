@@ -258,7 +258,7 @@ wfmgen --type dsss --data-code 0x1d --symbol-rate 2700 --sps 2 \
 From Python, `data=` takes the bits -- a file's bytes become bits through
 `cvt.bytes_to_bin` -- and there is no file face of its own. The message comes
 back frame by frame, each with its own CRC
-([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/wfmgen_data_source_demo.py),
+([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/wfmgen_data_source_demo.py),
 whose C twin is `native/examples/wfmgen_data_source_demo.c`):
 
 ```python
@@ -1259,7 +1259,7 @@ own copy, and `frame=` is an input: read it back from `Composer.to_json()`.
 --8<-- "src/doppler/examples/wfmgen_frame_demo.py:frame"
 ```
 
-The whole script, [`src/doppler/examples/wfmgen_frame_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/wfmgen_frame_demo.py), checks that
+The whole script, [`src/doppler/examples/wfmgen_frame_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/wfmgen_frame_demo.py), checks that
 the frame reaches the samples and that the record rebuilds them; its C twin
 is `native/examples/wfmgen_frame_demo.c`.
 

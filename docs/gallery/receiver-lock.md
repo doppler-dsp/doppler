@@ -79,9 +79,9 @@ assert code_locked["n"][code_locked["value"] > 0][0] <= (
 because the true symbol boundary is not yet known — see
 [Streaming Async Despreader](async-despread.md) for why `Dll(segments=K)`
 outputs partials in the first place, and
-[the async receiver's own test suite](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/track/tests/test_async_dsss_receiver.py)
+[the async receiver's own test suite](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/track/tests/test_async_dsss_receiver.py)
 for the full link-budget validation (BER, code/timing-rate tracking,
 and independent symbol-clock drift) this composition is proven
 against.
 
-Source: [`src/doppler/examples/receiver_lock_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/receiver_lock_demo.py).
+Source: [`src/doppler/examples/receiver_lock_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/receiver_lock_demo.py).

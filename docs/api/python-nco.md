@@ -9,7 +9,7 @@ Three signal-source classes in the `doppler.source` module:
 | `AWGN` | CF32 complex Gaussian noise                    | Noise injection, SNR testing, Monte Carlo |
 
 Source:
-[`src/doppler/source/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/source/__init__.py)
+[`src/doppler/source/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/source/__init__.py)
 
 ______________________________________________________________________
 

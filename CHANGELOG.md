@@ -13,6 +13,401 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-11-10
+
+### Breaking
+
+- **`AsyncDsssReceiver` state blobs are v17 and `AsyncDsssPool`'s v7.**
+    A receiver's blob now carries its refine hand-over ring after the
+    carry, sized by the configuration, so a v16 receiver blob (or a v6
+    pool blob) is refused
+    ([#2974](https://github.com/doppler-dsp/doppler/issues/2974)). The ring
+    is held for the receiver's lifetime, up to ~38 KiB (Gold-1023 at 2
+    samples a chip), and is carried in every blob, each pool member's too.
+
+- **The composers' `configure_search_raw()` return the library's codes**:
+    `DP_ERR_INVALID` (-4) for a bad grid, where they returned -1, and
+    `DP_ERR_MEMORY` (-6) when rebuilding the engine cannot allocate, where
+    a grid too large could abort. This applies to `dp_burst_capture_`,
+    `dp_dsss_receiver_`, `dp_async_dsss_receiver_` and
+    `dp_dsss_burst_receiver_configure_search_raw`. A C caller testing
+    `== -1` stops catching the refusal, so test `!= 0`. In Python all four
+    raise `ValueError` with one sentence naming the grid's rules, where they
+    raised `configure_search_raw failed (rc=-1)`, and `MemoryError` (#2752).
+
+- **`dp_correlator_bank_power_max` and `dp_correlator_bank_detect` take an
+    `int *status` ahead of `why`**: `DP_ERR_MEMORY` when memory ran out,
+    `DP_ERR_UNSUPPORTED` off a map, `DP_ERR_INVALID` for a refused
+    argument; pass NULL to ignore it. In Python a bank that cannot allocate
+    raises `MemoryError` (was `ValueError`), and `bank_detect`'s work
+    buffers are a refusal where they aborted
+    ([design §18](docs/design/correlator-python.md)) (#2752).
+
+- **Correlator state blobs are version 2**: the continuous search's blob
+    carries `keep_surface`, which a restore used to drop (#2022). Every
+    version-1 correlator blob is refused, and so is any composite blob that
+    carries one (a capture's or a receiver's).
+
+- **A burst search refuses the continuous search's calls in C**, touching
+    nothing: `dp_correlator_set_keep_surface()` (now `int`),
+    `set_carrier_freq_hz()` and `set_telemetry()` return
+    `DP_ERR_UNSUPPORTED`; `surface()`, `surface_doppler_hz()`,
+    `surface_chip_phase()`, `block_prompt()` and `block_raw()` return
+    `SIZE_MAX`. None had a burst caller or test
+    ([design §18](docs/design/correlator-python.md)).
+
+- **Eleven correlator C functions take a trailing `const char **why`**:
+    `dp_correlator_execute`, the five `execute_*` batches, both `bank_*`,
+    `set_telemetry`, `configure_search_raw` and `set_max_peaks`. A refusal
+    writes the sentence naming the refused argument, which Python raises;
+    pass NULL to ignore it ([design §18](docs/design/correlator-python.md)).
+
+- **`Correlator` takes no rate or design point by omission.**
+    `Acquisition`'s `sample_rate=4e6`, `chip_rate=1e6`, `symbol_rate=1000`
+    and `cn0_dbhz=50` defaults and `BurstAcquisition`'s `fs=1.0` are gone: a
+    search refuses a rate it reads that is not given, and `cn0_dbhz`
+    defaults to NaN (no design point), which the continuous search refuses.
+    `sample_rate=1.0` still gives normalized units
+    ([design §17](docs/design/correlator-python.md)).
+
+- **`dp_correlator_state_t` no longer has `delay_doppler`.** It recorded
+    the same fact as `flavor`; test
+    `flavor == DP_CORRELATOR_DELAY_DOPPLER` instead
+    ([#2901](https://github.com/doppler-dsp/doppler/issues/2901)).
+
+- **`Correlator.push` returns a structured array of hit records**, one
+    field per member, instead of 4-, 5- or 9-field tuples, and loses no
+    input to a full list: the 1024-hit cap is gone
+    ([design §5](docs/design/correlator-python.md)).
+
+- **Three spellings changed with the merge.** A search's `fs` is
+    `sample_rate`; a map's `n_out` is `execute_max_out()` (`nx_out` on the
+    1-D flavor, whose padding knob it also is); and `DelayDoppler`'s
+    refusal of `ny=0` has no spelling, since `doppler_rows=0` is "no map"
+    and builds the 1-D flavor
+    ([design §17, §18](docs/design/correlator-python.md)).
+
+- **`dp_correlator_set_surface_sink()` returns `int`** and refuses a
+    flavor that decides no dwell (a map or a detector) with
+    `DP_ERR_INVALID`, where it used to write through a NULL search record.
+    A caller that ignored the old `void` compiles unchanged (#2752).
+
+- **Seven correlator classes are one: `doppler.correlation.Correlator`.**
+    Its knobs pick the flavor, and `flavor` says which they built
+    ([guide](docs/guide/correlator.md)). `Corr`, `Corr2D` and
+    `DelayDoppler` (its `ny` is `doppler_rows`) are `Correlator(ref, ...)`;
+    `CorrDetector`/`CorrDetector2D` add `detect=1`; `Acquisition` is
+    `Correlator(nrz, framing="continuous")` with the chips as +1/-1
+    samples; `BurstAcquisition` is `Correlator(p, framing="burst")`, its
+    `fs` now `sample_rate`. A property the flavor does not serve raises
+    `AttributeError`, and a method `ValueError`; a refused constructor
+    argument raises `ValueError` naming the knob (#2752).
+
+- **Telemetry's bindings raise `OverflowError` for an out-of-range count.**
+    `Telemetry(-4)` and a bad `block_samples` raised `ValueError`; they, and
+    `read`, `read_dict`, `set_now` and `records` given a count outside its
+    C type, now raise `OverflowError`. `Telemetry.stats()` takes no
+    arguments and refuses one with `TypeError`, where it ignored it
+    ([#2972](https://github.com/doppler-dsp/doppler/pull/2972)).
+
+### Added
+
+- **`dp_correlator_create`: one constructor that picks the correlator's
+    flavor from its knobs.** It builds what the seven flavor constructors
+    build, byte for byte, and refuses a value the chosen flavor would not
+    honor, with a sentence naming the knob (`why`). It is the entry point
+    step 4's one Python class calls; a C caller still names its flavor.
+    [Design §3, §17](docs/design/correlator-python.md) (#2752).
+
+- **`DP_ERR_UNSUPPORTED` (-11): the object's flavor does not serve the
+    call.** The correlator returns it from every member a flavor does not
+    honor ([design §18](docs/design/correlator-python.md)), so
+    `DP_ERR_INVALID` keeps meaning a bad argument to a call the object
+    does serve, and the binding can say which one happened (#2752).
+
+- **Checked allocators: `dp_mallocn`, `dp_reallocn`, `dp_callocn` (NULL on
+    overflow or OOM) and `dp_xmallocn`, `dp_xreallocn`, `dp_xcallocn`
+    (abort)**, in `clib_common.h`. `make lint-alloc-helpers` now refuses a
+    new inline product in any allocator's size argument
+    ([#2963](https://github.com/doppler-dsp/doppler/pull/2963),
+    [#2969](https://github.com/doppler-dsp/doppler/pull/2969)).
+
+- **`dp_RateConverter_get_count_lag()`**: how far a cascade's output count
+    can trail its input, in input samples, from its plan (about one output
+    a stage). Held to the measured worst lag at 15 rates covering every
+    plan, reached within 0.01 outputs.
+
+### Changed
+
+- **Viterbi, BurstDemod, ppe and CarrierAcquisition size their buffers
+    through the checked helpers** (`dp_mallocn`, `dp_xmallocn`,
+    `dp_xreallocn`), 26 sites. Two wrapping counts are now refused rather
+    than sized short: a Viterbi `depth` whose decision buffer
+    `depth * nstate` wraps fails `create`, and a `BurstDemod`
+    `set_preamble` whose `reps * est_segments` wraps leaves the object as
+    it was.
+
+- **The DSSS composers size their buffers through the checked
+    helpers.** The 21 inline size products in `AsyncDsssReceiver`,
+    `AsyncDsssPool`, `DsssReceiver`, `DsssBurstReceiver` and
+    `dp_parallel.h` moved onto `dp_xmallocn`/`dp_xcallocn`/`dp_xreallocn`/
+    `dp_mallocn`, and those five files leave
+    `scripts/.alloc-product-ratchet`.
+
+- **The filter and resampler cores size their allocations through the
+    checked helpers**: RateConverter, fir, hbdecim, hbdecim_q15,
+    hbdecim_r2c, resamp, ddc, ddcr, delay, doppler_channel, interp_table
+    and fft2d call `dp_mallocn`/`dp_reallocn`/`dp_callocn` and their
+    aborting twins, and leave `scripts/.alloc-product-ratchet`. The sizes
+    that used to wrap now refuse; see Fixed.
+
+- **The spectral and measurement cores size their buffers through the
+    checked helpers** (`dp_mallocn`, `dp_reallocn`, `dp_xmallocn`,
+    `dp_xreallocn`): PSD, Spectrogram, SpecAn, the three `measure`
+    analyzers, `find_peaks_f32`, `noise_floor_db`, the event log and the
+    telemetry capture. A wrapping byte count is refused (or aborts, on
+    trusted paths); 20 sites in 10 files leave
+    `scripts/.alloc-product-ratchet`. PSD's size refusal now stops at the
+    largest object malloc can serve, not the largest `size_t`: `n * pad`
+    of 2^60 is refused up front instead of asking malloc for 2^63 bytes.
+
+- **wfm's allocation sizes go through the checked helpers.** Every
+    inline `n * sizeof` product in the wfm composer, Plan, JSON, reader,
+    writer and synth now calls `dp_mallocn`/`dp_xmallocn`/`dp_reallocn`/
+    `dp_xreallocn`, so a count that wraps is refused or aborts instead
+    of returning a short buffer. The two synth setters this reached are
+    under Fixed.
+
+- **A renamed benchmark row keeps its history.** `benchmarks/renames.toml`
+    maps an old row family to the one it became, `c:acq` to
+    `c:correlator` for one. The benchmarks page joins the two histories,
+    the label gate wants one label and one exempt line per row under its
+    new ID, and `make bench-ab` pairs A's old rows with B's new ones from
+    the same table. `make bench-ab`'s `ALIAS=` is gone, and it keys every
+    row by the page's row ID, so moving a bench file to another module no
+    longer unpairs it. The step-3 correlator renames are the first
+    entries: the page's 58 correlator rows now carry the history their old
+    IDs recorded ([#2900](https://github.com/doppler-dsp/doppler/issues/2900)).
+
+- **`BurstCapture` calls the burst search directly**, not through the
+    `burst_acq` forwarder that step 4 retires
+    ([design §8](docs/design/correlator-python.md)). Its state blob is
+    byte-identical and its tests unchanged; `DsssBurstReceiver` no longer
+    links `burst_acq` (#2752).
+
+- **A double is checked against a `size_t` in one place,
+    `dp_size_from_double()`** in `clib_common.h`. It bounds against 2^w
+    exactly, where `(double)SIZE_MAX` rounds up to 2^64 on LP64 and admits
+    2^64 itself. wfmgen's sample-count flags use it, and
+    `make lint-size-mul` now also fails on a new `(double)SIZE_MAX`.
+
+- **A size product is checked in one place, `dp_size_mul()`** in
+    `clib_common.h` (with `dp_size_mul_sat()` for an upper bound). The
+    hand-written `n > SIZE_MAX / k` guards in acc_trace, dp_tlm,
+    spectrogram, wfm and the spectrogram validator now call it, and
+    `make lint-size-mul` fails on a new one; correlator_core.c's seven are
+    a shrink-only ratchet (`scripts/.size-mul-ratchet`).
+
+- **`make lint` fails when a C file includes the same header twice in one
+    branch.** `burst_capture_core.h` included `correlator_core.h` three
+    times, and three other headers repeated an include too. The include
+    guard hid every copy from the compiler. `make lint-dup-include`
+    (`scripts/check_dup_includes.py`) flags a repeat at the same `#if`
+    nesting path, so the same header in an `#if` and its `#else` still
+    passes.
+
+- **`.claude/worktrees/` is ignored**, so `make lint` (and `make train`,
+    which runs it in the current checkout) no longer lints agent worktrees
+    nested under the main checkout as if they were the tree.
+
+- **just-makeit pin 0.122.5 → 0.123.0.** A record-array method's
+    docstring lists the record's fields under Returns (jm#2539), as
+    `BurstCapture.events()` and `I16Buffer`'s reads now show; the pin also
+    brings `rank = [1, 2]` and `getter_status`, which #2752 step 4 needs.
+
+- **just-makeit pin 0.123.0 → 0.124.0.** "Create with defaults"
+    examples now call the constructor bare instead of restating every
+    default (jm#2556), across 11 `.pyi` stubs and their runtime
+    docstrings. The pin also brings `create_why`, `getter_error` and
+    `error_sentinel`, which #2752 step 4's `Correlator` needs.
+
+- **just-makeit pin 0.124.0 → 0.125.0.** Methods can now raise the C
+    side's own sentence through `why` (jm#2574), which #2752 step 4's
+    `Correlator` uses; generated imports and re-exports are isort-ordered
+    and wrapped to 79 columns (jm#2571, jm#2514).
+
+- **just-makeit pin 0.125.0 → 0.126.1.** A count method can report a
+    status (`status_out`, jm#2584), so `Correlator.bank_power_max` and
+    `bank_detect` raise `MemoryError` for an allocation failure;
+    `make drift-check` fails on a hand-owned fragment missing a guard jm
+    emits (jm#2581); and a header `@param` documents its argument by name,
+    so 40-odd "Input." placeholders now carry their real text (jm#2223).
+
+- **A release no longer serializes its gallery render behind the bench
+    run, and a perf PR's verdict is one `bench-ab` run.** The gallery
+    renders on the second x86 box while `bench-interleaved` measures, and
+    both land as one train
+    ([release checklist](docs/dev/release.md#2-check-examples)). A SLOWER
+    row is rechecked by rerunning its component alone, not the whole suite
+    ([benchmarking](docs/dev/contributing/benchmarking.md#comparing-two-commits-make-bench-ab)).
+    `make bench-ab BENCH_ARGS=--python-only` now runs, so the two sides
+    of a verdict can run on two boxes at once.
+
+- **`make lint` checks that no fork can reach a self-hosted runner.**
+    Re-vendored `standard.mk` from canonical brings `self-hosted-check`
+    and the `ci-runner` matrix filter (`scripts/ci-runner.py`); no
+    doppler workflow uses a self-hosted runner yet, so the gate passes
+    as is.
+
+- **`make lint-size-mul` reads every spelling of the guard**: SIZE_MAX
+    written as `~(size_t)0`, `(size_t)~0` or `(size_t)-1`, in any numerator
+    (`(SIZE_MAX - f) / h`), cast to any floating type, or compared in a
+    floating clause, counted per occurrence. The eight sites it found in
+    five files (buffer.h's framer ×2, psd ×2, interleaver ×2,
+    dp_tlm_capture, util) moved onto `dp_size_mul` and the new
+    `dp_size_add`.
+
+### Fixed
+
+- **Filter and resampler sizes that overflowed a `size_t` wrote past short
+    buffers.** The byte count wrapped to a few bytes and the call then wrote
+    every element (64-bit counts): `dp_ddc_execute`/`_ctrl` and
+    `dp_RateConverter_execute`/`_ctrl` at `n_in >= 2^61`, `dp_fir_execute`
+    near `SIZE_MAX`, `dp_hbdecim_create`/`dp_hbdecim_r2c_create` at
+    `num_taps >= 2^62`, `dp_interp_table_create` at `table_len >= 2^60`,
+    `dp_delay_create` above `2^62` taps, and `dp_resamp_create_custom` when
+    `num_phases * num_taps` wraps. Each now refuses: an execute returns 0
+    with its state untouched, a create returns NULL.
+
+- **`AsyncDsssReceiver` decoded differently depending on how its input was
+    split into calls** (#2974): BER up to 0.13 at 1-5 samples a call
+    (0.109, 0.044, 0.109, 0.129, 0.025) against 0 fed whole, at 2.5
+    samples a chip. The refine decides past the live chain's start by its
+    chain's lag, and the start was taken only from the deciding call. The
+    receiver now keeps a ring of its last refine samples, sized at create
+    from the new `dp_RateConverter_get_count_lag()`, and waits for a start not
+    yet reached. Output fed whole is unchanged.
+
+- **`make release-pr` no longer dies halfway through the version bump on
+    a box with no Rust crate cache** (#2722). `cargo fetch --locked` now
+    runs before any file is written, so a missing cache fails with the
+    tree untouched instead of leaving a half-done bump to back out.
+
+- **carrier_nda's §2.2 tracking table judged each point on one seed's last
+    sample**, so M = 8 at 10 dB read "tracking" on CI's build and "no" on
+    GCC 15/16 aarch64 (#2952). Across eight seeds the point does not track
+    (worst second-half error 3.5e-3, seven times the tolerance). Each point
+    now runs eight seeds; a point tracks only if every seed does, and
+    `locked` reports how many seeds declare. The headline counts are now
+    13 track and 7 declare (were 14 and 8).
+
+- **Two heap overruns in the coding group, and a `BurstDemod` preamble
+    that could be left half-replaced.** A Viterbi `depth` whose
+    `depth * nstate` wrapped to 0 got a `malloc (0)` that traceback then
+    wrote past; `create_code` now refuses it. A `BurstDemod.set_preamble`
+    whose `reps * est_segments` wrapped sized a short partials buffer that
+    `form_partials` filled past its end; it is now refused. And
+    `set_preamble` freed the old acquisition code before allocating the
+    new one, so an out-of-memory there left an armed object with a NULL
+    code that `demod` then read; it now acquires every new buffer first
+    and changes nothing unless all of them are held.
+
+- **A huge `doppler_uncertainty` no longer builds a one-tile search.** The
+    tile count converted an out-of-range double to `size_t`, which is
+    undefined: x86 read 1e300 Hz as 2^63 tiles, which wrapped to ONE, and
+    the search quietly covered a single span. The count now saturates, and
+    a search whose grid no `size_t` can hold is refused, naming
+    `doppler_uncertainty` (or `reps`) (#2752).
+
+- **`DopplerChannel.execute_profile` wrote past its position scratch when
+    `max_out` was huge.** The C call sized that scratch as
+    `max_out * sizeof (double)`, so a `max_out` above `SIZE_MAX / 8`
+    wrapped to a few bytes, and the call then wrote one position per
+    output past them. `dp_doppler_channel_execute_profile` now refuses such
+    a `max_out` with `DP_ERR_INVALID` before producing anything, like its
+    other refusals: no output, elapsed time unchanged.
+
+- **The downstream example's `Capture`/`RawCapture` bindings lacked jm's
+    output-size guards.** Their sacred `_ext_<obj>.c` fragments fell behind
+    jm's render: `read(-1)` asked for SIZE_MAX samples and wrapped it to a
+    negative dimension, and a kernel returning more than its buffer held
+    was shaped past the allocation. Both are now `fragment = "generated"`,
+    so `read(-1)` raises `OverflowError` (pinned by a new test). The
+    re-render also makes `summary(1)` raise `TypeError` (it took and ignored
+    arguments) and names the types `iqtools.capture.Capture`/`RawCapture`
+    (was `capture.*`).
+
+- **`DsssBurstReceiver` refuses an `spc` whose sample counts wrap.** One
+    code period (`acq_code_len * spc`), one burst
+    (`(reps * acq_code_len + frame_syms * data_code_len) * spc`) and the
+    preamble's byte size could each wrap, and construction then built a
+    short or empty preamble and capture, or wrote past the preamble's
+    buffer. Each is now checked before it sizes anything, and the receiver
+    is refused with a `why` naming `spc`.
+
+- **`test_resamp_core` failed under GCC 15** because it held
+    `execute_ctrl_push`, `execute_ctrl` and `execute` to bit-identical outputs
+    (#2697). Under `-ffast-math`, GCC 15 sums each call site's inlined dot
+    product in a different order, so the forms differed by one or two float
+    ULPs. The checks now allow 8 ULPs. A timing defect moves these outputs by
+    about 0.14, and sabotages of each form still fail. The header's promise
+    for the push form now says the same: same outputs, same count, same
+    ticks, and values that agree to a few ULPs.
+
+- **`dp_resamp_create_custom` hung on a power-of-two `num_phases` above
+    2^31**: its log2 shifted an `unsigned int` past its width and never
+    stopped. It now shifts a `size_t`.
+
+- **`dp_resamp_create_custom` accepted a `num_phases` above 2^32**, past
+    which its arm select shifts the 32-bit phase word by a negative count
+    (undefined). It is now refused, before the bank is copied, and
+    `dp_RateConverter_create_matched` refuses the same count before it
+    builds the bank.
+
+- **The resampler's validation report holds its two forms to 8 ULPs,
+    not the bit.** At and above unity a zero control reproduces
+    `execute` with the same count and each value within 8 ULPs, the
+    rule the C test already pins (#2697); on the X Elite aarch64 build the
+    bit-for-bit row read REGRESSED while every spectral-purity limit
+    held.
+
+- **`Telemetry`, `MemoryCapture` and `Capture` refuse an out-of-range
+    count instead of wrapping it.** `read(2**64 + 5)` used to drain five
+    records and `set_now(-1)` to stamp 2\*\*64 - 1. jm now owns all three
+    bindings; `FFT` keeps its hand-written binding with jm's output guards
+    added, and its `out=` path checks `PyArray_SetBaseObject` as jm's does. [#2972](https://github.com/doppler-dsp/doppler/pull/2972)
+
+- **Four spectral buffers no longer wrap their size.** `SpecAn.execute`
+    sized its scratch by `x_len * 8`: at 2^61 it freed the scratch and
+    kept the dangling pointer, at 2^61 + 1 the DDC wrote past 8 bytes.
+    `find_peaks_f32`, `noise_floor_db` and `ToneMeasure` (by
+    `n_harmonics + 1` slots) wrote or sorted past a short scratch the same
+    way. Each now refuses: `SpecAn.execute` returns 0 and keeps its state,
+    `find_peaks_f32` returns 0 peaks, `noise_floor_db` returns 0.0, and
+    `dp_tonemeas_create` returns NULL for an `n_harmonics` it cannot hold.
+
+- **`dp_wfm_plan_restore` no longer crashes on a forged signal table**
+    (#2962). A blob that kept its DSP fingerprint but claimed more signals
+    than could be allocated left the table NULL and still marked intact, so
+    the build dereferenced NULL. A count or length the blob cannot hold now
+    rebuilds the Plan from its embedded spec, and a spec length that wraps
+    is refused.
+
+- **A scene's integer fields are range-checked before they are
+    converted.** A forged `"num_samples"` past what a `size_t` holds was
+    converted with undefined behavior, and a Plan's cache buffer was then
+    sized by an unchecked `num_samples * 8` that wrapped. Every int,
+    `uint32`, `uint64` and count field now refuses a value it cannot hold,
+    naming the key and its place, and the Plan sizes that buffer with
+    `dp_mallocn`.
+
+- **Two heap overruns in `wfm_synth`.** `dp_wfm_synth_set_symbols()`
+    and `dp_wfm_synth_set_rrc()` sized their copy as `n * sizeof elem`
+    from the caller's count, so a count past `SIZE_MAX / sizeof elem`
+    wrapped to an 8- or 4-byte block that the copy loop then wrote past.
+    Both now refuse that count with -1, and a refused `set_symbols`
+    leaves the stream it had.
+
 ## [0.81.0] - 2026-11-07
 
 ### Breaking
@@ -18877,5 +19272,6 @@ ______________________________________________________________________
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.80.0]: https://github.com/doppler-dsp/doppler/compare/v0.79.0...v0.80.0
 [0.81.0]: https://github.com/doppler-dsp/doppler/compare/v0.80.0...v0.81.0
+[0.82.0]: https://github.com/doppler-dsp/doppler/compare/v0.81.0...v0.82.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.81.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.82.0...HEAD

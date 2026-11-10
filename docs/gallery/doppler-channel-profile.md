@@ -83,4 +83,4 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.doppler_channel_profile_demo doppler_channel_profile_demo.png
 ```
 
-Source: [`src/doppler/examples/doppler_channel_profile_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/doppler_channel_profile_demo.py)
+Source: [`src/doppler/examples/doppler_channel_profile_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/doppler_channel_profile_demo.py)

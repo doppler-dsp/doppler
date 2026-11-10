@@ -65,5 +65,5 @@ validation of these closed-form curves against the envelope and power
 detectors, [Detection Sizing](../design/detection.md) for why five
 different laws ship under one `det_` prefix and what happens when they
 are crossed, and the
-[certification report](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/detection/tests/validation/detection/results.md)
+[certification report](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/detection/tests/validation/detection/results.md)
 for the certified envelope these curves sit inside.

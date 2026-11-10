@@ -242,7 +242,7 @@ implementation in Python**. To build from source instead:
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.81.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.82.0 https://github.com/doppler-dsp/doppler && cd doppler
 cmake -B build -DBUILD_PYTHON=ON && cmake --build build --target wfmgen_cli
 # binary: build/native/src/wfmcompose/wfmgen
 ```

@@ -150,4 +150,4 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.plan_background_demo plan_background_demo.png
 ```
 
-Source: [`src/doppler/examples/plan_background_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/plan_background_demo.py).
+Source: [`src/doppler/examples/plan_background_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/plan_background_demo.py).

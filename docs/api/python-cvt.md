@@ -13,7 +13,7 @@ range `[-1, +1)` onto full-scale `int16` and saturates beyond it. The `*ToF32`
 direction divides by the same `scale` to recover the float.
 
 Source:
-[`src/doppler/cvt/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/cvt/__init__.py)
+[`src/doppler/cvt/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/cvt/__init__.py)
 
 For the quantisation theory behind the scaling and the `UQ15` unsigned format,
 see the [Quantization gallery page](../gallery/cvt-quantization.md).

@@ -24,7 +24,7 @@ flavors of one class, `Correlator`, on the
 compose these objects.
 
 Source:
-[`src/doppler/acquire/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/acquire/__init__.py)
+[`src/doppler/acquire/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/acquire/__init__.py)
 
 See the [CarrierAcquisition: RRC Pulse Shaping gallery page](../gallery/carrier-acq-rrc.md)
 for a worked example showing why the template matters.

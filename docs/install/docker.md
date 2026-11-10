@@ -27,7 +27,7 @@ The published pull-and-run image: the full Python package with the `cli` and
 Every example asserts its own physics — exit 0 means it ran *and* checked out.
 Both platforms install the exact wheel published to PyPI for that release
 (never rebuilt) — see
-[`deploy/docker/Dockerfile.cli`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/deploy/docker/Dockerfile.cli).
+[`deploy/docker/Dockerfile.cli`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/deploy/docker/Dockerfile.cli).
 
 Pin a release instead of `latest`, or drive a streaming pipeline at a reachable
 `nats-server`:
@@ -35,7 +35,7 @@ Pin a release instead of `latest`, or drive a streaming pipeline at a reachable
 <!-- doc-version:start -->
 
 ```sh
-docker run --rm ghcr.io/doppler-dsp/doppler:0.81.0 doppler --help
+docker run --rm ghcr.io/doppler-dsp/doppler:0.82.0 doppler --help
 ```
 
 <!-- doc-version:end -->
@@ -93,7 +93,7 @@ for every docker build here:
 
 `docker-compose.yml` wires a transmitter, two receivers, and a spectrum
 analyzer over NATS. Compose builds one lean image (the `stream-services` target
-of [`deploy/docker/Dockerfile.examples`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/deploy/docker/Dockerfile.examples),
+of [`deploy/docker/Dockerfile.examples`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/deploy/docker/Dockerfile.examples),
 carrying just the statically-linked streaming binaries) and runs all four
 services on it against a bundled `nats-server`:
 

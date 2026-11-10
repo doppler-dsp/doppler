@@ -143,7 +143,7 @@ python -m doppler.examples.async_despread_demo out.png
 ```
 
 The C twin is
-[`async_despread_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/native/examples/async_despread_demo.c).
+[`async_despread_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/native/examples/async_despread_demo.c).
 It runs the same link at the same two Dopplers, with the same emitter, noise
 seed and loop, and checks the same physics, so it prints the same numbers as
 this page's run. It also shows what the binding hides: the emitter's and the
@@ -153,4 +153,4 @@ The design is in [the async DSSS receiver design](../design/async-dsss-receiver.
 section 3. The [lock-detection guide](../guide/lock-detection.md) covers how the
 `Dll`'s lock detector fits alongside every other loop's.
 
-Source: [`async_despread_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/async_despread_demo.py).
+Source: [`async_despread_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/async_despread_demo.py).

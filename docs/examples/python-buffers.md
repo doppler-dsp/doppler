@@ -129,7 +129,7 @@ Three things that bite, all of them measurable:
     constructor, and it can be any size: pick the one your largest frame needs.
 
 The runnable version of both directions, with the assertions that keep it
-honest, is [`src/doppler/examples/ring_chunking_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.81.0/src/doppler/examples/ring_chunking_demo.py).
+honest, is [`src/doppler/examples/ring_chunking_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/ring_chunking_demo.py).
 
 ## One thread: `peek` and `write_some`
 

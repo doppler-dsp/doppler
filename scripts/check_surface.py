@@ -59,8 +59,11 @@ PACKAGE = "doppler"
 NOT_API = {"tests", "benchmarks", "examples"}
 
 
-def declared_all(path: Path) -> list[str] | None:
+def declared_all(path: Path, root: Path) -> list[str] | None:
     """The literal ``__all__`` a module assigns, or None if it assigns none.
+
+    ``root`` only shortens the path an error names, so CI output reads the
+    same on every machine.
 
     Raises
     ------
@@ -70,6 +73,7 @@ def declared_all(path: Path) -> list[str] | None:
         gate cannot tell what such a module exports, so it refuses it
         rather than reading it as "nothing".
     """
+    shown = path.relative_to(root)
     tree = ast.parse(path.read_text(encoding="utf-8"))
     stores = [
         n
@@ -94,11 +98,11 @@ def declared_all(path: Path) -> list[str] | None:
         )
     ]
     if len(stores) != 1 or len(top) != 1:
-        raise ValueError(f"{path}: __all__ is not one top-level assignment")
+        raise ValueError(f"{shown}: __all__ is not one top-level assignment")
     try:
         return list(ast.literal_eval(top[0].value))
     except ValueError:
-        raise ValueError(f"{path}: __all__ is not a literal list") from None
+        raise ValueError(f"{shown}: __all__ is not a literal list") from None
 
 
 def surface(root: Path) -> tuple[dict[str, list[str]], list[str]]:
@@ -119,7 +123,7 @@ def surface(root: Path) -> tuple[dict[str, list[str]], list[str]]:
     for init in sorted((root / "src" / PACKAGE).glob("*/__init__.py")):
         pkg = init.parent
         try:
-            names = declared_all(init)
+            names = declared_all(init, root)
         except ValueError as e:
             errors.append(str(e))
             continue
@@ -138,7 +142,7 @@ def surface(root: Path) -> tuple[dict[str, list[str]], list[str]]:
             if sub == init or NOT_API & set(rel.parts[:-1]):
                 continue
             try:
-                own = declared_all(sub)
+                own = declared_all(sub, root)
             except ValueError as e:
                 errors.append(str(e))
                 continue

@@ -536,3 +536,34 @@ def test_a_first_run_of_other_commits_is_refused(monkeypatch, tmp_path):
     slow = ([{"r": 1.0}] * 3, [{"r": 1.5}] * 3)
     first = _first_run(monkeypatch, tmp_path, *slow)
     assert _confirm(monkeypatch, first, *slow, b="C") == 2
+
+
+def test_a_chained_confirm_keeps_a_twice_slower_row(monkeypatch, tmp_path):
+    """A confirm run's own JSON records a flagged row as UNCHECKED (or
+    UNCONFIRMED); fed to the next run as its first, that row has still read
+    SLOWER before, and SLOWER again must fail (review of #2997)."""
+    slow = ([{"r": 1.0, "s": 1.0}] * 3, [{"r": 1.5, "s": 1.0}] * 3)
+    first = _first_run(monkeypatch, tmp_path, *slow)
+    second = tmp_path / "second.json"
+    _fake_main(monkeypatch, [{"s": 1.0}] * 3, [{"s": 1.0}] * 3)
+    argv = ["A", "B", "-k", "3", "--confirm", first, "--json", str(second)]
+    assert AB.main(argv) == 1
+    assert _confirm(monkeypatch, str(second), *slow) == 1
+
+
+def test_a_first_run_of_another_build_is_refused(monkeypatch, tmp_path):
+    first = tmp_path / "first.json"
+    _fake_main(monkeypatch, [{"r": 1.0}] * 3, [{"r": 1.5}] * 3)
+    AB.main(["A", "B", "-k", "3", "--build", "native", "--json", str(first)])
+    _fake_main(monkeypatch, [{"r": 1.0}] * 3, [{"r": 1.0}] * 3)
+    argv = [
+        "A",
+        "B",
+        "-k",
+        "3",
+        "--build",
+        "portable",
+        "--confirm",
+        str(first),
+    ]
+    assert AB.main(argv) == 2

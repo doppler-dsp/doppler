@@ -319,12 +319,20 @@ def failures(result: dict) -> list:
 #: is not one of them; UNCHECKED (flagged, then never re-measured) is.
 FAILING = ("SLOWER", "MISSING", "UNPAIRED", "UNCHECKED")
 
+#: A first run's verdicts that mean "this row has read SLOWER before". A
+#: confirm run's own JSON can be the next run's first, and there a row
+#: flagged once reads UNCONFIRMED or UNCHECKED, not SLOWER: counting only
+#: SLOWER would let a row slow in runs 1 and 3 pass on run 3.
+FLAGGED = ("SLOWER", "UNCONFIRMED", "UNCHECKED")
+
 
 def confirm(result: dict, prior: dict) -> dict:
     """This run's verdicts, held against a first run of the same pair.
 
     A SLOWER row stands only when the first run (`prior`, its ``rows``)
-    also read it SLOWER; then it carries ``confirmed``. SLOWER now but TIE or
+    also flagged it -- SLOWER, or UNCONFIRMED or UNCHECKED when the first
+    run was itself a confirm run (`FLAGGED`); then it carries
+    ``confirmed``. SLOWER now but TIE or
     FASTER then is UNCONFIRMED, which passes: a chance crossing of the
     tolerance does not repeat on the same row. A row this run measured that
     the first did not has nothing to confirm it, so it keeps its verdict.
@@ -356,6 +364,10 @@ def confirm(result: dict, prior: dict) -> dict:
     ...     "verdict"
     ... ]
     'UNCONFIRMED'
+    >>> twice = {"x": {"verdict": "UNCHECKED"}}  # flagged by a confirm run
+    >>> again = confirm({"x": {"verdict": "SLOWER"}}, twice)
+    >>> again["x"]["verdict"]
+    'SLOWER'
     """
     out = {}
     for row, then in prior.items():
@@ -367,7 +379,7 @@ def confirm(result: dict, prior: dict) -> dict:
             out[row] = then
     for row, v in result.items():
         then = prior.get(row, {}).get("verdict")
-        if v["verdict"] == "SLOWER" and then == "SLOWER":
+        if v["verdict"] == "SLOWER" and then in FLAGGED:
             out[row] = {**v, "confirmed": True}
         elif v["verdict"] == "SLOWER" and then is not None:
             out[row] = {**v, "verdict": "UNCONFIRMED", "first": then}
@@ -514,13 +526,16 @@ def main(argv=None) -> int:
     if args.confirm:
         with open(args.confirm) as fh:
             prior = json.load(fh)
-        # The rerun confirms THIS pair. A first run of other commits says
-        # nothing about it, and would clear a row it never measured.
-        theirs = (prior.get("a"), prior.get("b"))
-        if theirs != (commits["A"], commits["B"]):
+        # The rerun confirms THIS pair at THESE flags. A first run of other
+        # commits, or another build, says nothing about it and would clear
+        # a row it never measured. K may differ: it only sets the band.
+        theirs = (prior.get("a"), prior.get("b"), prior.get("build"))
+        ours = (commits["A"], commits["B"], args.build)
+        if theirs != ours:
             print(
                 f"bench-ab: {args.confirm} compared {theirs[0]} with "
-                f"{theirs[1]}, not {commits['A']} with {commits['B']}"
+                f"{theirs[1]} ({theirs[2]} build), not {ours[0]} with "
+                f"{ours[1]} ({ours[2]} build)"
             )
             return 2
     for ref in (args.a, args.b):

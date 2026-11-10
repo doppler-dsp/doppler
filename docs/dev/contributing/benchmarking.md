@@ -629,8 +629,11 @@ make bench-ab A=origin/main B=HEAD CONFIRM=first.json
 | TIE or FASTER        | UNCONFIRMED | passes; quote both runs in the PR body |
 | not measured         | UNCHECKED   | fails: absent is not a pass            |
 
-The confirm run is refused when its first run compared other commits. A
-row SLOWER only in the rerun has nothing to confirm it and fails.
+The confirm run is refused when its first run compared other commits or
+used another `BUILD`. A row SLOWER only in the rerun has nothing to
+confirm it and fails. A confirm run's own JSON can serve as the next
+`CONFIRM=`; a row it marked UNCONFIRMED or UNCHECKED still counts as
+flagged there.
 
 A pair against an older base, such as the start of a multi-PR step, shows
 the step's total effect. That is a characterization for the changelog, and

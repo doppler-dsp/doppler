@@ -52,8 +52,12 @@ release PR. Two rules keep that safe:
     left on local `main` was once measured (v0.57.0's set was stamped with
     a tree that never reached main). Rendering on the bench box mid-run
     would perturb its numbers, so use the second x86 box.
-- **The render box is x86.** An aarch64 render moved 38 of 59 plots in
-    one release, so plots are rendered on x86 only.
+- **The render box is x86, and the same one every release:**
+    swiftgo-ai9465. Plots move with the toolchain. An aarch64 render moved
+    38 of 59 plots in one release. v0.82.0's first render on swiftgo
+    (GCC 14) moved plots that cachyos (GCC 16) had re-rendered
+    pixel-identical one release earlier. Rendering on one box keeps a
+    moved plot meaning moved code.
 
 If you added a new plot-generating script, add it to `GALLERY_SCRIPTS`
 in the Makefile before running `make gallery`.

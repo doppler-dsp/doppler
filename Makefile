@@ -1849,7 +1849,16 @@ VERSION_PROBES := $(foreach L,$(VERSION_SITE_LABELS),$(VERSION_PROBE_NEWLINE)$(L
 # `--write` sets every DECLARED site and reads them all back, so a site missing
 # from VERSION_SITE_LABELS above is still written and still verified -- the
 # silent direction of the old two-list arrangement cannot recur.
+#
+# `cargo fetch --locked` runs FIRST, before anything is written (#2722). The
+# `cargo metadata --offline` below cannot resolve on a box whose registry
+# cache is empty, and it used to fail after the version files and uv.lock
+# were already rewritten, leaving a half-done bump to back out by hand.
+# Fetching against the unchanged lock fills the cache, or fails while the
+# tree is still untouched. Measured with an empty CARGO_HOME: metadata exit
+# 101 before the fetch, 0 after it, and no file changed.
 define BUMP_VERSION_CMD
+cd ffi/rust && cargo fetch --locked >/dev/null
 $(VERSION_SITES_CMD) --write $(VERSION)
 $(LOCK_CMD)
 cd ffi/rust && cargo metadata --offline --format-version 1 >/dev/null

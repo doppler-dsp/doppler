@@ -389,14 +389,20 @@ def bench_once(wt, cpus=None):
             f"bench-interleaved: `make bench` failed in {wt} "
             f"(exit {r.returncode}); its stderr is above"
         )
-    py, c = fresh_snapshots(os.path.join(wt, "benchmarks", "history"), since)
-    return (json.load(open(py)) if py else {"benchmarks": []}), json.load(
-        open(c)
+    py, c = fresh_snapshots(
+        os.path.join(wt, "benchmarks", "history"),
+        since,
+        python_only="--python-only" in bench_args_set().split(),
+    )
+    empty = {"benchmarks": []}
+    return (
+        json.load(open(py)) if py else empty,
+        json.load(open(c)) if c else empty,
     )
 
 
-def fresh_snapshots(hist: str, since: float):
-    """(python_path or None, c_path) this pass wrote under `hist`.
+def fresh_snapshots(hist: str, since: float, python_only: bool = False):
+    """(python_path or None, c_path or None) this pass wrote under `hist`.
 
     Only a snapshot newer than `since` counts. An older one is a previous
     pass's: counted again, it would shrink a row's band, and the pass would
@@ -404,6 +410,12 @@ def fresh_snapshots(hist: str, since: float):
     refused by name; a pass with no new Python one is a C-only run
     (``BENCH_ARGS=--c-only ...``, as make bench-ab passes), and gets None.
     A new Python snapshot is paired with its own C one, by tag.
+
+    ``python_only`` is the one exception: ``jm bench --python-only`` saves
+    no C snapshot at all, so a Python snapshot alone is the whole pass and
+    its C path is None. That is what lets one box take the Python side of
+    a ``bench-ab`` run while another takes the C side. Without the flag, a
+    Python snapshot with no C twin is still refused.
     """
 
     def new(paths):
@@ -415,6 +427,8 @@ def fresh_snapshots(hist: str, since: float):
     if py:
         pj = max(py, key=os.path.getmtime)
         cj = pj[: -len(".json")] + "-c.json"
+        if python_only:
+            return pj, None
         if not os.path.exists(cj) or os.path.getmtime(cj) < since:
             raise SystemExit(
                 f"bench-interleaved: {pj} has no C snapshot beside it"

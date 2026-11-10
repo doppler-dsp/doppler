@@ -609,6 +609,22 @@ A's min. Each part is set by a measurement:
 `JSON=out.json` keeps the table for a PR body. It writes nothing under
 `benchmarks/published/`, and nothing in CI runs it.
 
+**One run is the verdict.** A performance PR is judged by a single
+`bench-ab` run of its main base (A) against its head (B). The K passes
+inside that run are the repetition: the band and the 1% floor already
+separate noise from a regression, so a second whole-suite run measures
+the same thing twice. When a row reads SLOWER, rerun only its component
+(`BENCH_ARGS="--c-only <component>"`, minutes instead of hours):
+
+| the rerun reads | then                                              |
+| --------------- | ------------------------------------------------- |
+| SLOWER again    | it is a regression: find the cause before merging |
+| TIE             | a one-off: quote both runs in the PR body         |
+
+A pair against an older base, such as the start of a multi-PR step, shows
+the step's total effect. That is a characterization for the changelog, and
+it gates nothing.
+
 ______________________________________________________________________
 
 ## See also

@@ -183,6 +183,23 @@ def test_a_python_snapshot_without_its_c_one_is_refused(tmp_path):
         BI.fresh_snapshots(str(tmp_path), since=2000.0)
 
 
+def test_a_python_only_pass_returns_its_python_snapshot_alone(tmp_path):
+    """`jm bench --python-only` writes no C snapshot, so a Python-only
+    shard of a two-box run is the Python file alone. Sabotage: drop the
+    python_only early return -> "no C snapshot", red."""
+    _write(tmp_path / "t0.json", 1000.0)  # a previous pass's
+    _write(tmp_path / "t1.json", 3000.0)
+    assert BI.fresh_snapshots(
+        str(tmp_path), since=2000.0, python_only=True
+    ) == (str(tmp_path / "t1.json"), None)
+
+
+def test_a_python_only_pass_that_wrote_nothing_is_refused(tmp_path):
+    _write(tmp_path / "t0.json", 1000.0)
+    with pytest.raises(SystemExit, match="wrote no new snapshot"):
+        BI.fresh_snapshots(str(tmp_path), since=2000.0, python_only=True)
+
+
 def test_a_python_snapshot_with_a_stale_c_one_is_refused(tmp_path):
     """Its C twin exists but a previous pass wrote it."""
     _write(tmp_path / "t1.json", 3000.0)

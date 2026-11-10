@@ -123,3 +123,48 @@ def test_the_list_only_shrinks(tmp_path: Path) -> None:
     r = _run(root, "--base", "main")
     assert r.returncode == 1
     assert "only shrinks" in r.stderr
+
+
+def test_a_package_without_all_fails(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    _w(root, "src/doppler/app/__init__.py", '"""An app."""\n')
+    r = _run(root, "--no-ratchet")
+    assert r.returncode == 1
+    assert "declares no __all__" in r.stderr
+
+
+def test_an_empty_all_declares_no_api(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    _w(root, "src/doppler/app/__init__.py", "__all__: list[str] = []\n")
+    _w(root, "src/doppler/app/helpers.py", '__all__ = ["helper"]\n')
+    assert _run(root, "--no-ratchet").returncode == 0
+
+
+def test_an_all_inside_a_block_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    _w(
+        root,
+        "src/doppler/sig/__init__.py",
+        'try:\n    __all__ = ["Widget", "make"]\nexcept ImportError:\n'
+        "    __all__ = []\n",
+    )
+    r = _run(root, "--no-ratchet")
+    assert r.returncode == 1
+    assert "not one top-level assignment" in r.stderr
+
+
+def test_a_submodule_export_its_package_drops_fails(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    _w(root, "src/doppler/sig/extra.py", '__all__ = ["make", "orphan"]\n')
+    r = _run(root, "--no-ratchet")
+    assert r.returncode == 1
+    assert "exports orphan" in r.stderr
+    assert "make," not in r.stderr  # re-exported, so not reported
+
+
+def test_the_lint_half_needs_no_site(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    (root / "site/index.html").unlink()
+    assert _run(root, "--no-ratchet").returncode == 1
+    r = _run(root, "--no-ratchet", "--no-site")
+    assert r.returncode == 0, r.stderr

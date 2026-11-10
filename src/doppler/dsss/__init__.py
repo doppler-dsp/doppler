@@ -35,6 +35,7 @@ from .dsss import (  # noqa: E402
     PoolReceiverStatus,
     ReceiverStatus,
 )
+from .orchestrator import Acquirer, CoarseChannel, Detection  # noqa: E402
 
 __all__ = [
     "BurstDespreader",
@@ -49,4 +50,7 @@ __all__ = [
     "AsyncDsssPool",
     "PoolReceiverStatus",
     "ASYNC_DSSS_RX_STATE",
+    "Acquirer",
+    "CoarseChannel",
+    "Detection",
 ]

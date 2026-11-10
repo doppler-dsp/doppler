@@ -40,14 +40,49 @@ def _load(name: str):
         sys.path.remove(str(SCRIPTS))
 
 
-def _fake_sysfs(root: Path, ceilings_khz: list[int | None]) -> str:
-    """A per-CPU sysfs tree; None omits that CPU's cpufreq entirely."""
+def _fake_sysfs(
+    root: Path,
+    ceilings_khz: list[int | None],
+    ranks: list[int] | None = None,
+) -> str:
+    """A per-CPU sysfs tree; None omits that CPU's cpufreq entirely.
+
+    `ranks`, when given, writes each CPU's amd_pstate_prefcore_ranking.
+    """
     for n, khz in enumerate(ceilings_khz):
         d = root / f"cpu{n}" / "cpufreq"
         d.mkdir(parents=True)
         if khz is not None:
             (d / "cpuinfo_max_freq").write_text(f"{khz}\n")
+        if ranks is not None:
+            (d / "amd_pstate_prefcore_ranking").write_text(f"{ranks[n]}\n")
     return str(root)
+
+
+#: swiftgo-ai9465 as read on 2026-11-10 (Debian 6.12.115, amd-pstate-epp):
+#: the same Ryzen AI 9 465 as the published machine, but every CPU reports
+#: 4310000 kHz, and only the prefcore ranking tells Zen 5 from Zen 5c.
+SWIFTGO_RANKS = [202, 208, 196, 208] + [129] * 6 + [202, 208, 196, 208]
+SWIFTGO_RANKS += [129] * 6
+
+
+def test_a_uniform_ceiling_falls_back_to_the_prefcore_ranking(tmp_path):
+    """#2987: one max freq everywhere pinned nothing, so swiftgo's runs
+    bounced between core classes and swung 1.2-1.4x on untouched rows. The
+    whole Zen 5 class is picked, not only its best-binned cores (208)."""
+    report = _load("bench_report")
+    root = _fake_sysfs(tmp_path, [4_310_000] * 20, SWIFTGO_RANKS)
+    assert report._cpu_ranges(report.fastest_cpus(root)) == "0-3,10-13"
+
+
+def test_ranks_binned_within_one_class_leave_the_machine_unpinned(tmp_path):
+    """A homogeneous CPU still ranks its cores a few percent apart; that is
+    boost binning, not a slower class, and must not narrow the affinity."""
+    report = _load("bench_report")
+    root = _fake_sysfs(
+        tmp_path, [4_000_000] * 8, [236, 231, 226] * 2 + [231] * 2
+    )
+    assert report.fastest_cpus(root) is None
 
 
 def test_picks_the_fastest_class_in_the_published_machines_layout(tmp_path):

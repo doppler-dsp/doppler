@@ -42,10 +42,18 @@ git add docs/assets/
 git commit -m "docs: update gallery plots for vX.Y.Z"
 ```
 
-Land it through its own PR **before §2b**. §2b measures a commit main
-already has; a plots commit left on local `main` is exactly the commit it
-must not measure (v0.57.0's set was stamped with one, and that tree never
-reached main).
+**Run it at the same time as §2b, not before it.** A plots commit touches
+only `docs/assets/`, which is not a perf-relevant path, so §2b can measure
+`origin/main` while this renders. Both PRs land as one train ahead of the
+release PR. Two rules keep that safe:
+
+- **Render on a branch, and never on the bench box during its run.** §2b
+    measures a detached `origin/main`, never local `main`. A plots commit
+    left on local `main` was once measured (v0.57.0's set was stamped with
+    a tree that never reached main). Rendering on the bench box mid-run
+    would perturb its numbers, so use the second x86 box.
+- **The render box is x86.** An aarch64 render moved 38 of 59 plots in
+    one release, so plots are rendered on x86 only.
 
 If you added a new plot-generating script, add it to `GALLERY_SCRIPTS`
 in the Makefile before running `make gallery`.

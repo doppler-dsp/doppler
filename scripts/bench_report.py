@@ -337,9 +337,18 @@ def fastest_cpus(sysfs="/sys/devices/system/cpu"):
     portable, and re-ran identical in both builds).
 
     The class is read from ``cpuinfo_max_freq``, which the kernel reports per
-    logical CPU and which does not move with load or governor. Returns None
-    when every CPU reports the same ceiling, or none report one, so a uniform
-    machine and a container without cpufreq are both left alone.
+    logical CPU and which does not move with load or governor. Some kernels
+    report one ceiling for both classes, though: Debian's 6.12 gives every CPU
+    of the same Ryzen AI 9 465 4310000 kHz (#2987), which pinned nothing and
+    left that box's benchmarks bimodal. Then the class comes from
+    ``amd_pstate_prefcore_ranking``, which still separates them (Zen 5 at
+    196-208, Zen 5c at 129). Ranks differ a few percent WITHIN a class (each
+    core's boost is binned), so a class is the run of ranks each within
+    `RANK_CLASS_RATIO` of the one above it, and the fast class is the top run,
+    not just the single best-ranked core.
+
+    Returns None when neither file splits the CPUs, or none report one, so a
+    uniform machine and a container without cpufreq are both left alone.
 
     Parameters
     ----------
@@ -365,16 +374,50 @@ def fastest_cpus(sysfs="/sys/devices/system/cpu"):
     >>> os.remove(os.path.join(root, "cpu1", "cpufreq", "cpuinfo_max_freq"))
     >>> fastest_cpus(root) is None  # one class left: nothing to choose
     True
+
+    One ceiling everywhere, but ranks split into two classes (#2987):
+
+    >>> root = tempfile.mkdtemp()
+    >>> for n, rank in enumerate([202, 208, 129, 196, 129]):
+    ...     d = os.path.join(root, f"cpu{n}", "cpufreq")
+    ...     os.makedirs(d)
+    ...     _ = open(os.path.join(d, "cpuinfo_max_freq"), "w").write("4310000")
+    ...     f = os.path.join(d, "amd_pstate_prefcore_ranking")
+    ...     _ = open(f, "w").write(str(rank))
+    >>> fastest_cpus(root)
+    [0, 1, 3]
     """
-    ceilings = {}
-    for path in glob.glob(os.path.join(sysfs, "cpu[0-9]*")):
-        khz = _readfile(os.path.join(path, "cpufreq", "cpuinfo_max_freq"))
-        if khz and khz.isdigit():
-            ceilings[int(os.path.basename(path)[3:])] = int(khz)
-    if len(set(ceilings.values())) < 2:
+    ceilings = _per_cpu(sysfs, "cpuinfo_max_freq")
+    if len(set(ceilings.values())) >= 2:
+        top = max(ceilings.values())
+        return sorted(n for n, khz in ceilings.items() if khz == top)
+    ranks = _per_cpu(sysfs, "amd_pstate_prefcore_ranking")
+    floor = None
+    levels = sorted(set(ranks.values()), reverse=True)
+    for above, below in zip(levels, levels[1:]):
+        if below < RANK_CLASS_RATIO * above:
+            floor = above
+            break
+    if floor is None:
         return None
-    top = max(ceilings.values())
-    return sorted(n for n, khz in ceilings.items() if khz == top)
+    return sorted(n for n, rank in ranks.items() if rank >= floor)
+
+
+#: Two adjacent prefcore ranks are one core class when the lower is at least
+#: this fraction of the higher. Measured on the Ryzen AI 9 465 (#2987): the
+#: binning inside the Zen 5 class spans 196-208 (each step 0.97), while the
+#: step down to Zen 5c is 196 -> 129 (0.66).
+RANK_CLASS_RATIO = 0.9
+
+
+def _per_cpu(sysfs, name):
+    """``{cpu: int}`` from each ``cpu<N>/cpufreq/<name>`` that reads as one."""
+    values = {}
+    for path in glob.glob(os.path.join(sysfs, "cpu[0-9]*")):
+        text = _readfile(os.path.join(path, "cpufreq", name))
+        if text and text.isdigit():
+            values[int(os.path.basename(path)[3:])] = int(text)
+    return values
 
 
 def _git_short_sha():

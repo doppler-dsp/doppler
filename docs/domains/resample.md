@@ -11,6 +11,11 @@ Python module `doppler.resample`. Area: [Rate conversion](index.md#rateconversio
 | Name | Kind | API | Guide | Gallery | Example | Design |
 | ---- | ---- | --- | ----- | ------- | ------- | ------ |
 | `CIC` | class | [CIC](../api/python-resample.md) | &nbsp; | [CIC Decimation Filter](../gallery/cic.md)<br>[Arbitrary-Rate Symbol Recovery](../gallery/ratesync.md) | [cic_demo](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/cic_demo.py) | [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)<br>[Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md)<br>[Quantization Design](../design/QUANTIZATION.md)<br>+2 more |
+| `cic_alias_rejection` | function | &nbsp; | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
+| `cic_design` | function | &nbsp; | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
+| `cic_min_order` | function | &nbsp; | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
+| `cic_passband_droop` | function | &nbsp; | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
+| `cic_precision_bits` | function | &nbsp; | &nbsp; | &nbsp; | &nbsp; | &nbsp; |
 | `ciccompmf` | function | [ciccompmf](../api/python-resample.md) | &nbsp; | [RateConverter — Automatic Cascade Selection](../gallery/rate-converter.md) | &nbsp; | &nbsp; |
 | `Farrow` | class | [Farrow](../api/python-resample.md) | &nbsp; | [Farrow Interpolator](../gallery/farrow.md)<br>[Arbitrary-Rate Symbol Recovery](../gallery/ratesync.md)<br>[Symbol Timing Recovery](../gallery/symsync.md) | [farrow_demo](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/farrow_demo.py) | [Continuously Variable Resampler](../design/RESAMPLER.md)<br>[API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md) |
 | `HalfbandDecimator` | class | [HalfbandDecimator](../api/python-resample.md) | &nbsp; | &nbsp; | [hbdecim_q15_demo](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/hbdecim_q15_demo.py) | [Continuously Variable Resampler](../design/RESAMPLER.md)<br>[API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md) |

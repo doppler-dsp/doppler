@@ -5,3 +5,4 @@
 #
 # This is a decision, not a debt: it may grow when a new example has
 # nothing worth plotting. Undecided examples sit in docs/.user-docs-exempt.
+coarse_doppler_bank_demo.py: prints the bank geometry and one detection; the bank's figures are on the burst-bank design page

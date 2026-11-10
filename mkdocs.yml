@@ -82,6 +82,33 @@ extra:
 plugins:
   - search
   - glightbox
+  # The Python reference is DISCOVERED, not listed (#3000): one page per
+  # public module, at reference/doppler/<module>/, rendering that module's
+  # __all__ through mkdocstrings, and its nav section in place of the
+  # "Python API" placeholder below. A new module, class or function reaches
+  # the reference by existing. Submodules are not public: a user-facing name
+  # is re-exported from its package.
+  - api-autonav:
+      modules: [src/doppler]
+      nav_section_title: "Python API"
+      exclude_private: true
+      on_implicit_namespace_package: skip
+      exclude:
+        - doppler.tests
+        - doppler.examples
+        - doppler.specan
+        - doppler.cli
+        - 're:^doppler\.\w+\.'
+      module_options:
+        # Applies to the generated pages only (the key is a regex over the
+        # module path). summary: each page opens with Classes / Functions /
+        # Attributes tables -- the index. show_if_no_docstring: an
+        # undocumented export still renders, so it still has its anchor.
+        # backlinks: each entry lists the pages that link to it.
+        doppler:
+          summary: true
+          show_if_no_docstring: true
+          backlinks: tree
   - mkdocstrings:
       default_handler: python
       handlers:
@@ -353,6 +380,7 @@ nav:
       - "Python: Utilities": api/python-util.md
       - Type System: types.md
       - Memory Management: memory_management.md
+  - Python API
   - Tools:
       - Waveform Generator (wfmgen):
           - Waveform Generator (wfmgen): guide/wfmgen/index.md

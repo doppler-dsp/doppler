@@ -1292,6 +1292,7 @@ docs-invariants: ## docs-check's fast invariants, no site build (pre-commit)
 
 define DOCS_CHECK_POST_CMDS
 $(UV) run python scripts/check_site_links.py
+$(UV) run python scripts/check_surface.py
 endef
 
 # ── Doxygen ──────────────────────────────────────────────────────────────────

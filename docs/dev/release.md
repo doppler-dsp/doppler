@@ -54,10 +54,12 @@ release PR. Two rules keep that safe:
     would perturb its numbers, so use the second x86 box.
 - **The render box is x86, and the same one every release:**
     swiftgo-ai9465. Plots move with the toolchain. An aarch64 render moved
-    38 of 59 plots in one release. v0.82.0's first render on swiftgo
-    (GCC 14) moved plots that cachyos (GCC 16) had re-rendered
-    pixel-identical one release earlier. Rendering on one box keeps a
-    moved plot meaning moved code.
+    38 of 59 plots in one release. The first render on swiftgo (GCC 14)
+    moved 26 plots that cachyos (GCC 16) had re-rendered pixel-identical
+    one release earlier. Rendering on one box keeps a moved plot meaning
+    moved code. A toolchain change on the render box (an OS reinstall, a
+    compiler upgrade) breaks that once: say so in the next gallery PR,
+    so its churn is not read as code.
 
 If you added a new plot-generating script, add it to `GALLERY_SCRIPTS`
 in the Makefile before running `make gallery`.

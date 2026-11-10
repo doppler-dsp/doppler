@@ -5383,7 +5383,7 @@ endif
 bench-ab: ## A/B two commits, per row min-of-K, band and verdict (A= B= [K>=3] [BUILD=])
 ifndef A
 	@echo "usage: make bench-ab A=<ref> B=<ref> [K=5] [BUILD=portable|native]"
-	@echo "       [JSON=out.json] [BENCH_ARGS=...]"
+	@echo "       [JSON=out.json] [CONFIRM=first.json] [BENCH_ARGS=...]"
 	@exit 2
 endif
 ifndef B
@@ -5391,7 +5391,8 @@ ifndef B
 	@exit 2
 endif
 	$(UV) run python scripts/bench_ab.py $(A) $(B) $(if $(K),-k $(K),) \
-	    $(if $(BUILD),--build $(BUILD),) $(if $(JSON),--json $(JSON),)
+	    $(if $(BUILD),--build $(BUILD),) $(if $(JSON),--json $(JSON),) \
+	    $(if $(CONFIRM),--confirm $(CONFIRM),)
 
 bench-publish: ## Stamp one build's numbers for a release (VERSION= BUILD=)
 ifndef VERSION

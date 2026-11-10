@@ -15,3 +15,8 @@ True
 
 """
 objects = ["despreader", "burst_despreader", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "async_dsss_pool", "dsss_burst_receiver"]
+
+# The coarse-Doppler bank (orchestrator.py) is public Python: a submodule's
+# __all__ is re-exported by its package (#3004 review).
+[module.dsss.reexports]
+orchestrator = ["Acquirer", "CoarseChannel", "Detection"]

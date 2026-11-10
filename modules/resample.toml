@@ -62,3 +62,9 @@ type = "double"
 [[module.resample.functions.params]]
 name = "sb"
 type = "double"
+
+# The CIC design helpers are pure Python (_cic_design.py; the underscore
+# keeps the module from shadowing its own cic_design function) and public: a
+# submodule's __all__ is re-exported by its package (#3004 review).
+[module.resample.reexports]
+_cic_design = ["cic_design", "cic_min_order", "cic_alias_rejection", "cic_passband_droop", "cic_precision_bits"]

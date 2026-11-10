@@ -10,3 +10,6 @@ Or if installed:
 
     doppler-specan --source demo --span 200e3
 """
+
+# No importable API: an application, documented by its own pages (#3000).
+__all__: list[str] = []

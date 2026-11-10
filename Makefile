@@ -1292,7 +1292,7 @@ docs-invariants: ## docs-check's fast invariants, no site build (pre-commit)
 
 define DOCS_CHECK_POST_CMDS
 $(UV) run python scripts/check_site_links.py
-$(UV) run python scripts/check_surface.py
+$(UV) run python scripts/check_surface.py --no-ratchet
 endef
 
 # ── Doxygen ──────────────────────────────────────────────────────────────────
@@ -1994,7 +1994,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 ccsds-isolation-check instrumented-sweep-check mem-guard-check \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
-                gallery-scripts-check user-docs-check bench-commits-check \
+                gallery-scripts-check user-docs-check surface-check bench-commits-check \
                 nats-vendor-fresh-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
@@ -2107,7 +2107,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check user-docs-check \
-      bench-commits-check validate-spellings-check \
+      surface-check bench-commits-check validate-spellings-check \
       drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
@@ -2600,6 +2600,14 @@ plot-rx-dynamics: build ## Render docs/assets/rx-dynamics.png from the C harness
 # --no-ratchet, because the Docs job checks out no base ref.
 USER_DOCS_BASE ?= origin/main
 USER_DOCS_FLAGS ?=
+# #3000: every public export has its entry in the built Python reference.
+# The built-site half runs in docs-check (DOCS_CHECK_POST_CMDS, --no-ratchet:
+# the Docs job has no base ref); this half runs on `lint`, which has one:
+# the source rules (every package declares __all__, a submodule exports only
+# what its package re-exports) and docs/.surface-unrendered's ratchet.
+surface-check: ## Python surface: every package declares __all__; the unrendered list only shrinks
+	@$(UV) run python scripts/check_surface.py --no-site --base $(USER_DOCS_BASE)
+
 user-docs-check: ## Verify every class has API, guide and example, and every example a gallery decision
 	@$(UV) run python scripts/check_user_docs.py --base $(USER_DOCS_BASE) \
 	     $(USER_DOCS_FLAGS) $(GALLERY_SCRIPTS)

@@ -1,7 +1,8 @@
 """The docs build is held to a peak-memory budget, and says so where CI looks.
 
 A cold strict build of the 918 pages peaks near 500 MB with the matched
-toolchain (zensical 0.0.74, mkdocstrings 1.0.8, mkdocstrings-python 2.0.10).
+toolchain pyproject.toml's docs group pins (511 MB on zensical 0.1.1,
+2026-11-10).
 With zensical 0.0.45 and mkdocstrings 1.0.4 it grew past 4 GB and was killed 9
 times at the shared guard's 7 GB ceiling (#2840), each as a silent `docs-check`
 failure.

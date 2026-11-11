@@ -105,6 +105,13 @@ class TestHalfbandDecimatorR2C:
             d.execute(np.ones(128, dtype=np.float64))
         assert d.execute(np.ones(128, dtype=np.float32)).dtype == np.complex64
 
+    def test_float64_taps_are_refused_not_narrowed(self, fir_h):
+        """The taps half of the same rule: float64 taps raise, float32
+        taps build."""
+        with pytest.raises(TypeError):
+            HalfbandDecimatorR2C(fir_h.astype(np.float64))
+        assert HalfbandDecimatorR2C(fir_h.astype(np.float32)).num_taps > 0
+
     # ---- reset ------------------------------------------------------ #
 
     def test_reset_matches_fresh(self, fir_h):

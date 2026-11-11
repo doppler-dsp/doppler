@@ -48,6 +48,7 @@
 | Type | Name |
 | ---: | :--- |
 | dir | [**HalfbandDecimator**](dir_7d0e752fb42c448bafa7d80e7fc4aaf0.md) <br> |
+| dir | [**HalfbandDecimatorR2C**](dir_de85e40507cd80906a5f603b94b719b5.md) <br> |
 | dir | [**RateConverter**](dir_f243cfbf2f82d96e6953dd99cc2498dd.md) <br> |
 | dir | [**Resampler**](dir_9b0990bb8296ade48d8f038050fb64f1.md) <br> |
 | dir | [**acc\_cf64**](dir_d950eea1844c6f23a7b4df3cf640e9a2.md) <br> |

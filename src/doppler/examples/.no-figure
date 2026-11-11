@@ -7,3 +7,4 @@
 # nothing worth plotting. Undecided examples sit in docs/.user-docs-exempt.
 coarse_doppler_bank_demo.py: prints the bank geometry and one detection; the bank's figures are on the burst-bank design page
 custom_block_demo.py: builds the argv a CLI pipeline spawns; there is no signal to draw
+halfband_r2c_demo.py: prints the tone it shifted and the mirror it rejected; the resampling guide has the figures

@@ -1,4 +1,4 @@
-"""Tests for HalfbandDecimatorR2C.
+"""Tests for HalfbandDecimatorR2C (a jm object since #3002).
 
 HalfbandDecimatorR2C wraps dp_hbdecim_r2c (real F32 -> CF32), the AVX-512
 halfband path with the fs/4 shift built in. HalfbandDecimator's own cases
@@ -96,11 +96,14 @@ class TestHalfbandDecimatorR2C:
         y = d.execute(np.ones(128, dtype=np.float32))
         assert len(y) == 64
 
-    def test_execute_accepts_float64_input(self, fir_h):
-        """Float64 real input is coerced to float32."""
+    def test_float64_input_is_refused_not_narrowed(self, fir_h):
+        """float64 input raises rather than being silently narrowed to
+        float32: the library's unsafe-cast rule. (The hand-written binding
+        this object replaced force-cast it, #3002.)"""
         d = HalfbandDecimatorR2C(fir_h)
-        y = d.execute(np.ones(128, dtype=np.float64))
-        assert y.dtype == np.complex64
+        with pytest.raises(TypeError):
+            d.execute(np.ones(128, dtype=np.float64))
+        assert d.execute(np.ones(128, dtype=np.float32)).dtype == np.complex64
 
     # ---- reset ------------------------------------------------------ #
 

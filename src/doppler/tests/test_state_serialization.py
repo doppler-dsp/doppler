@@ -73,6 +73,7 @@ from doppler.resample import (
     Farrow,
     HalfbandDecimator,
     HalfbandDecimatorQ15,
+    HalfbandDecimatorR2C,
     MatchedRateConverter,
     RateConverter,
     Resampler,
@@ -343,6 +344,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "HalfbandDecimator": (
         lambda: HalfbandDecimator(_HB_TAPS),
         lambda o, seg: np.array(o.execute(seg)),
+    ),
+    # Real input: the delay lines, the fs/4 phase and any held odd sample
+    # carry across execute() calls (a jm object since #3002).
+    "HalfbandDecimatorR2C": (
+        lambda: HalfbandDecimatorR2C(_HB_TAPS),
+        lambda o, seg: np.array(o.execute(seg.real.astype(np.float32))),
     ),
     # Farrow fractional-delay interpolator — the 4-tap delay line carries
     # across delay() calls, so a mid-stream split resumes.

@@ -136,6 +136,8 @@
 
 #include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
 
+#include "doppler/HalfbandDecimatorR2C/HalfbandDecimatorR2C_core.h"
+
 #include "doppler/cic/cic_core.h"
 
 #include "doppler/RateConverter/RateConverter_core.h"

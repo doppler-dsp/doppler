@@ -2,4 +2,3 @@
 # scripts/check_surface.py (#3000). One dotted name per line, then the issue
 # that removes it. THIS LIST ONLY SHRINKS: a new line fails against the merge
 # base, and a line whose name now renders fails as stale.
-doppler.resample.HalfbandDecimatorR2C  #3002 hand-written type, no stub class

@@ -182,7 +182,7 @@ common path pays nothing for it.
 
 **`alpha = 0` freezes the state**, exactly, and both forms deliver that.
 That is `ema_step`'s contract and it keeps it; a consumer may still
-refuse 0 under its own, and [`AccTrace`](../api/python-accumulator.md)'s
+refuse 0 under its own, and [`AccTrace`][doppler.accumulator.AccTrace]'s
 `exp` mode does, with anything outside (0, 1\]: a trace that never leaves
 its first frame is not an average.
 

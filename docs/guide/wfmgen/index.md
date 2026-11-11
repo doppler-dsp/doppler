@@ -253,5 +253,5 @@ ______________________________________________________________________
 
 - [Gallery: wfmgen — one engine, every waveform](../../gallery/wfmgen.md) — the
     spectra/constellations behind each type, with the demo script.
-- [Python: Source (NCO / LO / AWGN)](../../api/python-nco.md) — the
+- [Python: Source (NCO / LO / AWGN)][doppler.source] — the
     building-block primitives the engine composes.

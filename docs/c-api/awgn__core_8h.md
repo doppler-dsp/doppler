@@ -62,7 +62,7 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 |  int | [**dp\_awgn**](#function-dp_awgn) (uint64\_t seed, float amplitude, size\_t n, float \_Complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
 |  float | [**dp\_awgn\_amplitude\_for\_snr**](#function-dp_awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
 |  int | [**dp\_awgn\_amplitude\_ok**](#function-dp_awgn_amplitude_ok) (float amplitude) <br>_The amplitude domain: finite and ≥ 0._  |
-|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._ |
+|  [**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* | [**dp\_awgn\_create**](#function-dp_awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream. There is one scalar generation path on every platform (no SIMD variant that would draw a different sequence), so a seed is one noise sequence everywhere._ |
 |  void | [**dp\_awgn\_destroy**](#function-dp_awgn_destroy) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Free the generator. NULL is a no-op._  |
 |  size\_t | [**dp\_awgn\_generate**](#function-dp_awgn_generate) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude²._ |
 |  size\_t | [**dp\_awgn\_generate\_max\_out**](#function-dp_awgn_generate_max_out) ([**dp\_awgn\_state\_t**](structdp__awgn__state__t.md) \* state) <br>_Conservative upper bound on generate() output size._  |
@@ -285,7 +285,7 @@ The domain admits a finite amplitude above about 5.9e37 (FLT\_MAX / 5.77), and s
 
 ### function dp\_awgn\_create 
 
-_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream._
+_Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG via SplitMix64. The seed is stored so_ [_**dp\_awgn\_reset()**_](awgn__core_8h.md#function-dp_awgn_reset) _can reproduce the exact same stream. There is one scalar generation path on every platform (no SIMD variant that would draw a different sequence), so a seed is one noise sequence everywhere._
 ```C++
 dp_awgn_state_t * dp_awgn_create (
     uint64_t seed,

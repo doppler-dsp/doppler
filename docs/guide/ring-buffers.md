@@ -1,21 +1,15 @@
-# Python Ring Buffer API
+---
+description: "Hand IQ blocks between a producer and a consumer: the threaded and the single-threaded ring surfaces, end of stream, a full ring, and raw ADC samples."
+---
 
-Lock-free SPSC ring buffers backed by `dp_buffer_*`. Uses virtual-memory
-double-mapping so the consumer always sees a contiguous window across the
-wrap boundary — zero-copy, branch-free.
+# Ring Buffers
 
-Source:
-[`src/doppler/buffer/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/buffer/__init__.py)
+[`F32Buffer`][doppler.buffer.F32Buffer], [`F64Buffer`][doppler.buffer.F64Buffer] and
+[`I16Buffer`][doppler.buffer.I16Buffer] are lock-free single-producer,
+single-consumer rings. Their storage is mapped twice, so a read is always
+one contiguous zero-copy window across the wrap.
 
-______________________________________________________________________
-
-## Buffer types
-
-| Class       | NumPy dtype                 | Bytes/sample |
-| ----------- | --------------------------- | ------------ |
-| `F32Buffer` | `complex64`                 | 8            |
-| `F64Buffer` | `complex128`                | 16           |
-| `I16Buffer` | `[('i','<i2'),('q','<i2')]` | 4            |
+## Capacity
 
 **Any capacity from 1 up, and `capacity` is exactly the number you passed —
 on every machine.** It need not be a power of two.
@@ -27,8 +21,6 @@ arm64, 64 KiB allocation granularity on Windows). That is address space, not
 room — a ring of 1,000 holds 1,000 and refuses the next sample — and it costs
 nothing per call. A capacity just past a power of two maps nearly twice what
 it holds; one that *is* a power of two and spans a page maps exactly itself.
-
-______________________________________________________________________
 
 ## Two surfaces, one ring
 
@@ -149,15 +141,3 @@ buf.dropped                                         # 1 refused, none lost
 The full walk through every refusal is
 [`src/doppler/examples/ring_refusals_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/ring_refusals_demo.py); the rest of the suite is indexed
 on [Ring Buffers](../examples/python-buffers.md).
-
-______________________________________________________________________
-
-::: doppler.buffer.F32Buffer
-
-______________________________________________________________________
-
-::: doppler.buffer.F64Buffer
-
-______________________________________________________________________
-
-::: doppler.buffer.I16Buffer

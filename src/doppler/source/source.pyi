@@ -791,7 +791,9 @@ class LO:
 class AWGN:
     """Create an AWGN generator. Allocates state and seeds the xoshiro256++ RNG
     via SplitMix64. The seed is stored so dp_awgn_reset() can reproduce the
-    exact same stream.
+    exact same stream. There is one scalar generation path on every platform
+    (no SIMD variant that would draw a different sequence), so a seed is one
+    noise sequence everywhere.
 
     Parameters
     ----------

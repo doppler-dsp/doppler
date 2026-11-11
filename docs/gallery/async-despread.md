@@ -72,9 +72,9 @@ outcome, and the script asserts it for this run.
 
 The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
 on nominal frequency, with its own PRBS payload.
-[`impairment.DopplerChannel`](../api/python-impairment.md) applies the motion
+[`impairment.DopplerChannel`][doppler.impairment.DopplerChannel] applies the motion
 from one parameter: it dilates every clock in the stream and shifts the carrier
-to match. The noise is [`source.AWGN`](../api/python-nco.md) at the Es/N0.
+to match. The noise is [`source.AWGN`][doppler.source.AWGN] at the Es/N0.
 
 ```python
 --8<-- "src/doppler/examples/async_despread_demo.py:signal"

@@ -1,3 +1,7 @@
+---
+description: "How the build/release pipeline turns source into a published wheel and C library tarball"
+---
+
 # Build & Delivery Internals
 
 This page explains *how* the build and release pipeline works — the stack

@@ -1,5 +1,5 @@
 ---
-description: "SNR / SINAD / THD / SFDR / ENOB from `ToneMeasure`."
+description: "SNR / SINAD / THD / SFDR / ENOB from ToneMeasure."
 ---
 
 # Measurement Suite — ADC characterisation

@@ -1,3 +1,7 @@
+---
+description: "Running and interpreting benchmark results"
+---
+
 # Benchmarking
 
 doppler benchmarks run through a single command — `just-makeit bench` —

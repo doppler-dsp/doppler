@@ -2,6 +2,16 @@
 doc = """
 M-ary PSK mapping: hard and soft, including differential, symbol map/demap for BPSK, QPSK, and 8-PSK constellations.
 
+This is the decision primitive, and its transmit inverse, that the
+`doppler.track.CarrierMpsk` carrier loop and the M-PSK receiver compose.
+A symbol's `log2(M)` bits pack LSB-first into one `uint8` label, and that
+byte is the Gray code, so a slip to an adjacent point flips one bit.
+Constellations are unit amplitude: BPSK {+1, -1}, QPSK (+-1 +- j)/sqrt(2)
+and 8-PSK exp(j k pi/4). `mpsk_soft_demap` is the same decision as
+`mpsk_demap` written as one log-likelihood ratio per bit, the input a
+soft-decision decoder needs; the differential pair resolves the M-fold
+phase ambiguity a decision-directed carrier loop leaves.
+
 Examples
 --------
 >>> import numpy as np

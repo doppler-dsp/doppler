@@ -1,3 +1,7 @@
+---
+description: "A whole-repository view, and why an algorithm is implemented once, in C"
+---
+
 # Repository Map
 
 A whole-repository view of doppler and how its pieces relate. The one idea to

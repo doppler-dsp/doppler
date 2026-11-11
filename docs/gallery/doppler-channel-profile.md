@@ -1,5 +1,5 @@
 ---
-description: "one cosine period as the Doppler: the carrier follows `fc·d(t)` to 1.4 Hz of 50 kHz, the code slip peaks at 2.5 chips (2.44 in theory) and returns to zero, and no straight line explains any of it."
+description: "one cosine period as the Doppler: the carrier follows fc·d(t) to 1.4 Hz of 50 kHz, the code slip peaks at 2.5 chips (2.44 in theory) and returns to zero, and no straight line explains any of it."
 ---
 
 # Doppler Channel — a Doppler Profile Driven by a Cosine

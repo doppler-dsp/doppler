@@ -6,7 +6,7 @@ description: "M-PSK mapping and constellation rendering."
 
 ![M-PSK constellations and BER](../assets/mpsk_constellation_demo.png)
 
-[`doppler.mpsk`](../api/python-mpsk.md) is the **M-ary PSK constellation
+[`doppler.mpsk`][doppler.mpsk] is the **M-ary PSK constellation
 primitive** — the decision (and its transmit inverse) the MPSK receiver
 composes. A symbol carries `log2(M)` bits packed into one byte (0..M−1); that
 byte **is** the Gray-coded label, so a slip to an adjacent constellation point

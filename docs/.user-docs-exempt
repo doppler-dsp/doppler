@@ -1,6 +1,7 @@
 # Today's user-story gaps -- a RATCHET for scripts/check_user_docs.py.
 #
-# Every public class owes an API entry, a guide mention and an example;
+# Every public class owes a guide mention and an example (its API entry is
+# the generated reference, held by check_surface.py);
 # every example owes a gallery figure or a reason in
 # src/doppler/examples/.no-figure. The rule is phase 9 of
 # docs/dev/contributing/adding-algorithms.md ("The user story").
@@ -38,10 +39,8 @@ doppler.cvt.F32ToI16U32 example: predates the gate (2026-11-01)
 doppler.cvt.F32ToI16U32 guide: predates the gate (2026-11-01)
 doppler.cvt.F32ToI16U64 example: predates the gate (2026-11-01)
 doppler.cvt.F32ToI16U64 guide: predates the gate (2026-11-01)
-doppler.cvt.F32ToI32 api: predates the gate (2026-11-01)
 doppler.cvt.F32ToI32 example: predates the gate (2026-11-01)
 doppler.cvt.F32ToI32 guide: predates the gate (2026-11-01)
-doppler.cvt.F32ToI8 api: predates the gate (2026-11-01)
 doppler.cvt.F32ToI8 example: predates the gate (2026-11-01)
 doppler.cvt.F32ToI8 guide: predates the gate (2026-11-01)
 doppler.cvt.F32ToUQ15 guide: predates the gate (2026-11-01)
@@ -70,7 +69,6 @@ doppler.dsss.AsyncDsssPool guide: predates the gate (2026-11-01)
 doppler.dsss.AsyncDsssReceiver guide: predates the gate (2026-11-01)
 doppler.dsss.BurstDespreader example: predates the gate (2026-11-01)
 doppler.dsss.Despreader example: predates the gate (2026-11-01)
-doppler.dsss.PolynomialPhaseEstimate api: predates the gate (2026-11-01)
 doppler.dsss.PolynomialPhaseEstimator example: predates the gate (2026-11-01)
 doppler.dsss.PolynomialPhaseEstimator guide: predates the gate (2026-11-01)
 doppler.filter.MovingAverage example: predates the gate (2026-11-01)
@@ -78,8 +76,6 @@ doppler.filter.MovingAverage guide: predates the gate (2026-11-01)
 doppler.impairment.DopplerChannel guide: predates the gate (2026-11-01)
 doppler.interp.InterpolatedTable example: predates the gate (2026-11-01)
 doppler.interp.InterpolatedTable guide: predates the gate (2026-11-01)
-doppler.interrupt.Interrupt guide: predates the gate (2026-11-01)
-doppler.measure.ToneMetrics api: predates the gate (2026-11-01)
 doppler.resample.CIC guide: predates the gate (2026-11-01)
 doppler.resample.Farrow guide: predates the gate (2026-11-01)
 doppler.resample.HalfbandDecimator guide: predates the gate (2026-11-01)

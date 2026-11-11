@@ -1,3 +1,7 @@
+---
+description: "The pinned toolchain image and how to run CI's environment yourself (make ci-gates), the compiler cache, and the gates that watch CI itself"
+---
+
 # Continuous Integration
 
 What CI is made of, and how to run it yourself.

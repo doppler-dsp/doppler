@@ -1,3 +1,7 @@
+---
+description: "Every docs code snippet is discovered and tested, no opt-in list"
+---
+
 # Doc examples — every snippet is tested
 
 Every Python, C, **and shell** code example in the docs is checked in CI.
@@ -250,7 +254,7 @@ those it is in the reason, so the next reader can tell "not pinnable" from
 
 Pages not yet brought under a gate are listed in an ignore file — a
 **temporary** backlog that shrinks to empty, the same idiom as
-`docs/api/.api-coverage-ignore` and `scripts/.serializable-ignore`:
+`scripts/.serializable-ignore`:
 `docs/.doc-snippet-ignore` for Python, `docs/.c-doc-snippet-ignore` for C.
 A **new** page is never added to either; it is gated on arrival. The list
 can only shrink: `test_ignore_list_not_stale` fails on an entry whose page is

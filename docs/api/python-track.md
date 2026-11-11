@@ -104,7 +104,7 @@ stream, same tracked frequency), which is the loop's validation anchor.
 
 The loop locks to **one of `m` phases** — an M-fold ambiguity on absolute
 phase. Resolve it downstream with differential demapping
-([`mpsk.mpsk_diff_demap`](python-mpsk.md)) or a sync word; this loop only
+([`mpsk.mpsk_diff_demap`][doppler.mpsk.mpsk_diff_demap]) or a sync word; this loop only
 recovers the carrier and emits the prompts. The FLL assist (`bn_fll > 0`)
 matters more as `m` grows: 8PSK's phase discriminator is linear only over
 ±π/8, so a sizeable residual needs the wide cross-product frequency

@@ -1,3 +1,7 @@
+---
+description: "The lifecycle spine: the order of the phases, who owns each, and the four places evidence lives"
+---
+
 # Adding an algorithm — the lifecycle
 
 Fifteen pages under `docs/dev/` describe how to do each part of this well.

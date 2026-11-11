@@ -1,3 +1,7 @@
+---
+description: "The policy from branch to release: shape the change, prove it locally, merge on green, stop the line on a red main, and keep the release PR a bump alone"
+---
+
 # How we work: change, merge, release
 
 The policy for getting a change from a branch to a release. [CI](ci.md)

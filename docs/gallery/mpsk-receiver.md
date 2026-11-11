@@ -276,7 +276,7 @@ validators that need neither truth nor lag:
 - **self-referenced EVM** — each symbol against its *own* hard decision. At lock
     this sits at `−(Es/N0)` dB; EVM is an I/Q-plane quantity, so there is no
     factor of two.
-- **blind M2M4 SNR** — [`snr_m2m4_db`](../api/python-snr.md), moment-based.
+- **blind M2M4 SNR** — [`snr_m2m4_db`][doppler.snr.snr_m2m4_db], moment-based.
 
 Their **disagreement** is what carries the diagnosis. M2M4 uses only `|x|²` and
 `|x|⁴`, so it is **rotation-blind**: a constellation that is cleanly shaped but

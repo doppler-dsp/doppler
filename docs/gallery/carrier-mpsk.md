@@ -36,7 +36,7 @@ assist the bare 8PSK PLL would stall on this offset.
 
 The loop locks to **one of M phases** — it recovers the carrier but leaves a
 `k·2π/M` rotation on the symbols. Resolve it downstream with **differential
-demapping** ([`mpsk.mpsk_diff_demap`](../api/python-mpsk.md)) or a sync word; the
+demapping** ([`mpsk.mpsk_diff_demap`][doppler.mpsk.mpsk_diff_demap]) or a sync word; the
 carrier loop itself stays modulation-data-agnostic and just emits the prompts.
 
 ```python

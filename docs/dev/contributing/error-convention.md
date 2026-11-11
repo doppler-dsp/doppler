@@ -1,3 +1,7 @@
+---
+description: "How errors are returned across the C ABI"
+---
+
 # C Return-Code Convention
 
 doppler uses a three-tier return convention. The tier is determined by the

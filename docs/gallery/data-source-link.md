@@ -1,5 +1,5 @@
 ---
-description: "a data source sent one chunk per burst, received by `DsssBurstReceiver`, and returned byte for byte by `FrameDesc.deframe`."
+description: "a data source sent one chunk per burst, received by DsssBurstReceiver, and returned byte for byte by FrameDesc.deframe."
 ---
 
 # A Message Over DSSS, Received and Deframed

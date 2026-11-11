@@ -62,7 +62,7 @@ signal. A burst that starts with a complex preamble can still be **detected and
 located** with
 the burst search,
 [`Correlator(..., framing="burst")`][doppler.correlation.Correlator],
-and [`BurstCapture`](../../api/python-acquire.md#burstcapture-acquisitions-output-turned-into-bursts)
+and [`BurstCapture`][doppler.acquire.BurstCapture]
 cuts the located bursts out of a stream; what you do with their samples next
 is yours. doppler does not ship a receiver for these: they exist to drive your
 own receiver, an acquisition test, or a plot.

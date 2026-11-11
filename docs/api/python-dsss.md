@@ -7,7 +7,7 @@ continuous DLL+Costas receiver (GPS-like, always tracking), and
 bursts — and the receivers that compose them. The searches that find the
 code phase and Doppler in the first place are the searches of
 [`Correlator`][doppler.correlation.Correlator] (`framing="continuous"` and
-`framing="burst"`) and the [acquire API](python-acquire.md)'s
+`framing="burst"`) and the [acquire API][doppler.acquire]'s
 `BurstCapture`.
 
 Source:
@@ -258,7 +258,7 @@ rx.tracking          # 0 = searching, 1 = locked and demodulating
 acquires a burst's preamble, captures it and demodulates the frame in one
 object, built from the frame description the transmitter spread. See
 [its gallery page](../gallery/dsss-burst-receiver.md) for a run, and
-[`BurstCapture`](python-acquire.md) if you want the burst's samples without
+[`BurstCapture`][doppler.acquire.BurstCapture] if you want the burst's samples without
 the demodulation.
 
 ::: doppler.dsss.DsssBurstReceiver

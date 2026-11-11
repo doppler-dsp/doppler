@@ -66,6 +66,7 @@
 * `#include "doppler/imdmeas/imdmeas_core.h"`
 * `#include "doppler/Resampler/Resampler_core.h"`
 * `#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"`
+* `#include "doppler/HalfbandDecimatorR2C/HalfbandDecimatorR2C_core.h"`
 * `#include "doppler/cic/cic_core.h"`
 * `#include "doppler/RateConverter/RateConverter_core.h"`
 * `#include "doppler/farrow/farrow_core.h"`

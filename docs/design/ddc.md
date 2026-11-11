@@ -146,8 +146,9 @@ int main(void)
 ### Architecture B — halfband then DDC
 
 `dp_hbdecim_create` needs real Kaiser-designed halfband taps (see
-`native/src/resample/resample_ext_extra.c` for the reference composition —
-tap design is Python-side, via `kaiser_window`), so this sketch omits that
+`native/benchmarks/HalfbandDecimator/bench_HalfbandDecimator_core.c` for a
+C composition — tap design is Python-side, via `kaiser_window`), so this
+sketch omits that
 step to keep the shape of the composition visible:
 
 <!-- docs-snippet: skip=illustrative composition sketch; dp_hbdecim_create needs Kaiser-designed taps (Python-side), omitted here to keep the composition shape visible -->

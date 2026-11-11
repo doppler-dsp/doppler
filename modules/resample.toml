@@ -10,11 +10,10 @@ Examples
 200
 
 """
-objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow", "hbdecim_q15"]
-extra_types = ["HalfbandDecimatorR2C"]
+objects = ["Resampler", "HalfbandDecimator", "HalfbandDecimatorR2C", "cic", "RateConverter", "farrow", "hbdecim_q15"]
 # Composed cores reach the resample .so via per-object depends_on link=true
-# (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c
-# (the latter for the HalfbandDecimatorR2C extra_type). cic is in-module and
+# (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim,
+# HalfbandDecimatorR2C → hbdecim_r2c. cic is in-module and
 # resample_core is the module's own core (both auto-linked).
 # libm is not declared: jm resolves it by path on every generated link line
 # (gh-1305), and a bare `m` here is `m.lib` on Windows, which does not exist.

@@ -1,0 +1,41 @@
+# Real-input halfband 2:1 decimator with the fs/4 shift built in
+# (Architecture D2): F32 in, CF32 out. A thin forwarder over the C-only
+# hbdecim_r2c core, the same shape HalfbandDecimator is over hbdecim; it
+# replaces the hand-written HalfbandDecimatorR2C type (#3002). A separate
+# object, not a view of HalfbandDecimator, because the input dtype differs
+# and a view shares its parent's methods verbatim.
+[HalfbandDecimatorR2C]
+arg_type = "float"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+serializable = "true"
+depends_on = [{ name = "hbdecim_r2c", link = true }]
+fragment = "generated"
+
+[[HalfbandDecimatorR2C.init_params]]
+name = "h"
+type = "float[]"
+rank = 1
+
+[[HalfbandDecimatorR2C.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float[]"}]
+pass_capacity = true
+
+[[HalfbandDecimatorR2C.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+
+[[HalfbandDecimatorR2C.properties]]
+name = "rate"
+type = "double"
+
+[[HalfbandDecimatorR2C.properties]]
+name = "num_taps"
+type = "size_t"

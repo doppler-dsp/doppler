@@ -18,15 +18,13 @@ target_include_directories(
   HalfbandDecimator_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                                 ${CMAKE_SOURCE_DIR}/native/inc/doppler/HalfbandDecimator)
 target_link_libraries(HalfbandDecimator_core PUBLIC
-    hbdecim_core
-    hbdecim_r2c_core)
+    hbdecim_core)
 
 add_executable(test_HalfbandDecimator_core
                ${CMAKE_SOURCE_DIR}/native/tests/HalfbandDecimator/test_HalfbandDecimator_core.c
                ${CMAKE_SOURCE_DIR}/native/tests/HalfbandDecimator/test_HalfbandDecimator_symbols.c)
 target_link_libraries(test_HalfbandDecimator_core
                       PRIVATE HalfbandDecimator_core hbdecim_core
-    hbdecim_r2c_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_HalfbandDecimator_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
@@ -38,7 +36,6 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/native/benchmarks/HalfbandDecimator/bench_HalfbandDecimator_core.c)
 target_link_libraries(bench_HalfbandDecimator_core
                       PRIVATE HalfbandDecimator_core hbdecim_core
-    hbdecim_r2c_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_HalfbandDecimator_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

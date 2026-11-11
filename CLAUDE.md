@@ -1192,7 +1192,10 @@ ______________________________________________________________________
 `docs/c-api/**` (except `index.md`) is mkdoxy output (`make gen-c-api`);
 the Python reference (`reference/doppler/<module>/`) is generated from each
 package's `__all__` by mkdocs-api-autonav and mkdocstrings, so a public name
-reaches it by existing (`check_surface.py` holds it, #3000);
+reaches it by existing (`check_surface.py` holds the built site, and lint's
+`surface-check` holds `__all__` and `docs/.surface-unrendered`, #3000) --
+its prose lives in the C header, the module's `[module.X] doc`, or a guide,
+never in a hand page;
 `README.md`'s entire body below the badges is generated from
 `docs/index.md`'s readme-sync region by `scripts/gen_readme.py`
 (`make docs-relink`; never hand-edit between `<!-- readme-sync:start -->`/

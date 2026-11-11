@@ -190,7 +190,7 @@ Pacing and consumption rarely happen in the same loop. The robust pattern is a
 real-time rate, the consumer drains it on its own schedule, and the buffer
 absorbs the jitter on both sides.
 
-doppler's [`F32Buffer` / `F64Buffer`](../api/python-buffer.md) is built for exactly this — a
+doppler's [`F32Buffer` / `F64Buffer`](ring-buffers.md) is built for exactly this — a
 lock-free single-producer/single-consumer ring that uses **virtual-memory
 mirroring** (the same physical pages mapped at `A` and `A+N`) so a block that
 wraps the end is still one contiguous, zero-copy span. No wrap-around branch, no

@@ -256,9 +256,11 @@ the lifecycle has one home each:
     [Object Validation](docs/dev/contributing/validation.md).
 - **Benchmarks**, C and Python:
     [Benchmarking](docs/dev/contributing/benchmarking.md).
-- **An API page**: a `docs/api/*.md` page whose `::: doppler.x.Y`
-    directive renders the docstring, plus its `mkdocs.yml` nav entry;
-    copy the shape of [the FIR page](docs/api/python-filter.md).
+- **The API reference**: nothing to write. A name in its package's
+    `__all__` gets its entry in the generated Python reference, from the
+    docstring the C header's Doxygen becomes, and the package's
+    `[module.<name>] doc` opens its page:
+    [Docstring Authoring](docs/dev/contributing/docstring-authoring.md).
 - **Doc pages and examples** (every fence is run):
     [Doc Examples](docs/dev/contributing/doc-examples.md).
 - **What is generated vs. hand-owned in the docs**:

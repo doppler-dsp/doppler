@@ -198,17 +198,35 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 static PyModuleDef accumulator_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name = "accumulator",
-  .m_doc = "Running accumulators: single- and double-precision complex scalar "
-           "sums (AccF32, AccCf64) and a per-tap trace accumulator "
-           "(AccTrace), each carrying a running total across calls.\n"
-           "\n"
-           "Examples\n"
-           "--------\n"
-           ">>> from doppler.accumulator import AccF32\n"
-           ">>> a = AccF32()\n"
-           ">>> a.step(1.5); a.step(2.5)\n"
-           ">>> a.get()\n"
-           "4.0\n",
+  .m_doc
+  = "Running accumulators: a real float32 sum (AccF32), a complex128 sum "
+    "(AccCf64) and a per-bin trace accumulator (AccTrace), each carrying its "
+    "total across calls.\n"
+    "\n"
+    "`AccF32` and `AccCf64` are integrate-and-dump registers: `step` and\n"
+    "`steps` add, `madd(x, h)` adds a dot product (the inner loop of a\n"
+    "polyphase branch), `get` reads and `dump` reads and clears. `AccTrace`\n"
+    "keeps one running value per bin of a fixed-length frame instead of\n"
+    "reducing it to one number, with `mode` `\"mean\"`, `\"exp\"` (EMA, "
+    "`alpha`),\n"
+    "`\"maxhold\"` or `\"minhold\"`; it is the averaging engine behind\n"
+    "`doppler.spectral.PSD`, and `value()` is None until a frame arrives.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.accumulator import AccF32\n"
+    ">>> a = AccF32()\n"
+    ">>> a.step(1.5); a.step(2.5)\n"
+    ">>> a.get()\n"
+    "4.0\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.accumulator import AccTrace\n"
+    ">>> mean = AccTrace(n=4, mode=\"mean\")\n"
+    ">>> mean.accumulate(np.array([1, 3, 5, 7], np.float32))\n"
+    ">>> mean.accumulate(np.array([3, 5, 7, 9], np.float32))\n"
+    ">>> mean.value().tolist()\n"
+    "[2.0, 4.0, 6.0, 8.0]\n",
   .m_size    = -1,
   .m_methods = NULL,
 };

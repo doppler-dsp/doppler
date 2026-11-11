@@ -39,9 +39,9 @@ one signal. A receiver whose emitter has left returns to idle.
 ## How it is built
 
 Each emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
-run through its own [`impairment.DopplerChannel`](../api/python-impairment.md)
+run through its own [`impairment.DopplerChannel`][doppler.impairment.DopplerChannel]
 on a 2.2 GHz carrier, scaled to its level and placed on the stream. The noise is
-[`source.AWGN`](../api/python-nco.md). The truth the checks use, each emitter's
+[`source.AWGN`][doppler.source.AWGN]. The truth the checks use, each emitter's
 carrier and code phase over time, comes from the same channel: its Doppler law
 and its group delay, `delay_samples`.
 

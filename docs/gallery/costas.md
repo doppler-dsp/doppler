@@ -34,7 +34,7 @@ the bare PLLs, ramping to 1 for the FLL-assisted loop.
 
 The carrier loop is one small primitive composed from two others:
 
-- [`source.LO`](../api/python-nco.md) — an **integer-phase NCO** (uint32
+- [`source.LO`][doppler.source.LO] — an **integer-phase NCO** (uint32
     accumulator + LUT → cf32). The phase wraps at 2³² by construction, so it is
     bounded and exactly reproducible — no `double`-accumulator drift over long
     runs. The loop de-rotates the input one sample at a time with the inline

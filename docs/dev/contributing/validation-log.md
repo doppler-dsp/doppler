@@ -1,3 +1,7 @@
+---
+description: "Which objects are certified, their limit and finding counts, and a link straight to each object's evidence"
+---
+
 # Validation log
 
 Which objects are certified, and what their certification currently says.

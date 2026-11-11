@@ -1228,7 +1228,6 @@ DOCS_PREPARE = @rm -f zensical.toml && $(UV) run python scripts/check_docs_pytho
 # now expresses the shape directly, so the build line goes back to being the
 # standard's — one implementation again, which is what criterion 5 asked for.
 define DOCS_CHECK_PRE_CMDS
-$(UV) run python scripts/check_api_docs.py
 $(UV) run python scripts/bench_report.py --page --out docs/benchmarks.md --check
 $(UV) run python scripts/check_docstring_coverage.py --check
 $(UV) run python scripts/check_wfmgen_flag_docs.py
@@ -1264,9 +1263,9 @@ endef
 #
 # The whole gate is ~11 s and most of that is zensical building the site; the
 # 13 checks above are 1.6 s together. That is cheap enough to run on every
-# commit, which matters because two of them -- check_api_docs and
-# check_docstring_coverage --check -- are what caught a new class arriving
-# undocumented in doppler#858, after a local run came back clean.
+# commit, which matters because one of them -- check_docstring_coverage
+# --check -- is what caught a new class arriving undocumented in
+# doppler#858, after a local run came back clean.
 #
 # Iterates DOCS_CHECK_PRE_CMDS itself rather than restating any of it, so this
 # target and docs-check cannot disagree about what an invariant is: adding a

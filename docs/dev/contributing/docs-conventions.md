@@ -1,3 +1,7 @@
+---
+description: "What's generated vs. hand-owned under docs/, and the docs CI gates"
+---
+
 # Docs Conventions — what's generated, what's hand-owned, and what not to edit
 
 ## What's generated vs. hand-owned
@@ -37,21 +41,21 @@ re-run the command in the table.
 ## The CI-enforced completeness gates
 
 The checks in CI's `docs` job keep the docs tree from rotting. All follow the same
-house idiom used by [Doc Examples](doc-examples.md) and `check_api_docs.py`
+house idiom used by [Doc Examples](doc-examples.md) and `check_surface.py`
 — **discovered, not registered** — so a new page is covered the moment it
 exists, with no opt-in list to remember.
 
-| Check                  | Script                                    | What it needs from you                                                       |
-| ---------------------- | ----------------------------------------- | ---------------------------------------------------------------------------- |
-| API docs coverage      | `scripts/check_api_docs.py`               | Every public symbol named somewhere under `docs/api/`                        |
-| Python surface         | `scripts/check_surface.py`                | Every package declares `__all__`; every public name renders in the reference |
-| wfmgen flag docs       | `scripts/check_wfmgen_flag_docs.py`       | Every flag `wfmgen` accepts named in a guide page                            |
-| README sync            | `scripts/gen_readme.py`                   | Nothing — see below                                                          |
-| Install-script sync    | `scripts/gen_install_scripts.py`          | Nothing — edit `bootstrap.toml`, run `make docs-relink`                      |
-| Version strings        | `scripts/check_version_strings.py`        | Never hand-type the current release version in prose                         |
-| Site internal links    | `scripts/check_site_links.py`             | Internal links/anchors resolve in the built site                             |
-| Strict build           | `zensical build --strict`                 | Zero build warnings (bad refs, includes)                                     |
-| Init-param optionality | `scripts/check_init_param_optionality.py` | A published constructor signature is callable                                |
+| Check                  | Script                                    | What it needs from you                                                                                                    |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Python surface         | `scripts/check_surface.py`                | Every package declares `__all__`; every public name renders in the reference                                              |
+| wfmgen flag docs       | `scripts/check_wfmgen_flag_docs.py`       | Every flag `wfmgen` accepts named in a guide page                                                                         |
+| README sync            | `scripts/gen_readme.py`                   | Nothing — see below                                                                                                       |
+| Install-script sync    | `scripts/gen_install_scripts.py`          | Nothing — edit `bootstrap.toml`, run `make docs-relink`                                                                   |
+| Version strings        | `scripts/check_version_strings.py`        | Never hand-type the current release version in prose                                                                      |
+| Site internal links    | `scripts/check_site_links.py`             | Internal links/anchors resolve in the built site                                                                          |
+| Nav reach              | `scripts/check_nav_reach.py`              | Nothing: a page in a section with a glob is reached; a page deliberately out of the nav goes in `mkdocs.yml` `not_in_nav` |
+| Strict build           | `zensical build --strict`                 | Zero build warnings (bad refs, includes)                                                                                  |
+| Init-param optionality | `scripts/check_init_param_optionality.py` | A published constructor signature is callable                                                                             |
 
 (The three fence gates and the example gate live in the `python` job,
 "Python 3.x" in the checks list — see [Doc Examples](doc-examples.md)

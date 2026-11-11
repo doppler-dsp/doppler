@@ -65,7 +65,7 @@ the end of the capture:
     hard decision. It normalizes by the measured total power, so a perfect
     receiver reads 10·log10(N/(S+N)), a little below −Es/N0; the check holds
     every locked draw within `EVM_TOL_DB` of that.
-- **M2M4**, [`snr.snr_m2m4_db`](../api/python-snr.md): a blind SNR estimate from
+- **M2M4**, [`snr.snr_m2m4_db`][doppler.snr.snr_m2m4_db]: a blind SNR estimate from
     the symbol moments. It assumes circular noise, and the demodulated stream's
     noise is not circular, so it is not a measurement of the link: it reads
     below the input Es/N0 (7.0–7.3 dB against 8 dB across the three regimes).

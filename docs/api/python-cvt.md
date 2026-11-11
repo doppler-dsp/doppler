@@ -220,7 +220,7 @@ The same octets unpack exactly as their hex spelling does through
 
 `bin_to_nrz` maps bits to bipolar symbols as `1 - 2*b` — bit 0 to `+1`, bit 1
 to `-1`. That convention's home is BPSK in
-[`mpsk`](python-mpsk.md): M-PSK at `m = 2` puts label 0 at `+1`. The two are
+[`mpsk`][doppler.mpsk]: M-PSK at `m = 2` puts label 0 at `+1`. The two are
 asserted equal in the C tests rather than trusted to stay equal, because a
 mapper that disagreed with the receiver's would decode every bit inverted
 while looking perfectly locked.

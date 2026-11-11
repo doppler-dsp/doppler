@@ -1,5 +1,5 @@
 ---
-description: "`Dll(segments)` despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid."
+description: "Dll(segments) despreading a Doppler-dilated code on an asynchronous data clock, unaided and with the carrier's rate aid."
 ---
 
 # Streaming Async Despreader

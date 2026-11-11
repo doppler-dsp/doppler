@@ -1,3 +1,7 @@
+---
+description: "The two wide-Doppler operating regimes driving the acquisition design"
+---
+
 # DSSS Primary Use Cases for Code Acquisition Design
 
 Two operating regimes drive the acquisition design. Both are **wide-Doppler**

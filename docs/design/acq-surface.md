@@ -1,5 +1,5 @@
 ---
-description: "the DSSS search engine's arithmetic as equations, from the de-rotated per-tile correlation to the CFAR gate and the peak list, then the architecture, what `pfa` means for a peak detector, the compute cost and what is open"
+description: "the DSSS search engine's arithmetic as equations, from the de-rotated per-tile correlation to the CFAR gate and the peak list, then the architecture, what pfa means for a peak detector, the compute cost and what is open"
 ---
 
 # The acquisition surface: the DSSS search engine

@@ -1,5 +1,5 @@
 ---
-description: "the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three `wfmgen` faces, then `Correlator -> refine -> BurstDemod` behind one `push()`, the same answer at every block size"
+description: "the end-to-end DSSS burst walkthrough: a train sent from one frame description on all three wfmgen faces, then Correlator -> refine -> BurstDemod behind one push(), the same answer at every block size"
 ---
 
 # DsssBurstReceiver — the Composed Burst Chain

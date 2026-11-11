@@ -1,3 +1,7 @@
+---
+description: "Where C headers, sources, and tests go"
+---
+
 # Python Extension Module Layout
 
 Every Python C extension subpackage in doppler follows an exact layout.

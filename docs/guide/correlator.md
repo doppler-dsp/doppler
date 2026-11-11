@@ -1,5 +1,5 @@
 ---
-description: "one class, `Correlator`, for every FFT correlation: maps, delay-Doppler maps, streaming detectors and the continuous and burst searches (acquisition)"
+description: "one class, Correlator, for every FFT correlation: maps, delay-Doppler maps, streaming detectors and the continuous and burst searches (acquisition)"
 ---
 
 # The Correlator

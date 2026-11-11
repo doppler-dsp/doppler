@@ -1,3 +1,7 @@
+---
+description: "Clang source-based coverage across the C/Python/Rust harnesses"
+---
+
 # Code coverage
 
 doppler measures coverage with **clang source-based coverage**

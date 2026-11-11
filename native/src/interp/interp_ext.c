@@ -197,8 +197,16 @@ static PyModuleDef interp_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name = "interp",
   .m_doc
-  = "Interpolation: a table-driven resampling interpolator "
-    "(InterpolatedTable) for fractional-delay and rate-change lookups.\n"
+  = "Interpolation: a periodic lookup table (InterpolatedTable) evaluated at "
+    "any real position.\n"
+    "\n"
+    "The table holds one period of a repeating complex waveform. A query "
+    "point\n"
+    "wraps modulo the table length, so it may run past the end and land back "
+    "at\n"
+    "the start, and a fractional point resolves by `floor`, `nearest` or\n"
+    "`linear` interpolation. It is purely a function of (table, method,\n"
+    "point): there is no running state.\n"
     "\n"
     "Examples\n"
     "--------\n"

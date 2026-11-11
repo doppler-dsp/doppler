@@ -569,10 +569,10 @@ repos:
       # and it iterates the same list docs-check does, so adding a check
       # there adds it here with no edit.
       #
-      # 1.6s for all thirteen. That buys the two that caught doppler#858 --
-      # check_api_docs and the docstring-coverage ratchet -- at commit time
-      # rather than in CI, plus nav-index, doc/face parity, version strings
-      # and the generator drift the old hook covered.
+      # 1.6s for all of them. That buys the docstring-coverage ratchet,
+      # which caught doppler#858, at commit time rather than in CI, plus
+      # doc/face parity, version strings and the generator drift the old
+      # hook covered.
       #
       # always_run, like the hook it replaces: these read every docstring,
       # stub, manifest and page, so a `files:` filter would be a second

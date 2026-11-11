@@ -4,4 +4,4 @@
 # This is a TEMPORARY backlog that must shrink to empty: as each page's Python
 # fences are made to run (or marked skip=), delete its line. A NEW page is never
 # added here — it is gated on arrival (fail-closed). Mirrors the burn-down
-# idiom of docs/api/.api-coverage-ignore and scripts/.serializable-ignore.
+# idiom of scripts/.serializable-ignore.

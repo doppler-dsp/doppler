@@ -1,5 +1,5 @@
 ---
-description: "PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters."
+description: "PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the psd_template override matters."
 ---
 
 # CarrierAcquisition: RRC Pulse Shaping

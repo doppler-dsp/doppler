@@ -208,7 +208,7 @@ it.resume()
 
 `doppler.stream.interrupt_on_sigint()`, `interrupt()`, `resume()`,
 `interrupted()`, `set_interrupt_latency_ms()` and `interrupt_latency_ms()`
-are **gone**, not deprecated. See [Interrupt](python-interrupt.md) for the
+are **gone**, not deprecated. See [Stopping a Run](../guide/interrupt.md) for the
 object that replaces them and
 [Ending a wait](../design/io-termination.md) for the contract it serves on
 all three transports.

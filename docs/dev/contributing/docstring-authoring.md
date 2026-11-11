@@ -1,3 +1,7 @@
+---
+description: "Write the C header Doxygen so jm derives top-notch Python docstrings on both faces"
+---
+
 # Authoring docstrings — write the C header, get the Python docs
 
 doppler's Python documentation is **derived**, not written. You write Doxygen

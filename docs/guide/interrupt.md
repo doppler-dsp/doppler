@@ -1,7 +1,12 @@
-# Python Interrupt API
+---
+description: "Stop a blocking run with Ctrl+C: the process-wide interrupt flag, and the scoped Interrupt guard that arms it."
+---
 
-Stopping a run. `doppler.interrupt` is the one flag every blocking wait in
-doppler consults, and the scoped guard that arms it.
+# Stopping a Run
+
+The one flag every blocking wait in doppler consults lives in
+[`doppler.interrupt`][doppler.interrupt], with the scoped guard that arms
+it.
 
 The flag is **process-wide**, so `Interrupt` is a handle to a facility
 rather than an instance of one: two guards observe the same flag. What a
@@ -51,5 +56,3 @@ that it was, after the block that noticed has exited.
 See [Ending a wait](../design/io-termination.md) for the contract this
 serves on all three transports, and why the primitive is an object rather
 than the free functions it used to be.
-
-::: doppler.interrupt.Interrupt

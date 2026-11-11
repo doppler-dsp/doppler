@@ -312,7 +312,7 @@ static PyModuleDef acquire_moduledef = {
     ">>> ca = CarrierAcquisition(sample_rate_hz=8000.0, "
     "symbol_rate_hz=1000.0,\n"
     "...                          resolution_hz=5.0)\n"
-    ">>> ca.ready()\n"
+    ">>> ca.ready\n"
     "False\n",
   .m_size    = -1,
   .m_methods = acquire_module_methods,

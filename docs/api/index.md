@@ -37,15 +37,10 @@ The Python modules are thin CPython extensions over the C ABI — no reimplement
 | `doppler.cvt` — type converters & ADC                              | [Python: Type Converters](python-cvt.md)                  |
 | `doppler.arith` — saturating fixed-point ops                       | [Python: Fixed-Point Arithmetic](python-arith.md)         |
 | `doppler.measure` — tone/NPR/IMD metrics                           | [Python: Measurement Suite](python-measure.md)            |
-| Polyphase filter bank                                              | [Polyphase → Resample](python-polyphase.md)               |
 | `doppler.util` — shared numeric helpers                            | [Python: Utilities](python-util.md)                       |
 | `doppler.ccsds` — CCSDS 131.0-B literals                           | [Python: CCSDS Literals](python-ccsds.md)                 |
 | `doppler.acquire` — carrier acquisition and burst capture          | [Python: Acquire (CarrierAcquisition)](python-acquire.md) |
 | `doppler.dsss` — DSSS despreaders, demodulator and receivers       | [Python: DSSS](python-dsss.md)                            |
-| `doppler.mpsk` — M-PSK map, demap and soft demap                   | [Python: M-PSK Constellation](python-mpsk.md)             |
 | `doppler.track` — second-order loop filter                         | [Python: Loop Filter (track)](python-track.md)            |
-| `doppler.snr` — SNR / Es-N0 estimators                             | [Python: SNR](python-snr.md)                              |
 | `doppler.coding` — channel codes (convolutional, RS, interleaving) | [Python: Channel Coding](python-coding.md)                |
 | `doppler.ber` — bit/frame error-rate measurement                   | [Python: Error-Rate Measurement](python-ber.md)           |
-| `doppler.interp` — interpolated table lookup                       | [Python: Interp (InterpolatedTable)](python-interp.md)    |
-| `doppler.interrupt` — stopping a blocking run                      | [Python: Interrupt](python-interrupt.md)                  |

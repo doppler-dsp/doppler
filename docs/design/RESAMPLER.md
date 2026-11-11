@@ -11,7 +11,7 @@ description: "polyphase resampler architecture, testing, and performance optimiz
 [Testing](#testing) describe the polyphase resampler as shipped (the
 `resamp` core behind `Resampler`/`RateConverter` — see the
 [gallery walkthrough](../gallery/rate-converter.md) and the
-[Python API](../api/python-resample.md)). [Performance Optimizations](#performance-optimizations)
+[Python API](../guide/resampling.md)). [Performance Optimizations](#performance-optimizations)
 is a Day-1 brainstorm, not a description of what ships today. In particular,
 today's Farrow-family interpolator (`native/src/farrow/farrow_core.c`, used
 by the timing loop and `Farrow.delay`) is a simple selectable-order Lagrange

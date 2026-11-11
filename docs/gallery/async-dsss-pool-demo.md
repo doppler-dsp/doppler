@@ -6,7 +6,7 @@ description: "three receivers, four emitters on one Gold code: each held by one 
 
 ![What each receiver holds over time, receiver 1's symbols and symbol lock through a release and a new emitter, and each receiver's last 600 symbols](../assets/async_dsss_pool_demo.png)
 
-One [`dsss.AsyncDsssPool`](../api/python-dsss.md) runs three receivers on one
+One [`dsss.AsyncDsssPool`][doppler.dsss.AsyncDsssPool] runs three receivers on one
 stream. Four emitters on one Gold code reach it at different times, code phases
 and carriers. A, B and C arrive one after another, B leaves, and D arrives after
 it.

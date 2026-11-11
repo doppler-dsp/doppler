@@ -40,7 +40,7 @@ detections. You never pick a bin count or a threshold.
 This is the usage walk-through. For the matched-filter surface it builds on, see
 [2-D Acquisition](../gallery/detection2d.md) (the 2-D detector flavor); for
 what happens
-*after* acquisition, see the [DSSS BurstDespreader](../api/python-dsss.md).
+*after* acquisition, see the [DSSS BurstDespreader](dsss-receivers.md).
 
 !!! tip "The 30-second version"
 
@@ -712,7 +712,7 @@ ______________________________________________________________________
 
 The burst search is the front of a two-stage receiver: **acquire**, then
 **track**. Once it reports a `(Doppler bin, code phase)`, hand the coarse
-estimate to the [`BurstDespreader`](../api/python-dsss.md), which closes a
+estimate to the [`BurstDespreader`][doppler.dsss.BurstDespreader], which closes a
 DLL + Costas loop to track code phase and carrier and recover the payload
 bits. The search lives in `doppler.correlation`, the despreaders in
 `doppler.dsss`:
@@ -736,7 +736,7 @@ ______________________________________________________________________
     `Correlator` reference
 - [Python: Acquire API][doppler.acquire] — `BurstCapture` and
     `bin_to_signed`
-- [Python: DSSS API](../api/python-dsss.md) — `BurstDespreader` and the composed receivers
+- [Python: DSSS API](dsss-receivers.md) — `BurstDespreader` and the composed receivers
 - [Python: Detection Statistics](detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the 2-D detector's
     matched-filter surface

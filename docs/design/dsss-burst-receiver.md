@@ -13,7 +13,7 @@ what a prototype measured, and the four assumptions that did not survive
 contact.
 **Scope:** a new composed C object — `DsssBurstReceiver` — that owns the
 burst chain end to end, the way
-[`DsssReceiver`](../api/python-dsss.md) already owns the continuous one.
+[`DsssReceiver`][doppler.dsss.DsssReceiver] already owns the continuous one.
 It composes the existing, already-certified `Burst*` cores; it is not new
 DSP. What is new is the **hand-off**, which today no object owns.
 

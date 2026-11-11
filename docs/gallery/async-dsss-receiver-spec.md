@@ -6,7 +6,7 @@ description: "one packaged receiver on a link whose Doppler stretches the chip c
 
 ![The constellation after symbol lock, the live carrier through the TCA crossing, the time to symbol lock for every draw, and the symbol lock with the spans spent searching](../assets/async_dsss_receiver_spec_demo.png)
 
-One [`dsss.AsyncDsssReceiver`](../api/python-dsss.md) demodulates continuous DSSS
+One [`dsss.AsyncDsssReceiver`][doppler.dsss.AsyncDsssReceiver] demodulates continuous DSSS
 whose data symbols are asynchronous to the code epoch, on a link whose Doppler
 moves the chip clock as well as the carrier. On a moving platform both shift by
 the same factor, v/c. Told the RF carrier (`carrier_freq_hz`), the receiver feeds

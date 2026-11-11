@@ -1,14 +1,16 @@
-# Python Resample API
+---
+description: "Change a stream's sample rate: which resampler to use, how RateConverter picks its cascade, the matched-filter variant, streaming and checkpoints."
+---
 
-Resampler implementations backed by the native C library, with state
+# Rate Conversion
+
+[`doppler.resample`][doppler.resample]'s resamplers are backed by the native C library, with state
 preserved across calls; most accept and return `complex64` NumPy arrays. For the
 polyphase interpolator/decimator architecture behind `Resampler` and
 `RateConverter`, see the [Resampler design notes](../design/RESAMPLER.md).
 
 Source:
 [`src/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/resample/__init__.py)
-
-______________________________________________________________________
 
 ## Which class to use
 
@@ -17,11 +19,13 @@ ______________________________________________________________________
 | `RateConverter`        | Auto-selected cascade             | any         | Single-class interface for all rates  |
 | `Resampler`            | Polyphase (4096 phases × 19 taps) | any         | Custom Kaiser spec or `execute_ctrl`  |
 | `HalfbandDecimator`    | Halfband 2:1 CF32                 | 0.5 (fixed) | First stage in a hand-tuned DDC chain |
-| `HalfbandDecimatorDp`  | Halfband 2:1 CF64                 | 0.5 (fixed) | Double-precision DDC chain            |
 | `HalfbandDecimatorR2C` | Halfband 2:1 F32→CF32             | 0.5 (fixed) | Real ADC input → complex baseband     |
 | `CIC`                  | Cascaded integrator-comb          | 1/R (fixed) | High-rate first decimation stage      |
 
-______________________________________________________________________
+`HalfbandDecimatorDp` duplicates `HalfbandDecimator` (the same CF32 core,
+despite the name) and is being retired
+([#3002](https://github.com/doppler-dsp/doppler/issues/3002)); use
+`HalfbandDecimator`.
 
 ## `RateConverter` — automatic cascade
 
@@ -204,8 +208,6 @@ rc = RateConverter(0.125, compensate=1)
 print(rc.stages)   # ['CIC(8)+FIR']
 ```
 
-______________________________________________________________________
-
 ## `Resampler` — general polyphase
 
 Built-in Kaiser bank (60 dB rejection, 0.4/0.6 pass/stop). Works for
@@ -240,8 +242,6 @@ ctrl = 1e-4 * doppler_correction  # real float64, in rate units
 y = r.execute_ctrl(x, ctrl)
 ```
 
-______________________________________________________________________
-
 ## `HalfbandDecimator` — fixed 2:1 decimation
 
 Symmetric FIR halfband filter; every other output sample is the identity
@@ -273,8 +273,6 @@ for block in iq_stream:              # CF32 arrays, any length
     next_stage(y)
 ```
 
-______________________________________________________________________
-
 ## `HalfbandDecimatorQ15` — fixed-point (Q15) variant
 
 `HalfbandDecimatorQ15` is a fixed-point halfband 2:1 decimator for
@@ -297,8 +295,6 @@ x = (np.random.randn(4096) * 8192).astype(np.int16)   # interleaved I/Q
 y = dec.execute(x)                                     # int16, half the length
 ```
 
-______________________________________________________________________
-
 ## `CIC` — cascaded integrator-comb decimator
 
 Fixed-rate integer decimation by a power-of-two factor R. Fixed at N=4
@@ -318,8 +314,6 @@ y = cic.decimate(x)             # len(y) = 256
 h = ciccompmf(N=4, R=16, M=7)  # NDArray[float64], length 7
 ```
 
-______________________________________________________________________
-
 ## `ciccompmf` — CIC droop-compensator design
 
 Closed-form maximally-flat FIR compensator (Molnar & Vucic, IEEE TCAS-II
@@ -334,8 +328,6 @@ h = ciccompmf(N=4, R=16, M=7)
 ```
 
 Valid M: odd 1–19, even 2–18. Out-of-range M returns all-zeros.
-
-______________________________________________________________________
 
 ## Farrow — fractional-delay interpolator
 
@@ -358,8 +350,6 @@ f = Farrow(order="cubic")   # "linear" | "parabolic" | "cubic"
 y = f.delay(x, mu=0.3)      # constant fractional delay (mu) of a cf32 block
 ```
 
-______________________________________________________________________
-
 ## Kaiser filter-design helpers
 
 Two closed-form helpers expose the Kaiser window design the polyphase
@@ -374,26 +364,3 @@ from doppler.resample import kaiser_beta, kaiser_num_taps
 beta = kaiser_beta(60.0)                       # 60 dB stopband → beta ≈ 5.65
 ntaps = kaiser_num_taps(4096, 60.0, 0.4, 0.6)  # taps for a 0.4/0.6 transition
 ```
-
-______________________________________________________________________
-
-::: doppler.resample
-    options:
-      members:
-        - RateConverter
-        - rate_convert
-        - Resampler
-        - HalfbandDecimator
-        - HalfbandDecimatorQ15
-        - HalfbandDecimatorDp
-        - HalfbandDecimatorR2C
-        - CIC
-        - ciccompmf
-        - Farrow
-        - kaiser_beta
-        - kaiser_num_taps
-        - cic_design
-        - cic_min_order
-        - cic_alias_rejection
-        - cic_passband_droop
-        - cic_precision_bits

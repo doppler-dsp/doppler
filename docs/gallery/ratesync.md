@@ -13,7 +13,7 @@ samples per symbol, and 200 ppm off even that.
 It gets there by inverting the usual arrangement. Where
 [`SymbolSync`](symsync.md) runs a matched FIR and then a separate
 [`Farrow`](farrow.md) interpolator steered by an integer NCO, `RateSync` owns a
-[`MatchedRateConverter`](../api/python-resample.md) whose **terminal stage carries the
+[`MatchedRateConverter`][doppler.resample.MatchedRateConverter] whose **terminal stage carries the
 pulse**. The cascade's last dot product *is* the matched filter, and the
 polyphase arm that dot product selects *is* the fractional timing delay. One
 filter, no Farrow, no separate matched-filtering pass — and because that

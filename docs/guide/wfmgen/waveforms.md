@@ -45,8 +45,8 @@ around one.
 | You send                                                                                                                                        | Received by                                                                                                                  |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `bpsk` / `qpsk` / `bits` (a BPSK or QPSK mapping) as a **continuous stream**, framed (preamble, sync word, data, CRC) or not                    | [`MpskReceiver`](../../api/python-track.md#mpskreceiver-pulse-shaped-m-psk-modem), with `FrameDesc.check` scoring each frame |
-| a `dsss` burst (`--acq-code`, `--data-code`, a frame)                                                                                           | [`DsssBurstReceiver`](../../api/python-dsss.md) (or `BurstDemod` once a burst is located)                                    |
-| continuous `dsss` (`--symbol-rate`)                                                                                                             | [`DsssReceiver`](../../api/python-dsss.md#dsssreceiver-the-composed-continuous-receiver)                                     |
+| a `dsss` burst (`--acq-code`, `--data-code`, a frame)                                                                                           | [`DsssBurstReceiver`][doppler.dsss.DsssBurstReceiver] (or `BurstDemod` once a burst is located)                              |
+| continuous `dsss` (`--symbol-rate`)                                                                                                             | [`DsssReceiver`][doppler.dsss.DsssReceiver]                                                                                  |
 | **an unspread burst**: `bits` / `bpsk` / `qpsk` frames with silence or noise between them (`--off`, `--repeats`, `--delay`), or one frame alone | *stimulus only*: it must be located before it can be demodulated, and nothing here does both                                 |
 | **`chirp`**                                                                                                                                     | *stimulus only*: no demodulator                                                                                              |
 | **`symbols`** (QAM, APSK, pi/4-QPSK, anything you supply)                                                                                       | *stimulus only*: no demodulator for the constellation                                                                        |
@@ -678,7 +678,7 @@ ______________________________________________________________________
 ### The burst anatomy
 
 A `dsss` segment is one complete burst honouring the
-[`BurstDemod`/`BurstDespreader`](../../api/python-dsss.md) frame contract:
+[`BurstDemod`/`BurstDespreader`][doppler.dsss.BurstDemod] frame contract:
 
 ```text
 [ acq_code x acq_reps | (sync | payload | crc16(payload)) ^ data_code ]

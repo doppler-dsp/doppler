@@ -207,9 +207,9 @@ static PyModuleDef analyzer_moduledef = {
     ">>> from doppler.analyzer import Specan\n"
     ">>> sp = Specan(fs=1.024e6, span=200e3, rbw=2e3, src_center=0.0,\n"
     "...             center=0.0, offset_db=0.0, full_scale=1.0, bits=0,\n"
-    "...             window=\"kaiser\", navg=1)\n"
+    "...             navg=1)\n"
     ">>> sp.execute(np.ones(4096, np.complex64)).shape\n"
-    "(201,)\n",
+    "(401,)\n",
   .m_size    = -1,
   .m_methods = NULL,
 };

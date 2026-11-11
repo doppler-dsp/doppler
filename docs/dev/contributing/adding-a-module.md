@@ -1,3 +1,7 @@
+---
+description: "Step-by-step guide using jm"
+---
+
 # Adding a New C Extension Module
 
 This guide walks through adding a new DSP module to doppler using

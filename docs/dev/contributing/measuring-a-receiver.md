@@ -1,3 +1,7 @@
+---
+description: "The path from a receiver to a number you can defend: the adapter, the four metrics together, how to read a refusal, and what to gate on"
+---
+
 # Measuring a receiver
 
 You have a receiver — ours or your own — and you need a number you can defend.

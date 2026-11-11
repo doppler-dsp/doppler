@@ -1,3 +1,7 @@
+---
+description: "Versioning, tagging, and publishing"
+---
+
 # Release Checklist
 
 Step-by-step process for cutting a doppler release.

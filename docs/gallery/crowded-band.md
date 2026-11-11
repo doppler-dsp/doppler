@@ -1,5 +1,5 @@
 ---
-description: "twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free."
+description: "twenty RRC carriers in one segment, prepared in parallel across cores; Plan.render(enable=...) thins them for free."
 ---
 
 # A Crowded Band — Many Signals, One Parallel `prepare`

@@ -12,7 +12,7 @@ page under ``docs/`` and runs its Python fences. A page is enforced the moment
 it exists — there is no opt-in list to forget. The only escapes are visible and
 reviewed: an inline ``skip=`` marker with a mandatory reason, or a temporary
 entry in the burn-down backlog ``docs/.doc-snippet-ignore`` (which must shrink
-to empty, mirroring ``.api-coverage-ignore`` / ``.serializable-ignore``).
+to empty, mirroring ``.serializable-ignore``).
 
 The four sanctioned states for a fence (see
 ``docs/dev/contributing/doc-examples.md``):

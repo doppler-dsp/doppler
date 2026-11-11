@@ -1,5 +1,5 @@
 ---
-description: "the dated record: the first profile that was withdrawn and why, the resampler's 32-bit step against the closed form, the gap that carried the signal, and the Plan's speed against `compose()`."
+description: "the dated record: the first profile that was withdrawn and why, the resampler's 32-bit step against the closed form, the gap that carried the signal, and the Plan's speed against compose()."
 ---
 
 # The Doppler channel — the measurement record

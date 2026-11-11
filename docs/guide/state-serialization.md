@@ -1,5 +1,5 @@
 ---
-description: "bit-exact `get_state`/`set_state`, composed receivers, and elastic pod hand-off"
+description: "bit-exact get_state/set_state, composed receivers, and elastic pod hand-off"
 ---
 
 # Checkpoint & Resume

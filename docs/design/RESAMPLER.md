@@ -17,9 +17,11 @@ today's Farrow-family interpolator (`native/src/farrow/farrow_core.c`, used
 by the timing loop and `Farrow.delay`) is a simple selectable-order Lagrange
 form (linear / piecewise-parabolic / cubic) — **not** the DPMFS structure
 Idea 1 proposes below. DPMFS itself *was* built and shipped as
-`doppler.polyphase.ResamplerDpmfs` in v0.2.6, then removed in v0.3.0 (see
-the [Python Polyphase API](../api/python-polyphase.md) removal notice) in
-favor of the simpler, always-sufficient `Resampler` fixed-bank design — so
+`doppler.polyphase.ResamplerDpmfs` in v0.2.6, then removed in v0.3.0,
+with all of `doppler.polyphase`, in favor of the simpler, always-sufficient
+`Resampler` fixed-bank design: its built-in 4096-phase × 19-tap Kaiser
+bank (about 60 dB rejection) needs no coefficient design step, and a
+tighter one is passed as `bank=` — so
 Idea 1 below is a tried, shipped, and retired approach, not an untried one.
 
 # Architecture

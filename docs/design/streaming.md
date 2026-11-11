@@ -1,5 +1,5 @@
 ---
-description: "the transport contract: the 64-byte `dp_header_t` envelope every role shares, how a frame too big for the broker is chunked and reassembled, the subjects and JetStream objects derived from an endpoint, and who owns which buffer"
+description: "the transport contract: the 64-byte dp_header_t envelope every role shares, how a frame too big for the broker is chunked and reassembled, the subjects and JetStream objects derived from an endpoint, and who owns which buffer"
 ---
 
 # Streaming — one envelope, six roles, two planes

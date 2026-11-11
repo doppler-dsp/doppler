@@ -100,38 +100,23 @@ def test_no_example_fails(tmp_path: Path) -> None:
     assert "doppler.sig.Widget: no example" in r.stderr
 
 
-def test_a_bare_api_mention_is_not_an_entry(tmp_path: Path) -> None:
+def test_no_api_page_is_owed(tmp_path: Path) -> None:
+    """The API entry is the generated reference, which check_surface.py
+    holds (#3000): a class with a guide and an example passes with no
+    docs/api/ page at all."""
     root = _fixture(tmp_path)
-    _w(
-        root,
-        "docs/api/python-sig.md",
-        "# sig\n\n`Widget` is mentioned.\n\n::: doppler.sig.WidgetStats\n",
-    )
-    r = _run(root, "widget_demo.py")
-    assert r.returncode == 1
-    assert "doppler.sig.Widget: no api" in r.stderr
-
-
-def test_a_heading_or_member_list_is_an_entry(tmp_path: Path) -> None:
-    root = _fixture(tmp_path)
-    _w(
-        root,
-        "docs/api/python-sig.md",
-        "# sig\n\n## Widget — the thing\n\n::: doppler.sig\n"
-        "    options:\n      members:\n        - WidgetStats\n",
-    )
+    (root / "docs" / "api" / "python-sig.md").unlink()
     r = _run(root, "widget_demo.py")
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_a_record_type_owes_only_its_api_entry(tmp_path: Path) -> None:
+def test_a_record_type_owes_no_guide_or_example(tmp_path: Path) -> None:
+    """WidgetStats is a record: the fixture names it in no guide and uses
+    it in no example, and that is not a gap."""
     root = _fixture(tmp_path)
-    _w(root, "docs/api/python-sig.md", "# sig\n\n::: doppler.sig.Widget\n")
     r = _run(root, "widget_demo.py")
-    assert r.returncode == 1
-    assert "doppler.sig.WidgetStats: no api" in r.stderr
-    assert "WidgetStats: no guide" not in r.stderr
-    assert "WidgetStats: no example" not in r.stderr
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "WidgetStats" not in r.stderr
 
 
 def test_a_record_name_in_a_fragment_is_a_record(tmp_path: Path) -> None:

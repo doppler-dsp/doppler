@@ -1,5 +1,5 @@
 ---
-description: "tone / PN / QPSK / BPSK from one declarative `Synth`."
+description: "tone / PN / QPSK / BPSK from one declarative Synth."
 ---
 
 # wfmgen — One Engine, Every Waveform

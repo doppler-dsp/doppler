@@ -1,6 +1,12 @@
 [module.interp]
 doc = """
-Interpolation: a table-driven resampling interpolator (InterpolatedTable) for fractional-delay and rate-change lookups.
+Interpolation: a periodic lookup table (InterpolatedTable) evaluated at any real position.
+
+The table holds one period of a repeating complex waveform. A query point
+wraps modulo the table length, so it may run past the end and land back at
+the start, and a fractional point resolves by `floor`, `nearest` or
+`linear` interpolation. It is purely a function of (table, method,
+point): there is no running state.
 
 Examples
 --------

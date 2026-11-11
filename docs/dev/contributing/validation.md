@@ -1,3 +1,7 @@
+---
+description: "How an object is certified: header claims → C tests proven by sabotage → the generated evidence report and its two gates"
+---
+
 # Object Validation
 
 Every object doppler certifies carries its own **evidence**: measurements

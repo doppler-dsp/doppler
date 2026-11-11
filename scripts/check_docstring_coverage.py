@@ -95,7 +95,7 @@ BASELINE_FILE = os.path.join(ROOT, "docs", ".docstring-coverage-baseline")
 IGNORE_FILE = os.path.join(ROOT, "docs", ".docstring-coverage-ignore")
 
 # Application / entry-point packages with no importable object API. Mirrors
-# _pydocs.SKIP_TOP so this meter and check_api_docs agree on "what is public".
+# _pydocs.SKIP_TOP so this meter and check_user_docs agree on "what is public".
 SKIP_TOP = {"cli", "specan", "tests", "benchmarks"}
 
 # Generated glue jm emits for its own machinery — the lifecycle/serialization

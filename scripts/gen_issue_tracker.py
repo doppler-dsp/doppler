@@ -321,6 +321,15 @@ def render(data: dict) -> str:
     in_review = sum(1 for r in issues.values() if r.get("status") != "open")
 
     L: list[str] = []
+    # The page's one-line summary, for search and link previews (#3000).
+    L.append("---")
+    L.append(
+        'description: "The whole backlog, tiered by the kind of harm each '
+        "issue does rather than by age or label; generated from "
+        'issue-tiers.toml by make issues"'
+    )
+    L.append("---")
+    L.append("")
     L.append("# Open issues, by the harm they do")
     L.append("")
     L.append(

@@ -1,3 +1,7 @@
+---
+description: "Every integer ↔ float conversion, the rule for each kind, and the sites that still break it"
+---
+
 # Quantization: rules, sites, and open violations
 
 A survey of every place doppler converts between fixed-width integers and

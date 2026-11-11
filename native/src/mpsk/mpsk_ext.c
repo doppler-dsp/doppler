@@ -618,17 +618,31 @@ static PyMethodDef mpsk_module_methods[] = {
 static PyModuleDef mpsk_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name = "mpsk",
-  .m_doc  = "M-ary PSK mapping: hard and soft, including differential, symbol "
-            "map/demap for BPSK, QPSK, and 8-PSK constellations.\n"
-            "\n"
-            "Examples\n"
-            "--------\n"
-            ">>> import numpy as np\n"
-            ">>> from doppler.mpsk import mpsk_map, mpsk_demap\n"
-            ">>> bits = np.array([0, 1, 1, 0], np.uint8)\n"
-            ">>> np.array_equal(mpsk_demap(mpsk_map(bits, 4), 4), bits)\n"
-            "True\n",
-  .m_size = -1,
+  .m_doc
+  = "M-ary PSK mapping: hard and soft, including differential, symbol "
+    "map/demap for BPSK, QPSK, and 8-PSK constellations.\n"
+    "\n"
+    "This is the decision primitive, and its transmit inverse, that the\n"
+    "`doppler.track.CarrierMpsk` carrier loop and the M-PSK receiver "
+    "compose.\n"
+    "A symbol's `log2(M)` bits pack LSB-first into one `uint8` label, and "
+    "that\n"
+    "byte is the Gray code, so a slip to an adjacent point flips one bit.\n"
+    "Constellations are unit amplitude: BPSK {+1, -1}, QPSK (+-1 +- "
+    "j)/sqrt(2)\n"
+    "and 8-PSK exp(j k pi/4). `mpsk_soft_demap` is the same decision as\n"
+    "`mpsk_demap` written as one log-likelihood ratio per bit, the input a\n"
+    "soft-decision decoder needs; the differential pair resolves the M-fold\n"
+    "phase ambiguity a decision-directed carrier loop leaves.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.mpsk import mpsk_map, mpsk_demap\n"
+    ">>> bits = np.array([0, 1, 1, 0], np.uint8)\n"
+    ">>> np.array_equal(mpsk_demap(mpsk_map(bits, 4), 4), bits)\n"
+    "True\n",
+  .m_size    = -1,
   .m_methods = mpsk_module_methods,
 };
 

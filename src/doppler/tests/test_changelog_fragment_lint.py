@@ -83,6 +83,31 @@ def test_a_heading_line_fails(tmp_path: Path) -> None:
     assert "changelog.d/changed/heading.md line 3" in r.stderr
 
 
+def test_a_second_top_level_bullet_fails(tmp_path: Path) -> None:
+    """Two entries in one file: the shape that stopped v0.82.0's release
+    commit, because mdformat rewrote the assembled list (#2993)."""
+    script = _scratch(
+        tmp_path, {"fixed/two.md": GOOD + "- **A second entry.** Its own.\n"}
+    )
+    r = _lint(script)
+    assert r.returncode == 1
+    assert "changelog.d/fixed/two.md line 2" in r.stderr
+    assert "second top-level entry" in r.stderr
+
+
+def test_an_indented_bullet_or_a_fenced_list_is_one_entry(
+    tmp_path: Path,
+) -> None:
+    nested = GOOD + "    - a sub-point, indented under the entry\n"
+    fenced = GOOD + "\n    ```yaml\n- key: a list item, in code\n    ```\n"
+    r = _lint(
+        _scratch(
+            tmp_path, {"changed/nested.md": nested, "changed/f.md": fenced}
+        )
+    )
+    assert r.returncode == 0, r.stderr
+
+
 def test_every_bad_fragment_is_reported_not_just_the_first(
     tmp_path: Path,
 ) -> None:

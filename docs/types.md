@@ -142,7 +142,7 @@ integer types, the scale too — so it's worth knowing what each type costs:
 
 There is no complex-integer dtype, so integer captures deinterleave and rescale
 to `complex64` (±1.0) on read; the float types are already the memory layout of
-a complex array. [`Reader`](api/python-wfmgen.md) does the conversion in C — any
+a complex array. [`Reader`][doppler.wfm.Reader] does the conversion in C — any
 wire type to unit-scale `complex64` — and auto-detects the file type (BLUE /
 SigMF / CSV / raw), so it also recovers `fs`/`fc`/sample-type from a
 self-describing header:

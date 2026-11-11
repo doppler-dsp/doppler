@@ -6,7 +6,7 @@ description: "the timing loop's transfer function."
 
 ![SymbolSync theory validation](../assets/symsync_theory_demo.png)
 
-A theoretical-correctness check on [`track.SymbolSync`](../api/python-track.md)'s
+A theoretical-correctness check on [`track.SymbolSync`][doppler.track.SymbolSync]'s
 Gardner timing-error detector.
 
 **Left — Timing-detector S-curve.** The open-loop TED (swept static timing

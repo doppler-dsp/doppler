@@ -311,7 +311,7 @@ tmpdir.cleanup()
 
 For a capture with per-segment **annotations** — ground truth for scoring a
 detector — build it through
-[`Composer`](../../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink), which knows the scene, and hand the scene to the writer with
+[`Composer`](../wfmgen/python.md#compose-multi-segment-composition-writers-and-a-nats-sink), which knows the scene, and hand the scene to the writer with
 `w.annotate(comp)`; without it a `Writer` has nothing to annotate and emits an
 empty `annotations` array. The sidecar's schema is
 documented in [Output & file types](writing.md#sigmf-sidecar-schema).

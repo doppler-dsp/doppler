@@ -131,5 +131,5 @@ python -m doppler.examples.symbols_demo     # the four-panel figure (.png)
 
 - [wfmgen — One Engine, Every Waveform](wfmgen.md) — the built-in modulations.
 - [Composing a Scene](wfm-composition.md) — sum, add, headroom, sequencing.
-- [Python composer API](../api/python-wfmgen.md) — `Synth` / `Segment` /
+- [Python composer API](../guide/wfmgen/python.md) — `Synth` / `Segment` /
     `Composer` / `Writer` in full.

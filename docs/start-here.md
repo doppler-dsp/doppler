@@ -17,7 +17,7 @@ answers it.
 
 Not sure which page has the piece you need? Every family answers a
 different question about the *same* underlying object — for example,
-`SymbolSync` has a [Python API page](api/python-track.md), a
+`SymbolSync` has a [Python API page](guide/tracking-loops.md), a
 [gallery walkthrough](gallery/symsync.md), a
 [design doc](design/timing_lock_detector.md) for its lock detector, and a
 [guide](guide/lock-detection.md) for wiring it into a receiver. Start

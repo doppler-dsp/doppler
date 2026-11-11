@@ -8,8 +8,8 @@ description: "EVM, SER, lock time, false alarm and level invariance over random 
 
 This is the receiver's characterisation, not a demo of it. Everything on the page
 is measured over **randomly drawn geometries** rather than a fixed grid, on both
-[`track.MpskReceiver`](../api/python-track.md) (complex baseband) and
-[`track.MpskReceiverR`](../api/python-track.md) (real IF) — see the
+[`track.MpskReceiver`][doppler.track.MpskReceiver] (complex baseband) and
+[`track.MpskReceiverR`][doppler.track.MpskReceiverR] (real IF) — see the
 [walkthrough page](mpsk-receiver.md) for what they are and the
 [design note](../design/mpsk.md) for how they work.
 

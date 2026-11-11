@@ -6,7 +6,7 @@ description: "sizing bn_carrier for a predictable acquisition, and what a step a
 
 ![A Doppler profile the loop rides, what it costs, and how acquisition time varies with loop bandwidth](../assets/mpsk_doppler_profile_demo.png)
 
-A [`track.MpskReceiver`](../api/python-track.md) is handed a carrier that steps,
+A [`track.MpskReceiver`][doppler.track.MpskReceiver] is handed a carrier that steps,
 then ramps up, then ramps down, then holds. It rides all of it.
 
 The practical question is not whether it copes — it does — but **how to size
@@ -54,7 +54,7 @@ verify count in each direction — which puts a floor under the loop's settling
 and makes declaration a threshold crossing rather than a settling time.
 
 So: pick `bn_carrier` from the loop bandwidth your link needs, then read
-[`lock_time`](../api/python-track.md) back for your configuration. That is what
+[`lock_time`](../guide/tracking-loops.md) back for your configuration. That is what
 the property exists for.
 
 ```text

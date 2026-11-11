@@ -6,7 +6,7 @@ description: "timing-error-detector-driven resampling."
 
 ![Symbol timing recovery demo](../assets/symsync_demo.png)
 
-[`track.SymbolSync`](../api/python-track.md) recovers the symbol clock of an
+[`track.SymbolSync`][doppler.track.SymbolSync] recovers the symbol clock of an
 **asynchronous** data stream — one whose symbol rate is not locked to (and here
 runs 0.4 % fast of) the receiver's sample clock. A selectable timing-error
 detector (`ted`) closes a PI loop around an **integer timing NCO** and a

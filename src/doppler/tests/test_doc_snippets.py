@@ -1,7 +1,7 @@
 """Fail-closed drift gate: every Python snippet in the docs must be tested.
 
-The API-reference pages (``docs/api/*.md``) and the ``.pyi`` stubs are gated as
-doctests in CI, and the 21 example scripts run under ``make
+The ``.pyi`` stubs are gated as doctests in CI (and the Python reference is
+generated from them), and the 21 example scripts run under ``make
 test-examples-python``. Everything else — the guides, gallery, and top-level
 prose — used plain ```` ```python ```` blocks that nothing executed, so they
 rot silently (the quickstart's ``HalfbandDecimator()`` broke exactly this way

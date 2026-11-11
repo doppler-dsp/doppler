@@ -902,7 +902,7 @@ TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 TEST_EXAMPLES_CMD = $(MAKE) --no-print-directory test-examples-c
 
 TEST_ALL_DEPS = test test-examples test-python test-examples-python \
-                test-snippets test-stubs test-api-docs test-rust
+                test-snippets test-stubs test-rust
 
 # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
 # unreachable, so whether they RUN is a property of the environment, not of the
@@ -1056,7 +1056,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 drift-check doxygen-check docs-check \
                 gen-c-api-check \
                 validate-check \
-                test-all test-sweep test-stubs test-api-docs test-snippets \
+                test-all test-sweep test-stubs test-snippets \
                 test-rust bench-run-check \
                 abi-check link-check installed-headers-check \
                 exported-link-check symbol-prefix-check export-check \
@@ -1969,7 +1969,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
                 package-starter-tarball test-starter-tarball \
-                test-stubs test-api-docs test-snippets lint-stubs \
+                test-stubs test-snippets lint-stubs \
                 test-ubsan test-tsan test-asan warnings-check \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
@@ -5149,9 +5149,6 @@ lint-stubs: ## Check generated .pyi stays within 79 cols (check-only; see jm#744
 # `python scripts/check_docstring_coverage.py --update-baseline`.
 check-docstring-coverage: ## Report docstring coverage across both Python faces
 	$(UV) run python scripts/check_docstring_coverage.py
-
-test-api-docs: ## Doctest the docs/api/*.md reference pages
-	$(UV) run python -m pytest --doctest-glob='*.md' -q docs/api/
 
 # python/C/shell fences under docs/. Run as one target and reported together:
 # a page usually breaks all three the same way, and stopping at the first costs

@@ -86,11 +86,11 @@ example rather than the prose.
 
 ## How it works
 
-The payload is doppler's [`wfm.PN`](../api/python-wfmgen.md), one bit per
+The payload is doppler's [`wfm.PN`][doppler.wfm.PN], one bit per
 symbol, so the truth the BER is scored against is exactly what was sent. The
-emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode. The
+emitter is [`wfm.Synth`][doppler.wfm.Synth] in continuous DSSS mode. The
 noise is [`source.AWGN`][doppler.source.AWGN], with the per-component sigma
-that [`wfm_awgn_amplitude`](../api/python-wfmgen.md) gives for the Es/N0 over
+that [`wfm_awgn_amplitude`][doppler.wfm.wfm_awgn_amplitude] gives for the Es/N0 over
 one symbol's samples.
 
 ```python

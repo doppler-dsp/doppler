@@ -723,7 +723,7 @@ from doppler.dsss import BurstDespreader
 ```
 
 `DsssBurstReceiver` composes the whole chain in C — acquisition, a
-[`BurstCapture`](../api/python-acquire.md) that turns detections into
+[`BurstCapture`][doppler.acquire.BurstCapture] that turns detections into
 windows, and the despreader — so most links never wire these by hand.
 
 ______________________________________________________________________
@@ -734,7 +734,7 @@ ______________________________________________________________________
     a flavor
 - [Python: Correlation API][doppler.correlation] — the full
     `Correlator` reference
-- [Python: Acquire API](../api/python-acquire.md) — `BurstCapture` and
+- [Python: Acquire API][doppler.acquire] — `BurstCapture` and
     `bin_to_signed`
 - [Python: DSSS API](../api/python-dsss.md) — `BurstDespreader` and the composed receivers
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`

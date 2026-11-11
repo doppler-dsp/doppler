@@ -101,7 +101,7 @@ working directory, and exits
 
 - [Streaming Spectrograms](../guide/spectrogram.md): how to use `Spectrogram`,
     and the decisions you make along the way
-- [Python: Spectral API](../api/python-spectral.md#doppler.spectral.Spectrogram):
+- [Python: Spectral API][doppler.spectral.Spectrogram]:
     every method and property
 - [Design: the spectrogram](../design/spectrogram.md): why it is shaped this
     way

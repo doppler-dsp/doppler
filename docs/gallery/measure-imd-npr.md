@@ -74,4 +74,4 @@ g.npr_db, g.inband_psd_dbfs, g.notch_psd_dbfs
 
 See the [design guide](../design/measurement-suite.md) for the windowing,
 main-lobe integration and calibration conventions, and the
-[Python API](../api/python-measure.md) for the full field list.
+[Python API][doppler.measure] for the full field list.

@@ -221,5 +221,5 @@ contract, with an example, is the
 
 To see it working, [the gallery page](../gallery/spectrogram.md) streams a
 chirp and a tone through it and draws the waterfall, and the
-[API entry](../api/python-spectral.md#doppler.spectral.Spectrogram) lists
+[API entry][doppler.spectral.Spectrogram] lists
 every method.

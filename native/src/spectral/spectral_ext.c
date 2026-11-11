@@ -928,7 +928,32 @@ static PyModuleDef spectral_moduledef = {
     ">>> x = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)\n"
     ">>> back = FFT(n=1024, sign=+1).execute_cf32(f.execute_cf32(x)) / 1024\n"
     ">>> bool(np.allclose(back, x, atol=1e-4))\n"
-    "True\n",
+    "True\n"
+    "\n"
+    "The helpers are the building blocks of a display: a window, the "
+    "transform,\n"
+    "dB, and the peaks:\n"
+    "\n"
+    ">>> from doppler.spectral import hann_window, magnitude_db_cf32, "
+    "find_peaks_f32\n"
+    ">>> w = np.empty(1024, np.float32)\n"
+    ">>> hann_window(w)\n"
+    ">>> tone = np.exp(2j * np.pi * 100 / 1024 * "
+    "np.arange(1024)).astype(np.complex64)\n"
+    ">>> db = magnitude_db_cf32(f.execute_cf32(tone * w), lin_floor=1e-12, "
+    "offset_db=0.0)\n"
+    ">>> int(np.argmax(db))   # bin 100, where the tone is\n"
+    "100\n"
+    "\n"
+    "`PSD_WINDOW` and `SPECTROGRAM_MODE` name each C enum value the "
+    "`window=`\n"
+    "and `mode=` arguments take:\n"
+    "\n"
+    ">>> from doppler.spectral import PSD_WINDOW, SPECTROGRAM_MODE\n"
+    ">>> sorted(PSD_WINDOW.values())\n"
+    "['blackman-harris', 'hann', 'kaiser', 'rect']\n"
+    ">>> SPECTROGRAM_MODE\n"
+    "{0: 'power', 1: 'db'}\n",
   .m_size    = -1,
   .m_methods = spectral_module_methods,
 };

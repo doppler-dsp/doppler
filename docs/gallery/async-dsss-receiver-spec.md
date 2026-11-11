@@ -54,14 +54,14 @@ locked on the first hand-off. The figure marks them.
 The decode is checked three ways, on the window from the sustained symbol lock to
 the end of the capture:
 
-- **BER** against the known payload, with [`ber.BerMeter`](../api/python-ber.md).
+- **BER** against the known payload, with [`ber.BerMeter`][doppler.ber.BerMeter].
     The meter detects where the symbol stream sits against the payload by
     correlating a marker; it does not search for the alignment with the fewest
     errors. The pooled rate is quoted as an implementation loss: how many dB more
     Es/N0 coherent BPSK would need to make the same errors. The check holds it
     inside the loss budget, `MAX_LOSS_DB`, and no better than coherent BPSK,
     which no receiver can beat.
-- **EVM**, [`ber.ber_evm_db`](../api/python-ber.md): each symbol against its own
+- **EVM**, [`ber.ber_evm_db`][doppler.ber.ber_evm_db]: each symbol against its own
     hard decision. It normalizes by the measured total power, so a perfect
     receiver reads 10·log10(N/(S+N)), a little below −Es/N0; the check holds
     every locked draw within `EVM_TOL_DB` of that.
@@ -107,7 +107,7 @@ script reads `status()` and `lifecycle`.
 ```
 
 The checks run on those rows and symbols. The window starts where the symbol lock
-is sustained, by [`ber.ber_lock_symbol`](../api/python-ber.md) over each symbol's
+is sustained, by [`ber.ber_lock_symbol`][doppler.ber.ber_lock_symbol] over each symbol's
 lock flag, and BER and EVM are scored on the same window.
 
 ```python

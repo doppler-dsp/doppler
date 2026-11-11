@@ -1,6 +1,10 @@
-# Python Streaming API
+---
+description: "Move sample blocks between processes or hosts over NATS: publish/subscribe, push/pull and request/reply, one wire format, and stopping a blocked receive."
+---
 
-`doppler.stream` moves sample blocks between processes (or hosts) over
+# Streaming over NATS
+
+[`doppler.stream`][doppler.stream] moves sample blocks between processes (or hosts) over
 NATS, in three subject-based patterns that share **one wire format** — a
 `dp_header_t` (sample rate, centre frequency, sample type, an auto
 `timestamp_ns`, and a per-socket `sequence` counter) followed by the raw
@@ -10,15 +14,13 @@ receiver interoperate freely.
 Every pattern needs a `nats-server` reachable at the endpoint's
 `host:port` — plain `nats-server` is enough for PUB/SUB and REQ/REP;
 PUSH/PULL rides the JetStream work-queue tier, so start it with
-`nats-server -js`. Endpoints are `nats://host:port/subject`.
+`nats-server -js` ([NATS Broker](../install/broker.md) installs and runs one). Endpoints are `nats://host:port/subject`.
 
 Source:
 [`src/doppler/stream/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/stream/__init__.py)
 
 For the C side and a runnable end-to-end walk-through, see the
 [Streaming examples](../examples/streaming.md).
-
-______________________________________________________________________
 
 ## Socket patterns
 
@@ -45,7 +47,7 @@ little-endian — the same characters the same samples get in a BLUE file,
 so nothing translates between the wire and the file. `TLM16` is the
 exception in the same argument slot: it is a frame *kind*, not a sample
 format (telemetry records, Publisher only — see
-[Telemetry](python-telemetry.md)), because BLUE has no code for a record
+[Telemetry](../api/python-telemetry.md)), because BLUE has no code for a record
 stream.
 
 `recv()` returns `(samples, header)` where `header` is a dict of the
@@ -54,8 +56,6 @@ decoded `dp_header_t` fields: `format`, `kind`, `version`, `flags`,
 `center_freq` and `num_samples`. The full byte layout, and what a
 receiver validates before handing anything back, is in
 [Design: Streaming](../design/streaming.md).
-
-______________________________________________________________________
 
 ## PUB / SUB — broadcast
 
@@ -91,8 +91,6 @@ with Subscriber("nats://127.0.0.1:4222/iq") as sub:
     print(header["sample_rate"], header["sequence"], len(samples))
 ```
 
-______________________________________________________________________
-
 ## PUSH / PULL — pipeline
 
 PUSH publishes onto a durable JetStream work-queue subject; JetStream
@@ -123,8 +121,6 @@ fire-and-forget, so a lost one is a redelivery too: the header's
 `sequence`, which counts each producer's frames from 0, is how a worker
 can tell one from a new frame.
 
-______________________________________________________________________
-
 ## REQ / REP — request/response
 
 A `Requester` sends a sample block and blocks for the `Replier`'s response;
@@ -147,45 +143,13 @@ with Requester("nats://127.0.0.1:4222/ctrl", CF64) as req:
     resp, header = req.recv()
 ```
 
-______________________________________________________________________
-
 ## Timestamps
 
 `get_timestamp_ns()` returns the same `CLOCK_REALTIME` nanosecond stamp the
 senders embed in each header, so a receiver can compute end-to-end latency
 against `header["timestamp_ns"]`.
 
-______________________________________________________________________
-
-## PUB / SUB
-
-::: doppler.stream.Publisher
-
-::: doppler.stream.Subscriber
-
-______________________________________________________________________
-
-## PUSH / PULL
-
-::: doppler.stream.Push
-
-::: doppler.stream.Pull
-
-______________________________________________________________________
-
-## REQ / REP
-
-::: doppler.stream.Requester
-
-::: doppler.stream.Replier
-
-______________________________________________________________________
-
-## Helpers
-
-::: doppler.stream.get_timestamp_ns
-
-### Stopping a blocked receive
+## Stopping a blocked receive
 
 The interrupt is no longer part of this module. It was never a streaming
 feature — the same flag ends a ring wait and a capture read — so it now
@@ -208,11 +172,7 @@ it.resume()
 
 `doppler.stream.interrupt_on_sigint()`, `interrupt()`, `resume()`,
 `interrupted()`, `set_interrupt_latency_ms()` and `interrupt_latency_ms()`
-are **gone**, not deprecated. See [Stopping a Run](../guide/interrupt.md) for the
+are **gone**, not deprecated. See [Stopping a Run](interrupt.md) for the
 object that replaces them and
 [Ending a wait](../design/io-termination.md) for the contract it serves on
 all three transports.
-
-::: doppler.stream.mean_power
-
-::: doppler.stream.format_name

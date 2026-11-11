@@ -518,13 +518,3 @@ size_t n_out = dp_ddc_execute(ddc, mid, n_mid, out, num_in);
 dp_hbdecim_destroy(hb);
 dp_ddc_destroy(ddc);
 ```
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md), [Gallery](../gallery/index.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
-**Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md), [Checkpoint & Resume](../guide/state-serialization.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — the measurement record](../design/async-dsss-receiver-measurements.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md), [One correlator: the step-3 design](../design/correlator.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [MPSK Receiver](../design/mpsk.md), [The NCO](../design/nco.md), [Symbol Timing on a Rate Cascade](../design/ratesync-timing.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
-
-<!-- related-pages:end -->

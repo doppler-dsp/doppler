@@ -51,9 +51,6 @@ def _repo(tmp: Path) -> Path:
     )
     (d / "CMakeLists.txt").write_text("project(p C)\n")
     (d / "main.c").write_text("int main(void) { return 0; }\n")
-    (tmp / "mkdocs.yml").write_text(
-        "nav:\n  - Example Projects:\n      - P: example-projects/p.md\n"
-    )
     _git(tmp, "add", "-A")
     return tmp
 
@@ -128,7 +125,7 @@ def test_a_project_without_a_readme_is_refused_by_name(tmp_path: Path) -> None:
         g.projects(root)
 
 
-def test_an_orphan_page_and_a_missing_nav_entry_are_found(
+def test_an_orphan_page_is_found(
     tmp_path: Path,
 ) -> None:
     g = _gen()
@@ -137,10 +134,6 @@ def test_an_orphan_page_and_a_missing_nav_entry_are_found(
     assert g.page_problems(root) == []
     (root / "docs" / "example-projects" / "ghost.md").write_text("# ghost\n")
     assert any("ghost.md" in x for x in g.page_problems(root))
-    (root / "mkdocs.yml").write_text("nav:\n  - Home: index.md\n")
-    assert any(
-        "p.md is in the nav 0 times" in x for x in g.page_problems(root)
-    )
 
 
 def test_a_binary_file_is_named_on_the_page_not_a_crash(

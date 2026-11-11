@@ -1,4 +1,6 @@
-<!-- domain: correlation; summary: GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR. -->
+---
+description: "GPS/CDMA Doppler × code-phase search with Šidák-corrected CFAR."
+---
 
 # 2-D Acquisition Grid
 

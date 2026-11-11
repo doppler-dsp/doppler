@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass: carrier-to-code aiding, a missed hand-off searched again, and the decode scored by BER, EVM and M2M4 -->
+---
+description: "one packaged receiver on a link whose Doppler stretches the chip clock as well as the carrier, through both regimes of a pass: carrier-to-code aiding, a missed hand-off searched again, and the decode scored by BER, EVM and M2M4"
+---
 
 # AsyncDsssReceiver: the specification link
 

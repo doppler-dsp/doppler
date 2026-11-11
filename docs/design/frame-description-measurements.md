@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: the dated record behind it: the survey that counted seven spellings of a field, the prototype that proved one grammar lossless, and how the CCSDS sites were settled, under the same section letters -->
+---
+description: "the dated record behind it: the survey that counted seven spellings of a field, the prototype that proved one grammar lossless, and how the CCSDS sites were settled, under the same section letters"
+---
 
 # A Frame as a Description — the measurement record
 

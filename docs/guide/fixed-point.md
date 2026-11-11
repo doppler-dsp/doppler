@@ -1,4 +1,6 @@
-<!-- domain: arith; summary: Q15 / UQ15 types and quantization -->
+---
+description: "Q15 / UQ15 types and quantization"
+---
 
 # Getting Started with Fixed-Point Arithmetic
 

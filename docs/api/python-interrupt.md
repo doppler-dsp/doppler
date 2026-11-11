@@ -53,11 +53,3 @@ serves on all three transports, and why the primitive is an object rather
 than the free functions it used to be.
 
 ::: doppler.interrupt.Interrupt
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Design** — [Ending a capture — spooling an endless stream to disk while reading it back](../design/end-of-capture.md), [Ending a wait — one contract for network, memory and disk](../design/io-termination.md), [Streaming — one envelope, six roles, two planes](../design/streaming.md)
-
-<!-- related-pages:end -->

@@ -1,4 +1,6 @@
-<!-- domain: source; summary: the 32-bit phase accumulator every rate in the library stands on: why an integer register instead of a double, the one float boundary, and how carrier and timing read the same thing -->
+---
+description: "the 32-bit phase accumulator every rate in the library stands on: why an integer register instead of a double, the one float boundary, and how carrier and timing read the same thing"
+---
 
 # The NCO
 

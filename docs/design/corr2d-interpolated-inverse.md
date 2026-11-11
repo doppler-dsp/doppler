@@ -1,4 +1,6 @@
-<!-- domain: spectral; summary: decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation -->
+---
+description: "decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation"
+---
 
 # Corr2D: decoupled (interpolated) inverse length
 

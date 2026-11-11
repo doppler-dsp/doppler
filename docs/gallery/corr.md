@@ -1,4 +1,6 @@
-<!-- domain: correlation; summary: coherent integration, 2-D template matching, streaming CFAR, with `Correlator`. -->
+---
+description: "coherent integration, 2-D template matching, streaming CFAR, with `Correlator`."
+---
 
 # Correlation and Detection
 

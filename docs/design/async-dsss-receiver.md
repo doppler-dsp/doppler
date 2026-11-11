@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: continuous DSSS, from spec to object: the derived code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, the pool's one search, what it costs and the status record -->
+---
+description: "continuous DSSS, from spec to object: the derived code period, the acquisition hand-off, the asynchronous despreader, the receiver's states, the pool's one search, what it costs and the status record"
+---
 
 # AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object
 

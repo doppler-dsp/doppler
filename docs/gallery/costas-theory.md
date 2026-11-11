@@ -1,4 +1,6 @@
-<!-- domain: track; summary: loop-filter design and steady-state behaviour. -->
+---
+description: "loop-filter design and steady-state behaviour."
+---
 
 # Costas Loop — Theory Validation
 

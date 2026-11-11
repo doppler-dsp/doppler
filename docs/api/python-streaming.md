@@ -216,12 +216,3 @@ all three transports.
 ::: doppler.stream.mean_power
 
 ::: doppler.stream.format_name
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [Gallery](../gallery/index.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md)
-**Design** — [Spectrum Analyzer](../design/specan.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
-
-<!-- related-pages:end -->

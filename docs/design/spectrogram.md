@@ -1,4 +1,6 @@
-<!-- domain: spectral; summary: chunks in, rows out: the use cases, the seven guarantees and the six things not yet known, why a spectrogram is PSD per frame rather than a second kernel, and the order the program is built in -->
+---
+description: "chunks in, rows out: the use cases, the seven guarantees and the six things not yet known, why a spectrogram is PSD per frame rather than a second kernel, and the order the program is built in"
+---
 
 # The Spectrogram — chunks in, rows out
 

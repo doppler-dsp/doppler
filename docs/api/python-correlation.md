@@ -103,13 +103,4 @@ ______________________________________________________________________
 
 ::: doppler.correlation.Correlator
 
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [Delay-Doppler Search](../gallery/delay-doppler.md), [2-D Acquisition Grid](../gallery/detection2d.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md)
-**Guides** — [Acquiring a Repeated Preamble](../guide/acquisition.md), [The Correlator](../guide/correlator.md), [Delay-Doppler Search](../guide/delay-doppler.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [Corr2D batches: many maps in one call](../design/corr2d-batch.md), [Corr2D hypothesis bank: operation order](../design/corr2d-hypotheses.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
-**Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md)
-
-<!-- related-pages:end -->
+::: doppler.correlation.CORRELATOR_FLAVOR

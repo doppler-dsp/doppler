@@ -1,4 +1,6 @@
-<!-- domain: acquire; summary: finding bursts of any repeated preamble with `BurstCapture` and the burst search, `Correlator` -->
+---
+description: "finding bursts of any repeated preamble with `BurstCapture` and the burst search, `Correlator`"
+---
 
 # Acquiring a Repeated Preamble
 

@@ -1,5 +1,3 @@
-<!-- domain: wfm -->
-
 # Waveforms — what you can generate
 
 Every `--type` the engine offers, the knobs that shape it, how loud it

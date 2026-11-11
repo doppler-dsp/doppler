@@ -1,8 +1,8 @@
 """The release tag, for the scripts that pin documentation to it.
 
-``check_repo_links.py`` (is every pinned link's target in the tag?) and
-``gen_domains.py`` (which example links may it emit?) ask the same question of
-the same tag, so they ask it HERE, once (doppler#2857). The answer has four
+``check_repo_links.py`` (is every pinned link's target in the tag?) asks it
+HERE, once (doppler#2857), so any other script that pins a link to the tag
+asks the same question of the same tag. The answer has four
 states, and CI is not allowed to be quiet about the bad one: see
 :func:`tag_state`.
 """
@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-import sys
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -101,23 +100,3 @@ def in_tag(root: Path, tag: str, path: str) -> bool:
         git(root, "cat-file", "-e", f"{tag}:{path.rstrip('/')}").returncode
         == 0
     )
-
-
-def reachable(root: Path, ci: bool) -> Callable[[str], bool]:
-    """A predicate: may a page link ``path`` pinned to this release?
-
-    True when the path is in the tag, or when there is no tag to ask
-    (unreleased: it will be; unchecked: best effort, with a warning). A path
-    added since the release is False, because a reader on the release has
-    neither the file nor, for an example, the wheel's copy of it, and a link
-    would 404 until the next one. Raises when CI cannot tell.
-    """
-    tag = f"v{version(root)}"
-    state, message = tag_state(root, tag, ci)
-    if state == "error":
-        raise SystemExit(message)
-    if state == "unchecked":
-        print(message, file=sys.stderr)
-    if state == "present":
-        return lambda path: in_tag(root, tag, path)
-    return lambda path: True

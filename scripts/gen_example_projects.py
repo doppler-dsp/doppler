@@ -219,13 +219,12 @@ def render(root: Path = ROOT) -> dict[str, str]:
 
 
 def page_problems(root: Path = ROOT) -> list[str]:
-    """Pages and nav entries that no project explains, or that are missing.
+    """Pages no project explains.
 
-    * an orphan: ``docs/example-projects/<x>.md`` (bar the index) with no
-      ``example-projects/<x>/`` behind it, which ``--write`` would never
-      refresh;
-    * a project whose page is not in ``mkdocs.yml``'s nav exactly once: the
-      page would build and nobody could reach it.
+    An orphan: ``docs/example-projects/<x>.md`` (bar the index) with no
+    ``example-projects/<x>/`` behind it, which ``--write`` would never
+    refresh. (Whether a page is in the nav is ``check_nav_reach.py``'s
+    question, asked of the built site: the section is discovered, #3000.)
     """
     names = set(projects(root))
     out = [
@@ -234,18 +233,6 @@ def page_problems(root: Path = ROOT) -> list[str]:
         for p in sorted((root / PAGES).glob("*.md"))
         if p.stem != "index" and p.stem not in names
     ]
-    nav = (root / "mkdocs.yml").read_text(encoding="utf-8")
-    for n in sorted(names):
-        hits = len(
-            re.findall(
-                rf":\s*example-projects/{re.escape(n)}\.md\s*$", nav, re.M
-            )
-        )
-        if hits != 1:
-            out.append(
-                f"mkdocs.yml: example-projects/{n}.md is in the nav {hits} "
-                "times, want exactly 1"
-            )
     return out
 
 

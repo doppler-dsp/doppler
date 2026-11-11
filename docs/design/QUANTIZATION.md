@@ -1,4 +1,6 @@
-<!-- domain: cvt; summary: fixed-point pipeline design -->
+---
+description: "fixed-point pipeline design"
+---
 
 # Quantization Design
 

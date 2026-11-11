@@ -1,4 +1,6 @@
-<!-- domain: track; summary: Costas loop pull-in under noise. -->
+---
+description: "Costas loop pull-in under noise."
+---
 
 # Carrier Loop Stress
 

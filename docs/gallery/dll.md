@@ -1,4 +1,6 @@
-<!-- domain: track; summary: delay-locked loop code tracking. -->
+---
+description: "delay-locked loop code tracking."
+---
 
 # Code Loop Tracking
 

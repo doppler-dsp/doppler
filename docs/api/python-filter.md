@@ -122,13 +122,3 @@ y = ma2.step(1.0 + 0.0j)                    # one sample, returns the gained mea
 ```
 
 ::: doppler.filter.MovingAverage
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Guides** — [Checkpoint & Resume](../guide/state-serialization.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
-**Contributing** — [Adding a New C Extension Module](../dev/contributing/adding-a-module.md), [Python Extension Module Layout](../dev/contributing/module-layout.md)
-
-<!-- related-pages:end -->

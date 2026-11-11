@@ -1,4 +1,6 @@
-<!-- domain: detection; summary: the four statistical laws behind one `det_` prefix: which one a statistic actually obeys, why non-coherent looks raise their own threshold, and the 41x an estimated noise reference costs -->
+---
+description: "the four statistical laws behind one `det_` prefix: which one a statistic actually obeys, why non-coherent looks raise their own threshold, and the 41x an estimated noise reference costs"
+---
 
 # Detection Sizing — the four laws behind one prefix
 

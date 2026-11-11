@@ -1,4 +1,6 @@
-<!-- domain: spectral; summary: PSD estimation, tone and NPR measurement -->
+---
+description: "PSD estimation, tone and NPR measurement"
+---
 
 # Power Spectra & Measurements
 

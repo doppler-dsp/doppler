@@ -94,6 +94,20 @@ def test_require_names_the_extra_and_exits() -> None:
     assert "doppler-dsp[examples]" in INSTALL
 
 
+def test_require_names_another_extra_when_told() -> None:
+    """A CLI block example needs pydantic, which `[cli]` installs and
+    `[examples]` does not; telling the reader `[examples]` would send them
+    to the wrong extra (#3005)."""
+    sys.path.insert(0, str(REPO / "src"))
+    from doppler.examples._extra import require
+
+    with pytest.raises(SystemExit) as e:
+        require("no_such_package_xyz", extra="cli")
+    assert str(e.value) == (
+        "needs no_such_package_xyz: pip install 'doppler-dsp[cli]'"
+    )
+
+
 def test_the_examples_extra_ships_what_they_import() -> None:
     meta = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
     extra = meta["project"]["optional-dependencies"]["examples"]

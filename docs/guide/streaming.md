@@ -121,6 +121,16 @@ fire-and-forget, so a lost one is a redelivery too: the header's
 `sequence`, which counts each producer's frames from 0, is how a worker
 can tell one from a new frame.
 
+### A pipeline of blocks
+
+The `doppler compose` CLI builds a pipeline from exactly this pattern: each
+stage runs as its own process, joined to the next by a PUSH/PULL subject.
+A stage is a [`Block`][doppler.cli.Block], its settings a
+[`BlockConfig`][doppler.cli.BlockConfig] (a pydantic model with defaults),
+and [`register`][doppler.cli.register] makes it reachable by name.
+[CLI & Pipelines](../cli/index.md) walks through writing one, and
+`python -m doppler.examples.custom_block_demo` runs one.
+
 ## REQ / REP — request/response
 
 A `Requester` sends a sample block and blocks for the `Replier`'s response;

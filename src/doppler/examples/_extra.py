@@ -18,13 +18,16 @@ import importlib
 INSTALL = "pip install 'doppler-dsp[examples]'"
 
 
-def require(package: str) -> None:
+def require(package: str, extra: str = "examples") -> None:
     """Exit with a one-line instruction if ``package`` cannot be imported.
 
     Parameters
     ----------
     package : str
         The importable name, ``"matplotlib"`` or ``"scipy"``.
+    extra : str, default "examples"
+        The doppler-dsp extra that installs it: ``"cli"`` for ``pydantic``,
+        which a CLI block example needs (#3005).
 
     Raises
     ------
@@ -44,4 +47,5 @@ def require(package: str) -> None:
     try:
         importlib.import_module(package)
     except ImportError as e:
-        raise SystemExit(f"needs {package}: {INSTALL}") from e
+        install = INSTALL.replace("[examples]", f"[{extra}]")
+        raise SystemExit(f"needs {package}: {install}") from e

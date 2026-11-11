@@ -47,7 +47,7 @@ extern "C"
     {
       dp_ddc_state_t  *c; 
       dp_ddcr_state_t *r; 
-    } fe;
+    } fe; 
     mpsk_rx_loops_t l; 
     /* ── config (restored by create(), never packed in a state blob) ── */
     /* The pulse geometry lives in the front end, which is the only thing

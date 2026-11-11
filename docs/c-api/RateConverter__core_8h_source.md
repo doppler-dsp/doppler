@@ -76,7 +76,7 @@ typedef struct
     dp_tlm_t *ctx;                   
     char      prefix[DP_TLM_NAME_MAX]; 
     uint32_t  decim;                 
-  } agc_tlm_req;
+  } agc_tlm_req; 
 } dp_RateConverter_state_t;
 
 dp_RateConverter_state_t *dp_RateConverter_create (double rate, int compensate);

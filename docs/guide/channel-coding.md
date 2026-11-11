@@ -1,6 +1,10 @@
-# Python Coding API
+---
+description: "Encode and decode with the general channel codes: a soft-decision Viterbi over your own convolutional code, Reed-Solomon by its five numbers, and when interleaving buys anything."
+---
 
-The `doppler.coding` module is the general channel codes — the code families
+# Channel Coding
+
+[`doppler.coding`][doppler.coding] is the general channel codes — the code families
 a standard configures, rather than any standard's picks. `ConvEncoder` and
 `Viterbi` are the two directions of a rate-1/n convolutional code, and both
 take the generator polynomials, so a caller names their own code rather than
@@ -63,20 +67,6 @@ Both directions, on a code the caller chose:
 True
 
 ```
-
-______________________________________________________________________
-
-## `ConvEncoder` — the encoder
-
-::: doppler.coding.ConvEncoder
-
-______________________________________________________________________
-
-## `Viterbi` — soft-decision convolutional decoder
-
-::: doppler.coding.Viterbi
-
-______________________________________________________________________
 
 ## `ReedSolomon` — both directions of a block code
 
@@ -157,9 +147,7 @@ and decodes against itself perfectly, so a round trip can never catch either.
 
 For a whole CCSDS CADU — the dual basis, the interleaver and the coverage
 table — describe one with
-[`FrameDesc`](python-wfmgen.md#framedesc-the-same-frame-deferred) instead.
-
-::: doppler.coding.ReedSolomon
+[`FrameDesc`](../api/python-wfmgen.md#framedesc-the-same-frame-deferred) instead.
 
 ## `Interleaver` — spreading a burst across codewords
 
@@ -192,11 +180,9 @@ five.
 
 There is no `interleave_soft`, because a transmitter has bits, not LLRs.
 `deinterleave_soft` exists because a receiver has both: an outer decoder wants
-[`DsssBurstReceiver.llrs`](python-dsss.md) de-interleaved *before* it runs, and
+[`DsssBurstReceiver.llrs`](../api/python-dsss.md) de-interleaved *before* it runs, and
 slicing to hard decisions first throws away the confidence the soft output
 carries.
-
-::: doppler.coding.Interleaver
 
 ### `Deinterleaver` — the same object, under the name the receive side looks for
 
@@ -210,5 +196,3 @@ important part. `rows`, `cols` and `unit_bits` are exactly what the two ends
 must agree on, and a mismatch is not an error — it is a receiver de-interleaving
 into a different permutation and handing the decoder plausible garbage. One core
 means one definition of the geometry to get right.
-
-::: doppler.coding.Deinterleaver

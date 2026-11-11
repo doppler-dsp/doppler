@@ -1,6 +1,10 @@
-# Python Type Converter API
+---
+description: "Convert samples between float32 and the integer formats at the edges of a chain: ADC codes, signed and unsigned Q15, RTL-SDR bytes, and an ideal ADC model."
+---
 
-The `doppler.cvt` module converts sample streams between **float32** and the
+# Sample Formats
+
+[`doppler.cvt`][doppler.cvt] converts sample streams between **float32** and the
 fixed-point / integer formats used at the edges of a DSP chain — ADC codes, Q15
 fractions, Q15 in a wide integer word — plus an ideal-quantiser **`ADC`**
 model for characterisation. Every converter is a tiny stateful object with a
@@ -142,52 +146,12 @@ u = enc.steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32))   # 0, 32768, 6550
 back = UQ15ToF32().steps(u)    # ~= input
 ```
 
-______________________________________________________________________
-
-## Integer ↔ float (signed, and unsigned 8-bit)
-
-::: doppler.cvt.F32ToI16
-
-::: doppler.cvt.I16ToF32
-
-::: doppler.cvt.I32ToF32
-
-::: doppler.cvt.I8ToF32
-
-::: doppler.cvt.U8ToF32
-
-______________________________________________________________________
-
-## Unsigned Q15 (offset binary)
-
-::: doppler.cvt.F32ToUQ15
-
-::: doppler.cvt.UQ15ToF32
-
-______________________________________________________________________
-
 ## Q15 in a wide word
 
 These pack a single saturated Q15 into the low 16 bits of a `uint32`/`uint64`
 (upper bits zero), leaving the upper bits as headroom for an integer
 accumulator downstream. The CIC filter does not take this format: it accepts
 complex64 and encodes to offset-binary UQ16 internally.
-
-::: doppler.cvt.F32ToI16U32
-
-::: doppler.cvt.I16U32ToF32
-
-::: doppler.cvt.F32ToI16U64
-
-::: doppler.cvt.I16U64ToF32
-
-______________________________________________________________________
-
-## Ideal ADC model
-
-::: doppler.cvt.ADC
-
-______________________________________________________________________
 
 ## Bits, values and symbols
 
@@ -202,21 +166,11 @@ which selects byte order — the `EEEI`/`IEEE` header field. A literal's digit
 order already fixes which byte comes first; what is left to choose is the
 order of bits inside one.
 
-::: doppler.cvt.int_to_bin
-
-::: doppler.cvt.bin_to_int
-
-::: doppler.cvt.hex_to_bin
-
-::: doppler.cvt.bin_to_hex
-
 `bytes_to_bin` is for **packed** data: a binary file, a byte stream, a
 network buffer. Every frame field takes unpacked bits, so packed octets go
 through this, by name, rather than being passed as bytes and hoped about.
 The same octets unpack exactly as their hex spelling does through
 `hex_to_bin`.
-
-::: doppler.cvt.bytes_to_bin
 
 `bin_to_nrz` maps bits to bipolar symbols as `1 - 2*b` — bit 0 to `+1`, bit 1
 to `-1`. That convention's home is BPSK in
@@ -224,7 +178,3 @@ to `-1`. That convention's home is BPSK in
 asserted equal in the C tests rather than trusted to stay equal, because a
 mapper that disagreed with the receiver's would decode every bit inverted
 while looking perfectly locked.
-
-::: doppler.cvt.bin_to_nrz
-
-::: doppler.cvt.nrz_to_bin

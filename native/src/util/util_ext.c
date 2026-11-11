@@ -938,16 +938,44 @@ static PyMethodDef util_module_methods[] = {
 
 static PyModuleDef util_moduledef = {
   PyModuleDef_HEAD_INIT,
-  .m_name    = "util",
-  .m_doc     = "Shared utilities used across the doppler modules: the numeric "
-               "helpers, and\n"
-               "`fromto`, the path from a calling script to where it writes.\n"
-               "\n"
-               "Examples\n"
-               "--------\n"
-               ">>> from doppler.util import square_clip\n"
-               ">>> square_clip(2 + 0j, 1.0)\n"
-               "(1+0j)\n",
+  .m_name = "util",
+  .m_doc
+  = "Shared utilities used across the doppler modules: the numeric helpers, "
+    "and\n"
+    "`fromto`, the path from a calling script to where it writes.\n"
+    "\n"
+    "`square_clip` is the per-component hard limiter the AGC and other\n"
+    "saturating paths use; `saturate` is the total range guard a loop puts "
+    "on\n"
+    "its own state, NaN included; `ema_step` and `ema_alpha_decim` are the\n"
+    "library's one exponential moving average and the coefficient that "
+    "advances\n"
+    "it a whole chunk at a time, with `complement_power` the kernel behind "
+    "that\n"
+    "coefficient; `sinc` and `mean_sinc` are the straddle loss of a "
+    "correlator\n"
+    "or DFT bin; and `simpson_weights`, `midpoint_nodes` and `gauss_hermite`\n"
+    "are quadrature rules that fill arrays in place, so the same rule runs in "
+    "C\n"
+    "and Python with no callback across the boundary.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import square_clip\n"
+    ">>> square_clip(2 + 0j, 1.0)\n"
+    "(1+0j)\n"
+    "\n"
+    "Where a NaN lands is a parameter, because which end is safe is domain\n"
+    "knowledge: an unknown level reads loud, an unknown lock statistic reads\n"
+    "unlocked.\n"
+    "\n"
+    ">>> from doppler.util import saturate, ema_step\n"
+    ">>> saturate(float(\"nan\"), 0.0, 1.0, 1.0), saturate(float(\"nan\"), "
+    "0.0, 1.0, 0.0)\n"
+    "(1.0, 0.0)\n"
+    ">>> ema_step(1.0, 7.0, 1.0), ema_step(1.0, 7.0, 0.0)   # alpha 1 passes, "
+    "0 freezes\n"
+    "(7.0, 1.0)\n",
   .m_size    = -1,
   .m_methods = util_module_methods,
 };

@@ -6,7 +6,7 @@ description: "PSDMF residual-carrier estimation against an RRC-shaped BPSK strea
 
 ![Measured spectrum vs. matched RRC template, and estimate error at two Es/N0 points](../assets/carrier_acq_rrc_demo.png)
 
-[`CarrierAcquisition`](../api/python-acquire.md) is a PSDMF (power-spectral-density
+[`CarrierAcquisition`][doppler.acquire.CarrierAcquisition] is a PSDMF (power-spectral-density
 matched-filter) residual-carrier estimator: it non-coherently averages the
 incoming stream's power spectrum ([`PSD`](corr.md)), then circularly
 correlates that average against a *known* power spectrum shape to find the

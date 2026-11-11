@@ -270,37 +270,22 @@ The following shows how to add a built-in block in Python. Use this
 path when you need full control over config validation, complex arg
 building, or want to ship the block as part of the doppler CLI itself.
 
-Here is a minimal example — a `noise` source that emits pure AWGN:
+Here is a minimal example — a `noise` source that emits pure AWGN. The
+block API is public: [`Block`][doppler.cli.Block],
+[`BlockConfig`][doppler.cli.BlockConfig] and
+[`register`][doppler.cli.register], exported from `doppler.cli`, with their
+reference in the [Python API][doppler.cli].
 
 **1. Config schema** — declare fields with defaults using pydantic:
 
-<!-- docs-snippet: skip=custom CLI block module; requires the cli extra -->
+<!-- docs-snippet: skip=registers a block in the process-wide registry; run as a subprocess by test_examples, as custom_block_demo.py -->
 
 ```python
-# my_blocks/noise.py  (your own package; the block API is doppler.cli.blocks)
-from doppler.cli.blocks import Block, BlockConfig, register
-
-
-class NoiseConfig(BlockConfig):
-    sample_rate: float = 2.048e6
-    noise_floor: float = -60.0
-
-
-@register
-class NoiseBlock(Block):
-    name = "noise"
-    Config = NoiseConfig
-    role = "source"  # "source" | "chain" | "sink"
-
-    def command(self, config, input_addr, output_addr):
-        assert output_addr is not None
-        return [
-            "doppler-noise",
-            "--bind", output_addr,
-            "--fs", str(config.sample_rate),
-            "--noise-floor", str(config.noise_floor),
-        ]
+--8<-- "src/doppler/examples/custom_block_demo.py:block"
 ```
+
+The whole example, which also checks the config and the argv, runs as
+`python -m doppler.examples.custom_block_demo`.
 
 **2. Register it** — import the module in `__main__.py`:
 

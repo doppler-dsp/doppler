@@ -107,7 +107,6 @@ plugins:
         - doppler.tests
         - doppler.examples
         - doppler.specan
-        - doppler.cli
         - 're:^doppler\.\w+\.'
       module_options:
         # Applies to the generated pages only (the key is a regex over the

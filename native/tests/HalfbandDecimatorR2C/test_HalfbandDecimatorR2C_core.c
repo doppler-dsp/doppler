@@ -164,7 +164,10 @@ main (void)
       .process  = ci_process,
       .in_size  = sizeof (float),
       .out_size = sizeof (float _Complex),
-      .out_cap  = (N + 1) / 2,
+      /* Exactly the one-shot count: N is odd, so the last sample is held
+         and makes no output. A bound of (N + 1) / 2 would let a core that
+         wrongly emitted for it through; both runs would agree on that. */
+      .out_cap = N / 2,
     };
     DP_CHECK (dp_chunk_invariance (&spec, x, N) == 0);
   }

@@ -6,7 +6,7 @@ continuous DLL+Costas receiver (GPS-like, always tracking), and
 **`BurstDespreader`**, the preamble-aware payload tracker for latency-bound
 bursts — and the receivers that compose them. The searches that find the
 code phase and Doppler in the first place are the searches of
-[`Correlator`](python-correlation.md) (`framing="continuous"` and
+[`Correlator`][doppler.correlation.Correlator] (`framing="continuous"` and
 `framing="burst"`) and the [acquire API](python-acquire.md)'s
 `BurstCapture`.
 

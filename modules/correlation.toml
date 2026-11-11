@@ -7,6 +7,21 @@ when part of a detector or receiver). Its knobs pick the flavor; its flavor
 property says which one they built. docs/design/correlator-python.md is the
 design.
 
+| flavor            | built by                                       | the one call      |
+| ----------------- | ---------------------------------------------- | ----------------- |
+| `"1d"`            | `Correlator(ref)`, `ref` 1-D                   | `execute(frame)`  |
+| `"2d"`            | `Correlator(ref)`, `ref` 2-D                   | `execute(frame)`  |
+| `"delay_doppler"` | `Correlator(code, doppler_rows=ny)`            | `execute(stream)` |
+| `"detector_1d"`   | `Correlator(ref, detect=1)`, `ref` 1-D         | `push(chunk)`     |
+| `"detector_2d"`   | `Correlator(ref, detect=1)`, `ref` 2-D         | `push(chunk)`     |
+| `"continuous"`    | `Correlator(chips, framing="continuous", ...)` | `push(chunk)`     |
+| `"burst"`         | `Correlator(preamble, framing="burst", ...)`   | `push(chunk)`     |
+
+A detector or a search wraps the correlator in a double-mapped ring buffer,
+so `push` takes chunks of any size, and its result array is sized by
+`push_max_out(len(chunk))`, so one push never drops a detection however
+many frames it completes.
+
 Examples
 --------
 >>> import numpy as np

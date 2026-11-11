@@ -207,7 +207,17 @@ static PyModuleDef delay_moduledef = {
     ">>> for v in (1, 2, 3):\n"
     "...     d.push(complex(v))\n"
     ">>> d.ptr(3).real.tolist()   # most-recent-first tap snapshot\n"
-    "[3.0, 2.0, 1.0]\n",
+    "[3.0, 2.0, 1.0]\n"
+    "\n"
+    "The FIR inner loop it is built for: `push_ptr` pushes one sample and "
+    "returns\n"
+    "the contiguous window in one call, with no wrap-around branch.\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> taps = np.full(4, 0.25)\n"
+    ">>> fir = DelayCf64(num_taps=4)\n"
+    ">>> [complex(fir.push_ptr(4.0) @ taps).real for _ in range(4)]\n"
+    "[1.0, 2.0, 3.0, 4.0]\n",
   .m_size    = -1,
   .m_methods = NULL,
 };

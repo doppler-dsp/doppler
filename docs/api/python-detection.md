@@ -4,7 +4,7 @@ The `doppler.detection` module is the **detection-theory** layer over the C
 `detection` core: closed-form relationships between probability of detection
 (`Pd`), probability of false alarm (`Pfa`), SNR, and coherent dwell length for a
 square-law detector. Pair it with the streaming detector,
-[`Correlator(ref, detect=1)`](python-correlation.md#detectors-and-searches) —
+[`Correlator(ref, detect=1)`][doppler.correlation.Correlator] —
 `detection` tells you *what threshold and dwell to use*, the detector *runs*
 the detection. Mind the units: `det_threshold` is in units of the noise's
 Rayleigh σ, while the detector's `noise_est` is the mean magnitude of the

@@ -84,7 +84,7 @@ with the quiet end on the right.
     power domain, and §6 for the header claim this measurement corrected
 - [AGC validation report](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/agc/tests/validation/agc/results.md)
     — §2.1 measures the same asymmetry as a certified limit
-- [Python AGC API](../api/python-agc.md)
+- [Python AGC API][doppler.agc]
 
 ```console
 pip install "doppler-dsp[examples]"   # matplotlib + scipy, once

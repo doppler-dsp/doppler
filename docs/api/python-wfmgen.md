@@ -740,4 +740,4 @@ and ignored `inverted` would score a clean PASS on a frame whose every payload
 bit is wrong. The marker is what can see it, because no randomiser covers it.
 
 The marker itself is documented with the rest of the standard's
-literals: [Python CCSDS API](python-ccsds.md#asm_bits).
+literals: [Python CCSDS API][doppler.ccsds.asm_bits].

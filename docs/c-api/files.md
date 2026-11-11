@@ -28,6 +28,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**jm\_simd.h**](jm__simd_8h.md)     
             * **dir** [**HalfbandDecimator**](dir_7d0e752fb42c448bafa7d80e7fc4aaf0.md)     
                 * **file** [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md) _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._     
+            * **dir** [**HalfbandDecimatorR2C**](dir_de85e40507cd80906a5f603b94b719b5.md)     
+                * **file** [**HalfbandDecimatorR2C\_core.h**](HalfbandDecimatorR2C__core_8h.md) _Real-input halfband 2:1 decimator with an fs/4 shift: F32 in, CF32 out (adapter over hbdecim\_r2c\_core)._     
             * **dir** [**RateConverter**](dir_f243cfbf2f82d96e6953dd99cc2498dd.md)     
                 * **file** [**RateConverter\_core.h**](RateConverter__core_8h.md) _Optimal-speed rate conversion cascade._     
             * **dir** [**Resampler**](dir_9b0990bb8296ade48d8f038050fb64f1.md)     

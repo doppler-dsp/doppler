@@ -574,6 +574,231 @@ class HalfbandDecimator:
         """
 
 @final
+class HalfbandDecimatorR2C:
+    """Create a real-input halfband decimator with caller-supplied FIR taps.
+    Implements a 2:1 polyphase halfband decimator from real F32 at fs to CF32
+    at fs/2, with an embedded fs/4 shift: a tone at f_in leaves at f_in - fs/4
+    (input-normalised 0.25 lands at DC). The FIR branch is the same one
+    HalfbandDecimator takes; size it with ``doppler.resample.kaiser_num_taps(2,
+    atten, pb, sb)``.
+
+    Parameters
+    ----------
+    h : NDArray[np.float32]
+        Float32 FIR branch coefficients (the branch of the halfband prototype
+        with more than one nonzero tap, not the whole prototype). Copied; must
+        be non-NULL.
+
+    Examples
+    --------
+    >>> from doppler.resample import HalfbandDecimatorR2C
+    >>> import numpy as np
+    >>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],
+    ...              dtype=np.float32)
+    >>> hb = HalfbandDecimatorR2C(h=h)
+    >>> hb.num_taps, hb.rate
+    (5, 0.5)
+
+    """
+
+    def __init__(self, h: npt.NDArray[np.float32]) -> None: ...
+    def execute(
+        self,
+        x: npt.NDArray[np.float32],
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Decimate real x by 2 to CF32, shifting fs/4 to DC. Each (even, odd)
+        input pair yields one complex output. State persists between calls: a
+        sample left unpaired at the end of a block (counting one held from the
+        previous call) is held for the next, so contiguous blocks give
+        identical output to one large block.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.float32]
+            Real F32 input array.
+        out : npt.NDArray[np.complex64] | None
+            CF32 output buffer; must hold at least (x_len + 1) / 2 samples,
+            which is dp_HalfbandDecimatorR2C_execute_max_out(). Python refuses
+            a shorter `out=`. In C a shorter one drops nothing: the call stops
+            at a pair boundary and dp_hbdecim_r2c_consumed() says how much
+            input it took.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of CF32 samples written to out: min((x_len + held) / 2,
+            max_out). 0 if x_len or max_out is 0.
+
+        Examples
+        --------
+        >>> from doppler.resample import HalfbandDecimatorR2C
+        >>> import numpy as np
+        >>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],
+        ...              dtype=np.float32)
+        >>> hb = HalfbandDecimatorR2C(h=h)
+        >>> y = hb.execute(np.zeros(100, dtype=np.float32))
+        >>> y.shape, y.dtype
+        ((50,), dtype('complex64'))
+
+        """
+
+    def execute_max_out(self, x_len: int, /) -> int:
+        """The most outputs one dp_HalfbandDecimatorR2C_execute() call over
+        x_len inputs can write: `(x_len + 1) / 2`.
+
+        One output per input pair, and at most one sample held over from the
+        previous call, so `(x_len + held) / 2` never exceeds this.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of inputs the call will be given.
+
+        Returns
+        -------
+        int
+            `(x_len + 1) / 2`; 0 for an empty call.
+        """
+
+    def reset(self) -> None:
+        """Zero the delay lines and the fs/4 phase. Coefficients and num_taps
+        preserved. The next execute() after reset produces the same output as a
+        freshly created decimator fed the same input. Any sample held for the
+        next call is dropped too.
+
+        Examples
+        --------
+        >>> from doppler.resample import HalfbandDecimatorR2C
+        >>> import numpy as np
+        >>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],
+        ...              dtype=np.float32)
+        >>> hb = HalfbandDecimatorR2C(h=h)
+        >>> x = np.ones(64, dtype=np.float32)
+        >>> a = hb.execute(x)
+        >>> hb.reset()
+        >>> bool(np.array_equal(hb.execute(x), a))
+        True
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the HalfbandDecimatorR2C has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the HalfbandDecimatorR2C has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes, /) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the HalfbandDecimatorR2C has already been
+        destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def rate(self) -> float:
+        """Fixed decimation rate — always 0.5."""
+
+    @property
+    def num_taps(self) -> int:
+        """Number of FIR branch taps as passed to create."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "HalfbandDecimatorR2C":
+        """Enter a context manager, returning this object.
+
+        Lets a HalfbandDecimatorR2C be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
+
+        Returns
+        -------
+        HalfbandDecimatorR2C
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+        /,
+    ) -> None:
+        """Exit a context manager, releasing the HalfbandDecimatorR2C.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class CIC:
     """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct
     on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R)

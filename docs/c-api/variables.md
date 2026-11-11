@@ -27,6 +27,7 @@
 * **dp\_mutex\_t** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_thread\_t** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_HalfbandDecimator\_state\_t** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
+* **dp\_HalfbandDecimatorR2C\_state\_t** ([**HalfbandDecimatorR2C\_core.h**](HalfbandDecimatorR2C__core_8h.md))
 * **dp\_Resampler\_state\_t** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **dp\_wait\_status\_t** ([**buffer.h**](buffer_8h.md))
 * **dp\_CCSDS\_TM\_CONV** ([**ccsds\_tm.h**](ccsds__tm_8h.md))

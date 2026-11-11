@@ -1,9 +1,9 @@
 /*
  * resample_ext.c — Python extension module resample
  *
- * Objects: Resampler, HalfbandDecimator, CIC, RateConverter, Farrow,
- * HalfbandDecimatorQ15, MatchedRateConverter GENERATED — do not hand-edit.
- * Patches belong in the _ext_<obj>.c fragments.
+ * Objects: Resampler, HalfbandDecimator, HalfbandDecimatorR2C, CIC,
+ * RateConverter, Farrow, HalfbandDecimatorQ15, MatchedRateConverter GENERATED
+ * — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -191,10 +191,10 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #endif /* JM_CAPSULE_LEND_DEFINED */
 
 #include "resample_ext_HalfbandDecimator.c"
+#include "resample_ext_HalfbandDecimatorR2C.c"
 #include "resample_ext_RateConverter.c"
 #include "resample_ext_Resampler.c"
 #include "resample_ext_cic.c"
-#include "resample_ext_extra.c" /* hand-written — jm never modifies */
 #include "resample_ext_farrow.c"
 #include "resample_ext_hbdecim_q15.c"
 #include "resample_ext_matchedrateconverter.c"
@@ -405,6 +405,8 @@ PyInit_resample (void)
     return NULL;
   if (PyType_Ready (&HalfbandDecimatorObjType) < 0)
     return NULL;
+  if (PyType_Ready (&HalfbandDecimatorR2CObjType) < 0)
+    return NULL;
   if (PyType_Ready (&CICObjType) < 0)
     return NULL;
   if (PyType_Ready (&RateConverterObjType) < 0)
@@ -414,8 +416,6 @@ PyInit_resample (void)
   if (PyType_Ready (&HalfbandDecimatorQ15ObjType) < 0)
     return NULL;
   if (PyType_Ready (&MatchedRateConverterObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&HalfbandDecimatorR2CType) < 0)
     return NULL;
   PyObject *m = PyModule_Create (&resample_moduledef);
   if (!m)
@@ -433,6 +433,15 @@ PyInit_resample (void)
       < 0)
     {
       Py_DECREF (&HalfbandDecimatorObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&HalfbandDecimatorR2CObjType);
+  if (PyModule_AddObject (m, "HalfbandDecimatorR2C",
+                          (PyObject *)&HalfbandDecimatorR2CObjType)
+      < 0)
+    {
+      Py_DECREF (&HalfbandDecimatorR2CObjType);
       Py_DECREF (m);
       return NULL;
     }
@@ -474,15 +483,6 @@ PyInit_resample (void)
       < 0)
     {
       Py_DECREF (&MatchedRateConverterObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&HalfbandDecimatorR2CType);
-  if (PyModule_AddObject (m, "HalfbandDecimatorR2C",
-                          (PyObject *)&HalfbandDecimatorR2CType)
-      < 0)
-    {
-      Py_DECREF (&HalfbandDecimatorR2CType);
       Py_DECREF (m);
       return NULL;
     }

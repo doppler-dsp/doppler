@@ -1,4 +1,6 @@
-<!-- domain: detection; summary: the sizing chain every lock detector shares, and the independence it assumes -->
+---
+description: "the sizing chain every lock detector shares, and the independence it assumes"
+---
 
 # Lock Detection — the reasoning
 

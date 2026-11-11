@@ -1,4 +1,6 @@
-<!-- domain: track; summary: level + time hysteresis vs. a naive comparator on a marginal signal. -->
+---
+description: "level + time hysteresis vs. a naive comparator on a marginal signal."
+---
 
 # Lock Detection: Verify Counts + Hysteresis
 

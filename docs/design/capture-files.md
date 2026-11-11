@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: the file I/O subsystem underneath `Reader`/`Writer`: why the file type is decided by content, why one keyword codec serves both directions, why provenance is a value rather than a caveat, and what a streaming writer costs at close -->
+---
+description: "the file I/O subsystem underneath `Reader`/`Writer`: why the file type is decided by content, why one keyword codec serves both directions, why provenance is a value rather than a caveat, and what a streaming writer costs at close"
+---
 
 # Capture files — one reader, one writer, four containers
 

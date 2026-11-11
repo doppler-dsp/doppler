@@ -1,4 +1,6 @@
-<!-- domain: acquire; summary: step 3 of the correlator consolidation (#2752): the seven correlation objects become one C object, correlation/correlator/, its layers and constructors, the duplications it removes, the one deliberate C break, the unknowns, and the sub-steps with their oracles and speed gates -->
+---
+description: "step 3 of the correlator consolidation (#2752): the seven correlation objects become one C object, correlation/correlator/, its layers and constructors, the duplications it removes, the one deliberate C break, the unknowns, and the sub-steps with their oracles and speed gates"
+---
 
 # One correlator: the step-3 design
 

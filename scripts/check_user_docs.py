@@ -16,8 +16,7 @@ the package exports through ``__all__``):
     mention in prose is not an entry.
 ``guide``
     At least one ``docs/guide/**`` page names it in a backtick span or a
-    link's text, the scope ``gen_related_pages.py`` uses (the same scanner,
-    so the two cannot disagree on what a mention is).
+    link's text (``_mentioned_tokens``).
 ``example``
     At least one ``src/doppler/examples/*.py`` uses the name in code.
 
@@ -32,12 +31,6 @@ For every example script:
     ``make user-docs-check``), or ``src/doppler/examples/.no-figure`` says
     why it has no figure. That list is a decision, so it may grow; a
     reason is mandatory and an entry naming no script fails.
-
-The domain tree is held here too (``gen_domains.gate``): every module has a
-title and an area in ``docs/domains.toml``, every guide, gallery and design
-page names a ``domain:`` that exists, and a module with classes has a guide
-page filed under it (today's gaps in ``docs/.domain-guides-exempt``, which
-only shrinks).
 
 Today's gaps sit in ``docs/.user-docs-exempt``, one ``<key> <rule>: <why>``
 per line. It is a RATCHET: compared with the merge base, it may only
@@ -65,7 +58,26 @@ from typing import TYPE_CHECKING
 
 from _gitbase import BaseUnreadableError, added_since_base, in_git_repo
 from _pydocs import kinds
-from gen_related_pages import DIRECTIVE_RE, _mentioned_tokens
+
+# A mkdocstrings directive: one ``::: doppler.<mod>...`` line.
+DIRECTIVE_RE = re.compile(r"^::: (doppler(?:\.[\w]+)+)\s*$", re.MULTILINE)
+# What a guide "mentions": an identifier inside a backtick span or a link's
+# text -- deliberately narrow, so prose that happens to say "correlator" is
+# not a mention of ``Correlator``.
+BACKTICK_RE = re.compile(r"`([^`\n]+)`")
+LINK_TEXT_RE = re.compile(r"\[([^\]\n]+)\]\([^)\n]+\)")
+TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _mentioned_tokens(path: str) -> set[str]:
+    """Every identifier in a backtick span or a link's text on this page."""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    tokens: set[str] = set()
+    for span in BACKTICK_RE.findall(text) + LINK_TEXT_RE.findall(text):
+        tokens.update(TOKEN_RE.findall(span))
+    return tokens
+
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -368,10 +380,6 @@ def main() -> int:
                 f"{EXEMPT}: '{key} {rule}' is new; the list only shrinks. "
                 f"Do the work instead: {FIX[rule].format(key=key)}"
             )
-
-    import gen_domains
-
-    errors += gen_domains.gate(root, a.base, not a.no_ratchet)
 
     if errors:
         print("user-docs-check: FAILED", file=sys.stderr)

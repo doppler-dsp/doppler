@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: the spine for the tool: modulations, impairments and output streams from three interchangeable faces, which gate keeps each promise, and the eight things still unknown about it -->
+---
+description: "the spine for the tool: modulations, impairments and output streams from three interchangeable faces, which gate keeps each promise, and the eight things still unknown about it"
+---
 
 # wfmgen — the waveform generator
 

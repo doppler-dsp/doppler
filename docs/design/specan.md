@@ -1,4 +1,6 @@
-<!-- domain: analyzer; summary: how span and RBW set the rate, the transform length and the Kaiser beta, and why every RBW gets the same −90 dB skirt -->
+---
+description: "how span and RBW set the rate, the transform length and the Kaiser beta, and why every RBW gets the same −90 dB skirt"
+---
 
 # Spectrum Analyzer
 

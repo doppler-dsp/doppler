@@ -1,4 +1,6 @@
-<!-- domain: resample; summary: fractional-delay resampling. -->
+---
+description: "fractional-delay resampling."
+---
 
 # Farrow Interpolator
 

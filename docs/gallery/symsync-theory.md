@@ -1,4 +1,6 @@
-<!-- domain: track; summary: the timing loop's transfer function. -->
+---
+description: "the timing loop's transfer function."
+---
 
 # Timing Loop — Theory Validation
 

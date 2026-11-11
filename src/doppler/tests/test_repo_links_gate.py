@@ -191,29 +191,6 @@ def test_a_full_clone_is_not_made_shallow_by_the_tag_fetch(
     assert shallow.strip() == "false"
 
 
-def test_an_example_added_since_the_tag_is_named_not_linked(
-    tmp_path: Path,
-) -> None:
-    """The generated pages must lint green when a PR adds an example: the
-    new one is plain text until it is in the release (doppler#2857)."""
-    sys.path.insert(0, str(REPO / "scripts"))
-    import _release_tag as r
-
-    root = _repo(tmp_path, "x\n")
-    (root / "src" / "new.c").write_text("int n;\n")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "after the tag")
-    ok = r.reachable(root, ci=True)
-    assert ok("src/a.c") is True
-    assert ok("src/new.c") is False
-    import gen_domains as gd
-
-    assert (
-        gd._links([("new", None), ("a", "https://x/a")])
-        == "new<br>[a](https://x/a)"
-    )
-
-
 def test_an_example_run_by_its_repository_path_is_refused(
     tmp_path: Path,
 ) -> None:

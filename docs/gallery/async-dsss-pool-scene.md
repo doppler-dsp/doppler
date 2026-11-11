@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: ten emitters on one Gold code, each on its own Doppler ramp and within ±8 dB of the others, come and go through six receivers: each held by one receiver from soon after it arrives, a freed receiver taking the next, and a weak emitter waiting for the strong one that masks it. -->
+---
+description: "ten emitters on one Gold code, each on its own Doppler ramp and within ±8 dB of the others, come and go through six receivers: each held by one receiver from soon after it arrives, a freed receiver taking the next, and a weak emitter waiting for the strong one that masks it."
+---
 
 # AsyncDsssPool: ten emitters through six receivers
 

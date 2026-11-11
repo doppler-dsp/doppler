@@ -520,11 +520,12 @@ that keep it true and put it in front of someone.
 
 ### 10 — Land it
 
-A user story that nobody links to is still unfindable. The landing PR adds
-the guide page or section to `docs/guide/index.md`, the gallery page to
-`docs/gallery/index.md`, and both to the nav, with `check_nav_index.py`
-refusing a page its index does not list. The changelog entry links the guide,
-not the design page: it is the first place a user hears of the feature.
+A user story that nobody links to is still unfindable. The nav finds a new
+guide or gallery page by itself: each section directory's `.nav.yml` ends in
+a glob, so there is no list to add it to. The landing PR gives the page its
+one-line `description:` front matter and links it from the pages a reader
+arrives through. The changelog entry links the guide, not the design page:
+it is the first place a user hears of the feature.
 
 The CHANGELOG entry lands with the change, not at release time, and it is a
 **fragment**, `changelog.d/<section>/<slug>.md` — one file per entry, so two

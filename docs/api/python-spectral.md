@@ -142,14 +142,3 @@ against the values the library actually has:
 {0: 'power', 1: 'db'}
 
 ```
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Gallery](../gallery/index.md), [A Streaming Spectrogram](../gallery/spectrogram.md), [Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`](../gallery/wcdma-carriers.md)
-**Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md), [Streaming Spectrograms](../guide/spectrogram.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Design](../design/index.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [Spectrum Analyzer](../design/specan.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [The Spectrogram — chunks in, rows out](../design/spectrogram.md)
-**Contributing** — [C Return-Code Convention](../dev/contributing/error-convention.md), [Validation log](../dev/contributing/validation-log.md), [Code coverage](../dev/coverage.md)
-
-<!-- related-pages:end -->

@@ -1,4 +1,6 @@
-<!-- domain: track; summary: sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost. -->
+---
+description: "sizing bn_carrier for a predictable acquisition, and what a step and two ramps actually cost."
+---
 
 # M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile
 

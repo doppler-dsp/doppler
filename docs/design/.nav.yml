@@ -1,0 +1,6 @@
+# archive/ and the *-measurements/ data directories are linked from the
+# pages that cite them, not nav'd.
+nav:
+  - Design: index.md
+  - glob: "*.md"
+    ignore_no_matches: true

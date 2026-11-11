@@ -217,6 +217,9 @@ dev = [
     "mdformat-gfm==1.0.0; python_version >= '3.10'",
     "mdformat-gfm-alerts==2.1.0; python_version >= '3.10'",
     "mdformat-mkdocs==5.2.1; python_version >= '3.10'",
+    # Page front matter (`description:`, #3000): without it mdformat reads
+    # the `---` fence as a rule and the key as a heading.
+    "mdformat-frontmatter==2.2.0; python_version >= '3.10'",
     "pre-commit>=4.0",
     # The specan web server's tests (test_server_ws.py, and the server case in
     # test_handshake.py) drive a real FastAPI/uvicorn server. Without these

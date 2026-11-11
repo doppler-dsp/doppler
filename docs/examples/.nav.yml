@@ -1,0 +1,11 @@
+nav:
+  - Examples: index.md
+  - Python:
+      - LO: python-lo.md
+      - NCO: python-nco.md
+      - FFT: python-fft.md
+      - Ring Buffers: python-buffers.md
+  - C Examples: c.md
+  - Streaming: streaming.md
+  - glob: "*"
+    ignore_no_matches: true

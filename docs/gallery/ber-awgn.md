@@ -1,4 +1,6 @@
-<!-- domain: ber; summary: `BerMeter` on AWGN: detected alignment, inverse binomial sampling, and the exact confidence interval. -->
+---
+description: "`BerMeter` on AWGN: detected alignment, inverse binomial sampling, and the exact confidence interval."
+---
 
 # Measuring an Error Rate, Defensibly
 

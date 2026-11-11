@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: a frame declares `data:LEN` and `--data` names where the bits come from (a file, a literal, stdin, a seeded stream): fill, idle frames, run length, what is deleted, and the unknowns -->
+---
+description: "a frame declares `data:LEN` and `--data` names where the bits come from (a file, a literal, stdin, a seeded stream): fill, idle frames, run length, what is deleted, and the unknowns"
+---
 
 # The Payload as a Data Source
 

@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: the feedforward frequency/chirp-rate estimate a burst gets exactly one of: why the search is two-dimensional and coherent, why the transform is 4x its input, and why the caller strips the modulation -->
+---
+description: "the feedforward frequency/chirp-rate estimate a burst gets exactly one of: why the search is two-dimensional and coherent, why the transform is 4x its input, and why the caller strips the modulation"
+---
 
 # The Polynomial-Phase Estimator — the reasoning
 

@@ -1,0 +1,7 @@
+nav:
+  - Adding an Algorithm: adding-algorithms.md
+  - Repository Map: repository-map.md
+  - Module Layout: module-layout.md
+  - Adding a Module: adding-a-module.md
+  - glob: "*"
+    ignore_no_matches: true

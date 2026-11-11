@@ -9,6 +9,15 @@ Examples
 >>> d.ptr(3).real.tolist()   # most-recent-first tap snapshot
 [3.0, 2.0, 1.0]
 
+The FIR inner loop it is built for: `push_ptr` pushes one sample and returns
+the contiguous window in one call, with no wrap-around branch.
+
+>>> import numpy as np
+>>> taps = np.full(4, 0.25)
+>>> fir = DelayCf64(num_taps=4)
+>>> [complex(fir.push_ptr(4.0) @ taps).real for _ in range(4)]
+[1.0, 2.0, 3.0, 4.0]
+
 """
 
 # delay/__init__.py — re-export all types from the C extension.

@@ -105,6 +105,13 @@ class FFT:
         double-precision variant. Output is unnormalised; in and out must not
         alias.
 
+        It runs natively in single precision (PFFFT) when state->n is a
+        multiple of 16 with no prime factor above 5; any other length is
+        promoted to double, transformed by pocketfft and narrowed back. The
+        path is chosen by the method, not the input's dtype: in Python
+        `execute_cf32` refuses a complex128 array with TypeError rather than
+        narrowing it, while `execute_cf64` accepts complex64 and widens it.
+
         Parameters
         ----------
         x : npt.NDArray[np.complex64]

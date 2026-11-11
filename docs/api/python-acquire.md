@@ -19,7 +19,7 @@ anything tracks it:
 
 The code-phase × Doppler searches themselves, continuous and burst, are
 flavors of one class, `Correlator`, on the
-[Correlation page](python-correlation.md) (`framing="continuous"` and
+[Correlation page][doppler.correlation] (`framing="continuous"` and
 `framing="burst"`). The DSSS receivers in the [DSSS API](python-dsss.md)
 compose these objects.
 
@@ -49,7 +49,7 @@ independent of `dwell_target`.
 
 `BurstCapture` is the stage between a detector and whatever consumes a burst.
 The burst search,
-[`Correlator(preamble, framing="burst", ...)`](python-correlation.md#doppler.correlation.Correlator),
+[`Correlator(preamble, framing="burst", ...)`][doppler.correlation.Correlator],
 reports an END anchor and a code phase that is a lag **modulo one code
 period** (for a Zadoff-Chu preamble, shifted by any Doppler the search did not
 resolve first), so it names the alignment within a preamble repetition and

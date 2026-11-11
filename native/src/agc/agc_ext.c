@@ -249,18 +249,41 @@ static PyMethodDef agc_module_methods[] = {
 
 static PyModuleDef agc_moduledef = {
   PyModuleDef_HEAD_INIT,
-  .m_name    = "agc",
-  .m_doc     = "Automatic gain control: a log-domain feedback AGC (AGC) that "
-               "drives signal power toward a reference level.\n"
-               "\n"
-               "Examples\n"
-               "--------\n"
-               ">>> import numpy as np\n"
-               ">>> from doppler.agc import AGC\n"
-               ">>> y = AGC(ref_db=0.0, loop_bw=0.05).steps(0.1 * np.ones(200, "
-               "np.complex64))\n"
-               ">>> bool(abs(y[-1]) > abs(y[0]))\n"
-               "True\n",
+  .m_name = "agc",
+  .m_doc
+  = "Automatic gain control: a log-domain feedback AGC (AGC) that drives "
+    "signal power toward a reference level.\n"
+    "\n"
+    "It integrates the power error in dB, so convergence is exponential and\n"
+    "independent of the absolute input level. The loop is decimated: the "
+    "detector\n"
+    "and integrator run once per `decim` samples with a first-order hold on "
+    "the\n"
+    "gain between updates, so a long block costs O(n/decim) control work.\n"
+    "\n"
+    "`settling_samples` answers how long it takes to settle. It runs the "
+    "real\n"
+    "loop and counts rather than evaluating a fitted curve, so it cannot go\n"
+    "stale against the object; it allocates and iterates, so it is a "
+    "design-time\n"
+    "call, never one inside a pipeline.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.agc import AGC\n"
+    ">>> y = AGC(ref_db=0.0, loop_bw=0.05).steps(0.1 * np.ones(200, "
+    "np.complex64))\n"
+    ">>> bool(abs(y[-1]) > abs(y[0]))\n"
+    "True\n"
+    "\n"
+    "A quiet input is the slow direction, and the one to budget for:\n"
+    "\n"
+    ">>> from doppler.agc import settling_samples\n"
+    ">>> settling_samples(0.0025, 0.05, 40.0, 0.5)   # cold, 40 dB quiet\n"
+    "430\n"
+    ">>> settling_samples(0.0025, 0.05, -40.0, 0.5)  # 40 dB loud\n"
+    "175\n",
   .m_size    = -1,
   .m_methods = agc_module_methods,
 };

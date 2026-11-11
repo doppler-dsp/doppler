@@ -732,7 +732,7 @@ ______________________________________________________________________
 
 - [Correlator guide](correlator.md) — the one class, and how its knobs pick
     a flavor
-- [Python: Correlation API](../api/python-correlation.md) — the full
+- [Python: Correlation API][doppler.correlation] — the full
     `Correlator` reference
 - [Python: Acquire API](../api/python-acquire.md) — `BurstCapture` and
     `bin_to_signed`

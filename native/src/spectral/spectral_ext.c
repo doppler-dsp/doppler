@@ -921,6 +921,13 @@ static PyModuleDef spectral_moduledef = {
     ">>> f = FFT(n=1024)\n"
     ">>> X = f.execute_cf32(np.ones(1024, np.complex64))\n"
     ">>> bool(abs(X[0].real - 1024) < 1)\n"
+    "True\n"
+    "\n"
+    "The inverse is the same engine with `sign=+1`, and is unnormalised:\n"
+    "\n"
+    ">>> x = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)\n"
+    ">>> back = FFT(n=1024, sign=+1).execute_cf32(f.execute_cf32(x)) / 1024\n"
+    ">>> bool(np.allclose(back, x, atol=1e-4))\n"
     "True\n",
   .m_size    = -1,
   .m_methods = spectral_module_methods,

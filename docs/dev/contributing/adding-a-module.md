@@ -446,6 +446,30 @@ that is not public.
 Nothing else belongs in `__init__.py`: no wrapper classes, no logic. See
 [Module Layout](module-layout.md).
 
+**`__all__` is also the API reference.** Every public name in it renders at
+`reference/doppler/<module>/` with no page to write and no list to edit
+(#3000). Four rules follow, and two gates hold them: `make lint`'s
+`surface-check` reads the source, and `make docs-check`'s `check_surface`
+reads the built site.
+
+- **Every package declares `__all__`.** A package with no importable API
+    says so with `__all__: list[str] = []` (`specan`, `tests`). The gate
+    refuses a package with none, and one that builds `__all__` inside an
+    `if` or `try`, because it cannot tell what either exports.
+- **A submodule's exports are its package's.** The reference renders
+    packages, not submodules, so a pure-Python submodule that declares its
+    own `__all__` (`dsss/orchestrator.py`) must have its package re-export
+    every name through `reexports` on `[module.<name>]`. Otherwise those
+    names are public and documented nowhere, which is how `Acquirer`,
+    `CoarseChannel` and `Detection` went missing.
+- **Do not name a module after a function it exports.** A module named
+    `cic_design.py` that exports `cic_design` makes the renderer see the
+    module, not the function. Name the module privately (`_cic_design.py`)
+    and re-export the function.
+- **Every exported name has a docstring and a stub entry.** A hand-written
+    type with no class in the `.pyi`, or a name the renderer cannot resolve,
+    has no anchor in the built page and fails `check_surface`.
+
 ______________________________________________________________________
 
 ## Step 9 — Write Python tests

@@ -1,4 +1,6 @@
-<!-- domain: acquire; summary: pure-functional acquisition kernel for the elastic fleet -->
+---
+description: "pure-functional acquisition kernel for the elastic fleet"
+---
 
 # Design — pure-functional acquisition kernel (elastic fleet)
 

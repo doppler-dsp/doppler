@@ -1,4 +1,6 @@
-<!-- domain: coding; summary: the CCSDS inner code decoded: the trellis in the encoder's own terms, the branch metric it inherits, and why 5·K traceback is 17 % above the floor -->
+---
+description: "the CCSDS inner code decoded: the trellis in the encoder's own terms, the branch metric it inherits, and why 5·K traceback is 17 % above the floor"
+---
 
 # The Viterbi Decoder
 

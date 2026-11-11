@@ -1,4 +1,6 @@
-<!-- domain: acquire; summary: the dated runs behind the design page under the same section numbers: §18's prototypes of the one delay-Doppler map (slow time first, the code-rate ramp on a shared transform) and the bench-box baseline it must meet -->
+---
+description: "the dated runs behind the design page under the same section numbers: §18's prototypes of the one delay-Doppler map (slow time first, the code-rate ramp on a shared transform) and the bench-box baseline it must meet"
+---
 
 # The acquisition surface — the measurement record
 

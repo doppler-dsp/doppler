@@ -1,4 +1,6 @@
-<!-- domain: acquire; summary: step 4 of the correlator consolidation (#2752): one Python class, doppler.correlation.Correlator, its constructor and knobs, what push returns, the classes and burst_acq forwarder it retires, its composers, and the #2683, #2900 and #2901 decisions -->
+---
+description: "step 4 of the correlator consolidation (#2752): one Python class, doppler.correlation.Correlator, its constructor and knobs, what push returns, the classes and burst_acq forwarder it retires, its composers, and the #2683, #2900 and #2901 decisions"
+---
 
 # One Python class: the step-4 design
 
@@ -252,8 +254,7 @@ changes is the Python side.
 ## 7. The module
 
 - **New module `doppler.correlation`**: `modules/correlation.toml`, objects
-    `["correlator"]`, and a `[domain.correlation]` entry in
-    `docs/domains.toml`. The C object stays at
+    `["correlator"]`. The C object stays at
     `native/{inc/doppler,src}/correlator/`; only its Python module moves.
 - **`doppler.spectral`** loses `Corr`, `Corr2D`, `DelayDoppler`,
     `CorrDetector`, `CorrDetector2D`, and its module docstring stops

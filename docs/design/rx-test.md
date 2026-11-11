@@ -1,4 +1,6 @@
-<!-- domain: track; summary: inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet -->
+---
+description: "inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet"
+---
 
 # Receiver Test Harness
 

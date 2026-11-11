@@ -1,0 +1,4 @@
+nav:
+  - Gallery: index.md
+  - glob: "*.md"
+    ignore_no_matches: true

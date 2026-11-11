@@ -1,4 +1,6 @@
-<!-- domain: mpsk; summary: M-PSK mapping and constellation rendering. -->
+---
+description: "M-PSK mapping and constellation rendering."
+---
 
 # M-PSK constellation (Gray-coded map / demap)
 

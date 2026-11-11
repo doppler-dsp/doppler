@@ -1,10 +1,10 @@
 """Shared static-analysis helpers for discovering doppler's public API.
 
-Both ``check_api_docs.py`` (is every symbol documented?) and
-``gen_related_pages.py`` (what does the rest of the docs say about each
-symbol?) need the same answer to "what is the public Python API" -- this
-module is the one AST walk both scripts build on, so neither can drift
-from the other's idea of what counts as public.
+``check_api_docs.py`` (is every symbol documented?) and
+``check_user_docs.py`` (does every class have its user story?) need the
+same answer to "what is the public Python API" -- this module is the one
+AST walk both build on, so neither can drift from the other's idea of what
+counts as public.
 
 Static analysis only (``ast``, never an import), so it runs anywhere
 doppler itself doesn't build -- e.g. the docs CI job.

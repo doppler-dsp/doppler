@@ -1,4 +1,6 @@
-<!-- domain: resample; summary: polyphase resampler architecture, testing, and performance optimizations -->
+---
+description: "polyphase resampler architecture, testing, and performance optimizations"
+---
 
 # Continuously Variable Resampler
 

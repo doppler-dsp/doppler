@@ -9,58 +9,6 @@ its gallery page.
 
     [Waveform Generator (wfmgen)](wfmgen/index.md) and
     [Capture I/O](wfm-io/index.md) are under **Tools** in the nav, with
-    their own sections, so they are not listed below.
+    their own sections, not under **Guides**.
 
-<!-- domain-index:start -->
-
-## Correlation
-
-One Correlator for every FFT correlation: 1-D and 2-D maps, delay-Doppler maps, streaming detectors, and the continuous and burst searches (acquisition).
-
-- [Delay-Doppler Search](delay-doppler.md) — where a code is and how fast it is rotating: one map, batches of frames, and the hypothesis bank for an unknown carrier, with the delay-Doppler `Correlator`
-- [The Correlator](correlator.md) — one class, `Correlator`, for every FFT correlation: maps, delay-Doppler maps, streaming detectors and the continuous and burst searches (acquisition)
-
-## Spectral analysis
-
-FFTs, power spectra and spectrograms.
-
-- [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement
-- [Streaming Spectrograms](spectrogram.md) — any-size chunks in, every row of a waterfall out, the same rows however the stream is cut (C and Python)
-
-## Acquisition
-
-Finding a signal before anything tracks it: bursts, preambles and carriers.
-
-- [Acquiring a Repeated Preamble](acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and the burst search, `Correlator`
-
-## Tracking & synchronization
-
-Loop filters, carrier and timing recovery, and the narrowband receivers built on them.
-
-- [Lock Detection Across doppler.track](lock-detection.md) — which `configure_lock` to call, and why, for every tracking loop
-
-## Spread spectrum (DSSS)
-
-Despreading, polynomial-phase estimation and the DSSS receivers.
-
-- [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with the burst search, `Correlator(framing="burst")`, and continuous signals with the continuous search
-
-## Streaming
-
-Publish/subscribe, push/pull and request/reply of IQ over NATS.
-
-- [Real-Time Pacing & Timestamping](timing.md) — sample-accurate playback timing
-
-## Fixed-point arithmetic
-
-Q8 and Q15 accumulators with exact integer arithmetic.
-
-- [Getting Started with Fixed-Point Arithmetic](fixed-point.md) — Q15 / UQ15 types and quantization
-
-## Utilities
-
-Numeric helpers shared across the modules.
-
-- [Checkpoint & Resume](state-serialization.md) — bit-exact `get_state`/`set_state`, composed receivers, and elastic pod hand-off
-
-<!-- domain-index:end -->
+Every guide is listed in the navigation under **Guides**.

@@ -1,4 +1,6 @@
-<!-- domain: buffer; summary: zero-copy, wrap-free, lock-free: what each promise means, the blocking and non-blocking surfaces, and the two streaming patterns. -->
+---
+description: "zero-copy, wrap-free, lock-free: what each promise means, the blocking and non-blocking surfaces, and the two streaming patterns."
+---
 
 # The ring buffer — one contiguous view of a stream
 

@@ -1,4 +1,6 @@
-<!-- domain: buffer; summary: the dated record: what the ring costs per sample, what the non-blocking surface adds, and the three premises that were wrong. -->
+---
+description: "the dated record: what the ring costs per sample, what the non-blocking surface adds, and the three premises that were wrong."
+---
 
 # The ring buffer — measurements and the record
 

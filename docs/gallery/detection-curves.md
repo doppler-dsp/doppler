@@ -1,4 +1,6 @@
-<!-- domain: detection; summary: Pd vs SNR and dwell from closed-form Marcum Q. -->
+---
+description: "Pd vs SNR and dwell from closed-form Marcum Q."
+---
 
 # Detection Theory Curves
 

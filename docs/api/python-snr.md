@@ -63,12 +63,3 @@ ______________________________________________________________________
 ## `snr_m2m4_db_series` — sliding-window blind Es/N0
 
 ::: doppler.snr.snr_m2m4_db_series
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [AsyncDsssReceiver: the specification link](../gallery/async-dsss-receiver-spec.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
-**Design** — [Receiver Test Harness](../design/rx-test.md)
-
-<!-- related-pages:end -->

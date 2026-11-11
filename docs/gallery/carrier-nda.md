@@ -1,4 +1,6 @@
-<!-- domain: track; summary: non-data-aided carrier recovery. -->
+---
+description: "non-data-aided carrier recovery."
+---
 
 # NDA Carrier Loop — Theory Validation
 

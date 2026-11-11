@@ -1,4 +1,6 @@
-<!-- domain: coding; summary: the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder -->
+---
+description: "the Viterbi, the node sync it needs first, and the lock detector's two error probabilities: why the code's transparency means polarity cannot be resolved by the decoder"
+---
 
 # The FEC Receive Half
 

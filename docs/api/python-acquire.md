@@ -138,14 +138,3 @@ so a formula ported in from numpy now agrees with it. And the C companion
 sample **rate** where numpy takes the sample **spacing**.
 
 ::: doppler.acquire.bin_to_signed
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Gallery](../gallery/index.md)
-**Guides** — [Acquiring a Repeated Preamble](../guide/acquisition.md), [The Correlator](../guide/correlator.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md), [One Python class: the step-4 design](../design/correlator-python.md), [One correlator: the step-3 design](../design/correlator.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [The Spectrogram — the measurement record](../design/spectrogram-measurements.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
-**Contributing** — [Validation log](../dev/contributing/validation-log.md)
-
-<!-- related-pages:end -->

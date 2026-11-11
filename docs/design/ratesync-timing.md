@@ -1,4 +1,6 @@
-<!-- domain: track; summary: RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself -->
+---
+description: "RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself"
+---
 
 # Symbol Timing on a Rate Cascade
 

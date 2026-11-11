@@ -1,4 +1,6 @@
-<!-- domain: measure; summary: two-tone IMD/IM3, TOI, and notched-noise NPR. -->
+---
+description: "two-tone IMD/IM3, TOI, and notched-noise NPR."
+---
 
 # Measurement Suite — two-tone IMD/TOI & notched-noise NPR
 

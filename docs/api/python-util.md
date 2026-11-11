@@ -242,13 +242,3 @@ ______________________________________________________________________
 ::: doppler.util.gauss_hermite
 
 ::: doppler.util.fromto
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md)
-**Guides** — [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [The acquisition surface: the DSSS search engine](../design/acq-surface.md), [Automatic Gain Control](../design/agc.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [The Exponential Moving Average](../design/ema.md), [Lock Detection — the reasoning](../design/lock-detect.md)
-
-<!-- related-pages:end -->

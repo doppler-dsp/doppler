@@ -1,4 +1,6 @@
-<!-- domain: track; summary: streaming M-PSK receiver architecture and carrier-recovery design, the constellation primitive it reuses (§9, soft decisions included), and the record of the collapse that made the real face a view (§12) -->
+---
+description: "streaming M-PSK receiver architecture and carrier-recovery design, the constellation primitive it reuses (§9, soft decisions included), and the record of the collapse that made the real face a view (§12)"
+---
 
 # MPSK Receiver
 

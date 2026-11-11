@@ -1,4 +1,6 @@
-<!-- domain: interrupt; summary: one contract for network, memory and disk: why "no data right now" is indistinguishable from "no data ever" on all three, the interrupt primitive that already exists and is misnamed, and the end-of-stream marker that does not -->
+---
+description: "one contract for network, memory and disk: why \"no data right now\" is indistinguishable from \"no data ever\" on all three, the interrupt primitive that already exists and is misnamed, and the end-of-stream marker that does not"
+---
 
 # Ending a wait — one contract for network, memory and disk
 

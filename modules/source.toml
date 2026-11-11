@@ -2,11 +2,39 @@
 doc = """
 Signal sources: sample generators comprising a 32-bit phase-accumulator NCO (NCO), a quadrature local oscillator (LO), and an AWGN generator (AWGN).
 
+- `LO` emits CF32 phasors from a 2^16-entry sine table: SFDR at least
+  90 dBc at any frequency (about 96 dBc is typical), phase-continuous from
+  one call to the next and across a retune.
+- `NCO` is the raw uint32 phase accumulator underneath, with the overflow
+  carry that drives a sample clock and a fixed-point `[0, nmax)` scaling.
+- `AWGN` is complex Gaussian noise, `amplitude` per component; one seed is
+  one noise sequence on every platform, and `reset` replays it.
+
+Sources generate a signal; `doppler.impairment` transforms one.
+
 Examples
 --------
 >>> from doppler.source import NCO
 >>> NCO(norm_freq=0.25).steps_u32(4).tolist()
 [0, 1073741824, 2147483648, 3221225472]
+
+The overflow carry marks each wrap, every 4 samples at Fs/4:
+
+>>> NCO(0.25).steps_u32_ovf(8)[1].tolist()
+[0, 0, 0, 1, 0, 0, 0, 1]
+
+Two blocks from an LO are one stream, and a reset AWGN replays its noise:
+
+>>> import numpy as np
+>>> from doppler.source import LO, AWGN
+>>> a, b = LO(0.25), LO(0.25)
+>>> bool(np.array_equal(np.concatenate([a.steps(4), a.steps(4)]), b.steps(8)))
+True
+>>> g = AWGN(seed=42, amplitude=1.0)
+>>> first = g.generate(8)
+>>> g.reset()
+>>> bool(np.array_equal(g.generate(8), first))
+True
 
 """
 objects = ["nco", "lo", "awgn"]

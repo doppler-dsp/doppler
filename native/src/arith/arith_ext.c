@@ -1124,17 +1124,39 @@ static PyMethodDef arith_module_methods[] = {
 static PyModuleDef arith_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name = "arith",
-  .m_doc  = "Fixed-point accumulators: Q8 and Q15 scalar sums (AccQ8, AccQ15) "
-            "with exact integer arithmetic for bit-true pipelines.\n"
-            "\n"
-            "Examples\n"
-            "--------\n"
-            ">>> from doppler.arith import AccQ15\n"
-            ">>> a = AccQ15()\n"
-            ">>> a.step(100); a.step(50)\n"
-            ">>> a.get()\n"
-            "150\n",
-  .m_size = -1,
+  .m_doc
+  = "Saturating fixed-point arithmetic: Q15 (1.15, int16) and Q8 (1.7, int8) "
+    "add, subtract, multiply, dot product and shifts, and the AccQ15/AccQ8 "
+    "running sums.\n"
+    "\n"
+    "A Q15 value v stands for v / 32768 in [-1, +1); Q8 is the same at 2^-7.\n"
+    "Every operation saturates rather than wrapping, as fixed-point hardware\n"
+    "does: 0.5 + 0.5 reads 32767, never a negative. Multiplication is the\n"
+    "fractional product (a*b) >> 15, so 0.5 x 0.5 = 0.25. The dot products "
+    "and\n"
+    "the accumulators sum in a 64-bit register, so a long sum cannot "
+    "overflow\n"
+    "partway.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.arith import AccQ15\n"
+    ">>> a = AccQ15()\n"
+    ">>> a.step(100); a.step(50)\n"
+    ">>> a.get()\n"
+    "150\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.arith import add_q15, mul_q15, shl_q15\n"
+    ">>> a = np.array([16384, 16384, -32768], np.int16)   # 0.5, 0.5, -1.0\n"
+    ">>> b = np.array([16384, 32767, 16384], np.int16)    # 0.5, ~1.0, 0.5\n"
+    ">>> add_q15(a, b).tolist()\n"
+    "[32767, 32767, -16384]\n"
+    ">>> mul_q15(a, b).tolist()\n"
+    "[8192, 16384, -16384]\n"
+    ">>> shl_q15(np.array([16384, -32768], np.int16), 1).tolist()\n"
+    "[32767, -32768]\n",
+  .m_size    = -1,
   .m_methods = arith_module_methods,
 };
 

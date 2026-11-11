@@ -60,7 +60,9 @@ from _pydocs import kinds
 # text -- deliberately narrow, so prose that happens to say "correlator" is
 # not a mention of ``Correlator``.
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
-LINK_TEXT_RE = re.compile(r"\[([^\]\n]+)\]\([^)\n]+\)")
+# A link's text, inline `[text](url)` or a cross-reference `[text][id]`:
+# the generated reference is reached by the second (#3000).
+LINK_TEXT_RE = re.compile(r"\[([^\]\n]+)\](?:\([^)\n]+\)|\[[^\]\n]*\])")
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 

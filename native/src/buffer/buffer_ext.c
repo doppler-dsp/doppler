@@ -198,19 +198,33 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 static PyModuleDef buffer_moduledef = {
   PyModuleDef_HEAD_INIT,
   .m_name = "buffer",
-  .m_doc  = "Sample buffering: lock-free ring buffers for handing IQ blocks "
-            "between producer and consumer stages.\n"
-            "\n"
-            "Examples\n"
-            "--------\n"
-            ">>> import numpy as np\n"
-            ">>> from doppler.buffer import F32Buffer\n"
-            ">>> b = F32Buffer(16)\n"
-            ">>> b.write(np.ones(4, np.complex64))\n"
-            "True\n"
-            ">>> b.wait(4).shape\n"
-            "(4,)\n",
-  .m_size = -1,
+  .m_doc
+  = "Sample buffering: lock-free ring buffers for handing IQ blocks between "
+    "producer and consumer stages.\n"
+    "\n"
+    "F32Buffer (complex64), F64Buffer (complex128) and I16Buffer (a record "
+    "of\n"
+    "two int16, i and q) are single-producer single-consumer rings whose\n"
+    "storage is mapped twice, so a read is always one contiguous zero-copy\n"
+    "window across the wrap. Any capacity from 1 up holds exactly that many\n"
+    "samples on every machine; only the address space behind it is rounded. "
+    "A\n"
+    "producer thread writes and a consumer thread `wait`s; a caller that is "
+    "its\n"
+    "own producer uses `write_some` and `peek` instead. The Ring Buffers "
+    "guide\n"
+    "walks both.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.buffer import F32Buffer\n"
+    ">>> b = F32Buffer(16)\n"
+    ">>> b.write(np.ones(4, np.complex64))\n"
+    "True\n"
+    ">>> b.wait(4).shape\n"
+    "(4,)\n",
+  .m_size    = -1,
   .m_methods = NULL,
 };
 

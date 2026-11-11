@@ -270,12 +270,32 @@ static PyModuleDef filter_moduledef = {
   = "FIR filtering: a direct-form complex or real FIR (FIR) and an O(1) "
     "boxcar moving average (MovingAverage).\n"
     "\n"
+    "FIR takes `float32` taps (one multiply-add per tap per sample: any\n"
+    "symmetric low-, high- or band-pass design) or `complex64` taps (two, "
+    "plus a\n"
+    "permute: a Hilbert transformer, a frequency-shifted design); its input "
+    "is\n"
+    "`complex64` either way, and its delay line carries across calls.\n"
+    "`design_lowpass` sizes and builds a Kaiser windowed-sinc lowpass from "
+    "its\n"
+    "band edges (Nyquist-normalised, 1.0 == fs/2) and attenuation, with no\n"
+    "scipy.\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.filter import MovingAverage\n"
     ">>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()\n"
-    "[0.5, 1.0, 1.0]\n",
+    "[0.5, 1.0, 1.0]\n"
+    "\n"
+    "A designed lowpass, run on a stream in blocks:\n"
+    "\n"
+    ">>> from doppler.filter import FIR, design_lowpass\n"
+    ">>> fir = FIR(design_lowpass(fpass=0.4, fstop=0.6, atten_db=60.0))\n"
+    ">>> y = np.concatenate([fir.execute(np.ones(256, np.complex64))\n"
+    "...                     for _ in range(4)])\n"
+    ">>> round(float(y[-1].real), 3)   # DC passes at unity gain\n"
+    "1.0\n",
   .m_size    = -1,
   .m_methods = filter_module_methods,
 };

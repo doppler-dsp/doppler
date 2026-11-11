@@ -92,6 +92,20 @@ def test_no_guide_mention_fails(tmp_path: Path) -> None:
     assert "doppler.sig.Widget: no guide" in r.stderr
 
 
+def test_a_cross_reference_is_a_guide_mention(tmp_path: Path) -> None:
+    """`[the widget][doppler.sig.Widget]` names the class as surely as
+    `[the widget](api.md)` does; it is how a guide reaches the generated
+    reference (#3000), and a link converted to one lost its mention."""
+    root = _fixture(tmp_path)
+    _w(
+        root,
+        "docs/guide/widgets.md",
+        "# Widgets\n\nSee [Widget][doppler.sig.Widget] for the knobs.\n",
+    )
+    r = _run(root, "widget_demo.py")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 def test_no_example_fails(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     _w(root, f"{EX}/widget_demo.py", "print('hello')\n")

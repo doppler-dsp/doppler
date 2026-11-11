@@ -197,16 +197,51 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 
 static PyModuleDef source_moduledef = {
   PyModuleDef_HEAD_INIT,
-  .m_name    = "source",
-  .m_doc     = "Signal sources: sample generators comprising a 32-bit "
-               "phase-accumulator NCO (NCO), a quadrature local oscillator (LO), "
-               "and an AWGN generator (AWGN).\n"
-               "\n"
-               "Examples\n"
-               "--------\n"
-               ">>> from doppler.source import NCO\n"
-               ">>> NCO(norm_freq=0.25).steps_u32(4).tolist()\n"
-               "[0, 1073741824, 2147483648, 3221225472]\n",
+  .m_name = "source",
+  .m_doc
+  = "Signal sources: sample generators comprising a 32-bit phase-accumulator "
+    "NCO (NCO), a quadrature local oscillator (LO), and an AWGN generator "
+    "(AWGN).\n"
+    "\n"
+    "- `LO` emits CF32 phasors from a 2^16-entry sine table: SFDR at least\n"
+    "  90 dBc at any frequency (about 96 dBc is typical), phase-continuous "
+    "from\n"
+    "  one call to the next and across a retune.\n"
+    "- `NCO` is the raw uint32 phase accumulator underneath, with the "
+    "overflow\n"
+    "  carry that drives a sample clock and a fixed-point `[0, nmax)` "
+    "scaling.\n"
+    "- `AWGN` is complex Gaussian noise, `amplitude` per component; one seed "
+    "is\n"
+    "  one noise sequence on every platform, and `reset` replays it.\n"
+    "\n"
+    "Sources generate a signal; `doppler.impairment` transforms one.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import NCO\n"
+    ">>> NCO(norm_freq=0.25).steps_u32(4).tolist()\n"
+    "[0, 1073741824, 2147483648, 3221225472]\n"
+    "\n"
+    "The overflow carry marks each wrap, every 4 samples at Fs/4:\n"
+    "\n"
+    ">>> NCO(0.25).steps_u32_ovf(8)[1].tolist()\n"
+    "[0, 0, 0, 1, 0, 0, 0, 1]\n"
+    "\n"
+    "Two blocks from an LO are one stream, and a reset AWGN replays its "
+    "noise:\n"
+    "\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.source import LO, AWGN\n"
+    ">>> a, b = LO(0.25), LO(0.25)\n"
+    ">>> bool(np.array_equal(np.concatenate([a.steps(4), a.steps(4)]), "
+    "b.steps(8)))\n"
+    "True\n"
+    ">>> g = AWGN(seed=42, amplitude=1.0)\n"
+    ">>> first = g.generate(8)\n"
+    ">>> g.reset()\n"
+    ">>> bool(np.array_equal(g.generate(8), first))\n"
+    "True\n",
   .m_size    = -1,
   .m_methods = NULL,
 };

@@ -57,7 +57,7 @@ ______________________________________________________________________
 
 `Costas` is the first loop built on `LoopFilter`: a continuous BPSK
 carrier-recovery loop. Per sample it de-rotates the input with the integer-phase
-[`source.LO`](python-nco.md) NCO (carrier wipe-off); every `tsamps` samples it
+[`source.LO`][doppler.source.LO] NCO (carrier wipe-off); every `tsamps` samples it
 dumps the coherent integrate-and-dump accumulator, runs a decision-directed
 Costas phase discriminator, filters the error through an embedded `LoopFilter`,
 and steers the NCO frequency and phase. It tracks the small **residual** carrier

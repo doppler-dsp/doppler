@@ -2,6 +2,15 @@
 doc = """
 Sample buffering: lock-free ring buffers for handing IQ blocks between producer and consumer stages.
 
+F32Buffer (complex64), F64Buffer (complex128) and I16Buffer (a record of
+two int16, i and q) are single-producer single-consumer rings whose
+storage is mapped twice, so a read is always one contiguous zero-copy
+window across the wrap. Any capacity from 1 up holds exactly that many
+samples on every machine; only the address space behind it is rounded. A
+producer thread writes and a consumer thread `wait`s; a caller that is its
+own producer uses `write_some` and `peek` instead. The Ring Buffers guide
+walks both.
+
 Examples
 --------
 >>> import numpy as np

@@ -32,7 +32,7 @@ idle, and the search seeds it again.
 
 Each emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
 placed on the stream at its own sample offset and carrier, with
-[`source.AWGN`](../api/python-nco.md) at the Es/N0 every emitter shares.
+[`source.AWGN`][doppler.source.AWGN] at the Es/N0 every emitter shares.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_pool_demo.py:signal"

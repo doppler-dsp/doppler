@@ -64,6 +64,6 @@ Sum four of them at 5 MHz spacing over a composed AWGN floor, then measure with
 ## See also
 
 - [PSD / AccTrace API](../api/python-spectral.md) — the measurement methods.
-- [Accumulator API](../api/python-accumulator.md) — `AccTrace` modes.
+- [Accumulator API][doppler.accumulator] — `AccTrace` modes.
 - [Composing a Scene](wfm-composition.md) — the waveform generator.
 - [`src/doppler/examples/wcdma_carriers_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/wcdma_carriers_demo.py) — the script behind this figure.

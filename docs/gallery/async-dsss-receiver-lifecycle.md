@@ -61,7 +61,7 @@ fails the example rather than the prose.
 The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
 with its own PRBS payload on the Gold code. Each off span is zeroed after
 synthesis, so the noise floor is the same before, during and after every cut.
-The noise is [`source.AWGN`](../api/python-nco.md), with the per-component
+The noise is [`source.AWGN`][doppler.source.AWGN], with the per-component
 sigma that [`wfm_awgn_amplitude`](../api/python-wfmgen.md) gives for the Es/N0.
 
 ```python

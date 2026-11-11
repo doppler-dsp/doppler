@@ -85,6 +85,14 @@ class TestHalfbandDecimatorCreate:
         r = HalfbandDecimator(hb_fir)
         assert r.num_taps == len(hb_fir)
 
+    def test_float64_taps_are_refused_not_narrowed(self, hb_fir):
+        """float64 taps raise rather than being silently narrowed to
+        float32: the library's unsafe-cast rule. (HalfbandDecimatorDp, the
+        retired second binding of this core, narrowed them, #3002.)"""
+        with pytest.raises(TypeError):
+            HalfbandDecimator(np.asarray(hb_fir, dtype=np.float64))
+        HalfbandDecimator(np.asarray(hb_fir, dtype=np.float32))
+
     def test_bad_ndim(self):
         with pytest.raises(ValueError):
             HalfbandDecimator(np.ones((2, 3, 5), dtype=np.float32))

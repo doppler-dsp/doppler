@@ -415,8 +415,6 @@ PyInit_resample (void)
     return NULL;
   if (PyType_Ready (&MatchedRateConverterObjType) < 0)
     return NULL;
-  if (PyType_Ready (&HalfbandDecimatorDpType) < 0)
-    return NULL;
   if (PyType_Ready (&HalfbandDecimatorR2CType) < 0)
     return NULL;
   PyObject *m = PyModule_Create (&resample_moduledef);
@@ -476,15 +474,6 @@ PyInit_resample (void)
       < 0)
     {
       Py_DECREF (&MatchedRateConverterObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&HalfbandDecimatorDpType);
-  if (PyModule_AddObject (m, "HalfbandDecimatorDp",
-                          (PyObject *)&HalfbandDecimatorDpType)
-      < 0)
-    {
-      Py_DECREF (&HalfbandDecimatorDpType);
       Py_DECREF (m);
       return NULL;
     }

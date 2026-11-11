@@ -10,7 +10,7 @@ polyphase interpolator/decimator architecture behind `Resampler` and
 `RateConverter`, see the [Resampler design notes](../design/RESAMPLER.md).
 
 Source:
-[`src/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/resample/__init__.py)
+[`src/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/resample/__init__.py)
 
 ## Which class to use
 

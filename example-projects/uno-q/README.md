@@ -217,7 +217,7 @@ default build; "A53" adds `-mcpu=cortex-a53` (see Tuning).
 
 The last column is doppler's published portable build for that release on an AMD
 Ryzen AI 9 465 (governor `performance`, boost on, pinned to the fastest
-cores; [`benchmarks/published/`](https://github.com/doppler-dsp/doppler/tree/v0.82.0/benchmarks/published)),
+cores; [`benchmarks/published/`](https://github.com/doppler-dsp/doppler/tree/v0.83.0/benchmarks/published)),
 from the library's own benchmarks rather than `bench.c`.
 
 | algorithm                         | case                      | UNO Q portable | UNO Q A53   | Ryzen AI 9 465 |

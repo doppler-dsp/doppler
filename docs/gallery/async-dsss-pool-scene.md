@@ -94,4 +94,4 @@ python -m doppler.examples.async_dsss_pool_scene out.png
 The design, including the controller and the near-far limit, is in
 [the async DSSS design](../design/async-dsss-receiver.md), §5-§9.
 
-Source: [`async_dsss_pool_scene.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/async_dsss_pool_scene.py).
+Source: [`async_dsss_pool_scene.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/async_dsss_pool_scene.py).

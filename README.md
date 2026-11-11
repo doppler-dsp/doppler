@@ -10,7 +10,7 @@
   <a href="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/doppler-dsp/doppler/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
   <a href="https://doppler-dsp.github.io/doppler/"><img src="https://img.shields.io/badge/docs-doppler--dsp.github.io-0A7BBB?style=flat-square&logo=materialformkdocs&logoColor=white" alt="Docs"></a>
   <a href="https://github.com/doppler-dsp/doppler/releases/latest"><img src="https://img.shields.io/github/v/release/doppler-dsp/doppler?style=flat-square&logo=github&label=release" alt="Latest release"></a>
-  <a href="https://github.com/doppler-dsp/doppler/blob/v0.82.0/LICENSE"><img src="https://img.shields.io/github/license/doppler-dsp/doppler?style=flat-square&logo=opensourceinitiative&logoColor=white" alt="License"></a>
+  <a href="https://github.com/doppler-dsp/doppler/blob/v0.83.0/LICENSE"><img src="https://img.shields.io/github/license/doppler-dsp/doppler?style=flat-square&logo=opensourceinitiative&logoColor=white" alt="License"></a>
 </p>
 
 <p align="center">

@@ -82,7 +82,7 @@ with the quiet end on the right.
 
 - [AGC design](../design/agc.md) — §2.2 for why the detector stays in the
     power domain, and §6 for the header claim this measurement corrected
-- [AGC validation report](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/agc/tests/validation/agc/results.md)
+- [AGC validation report](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/agc/tests/validation/agc/results.md)
     — §2.1 measures the same asymmetry as a certified limit
 - [Python AGC API][doppler.agc]
 

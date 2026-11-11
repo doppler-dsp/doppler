@@ -80,7 +80,7 @@ plus one empirically-calibrated constant — not yet a fully general closed
 form (see the source comment for what's still open), but a large,
 measured improvement over the borrowed model.
 
-Source: [`src/doppler/examples/carrier_acq_rrc_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/carrier_acq_rrc_demo.py). See also
+Source: [`src/doppler/examples/carrier_acq_rrc_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/carrier_acq_rrc_demo.py). See also
 [Correlation](corr.md) (the `PSD` and `Correlator` detector primitives
 this object composes), [2-D Acquisition](detection2d.md) (the same Pfa/Pd
 statistics applied to a code-phase × Doppler search), and

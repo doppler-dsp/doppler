@@ -190,4 +190,4 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.ddc_fn_demo
 ```
 
-Source: [`src/doppler/examples/ddc_fn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/ddc_fn_demo.py)
+Source: [`src/doppler/examples/ddc_fn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/ddc_fn_demo.py)

@@ -13,6 +13,166 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-11
+
+### Added
+
+- **The CLI's block API is public.** `doppler.cli` exports `Block`,
+    `BlockConfig` and `register`, the classes a pipeline stage is written
+    with, so they have entries in the generated Python reference and a
+    tested example, `python -m doppler.examples.custom_block_demo`. The [CLI
+    & Pipelines](docs/cli/index.md) page now shows that example's code
+    (#3005).
+
+- **The Python API reference is generated from the source.** Each public
+    package gets a page at `reference/doppler/<module>/`, rendering its
+    `__all__` with a summary table up top and, on each entry, the pages
+    that link to it. A new module, class or function appears by existing.
+    `make docs-check` fails when a public name has no entry in the built
+    site, and `make lint` when a package declares no `__all__` or a
+    submodule exports a name its package does not. So `doppler.dsss` now
+    exports `Acquirer`, `CoarseChannel` and `Detection`, and
+    `doppler.resample` the five CIC design helpers (#3000).
+
+### Changed
+
+- **`doppler.acquire`, `doppler.coding`, `doppler.cvt` and `doppler.util`
+    are documented by the generated Python reference.** The channel-coding
+    and converter pages become guides, [Channel
+    Coding](docs/guide/channel-coding.md) and [Sample
+    Formats](docs/guide/sample-formats.md); acquire's and util's overviews
+    and their contract examples (the Doppler-bin fold, a NaN's landing,
+    the EMA's exact ends) open their reference pages; and the four
+    hand-written API pages are gone (#3000).
+
+- **`doppler.analyzer`, `doppler.ccsds`, `doppler.delay`, `doppler.agc`,
+    `doppler.correlation` and the FFT engines are documented by the
+    generated Python reference.** Each package's overview, its flavor
+    table for `Correlator`, and the worked examples (the CCSDS sync-marker
+    search, the delay line's FIR loop, the AGC settling query, the inverse
+    FFT) now open its reference page and run as tests; the FFT's
+    single-precision path (PFFFT for 16-aligned, 5-smooth lengths) is
+    stated in its header. The six hand-written API pages are gone (#3000).
+
+- **`doppler.filter`, `doppler.source`, `doppler.impairment`,
+    `doppler.accumulator`, `doppler.buffer` and `doppler.arith` are
+    documented by the generated Python reference.** Each package's overview
+    and worked examples open its reference page and run as tests, the ring
+    buffers' threaded and single-threaded surfaces are a guide,
+    [Ring Buffers](docs/guide/ring-buffers.md), and the six hand-written API
+    pages are gone. Two package summaries were wrong and are corrected:
+    `DopplerChannel` adds no noise, and `AccF32` sums real values (#3000).
+
+- **`doppler.interp`, `doppler.interrupt`, `doppler.snr` and `doppler.mpsk`
+    are documented by the generated Python reference.** Each package's
+    overview now opens its reference page, the interrupt guard's worked
+    examples are a guide, [Stopping a Run](docs/guide/interrupt.md), and
+    the hand-written API pages for those modules are gone, with the
+    `polyphase` removal notice (#3000).
+
+- **`doppler.measure`, `doppler.spectral`, `doppler.ber` and `doppler.stream`
+    are documented by the generated Python reference.** The error-rate and
+    streaming pages become guides, [Measuring an Error
+    Rate](docs/guide/error-rates.md) and [Streaming over
+    NATS](docs/guide/streaming.md); capture planning joins the [Power
+    Spectra & Measurements](docs/guide/spectral-psd.md) guide; the spectral
+    helpers and window names are runnable module examples; and the four
+    hand-written API pages are gone (#3000).
+
+- **Rate conversion, down-conversion, DSSS and telemetry lose their
+    hand-written API pages to guides.** [Rate
+    Conversion](docs/guide/resampling.md), [Down-Conversion](docs/guide/down-conversion.md),
+    [DSSS Receivers](docs/guide/dsss-receivers.md) and
+    [Telemetry](docs/guide/telemetry.md) carry their prose and examples, the
+    DDC architecture record becomes a design page, and the reference is
+    generated (#3000).
+
+- **The hand-written Python API pages are gone; the reference is generated.**
+    The last two, the loop filters and the waveform library, become guides,
+    [Tracking Loops](docs/guide/tracking-loops.md) and [The Python
+    Library](docs/guide/wfmgen/python.md); the [API Reference](docs/api/index.md)
+    page now points at the generated Python reference and the C API; and
+    `make test-api-docs` is retired, since the snippet gate already runs
+    every example those pages held (#3000).
+
+- **Capture I/O and `doppler.detection` lose their hand-written API
+    pages.** The detection page becomes a guide, [Sizing a
+    Detector](docs/guide/detection.md): thresholds, dwell, many-cell
+    searches and CFAR, non-coherent looks, Gaussian statistics, smoothing,
+    lock verification and frame sync. The capture-I/O page's clipping, BLUE
+    keyword and vocabulary sections join the [Capture
+    I/O](docs/guide/wfm-io/index.md) guide, which already held the rest
+    (#3000).
+
+- **`make bench-ab` holds a SLOWER row to a second run.** Rerun the pair
+    with `CONFIRM=first.json`, the first run's `JSON=`: a row then fails
+    only when it is SLOWER in both runs, and one flagged in a single run
+    reads UNCONFIRMED and passes. An A/A run of one commit read 11 of 884
+    rows SLOWER by chance, so one run could not pass identical code
+    (#2984).
+
+- **`doppler.resample.cic_design` is the function, no longer a module.**
+    The CIC design helpers live in the private `_cic_design.py`, because a
+    module named like its own `cic_design` function hid that function from
+    the API reference. `from doppler.resample import cic_design` (and the
+    other four helpers) works as before; the module path
+    `doppler.resample.cic_design` no longer imports (#3004).
+
+- **The docs navigation is discovered, not listed.** Each section of the
+    site is a directory whose pages appear in the nav by existing, and the
+    Domains pages and the A-Z index are gone: the generated Python API
+    reference replaces both. A page's one-line
+    summary is now its `description:`, which search and link previews
+    show (#3000).
+
+- **The docs build on zensical 0.1.1** (from 0.0.74), with griffelib
+    2.4.1 and mkdocs-api-autonav 0.4.0 added: the toolchain #3000 builds
+    the API reference from. The built site's page text and anchors are
+    unchanged.
+
+- **`HalfbandDecimatorR2C` is generated from its manifest.** It is now a
+    jm object, a thin forwarder over the `hbdecim_r2c` core like
+    `HalfbandDecimator`, so it has a type stub, a reference page, state
+    serialization and a benchmark. One behavior changed: float64 input or
+    taps raise `TypeError` where the hand-written binding narrowed them
+    silently, so cast them with `.astype(np.float32)` (#3002).
+
+- **`make jm-status-docs`** lists every member whose docstring falls back
+    to its name (`jm status --docs`), so the check runs through make like
+    every other jm command instead of needing the raw tool.
+
+- **A changelog fragment holds one entry.** The fragment lint
+    (`make lint-changelog-fragments`) now refuses a second top-level `- `
+    bullet in one file: the assembled list then differs from what mdformat
+    writes, and v0.82.0's `make release-pr` stopped at its own commit on
+    exactly that (#2993). An indented sub-bullet, or a list inside a code
+    fence, is still one entry.
+
+### Removed
+
+- **`HalfbandDecimatorDp` is gone; use `HalfbandDecimator`.** It was a
+    hand-written second binding of the same CF32 `dp_hbdecim` core, and
+    not double precision despite its name. One behavior differs:
+    `HalfbandDecimator` refuses float64 taps with `TypeError` where the
+    old class narrowed them silently, so cast them with
+    `.astype(np.float32)` (#3002).
+
+### Fixed
+
+- **Three struct members whose type is an anonymous struct or union are
+    documented on the member, not the type**:
+    `dp_mpsk_receiver_state_t::fe`, `dp_RateConverter_state_t::agc_tlm_req`
+    and the stream message's `u`. Each comment sat before `union {` or
+    `struct {`, which Doxygen 1.18 attaches to the anonymous type and
+    then reports the member undocumented; 1.9.8 did not notice (#3003).
+
+- **Benchmarks pin to the fast cores on kernels that report one max clock
+    for every core** (#2987). Debian's 6.12 gives every CPU of a Ryzen AI 9
+    465 the same `cpuinfo_max_freq`, so `bench-ab` and `bench-interleaved`
+    ran unpinned there, bouncing between Zen 5 and Zen 5c cores and reading
+    1.2-1.4x on unchanged code. The fast class now comes from
+    `amd_pstate_prefcore_ranking` when the clock does not split the CPUs.
+
 ## [0.82.0] - 2026-11-10
 
 ### Breaking
@@ -19273,5 +19433,6 @@ ______________________________________________________________________
 [0.80.0]: https://github.com/doppler-dsp/doppler/compare/v0.79.0...v0.80.0
 [0.81.0]: https://github.com/doppler-dsp/doppler/compare/v0.80.0...v0.81.0
 [0.82.0]: https://github.com/doppler-dsp/doppler/compare/v0.81.0...v0.82.0
+[0.83.0]: https://github.com/doppler-dsp/doppler/compare/v0.82.0...v0.83.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.82.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.83.0...HEAD

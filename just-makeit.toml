@@ -4,7 +4,7 @@ include = ["objects/*.toml", "modules/*.toml"]
 applied_layout = "mirrored"
 jm_version = "0.126.1"
 name = "doppler"
-version = "0.82.0"
+version = "0.83.0"
 build = "cmake"
 # c_prefix (jm#1591, #1545): every C symbol jm derives carries dp_, so two
 # installed jm libraries that share a component name (fir, fft, agc) link

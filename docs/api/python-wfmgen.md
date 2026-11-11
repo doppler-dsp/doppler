@@ -537,7 +537,7 @@ element that is not a bit is refused, not masked.
 `crc_ok` is the one that earns its place. It needs **no payload truth at all**,
 so it works on a real capture, and unlike a self-referenced EVM or a blind M2M4
 it still catches a false lock — a rotated constellation fails the check rather
-than looking clean. Paired with [`FrameMeter`](python-ber.md), that is a frame
+than looking clean. Paired with [`FrameMeter`][doppler.ber.FrameMeter], that is a frame
 error rate measured on a signal nobody knows the contents of:
 
 ```python

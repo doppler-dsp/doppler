@@ -16,6 +16,26 @@ The inverse is the same engine with `sign=+1`, and is unnormalised:
 >>> bool(np.allclose(back, x, atol=1e-4))
 True
 
+The helpers are the building blocks of a display: a window, the transform,
+dB, and the peaks:
+
+>>> from doppler.spectral import hann_window, magnitude_db_cf32, find_peaks_f32
+>>> w = np.empty(1024, np.float32)
+>>> hann_window(w)
+>>> tone = np.exp(2j * np.pi * 100 / 1024 * np.arange(1024)).astype(np.complex64)
+>>> db = magnitude_db_cf32(f.execute_cf32(tone * w), lin_floor=1e-12, offset_db=0.0)
+>>> int(np.argmax(db))   # bin 100, where the tone is
+100
+
+`PSD_WINDOW` and `SPECTROGRAM_MODE` name each C enum value the `window=`
+and `mode=` arguments take:
+
+>>> from doppler.spectral import PSD_WINDOW, SPECTROGRAM_MODE
+>>> sorted(PSD_WINDOW.values())
+['blackman-harris', 'hann', 'kaiser', 'rect']
+>>> SPECTROGRAM_MODE
+{0: 'power', 1: 'db'}
+
 """
 
 # spectral/__init__.py — re-export all types from the C extension.

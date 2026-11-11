@@ -18,7 +18,7 @@ same averaged spectrum. There is no second copy of the window→FFT→power math
 This guide is the usage walk-through. For the metric *equations* and IEEE Std
 1241 conventions see the [Measurement Suite design guide](../design/measurement-suite.md);
 for the full method/attribute reference see the
-[spectral](../api/python-spectral.md) and [measure](../api/python-measure.md) API
+[spectral][doppler.spectral] and [measure][doppler.measure] API
 pages.
 
 !!! tip "The 30-second version"
@@ -277,6 +277,50 @@ reference.
 
 ______________________________________________________________________
 
+## Planning a capture
+
+Before measuring, size the capture. `measure_min_samples` is the length that
+reaches a target resolution bandwidth at a converter's depth,
+`measure_rec_nfft` the transform it wants, `measure_proc_gain` the FFT
+processing gain that buys, and `dp_coherent_freq` the nearest test-tone
+frequency that lands on a bin, so there is no leakage to window away:
+
+```python
+from doppler.measure import (
+    dp_coherent_freq,
+    measure_min_samples,
+    measure_proc_gain,
+    measure_rec_nfft,
+)
+
+fs = 100e6
+n = measure_min_samples(
+    fs, target_rbw=1e3, bits=12, dynamic_range_db=0.0, complex_input=0
+)
+nfft = measure_rec_nfft(n, pad=2)
+pg = measure_proc_gain(nfft)
+f0 = dp_coherent_freq(fs, 10e6, n)       # leakage-free coherent test tone
+```
+
+A complex capture is analysed two-sided, and the analyzer reports the
+resolution it measured at beside the interpolation grid it drew on:
+
+```python
+import numpy as np
+from doppler.measure import ToneMeasure
+
+fs, n = 100e6, 1 << 14
+m = ToneMeasure(n=n, fs=fs, bits=12)
+iq = np.exp(2j * np.pi * 13e6 * np.arange(n) / fs).astype(np.complex64)
+r = m.analyze_complex(iq)        # two-sided analysis
+m.rbw, m.bin_hz, r.lobe_bins     # resolution vs interpolation grid
+ts = m.time_stats(iq.real.astype(np.float32))   # crest, PAPR, DC, fs use
+```
+
+`m.rbw` comes from the un-padded length `n`; `m.bin_hz` is the zero-padded
+grid. Padding sharpens the frequency estimate and the plot, not the
+resolution.
+
 ## Choosing parameters
 
 | Goal                                       | Lever                                       |
@@ -293,8 +337,8 @@ ______________________________________________________________________
 
 ## See also
 
-- [Python: spectral API](../api/python-spectral.md) — full `PSD` + helper reference
-- [Python: measurement API](../api/python-measure.md) — `ToneMeasure` reference
+- [Python: spectral API][doppler.spectral] — full `PSD` + helper reference
+- [Python: measurement API][doppler.measure] — `ToneMeasure` reference
 - [Measurement Suite design guide](../design/measurement-suite.md) — metric equations
 - [Spectral & Measurement API Map](../design/spectral-api-map.md) — how the PSD
     core, `measure`, and `analyzer.Specan` fit together

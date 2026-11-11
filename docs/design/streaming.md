@@ -13,7 +13,7 @@ This page owns the **contract**: what is on the wire, which subjects carry
 it, who owns which buffer, and what the layer does not promise. It is the
 page to read before writing a receiver that is not doppler's own.
 
-- Calling the API: [Python Streaming API](../api/python-streaming.md) and
+- Calling the API: [Python Streaming API][doppler.stream] and
     [`native/inc/doppler/stream/stream.h`](../c-api/stream_8h.md)
 - Runnable both-sides walk-throughs, network topologies, troubleshooting:
     [Streaming examples](../examples/streaming.md)

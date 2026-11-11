@@ -56,7 +56,7 @@ optional — if you only need the DSP primitives, skip it entirely. It
 requires a running [NATS server](install/broker.md) (e.g. `nats-server -js`) to connect
 to.
 
-See [API: Streaming](api/python-streaming.md).
+See [Streaming over NATS](guide/streaming.md).
 
 ______________________________________________________________________
 

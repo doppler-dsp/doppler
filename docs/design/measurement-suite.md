@@ -17,7 +17,7 @@ range and never cap the measurement. You do not pick a window or a Kaiser
 `beta` — see [Auto-window selection](#auto-window-selection).
 
 This page defines every measurement and the conventions behind them. For the API
-see [`ToneMeasure`](../api/python-measure.md); for the worked plots see the
+see [`ToneMeasure`][doppler.measure.ToneMeasure]; for the worked plots see the
 [gallery page](../gallery/measure.md).
 
 ______________________________________________________________________
@@ -79,7 +79,7 @@ ______________________________________________________________________
 You never choose a window or Kaiser `beta`. Instead you state a **dynamic-range
 target** `A` (dB) and the analyser picks the *minimum* Kaiser `beta` whose own
 peak sidelobe sits at `−A` — via the Kaiser window-design formula
-([`kaiser_beta_for_sidelobe`](../api/python-spectral.md)):
+([`kaiser_beta_for_sidelobe`][doppler.spectral.kaiser_beta_for_sidelobe]):
 
 $$
 \beta = \begin{cases}

@@ -67,6 +67,6 @@ labelled as such.
 
 - [Power Spectra & Measurements guide](../guide/spectral-psd.md)
 - [Measurement Suite design guide](measurement-suite.md)
-- [Python: spectral API](../api/python-spectral.md) /
-    [measurement API](../api/python-measure.md) /
+- [Python: spectral API][doppler.spectral] /
+    [measurement API][doppler.measure] /
     [analyzer API][doppler.analyzer]

@@ -117,4 +117,4 @@ python -m doppler.examples.delay_doppler_batch_demo
 
 See the [Delay-Doppler Search guide](../guide/delay-doppler.md) for the map,
 the batch calls and the bank in words, and the
-[Spectral API](../api/python-spectral.md) for every method.
+[Spectral API][doppler.spectral] for every method.

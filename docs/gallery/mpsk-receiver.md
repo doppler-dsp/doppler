@@ -284,7 +284,7 @@ spinning still reads a healthy M2M4 while EVM collapses. A healthy M2M4 beside a
 collapsed EVM therefore says *the amplitudes are fine, the phase is not* — which
 no error rate could have told you. At a real lock the two agree, both near
 the stream's Es/N0. In Python the EVM is
-[`ber_evm_db`](../api/python-ber.md); in C, both helpers are shared in
+[`ber_evm_db`][doppler.ber.ber_evm_db]; in C, both helpers are shared in
 `native/tests/dp_sym_test.h`.
 
 ## DSSS-MPSK — chain after a despreader

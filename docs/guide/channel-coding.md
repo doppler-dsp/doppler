@@ -180,7 +180,7 @@ five.
 
 There is no `interleave_soft`, because a transmitter has bits, not LLRs.
 `deinterleave_soft` exists because a receiver has both: an outer decoder wants
-[`DsssBurstReceiver.llrs`](../api/python-dsss.md) de-interleaved *before* it runs, and
+[`DsssBurstReceiver.llrs`][doppler.dsss.DsssBurstReceiver] de-interleaved *before* it runs, and
 slicing to hard decisions first throws away the confidence the soft output
 carries.
 

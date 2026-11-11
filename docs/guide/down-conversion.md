@@ -1,12 +1,14 @@
-# DDC
+---
+description: "Tune, filter and decimate to baseband: which down-converter to use, retuning and phase continuity, matched mode, the real-input Ddcr, streaming without allocation, and threading."
+---
+
+# Down-Conversion
 
 Digital Down-Converter — shifts a carrier to baseband and decimates in
 one call, backed by `dp_ddc_state_t` and `dp_ddcr_state_t`.
 
 Source:
 [`src/doppler/ddc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/ddc/__init__.py)
-
-______________________________________________________________________
 
 ## Which class to use
 
@@ -23,8 +25,6 @@ different constructor over the same C state:
 All four produce CF32 IQ at the decimated output rate and share the same
 processing methods (`Ddcr`/`MatchedDdcr` also have `close()`), and take an optional caller-provided output buffer (`y = ddc.execute(x, out)`)
 when allocation and buffer reuse need to be explicit.
-
-______________________________________________________________________
 
 ## `DDC` — complex input
 
@@ -77,7 +77,7 @@ cascade's **terminal stage carries the matched filter** instead of the default
 Kaiser anti-alias bank, so the same dot products that mix and decimate also
 matched-filter, and that stage's polyphase arm becomes the fractional timing
 delay a loop steers. It is a straight passthrough to
-[`RateConverter`](python-resample.md) — the DDC adds the mix in front of it.
+[`RateConverter`][doppler.resample.RateConverter] — the DDC adds the mix in front of it.
 `MatchedDdcr` is the identical flavor of the real-input chain.
 
 ```python
@@ -140,10 +140,8 @@ the same reason a real receiver's carrier-loop bandwidth is a small fraction of
 the symbol rate.
 
 The timing port is the other half: wrap a detector and a loop filter around
-`rate_ctrl` and you have [`track.RateSync`](python-track.md), which does exactly
+`rate_ctrl` and you have [`track.RateSync`](../api/python-track.md), which does exactly
 that over a `RateConverter`.
-
-______________________________________________________________________
 
 ## `Ddcr` — real input (Architecture D2)
 
@@ -177,24 +175,6 @@ x = np.random.randn(4096).astype(np.float32)   # real ADC samples
 out = np.empty(len(x), dtype=np.complex64)     # caller buffer (reuse across calls)
 y = ddcr.execute(x, out)    # CF32 view out[:n_out], len(y) = 4096 * 0.25 = 1024 (rate is fs_out / fs_in)
 ```
-
-______________________________________________________________________
-
-::: doppler.ddc.DDC
-
-______________________________________________________________________
-
-::: doppler.ddc.MatchedDDC
-
-______________________________________________________________________
-
-::: doppler.ddc.Ddcr
-
-______________________________________________________________________
-
-::: doppler.ddc.MatchedDdcr
-
-______________________________________________________________________
 
 ## `Ddcr` usage patterns
 
@@ -313,208 +293,4 @@ out = np.empty(4096, dtype=np.complex64)
 with Ddcr(-0.7, 0.25) as ddcr:      # state released on exit
     y = ddcr.execute(x, out)
     process(y)
-```
-
-______________________________________________________________________
-
-## DDC Architecture
-
-A DDC shifts a signal from a carrier frequency to DC and optionally
-decimates it. This section documents the practical architectures, the
-trade-offs between them, and measured throughput so you can pick the
-right one.
-
-### Signal chain overview
-
-```
-                    ┌─────────────────────────────────────────────┐
-  in (fs_in) ──────►│  LO mix ──► [HB ÷2] ──► polyphase resample │──► out (fs_out)
-                    └─────────────────────────────────────────────┘
-```
-
-Three stages, each optional or reorderable:
-
-| Stage              | C type            | Purpose                                        |
-| ------------------ | ----------------- | ---------------------------------------------- |
-| LO mix             | `dp_lo_state_t`   | Multiply by e^{j2πf_n·t} — shift carrier to DC |
-| Halfband ÷2        | `hbdecim_state_t` | Cheap factor-of-2 decimation                   |
-| Polyphase resample | `resamp_state_t`  | Continuously-variable rate conversion          |
-
-`dp_ddc_create(norm_freq, rate)` chains the LO and a RateConverter with built-in
-Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
-rejection); `dp_ddc_create_matched(norm_freq, rate, pulse, …)` puts a
-matched-filter bank on the terminal stage instead — see
-[Matched mode](#matched-mode).
-
-______________________________________________________________________
-
-### Architecture A — Plain DDC (default)
-
-```
-CF32 in ──► LO ──► RateConverter (0.4/0.6, rate r) ──► CF32 out
-```
-
-`dp_ddc_create(norm_freq, rate)` with built-in Kaiser bank. No design step
-required. The RateConverter already picks a CIC + halfband + polyphase
-cascade for large ratios, so this is the halfband-first structure below
-whenever it is cheaper.
-
-**Best for:** prototype, any decimation rate, single-stage simplicity.
-
-______________________________________________________________________
-
-### Architecture B — Halfband → DDC (complex input)
-
-```
-CF32 in ──► HB ÷2 ──► LO ──► polyphase resample (0.4/0.6, rate 2r) ──► CF32 out
-```
-
-The halfband (N=19, 60 dB) decimates by 2 first. The resampler then runs
-on half the samples. Architecture B wins at every decimation rate.
-
-**Best for:** complex IQ input, decimation ≥ 2×. Dominant choice.
-
-______________________________________________________________________
-
-### Architecture D2 — Real input: zero-multiply band capture + fine NCO
-
-```
-Real in ──► Modified HB (fs/4 shift embedded) ──► Fine LO (at fs/2) ──► resample ──► CF32 out
-              zero extra multiplications              arbitrary carrier tune
-```
-
-This is the optimal architecture for any real ADC input. Mixing by
-fs/4 then decimating by 2 is a lossless real-to-complex conversion —
-the fs/4 mix multiplies by `{1, −j, −1, +j, …}` (sign negations only,
-no multiplications) and is embedded into the halfband tap weights at
-construction time.
-
-**Fine NCO frequency convention:** `norm_freq = -(2*f_tone + 0.5)`
-The 0.5 cancels the halfband's embedded fs/4 shift.
-
-**Cost vs Architecture D (NCO → complex HB → polyphase resample):**
-
-| Stage            | Arch D             | Arch D2                  |
-| ---------------- | ------------------ | ------------------------ |
-| Full-rate NCO    | 2 MACs             | —                        |
-| Halfband         | N/2 MACs (complex) | N/4 MACs (real modified) |
-| Fine NCO at fs/2 | —                  | 1 MAC (effective)        |
-| **Total (N=19)** | **≈ 11.5 MACs**    | **≈ 5.75 MACs**          |
-
-That is the MAC count; measured, the front end gains far less (1.04–1.40×,
-see above), because multiplies are not what this path pays for. `Ddcr`
-implements Architecture D2.
-
-______________________________________________________________________
-
-### Architecture E — Coarse/fine LO split (high decimation)
-
-For decimation > 38×, embedding the coarse LO into the polyphase filter
-taps and running only a fine correction LO at the output rate becomes
-worthwhile.
-
-**Break-even:** D ≈ 38× decimation.
-
-| Decimation | Arch B MACs/input | Arch E MACs/input |          Δ |
-| ---------: | ----------------: | ----------------: | ---------: |
-|        10× |               9.6 |              15.8 |     B wins |
-|        38× |               4.0 |               4.2 | break-even |
-|       100× |               2.8 |               1.6 | **E +43%** |
-
-Implementation requires a complex-coefficient polyphase variant — planned;
-not yet in the library.
-
-______________________________________________________________________
-
-### Performance of the candidate architectures (a 2026-05-17 record)
-
-!!! note "A dated design study, not the shipped DDC's throughput"
-
-    These numbers come from the architecture comparison made when the
-    library began (2026-05-17), before `DDC` moved onto `RateConverter`. No
-    script in the tree reproduces them, and architectures A and C were never
-    shipped. For the shipped DDC's throughput, measured on every release,
-    see "Down-converter, decimate by 2" on
-    [the benchmarks page](../benchmarks.md).
-
-Block = 65536 samples × 200 iterations, M=3 N=19, Release build, x86-64.
-
-Architecture C is measured here but has no section above, since B beats it
-at every rate. It is B's order reversed, a wide-band (0.2/0.8) resample at
-rate 2r *before* the halfband:
-`LO ──► polyphase resample (0.2/0.8, rate 2r) ──► HB ÷2`. The
-wider transition band needs fewer taps, but the resampler emits twice the
-samples and the halfband must then process all of them.
-
-| Rate | Decimation |   Arch A |        Arch B |   Arch C |
-| ---- | ---------- | -------: | ------------: | -------: |
-| 0.50 | 2×         | 61 MSa/s | **335 MSa/s** | 70 MSa/s |
-| 0.25 | 4×         | 70 MSa/s |  **76 MSa/s** | 62 MSa/s |
-| 0.10 | 10×        | 72 MSa/s |  **97 MSa/s** | 74 MSa/s |
-| 0.01 | 100×       | 85 MSa/s | **116 MSa/s** | 80 MSa/s |
-
-Architecture B wins at every rate.
-
-______________________________________________________________________
-
-### Decision guide
-
-```
-Is your input real (single ADC channel)?
-  YES ─► Ddcr / Architecture D2
-  │        the real-input path (cheaper in a whole receiver, not ~2×)
-  │        └─ Decimation > 38× after the HB?
-  │              ─► Architecture E (planned): embed LO into polyphase taps
-  │
-  NO (complex IQ)
-  │
-  ├─ Total decimation = 1× ─► DDC without resampler (plain NCO mix)
-  ├─ Total decimation 2× – 38× ─► DDC / Architecture B (dominant)
-  └─ Total decimation > 38× ─► Architecture E (planned)
-```
-
-______________________________________________________________________
-
-### C code examples
-
-#### Architecture A — one call
-
-```c
-#include <doppler/ddc/ddc_core.h>
-
-int main(void)
-{
-  float _Complex in[4096]  = { 0 };   /* fill with your samples */
-  float _Complex out[4096];
-
-  dp_ddc_state_t *ddc = dp_ddc_create(-0.1, 0.25);
-  size_t n = dp_ddc_execute(ddc, in, 4096, out, 4096);
-  (void)n;
-  dp_ddc_destroy(ddc);
-  return 0;
-}
-```
-
-#### Architecture B — halfband then DDC
-
-`dp_hbdecim_create` needs real Kaiser-designed halfband taps (see
-`native/src/resample/resample_ext_extra.c` for the reference composition —
-tap design is Python-side, via `kaiser_window`), so this sketch omits that
-step to keep the shape of the composition visible:
-
-<!-- docs-snippet: skip=illustrative composition sketch; dp_hbdecim_create needs Kaiser-designed taps (Python-side), omitted here to keep the composition shape visible -->
-
-```c
-hbdecim_state_t *hb  = dp_hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
-dp_ddc_state_t     *ddc = dp_ddc_create(norm_freq, rate * 2.0);
-
-float _Complex mid[num_in / 2 + 32];
-float _Complex out[num_in];
-
-size_t n_mid = dp_hbdecim_execute(hb, in, num_in, mid,
-                               sizeof mid / sizeof mid[0]);
-size_t n_out = dp_ddc_execute(ddc, mid, n_mid, out, num_in);
-
-dp_hbdecim_destroy(hb);
-dp_ddc_destroy(ddc);
 ```

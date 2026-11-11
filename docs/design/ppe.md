@@ -8,7 +8,7 @@ description: "the feedforward frequency/chirp-rate estimate a burst gets exactly
 coherent two-dimensional search rather than a loop, one knob spanning
 near-static Doppler through severe LEO chirp, and a transform four times
 larger than its input. Not how to use it: that is the
-[API reference](../api/python-dsss.md) and the object's own certification,
+[API reference](../guide/dsss-receivers.md) and the object's own certification,
 `src/doppler/dsss/tests/validation/ppe/results.md`, which is where every
 number quoted below was measured.
 

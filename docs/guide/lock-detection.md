@@ -29,7 +29,7 @@ This codebase has exactly two designs, and they don't mix:
 
 Everything below is the first class. `BurstDespreader`'s `lock_stat`
 / `stat_n` stay a deliberately different shape — see
-[`docs/api/python-dsss.md`](../api/python-dsss.md).
+[DSSS Receivers](dsss-receivers.md).
 
 ## The consistency table
 

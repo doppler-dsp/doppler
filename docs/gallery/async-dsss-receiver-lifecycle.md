@@ -6,7 +6,7 @@ description: "one packaged receiver through an emitter's life: searched, tracked
 
 ![State and symbol lock, the lock metric, and the carrier the receiver handed over and tracked, through noise, arrival, a fade, a departure and a return](../assets/async_dsss_receiver_lifecycle.png)
 
-One [`dsss.AsyncDsssReceiver`](../api/python-dsss.md) follows one continuous DSSS
+One [`dsss.AsyncDsssReceiver`][doppler.dsss.AsyncDsssReceiver] follows one continuous DSSS
 emitter from the first code epoch it searches to the moment the emitter leaves,
 and it acquires the emitter again when the emitter returns. The receiver is fed
 one code epoch per push, with its telemetry attached. It reports its own state,
@@ -71,7 +71,7 @@ sigma that [`wfm_awgn_amplitude`](../api/python-wfmgen.md) gives for the Es/N0.
 The receiver is built with the caller's rates, carrier uncertainty and release
 interval. `set_telemetry(tlm, "rx")` registers every probe the receiver and its
 loops publish, under `rx.`, and a
-[`MemoryCapture`](../api/python-telemetry.md#capture-and-memorycapture-losslessness-you-can-prove)
+[`MemoryCapture`][doppler.telemetry.MemoryCapture]
 keeps every record. `set_now()` stamps each push with its first sample. The caller
 resets the receiver when it reports `lost`. Each probe reports at its own rate, so
 `per_push()` turns the records into one row a push: a probe's last value at or

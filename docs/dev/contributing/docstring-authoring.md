@@ -281,8 +281,19 @@ owes for every public class.
 | **Built-ins** `reset`/`step`/`steps` | `@brief` on that C declaration                                                 | A real sentence, not the scaffold.                                                                                                                                                                                                                                                                                                                                  |
 | **Property** (field)                 | manifest `doc=` today; the struct field's trailing `/**<` **not yet** (jm#671) | See [struct fields](#struct-fields) below.                                                                                                                                                                                                                                                                                                                          |
 | **Module free function**             | the module-header function block                                               | Same as a method.                                                                                                                                                                                                                                                                                                                                                   |
-| **Module docstring**                 | `[module.<name>] doc` in the jm manifest (jm gh-645)                           | One paragraph naming the task the module serves, then a doctest `Examples` section.                                                                                                                                                                                                                                                                                 |
+| **Module docstring**                 | `[module.<name>] doc` in the jm manifest (jm gh-645)                           | The opening of the module's reference page, so it is where a module overview goes: one paragraph naming the task the module serves, then a doctest `Examples` section. The examples are run by `test_module_docstrings.py` (in `make test-python`); see below.                                                                                                      |
 | **Structseq records**                | *no header source yet*                                                         | Need a new upstream surface; not authorable in the header today.                                                                                                                                                                                                                                                                                                    |
+| **Enum tables** (`STYPE`, …)         | *no source yet* (just-makeit#2606)                                             | A published `[[enum]]` table renders with no description until jm adds a `doc` key. Do not hand-edit the stub to give it one; the next `jm apply` would drop it.                                                                                                                                                                                                    |
+
+**The module docstring is a page, and its examples are tests.** Since the
+hand-written API pages were retired (#3000), the reference page for a
+module is generated: its `[module.<name>] doc` opens the page, and every
+class and function in `__all__` follows. An overview, a how-it-fits-together
+paragraph or a short tour of the module belongs here; contract text for one
+object belongs in its C header, and a worked walk-through belongs in a
+guide. `src/doppler/tests/test_module_docstrings.py` runs every package's
+module-doc `Examples`; it found three stale ones when it was added, and an
+example that drifts now fails `make test-python`.
 
 ______________________________________________________________________
 

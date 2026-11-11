@@ -148,6 +148,35 @@ description: "One line on what the page is for."
 There is no index bullet and no nav entry to add. A new top-level section is
 the one edit to `docs/.nav.yml`.
 
+## Linking to the reference
+
+A guide, gallery or design page links an API entry with a cross-reference,
+not a path:
+
+```markdown
+A pool runs N receivers off one search: see
+[AsyncDsssPool][doppler.dsss.AsyncDsssPool].
+```
+
+The build resolves the identifier to the entry's anchor, so the link
+survives a page move, and the entry lists the page among its backlinks.
+Three rules:
+
+- **Name the package path**, the name a user imports: `doppler.dsss.Acquirer`,
+    never `doppler.dsss.orchestrator.Acquirer`. The reference renders each
+    package's `__all__`, so only the package path has an entry. A module's
+    own entry is `[doppler.resample][doppler.resample]`.
+- **Leave the brackets alone.** mdformat escapes a reference link with no
+    definition in the page into literal `\[text\]`, which renders as text
+    with no warning. `.mdformat.toml` sets `ignore_missing_references` so
+    `make format` does not, and `check_site_links` fails a cross-reference
+    left as page text (code spans and blocks, where a page may show the
+    syntax, are not read).
+- **An unknown identifier fails the strict build**, so a typo cannot ship.
+
+From outside the docs, an entry's URL is
+`reference/doppler/<module>/#doppler.<module>.<Name>`.
+
 ## README sync (`gen_readme.py`)
 
 `docs/index.md` and `README.md` deliberately show the identical landing

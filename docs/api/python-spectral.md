@@ -1,14 +1,15 @@
 # Python Spectral Analysis API
 
 The `doppler.spectral` module is a single CPython extension over the C `spectral`
-core. Its FFT engines are documented on the [FFT page](python-fft.md); this page
+core. Its FFT engines are [`FFT`][doppler.spectral.FFT] and
+[`FFT2D`][doppler.spectral.FFT2D] in the generated reference; this page
 covers the rest of the module — **streaming spectrograms** (`Spectrogram`), the
 **averaging PSD** (`PSD`), and the **spectral helper functions** (windows,
 magnitude, peak-finding).
 
 Correlation moved to its own module: every correlator and streaming detector
 is `doppler.correlation.Correlator`, on the
-[Correlation page](python-correlation.md).
+[Correlation page][doppler.correlation].
 
 For the statistical-detection side (probability of detection, thresholds, dwell
 sizing), see the [Detection Statistics page](python-detection.md). For how

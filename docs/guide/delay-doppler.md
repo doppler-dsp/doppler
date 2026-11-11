@@ -204,7 +204,7 @@ ______________________________________________________________________
 
 ## See also
 
-- [Python: Correlation API](../api/python-correlation.md): `Correlator`,
+- [Python: Correlation API][doppler.correlation]: `Correlator`,
     every method and property
 - [The Correlator](correlator.md): the class's other flavors, and which
     knobs pick each

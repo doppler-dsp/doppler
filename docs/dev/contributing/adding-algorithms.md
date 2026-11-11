@@ -80,7 +80,7 @@ Five kinds of page carry it, and only one of them is ours:
 | guide   | "how do I use it?"    | `docs/guide/`                                         | users                   |
 | gallery | "show me it working"  | `docs/gallery/`, its figure drawn by a tested example | users                   |
 | example | "let me try it"       | `src/doppler/examples/` and `native/examples/`        | users                   |
-| API     | "look it up"          | `docs/api/`, rendered from the header's Doxygen       | users                   |
+| API     | "look it up"          | the generated reference, from the header's Doxygen    | users                   |
 | design  | "why is it this way?" | `docs/design/`                                        | us; power users welcome |
 
 **A design page is not a user doc.** It records why the object is what it
@@ -452,7 +452,7 @@ backs its speed claims. Every row is owed for **every public class**:
 
 | you owe                                  | it lives in                                             | kept true by                                         |
 | ---------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------- |
-| an **API entry** a caller can work from  | the header's Doxygen, rendered on `docs/api/<mod>.md`   | `make user-docs-check`, `make test-stubs`            |
+| an **API entry** a caller can work from  | the header's Doxygen, rendered in the Python reference  | `check_surface.py`, `make test-stubs`                |
 | a **section in a guide**                 | `docs/guide/`                                           | `make user-docs-check`, `make test-snippets`         |
 | a **runnable example**, C **and** Python | `src/doppler/examples/`, `native/examples/`             | `make user-docs-check`, `make test-examples-python`  |
 | a **gallery decision**, in writing       | `GALLERY_SCRIPTS`, or `src/doppler/examples/.no-figure` | `make user-docs-check`, `make gallery-scripts-check` |
@@ -462,9 +462,9 @@ backs its speed claims. Every row is owed for **every public class**:
 `__all__`, so a new class is held to this the moment it exists. Gaps that
 predate the rule are listed in `docs/.user-docs-exempt`, which only shrinks.
 
-**An API entry a caller can work from.** The class has a `:::` directive or
-a heading on its module's API page, and its docstrings, written once in the
-header, answer what a caller has to know without reading the C: the
+**An API entry a caller can work from.** The class renders in the generated
+Python reference by being in its package's `__all__` (`check_surface.py`
+holds that), and its docstrings, written once in the header, answer what a caller has to know without reading the C: the
 [caller checklist](docstring-authoring.md#caller-checklist) (array axes,
 shapes, ownership, the state a call touches, and its refusals in the face's
 own words). [Docstring Authoring](docstring-authoring.md) owns how; each

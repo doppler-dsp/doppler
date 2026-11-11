@@ -11,7 +11,7 @@ The composed form of `Correlator -> refine -> BurstDemod` (the
 receive chain, in one C object:
 [`DsssBurstReceiver`](../api/python-dsss.md). Its continuous counterpart is
 [`DsssReceiver`](dsss-receiver.md). Each stage on its own is its API page:
-[`Correlator`](../api/python-correlation.md),
+[`Correlator`][doppler.correlation.Correlator],
 [`BurstDemod`](../api/python-dsss.md).
 
 This page is the end-to-end walkthrough: a frame **description**, the burst

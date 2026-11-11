@@ -79,7 +79,7 @@ w.nfft     # 8192   — zero-padded transform length (sets the bin spacing)
     With the default `full_scale=1.0`, a unit-amplitude tone peaks at 0 dB. For an
     ADC, pass **`bits=B`** — it sets `full_scale = 2**(B-1)` so codes read
     directly in dBFS. `bits` is the single definition of that conversion: the
-    measurement analyzers and [`Specan`](../api/python-analyzer.md) take the same
+    measurement analyzers and [`Specan`][doppler.analyzer.Specan] take the same
     `bits`/`full_scale` and read the reference back from this core.
 
 ### Feed data — real or complex, segmented and averaged
@@ -272,7 +272,7 @@ decimation rate (`fs_out = span·1.28`), the **RBW** picks the window length
 requested RBW), and the display is cropped to the central ±span/2 band. So you
 ask for "500 Hz RBW over a 200 kHz span" and never touch `beta` or `n`. This is
 the same C object that backs the [`doppler.specan`](../specan/index.md) live
-display — see the [analyzer API page](../api/python-analyzer.md) for the full
+display — see the [analyzer API page][doppler.analyzer] for the full
 reference.
 
 ______________________________________________________________________

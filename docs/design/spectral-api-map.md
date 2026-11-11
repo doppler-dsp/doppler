@@ -69,4 +69,4 @@ labelled as such.
 - [Measurement Suite design guide](measurement-suite.md)
 - [Python: spectral API](../api/python-spectral.md) /
     [measurement API](../api/python-measure.md) /
-    [analyzer API](../api/python-analyzer.md)
+    [analyzer API][doppler.analyzer]

@@ -34,7 +34,7 @@ NRZ (`0 → +1`, `1 → -1`), one sample per chip; anything not exactly `±1`
 is refused.
 
 Every knob after `ref` is a keyword. The ones a flavor reads, and their
-defaults, are on the [API page](../api/python-correlation.md#doppler.correlation.Correlator).
+defaults, are on the [API page][doppler.correlation.Correlator].
 
 ## A map: `execute`
 
@@ -199,7 +199,7 @@ surface: only the continuous search (framing='continuous') has it; Correlator.fl
 ```
 
 Ask `flavor` before reading a member when the object came from somewhere
-else; the [API page](../api/python-correlation.md#doppler.correlation.Correlator)
+else; the [API page][doppler.correlation.Correlator]
 names the flavors that serve each member.
 
 ## From C
@@ -244,7 +244,7 @@ flavor is refused by another. See [Checkpoint & Resume](state-serialization.md).
 
 ## See also
 
-- [Python: Correlation](../api/python-correlation.md) — every method and
+- [Python: Correlation][doppler.correlation] — every method and
     property, and which flavors serve it
 - [Correlation and Detection](../gallery/corr.md) — the figure
     `corr_demo.py` draws

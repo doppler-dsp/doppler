@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: the dated runs behind the design page under the same section numbers: the pool's lock, arrival and cost runs (§6, §9), the pinned bench and the search profile, and every step of the receiver's build (§12) -->
+---
+description: "the dated runs behind the design page under the same section numbers: the pool's lock, arrival and cost runs (§6, §9), the pinned bench and the search profile, and every step of the receiver's build (§12)"
+---
 
 # AsyncDsssReceiver and AsyncDsssPool — the measurement record
 

@@ -1,4 +1,6 @@
-<!-- domain: cvt; summary: the three cvt formats overlaid at identical noise floor. -->
+---
+description: "the three cvt formats overlaid at identical noise floor."
+---
 
 # cvt Quantization Noise
 

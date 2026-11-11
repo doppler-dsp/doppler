@@ -1,4 +1,6 @@
-<!-- domain: spectral; summary: four RRC channels measured with `PSD` and `AccTrace`. -->
+---
+description: "four RRC channels measured with `PSD` and `AccTrace`."
+---
 
 # Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`
 

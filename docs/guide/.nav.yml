@@ -1,0 +1,5 @@
+# wfmgen/ and wfm-io/ are tools, nav'd under Tools (docs/.nav.yml).
+nav:
+  - Guides: index.md
+  - glob: "*.md"
+    ignore_no_matches: true

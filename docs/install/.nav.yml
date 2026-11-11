@@ -1,0 +1,10 @@
+nav:
+  - Install: index.md
+  - Python: python.md
+  - C Library: c.md
+  - Build from Source: source.md
+  - Rust: rust.md
+  - Docker: docker.md
+  - NATS Broker: broker.md
+  - glob: "*"
+    ignore_no_matches: true

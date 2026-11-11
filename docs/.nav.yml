@@ -1,0 +1,27 @@
+# The site navigation (#3000). zensical builds it from this file and one
+# `.nav.yml` per section directory (awesome-nav); mkdocs.yml has no `nav:`.
+# The top level is curated; every section below it is a directory, and each
+# directory's own `.nav.yml` ends in a glob, so a new page appears in the
+# nav by existing -- nothing to list.
+nav:
+  - Home: index.md
+  - Start Here: start-here.md
+  - Python Quick Start: quickstart.md
+  - C Quick Start: quickstart-c.md
+  - Architecture: architecture.md
+  - Install: install
+  - Guides: guide
+  - Gallery: gallery
+  - Examples: examples
+  - Example Projects: example-projects
+  - API Reference: api
+  - Python API: reference
+  - Tools:
+      - Waveform Generator (wfmgen): guide/wfmgen
+      - Capture I/O: guide/wfm-io
+      - Spectrum Analyzer: specan/index.md
+      - CLI & Pipelines: cli
+  - Internals:
+      - Design: design
+      - Benchmarks: benchmarks.md
+      - Contributing: dev

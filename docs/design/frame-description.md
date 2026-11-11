@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: a frame as a list of fields and a list of stages, each carrying the span it covers: why a chain of optional transforms cannot express CCSDS, and how a caller adds a stage doppler has never heard of -->
+---
+description: "a frame as a list of fields and a list of stages, each carrying the span it covers: why a chain of optional transforms cannot express CCSDS, and how a caller adds a stage doppler has never heard of"
+---
 
 # A Frame as a Description
 

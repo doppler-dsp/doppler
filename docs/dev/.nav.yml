@@ -1,0 +1,7 @@
+# archive/ is history, linked from the pages that cite it, not nav'd.
+nav:
+  - Contributing: index.md
+  - Contributing guide: contributing
+  - Maintainer internals:
+      - glob: "*.md"
+        ignore_no_matches: true

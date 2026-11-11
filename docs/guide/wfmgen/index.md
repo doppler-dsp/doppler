@@ -1,5 +1,3 @@
-<!-- domain: wfm -->
-
 # Waveform Generator — `wfmgen`
 
 doppler ships a C-first **waveform generator**: one declarative synth engine

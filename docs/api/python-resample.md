@@ -392,13 +392,8 @@ ______________________________________________________________________
         - Farrow
         - kaiser_beta
         - kaiser_num_taps
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [CIC Decimation Filter](../gallery/cic.md), [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md), [Farrow Interpolator](../gallery/farrow.md), [RateConverter — Automatic Cascade Selection](../gallery/rate-converter.md)
-**Design** — [Quantization Design](../design/QUANTIZATION.md), [Continuously Variable Resampler](../design/RESAMPLER.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver and AsyncDsssPool — continuous DSSS, from spec to object](../design/async-dsss-receiver.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [MPSK Receiver](../design/mpsk.md), [Waveform amplitude & composition](../design/wfmgen-composition.md)
-**Contributing** — [Python Extension Module Layout](../dev/contributing/module-layout.md), [Validation log](../dev/contributing/validation-log.md)
-
-<!-- related-pages:end -->
+        - cic_design
+        - cic_min_order
+        - cic_alias_rejection
+        - cic_passband_droop
+        - cic_precision_bits

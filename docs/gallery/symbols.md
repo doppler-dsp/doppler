@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: pi/4-QPSK and 16-QAM from an arbitrary complex stream. -->
+---
+description: "pi/4-QPSK and 16-QAM from an arbitrary complex stream."
+---
 
 # type="symbols" — Bring Your Own Constellation
 

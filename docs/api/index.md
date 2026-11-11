@@ -6,9 +6,9 @@ The C layer is the source of truth — every algorithm is implemented here once.
 
 - [**C API Reference**](../c-api/index.md) — file list, data structures, function index
 
-## A-Z
+## Python reference
 
-- [**A-Z index**](a-z.md) — every public class and function, alphabetically, with its domain, API entry, guides, gallery pages and examples (generated; see also the [Domains](../domains/index.md))
+- \[**Python API**\][doppler] — every public class, function and constant, one page per module, generated from the package's `__all__`
 
 ## Python API
 

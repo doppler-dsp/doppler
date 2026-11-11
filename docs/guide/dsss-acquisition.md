@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: acquiring a spread-spectrum preamble's code phase and Doppler with the burst search, `Correlator(framing="burst")`, and continuous signals with the continuous search -->
+---
+description: "acquiring a spread-spectrum preamble's code phase and Doppler with the burst search, `Correlator(framing=\"burst\")`, and continuous signals with the continuous search"
+---
 
 # DSSS Burst Acquisition
 

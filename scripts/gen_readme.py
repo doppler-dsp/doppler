@@ -13,9 +13,8 @@ is the single source of truth: this script extracts everything after
 its ``<!-- readme-sync:source-start -->`` marker (tagline, navigation,
 Why, Performance, Try it, Docs, Licensing -- through end of
 file), rewrites it for GitHub rendering, and writes the result into
-README.md between marker comments -- same idiom as
-``gen_related_pages.py``'s ``<!-- related-pages:start -->``/``:end``
-block. The badge header is generated too, from the block between
+README.md between ``<!-- readme-sync:start -->``/``:end`` marker
+comments. The badge header is generated too, from the block between
 ``<!-- badges:start -->`` and ``<!-- badges:end -->`` in docs/index.md:
 two hand-kept copies of one badge list drift (the README's Python range
 was a literal the docs copy had to repeat). The two faces differ in only

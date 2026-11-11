@@ -1,4 +1,6 @@
-<!-- domain: spectral; summary: pre-design study for #2683/#2670: which stages a bank of carrier and rate hypotheses shares, fractional carrier offsets mixed per fraction on an L = 4 grid, and the cost each ordering saves, timed in C -->
+---
+description: "pre-design study for #2683/#2670: which stages a bank of carrier and rate hypotheses shares, fractional carrier offsets mixed per fraction on an L = 4 grid, and the cost each ordering saves, timed in C"
+---
 
 # Corr2D hypothesis bank: operation order
 

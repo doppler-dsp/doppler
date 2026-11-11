@@ -1,4 +1,6 @@
-<!-- domain: track; summary: `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context. -->
+---
+description: "`Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context."
+---
 
 # Full-Chain Lock-Up
 

@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: a name table's ORDER is the C enum value, so a second copy mis-maps a flag instead of failing: what owns the tables, and the gate that holds the manifest, the header and the C enums to each other -->
+---
+description: "a name table's ORDER is the C enum value, so a second copy mis-maps a flag instead of failing: what owns the tables, and the gate that holds the manifest, the header and the C enums to each other"
+---
 
 # One home for the waveform enum tables
 

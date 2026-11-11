@@ -125,11 +125,3 @@ other.set_state(blob)
 ______________________________________________________________________
 
 ::: doppler.impairment.DopplerChannel
-
-## Related pages
-
-<!-- related-pages:start -->
-
-**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [AsyncDsssPool: ten emitters through six receivers](../gallery/async-dsss-pool-scene.md), [AsyncDsssReceiver: the specification link](../gallery/async-dsss-receiver-spec.md), [Doppler Channel — a Doppler Profile Driven by a Cosine](../gallery/doppler-channel-profile.md), [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md)
-
-<!-- related-pages:end -->

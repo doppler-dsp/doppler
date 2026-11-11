@@ -296,7 +296,7 @@ RUFF_PATHS = .
 # each object's results.md, written by that folder's own validate.py, so
 # reformatting it would drift against the next regeneration. vendor/ is not
 # ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/domains/|docs/api/a-z\.md$$|docs/example-projects/|docs/guide/wfmgen/options\.md$$|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/example-projects/|docs/guide/wfmgen/options\.md$$|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/(.*/)?tests/validation/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
@@ -1231,10 +1231,7 @@ define DOCS_CHECK_PRE_CMDS
 $(UV) run python scripts/check_api_docs.py
 $(UV) run python scripts/bench_report.py --page --out docs/benchmarks.md --check
 $(UV) run python scripts/check_docstring_coverage.py --check
-$(UV) run python scripts/check_nav_index.py
 $(UV) run python scripts/check_wfmgen_flag_docs.py
-$(UV) run python scripts/gen_related_pages.py --check
-$(UV) run python scripts/gen_domains.py --check
 $(UV) run python scripts/gen_example_projects.py --check
 $(MAKE) -s user-docs-check USER_DOCS_FLAGS=--no-ratchet
 $(UV) run python scripts/gen_readme.py --check
@@ -1292,6 +1289,7 @@ docs-invariants: ## docs-check's fast invariants, no site build (pre-commit)
 
 define DOCS_CHECK_POST_CMDS
 $(UV) run python scripts/check_site_links.py
+$(UV) run python scripts/check_nav_reach.py
 $(UV) run python scripts/check_surface.py --no-ratchet
 endef
 
@@ -3091,7 +3089,7 @@ gen-c-api-run: ## gen-c-api proper (re-entered with CI's doxygen on PATH)
 
 # docs/c-api/ is GENERATED and COMMITTED, and until now it was the one
 # generated tree with no --check behind it: `docs-drift-check` covers
-# gen_related_pages / gen_readme / gen_install_scripts / gen_validation_log
+# gen_readme / gen_install_scripts / gen_validation_log
 # and stops there. It drifted, exactly as an ungated generated tree does --
 # 22 pages, including `util__core_8h.md` missing `ema_step` and
 # `ema_alpha_decim` from the EMA primitive campaign, which merged with its C
@@ -3665,10 +3663,9 @@ ifndef VERSION
 endif
 	@scripts/release-notes.sh "$(VERSION)"
 
-# Regenerates every generated doc region: the "## Related pages" blocks on
-# docs/api/*.md, README.md's synced body from docs/index.md, the per-distro
-# install scripts from bootstrap.toml, and the release version stamped into
-# doc-version regions.
+# Regenerates every generated doc region: README.md's synced body from
+# docs/index.md, the per-distro install scripts from bootstrap.toml, and the
+# release version stamped into doc-version regions.
 # NOT part of docs-relink, and not on any pull request, for one reason: this
 # is the only generator whose input is off the machine. `--write` reads the
 # live issue list through `gh`, and the drift it can find is made by filing
@@ -3728,8 +3725,6 @@ wfmgen-flag-matrix: build ## Regenerate native/tests/wfmgen_flag_matrix.json
 	$(UV) run python scripts/gen_wfmgen_flag_matrix.py --exe $(WFMGEN_EXE)
 
 docs-relink: ## Regenerate every generated doc region
-	$(UV) run python scripts/gen_related_pages.py --write
-	$(UV) run python scripts/gen_domains.py --write
 	$(UV) run python scripts/gen_example_projects.py --write
 	$(UV) run python scripts/gen_readme.py --write
 	$(UV) run python scripts/gen_install_scripts.py --write
@@ -3738,13 +3733,11 @@ docs-relink: ## Regenerate every generated doc region
 	$(UV) run python scripts/gen_jm_pin.py --write
 	$(UV) run python scripts/gen_changelog_links.py --write
 
-# The pre-push half of docs-relink: the three regions a source edit can drift
+# The pre-push half of docs-relink: the regions a source edit can drift
 # without touching the generated file. The hook dispatches HERE rather than
-# inlining the three commands, so the hook and this target cannot disagree
+# inlining the commands, so the hook and this target cannot disagree
 # about what "drifted" means. If it trips: run `make docs-relink`.
 docs-drift-check: ## Check the generated doc regions are up to date
-	$(UV) run python scripts/gen_related_pages.py --check
-	$(UV) run python scripts/gen_domains.py --check
 	$(UV) run python scripts/gen_example_projects.py --check
 	$(UV) run python scripts/gen_readme.py --check
 	$(UV) run python scripts/gen_install_scripts.py --check

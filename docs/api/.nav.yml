@@ -1,0 +1,7 @@
+nav:
+  - API Reference: index.md
+  - C API: ../c-api/index.md
+  - glob: "*"
+    ignore_no_matches: true
+  - Type System: ../types.md
+  - Memory Management: ../memory_management.md

@@ -1,4 +1,6 @@
-<!-- domain: resample; summary: the fixed-point input budget: DC gain and PAPR headroom -->
+---
+description: "the fixed-point input budget: DC gain and PAPR headroom"
+---
 
 # CIC Decimator — the fixed-point input budget
 

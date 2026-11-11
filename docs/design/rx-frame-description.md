@@ -1,4 +1,6 @@
-<!-- domain: wfm; summary: `BurstDemod` and `DsssBurstReceiver` told the frame instead of its length: the sync word, the frame and burst lengths and the CRC verdict derived from one description, the callers that compute them by hand today, and the order of work -->
+---
+description: "`BurstDemod` and `DsssBurstReceiver` told the frame instead of its length: the sync word, the frame and burst lengths and the CRC verdict derived from one description, the callers that compute them by hand today, and the order of work"
+---
 
 # A Receiver Built from a Frame Description
 

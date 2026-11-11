@@ -1,4 +1,6 @@
-<!-- domain: track; summary: discriminator and loop-filter derivation. -->
+---
+description: "discriminator and loop-filter derivation."
+---
 
 # DLL Code Loop — Theory Validation
 

@@ -56,8 +56,8 @@ SNAPSHOTS = "benchmarks/published"
 ASSETS = "docs/assets"
 
 #: A release may WAIVE an item here, one file per version. OUTSIDE docs/:
-#: every page under docs/ must be linked from the index nearest it
-#: (check_nav_index), and a per-release record would add nav churn for
+#: every page under docs/ appears in the site nav (each section's .nav.yml
+#: ends in a glob), and a per-release record would add nav churn for
 #: something no reader browses to. The gate is
 #: path-granular by design (see `code_changed` for the one narrowing it
 #: already makes), so it cannot see that a change is confined to a platform

@@ -1,4 +1,6 @@
-<!-- domain: impairment; summary: clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies. -->
+---
+description: "clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies."
+---
 
 # Doppler Channel — Clock Doppler as a Propagation Impairment
 

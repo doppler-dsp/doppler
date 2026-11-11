@@ -1,4 +1,6 @@
-<!-- domain: dsss; summary: the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone -->
+---
+description: "the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone"
+---
 
 # `DsssBurstReceiver`: the burst chain, composed in C
 

@@ -1,4 +1,6 @@
-<!-- domain: correlation; summary: a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call. -->
+---
+description: "a delay-Doppler map, a coarse carrier bank and the refine that recovers its straddle loss, plus a batch of hypotheses in one call."
+---
 
 # Delay-Doppler Search
 

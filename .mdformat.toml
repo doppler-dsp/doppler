@@ -1,0 +1,8 @@
+# mdformat reads only this file (not pyproject.toml); `make lint-mdformat`
+# is how it runs.
+#
+# mkdocstrings cross-references (`[text][doppler.mod.Name]`, #3000) have no
+# link definition in the page: autorefs resolves them at build time. Without
+# this, mdformat escapes each one to literal brackets and it renders as text.
+[plugin.mkdocs]
+ignore_missing_references = true

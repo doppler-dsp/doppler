@@ -1,6 +1,10 @@
-# Python Error-Rate Measurement API
+---
+description: "Measure a BER, SER or FER you can defend: stop on errors, detect the alignment, assert on the interval's lower limit, and read EVM against the right floor."
+---
 
-The `doppler.ber` module is the **instrument** for an error rate. An error rate
+# Measuring an Error Rate
+
+[`doppler.ber`][doppler.ber] is the **instrument** for an error rate. An error rate
 is a measurement, and like any measurement it can be confidently wrong — this
 module owns the three things that make it defensible, so no caller has to
 re-derive them:
@@ -58,7 +62,7 @@ excluded from scoring so they cannot also flatter the rate.
 `p_hat`, `lo`, `hi`, `rel`, `conf`, `errors`, `symbols`. The limits are the
 **exact** Gamma/chi-square interval for inverse binomial sampling, not a normal
 approximation, so they stay honest down to a single error; the quantiles come
-from [`detection.det_threshold_noncoherent`](python-detection.md), doppler's own
+from [`detection.det_threshold_noncoherent`][doppler.detection.det_threshold_noncoherent], doppler's own
 inverse regularized incomplete gamma, rather than a second numeric kernel.
 
 Two things the fixed-`N` habit gets wrong and this does not: the naive `r/N` is
@@ -143,27 +147,3 @@ wrong sampling model.
 (0.158, True)
 
 ```
-
-______________________________________________________________________
-
-::: doppler.ber.BerMeter
-
-::: doppler.ber.FrameMeter
-
-::: doppler.ber.BerInterval
-
-::: doppler.ber.ber_theory_ser
-
-::: doppler.ber.ber_theory_ber
-
-::: doppler.ber.ber_esn0_db_for_ser
-
-::: doppler.ber.ber_evm_db
-
-::: doppler.ber.ber_evm_scatter_floor_db
-
-::: doppler.ber.ber_settle_syms
-
-::: doppler.ber.ber_settle_from
-
-::: doppler.ber.ber_lock_symbol

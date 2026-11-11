@@ -119,7 +119,7 @@ enc.steps(x, out=codes)
 
 `ADC(bits, dbfs, dithering)` models an ideal converter: a full-scale sine at
 `dbfs=0.0` spans `±2**(bits-1)` codes. Feed its output straight into
-[`ToneMeasure`](python-measure.md) to recover ENOB ≈ `bits`.
+[`ToneMeasure`][doppler.measure.ToneMeasure] to recover ENOB ≈ `bits`.
 
 ```python
 from doppler.cvt import ADC

@@ -43,7 +43,7 @@ $$
 discards the Q channel. EVM is a plane quantity unless it says otherwise.)
 
 The reference is what the meter reads on a perfect stream,
-[`ber_evm_ideal_db`](../api/python-ber.md): `ber_evm_db` scales its window to
+[`ber_evm_ideal_db`][doppler.ber.ber_evm_ideal_db]: `ber_evm_db` scales its window to
 unit total power, so even an ideal receiver reads a little under −Es/N0
 (−10.31 dB at 10 dB). The script sweeps three operating points over ten
 seeds each:

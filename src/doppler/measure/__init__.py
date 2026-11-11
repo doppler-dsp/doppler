@@ -1,5 +1,16 @@
 """ADC and tone-quality metrics: ToneMeasure, NPRMeasure and IMDMeasure return named records — ENOB, SFDR, SINAD, THD and more — from a single-tone, noise-power-ratio, or two-tone intermodulation capture.
 
+Each component's power is integrated over its window's main lobe (IEEE Std
+1241). All three analyzers take the dBFS reference as `bits` (an ADC depth,
+2**(bits-1)) or `full_scale` and read it back from the shared
+`doppler.spectral.PSD` core, so `bits=B` is `full_scale=2**(B-1)`, and
+each exposes `spectrum_dbfs(x)`, the averaged trace its metrics come from,
+for a display. `rbw` is set by the un-padded length `n`; `bin_hz` is the
+zero-padded grid, which sharpens a frequency estimate but not resolution.
+The free functions plan a capture: `measure_min_samples` for a target
+RBW, `measure_rec_nfft`, `measure_proc_gain`, and `dp_coherent_freq` for a
+leakage-free test tone.
+
 Examples
 --------
 >>> import numpy as np

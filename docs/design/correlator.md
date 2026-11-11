@@ -57,7 +57,7 @@ the sub-step that changes it:
 | kind           | files                                                                                                                                                                                  |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | examples       | `native/examples/corr_demo.c`; `src/doppler/examples/corr_demo.py`, which draws `docs/gallery/corr.md`; `src/doppler/examples/dsss_burst_demo.py:210` (`Corr` and its `n`)             |
-| docs           | `docs/api/python-spectral.md`, `docs/api/python-detection.md`, `docs/gallery/corr.md`                                                                                                  |
+| docs           | `docs/guide/correlator.md`, `docs/api/python-detection.md`, `docs/gallery/corr.md`                                                                                                     |
 | Python suites  | `src/doppler/correlation/tests/test_correlator_1d.py`, `test_correlator_detector_1d.py`, `test_correlator_exact_length.py`; the `src/doppler/tests/test_state_serialization.py` matrix |
 | C symbol tests | `native/tests/correlator/test_correlator_1d_symbols.c` (Corr's, moved in 3.2); the detectors' (deleted in 3.3: the generated `test_correlator_symbols.c` names every view's functions) |
 | bookkeeping    | `scripts/.mutator-state-exempt`, `native/inc/.example-arity-ratchet`, `native/.c-header-code-ignore`, `scripts/.doc-symbol-exempt`                                                     |

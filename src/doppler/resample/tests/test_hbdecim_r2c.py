@@ -1,9 +1,8 @@
-"""Tests for HalfbandDecimator and HalfbandDecimatorR2C.
+"""Tests for HalfbandDecimatorR2C.
 
-HalfbandDecimator wraps dp_hbdecim (CF32 -> CF32) and HalfbandDecimatorR2C
-dp_hbdecim_r2c (real F32 -> CF32), the AVX-512 halfband paths. These cases
-first ran against HalfbandDecimatorDp, a hand-written second binding of the
-same dp_hbdecim core, retired in #3002; they now pin HalfbandDecimator.
+HalfbandDecimatorR2C wraps dp_hbdecim_r2c (real F32 -> CF32), the AVX-512
+halfband path with the fs/4 shift built in. HalfbandDecimator's own cases
+live in test_hbdecim.py.
 
 Spectral tests use a Blackman-Harris window to get ~90 dB of dynamic
 range, matching the ~60 dB filter rejection spec.
@@ -22,7 +21,6 @@ import numpy as np
 import pytest
 
 from doppler.resample import (
-    HalfbandDecimator,
     HalfbandDecimatorR2C,
     _halfband_bank,
 )
@@ -73,124 +71,7 @@ def _peak_near(bins, db, freq, tol=0.02) -> float:
 
 
 # ------------------------------------------------------------------ #
-# HalfbandDecimatorDp — construction                                 #
-# ------------------------------------------------------------------ #
-
-
-class TestHalfbandDecimator:
-    def test_create(self, fir_h):
-        d = HalfbandDecimator(fir_h)
-        assert d.rate == pytest.approx(0.5)
-
-    def test_num_taps(self, fir_h):
-        d = HalfbandDecimator(fir_h)
-        assert d.num_taps == len(fir_h)
-
-    def test_float64_taps_are_refused_not_narrowed(self, fir_h):
-        """float64 taps raise rather than being silently narrowed to
-        float32: the library's unsafe-cast rule. (HalfbandDecimatorDp, the
-        retired second binding, narrowed them, #3002.)"""
-        with pytest.raises(TypeError):
-            HalfbandDecimator(fir_h.astype(np.float64))
-        HalfbandDecimator(fir_h.astype(np.float32))
-
-    def test_2d_h_raises(self, fir_h):
-        with pytest.raises(ValueError):
-            HalfbandDecimator(np.stack([fir_h, fir_h]))
-
-    # ---- execute output properties ---------------------------------- #
-
-    def test_execute_dtype(self, fir_h):
-        d = HalfbandDecimator(fir_h)
-        y = d.execute(np.ones(128, dtype=np.complex64))
-        assert y.dtype == np.complex64
-
-    def test_execute_length_exact(self, fir_h):
-        """Even-length input → exactly len(x)//2 output samples."""
-        d = HalfbandDecimator(fir_h)
-        y = d.execute(np.ones(128, dtype=np.complex64))
-        assert len(y) == 64
-
-    def test_execute_odd_length(self, fir_h):
-        """Odd-length block: one sample is buffered, rest decimated."""
-        d = HalfbandDecimator(fir_h)
-        y = d.execute(np.ones(129, dtype=np.complex64))
-        assert len(y) == 64  # dangling sample buffered
-
-    # ---- reset ------------------------------------------------------ #
-
-    def test_reset_matches_fresh(self, fir_h):
-        x = np.random.default_rng(0).standard_normal(256).astype(np.complex64)
-        d1 = HalfbandDecimator(fir_h)
-        d2 = HalfbandDecimator(fir_h)
-        out1 = d1.execute(x)
-        _ = d2.execute(x)  # advance d2
-        d2.reset()
-        out2 = d2.execute(x)
-        np.testing.assert_array_equal(out1, out2)
-
-    # ---- spectral: passband gain ≈ 0 dB ----------------------------- #
-
-    def test_passband_amplitude(self, fir_h):
-        """Passband tone (f_in=0.1 → output at 0.2) changes amplitude < 0.5 dB.
-
-        The halfband filter's passband edge is 0.4×(fs/2) = 0.2×fs_in.
-        Frequencies below 0.2 in input-normalised terms are in the passband.
-        """
-        N = 4096
-        f_in = 0.1
-        t = np.arange(N)
-        x = np.exp(2j * np.pi * f_in * t).astype(np.complex64)
-        d = HalfbandDecimator(fir_h)
-        # Two blocks to flush transient
-        _ = d.execute(x)
-        y = d.execute(x)
-        f_out = 2 * f_in  # output-normalised: 0.2
-        bins, db = _spectrum_db(y)
-        amp = _peak_near(bins, db, f_out)
-        assert abs(amp) < 0.5, f"f_in={f_in}: passband amplitude {amp:+.2f} dB"
-
-    # ---- spectral: stopband rejection ≥ 50 dBc --------------------- #
-
-    def test_stopband_rejection(self, fir_h):
-        """Stopband tone (f_in=0.4 → alias at -0.2 output) is ≥50 dB below
-        passband.
-
-        Passband tone f_pb=0.1 → output at 0.2.
-        Stopband tone f_sb=0.4 is above the stopband edge (0.3×fs_in);
-        it aliases to output bin 0.4/0.5 - 1 = -0.2 (complex-valued spectrum).
-        """
-        N = 4096
-        f_pb = 0.1  # passband; output at 0.2
-        f_sb = 0.4  # stopband; aliases to -0.2 in output
-        t = np.arange(N)
-        x = (
-            np.exp(2j * np.pi * f_pb * t) + np.exp(2j * np.pi * f_sb * t)
-        ).astype(np.complex64)
-        d = HalfbandDecimator(fir_h)
-        _ = d.execute(x)
-        y = d.execute(x)
-        bins, db = _spectrum_db(y)
-        # Passband peak at 0.2
-        pb_peak = _peak_near(bins, db, 2 * f_pb)
-        # Stopband alias at f_sb*2 - 1 = -0.2
-        alias_out = 2 * f_sb - 1.0  # = -0.2
-        alias_db = _peak_near(bins, db, alias_out)
-        assert pb_peak - alias_db > 50.0, (
-            f"Stopband alias: pb={pb_peak:.1f} dB, alias={alias_db:.1f} dB, "
-            f"rejection={pb_peak - alias_db:.1f} dB (need >50)"
-        )
-
-    # ---- context manager -------------------------------------------- #
-
-    def test_context_manager(self, fir_h):
-        with HalfbandDecimator(fir_h) as d:
-            y = d.execute(np.ones(64, dtype=np.complex64))
-            assert y.dtype == np.complex64
-
-
-# ------------------------------------------------------------------ #
-# HalfbandDecimatorR2C — construction                                #
+# HalfbandDecimatorR2C                                               #
 # ------------------------------------------------------------------ #
 
 

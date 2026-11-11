@@ -1,6 +1,10 @@
-# Python Detection Statistics API
+---
+description: "Size a detector from its targets: the threshold from Pfa, the dwell from SNR, many-cell searches and CFAR, non-coherent looks, Gaussian statistics, smoothing, lock verification and frame sync."
+---
 
-The `doppler.detection` module is the **detection-theory** layer over the C
+# Sizing a Detector
+
+[`doppler.detection`][doppler.detection] is the **detection-theory** layer over the C
 `detection` core: closed-form relationships between probability of detection
 (`Pd`), probability of false alarm (`Pfa`), SNR, and coherent dwell length for a
 square-law detector. Pair it with the streaming detector,
@@ -45,20 +49,6 @@ the Rayleigh tail `exp(-b²/2)`:
 
 ```
 
-______________________________________________________________________
-
-## Amplitude SNR (linear)
-
-::: doppler.detection.det_threshold
-
-::: doppler.detection.det_pd
-
-::: doppler.detection.det_dwell
-
-::: doppler.detection.det_snr
-
-______________________________________________________________________
-
 ## A search, a measured reference, a C/N0
 
 Real detectors differ from the single known-noise cell above in three ways,
@@ -89,16 +79,6 @@ cfar = det_pd_cfar(snr, 2000, eta, 256.0, 0.0, 0.0)  # measured from 256 cells
 assert cfar < known
 ```
 
-::: doppler.detection.det_pfa_cell
-
-::: doppler.detection.det_pd_cfar
-
-::: doppler.detection.det_cn0_to_snr
-
-::: doppler.detection.det_snr_to_cn0
-
-______________________________________________________________________
-
 ## Non-coherent integration
 
 When coherent integration is capped (Doppler walk, data bits, oscillator drift,
@@ -107,14 +87,6 @@ magnitude. The detector becomes the order-`N_nc` Marcum-Q; these helpers package
 it and reduce to the coherent (order-1) versions above at `n_noncoh = 1`. They
 drive the continuous search's (`Correlator(..., framing="continuous")`)
 coherent/non-coherent split.
-
-::: doppler.detection.det_threshold_noncoherent
-
-::: doppler.detection.det_pd_noncoherent
-
-::: doppler.detection.det_n_noncoh
-
-______________________________________________________________________
 
 ## Gaussian test statistic
 
@@ -154,14 +126,6 @@ assert round(det_q_inv(p=1e-5), 4) == 4.2649
 assert round(det_q_inv(p=0.99), 4) == -2.3263
 ```
 
-::: doppler.detection.det_q_inv
-
-::: doppler.detection.det_dwell_gauss
-
-::: doppler.detection.det_threshold_gauss
-
-______________________________________________________________________
-
 ## Estimator smoothing
 
 `det_ema_alpha` sizes a first-order EMA probabilistically: treat the
@@ -186,10 +150,6 @@ assert abs(det_ema_alpha(10.0, 30.0) - det_ema_alpha(0.0, 20.0)) < 1e-15
 # already good enough -> no averaging
 assert det_ema_alpha(6.0, 3.0) == 1.0
 ```
-
-::: doppler.detection.det_ema_alpha
-
-______________________________________________________________________
 
 ## Lock verification
 
@@ -225,10 +185,6 @@ assert [d.step(9.0), d.step(9.0), d.step(9.0)] == [0, 0, 1]  # 3rd hit locks
 assert d.step(7.5) == 1  # inside the hysteresis band: sticky
 ```
 
-::: doppler.detection.det_verify_count
-
-::: doppler.detection.det_verify_delay
-
 One-shot (burst) decisions use the same machinery with one twist: when
 the noise reference is *estimated from as many samples as the signal
 sum* (the `BurstDespreader` lock test), the exact H0 law is F(n, n),
@@ -245,12 +201,6 @@ assert round(det_threshold_f(1e-3, 2), 6) == 999.0
 assert det_threshold_f(1e-3, 16) > det_threshold_f(1e-3, 64) > 1.0
 ```
 
-::: doppler.detection.det_threshold_f
-
-::: doppler.detection.LockDet
-
-______________________________________________________________________
-
 ## Frame synchronisation
 
 The detectors above threshold a *statistic*. `SyncFinder` thresholds a
@@ -261,7 +211,7 @@ before it can answer and a synchroniser reading a live capture cannot wait.
 
 It is the general kernel, not any one standard's: pass the marker. CCSDS's
 32-bit attached sync marker comes from
-[`asm_bits()`](python-wfmgen.md#acquiring-one-where-a-received-frame-starts),
+[`asm_bits()`](../api/python-wfmgen.md#acquiring-one-where-a-received-frame-starts),
 so nothing transcribes `0x1ACFFC1D` twice.
 
 !!! warning "`max_errors` is not a property of the marker"
@@ -315,27 +265,5 @@ assert (hit.found, hit.offset, hit.inverted, hit.errors) == (1, 96, 1, 0)
 every frame and in exactly one polarity, so it is the only thing in a frame
 that can report that a BPSK carrier locked 180 degrees out. Downstream cannot
 — see
-[the frame-description page](python-wfmgen.md#acquiring-one-where-a-received-frame-starts)
+[the frame-description page](../api/python-wfmgen.md#acquiring-one-where-a-received-frame-starts)
 for why an outer code is blind to a global complement.
-
-::: doppler.detection.SyncFinder
-
-::: doppler.detection.SyncHit
-
-______________________________________________________________________
-
-## Power-SNR (linear)
-
-::: doppler.detection.det_threshold_power
-
-::: doppler.detection.det_pd_power
-
-::: doppler.detection.det_dwell_power
-
-::: doppler.detection.det_snr_power
-
-______________________________________________________________________
-
-## Primitive
-
-::: doppler.detection.marcum_q

@@ -16,6 +16,12 @@ What counts as a failure
   ``<dir>/index.html`` for pretty URLs) does not exist under ``site/``
 * a same-page or cross-page ``#fragment`` that matches no ``id="..."``
   or ``name="..."`` in the target document
+* a mkdocstrings cross-reference that rendered as text,
+  ``[...][doppler.mod.Name]`` left in a page (#3000). autorefs turns one it
+  can resolve into a link and fails the strict build on one it cannot, so
+  the text survives only when the source escaped it -- which mdformat does
+  to every one unless ``.mdformat.toml`` sets ``ignore_missing_references``.
+  The page then shows literal brackets, and nothing else notices.
 * a site with no page to check at all. A build that rendered nothing
   (2026-10-18: zensical copied its theme assets and an unrendered
   ``sitemap.xml`` template and wrote no page, locally, in 0.2 s) used to
@@ -41,6 +47,8 @@ SITE = ROOT / "site"
 
 _HREF = re.compile(r"""(?:href|src)=["'](?P<url>[^"']+)["']""")
 _ID = re.compile(r"""(?:id|name)=["'](?P<id>[^"']+)["']""")
+# A cross-reference autorefs never saw: its `][identifier]` is page text.
+_XREF_TEXT = re.compile(r"\]\[(doppler(?:\.\w+)*)\]")
 
 # Generated trees are not audited (but links *into* them from
 # hand-written pages are): c-api is the separate prebuilt mkdocs build
@@ -94,6 +102,10 @@ def main(argv: list[str] | None = None) -> int:
     for page in pages:
         text = page.read_text(encoding="utf-8", errors="replace")
         rel = page.relative_to(site)
+        bad += [
+            f"  {rel}: cross-reference rendered as text -> [{x}]"
+            for x in _XREF_TEXT.findall(text)
+        ]
         for m in _HREF.finditer(text):
             url = m.group("url")
             parts = urlsplit(url)

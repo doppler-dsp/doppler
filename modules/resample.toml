@@ -11,7 +11,7 @@ Examples
 
 """
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow", "hbdecim_q15"]
-extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
+extra_types = ["HalfbandDecimatorR2C"]
 # Composed cores reach the resample .so via per-object depends_on link=true
 # (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c
 # (the latter for the HalfbandDecimatorR2C extra_type). cic is in-module and

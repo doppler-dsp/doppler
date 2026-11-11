@@ -22,10 +22,10 @@ Source:
 | `HalfbandDecimatorR2C` | Halfband 2:1 F32→CF32             | 0.5 (fixed) | Real ADC input → complex baseband     |
 | `CIC`                  | Cascaded integrator-comb          | 1/R (fixed) | High-rate first decimation stage      |
 
-`HalfbandDecimatorDp` duplicates `HalfbandDecimator` (the same CF32 core,
-despite the name) and is being retired
-([#3002](https://github.com/doppler-dsp/doppler/issues/3002)); use
-`HalfbandDecimator`.
+`HalfbandDecimatorDp` was a second binding of `HalfbandDecimator`'s CF32
+core (not double precision, despite the name); it was retired in
+[#3002](https://github.com/doppler-dsp/doppler/issues/3002). Use
+`HalfbandDecimator`, which refuses float64 taps rather than narrowing them.
 
 ## `RateConverter` — automatic cascade
 

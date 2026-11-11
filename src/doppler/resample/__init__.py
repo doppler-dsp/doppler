@@ -30,7 +30,6 @@ from .resample import (  # noqa: E402
     CIC,
     Farrow,
     HalfbandDecimator,
-    HalfbandDecimatorDp,
     HalfbandDecimatorQ15,
     HalfbandDecimatorR2C,
     MatchedRateConverter,
@@ -155,7 +154,6 @@ def rate_convert(x, rate, rc=None):
 
 __all__ = [
     "HalfbandDecimator",
-    "HalfbandDecimatorDp",
     "HalfbandDecimatorR2C",
     "Resampler",
     "CIC",

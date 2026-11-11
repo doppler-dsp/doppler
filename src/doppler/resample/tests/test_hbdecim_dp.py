@@ -1,8 +1,9 @@
-"""Tests for HalfbandDecimatorDp and HalfbandDecimatorR2C.
+"""Tests for HalfbandDecimator and HalfbandDecimatorR2C.
 
-Both wrap the C library's dp_hbdecim_cf32_t / dp_hbdecim_r2cf32_t
-(AVX-512 halfband path).  They are distinct from the just-makeit-internal
-HalfbandDecimator that wraps hbdecim_core.c.
+HalfbandDecimator wraps dp_hbdecim (CF32 -> CF32) and HalfbandDecimatorR2C
+dp_hbdecim_r2c (real F32 -> CF32), the AVX-512 halfband paths. These cases
+first ran against HalfbandDecimatorDp, a hand-written second binding of the
+same dp_hbdecim core, retired in #3002; they now pin HalfbandDecimator.
 
 Spectral tests use a Blackman-Harris window to get ~90 dB of dynamic
 range, matching the ~60 dB filter rejection spec.
@@ -21,7 +22,7 @@ import numpy as np
 import pytest
 
 from doppler.resample import (
-    HalfbandDecimatorDp,
+    HalfbandDecimator,
     HalfbandDecimatorR2C,
     _halfband_bank,
 )
@@ -76,39 +77,43 @@ def _peak_near(bins, db, freq, tol=0.02) -> float:
 # ------------------------------------------------------------------ #
 
 
-class TestHalfbandDecimatorDp:
+class TestHalfbandDecimator:
     def test_create(self, fir_h):
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         assert d.rate == pytest.approx(0.5)
 
     def test_num_taps(self, fir_h):
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         assert d.num_taps == len(fir_h)
 
-    def test_wrong_dtype_coerced(self, fir_h):
-        """float64 h is coerced to float32 without error."""
-        HalfbandDecimatorDp(fir_h.astype(np.float64))
+    def test_float64_taps_are_refused_not_narrowed(self, fir_h):
+        """float64 taps raise rather than being silently narrowed to
+        float32: the library's unsafe-cast rule. (HalfbandDecimatorDp, the
+        retired second binding, narrowed them, #3002.)"""
+        with pytest.raises(TypeError):
+            HalfbandDecimator(fir_h.astype(np.float64))
+        HalfbandDecimator(fir_h.astype(np.float32))
 
     def test_2d_h_raises(self, fir_h):
         with pytest.raises(ValueError):
-            HalfbandDecimatorDp(np.stack([fir_h, fir_h]))
+            HalfbandDecimator(np.stack([fir_h, fir_h]))
 
     # ---- execute output properties ---------------------------------- #
 
     def test_execute_dtype(self, fir_h):
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         y = d.execute(np.ones(128, dtype=np.complex64))
         assert y.dtype == np.complex64
 
     def test_execute_length_exact(self, fir_h):
         """Even-length input → exactly len(x)//2 output samples."""
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         y = d.execute(np.ones(128, dtype=np.complex64))
         assert len(y) == 64
 
     def test_execute_odd_length(self, fir_h):
         """Odd-length block: one sample is buffered, rest decimated."""
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         y = d.execute(np.ones(129, dtype=np.complex64))
         assert len(y) == 64  # dangling sample buffered
 
@@ -116,8 +121,8 @@ class TestHalfbandDecimatorDp:
 
     def test_reset_matches_fresh(self, fir_h):
         x = np.random.default_rng(0).standard_normal(256).astype(np.complex64)
-        d1 = HalfbandDecimatorDp(fir_h)
-        d2 = HalfbandDecimatorDp(fir_h)
+        d1 = HalfbandDecimator(fir_h)
+        d2 = HalfbandDecimator(fir_h)
         out1 = d1.execute(x)
         _ = d2.execute(x)  # advance d2
         d2.reset()
@@ -136,7 +141,7 @@ class TestHalfbandDecimatorDp:
         f_in = 0.1
         t = np.arange(N)
         x = np.exp(2j * np.pi * f_in * t).astype(np.complex64)
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         # Two blocks to flush transient
         _ = d.execute(x)
         y = d.execute(x)
@@ -162,7 +167,7 @@ class TestHalfbandDecimatorDp:
         x = (
             np.exp(2j * np.pi * f_pb * t) + np.exp(2j * np.pi * f_sb * t)
         ).astype(np.complex64)
-        d = HalfbandDecimatorDp(fir_h)
+        d = HalfbandDecimator(fir_h)
         _ = d.execute(x)
         y = d.execute(x)
         bins, db = _spectrum_db(y)
@@ -179,7 +184,7 @@ class TestHalfbandDecimatorDp:
     # ---- context manager -------------------------------------------- #
 
     def test_context_manager(self, fir_h):
-        with HalfbandDecimatorDp(fir_h) as d:
+        with HalfbandDecimator(fir_h) as d:
             y = d.execute(np.ones(64, dtype=np.complex64))
             assert y.dtype == np.complex64
 

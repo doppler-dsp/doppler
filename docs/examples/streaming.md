@@ -100,7 +100,7 @@ dp_msg_free(msg);
 dp_pull_destroy(pull);
 ```
 
-For complete, runnable examples see [`native/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.82.0/native/examples).
+For complete, runnable examples see [`native/examples/`](https://github.com/doppler-dsp/doppler/tree/v0.83.0/native/examples).
 
 ______________________________________________________________________
 
@@ -232,7 +232,7 @@ Skip this if you already have one:
 <!-- docs-snippet: no-exec=clones the repository -->
 
 ```sh
-git clone --branch v0.82.0 https://github.com/doppler-dsp/doppler && cd doppler
+git clone --branch v0.83.0 https://github.com/doppler-dsp/doppler && cd doppler
 ```
 
 <!-- doc-version:end -->
@@ -306,7 +306,7 @@ dp_sub_create("nats://127.0.0.1:4222/iq");
 
 ### Docker Compose
 
-The repo's [`docker-compose.yml`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/docker-compose.yml)
+The repo's [`docker-compose.yml`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/docker-compose.yml)
 runs the full pipeline (see the [Docker guide](../install/docker.md#streaming-demo-docker-compose)).
 Each service uses the lean `stream-services` image, which carries the
 statically-linked streaming binaries on `PATH`:

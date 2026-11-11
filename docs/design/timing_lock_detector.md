@@ -84,7 +84,7 @@ equivalence of the two conventions is pinned in `test_detection_core.c`. The
 shared chain is documented in [Lock Detection](lock-detect.md). No down-threshold or verify-count
 derivation is implied by the source formula, so those default to the same
 shape `Dll.configure_lock` uses (see
-[`native/src/symsync/symsync_core.c`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/native/src/symsync/symsync_core.c)'s
+[`native/src/symsync/symsync_core.c`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/native/src/symsync/symsync_core.c)'s
 `SYMSYNC_LOCK_STAT_VARIANCE` comment for the exact defaults and full
 derivation).
 

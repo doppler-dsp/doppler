@@ -82,4 +82,4 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.ber_awgn_demo
 ```
 
-Source: [`src/doppler/examples/ber_awgn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/ber_awgn_demo.py)
+Source: [`src/doppler/examples/ber_awgn_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/ber_awgn_demo.py)

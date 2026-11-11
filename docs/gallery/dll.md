@@ -43,4 +43,4 @@ is kept small (a few thousandths of the code-period rate). `Dll` pairs with
 [`track.Costas`](../gallery/costas.md): the carrier loop wipes the carrier, the
 DLL wipes the code; a receiver channel composes the two.
 
-Source: [`src/doppler/examples/dll_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/dll_demo.py).
+Source: [`src/doppler/examples/dll_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/dll_demo.py).

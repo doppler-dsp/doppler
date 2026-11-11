@@ -56,7 +56,7 @@ ______________________________________________________________________
 
 ### Producer / consumer (threaded)
 
-From [`src/doppler/examples/buffers_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/buffers_demo.py). `write()` never blocks, so the
+From [`src/doppler/examples/buffers_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/buffers_demo.py). `write()` never blocks, so the
 producer waits for `space`; `close()` is how the consumer learns there is no
 more, and it arrives as `EOFError` once the ring is drained.
 
@@ -80,7 +80,7 @@ take every whole frame, repeat until the block is gone.
 
 ### One thread: a chunk larger than the ring, overlapped frames out
 
-From [`src/doppler/examples/ring_nonblocking_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/ring_nonblocking_demo.py), which checks every
+From [`src/doppler/examples/ring_nonblocking_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/ring_nonblocking_demo.py), which checks every
 frame against the input:
 
 ```python
@@ -139,5 +139,5 @@ buf.dropped                                         # 1 refused, none lost
 ```
 
 The full walk through every refusal is
-[`src/doppler/examples/ring_refusals_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/ring_refusals_demo.py); the rest of the suite is indexed
+[`src/doppler/examples/ring_refusals_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/ring_refusals_demo.py); the rest of the suite is indexed
 on [Ring Buffers](../examples/python-buffers.md).

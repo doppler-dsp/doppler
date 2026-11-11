@@ -15,7 +15,7 @@ code phase and Doppler in the first place are the searches of
 `BurstCapture`.
 
 Source:
-[`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/dsss/__init__.py)
+[`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/__init__.py)
 
 ## `PolynomialPhaseEstimator` — feedforward frequency + chirp-rate estimator
 

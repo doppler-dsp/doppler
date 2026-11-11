@@ -128,18 +128,19 @@ typedef struct
   double       agc_ref_db;   /**< derived: 10*log10(bank_e0 / bank_sps)  */
   double       agc_bn_sym;   /**< requested bandwidth, cycles/SYMBOL     */
   double       agc_alpha;    /**< detector EMA coefficient               */
-  /** The telemetry attachment as REQUESTED, not as currently applied.
-      Held here rather than only on the AGC because the AGC is destroyed and
-      rebuilt whenever the plan changes (rc_agc_build), and may not exist yet
-      when the attach arrives; keeping the request lets every rebuild re-apply
-      it. Never packed into a state blob — telemetry is observation.
-      See dp_RateConverter_set_telemetry(). */
   struct
   {
     dp_tlm_t *ctx;                   /**< NULL = detached              */
     char      prefix[DP_TLM_NAME_MAX]; /**< as passed by the caller    */
     uint32_t  decim;                 /**< as passed by the caller      */
-  } agc_tlm_req;
+  } agc_tlm_req; /**< The telemetry attachment as REQUESTED, not as
+                    currently applied. Held here rather than only on the AGC
+                    because the AGC is destroyed and rebuilt whenever the
+                    plan changes (rc_agc_build), and may not exist yet when
+                    the attach arrives; keeping the request lets every
+                    rebuild re-apply it. Never packed into a state blob —
+                    telemetry is observation. See
+                    dp_RateConverter_set_telemetry(). */
 } dp_RateConverter_state_t;
 
 /**

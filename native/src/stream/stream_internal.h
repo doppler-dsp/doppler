@@ -169,7 +169,6 @@ struct dp_msg
   size_t           data_offset; /**< bytes to skip at the front (NATS
                                      header). */
   dp_msg_link_t *link; /**< DP_MSG_NATS: its context's; NULL when OWNED  */
-  /** The buffer, selected by @c owner. */
   union
   {
     void *nats; /**< natsMsg *                       */
@@ -179,7 +178,7 @@ struct dp_msg
       void  *ptr; /**< malloc'd payload  */
       size_t len; /**< bytes in @c ptr   */
     } owned;      /**< reassembled, doppler-owned buffer */
-  } u;
+  } u;            /**< The buffer, selected by @c owner. */
 };
 
 /* ---- NATS transport (implemented in stream_nats.c) --------------------- */

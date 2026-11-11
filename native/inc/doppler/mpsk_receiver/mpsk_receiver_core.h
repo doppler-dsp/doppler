@@ -210,13 +210,13 @@ extern "C"
    */
   typedef struct
   {
-    /** The matched front end. Which arm is live is `real`, and nothing else
-        reads it — the two step entry points each name their own arm. */
     union
     {
       dp_ddc_state_t  *c; /**< matched DDC:  mix + cascade + MF.            */
       dp_ddcr_state_t *r; /**< matched DDCR: R2C + mix + cascade + MF.      */
-    } fe;
+    } fe; /**< The matched front end. Which arm is live is `real`, and
+               nothing else reads it — the two step entry points each name
+               their own arm. */
     mpsk_rx_loops_t l; /**< carrier + timing loops, demapper.           */
 
     /* ── config (restored by create(), never packed in a state blob) ── */

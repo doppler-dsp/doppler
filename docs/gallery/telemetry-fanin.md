@@ -134,7 +134,7 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.telemetry_fanin_demo   # → telemetry_fanin_demo.png  (~10 s)
 ```
 
-See the [telemetry API](../api/python-telemetry.md) for the probe
+See the [telemetry API](../guide/telemetry.md) for the probe
 tables and record layout, [Lock Detection](lockdet.md) for the
 verify-counted decisions the `rx.car.locked` / `code0.locked` traces come
 from, and [Streaming](../examples/streaming.md) for the NATS wire layer

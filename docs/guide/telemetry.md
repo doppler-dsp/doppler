@@ -1,4 +1,8 @@
-# Python Telemetry API
+---
+description: "Watch an object's internals while it runs: probes, records and decimation, lossless captures, the event log, threading and TLM16 over the wire."
+---
+
+# Telemetry
 
 Scalar telemetry taps for running DSP objects, backed by `dp_tlm`
 (`native/inc/doppler/dp_tlm/dp_tlm_core.h`): a named probe registry plus a
@@ -11,8 +15,6 @@ overrun so a slow reader can never stall the DSP thread. Design:
 
 Source:
 [`src/doppler/telemetry/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/telemetry/__init__.py)
-
-______________________________________________________________________
 
 ## `Telemetry`
 
@@ -262,8 +264,6 @@ The ring is single-producer / single-consumer: everything that emits
 thread; `read()`/`dropped` may run on one other thread. Register all
 probes before the producer starts.
 
-______________________________________________________________________
-
 ## Example — watching the AGC gain converge
 
 Instrumented objects expose `set_telemetry(tlm, prefix, decim=1)`; the
@@ -298,6 +298,9 @@ C pipeline drains its ring with the `dp_tlm_sink_*` helper
 component), and a Python producer publishes `read()` output directly.
 Either way, `Subscriber.recv()` decodes the frame back into the exact
 `read()` dtype:
+
+This needs a NATS broker on `:4222` ([NATS Broker](../install/broker.md)
+installs and runs one).
 
 <!-- docs-snippet: broker=publishes and receives one TLM16 frame over NATS; needs a broker on :4222 -->
 
@@ -334,8 +337,6 @@ assert recs["value"].tolist() == [12.0, 13.0, 14.0, 15.0]
 ```
 
 `Telemetry.stats()` returns a `TelemetryStats` record by value: the counters the ring keeps.
-
-::: doppler.telemetry.TelemetryStats
 
 ## Sample type and endian names
 

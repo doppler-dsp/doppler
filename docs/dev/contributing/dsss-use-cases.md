@@ -145,7 +145,7 @@ the payload.
     2.44 kHz residual, column-FFT over the 5 reps **within** the winning coarse
     bin (one channel) for the fine `1/(5·T_epoch)` ≈ 490 Hz Doppler.
 - **Hand off:** the `(Doppler bin, code phase)` seeds the shipped
-    [`BurstDespreader`](../../api/python-dsss.md) on the shorter data code for the
+    [`BurstDespreader`][doppler.dsss.BurstDespreader] on the shorter data code for the
     synchronous payload.
 
 Here latency and the wide span dominate; the roll's one-epoch coarse sweep beats

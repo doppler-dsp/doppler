@@ -331,7 +331,7 @@ structured array (`dtype: n u8 | value f4 | probe u2 | flags u2`): one
 jm-generated `set_telemetry` bindings unwrap (they also accept the
 `Telemetry` object itself, duck-typed through `_capsule` — jm gh-432).
 Every tracking loop is instrumented (see the probe table in
-[docs/api/python-telemetry.md](../api/python-telemetry.md)); the AGC was
+[the Telemetry guide](../guide/telemetry.md)); the AGC was
 the first:
 
 ```python

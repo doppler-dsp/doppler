@@ -6,7 +6,6 @@
 docs/design/streaming.md the streaming design record; the quick start links the how-to
 docs/design/telemetry.md the telemetry design record
 docs/design/wfmgen.md the wfmgen design record
-docs/api/python-telemetry.md API reference: the endpoint is a docstring example, not a step
 docs/api/python-wfmgen.md API reference: the endpoint is a docstring example, not a step
 docs/dev/archive/** frozen records, not instructions
 docs/dev/ci.md describes the CI broker, not a first run

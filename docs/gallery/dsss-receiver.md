@@ -8,7 +8,7 @@ description: "Correlator -> Dll(segments) -> RateConverter -> MpskReceiver at re
 
 `Correlator -> Dll(segments) -> RateConverter -> MpskReceiver`, the
 four-object continuous async-DSSS receive chain, composed into one C
-object, [`DsssReceiver`](../api/python-dsss.md). The `Correlator` is the
+object, [`DsssReceiver`][doppler.dsss.DsssReceiver]. The `Correlator` is the
 continuous search, `framing="continuous"`. Everything a caller would
 otherwise wire by hand across four objects — building the tracking chain
 from an acquisition hit, the phase-inversion hand-off, the

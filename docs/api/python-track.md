@@ -396,7 +396,7 @@ the data sign of a whole period; a data flip *inside* a period is what
 `segments`, below, is for.
 
 In a full receiver the carrier loop (`Costas`) wipes the carrier and the `Dll`
-wipes the code; [`dsss.Despreader`](python-dsss.md) composes the two.
+wipes the code; [`dsss.Despreader`][doppler.dsss.Despreader] composes the two.
 
 ```python
 import numpy as np
@@ -475,7 +475,7 @@ ______________________________________________________________________
 `RateSync` solves the same problem as `SymbolSync` and shares its detectors and
 loop, but it is built the other way round. Instead of a matched FIR followed by
 a Farrow interpolator steered by a timing NCO, it owns a
-[`MatchedRateConverter`](python-resample.md) whose **terminal stage carries the
+[`MatchedRateConverter`][doppler.resample.MatchedRateConverter] whose **terminal stage carries the
 pulse** — so the cascade's last dot product *is* the matched filter, and the
 polyphase arm that dot product selects *is* the fractional timing delay. One
 filter, no Farrow, no separate matched-filtering pass.

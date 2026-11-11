@@ -93,7 +93,7 @@ ramp measurement found it
 ## Telemetry, not reconstruction
 
 Every trace is a probe the receiver already publishes, captured losslessly at
-`decim=1` through [`Telemetry`](../api/python-telemetry.md) and a
+`decim=1` through [`Telemetry`][doppler.telemetry.Telemetry] and a
 `MemoryCapture`. Nothing here re-derives a loop internal from the output
 symbols.
 

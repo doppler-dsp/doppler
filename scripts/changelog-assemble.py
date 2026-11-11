@@ -64,6 +64,13 @@ NEXT_RELEASE = re.compile(r"^## \[", re.M)
 #: because CMake and Cargo reject one and `version-check` would then be
 #: comparing strings that can never agree.
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+# A code-fence line: indentation (a fragment's fences sit inside its list
+# item, so CommonMark's three-space limit is relative to that), then three
+# or more of one fence character (group 1), then the rest (group 2: an info
+# string on an opener, and must be blank on a closer).
+_FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+# A top-level list item: a bullet marker at column 0, then a space.
+_ENTRY = re.compile(r"^[-*+] ")
 
 
 def retitle(text: str, version: str, today: str) -> str:
@@ -148,18 +155,37 @@ def fragment_problem(f: pathlib.Path, entry: str) -> str | None:
             f"changelog-assemble: {name} does not start with '- ' — a "
             "fragment is the entry itself, verbatim"
         )
-    # A fragment is ONE entry: one top-level `- ` bullet. A second one at
-    # column 0 is a second entry in the same file, and the assembled list
-    # then differs from what mdformat writes: fragments are joined by a
-    # blank line, which makes the list loose, so mdformat adds the blank
-    # line the two bullets lack. `make release-pr` for v0.82.0 stopped at
-    # its own commit on exactly that (doppler#2993). Lines inside a code
-    # fence are code, not entries.
-    fenced = False
+    # A fragment is ONE entry: one top-level bullet. A second one at column
+    # 0 is a second entry in the same file. With `- `, the assembled list
+    # differs from what mdformat writes: fragments are joined by a blank
+    # line, which makes the list loose, so mdformat adds the blank line the
+    # two bullets lack, and `make release-pr` for v0.82.0 stopped at its own
+    # commit on exactly that (doppler#2993). `* ` and `+ ` survive mdformat
+    # as a second list, but are still two entries.
+    #
+    # Lines inside a code fence are code, not entries. A fence closes only
+    # as CommonMark closes it -- the opener's character, at least as many,
+    # nothing after -- so a ```` fence may show a ``` line and a ~~~ fence
+    # a ``` one. A fragment that ENDS inside a fence is refused: assembled,
+    # it would turn the rest of its section into code.
+    fence: tuple[str, int] | None = None
+    fence_line = 0
     for n, line in enumerate(entry.splitlines(), 1):
-        if line.lstrip().startswith(("```", "~~~")):
-            fenced = not fenced
-        if n > 1 and not fenced and line.startswith("- "):
+        m = _FENCE.match(line)
+        if fence is None and m:
+            fence, fence_line = (m[1][0], len(m[1])), n
+            continue
+        if fence is not None:
+            closes = (
+                m
+                and m[1][0] == fence[0]
+                and len(m[1]) >= fence[1]
+                and not m[2].strip()
+            )
+            if closes:
+                fence = None
+            continue
+        if n > 1 and _ENTRY.match(line):
             return (
                 f"changelog-assemble: {name} line {n} starts a second "
                 "top-level entry.\n"
@@ -167,6 +193,13 @@ def fragment_problem(f: pathlib.Path, entry: str) -> str | None:
                 "file in the same\n"
                 "  changelog.d/<section>/, or indent it under the first."
             )
+    if fence is not None:
+        return (
+            f"changelog-assemble: {name} line {fence_line} opens a code "
+            "fence that never closes.\n"
+            "  Assembled into CHANGELOG.md it would turn the rest of its "
+            "section into code: close it."
+        )
     # A fragment may not carry a `### ` heading. The DIRECTORY is the
     # heading, so one in the body is a second, contradictory answer -- and
     # because the fragments for a section are joined and inserted as ONE

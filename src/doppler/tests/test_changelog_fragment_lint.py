@@ -108,6 +108,37 @@ def test_an_indented_bullet_or_a_fenced_list_is_one_entry(
     assert r.returncode == 0, r.stderr
 
 
+def test_a_longer_fence_may_show_a_shorter_one(tmp_path: Path) -> None:
+    """A ```` fence showing a ``` line and a list item is one entry."""
+    body = (
+        GOOD + "\n    ````md\n    ```\n- an item, in code\n    ```\n    ````\n"
+    )
+    r = _lint(_scratch(tmp_path, {"changed/long.md": body}))
+    assert r.returncode == 0, r.stderr
+
+
+def test_a_fence_closes_only_on_its_own_character(tmp_path: Path) -> None:
+    """A ``` line inside a ~~~ fence does not close it, so the real second
+    entry after the fence is still caught."""
+    body = GOOD + "\n    ~~~\n    ```\n    ~~~\n- **A second entry.**\n"
+    r = _lint(_scratch(tmp_path, {"changed/mixed.md": body}))
+    assert r.returncode == 1
+    assert "second top-level entry" in r.stderr
+
+
+def test_an_unclosed_fence_fails(tmp_path: Path) -> None:
+    body = GOOD + "\n    ```\ncode\n- **A second entry.**\n"
+    r = _lint(_scratch(tmp_path, {"changed/open.md": body}))
+    assert r.returncode == 1
+    assert "never closes" in r.stderr
+
+
+def test_a_star_bullet_is_a_second_entry_too(tmp_path: Path) -> None:
+    r = _lint(_scratch(tmp_path, {"changed/star.md": GOOD + "* another\n"}))
+    assert r.returncode == 1
+    assert "second top-level entry" in r.stderr
+
+
 def test_every_bad_fragment_is_reported_not_just_the_first(
     tmp_path: Path,
 ) -> None:

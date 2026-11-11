@@ -122,3 +122,10 @@ from doppler\.acquire import[^\n]*\b(Acquisition|BurstAcquisition)\b	from dopple
 # correlator-python.md section 8).
 \bdp_burst_acq_\w+	dp_correlator_* on a burst search, dp_correlator_create_burst (#2752 step 4)
 doppler/burst_acq/burst_acq_core\.h	doppler/correlator/correlator_core.h (#2752 step 4)
+
+# doppler#3002: HalfbandDecimatorDp was a hand-written second binding of the
+# dp_hbdecim CF32 core HalfbandDecimator already binds ("Dp" never meant
+# double precision). Usage forms only, so a page naming the retirement keeps
+# its history.
+from doppler\.resample import[^\n]*\bHalfbandDecimatorDp\b	from doppler.resample import HalfbandDecimator (#3002)
+\bHalfbandDecimatorDp\(	HalfbandDecimator(...) -- the same CF32 core; cast taps to float32 (#3002)

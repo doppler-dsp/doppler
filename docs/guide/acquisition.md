@@ -363,13 +363,13 @@ began before the checkpoint. `PersistentBurstCapture` takes a file `path`
 and keeps that history in the file, so a checkpoint shrinks to the search
 state and the history survives a restart. It is the same object otherwise,
 but a checkpoint does not move between the two kinds. See the
-[API reference](../api/python-acquire.md#persistentburstcapture-the-same-capture-with-the-ring-in-a-file).
+[API reference][doppler.acquire.PersistentBurstCapture].
 
 ______________________________________________________________________
 
 ## See also
 
-- [Python: Acquire API](../api/python-acquire.md): every class and property
+- [Python: Acquire API][doppler.acquire]: every class and property
 - [Design: BurstCapture](../design/burst-capture.md): the refine stage, the
     history ring and the timing guarantees
 - [DSSS acquisition guide](dsss-acquisition.md): spread-spectrum preambles,

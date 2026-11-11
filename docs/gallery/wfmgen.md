@@ -200,6 +200,6 @@ with Writer("frame.cf32", fs=1e6, sample_type="cf32") as w:
     w.write(Composer(spec).compose())
 ```
 
-See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)
+See the [Python composer API](../guide/wfmgen/python.md#compose-multi-segment-composition-writers-and-a-nats-sink)
 for `Writer` file types (raw / CSV / BLUE / SigMF), the `StreamSink`, JSON
 round-tripping, and the `rrc_taps` / `dsss_spread` / `mls_poly` helpers.

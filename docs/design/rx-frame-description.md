@@ -235,7 +235,7 @@ git grep -nE '(FRAME_SYMS|\bFRAME\b|frame_syms)\s*(=|\().*\+' \
 - **Python benches, 1:** `dsss/benchmarks/_burst_stimulus.py:55`.
 - **Python examples, 3:** `dsss_burst_pipeline_demo.py:535`,
     `dsss_burst_receiver_demo.py:110`, `dsss_realtime_file_demod.py:69`.
-- **Docs, 4:** `docs/api/python-dsss.md:91`,
+- **Docs, 4:** `docs/guide/dsss-receivers.md`,
     `docs/guide/wfmgen/waveforms.md:637`,
     `docs/design/dsss-burst-receiver.md:815,1028`.
 

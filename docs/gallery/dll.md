@@ -6,7 +6,7 @@ description: "delay-locked loop code tracking."
 
 ![DLL code-loop tracking demo](../assets/dll_demo.png)
 
-A [`track.Dll`](../api/python-track.md) delay-lock loop tracking the **code
+A [`track.Dll`][doppler.track.Dll] delay-lock loop tracking the **code
 phase** of a continuous PN-spread BPSK signal. The replica starts a half-chip
 off and the incoming chip clock runs slightly fast (a 2e-4 code Doppler); the
 loop pulls its early/prompt/late replica onto the code and then holds it. Code
@@ -26,7 +26,7 @@ transient that decays to a low locked floor as the replica aligns.
 
 ## How it works
 
-`Dll` embeds the same [`track.LoopFilter`](../api/python-track.md) PI engine as
+`Dll` embeds the same [`track.LoopFilter`][doppler.track.LoopFilter] PI engine as
 the carrier loop. Per sample it correlates the carrier-wiped input against three
 taps of the local code — early (`+spacing` chips), prompt, late (`-spacing`
 chips) — accumulating an integrate-and-dump over one code period. Per period it

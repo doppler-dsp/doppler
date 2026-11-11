@@ -11,7 +11,7 @@ model is on the [guide index](index.md#the-ladder-the-whole-mental-model).
 !!! info "\"source\" on this page is \"`Synth`\" in Python"
 
     One waveform's recipe. This page and the scene JSON call it a **source**;
-    the [Python API](../../api/python-wfmgen.md) calls the same thing a `Synth`. A **segment**
+    the [Python API](python.md) calls the same thing a `Synth`. A **segment**
     is the time span one or more sources are summed over — see
     [source and segment](index.md#source-and-segment-the-one-distinction-to-get-right).
 
@@ -663,12 +663,12 @@ with StreamSink("nats://127.0.0.1:4222/iq") as sink:
 The schedule is drift-free (deadlines come from the cumulative sample count, not
 summed sleeps); underruns are counted in `clk.underruns` / `clk.max_lateness`,
 and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
-See the [Python API](../../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink) for the full class surface.
+See the [Python API](python.md#compose-multi-segment-composition-writers-and-a-nats-sink) for the full class surface.
 
 ______________________________________________________________________
 
 ## See also
 
 - [Waveforms](waveforms.md) — what goes into a segment.
-- [Python API](../../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink) — the same scenes from Python.
+- [Python API](python.md#compose-multi-segment-composition-writers-and-a-nats-sink) — the same scenes from Python.
 - [Gallery: scene composition](../../gallery/wfm-composition.md).

@@ -6,7 +6,7 @@ description: "non-data-aided carrier recovery."
 
 ![NDA carrier loop theory validation](../assets/mpsk_nda_theory_demo.png)
 
-[`track.CarrierNda`](../api/python-track.md) is the **non-data-aided** (NDA)
+[`track.CarrierNda`][doppler.track.CarrierNda] is the **non-data-aided** (NDA)
 carrier-recovery loop — the cold-start counterpart to the decision-directed
 [`CarrierMpsk`](carrier-mpsk.md). Per sample it de-rotates with the integer
 `lo` NCO; it filters the de-rotated samples through a free-running I/Q **boxcar

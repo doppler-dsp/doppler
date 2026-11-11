@@ -16198,7 +16198,7 @@ ______________________________________________________________________
 
 - **`doppler.wfm.read_iq`** (and the `doppler.wfm.readback` module) — the
     pure-Python interleaved-I/Q reader is retired in favour of the C
-    [`doppler.wfm.Reader`](docs/api/python-wfmgen.md), which supersedes it: same
+    [`doppler.wfm.Reader`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/docs/api/python-wfmgen.md), which supersedes it: same
     `(path, sample_type, endian)` arguments, the wire-type → unit-scale
     `complex64` deinterleave/rescale done in C rather than NumPy, plus
     container auto-detection (BLUE / SigMF / CSV / raw) `read_iq` never had.

@@ -1,6 +1,10 @@
-# Python Waveform Generator API — Synth / PN
+---
+description: "Generate and compose waveforms from Python: the Synth engine, PN and Gold codes, composition and sinks, Plans, and frames described once for both ends of a link."
+---
 
-Everything in the `doppler.wfm` package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
+# The Python Library
+
+Everything in the [`doppler.wfm`][doppler.wfm] package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
 
 | Class   | Output                               | Use when                                                                                                   |
 | ------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -14,13 +18,11 @@ Source:
 [`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/wfm/__init__.py)
 
 These same C cores back the one command-line tool, `wfmgen` — see the
-[Waveform Generator guide](../guide/wfmgen/index.md).
+[Waveform Generator guide](../../guide/wfmgen/index.md).
 
 **Reading or writing a capture file is on its own page** — [Python: Capture
-I/O](../guide/wfm-io/index.md) covers `Reader`, `Writer` and `write_blue_header`, with
-the [Capture I/O guide](../guide/wfm-io/index.md) as the narrative version.
-
-______________________________________________________________________
+I/O](../../guide/wfm-io/index.md) covers `Reader`, `Writer` and `write_blue_header`, with
+the [Capture I/O guide](../../guide/wfm-io/index.md) as the narrative version.
 
 ## `Synth` — the nine-type waveform engine
 
@@ -84,7 +86,7 @@ naming it. `modulation` maps the bits to symbols (`"none"` → 0/1 amplitude,
 `sps` samples and the bits are sent **once**, then silence. A data source is a
 frame's payload and is sent exactly as given; a CRC-16 trailer, a sync word or
 a coding stage is part of a frame *description*, passed as `frame=` (see
-[Data](../guide/wfmgen/waveforms.md#data-a-payload-drawn-frame-by-frame)).
+[Data](../../guide/wfmgen/waveforms.md#data-a-payload-drawn-frame-by-frame)).
 
 ```python
 from doppler.wfm import Synth, bits, field_bits
@@ -129,7 +131,7 @@ stream = np.array(
 iq = Synth(type="symbols", symbols=stream, sps=8, pulse="rrc").steps(64 * 8)
 ```
 
-See the [Symbols gallery walkthrough](../gallery/symbols.md) for worked
+See the [Symbols gallery walkthrough](../../gallery/symbols.md) for worked
 pi/4-QPSK and 16-QAM constellations, rect vs RRC pulses, and the envelope
 floor behind pi/4-QPSK's lower PAPR.
 
@@ -186,7 +188,7 @@ offset  = Synth(type="pn", pn_length=9, sps=1, freq=2.5e5, fs=1e6).steps(511)
 
 `snr_mode` (`"auto"`, `"fs"`, `"ebno"`, `"esno"`) sets how `snr` is
 interpreted. Which types `"auto"` sends to which reference is written out once,
-in the guide: [Levels & SNR](../guide/wfmgen/waveforms.md#snr-noise).
+in the guide: [Levels & SNR](../../guide/wfmgen/waveforms.md#snr-noise).
 
 ### RRC pulse shaping (band-limited carriers)
 
@@ -227,12 +229,6 @@ s.reset()
 assert np.array_equal(a, s.steps(512))   # same seed → identical stream
 ```
 
-______________________________________________________________________
-
-::: doppler.wfm.compose.Synth
-
-______________________________________________________________________
-
 ## `PN` — raw LFSR m-sequence
 
 A right-shift LFSR producing one bit (0/1) per call. With a primitive
@@ -266,12 +262,6 @@ non-zero (the all-zero register is a fixed point). To map chips to ±1 BPSK
 symbols, use `Synth(type="pn", ...)` instead, which also handles oversampling,
 the LO, and AWGN.
 
-______________________________________________________________________
-
-::: doppler.wfm.PN
-
-______________________________________________________________________
-
 ## `Gold` — a CCSDS Gold-code generator
 
 `Gold` XORs two same-length LFSRs that free-run in lock-step, so its period
@@ -279,10 +269,6 @@ is `2**length - 1` and varying `seed_a` walks the members of the Gold family
 while register B stays fixed. Use it when a code needs the bounded
 cross-correlation of a Gold family, as in DSSS; `PN` above is the single
 m-sequence.
-
-::: doppler.wfm.Gold
-
-______________________________________________________________________
 
 ## `compose` — multi-segment composition, writers, and a NATS sink
 
@@ -323,7 +309,7 @@ A `Composer` turns a `Segment` / `Timeline` / segment-list into samples,
 optionally looping (`repeat`) or running forever (`continuous`); `Writer`
 serialises to the four file types (raw / CSV / BLUE type-1000 / SigMF), and
 `StreamSink` publishes over NATS (requires a `nats-server` reachable at the
-endpoint). The resolved spec round-trips through JSON, so a
+endpoint; [NATS Broker](../../install/broker.md) installs and runs one). The resolved spec round-trips through JSON, so a
 capture is fully reproducible.
 
 ```python
@@ -366,7 +352,7 @@ into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
 **Getting samples into and out of a file is its own topic** — `Writer`, its dual
 `Reader`, content-based file-type detection, and what metadata each file type
-survives are all on [Python: Capture I/O](../guide/wfm-io/index.md). For SigMF, pair a
+survives are all on [Python: Capture I/O](../../guide/wfm-io/index.md). For SigMF, pair a
 `Writer(..., file_type="sigmf")` data file with `Composer(...).to_sigmf(...)`,
 which is the piece that knows the scene and can therefore annotate it.
 
@@ -408,35 +394,11 @@ The schedule is drift-free (deadlines come from the cumulative sample count, not
 summed sleeps); underruns are counted in `clk.underruns` / `clk.max_lateness`,
 and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
-### Classes
-
-::: doppler.wfm.compose.Composer
-
-::: doppler.wfm.compose.Segment
-
-::: doppler.wfm.compose.Timeline
-
-::: doppler.wfm.compose.StreamSink
-
-::: doppler.wfm.compose.SampleClock
-
 ### Module-level helpers
 
 The SigMF sidecar is now `Composer(...).to_sigmf(...)` — see the `Composer`
 class above. `write_blue_header` (detached BLUE headers) is on [Python: Capture
-I/O](../guide/wfm-io/reading.md#blue-specifics).
-
-::: doppler.wfm.rrc_taps
-
-::: doppler.wfm.rrc_h
-
-::: doppler.wfm.rc_h
-
-::: doppler.wfm.dsss_spread
-
-::: doppler.wfm.crc16
-
-::: doppler.wfm.mls_poly
+I/O](../../guide/wfm-io/reading.md#blue-specifics).
 
 ### Modulation & SNR helpers
 
@@ -446,16 +408,6 @@ callers who build their own symbol streams or noise budgets: `bpsk_map` /
 points, `wfm_ebno_to_snr_db` converts an Eb/No target to the over-`fs` SNR the
 generator actually places, and `wfm_awgn_amplitude` returns the noise amplitude
 for a given SNR.
-
-::: doppler.wfm.bpsk_map
-
-::: doppler.wfm.qpsk_map
-
-::: doppler.wfm.wfm_ebno_to_snr_db
-
-::: doppler.wfm.wfm_awgn_amplitude
-
-______________________________________________________________________
 
 ## `draws()` — what a ranged scene actually drew
 
@@ -471,8 +423,6 @@ same rows a capture's SigMF metadata is built from — both read through
 `dp_wfm_compose_draws()` in C — so an in-process render and a written capture
 cannot disagree about what was generated.
 
-::: doppler.wfm.compose.draws
-
 ## `Plan` — prepare-once stimulus engine
 
 A composed scene is a linear form `Σ gainₖ·signalₖ + noise`, and the expensive
@@ -482,14 +432,10 @@ DSP lives entirely in the signal terms — invariant across a parameter sweep.
 `enable`, global `snr`, Monte-Carlo `seed`) as a cheap re-weighted sum,
 **bit-for-bit identical to a full compose**. The stimulus for a detection/BER
 sweep or a Monte-Carlo campaign that re-runs one scene at many operating points
-— see the [guide](../guide/wfmgen/scenes.md#prepare-once-sweep-many-plan),
+— see the [guide](../../guide/wfmgen/scenes.md#prepare-once-sweep-many-plan),
 and the
-[DSSS BER Monte Carlo](../gallery/dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan)
+[DSSS BER Monte Carlo](../../gallery/dsss-burst-receiver.md#ber-vs-ebn0-through-one-plan)
 for one driving a receiver.
-
-::: doppler.wfm.compose.Plan
-
-::: doppler.wfm.compose.prepare
 
 A prepared `Plan` can be **saved** and restored: `plan.save()` returns the cache
 as `bytes` and `plan.dump(path)` writes it to a file; `PlanFromBlob(blob)` and
@@ -500,11 +446,7 @@ rather than returning wrong samples).
 Reach for it to checkpoint or resume a **live** `Plan`, not to move one between
 processes — the blob is the whole rendered cache, so for a hand-off the spec
 JSON is the thing to ship. The reasoning, with the sizes:
-[Prepare Once, Sweep Many](../guide/wfmgen/scenes.md#scope-and-limits).
-
-::: doppler.wfm.compose.PlanFromBlob
-
-::: doppler.wfm.compose.PlanFromFile
+[Prepare Once, Sweep Many](../../guide/wfmgen/scenes.md#scope-and-limits).
 
 ## `field_bits` — a Field, from its text
 
@@ -512,10 +454,8 @@ The one door from text to the bits every frame object takes. A literal is
 written as its bits (`1101`) or in hex (`0x1ACFFC1D`); a generated field names
 its generator (`pn:1023:10`, `gold:…`, `dotted:16`); any of them may repeat
 (`pn:31:5*4`). The grammar is [Fields: bits as
-text](../guide/wfmgen/fields.md), read by one C function, and text outside it
+text](../../guide/wfmgen/fields.md), read by one C function, and text outside it
 raises rather than coming back empty.
-
-::: doppler.wfm.field_bits
 
 ## `Frame` — the bit layout, held by both ends
 
@@ -574,10 +514,6 @@ bits from the start of the frame. A `Frame` holds only the fields it was
 given, so an omitted preamble takes no index. The CRC field is 16 bits, or
 **0 when the payload is empty**: a CRC over nothing protects nothing, so it is
 dropped rather than carried as a trailer over no data.
-
-::: doppler.wfm.Frame
-
-::: doppler.wfm.FrameCheck
 
 ## `FrameDesc` — the same frame, deferred
 
@@ -699,10 +635,6 @@ same end by running the transform itself and handing the wire the result:
 [`src/doppler/examples/frame_own_stage_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/examples/frame_own_stage_demo.py) does exactly that, end to end,
 and `native/examples/wfmgen_frame_demo.c` §6 does it the C way with an ops
 table. Both are self-validating.
-
-::: doppler.wfm.FrameDesc
-
-______________________________________________________________________
 
 ## Acquiring one — where a received frame *starts*
 

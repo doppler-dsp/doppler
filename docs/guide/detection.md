@@ -211,7 +211,7 @@ before it can answer and a synchroniser reading a live capture cannot wait.
 
 It is the general kernel, not any one standard's: pass the marker. CCSDS's
 32-bit attached sync marker comes from
-[`asm_bits()`](../api/python-wfmgen.md#acquiring-one-where-a-received-frame-starts),
+[`asm_bits()`](wfmgen/python.md#acquiring-one-where-a-received-frame-starts),
 so nothing transcribes `0x1ACFFC1D` twice.
 
 !!! warning "`max_errors` is not a property of the marker"
@@ -265,5 +265,5 @@ assert (hit.found, hit.offset, hit.inverted, hit.errors) == (1, 96, 1, 0)
 every frame and in exactly one polarity, so it is the only thing in a frame
 that can report that a BPSK carrier locked 180 degrees out. Downstream cannot
 — see
-[the frame-description page](../api/python-wfmgen.md#acquiring-one-where-a-received-frame-starts)
+[the frame-description page](wfmgen/python.md#acquiring-one-where-a-received-frame-starts)
 for why an outer code is blind to a global complement.

@@ -30,7 +30,7 @@ idle, and the search seeds it again.
 
 ## How it is built
 
-Each emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
+Each emitter is [`wfm.Synth`][doppler.wfm.Synth] in continuous DSSS mode,
 placed on the stream at its own sample offset and carrier, with
 [`source.AWGN`][doppler.source.AWGN] at the Es/N0 every emitter shares.
 

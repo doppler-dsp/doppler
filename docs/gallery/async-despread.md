@@ -6,7 +6,7 @@ description: "Dll(segments) despreading a Doppler-dilated code on an asynchronou
 
 ![Code lock statistic and loop filter output, unaided and aided, at this link's Doppler and at an inflated one, and the despread output](../assets/async_despread_demo.png)
 
-A [`track.Dll`](../api/python-track.md) with `segments > 1` is the despreader of
+A [`track.Dll`][doppler.track.Dll] with `segments > 1` is the despreader of
 a DSSS link whose data clock is asynchronous to its code. It takes a
 carrier-wiped stream, removes the spreading code, and emits `segments` despread
 samples per code period. Those samples carry the symbol clock to the next stage,
@@ -21,7 +21,7 @@ Two things make the asynchronous case different:
 - **The code clock is dilated by the same motion that shifts the carrier.** A
     carrier offset `f` on a carrier `fc` is a code-rate ratio `f/fc`. The
     carrier estimate that wipes the carrier, divided by `fc`, is also the
-    code-rate aid, [`Dll.set_rate_aid`](../api/python-track.md). Aided, the loop
+    code-rate aid, [`Dll.set_rate_aid`](../guide/tracking-loops.md). Aided, the loop
     carries only what the estimate missed, so it can stay narrow.
 
 The setup is CCSDS Gold-1023 at 3.069 Mcps, asynchronous BPSK at 2700 bps, two
@@ -70,7 +70,7 @@ outcome, and the script asserts it for this run.
 
 ## How it works
 
-The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
+The emitter is [`wfm.Synth`][doppler.wfm.Synth] in continuous DSSS mode,
 on nominal frequency, with its own PRBS payload.
 [`impairment.DopplerChannel`][doppler.impairment.DopplerChannel] applies the motion
 from one parameter: it dilates every clock in the stream and shifts the carrier

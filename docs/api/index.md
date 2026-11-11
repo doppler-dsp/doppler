@@ -8,7 +8,7 @@ The C layer is the source of truth — every algorithm is implemented here once.
 
 ## Python reference
 
-- \[**Python API**\][doppler] — every public class, function and constant, one page per module, generated from the package's `__all__`
+- [**Python API**][doppler] — every public class, function and constant, one page per module, generated from the package's `__all__`
 
 ## Python API
 

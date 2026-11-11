@@ -84,3 +84,26 @@ def test_a_dead_anchor_fails(tmp_path: Path) -> None:
     run = _run(site)
     assert run.returncode == 1
     assert "dead anchor -> other.html#nowhere" in run.stderr
+
+
+def test_a_cross_reference_rendered_as_text_fails(tmp_path: Path) -> None:
+    """mdformat escapes `[x][doppler.mpsk]` to `\\[x\\][doppler.mpsk]` unless
+    .mdformat.toml says not to, and it then renders as literal brackets: no
+    link, no build warning (#3000)."""
+    site = tmp_path / "site"
+    _page(site, "index.html", "<p>[<code>mpsk</code>][doppler.mpsk] maps.</p>")
+    run = _run(site)
+    assert run.returncode == 1
+    assert "cross-reference rendered as text -> [doppler.mpsk]" in run.stderr
+
+
+def test_a_resolved_cross_reference_passes(tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    _page(site, "ref.html", '<h2 id="doppler.mpsk">mpsk</h2>')
+    _page(
+        site,
+        "index.html",
+        '<p><a href="ref.html#doppler.mpsk"><code>mpsk</code></a> maps.</p>',
+    )
+    run = _run(site)
+    assert run.returncode == 0, run.stderr

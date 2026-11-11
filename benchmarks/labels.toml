@@ -1231,3 +1231,37 @@ name = "DSSS search, 5 Mcps, ±50 kHz, depth 1, 8 threads"
 unit = "sample"
 definition = "The 5 Mcps, ±50 kHz, depth D = 1 search (21 frequency tiles, 254-epoch dwells) with the tiles fanned across 8 threads; the published run is pinned to 4 cores and their SMT siblings (CPUs 0-3 and 10-13), so the 8 threads run two to a core; throughput counts searched input samples."
 samples = 1
+
+# HalfbandDecimatorR2C (#3002): the real-input sibling of HalfbandDecimator,
+# swept over the same block sizes so the rows compare.
+
+["c:HalfbandDecimatorR2C::execute[block=1024]"]
+name = "Real-to-complex halfband decimator, 1,024-sample blocks"
+unit = "sample"
+definition = "A 19-tap halfband shifting real float input to complex baseband and decimating by two, fed 1,024-sample blocks, 2,048,000 samples per round; throughput counts input samples."
+samples = 1
+
+["c:HalfbandDecimatorR2C::execute[block=8192]"]
+name = "Real-to-complex halfband decimator, 8,192-sample blocks"
+unit = "sample"
+definition = "A 19-tap halfband shifting real float input to complex baseband and decimating by two, fed 8,192-sample blocks, 2,048,000 samples per round; throughput counts input samples."
+samples = 1
+
+["c:HalfbandDecimatorR2C::execute[block=32768]"]
+name = "Real-to-complex halfband decimator, 32,768-sample blocks"
+unit = "sample"
+definition = "A 19-tap halfband shifting real float input to complex baseband and decimating by two, fed 32,768-sample blocks, 2,048,000 samples per round; throughput counts input samples."
+samples = 1
+
+["c:HalfbandDecimatorR2C::execute[block=65536]"]
+name = "Real-to-complex halfband decimator, 65,536-sample blocks"
+unit = "sample"
+definition = "A 19-tap halfband shifting real float input to complex baseband and decimating by two, fed 65,536-sample blocks, 2,048,000 samples per round; throughput counts input samples."
+samples = 1
+
+["py:HalfbandDecimatorR2C::test_bench_create"]
+name = "Real-to-complex halfband decimator setup, from Python"
+unit = "call"
+definition = "Constructing one HalfbandDecimatorR2C from a one-tap float32 filter: the cost of building the object, paid once per object."
+domain = "call"
+count = 1

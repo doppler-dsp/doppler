@@ -318,7 +318,7 @@ What to decide here:
 The consumer's side, a capture read back into rows and drawn with
 `scripts/plot_capture.py`, is the
 [lifecycle gallery page](../../gallery/async-dsss-receiver-lifecycle.md) and
-[the Python telemetry API](../../api/python-telemetry.md).
+[the Python telemetry API](../../guide/telemetry.md).
 
 **A create-time count that changes what a surface means is a reject key, and
 a constructor argument.** `rate_hypotheses` (the burst engine's Doppler-rate

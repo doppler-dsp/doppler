@@ -47,7 +47,7 @@ little-endian — the same characters the same samples get in a BLUE file,
 so nothing translates between the wire and the file. `TLM16` is the
 exception in the same argument slot: it is a frame *kind*, not a sample
 format (telemetry records, Publisher only — see
-[Telemetry](../api/python-telemetry.md)), because BLUE has no code for a record
+[Telemetry][doppler.telemetry.Telemetry]), because BLUE has no code for a record
 stream.
 
 `recv()` returns `(samples, header)` where `header` is a dict of the

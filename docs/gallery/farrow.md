@@ -6,7 +6,7 @@ description: "fractional-delay resampling."
 
 ![Farrow interpolator response by order](../assets/farrow_demo.png)
 
-A [`resample.Farrow`](../api/python-resample.md) fractional-delay interpolator —
+A [`resample.Farrow`][doppler.resample.Farrow] fractional-delay interpolator —
 the lean, sample-by-sample alternative to a polyphase resampler when all you need
 is a fractional tap (a symbol-timing loop's interpolator). It has three
 selectable orders — `linear`, `parabolic`, `cubic` — sharing one 4-tap delay

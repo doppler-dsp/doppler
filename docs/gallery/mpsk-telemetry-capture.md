@@ -114,7 +114,7 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.mpsk_telemetry_capture_demo   # → mpsk_telemetry_capture_demo.png  (~2 s)
 ```
 
-See the [telemetry API](../api/python-telemetry.md) for the probe tables
+See the [telemetry API](../guide/telemetry.md) for the probe tables
 and record layout, [M-PSK Receiver](mpsk-receiver.md) for the receiver
 itself, and [Lock Detection](lockdet.md) for the verify-counted decisions
 the `*.locked` traces come from.

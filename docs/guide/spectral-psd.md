@@ -236,7 +236,7 @@ ______________________________________________________________________
 `PSD` and the measurement analyzers speak **DSP** parameters — segment length
 `n`, Kaiser `beta`, zero-pad. A spectrum-analyzer operator speaks **instrument**
 parameters — **center, span, RBW, reference level**. `doppler.analyzer.Specan`
-is the C-first bridge: it composes the [`DDC`](../api/python-ddc.md)
+is the C-first bridge: it composes the [`DDC`][doppler.ddc.DDC]
 tuner/decimator and the same `PSD` PSD core, takes the instrument knobs, and
 emits a ready-to-plot dB display band.
 

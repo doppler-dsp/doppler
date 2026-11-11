@@ -6,7 +6,7 @@ description: "ten emitters on one Gold code, each on its own Doppler ramp and wi
 
 ![Each emitter's Doppler ramp on the air with the carrier of the receiver that holds it, and every receiver's symbol lock coloured by the emitter it holds](../assets/async_dsss_pool_scene.png)
 
-One [`dsss.AsyncDsssPool`](../api/python-dsss.md) runs six receivers on one
+One [`dsss.AsyncDsssPool`][doppler.dsss.AsyncDsssPool] runs six receivers on one
 stream. Ten emitters on one Gold code come and go over six seconds, at most six
 on the air at once. Each has its own code phase, its own level (within ±8 dB of
 the others) and its own Doppler: a start and a rate, as from its own motion. The

@@ -1,4 +1,8 @@
-# Python DSSS API
+---
+description: "Despread, track and demodulate direct-sequence spread spectrum: the despreaders, the burst demodulator, the composed continuous and burst receivers, the async receiver and its pool."
+---
+
+# DSSS Receivers
 
 The `doppler.dsss` module provides a full DSSS receiver: two despreaders
 that track and despread once a signal is acquired — **`Despreader`**, the
@@ -12,8 +16,6 @@ code phase and Doppler in the first place are the searches of
 
 Source:
 [`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/dsss/__init__.py)
-
-______________________________________________________________________
 
 ## `PolynomialPhaseEstimator` — feedforward frequency + chirp-rate estimator
 
@@ -31,10 +33,6 @@ non-data-aided case). `estimate(x)` returns a
 `PolynomialPhaseEstimate(freq_norm, rate_norm, snr_db)` record in normalized units
 (cycles/sample and cycles/sample²); scale by the sequence's sample rate for Hz.
 It is the feedforward front-end for chirping-burst demodulation.
-
-::: doppler.dsss.PolynomialPhaseEstimator
-
-______________________________________________________________________
 
 ## `BurstDemod` — feedforward DSSS frame demodulator
 
@@ -66,7 +64,6 @@ data_code = ((np.arange(50) * 40503 >> 7) & 1).astype(np.uint8)
 sync_word = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
 payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
 
-
 def _crc16(bits):                          # CRC-16/CCITT, MSB-first
     c = 0xFFFF
     for b in bits:
@@ -74,10 +71,8 @@ def _crc16(bits):                          # CRC-16/CCITT, MSB-first
         c = ((c << 1) ^ 0x1021) & 0xFFFF if c & 0x8000 else (c << 1) & 0xFFFF
     return c
 
-
 def _sign(b):                              # 0/1 chips -> +1/-1 BPSK
     return np.where(np.asarray(b) & 1, -1.0, 1.0)
-
 
 # ONE description of the frame: the transmitter spreads it, the receiver is
 # told it (its sync word and its length), and nobody sums field lengths.
@@ -104,10 +99,6 @@ for b in frame[13 + 64:][:16]:
     rx_crc = (rx_crc << 1) | int(b)
 assert rx_crc == int(crc16(payload))            # the CHECK is the caller's
 ```
-
-::: doppler.dsss.BurstDemod
-
-______________________________________________________________________
 
 ## `Despreader` — continuous tracking receiver
 
@@ -144,10 +135,6 @@ symbols = d.steps(rx)   # one despread prompt per code period
 bits    = d.bits(rx)    # hard data bits (bit-synced when periods_per_bit > 1)
 ```
 
-::: doppler.dsss.Despreader
-
-______________________________________________________________________
-
 ## `BurstDespreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the
@@ -155,8 +142,6 @@ Seeded with a coarse frequency and code-phase estimate (from the
 `BurstDespreader` locks
 the signal with a code-tracking **delay-locked loop** and a carrier-tracking
 **Costas loop**, despreads the payload, and emits symbols.
-
-______________________________________________________________________
 
 ## How it works
 
@@ -189,10 +174,6 @@ Tracking state is readable: `norm_freq` (carrier estimate), `code_phase`,
 `lock_metric` (0–1), `snr_est`. The cf32 symbol output chains over the `stream`
 module's `dp_header_t` framing like any other DSP block.
 
-______________________________________________________________________
-
-## Examples
-
 ### Despread a payload seeded from acquisition
 
 ```python
@@ -218,10 +199,6 @@ d = BurstDespreader(data_code, sf=32, sps=2)
 d.set_acq(acq_code, acq_reps=5)   # 5-rep preamble pulls the loops in
 symbols = d.steps(burst)          # preamble emits nothing; payload follows
 ```
-
-______________________________________________________________________
-
-::: doppler.dsss.BurstDespreader
 
 ## `DsssReceiver` — the composed continuous receiver
 
@@ -250,8 +227,6 @@ syms = rx.steps(x)   # empty while searching; demodulated symbols once locked
 rx.tracking          # 0 = searching, 1 = locked and demodulating
 ```
 
-::: doppler.dsss.DsssReceiver
-
 ## `DsssBurstReceiver` — the composed burst chain
 
 `DsssBurstReceiver` is the burst-mode counterpart of `DsssReceiver`: it
@@ -260,8 +235,6 @@ object, built from the frame description the transmitter spread. See
 [its gallery page](../gallery/dsss-burst-receiver.md) for a run, and
 [`BurstCapture`][doppler.acquire.BurstCapture] if you want the burst's samples without
 the demodulation.
-
-::: doppler.dsss.DsssBurstReceiver
 
 ## `AsyncDsssReceiver` — the packaged continuous async receiver
 
@@ -274,12 +247,8 @@ Doppler and a binary symbol-lock indicator. See the gallery page
 [AsyncDsssReceiver: the specification waveform](../gallery/async-dsss-receiver-spec.md)
 for an end-to-end decode through physically-coupled Doppler.
 
-::: doppler.dsss.AsyncDsssReceiver
-
 The receiver reports one consistent picture by value through `status()`.
 It carries no timestamp: the caller owns the sample clock and stamps it.
-
-::: doppler.dsss.ReceiverStatus
 
 ## `AsyncDsssPool` — N receivers, each searching for itself
 
@@ -292,11 +261,7 @@ code phase. It also hands each searcher the phases the others hold and a rank,
 so N receivers hold N different signals. The result depends neither on how
 the stream is blocked nor on the thread count.
 
-::: doppler.dsss.AsyncDsssPool
-
 `status(i)` is receiver `i`'s record, the same fields as `ReceiverStatus`.
-
-::: doppler.dsss.PoolReceiverStatus
 
 ## `Acquirer` — a coarse-Doppler bank of burst searches
 
@@ -305,12 +270,6 @@ span with a bank of `CoarseChannel` searches, each mixed to its own center;
 each hit is a `Detection` in absolute coordinates.
 The `coarse_doppler_bank_demo.py` example
 finds a burst outside the center channel.
-
-::: doppler.dsss.Acquirer
-
-::: doppler.dsss.CoarseChannel
-
-::: doppler.dsss.Detection
 
 ## `ASYNC_DSSS_RX_STATE` — naming a receiver's state
 

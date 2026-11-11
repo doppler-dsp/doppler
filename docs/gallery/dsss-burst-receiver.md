@@ -9,10 +9,10 @@ description: "the end-to-end DSSS burst walkthrough: a train sent from one frame
 The composed form of `Correlator -> refine -> BurstDemod` (the
 `Correlator` being the burst search, `framing="burst"`), the burst DSSS
 receive chain, in one C object:
-[`DsssBurstReceiver`](../api/python-dsss.md). Its continuous counterpart is
+[`DsssBurstReceiver`][doppler.dsss.DsssBurstReceiver]. Its continuous counterpart is
 [`DsssReceiver`](dsss-receiver.md). Each stage on its own is its API page:
 [`Correlator`][doppler.correlation.Correlator],
-[`BurstDemod`](../api/python-dsss.md).
+[`BurstDemod`][doppler.dsss.BurstDemod].
 
 This page is the end-to-end walkthrough: a frame **description**, the burst
 train `wfmgen` transmits from it on all three of its faces, the receiver,

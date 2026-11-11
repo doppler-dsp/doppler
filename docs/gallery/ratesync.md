@@ -6,7 +6,7 @@ description: "matched filtering and symbol timing in one dot product, at a non-i
 
 ![Arbitrary-rate matched filtering and timing recovery](../assets/ratesync_demo.png)
 
-[`track.RateSync`](../api/python-track.md) recovers symbols from a stream whose
+[`track.RateSync`][doppler.track.RateSync] recovers symbols from a stream whose
 sample clock has **no integer relationship to the symbol clock** — here 17.33389
 samples per symbol, and 200 ppm off even that.
 

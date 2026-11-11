@@ -604,13 +604,6 @@ jobs:
       # everywhere"). Only the .pyi files are collected as doctest sources.
       run: make test-stubs
 
-    - name: Doctest API reference pages
-      # jm synthesizes .pyi docstrings for *objects* but not module-level free
-      # functions (detection, spectral helpers, ...), so those modules' runnable
-      # examples live in their curated docs/api/*.md page instead. Gate them the
-      # same way: any `>>>` example on an API page must pass against the build.
-      run: make test-api-docs
-
     - name: Doc fence gates (python + C + shell)
       # Fail-closed, and discovered rather than registered, so a NEW page is
       # gated on arrival: every ```python fence under docs/ is executed or

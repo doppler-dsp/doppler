@@ -150,7 +150,7 @@ python -m doppler.examples.wfm_io_demo          # the four-file type figure (.pn
 python -m doppler.examples.wfm_realtime_stream  # paced NATS publish + recv stats
 ```
 
-See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)
+See the [Python composer API](../guide/wfmgen/python.md#compose-multi-segment-composition-writers-and-a-nats-sink)
 for the full `Writer` / `Reader` surface.
 
 ## See also

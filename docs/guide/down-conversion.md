@@ -140,7 +140,7 @@ the same reason a real receiver's carrier-loop bandwidth is a small fraction of
 the symbol rate.
 
 The timing port is the other half: wrap a detector and a loop filter around
-`rate_ctrl` and you have [`track.RateSync`](../api/python-track.md), which does exactly
+`rate_ctrl` and you have [`track.RateSync`][doppler.track.RateSync], which does exactly
 that over a `RateConverter`.
 
 ## `Ddcr` — real input (Architecture D2)

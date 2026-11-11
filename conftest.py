@@ -58,8 +58,8 @@ def pytest_configure(config):
     and the examples, and the suites that know about the broker
     self-skip when it is absent.
 
-    That leaves a gap the self-skips cannot close: the `.pyi` and
-    `docs/api/*.md` **doctest** gates run as plain pytest invocations
+    That leaves a gap the self-skips cannot close: the `.pyi`
+    **doctest** gate runs as a plain pytest invocation
     with no broker step, and a doctest has nowhere to hang a skip
     marker. `detection.pyi` and `stream.pyi` both open real publishers
     in their synthesized examples, so on a developer machine they failed

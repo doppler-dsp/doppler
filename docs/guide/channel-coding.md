@@ -147,7 +147,7 @@ and decodes against itself perfectly, so a round trip can never catch either.
 
 For a whole CCSDS CADU — the dual basis, the interleaver and the coverage
 table — describe one with
-[`FrameDesc`](../api/python-wfmgen.md#framedesc-the-same-frame-deferred) instead.
+[`FrameDesc`](wfmgen/python.md#framedesc-the-same-frame-deferred) instead.
 
 ## `Interleaver` — spreading a burst across codewords
 

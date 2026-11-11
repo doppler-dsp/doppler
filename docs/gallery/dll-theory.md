@@ -6,7 +6,7 @@ description: "discriminator and loop-filter derivation."
 
 ![DLL theory validation](../assets/dll_theory_demo.png)
 
-A theoretical-correctness check on [`track.Dll`](../api/python-track.md)'s
+A theoretical-correctness check on [`track.Dll`][doppler.track.Dll]'s
 prompt-normalized early-minus-late power code discriminator
 `0.5·(|E|²-|L|²)/|P|²` (clamped to ±1).
 

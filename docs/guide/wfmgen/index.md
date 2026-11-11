@@ -30,7 +30,7 @@ This guide is five pages:
 
 Every flag is also a Python keyword, named in the
 [Field reference](options.md); the classes that take them are the
-[Python API](../../api/python-wfmgen.md).
+[Python API](python.md).
 
 Getting samples into a file and back out again is
 [Capture I/O](../wfm-io/index.md) — a section of its own, because reading a

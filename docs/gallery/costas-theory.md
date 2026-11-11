@@ -6,7 +6,7 @@ description: "loop-filter design and steady-state behaviour."
 
 ![Costas theory validation](../assets/costas_theory_demo.png)
 
-A theoretical-correctness check on [`track.Costas`](../api/python-track.md)'s
+A theoretical-correctness check on [`track.Costas`][doppler.track.Costas]'s
 decision-directed BPSK phase discriminator, `e = sign(Re P)·Im(P)/|P|`.
 
 **Left — Phase-detector S-curve.** Driving the loop open-loop (bandwidth → 0)

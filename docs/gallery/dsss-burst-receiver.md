@@ -38,7 +38,7 @@ redoing, and getting subtly wrong:
 The frame is a **description**: its fields in wire order, and the CRC stage
 with the span it covers. It is written twice in the script, once as the
 JSON that `wfmgen --frame` reads and a scene's `"frame"` key holds, and
-once as a [`FrameDesc`](../api/python-wfmgen.md), by the same names:
+once as a [`FrameDesc`][doppler.wfm.FrameDesc], by the same names:
 
 <!-- docs-snippet: skip=an excerpt whose names (SYNC_SPEC, PAYLOAD_SPEC) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 

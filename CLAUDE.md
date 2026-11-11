@@ -1193,8 +1193,7 @@ ______________________________________________________________________
 the Python reference (`reference/doppler/<module>/`) is generated from each
 package's `__all__` by mkdocs-api-autonav and mkdocstrings, so a public name
 reaches it by existing (`check_surface.py` holds it, #3000);
-`docs/api/*.md`'s `::: doppler.x.Y` directives render live from Python
-docstrings; `README.md`'s entire body below the badges is generated from
+`README.md`'s entire body below the badges is generated from
 `docs/index.md`'s readme-sync region by `scripts/gen_readme.py`
 (`make docs-relink`; never hand-edit between `<!-- readme-sync:start -->`/
 `:end`);

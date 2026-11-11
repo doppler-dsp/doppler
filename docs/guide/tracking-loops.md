@@ -1,6 +1,10 @@
-# Python Loop Filter API
+---
+description: "Track carrier, code and symbol timing: the shared PI loop filter, the Costas and M-PSK carrier loops, the M-PSK and BPSK receivers, the DLL, symbol sync and rate sync."
+---
 
-The `doppler.track` module provides `LoopFilter` — a **second-order
+# Tracking Loops
+
+[`doppler.track`][doppler.track] provides `LoopFilter` — a **second-order
 proportional-integral loop filter**, the shared engine of every tracking loop
 (Costas/PLL, DLL, symbol timing). An error `e` goes in, a control value comes
 out (`control = integ + kp·e`), and the integrator advances `integ += ki·e`, so
@@ -9,8 +13,6 @@ instantaneous (phase) correction.
 
 Source:
 [`src/doppler/track/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.82.0/src/doppler/track/__init__.py)
-
-______________________________________________________________________
 
 ## How it works
 
@@ -30,10 +32,6 @@ ki = 4·theta²     / (4 + 4·zeta·theta + theta²)
 integrator. The state struct is public C, so trackers embed it **by value** and
 drive it with the same kernel — there is no per-update allocation.
 
-______________________________________________________________________
-
-## Examples
-
 ### Drive a loop with a constant error
 
 ```python
@@ -50,8 +48,6 @@ round(lf.integ, 6)           # == ki (one update of unit error)
 lf.configure(0.05, 0.707, 1.0)   # wider bandwidth; integ preserved
 lf.reset()                       # zero the integrator
 ```
-
-______________________________________________________________________
 
 ## Costas — carrier-tracking loop
 
@@ -89,8 +85,6 @@ f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
 locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
 ```
 
-______________________________________________________________________
-
 ## CarrierMpsk — M-PSK carrier-tracking loop
 
 `CarrierMpsk` is the M-ary generalization of `Costas`: the same integer-NCO
@@ -121,8 +115,6 @@ locked  = c.lock_metric      # Re(P conj ahat)/|P| EMA, ~1.0 when phase-locked
 # resolve the M-fold ambiguity downstream, e.g. mpsk_diff_demap(mpsk_demap(...))
 ```
 
-______________________________________________________________________
-
 ## CarrierNda — non-data-aided carrier loop
 
 `CarrierNda` is the **non-data-aided** carrier-recovery loop — the cold-start
@@ -148,8 +140,6 @@ derot  = c.steps(rx)         # de-rotated samples (one per input sample)
 f_est  = c.norm_freq         # tracked carrier (cycles/sample)
 locked = c.lock              # M-th-power lock metric (normalised: ~1.0 at lock)
 ```
-
-______________________________________________________________________
 
 ## MpskReceiver — pulse-shaped M-PSK modem
 
@@ -287,8 +277,6 @@ anywhere pins the absolute phase — so a caller wanting bits rather than
 symbols needs either `bits(..., differential=1)` or a downstream sync word.
 Coherent demapping with neither is a misconfiguration, not a choice.
 
-______________________________________________________________________
-
 ## BpskReceiver — stated in the units a capture comes with
 
 `BpskReceiver` is a **view** over the same core, and what makes it worth having
@@ -337,8 +325,6 @@ from doppler.track import BpskReceiver
 BpskReceiver(sample_rate_hz=8e6, symbol_rate_hz=1e6, carrier_freq_hz=9e6)
 ```
 
-______________________________________________________________________
-
 ## MpskReceiverR — the real-input face
 
 `MpskReceiverR` is `MpskReceiver` for a **real IF**: `steps()` and `bits()` take
@@ -378,8 +364,6 @@ rx = MpskReceiverR(m=4, sps=24.0, m_out=4, init_norm_freq=fc, bn_carrier=0.002)
 sym = rx.steps(rf)           # recovered symbols
 lk  = rx.lock                # carrier lock metric
 ```
-
-______________________________________________________________________
 
 ## Dll — code-tracking loop
 
@@ -442,8 +426,6 @@ partials = d.steps(rx)       # 4 partial prompts per code epoch (PN removed)
 # downstream: SymbolSync(...).steps(partials) -> bits
 ```
 
-______________________________________________________________________
-
 ## SymbolSync — symbol timing recovery
 
 `SymbolSync` recovers the symbol clock of an **asynchronous** data stream (a
@@ -467,8 +449,6 @@ ss = SymbolSync(sps=4, bn=0.01, zeta=0.707, order="cubic")
 symbols = ss.steps(rx)   # timing-corrected symbols
 ss.rate                  # recovered samples/symbol
 ```
-
-______________________________________________________________________
 
 ## RateSync — matched filtering and timing in one dot product
 
@@ -514,29 +494,3 @@ spans many symbols and is unaffected.
 `SymbolSync` remains the answer when the matched filter is one this family does
 not build, or when the front end is already at a small integer `sps` and a
 Farrow interpolator is the cheaper shape.
-
-::: doppler.track.LoopFilter
-
-______________________________________________________________________
-
-::: doppler.track.Costas
-
-______________________________________________________________________
-
-::: doppler.track.CarrierMpsk
-
-______________________________________________________________________
-
-::: doppler.track.CarrierNda
-
-______________________________________________________________________
-
-::: doppler.track.Dll
-
-______________________________________________________________________
-
-::: doppler.track.SymbolSync
-
-______________________________________________________________________
-
-::: doppler.track.RateSync

@@ -58,11 +58,11 @@ fails the example rather than the prose.
 
 ## How it works
 
-The emitter is [`wfm.Synth`](../api/python-wfmgen.md) in continuous DSSS mode,
+The emitter is [`wfm.Synth`][doppler.wfm.Synth] in continuous DSSS mode,
 with its own PRBS payload on the Gold code. Each off span is zeroed after
 synthesis, so the noise floor is the same before, during and after every cut.
 The noise is [`source.AWGN`][doppler.source.AWGN], with the per-component
-sigma that [`wfm_awgn_amplitude`](../api/python-wfmgen.md) gives for the Es/N0.
+sigma that [`wfm_awgn_amplitude`][doppler.wfm.wfm_awgn_amplitude] gives for the Es/N0.
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_receiver_lifecycle.py:signal"

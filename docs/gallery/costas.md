@@ -6,7 +6,7 @@ description: "Costas loop pull-in under noise."
 
 ![Costas carrier-loop stress demo](../assets/costas_demo.png)
 
-A [`track.Costas`](../api/python-track.md) carrier-tracking loop acquiring a
+A [`track.Costas`][doppler.track.Costas] carrier-tracking loop acquiring a
 **large** residual carrier offset — ~0.9 rad/symbol, at `SNR = 15 dB`. This is
 bigger than a bare Costas PLL can pull in *at any loop bandwidth*: the phase
 discriminator's linear range is far narrower than the residual. The figure
@@ -39,7 +39,7 @@ The carrier loop is one small primitive composed from two others:
     bounded and exactly reproducible — no `double`-accumulator drift over long
     runs. The loop de-rotates the input one sample at a time with the inline
     `lo_step()` (carrier wipe-off).
-- [`track.LoopFilter`](../api/python-track.md) — the 2nd-order PI loop filter
+- [`track.LoopFilter`][doppler.track.LoopFilter] — the 2nd-order PI loop filter
     that turns the per-symbol phase error into a frequency + phase steer.
 
 Each `tsamps`-sample symbol is coherently integrated (integrate-and-dump), a

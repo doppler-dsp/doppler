@@ -43,4 +43,4 @@ twin is `native/examples/framed_link_demo.c`.
 ## Related
 
 - [M-PSK Receiver](mpsk-receiver.md) — the receiver used here.
-- [`FrameDesc`](../api/python-wfmgen.md#framedesc-the-same-frame-deferred) — the description both ends share.
+- [`FrameDesc`](../guide/wfmgen/python.md#framedesc-the-same-frame-deferred) — the description both ends share.

@@ -8,7 +8,7 @@ doppler can emit samples **at their real sample rate** — mimicking a hardware
 sample clock — and **timestamp** them on an ideal timeline. Both come from one
 small C core, `timing_core` (`dp_sample_clock_t`), exposed as the
 `wfmgen --realtime` CLI flag and the Python
-[`SampleClock`](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink).
+[`SampleClock`](wfmgen/python.md#compose-multi-segment-composition-writers-and-a-nats-sink).
 
 This guide explains *why* software pacing is more subtle than `sleep(N/fs)`,
 *how* doppler does it drift-free, and *where* it fits — including the role of the
@@ -246,5 +246,5 @@ ______________________________________________________________________
 
 - [Waveform Generator guide](wfmgen/scenes.md#streaming-real-time-pacing) — the `--realtime` flag
     in context.
-- [Python `compose` API](../api/python-wfmgen.md) — `SampleClock`, `Composer`,
+- [Python `compose` API](wfmgen/python.md) — `SampleClock`, `Composer`,
     `StreamSink`.

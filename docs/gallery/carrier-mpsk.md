@@ -6,7 +6,7 @@ description: "decision-directed carrier recovery."
 
 ![M-PSK carrier loop theory validation](../assets/mpsk_carrier_theory_demo.png)
 
-A theoretical-correctness check on [`track.CarrierMpsk`](../api/python-track.md),
+A theoretical-correctness check on [`track.CarrierMpsk`][doppler.track.CarrierMpsk],
 the M-ary generalization of the [Costas loop](costas.md). It is the same
 integer-NCO wipe-off + integrate-and-dump + `LoopFilter` + FLL assist, with a
 **decision-directed M-PSK** phase discriminator `e = Im(P·conj(â))/|P|` (â the

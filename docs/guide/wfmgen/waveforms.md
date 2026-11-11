@@ -42,15 +42,15 @@ wfmgen is a *transmitter*. Some of what it sends has a receiver in doppler and
 some is stimulus only, and it is better to know which before building a test
 around one.
 
-| You send                                                                                                                                        | Received by                                                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `bpsk` / `qpsk` / `bits` (a BPSK or QPSK mapping) as a **continuous stream**, framed (preamble, sync word, data, CRC) or not                    | [`MpskReceiver`](../../api/python-track.md#mpskreceiver-pulse-shaped-m-psk-modem), with `FrameDesc.check` scoring each frame |
-| a `dsss` burst (`--acq-code`, `--data-code`, a frame)                                                                                           | [`DsssBurstReceiver`][doppler.dsss.DsssBurstReceiver] (or `BurstDemod` once a burst is located)                              |
-| continuous `dsss` (`--symbol-rate`)                                                                                                             | [`DsssReceiver`][doppler.dsss.DsssReceiver]                                                                                  |
-| **an unspread burst**: `bits` / `bpsk` / `qpsk` frames with silence or noise between them (`--off`, `--repeats`, `--delay`), or one frame alone | *stimulus only*: it must be located before it can be demodulated, and nothing here does both                                 |
-| **`chirp`**                                                                                                                                     | *stimulus only*: no demodulator                                                                                              |
-| **`symbols`** (QAM, APSK, pi/4-QPSK, anything you supply)                                                                                       | *stimulus only*: no demodulator for the constellation                                                                        |
-| `tone`, `noise`, `pn`                                                                                                                           | measurement and correlation inputs, not links                                                                                |
+| You send                                                                                                                                        | Received by                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bpsk` / `qpsk` / `bits` (a BPSK or QPSK mapping) as a **continuous stream**, framed (preamble, sync word, data, CRC) or not                    | [`MpskReceiver`](../tracking-loops.md#mpskreceiver-pulse-shaped-m-psk-modem), with `FrameDesc.check` scoring each frame |
+| a `dsss` burst (`--acq-code`, `--data-code`, a frame)                                                                                           | [`DsssBurstReceiver`][doppler.dsss.DsssBurstReceiver] (or `BurstDemod` once a burst is located)                         |
+| continuous `dsss` (`--symbol-rate`)                                                                                                             | [`DsssReceiver`][doppler.dsss.DsssReceiver]                                                                             |
+| **an unspread burst**: `bits` / `bpsk` / `qpsk` frames with silence or noise between them (`--off`, `--repeats`, `--delay`), or one frame alone | *stimulus only*: it must be located before it can be demodulated, and nothing here does both                            |
+| **`chirp`**                                                                                                                                     | *stimulus only*: no demodulator                                                                                         |
+| **`symbols`** (QAM, APSK, pi/4-QPSK, anything you supply)                                                                                       | *stimulus only*: no demodulator for the constellation                                                                   |
+| `tone`, `noise`, `pn`                                                                                                                           | measurement and correlation inputs, not links                                                                           |
 
 What makes a burst stimulus-only is not its preamble. A preamble is part of a
 continuously framed stream, and `MpskReceiver` receives that stream and scores
@@ -283,7 +283,7 @@ wfmgen --type symbols --symbols-file qam16.cf32 --sps 8 --pulse rrc -o qam.cf32
 In Python the constellation is the `symbols=` keyword on the composer `Synth`
 (`Synth(type="symbols", symbols=iq, sps=8)`); on the low-level `_SynthEngine`
 it is attached with `set_symbols()` after construction. See the
-[Python API](../../api/python-wfmgen.md#symbols-arbitrary-constellation) for a worked pi/4-QPSK example, and the
+[Python API](python.md#symbols-arbitrary-constellation) for a worked pi/4-QPSK example, and the
 [Symbols gallery walkthrough](../../gallery/symbols.md) for pi/4-QPSK and
 16-QAM constellations with rect vs RRC pulses.
 

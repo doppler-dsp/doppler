@@ -6,7 +6,7 @@ description: "integrated carrier + timing + bit recovery."
 
 ![MpskReceiver constellation pull-in, carrier acquisition, and BER](../assets/mpsk_receiver_demo.png)
 
-[`track.MpskReceiver`](../api/python-track.md) is a complete M-PSK modem, and it
+[`track.MpskReceiver`][doppler.track.MpskReceiver] is a complete M-PSK modem, and it
 owns no filter, no NCO and no interpolator of its own. It is a **matched
 down-converter with two loops closed around its two control ports**: a
 [`MatchedDDC`](ddc-fn.md) mixes, decimates and matched-filters in the dot
@@ -26,7 +26,7 @@ irrational samples-per-symbol — a free-running ADC clock against the symbol cl
 `sps = 8` and at `sps = 256` alike, against the ~4225 taps/arm a single-stage
 design would need at the top of that range.
 
-[`track.MpskReceiverR`](../api/python-track.md) is the **real-input face**: same
+[`track.MpskReceiverR`][doppler.track.MpskReceiverR] is the **real-input face**: same
 loops, same demapper — literally the same implementation — with a
 `MatchedDdcr` front end so it takes a real IF (`f32`) instead of complex
 baseband. It is a view over the same core, not a second type: `steps()` takes a

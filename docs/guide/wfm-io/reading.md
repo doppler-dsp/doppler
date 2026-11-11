@@ -256,6 +256,34 @@ area value is always a `str`, since that area has no type field.
 payload. Open either one: given the header, `Reader` resolves the collocated
 `.det`; given the `.det`, it looks for the header as `.hdr`, `.prm` or `.tmp`.
 The extension never decides — the HCB's `detached` field does.
+`write_blue_header` writes such a standalone header for a payload written
+separately.
+
+## The metadata vocabularies
+
+Each string-valued `Reader` property has a tuple listing every value it can
+report, in C enum order (a name's index is its C value). `STYPE` and
+`ENDIAN` are also the names `Writer` takes.
+
+| tuple         | the values of        |
+| ------------- | -------------------- |
+| `FTYPE`       | `Reader.file_type`   |
+| `STYPE`       | `Reader.sample_type` |
+| `ENDIAN`      | `Reader.endian`      |
+| `SAMPLE_MODE` | `Reader.mode`        |
+| `FOLLOW_END`  | `Reader.ending`      |
+| `FS_SOURCE`   | `Reader.fs_source`   |
+| `T0_SOURCE`   | `Reader.t0_source`   |
+| `FC_SOURCE`   | `Reader.fc_source`   |
+
+```pycon
+>>> from doppler.wfm import FTYPE, FOLLOW_END, FC_SOURCE
+>>> FTYPE
+('raw', 'csv', 'blue', 'sigmf')
+>>> FOLLOW_END[-1], FC_SOURCE[-1]
+('interrupted', 'core:frequency')
+
+```
 
 ______________________________________________________________________
 

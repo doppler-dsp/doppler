@@ -148,6 +148,25 @@ def fragment_problem(f: pathlib.Path, entry: str) -> str | None:
             f"changelog-assemble: {name} does not start with '- ' — a "
             "fragment is the entry itself, verbatim"
         )
+    # A fragment is ONE entry: one top-level `- ` bullet. A second one at
+    # column 0 is a second entry in the same file, and the assembled list
+    # then differs from what mdformat writes: fragments are joined by a
+    # blank line, which makes the list loose, so mdformat adds the blank
+    # line the two bullets lack. `make release-pr` for v0.82.0 stopped at
+    # its own commit on exactly that (doppler#2993). Lines inside a code
+    # fence are code, not entries.
+    fenced = False
+    for n, line in enumerate(entry.splitlines(), 1):
+        if line.lstrip().startswith(("```", "~~~")):
+            fenced = not fenced
+        if n > 1 and not fenced and line.startswith("- "):
+            return (
+                f"changelog-assemble: {name} line {n} starts a second "
+                "top-level entry.\n"
+                "  A fragment is one entry: move this bullet to its own "
+                "file in the same\n"
+                "  changelog.d/<section>/, or indent it under the first."
+            )
     # A fragment may not carry a `### ` heading. The DIRECTORY is the
     # heading, so one in the body is a second, contradictory answer -- and
     # because the fragments for a section are joined and inserted as ONE

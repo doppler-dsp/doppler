@@ -179,6 +179,45 @@ resampled rate.
 
 ______________________________________________________________________
 
+## Clipping, headroom and BLUE keywords
+
+Integer sample types map ±1.0 to ±max-code, so content with a PAPR above
+0 dBFS clips. `track_clipping()` turns on the counters, and `clip_fraction`,
+`peak_dbfs` and `clipped` report what happened, measured on the way out at
+no cost when tracking is off. `headroom` (dB) attenuates on the way out
+instead, so a scene with known peaks lands under full scale without
+rescaling it yourself ([Levels & SNR](../wfmgen/waveforms.md#scaling-to-the-wire-and-headroom)).
+
+`add_keyword(tag, type, value)` appends a keyword to a BLUE file's extended
+header. `type` is the BLUE type code (`A` for ASCII, `B`/`I`/`L` integer,
+`F`/`D` floating point, and so on), and the value may be a scalar or a
+sequence; `Reader.keywords` reads it back.
+
+```python
+import pathlib
+import tempfile
+
+import numpy as np
+from doppler.wfm import Reader, Writer
+
+tmp = pathlib.Path(tempfile.mkdtemp())
+x = np.exp(2j * np.pi * 0.01 * np.arange(256)).astype(np.complex64)
+
+with Writer(tmp / "clip.raw", fs=1e6, file_type="raw", sample_type="ci8") as w:
+    w.track_clipping()
+    w.write(x * 4.0)                  # deliberately over full scale
+    assert w.clipped and w.clip_fraction > 0.0
+
+with Writer(tmp / "kw.blue", file_type="blue", fs=1e6) as w:
+    w.add_keyword("MISSION", "A", "doppler-demo")
+    w.add_keyword("GAIN_DB", "D", -3.5)
+    w.write(x[:64])
+
+with Reader(tmp / "kw.blue") as r:
+    assert r.keywords["MISSION"] == "doppler-demo"
+    assert r.keywords["GAIN_DB"] == -3.5
+```
+
 ## Sinks
 
 | `--output`                 | Result                                                                                                                                                               |

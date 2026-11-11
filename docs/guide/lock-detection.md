@@ -16,7 +16,7 @@ This codebase has exactly two designs, and they don't mix:
 - **Continuous, verify-counted** — a loop that runs indefinitely
     (code, carrier, or timing tracking) steps a statistic every look
     and feeds it to the shared primitive
-    [`lockdet_core.h`](../api/python-detection.md#lock-verification):
+    [`lockdet_core.h`](detection.md#lock-verification):
     level hysteresis (a declare/drop threshold pair) plus time
     hysteresis (`n_up`/`n_down` consecutive looks). See
     [Lock Detection: Verify Counts](../gallery/lockdet.md) for how

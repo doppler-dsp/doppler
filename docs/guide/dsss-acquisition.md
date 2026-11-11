@@ -20,7 +20,7 @@ the preamble's samples and their rate `sample_rate`; for the continuous search
 the code's chips, `chip_rate` and the `sample_rate` it is fed at), the sensitivity (`cn0_dbhz`), and a target
 **(Pfa, Pd)**.
 The engine sizes its own search grid — the coherent depth and the threshold
-(and, on the continuous search, the non-coherent looks) — from the [detection theory](../api/python-detection.md) and streams
+(and, on the continuous search, the non-coherent looks) — from the [detection theory](detection.md) and streams
 detections. You never pick a bin count or a threshold.
 
 !!! note "Two framings, one engine"
@@ -168,7 +168,7 @@ ______________________________________________________________________
 
 You do not pick a threshold, a coherent depth, or a bin count — you state the
 operating point and the engine derives the grid with the
-[detection functions](../api/python-detection.md).
+[detection functions](detection.md).
 
 First it converts your sensitivity to the per-sample amplitude SNR the detection
 math uses (noise power = `N0·fs` over the sampled bandwidth):
@@ -737,7 +737,7 @@ ______________________________________________________________________
 - [Python: Acquire API][doppler.acquire] — `BurstCapture` and
     `bin_to_signed`
 - [Python: DSSS API](../api/python-dsss.md) — `BurstDespreader` and the composed receivers
-- [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
+- [Python: Detection Statistics](detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the 2-D detector's
     matched-filter surface
 - [Design: pure-functional acquisition kernel](../design/acq-fn.md) — the

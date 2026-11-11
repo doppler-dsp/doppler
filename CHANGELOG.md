@@ -15258,7 +15258,7 @@ PRs.
     were not generated here in the first place. Reading a capture and
     generating a waveform are now independently findable:
 
-    - new **[Python: Capture I/O](docs/api/python-wfm-io.md)** API page holds
+    - new **[Python: Capture I/O](https://github.com/doppler-dsp/doppler/blob/v0.82.0/docs/api/python-wfm-io.md)** API page holds
         `Reader`, `Writer` and `write_blue_header`;
     - new top-level **Capture I/O** guide section holds
         [Writing captures](docs/guide/wfm-io/writing.md) (moved from

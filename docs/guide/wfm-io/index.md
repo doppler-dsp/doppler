@@ -93,7 +93,7 @@ ______________________________________________________________________
 
 ## See also
 
-- [Python: Capture I/O (Reader / Writer)](../../api/python-wfm-io.md) — the API
+- [Python: Capture I/O (Reader / Writer)][doppler.wfm.Reader] — the API
     reference for both classes and `write_blue_header`.
 - [Gallery: Waveform I/O](../../gallery/wfm-io.md) — one capture round-tripped
     through all four file types, confirmed lossless.

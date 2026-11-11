@@ -238,7 +238,7 @@ captures them and reads the rows back.
 
 The decision probes pair with their statistic probes by design:
 `Dll`'s `.locked` is the verify-counted
-[lock-detector](python-detection.md#lock-verification) output next to
+[lock-detector](../guide/detection.md#lock-verification) output next to
 the `.lock` CFAR statistic it is judging, and `MpskReceiver`'s
 `.car.locked` is the carrier loop's lock decision next to the `.lock` carrier
 metric — plot the pair and you see exactly where the declare/drop rule

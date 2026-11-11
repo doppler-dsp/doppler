@@ -7,7 +7,7 @@ description: "the sizing chain every lock detector shares, and the independence 
 **Scope:** why lock detection in doppler has the shape it does. Not how to
 use it — that is the [guide](../guide/lock-detection.md), the
 [gallery page](../gallery/lockdet.md) and the
-[API reference](../api/python-detection.md). This page is the argument
+[API reference](../guide/detection.md). This page is the argument
 underneath them, and it exists because the argument had been written down
 inside one object's design note while the code it justifies became shared.
 

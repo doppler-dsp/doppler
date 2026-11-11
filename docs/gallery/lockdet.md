@@ -20,7 +20,7 @@ neither a declare nor a drop.
 (`metric > η`) — how every loop's lock indicator starts life —
 transitions **92 times** on this trace: it chatters on every marginal
 miss and false-alarms in the noise segments. The
-[`LockDet`](../api/python-detection.md#lock-verification) flag,
+[`LockDet`][doppler.detection.LockDet] flag,
 driven by the *same* per-look statistic, transitions exactly
 **twice**: one declare, one drop.
 
@@ -120,7 +120,7 @@ pip install "doppler-dsp[examples]"   # matplotlib + scipy, once
 python -m doppler.examples.lockdet_demo   # → lockdet_demo.png  (~10 s)
 ```
 
-See the [detection API](../api/python-detection.md) for the full
+See the [detection API](../guide/detection.md) for the full
 derived chain — C/N0 → `(pd, pfa)` → thresholds
 (`det_threshold_*`), verify counts (`det_verify_count`), declare
 latency (`det_verify_delay`), and smoothing bandwidth

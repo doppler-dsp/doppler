@@ -17,7 +17,7 @@ These same C cores back the one command-line tool, `wfmgen` — see the
 [Waveform Generator guide](../guide/wfmgen/index.md).
 
 **Reading or writing a capture file is on its own page** — [Python: Capture
-I/O](python-wfm-io.md) covers `Reader`, `Writer` and `write_blue_header`, with
+I/O](../guide/wfm-io/index.md) covers `Reader`, `Writer` and `write_blue_header`, with
 the [Capture I/O guide](../guide/wfm-io/index.md) as the narrative version.
 
 ______________________________________________________________________
@@ -366,7 +366,7 @@ into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
 **Getting samples into and out of a file is its own topic** — `Writer`, its dual
 `Reader`, content-based file-type detection, and what metadata each file type
-survives are all on [Python: Capture I/O](python-wfm-io.md). For SigMF, pair a
+survives are all on [Python: Capture I/O](../guide/wfm-io/index.md). For SigMF, pair a
 `Writer(..., file_type="sigmf")` data file with `Composer(...).to_sigmf(...)`,
 which is the piece that knows the scene and can therefore annotate it.
 
@@ -424,7 +424,7 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 The SigMF sidecar is now `Composer(...).to_sigmf(...)` — see the `Composer`
 class above. `write_blue_header` (detached BLUE headers) is on [Python: Capture
-I/O](python-wfm-io.md#module-level-helpers).
+I/O](../guide/wfm-io/reading.md#blue-specifics).
 
 ::: doppler.wfm.rrc_taps
 
@@ -708,7 +708,7 @@ ______________________________________________________________________
 
 `check()` scores a frame you were **handed**. Finding one in a bit stream is
 the other half, and it lives in `doppler.detection`:
-[`SyncFinder`](python-detection.md#frame-synchronisation) correlates a known
+[`SyncFinder`][doppler.detection.SyncFinder] correlates a known
 marker against every offset, in both polarities. `asm_bits()` is what
 gives it the CCSDS marker without anyone transcribing `0x1ACFFC1D` a second
 time — an MSB-first expansion written out twice is one that can disagree with

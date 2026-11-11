@@ -7,7 +7,7 @@ description: "the four statistical laws behind one det_ prefix: which one a stat
 **Scope:** why `detection` has the shape it does. Not how to use it — that is
 the [guide](../guide/lock-detection.md), the
 [gallery](../gallery/detection-curves.md) and the
-[API reference](../api/python-detection.md). This page is the argument
+[API reference](../guide/detection.md). This page is the argument
 underneath them.
 
 It is a sibling of [Lock Detection](lock-detect.md), which owns the *decision

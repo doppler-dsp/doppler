@@ -17,26 +17,33 @@ import time
 
 #: The pull request half of the bench label gate (#2390): an opt-in
 #: `--bench-rows PATH` that records every benchmark row the run measured.
-#: Its own module so a test can load it alone (`-p`), without this file.
-#: Loaded by PATH under a top-level name, never as `doppler.tests.<x>`:
-#: importing the `doppler.tests` package here binds it to whichever
-#: `doppler` is on the path (the coverage job's copied build-cov/pkg), and a
-#: nested pytest collecting src/doppler/tests then fails on "import file
-#: mismatch" (test_git_env_isolation, #3040's first CI run).
-def _load_bench_rows_plugin() -> None:
+#: Its own module, scripts/pytest_bench_rows.py, so a test can load it
+#: alone with `-p pytest_bench_rows`. Here it is loaded by PATH and its
+#: hooks bound into this conftest, for two measured reasons:
+#: - never as `doppler.tests.<x>`: importing the `doppler.tests` package
+#:   here binds it to whichever `doppler` is on the path (the coverage job's
+#:   copied build-cov/pkg), and a nested pytest collecting src/doppler/tests
+#:   fails on "import file mismatch" (test_git_env_isolation);
+#: - never through `pytest_plugins`: pytest then imports a module this file
+#:   already imported, warns that it cannot rewrite its asserts, and
+#:   test-stubs runs with `-W error::UserWarning`, so every Python leg died
+#:   at start-up (#3040's second CI run).
+def _load_bench_rows_plugin():
     import importlib.util
-    import sys
 
     path = pathlib.Path(__file__).parent / "scripts" / "pytest_bench_rows.py"
-    spec = importlib.util.spec_from_file_location("pytest_bench_rows", path)
+    spec = importlib.util.spec_from_file_location("_bench_rows_hooks", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["pytest_bench_rows"] = mod
     spec.loader.exec_module(mod)
+    return mod
 
 
-_load_bench_rows_plugin()
-pytest_plugins = ["pytest_bench_rows"]
+_bench_rows = _load_bench_rows_plugin()
+pytest_addoption = _bench_rows.pytest_addoption
+pytest_runtest_teardown = _bench_rows.pytest_runtest_teardown
+pytest_runtest_logreport = _bench_rows.pytest_runtest_logreport
+pytest_sessionfinish = _bench_rows.pytest_sessionfinish
 
 #: The variables through which git is pointed at a repository other than
 #: the one its working directory is in. `git rebase -x CMD` exports GIT_DIR
@@ -100,6 +107,7 @@ def pytest_configure(config):
     existing self-skips do their job — this makes coverage better where
     it can and never worse.
     """
+    _bench_rows.pytest_configure(config)
     global _nats_proc, _nats_store
     if _nats_available() or shutil.which("nats-server") is None:
         return

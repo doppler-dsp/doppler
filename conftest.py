@@ -14,6 +14,11 @@ import subprocess
 import tempfile
 import time
 
+#: The pull request half of the bench label gate (#2390): an opt-in
+#: `--bench-rows PATH` that records every benchmark row the run measured.
+#: Its own module so a test can load it alone (`-p`), without this file.
+pytest_plugins = ["doppler.tests._bench_rows"]
+
 #: The variables through which git is pointed at a repository other than
 #: the one its working directory is in. `git rebase -x CMD` exports GIT_DIR
 #: and GIT_PREFIX to CMD, and a hook may export the rest. Many gate tests

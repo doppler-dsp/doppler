@@ -616,11 +616,13 @@ Give each new row, C and Python, a label in `benchmarks/labels.toml` in
 the same PR: a plain name, its unit, a one-sentence definition and its
 count (`samples = N`, or `domain` and `count`; the gate refuses a label
 without one), which is what [the benchmarks page](../../benchmarks.md)
-shows. Nothing checks
-this at PR time yet ([#2390](https://github.com/doppler-dsp/doppler/issues/2390)):
-`make lint` sees only rows a release has published, so a missing or
-mistyped label surfaces when the next release is measured
+shows. CI checks it in the PR: `make bench-labels-pr-check` refuses a row
+the PR's CI run measured with no label, and a C row whose recorded unit
+contradicts its label
 ([Benchmarking](benchmarking.md#the-benchmarks-page-reads-every-row-through-a-label)).
+A Python row's unit, a row no CI leg runs, and a mistyped pending label
+still surface only when the next release is measured
+([#3039](https://github.com/doppler-dsp/doppler/issues/3039)).
 
 No CI job runs benchmarks; a release measures and commits its set by hand
 ([release step 2b](../release.md#2b-refresh-the-benchmarks-page)). Run

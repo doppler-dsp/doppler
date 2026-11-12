@@ -483,12 +483,27 @@ label for a row no release has published yet is held as pending -- the
 gate checks it was added after the newest release was measured -- and
 the release that first measures the row makes it live.
 
-**Nothing checks a PR's own rows yet.** The gate sees only the rows a
-release has published, so a new row with no label, a unit change that
-contradicts its label, or a pending label with a mistyped ID surfaces at
-the next release's `make bench-docs`, not in the PR. A PR-time check
-needs each row's name and unit without timing it; that is
-[#2390](https://github.com/doppler-dsp/doppler/issues/2390).
+**CI checks a PR's own rows.** `make bench-labels-pr-check` (#2390) reads
+the rows the PR's CI run measured, untimed: every C row `bench-run-check`
+runs, with its recorded unit, and every Python row
+`make test-python BENCH_ROWS=1` runs. It refuses a row with neither a
+label nor an exempt line, a C row whose unit contradicts its label, and a
+unit word the page cannot read. Run it locally after those two:
+
+<!-- docs-snippet: no-exec=runs every C benchmark and the Python suite -->
+
+```sh
+make bench-run-check
+make test-python BENCH_ROWS=1
+make bench-labels-pr-check
+```
+
+Three cases still surface only at the next release's `make bench-docs`
+([#3039](https://github.com/doppler-dsp/doppler/issues/3039)):
+
+- a Python row's unit, which an untimed run never records;
+- a row no PR leg measures (native-only or broker-gated);
+- a pending label with a mistyped ID.
 
 ______________________________________________________________________
 

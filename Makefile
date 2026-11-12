@@ -2154,7 +2154,7 @@ bench-run-check: ## Run every built C benchmark; fail on any nonzero exit
 # from #3029. This holds the rows the PR's own CI run measured, written by
 # the two steps that already run every benchmark untimed: bench-run-check
 # (C, with each row's recorded unit) and `make test-python BENCH_ROWS=1`
-# (Python; the doppler.tests._bench_rows plugin, opt-in so a plain run
+# (Python; the scripts/pytest_bench_rows.py plugin, opt-in so a plain run
 # writes nothing). A Python row's unit is known only to a timed run, so only
 # its label is checked here. python3, not uv: the C leg's container has no
 # uv. A Python with no TOML parser fails, naming it, never skips.

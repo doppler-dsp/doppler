@@ -13,8 +13,13 @@ controller, and only the controller writes the file. Each entry is the
 fixture's own record (``name``, ``fullname``); the gate names it as a
 published snapshot would (``bench_report.jm_qualified``), not this file.
 
-Loaded by the root ``conftest.py`` (``pytest_plugins``), and by a test that
-wants it alone with ``-p doppler.tests._bench_rows``.
+Loaded by the root ``conftest.py``, by path, under the top-level name
+``pytest_bench_rows``, and by a test that wants it alone with
+``-p pytest_bench_rows`` and ``scripts/`` on ``PYTHONPATH``. Never as
+``doppler.tests._bench_rows``: importing the ``doppler.tests`` package from
+the root conftest binds it to whichever ``doppler`` is on the path -- in
+the coverage job the copied ``build-cov/pkg`` -- and a nested pytest that
+then collects ``src/doppler/tests`` fails with "import file mismatch".
 """
 
 from __future__ import annotations

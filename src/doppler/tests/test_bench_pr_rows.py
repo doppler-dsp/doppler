@@ -8,7 +8,7 @@ HalfbandDecimatorR2C rows with no label, and they surfaced only at
 
 The pull request half reads the rows the PR's own CI run measured -- C rows
 from ``check_bench_runs.py --rows``, Python rows from the
-``doppler.tests._bench_rows`` pytest plugin -- and holds them with
+``scripts/pytest_bench_rows.py`` pytest plugin -- and holds them with
 ``bench_report.py --check-pr-rows``. Every case here runs the REAL
 producer into the REAL checker, so a broken producer fails here too:
 
@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 from doppler.tests.test_bench_page import _load
 
@@ -41,6 +42,11 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 SCRIPTS = repo_root() / "scripts"
+
+#: The C cases run a fake ``bench_<comp>_core`` that is a ``#!/bin/sh``
+#: script. The producer they hold, bench-run-check, runs on the Linux CI
+#: legs only (ci.yml's container build legs), never on Windows.
+SH_BENCH = posix_only("runs a #!/bin/sh fake benchmark")
 
 #: The label #3035 gave one of #3029's rows, trimmed to what the gate reads.
 R2C = "c:HalfbandDecimatorR2C::execute[block=1024]"
@@ -117,6 +123,7 @@ def _gate(root: Path, *rows_files: Path) -> list:
     return bad
 
 
+@SH_BENCH
 def test_an_unlabelled_c_row_is_refused_as_3029s_were(tmp_path: Path) -> None:
     rows = _c_rows(tmp_path, [("execute[block=1024]", "sample")])
     bad = _gate(_tables(tmp_path / "tree"), rows)
@@ -124,6 +131,7 @@ def test_an_unlabelled_c_row_is_refused_as_3029s_were(tmp_path: Path) -> None:
     assert _gate(_tables(tmp_path / "ok", R2C_LABEL), rows) == []
 
 
+@SH_BENCH
 def test_a_new_row_cannot_hide_behind_an_old_exempt_line(
     tmp_path: Path,
 ) -> None:
@@ -141,6 +149,7 @@ def test_a_new_row_cannot_hide_behind_an_old_exempt_line(
     ]
 
 
+@SH_BENCH
 def test_a_c_unit_that_contradicts_its_label_is_refused(
     tmp_path: Path,
 ) -> None:
@@ -152,6 +161,7 @@ def test_a_c_unit_that_contradicts_its_label_is_refused(
     ), bad
 
 
+@SH_BENCH
 def test_a_unit_word_the_page_cannot_read_is_refused(tmp_path: Path) -> None:
     rows = _c_rows(tmp_path, [("execute[block=1024]", "widget")])
     bad = _gate(_tables(tmp_path / "tree", exempt=[R2C]), rows)
@@ -189,14 +199,20 @@ def _py_rows(
     bdir.mkdir(parents=True)
     (bdir / "bench_costas.py").write_text(bench, "utf-8")
     out = tmp_path / "py-rows.json"
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    env = {
+        **os.environ,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": os.pathsep.join(
+            [str(SCRIPTS), os.environ.get("PYTHONPATH", "")]
+        ),
+    }
     r = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
             "-p",
-            "doppler.tests._bench_rows",
+            "pytest_bench_rows",
             "-p",
             "no:cacheprovider",
             "--benchmark-disable",
@@ -244,6 +260,7 @@ def test_the_plugin_writes_nothing_unless_asked(tmp_path: Path) -> None:
     assert not list(tmp_path.rglob("*rows*.json"))
 
 
+@SH_BENCH
 def test_a_python_with_no_toml_parser_fails_loudly(tmp_path: Path) -> None:
     """The C leg runs on the image's system Python: if a future image has
     no tomllib, the gate must go red with the reason, never skip."""
@@ -283,6 +300,7 @@ def _cli(root: Path, rows: Path) -> subprocess.CompletedProcess:
     )
 
 
+@SH_BENCH
 def test_the_gate_exits_nonzero_on_a_refusal_and_zero_on_a_pass(
     tmp_path: Path,
 ) -> None:
@@ -299,6 +317,7 @@ def test_the_gate_exits_nonzero_on_a_refusal_and_zero_on_a_pass(
     assert "no rows file" in gone.stderr
 
 
+@SH_BENCH
 def test_a_bench_that_exits_0_and_records_nothing_fails(
     tmp_path: Path,
 ) -> None:

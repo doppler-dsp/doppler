@@ -191,7 +191,7 @@ ______________________________________________________________________
 | Job                                                                      | What it does                                                                                                                                           | If it fails                                                                                           |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `verify-version`                                                         | `make version-check`: tag == `pyproject.toml` == `ffi/rust/Cargo.toml` == `CMakeLists.txt` == `bootstrap.toml` == `just-makeit.toml`                   | Run `make bump-version VERSION=X.Y.Z`, which writes every probed site, before tagging                 |
-| `verify-ci`                                                              | Polls for `ci-passed` on the tagged commit SHA                                                                                                         | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly                 |
+| `verify-ci`                                                              | Waits for `ci-passed` on the tagged commit SHA                                                                                                         | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly                 |
 | `build-python`                                                           | Builds every supported Python × **Linux x86_64/aarch64** wheels (native runners, no QEMU), runs the AVX/SVE portability gates                          | Fix any `-march=native`/`-mcpu=native` leak or C compile error; re-tag after fixing                   |
 | `build-macos`                                                            | Builds every supported Python × **macOS arm64** wheels natively on `macos-15`                                                                          | C compile error on macOS; check `delocate` output                                                     |
 | `build-windows`                                                          | Builds every supported Python × **win_amd64** wheels natively on `windows-latest` (clang-cl + Ninja, `delvewheel repair`)                              | C compile error under clang-cl; `ci.yml`'s Windows wheel smoke runs the same build on every PR        |
@@ -221,7 +221,7 @@ re-run tests — it trusts that the PR CI gate was green.
 | Job                                                  | What it does                                                                                                     | If it fails                                                                              |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `verify-version`                                     | Asserts tag == `pyproject.toml` == `Cargo.toml` == `CMakeLists.txt`                                              | Run `make bump-version VERSION=X.Y.Z` consistently across all three files before tagging |
-| `verify-ci`                                          | Polls for `ci-passed` on the tagged commit SHA                                                                   | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly    |
+| `verify-ci`                                          | Waits for `ci-passed` on the tagged commit SHA                                                                   | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly    |
 | `build-python`                                       | Builds 6 Python × **Linux x86_64/aarch64** wheels (native runners, no QEMU), runs the AVX/SVE portability gates  | Fix any `-march=native`/`-mcpu=native` leak or C compile error; re-tag after fixing      |
 | `build-macos`                                        | Builds 6 Python × **macOS arm64** wheels natively on `macos-15`                                                  | C compile error on macOS; check `delocate` output                                        |
 | `build-sdist`                                        | Source tarball                                                                                                   | Rare; check `pyproject.toml` `[tool.setuptools]` include list                            |
@@ -293,13 +293,21 @@ Fix: run the gate through `make`, which syncs the pinned jm from
 make drift-check
 ```
 
-### `verify-ci` times out
+### `verify-ci` fails or times out
 
-Symptom: `release.yml` polls for `ci-passed` but never finds it.
+`verify-ci` runs `make release-verify-ci` (the org standard's
+`scripts/verify-ci.py`). It waits as long as the tagged SHA's CI run is
+queued or running, so a release commit queued behind another push run is
+not a failure. A red run is a verdict at once; a SHA with no CI run at all
+is one after 10 minutes. The job's `timeout-minutes` is the only cap on
+waiting for a live run.
 
-Cause: The CI run on the tagged commit either never ran, is still in progress,
-or failed. `verify-ci` polls the *tagged commit SHA* — if CI ran on the PR
-branch's HEAD but the merge produced a different SHA, the poll never finds it.
+Symptom: the job ends red (`red`, `no-run`), or hits its `timeout-minutes`.
+
+Cause: the CI run on the tagged commit failed, or never ran. `verify-ci`
+reads the *tagged commit SHA*. If CI ran on the PR branch's HEAD but the
+merge produced a different SHA, there is no run for it to find, and the job
+reports `no-run` after 10 minutes.
 
 Fix: check `https://github.com/doppler-dsp/doppler/actions` filtered to the
 tagged SHA. If CI failed, fix the issue and re-tag (see below).

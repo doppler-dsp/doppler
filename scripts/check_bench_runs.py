@@ -20,7 +20,8 @@ release run was the first place either could be seen, and the most
 expensive.
 
 Discovery, not registration: every executable named ``bench_*_core`` under
-the build directory is run, so a new benchmark is gated the moment it
+the build directory -- outside any other CMake project built inside it --
+is run, so a new benchmark is gated the moment it
 builds. Each runs in its own scratch directory, because benchmarks write
 their JSON into the working directory. Finding none is a failure, not a
 pass: a gate that ran nothing has checked nothing.
@@ -39,12 +40,37 @@ import tempfile
 from pathlib import Path
 
 
+def _foreign_roots(build_dir: Path) -> list[Path]:
+    """Subtrees of ``build_dir`` that are another CMake project's build.
+
+    A ``CMakeCache.txt`` below the root marks a separate project configured
+    inside this build directory: ``make test-example-downstream-python``
+    builds the downstream jm example into ``build/downstream-jm-py``, and
+    the vendored nats.c configures ``build/libnats-vendor``. Their benches
+    are not this project's -- the example's ``c:capture::*`` rows reached
+    the pull request label gate and failed it as unlabelled doppler rows.
+    """
+    root = build_dir.resolve()
+    return [
+        c.parent.resolve()
+        for c in build_dir.rglob("CMakeCache.txt")
+        if c.parent.resolve() != root
+    ]
+
+
 def find_benches(build_dir: Path) -> list[Path]:
-    """Every executable ``bench_*_core`` file under ``build_dir``, sorted."""
+    """Every executable ``bench_*_core`` this project built, sorted.
+
+    Every one under ``build_dir`` except those inside another CMake
+    project's build tree (`_foreign_roots`).
+    """
+    foreign = _foreign_roots(build_dir)
     return sorted(
         p
         for p in build_dir.rglob("bench_*_core")
-        if p.is_file() and p.stat().st_mode & 0o111
+        if p.is_file()
+        and p.stat().st_mode & 0o111
+        and not any(r in p.resolve().parents for r in foreign)
     )
 
 

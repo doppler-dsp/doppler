@@ -355,3 +355,40 @@ def test_a_run_that_dies_leaves_no_stale_rows_file(tmp_path: Path) -> None:
     dies = "import os\n\n\ndef test_bench_dies(benchmark):\n    os._exit(3)\n"
     _py_rows(tmp_path, f"--bench-rows={out}", bench=dies, rc=3)
     assert not out.exists()
+
+
+@SH_BENCH
+def test_another_projects_benches_are_not_this_projects_rows(
+    tmp_path: Path,
+) -> None:
+    """A separate CMake project built inside the build directory (the
+    downstream jm example in ``build/downstream-jm-py``) is not measured:
+    its rows are not doppler's, and reached the label gate as unlabelled
+    ones until discovery stopped at its ``CMakeCache.txt``."""
+    build = tmp_path / "build"
+    nested = build / "downstream-jm-py" / "native" / "src" / "capture"
+    nested.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text("", "utf-8")
+    (build / "downstream-jm-py" / "CMakeCache.txt").write_text("", "utf-8")
+    _fake_bench(
+        build, "HalfbandDecimatorR2C", [("execute[block=1024]", "sample")]
+    )
+    _fake_bench(nested, "capture", [("read", "call")])
+    out = tmp_path / "c-rows.json"
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "check_bench_runs.py"),
+            str(build),
+            "--rows",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    comps = {
+        b["component"] for b in json.loads(out.read_text("utf-8"))["benches"]
+    }
+    assert comps == {"HalfbandDecimatorR2C"}

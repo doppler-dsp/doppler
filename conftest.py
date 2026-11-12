@@ -14,10 +14,29 @@ import subprocess
 import tempfile
 import time
 
+
 #: The pull request half of the bench label gate (#2390): an opt-in
 #: `--bench-rows PATH` that records every benchmark row the run measured.
 #: Its own module so a test can load it alone (`-p`), without this file.
-pytest_plugins = ["doppler.tests._bench_rows"]
+#: Loaded by PATH under a top-level name, never as `doppler.tests.<x>`:
+#: importing the `doppler.tests` package here binds it to whichever
+#: `doppler` is on the path (the coverage job's copied build-cov/pkg), and a
+#: nested pytest collecting src/doppler/tests then fails on "import file
+#: mismatch" (test_git_env_isolation, #3040's first CI run).
+def _load_bench_rows_plugin() -> None:
+    import importlib.util
+    import sys
+
+    path = pathlib.Path(__file__).parent / "scripts" / "pytest_bench_rows.py"
+    spec = importlib.util.spec_from_file_location("pytest_bench_rows", path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["pytest_bench_rows"] = mod
+    spec.loader.exec_module(mod)
+
+
+_load_bench_rows_plugin()
+pytest_plugins = ["pytest_bench_rows"]
 
 #: The variables through which git is pointed at a repository other than
 #: the one its working directory is in. `git rebase -x CMD` exports GIT_DIR

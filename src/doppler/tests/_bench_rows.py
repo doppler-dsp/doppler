@@ -40,6 +40,14 @@ def _wanted(config) -> bool:
     return bool(config.getoption("bench_rows", default=None))
 
 
+def pytest_configure(config):
+    # A rows file from an earlier run must not outlive this one: a run that
+    # dies before sessionfinish leaves no file, and the gate says so,
+    # instead of reading stale or partial rows.
+    if _wanted(config) and not hasattr(config, "workerinput"):
+        pathlib.Path(config.getoption("bench_rows")).unlink(missing_ok=True)
+
+
 def pytest_runtest_teardown(item, nextitem):
     if not _wanted(item.config):
         return

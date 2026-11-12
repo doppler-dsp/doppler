@@ -180,12 +180,14 @@ def test_bench_params(benchmark, R):
 """
 
 
-def _py_rows(tmp_path: Path, *extra: str) -> Path:
+def _py_rows(
+    tmp_path: Path, *extra: str, bench: str = BENCH_PY, rc: int = 0
+) -> Path:
     """Run the real plugin over one bench file, as `make test-python` does."""
     proj = tmp_path / "proj"
     bdir = proj / "src" / "doppler" / "track" / "benchmarks"
     bdir.mkdir(parents=True)
-    (bdir / "bench_costas.py").write_text(BENCH_PY, "utf-8")
+    (bdir / "bench_costas.py").write_text(bench, "utf-8")
     out = tmp_path / "py-rows.json"
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     r = subprocess.run(
@@ -212,7 +214,7 @@ def _py_rows(tmp_path: Path, *extra: str) -> Path:
         env=env,
         check=False,
     )
-    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.returncode == rc, r.stdout + r.stderr
     return out
 
 
@@ -263,3 +265,74 @@ def test_a_python_with_no_toml_parser_fails_loudly(tmp_path: Path) -> None:
     )
     assert r.returncode != 0
     assert "tomli" in r.stderr, r.stderr
+
+
+def _cli(root: Path, rows: Path) -> subprocess.CompletedProcess:
+    """`bench_report.py --check-pr-rows` as CI runs it, by its exit code."""
+    return subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "bench_report.py"),
+            "--check-pr-rows",
+            str(rows),
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_the_gate_exits_nonzero_on_a_refusal_and_zero_on_a_pass(
+    tmp_path: Path,
+) -> None:
+    """CI reads the exit code, not the messages: hold both."""
+    rows = _c_rows(tmp_path, [("execute[block=1024]", "sample")])
+    red = _cli(_tables(tmp_path / "red"), rows)
+    assert red.returncode == 1, red.stdout + red.stderr
+    assert f"`{R2C}` has no label" in red.stdout
+    green = _cli(_tables(tmp_path / "green", R2C_LABEL), rows)
+    assert green.returncode == 0, green.stdout + green.stderr
+    assert "all 1 row(s) this run measured" in green.stdout
+    gone = _cli(_tables(tmp_path / "gone"), tmp_path / "missing.json")
+    assert gone.returncode != 0
+    assert "no rows file" in gone.stderr
+
+
+def test_a_bench_that_exits_0_and_records_nothing_fails(
+    tmp_path: Path,
+) -> None:
+    """Its rows would reach no gate, so bench-run-check refuses it, and
+    leaves no rows file behind: not even last run's."""
+    build = tmp_path / "build"
+    build.mkdir()
+    exe = build / "bench_silent_core"
+    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    exe.chmod(exe.stat().st_mode | stat.S_IXUSR)
+    out = tmp_path / "c-rows.json"
+    out.write_text('{"suite": "c", "benches": [{"stale": 1}]}', "utf-8")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "check_bench_runs.py"),
+            str(build),
+            "--rows",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 1
+    assert "exit 0, but wrote no bench_silent_core.json" in r.stderr
+    assert not out.exists()
+
+
+def test_a_run_that_dies_leaves_no_stale_rows_file(tmp_path: Path) -> None:
+    """A run killed before its session ends writes no rows, and must not
+    leave last run's file for the gate to read as this run's."""
+    out = tmp_path / "py-rows.json"
+    out.write_text('{"suite": "python", "benches": [{"stale": 1}]}', "utf-8")
+    dies = "import os\n\n\ndef test_bench_dies(benchmark):\n    os._exit(3)\n"
+    _py_rows(tmp_path, f"--bench-rows={out}", bench=dies, rc=3)
+    assert not out.exists()

@@ -1,4 +1,5 @@
 [module.resample]
+applied_reexports = ["_cic_design"]
 doc = """
 Sample-rate conversion: polyphase resampling (Resampler, RateConverter), halfband decimation (HalfbandDecimator), CIC decimation, and Farrow fractional resampling.
 

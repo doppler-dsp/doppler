@@ -33,6 +33,7 @@ class CaptureSummary(tuple[int, float, float]):
         """Centre frequency (Hz); 0 if the file was silent."""
 
 METADATA_SOURCE: tuple[str, ...]
+"""Names of the metadata_source values, indexed by value."""
 
 @final
 class Capture:

@@ -254,6 +254,9 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
         """
 
 ASYNC_DSSS_RX_STATE: dict[int, str]
+"""Names of the async_dsss_rx_state values, keyed by code
+(ASYNC_DSSS_RX_SEARCHING .. ASYNC_DSSS_RX_LOST).
+"""
 
 @final
 class Despreader:

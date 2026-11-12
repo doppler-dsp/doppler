@@ -1,4 +1,5 @@
 [module.util]
+applied_reexports = ["paths"]
 doc = """
 Shared utilities used across the doppler modules: the numeric helpers, and
 `fromto`, the path from a calling script to where it writes.

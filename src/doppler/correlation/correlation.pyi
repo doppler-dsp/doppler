@@ -6,6 +6,9 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 
 CORRELATOR_FLAVOR: dict[int, str]
+"""Names of the correlator_flavor values, keyed by code (DP_CORRELATOR_1D ..
+DP_CORRELATOR_SEARCH_BURST).
+"""
 
 @final
 class Correlator:

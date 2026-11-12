@@ -999,7 +999,7 @@ train-retire: ## TRAIN=<n> — delete a merged train's constituent branches stil
 ifeq ($(HAS_RELEASE),1)
 STD_TARGETS += bump-version version-check release-branch tag-release \
                release-watch ship ci-changes ci-tree-tested ci-docs \
-               ci-check-name ci-changes-wiring-check
+               ci-check-name ci-changes-wiring-check release-verify-ci
 
 BUMP_VERSION_CMD  ?=
 RELEASE_WATCH_CMD ?=
@@ -1520,6 +1520,30 @@ endif
 	@git push origin "v$(VERSION)"
 	@echo "Tagged v$(VERSION) — release workflow starting on GitHub"
 
+# "Did main's CI certify this commit?" -- ONE script answers it for both
+# askers: a release workflow's verify job (`release-verify-ci`, before
+# anything is published) and `release-watch.sh` when that job failed (is CI
+# still running, green, red, or past repair?). Each used to carry its own
+# poll, and they disagreed: the watch's read a failed API call as "CI
+# finished" and spent the release's one recovery on a CI still queued
+# (just-buildit.github.io#226, just-makeit v0.128.0). The waiting rule and
+# every verdict: the script's docstring. The check name and the CI
+# workflow's file are this file's variables, exported to both askers --
+# through the environment, so a RELEASE_WATCH_CMD of any shape (an `@`
+# prefix, a `define`) receives them untouched. A plain `export`, not a
+# target-specific `export X := $(X)`: that expands where it is read, so a
+# repo that sets CI_CHECK_NAME after `include standard.mk` would export the
+# default; this exports whatever the variable holds when the recipe runs.
+VENDORED_FILES += scripts/verify-ci.py
+CI_WORKFLOW ?= $(notdir $(GATES_CI_FILE))
+export CI_CHECK_NAME CI_WORKFLOW
+
+# For a release workflow's verify step: REPO, SHA and GH_TOKEN (actions:
+# read, checks: read) come from the step's env, and the job's own
+# timeout-minutes is the only cap on waiting for a live run.
+release-verify-ci: ## REPO= SHA= — wait while main's CI for SHA is alive, then require it green
+	@python3 scripts/verify-ci.py
+
 release-watch: ## VERSION=x.y.z — watch the release workflow and verify it
 ifndef VERSION
 	@echo "usage: make release-watch VERSION=<x.y.z>"
@@ -2012,7 +2036,8 @@ _STD_SECTION = case "$$t" in \
     coverage|coverage-gate) tsec="Coverage";; \
     bump-version|version-check|release-branch|tag-release|release-watch \
         |ship|ci-changes|ci-tree-tested|ci-docs|ci-check-name|ci-runner \
-        |ci-changes-wiring-check|pr-watch|train|train-retire) tsec="Release";; \
+        |ci-changes-wiring-check|pr-watch|train|train-retire \
+        |release-verify-ci) tsec="Release";; \
     changelog-check|changelog-sections-check|changelog-assemble \
         |changelog-assembled-check|changelog-version-check) tsec="Changelog";; \
     test-examples) tsec="Examples";; \

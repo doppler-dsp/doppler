@@ -890,7 +890,8 @@ PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
 # quietly redefine.
 TEST_PATHS      = src/
 TEST_PYTHON_CMD = $(MEM_GUARD_CMD) $(LEAK_CHECK) -- $(UV) run pytest $(TEST_PATHS) -v \
-                      $(PYTEST_SELECT) --benchmark-disable -n auto $(PYTEST_ARGS)
+                      $(PYTEST_SELECT) --benchmark-disable -n auto $(PYTEST_ARGS) \
+                      $(if $(BENCH_ROWS),--bench-rows=$(BENCH_ROWS_PY))
 # The standard target's own description is generic; this line wins in
 # `make help` (it is read before standard.mk) and names the knob.
 test-python: ## Run the Python test suite (TEST_PATHS=<files/dirs> to narrow)
@@ -1057,7 +1058,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 gen-c-api-check \
                 validate-check \
                 test-all test-sweep test-stubs test-snippets \
-                test-rust bench-run-check \
+                test-rust bench-run-check bench-labels-pr-check \
                 abi-check link-check installed-headers-check \
                 exported-link-check symbol-prefix-check export-check \
                 vendored-collision-check \
@@ -1981,7 +1982,8 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
                 apt-stall-config deps-budget-check cargo-floor-check \
-                bench-coverage-check bench-run-check kwarg-parity-check \
+                bench-coverage-check bench-run-check bench-labels-pr-check \
+                kwarg-parity-check \
                 issues issues-check \
                 gates-extra-home-check \
                 doc-sections-check doc-symbols-check state-versions-check \
@@ -2144,7 +2146,39 @@ bench-commits-check: ## Fail when a published benchmark names a commit main cann
 # built tree and runs in CI right after `make test` (#2675). Stdlib-only,
 # so python3: the build-and-test-linux container has no uv.
 bench-run-check: ## Run every built C benchmark; fail on any nonzero exit
-	@python3 scripts/check_bench_runs.py $(BUILD_DIR)
+	@python3 scripts/check_bench_runs.py $(BUILD_DIR) --rows $(BENCH_ROWS_C)
+
+# The pull request half of the label gate (#2390). bench-coverage-check holds
+# the rows the newest RELEASE measured, so a row a PR adds was seen first at
+# `make bench-docs` on release day: v0.83.0 published five unlabelled rows
+# from #3029. This holds the rows the PR's own CI run measured, written by
+# the two steps that already run every benchmark untimed: bench-run-check
+# (C, with each row's recorded unit) and `make test-python BENCH_ROWS=1`
+# (Python; the doppler.tests._bench_rows plugin, opt-in so a plain run
+# writes nothing). A Python row's unit is known only to a timed run, so only
+# its label is checked here. python3, not uv: the C leg's container has no
+# uv. A Python with no TOML parser fails, naming it, never skips.
+BENCH_ROWS_C  = $(BUILD_DIR)/bench-rows-c.json
+BENCH_ROWS_PY = $(BUILD_DIR)/bench-rows-py.json
+# BENCH_LABELS_SUITE picks which rows file(s): a CI job checks the suite it
+# measured (`c` on the build leg, `py` on the Python leg); `all`, for
+# `make gates`, both. Any other value names no file, and the checker
+# refuses an empty list.
+BENCH_LABELS_SUITE ?= all
+_bench_rows_c   = $(BENCH_ROWS_C)
+_bench_rows_py  = $(BENCH_ROWS_PY)
+_bench_rows_all = $(BENCH_ROWS_C) $(BENCH_ROWS_PY)
+bench-labels-pr-check: ## Fail on a row this run measured with no label (BENCH_LABELS_SUITE=c|py|all)
+	@python3 scripts/bench_report.py --check-pr-rows \
+	    $(_bench_rows_$(BENCH_LABELS_SUITE))
+
+# `make gates` reproduces CI's gate set, and CI's Python leg records its
+# rows; without this the local run's test-all would write no Python rows
+# file and bench-labels-pr-check would fail on its absence. Exported, so the
+# sub-make `gates` starts sees it.
+ifneq ($(filter gates,$(MAKECMDGOALS)),)
+export BENCH_ROWS = 1
+endif
 
 BENCH_LABELS_BASE ?= origin/main
 bench-coverage-check: ## Verify every tested component has a benchmark that runs

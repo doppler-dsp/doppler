@@ -794,6 +794,50 @@ def label_count_problem(rid: str, label: dict, unit):
     return None
 
 
+def row_unit_problems(rid: str, label, known) -> list:
+    """What the label gate refuses about one row's unit, as messages.
+
+    ``known`` is the unit the measurement itself records (None when it
+    records none). Three refusals, each of a row the page would otherwise
+    read wrong without a word: a label whose unit contradicts the
+    recording, a label whose count contradicts it (`label_count_problem`),
+    and a unit word the page has no reading for and no label count
+    overrides. The one definition both gates read: `page_data` for a
+    published row, `pr_row_problems` for a row a pull request measures.
+
+    >>> lab = {"unit": "sample", "samples": 1}
+    >>> row_unit_problems("c:x::steps", lab, "sample")
+    []
+    >>> row_unit_problems("c:x::steps", {**lab, "unit": "bin"}, "sample")
+    ['c:x::steps: labelled unit `bin` but the snapshot records `sample`']
+    >>> len(row_unit_problems("c:x::steps", None, "widget"))
+    1
+    """
+    bad = []
+    if label and known and label.get("unit") != known:
+        bad.append(
+            f"{rid}: labelled unit `{label.get('unit')}` but the "
+            f"snapshot records `{known}`"
+        )
+    if label:
+        why = label_count_problem(rid, label, known)
+        if why:
+            bad.append(why)
+    reads = label and ("samples" in label or label.get("domain"))
+    if known and known not in KNOWN_UNITS and not reads:
+        # jm_bench takes any unit word; one the page has no reading for
+        # would otherwise fall through to "time per call" unannounced.
+        # A label with a count reads the row whatever the word is.
+        bad.append(
+            f"{rid}: the snapshot records unit `{known}`, which the page "
+            f"cannot read -- give the row a label in {LABELS} with "
+            "`samples`, or `domain` and `count`; or, for a unit every "
+            "bench should share, add it to UNIT_SAMPLES or UNIT_DOMAIN "
+            "in scripts/bench_report.py"
+        )
+    return bad
+
+
 try:  # 3.11+; tomli is the same parser, marker-gated in the dev group
     import tomllib as _toml
 except ImportError:  # pragma: no cover - the floor Python
@@ -1278,27 +1322,7 @@ def page_data(root: str = ".") -> dict:
             )
         known = recorded or legacy.get(rid)
         unit = known or (label or {}).get("unit")
-        if label and known and label.get("unit") != known:
-            problems.append(
-                f"{rid}: labelled unit `{label.get('unit')}` but the "
-                f"snapshot records `{known}`"
-            )
-        if label:
-            why = label_count_problem(rid, label, known)
-            if why:
-                problems.append(why)
-        reads = label and ("samples" in label or label.get("domain"))
-        if known and known not in KNOWN_UNITS and not reads:
-            # jm_bench takes any unit word; one the page has no reading for
-            # would otherwise fall through to "time per call" unannounced.
-            # A label with a count reads the row whatever the word is.
-            problems.append(
-                f"{rid}: the snapshot records unit `{known}`, which the page "
-                f"cannot read -- give the row a label in {LABELS} with "
-                "`samples`, or `domain` and `count`; or, for a unit every "
-                "bench should share, add it to UNIT_SAMPLES or UNIT_DOMAIN "
-                "in scripts/bench_report.py"
-            )
+        problems += row_unit_problems(rid, label, known)
         rate = rate_of(rid, unit, label)
         if rate[1] == "Sa":
             # A sample rate past the coverage gate's ceiling is a hollow
@@ -1478,6 +1502,127 @@ def label_problems(
             "bench-labels-fix` does; the rest need a label written"
         )
     return bad
+
+
+def jm_qualified(suite: str, raw: dict) -> dict:
+    """One raw measurement, named as a published snapshot names it.
+
+    A bench writes a bare row name; ``jm bench``, which makes every
+    published snapshot, qualifies it before saving: a C row becomes
+    ``<component>::<row>`` (just-makeit ``_bench._collect_c``, the
+    component read off the ``bench_<component>_core`` binary) and a Python
+    row ``<file stem>::<name>`` (``_bench._qualify_python_names``, the stem
+    read off ``fullname``). A pull request's rows are read before jm sees
+    them (`pr_row_problems`), so this applies the same rule, here and
+    nowhere else, before `row_id` keys them.
+
+    >>> raw = {"component": "fir", "name": "execute[n=64]"}
+    >>> jm_qualified("c", raw)["name"]
+    'fir::execute[n=64]'
+    >>> jm_qualified(
+    ...     "python",
+    ...     {
+    ...         "name": "decimate_R4",
+    ...         "fullname": "src/doppler/resample/benchmarks/bench_cic.py::"
+    ...         "test_bench_decimate_params[4]",
+    ...     },
+    ... )["name"]
+    'bench_cic::decimate_R4'
+    """
+    out = dict(raw)
+    if suite == "c":
+        out["name"] = f"{raw['component']}::{raw['name']}"
+        return out
+    file_part = raw.get("fullname", "").split("::", 1)[0]
+    stem = os.path.splitext(os.path.basename(file_part))[0]
+    out["name"] = f"{stem}::{raw['name']}"
+    return out
+
+
+#: The suites a rows file may hold, as `row_id` spells them.
+PR_ROW_SUITES = ("c", "python")
+
+
+def read_pr_rows(path: str) -> tuple:
+    """``(suite, [raw measurement, ...])`` from one rows file.
+
+    A rows file is what a pull request's own CI run measured, written by
+    the step that ran the benchmarks without timing them:
+    ``check_bench_runs.py --rows`` for C, the ``--bench-rows`` pytest
+    option for Python. ``{"suite": "c", "benches": [...]}``; each entry is
+    the bench's own record before jm qualifies it (`jm_qualified`).
+    """
+    if not os.path.exists(path):
+        raise SystemExit(
+            f"bench-labels-pr: {path}: no rows file -- the step that "
+            "measures this suite did not run (bench-run-check for C, "
+            "`make test-python BENCH_ROWS=1` for Python), and a check of "
+            "nothing is not a pass"
+        )
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    suite = data.get("suite")
+    if suite not in PR_ROW_SUITES:
+        raise SystemExit(
+            f"bench-labels-pr: {path}: suite `{suite}` is not one of "
+            f"{', '.join(PR_ROW_SUITES)}"
+        )
+    return suite, list(data.get("benches") or [])
+
+
+def pr_row_problems(root: str, rows_files: list) -> tuple:
+    """``(problems, count)`` for the rows a pull request measures (#2390).
+
+    `label_problems` holds every row the newest RELEASE measured, so a row
+    a pull request adds is invisible to it until the release after it
+    merges: v0.83.0 published five unlabelled HalfbandDecimatorR2C rows
+    from #3029, found only at `make bench-docs` on release day. This holds
+    the rows the pull request's own CI run measured, against the same
+    tables: every row needs a label in ``labels.toml`` or a line in
+    ``.labels-exempt`` (which only shrinks, so a new row cannot take one),
+    and a C row's recorded unit must agree with its label and be a unit
+    the page can read (`row_unit_problems`).
+
+    A Python row's unit is not checked: a Python bench computes its rate
+    from ``benchmark.stats``, which is None when nothing is timed, so its
+    unit is known only to a timed run, at release.
+
+    A rows file with no row is a problem, not a pass: a check of nothing
+    has checked nothing.
+    """
+    renames = read_renames(root)
+    labels = {canon(k, renames): v for k, v in read_labels(root).items()}
+    path = os.path.join(root, LABELS_EXEMPT)
+    text = ""
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    exempt = {canon(r, renames) for r in read_exempt(text)}
+    bad, seen = [], {}
+    for f in rows_files:
+        suite, benches = read_pr_rows(f)
+        if not benches:
+            bad.append(
+                f"{f}: no {suite} row -- the step that writes it measured "
+                "nothing, and a check of nothing is not a pass"
+            )
+        for raw in benches:
+            q = jm_qualified(suite, raw)
+            rid = canon(row_id(suite, q), renames)
+            known = _recorded_unit(suite, q) if suite == "c" else None
+            # A row recorded more than once (acq's, once per Pd point)
+            # is one row: its first recording speaks for it, as on the page.
+            seen.setdefault(rid, known)
+    for rid, known in sorted(seen.items()):
+        label = labels.get(rid)
+        if label is None and rid not in exempt:
+            bad.append(
+                f"`{rid}` has no label: this pull request measures it, so "
+                f"label it here -- a name, unit, definition and count "
+                f"(`samples`, or `domain` and `count`) in {LABELS}"
+            )
+        bad += row_unit_problems(rid, label, known)
+    return bad, len(seen)
 
 
 #: The tail of every message `fix_labels` clears by itself.
@@ -1994,7 +2139,25 @@ def main() -> int:
         help="delete the legacy-unit and exempt lines the label gate "
         "only wants deleted",
     )
+    p.add_argument(
+        "--check-pr-rows",
+        nargs="+",
+        metavar="ROWS",
+        help="fail unless every row these rows files hold (what a pull "
+        "request's CI measured) is labelled or exempt, with a unit its "
+        "label agrees with",
+    )
     a = p.parse_args()
+    if a.check_pr_rows:
+        bad, n = pr_row_problems(".", a.check_pr_rows)
+        for b in bad:
+            print(f"bench-labels-pr: {b}")
+        if not bad:
+            print(
+                f"bench-labels-pr: all {n} row(s) this run measured are "
+                "labelled or exempt"
+            )
+        return 1 if bad else 0
     if a.fix_labels:
         for line in fix_labels(".") or ["nothing to delete"]:
             print(f"bench-labels-fix: {line}")

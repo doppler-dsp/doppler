@@ -186,6 +186,16 @@ jobs:
     - name: Benchmarks run
       run: make bench-run-check
 
+    # The rows that run just measured, each with its recorded unit, held to
+    # benchmarks/labels.toml at PR time (#2390): a new row with no label was
+    # first seen on release day, as #3029's five were at v0.83.0. One leg:
+    # the rows are the same on both, and the checker needs tomllib, which
+    # the 22.04 image's Python 3.10 lacks. It fails, naming the module, if a
+    # future image's python3 has none, so an image bump cannot turn it off.
+    - name: Benchmark rows are labelled
+      if: matrix.os == 'ubuntu-24.04'
+      run: make bench-labels-pr-check BENCH_LABELS_SUITE=c
+
     # dp_isotime.h follows just-bashit's `iso-8601-basic` rather than defining
     # the format itself, so the reference has to be present for the agreement
     # to be checkable at all. Clone it and set ISOTIME_REQUIRE=1: without the
@@ -640,11 +650,20 @@ jobs:
 
     - name: Test with coverage
       # The primary leg: the coverage.xml it writes is uploaded below.
+      # BENCH_ROWS=1 also records every Python benchmark row the run
+      # measured, for the next step.
       if: matrix.python-version == needs.pythons.outputs.primary
       run: |
-        make test-python PYTEST_ARGS="--cov \
+        make test-python BENCH_ROWS=1 PYTEST_ARGS="--cov \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml"
+
+    # Every Python benchmark row this run measured is labelled (#2390): the
+    # pull request half of bench-coverage-check's release-time label gate.
+    # Its unit is not checked -- a Python bench's rate needs a timed run.
+    - name: Benchmark rows are labelled
+      if: matrix.python-version == needs.pythons.outputs.primary
+      run: make bench-labels-pr-check BENCH_LABELS_SUITE=py
 
     - name: Python example smoke tests
       # BEFORE nats-down, deliberately. The examples gate runs the

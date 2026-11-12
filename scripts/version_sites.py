@@ -109,6 +109,16 @@ SITES: tuple[Site, ...] = (
         r'^version = "([^"]+)"',
         "project",
     ),
+    # jm (0.129.0+, gh-2640) renders the project test from just-makeit.toml's
+    # version and regenerates it on apply. A release bump that rewrites the
+    # manifest and not this line leaves it STALE to `jm status --check`, so
+    # drift-check fails the release PR (measured: 0.83.0 -> 0.84.0 against
+    # the manifest alone). Writing it here gives the bytes jm would render.
+    Site(
+        "test_project.py",
+        "src/doppler/tests/test_project.py",
+        r'^MANIFEST_VERSION = "([^"]+)"',
+    ),
     # The overlay port builds the checkout it lives in, so its version IS
     # this tree's version -- vcpkg just needs it as a literal.
     Site(

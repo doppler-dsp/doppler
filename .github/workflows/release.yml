@@ -108,48 +108,45 @@ jobs:
   # macOS CTest suite still runs in ci.yml.
   # ------------------------------------------------------------------
   # ------------------------------------------------------------------
-  # Confirm the tagged commit already passed CI on main — don't re-run the
+  # Confirm the tagged commit already passed CI on main -- don't re-run the
   # suite. The release bump lands via a PR, so the merge to main is the real
-  # gate; here we just poll the "CI passed" aggregator check on this SHA (see
+  # gate; here we require the "CI passed" aggregator check on this SHA (see
   # the ci-passed job in ci.yml and the release-process skill).
   # ------------------------------------------------------------------
   verify-ci:
     name: Verify CI passed on the tagged commit
     needs: verify-version
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The only cap on waiting for a LIVE run (verify-ci.py waits while the
+    # SHA's CI is queued or running, and stops at once on a dead or red one).
+    # Measured 2026-11-12 over main's 93 push CI runs since 2026-10-29,
+    # queue included: median 9.0 min, p95 12.7, max 18.2. The old 20-minute
+    # window had 1.8 min to spare. ci.yml's push group does not cancel in
+    # progress, so a release commit can queue behind one live run: about 2x
+    # the max, 37 min. 120 is over 3x that. release-watch.sh reads this
+    # value as the job's hang limit.
+    timeout-minutes: 120
     permissions:
+      actions: read
       checks: read
       contents: read
     steps:
-      - name: Poll for the "CI passed" check on this SHA
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      # Was an inline 60 x 20s poll: a 20-minute window that counted QUEUE
+      # time, so a release commit merged behind another push run timed out
+      # with CI merely queued and spent the release's one recovery (the
+      # failure just-makeit gh-2613 hit). The waiting rule and every verdict
+      # now live once, in the org standard: scripts/verify-ci.py
+      # (just-buildit.github.io#227), run through standard.mk.
+      - name: Require a green "CI passed" check for the tagged SHA
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           SHA: ${{ needs.verify-version.outputs.sha }}
-        # `shell: bash` for pipefail: the `| head -n1` below otherwise
-        # reports head's status and a failed `gh api` reads as an empty
-        # answer. The `|| line=""` keeps that tolerance DELIBERATE rather
-        # than accidental -- this is a poll loop, so one API blip should
-        # cost a retry, not the release; with pipefail and `-e` and no
-        # `||`, the assignment itself would end the step.
-        shell: bash
-        run: |
-          for i in $(seq 1 60); do
-            line="$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate \
-              --jq '.check_runs[] | select(.name == "CI passed")
-                    | "\(.status) \(.conclusion)"' | head -n1)" || line=""
-            status="${line%% *}"; conclusion="${line#* }"
-            if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
-              echo "CI passed on $SHA."; exit 0
-            elif [[ "$status" == "completed" && -n "$conclusion" \
-                    && "$conclusion" != "success" ]]; then
-              echo "::error::CI concluded '$conclusion' on $SHA — refusing to release."
-              exit 1
-            fi
-            echo "Waiting for 'CI passed' on $SHA... ($i/60)"; sleep 20
-          done
-          echo "::error::Timed out waiting for 'CI passed' on $SHA."; exit 1
+        run: make -s release-verify-ci
 
   # ------------------------------------------------------------------
   # Build Python wheels

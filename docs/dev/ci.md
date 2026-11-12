@@ -274,13 +274,14 @@ The `pythons` job emits a `primary` output, and a step's `if:` compares
 
 <!-- python-legs:start -->
 
-| step                                 | target                    | lane    | cost (run 36820085885, 3.12) |
-| ------------------------------------ | ------------------------- | ------- | ---------------------------- |
-| Doc fence gates (python + C + shell) | `make test-snippets`      | primary | 74 s                         |
-| Test                                 | `make test-python`        | rest    | 264 s (3.9 leg)              |
-| Test with coverage                   | `make test-python`        | primary | 288 s                        |
-| Validation reports are not stale     | `make validate-check`     | primary | 233 s                        |
-| Upload coverage report               | `actions/upload-artifact` | primary | 1 s                          |
+| step                                 | target                       | lane    | cost (run 36820085885, 3.12)                     |
+| ------------------------------------ | ---------------------------- | ------- | ------------------------------------------------ |
+| Doc fence gates (python + C + shell) | `make test-snippets`         | primary | 74 s                                             |
+| Test                                 | `make test-python`           | rest    | 264 s (3.9 leg)                                  |
+| Test with coverage                   | `make test-python`           | primary | 288 s                                            |
+| Benchmark rows are labelled          | `make bench-labels-pr-check` | primary | under 1 s (local, 288 rows; not yet timed in CI) |
+| Validation reports are not stale     | `make validate-check`        | primary | 233 s                                            |
+| Upload coverage report               | `actions/upload-artifact`    | primary | 1 s                                              |
 
 <!-- python-legs:end -->
 

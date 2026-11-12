@@ -170,9 +170,11 @@ publishes for the first time needs
 a label written, not an exempt line -- the exempt list only shrinks -- and
 it should already have one: a new row is labelled in the PR that adds it,
 where the gate holds the label as pending until a release measures the
-row. Nothing checks that at PR time yet
-([#2390](https://github.com/doppler-dsp/doppler/issues/2390)), so this is
-where a forgotten or mistyped label first shows. A label the new set was measured with but that names no row it
+row. CI holds that at PR time for every row a PR leg measures
+(`make bench-labels-pr-check`, #2390). A row no PR leg runs, a Python
+row's unit, and a mistyped pending label are the exceptions
+([#3039](https://github.com/doppler-dsp/doppler/issues/3039)), and this is
+where those first show. A label the new set was measured with but that names no row it
 recorded is reported as dead: a retired row, or a mistyped ID.
 
 The run takes about two hours (2 h 02 min measured 2026-11-05, pinned to the

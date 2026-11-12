@@ -406,7 +406,7 @@ workflow runs these jobs in order:
 ```text
 verify-version  ──  tag == pyproject == Cargo == CMakeLists == bootstrap == just-makeit
     │
-    ├── verify-ci        ──  poll the "CI passed" aggregator on the tagged SHA
+    ├── verify-ci        ──  wait for the "CI passed" aggregator on the tagged SHA
     │                         (the merge to main already ran the full suite — we
     │                          do NOT re-test here, we confirm it was green)
     │
@@ -455,7 +455,7 @@ smoke-c                          smoke-packages
 
 The release pipeline **does not re-run the test suite** — the bump PR's merge
 to `main` is the gate, so `release.yml` only *confirms* CI was green on the
-tagged commit (`verify-ci` polls the `ci-passed` aggregator job in `ci.yml`),
+tagged commit (`verify-ci` waits for the `ci-passed` aggregator job in `ci.yml`),
 then builds, smoke-tests the built wheel, and publishes. This matches the
 canonical `release-process` skill.
 

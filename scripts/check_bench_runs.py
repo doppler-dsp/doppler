@@ -48,20 +48,23 @@ def find_benches(build_dir: Path) -> list[Path]:
     )
 
 
-def read_rows(exe: Path, cwd: Path) -> list[dict]:
+def read_rows(exe: Path, cwd: Path) -> list[dict] | None:
     """The rows one benchmark recorded in ``cwd``, for the label gate.
 
     Each is the bench's own record -- its bare row ``name`` and its
     ``extra_info`` (where jm_bench writes the row's ``unit``) -- plus the
     ``component`` its binary is named for. Naming the row as a published
     snapshot does is the label gate's, in one place
-    (``bench_report.jm_qualified``), not this file's. A bench that wrote no
-    JSON yields nothing here; ``check_bench_coverage.py`` holds that it does.
+    (``bench_report.jm_qualified``), not this file's.
+
+    None when it wrote no JSON: a bench that exits 0 and records nothing
+    hides its rows from the label gate, so the caller fails it (all 106
+    wrote one when this was added).
     """
     comp = exe.name.removeprefix("bench_").removesuffix("_core")
     path = cwd / f"bench_{comp}_core.json"
     if not path.exists():
-        return []
+        return None
     data = json.loads(path.read_text(encoding="utf-8"))
     return [
         {
@@ -105,6 +108,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    # A rows file from an earlier run must not outlive this one: if this run
+    # fails, the label gate finds no file and says so, rather than reading
+    # stale rows.
+    if args.rows:
+        args.rows.unlink(missing_ok=True)
     failed: list[str] = []
     rows: list[dict] = []
     for exe in benches:
@@ -123,8 +131,14 @@ def main(argv: list[str] | None = None) -> int:
             except subprocess.TimeoutExpired:
                 failed.append(f"{exe.name}: timed out after {args.timeout}s")
                 continue
-            if r.returncode == 0:
-                rows += read_rows(exe, Path(cwd))
+            got = read_rows(exe, Path(cwd)) if r.returncode == 0 else []
+            if got is None:
+                failed.append(
+                    f"{exe.name}: exit 0, but wrote no "
+                    f"{exe.name}.json -- its rows reach no gate"
+                )
+                continue
+            rows += got
         if r.returncode != 0:
             tail = r.stderr.strip().splitlines()[-3:]
             why = "; ".join(tail) if tail else "(nothing on stderr)"

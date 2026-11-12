@@ -1533,6 +1533,9 @@ def jm_qualified(suite: str, raw: dict) -> dict:
     if suite == "c":
         out["name"] = f"{raw['component']}::{raw['name']}"
         return out
+    # jm qualifies only when ``fullname`` has a ``::``; a pytest node id
+    # always has one, so here it is unconditional. A row name of its own
+    # containing ``::`` is kept whole, after the stem, as jm keeps it.
     file_part = raw.get("fullname", "").split("::", 1)[0]
     stem = os.path.splitext(os.path.basename(file_part))[0]
     out["name"] = f"{stem}::{raw['name']}"

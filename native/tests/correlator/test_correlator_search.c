@@ -5022,7 +5022,7 @@ main (void)
     float          *ref = malloc (c->search->n_surf * sizeof *ref);
     float          *got = malloc (c->search->n_surf * sizeof *got);
     DP_REQUIRE (x && ref && got);
-    uint64_t lcg = 7;
+    uint32_t rng = 7;
     for (size_t k = 0; k < n; k++)
       {
         size_t  q    = k % nx;
@@ -5046,10 +5046,7 @@ main (void)
         /* and a little noise, so the surface's sums round: a clean
            two-emitter surface sums to the same float in any order, and
            would hide a reference that moves with the chunk count */
-        lcg            = lcg * 6364136223846793005ull + 1442695040888963407ull;
-        const float nr = (float)((lcg >> 40) & 0xffff) / 65536.0f - 0.5f;
-        const float ni = (float)((lcg >> 16) & 0xffff) / 65536.0f - 0.5f;
-        x[k] += 0.2f * (nr + I * ni);
+        x[k] += 0.08f * dp_cgauss (&rng);
       }
     c->search->keep_surface = 1;
     dp_correlator_hit_t href[16], hgot[16];

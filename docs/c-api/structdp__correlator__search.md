@@ -885,8 +885,7 @@ dp_correlator_part_t* dp_correlator_search::parts;
 
 
 
-window\_bins partial slots of the decided surface's per-tile passes 
- 
+Partial slots of the decided surface's per-chunk passes: room for window\_bins x 8 chunks, one a chunk 
 
 
         

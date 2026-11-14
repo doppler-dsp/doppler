@@ -4,7 +4,7 @@
  * own) takes corr2d's fast path (ny independent length-nx 1-D FFTs); a
  * genuinely multi-row reference takes the general path (full (ny,nx) 2-D
  * FFT forward and inverse).  This is the durable regression gate for the
- * fast-path optimization (see docs/design/corr2d-interpolated-inverse.md).
+ * fast-path optimization (docs/design/correlator.md section 7.1).
  */
 #include "../../src/correlator/correlator_map.h"
 #include "doppler/correlator/correlator_core.h"
@@ -291,9 +291,9 @@ bench_bank (jm_bench_t *bench, uint32_t *seed)
  * Three short lengths besides (#2752 step 3.1b): the PN periods 31, 63 and
  * 127, where per-call overhead is a large share of the work. They are the
  * baseline the one correlator's single-row flavor must meet (design page
- * docs/design/correlator.md, U1). Each correlates an m-sequence against
- * itself delayed by PLANT samples, and checks after its timing that the
- * map peaks at that lag, or the bench fails.
+ * docs/design/archive/correlator-step3.md, U1). Each correlates an m-sequence
+ * against itself delayed by PLANT samples, and checks after its timing that
+ * the map peaks at that lag, or the bench fails.
  */
 
 #define ITERATIONS_1D 100
@@ -518,8 +518,9 @@ bench_correlator_1d (jm_bench_t *bench)
  * the two detectors are now the correlator's detector flavors, and jm runs
  * only bench_<component>_core, so their rows live here, with their names
  * unchanged. `make bench-ab` pairs them with main's by alias through step 3
- * (docs/design/correlator.md section 7.1). Macros are prefixed DET1_ and
- * DET2_ so the three benches' constants cannot collide in one file.
+ * (docs/design/archive/correlator-step3.md section 7.1). Macros are
+ * prefixed DET1_ and DET2_ so the three benches' constants cannot collide in
+ * one file.
  *
  * The 1-D rows: what the detector adds to the correlator, and whether the
  * caller's chunk size is free.
@@ -551,9 +552,9 @@ bench_correlator_1d (jm_bench_t *bench)
  * Three short frames besides (#2752 step 3.1b): the PN periods 31, 63 and
  * 127, one frame a push, where per-call overhead is a large share of the
  * work. They are the baseline the 1-D detector flavor must meet
- * (docs/design/correlator.md, U1). Each detects an m-sequence delayed by
- * DET1_PLANT samples, and checks after its timing that a push reports one
- * hit at that lag, or the bench fails.
+ * (docs/design/archive/correlator-step3.md, U1). Each detects an m-sequence
+ * delayed by DET1_PLANT samples, and checks after its timing that a push
+ * reports one hit at that lag, or the bench fails.
  */
 
 #define DET1_ITERATIONS 60

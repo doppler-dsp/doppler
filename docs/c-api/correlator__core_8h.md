@@ -44,7 +44,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 | struct | [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md) <br>_Wire-ready hand-off record built from one_ [_**dp\_correlator\_hit\_t**_](structdp__correlator__hit__t.md) _hit._ |
 | struct | [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md) <br>_One detection, from any detector or search flavor's_ [_**dp\_correlator\_push()**_](correlator__core_8h.md#function-dp_correlator_push) _._ |
 | struct | [**dp\_correlator\_part\_t**](structdp__correlator__part__t.md) <br>_One tile's share of a decided surface (docs/design/acq-surface.md §13): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._ |
-| struct | [**dp\_correlator\_search**](structdp__correlator__search.md) <br>_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/correlator.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._ |
+| struct | [**dp\_correlator\_search**](structdp__correlator__search.md) <br>_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/archive/correlator-step3.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._ |
 | struct | [**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md) <br>_What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._  |
 | struct | [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) <br>_Correlator state, every flavor._  |
 | struct | [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _like the borrowed code._ |
@@ -57,7 +57,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 | enum  | [**det\_noise\_mode\_t**](#enum-det_noise_mode_t)  <br>_How a detector flavor aggregates the noise floor from the correlation magnitudes over the flat bins noise\_lo to noise\_hi, inclusive._  |
 | enum  | [**dp\_correlator\_flavor\_t**](#enum-dp_correlator_flavor_t)  <br>_Which constructor built a correlator._  |
 | enum  | [**dp\_correlator\_framing\_t**](#enum-dp_correlator_framing_t)  <br>_How_ [_**dp\_correlator\_create()**_](correlator__core_8h.md#function-dp_correlator_create) _frames its input: maps or detections from whole frames, or a search over a stream._ |
-| typedef struct [**dp\_correlator\_search**](structdp__correlator__search.md) | [**dp\_correlator\_search\_t**](#typedef-dp_correlator_search_t)  <br>_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/correlator.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._ |
+| typedef struct [**dp\_correlator\_search**](structdp__correlator__search.md) | [**dp\_correlator\_search\_t**](#typedef-dp_correlator_search_t)  <br>_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/archive/correlator-step3.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._ |
 | typedef void(\* | [**dp\_correlator\_surface\_sink\_fn**](#typedef-dp_correlator_surface_sink_fn)  <br>_A surface sink: called once per decided dwell (every_ `decim` _-th) with the dwell's surface in test-statistic units, row-major_`rows` _x_`cols` _(Doppler rows by code-phase columns), and the dwell's_`samples_consumed` _. The pointer is the engine's and is valid only for the call. See_[_**dp\_correlator\_set\_surface\_sink()**_](correlator__core_8h.md#function-dp_correlator_set_surface_sink) _._ |
 
 
@@ -102,7 +102,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_burst**](#function-dp_correlator_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate, size\_t rate\_hypotheses) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_continuous**](#function-dp_correlator_create_continuous) (const uint8\_t \* code, size\_t code\_len, double sample\_rate, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_delay\_doppler**](#function-dp_correlator_create_delay_doppler) (const float \_Complex \* code, size\_t code\_len, size\_t ny, size\_t dwell, int nthreads, size\_t ny\_out) <br>_Allocate the delay-Doppler flavor: a code correlator that maps a raw stream of_ `ny` _code periods onto (Doppler, delay)._ |
-|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_detector\_1d**](#function-dp_correlator_create_detector_1d) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming detector: the 2-D detector at one row (docs/design/correlator.md section 2.1), so its hits are the 2-D one's at ny = 1, each with row 0 and the lag in col._  |
+|  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_detector\_1d**](#function-dp_correlator_create_detector_1d) (const float \_Complex \* ref, size\_t ref\_len, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming detector: the 2-D detector at one row (docs/design/correlator.md section 2), so its hits are the 2-D one's at ny = 1, each with row 0 and the lag in col._  |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**dp\_correlator\_create\_detector\_2d**](#function-dp_correlator_create_detector_2d) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](correlator__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming detector: the 2-D correlator with the stream and detection layers._  |
 |  void | [**dp\_correlator\_destroy**](#function-dp_correlator_destroy) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_Destroy and free a correlator, any flavor._  |
 |  double | [**dp\_correlator\_dsl\_db**](#function-dp_correlator_dsl_db) ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* state) <br>_The search's Doppler-offset sidelobe level, dB: 20\*log10 of the largest lag of the code's periodic ambiguity outside the mainlobe, at any Doppler offset the grid's tiles can put between an emitter and a tile, relative to the emitter's own peak (_ [_**dp\_correlator\_shape\_t::dsl**_](structdp__correlator__shape__t.md#variable-dsl) _)._ |
@@ -249,7 +249,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 ## Detailed Description
 
 
-One object, built by flavor (docs/design/correlator.md section 4):
+One object, built by flavor (docs/design/correlator.md section 2):
 
 
 
@@ -376,7 +376,7 @@ enum dp_correlator_framing_t {
 
 ### typedef dp\_correlator\_search\_t 
 
-_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/correlator.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._
+_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/archive/correlator-step3.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._
 ```C++
 typedef struct dp_correlator_search dp_correlator_search_t;
 ```
@@ -765,7 +765,7 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 * `tile` Tile index, `0 … window_bins-1` (native FFT order, the order the surface's rows are cut in). 
 * `col` Code-phase column, `0 … lag_bins-1`. 
 * `out` At least `coherent_bins` complex floats. 
-* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator.md section 4); 0 is "nothing yet".
 
 
 
@@ -830,7 +830,7 @@ Copies the `coherent_bins * code_bins` samples the block-coherent engine gathere
 
 * `state` Must be non-NULL. 
 * `out` At least `coherent_bins * code_bins` complex floats. 
-* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator.md section 4); 0 is "nothing yet".
 
 
 
@@ -1182,7 +1182,7 @@ dp_correlator_state_t * dp_correlator_create (
 
 
 
-A C caller names the flavor it wants and calls that flavor's own constructor; this one is the binding's entry point (docs/design/correlator-python.md section 3). It reads the knobs, picks the flavor, and calls that constructor with them:
+A C caller names the flavor it wants and calls that flavor's own constructor; this one is the binding's entry point (docs/design/correlator.md section 3). It reads the knobs, picks the flavor, and calls that constructor with them:
 
 
 
@@ -1668,7 +1668,7 @@ True
 
 ### function dp\_correlator\_create\_detector\_1d 
 
-_Allocate a 1-D streaming detector: the 2-D detector at one row (docs/design/correlator.md section 2.1), so its hits are the 2-D one's at ny = 1, each with row 0 and the lag in col._ 
+_Allocate a 1-D streaming detector: the 2-D detector at one row (docs/design/correlator.md section 2), so its hits are the 2-D one's at ny = 1, each with row 0 and the lag in col._ 
 ```C++
 dp_correlator_state_t * dp_correlator_create_detector_1d (
     const float _Complex * ref,
@@ -2692,7 +2692,7 @@ int dp_correlator_get_carrier_freq_hz (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2731,7 +2731,7 @@ int dp_correlator_get_chip_rate (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2770,7 +2770,7 @@ int dp_correlator_get_cn0_dbhz (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2809,7 +2809,7 @@ int dp_correlator_get_code_bins (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2848,7 +2848,7 @@ int dp_correlator_get_coherent_bins (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2887,7 +2887,7 @@ int dp_correlator_get_col_out (
 
 
 
-Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2926,7 +2926,7 @@ int dp_correlator_get_count (
 
 
 
-Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -2965,7 +2965,7 @@ int dp_correlator_get_doppler_bins (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3004,7 +3004,7 @@ int dp_correlator_get_doppler_rate (
 
 
 
-Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3043,7 +3043,7 @@ int dp_correlator_get_doppler_res_hz (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3082,7 +3082,7 @@ int dp_correlator_get_doppler_span_hz (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3121,7 +3121,7 @@ int dp_correlator_get_doppler_step (
 
 
 
-Served by the delay-Doppler map (doppler\_rows &gt; 0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the delay-Doppler map (doppler\_rows &gt; 0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3160,7 +3160,7 @@ int dp_correlator_get_dwell (
 
 
 
-Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3199,7 +3199,7 @@ int dp_correlator_get_epochs_per_symbol (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3238,7 +3238,7 @@ int dp_correlator_get_eta (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3277,7 +3277,7 @@ int dp_correlator_get_eta_nc (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3316,7 +3316,7 @@ int dp_correlator_get_keep_surface (
 
 
 
-The continuous search only (docs/design/correlator-python.md section 18): any other flavor keeps no surface and refuses the read, and Python's read raises AttributeError.
+The continuous search only (docs/design/correlator.md section 4): any other flavor keeps no surface and refuses the read, and Python's read raises AttributeError.
 
 
 
@@ -3355,7 +3355,7 @@ int dp_correlator_get_lag_bins (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3394,7 +3394,7 @@ int dp_correlator_get_max_peaks (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3433,7 +3433,7 @@ int dp_correlator_get_n (
 
 
 
-Served by the 1-D map or a detector (detect=True); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+Served by the 1-D map or a detector (detect=True); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3472,7 +3472,7 @@ int dp_correlator_get_n_held (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3511,7 +3511,7 @@ int dp_correlator_get_n_noncoh (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3550,7 +3550,7 @@ int dp_correlator_get_n_peaks (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3589,7 +3589,7 @@ int dp_correlator_get_noise_hi (
 
 
 
-Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3628,7 +3628,7 @@ int dp_correlator_get_noise_lo (
 
 
 
-Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3667,7 +3667,7 @@ int dp_correlator_get_nx (
 
 
 
-Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3706,7 +3706,7 @@ int dp_correlator_get_nx_out (
 
 
 
-Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the 1-D or 2-D map (framing='none', detect=False, doppler\_rows=0); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3745,7 +3745,7 @@ int dp_correlator_get_ny (
 
 
 
-Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+Served by a map or a detector (framing='none'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3784,7 +3784,7 @@ int dp_correlator_get_ny_out (
 
 
 
-Served by a map (framing='none', detect=False); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator- python.md section 18).
+Served by a map (framing='none', detect=False); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3823,7 +3823,7 @@ int dp_correlator_get_pd (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3862,7 +3862,7 @@ int dp_correlator_get_pd_burst (
 
 
 
-Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3901,7 +3901,7 @@ int dp_correlator_get_pd_predicted (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3940,7 +3940,7 @@ int dp_correlator_get_peak_conc (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -3979,7 +3979,7 @@ int dp_correlator_get_pfa_cell (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4018,7 +4018,7 @@ int dp_correlator_get_psl_db (
 
 
 
-Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4057,7 +4057,7 @@ int dp_correlator_get_rate_hypotheses (
 
 
 
-Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4096,7 +4096,7 @@ int dp_correlator_get_reps (
 
 
 
-Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the burst search (framing='burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4135,7 +4135,7 @@ int dp_correlator_get_ring_cap (
 
 
 
-Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4174,7 +4174,7 @@ int dp_correlator_get_sample_rate (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4213,7 +4213,7 @@ int dp_correlator_get_sf (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4281,7 +4281,7 @@ int dp_correlator_get_straddle_loss (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4320,7 +4320,7 @@ int dp_correlator_get_surface_at (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4359,7 +4359,7 @@ int dp_correlator_get_surface_rows (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4398,7 +4398,7 @@ int dp_correlator_get_symbol_rate (
 
 
 
-Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by the continuous search (framing='continuous'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4437,7 +4437,7 @@ int dp_correlator_get_threads (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4476,7 +4476,7 @@ int dp_correlator_get_threshold (
 
 
 
-Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a detector (detect=True) or a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4515,7 +4515,7 @@ int dp_correlator_get_underpowered (
 
 
 
-Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator-python.md section 18).
+Served by a search (framing='continuous' or 'burst'); any other flavor refuses it, and Python's read raises AttributeError (docs/design/correlator.md section 4).
 
 
 
@@ -4553,7 +4553,7 @@ int dp_correlator_last_corr_status (
 
 
 
-Both detectors serve it (section 18); there, the view reads None until a push() has produced a result. Any other flavor refuses, and Python's read raises AttributeError.
+Both detectors serve it (section 4); there, the view reads None until a push() has produced a result. Any other flavor refuses, and Python's read raises AttributeError.
 
 
 
@@ -5147,7 +5147,7 @@ A mutator's value (#2022): it rides in the state blob (v8), and a restore takes 
 
 
 * `state` Must be non-NULL. 
-* `carrier_freq_hz` RF carrier, Hz; 0.0 = uncoupled. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `carrier_freq_hz` RF carrier, Hz; 0.0 = uncoupled. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator.md section 4).
 
 
 
@@ -5192,7 +5192,7 @@ int dp_correlator_set_keep_surface (
 
 
 
-Python's writable Correlator.keep\_surface; [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) sets it too, and a search flavor's other setters leave it as it is. The continuous search only (docs/design/correlator-python.md section 18): any other flavor refuses it and keeps nothing.
+Python's writable Correlator.keep\_surface; [**dp\_correlator\_set\_surface\_sink()**](correlator__core_8h.md#function-dp_correlator_set_surface_sink) sets it too, and a search flavor's other setters leave it as it is. The continuous search only (docs/design/correlator.md section 4): any other flavor refuses it and keeps nothing.
 
 
 
@@ -5295,7 +5295,7 @@ Also resets accumulator and counter on success. The object's fast-path mode (see
 
 
 * `state` Must be non-NULL. 
-* `ref` New reference, flat row-major CF32, length ny\*nx. Served by the 1-D and 2-D maps and both detectors (docs/design/ correlator-python.md section 18); the delay-Doppler map and the searches refuse it, touching nothing. A detector is reset first, so it is reset even when its new reference is then refused (DP\_ERR\_INVALID).
+* `ref` New reference, flat row-major CF32, length ny\*nx. Served by the 1-D and 2-D maps and both detectors (docs/design/ correlator.md section 4); the delay-Doppler map and the searches refuse it, touching nothing. A detector is reset first, so it is reset even when its new reference is then refused (DP\_ERR\_INVALID).
 
 
 
@@ -5418,7 +5418,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 * `state` Must be non-NULL. 
 * `tlm` Telemetry context to attach, or NULL to detach. 
 * `prefix` Probe-name prefix, e.g. "acq" or "ch0.acq". 
-* `decim` Emit every decim-th decided dwell; &gt;= 1. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator-python.md section 18).
+* `decim` Emit every decim-th decided dwell; &gt;= 1. Refused (DP\_ERR\_UNSUPPORTED) on every flavor but the continuous search (docs/design/correlator.md section 4).
 * `why` Where the refusal's sentence goes, naming the argument it refused; may be NULL. A static string, never freed. Off the flavors that serve the call it stays NULL (the binding then raises the declared "only" sentence; just-makeit#2574). 
 
 
@@ -5768,7 +5768,7 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows * lag_bins` floats. 
-* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator.md section 4); 0 is "nothing yet".
 
 
 
@@ -5829,7 +5829,7 @@ One value per surface column, in chips, the same mapping [**dp\_correlator\_buil
 
 * `state` Must be non-NULL. 
 * `out` At least `lag_bins` doubles. 
-* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator.md section 4); 0 is "nothing yet".
 
 
 
@@ -5946,7 +5946,7 @@ One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\
 
 * `state` Must be non-NULL. 
 * `out` At least `surface_rows` doubles. 
-* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator-python.md section 18); 0 is "nothing yet".
+* `n_out` Capacity of `out`. SIZE\_MAX (refused) on every flavor but the continuous search (docs/design/correlator.md section 4); 0 is "nothing yet".
 
 
 

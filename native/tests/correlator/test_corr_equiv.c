@@ -1,5 +1,5 @@
 /* test_corr_equiv.c -- the 1-D correlator is the 2-D one at one row, byte
- * for byte (#2752 step 3.2, docs/design/correlator.md section 2.1).
+ * for byte (#2752 step 3.2, docs/design/correlator.md section 2).
  *
  * Step 3 retires `Corr` by making it the single-row flavor of the one
  * correlator: `dp_correlator_create_1d (ref, n, ...)` becomes `Corr2D`'s

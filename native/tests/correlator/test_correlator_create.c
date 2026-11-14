@@ -1,5 +1,5 @@
 /* dp_correlator_create: the one constructor the Python class calls
-   (docs/design/correlator-python.md sections 3 and 17).
+   (docs/design/correlator.md section 3).
 
    Two claims, each pinned here:
 
@@ -202,7 +202,7 @@ test_each_row_builds_its_flavor (void)
   const char *why = "unset";
 
   /* 1-D map, padded through nx_out: the 1-D flavor is create_2d at one
-     row, its n_out the one padding knob (section 17). */
+     row, its n_out the one padding knob (section 3). */
   knobs_t k = defaults (NRZ, 1, 31);
   k.dwell   = 2;
   k.nx_out  = 64;
@@ -226,7 +226,7 @@ test_each_row_builds_its_flavor (void)
                          dp_correlator_create_2d (ref2, 4, 8, 3, 1, 8, 16, -1),
                          DP_CORRELATOR_2D, x, 32, 6, 0));
 
-  /* 2-D map, a known column (a single-row reference: section 17's
+  /* 2-D map, a known column (a single-row reference: section 3's
      col_out callers). */
   float _Complex single[4 * 8] = { 0 };
   memcpy (single, ref2, 8 * sizeof *single);
@@ -297,7 +297,7 @@ test_each_row_builds_its_flavor (void)
   DP_CHECK (hits_seen > before);
 
   /* symbol_rate 0 is no known data clock, which the continuous search
-     honors (section 17). */
+     honors (section 3). */
   k.symbol_rate = 0.0;
   DP_CHECK (same_object (make (&k, NULL),
                          dp_correlator_create_continuous (
@@ -324,7 +324,7 @@ test_each_row_builds_its_flavor (void)
       DP_CORRELATOR_SEARCH_BURST, chips4, 0, 0, 124 * 200));
   DP_CHECK (hits_seen > before);
 
-  /* A search honors detect = 1, so the rule accepts it (section 17). */
+  /* A search honors detect = 1, so the rule accepts it (section 3). */
   k.detect = 1;
   DP_CHECK (same_object (
       make (&k, NULL),
@@ -569,7 +569,7 @@ test_a_value_not_honored_is_refused (void)
           &k, "Correlator: col_out shapes a map; a search reports hits"));
       k = s;
       /* A search honors a thread count, but through set_threads() after
-         create: the sentence must send the caller there (section 17). */
+         create: the sentence must send the caller there (section 3). */
       k.nthreads = 2;
       DP_CHECK (refused (
           &k, "Correlator: a search sizes its own thread pool at create; "
@@ -604,7 +604,7 @@ test_a_value_not_honored_is_refused (void)
       k.ref = ref2;
       DP_CHECK (refused (&k, "Correlator: a search correlates a 1-D ref, and "
                              "ref has more than one row"));
-      /* No rate by omission (section 17). */
+      /* No rate by omission (section 3). */
       k             = s;
       k.sample_rate = 0.0;
       DP_CHECK (refused (&k,
@@ -910,7 +910,7 @@ null_sink (void *ctx, const float *surface, size_t rows, size_t cols,
 
 /* The search-only entry points on a flavor without a search record:
    each refuses with its own refusal value and touches nothing
-   (docs/design/correlator-python.md section 18). One class reaches every
+   (docs/design/correlator.md section 4). One class reaches every
    member from every flavor, so these must not dereference `search`. */
 static int
 search_members_refuse (dp_correlator_state_t *s)

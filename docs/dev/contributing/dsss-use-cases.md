@@ -182,5 +182,5 @@ ______________________________________________________________________
     wide-Doppler *widener* that would cut the channel count).
 - [DSSS Burst Acquisition guide](../../guide/dsss-acquisition.md) — the mixer-bank
     loop and worked ±100 kHz example.
-- [corr2d interpolated inverse](../../design/corr2d-interpolated-inverse.md) — the
+- [the correlator's padded inverse](../../design/correlator.md#72-the-padded-inverse-and-interpolation) — the
     code-phase axis (independent of the Doppler-span choice here).

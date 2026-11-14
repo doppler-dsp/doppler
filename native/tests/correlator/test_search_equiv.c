@@ -7,9 +7,10 @@
  * acq and the correlator's search flavors side by side, compiled under
  * strict floating point, and every hit and every dwell's surface was
  * byte-identical (PR #2930's first CI run is that evidence). With acq/
- * deleted they stay as the search flavors' pins (docs/design/correlator.md
- * section 7), each against its own plain run: the same stream pushed whole,
- * on one thread, without a restore. The scenes:
+ * deleted they stay as the search flavors' pins
+ * (docs/design/archive/correlator-step3.md section 7), each against its own
+ * plain run: the same stream pushed whole, on one thread, without a restore.
+ * The scenes:
  *
  *   - both doors, continuous and burst;
  *   - one peak and four, with a second emitter, and a close pair;

@@ -1,6 +1,6 @@
 """The batch reducers' VALUES, against NumPy.
 
-#2683; docs/design/correlator-python.md §10.
+#2683; docs/design/correlator.md §7.4.
 
 ``test_correlator_batch.py`` holds what only the binding can get wrong: the
 shapes, the dtypes, ``out=`` handed back as a view, the refusals. These hold
@@ -76,7 +76,7 @@ def _dd(dwell: int = 1) -> Correlator:
 def _one_d(dwell: int = 1) -> Correlator:
     """The 1-D map: the 2-D one at one row.
 
-    docs/design/correlator-python.md §18.
+    docs/design/correlator.md §4.
     """
     return Correlator(_code(), dwell=dwell)
 

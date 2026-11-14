@@ -79,8 +79,8 @@ class Correlator:
     ValueError
         If construction fails. The exception message is the reason the
         constructor gives, or ``Correlator: refused, or out of memory
-        (docs/design/correlator-python.md section 17: a value the flavor would
-        not honor is refused)`` when it gives none.
+        (docs/design/correlator.md section 3: a value the flavor would not
+        honor is refused)`` when it gives none.
 
     Warns
     -----
@@ -957,8 +957,8 @@ class Correlator:
         ----------
         carrier_freq_hz : float
             RF carrier, Hz; 0.0 = uncoupled. Refused (DP_ERR_UNSUPPORTED) on
-            every flavor but the continuous search
-            (docs/design/correlator-python.md section 18).
+            every flavor but the continuous search (docs/design/correlator.md
+            section 4).
 
         Raises
         ------
@@ -1098,7 +1098,7 @@ class Correlator:
         decim : int
             Emit every decim-th decided dwell; >= 1. Refused
             (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
-            (docs/design/correlator-python.md section 18).
+            (docs/design/correlator.md section 4).
 
         Raises
         ------

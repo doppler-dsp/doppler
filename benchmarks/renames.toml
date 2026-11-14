@@ -17,7 +17,8 @@
 # builds, or that makes two rows of one release one.
 
 # #2752 step 3: the correlation objects became one C object, `correlator`,
-# whose one bench writes every row (docs/design/correlator.md section 7.1).
+# whose one bench writes every row
+# (docs/design/archive/correlator-step3.md section 7.1).
 "c:corr" = "c:correlator"         # step 3.2
 "c:corr2d" = "c:correlator"       # step 3.2
 "py:corr2d" = "py:correlator"     # step 3.2

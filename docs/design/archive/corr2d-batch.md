@@ -2,6 +2,9 @@
 description: "many frames in one call: every map, or a coherent, power-sum, power-max or per-map-peak reduction, on one C fold loop that never touches the dwell"
 ---
 
+> **Archived:** the design of the correlator's batch calls as first built. The correlator as it is now is
+> [the correlator](../correlator.md).
+
 # Corr2D batches: many maps in one call
 
 `Correlator`'s 2-D and delay-Doppler flavors (`Corr2D` and `DelayDoppler`
@@ -13,7 +16,7 @@ dwell. It serves
 reductions) and is the loop
 [#2670](https://github.com/doppler-dsp/doppler/issues/2670)'s rate search
 moves onto. The order a bank of hypotheses on one frame runs in is
-[Corr2D hypothesis bank](corr2d-hypotheses.md); this page is the batch the
+[Corr2D hypothesis bank](../corr2d-hypotheses.md); this page is the batch the
 bank feeds.
 
 ______________________________________________________________________
@@ -71,7 +74,7 @@ Python twin is `src/doppler/examples/delay_doppler_batch_demo.py`.
 
 ## 4. Threads
 
-[Corr2D hypothesis bank §5](corr2d-hypotheses.md#5-cost) measured that
+[Corr2D hypothesis bank §5](../corr2d-hypotheses.md#5-cost) measured that
 splitting one short frame across a pool costs more than it saves: up to
 `nx = 256` an ordered frame is 1.5–8x slower on any pool than on one thread.
 So:

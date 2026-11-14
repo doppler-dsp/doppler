@@ -4975,8 +4975,12 @@ main (void)
    * phase, a list of four to take both -- the surface and the hits at 1,
    * 2, 4 and 8 threads: byte for byte the same, since every tile owns
    * its rows and its scratch, and every per-cell pass after the fan (the
-   * magnitude, the reference, each scan of the list) runs per tile into
-   * a slot of its own and merges in tile order (#1243). The second
+   * magnitude, the reference, each scan of the list) runs per chunk of
+   * whole rows into a slot of its own and merges in chunk order (#1243),
+   * the chunk count the grid's, never the pool's (#3047). A block of
+   * D > 1 epochs fans finer than its tiles, so 4 and 8 threads run more
+   * workers than the 3 tiles: the comparison covers a pool larger than
+   * the tile count. The second
    * emitter is what makes the list's second scan -- a fanned pick over
    * the working mask -- part of the comparison. And the pool's
    * lifecycle: a tiled continuous engine starts with one, a burst engine
@@ -5018,6 +5022,7 @@ main (void)
     float          *ref = malloc (c->search->n_surf * sizeof *ref);
     float          *got = malloc (c->search->n_surf * sizeof *got);
     DP_REQUIRE (x && ref && got);
+    uint64_t lcg = 7;
     for (size_t k = 0; k < n; k++)
       {
         size_t  q    = k % nx;
@@ -5038,12 +5043,20 @@ main (void)
         double  ph2   = 2.0 * PI * -1.25 * (double)k / (double)nx;
         x[k] += 0.9f * ((chip2 & 1u) ? -1.0f : 1.0f)
                 * (float _Complex) (cos (ph2) + I * sin (ph2));
+        /* and a little noise, so the surface's sums round: a clean
+           two-emitter surface sums to the same float in any order, and
+           would hide a reference that moves with the chunk count */
+        lcg            = lcg * 6364136223846793005ull + 1442695040888963407ull;
+        const float nr = (float)((lcg >> 40) & 0xffff) / 65536.0f - 0.5f;
+        const float ni = (float)((lcg >> 16) & 0xffff) / 65536.0f - 0.5f;
+        x[k] += 0.2f * (nr + I * ni);
       }
     c->search->keep_surface = 1;
     dp_correlator_hit_t href[16], hgot[16];
     DP_CHECK (dp_correlator_set_threads (c, 1) == DP_OK
               && c->search->threads == 1 && c->pool == NULL);
-    size_t nref = dp_correlator_push (c, x, n, href, 16);
+    size_t      nref      = dp_correlator_push (c, x, n, href, 16);
+    const float noise_ref = c->noise_est;
     DP_CHECK_MSG (nref >= 2 * nblk && href[0].col == d && href[1].col == d2,
                   "both emitters are listed, strongest first");
     DP_CHECK (dp_correlator_surface (c, ref, c->search->n_surf)
@@ -5052,9 +5065,11 @@ main (void)
     for (int i = 0; i < 3; i++)
       {
         DP_CHECK (dp_correlator_set_threads (c, counts[i]) == DP_OK);
-        DP_CHECK (c->search->threads >= 1 && c->search->threads <= counts[i]);
-        DP_CHECK_MSG (c->search->threads <= (int)c->search->window_bins,
-                      "no more workers than tiles to give them");
+        /* Sabotage: cap the pool at window_bins at every D (the rule
+           before #3047) -> red at 4 and 8. */
+        DP_CHECK_MSG (c->search->threads == counts[i],
+                      "a D > 1 block takes every worker asked for, "
+                      "past its tiles");
         dp_correlator_reset (c);
         size_t ngot = dp_correlator_push (c, x, n, hgot, 16);
         DP_CHECK (ngot == nref);
@@ -5062,6 +5077,13 @@ main (void)
                   == c->search->n_surf);
         DP_CHECK_MSG (memcmp (ref, got, c->search->n_surf * sizeof *ref) == 0,
                       "the surface is byte-identical at any thread count");
+        DP_CHECK_MSG (memcmp (&c->noise_est, &noise_ref, sizeof noise_ref)
+                          == 0,
+                      "the CFAR reference is bit-identical at any count");
+        /* The reference is a mean of the chunks' means, so test_stat is
+           bit-identical only while the chunk count is the grid's.
+           Sabotage: split a tile's rows only when pooled (search_chunks)
+           -> red here, on the noisy stimulus; the clean one hid it. */
         for (size_t h = 0; h < ngot && h < nref; h++)
           DP_CHECK (hgot[h].row == href[h].row && hgot[h].col == href[h].col
                     && hgot[h].peak_mag == href[h].peak_mag
@@ -5078,8 +5100,9 @@ main (void)
         c->search->epoch_fan = 1;
       }
     DP_CHECK (dp_correlator_set_threads (c, 0) == DP_OK
-              && c->search->threads >= 1
-              && c->search->threads <= (int)c->search->window_bins);
+              && c->search->threads >= 1);
+    /* The D = 1 cap is test_correlator_regrid_failure's: a D = 1 regrid
+       is reachable only there. */
     /* ... and after a regrid to one tile the cap still holds: serial, no
        pool (#2746) -- not the workers the tiled grid had. Two asked for
        explicitly, so the premise holds on a one-core box too. */

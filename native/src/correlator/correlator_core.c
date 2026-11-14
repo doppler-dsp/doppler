@@ -3508,19 +3508,46 @@ search_native_row (const dp_correlator_state_t *st, const float *surf,
   return best / srch->interp;
 }
 
-/* ── The decided surface's passes, per tile ─────────────────────────────
+/* ── The decided surface's passes, per chunk ────────────────────────────
  *
  * Every pass that reads or writes a whole surface after the fan -- the
  * magnitude of the coherent dump, the CFAR reference, the working mask's
  * copy of the band mask, each scan of the peak list, the non-coherent
  * accumulate -- runs per CHUNK on the pool (docs/design/acq-surface.md
- * §13, #1243): the
- * surface is `window_bins` chunks of whole rows, cells [r*len, (r+1)*len),
- * one per tile, and a body writes only its chunk's cells and its own
- * dp_correlator_part_t slot. The merges are serial in chunk order, so the
- * result is bit-identical at any thread count and their cost is per tile, not
- * per cell. A single-tile engine has one chunk and no pool: the same code,
+ * §13, §18.3, #1243): the surface is search_chunks() equal chunks of whole
+ * rows, cells [r*len, (r+1)*len), and a body writes only its chunk's cells
+ * and its own dp_correlator_part_t slot. The count is the grid's, never the
+ * pool's, and the merges are serial in chunk order, so the result is
+ * bit-identical at any thread count and their cost is per chunk, not per
+ * cell. A single-tile engine has one chunk and no pool: the same code,
  * serially, and the classic result to the bit. */
+
+/* The most chunks a tile's rows split into (#3047). One chunk a tile left
+   a 3-tile search's decide pass on 3 workers while the map fanned on 16: at
+   the design point (D = 90) it was 37% of the 16-thread push. The design
+   point's 180 rows a tile take 6, which measured 10.2 -> 8.0 ns a sample at
+   16 threads; the parts slots are allocated for the cap. */
+#define SEARCH_DECIDE_SPLIT 8u
+
+/* The chunks a decided surface splits into: one a tile, each tile's rows cut
+   into the largest count up to SEARCH_DECIDE_SPLIT that divides them, so the
+   chunks stay equal (the reference merge is a mean of their means) and
+   whole rows. Only a block of more than one epoch splits: at D = 1 the pass
+   runs every epoch, where a finer fan pays the pool's wake-up for little
+   work (#2775). A function of the grid alone, so it never moves with the
+   thread count. */
+static size_t
+search_chunks (const dp_correlator_search_t *srch)
+{
+  const size_t W = srch->window_bins;
+  if (W <= 1 || srch->coherent_bins <= 1)
+    return W;
+  const size_t rows = srch->n_surf / srch->lag_bins / W;
+  size_t       s    = SEARCH_DECIDE_SPLIT;
+  while (rows % s)
+    s--;
+  return W * s;
+}
 typedef struct
 {
   dp_correlator_state_t *st;
@@ -3534,7 +3561,7 @@ search_chunk (const dp_correlator_state_t *st, size_t r, size_t *k0,
               size_t *k1)
 {
   dp_correlator_search_t *const srch = st->search;
-  const size_t                  len  = srch->n_surf / srch->window_bins;
+  const size_t                  len  = srch->n_surf / search_chunks (srch);
   *k0                                = r * len;
   *k1                                = *k0 + len;
 }
@@ -3625,7 +3652,7 @@ search_merge_best (const dp_correlator_state_t *st, const float *surf)
   dp_correlator_search_t *const srch = st->search;
   const size_t                  n    = srch->n_surf;
   size_t                        best = n;
-  for (size_t r = 0; r < srch->window_bins; r++)
+  for (size_t r = 0; r < search_chunks (srch); r++)
     {
       const size_t b = srch->parts[r].best;
       if (b < n && (best == n || surf[b] > surf[best]))
@@ -3648,13 +3675,14 @@ search_scan_surface (dp_correlator_state_t *st, const float *surf,
   const int fan_ref = st->noise_mode != DET_NOISE_MEDIAN && st->noise_lo == 0
                       && st->noise_hi == srch->n_surf - 1;
   search_scan_t sc  = { st, surf, magnitude, fan_ref };
-  dp_pool_run (search_block_pool (st), srch->window_bins, search_tile_decide,
-               &sc);
+  dp_pool_run (search_block_pool (st), search_chunks (srch),
+               search_tile_decide, &sc);
   if (!fan_ref)
     return det_noise_estimate (surf, st->noise_lo, st->noise_hi,
                                st->noise_scratch, st->noise_mode);
-  float ref = srch->parts[0].ref;
-  for (size_t r = 1; r < srch->window_bins; r++)
+  float        ref = srch->parts[0].ref;
+  const size_t nch = search_chunks (srch);
+  for (size_t r = 1; r < nch; r++)
     {
       const float v = srch->parts[r].ref;
       if (st->noise_mode == DET_NOISE_MIN)
@@ -3664,8 +3692,7 @@ search_scan_surface (dp_correlator_state_t *st, const float *surf,
       else
         ref += v;
     }
-  return st->noise_mode == DET_NOISE_MEAN ? ref / (float)srch->window_bins
-                                          : ref;
+  return st->noise_mode == DET_NOISE_MEAN ? ref / (float)nch : ref;
 }
 
 /* The list over a surface, after search_scan_surface() has run the decide
@@ -3694,8 +3721,8 @@ search_list_peaks (dp_correlator_state_t *st, const float *surf, float gate)
         break;
       det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx,
                      srch->interp, search_zone_cols (st));
-      dp_pool_run (search_block_pool (st), srch->window_bins, search_tile_pick,
-                   &sc);
+      dp_pool_run (search_block_pool (st), search_chunks (srch),
+                   search_tile_pick, &sc);
       best = search_merge_best (st, surf);
     }
   if (st->n_peaks == 0 && best < srch->n_surf)
@@ -4967,12 +4994,16 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
   return 0;
 }
 
-/* Run the caller's request (threads_req) on the grid in effect. Never more
-   workers than tiles: every fan hands out one tile a task, so a worker past
-   window_bins only wakes and waits, every epoch. At 0 (the online cores) on
-   a three-tile search that was 15 idle workers of 18, and the pool's scene
-   example spent 26 s of 35 in the kernel. A count already running is kept,
-   so a regrid that leaves the cap where it was does not rebuild the pool. */
+/* Run the caller's request (threads_req) on the grid in effect. At D = 1,
+   never more workers than tiles: every per-epoch fan hands out one tile a
+   task, so a worker past window_bins only wakes and waits, every epoch. At
+   0 (the online cores) on a three-tile search that was 15 idle workers of
+   18, and the pool's scene example spent 26 s of 35 in the kernel. A block
+   of D > 1 epochs fans finer than tiles -- the map over epochs, bins and
+   (tile, row), the decide pass over search_chunks() -- so there the request
+   stands (#3047: 3 tiles at D = 90 ran 14.0 ns a sample at 8 threads capped
+   to 3, 11.0 uncapped). A count already running is kept, so a regrid that
+   leaves the cap where it was does not rebuild the pool. */
 static void
 search_apply_threads (dp_correlator_state_t *st)
 {
@@ -4982,7 +5013,7 @@ search_apply_threads (dp_correlator_state_t *st)
   if (n != 1 && srch->window_bins > 1)
     {
       want = n > 0 ? n : dp_cpu_count ();
-      if (want > (long)srch->window_bins)
+      if (srch->coherent_bins <= 1 && want > (long)srch->window_bins)
         want = (long)srch->window_bins;
     }
   if (want < 1)
@@ -5097,8 +5128,9 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
         }
       /* The partial slots (one per tile) follow the grid, built here with
          the rest so nothing fails after the commit (#2761). */
-      new_parts = (dp_correlator_part_t *)dp_mallocn (new_freq_bins,
-                                                      sizeof *new_parts);
+      new_parts = (dp_correlator_part_t *)dp_mallocn (
+          dp_size_mul_sat (new_freq_bins, SEARCH_DECIDE_SPLIT),
+          sizeof *new_parts);
       if (!new_parts)
         goto fail;
     }
@@ -6580,7 +6612,7 @@ dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
        * (per chunk, on the pool); gate the order-N_nc statistic once
        * n_noncoh looks are in. */
       search_scan_t acc = { st, NULL, 0, 0 };
-      dp_pool_run (search_epoch_pool (st), srch->window_bins,
+      dp_pool_run (search_epoch_pool (st), search_chunks (srch),
                    search_tile_nc_acc, &acc);
       if (++srch->nc_count < srch->n_noncoh)
         continue; /* still accumulating looks */

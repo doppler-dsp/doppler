@@ -1310,8 +1310,12 @@ the continuous `Correlator` gets its row in the serialization matrix (#2078, fam
 
 Every stage now runs once a block. Each fans once on the engine's pool:
 the forward transforms over epochs, slow time over chunks of capture bins,
-the rows over (tile, slow row), and the decision pass over its chunks as
-today. Each output row is computed by one task with the same arithmetic,
+the rows over (tile, slow row), and the decision pass over chunks of whole
+rows: each tile's rows cut into up to 8 equal chunks, a count fixed by the
+grid, not the pool. Since every stage fans finer than tiles, the pool is no
+longer capped at one worker a tile when $D > 1$
+([#3047](https://github.com/doppler-dsp/doppler/issues/3047)); it still is
+at $D = 1$, where the fans run every epoch. Each output row is computed by one task with the same arithmetic,
 so the surface stays bit-identical at every thread count. FFT plans and
 scratch are per worker, not per tile, since a task is no longer tied to a
 tile.

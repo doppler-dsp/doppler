@@ -147,20 +147,25 @@ snap (const dp_correlator_state_t *s)
 #define NEW_NC 2
 #define NEW_WINDOW 3
 
-/* A regrid re-applies the caller's thread request, capped at the new tile
-   count (#2797). Only dp_correlator_regrid widens (a public narrowing exists,
+/* A regrid re-applies the caller's thread request (#2797): capped at the
+   new tile count at D = 1, where every per-epoch fan hands out one tile a
+   task, and taken whole at D > 1, where a block fans finer than its tiles
+   (#3047). Only dp_correlator_regrid widens (a public narrowing exists,
    the one-tile configure_search_raw, but nothing public widens again), so this
    file is where a narrow-then-widen can be run on a live engine. Sabotage:
    drop search_apply_threads from dp_correlator_regrid, or apply `threads` in
-   place of `threads_req` -> the widened engine reads 1. */
+   place of `threads_req` -> the widened engine reads 1. Cap every depth
+   (the rule before #3047) -> the D > 1 widen reads 3 at 4 asked; drop the
+   cap -> the D = 1 widen reads 4. */
 static int
 threads_follow_the_request (void)
 {
   const int reqs[] = { 2, 4, 1 };
   for (size_t i = 0; i < sizeof reqs / sizeof *reqs; i++)
     {
-      const int n = reqs[i];
-      const int w = n < NEW_WINDOW ? n : NEW_WINDOW; /* min(N, tiles) */
+      const int n  = reqs[i];
+      const int w  = n;                               /* D > 1: whole */
+      const int w1 = n < NEW_WINDOW ? n : NEW_WINDOW; /* D = 1: tiles */
       dp_correlator_state_t *a = make_engine ();
       DP_REQUIRE_MSG (a && a->search->window_bins == 1, "a one-tile engine");
       DP_CHECK (dp_correlator_set_threads (a, n) == DP_OK);
@@ -184,6 +189,12 @@ threads_follow_the_request (void)
       DP_CHECK (a->search->threads == w);
       DP_CHECK_MSG ((a->pool != NULL) == (w > 1),
                     "a pool exactly when fanned");
+      DP_REQUIRE_MSG (dp_correlator_regrid (a, 1, NEW_NC, NEW_WINDOW, NULL,
+                                            a->search->carrier_freq_hz)
+                          == 0,
+                      "one epoch a block");
+      DP_CHECK_MSG (a->search->threads == w1,
+                    "at D = 1 no more workers than tiles");
       DP_CHECK (a->search->threads_req == n);
       dp__search_destroy (a);
     }

@@ -520,8 +520,9 @@ typedef struct dp_correlator_search
                       pays even at one tile a worker, while on a host
                       with a costly wake-up (WSL2) it costs that pool
                       1.9-3.5x at D = 1, so no tile count decides it.  */
-  dp_correlator_part_t *parts;          /**< window_bins partial slots of the
-                                   decided surface's per-tile passes  */
+  dp_correlator_part_t *parts;          /**< Partial slots of the decided
+                                   surface's per-chunk passes: room for
+                                   window_bins x 8 chunks, one a chunk */
 
   float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
   float  eta_nc;    /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */

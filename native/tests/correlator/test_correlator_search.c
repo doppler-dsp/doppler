@@ -5098,11 +5098,11 @@ main (void)
       }
     DP_CHECK (dp_correlator_set_threads (c, 0) == DP_OK
               && c->search->threads >= 1);
-    /* The D = 1 cap is test_correlator_regrid_failure's: a D = 1 regrid
-       is reachable only there. */
-    /* ... and after a regrid to one tile the cap still holds: serial, no
-       pool (#2746) -- not the workers the tiled grid had. Two asked for
-       explicitly, so the premise holds on a one-core box too. */
+    /* After a regrid to one tile the engine runs serially, with no pool
+       (#2746) -- not the workers the tiled grid had. Two asked for
+       explicitly, so the premise holds on a one-core box too. (The D = 1
+       cap at the tiles is test_correlator_regrid_failure's: a D = 1 regrid
+       is reachable only there.) */
     DP_REQUIRE (dp_correlator_set_threads (c, 2) == DP_OK
                 && c->search->threads == 2);
     DP_REQUIRE (dp_correlator_configure_search_raw (c, 1, 1, NULL) == 0);

@@ -32,7 +32,8 @@ effective_threads (int threads, size_t n_receivers)
 /* Rebuild the workers for `threads`. One worker is serial: no helpers,
    and dp_pool_run() runs every task inline on the caller. The workers step
    the receivers; the search runs before them, on the requested count, and
-   dp_correlator_set_threads() caps that at one worker a tile. On bare metal
+   dp_correlator_set_threads() caps that at one worker a tile at D = 1 (and
+   takes it whole at D > 1). On bare metal
    the fan takes a full-span dwell to 0.35-0.58 of the serial time at 2-8
    workers; on WSL2 it costs the scene example 1.8x and an all-cores pool
    1.27x, which #2775 owns (async-dsss-receiver-measurements.md §9.7). */

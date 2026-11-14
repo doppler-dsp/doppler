@@ -5,7 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 # One class for the seven flavors (#2752 step 4, docs/design/
-# correlator-python.md): the knobs are its arguments, and the one C
+# correlator.md): the knobs are its arguments, and the one C
 # dispatcher, dp_correlator_create, picks the flavor from them and calls its
 # constructor. A C caller names a flavor and calls that constructor itself.
 class_name = "Correlator"
@@ -41,14 +41,14 @@ extra_link_libs = ["Threads::Threads"]
 # (gh-482). The dispatcher's `why` names the knob; this message is for a
 # NULL with no sentence, which only an allocation failure leaves.
 create_error = "ValueError"
-create_error_message = "Correlator: refused, or out of memory (docs/design/correlator-python.md section 17: a value the flavor would not honor is refused)"
+create_error_message = "Correlator: refused, or out of memory (docs/design/correlator.md section 3: a value the flavor would not honor is refused)"
 # One warning for both searches, on `underpowered`, whose meaning is each
-# search's own (section 18).
+# search's own (section 4).
 warnings = [
   { after = "__init__", condition = "self->handle->search && self->handle->search->underpowered", category = "UserWarning", message = "Correlator: the search cannot meet pd at this cn0_dbhz and geometry (pd_predicted < pd, or pd_burst < pd for a burst). It still builds a best-effort grid. Raise cn0_dbhz, narrow doppler_uncertainty, lower pd, or give a burst more repetitions." },
 ]
 
-# ── The knobs (section 3; defaults as section 17 rules them) ────────────────
+# ── The knobs (section 3, and its defaults) ─────────────────────────
 # Positional order is the C dispatcher's. The reference is 1-D or 2-D
 # (just-makeit#2537): a 1-D array arrives as one row, and one row is the
 # 1-D flavor.
@@ -213,7 +213,7 @@ error_message = "execute: only a map (framing='none', detect=False) executes; Co
 # method per reduction, because the return shapes differ. Each refuses an
 # empty batch, a length that is not a whole number of frames, or a short
 # out= with SIZE_MAX, which jm raises as ValueError. The GIL is released
-# across the kernel; every map flavor serves them (section 18).
+# across the kernel; every map flavor serves them (section 4).
 [[correlator.methods]]
 name = "execute_all"
 why = true
@@ -223,7 +223,7 @@ variable_output = true
 pass_capacity = true
 # n_out is 0 on a search (its constructor never sets it): one column then,
 # so the binding sizes nothing and the C refuses with the declared error
-# (section 18) rather than the binding failing first on a zero shape.
+# (section 4) rather than the binding failing first on a zero shape.
 out_cols = "(state->n_out ? state->n_out : 1)"
 error_sentinel = "SIZE_MAX"
 error = "ValueError"

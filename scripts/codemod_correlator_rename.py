@@ -3,7 +3,8 @@
 
 Step 3.2 made `corr/` and `corr2d/` one C object, `correlator/`, and step
 3.3 makes `detector/` and `detector2d/` its two detector flavors
-(docs/design/correlator.md, section 5). The files were moved with `git mv`;
+(docs/design/archive/correlator-step3.md, section 5). The files were moved
+with `git mv`;
 this rewrites what they and their callers SAY, from one table, so the
 rename is reviewable as a list rather than as a diff of a thousand lines.
 

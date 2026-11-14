@@ -94,7 +94,7 @@ _One detection, from any detector or search flavor's_ [_**dp\_correlator\_push()
 ## Detailed Description
 
 
-docs/design/correlator.md section 4: the one hit record. The peak's flat index in the correlation map, decomposed into (row, col) so that a caller does not need the map's width. At one row (the 1-D detector) row is 0 and col is the lag. A search flavor's row is the Doppler bin and its col the code phase, and it fills every field; a detector flavor fills row through test\_stat and writes the rest as 0. 64 bytes, with no unnamed padding. 
+docs/design/correlator.md section 2: the one hit record. The peak's flat index in the correlation map, decomposed into (row, col) so that a caller does not need the map's width. At one row (the 1-D detector) row is 0 and col is the lag. A search flavor's row is the Doppler bin and its col the code phase, and it fills every field; a detector flavor fills row through test\_stat and writes the rest as 0. 64 bytes, with no unnamed padding. 
 
 
     

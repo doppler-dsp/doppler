@@ -104,7 +104,7 @@ def test_dwell_defaults_to_one():
 
 
 def test_a_long_push_reports_every_frame_and_stays_frame_aligned():
-    # push() is sized from push_max_out (docs/design/correlator-python.md
+    # push() is sized from push_max_out (docs/design/correlator.md
     # §5): no fixed room, so a frame-aligned chunk of 1030 frames at
     # threshold 0, where every frame fires, reports all 1030 -- no more than
     # the bound -- and the stream stays on its frame grid: a probe frame with
@@ -167,7 +167,7 @@ def test_a_refused_create_is_a_value_error():
     """dwell=0 is refused as it is for the 1-D map (#2641); the detector,
     its 2-D twin and the 2-D map used to report it as MemoryError, having
     no create_error. The message names dwell
-    (docs/design/correlator-python.md §17)."""
+    (docs/design/correlator.md §3)."""
     det = "Correlator: dwell must be at least 1"
     with pytest.raises(ValueError, match=det):
         Correlator(np.ones(16, np.complex64), detect=1, dwell=0)

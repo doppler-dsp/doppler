@@ -201,7 +201,7 @@ ______________________________________________________________________
     argument; pass NULL to ignore it. In Python a bank that cannot allocate
     raises `MemoryError` (was `ValueError`), and `bank_detect`'s work
     buffers are a refusal where they aborted
-    ([design §18](docs/design/correlator-python.md)) (#2752).
+    ([design §18](docs/design/archive/correlator-step4.md)) (#2752).
 
 - **Correlator state blobs are version 2**: the continuous search's blob
     carries `keep_surface`, which a restore used to drop (#2022). Every
@@ -214,13 +214,13 @@ ______________________________________________________________________
     `DP_ERR_UNSUPPORTED`; `surface()`, `surface_doppler_hz()`,
     `surface_chip_phase()`, `block_prompt()` and `block_raw()` return
     `SIZE_MAX`. None had a burst caller or test
-    ([design §18](docs/design/correlator-python.md)).
+    ([design §18](docs/design/archive/correlator-step4.md)).
 
 - **Eleven correlator C functions take a trailing `const char **why`**:
     `dp_correlator_execute`, the five `execute_*` batches, both `bank_*`,
     `set_telemetry`, `configure_search_raw` and `set_max_peaks`. A refusal
     writes the sentence naming the refused argument, which Python raises;
-    pass NULL to ignore it ([design §18](docs/design/correlator-python.md)).
+    pass NULL to ignore it ([design §18](docs/design/archive/correlator-step4.md)).
 
 - **`Correlator` takes no rate or design point by omission.**
     `Acquisition`'s `sample_rate=4e6`, `chip_rate=1e6`, `symbol_rate=1000`
@@ -228,7 +228,7 @@ ______________________________________________________________________
     search refuses a rate it reads that is not given, and `cn0_dbhz`
     defaults to NaN (no design point), which the continuous search refuses.
     `sample_rate=1.0` still gives normalized units
-    ([design §17](docs/design/correlator-python.md)).
+    ([design §17](docs/design/archive/correlator-step4.md)).
 
 - **`dp_correlator_state_t` no longer has `delay_doppler`.** It recorded
     the same fact as `flavor`; test
@@ -238,14 +238,14 @@ ______________________________________________________________________
 - **`Correlator.push` returns a structured array of hit records**, one
     field per member, instead of 4-, 5- or 9-field tuples, and loses no
     input to a full list: the 1024-hit cap is gone
-    ([design §5](docs/design/correlator-python.md)).
+    ([design §5](docs/design/archive/correlator-step4.md)).
 
 - **Three spellings changed with the merge.** A search's `fs` is
     `sample_rate`; a map's `n_out` is `execute_max_out()` (`nx_out` on the
     1-D flavor, whose padding knob it also is); and `DelayDoppler`'s
     refusal of `ny=0` has no spelling, since `doppler_rows=0` is "no map"
     and builds the 1-D flavor
-    ([design §17, §18](docs/design/correlator-python.md)).
+    ([design §17, §18](docs/design/archive/correlator-step4.md)).
 
 - **`dp_correlator_set_surface_sink()` returns `int`** and refuses a
     flavor that decides no dwell (a map or a detector) with
@@ -277,11 +277,11 @@ ______________________________________________________________________
     build, byte for byte, and refuses a value the chosen flavor would not
     honor, with a sentence naming the knob (`why`). It is the entry point
     step 4's one Python class calls; a C caller still names its flavor.
-    [Design §3, §17](docs/design/correlator-python.md) (#2752).
+    [Design §3, §17](docs/design/archive/correlator-step4.md) (#2752).
 
 - **`DP_ERR_UNSUPPORTED` (-11): the object's flavor does not serve the
     call.** The correlator returns it from every member a flavor does not
-    honor ([design §18](docs/design/correlator-python.md)), so
+    honor ([design §18](docs/design/archive/correlator-step4.md)), so
     `DP_ERR_INVALID` keeps meaning a bad argument to a call the object
     does serve, and the binding can say which one happened (#2752).
 
@@ -351,7 +351,7 @@ ______________________________________________________________________
 
 - **`BurstCapture` calls the burst search directly**, not through the
     `burst_acq` forwarder that step 4 retires
-    ([design §8](docs/design/correlator-python.md)). Its state blob is
+    ([design §8](docs/design/archive/correlator-step4.md)). Its state blob is
     byte-identical and its tests unchanged; `DsssBurstReceiver` no longer
     links `burst_acq` (#2752).
 

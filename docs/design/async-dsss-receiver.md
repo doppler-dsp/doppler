@@ -111,7 +111,7 @@ one `dp_correlator_state_t`
 they were two public constructors, `Acquisition` and `BurstAcquisition`;
 the one class refuses a knob its flavor would not honor instead of
 carrying "ignored here" caveats
-([Correlator in Python](correlator-python.md)). State, auto-sizing,
+([the correlator's constructor](correlator.md#3-one-constructor)). State, auto-sizing,
 `push()` and serialization are shared. The continuous search takes the code
 (as NRZ chips), `sample_rate`, `chip_rate`, `symbol_rate`, a design
 `cn0_dbhz`, a one-sided `doppler_uncertainty`, `pfa`, `pd`, a CFAR

@@ -4,7 +4,7 @@
  *        the one peak picker and the framed push.
  *
  * Not part of the public API.  The correlator's detector flavors and the
- * acquisition engine include it (docs/design/correlator.md section 4: the
+ * acquisition engine include it (docs/design/correlator.md section 2: the
  * stream and detection layers, once).
  */
 #ifndef DP_CORRELATOR_PRIVATE_H
@@ -182,8 +182,8 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
  *        cells `[k0, k1)` that `mask` leaves as candidates.
  *
  * Returns the cell, or `k1` when no cell in the range is a candidate. A
- * NaN cell is never a candidate (docs/design/correlator.md, U2), on either
- * path: a range of NaNs returns `k1`, as a fully masked one does. The
+ * NaN cell is never a candidate (U2 of
+ * docs/design/archive/correlator-step3.md), on either path: a range of NaNs returns `k1`, as a fully masked one does. The
  * pick is the FIRST maximum (strict `>`), so a caller that cuts the surface
  * into chunks, scans each, and merges the chunks' picks in order with the
  * same strict `>` makes exactly the pick one scan over the whole surface

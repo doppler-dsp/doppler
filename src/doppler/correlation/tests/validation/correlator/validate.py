@@ -173,9 +173,9 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
-                "[`docs/design/corr2d-interpolated-inverse.md`]"
-                "(../../../../../../docs/design/corr2d-interpolated-inverse.md)",
-                "why the inverse may be larger than the forward, the "
+                "[`docs/design/correlator.md`]"
+                "(../../../../../../docs/design/correlator.md)",
+                "§7, why the inverse may be larger than the forward, the "
                 "zero-pad maths, and the single-row fast path",
             ],
             [
@@ -877,8 +877,9 @@ def _sec_batch(d: Data) -> None:
     R.md()
     R.md(
         "A batch is H frames in one call (#2683, "
-        "[`docs/design/corr2d-batch.md`](../../../../../../docs/design/"
-        "corr2d-batch.md)). Every map is checked against what a FRESH "
+        "[`docs/design/correlator.md`](../../../../../../docs/design/"
+        "correlator.md) section 7.4). Every map is checked against what a "
+        "FRESH "
         "dwell-1 object returns for that frame through `execute()`, which "
         "shares no batch code path, on the general, fast and known-column "
         "paths, at one thread and at three. The five frames are more than "

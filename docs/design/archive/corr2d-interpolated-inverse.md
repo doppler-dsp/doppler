@@ -2,6 +2,9 @@
 description: "decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation"
 ---
 
+> **Archived:** the design of the correlator's padded inverse, single-row fast path and delay-Doppler flavor as first built. The correlator as it is now is
+> [the correlator](../correlator.md).
+
 # Corr2D: decoupled (interpolated) inverse length
 
 **Status:** shipped (PR #241) — `ny_out`/`nx_out`, zero-pad interpolation,
@@ -13,7 +16,7 @@ reference fast path) is a later, independent addition — shipped.
 size to `Corr2D` (`native/src/correlator/correlator_core.c`) — a pffft-friendly,
 malloc-free inverse plus free band-limited interpolation of the correlation
 surface — without touching the forward transform. Motivated by the
-[DSSS acquisition design](acq-surface.md) §14 (the engine is 2-D-FFT bound,
+[DSSS acquisition design](../acq-surface.md) §14 (the engine is 2-D-FFT bound,
 and real DSSS code lengths are `2ⁿ−1` → the native size is prime).
 
 ______________________________________________________________________
@@ -420,7 +423,7 @@ when measured; they now live in `src/doppler/correlation/benchmarks/`.
 
 ## See also
 
-- [DSSS acquisition design](acq-surface.md) — §14 (FFT-bound, the forward vs
+- [DSSS acquisition design](../acq-surface.md) — §14 (FFT-bound, the forward vs
     inverse split this implements).
-- [2-D acquisition gallery](../gallery/detection2d.md) (the 2-D flavors of
-    [`Correlator`](../guide/correlator.md)).
+- [2-D acquisition gallery](../../gallery/detection2d.md) (the 2-D flavors of
+    [`Correlator`](../../guide/correlator.md)).

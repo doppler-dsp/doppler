@@ -67,7 +67,7 @@ def test_dwell_defaults_to_one():
 
 def test_a_long_push_reports_every_frame_and_stays_frame_aligned():
     # As the 1-D detector's: push() is sized from push_max_out
-    # (docs/design/correlator-python.md §5), so 1030 frames at threshold 0
+    # (docs/design/correlator.md §5), so 1030 frames at threshold 0
     # report all 1030, within the bound, and a probe frame with its impulse
     # at (1, 2) then reports (1, 2): the stream stayed on its frame grid.
     # (Before step 4 the list held 1024 and the rest were dropped whole,

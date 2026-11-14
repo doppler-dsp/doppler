@@ -506,10 +506,11 @@ typedef struct dp_correlator_search
                                    included; 1 without a pool          */
   int threads_req; /**< what the caller asked for: set_threads()'s n,
                         0 = the online cores. `threads` is this capped
-                        at one worker a tile; every regrid re-applies
-                        it, so narrowing to one tile and widening again
-                        comes back to min(threads_req, tiles), not to
-                        the 1 the narrow grid ran on (doppler#2797). */
+                        at one worker a tile when D = 1 and taken whole
+                        when D > 1; every regrid re-applies it, so
+                        narrowing to one tile and widening again comes
+                        back to the request, not to the 1 the narrow
+                        grid ran on (doppler#2797, #3047). */
   int epoch_fan; /**< 1 (create's default): every tile stage fans on the
                       pool. 0: the stages that run once an epoch run
                       inline, and the per-block ones fan only when a
@@ -520,8 +521,9 @@ typedef struct dp_correlator_search
                       pays even at one tile a worker, while on a host
                       with a costly wake-up (WSL2) it costs that pool
                       1.9-3.5x at D = 1, so no tile count decides it.  */
-  dp_correlator_part_t *parts;          /**< window_bins partial slots of the
-                                   decided surface's per-tile passes  */
+  dp_correlator_part_t *parts;          /**< Partial slots of the decided
+                                   surface's per-chunk passes: room for
+                                   window_bins x 8 chunks, one a chunk */
 
   float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
   float  eta_nc;    /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */
@@ -3033,25 +3035,27 @@ int dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state, double carr
 int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz);
 
 /**
- * @brief Set how many threads the searcher fans its tiles across
- *        (docs/design/acq-surface.md §13: a roll per thread on
- *        persistent workers).
+ * @brief Set how many threads the searcher fans its stages across
+ *        (docs/design/acq-surface.md §13, §18.3: persistent workers).
  *
  * A continuous engine is created with a pool of the machine's online
  * cores when it has more than one tile; a burst engine, and a
  * single-tile one, run serially. This sets the count: 0 auto-selects the
  * online core count, 1 runs everything on the calling thread, n runs on
- * n workers (the caller included) -- but never more than `window_bins`:
- * every fan hands out one tile a task, so a worker past that only wakes
- * and waits. The request is kept, and every regrid re-applies it, so
- * an engine narrowed to one tile and widened again runs on
- * min(n, tiles), not on the 1 the narrow grid ran on. The workers are
- * created here, once, and parked between pushes; nothing is created per
- * push. The surface
- * is bit-identical at every count -- the tiles are independent after the
- * one forward transform and each writes its own rows -- so this changes
- * the cost of a push and nothing about its result. Setup path, never
- * hot; not while another thread is inside push().
+ * n workers (the caller included). At a depth of one epoch (D = 1) the
+ * count is capped at `window_bins`: every per-epoch fan hands out one
+ * tile a task, so a worker past that only wakes and waits. At D > 1
+ * every stage fans finer than tiles (epochs, capture bins, rows, chunks
+ * of rows), so the count is taken whole, and each worker holds its own
+ * FFT plans and scratch: memory grows with the count. The request is
+ * kept, and every regrid re-applies it, so an engine narrowed to one tile
+ * and widened again runs on the request, not on the 1 the narrow grid
+ * ran on. The workers are created here, once, and parked between pushes;
+ * nothing is created per push. The surface is bit-identical at every
+ * count -- every output row and every decide chunk is computed whole by
+ * one worker, and the chunk count is the grid's -- so this changes the
+ * cost of a push and nothing about its result. Setup path, never hot;
+ * not while another thread is inside push().
  *
  * @param state Must be non-NULL.
  * @param n     Thread count; 0 = online cores, 1 = serial.
@@ -3067,7 +3071,7 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  * >>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
  * >>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, cn0_dbhz=50.0,
  * ...                 doppler_uncertainty=4000.0)
- * >>> a.threads >= 1               # at most one worker a tile
+ * >>> a.threads >= 1               # the online cores (capped at D = 1)
  * True
  * >>> a.set_threads(1)
  * >>> a.threads

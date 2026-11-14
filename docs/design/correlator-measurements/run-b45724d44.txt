@@ -1,0 +1,54 @@
+main b45724d44 2026-11-14T17:40:44Z 16
+W= 3 rows thr= 1  fwd   7.16 ns/s   2.2 GB/s  map  35.39 ns/s   3.4 GB/s  (logical B/sample: fwd 16 map 120)
+W= 3 rows thr= 2  fwd   4.26 ns/s   3.8 GB/s  map  18.61 ns/s   6.5 GB/s  (logical B/sample: fwd 16 map 120)
+W= 3 rows thr= 4  fwd   2.52 ns/s   6.4 GB/s  map   9.45 ns/s  12.7 GB/s  (logical B/sample: fwd 16 map 120)
+W= 3 rows thr= 8  fwd   1.60 ns/s  10.0 GB/s  map   5.98 ns/s  20.1 GB/s  (logical B/sample: fwd 16 map 120)
+W= 3 rows thr=12  fwd   1.47 ns/s  10.9 GB/s  map   5.20 ns/s  23.1 GB/s  (logical B/sample: fwd 16 map 120)
+W= 3 rows thr=16  fwd   1.55 ns/s  10.3 GB/s  map   4.77 ns/s  25.2 GB/s  (logical B/sample: fwd 16 map 120)
+W=11 rows thr= 1  fwd   7.62 ns/s   2.1 GB/s  map 135.01 ns/s   3.3 GB/s  (logical B/sample: fwd 16 map 440)
+W=11 rows thr= 2  fwd   4.27 ns/s   3.7 GB/s  map  70.38 ns/s   6.3 GB/s  (logical B/sample: fwd 16 map 440)
+W=11 rows thr= 4  fwd   2.72 ns/s   5.9 GB/s  map  42.65 ns/s  10.3 GB/s  (logical B/sample: fwd 16 map 440)
+W=11 rows thr= 8  fwd   1.86 ns/s   8.6 GB/s  map  23.59 ns/s  18.7 GB/s  (logical B/sample: fwd 16 map 440)
+W=11 rows thr=12  fwd   1.68 ns/s   9.5 GB/s  map  18.21 ns/s  24.2 GB/s  (logical B/sample: fwd 16 map 440)
+W=11 rows thr=16  fwd   1.43 ns/s  11.2 GB/s  map  15.84 ns/s  27.8 GB/s  (logical B/sample: fwd 16 map 440)
+design D=90 nc=1 38.7 ns/sample
+design D=90 nc=1 21.2 ns/sample
+design D=90 nc=1 13.2 ns/sample
+design D=90 nc=1 8.5 ns/sample
+design D=90 nc=1 8.4 ns/sample
+wide D=90 nc=1 100.2 ns/sample
+wide D=90 nc=1 54.7 ns/sample
+wide D=90 nc=1 33.7 ns/sample
+wide D=90 nc=1 22.0 ns/sample
+wide D=90 nc=1 16.0 ns/sample
+threads= 1 triad   31.6 GB/s
+threads= 2 triad   52.9 GB/s
+threads= 4 triad   71.4 GB/s
+threads= 8 triad   74.3 GB/s
+threads=16 triad   77.3 GB/s
+# rerun: design point at 8 and 16 threads, REPS=15, three rounds
+t=8 design D=90 nc=1 8.9 ns/sample
+t=16 design D=90 nc=1 6.7 ns/sample
+t=8 design D=90 nc=1 8.7 ns/sample
+t=16 design D=90 nc=1 6.5 ns/sample
+t=8 design D=90 nc=1 8.6 ns/sample
+t=16 design D=90 nc=1 7.4 ns/sample
+# bench_blue, 2026-11-14T22:14:34Z, main b45724d44's libdoppler.a, two rounds
+n=   90 pffft=0 m=  192  dp_fft    0.243 us (err -152.7 dB)  bluestein    0.649 us (err -132.5 dB)  speedup 0.37x
+n=  160 pffft=1 m=  320  dp_fft    0.171 us (err -136.0 dB)  bluestein    1.145 us (err -132.6 dB)  speedup 0.15x
+n=  180 pffft=0 m=  384  dp_fft    0.574 us (err -152.3 dB)  bluestein    1.378 us (err -131.4 dB)  speedup 0.42x
+n=  188 pffft=0 m=  384  dp_fft    1.453 us (err -151.6 dB)  bluestein    1.404 us (err -131.5 dB)  speedup 1.03x
+n=  192 pffft=1 m=  384  dp_fft    0.208 us (err -137.3 dB)  bluestein    1.414 us (err -132.0 dB)  speedup 0.15x
+n=  720 pffft=1 m= 1440  dp_fft    0.962 us (err -134.2 dB)  bluestein    6.200 us (err -131.0 dB)  speedup 0.16x
+n=  768 pffft=1 m= 1536  dp_fft    0.996 us (err -135.3 dB)  bluestein    6.298 us (err -130.9 dB)  speedup 0.16x
+n= 2046 pffft=0 m= 4096  dp_fft   15.059 us (err -151.9 dB)  bluestein   17.912 us (err -130.2 dB)  speedup 0.84x
+n= 2048 pffft=1 m= 4096  dp_fft    2.888 us (err -135.1 dB)  bluestein   18.628 us (err -130.3 dB)  speedup 0.16x
+n=   90 pffft=0 m=  192  dp_fft    0.246 us (err -152.7 dB)  bluestein    0.647 us (err -132.5 dB)  speedup 0.38x
+n=  160 pffft=1 m=  320  dp_fft    0.172 us (err -136.0 dB)  bluestein    1.164 us (err -132.6 dB)  speedup 0.15x
+n=  180 pffft=0 m=  384  dp_fft    0.578 us (err -152.3 dB)  bluestein    1.424 us (err -131.4 dB)  speedup 0.41x
+n=  188 pffft=0 m=  384  dp_fft    1.447 us (err -151.6 dB)  bluestein    1.392 us (err -131.5 dB)  speedup 1.04x
+n=  192 pffft=1 m=  384  dp_fft    0.206 us (err -137.3 dB)  bluestein    1.451 us (err -132.0 dB)  speedup 0.14x
+n=  720 pffft=1 m= 1440  dp_fft    0.983 us (err -134.2 dB)  bluestein    6.450 us (err -131.0 dB)  speedup 0.15x
+n=  768 pffft=1 m= 1536  dp_fft    0.950 us (err -135.3 dB)  bluestein    6.356 us (err -130.9 dB)  speedup 0.15x
+n= 2046 pffft=0 m= 4096  dp_fft   15.641 us (err -151.9 dB)  bluestein   18.007 us (err -130.2 dB)  speedup 0.87x
+n= 2048 pffft=1 m= 4096  dp_fft    2.871 us (err -135.1 dB)  bluestein   18.422 us (err -130.3 dB)  speedup 0.16x

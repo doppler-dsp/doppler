@@ -1,5 +1,5 @@
 /* test_detector_equiv.c -- the 1-D detector is the 2-D one at one row, hit
- * for hit (#2752 step 3.3, docs/design/correlator.md section 2.1).
+ * for hit (#2752 step 3.3, docs/design/correlator.md section 2).
  *
  * Step 3.3 retires `CorrDetector` and `CorrDetector2D` by making them the
  * two detector flavors of the one correlator, the 1-D one being the 2-D one
@@ -33,10 +33,10 @@
  * carry the reference at a planted circular lag with noise-only frames, so
  * both sides of the gate are exercised.
  *
- * One frame of each stream is NaN. Until U2 (docs/design/correlator.md)
- * the two disagreed there: the 1-D detector reported the NaN as its peak
- * and the 2-D one listed nothing. Both now take the one picker, where a
- * NaN is never a candidate.
+ * One frame of each stream is NaN. Until U2
+ * (docs/design/archive/correlator-step3.md) the two disagreed there: the 1-D
+ * detector reported the NaN as its peak and the 2-D one listed nothing. Both
+ * now take the one picker, where a NaN is never a candidate.
  *
  * Proven red by sabotage on the retired objects' sources, each turning
  * this test red: the 2-D detector's noise window shifted by one bin; the

@@ -962,14 +962,14 @@ in the transform have shipped, and the one map (§18) is the third:
     is invariant along the row axis and `corr2d`'s forward-accumulate-inverse
     round trip along that axis is an exact identity. `corr2d` skips it,
     replacing the $D \times N$ 2-D pair with $D$ length-$N$ 1-D transforms
-    ([corr2d-interpolated-inverse.md §9](corr2d-interpolated-inverse.md)).
+    ([correlator §7.1](correlator.md#71-per-row-and-2-d-correlation)).
     The composed `DsssReceiver`'s search went from about 28–59 MSa/s to about
     133 MSa/s, matching its tracking throughput.
 - **The decoupled inverse.** Zero-padding the product spectrum to any
     $N'$ and inverting at $N'$ gives the band-limited interpolation of the
     circular correlation, peak preserved, on a finer code-phase grid. So the
     inverse length is free to be FFT-friendly, with no correlation loss
-    ([corr2d-interpolated-inverse.md](corr2d-interpolated-inverse.md)).
+    ([correlator §7.2](correlator.md#72-the-padded-inverse-and-interpolation)).
 
 **FFT size is a ~5× lever, and the forward transform holds it.** Plans and
 work buffers are built at create; nothing in push allocates. The fast SIMD
@@ -1310,28 +1310,10 @@ the continuous `Correlator` gets its row in the serialization matrix (#2078, fam
 
 ### 18.3 Threading ([#2744](https://github.com/doppler-dsp/doppler/issues/2744))
 
-Every stage now runs once a block. Each fans once on the engine's pool:
-the forward transforms over epochs, slow time over chunks of capture bins,
-the rows over (tile, slow row), and the decision pass over chunks of whole
-rows: each tile's rows cut into equal chunks, aiming at 24 in all and at
-most 8 a tile, a count fixed by the grid, not the pool. Since every stage fans finer than tiles, the pool is no
-longer capped at one worker a tile when $D > 1$
-([#3047](https://github.com/doppler-dsp/doppler/issues/3047)); it still is
-at $D = 1$, where the fans run every epoch. Each output row is computed by one task with the same arithmetic,
-so the surface stays bit-identical at every thread count. FFT plans and
-scratch are per worker, not per tile, since a task is no longer tied to a
-tile. Each stage cuts 4 chunks per worker and a chunk claims whichever slot
-is free, so a fast worker takes more of the stage than a slow one
-([#3047](https://github.com/doppler-dsp/doppler/issues/3047)).
-
-What this fixes and what it does not. #2744's 5–10× rows are all $D = 1$
-one-epoch pushes, and at $D = 1$ a block is one epoch: this design leaves
-that case as it is, decided by the caller's `epoch_fan` (#2775), with
-[#2778](https://github.com/doppler-dsp/doppler/issues/2778)'s host
-calibration to follow. At $D = 150$ #2744 measured the fanned search about
-1.5× slower (286.7 against 194.0 ns a sample), with a dispatch every epoch;
-here that becomes one dispatch per stage per block. The speed gate's
-threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
+Every stage runs once a block and fans once on the engine's pool, finer
+than tiles, and the surface is bit-identical at every thread count. How
+each stage splits, and what it costs and buys, is
+[the correlator §9.3](correlator.md#93-how-each-stage-splits-across-workers).
 
 ### 18.4 Oracle and gate
 
@@ -1378,8 +1360,9 @@ threaded rows (`t4`, `t8`, `threads=4`) settle #2744 for $D > 1$.
     state behind the fan-out of §13
 - [detection.md](detection.md): `det_threshold`, `det_pd`, `marcum_q`, the
     order-$K$ primitives of §5 and §11
-- [corr2d-interpolated-inverse.md](corr2d-interpolated-inverse.md): the
-    decoupled inverse and the single-row fast path of §14
+- [The correlator](correlator.md): the object this search is two flavors
+    of, its padded inverse and single-row fast path (used in §14), and its cost
+    and parallelism
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md): the 2-D detector
     flavor of [`Correlator`](../guide/correlator.md), the surface the burst framing builds on
 - [async-dsss-receiver.md](async-dsss-receiver.md): the receiver that runs

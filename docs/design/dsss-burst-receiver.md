@@ -518,8 +518,8 @@ is not settled is its operating envelope.
 - **Whether refine also closes the frequency.** The same stage could refine
     sub-bin Doppler — either the column-FFT
     [`dsss-use-cases.md`](../dev/contributing/dsss-use-cases.md) describes, or
-    `corr2d`'s interpolated inverse
-    ([design](corr2d-interpolated-inverse.md)), which yields sub-chip delay
+    the correlator's padded inverse
+    ([design §7.2](correlator.md#72-the-padded-inverse-and-interpolation)), which yields sub-chip delay
     and sub-bin Doppler at no extra forward cost. §3.3 says the frequency
     path already has ~8× margin without it, so this is an option to justify
     rather than a requirement — and the honest default is not to build it

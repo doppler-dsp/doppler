@@ -67,7 +67,7 @@
 #define DP_ERR_UNSUPPORTED                                                    \
   (-11) /**< This object's flavor does not serve the call: a member only    \
              some of its constructions honor, asked of one that does not   \
-             (docs/design/correlator-python.md section 18). The call       \
+             (docs/design/correlator.md section 4). The call       \
              changed nothing. Distinct from DP_ERR_INVALID, a bad          \
              argument to a call the object does serve. */
 

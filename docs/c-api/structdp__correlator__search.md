@@ -8,7 +8,7 @@
 
 
 
-_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/correlator.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._
+_The search flavors' policy: everything the two search constructors add on top of the four layers (docs/design/archive/correlator-step3.md section 7, 3.4b). Held by_ [_**dp\_correlator\_state\_t::search**_](structdp__correlator__state__t.md#variable-search) _, allocated once at create; NULL in every other flavor._
 
 * `#include <correlator_core.h>`
 

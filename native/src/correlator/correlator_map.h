@@ -24,11 +24,11 @@
  * is X itself, read in place.
  *
  * **Threading.** Each stage fans once over the caller's pool, in chunks
- * fixed by the chunk index alone, and a chunk runs on that index's slot:
- * its own plans and scratch. Every output row is computed by one chunk with
- * the same arithmetic, so the map is bit-identical at every thread count.
- * A stage given a slot >= 0 runs whole on that slot, serially (a batch's
- * map per worker).
+ * fixed by the worker count alone, and a chunk claims whichever slot (its
+ * plans and scratch) is free (dd_range). Every output row is computed by one
+ * chunk with the same arithmetic, so the map is bit-identical at every thread
+ * count. A stage given a slot >= 0 runs whole on that slot, serially (a
+ * batch's map per worker).
  */
 #ifndef DP_CORRELATOR_MAP_H
 #define DP_CORRELATOR_MAP_H

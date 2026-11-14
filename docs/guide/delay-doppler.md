@@ -217,6 +217,6 @@ ______________________________________________________________________
     each with a C twin in `native/examples/`
 - [Acquiring a Repeated Preamble](acquisition.md): the burst-level search
     that uses this map
-- [Design: batches](../design/corr2d-batch.md) and
+- [Design: batches](../design/correlator.md#74-batches) and
     [hypotheses](../design/corr2d-hypotheses.md): why the batch and the bank
     are shaped this way (for those who want the reasoning)

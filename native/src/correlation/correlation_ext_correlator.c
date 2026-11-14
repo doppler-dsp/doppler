@@ -363,8 +363,8 @@ CorrelatorObj_init (CorrelatorObject *self, PyObject *args, PyObject *kwds)
       else
         PyErr_SetString (PyExc_ValueError,
                          "Correlator: refused, or out of memory "
-                         "(docs/design/correlator-python.md section 17: a "
-                         "value the flavor would not honor is refused)");
+                         "(docs/design/correlator.md section 3: a value "
+                         "the flavor would not honor is refused)");
       return -1;
     }
   if (self->handle->search && self->handle->search->underpowered)
@@ -5726,8 +5726,8 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "----------\n"
     "carrier_freq_hz : float\n"
     "    RF carrier, Hz; 0.0 = uncoupled. Refused (DP_ERR_UNSUPPORTED) on\n"
-    "    every flavor but the continuous search\n"
-    "    (docs/design/correlator-python.md section 18).\n"
+    "    every flavor but the continuous search (docs/design/correlator.md\n"
+    "    section 4).\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -5868,7 +5868,7 @@ static PyMethodDef CorrelatorObj_methods[] = {
     "decim : int\n"
     "    Emit every decim-th decided dwell; >= 1. Refused\n"
     "    (DP_ERR_UNSUPPORTED) on every flavor but the continuous search\n"
-    "    (docs/design/correlator-python.md section 18).\n"
+    "    (docs/design/correlator.md section 4).\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -6638,9 +6638,8 @@ static PyTypeObject CorrelatorObjType = {
     "ValueError\n"
     "    If construction fails. The exception message is the reason the\n"
     "    constructor gives, or ``Correlator: refused, or out of memory\n"
-    "    (docs/design/correlator-python.md section 17: a value the flavor "
-    "would\n"
-    "    not honor is refused)`` when it gives none.\n"
+    "    (docs/design/correlator.md section 3: a value the flavor would not\n"
+    "    honor is refused)`` when it gives none.\n"
     "\n"
     "Warns\n"
     "-----\n"

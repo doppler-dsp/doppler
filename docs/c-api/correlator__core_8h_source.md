@@ -277,7 +277,7 @@ typedef struct {
   float _Complex  *bat_map;   
   float _Complex  *bat_fine;  
   /* Detection layer (the detector flavors, docs/design/correlator.md
-   * section 4): what create sets and push only reads.  Zero / NULL in the
+   * section 2): what create sets and push only reads.  Zero / NULL in the
    * map flavors.  Appended here, after every field the map reads, so that
    * no field the threaded map was measured at moved (#2752 step 3.3). */
   dp_f32_t       *ring;          
@@ -321,10 +321,10 @@ typedef struct {
   size_t n_peaks;            
   size_t n_twins;            
   /* The search flavors' policy record, embedded rather than allocated
-     (#2752 step 3.4b, docs/design/correlator.md section 7): behind a
-     pointer to its own allocation, a small burst push ran 3% slower than
-     acq's (bench-ab twice, then aligned with heap placement pinned), and
-     here it ties. Last, so no field 3.2 or 3.3 measured moves; every
+     (#2752 step 3.4b, docs/design/archive/correlator-step3.md section 7):
+     behind a pointer to its own allocation, a small burst push ran 3%
+     slower than acq's (bench-ab twice, then aligned with heap placement
+     pinned), and here it ties. Last, so no field 3.2 or 3.3 measured moves; every
      flavor carries its 1.5 KB, unused outside the search. */
   dp_correlator_search_t search_rec; 
 } dp_correlator_state_t;
@@ -460,7 +460,7 @@ size_t dp_correlator_bank_detect (const dp_correlator_state_t *state,
 
 /* ── Detector flavors ──────────────────────────────────────────────────────
  * The correlator with the stream and detection layers on top
- * (docs/design/correlator.md section 4): any chunk in, the ring's framer
+ * (docs/design/correlator.md section 2): any chunk in, the ring's framer
  * cutting n-sample frames (n = ny*nx), each frame correlated and
  * integrated over dwell frames, and on every dump a test statistic
  *
@@ -523,7 +523,7 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
                                  float threshold);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * One blob for every flavor (docs/design/correlator.md section 4): the
+ * One blob for every flavor (docs/design/correlator.md section 6): the
  * flavor, the grid, the frame count and the product-spectrum accumulator.
  * The flavor, ny, ny_out, fast_path, col_out and nx_out are reject keys:
  * each changes what the accumulator holds, so a blob that differs in any
@@ -877,7 +877,7 @@ typedef struct
 static inline size_t
 dp_correlator_grid_bins (const dp_correlator_state_t *state)
 {
-  /* 0 off a search flavor, which has no Doppler grid (§18). */
+  /* 0 off a search flavor, which has no Doppler grid (correlator.md §4). */
   return state->search
              ? state->search->window_bins * state->search->coherent_bins
              : 0;

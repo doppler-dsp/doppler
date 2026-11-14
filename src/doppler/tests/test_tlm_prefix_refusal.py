@@ -222,8 +222,8 @@ def test_every_face_is_covered() -> None:
 
 #: The sentence each class's overlong-prefix refusal raises, in one table: a
 #: class whose set_telemetry names the argument it refused (the Correlator's,
-#: through `why`, just-makeit#2574; docs/design/correlator-python.md section
-#: 18) is listed here in full, as is a class whose manifest declares its own
+#: through `why`, just-makeit#2574; docs/design/correlator.md section
+#: 4) is listed here in full, as is a class whose manifest declares its own
 #: sentence (AsyncDsssPool's); every other class raises jm's generic one.
 #: Matched from the start to the end, so a class cannot pass by raising
 #: some other refusal that merely names set_telemetry.

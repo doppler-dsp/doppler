@@ -1330,7 +1330,7 @@ Frame exceeds transport max payload.
 
 
 
-This object's flavor does not serve the call: a member only \ some of its constructions honor, asked of one that does not \ (docs/design/correlator-python.md section 18). The call \ changed nothing. Distinct from DP\_ERR\_INVALID, a bad \ argument to a call the object does serve. 
+This object's flavor does not serve the call: a member only \ some of its constructions honor, asked of one that does not \ (docs/design/correlator.md section 4). The call \ changed nothing. Distinct from DP\_ERR\_INVALID, a bad \ argument to a call the object does serve. 
 
 
         

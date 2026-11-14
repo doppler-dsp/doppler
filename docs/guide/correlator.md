@@ -251,5 +251,5 @@ flavor is refused by another. See [Checkpoint & Resume](state-serialization.md).
 - [Delay-Doppler Search](delay-doppler.md),
     [Acquiring a Repeated Preamble](acquisition.md),
     [DSSS Burst Acquisition](dsss-acquisition.md)
-- [One Python class: the step-4 design](../design/correlator-python.md) —
+- [The correlator's design](../design/correlator.md) —
     why there is one class, and every ruling behind its knobs

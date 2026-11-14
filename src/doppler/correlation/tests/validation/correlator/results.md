@@ -26,7 +26,7 @@ Neither of these is restated here:
 
 | page | owns |
 |---|---|
-| [`docs/design/corr2d-interpolated-inverse.md`](../../../../../../docs/design/corr2d-interpolated-inverse.md) | why the inverse may be larger than the forward, the zero-pad maths, and the single-row fast path |
+| [`docs/design/correlator.md`](../../../../../../docs/design/correlator.md) | §7, why the inverse may be larger than the forward, the zero-pad maths, and the single-row fast path |
 | `native/inc/doppler/correlator/correlator_core.h` | the contract per function — the SSOT this report audits |
 
 ### 1.1 The claim inventory
@@ -66,7 +66,7 @@ Step 1 of `docs/dev/contributing/validation.md`. The C test is `test_correlator_
 | page | owns |
 |---|---|
 | [`docs/design/detection.md`](../../../../../../docs/design/detection.md) | the CFAR law this object applies — how a threshold is priced from a false-alarm rate, and over what population |
-| [`docs/design/corr2d-interpolated-inverse.md`](../../../../../../docs/design/corr2d-interpolated-inverse.md) | §6, the downstream wiring: what this object reads off the surface and what the interpolated form changes about it |
+| [`docs/design/correlator.md`](../../../../../../docs/design/correlator.md) | section 7.2, the padded inverse: what the interpolated form changes about the surface this object reads |
 | part one of this report (§2.1 to §2.11) | the correlation surface this flavor decides on — not re-derived here |
 | `native/inc/doppler/correlator/correlator_core.h` | the contract per function — the SSOT this report audits |
 
@@ -261,7 +261,7 @@ The peak-magnitude row is stated at an INTEGER offset on purpose: at a fractiona
 
 ### 2.10 Batches
 
-A batch is H frames in one call (#2683, [`docs/design/corr2d-batch.md`](../../../../../../docs/design/corr2d-batch.md)). Every map is checked against what a FRESH dwell-1 object returns for that frame through `execute()`, which shares no batch code path, on the general, fast and known-column paths, at one thread and at three. The five frames are more than the three workers, so the three-thread rows run the whole-map path.
+A batch is H frames in one call (#2683, [`docs/design/correlator.md`](../../../../../../docs/design/correlator.md) section 7.4). Every map is checked against what a FRESH dwell-1 object returns for that frame through `execute()`, which shares no batch code path, on the general, fast and known-column paths, at one thread and at three. The five frames are more than the three workers, so the three-thread rows run the whole-map path.
 
 | path | threads | maps == fresh | coherent == dwell-H | folds, worst rel. | max index | dwell untouched | refused |
 |---|---|---|---|---|---|---|---|

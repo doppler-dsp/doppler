@@ -29,8 +29,8 @@ def test_destroy():
 
 def test_dwell_zero_is_refused_as_value_error():
     """dwell=0 never dumps, so create refuses it as ValueError (#2641),
-    with the sentence that names dwell (docs/design/correlator-python.md
-    §17)."""
+    with the sentence that names dwell (docs/design/correlator.md
+    §3)."""
     ref = np.zeros(8, np.complex64)
     ref[0] = 1.0
     with pytest.raises(

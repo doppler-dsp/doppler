@@ -2,7 +2,8 @@
 over a Corr2D surface.
 
 Not run on its own. `validate.py` in this folder renders the one report
-for the one object (#2752 step 3.3, docs/design/correlator.md section 7):
+for the one object (#2752 step 3.3,
+docs/design/archive/correlator-step3.md section 7):
 its own sections for the map flavors, then this module's for the 2-D
 detector flavor, numbered on from them, and one executive summary, one
 findings list and one limits table for both. `attach()` hands this module
@@ -142,11 +143,10 @@ def section_object() -> None:
                 "priced from a false-alarm rate, and over what population",
             ],
             [
-                "[`docs/design/corr2d-interpolated-inverse.md`]"
-                "(../../../../../../docs/design/"
-                "corr2d-interpolated-inverse.md)",
-                "§6, the downstream wiring: what this object reads off the "
-                "surface and what the interpolated form changes about it",
+                "[`docs/design/correlator.md`]"
+                "(../../../../../../docs/design/correlator.md)",
+                "section 7.2, the padded inverse: what the interpolated form "
+                "changes about the surface this object reads",
             ],
             [
                 "part one of this report (§2.1 to §2.11)",

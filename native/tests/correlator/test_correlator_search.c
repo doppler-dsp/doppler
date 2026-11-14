@@ -5118,8 +5118,8 @@ main (void)
   /* The tolerance on psl and dsl against the double brute forces below.
    * The engine computes psl's R on the correlator's single-row path and
    * dsl's sweep on the one delay-Doppler map, both in cf32 (design
-   * correlator.md U4), so each agrees with its oracle to cf32's rounding,
-   * not double's: measured over every acq-family test, validator and
+   * archive/correlator-step3.md U4), so each agrees with its oracle to cf32's
+   * rounding, not double's: measured over every acq-family test, validator and
    * bench (#2752: 2,626 setup calls in 3.4a, 372 sweeps in 3.4b-pre),
    * the worst psl change was 6.2e-6 dB and the worst dsl 6.4e-7 dB. The
    * budget is 1e-4 dB: well above both, and 100x tighter than the nearest

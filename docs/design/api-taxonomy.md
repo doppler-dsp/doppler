@@ -545,7 +545,7 @@ on every pinned benchmark row.
     `DsssReceiver`, `AsyncDsssReceiver`) compose `Correlator`, and
     the forwarder step 1 folded in here is gone: `burst_acq`'s object,
     core, binding fragment, tests and benches
-    ([correlator-python.md §8](correlator-python.md#8-retiring-burst_acq)).
+    ([the step-4 plan, §8](archive/correlator-step4.md#8-retiring-burst_acq)).
     The name
     lives on in prose: `Correlator`'s docstring and guide say it is "also
     called acquisition when it is part of a detector or receiver", so a

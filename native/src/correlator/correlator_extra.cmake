@@ -6,7 +6,7 @@
 # Corr when corr/ was deleted, so they are registered here.
 
 # test_corr_equiv: the 1-D flavor against the 2-D one at one row, byte for
-# byte (docs/design/correlator.md section 2.1).
+# byte (docs/design/correlator.md section 2).
 add_executable(test_corr_equiv
                ${CMAKE_SOURCE_DIR}/native/tests/correlator/test_corr_equiv.c)
 target_link_libraries(test_corr_equiv
@@ -38,9 +38,9 @@ add_test(NAME test_correlator_1d COMMAND test_correlator_1d)
 # a second source, because jm_bench.h's static functions warn unused in any
 # translation unit that does not write the JSON (just-makeit#2497).
 # `make bench-ab` pairs them with main's bench_corr_core by alias through
-# step 3 (docs/design/correlator.md section 7.1). pn_core and cvt_core: the
-# short rows (step 3.1b) correlate an m-sequence from the shipped generator,
-# mapped by the shipped NRZ mapper.
+# step 3 (docs/design/archive/correlator-step3.md section 7.1). pn_core and
+# cvt_core: the short rows (step 3.1b) correlate an m-sequence from the
+# shipped generator, mapped by the shipped NRZ mapper.
 target_link_libraries(bench_correlator_core PRIVATE pn_core cvt_core)
 
 # The detector flavors' tests (#2752 step 3.3). They came with
@@ -48,8 +48,8 @@ target_link_libraries(bench_correlator_core PRIVATE pn_core cvt_core)
 # deleted, as Corr's did in step 3.2, so they are registered here.
 #
 # test_detector_equiv: the 1-D detector flavor against the 2-D one at one
-# row, hit for hit (docs/design/correlator.md section 7). It ran first on
-# the retired detector/ and detector2d/.
+# row, hit for hit (docs/design/archive/correlator-step3.md section 7). It
+# ran first on the retired detector/ and detector2d/.
 # test_correlator_create: the one constructor (#2752 step 4a) builds each
 # flavor as its own constructor does, and refuses what it would not honor.
 foreach(_t test_detector_equiv test_correlator_detector_1d

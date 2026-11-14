@@ -2,7 +2,8 @@
 acquisition engine, through both front doors.
 
 Not run on its own. `validate.py` in this folder renders the one report for
-the one object (#2752 step 3.5, docs/design/correlator.md section 7): the map
+the one object (#2752 step 3.5,
+docs/design/archive/correlator-step3.md section 7): the map
 flavors, then the 2-D detector (`detector.py`), then this search, then the
 burst front door (`burst_door.py`), numbered on from each other, with one
 executive summary, one findings list and one limits table. `attach()` hands

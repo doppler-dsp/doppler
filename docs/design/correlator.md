@@ -1,674 +1,659 @@
 ---
-description: "step 3 of the correlator consolidation (#2752): the seven correlation objects become one C object, correlation/correlator/, its layers and constructors, the duplications it removes, the one deliberate C break, the unknowns, and the sub-steps with their oracles and speed gates"
+description: "the one correlator: seven flavors of one C object and one Python class, Correlator; its constructor and knobs, who serves each member, push's record, the state blob, the map (per-row, 2-D, padded inverse, delay-Doppler, batches), detection, and its cost and parallelism"
 ---
 
-# One correlator: the step-3 design
+# The correlator
 
-Step 3 of the consolidation ([#2752](https://github.com/doppler-dsp/doppler/issues/2752),
-[API taxonomy §6.4](api-taxonomy.md#64-consolidation-one-primitive-correlator)).
-Six C directories hold seven public classes that compute one thing:
-correlate input against a reference, then perhaps threshold it. Step 3 makes
-them one C object, `native/{inc/doppler,src}/correlator/`, and retires
-`corr/`, `corr2d/`, `detector/`, `detector2d/` and `acq/`. `burst_acq/` goes
-in step 4 with the Python classes (taxonomy §6.4, step 1 folded).
+One C object, `native/{inc/doppler,src}/correlator/`, and one Python class,
+`doppler.correlation.Correlator`, compute one thing: correlate input against
+a reference by FFT, then perhaps detect. Its seven flavors are one state
+type with one constructor each; the Python class takes every knob and the C
+picks the flavor from them.
 
-Step 2 already put the delay-Doppler search in one place: acq's two paths run
-on the map in `corr2d_core.c` ([acq-surface §18](acq-surface.md#18-one-delay-doppler-map)).
-Step 3 does the same for everything around it: one framing, one detection
-layer, one peak picker and one state blob.
+The search's mathematics (the epoch matrix, the tiles, the gate, the
+surface) is [the acquisition surface](acq-surface.md). How to use it is
+[the correlator guide](../guide/correlator.md). §11 is how it came to be one
+object.
 
-**The owner's two rules govern every sub-step** (2026-11-02):
+## 1. Who calls it
 
-1. **No private copy survives.** When a sub-step lands, the code it
-    consolidates exists once.
-1. **Speed only goes up.** Every benchmark row the sub-step touches is equal
-    or faster on the bench box, judged by `make bench-ab` against its budget
-    (§7.1).
-
-This is a redesign of certified objects, so it follows
-[Adding an algorithm](../dev/contributing/adding-algorithms.md) from phase 1,
-and the reports are re-certified on the one object.
-
-## 1. Who calls it, and with what
-
-| caller                                               | object today                     | shape                                       | does with the answer                                       |
-| ---------------------------------------------------- | -------------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
-| `BurstCapture`                                       | `Acquisition` (burst door)       | stream of samples, code row × Doppler       | resolves the period, refines, retains, emits a burst       |
-| `DsssReceiver`, `AsyncDsssReceiver`, `AsyncDsssPool` | `Acquisition` (continuous door)  | stream, code row × Doppler                  | hands the hit to the tracking loops                        |
-| `CarrierAcquisition`                                 | `CorrDetector`                   | stream of averaged PSD frames, 1-D template | sub-bin carrier estimate                                   |
-| Python users                                         | `Corr`, `Corr2D`, `DelayDoppler` | whole frames                                | the correlation map, batch reductions, the hypothesis bank |
-| Python users                                         | `CorrDetector`, `CorrDetector2D` | stream                                      | detections over a k × noise gate                           |
+| caller                                                   | flavor                     | does with the answer                                 |
+| -------------------------------------------------------- | -------------------------- | ---------------------------------------------------- |
+| a user correlating a block against a template            | 1-D, 2-D                   | maps: one per call, or a batch reduced in C          |
+| a user searching a code over delay × Doppler             | delay-Doppler              | maps, a hypothesis bank, the peak per map            |
+| a user detecting a reference in a stream                 | 1-D or 2-D detector        | detections from `push`, the gate a multiple of noise |
+| a user acquiring a DSSS signal or a burst                | continuous or burst search | detections from `push`, the gate from Pfa and Pd     |
+| `CarrierAcquisition` (C)                                 | 1-D detector               | a sub-bin carrier estimate                           |
+| `BurstCapture` (C)                                       | burst search               | resolves the period, refines, emits a burst          |
+| `DsssReceiver`, `AsyncDsssReceiver`, `AsyncDsssPool` (C) | continuous search          | hands the hit to the tracking loops                  |
+| `doppler.dsss.orchestrator` (Python)                     | burst search               | one search per channel                               |
 
 Nothing else in `native/` correlates by FFT: `ppe_core.c` is a periodogram.
 
-**`carrier_acq` is coupled to `CorrDetector` three ways**, and sub-step 3.3
-changes all three:
-
-- it nests the detector's state blob in its own (`carrier_acq_core.c:368`,
-    `:388`, `:423`), so `CAQR`'s version bumps when the detector's blob
-    becomes the correlator's;
-- it reads the detector's correlation output directly,
-    `s->det->out_buf` (`:207-209`), for the parabolic refine;
-- it sets the detector's threshold on every push (`:298`).
-
-**Everything else that touches the retired objects**, each in the oracle of
-the sub-step that changes it:
-
-| kind           | files                                                                                                                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| examples       | `native/examples/corr_demo.c`; `src/doppler/examples/corr_demo.py`, which draws `docs/gallery/corr.md`; `src/doppler/examples/dsss_burst_demo.py:210` (`Corr` and its `n`)             |
-| docs           | `docs/guide/correlator.md`, `docs/guide/detection.md`, `docs/gallery/corr.md`                                                                                                          |
-| Python suites  | `src/doppler/correlation/tests/test_correlator_1d.py`, `test_correlator_detector_1d.py`, `test_correlator_exact_length.py`; the `src/doppler/tests/test_state_serialization.py` matrix |
-| C symbol tests | `native/tests/correlator/test_correlator_1d_symbols.c` (Corr's, moved in 3.2); the detectors' (deleted in 3.3: the generated `test_correlator_symbols.c` names every view's functions) |
-| bookkeeping    | `scripts/.mutator-state-exempt`, `native/inc/.example-arity-ratchet`, `native/.c-header-code-ignore`, `scripts/.doc-symbol-exempt`                                                     |
-
-## 2. Today, measured
-
-Origin/main at `ba70f133c`, 2026-11-05.
-
-| object                    |              core lines (`.h` + `.c`) | engine                                                        | C tests (`DP_CHECK`) | certified                      |
-| ------------------------- | ------------------------------------: | ------------------------------------------------------------- | -------------------: | ------------------------------ |
-| `Corr`                    |                             241 + 200 | own 1-D FFT plans                                             |                   58 | no                             |
-| `CorrDetector`            |                             324 + 249 | `Corr`, ring, framer, own argmax                              |                   78 | no                             |
-| `Corr2D` / `DelayDoppler` |  1,066 + 2,517 (+ 331 `corr2d_map.h`) | 2-D FFT, the single-row path, the delay-Doppler map, the bank |                  260 | yes, 30/30                     |
-| `CorrDetector2D`          |                             339 + 237 | `Corr2D`, ring, framer, `det_peak_list`                       |                  140 | yes, 15/15                     |
-| `Acquisition`             | 2,324 + 3,510 (+ 119 `acq_private.h`) | the map, its own framer, `det_private.h`'s CFAR and peaks     |                  597 | yes, 22/22 (two findings open) |
-| `BurstAcquisition`        |                              329 + 92 | a forwarder onto `Acquisition`                                |                   12 | yes, 16/16                     |
-
-The shared CFAR is `det_private.h` (since 3.3,
-`native/inc/doppler/correlator/correlator_private.h`): header-only
-statics for the ring (`det_ring_create`), the noise estimate
-(`det_noise_chunk`, `det_noise_estimate`), the peaks (`det_peak_list`,
-`det_peak_scan`, `det_peak_zone`) and the framed push (`det_framed_push`).
-`CorrDetector`, `CorrDetector2D` and acq include it.
-
-### 2.1 The 1-D pair is the 2-D pair at one row
-
-The arithmetic is the same, in the same order. `Corr`'s execute, before
-3.2 (`corr_core.c:154-194`), and `Corr2D`'s single-row path (`corr2d_row` and
-`corr2d_row_inverse`, `corr2d_core.c:428-459`) take:
-
-- the same plans (`dp_fft_create` ignores `nthreads`);
-- the same multiply-accumulate against the conjugated reference spectrum;
-- the same `dp_fft_pad_spectrum`;
-- the same scale, `1/n` after the inverse (`1/n == 1/nx`).
-
-`det_peak_scan` with no mask is `CorrDetector`'s strict-`>` argmax.
-
-A throwaway Python prototype agreed:
-
-- `Corr` against `Corr2D` with `ny = 1`: 32 maps byte-identical, over n = 31,
-    64, 100 and 1023, dwells 1 and 3, and lag pads 1 and 2.
-- `CorrDetector` against `CorrDetector2D` with `ny = 1`: 110 hits over 48
-    streams identical. The streams covered the four noise modes, dwells 1
-    and 2 and n = 31, 64 and 127, pushed in odd chunks.
-
-The prototype is evidence for this page only; nothing reruns it. Sub-step
-3.2 opens by committing it as a C test (§7).
-
-## 3. What is duplicated, which rule 1 removes
-
-|        | the copies                                                                                                                                                                             | becomes                                                                                                                       |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **D1** | `Corr`'s 1-D correlation (`corr_core.c:154-194`) and `Corr2D`'s single-row path (`corr2d_core.c:428-459`)                                                                              | the single-row path, at `ny = 1` (§2.1)                                                                                       |
-| **D2** | `CorrDetector`'s argmax loop (`detector_core.c:49-52`) and `det_peak_list`                                                                                                             | `det_peak_list` with one peak; NaN by U2's rule                                                                               |
-| **D3** | `Corr2D`'s own peak passes: `corr2d_fold_peaks` (`corr2d_core.c:1072-1106`) and the bank's 3 × 3 local maximum (`corr2d_core.c:1771-1808`), beside `det_peak_scan` and `det_peak_zone` | one peak primitive in the correlator's private header, if the measurements agree (U3)                                         |
-| **D4** | the dwell counter, `++count == dwell` (`corr_core.c:160`, `corr2d_core.c:620`, `:632`)                                                                                                 | the single-row path's, with D1                                                                                                |
-| **D5** | acq's setup-time n-point transform pairs outside the map: `acq_shape_of_template`, `acq_off_peak`, `acq_doppler_sidelobe` and the sidelobe ratio (`dp_correlator_sidelobe_ratio` now)  | decided by U4: the first two on the single-row path (3.4a), the last two on the one delay-Doppler map (3.4b-pre), all in cf32 |
-
-**Not duplicates:**
-
-- the three rings and framers, which all go through `det_ring_create` and
-    `dp_f32_framer`, one primitive already;
-- `det_peak_list`'s two appearances in `det_private.h` (`:191` and `:317`),
-    which are a forward declaration and its definition.
-
-## 4. The one object
-
-One state type, `dp_correlator_state_t`, in four layers. Each layer is used
-by the constructors that need it, and none exists twice.
-
-| layer         | holds                                                                                                                                            | from today                                           |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| **map**       | the reference spectrum and the transforms: the general 2-D shape, the single-row shape (1-D at `ny = 1`) and the delay-Doppler map with its bank | `corr2d_core.c` and `corr2d_map.h`                   |
-| **dwell**     | the coherent accumulator and its count; the non-coherent sum                                                                                     | `Corr2D`'s, and acq's `nc_surface`                   |
-| **stream**    | the ring and framer, block-coherent epochs held raw                                                                                              | `det_private.h`'s ring and framed push, acq's framer |
-| **detection** | magnitude, noise estimate, peak list, the gate (k × noise, or from Pfa and Pd), twins, the decision                                              | `det_private.h`, acq's CFAR                          |
-
-acq's search policy sits on top of the four layers and stays in the object:
-the two front doors' sizing (`acq_auto_config_*`), the rate hypotheses, the
-carrier and its rebuild, the sidelobe floor, the hand-off, the telemetry and
-the surface sink.
-
-**The constructors are flavors, the methods shared.** Today's constructors
-become the object's, renamed and otherwise unchanged in their arguments:
-
-| today                                           | becomes                                                         | layers                           |
-| ----------------------------------------------- | --------------------------------------------------------------- | -------------------------------- |
-| `Corr`'s constructor (renamed in 3.2)           | `dp_correlator_create_1d`                                       | map (single row) and dwell       |
-| `Corr2D`'s constructor (renamed in 3.2)         | `dp_correlator_create_2d`                                       | map and dwell                    |
-| `DelayDoppler`'s constructor (renamed in 3.2)   | `dp_correlator_create_delay_doppler`                            | map (delay-Doppler) and dwell    |
-| `CorrDetector`'s constructor (renamed in 3.3)   | `dp_correlator_create_detector_1d`                              | all four, single row             |
-| `CorrDetector2D`'s constructor (renamed in 3.3) | `dp_correlator_create_detector_2d`                              | all four                         |
-| acq's two constructors (moved in 3.4b)          | `dp_correlator_create_continuous`, `dp_correlator_create_burst` | all four, with the search policy |
-
-`execute` and its batch family serve the map constructors, and `push`
-serves the detection ones. A method that cannot serve a flavor refuses it
-(`SIZE_MAX`, as `execute` refuses a short frame today), never falls back.
-
-**One hit record** (owner, 2026-11-05). The 1-D detector's record (lag),
-the 2-D detector's (row, col) and acq's (row, col and the search's
-fields) were three records for one event. The correlator has one,
-`dp_correlator_hit_t`, with `row = 0` at one row: 3.3 made it the two
-detectors', and 3.4 widens it with acq's fields.
-
-**One state blob.** One magic, `CORL`, and one version. The flavor is the
-blob's first field and a reject key, like the grid today. The payload is
-each layer's own fields, packed by that layer once.
-
-## 5. The one deliberate C break
-
-The owner ruled it on 2026-11-05: the C renames and the retired state magics
-are one break, listed under **Breaking** in the release that ships them.
-
-- **Every `dp_corr_*`, `dp_corr2d_*`, `dp_detector_*`, `dp_detector2d_*` and
-    `dp_acq_*` symbol becomes `dp_correlator_*`,** with no deprecation shims
-    (the doppler#2753 policy: before 1.0, a break happens at once).
-- **The retired magics are refused, never misread.** `CORR`, `CR2D`, `DDMP`,
-    `DET1`, `DET2` and `ACQR` have shipped in a release, and
-    `docs/design/state-serialization.md` holds that a released version names
-    its layout for good (`make state-versions-check` reads every release
-    tag). So they are not reused. `CORL` is a new magic, and a blob saved
-    by any release before the break fails `dp_state_validate` cleanly.
-- **The composing blobs that nest one bump their own versions:**
-    `carrier_acq`'s `CAQR` (in 3.3), and acq's consumers in 3.4,
-    `BurstCapture`, the receivers and the pool, each named in that
-    sub-step's PR.
-
-**The Python classes keep their surfaces until step 4**, so a Python user
-meets one break, at step 4. One jm object, `correlator`, carries today's
-classes as `[[correlator.views]]`. Each view has its own `class_name`,
-`create_fn` and `init_params`, and `exclude_methods` and
-`exclude_properties` trim what a flavor does not serve, as `ddc` does for
-`MatchedDDC`.
-
-A view can also add a member its parent lacks, or override a parent
-method under the same Python name with a `fn` of its own (gh-504; jm
-gh-1012, with `MpskReceiverR`'s `[[mpsk_receiver.views.methods]]` `steps`
-and `bits` as the precedent).
-
-**The rule for each view's surface:** each class keeps exactly today's
-members, names and signatures. The parent is `Corr2D`, a public class, so
-it carries `Corr2D`'s surface and nothing more: a member on the parent is a
-member of `Corr2D`. A view excludes every parent member its class does not
-have today, and adds the ones only it has.
-
-| view             | excludes                                                                                       | adds                                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `DelayDoppler`   | `nx_out`, `col_out`                                                                            | nothing                                                                                    |
-| `Corr`           | `ny`, `nx`, `ny_out`, `nx_out`, `col_out`, and every `execute_*` and `bank_*` beyond `execute` | `n`                                                                                        |
-| `CorrDetector2D` | `ny_out`, `nx_out`, `n_out`, `col_out`, and every `execute*` and `bank_*`                      | `push` (five fields), `n`, `ring_cap`, `noise_lo`, `noise_hi`, `threshold`, `last_corr`    |
-| `CorrDetector`   | as `CorrDetector2D`, and `ny`, `nx`                                                            | as `CorrDetector2D`, with `push`'s record bound as four fields: `(lag, peak, noise, stat)` |
-
-Both detectors bind the one C `push`, which writes the one hit record
-(§4). The 1-D view lists four of its fields, the column read as the lag,
-so its Python tuple is today's. If jm cannot bind a subset of a record's
-fields, that is a jm fix first, not a hand-written second `push`.
-
-Both detectors read `dwell` and `count` the same way, as `expr`s over
-their composed correlator in their own manifests, so since 3.3 those are
-fields of the one state for both. `set_ref`, `void` in 1-D and `int` in 2-D, is C-only: no class binds
-it, so the C rename (above) covers it and no view does.
-
-Each sub-step's PR lists its views' members as the rule gives them, and
-`make drift-check` and `make test-stubs` hold the stubs to today's.
-
-## 6. Goals, and what is not known yet
-
-**Goals:**
-
-- rule 1 and rule 2;
-- every retired object's C tests passing against its replacing flavor, and
-    every Python suite, example and doc fence that touches it;
-- the certified reports (Corr2D, CorrDetector2D, Acquisition,
-    BurstAcquisition) re-certified on the one object with no limit lost.
-
-**Unknown, and measured in the sub-step that needs it.** Each names its row
-or its input:
-
-- **U1. The short 1-D rows through the single-row path.** §2.1 shows the
-    bits agree, not that the speed does. `Corr2D` adds per-worker plans and
-    pool dispatch, which a short frame may not amortize. Today's rows run at
-    n = 1024 and 16384 (`corr::execute[accumulate]`, `execute[dump]`) and
-    chunks of 64 and up (`detector::push[chunk=…]`), where dispatch is
-    invisible. So the small-n rows of §7.1 land on main first, and U1 is
-    their `bench-ab` verdict: `corr` at n = 31, 63 and 127, and `detector` on
-    frames of 31, 63 and 127.
-- **U2. Ties and NaN in the one peak picker.** On equal cells,
-    `det_peak_list` with one peak keeps `CorrDetector`'s lowest index (§2.1).
-    On NaN they differ. Through `det_peak_list` with `gate = -1`, a NaN map
-    gives an empty list, so the peak is 0 (`detector2d_core.c:30`), while
-    `CorrDetector` reports NaN at lag 0.
-    - **Decided here: NaN is never a peak**, the family's rule already
-        (`acq_rate_better`'s "a NaN never displaces").
-    - **Today's picker does not keep that rule.** `det_peak_scan` seeds its
-        pick at the first candidate, and no cell is `>` a NaN, so a NaN there
-        is the pick: a NaN in cell 0 hides a finite peak elsewhere, on both
-        detectors, and on acq's masked scans too. 3.3 fixes it in the one
-        picker: the seed skips NaN cells (`isnan`, which the build's
-        `-fno-finite-math-only` keeps), so both paths agree with the masked
-        path's NaN-as-`-INFINITY`. Finite surfaces pick exactly as before.
-    - **A hit can change.** At `threshold = 0` (always fire) no gate stands
-        between a NaN and the hit list: an all-NaN frame gives today a 1-D
-        hit `(0, NaN, NaN, 0)` and a 2-D hit `(0, 0, 0, NaN, 0)`, and after
-        3.3 `(0, 0, 0, NaN, 0)` on both. At `threshold > 0` a NaN statistic
-        fails the gate, so no hit changes there.
-    - **The noise estimate is not changed.** A NaN in the noise window makes
-        `noise_est` NaN and `test_stat` 0.
-    - Pinned in C in 3.3, on both detector flavors: an all-NaN frame at
-        `threshold = 0` and above; a NaN in cell 0 beside a finite peak (the
-        finite peak is reported); a NaN beside the peak elsewhere. One more
-        pin holds the masked and unmasked scans to the same pick with a NaN
-        at the first cell.
-- **U3. The bank's peaks on `det_peak_*`.** Whether `corr2d_fold_peaks` and
-    the bank's local maximum are `det_peak_scan` / `det_peak_zone` under
-    other names, or a different rule (a 3 × 3 window, where acq zones by
-    span). Input: the bank's own C test scenes (`test_corr2d_core.c`, the
-    `bank_*` cases). If the rule differs, the difference is stated and one
-    rule is chosen with the owner.
-- **U4. acq's setup transforms: precision first, then speed.** Three of
-    D5's pairs ran in `double _Complex`, and the single-row path runs in
-    cf32, so moving them is a precision change, not only a refactor. The
-    fourth, the sidelobe ratio (`dp_correlator_sidelobe_ratio`), was already cf32: its duplicate is its
-    own plans, and 3.4b-pre moved them onto the map.
-    - **Measured on:** every acq validator's `--check` verdict, and the setup's
-        own outputs (template shape, off-peak floor, Doppler sidelobe) at
-        every call site.
-    - **The decision rule:** if cf32 moves no verdict and changes no output by
-        more than its stated use tolerates, the pairs that are correlations
-        move onto the single-row path. Otherwise they stay in double, and the
-        page records them as a different precision, which rule 1 does not
-        forbid, with the owner's ruling.
-    - **Measured (3.4a).** Both precisions ran side by side at every call
-        site in every acq-family test, validator and bench: 2,626 calls over
-        34 template shapes. The zone (an integer) never changed. The worst
-        changes were 6.2e-6 dB on `psl`, 1.1e-6 dB on `dsl` and 1.4e-7
-        (relative) on the off-peak sums. On the cf32 build every validator's
-        `--check` output is byte-identical to the double run.
-    - **Decided (3.4a).** `acq_off_peak` and the template shape's
-        autocorrelation run on the single-row path, in cf32. The shape's
-        power spectrum stays a double transform, because the delay-loss
-        model needs a spectrum, not a correlation. The three `psl` pins
-        against the double brute force moved from 1e-6 dB to a 1e-4 dB
-        tolerance, with the oracle kept, and at one tile with no Doppler
-        uncertainty `dsl` takes the stored `psl` rather than recomputing it.
-        The Doppler-sidelobe sweep stayed in double: on the single-row path
-        each tile offset costs a forward and an inverse transform, which
-        made a five-tile receiver's create 2.3x slower.
-    - **Done (3.4b-pre).** The sweep runs on the one delay-Doppler map, one
-        forward transform per residual and one row per tile offset, in
-        cf32: over 372 sweeps the worst `dsl` change was 6.4e-7 dB, inside
-        the same 1e-4 dB budget. The sidelobe ratio's three private
-        plans became two maps. Its plans, pad and transforms are
-        bit-identical; the complex product, evaluated in the map's
-        vectorized row loop under `-ffast-math`, moves the ratio by at most
-        9.1e-8 (about 1e-7 relative, over 24,482 calls), and no pick
-        changed. No validator's output moved.
-
-## 7. The sub-steps
-
-Each is its own PR, tracked by an issue of its own under #2752.
-
-1. **3.1, this page.**
-
-1. **3.1b, the small-n rows, on main first.** On today's code, so their
-    bench-box numbers are U1's baseline:
-
-    - `bench_corr_core.c` gains `corr::execute[accumulate][n=31]`,
-        `[n=63]` and `[n=127]`, and `corr::execute[dump][n=31]`, `[n=63]`
-        and `[n=127]`;
-    - `bench_detector_core.c` gains `detector::push[frame=31]`,
-        `[frame=63]` and `[frame=127]`, each pushing one frame a call.
-
-    **Each row checks what it timed**, #2832's pattern. Its input carries
-    the reference at a planted lag; after the timing, the row asserts the
-    peak is at that lag (the map's argmax, or the detector's hit), and
-    `exit 1` otherwise. The PR proves each check red by sabotage: plant the
-    reference one lag off.
-
-1. **3.2, the map and the 1-D detector's engine.** Nothing is deleted until
-    the evidence is committed and green:
-
-    1. a C test: `dp_correlator_create_1d` against `create_2d` at `ny = 1`,
-        maps and hits, byte for byte, proven red by sabotage. It runs first
-        against Corr's and Corr2D's own C, `corr/` and `corr2d/` (the
-        equivalence test), then against the flavors;
-    1. `correlator/` is created from `corr2d/`, and `Corr` becomes the
-        single-row flavor (D1, D4);
-    1. **Both detectors are repointed in the same PR:** `detector_core.c:99`
-        built a `Corr` and `detector2d_core.c:83` a `Corr2D`, so they
-        compose `create_1d` and `create_2d`
-        before `corr/` and `corr2d/` are deleted. Their blobs, `DET1` and
-        `DET2`, then nest a `CORL` child and bump, and so does `CAQR`, which
-        nests `DET1`. 3.3's further change to all three rides the same
-        unreleased versions, so no release is cut between 3.2 and the end
-        of 3.4; if one is, each bumps again.
-
-    The oracle:
-
-    - `test_corr_core.c`, `test_corr2d_core.c`, `test_corr_symbols.c`;
-    - `test_corr.py`, `test_exact_length.py`, the state matrix;
-    - `corr_demo.c`, `corr_demo.py`, `dsss_burst_demo.py`;
-    - `python-spectral.md`'s fences.
-
-1. **3.3, detection.** `CorrDetector` and `CorrDetector2D` become the
-    detector flavors, `det_private.h` the correlator's private header, and
-    `detector/` and `detector2d/` are deleted (D2, D3). `carrier_acq`
-    composes the 1-D detector flavor: its nested blob, its read of the
-    correlation output and its per-push threshold all move. `CAQR` nests a
-    `CORL` child in place of `DET1` and rides the version 3.2 gave it
-    (2, unreleased); if a release is cut first, it bumps again.
-
-    The design, reviewed on 2026-11-06:
-
-    - **The state.** Two more flavors, the 1-D and 2-D
-        detectors; the 1-D one is the 2-D one at `ny = 1`, as in 3.2. The
-        detection layer's create-time fields are appended above the pad, so
-        no field 3.2 measured moves; the fields a push writes (the framer,
-        `threshold`, the last dump's result, `consumed`) go below it, beside
-        `count`. `push`, `consumed` and `set_threshold` refuse a map flavor,
-        and the `execute` family refuses a detector flavor.
-    - **One hit record**, `dp_correlator_hit_t` (`row`, `col`,
-        `peak_mag`, `noise_est`, `test_stat`); the two detectors' records
-        retire, and 3.4 widens the record with acq's fields rather than
-        adding a second. `det_noise_mode_t`, `det_peak_t` and
-        `det_private.h`'s `det_*` names keep their spelling, since acq uses
-        them until 3.4; the header moves to `correlator/`.
-    - **The blob.** A detector flavor's `CORL` payload appends `noise_lo`,
-        `noise_hi` and `noise_mode` (reject keys: they decide what the
-        stored statistic means), `threshold` (a mutator's value, #2022),
-        the framer's child blob and the last dump's result. `set_state`
-        validates all of it, the framer child included, before it commits
-        any of it. Each reject key gets a cross-load pair. `DET1` and
-        `DET2` retire.
-    - **`carrier_acq`'s three couplings:** it nests the correlator's blob,
-        reads the 1-D flavor's dump buffer for the parabolic refine (a
-        field read, as today), and sets the correlator's threshold on
-        every push.
-    - **U2's fix** lands first, on today's two detectors, in its own
-        commit, with acq's C tests and every acq validator's `--check`
-        unchanged.
-    - **The certified report.** `validation/detector2d/` would tie to no
-        component, so its 15 limits move into `validation/correlator/` as
-        the report's second part, re-run on the 2-D detector flavor.
-    - **#2901 stays out:** removing a field above the pad would move the
-        offsets 3.2 measured.
-
-    The oracle:
-
-    - **an equivalence run before the switch:** a C test pushes the same
-        streams through `dp_detector_*` and through `dp_detector2d_*` at
-        `ny = 1`, today's two objects. It asserts every hit identical,
-        `(lag, peak, noise, stat)` against `(0, col, peak, noise, stat)`,
-        over the four noise modes, dwells 1 and 2, three lengths and odd
-        chunks (§2.1's prototype, committed), proven red by sabotage. It then
-        runs against the two detector flavors;
-    - `test_detector_core.c`'s streaming oracle, ported verbatim: chunk
-        invariance, `consumed` and re-offer, `reset`, and `set_state`
-        mid-stream;
-    - the 2-D detector's C tests, and the symbol tests;
-    - `carrier_acq`'s C and Python tests;
-    - `test_detector.py`, the state matrix;
-    - `python-detection.md`'s and `python-spectral.md`'s fences;
-    - U2's NaN pins.
-
-1. **3.4, the search.** acq's engine moves in as the two search flavors, and
-    `acq/` is deleted. D5 follows U4's decision. `BurstCapture`, the
-    receivers and the pool call `dp_correlator_*`, and `burst_acq` forwards
-    to the new names until step 4.
-
-    The design, reviewed on 2026-11-06. acq is larger than everything 3.2
-    and 3.3 moved together (`acq_core.c` 3,510 lines, `acq_core.h` 2,322,
-    34 public functions), so 3.4 is two PRs:
-
-    - **3.4a, U4 measured, on today's acq.** D5's four setup-time
-        transform pairs run in cf32 through the single-row path beside
-        today's double. The PR states, for each pair, the numeric change in
-        its output's units against the budget its use allows. It also
-        states every acq validator's `--check` verdict, and
-        `make validate-check` must be up to date. If cf32 moves no verdict
-        and keeps every pair within budget, the change lands on today's
-        acq, so 3.4b's bench verdict separates U4's cost from the move's.
-        If it moves a certified number, that is a finding, never a silent
-        re-baseline, and the pairs stay in double with the owner's ruling.
-        **Landed:** `acq_off_peak` and the shape's autocorrelation moved; no
-        verdict or certified number moved (U4, above, has the measurement).
-        The Doppler-sidelobe sweep stayed in double, because on the
-        single-row path it made create 2.3x slower, and 3.4b moves it onto
-        the delay-Doppler map. 3.4a also added the receiver-create row
-        (§7.1), so 3.4b has its A.
-
-    - **3.4b-pre, inside today's acq.** The Doppler-sidelobe sweep and
-        the sidelobe ratio's transforms move onto the one delay-Doppler
-        map (U4 has the measurement), so the move carries no transform of
-        its own.
-
-    - **3.4b, the move.** The consumers switch in the same PR: acq cannot
-        be deleted while one still calls it, and a forwarding shim would be
-        a private copy. It waited on just-makeit#2516 (below).
-        **Landed (#2930).** The search is the search flavors' section of
-        `correlator_core.c`, generated from `acq_core.c` by one rename
-        table and one field map: jm owns a component's functions only in
-        its `_core.c`, and refuses a second source that declares them. The
-        oracle measured all of the design below: the transition commit's
-        15 scenes were byte-identical, acq against the search flavors,
-        under strict floating point (the library's `-ffast-math` moved one
-        `test_stat_peak` by an ulp through different inlining), with every
-        sabotage red. `Acquisition` is the view, and two jm gaps leave its
-        `reset` and `push` showing the shared docs until they ship
-        (just-makeit#2528, #2529; doppler#2913). `keep_surface`, a
-        writable property on the search record, gained a C setter.
-
-    3.4b's design:
-
-    - **The state.** acq's fields that the layers already hold become those
-        fields:
-
-        - the ring, `ring_cap`, the framer and `consumed` go to the stream
-            layer;
-        - `mag_buf`, `noise_scratch`, `noise_lo`, `noise_hi`, `noise_mode`
-            and `threshold` go to the detection layer;
-        - the delay-Doppler map, the pool and the last pick go to the map
-            layer and the last-dump fields;
-        - `max_peaks`, the peak list, the masks and the twins become new
-            detection-layer fields.
-
-        The rest of the search policy is one struct, the correlator's
-        search record: sizing, the grid, rates, the carrier, the
-        sidelobe cache, the parts, Pfa and Pd, telemetry, the surface sink
-        and the hand-off. The state holds it as a pointer, `search`,
-        appended above the pad: NULL for the other five flavors, so no
-        offset 3.2 or 3.3 measured moves and their allocations do not grow.
-        It is allocated once, at create, never per push. Inside it, the
-        fields a push writes sit on their own line behind a pad, as in the
-        state. acq's rows judge the indirection. If they flag it, the
-        fallback (the struct embedded below `consumed`) needs the same
-        placement-pinned and aligned evidence before it is chosen.
-        **They flagged it, and the fallback is what landed (#2930).**
-        bench-ab flagged four search rows twice; aligned, with heap
-        placement pinned, three tied (placement) and one stayed:
-        `burst_acq push[sf=63,spc=4]` at 1.031 and 1.025, psd and
-        spectrogram controls at 1.000. Reading `search` once per function
-        (the push reloaded it 15 times) did not move it; embedding the
-        record, as `search_rec` after every measured field, did (1.000
-        and 1.004). `search` still names it, NULL in the other flavors,
-        and every flavor carries the record's 1.5 KB.
-
-    - **One hit record, widened.** `dp_correlator_hit_t` gains
-        acq's hit record's fields in their order: `cn0_dbhz_est`,
-        `samples_consumed`, `chip_phase`, `doppler_rate_hz_s`,
-        `test_stat_peak` and the named `_pad`. `doppler_bin` and
-        `code_phase` become `row` and `col`. The record grows from 32 to 64
-        bytes, acq's record's pinned size. The detectors write the new
-        fields as 0, and their rows are judged again for the memory traffic.
-        Python is unaffected: every `push` returns plain tuples, and each
-        class's `result_fields` picks its fields by C name.
-
-    - **Constructors and symbols.** acq's continuous and burst
-        constructors become the two search flavors. Of acq's other
-        `dp_acq_*` functions:
-
-        - those whose name the correlator already has (`push`, `reset`,
-            `consumed`, `set_threshold`, the state triplet, `destroy`) are
-            served by the one function, dispatching on the flavor;
-        - the search-only ones keep their suffix and refuse every other
-            flavor.
-
-        acq's record types become `dp_correlator_*_t`, and `acq_private.h`
-        folds into `correlator_private.h`.
-
-    - **The blob.** `ACQR` (v8, released) is refused. A search flavor's
-        blob is `CORL`: the header, the flavor (a u64, the reject key every
-        flavor's blob opens with), then acq's payload as it was: the search
-        extra block (the counts that are reject keys, and the stream
-        position), the framer's own snapshot, the non-coherent accumulator
-        when `n_noncoh > 1`, the twins, and a tiled block's raw epochs. The
-        framer is the one field it shares with the 3.3 flavors, and it is
-        packed by the same primitive (`dp_f32_framer_get_state`); the rest
-        is the search's own, so re-packing it the 3.3 way would move bytes
-        for no reuse. ACQR's reject keys stay reject keys, each with a
-        cross-load pair, and `set_state` checks the whole blob before it
-        commits.
-
-        Blobs that nest acq's bump, each confirmed in the PR and held by
-        `make state-versions-check`:
-
-        - directly: `BurstCapture` (`BCAP` 6 to 7), `DsssReceiver` (`DSRX`
-            3 to 4), `AsyncDsssReceiver` (`ADRX` 15 to 16), and `burst_acq`,
-            whose blob is the engine's own and so is `CORL` now;
-        - through a receiver's child blob: `AsyncDsssPool` (5 to 6) and
-            `DsssBurstReceiver` (7 to 8).
-
-    - **`Acquisition` becomes a cross-module view of the correlator.** A
-        scratch `jm apply` on 0.120.2 showed jm cannot point an object at
-        another component's C state: reusing the constructor is refused as
-        a duplicate symbol, and an object with its own constructor gets a
-        state struct of its own. just-makeit#2516 decided the fix: a view
-        may name its module (`module = "acquire"`). The class, its
-        `__module__` and its stub stay in `doppler.acquire`; the view keeps
-        its own constructor, parameters and members, and the parent's
-        `destroy`, `reset` and state triplet. The correlator carries
-        `set_state`'s memory-error row and the link dependencies. 3.4b
-        waits on that jm release. `BurstAcquisition` stays a forwarder
-        until step 4.
-
-    The oracle:
-
-    - **an equivalence test, before the switch.** acq has no second
-        implementation to pair against, as 3.2 and 3.3 did, so the switch's
-        first commit adds the search flavors while `acq/` still builds.
-        `test_search_equiv.c` drives both through the same scenes:
-
-        - both doors;
-        - one peak and four;
-        - rate hypotheses;
-        - the carrier coupled;
-        - a tiled search with D > 1;
-        - one thread and four;
-        - odd chunks;
-        - a mid-stream `get_state`/`set_state`.
-
-        Every hit field and every dwell's statistic surface must be
-        byte-identical, proven red by sabotage. The next commit deletes
-        `acq/` and the test's acq half; its scenes stay as the flavors'
-        pins, each against its own plain run (the stream whole, one
-        thread, no restore). The first commit's CI run is the evidence, and the PR links
-        it. A continuous-against-burst pair is pinned only where the header
-        documents that the two doors agree;
-
-    - `test_acq_core.c`, `test_acq_regrid_failure.c` and the symbol tests,
-        ported;
-
-    - every acq validator's `--check` verdict unchanged, and
-        `make validate-check` up to date;
-
-    - the composing objects' C and Python tests, and
-        `tracker_through_window.c`.
-
-1. **3.5, re-certification.** One report for the one object, its limits
-    the union of today's four reports. acq's two open findings stay open:
-    finding `auto_sizer_short_push_empty` and finding
-    `searched_doppler_unreported`. **Landed before 3.4b**, so the move
-    keeps one report's `--check` rather than leaving report folders tied
-    to a component it deletes:
-    `src/doppler/spectral/tests/validation/correlator/` carries four
-    parts (the map, the 2-D detector, the search, the burst door), 83
-    limits and 25 findings. A third open finding,
-    `continuous_search_thin_python` (#2923), records that the continuous
-    search has one limit of its own there.
-
-### 7.1 The speed rows, with their budgets
-
-Every row is timed by `make bench-ab` on the bench box: A is main before the
-sub-step, B its head, K = 5, per-row min-of-K. The unit is µs per call as
-the bench reports it, and the number is A's min, written into the PR beside
-B's. **The budget is no SLOWER verdict on any row**, where a verdict counts
-only if the same row is flagged twice (step 2's rule). A row that slows
-within budget is stated with its ratio, never left unsaid.
-
-The rows, by family, as `benchmarks/published/` names them (the 3.1b rows
-join once they land):
-
-| sub-step | family                        | rows                                                                                                                                                                                                                                                          |
-| -------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.2      | `corr::execute`               | `[accumulate]` and `[dump]`, each at `[n=1024]` and `[n=16384]`; 3.1b's `[n=31]`, `[n=63]`, `[n=127]`                                                                                                                                                         |
-| 3.2      | `corr2d::` single shapes      | `single_row_fast_path`, `multi_row_general_path`                                                                                                                                                                                                              |
-| 3.2      | `corr2d::delay_doppler_`      | `32x1024_1t`, `256x4096_1t`, `256x4096_all`                                                                                                                                                                                                                   |
-| 3.2      | `corr2d::batch_64x512_h48_`   | `execute_loop_1t`, `all_1t`, `power_max_1t`, `execute_loop_all`, `all_all`, `power_max_all`                                                                                                                                                                   |
-| 3.2      | `corr2d::bank_64x512_`        | `c12_corrected_batch_1t`, `c12_l4_1t`, `c6_l2_1t`, `detect_l2_l4_1t`                                                                                                                                                                                          |
-| 3.3      | `detector::push`              | `[chunk=64]`, `[chunk=1024]`, `[chunk=16384]`, `[chunk=1024,no-detections]`; 3.1b's `[frame=31]`, `[frame=63]`, `[frame=127]`                                                                                                                                 |
-| 3.3      | `detector2d::push`            | `[16x1024]`, `[128x128]`, `[1024x16]`, `[128x128,no-detections]`                                                                                                                                                                                              |
-| 3.3      | `carrier_acq::detect`         | `[pad=4]`, `[pad=16]`                                                                                                                                                                                                                                         |
-| 3.3      | `async_dsss_pool::push`       | `[full,n=4,threads=4,carrier]`, whose path runs through `carrier_acq`'s detector; and every 3.2 row again, since the state grows                                                                                                                              |
-| 3.4      | `acq::`                       | `native_nc90`, `op5M_U50k_nc254`, `op2M_U50k_nc57`, `op5M_U5k_nc225`, `op2M_U5k_nc51`, `op5M_U50k_t8_nc254`, `op5M_U50k_D150_t1_nc1`, `op5M_U50k_D150_t8_nc1`, `op2M_U50k_D60_t1_nc1`, `op2M_U50k_D60_t4_nc1`, `op5M_U5k_D150_t1_nc1`, `op5M_U5k_D150_t4_nc1` |
-| 3.4      | `async_dsss_pool::push`       | `[native,n=1,threads=1]`, `[native,n=4,threads=1]`, `[native,n=4,threads=4]`, `[full,n=1,threads=1]`, `[full,n=4,threads=1]`                                                                                                                                  |
-| 3.4      | `async_dsss_receiver::steps`  | `[track,sf=1023,3.069Mcps]`, `[search,sf=1023,3.069Mcps]`                                                                                                                                                                                                     |
-| 3.4      | `async_dsss_receiver::create` | `[search,sf=1023,3.069Mcps,W=5]`, one receiver a call, a five-tile deep search: the Doppler-sidelobe sweep's cost (3.4a's A for 3.4b)                                                                                                                         |
-| 3.4      | `burst_capture::push`         | `[4 bursts]`                                                                                                                                                                                                                                                  |
-| 3.4      | `burst_acq::push`             | `[sf=15,spc=2]`, `[sf=63,spc=4]`                                                                                                                                                                                                                              |
-| 3.4      | the 3.3 detector rows         | every `detector::push` and `detector2d::push` row again, since the hit record grows to 64 bytes                                                                                                                                                               |
-
-**Row suffixes stay through step 3; only the family changes, where jm
-renames a bench binary.** 3.2 moves
-both correlator benches into one binary, `bench_correlator_core`, because
-jm runs a component's bench by its name and `corr` is no longer a
-component: the 1-D bench is a second source of that binary, not an
-executable of its own, which jm would build and never run. 3.3 does the
-same for the two detector benches, which become sources of
-`bench_correlator_core` with their row suffixes unchanged.
-
-3.2 and 3.3 were judged with `ALIAS=` pairings (#2884, #2889) that
-`benchmarks/renames.toml` now declares (#2900): `c:corr`, `c:corr2d`,
-`c:detector`, `c:detector2d` and `c:acq` each map to `c:correlator`.
-`make bench-ab` keys every row by the page's row ID and pairs a renamed
-row with its new ID through that table by itself, so a sub-step's A/B is
-plain `make bench-ab A=<main> B=<head>`. The table refuses a pairing that
-would make two rows of one run one. Step 4 renames the rest once, to
-`correlator::` with each row's flavor in its brackets, adds those entries
-to the same table, and relabels them in `benchmarks/labels.toml`.
-
-acq's carrier and five-tile rows from step 2 (`op5M_U10k_D150_t1`, the
-`_fc` rows) are on main's bench but not yet in a published set; 3.4's PR
-names them with the rest.
-
-## 8. Not in step 3
-
-- `BurstAcquisition`: a second cross-module view of the correlator, made
-    with the burst search flavor's constructor, would delete `burst_acq`'s
-    C forwarder outright; its blob is already the engine's. Recommended
-    for step 4, where the Python classes are decided (3.4b keeps the
-    forwarder).
-- The Python `Correlator` class, and retiring `Acquisition`,
-    `BurstAcquisition` and the `burst_acq` forwarder: step 4.
-- Folding `PolynomialPhaseEstimator` in, and renaming `CarrierAcquisition`
-    to `CarrierEstimator`: they gate on their own checks (taxonomy §6.4).
+## 2. Seven flavors, one state
+
+| `framing`    | `ref`     | `doppler_rows` | `detect` | flavor (`DP_CORRELATOR_*`) | C constructor                        |
+| ------------ | --------- | -------------- | -------- | -------------------------- | ------------------------------------ |
+| `none`       | 1-D       | 0              | no       | `1D`                       | `dp_correlator_create_1d`            |
+| `none`       | 2-D       | 0              | no       | `2D`                       | `dp_correlator_create_2d`            |
+| `none`       | 1-D       | ny > 0         | no       | `DELAY_DOPPLER`            | `dp_correlator_create_delay_doppler` |
+| `none`       | 1-D       | 0              | yes      | `DETECTOR_1D`              | `dp_correlator_create_detector_1d`   |
+| `none`       | 2-D       | 0              | yes      | `DETECTOR_2D`              | `dp_correlator_create_detector_2d`   |
+| `continuous` | 1-D chips | -              | implied  | `SEARCH_CONTINUOUS`        | `dp_correlator_create_continuous`    |
+| `burst`      | 1-D       | -              | implied  | `SEARCH_BURST`             | `dp_correlator_create_burst`         |
+
+The 1-D flavors are the 2-D ones at one row: the same plans, products, pad
+and scale, held byte for byte by `test_corr_equiv.c` and
+`test_detector_equiv.c`.
+
+**One state type, `dp_correlator_state_t`, in layers.** Each flavor uses the
+layers it needs, and none exists twice:
+
+| layer         | holds                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| **map**       | the reference spectrum and the transforms: the 2-D shape, the single-row shape and the delay-Doppler map (§7) |
+| **dwell**     | the coherent accumulator and its count; the non-coherent sum                                                  |
+| **stream**    | the ring and framer; a search's block-coherent epochs held raw                                                |
+| **detection** | magnitude, noise estimate, peak list, the gate, twins, the decision (§8)                                      |
+| **search**    | the search record: sizing, the grid, rates, the carrier, the sidelobe cache, Pfa and Pd, telemetry, hand-off  |
+
+The search record is embedded in the state below every field the other
+flavors' benches measure, and `search` points at it on a search flavor and
+is NULL elsewhere. Every flavor carries it.
+
+**The sources.** `correlator_core.c` holds every flavor;
+`correlator_map.h` is the delay-Doppler map's stages and schedule rule;
+`correlator_private.h` is the detection layer's helpers (the ring, the
+noise estimate, the peak list, the framed push).
+
+**One hit record**, `dp_correlator_hit_t`, 64 bytes, for every flavor that
+detects: `row`, `col`, `peak_mag`, `noise_est`, `test_stat`,
+`cn0_dbhz_est`, `samples_consumed`, `chip_phase`, `doppler_rate_hz_s`,
+`test_stat_peak`. A detector writes the search-only fields as 0, and at one
+row `row` is 0.
+
+## 3. One constructor
+
+A jm object has one constructor, so "one class whose knobs are its
+arguments" is one C entry point, `dp_correlator_create`, that takes every
+knob and calls the flavor's own constructor (§2's table). The dispatch is in
+C, once. C callers name a flavor and call its constructor; the dispatcher's
+doc in `correlator_core.h` says it is the binding's entry point.
+
+```text
+Correlator(ref, *, framing="none", doppler_rows=0, detect=False,
+           dwell=1, ny_out=0, nx_out=0, col_out=-1,
+           threshold=0.0, noise_lo=0, noise_hi=<last bin>,
+           noise_mode="mean",
+           sample_rate=0.0, chip_rate=0.0, symbol_rate=0.0, reps=1,
+           cn0_dbhz=nan, doppler_uncertainty=0.0, pfa=1e-3, pd=0.9,
+           doppler_rate=0.0, rate_hypotheses=1, code_only_epochs=1,
+           nthreads=1)
+```
+
+`ref` is 1-D or 2-D (`rank = [1, 2]`); a 1-D array arrives as one row. The
+continuous search's chips arrive as cf32 NRZ, and the dispatcher refuses
+any chip that is not exactly +1 or -1, so a shaped or noisy reference
+cannot quantize silently; `DsssReceiver`'s C path calls the `uint8`
+constructor directly.
+
+**A value the flavor would not honor is refused**, never ignored: a
+combination outside §2's table, a knob the flavor does not read set away
+from its default, or a value the flavor itself refuses (`dwell = 0`,
+`pfa = 1`, a fractional code period). The dispatcher writes one sentence
+naming the knob through its trailing `why`, and the binding raises it as
+`ValueError` (`create_why`, just-makeit#2552; C callers pass NULL).
+
+**The defaults, and why each:**
+
+| knob                           | default                  | why                                                                                                                                                     |
+| ------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a one-row `ref`                | the 1-D flavor           | C cannot tell `ref` from `ref[None, :]`; `nx_out` pads it, and `ny_out` and `col_out` are refused at one row                                            |
+| `noise_hi`                     | the `SIZE_MAX` sentinel  | clamped to the last bin; `0` would make the floor one bin                                                                                               |
+| `reps`                         | 1                        |                                                                                                                                                         |
+| `sample_rate`, `chip_rate`     | 0.0, not given           | **a rate is never a default:** a search sized by a wrong one detects at the wrong Doppler without a word, so a search refuses a rate it reads that is 0 |
+| `symbol_rate`                  | 0.0, no known data clock | the continuous search reads it only for a diagnostic (`epochs_per_symbol`), never to size, so its 0 is honored                                          |
+| `cn0_dbhz`                     | NaN, no design point     | the burst search honors it; the continuous search sizes its dwell from a finite design point and refuses NaN                                            |
+| `detect` on a search framing   | accepted                 | a search always detects, so `True` is honored                                                                                                           |
+| `nthreads` on a search framing | refused away from 1      | a search's pool is `set_threads()`'s; this knob's 1 would mean another request                                                                          |
+
+Normalized units are one stated argument away, `sample_rate=1.0`.
+
+One warning for both searches, on `underpowered`, whose meaning is each
+search's own (`pd_predicted < pd` continuous, `pd_burst < pd` burst), with
+one message that names both remedies.
+
+## 4. The members, and who serves each
+
+One class can call any member on any flavor. Which flavors serve each is
+decided in one place for methods and one for properties, both in C; the
+binding adds no refusal of its own.
+
+- **A method is served where the flavor honors it**, not merely where it
+    does not crash; the C refuses it everywhere else. The batch methods
+    serve the 1-D flavor, which is the 2-D one at one row. On the burst
+    search a continuous-search method is served only where a test shows it
+    does what its doc says: `set_threads` (`test_correlator_regrid_failure.c`)
+    and `surface_complex` (`test_correlator_search.c`'s map-equivalence
+    check). The carrier, telemetry and the other read-outs are refused there:
+    the carrier feeds a chip arithmetic a sample template lacks.
+- **A property is served by the flavors in the table below**, through a C
+    getter that returns `DP_ERR_UNSUPPORTED` elsewhere (jm's
+    `getter_status`), which raises `AttributeError` naming the flavors.
+    `DP_ERR_INVALID` keeps meaning a bad argument to a flavor that serves
+    the call, so the binding can say which happened. A property that reads
+    a method's setting (`threads`, `carrier_freq_hz`, `keep_surface`,
+    `surface_rows`, `surface_at`) is served wherever that method is.
+- **`flavor`** (a string) says which flavor the knobs built, so a caller can
+    ask before reading a member instead of catching the error.
+
+<!-- section-4-table: test_correlator.py reads these two tables; every
+flavor-only member must be a row, and each row is checked against the code
+on every flavor. -->
+
+| properties                                                                                                                                                                                                          | served by                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `flavor`                                                                                                                                                                                                            | every flavor               |
+| `ny`, `nx`, `dwell`, `count`                                                                                                                                                                                        | the maps and the detectors |
+| `ny_out`                                                                                                                                                                                                            | 1-D, 2-D, delay-Doppler    |
+| `nx_out`, `col_out`                                                                                                                                                                                                 | 1-D, 2-D                   |
+| `doppler_step`                                                                                                                                                                                                      | delay-Doppler              |
+| `n`                                                                                                                                                                                                                 | 1-D, both detectors        |
+| `last_corr`                                                                                                                                                                                                         | both detectors             |
+| `ring_cap`, `noise_lo`, `noise_hi`, `threshold`                                                                                                                                                                     | the detectors and searches |
+| `max_peaks`, `code_bins`, `doppler_bins`, `n_noncoh`, `eta`, `eta_nc`, `pfa_cell`, `pd_predicted`, `straddle_loss`, `sample_rate`, `cn0_dbhz`, `doppler_span_hz`, `doppler_res_hz`, `pd`, `underpowered`, `threads` | both searches              |
+| `lag_bins`, `coherent_bins`, `sf`, `chip_rate`, `symbol_rate`, `epochs_per_symbol`, `n_peaks`, `n_held`, `peak_conc`, `carrier_freq_hz`, `keep_surface`, `surface_rows`, `surface_at`                               | the continuous search      |
+| `reps`, `pd_burst`, `psl_db`, `doppler_rate`, `rate_hypotheses`                                                                                                                                                     | the burst search           |
+
+| methods                                                                                                                                  | served by                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `set_max_peaks`, `configure_search_raw`, `set_threads`, `surface_complex`                                                                | both searches              |
+| `set_carrier_freq_hz`, `set_telemetry`, `surface`, `surface_doppler_hz`, `surface_chip_phase`, `block_prompt`, `block_raw`               | the continuous search      |
+| `execute`, `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks`, `bank_power_max`, `bank_detect` | the maps                   |
+| `push`                                                                                                                                   | the detectors and searches |
+
+`reset` is one method on every flavor, with one doc that says what it
+clears for each.
+
+**How a refusal reaches the caller.**
+
+- A method that refuses a value takes a trailing `const char **why` and
+    writes one sentence naming the argument; the binding raises it verbatim
+    (just-makeit#2574). Off the flavors that serve it the C writes nothing,
+    and the binding raises the method's declared "only" sentence, so each
+    off-flavor sentence has one home, the manifest. The header holds every
+    method's sentences.
+- The two banks also write their cause to an `int *status` ahead of `why`
+    (just-makeit#2584), so memory that cannot be allocated raises
+    `MemoryError` and every other refusal `ValueError`.
+- The six read-outs (`surface*`, `block_*`) return `SIZE_MAX` off their
+    flavors, which the binding raises as `ValueError` (`error_sentinel`); 0
+    stays "nothing yet".
+- `execute_all_max_out`, `execute_peaks_max_out` and `execute_max_out`
+    return 0 off a map, the same as "nothing yet"; the methods they size
+    refuse there.
+- `keep_surface` is writable, so its read names its own exception
+    (`getter_error`); `last_corr` is a buffer view, asked through
+    `dp_correlator_last_corr_status()` before the view is built.
+- `dp_correlator_set_surface_sink()` (C only) returns `DP_ERR_UNSUPPORTED`
+    off a search.
+
+Each guard has a C test that calls it on a flavor it refuses
+(`test_correlator_create.c`), each proven red by sabotage, and so is each
+flavor-level knob sentence (`test_a_flavor_names_the_knob_it_refuses`). The
+Python face of the refusals is `test_correlator.py`.
+
+## 5. What `push` returns
+
+One record for every flavor that detects: `dp_correlator_hit_t` (§2),
+returned as a NumPy structured array (`record_dtype`) whose fields keep
+their C names. Off a search flavor the search-only fields read 0.
+
+`push` sizes the array from `push_max_out(n_in)`: the frames the input
+completes, counting the carry, times the hits one frame may make (1 for a
+detector, `max_peaks` for a search). It is a bound, not a count; the binding
+trims to what `push` wrote. There is no stack cap, so a push never drops
+input past the last hit it had room for.
+
+## 6. State
+
+One magic, `CORL`, and one version (`CORRELATOR_STATE_VERSION`). The flavor
+is the blob's first payload field, a u64 and a reject key, so a blob from one
+flavor is refused by every other; then each layer packs its own fields once.
+
+- **Map and dwell flavors:** the accumulator and its count.
+- **Detectors:** append `noise_lo`, `noise_hi` and `noise_mode` (reject
+    keys: they decide what the stored statistic means), `threshold` (a
+    mutator's value, #2022), the framer's child blob and the last dump's
+    result.
+- **Searches:** the search's extra block (the counts that are reject keys,
+    and the stream position), the framer's snapshot, the non-coherent
+    accumulator when `n_noncoh > 1`, the twins, a tiled block's raw epochs,
+    and `carrier_freq_hz`.
+
+`set_state` checks the whole blob, children included, before it commits
+any of it. A search restores the carrier through the same rebuild
+`set_carrier_freq_hz` runs (§7.5), never by writing the field, so a blob
+taken at a carrier and restored into a carrier-0 engine gets the tables it
+needs. That rebuild can fail to allocate, which is the one `DP_ERR_MEMORY`
+a `set_state` returns (`MemoryError` in Python).
+
+The composing objects nest the blob: `CarrierAcquisition` (`CAQR`),
+`BurstCapture` (`BCAP`), `DsssReceiver` (`DSRX`), `AsyncDsssReceiver`
+(`ADRX`), and through a receiver `AsyncDsssPool` and `DsssBurstReceiver`.
+`make state-versions-check` holds each version against every release tag.
+
+## 7. The map
+
+### 7.1 Per-row and 2-D correlation
+
+Per frame the 2-D flavor computes $S = \mathrm{FFT2}(x)$, then
+$P = S \cdot \overline{\mathrm{FFT2}(\mathrm{ref})}$, then
+$R = \mathrm{IFFT2}(P)/(n_y n_x)$. The forward transform stays at the
+reference's size $(n_y, n_x)$, because the correlation is circular.
+
+**The single-row fast path.** A reference with energy in row 0 only has a
+row spectrum flat in the row frequency, so the row axis of the
+forward-accumulate-inverse round trip is an exact identity for any input.
+The 2-D correlation is then $n_y$ independent length-$n_x$ circular
+correlations:
+
+$$R(i, j) = \frac{1}{n_x}\,\mathrm{IFFT}_{n_x}\big(\mathrm{FFT}_{n_x}(x_i)\cdot\overline{\mathrm{FFT}_{n_x}(\mathrm{ref}_0)}\big)(j)$$
+
+It is decided once, at create: the reference is nonzero only in row 0 and
+`ny_out == ny` (a row-axis pad needs the row axis's content). Its plans are
+length-$n_x$ and length-$n_x^{out}$ 1-D plans and a length-$n_x$ reference
+spectrum. `dp_correlator_set_ref` refuses a multi-row reference on a
+fast-path object rather than truncating it. The accumulator keeps its
+$(n_y, n_x)$ layout either way, so the blob does not depend on the path.
+The row stage fans across the pool; the general 2-D path runs serially.
+
+**The dwell sums spectra.** A coherent dwell accumulates $P$ over `dwell`
+frames and inverts once at the dump, since the inverse is linear. It differs
+from inverting every frame only by accumulation-order rounding (about 1e-5
+relative in cf32). A non-coherent sum of magnitudes is not linear and
+inverts every frame.
+
+### 7.2 The padded inverse and interpolation
+
+The inverse length is free. Zero-padding the product $P$ to
+$(n_y^{out}, n_x^{out}) \ge (n_y, n_x)$ and inverting there is the
+band-limited (Dirichlet) interpolation of the same circular correlation:
+the peak and its value kept, on a finer grid.
+
+$$\mathrm{out} = \mathrm{IFFT2}_{n_y^{out}, n_x^{out}}\big(\mathrm{zeropad}(P)\big) / (n_y n_x)$$
+
+- **The scale is the native $1/(n_y n_x)$,** not the padded one, so an
+    interpolated peak equals the native peak.
+- **The pad** keeps each axis's low half $[0, n/2]$, inserts
+    $n^{out} - n$ zeros at the high frequencies, then the high half. For an
+    even $n$ it splits the Nyquist bin, half on each side, which minimum-error
+    interpolation needs.
+- **Pick a fast inverse size** (a multiple of 16 whose only factors are 2, 3
+    and 5), or the pad only makes a bigger slow transform. The forward stays
+    at the native size.
+- **Index:** a peak at $(r, c)$ on the padded grid is Doppler
+    $r\, n_y / n_y^{out}$ and code phase $c\, n_x / n_x^{out}$.
+- `ny_out < ny` or `nx_out < nx` is refused: downsizing is not
+    interpolation. `col_out >= 0` emits one lag a row instead of the map.
+
+### 7.3 The delay-Doppler flavor
+
+`Correlator(code, doppler_rows=ny)` takes the raw stream, `ny` code periods
+back to back, and returns the delay-Doppler map: §7.1's per-row correlation,
+then on the dump the `ny_out`-point FFT down every delay column, centered.
+
+```text
+map = fftshift(fft(ifft(fft(x.reshape(ny, nx), axis=1) * conj(fft(code)),
+                        axis=1), n=ny_out, axis=0), axes=0)
+```
+
+- **Rows are Doppler bins,** zero Doppler on row `ny_out // 2`; row $r$ is
+    $(r - n_y^{out}/2)\cdot$`doppler_step` cycles a sample, with
+    `doppler_step` $= 1/(n_y^{out} n_x)$. Columns are lags.
+- **The row inverse carries the only $1/n_x$;** the slow-time FFT is
+    unnormalized, as numpy's is. A unit-amplitude signal against a
+    unit-modulus code peaks at `dwell * ny * nx`.
+- **`ny_out > ny`** pads the slow-time samples after the `ny` rows, sampling
+    the same response on a finer grid; a peak at a bin center keeps its
+    height.
+- **Columns are a stride of `nx` apart,** so the column stage gathers 16
+    neighboring columns a row into contiguous scratch (a tiled transpose).
+
+A streaming caller hands the same preallocated map to every dump:
+
+```python
+import numpy as np
+from doppler.correlation import Correlator
+
+ny, nx, delay, bins = 32, 256, 41, -4
+rng = np.random.default_rng(7)
+code = np.exp(2j * np.pi * rng.random(nx)).astype(np.complex64)
+dd = Correlator(code, doppler_rows=ny, dwell=2, ny_out=4 * ny)
+f = bins * dd.doppler_step * 4  # -4 native bins, in cycles/sample
+n = np.arange(ny * nx)
+x = (np.tile(np.roll(code, delay), ny) * np.exp(2j * np.pi * f * n)).astype(
+    np.complex64
+)
+
+out = np.empty(dd.execute_max_out(), np.complex64)  # (ny_out * nx,)
+dumps = 0
+for frame in range(6):  # three dwells
+    if dd.execute(x, out=out) is not None:  # writes `out` on a dump
+        dumps += 1
+        m = out.reshape(dd.ny_out, nx)
+        row, col = np.unravel_index(np.argmax(np.abs(m)), m.shape)
+        assert (int(col), int(row) - dd.ny_out // 2) == (delay, 4 * bins)
+assert dumps == 3
+```
+
+### 7.4 Batches
+
+A batch takes H frames in one call and returns every map, or one reduction
+of them, from one C loop.
+
+| method              | returns                                        | reduces                                                                  |
+| ------------------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `execute_all`       | H × n_out complex                              | nothing: map h at row h                                                  |
+| `execute_coherent`  | n_out complex                                  | the product spectra summed, inverted once: a fresh dwell-H object's dump |
+| `execute_power_sum` | n_out float                                    | $\sum_h \lvert m_h \rvert^2$, cell by cell                               |
+| `execute_power_max` | n_out float, n_out uint32                      | $\max_h \lvert m_h \rvert^2$ and that h; a tie keeps the lowest h        |
+| `execute_peaks`     | H records: peak power, row, column, mean power | each map to its own peak and mean                                        |
+
+`execute_peaks` reports each map's own statistics because the peak-to-mean
+of the pointwise maximum over maps is a different number, and the wrong one
+to rank hypotheses by. `bank_power_max` and `bank_detect` run a hypothesis
+bank (carriers and rates) of one frame through the same loop.
+
+**What a batch promises:**
+
+- **Map h is a fresh dwell-1 object's map for frame h,** bit for bit, on
+    every path and at every thread count: `execute()` and the batch run the
+    same row, tile and frame helpers.
+- **The dwell is untouched.** A batch never reads or writes the accumulator,
+    its count or the blob, so it may run mid-dwell.
+- **Every reduction folds in h order,** so a float sum is the same at every
+    thread count. The power stays in double, so a cell's power is one value
+    on every compiler, which the tie rule needs. The max and peak folds are
+    selects with unconditional stores, which vectorize.
+- **A refused batch writes nothing:** an empty batch, a length that is not
+    whole frames, or an output too small. A batch never truncates, because a
+    truncated reduction has no meaning.
+- **The fixed reducers are the Python contract.** C callers also get
+    `dp_correlator_execute_fold` and `bank_fold`, which take a C reducer
+    (`dp_correlator_fold_t`); a Python callable there would be a callback
+    in the inner loop. A statistic the fixed reducers lack is `execute_all`
+    and a NumPy reduction, or a reducer in C.
+
+**Threads.** Two frames or more: each worker makes whole maps on its own
+plans and scratch, folded in h order. One frame: split as `execute()` splits
+it. The coherent sum: each worker owns a fixed range of rows through every
+frame. A short frame split across a pool costs more than it saves, which is
+why whole maps go to workers.
+
+A carrier-offset search as one batch is
+`native/examples/delay_doppler_batch_demo.c`, and its Python twin
+`src/doppler/examples/delay_doppler_batch_demo.py`.
+
+### 7.5 The search's block map
+
+The two searches run one block-coherent delay-Doppler map a block of $D$
+epochs: the forward transform of each epoch, slow time over chunks of
+capture bins, then the rows over (tile, slow row) with each tile's
+code-rate ramp. Its definition, its two schedules and its one rule
+(`dp__dd_schedule`), and the carrier's rebuild are
+[the acquisition surface §18](acq-surface.md#18-one-delay-doppler-map).
+`DelayDoppler`'s map and the hypothesis bank run on the same stages.
+
+## 8. Detection
+
+- **The peak list** (`det_peak_list`) is the one peak picker for every
+    detecting flavor: one peak for a detector, up to `max_peaks` for a
+    search, zoned by span. On equal cells it keeps the lowest index.
+- **NaN is never a peak.** The scan's seed skips NaN cells, so a NaN in
+    cell 0 does not hide a finite peak elsewhere, and masked and unmasked
+    scans pick alike. At `threshold = 0` an all-NaN frame reports
+    `(0, 0, 0, NaN, 0)`; at a positive threshold a NaN statistic fails the
+    gate. With the `mean` noise estimate, a NaN in the noise window makes
+    `noise_est` NaN and `test_stat` 0; `min` and `max` skip a NaN anywhere
+    but the window's first bin, and `median`'s order with a NaN is not
+    defined. The C pin covers an all-NaN frame only.
+- **The noise estimate** aggregates the bins in `[noise_lo, noise_hi]` by
+    `noise_mode` (`mean`, `median`, `min`, `max`); the test statistic is the
+    peak over it. A search uses the mode for its CFAR reference.
+- **The gate:** a detector's threshold is a multiple of the noise; a
+    search's comes from Pfa and Pd at its design point
+    ([detection](detection.md): `det_threshold`, `det_pd`).
+
+## 9. Cost and parallelism
+
+The search serves two applications, each with its own design point:
+
+| application                                 | rate                                                                                                                                       | grid                                           | where it runs                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ---------------------------------------------- |
+| #2457's point, where §9.1–9.4 were measured | 3.069 Mcps at 2 samples a chip, 6.138 MSa/s                                                                                                | ±3 kHz, 3 tiles, $D = 90$, $N = 2046$          | the dev and bench boxes                        |
+| a burst preamble on the UNO Q               | 5 MSa/s captured, down-converted to 655.36 kSa/s                                                                                           | ±50 kHz, ±1 kHz/s, 1 tile, $D = 64$, $N = 512$ | four Cortex-A53 cores (Arduino UNO Q, QRB2210) |
+| `AsyncDsssPool`                             | 5 Mcps, 11 MSa/s resampled to 2,048 a period ([async-dsss-receiver §1.2](async-dsss-receiver.md#12-the-sample-rate-is-derived-not-chosen)) | ±50 kHz, 21 tiles, $D = 150$                   | the dev and bench boxes                        |
+
+The burst's preamble is a 512-sample linear chirp (±240 kHz) repeated 64
+times, 50 ms, at a C/N0 of 32 dB-Hz
+([#3054](https://github.com/doppler-dsp/doppler/issues/3054)). Its budget is real time at the
+down-converted rate: 1,526 ns a sample a core, 6,104 across the four cores,
+before the down-converter. Unless it names another box, everything below
+was measured at #2457's point on the x86 dev box, and §9.1's profile also on
+a Snapdragon X2. Every number here is a run in
+[the measurement record](correlator-measurements.md#9-cost-and-parallelism),
+or on the A53 an issue it names; the record says which runs have their
+harness and raw output committed beside it.
+
+The search's signals lie below the noise before correlation gain, so
+anything above the noise is interference that a front end may clip or
+excise ([#3047](https://github.com/doppler-dsp/doppler/issues/3047)). That
+assumption is what makes a narrower sample type worth considering at all;
+§9.5 lists what it does not settle.
+
+### 9.1 Where a sample's time goes
+
+On one thread a sample costs about 38 ns on x86 and 25 ns on arm64, and the
+FFT is 59–60% of it on both:
+
+| stage                                                          | x86 share | arm64 share |
+| -------------------------------------------------------------- | --------: | ----------: |
+| the inverse of each correlation row (pffft)                    |     23.6% |       15.3% |
+| the forward of each 2,046-sample epoch (pocketfft)             |     20.0% |       23.7% |
+| ↳ its generic pass for the prime factor 31                     |      8.3% |       13.2% |
+| slow time down each column, 180 points ($F\,D\,I$, no carrier) |     15.8% |       20.1% |
+| everything else (the row gather, decide, peak scan, statistic) |      ~40% |        ~41% |
+
+A lower-precision FFT could buy at most about 2.5× of this (Amdahl), since
+about 40% is not FFT.
+
+**The forward length is the code period.** 2,046 = 2·3·11·31 takes pocketfft's
+generic passes; a 2,048-point transform is 5.2× faster. No integer samples a
+chip gives the 1023-chip code a smooth period
+([acq-surface §14](acq-surface.md#14-compute-cost)), so this is a front-end
+sample-rate question, not the correlator's. The pool's front end answers it
+by resampling to a 2,048-sample period; #2457's point does not.
+
+**The FFT backend's fast sizes.** The `fft` object (`dp_fft_create`) takes its float SIMD path (pffft)
+only for multiples of 16 whose only factors are 2, 3 and 5; every other
+length runs in double through pocketfft. The search's slow-time depth is
+rounded to 7-smooth (`dp_fft_smooth_floor`), which is not that set: 180
+points take 0.57 µs, where 160 take 0.17 µs and 192 take 0.21 µs. The rule
+that would fix it floors $D\,I$ to the backend's fast set rather than to
+7-smooth, and its price is each point's own: at $D = 90$ the nearest fast
+depth that keeps 2 rows a bin is 80 (0.5 dB), while the pool's $D = 150$
+(300 points) has 144 (288 points) for 0.18 dB.
+
+### 9.2 Bytes against bandwidth
+
+On the x86 dev box the search is not bandwidth-bound. Counting each map
+stage's buffers read and written once (a floor, with no cache):
+
+| tiles | logical bytes a sample | map stage at 16 threads | triad ceiling, all threads |
+| ----: | ---------------------: | ----------------------: | -------------------------: |
+|     3 |                    136 |                 25 GB/s |                    77 GB/s |
+|    11 |                    456 |                 28 GB/s |                    77 GB/s |
+
+The other boxes' triad ceilings are 117 GB/s (Snapdragon X2), 128 GB/s
+(GB10) and about 58 GB/s (Ryzen AI 9 465, possibly loaded when measured);
+the search's own bandwidth has been measured on the x86 box only.
+
+So a narrower type pays two different ways. On a CPU that is not
+bandwidth-bound it pays by lanes: Q15 or fp16 arithmetic fits twice the
+lanes of cf32 in a vector, bounded by the FFT's share (§9.1). Narrower
+storage of the surface pays by bytes moved, which is the lever on a
+bandwidth-bound target such as a GPU on unified memory.
+
+### 9.3 How each stage splits across workers
+
+Every stage of the search's map runs once a block and, on an engine of more
+than one tile, fans once on its pool:
+
+| stage                                    | split by                                                                                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| forward transforms                       | epoch                                                                                                                      |
+| slow time                                | chunks of capture bins                                                                                                     |
+| rows                                     | (tile, slow row)                                                                                                           |
+| decide (magnitude, reference, peak scan) | chunks of whole rows: each tile's rows cut equally, aiming at 24 chunks in all and at most 8 a tile; one a tile at $D = 1$ |
+
+- **Results never depend on the thread count.** Each output row is one
+    task's arithmetic, and the decide pass's chunk count is fixed by the grid,
+    not the pool, so its float sums fold in one order. The surface and every
+    hit are bit-identical at any thread count.
+- **The pool is not capped at one worker a tile when $D > 1$ and the
+    engine has more than one tile,** since every stage fans finer than
+    tiles. At $D = 1$ a block is one epoch and the cap stays: there the fans
+    run every epoch, and the caller's `epoch_fan` decides. The cap also
+    holds at one tile, whatever $D$: a one-tile search runs serial at any
+    thread count
+    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
+- **Each map stage (forward, slow time, rows) cuts 4 chunks a worker,** and a chunk claims whichever
+    per-worker slot (plans and scratch) is free, so a fast worker takes more
+    of a stage than a slow one.
+- **Memory grows with the thread count** at $D > 1$: plans and scratch are
+    per worker, not per tile.
+
+What it buys at the design point and at ±15 kHz (11 tiles), ns a sample:
+
+| threads               |     1 |    2 |    4 |    8 |   16 |
+| --------------------- | ----: | ---: | ---: | ---: | ---: |
+| design point, 3 tiles |  38.7 | 21.2 | 13.2 |  8.5 |  6.5 |
+| ±15 kHz, 11 tiles     | 100.2 | 54.7 | 33.7 | 22.0 | 16.0 |
+
+Each is the best of five pushes, except the design point at 16 threads:
+the best of four runs, three of them best of fifteen pushes, which spread
+6.5–8.4. The map alone scales 7–9× to 16 threads.
+
+### 9.4 Measured and not taken
+
+| lever                                                                          | result                                                                                                                   |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Bluestein over pffft for the 2,046-point forward                               | 0.85× today at 2,046 points, 0.39× at 90                                                                                 |
+| slow-time depth 80 instead of 90 at #2457's point (§9.1's rule)                | about 10% of the search for 0.5 dB of coherent gain; not taken there. The pool's 150 → 144 is not measured               |
+| pad slow time to 192 rows                                                      | breaks the rule that each native Doppler bin spans exactly `interp` rows, which the row map, zone fold and hand-off read |
+| gather the row product in pffft's internal order and run the unordered inverse | bit-identical, and a tie: the gather costs what the reorder did                                                          |
+| `-march=native`                                                                | 7% at one thread, 0 at 16                                                                                                |
+
+### 9.5 Open
+
+Each is a lever or a question of
+[#3047](https://github.com/doppler-dsp/doppler/issues/3047) unless it names
+its own issue.
+
+- **Fuse the decide pass into the row stage** while each row is in cache:
+    a timing prototype was 10% faster at 16 threads and no faster at one,
+    where the pass is bound by `cabsf`.
+- **#2457's 2,046-point forward:** batch SIMD across
+    epochs, or a front end that resamples to a 2,048-point period as the
+    pool's does (§9.1).
+- **Zero-copy block input.** Input reaches the block through two copies
+    (the framer's ring, then `blk_raw`), 13% of the 16-thread critical path.
+    Removing one needs the framer to view the caller's buffer when it holds
+    no carry, a framer feature for every user.
+- **Batched SIMD across transforms, at full precision.** The default x86
+    build is `x86-64-v2`, pffft runs 4-lane SSE, and every length outside
+    pffft's set (the 2,046-point forward, the 180-point slow time) runs
+    scalar in double. One kernel that runs many same-length transforms side
+    by side, a lane each (epochs for the forward, columns for slow time,
+    which the column stage already gathers 16 at a time), would run any
+    radix in float at the full vector width. That would also remove the
+    fast-size constraint behind §9.4's depth trade. It needs runtime ISA
+    dispatch, and it is the shape a Q15 kernel would take. Not measured.
+- **The decide pass's magnitude** calls libm `cabsf` per cell
+    (`search_tile_decide`), and the non-coherent sum squares the result.
+    `sqrtf(re*re + im*im)` vectorizes and the sum needs no root; both move
+    results by ulps, so they are not bit-identical to today.
+- **What a clip does not bound.** A time-domain clip bounds the input and
+    the product, not the spectra: a clipped CW still lands in one bin, about
+    $33 + 20\log_{10} k$ dB above the noise bin at $N = 2046$. So a narrow
+    forward transform may need cf32 or a narrowband excision between the
+    forward and the product, where the spectrum already exists. The clip
+    also needs a noise level that an interferer does not drag up (a robust
+    estimate rather than total power) and a clip rate a caller can check
+    against the Gaussian's $2Q(k)$.
+- **Precision is configuration.** Results are bit-identical at any thread
+    count and a blob resumes bit for bit on another machine (§6, §9.3), so a
+    narrower type must be chosen deterministically from the caller's
+    request and the ISA, and recorded in the blob or refused on restore,
+    never picked from a per-machine timing cache.
+- **A one-tile search at depth uses one worker**
+    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)): the
+    request could stand whenever $D > 1$, whatever the tile count, with the
+    thread-identity test extended to that engine.
+- **Measure on the A53.** The UNO Q burst search measured 152 ns a sample
+    at one tile, $D = 64$, one thread (10% of one core), and 657 with five
+    rate hypotheses
+    ([#3054](https://github.com/doppler-dsp/doppler/issues/3054)); that
+    harness is not in the record. #2457's point is unmeasured on the A53. The UNO Q's own bench
+    ([its README](../example-projects/uno-q.md)) shows the A53 cache-bound:
+    `fft` runs 34 Mbin/s at 4,096 points against 6.7 at 65,536. So §9.2's
+    conclusion that bandwidth is not the limit is the x86 box's only.
+- **The arm64 two-thread case** gained nothing over one thread at the design
+    point before §9.3's split, unexplained, and has not been measured on
+    that box since.
+
+## 10. Validation and benches
+
+**The certified report** is `src/doppler/correlation/tests/validation/correlator/`:
+four parts (the map, the 2-D detector, the search, the burst door), its
+limits, and its open findings. `make validate-check` holds it current.
+
+**The C tests** are in `native/tests/correlator/`; the equivalence tests
+(`test_corr_equiv.c`, `test_detector_equiv.c`, `test_search_equiv.c`) pin
+the flavors to each other and to their predecessors' scenes. The Python
+suites are `src/doppler/correlation/tests/`.
+
+**The benches** are one C binary, `bench_correlator_core`, and the
+`correlation` module's Python benches. Rows keep their IDs across the
+renames that made them one: `benchmarks/renames.toml` maps `c:corr`,
+`c:corr2d`, `c:detector`, `c:detector2d`, `c:acq` and `c:burst_acq` to
+`c:correlator`, and `make bench-ab` and the bench report pair rows through
+it. A change is judged by `make bench-ab A=<main> B=<head>`, with no row
+flagged SLOWER twice.
+
+## 11. How it came to be one object
+
+Six C directories and seven Python classes (`Corr`, `Corr2D`,
+`DelayDoppler`, `CorrDetector`, `CorrDetector2D`, `Acquisition`,
+`BurstAcquisition`) became this one object through
+[#2752](https://github.com/doppler-dsp/doppler/issues/2752):
+one delay-Doppler map (step 2,
+[acq-surface §18](acq-surface.md#18-one-delay-doppler-map)), one C object
+(step 3), one Python class (step 4). The plans as they stood when each
+landed are archived:
+
+- [step 3, one C object](archive/correlator-step3.md);
+- [step 4, one Python class](archive/correlator-step4.md);
+- [the batch calls](archive/corr2d-batch.md) and
+    [the padded inverse and delay-Doppler flavor](archive/corr2d-interpolated-inverse.md)
+    as first built.
+
+## Related
+
+- [The acquisition surface](acq-surface.md): the search's mathematics.
+- [Detection](detection.md): the gate's primitives.
+- [The correlator guide](../guide/correlator.md) and
+    [the DSSS acquisition guide](../guide/dsss-acquisition.md).
+- [The async DSSS receiver](async-dsss-receiver.md): the receiver that runs
+    the continuous search.

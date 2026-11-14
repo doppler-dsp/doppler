@@ -2,12 +2,15 @@
 description: "step 4 of the correlator consolidation (#2752): one Python class, doppler.correlation.Correlator, its constructor and knobs, what push returns, the classes and burst_acq forwarder it retires, its composers, and the #2683, #2900 and #2901 decisions"
 ---
 
+> **Archived:** the plan for step 4 of the correlator consolidation (#2752), which made seven Python classes one, `Correlator`, as it stood when step 4 landed. The correlator as it is now is
+> [the correlator](../correlator.md).
+
 # One Python class: the step-4 design
 
 Step 4 of the consolidation ([#2752](https://github.com/doppler-dsp/doppler/issues/2752),
-[API taxonomy §6.4](api-taxonomy.md#64-consolidation-one-primitive-correlator)).
+[API taxonomy §6.4](../api-taxonomy.md#64-consolidation-one-primitive-correlator)).
 Step 3 left one C object with seven constructors
-([correlator.md](correlator.md)). Python still sees seven classes in two
+([correlator-step3.md](correlator-step3.md)). Python still sees seven classes in two
 modules:
 
 - `doppler.spectral`: `Corr`, `Corr2D`, `DelayDoppler`, `CorrDetector`,
@@ -32,7 +35,7 @@ The owner's two rules still hold: no private copy survives, and speed only
 goes up. Step 4 is mostly binding and documentation. Its C changes are a
 constructor dispatcher (§3), `BurstCapture` calling the engine directly
 (§8), and #2901 (§12). This follows
-[Adding an algorithm](../dev/contributing/adding-algorithms.md) from phase 1.
+[Adding an algorithm](../../dev/contributing/adding-algorithms.md) from phase 1.
 
 §16 lists the decisions, accepted on review, and §17 what they left open.
 
@@ -48,7 +51,7 @@ constructor dispatcher (§3), `BurstCapture` calling the engine directly
 | `doppler.dsss.orchestrator` (Python)                    | a burst search per channel, built as `BurstAcquisition` today             |
 
 The last row is a fourth consumer, which the taxonomy's table
-([§6.4](api-taxonomy.md#64-consolidation-one-primitive-correlator)) now lists too. It
+([§6.4](../api-taxonomy.md#64-consolidation-one-primitive-correlator)) now lists too. It
 builds one `BurstAcquisition` per channel (`orchestrator.py:214`) and hands
 it out through an `acquisition` property.
 
@@ -449,7 +452,7 @@ row, one provenance; ruled 2026-11-08).
     (`check_retired_names.py`) in the commit that retires them, and the
     `burst_acq_*` symbols a row for `check_retired_symbols.py`.
 - **Speed.** `make bench-ab A=main B=<branch>` on the pinned rows of
-    [correlator.md §7.1](correlator.md), plus the renamed Python rows. Step
+    [correlator.md §7.1](correlator-step3.md), plus the renamed Python rows. Step
     4 changes no hot loop, so every row is expected to tie. The binding's
     record-array return (§5) is the one change on a measured path; its
     `push` rows are judged against the tuples they replace.

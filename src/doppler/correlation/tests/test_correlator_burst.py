@@ -305,8 +305,8 @@ def test_a_complex64_preamble_is_searched_by_its_samples():
 
 def test_sample_rate_sets_the_units():
     """sample_rate = 1 is normalized units: Doppler in cycles/sample, span
-    +/- 1/(2n). It is never a default (docs/design/correlator-python.md
-    section 17): ``BurstAcquisition`` defaulted ``fs = 1``, and a search
+    +/- 1/(2n). It is never a default (docs/design/correlator.md
+    section 3): ``BurstAcquisition`` defaulted ``fs = 1``, and a search
     with no rate is refused."""
     with pytest.raises(ValueError, match="a search needs sample_rate"):
         Correlator(_ZC, framing="burst", reps=8)

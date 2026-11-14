@@ -2621,6 +2621,7 @@ typedef struct
   dp_fft_state_t *slowr; /* DI, forward                       */
   float _Complex *colr;  /* DD_SLOW_TILE x DI, zero tail      */
   float _Complex *colo;  /* DD_SLOW_TILE x DI, transformed    */
+  atomic_int      busy;  /* 1 while a fanned chunk holds it   */
 } dd_slot_t;
 
 struct dp__dd_map
@@ -2765,13 +2766,24 @@ dp__dd_map_fine_len (const dp__dd_map_t *m)
   return m->fdi * m->g.n;
 }
 
-/* Chunks a stage fans into: one per slot the pool can run at once. */
+/* Chunks a stage fans into for each worker the pool runs (#3047). One
+   chunk a worker left the stage as slow as its slowest worker: the pool's
+   cursor hands chunks out as workers free, so with several each a fast or
+   early worker takes more. 4 measured op5M_U50k_D150_t8 5% faster
+   (13.82-14.10 ms against 14.56-14.87, interleaved) and moved no 1- or
+   4-thread row. */
+#define DD_CHUNKS_PER_WORKER 4u
+
+/* Chunks a stage fans into: DD_CHUNKS_PER_WORKER for each worker the pool
+   can run at once, never more than the items. A chunk claims whichever slot
+   is free (dd_range), so the count is not tied to the slots. */
 static size_t
 dd_chunks (const dp__dd_map_t *m, dp_pool_t *pool, size_t items)
 {
   size_t k = (size_t)dp_pool_threads (pool);
   if (k > (size_t)m->slots)
     k = (size_t)m->slots;
+  k *= DD_CHUNKS_PER_WORKER;
   if (k > items)
     k = items;
   return k ? k : 1;
@@ -2803,7 +2815,27 @@ dd_range (const dd_run_t *c, size_t t, size_t *a, size_t *b, dd_slot_t **s)
     }
   *a = t * c->items / c->k;
   *b = (t + 1) * c->items / c->k;
-  *s = &c->m->slot[t];
+  /* A free slot: one always is while the slots are at least the pool's
+     workers (search_apply_threads reserves them so), since a worker holds
+     one slot at a time; with fewer (a failed reserve) a chunk waits here
+     for one. Which slot a chunk gets does not touch its result: a slot is
+     plans and scratch, each item is computed whole on one. */
+  for (;;)
+    for (int u = 0; u < c->m->slots; u++)
+      if (!atomic_exchange (&c->m->slot[u].busy, 1))
+        {
+          *s = &c->m->slot[u];
+          return;
+        }
+}
+
+/* A fanned chunk's slot back to the free set; a pinned slot (c->slot) was
+   never claimed. */
+static void
+dd_release (const dd_run_t *c, dd_slot_t *s)
+{
+  if (c->slot < 0)
+    atomic_store (&s->busy, 0);
 }
 
 static void
@@ -2828,6 +2860,7 @@ dd_forward_body (size_t t, void *ctx)
   dd_range (c, t, &a, &b, &s);
   for (size_t k = a; k < b; k++)
     dp_fft_execute_cf32 (s->fwd, c->in + k * N, N, c->out + k * N, N);
+  dd_release (c, s);
 }
 
 void
@@ -2880,6 +2913,7 @@ dd_slow_body (size_t t, void *ctx)
       dd_col_ffts (s->slow, s->col, fdi, c->in + p0, N, nb, D, c->w,
                    c->out + p0 * fdi);
     }
+  dd_release (c, s);
 }
 
 void
@@ -2979,6 +3013,7 @@ dd_rows_body (size_t t, void *ctx)
                     i0, i1, c->out, NULL);
       a = q * DI + i1;
     }
+  dd_release (c, s);
 }
 
 void
@@ -3099,6 +3134,7 @@ dd_epochs_body (size_t t, void *ctx)
       dd_epochs (c->m, s, c->in, &c->tiles[q], k0, k1, c->out + q * D * L);
       a = q * D + k1;
     }
+  dd_release (c, s);
 }
 
 void
@@ -3140,6 +3176,7 @@ dd_columns_body (size_t t, void *ctx)
             dst[q2] = s->colo[q2 * DI + i];
         }
     }
+  dd_release (c, s);
 }
 
 void
@@ -3172,6 +3209,7 @@ dd_rows1_body (size_t t, void *ctx)
   for (size_t q = a; q < b; q++)
     dd_epoch (c->m, s, c->in, 0, &c->tiles[q],
               c->out + c->tiles[q].rows[0] * c->m->g.l);
+  dd_release (c, s);
 }
 
 /* The schedule rule's resolution: two counts within 1/16 of each other are

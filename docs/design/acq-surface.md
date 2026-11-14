@@ -1318,7 +1318,9 @@ longer capped at one worker a tile when $D > 1$
 at $D = 1$, where the fans run every epoch. Each output row is computed by one task with the same arithmetic,
 so the surface stays bit-identical at every thread count. FFT plans and
 scratch are per worker, not per tile, since a task is no longer tied to a
-tile.
+tile. Each stage cuts 4 chunks per worker and a chunk claims whichever slot
+is free, so a fast worker takes more of the stage than a slow one
+([#3047](https://github.com/doppler-dsp/doppler/issues/3047)).
 
 What this fixes and what it does not. #2744's 5–10× rows are all $D = 1$
 one-epoch pushes, and at $D = 1$ a block is one epoch: this design leaves

@@ -3522,20 +3522,23 @@ search_native_row (const dp_correlator_state_t *st, const float *surf,
  * cell. A single-tile engine has one chunk and no pool: the same code,
  * serially, and the classic result to the bit. */
 
-/* The most chunks a tile's rows split into (#3047). One chunk a tile left
-   a 3-tile search's decide pass on 3 workers while the map fanned on 16: at
-   the design point (D = 90) it was 37% of the 16-thread push. The design
-   point's 180 rows a tile take 6, which measured 10.2 -> 8.0 ns a sample at
-   16 threads; the parts slots are allocated for the cap. */
+/* The chunks a decided surface aims for, and the most a tile splits into
+   (#3047). One chunk a tile left a 3-tile search's decide pass on 3 workers
+   while the map fanned on 16: at the design point (D = 90) it was 37% of
+   the 16-thread push, and 6 chunks a tile took it from 10.2 to 8.0 ns a
+   sample. A grid with tiles enough splits nothing: 53 tiles at 8 chunks
+   each measured 1.6% slower on one thread (op2M_U50k_D60_t1) for no
+   worker it could feed. */
+#define SEARCH_DECIDE_CHUNKS 24u
 #define SEARCH_DECIDE_SPLIT 8u
 
 /* The chunks a decided surface splits into: one a tile, each tile's rows cut
-   into the largest count up to SEARCH_DECIDE_SPLIT that divides them, so the
-   chunks stay equal (the reference merge is a mean of their means) and
-   whole rows. Only a block of more than one epoch splits: at D = 1 the pass
-   runs every epoch, where a finer fan pays the pool's wake-up for little
-   work (#2775). A function of the grid alone, so it never moves with the
-   thread count. */
+   into the largest count that divides them, up to what brings the total to
+   SEARCH_DECIDE_CHUNKS (at most SEARCH_DECIDE_SPLIT), so the chunks stay
+   equal (the reference merge is a mean of their means) and whole rows. Only
+   a block of more than one epoch splits: at D = 1 the pass runs every epoch,
+   where a finer fan pays the pool's wake-up for little work (#2775). A
+   function of the grid alone, so it never moves with the thread count. */
 static size_t
 search_chunks (const dp_correlator_search_t *srch)
 {
@@ -3543,7 +3546,9 @@ search_chunks (const dp_correlator_search_t *srch)
   if (W <= 1 || srch->coherent_bins <= 1)
     return W;
   const size_t rows = srch->n_surf / srch->lag_bins / W;
-  size_t       s    = SEARCH_DECIDE_SPLIT;
+  size_t       s    = (SEARCH_DECIDE_CHUNKS + W - 1) / W;
+  if (s > SEARCH_DECIDE_SPLIT)
+    s = SEARCH_DECIDE_SPLIT;
   while (rows % s)
     s--;
   return W * s;

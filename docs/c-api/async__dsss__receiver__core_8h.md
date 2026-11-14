@@ -1852,7 +1852,7 @@ int dp_async_dsss_receiver_set_threads (
 
 
 
-Forwards to [**dp\_correlator\_set\_threads()**](correlator__core_8h.md#function-dp_correlator_set_threads) on the receiver's searcher. The search is bit-identical at every count, so this changes the cost of a steps() call and nothing about its output. A pool that steps its receivers in parallel sets each one to 1. A mutator's value, so it travels in the state blob (#2022). The blob carries the count that RAN, not the request: set\_threads(0) on a writer restores as the count the writer ran (its online cores, at most one worker a tile) on any reader, by design  a resumed receiver runs as the one that was checkpointed, and a pool's 1 is 1 everywhere. Setup path; not while another thread is inside steps().
+Forwards to [**dp\_correlator\_set\_threads()**](correlator__core_8h.md#function-dp_correlator_set_threads) on the receiver's searcher. The search is bit-identical at every count, so this changes the cost of a steps() call and nothing about its output. A pool that steps its receivers in parallel sets each one to 1. A mutator's value, so it travels in the state blob (#2022). The blob carries the count that RAN, not the request: set\_threads(0) on a writer restores as the count the writer ran (its online cores, capped at the tiles at D = 1) on any reader, by design  a resumed receiver runs as the one that was checkpointed, and a pool's 1 is 1 everywhere. Setup path; not while another thread is inside steps().
 
 
 

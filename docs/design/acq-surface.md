@@ -929,10 +929,12 @@ serialized engine gives the same hand-off.
 on a persistent worker pool (`dp_correlator_set_threads()`,
 `Correlator.set_threads()`, read back as `threads`). Each worker slot owns
 its plans and scratch, every output row is one slot's same arithmetic, and
-the per-cell passes that decide a surface merge serially in tile order, so
-the result is bit-identical at any thread count. A continuous engine with more than one tile starts with a pool of
-the machine's online cores, capped at one worker a tile (a worker past the
-tile count only wakes and waits), and a regrid to one tile
+the per-cell passes that decide a surface merge serially in chunk order, so
+the result is bit-identical at any thread count. A continuous engine with
+more than one tile starts with a pool of the machine's online cores. At
+$D = 1$ it is capped at one worker a tile (a worker past the tile count
+only wakes and waits); at $D > 1$ every stage fans finer than tiles and
+the count stands (§18.3). A regrid to one tile
 (`configure_search_raw`) drops it to serial; a burst engine and a
 single-tile one run serially.
 
@@ -1311,8 +1313,8 @@ the continuous `Correlator` gets its row in the serialization matrix (#2078, fam
 Every stage now runs once a block. Each fans once on the engine's pool:
 the forward transforms over epochs, slow time over chunks of capture bins,
 the rows over (tile, slow row), and the decision pass over chunks of whole
-rows: each tile's rows cut into up to 8 equal chunks, a count fixed by the
-grid, not the pool. Since every stage fans finer than tiles, the pool is no
+rows: each tile's rows cut into equal chunks, aiming at 24 in all and at
+most 8 a tile, a count fixed by the grid, not the pool. Since every stage fans finer than tiles, the pool is no
 longer capped at one worker a tile when $D > 1$
 ([#3047](https://github.com/doppler-dsp/doppler/issues/3047)); it still is
 at $D = 1$, where the fans run every epoch. Each output row is computed by one task with the same arithmetic,

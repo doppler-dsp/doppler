@@ -1558,7 +1558,7 @@ int dp_correlator_search::threads_req;
 
 
 
-what the caller asked for: set\_threads()'s n, 0 = the online cores. `threads` is this capped at one worker a tile; every regrid re-applies it, so narrowing to one tile and widening again comes back to min(threads\_req, tiles), not to the 1 the narrow grid ran on (doppler#2797). 
+what the caller asked for: set\_threads()'s n, 0 = the online cores. `threads` is this capped at one worker a tile when D = 1 and taken whole when D &gt; 1; every regrid re-applies it, so narrowing to one tile and widening again comes back to the request, not to the 1 the narrow grid ran on (doppler#2797, #3047). 
 
 
         

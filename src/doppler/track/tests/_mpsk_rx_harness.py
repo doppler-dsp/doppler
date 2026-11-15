@@ -162,7 +162,15 @@ def agc(x):
 
 
 def make_signal(
-    sps, nsym, *, real, m=DEFAULT_M, fc=IF_FS4, esn0_db=None, seed=3
+    sps,
+    nsym,
+    *,
+    real,
+    m=DEFAULT_M,
+    fc=IF_FS4,
+    esn0_db=None,
+    seed=3,
+    idx=None,
 ):
     """One M-PSK stimulus, as either a real IF or complex baseband.
 
@@ -200,6 +208,14 @@ def make_signal(
     in `REAL_ESNO_OFFSET_DB` -- so the two paths are compared on the SAME
     waveform and the same noise realisation, not on two similar ones.
 
+    `idx`, when given, IS the truth: the `nsym` symbol indices to send,
+    each in `0..m-1`, instead of the seeded uniform draw. It exists so a
+    caller can drive a structured stream -- a frame with a run of
+    transition-free gap symbols, say -- through the same generator, level
+    and noise as every other stimulus here. Left at `None` the draw is the
+    one it always was, so every existing caller is unchanged; `seed` still
+    seeds the noise either way.
+
     Returns
     -------
     x : ndarray
@@ -207,8 +223,15 @@ def make_signal(
     idx : ndarray
         The transmitted symbol indices, for `symbol_metrics`.
     """
-    rng = np.random.default_rng(seed)
-    idx = rng.integers(0, m, nsym)
+    if idx is None:
+        rng = np.random.default_rng(seed)
+        idx = rng.integers(0, m, nsym)
+    else:
+        idx = np.asarray(idx)
+        if idx.shape != (nsym,) or idx.min() < 0 or idx.max() >= m:
+            raise ValueError(
+                f"idx must be {nsym} symbol indices in 0..{m - 1}"
+            )
     snr_db = 100.0  # >= WFM_SYNTH_SNR_CLEAN: no AWGN generated at all
     if esn0_db is not None:
         snr_db = esn0_db + (REAL_ESNO_OFFSET_DB if real else 0.0)

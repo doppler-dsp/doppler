@@ -145,6 +145,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # An identifier <windows.h> defines away (near, far, IN, small...)
+      # builds everywhere but the Windows legs (PR #1975, PR #3071).
+      - id: windows-macro-names
+        name: no identifier is a Windows SDK macro
+        entry: make -s lint-windows-macro-names
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # Every gate the acq engine prices splits pfa over
       # search_band_cells(), the cells its maximum ranges over; a hand count
       # of the native cells fired it at about twice its pfa (doppler#2218).

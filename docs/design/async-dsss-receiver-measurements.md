@@ -1379,7 +1379,7 @@ release clock at the design's 2 s. Once tracking with symbol lock held for
 200 blocks, ten windows per trial, three trials per C/N0; per window the
 fraction of blocks with each flag off, the longest both-off run, whether
 `lost` fired, and the pull-in after the data resumes. Three
-conditions: no Doppler, and [the specification](async-dsss-receiver.md#5-the-pool-n-receivers-one-search)'s two worst cases through the shipped
+conditions: no Doppler, and [the specification](async-dsss-receiver.md#13-the-earlier-points)'s two worst cases through the shipped
 `doppler_channel`, apart, since they do not coincide on a pass — the
 offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
 it) and the rate (500 Hz/s from zero).

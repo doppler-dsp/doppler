@@ -20,8 +20,8 @@ signal's. With `reacquire` armed, a hand-off whose carrier never comes up to
 symbol lock is released once `lost_confirm_s` has passed, and the receiver
 searches again by itself. A missed hand-off costs a retry, not the link.
 
-The receiver is the one of
-[the async DSSS receiver design](../design/async-dsss-receiver.md). The setup is
+The setup is the link from
+[the async DSSS receiver design](../design/async-dsss-receiver.md#13-the-earlier-points):
 a CCSDS Gold-1023 code at 3.069 Mcps carrying asynchronous BPSK at 2700 bps on a
 2.5 GHz carrier, with up to ±50 kHz of Doppler changing by up to 500 Hz/s. The
 caller's carrier uncertainty is the receiver's one-sided `doppler_uncertainty`,

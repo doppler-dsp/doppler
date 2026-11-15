@@ -1,0 +1,8 @@
+# Uses of a name <windows.h> defines away that predate the gate
+# (scripts/check_windows_macro_names.py). One "file name" pair a line.
+# This list only shrinks: rename the identifier, then delete its line.
+native/tests/burst_capture/test_burst_capture_core.c small
+native/tests/burst_despreader/test_burst_despreader_core.c far
+native/tests/hbdecim/test_hbdecim_r2c_core.c far
+native/tests/lo/test_lo_core.c near
+native/tests/test_wfm_frame.c small

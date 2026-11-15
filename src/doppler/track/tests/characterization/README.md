@@ -104,6 +104,8 @@ the floor the DTTL's SER and data slips are no worse (gh-751). No timing
 drift is reported: the `mu` probe aliases on the hot rows, so nothing here
 is derived from it. It is `RateSync` alone and does not reproduce gh-3079,
 where the whole async-DSSS receiver's Gardner loop fails at 5 dB and its
-DTTL holds. Since an over-driven Gardner loop is what slips in data here,
-the level the receiver hands its timing loop is the first thing to measure
-there; that is a lead, not a result of this run.
+DTTL holds. An over-driven Gardner loop is what slips in data here, but
+the receiver does not over-drive its own: measured at the specification
+point it hands the loop about 0.5 to 0.6 of the contracted level, because
+its AGC holds signal plus noise at the reference (gh-3079's record). So
+gh-3079's cause lies elsewhere.

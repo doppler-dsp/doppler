@@ -1045,6 +1045,68 @@ _acq_tile_alias_fanned_check (void)
       }
   /* Several picks a dwell, or the fan had nothing to spread. */
   DP_CHECK (picks > 36);
+
+  /* Each pick its own hypotheses: two emitters in one dwell, at different
+     tile edges and code phases, each must be listed within a bin of its
+     own tone. A fan that handed every pick the first pick's powers (or
+     indexed the picks wrong) moves the second one a tile; the single-tone
+     sweeps above, which read only hit[0], cannot see that. CODE31, so the
+     two separate in code phase as CODE7's seven chips cannot. */
+  {
+    const size_t           sf2 = 31, nx2 = sf2 * spc;
+    const double           span2   = crate / (2.0 * (double)sf2);
+    const double           native2 = 2.0 * span2;
+    dp_correlator_state_t *two     = burst_from_code (
+        CODE31, sf2, reps, spc, crate, 50.0, 3.5 * span2, 1e-3, 0.9, 0, 0.0);
+    DP_REQUIRE (two != NULL);
+    DP_REQUIRE (two->search->window_bins > 1 && two->search->coherent_bins > 1
+                && two->search->blk_raw);
+    DP_REQUIRE (dp_correlator_set_threads (two, 4) == DP_OK);
+    DP_REQUIRE (dp_correlator_set_max_peaks (two, 8, NULL) == DP_OK);
+    const double res2  = two->search->doppler_res_hz;
+    const size_t lag_b = 7 * spc; /* B seven chips late */
+    for (int q = -4; q <= 4; q++)
+      {
+        const double    fa  = (0.5 + 0.005 * (double)q) * native2;
+        const double    fb  = (-1.5 - 0.005 * (double)q) * native2;
+        const size_t    len = 6 * two->search->coherent_bins * nx2;
+        float _Complex *x   = malloc (len * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        for (size_t k = 0; k < len; k++)
+          {
+            const double pa = 2.0 * M_PI * fa * (double)k / fs;
+            const double pb = 2.0 * M_PI * fb * (double)k / fs;
+            const size_t kb = (k + nx2 - lag_b) % nx2;
+            x[k] = ((CODE31[(k % nx2) / spc] & 1u) ? -1.0f : 1.0f)
+                       * (float _Complex) (cos (pa) + I * sin (pa))
+                   + 0.8f * ((CODE31[kb / spc] & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (pb) + I * sin (pb));
+          }
+        dp_correlator_reset (two);
+        dp_correlator_hit_t h[8];
+        const size_t        nh = dp_correlator_push (two, x, len, h, 8);
+        free (x);
+        DP_REQUIRE (nh >= 2);
+        int got_a = 0, got_b = 0;
+        for (size_t k = 0; k < nh; k++)
+          {
+            const double f = dp_correlator_bin_doppler_hz (two, h[k].row);
+            got_a |= fabs (f - fa) <= res2;
+            got_b |= fabs (f - fb) <= res2;
+          }
+        if (!(got_a && got_b))
+          {
+            fprintf (stderr, "q=%d fa=%.0f fb=%.0f:", q, fa, fb);
+            for (size_t k = 0; k < nh; k++)
+              fprintf (stderr, " (%zu,%zu %.0f %.1f)", h[k].row, h[k].col,
+                       dp_correlator_bin_doppler_hz (two, h[k].row),
+                       (double)h[k].test_stat);
+            fprintf (stderr, "\n");
+          }
+        DP_CHECK (got_a && got_b);
+      }
+    dp_correlator_destroy (two);
+  }
   dp_correlator_destroy (one);
   dp_correlator_destroy (four);
   return 0;

@@ -976,6 +976,80 @@ _acq_tile_alias_hop_check (void)
   return 0;
 }
 
+/* The tile-edge alias, fanned: search_report_peaks() resolves a dwell's
+ * picks as (pick, hypothesis) tasks on the search's pool, each summing in
+ * one fixed order, so what it reports cannot depend on the worker count.
+ * The edge tones of _acq_tile_doppler_check() (the ones whose rows the hop
+ * moves) are pushed through one engine at 1 worker and one at 4, and every
+ * field of every hit and every carried twin row must be bit-identical. */
+static int
+_hit_same (const dp_correlator_hit_t *a, const dp_correlator_hit_t *b)
+{
+#define DP_SAME_FIELD(f) (memcmp (&a->f, &b->f, sizeof a->f) == 0)
+  return DP_SAME_FIELD (row) && DP_SAME_FIELD (col) && DP_SAME_FIELD (peak_mag)
+         && DP_SAME_FIELD (noise_est) && DP_SAME_FIELD (test_stat)
+         && DP_SAME_FIELD (cn0_dbhz_est) && DP_SAME_FIELD (samples_consumed)
+         && DP_SAME_FIELD (chip_phase) && DP_SAME_FIELD (doppler_rate_hz_s)
+         && DP_SAME_FIELD (test_stat_peak);
+#undef DP_SAME_FIELD
+}
+
+static int
+_acq_tile_alias_fanned_check (void)
+{
+  const size_t           sf = 7, spc = 2, nx = sf * spc, reps = 8;
+  const double           crate = 1.0e6, fs = crate * (double)spc;
+  const double           span = crate / (2.0 * (double)sf);
+  dp_correlator_state_t *one  = burst_from_code (
+      CODE7, sf, reps, spc, crate, 60.0, 3.5 * span, 1e-3, 0.9, 0, 0.0);
+  dp_correlator_state_t *four = burst_from_code (
+      CODE7, sf, reps, spc, crate, 60.0, 3.5 * span, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (one != NULL && four != NULL);
+  DP_REQUIRE (one->search->window_bins > 1 && one->search->coherent_bins > 1
+              && one->search->blk_raw);
+  DP_REQUIRE (dp_correlator_set_threads (one, 1) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_threads (four, 4) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_max_peaks (one, 8, NULL) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_max_peaks (four, 8, NULL) == DP_OK);
+  const double native = 2.0 * span;
+  const double edge[] = { 0.5, -0.5, 1.5, -1.5 };
+  size_t       picks  = 0;
+  for (size_t i = 0; i < sizeof edge / sizeof *edge; i++)
+    for (int q = -4; q <= 4; q++)
+      {
+        const double    f   = (edge[i] + 0.005 * (double)q) * native;
+        const size_t    len = 6 * one->search->coherent_bins * nx;
+        float _Complex *x   = malloc (len * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        for (size_t k = 0; k < len; k++)
+          {
+            const double ph = 2.0 * M_PI * f * (double)k / fs;
+            x[k]            = ((CODE7[(k % nx) / spc] & 1u) ? -1.0f : 1.0f)
+                              * (float _Complex) (cos (ph) + I * sin (ph));
+          }
+        dp_correlator_reset (one);
+        dp_correlator_reset (four);
+        dp_correlator_hit_t h1[8], h4[8];
+        const size_t        n1 = dp_correlator_push (one, x, len, h1, 8);
+        const size_t        n4 = dp_correlator_push (four, x, len, h4, 8);
+        free (x);
+        DP_REQUIRE (n1 >= 1);
+        DP_CHECK (n4 == n1);
+        for (size_t k = 0; k < n1 && k < n4; k++)
+          DP_CHECK (_hit_same (&h1[k], &h4[k]));
+        DP_CHECK (four->n_twins == one->n_twins);
+        for (size_t k = 0; k < one->n_twins && k < four->n_twins; k++)
+          DP_CHECK (four->twin_row[k] == one->twin_row[k]
+                    && four->twin_col[k] == one->twin_col[k]);
+        picks += one->n_peaks;
+      }
+  /* Several picks a dwell, or the fan had nothing to spread. */
+  DP_CHECK (picks > 36);
+  dp_correlator_destroy (one);
+  dp_correlator_destroy (four);
+  return 0;
+}
+
 /* A tiled burst search with NO design C/N0 is D = 1, as it always was.
  *
  * Only a stated C/N0 asks for a depth inside the tiles. Without one the
@@ -4212,6 +4286,7 @@ main (void)
   (void)_acq_wideband_default_depth_check ();
   (void)_acq_tiled_burst_offcentre_check ();
   (void)_acq_tile_alias_hop_check ();
+  (void)_acq_tile_alias_fanned_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_ramp_odd_period_check ();
   (void)_acq_map_equivalence_check ();

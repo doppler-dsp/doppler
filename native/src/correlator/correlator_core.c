@@ -4209,9 +4209,11 @@ search_report_peaks (dp_correlator_state_t *st, const float *surf,
       seen_col[DP_CORRELATOR_MAX_PEAKS];
   /* Every pick's native row, then, on a tiled block-coherent engine, the
      tile-edge alias of all of them at once: one fan of 3 tasks a pick on
-     the search's pool, one wake a dwell (search_alias_task()). A pick the
-     loop below never reaches (the room ran out) is resolved for nothing,
-     which changes no result. */
+     the search's pool, one wake a dwell (search_alias_task()). Every pick,
+     not the first `room`: the loop below stops on results, and a held twin
+     takes none, so which picks it reaches is known only once it has run. A
+     pick it never reaches is resolved for nothing, which changes no
+     result. */
   size_t row[DP_CORRELATOR_MAX_PEAKS];
   for (size_t i = 0; i < st->n_peaks; i++)
     row[i] = search_native_row (st, surf, st->peaks[i].row, st->peaks[i].col);

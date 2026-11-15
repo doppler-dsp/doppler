@@ -94,7 +94,7 @@ def main() -> int:
     for f, n in bad:
         print(f"  {f}:{n}: dp_det_pfa_cell without search_band_cells")
     print(
-        "  Split pfa over search_band_cells (D, sb, window_bins, code_bins),\n"
+        "  Split pfa over search_band_cells (D, sb, window_bins, lag_bins),\n"
         "  times the rate hypotheses: the cells the dwell's maximum ranges\n"
         "  over, every row of the interpolated surface. A hand count of the\n"
         "  native cells fires the engine at about twice its pfa\n"

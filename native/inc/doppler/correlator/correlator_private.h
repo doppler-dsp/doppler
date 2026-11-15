@@ -541,8 +541,10 @@ search_rate_better (size_t h, float stat, float best)
  * span up -- summed over the block's epochs non-coherently (a data
  * transition inside an epoch costs every hypothesis the same), each
  * epoch's column walked by the hypothesis's own code rate as
- * the map's ramp walks the tile's. Returns the native row that wins;
- * the pick's own row when the engine is not block-coherent and tiled. */
+ * the map's ramp walks the tile's. search_resolve_tile_alias(), below,
+ * returns the native row that wins, and the pick's own row when the engine
+ * is not block-coherent and tiled -- what search_tile_alias_applies()
+ * tells apart. */
 static inline int
 search_tile_alias_applies (const dp_correlator_state_t *st)
 {
@@ -556,7 +558,7 @@ search_tile_alias_applies (const dp_correlator_state_t *st)
  * search can fan a dwell's (pick, hypothesis) pairs across its pool
  * (search_report_peaks()); every caller sums in this one order, so a row
  * resolved fanned is bit-identical to one resolved serially. Only for an
- * engine search_tile_alias_applies() to. */
+ * engine search_tile_alias_applies() says is tiled and block-coherent. */
 static inline double
 search_tile_alias_power (const dp_correlator_state_t *st, size_t row,
                          size_t col, long h)
@@ -609,6 +611,7 @@ search_tile_alias_pick (const dp_correlator_state_t *st, size_t row,
   return (size_t)(((long)row + win * (long)D + (long)rows) % (long)rows);
 }
 
+/* The three hypotheses in order, then the winner (see above). */
 static inline size_t
 search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t col)
 {

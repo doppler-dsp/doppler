@@ -734,12 +734,12 @@ _test_zone_delays_a_same_lag_pair (void)
      tiny and the pair drifts 0.07 chip a dwell, so a zone wider than the
      key would hold the second back for many dwells; within the key it is
      still one at most, wherever today picks both. */
-  const size_t near[3]  = { 999, 1002, 1005 };
+  const size_t b_at[3]  = { 999, 1002, 1005 };
   int          compared = 0;
   for (int o = 0; o < 3; o++)
     {
       int first[2];
-      DP_REQUIRE (_pair_first_two (code, near[o], 2e3, first) == 0);
+      DP_REQUIRE (_pair_first_two (code, b_at[o], 2e3, first) == 0);
       /* Where today picks both inside the run, the zone picks both and at
          most a dwell later; a run where today never does says nothing, so
          most runs must be ones where it does. */
@@ -750,7 +750,7 @@ _test_zone_delays_a_same_lag_pair (void)
       if (!ok)
         printf ("  same-lag pair +/- 2 kHz, B at %zu: both first at dwell %d "
                 "today, %d with the zone\n",
-                near[o], first[0], first[1]);
+                b_at[o], first[0], first[1]);
       DP_CHECK_MSG (ok, "+/- 2 kHz: one dwell later at most");
     }
   DP_CHECK_MSG (compared >= 2, "+/- 2 kHz: today picks both in most runs");

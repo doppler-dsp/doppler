@@ -112,3 +112,24 @@ def test_a_stale_listed_pair_fails(tmp_path: Path) -> None:
     r = _run(tmp_path, "static int close_to (float a, float b);\n")
     assert r.returncode == 1
     assert "no longer used" in r.stdout
+
+
+def test_a_wingdi_enum_constant_fails(tmp_path: Path) -> None:
+    """wingdi.h's ERROR is 0: an enum constant named ERROR becomes 0 = …"""
+    r = _run(tmp_path, "enum mode { OK, ERROR };\n")
+    assert r.returncode == 1
+    assert "'ERROR' is a macro in wingdi.h" in r.stdout
+
+
+def test_an_include_path_is_not_an_identifier(tmp_path: Path) -> None:
+    r = _run(tmp_path, '#include <far/x.h>\n#  include "near.h"\n')
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_malformed_exempt_line_is_named(tmp_path: Path) -> None:
+    """A bad line says where it is, not a traceback."""
+    _exempt(tmp_path, "native/a b c")
+    r = _run(tmp_path, "int x;\n")
+    assert r.returncode == 1
+    assert f"{EXEMPT}:2: expected" in r.stderr
+    assert "Traceback" not in r.stderr

@@ -357,6 +357,22 @@ params = [
 ]
 
 [[correlator.methods]]
+name = "set_peak_zone"
+why = true
+fn = "dp_correlator_set_peak_zone"
+arg_type = "void"
+return_type = "int"
+status_return = true
+status_errors = [
+  { status = "DP_ERR_UNSUPPORTED", error = "ValueError", message = "set_peak_zone: only a search (framing='continuous' or 'burst') lists peaks; Correlator.flavor says which this is" },
+  { status = "DP_ERR_INVALID", error = "ValueError", message = "set_peak_zone: all_doppler must be 0 or 1 and half_chips finite" },
+]
+params = [
+  { name = "all_doppler", type = "int" },
+  { name = "half_chips", type = "double" },
+]
+
+[[correlator.methods]]
 name = "set_carrier_freq_hz"
 fn = "dp_correlator_set_carrier_freq_hz"
 arg_type = "void"

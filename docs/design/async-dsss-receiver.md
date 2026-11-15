@@ -893,7 +893,19 @@ residual is a design input (doppler#2409).
 `Correlator.set_max_peaks`, on either search, lists every
 peak above the dwell's gate, strongest first, with an exclusion zone of one
 Doppler bin by one chip around each and the two-epoch rule for a peak at an
-already-listed code phase. `det_peak_list`
+already-listed code phase. The receiver's searcher widens the zone to every
+Doppler bin of every roll (`Correlator.set_peak_zone`), half a chip
+(`DP_CORRELATOR_SAME_PHASE_CHIPS / 2`) either side across the lags, so one
+emitter is about one listed peak and cannot take the list's slots from
+another ([#3067](https://github.com/doppler-dsp/doppler/issues/3067)). Half,
+not the whole of §7.2's rule-1 width: the zone is a lag at the middle of the
+total dwell, and with a carrier set the rule's key is a code phase carried to
+the dwell's end at the hit's own Doppler, off the lag grid, so a zone as wide
+as the key would mask pairs the key keeps. Inside it, the pool's outcome is
+today's; two emitters crossing one lag are picked at most a dwell apart. An
+emitter off the grid by half a lag lists its shoulder once a dwell; the twin
+rule, which keeps the mainlobe's width, holds that shoulder a dwell, and rule
+1 drops it either way. `det_peak_list`
 (`native/inc/doppler/correlator/correlator_private.h`) is the one primitive under
 both detectors, and §7.2's pick reads it. Its design is §7.1 at
 [`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md)

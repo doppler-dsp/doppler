@@ -594,6 +594,7 @@ dp_correlator_search_period function
 dp_correlator_set_carrier_freq_hz function
 dp_correlator_set_keep_surface function
 dp_correlator_set_max_peaks function
+dp_correlator_set_peak_zone function
 dp_correlator_set_ref function
 dp_correlator_set_state function
 dp_correlator_set_surface_sink function

@@ -291,6 +291,8 @@ typedef struct {
   /* The search flavors' (#2752 3.4b): NULL / 0 in every other flavor. */
   size_t      max_peaks; 
   det_peak_t *peaks;     
+  int    zone_all_doppler; 
+  double zone_half_chips;  
   uint8_t    *band_mask; 
   uint8_t    *peak_mask; 
   uint32_t   *twin_row;  
@@ -549,7 +551,7 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
  * count must name one stream point, or the blob is refused.  acq's
  * retired magic 'ACQR' is not reused. */
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
-#define CORRELATOR_STATE_VERSION 2u
+#define CORRELATOR_STATE_VERSION 3u
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
 void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);
@@ -751,6 +753,8 @@ int dp_correlator_state_check (const dp_correlator_state_t *state,
 
 #define DP_CORRELATOR_MAX_PEAKS 64u
 
+#define DP_CORRELATOR_SAME_PHASE_CHIPS 1.0
+
 
 #define DP_CORRELATOR_RATE_HYPS_MAX 64u
 
@@ -808,6 +812,8 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
                               size_t n_noncoh, const char **why);
 
 int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n, const char **why);
+
+int dp_correlator_set_peak_zone (dp_correlator_state_t *state, int all_doppler, double half_chips, const char **why);
 
 int dp_correlator_set_carrier_freq_hz (dp_correlator_state_t *state, double carrier_freq_hz);
 

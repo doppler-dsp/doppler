@@ -1136,6 +1136,8 @@
 * **zone** ([**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md))
 * **zcol** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **zcolout** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
+* **zone\_all\_doppler** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md), [**search\_extra\_t**](structsearch__extra__t.md))
+* **zone\_half\_chips** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md), [**search\_extra\_t**](structsearch__extra__t.md))
 * **ztmp** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 
 
@@ -1144,7 +1146,6 @@
 * **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md))
 * **\_hot\_pad** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_last\_corr\_valid** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
-* **\_pad2** ([**search\_extra\_t**](structsearch__extra__t.md))
 
 
 

@@ -50,6 +50,7 @@ const jm_any_fn jm_bound_symbols_correlator[] = {
     (jm_any_fn)dp_correlator_create,
     (jm_any_fn)dp_correlator_configure_search_raw,
     (jm_any_fn)dp_correlator_set_max_peaks,
+    (jm_any_fn)dp_correlator_set_peak_zone,
     (jm_any_fn)dp_correlator_set_carrier_freq_hz,
     (jm_any_fn)dp_correlator_set_threads,
     (jm_any_fn)dp_correlator_set_telemetry,

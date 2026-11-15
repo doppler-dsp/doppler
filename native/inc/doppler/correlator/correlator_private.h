@@ -620,13 +620,18 @@ typedef struct
   uint32_t rate_hyps; /**< v6: rate hypotheses searched; must equal the
                            engine's -- it sizes the search and changes
                            what a surface means.                       */
-  uint32_t _pad2;     /**< Alignment padding; written as 0.          */
+  uint32_t zone_all_doppler; /**< CORRELATOR_STATE_VERSION 3:
+                                  dp_correlator_set_peak_zone()'s
+                                  all_doppler (a mutator, #2022).     */
   double carrier_freq_hz; /**< v8: the carrier (a mutator's value,
                                #2022): the block's raw epochs are
                                ramped at its end by the map, so a
                                restore takes the carrier through
                                dp_correlator_set_carrier_freq_hz()'s
                                rebuild.                            */
+  double zone_half_chips; /**< CORRELATOR_STATE_VERSION 3:
+                               dp_correlator_set_peak_zone()'s
+                               half_chips (a mutator, #2022).      */
 } search_extra_t;
 
 /** @brief Where a search flavor's @ref search_extra_t sits in its blob: after

@@ -260,6 +260,8 @@ class Signature(NamedTuple):
     instead: str
     dirs: tuple[str, ...] = SCAN_DIRS
     suffixes: tuple[str, ...] = SUFFIXES
+    #: Match whole C statements (`c_statements()`) instead of lines.
+    statements: bool = False
 
 
 #: The noise LEVEL invented by hand (doppler#689). `dp_cgauss` is unit
@@ -268,14 +270,88 @@ class Signature(NamedTuple):
 #: half the noise power the `sigma` beside it states -- 3.01 dB, on nine
 #: sites, every one of them labelled with a C/N0 it did not have.
 #:
-#: Narrow on purpose: the `/ sqrt(2)` or `M_SQRT1_2` must sit on the SAME
-#: statement as, and ahead of, a `* dp_cgauss(` call. A draw scaled by a
-#: literal (`0.3f * dp_cgauss`) states its own level, and `M_SQRT1_2 * b`
-#: mixing two values with no draw is arithmetic, not noise; neither fires.
+#: Read per STATEMENT, not per line (`c_statements()`): the repo's GNU
+#: clang-format breaks a long product BEFORE its `*`, so a line-wise match
+#: never saw a wrapped site, and the comment skip dropped its continuation
+#: as a `*` prose line. A statement fires when it draws `dp_cgauss(` AND
+#: carries a 1/sqrt(2) in any spelling and any order: a division by
+#: sqrt(2) (`sqrt`/`sqrtf`, `2`, `2.0`, `2.0f`, `M_SQRT2`, `1.414...`) or a
+#: factor of sqrt(1/2) (`M_SQRT1_2`, `sqrt(0.5)`, `0.707...`). Casts between
+#: the factor and the draw do not matter.
+#:
+#: What it does NOT see, by design: a sigma divided on an EARLIER statement
+#: (`s = sigma / sqrt(2); x = s * dp_cgauss(&st);`) -- that needs data flow,
+#: and the fix it would demand is the same call either way. And a
+#: multiplication by sqrt(2) (`M_SQRT2 * ... dp_cgauss`) is a different,
+#: louder scaling with legitimate uses (test_detection_core.c builds a
+#: real-valued Gaussian that way); it does not fire.
+_ROOT2 = r"(?:sqrtf?\s*\(\s*2(?:\.0*)?f?\s*\)|\bM_SQRT2\b|\b1\.41421\d*f?)"
+_ROOT_HALF = r"(?:\bM_SQRT1_2\b|sqrtf?\s*\(\s*0?\.50*f?\s*\)|\b0\.7071\d*f?)"
 NOISE_LEVEL = re.compile(
-    r"(?:/\s*sqrt\s*\(\s*2(?:\.0*)?\s*\)|\bM_SQRT1_2\b)[^;]*"
-    r"\*\s*dp_cgauss\s*\("
+    rf"(?=.*\bdp_cgauss\s*\()(?=.*(?:/\s*(?:\(\s*\w+\s*\)\s*)?{_ROOT2}"
+    rf"|{_ROOT_HALF}))"
 )
+
+
+def c_statements(text: str) -> list[tuple[int, str]]:
+    """`(first line, whitespace-collapsed text)` of each C statement.
+
+    Comments are blanked (newlines kept, so line numbers survive), a
+    preprocessor directive with its `\\` continuations is one statement,
+    and everything else splits at `;`, `{` and `}`. A wrapped expression is
+    therefore read whole, which a line-wise scan cannot do.
+    """
+
+    def blank(m: re.Match[str]) -> str:
+        return re.sub(r"[^\n]", " ", m.group(0))
+
+    text = re.sub(r"/\*.*?\*/|//[^\n]*", blank, text, flags=re.S)
+    out: list[tuple[int, str]] = []
+    buf: list[str] = []
+    start = 0
+
+    def flush() -> None:
+        joined = " ".join("".join(buf).split())
+        # A loop body's statement opens with its header's tail (`i++) x[i]
+        # = ...`, after the header's own `;`s); drop through the unmatched
+        # `)` so the key is the statement itself.
+        depth = 0
+        for k, c in enumerate(joined):
+            depth += (c == "(") - (c == ")")
+            if depth < 0:
+                joined = joined[k + 1 :].lstrip()
+                depth = 0
+        if joined:
+            out.append((start, joined))
+        buf.clear()
+
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line.lstrip().startswith("#"):
+            flush()
+            start, directive = i + 1, [line]
+            while directive[-1].rstrip().endswith("\\") and i + 1 < len(lines):
+                i += 1
+                directive.append(lines[i])
+            buf.append(" ".join(d.rstrip().rstrip("\\") for d in directive))
+            flush()
+            i += 1
+            continue
+        for ch in line + "\n":
+            if ch in ";{}":
+                flush()
+                continue
+            if not buf and ch.isspace():
+                continue  # a statement starts at its first real character
+            if not buf:
+                start = i + 1
+            buf.append(ch)
+        i += 1
+    flush()
+    return out
+
 
 #: Every signature the gate scans for: the four markers above over the
 #: consuming layers, plus the C noise level over the C layers.
@@ -292,6 +368,7 @@ SIGNATURES: tuple[Signature, ...] = (
         "source.",
         C_DIRS,
         (".c", ".h"),
+        statements=True,
     ),
 )
 
@@ -434,6 +511,13 @@ def occurrences(root: Path = ROOT) -> list[tuple[str, str, int, str, str]]:
                 if path.suffix == ".py"
                 else set()
             )
+            for sig in sigs:
+                if not sig.statements:
+                    continue
+                for n, stmt in c_statements(text):
+                    if sig.pattern.search(stmt):
+                        found.append((sig.marker, rel, n, stmt, sig.instead))
+            sigs = [sig for sig in sigs if not sig.statements]
             for n, line in enumerate(text.splitlines(), 1):
                 # PROSE is not code. The `offset` marker reads an ordinary
                 # assignment, which is a shape that also turns up in the

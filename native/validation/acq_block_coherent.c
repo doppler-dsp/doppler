@@ -554,7 +554,7 @@ main (int argc, char **argv)
       }
     /* The slow-time axis is interpolated `interp`-fold and the maximum runs
        over the interpolated surface, so the gate is priced over every row
-       of it, in every tile (acq_band_cells, doppler#2218). The realized
+       of it, in every tile (search_band_cells, doppler#2218). The realized
        rate is the configured one, and that is what is held. Priced over
        the native rows instead it fired about a third of the blocks at
        0.20 (measured 37 of 100, and 127 of these 400 with the native count

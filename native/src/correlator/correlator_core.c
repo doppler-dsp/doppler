@@ -3459,7 +3459,7 @@ search_in_doppler_band (const dp_correlator_state_t *st, size_t k)
 static size_t search_interp_for (size_t D, size_t window_bins);
 
 /* The cells a dwell's maximum ranges over: the SURFACE rows
- * search_in_doppler_band() admits, times code_bins. This is the count the
+ * search_in_doppler_band() admits, times lag_bins. This is the count the
  * Sidak split divides the false-alarm budget over, at every site that
  * prices a gate (search_commit_thresholds, search_ascend_n_noncoh, the burst
  * sizer), so a gate is priced over exactly the cells its peak search can
@@ -4727,9 +4727,9 @@ search_cover_window_bins (double du, double span)
 {
   if (!(du > 0.0))
     return 1;
-  /* The spacing of the TILES, one native span wide each, at any depth: a
-     depth D inside a tile refines the combined grid to res / D, it does
-     not move the tiles. */
+  /* The spacing of the TILES, each 2 * span = fs/N wide (span is the
+     half-range doppler_span_hz), at any depth: a depth D inside a tile
+     refines the combined grid to res / D, it does not move the tiles. */
   const double res = 2.0 * span;
   /* search_ceil_bins: an exact whole number of bins must not provision a
      spurious extra PAIR of windows. */
@@ -4772,7 +4772,8 @@ search_cover_window_bins (double du, double span)
  * du > span (wideband): *out_window_bins = 2*ceil((du - span)/(2*span)) + 1
  * (search_cover_window_bins(), always odd) tiles the requested uncertainty,
  * and the sizer still chooses a coherent depth inside each tile. Each tile is
- * one native span wide; the slow-time FFT resolves the residual within it. The
+ * 2 * span = fs/N wide (span is the half-range doppler_span_hz); the
+ * slow-time FFT resolves the residual within it. The
  * tile count and depth are both priced into the global threshold.
  *
  * du <= span: picks the smallest coherent depth D in [1, d_max] whose

@@ -6,11 +6,13 @@ OBJECT-LIKE macros. ``minwindef.h`` defines ``near``, ``far``, ``NEAR``,
 ``FAR``, ``IN``, ``OUT`` and ``OPTIONAL`` as nothing and ``PASCAL`` /
 ``pascal`` as a calling convention; ``rpcndr.h`` defines ``small`` as
 ``char`` and ``hyper`` as ``__int64``; ``combaseapi.h`` defines
-``interface`` as ``struct``. A C identifier with one of those names is
-rewritten before the compiler sees it, so ``const size_t near[3]`` reads
-``const size_t [3]`` and the file stops building -- on the Windows legs
-only, where a Linux or macOS build and every local ``make test`` stay
-green.
+``interface`` as ``struct``; ``wingdi.h`` defines ``ERROR``,
+``ABSOLUTE``, ``RELATIVE``, ``TRANSPARENT`` and ``OPAQUE`` as small
+integers and ``winnt.h`` defines ``DELETE``. A C identifier with one of
+those names is rewritten before the compiler sees it, so
+``const size_t near[3]`` reads ``const size_t [3]`` and the file stops
+building -- on the Windows legs only, where a Linux or macOS build and
+every local ``make test`` stay green.
 
 It happened twice. A test's ``enum { IN = 32 }`` broke
 ``test_framer_core`` on PR #1975 (2026-10-09), and a ``near[3]`` broke
@@ -70,10 +72,20 @@ WINDOWS_MACROS = {
     "small": "rpcndr.h",
     "hyper": "rpcndr.h",
     "interface": "combaseapi.h",
+    "ERROR": "wingdi.h",
+    "ABSOLUTE": "wingdi.h",
+    "RELATIVE": "wingdi.h",
+    "TRANSPARENT": "wingdi.h",
+    "OPAQUE": "wingdi.h",
+    "DELETE": "winnt.h",
 }
+# Not here on purpose: TRUE, FALSE, BOOL, DWORD, WINAPI, CALLBACK. The
+# platform shims (dp_thread.h, dp_once.c, ...) use them as Windows means
+# them, inside _WIN32 blocks.
 
 TOKEN = re.compile(r"\b(" + "|".join(WINDOWS_MACROS) + r")\b")
 LITERAL = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'')
+INCLUDE = re.compile(r"\s*#\s*include\b")
 
 
 def _files(root: Path) -> list[Path]:
@@ -110,11 +122,14 @@ def scan(text: str) -> list[tuple[int, str]]:
     []
     >>> scan("int nearest, farther, INPUT;")
     []
+    >>> scan("#include <far/x.h>")
+    []
     """
     code = LITERAL.sub('""', strip_comments(text))
     return [
         (i, m.group(1))
         for i, line in enumerate(code.splitlines(), 1)
+        if not INCLUDE.match(line)  # a <header-name> is never expanded
         for m in TOKEN.finditer(line)
     ]
 
@@ -125,11 +140,18 @@ def _exempt(root: Path) -> set[tuple[str, str]]:
     if not path.exists():
         return set()
     pairs = set()
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for n, raw in enumerate(lines, 1):
         line = raw.strip()
-        if line and not line.startswith("#"):
-            rel, name = line.split()
-            pairs.add((rel, name))
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split()
+        if len(fields) != 2 or fields[1] not in WINDOWS_MACROS:
+            sys.exit(
+                f'{EXEMPT}:{n}: expected "<file> <name>" with a name from '
+                f"WINDOWS_MACROS, got {line!r}"
+            )
+        pairs.add((fields[0], fields[1]))
     return pairs
 
 

@@ -18,11 +18,15 @@ lock assertion with nothing pointing at the level. wfmgen already defines unit
 transmit power and an Es/N0 mode; the hand-rolled generator is what made the
 level expressible-but-unstated.
 
-Four signatures, each with a canonical primitive that already exists:
+Five signatures under four markers, each with a canonical primitive that
+already exists:
 
   pulse      a private raised-cosine / RRC  ->  dp_wfm_synth_set_rrc, rrc_taps
   level      normalising a generated stream by its PEAK  ->  Synth(level=,
              snr=, snr_mode=), dp_wfm_snr_over_fs, dp_wfm_source_create_snr
+  level      (C only) a hand per-component `/ sqrt(2)` on the unit-power
+             `dp_cgauss`  ->  doppler's awgn at dp_awgn_amplitude_for_snr,
+             or the composer's snr/snr_mode
   offset     a loop residual as a bare cycles/sample number  ->
              freq_offset_inside_bw / clock_offset_inside_bw in Python,
              dp_test_freq_offset_inside_bw in C (native/tests/dp_sym_test.h)
@@ -39,6 +43,15 @@ loud, so the same literal was a 4x harder question at 8PSK than at BPSK.
 
 This scans only the TEST, VALIDATION and EXAMPLE layers. The library itself is
 the sanctioned home -- `wfm_synth_core.c` implementing an RRC is the point.
+
+Third measured cost (doppler#689): `dp_cgauss` already has `E|z|^2 = 1`,
+0.5 per component (dp_rng_test.h says so in as many words). Nine DSSS
+noise sites scaled it by `sigma / sqrt(2.0)` as if it were unit variance
+PER component, so every capture carried 3.01 dB less noise than its
+`cn0_dbhz` label. The second `sqrt(2)` is the defect, and its spelling is
+narrow enough to gate: the per-component `/ sqrt(2)` or `M_SQRT1_2`
+multiplying a `dp_cgauss` draw on the same statement. A literal-scaled
+draw, or `M_SQRT1_2` mixing two values with no draw in sight, is not it.
 
 Deliberately NOT gated here, and the omission is the design: hand-rolled
 Gaussian noise (`standard_normal`, Box-Muller) hits 72 files, most of them
@@ -61,25 +74,39 @@ Python cannot reach `data_ended`; its consumers check the power they claim.
 **The allowlist is a RATCHET. It may only shrink.** A new occurrence fails the
 gate. Removing one means deleting its line, which the failure message shows.
 
-Usage:  python3 scripts/check_stimulus_sources.py
+Usage:  python3 scripts/check_stimulus_sources.py [--root DIR]
 Exit 0 when the set of occurrences matches the allowlist exactly.
 """
 
 from __future__ import annotations
 
+import argparse
 import ast
 import re
 import sys
+from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
-ALLOW = Path(__file__).parent / ".stimulus-sources-allow"
+#: The ratchet, relative to the root the gate scans.
+ALLOW = "scripts/.stimulus-sources-allow"
 
 #: Only the layers that CONSUME the library. `native/src` and `native/inc`
 #: are where the canonical implementations live.
 SCAN_DIRS = ("native/tests", "native/validation", "src/doppler")
 
 SUFFIXES = (".c", ".h", ".py")
+
+#: The C layers that consume the library: the scope of the `once` rule and
+#: of the C noise-level signature. Benchmarks and examples render stimulus
+#: too, so they are in it, where the Python-shaped markers never looked.
+C_DIRS = (
+    "native/tests",
+    "native/validation",
+    "native/benchmarks",
+    "native/examples",
+)
 
 #: marker -> (pattern, what to call instead)
 MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
@@ -216,6 +243,59 @@ CANONICAL: dict[str, set[str]] = {
 }
 
 
+class Signature(NamedTuple):
+    """One pattern the gate reports, under a marker, over a scope.
+
+    A marker names the CONVENTION being invented (`level`, `pulse`, ...)
+    and keys the allowlist; a signature is one spelling of it. `level` has
+    two, because a level is invented in two ways that share nothing but the
+    name: normalising a stream by its peak (Python), and scaling a
+    unit-power noise draw as if it were unit variance per component (C).
+    Each carries its own `instead`, so the refusal names the primitive for
+    the spelling it caught.
+    """
+
+    marker: str
+    pattern: re.Pattern[str]
+    instead: str
+    dirs: tuple[str, ...] = SCAN_DIRS
+    suffixes: tuple[str, ...] = SUFFIXES
+
+
+#: The noise LEVEL invented by hand (doppler#689). `dp_cgauss` is unit
+#: power, `E|z|^2 = 1` with 0.5 per component; `sigma / sqrt(2.0) *
+#: dp_cgauss(...)` treats it as unit variance per component and so delivers
+#: half the noise power the `sigma` beside it states -- 3.01 dB, on nine
+#: sites, every one of them labelled with a C/N0 it did not have.
+#:
+#: Narrow on purpose: the `/ sqrt(2)` or `M_SQRT1_2` must sit on the SAME
+#: statement as, and ahead of, a `* dp_cgauss(` call. A draw scaled by a
+#: literal (`0.3f * dp_cgauss`) states its own level, and `M_SQRT1_2 * b`
+#: mixing two values with no draw is arithmetic, not noise; neither fires.
+NOISE_LEVEL = re.compile(
+    r"(?:/\s*sqrt\s*\(\s*2(?:\.0*)?\s*\)|\bM_SQRT1_2\b)[^;]*"
+    r"\*\s*dp_cgauss\s*\("
+)
+
+#: Every signature the gate scans for: the four markers above over the
+#: consuming layers, plus the C noise level over the C layers.
+SIGNATURES: tuple[Signature, ...] = (
+    *(Signature(m, rx, why) for m, (rx, why) in MARKERS.items()),
+    Signature(
+        "level",
+        NOISE_LEVEL,
+        "do not scale dp_cgauss by hand -- it is already unit power "
+        "(E|z|^2 = 1, 0.5 per component), so a per-component / sqrt(2) "
+        "halves the noise the sigma beside it states (doppler#689). Call "
+        "doppler's awgn at the level dp_awgn_amplitude_for_snr() gives "
+        "(awgn_core.h) in C, or set the composer's snr/snr_mode on the "
+        "source.",
+        C_DIRS,
+        (".c", ".h"),
+    ),
+)
+
+
 def delegating_defs(src: str) -> set[tuple[str, int]]:
     """`(marker, def-lineno)` for every function that reaches the library.
 
@@ -323,17 +403,28 @@ def signature_default_lines(src: str) -> set[int]:
     return lines
 
 
-def occurrences() -> list[tuple[str, str, int, str]]:
-    """Every (marker, file, line-no, line) in the consuming layers."""
-    found: list[tuple[str, str, int, str]] = []
-    for d in SCAN_DIRS:
-        base = ROOT / d
+def occurrences(root: Path = ROOT) -> list[tuple[str, str, int, str, str]]:
+    """Every (marker, file, line-no, line, instead) in the consuming layers.
+
+    Each file is read against the signatures whose scope holds it: the
+    Python-shaped markers over `SCAN_DIRS`, the C noise level over `C_DIRS`.
+    """
+    found: list[tuple[str, str, int, str, str]] = []
+    for d in sorted({d for sig in SIGNATURES for d in sig.dirs}):
+        base = root / d
         if not base.exists():
             continue
         for path in sorted(base.rglob("*")):
-            if path.suffix not in SUFFIXES or "__pycache__" in path.parts:
+            if "__pycache__" in path.parts:
                 continue
-            rel = path.relative_to(ROOT).as_posix()
+            sigs = [
+                sig
+                for sig in SIGNATURES
+                if d in sig.dirs and path.suffix in sig.suffixes
+            ]
+            if not sigs:
+                continue
+            rel = path.relative_to(root).as_posix()
             text = path.read_text(errors="replace")
             delegating = (
                 delegating_defs(text) if path.suffix == ".py" else set()
@@ -354,26 +445,22 @@ def occurrences() -> list[tuple[str, str, int, str]]:
                 stripped = line.lstrip()
                 if stripped.startswith(("*", "//", "#", "/*")):
                     continue
-                for marker, (rx, _) in MARKERS.items():
-                    if not rx.search(line):
+                for sig in sigs:
+                    marker = sig.marker
+                    if not sig.pattern.search(line):
                         continue
                     if (marker, n) in delegating:
                         continue
                     if marker == "offset" and n in sig_defaults:
                         continue
-                    found.append((marker, rel, n, line.strip()))
+                    found.append((marker, rel, n, line.strip(), sig.instead))
     return found
 
 
 #: The C layers that hand a synth a pattern: the `once` rule's scope. The
 #: synth's own unit tests are in it too -- they test the latch, so they
 #: name `data_ended` already.
-ONCE_DIRS = (
-    "native/tests",
-    "native/validation",
-    "native/benchmarks",
-    "native/examples",
-)
+ONCE_DIRS = C_DIRS
 
 #: A CALL that hands the synth a finite pattern, or the data mode that
 #: carries one. A bare symbol in a binding table (`(jm_any_fn)dp_...,`) is
@@ -384,7 +471,7 @@ ONCE_SETS = re.compile(
 ONCE_CHECK = re.compile(r"\bdp_wfm_synth_data_ended\s*\(")
 
 
-def unchecked_patterns() -> list[tuple[str, int, str]]:
+def unchecked_patterns(root: Path = ROOT) -> list[tuple[str, int, str]]:
     """Every C file that sets a finite pattern and never asks if it ended.
 
     Returns the FIRST setting line of each such file, as (file, line-no,
@@ -392,7 +479,7 @@ def unchecked_patterns() -> list[tuple[str, int, str]]:
     """
     bad: list[tuple[str, int, str]] = []
     for d in ONCE_DIRS:
-        base = ROOT / d
+        base = root / d
         if not base.exists():
             continue
         for path in sorted(base.rglob("*")):
@@ -408,21 +495,29 @@ def unchecked_patterns() -> list[tuple[str, int, str]]:
             sets = [(n, ln) for n, ln in code if ONCE_SETS.search(ln)]
             if sets and not any(ONCE_CHECK.search(ln) for _, ln in code):
                 n, ln = sets[0]
-                bad.append((path.relative_to(ROOT).as_posix(), n, ln.strip()))
+                bad.append((path.relative_to(root).as_posix(), n, ln.strip()))
     return bad
 
 
-def load_allow() -> dict[str, str]:
-    """Allowed `marker::file::snippet` keys mapped to their stated reason."""
-    allowed: dict[str, str] = {}
-    if not ALLOW.exists():
+def load_allow(root: Path = ROOT) -> Counter[str]:
+    """How many times each `marker::file::snippet` key is allowed.
+
+    A key is a line's TEXT, so two identical lines in one file share it.
+    Counting the entries, one per site, is what stops a third copy of an
+    allowlisted line riding in on the first two's entry: three identical
+    noise draws in one test file are three sites, and the ratchet has to see
+    a fourth.
+    """
+    allowed: Counter[str] = Counter()
+    path = root / ALLOW
+    if not path.exists():
         return allowed
-    for raw in ALLOW.read_text().splitlines():
+    for raw in path.read_text().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        key, _, reason = line.partition("|")
-        allowed[key.strip()] = reason.strip()
+        key, _, _reason = line.partition("|")
+        allowed[key.strip()] += 1
     return allowed
 
 
@@ -432,7 +527,16 @@ def key_for(marker: str, rel: str, line: str) -> str:
 
 
 def main() -> int:
-    unchecked = unchecked_patterns()
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument(
+        "--root",
+        type=Path,
+        default=ROOT,
+        help="tree to scan; its allowlist is <root>/" + ALLOW,
+    )
+    root = ap.parse_args().root.resolve()
+
+    unchecked = unchecked_patterns(root)
     if unchecked:
         print(
             "FAIL: a finite pattern with no check that it covered the run.\n"
@@ -447,18 +551,19 @@ def main() -> int:
             print(f"  [once] {rel}:{n}\n      {line}\n")
         return 1
 
-    found = occurrences()
-    allowed = load_allow()
+    found = occurrences(root)
+    allowed = load_allow(root)
 
-    seen: set[str] = set()
-    new: list[tuple[str, str, int, str]] = []
-    for marker, rel, n, line in found:
+    seen: Counter[str] = Counter()
+    new: list[tuple[str, str, int, str, str]] = []
+    for marker, rel, n, line, instead in found:
         k = key_for(marker, rel, line)
-        seen.add(k)
-        if k not in allowed:
-            new.append((marker, rel, n, line))
+        seen[k] += 1
+        if seen[k] > allowed[k]:
+            new.append((marker, rel, n, line, instead))
 
-    stale = sorted(set(allowed) - seen)
+    # An entry per site: more entries than sites is a site that went away.
+    stale = sorted((allowed - seen).elements())
 
     if new:
         print(
@@ -469,13 +574,13 @@ def main() -> int:
             "copy invents a CONVENTION -- a level, a window, a scale -- and\n"
             "the convention is what goes wrong silently.\n"
         )
-        for marker, rel, n, line in new:
+        for marker, rel, n, line, instead in new:
             print(f"  [{marker}] {rel}:{n}\n      {line}")
-            print(f"      -> {MARKERS[marker][1]}\n")
-        m0, r0, _, l0 = new[0]
+            print(f"      -> {instead}\n")
+        m0, r0, _, l0, _ = new[0]
         print(
             "If this genuinely cannot go through the library, add it to\n"
-            f"  {ALLOW.relative_to(ROOT)}\n"
+            f"  {ALLOW}\n"
             "with a reason, in the form:\n"
             f"  {key_for(m0, r0, l0)} | why the library cannot express this"
         )
@@ -491,7 +596,10 @@ def main() -> int:
             print(f"  {k}")
         return 1
 
-    by_marker = {m: sum(1 for f in found if f[0] == m) for m in MARKERS}
+    by_marker = {
+        m: sum(1 for f in found if f[0] == m)
+        for m in dict.fromkeys(sig.marker for sig in SIGNATURES)
+    }
     detail = ", ".join(f"{m} {c}" for m, c in by_marker.items())
     print(
         f"stimulus-sources gate: OK -- {len(found)} occurrence(s) "

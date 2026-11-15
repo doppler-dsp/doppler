@@ -4,6 +4,7 @@
  *        header claim (async_dsss_pool_core.h), and each test's sabotage
  *        named in its comment.
  */
+#include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
@@ -13,6 +14,7 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -228,6 +230,96 @@ _test_two_emitters_two_holders (void)
   DP_CHECK (emitted[0] > 0 && emitted[1] > 0);
   DP_CHECK (emitted[2] == 0);
   dp_async_dsss_pool_destroy (p);
+  free (x);
+  return 0;
+}
+
+/* A period that is not a whole number of samples (#3063). The two emitters
+   are taken to `ratio` times the design rate, so a code period is
+   2046 * ratio samples. The live chain runs whole periods of tsamps samples
+   and carries the remainder, so a holder's Dll stands up to a period behind
+   the stream; its reported chip_phase must still be the phase at the
+   stream's next sample, the one the search's picks are carried to, or the
+   exclusions miss and the held emitters come back as seeds. So: a second
+   receiver fed the same pushes as a search-only receiver with no
+   exclusions, whose every pick is a held emitter, must land within the
+   one-chip key of a holder after the push that found it; and over the run
+   no duplicate is released and both emitters track. Sabotage: report the
+   Dll's own phase in tracking (the defect) -> every pick sits ~50 chips
+   (at 2.2 a chip) from its holder, and the pool releases duplicates. */
+static int
+_test_fractional_period_phase (double ratio)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                    n;
+  float _Complex           *x  = _two_emitters (code, &n);
+  const size_t              ny = (size_t)ceil ((double)n * ratio) + 64;
+  float _Complex           *y  = malloc (ny * sizeof *y);
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (ratio, 0);
+  DP_REQUIRE (x && y && rc);
+  const size_t                m  = dp_RateConverter_execute (rc, x, n, y, ny);
+  const double                fs = POOL_FS * ratio;
+  dp_async_dsss_pool_state_t *p  = dp_async_dsss_pool_create (
+      code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1);
+  dp_async_dsss_receiver_state_t *q = dp_async_dsss_receiver_create (
+      code, 1023, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+  DP_REQUIRE (p && q);
+  (void)dp_async_dsss_receiver_set_search_only (q, 2);
+  const size_t blk   = (size_t)ceil (1023.0 * POOL_SPC * ratio);
+  size_t       picks = 0, matched = 0, q_fed = 0;
+  double       worst = 0.0;
+  for (size_t pos = 0; pos < m; pos += blk)
+    {
+      const size_t len = m - pos < blk ? m - pos : blk;
+      (void)dp_async_dsss_pool_push (p, y + pos, len);
+      /* The searcher gets what the pool's receivers got: the pool holds a
+         partial period back (carry_len), and a holder's phase is at the
+         sample after the ones it was fed. */
+      const size_t fed = pos + len - p->carry_len;
+      float _Complex none[1];
+      (void)dp_async_dsss_receiver_steps (q, y + q_fed, fed - q_fed, none, 0);
+      q_fed = fed;
+      double ph[ASYNC_DSSS_RX_MAX_PEAKS], dop[ASYNC_DSSS_RX_MAX_PEAKS],
+          cn0[ASYNC_DSSS_RX_MAX_PEAKS];
+      const size_t k = dp_async_dsss_receiver_take_picks (
+          q, ph, dop, cn0, ASYNC_DSSS_RX_MAX_PEAKS);
+      async_dsss_receiver_status_t st[3];
+      size_t                       tracking = 0;
+      for (size_t i = 0; i < 3; i++)
+        {
+          st[i] = dp_async_dsss_pool_status (p, i);
+          tracking += st[i].state == ASYNC_DSSS_RX_TRACKING;
+        }
+      if (tracking < 2)
+        continue;
+      for (size_t j = 0; j < k; j++)
+        {
+          double d = 1023.0;
+          for (size_t i = 0; i < 3; i++)
+            if (st[i].state == ASYNC_DSSS_RX_TRACKING)
+              d = fmin (d, _chip_dist (ph[j], st[i].chip_phase, 1023.0));
+          worst = fmax (worst, d);
+          picks++;
+          matched += d <= 1.0;
+        }
+    }
+  DP_CHECK_MSG (picks > 0, "the searcher picked a held emitter");
+  DP_CHECK_MSG (matched == picks, "every pick within a chip of its holder");
+  if (matched != picks)
+    printf ("  ratio %.3f: %zu of %zu picks within a chip; worst %.2f\n",
+            ratio, matched, picks, worst);
+  size_t held = 0;
+  for (size_t i = 0; i < 3; i++)
+    held += dp_async_dsss_pool_status (p, i).state == ASYNC_DSSS_RX_TRACKING;
+  DP_CHECK_MSG (held == 2, "both emitters track");
+  DP_CHECK (p->released_duplicate == 0);
+  dp_async_dsss_receiver_destroy (q);
+  dp_async_dsss_pool_destroy (p);
+  dp_RateConverter_destroy (rc);
+  free (y);
   free (x);
   return 0;
 }
@@ -1112,6 +1204,8 @@ main (void)
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);
+  DP_CHECK (_test_fractional_period_phase (1.1) == 0);
+  DP_CHECK (_test_fractional_period_phase (1.05) == 0);
   DP_CHECK (_test_threads_change_nothing () == 0);
   DP_CHECK (_test_state_round_trip () == 0);
   DP_CHECK (_test_chunk_invariance () == 0);

@@ -1103,15 +1103,6 @@ _acq_tile_alias_fanned_check (void)
             else if (h[k].col == lag_b)
               got_b = fabs (f - fb) <= res2;
           }
-        if (!(got_a && got_b))
-          {
-            fprintf (stderr, "q=%d fa=%.0f fb=%.0f:", q, fa, fb);
-            for (size_t k = 0; k < nh; k++)
-              fprintf (stderr, " (%zu,%zu %.0f %.1f)", h[k].row, h[k].col,
-                       dp_correlator_bin_doppler_hz (two, h[k].row),
-                       (double)h[k].test_stat);
-            fprintf (stderr, "\n");
-          }
         DP_CHECK (got_a && got_b);
       }
     dp_correlator_destroy (two);

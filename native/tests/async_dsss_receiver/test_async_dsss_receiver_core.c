@@ -1756,6 +1756,73 @@ _test_configure_chain_raw_keeps_the_carrier (void)
   return 0;
 }
 
+/* doppler#3063: configure_chain_raw() on a tracking receiver whose chain is
+ * carrying part of a period re-seeds from the phase at the stream's next
+ * sample. The live chain runs whole periods and holds the rest; the rebuild
+ * drops what it held, so the new chain's first sample is the stream's next,
+ * and the phase the rebuild starts from must be that sample's, not the old
+ * Dll's (the phase of the first held sample). Fed in odd-sized blocks so the
+ * carry is not 0 at the rebuild (asserted), the phase read before and after
+ * the rebuild is the same, and the chain stays locked and decodes after it.
+ * Sabotage: re-seed from dp_dll_get_code_phase() -> the phase jumps by the
+ * carry, which the equality trips (here the jump is a few chips of a
+ * 7-chip code, inside the Dll's pull-in, so lock alone would not show
+ * it). */
+static int
+_test_configure_chain_raw_keeps_the_phase (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs       = 1.0e6 * (double)spc;
+  const double sym_rate = 35714.29;
+  const double tsym     = fs / sym_rate;
+  const size_t te       = sf * spc;
+  const size_t n_sym    = 2000;
+  const size_t pre      = te * 5 + 3;
+  const double cn0      = 70.0;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 2000.0, cn0, n_sym, pre, 7, &x,
+                   &n, &data);
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, sf, 1.0e6, sym_rate, fs, 2, cn0, 1e-2, 0.9, 20000.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0);
+  DP_REQUIRE (rx != NULL);
+  /* 13-sample blocks: never a whole period (28), so the chain carries. */
+  size_t          half = n / 2;
+  float _Complex *syms;
+  (void)_stream (rx, x, half, 13, &syms);
+  free (syms);
+  while (rx->car_carry_len == 0 && half < n)
+    {
+      float _Complex none[1];
+      (void)dp_async_dsss_receiver_steps (rx, x + half, 1, none, 0);
+      half++;
+    }
+  DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+  DP_CHECK (rx->car_carry_len > 0);
+  const double before = dp_async_dsss_receiver_get_chip_phase (rx);
+  DP_CHECK (dp_async_dsss_receiver_configure_chain_raw (
+                rx, 4, 8, (int)dp_async_dsss_receiver_get_n (rx))
+            == 0);
+  DP_CHECK (rx->car_carry_len == 0);
+  DP_CHECK_MSG (fabs (dp_async_dsss_receiver_get_chip_phase (rx) - before)
+                    < 1e-9,
+                "the rebuild starts from the stream's next sample's phase");
+  size_t n_syms = _stream (rx, x + half, n - half, 13, &syms);
+  DP_CHECK (n_syms > 100);
+  DP_CHECK (dp_async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+  DP_CHECK (dp_test_evm_db_hard (syms + n_syms / 2, n_syms - n_syms / 2)
+            < -5.0);
+  free (syms);
+  dp_async_dsss_receiver_destroy (rx);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* doppler#2395: the call in which the refine decides stops folding code
  * periods into the refine at the decision. The rest of that call is the
  * tracking chain's (steps() hands it the tail), so folding it into the
@@ -5064,6 +5131,7 @@ main (void)
   (void)_test_reacquire_is_symbol_lock_alone ();
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
+  (void)_test_configure_chain_raw_keeps_the_phase ();
   (void)_test_refine_stops_at_its_decision ();
   (void)_test_refine_min_blocks_travels ();
   (void)_test_a_handoff_that_never_locks_is_released ();

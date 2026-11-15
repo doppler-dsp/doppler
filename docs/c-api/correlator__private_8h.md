@@ -93,6 +93,9 @@ _The correlator's detection layer: the ring, the noise estimate, the one peak pi
 |  int | [**search\_rate\_better**](#function-search_rate_better) (size\_t h, float stat, float best) <br>_Does hypothesis_ `h's` _statistic_`stat` _replace the best so far,_`best` _? The rule the rate search picks its winner by._ |
 |  size\_t | [**search\_rate\_count\_at**](#function-search_rate_count_at) (size\_t rate\_hyps, size\_t D) <br> |
 |  size\_t | [**search\_resolve\_tile\_alias**](#function-search_resolve_tile_alias) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* st, size\_t row, size\_t col) <br> |
+|  int | [**search\_tile\_alias\_applies**](#function-search_tile_alias_applies) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* st) <br> |
+|  size\_t | [**search\_tile\_alias\_pick**](#function-search_tile_alias_pick) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* st, size\_t row, const double pw) <br> |
+|  double | [**search\_tile\_alias\_power**](#function-search_tile_alias_power) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* st, size\_t row, size\_t col, long h) <br> |
 
 
 
@@ -746,6 +749,56 @@ static inline size_t search_resolve_tile_alias (
     const dp_correlator_state_t * st,
     size_t row,
     size_t col
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function search\_tile\_alias\_applies 
+
+```C++
+static inline int search_tile_alias_applies (
+    const dp_correlator_state_t * st
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function search\_tile\_alias\_pick 
+
+```C++
+static inline size_t search_tile_alias_pick (
+    const dp_correlator_state_t * st,
+    size_t row,
+    const double pw
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function search\_tile\_alias\_power 
+
+```C++
+static inline double search_tile_alias_power (
+    const dp_correlator_state_t * st,
+    size_t row,
+    size_t col,
+    long h
 ) 
 ```
 

@@ -33,8 +33,9 @@ TEST = "native/tests/a/test_a_core.c"
 
 #: The defect as found in native/tests/dp_dsss_test.h.
 DRAW = "x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);"
-#: Its allowlist key: marker, path, the line with whitespace normalised.
-KEY = f"level::{TEST}::{DRAW}"
+#: Its allowlist key: marker, path, the STATEMENT (no `;`) with whitespace
+#: normalised.
+KEY = f"level::{TEST}::{DRAW.rstrip(';')}"
 
 
 def _run(tmp_path: Path, body: str, rel: str = TEST, allow: str = ""):
@@ -75,11 +76,27 @@ def test_the_689_draw_fails_and_names_the_call_instead(tmp_path: Path):
 
 
 def test_every_spelling_of_the_second_sqrt2_fails(tmp_path: Path) -> None:
-    """``sqrt (2)``, ``sqrt(2.0)``, ``+=`` and ``M_SQRT1_2`` are one defect."""
+    """Every spelling of 1/sqrt(2), in any order, is one defect.
+
+    The adversary review of #3086 found each of these passing the first,
+    line-wise cut of the gate: float spellings, ``M_SQRT2`` as a divisor, a
+    cast between the factor and the draw, the draw written first, the
+    factor trailing, sqrt(1/2) as a factor, and the constant written out.
+    """
     for line in (
         "x[i] += (float complex) (sd / sqrt (2)) * dp_cgauss (&nst);",
         "y = sigma/sqrt(2.0)*dp_cgauss(&st);",
         "y = (float _Complex) (M_SQRT1_2 * sigma) * dp_cgauss (&st);",
+        "y = (sigma / sqrtf (2.0f)) * dp_cgauss (&st);",
+        "y = (sigma / sqrt (2.0f)) * dp_cgauss (&st);",
+        "y = (sigma / M_SQRT2) * dp_cgauss (&st);",
+        "y = (sigma / (float) sqrt (2)) * dp_cgauss (&st);",
+        "y = (sigma / sqrt (2.0)) * (double _Complex) dp_cgauss (&st);",
+        "y = dp_cgauss (&st) * sigma / sqrt (2.0);",
+        "y = sigma * dp_cgauss (&st) / sqrt (2.0);",
+        "y = sigma * sqrt (0.5) * dp_cgauss (&st);",
+        "y = 0.70710678 * sigma * dp_cgauss (&st);",
+        "y = sigma / 1.41421356 * dp_cgauss (&st);",
     ):
         r = _run(tmp_path, _fn(line))
         assert r.returncode == 1, line + "\n" + r.stdout
@@ -96,6 +113,29 @@ def test_a_continuation_line_is_still_the_draw(tmp_path: Path) -> None:
     assert r.returncode == 1, r.stdout
 
 
+def test_a_wrap_before_the_product_is_still_the_draw(tmp_path: Path):
+    """GNU clang-format breaks a long product BEFORE its ``*``, so the
+    continuation line starts with ``*`` -- which a line-wise scan skipped as
+    comment prose, and then called the allowlist entry stale."""
+    body = _fn(
+        "x[i] = (float _Complex) (sigma / sqrt (2.0))",
+        "       * dp_cgauss (&st);",
+    )
+    r = _run(tmp_path, body)
+    assert r.returncode == 1, r.stdout
+    assert f"[level] {TEST}:4" in r.stdout
+
+
+def test_a_macro_is_read_whole(tmp_path: Path) -> None:
+    """A ``#define`` (with a continuation) is one statement, not skipped."""
+    body = (
+        "#define NOISE(s, st) \\\n  ((s) / sqrt (2.0) * dp_cgauss (st))\n"
+    ) + _fn("double a = 1.0;")
+    r = _run(tmp_path, body)
+    assert r.returncode == 1, r.stdout
+    assert f"[level] {TEST}:1" in r.stdout
+
+
 def test_a_benchmark_or_an_example_is_in_scope(tmp_path: Path) -> None:
     for rel in ("native/benchmarks/b.c", "native/examples/e.c"):
         r = _run(tmp_path / rel.split("/")[1], _fn(DRAW), rel=rel)
@@ -110,6 +150,13 @@ def test_what_is_not_the_defect_passes(tmp_path: Path) -> None:
         (_fn("x[i] = (float _Complex) sigma * dp_cgauss (&st);"), TEST),
         (_fn("double c = M_SQRT1_2 * b;"), TEST),
         (_fn("double c = a / sqrt (2.0) * b;"), TEST),
+        # sqrt(2) as a MULTIPLIER is a different, louder scaling with real
+        # uses: test_detection_core.c builds a real Gaussian this way.
+        (
+            _fn("v = M_SQRT2 * creal ((double _Complex) dp_cgauss (&st));"),
+            TEST,
+        ),
+        (_fn("v = sqrt (2.0) * creal (dp_cgauss (&st));"), TEST),
         (
             _fn(
                 "double s = sigma / sqrt (2.0);", "x = s; y = dp_cgauss (&st);"

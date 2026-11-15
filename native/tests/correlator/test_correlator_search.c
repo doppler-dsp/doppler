@@ -404,7 +404,7 @@ _acq_band_edge_check (void)
  * engine -- pfa_cell is the Sidak split over exactly the mask's in-band
  * cells, which is more than the native ones wherever the surface is
  * interpolated. An exact equality: the engine counts the band by formula
- * (acq_band_cells), this counts the mask cell by cell, so a drift either
+ * (search_band_cells), this counts the mask cell by cell, so a drift either
  * way is red. */
 static int
 _acq_pfa_split_check (void)

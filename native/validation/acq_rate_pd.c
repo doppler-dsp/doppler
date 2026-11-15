@@ -404,7 +404,7 @@ measure_pfa (size_t rh, double cn0, double dwells_wanted, uint32_t seed,
    odds say which draw CI runs, not how often a run flakes; on that draw the
    #2218 sabotage turns 1 and 3 red. The exact guards for #2218 are the C pin
    (test_correlator_search.c's _acq_pfa_split_check) and `make
-   lint-acq-pfa-split`, which holds every pricing site to acq_band_cells().
+   lint-acq-pfa-split`, which holds every pricing site to search_band_cells().
 
    Each row is its own engine, noise and seed, so the rows run in parallel
    and their counts do not depend on the schedule; the heaviest go first.

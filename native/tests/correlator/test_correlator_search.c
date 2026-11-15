@@ -1046,12 +1046,16 @@ _acq_tile_alias_fanned_check (void)
   /* Several picks a dwell, or the fan had nothing to spread. */
   DP_CHECK (picks > 36);
 
-  /* Each pick its own hypotheses: two emitters in one dwell, at different
-     tile edges and code phases, each must be listed within a bin of its
-     own tone. A fan that handed every pick the first pick's powers (or
-     indexed the picks wrong) moves the second one a tile; the single-tone
-     sweeps above, which read only hit[0], cannot see that. CODE31, so the
-     two separate in code phase as CODE7's seven chips cannot. */
+  /* Each pick its own hypotheses: two emitters in one dwell, each found at
+     its own code phase within a bin of its own tone. A (the stronger, so
+     the first pick) sits just past the +0.5 tile edge, where its raw pick
+     is one tile low at every q and only the alias check moves it back; B
+     sits just past the -0.5 edge, where its raw pick is already right at
+     every q. A fan that hands a pick another pick's powers (pw + 3 * i) or
+     another pick's row or column (k / 3) hops B with A, at every q; with
+     the check off, A stays a tile low at every q. Matching by column as
+     well as row keeps a sidelobe landing on a tone from standing in. On
+     CODE31, as CODE7's seven chips cannot hold two emitters apart. */
   {
     const size_t           sf2 = 31, nx2 = sf2 * spc;
     const double           span2   = crate / (2.0 * (double)sf2);
@@ -1064,11 +1068,12 @@ _acq_tile_alias_fanned_check (void)
     DP_REQUIRE (dp_correlator_set_threads (two, 4) == DP_OK);
     DP_REQUIRE (dp_correlator_set_max_peaks (two, 8, NULL) == DP_OK);
     const double res2  = two->search->doppler_res_hz;
-    const size_t lag_b = 7 * spc; /* B seven chips late */
+    const size_t lag_b = 7 * spc;              /* B seven chips late */
+    DP_REQUIRE (two->search->lag_bins == nx2); /* a column is a sample */
     for (int q = -4; q <= 4; q++)
       {
         const double    fa  = (0.5 + 0.005 * (double)q) * native2;
-        const double    fb  = (-1.5 - 0.005 * (double)q) * native2;
+        const double    fb  = (-0.5 + 0.005 * (double)q) * native2;
         const size_t    len = 6 * two->search->coherent_bins * nx2;
         float _Complex *x   = malloc (len * sizeof *x);
         DP_REQUIRE (x != NULL);
@@ -1087,12 +1092,16 @@ _acq_tile_alias_fanned_check (void)
         const size_t        nh = dp_correlator_push (two, x, len, h, 8);
         free (x);
         DP_REQUIRE (nh >= 2);
+        /* Each emitter's own pick: the hit at its column (A at lag 0, B
+           at lag_b), whose row must be its own tone's. */
         int got_a = 0, got_b = 0;
         for (size_t k = 0; k < nh; k++)
           {
             const double f = dp_correlator_bin_doppler_hz (two, h[k].row);
-            got_a |= fabs (f - fa) <= res2;
-            got_b |= fabs (f - fb) <= res2;
+            if (h[k].col == 0)
+              got_a = fabs (f - fa) <= res2;
+            else if (h[k].col == lag_b)
+              got_b = fabs (f - fb) <= res2;
           }
         if (!(got_a && got_b))
           {

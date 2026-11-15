@@ -62,8 +62,9 @@ level: `make_signal` sets unit average power of signal plus noise, which at
   change spanning a marker that was not detected. The count is net per
   bracket: a slip that goes and comes back inside one 256-symbol block, or
   inside one idle run, is not seen. *unaligned* counts markers that missed
-  the false-alarm gate; where it is in the thousands the loop has lost the
-  stream and the slip count is a floor, not a count.
+  the false-alarm gate even after a wide search. A row whose counter never
+  re-acquires the stream reads "lost from frame N" with the counts before
+  it, and no SER or loss: past that frame there is nothing to count.
 - *SER* and its exact interval, scored block by block under the alignment
   the block before it gave, only where the two agree (`measure`), and
   stopped on an error count. *loss* is
@@ -97,7 +98,11 @@ import numpy as np
 from doppler.ber import BerMeter, ber_esn0_db_for_ser, ber_settle_syms
 from doppler.telemetry import Telemetry
 from doppler.track import RateSync
-from doppler.track.tests._frame_slips import Marker, frame_slips
+from doppler.track.tests._frame_slips import (
+    Marker,
+    frame_slips,
+    lost_from,
+)
 from doppler.track.tests._mpsk_rx_harness import (
     clock_offset_inside_bw,
     make_signal,
@@ -325,6 +330,7 @@ class Row:
     slips_gap: int
     slips_data: int
     slips_other: int
+    lost_from: int | None
     ser: object
     loss_db: float
     lock_in_gap: float
@@ -410,6 +416,7 @@ def measure(stream: Stream, y, probes, *, rate, ted, bn, level, clipped):
         slips_gap=gap_sl,
         slips_data=data_sl,
         slips_other=other_sl,
+        lost_from=lost_from(fs),
         ser=ser,
         loss_db=ESN0_DB - ber_esn0_db_for_ser(M, ser.lo),
         lock_in_gap=float(np.mean(lock_gap)),
@@ -481,6 +488,17 @@ def table_row(r: Row) -> str:
     s = r.ser
     clip = " clipped" if r.clipped else ""
     unal = f", {r.unaligned} unaligned" if r.unaligned else ""
+    if r.lost_from is not None:
+        # Counts after the loss are not counts, and a SER over the frames
+        # before it is not the row's: print neither as though it were.
+        return (
+            f"| {r.rate} | {GAP_SYMBOLS[r.rate]} | {r.ted} | {r.bn:g} "
+            f"| {r.level:g}x{clip} "
+            f"| lost from frame {r.lost_from}: {r.slips_gap} / "
+            f"{r.slips_data} / {r.slips_other} before it{unal} "
+            f"| — | — | {100 * r.lock_in_gap:.0f}% "
+            f"| {r.stat_gap:+.2f} / {r.stat_data:+.2f} |"
+        )
     return (
         f"| {r.rate} | {GAP_SYMBOLS[r.rate]} | {r.ted} | {r.bn:g} "
         f"| {r.level:g}x{clip} "

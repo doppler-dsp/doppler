@@ -20,7 +20,7 @@ and 751, both rates, 300 frames), so none rests on a chosen seed:
   least five times as often as the DTTL.
 
 The full run's DTTL-against-Gardner count IN the gap is not pinned: it
-reads 80 against 47 at 3000 sym/s and 65 against 62 at 7000, and in the
+reads 81 against 47 at 3000 sym/s and 65 against 62 at 7000, and in the
 scratch check the DTTL had more in 12 of 18 runs. That is not a result.
 
 **What it does not cover.** The other rows, and whether the counts hold at

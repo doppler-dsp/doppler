@@ -382,8 +382,9 @@ Not ruled by the owner, and not decided here:
 1. **Case L's excess loss at large residual**: about twice the partial's
     sinc² at 2 to 3 kHz, with the Dll's lock flag falling while the
     symbols decode (§4.3).
-1. **Symbol slips at `segments` 8**: one seed slipped in every case L
-    scene, static included, while the M-PSK loop held lock (§4.3).
+1. **Symbol slips at `segments` 8** in the prototype
+    ([#3095](https://github.com/doppler-dsp/doppler/issues/3095)): not
+    yet reproduced on the receiver as built.
 1. **What must hold at the floor**: the allowed loss against the BPSK bound,
     and how soon after arrival the receiver must be decoding.
 1. **Whether the link resolves half-cycle flips** (differential coding, or
@@ -1393,7 +1394,7 @@ What each part was measured to do, one at a time:
 | the refine's dwell                     | ages the estimate by 0.12 s, 48 Hz at 400 Hz/s: a race the M-PSK loop loses at 3 dB; without it, 79 of 80 case L ramp runs carried                                                                      |
 | the M-PSK loop's `bn`                  | at 0.010, no case L sweep or ramp carries (0 of 40 at 3 and 5 dB, at any steer time constant); 0.020 carries 19 and 39 of 40, 0.033 carries 38 and 40; case H carries at 0.010                          |
 | energy against the residual            | case H loses the partial's sinc², 0.55 dB at 3 kHz; case L loses about twice that, 1.10 dB at 3 kHz and 3 dB, and its Dll lock flag falls to 0.40 and 0.11 at 2 to 3 kHz while the symbols still decode |
-| `segments` 8 (case L)                  | about halves case L's excess at large residual, but not to the shorter partial's sinc²; one seed slips symbols in every scene                                                                           |
+| `segments` 8 (case L)                  | about halves case L's excess at large residual, but not to the shorter partial's sinc²; one seed slips symbols in every scene (#3095)                                                                   |
 | the steer, and its time constant       | not needed (above); 0.25 s is too fast; 2 s and 4 s carry alike                                                                                                                                         |
 | gating the steer on lock               | no gain; alone, it loses runs                                                                                                                                                                           |
 | the DTTL against Gardner               | no difference                                                                                                                                                                                           |
@@ -1492,7 +1493,8 @@ point get the derivation's floor, 0.010, and keep 20 dB.
 
 `K` is not a new knob: it is the existing `segments`, default 4. At 8 it
 about halves case L's excess loss at large residual (§4.3). It also slipped
-symbols on one seed in every scene, which is not diagnosed.
+symbols on one seed in every scene, in the prototype only so far
+([#3095](https://github.com/doppler-dsp/doppler/issues/3095)).
 
 Not knobs: the steer (not needed), the timing detector (no difference
 measured) and gating on lock (no gain).

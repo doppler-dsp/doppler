@@ -305,6 +305,14 @@ NOISE_LEVEL = re.compile(
 )
 
 
+#: A type name as a cast spells it: C's arithmetic keywords and qualifiers,
+#: or a `_t` typedef, with any pointer stars.
+_CTYPE = (
+    r"(?:(?:const|volatile|unsigned|signed|short|long|int|char|float"
+    r"|double|_Complex|complex|_Bool|bool|\w+_t)\s*\**\s*)+"
+)
+
+
 def top_terms(stmt: str) -> list[str]:
     """Split a statement at `+`, `-` and `=` outside every bracket.
 
@@ -314,7 +322,11 @@ def top_terms(stmt: str) -> list[str]:
 
     Only a BINARY `+`/`-` splits: one that follows an operand (an
     identifier, a number, `)` or `]`). A unary sign (`* -dp_cgauss`), an
-    exponent's sign (`1e-3`), `->`, `++` and `--` stay inside the term.
+    exponent's sign (`1e-3`), `->`, `++` and `--` stay inside the term,
+    and so does a sign after a CAST (`(float _Complex) -dp_cgauss`): a
+    `)` closing a group that is only a type name is not an operand. A hex
+    float's exponent (`0x1p-3`) is not recognised and would split; no such
+    literal is in the tree.
     """
     terms: list[str] = []
     cur: list[str] = []
@@ -326,7 +338,8 @@ def top_terms(stmt: str) -> list[str]:
             prev[-1].isalnum() or prev[-1] in "_)]"
         )
         exponent = re.search(r"(?<![\w.])(?:\d+\.?\d*|\.\d+)[eE]$", prev)
-        binary = after_operand and not exponent
+        cast = re.search(rf"\(\s*{_CTYPE}\s*\)$", prev)
+        binary = after_operand and not exponent and not cast
         # `->`, and the first half of `++`/`--` (the second follows no
         # operand, so is never binary).
         sign = c in "+-" and binary and stmt[k + 1 : k + 2] not in (">", c)

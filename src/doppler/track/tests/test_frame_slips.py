@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from doppler.track.tests._frame_slips import (
+    TILE_SPAN,
     frame_markers,
     frame_slips,
     lost_from,
@@ -169,3 +170,43 @@ def test_a_capture_that_stops_early_is_not_lost():
     fs = frame_slips(sym[: ends[1] + 600], truth, sync, ends)
     assert lost_from(fs) is None
     assert _counts(fs) == [(0, 0, 0)] * 3
+
+
+def _noise(n: int, seed: int = 5) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    return (1 - 2.0 * rng.integers(0, 2, n)).astype(np.complex64)
+
+
+@pytest.mark.parametrize("jump", [TILE_SPAN + 77, 3000])
+def test_a_jump_past_the_meters_own_span_is_still_refound(jump):
+    """`BerMeter.align` narrows any span to `TILE_SPAN`; the counter tiles.
+
+    A jump just past the meter's limit, and one three tiles out, must both
+    be re-found and counted, not read as lost.
+    """
+    truth, sync, ends, sym = _stream(4)
+    cut = ends[0] + 50
+    rx = np.r_[sym[:cut], _noise(jump), sym[cut:]].astype(np.complex64)
+    fs = frame_slips(rx, truth, sync, ends)
+    assert lost_from(fs) is None
+    assert sum(f.gap + f.data + f.other for f in fs) == jump
+
+
+def test_a_jump_past_reacquire_span_reads_as_lost():
+    """The other side of the limit: further than asked is lost, not small."""
+    truth, sync, ends, sym = _stream(5)
+    cut = ends[0] + 50
+    rx = np.r_[sym[:cut], _noise(5000), sym[cut:]].astype(np.complex64)
+    fs = frame_slips(rx, truth, sync, ends, reacquire_span=4096)
+    assert lost_from(fs) == 1
+
+
+def test_a_miss_in_the_last_frame_is_unresolved_not_lost():
+    """No later frame head to search: the stream was not shown lost."""
+    truth, sync, ends, sym = _stream(3)
+    # The capture runs on past the last frame, so the misses are well
+    # inside it: only the absence of a later frame head spares them.
+    rx = np.r_[sym[: sync[2] + 600], _noise(sym.size - sync[2] + 5400)]
+    fs = frame_slips(rx.astype(np.complex64), truth, sync, ends)
+    assert lost_from(fs) is None
+    assert fs[2].lags[0] == 0 and fs[2].lags[-1] is None

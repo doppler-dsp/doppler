@@ -12,11 +12,11 @@ not in the measurement. A second implementation of it would be a second
 convention, and this repo has paid for that four times over.
 
 **Why it is worth measuring at all.** The gate is a maximum over the
-Doppler-INTERPOLATED surface, and `acq_commit_thresholds()` prices it with a
-Sidak split over the cells that maximum ranges over (`acq_band_cells()` in
+Doppler-INTERPOLATED surface, and `search_commit_thresholds()` prices it with a
+Sidak split over the cells that maximum ranges over (`search_band_cells()` in
 `native/src/correlator/correlator_core.c`: every searched row of the
 interpolated surface,
-times `code_bins`, times the rate hypotheses). That is the one definition;
+times `lag_bins`, times the rate hypotheses). That is the one definition;
 this module only measures what it delivers.
 
 Until doppler#2218 the split counted the NATIVE cells, with no term for

@@ -292,7 +292,7 @@ per epoch at $D = 1$).
 
 **False-alarm split.** The system false-alarm probability $P_{fa}$ is split
 over the $M$ cells the peak search ranges over (Šidák, `dp_det_pfa_cell()`,
-`acq_band_cells()`):
+`search_band_cells()`):
 
 $$p_c = 1 - (1 - P_{fa})^{1/M}$$
 
@@ -861,8 +861,8 @@ property of the surface's correlation, not of its grid; then
 realized / target $\approx N_{\text{eff}}(I) / N_{\text{eff}}(1)$.
 
 **The shipped bound.** The split is over the cells the maximum ranges over:
-`acq_band_cells()`, every searched row of the interpolated surface times
-`code_bins`, times the rate hypotheses, the one count every site that
+`search_band_cells()`, every searched row of the interpolated surface times
+`lag_bins`, times the rate hypotheses, the one count every site that
 prices a gate uses (#2218). The band is searched to its edge at every
 depth, so every counted row is searched (#1183). Counting each
 interpolated row as an independent look over-counts by what its
@@ -898,7 +898,7 @@ $n$ = 3, 5 and 9 (#2287).
 
 - `test_correlator_search.c` pins `pfa_cell` to the band mask's in-band cell count
     on every grid shape, and `make lint-acq-pfa-split` holds every
-    `dp_det_pfa_cell` call under `native/src/correlator/` to `acq_band_cells`.
+    `dp_det_pfa_cell` call under `native/src/correlator/` to `search_band_cells`.
 - The certification measures the delivered rate against the target
     (finding `pfa_over_delivered`, FIXED) and holds it with a shrink-only ratchet, 1.4× over
     60,000 frames: a backstop that an on-target detector trips about 0.1% of

@@ -530,7 +530,7 @@ typedef struct dp_correlator_search
   double pfa_cell;  /**< Sidak per-cell false-alarm probability, split
                          over the cells a dwell's maximum ranges over:
                          the in-band rows of the interpolated surface,
-                         times code_bins, times the rate hypotheses.  */
+                         times lag_bins, times the rate hypotheses.   */
   double pd;        /**< Target detection probability.                    */
   double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen
                              grid of ONE dwell lying wholly inside the

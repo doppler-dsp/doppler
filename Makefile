@@ -510,7 +510,7 @@ LINT_dup-include = $(UV) run python scripts/check_dup_includes.py
 
 # The acquisition engine prices a gate at three sites, and only the commit
 # site has an exact pin (test_correlator_search.c). Each must split pfa over the one
-# count, acq_band_cells(): a hand count of the native cells re-inlined at
+# count, search_band_cells(): a hand count of the native cells re-inlined at
 # the sizer or the non-coherent ascend fired the engine at about twice its
 # pfa and passed every test (doppler#2218).
 LINT_acq-pfa-split = $(UV) run python scripts/check_acq_pfa_split.py

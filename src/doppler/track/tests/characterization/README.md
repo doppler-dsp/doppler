@@ -80,7 +80,7 @@ it slipped 705 to 746 symbols and lost 1.04 to 1.74 dB between them. The
 DTTL's goes as `A^1`: 1 to 4 slips at half, about 300 at twice, three
 quarters of them in the idle run.
 `RateSync`'s default bandwidth, 0.01, is too wide for this floor with
-either detector: 530 to 640 slips in 1000 frames at the contracted level.
+either detector: 534 to 643 slips in 1000 frames at the contracted level.
 
 **At the receiver's bandwidth and the contracted level, the detectors tie on
 SER and differ on where they slip.**

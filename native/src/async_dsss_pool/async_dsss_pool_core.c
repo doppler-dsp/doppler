@@ -192,16 +192,12 @@ holds (int state)
   return state == ASYNC_DSSS_RX_REFINING || state == ASYNC_DSSS_RX_TRACKING;
 }
 
-/* Within one chip, circularly on the code: the receivers' own exclusion
-   zone (dp_async_dsss_receiver_set_exclusions()), so a duplicate here is
-   exactly a phase a search would have excluded. */
+/* The receivers' own key (dp__adsss_same_code_phase()), so a duplicate here
+   is exactly a phase a search would have excluded. */
 static int
 same_phase (double a, double b, double code_len)
 {
-  double d = fabs (a - b);
-  if (d > code_len / 2.0)
-    d = code_len - d;
-  return d <= 1.0;
+  return dp__adsss_same_code_phase (a, b, code_len);
 }
 
 /* Whether holder `i` keeps the signal over holder `j`: tracking over

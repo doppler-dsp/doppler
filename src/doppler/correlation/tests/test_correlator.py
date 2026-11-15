@@ -211,6 +211,7 @@ _CALLS = {
     ),
     "push": lambda c: c.push(np.ones(64, np.complex64)),
     "set_max_peaks": lambda c: c.set_max_peaks(2),
+    "set_peak_zone": lambda c: c.set_peak_zone(1, 1.0),
     "configure_search_raw": lambda c: c.configure_search_raw(1, 1),
     "set_threads": lambda c: c.set_threads(1),
     "set_carrier_freq_hz": lambda c: c.set_carrier_freq_hz(2.5e9),
@@ -484,6 +485,16 @@ _CAUSES = [
         lambda c: c.set_max_peaks(65),
         "burst",
         "set_max_peaks: n must lie in 1..64 (DP_CORRELATOR_MAX_PEAKS)",
+    ),
+    (
+        lambda c: c.set_peak_zone(2, 1.0),
+        "burst",
+        "set_peak_zone: all_doppler must be 0 or 1 and half_chips finite",
+    ),
+    (
+        lambda c: c.set_peak_zone(1, float("nan")),
+        "continuous",
+        "set_peak_zone: all_doppler must be 0 or 1 and half_chips finite",
     ),
     (
         lambda c: c.set_telemetry(_tlm_full(), "acq"),

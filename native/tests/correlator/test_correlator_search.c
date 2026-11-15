@@ -3685,6 +3685,147 @@ _search_flavor_cross_load_check (void)
   return 0;
 }
 
+/* dp_correlator_set_peak_zone() (doppler#3067). A burst engine on a deep
+ * block (D = 16) fed a strong pure-code preamble 0.37 bin off a row: the
+ * emitter's slow-time sidelobes clear the gate on rows either side of its
+ * own, at its lag. Never set, the zone is one native row, so the raw list
+ * holds the emitter's lag more than once in a dwell; set to its default
+ * explicitly, the list is identical, peak for peak; with the whole-Doppler
+ * zone at one chip, no two listed peaks sit within that chip. Sabotage:
+ * the default zone covering every row -> the first check red. */
+static int
+_test_peak_zone (void)
+{
+  const size_t           spc = 4, reps = 16, n = 31 * spc;
+  dp_correlator_state_t *a[3];
+  for (int k = 0; k < 3; k++)
+    {
+      a[k] = burst_from_code (CODE31, 31, reps, spc, 1.0e6, 70.0, 0.0, 1e-3,
+                              0.9, 0, 0.0);
+      DP_REQUIRE (a[k] != NULL);
+      DP_REQUIRE (dp_correlator_configure_search_raw (a[k], reps, 1, NULL)
+                  == 0);
+      DP_REQUIRE (dp_correlator_set_max_peaks (a[k], 16, NULL) == 0);
+    }
+  DP_REQUIRE (dp_correlator_set_peak_zone (a[1], 0, 0.0, NULL) == 0);
+  /* A burst engine's sf is its template's samples, so its "chip" is a
+     sample: one chip of this code is spc of them. */
+  DP_REQUIRE (a[0]->search->sf == n);
+  DP_REQUIRE (dp_correlator_set_peak_zone (a[2], 1, (double)spc, NULL) == 0);
+  /* The preamble, repeated, 0.37 bin off, plus a little noise. */
+  float _Complex *pre = dp_code_preamble (CODE31, 31, spc);
+  const size_t    len = n * reps * 3;
+  float _Complex *x   = malloc (len * sizeof *x);
+  DP_REQUIRE (pre && x);
+  const double f  = 0.37 / (double)(n * reps); /* cycles a sample */
+  uint32_t     st = 12345u;
+  for (size_t i = 0; i < len; i++)
+    {
+      const double ph = 2.0 * M_PI * f * (double)i;
+      x[i]            = pre[i % n] * (float _Complex) (cos (ph) + I * sin (ph))
+                        + 0.03f * dp_cgauss (&st);
+    }
+  dp_correlator_hit_t hits[64];
+  for (int k = 0; k < 3; k++)
+    (void)dp_correlator_push (a[k], x, len, hits, 64);
+  const size_t nx = a[0]->search->lag_bins;
+  /* Never set: a lag listed twice. */
+  int repeat = 0;
+  for (size_t i = 0; i < a[0]->n_peaks; i++)
+    for (size_t j = i + 1; j < a[0]->n_peaks; j++)
+      repeat |= a[0]->peaks[i].col == a[0]->peaks[j].col;
+  DP_CHECK_MSG (a[0]->n_peaks > 1 && repeat,
+                "the default zone lets an emitter's lag be listed again");
+  /* The default, set explicitly: the same list. */
+  int same = a[0]->n_peaks == a[1]->n_peaks;
+  for (size_t i = 0; same && i < a[0]->n_peaks; i++)
+    same = a[0]->peaks[i].row == a[1]->peaks[i].row
+           && a[0]->peaks[i].col == a[1]->peaks[i].col
+           && a[0]->peaks[i].value == a[1]->peaks[i].value;
+  DP_CHECK_MSG (same, "the default, set explicitly, lists the same peaks");
+  /* The whole-Doppler zone: no two peaks within a chip (spc columns at
+     lag_bins == code_bins). */
+  int close = 0;
+  for (size_t i = 0; i < a[2]->n_peaks; i++)
+    for (size_t j = i + 1; j < a[2]->n_peaks; j++)
+      {
+        const size_t c1 = a[2]->peaks[i].col, c2 = a[2]->peaks[j].col;
+        size_t       d = c1 > c2 ? c1 - c2 : c2 - c1;
+        d              = d < nx - d ? d : nx - d;
+        close |= d <= spc;
+      }
+  DP_CHECK_MSG (a[2]->n_peaks >= 1 && !close,
+                "the whole-Doppler zone lists an emitter once");
+  /* On the burst search sf is the template's samples, so half_chips is a
+     width in samples: at 3, the working mask covers the first peak's lag
+     +/- 3 samples (lag_bins == code_bins: a column a sample) in its row,
+     and not +/- 4. */
+  dp_correlator_state_t *w = burst_from_code (CODE31, 31, reps, spc, 1.0e6,
+                                              70.0, 0.0, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (w != NULL && w->search->lag_bins == w->search->code_bins);
+  DP_REQUIRE (dp_correlator_configure_search_raw (w, reps, 1, NULL) == 0);
+  /* Two peaks: the list marks the first one's zone before seeking the
+     second (with one it stops first and marks nothing). */
+  DP_REQUIRE (dp_correlator_set_max_peaks (w, 2, NULL) == 0);
+  DP_REQUIRE (dp_correlator_set_peak_zone (w, 1, 3.0, NULL) == 0);
+  (void)dp_correlator_push (w, x, len, hits, 64);
+  /* The first peak's zone is marked once it is listed (n_peaks < 2 then);
+     a second, if one clears the gate, must lie clear of c0 +/- 4 so its
+     own zone cannot mark those columns. */
+  DP_REQUIRE (w->n_peaks >= 1);
+  {
+    const size_t c0 = w->peaks[0].col, r0 = w->peaks[0].row;
+    if (w->n_peaks == 2)
+      {
+        const size_t c1 = w->peaks[1].col;
+        const size_t d1 = c1 > c0 ? c1 - c0 : c0 - c1;
+        DP_REQUIRE ((d1 < nx - d1 ? d1 : nx - d1) > 8);
+      }
+    const uint8_t *m = w->peak_mask + r0 * nx;
+    DP_CHECK_MSG (m[(c0 + 3) % nx] && m[(c0 + nx - 3) % nx],
+                  "half_chips 3 masks 3 samples either side on a burst");
+    DP_CHECK_MSG (!m[(c0 + 4) % nx] && !m[(c0 + nx - 4) % nx],
+                  "and not 4: a burst's chip is a sample");
+  }
+  dp_correlator_destroy (w);
+  /* The zone is a mutator's value (#2022): it travels in the blob and a
+     restore applies it; a clobbered flag or a NaN width is refused, the
+     engine untouched. */
+  {
+    dp_correlator_state_t *src = a[2], *dst = a[0];
+    const size_t           sb = dp_correlator_state_bytes (src);
+    DP_REQUIRE (sb == dp_correlator_state_bytes (dst));
+    unsigned char *blob = malloc (sb), *bad = malloc (sb);
+    DP_REQUIRE (blob && bad);
+    dp_correlator_get_state (src, blob);
+    DP_CHECK (dp_correlator_set_state (dst, blob) == DP_OK);
+    DP_CHECK (dst->zone_all_doppler == 1
+              && dst->zone_half_chips == (double)spc);
+    const size_t   at_flag = DP_CORRELATOR_SEARCH_EXTRA_OFF
+                             + offsetof (search_extra_t, zone_all_doppler);
+    const size_t   at_half = DP_CORRELATOR_SEARCH_EXTRA_OFF
+                             + offsetof (search_extra_t, zone_half_chips);
+    const uint32_t two     = 2;
+    const double   nan     = NAN;
+    DP_REQUIRE (dp_correlator_set_peak_zone (dst, 0, 0.0, NULL) == 0);
+    memcpy (bad, blob, sb);
+    memcpy (bad + at_flag, &two, sizeof two);
+    DP_CHECK (dp_correlator_set_state (dst, bad) == DP_ERR_INVALID);
+    memcpy (bad, blob, sb);
+    memcpy (bad + at_half, &nan, sizeof nan);
+    DP_CHECK (dp_correlator_set_state (dst, bad) == DP_ERR_INVALID);
+    DP_CHECK_MSG (dst->zone_all_doppler == 0 && dst->zone_half_chips == 0.0,
+                  "a refused blob leaves the zone as it was");
+    free (blob);
+    free (bad);
+  }
+  for (int k = 0; k < 3; k++)
+    dp_correlator_destroy (a[k]);
+  free (pre);
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -4065,6 +4206,7 @@ main (void)
   (void)_acq_band_mask_check ();
   (void)_acq_pfa_split_check ();
   (void)_acq_searched_bins_boundary_check ();
+  (void)_test_peak_zone ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coherent_center_check ();
   (void)_acq_wideband_default_depth_check ();

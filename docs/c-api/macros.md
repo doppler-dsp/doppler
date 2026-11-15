@@ -183,6 +183,7 @@
 * **DP\_CORRELATOR\_MAX\_PEAKS** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_N\_NONCOH\_SAFETY\_CEILING** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_RATE\_HYPS\_MAX** ([**correlator\_core.h**](correlator__core_8h.md))
+* **DP\_CORRELATOR\_SAME\_PHASE\_CHIPS** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_SIDELOBE\_DOPPLER\_PTS** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_SIDELOBE\_LAG\_PTS** ([**correlator\_core.h**](correlator__core_8h.md))
 * **DP\_CORRELATOR\_SIDELOBE\_SLOTS** ([**correlator\_core.h**](correlator__core_8h.md))

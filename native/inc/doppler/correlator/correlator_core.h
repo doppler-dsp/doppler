@@ -771,6 +771,12 @@ typedef struct {
   size_t      max_peaks; /**< Peak-list capacity per dwell (1 = the maximum
                               only); dp_correlator_set_max_peaks().      */
   det_peak_t *peaks;     /**< max_peaks: the last dwell's picks.         */
+  int    zone_all_doppler; /**< dp_correlator_set_peak_zone(): 1 = a listed
+                                peak's zone covers every Doppler bin of
+                                every roll; 0 = one native row (default). */
+  double zone_half_chips;  /**< ... and its half-width in chips across the
+                                lags; <= 0 = the template's mainlobe
+                                (shape.zone, the default).              */
   uint8_t    *band_mask; /**< n_surf; 1 = outside the searched band.     */
   uint8_t    *peak_mask; /**< n_surf; the working mask.                  */
   uint32_t   *twin_row;  /**< max_peaks: last dwell's picks, native rows. */
@@ -2083,8 +2089,9 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
 /** @brief State-blob magic ('CORL'); set_state() rejects any other. */
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
 /** @brief State-blob layout version; set_state() rejects any other. 2: the
- *  search's extra block carries keep_surface (#2022). */
-#define CORRELATOR_STATE_VERSION 2u
+ *  search's extra block carries keep_surface (#2022); 3: and the peak zone
+ *  (dp_correlator_set_peak_zone(), doppler#3067). */
+#define CORRELATOR_STATE_VERSION 3u
 /**
  * @brief Size in bytes of this correlator's state blob.
  * @param state  Must be non-NULL.
@@ -2331,6 +2338,12 @@ int dp_correlator_state_check (const dp_correlator_state_t *state,
  *  push result arrays (1024) are at least this many, so one dwell can
  *  always be reported whole. */
 #define DP_CORRELATOR_MAX_PEAKS 64u
+
+/** Two code phases closer than this many chips, circularly, are one signal:
+ *  the receiver's pick (rules 1 and 3, docs/design/async-dsss-receiver.md
+ *  §7.2), the pool's duplicate test, and the peak zone the receiver asks its
+ *  search for (dp_correlator_set_peak_zone()) all read this one value. */
+#define DP_CORRELATOR_SAME_PHASE_CHIPS 1.0
 
 
 /** Most Doppler-rate hypotheses an engine searches. Each one costs a full
@@ -2947,6 +2960,63 @@ int dp_correlator_configure_search_raw (dp_correlator_state_t *state, size_t dop
  * @endcode
  */
 int dp_correlator_set_max_peaks (dp_correlator_state_t *state, size_t n, const char **why);
+
+/**
+ * @brief The exclusion zone each listed peak marks before the next is
+ *        sought: how far it reaches along Doppler and along the lags.
+ *
+ * By default a listed peak masks one native Doppler row (its `interp`
+ * surface rows either side) by the template's correlation mainlobe across
+ * the lags (`shape.zone`), so the next peak may sit at the same lag in
+ * another Doppler row: a second emitter at that code phase, or the first
+ * one's own slow-time sidelobes, its alias in a neighbouring roll, or the
+ * spread its data puts on its own lag inside a coherent dwell. One strong
+ * emitter can then take every slot of the list with its own lag, and a
+ * weaker one elsewhere is never listed (doppler#3067).
+ *
+ * `all_doppler` = 1 makes the zone cover every Doppler bin of every roll
+ * at the peak's lags, so an emitter is listed once a dwell, at its
+ * strongest cell. `half_chips` > 0 sets the zone's half-width across the
+ * lags in the search's chips: the most whole lag columns within it,
+ * floor(half_chips * lag_bins / sf), so the zone is never wider than asked
+ * (sf is a code's chips a period on the continuous search; on the burst
+ * search it is the template's samples, so a "chip" there is a sample);
+ * <= 0 keeps the mainlobe's. The receiver asks for
+ * (1, DP_CORRELATOR_SAME_PHASE_CHIPS / 2), half the width its pick treats
+ * as one signal (§7.2 rule 1): the zone is a lag, and with a carrier set
+ * the pick's key carries each hit on by its own Doppler's dilation, off the
+ * lag grid, so only a zone inside the key never masks what the pick
+ * keeps. A half_chips under one lag column (0.5 chip below two lag columns
+ * a chip) marks the peak's own lag alone. A caller that never calls this
+ * gets today's list exactly. The two-epoch twin rule (async-dsss-receiver.md
+ * §7.1) keeps the mainlobe's width whatever this sets, so a peak past a
+ * narrower zone but inside the mainlobe -- an emitter's shoulder off the
+ * lag grid -- is still held a dwell as a twin.
+ *
+ * Both values are mutators' (#2022): they travel in the state blob and a
+ * restore applies them.
+ *
+ * @param state        Must be non-NULL.
+ * @param all_doppler  1 = every Doppler bin of every roll; 0 = one row.
+ * @param half_chips   Half-width across the lags, chips; <= 0 = the
+ *                     template's mainlobe. Finite.
+ * @param why          Where the refusal's sentence goes; may be NULL. A
+ *                     static string, never freed.
+ * @return 0; DP_ERR_UNSUPPORTED off a search (only a search lists peaks);
+ *         DP_ERR_INVALID (state untouched) when @p all_doppler is not 0 or
+ *         1 or @p half_chips is not finite.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.correlation import Correlator
+ * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+ * >>> ref = np.where(code & 1, -1, 1).astype(np.complex64)
+ * >>> a = Correlator(ref, framing="continuous", sample_rate=2e6, chip_rate=1e6, symbol_rate=1e3,
+ * ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
+ * >>> a.set_max_peaks(8)
+ * >>> a.set_peak_zone(1, 1.0)
+ * @endcode
+ */
+int dp_correlator_set_peak_zone (dp_correlator_state_t *state, int all_doppler, double half_chips, const char **why);
 
 /**
  * @brief Couple the code clock to the carrier: the chip rate dilates by

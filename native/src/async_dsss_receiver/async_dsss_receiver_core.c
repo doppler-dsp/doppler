@@ -1002,18 +1002,13 @@ adr_align_skip (dp_async_dsss_receiver_state_t *s, size_t x_len)
   return (size_t)owed;
 }
 
-/* One signal's code phase, within a chip, circularly over the code: the
- * zone a tracked signal holds and a peak's neighbouring cells share
- * (design async-dsss-receiver.md §7.2; keyed on code phase alone, never
- * carrier, async-dsss-receiver-measurements.md §12.14). */
+/* One signal's code phase: the one key, dp__adsss_same_code_phase()
+ * (async_dsss_receiver_private.h), which the pool's duplicate test calls
+ * too. */
 static int
 adr_same_code_phase (double a, double b, size_t code_len)
 {
-  double       d  = fabs (a - b);
-  const double cl = (double)code_len;
-  if (d > cl / 2.0)
-    d = cl - d;
-  return d <= 1.0;
+  return dp__adsss_same_code_phase (a, b, (double)code_len);
 }
 
 /* A dwell's peak list, strongest first, to the one this receiver takes.
@@ -1312,6 +1307,20 @@ dp_async_dsss_receiver_create (
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
   (void)dp_correlator_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS, NULL);
+  /* One emitter, one listed peak: a zone over every Doppler bin of every
+     roll, so a strong emitter's own lag -- its slow-time sidelobes, its
+     roll aliases, its data's spread inside a coherent dwell -- cannot take
+     the list's slots from a weaker one elsewhere (doppler#3067), and the
+     zone removes only what the pick drops anyway (doppler#3060). Half the
+     pick's key wide, not the whole key: the zone is a lag, and with a
+     carrier set the key carries each hit's code phase on by its own
+     Doppler's dilation, off the lag grid, so a zone as wide as the key
+     masks pairs two lags apart that the key keeps -- for several dwells
+     when their Dopplers are close (#3071, measured at +/- 2 kHz). Half the
+     key keeps the zone inside it; an emitter off the grid by half a lag
+     then shows its shoulder once a dwell, which the bench does not see. */
+  (void)dp_correlator_set_peak_zone (
+      obj->acq, 1, DP_CORRELATOR_SAME_PHASE_CHIPS / 2.0, NULL);
   /* A deep block bounds rule 2 with the code's worst sidelobe as a floor
      (adr_sidelobe_bound()), which the searcher computes on the first read.
      Read it here, so that sweep is this create's cost and never a stall

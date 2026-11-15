@@ -2284,6 +2284,63 @@ CorrelatorObj_set_max_peaks (CorrelatorObject *self, PyObject *args,
 }
 
 static PyObject *
+CorrelatorObj_set_peak_zone (CorrelatorObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "all_doppler", "half_chips", NULL };
+  int          all_doppler = 0;
+  double       half_chips  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "id", _kwlist, &all_doppler,
+                                    &half_chips))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int _rc = dp_correlator_set_peak_zone (self->handle, all_doppler, half_chips,
+                                         &_why);
+  if (_rc != 0)
+    {
+      switch (_rc)
+        {
+        case DP_ERR_UNSUPPORTED:
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "set_peak_zone: only a search "
+                             "(framing='continuous' or 'burst') lists "
+                             "peaks; Correlator.flavor says which this is");
+          return NULL;
+        case DP_ERR_INVALID:
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_SetString (PyExc_ValueError,
+                             "set_peak_zone: all_doppler must be 0 or 1 and "
+                             "half_chips finite");
+          return NULL;
+        default:
+          break;
+        }
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_peak_zone failed",
+                      (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 CorrelatorObj_set_carrier_freq_hz (CorrelatorObject *self, PyObject *args,
                                    PyObject *kwds)
 {
@@ -5684,6 +5741,80 @@ static PyMethodDef CorrelatorObj_methods[] = {
     ">>> a.set_max_peaks(8)\n"
     ">>> a.max_peaks\n"
     "8\n" },
+  { "set_peak_zone", (PyCFunction)(void *)CorrelatorObj_set_peak_zone,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_peak_zone(all_doppler, half_chips) -> None\n"
+    "\n"
+    "The exclusion zone each listed peak marks before the next is sought:\n"
+    "how far it reaches along Doppler and along the lags.\n"
+    "\n"
+    "By default a listed peak masks one native Doppler row (its `interp`\n"
+    "surface rows either side) by the template's correlation mainlobe across\n"
+    "the lags (`shape.zone`), so the next peak may sit at the same lag in\n"
+    "another Doppler row: a second emitter at that code phase, or the first\n"
+    "one's own slow-time sidelobes, its alias in a neighbouring roll, or the\n"
+    "spread its data puts on its own lag inside a coherent dwell. One strong\n"
+    "emitter can then take every slot of the list with its own lag, and a\n"
+    "weaker one elsewhere is never listed (doppler#3067).\n"
+    "\n"
+    "`all_doppler` = 1 makes the zone cover every Doppler bin of every roll\n"
+    "at the peak's lags, so an emitter is listed once a dwell, at its\n"
+    "strongest cell. `half_chips` > 0 sets the zone's half-width across the\n"
+    "lags in the search's chips: the most whole lag columns within it,\n"
+    "floor(half_chips * lag_bins / sf), so the zone is never wider than\n"
+    "asked (sf is a code's chips a period on the continuous search; on the\n"
+    "burst search it is the template's samples, so a \"chip\" there is a\n"
+    "sample); <= 0 keeps the mainlobe's. The receiver asks for (1,\n"
+    "DP_CORRELATOR_SAME_PHASE_CHIPS / 2), half the width its pick treats as\n"
+    "one signal (§7.2 rule 1): the zone is a lag, and with a carrier set the\n"
+    "pick's key carries each hit on by its own Doppler's dilation, off the\n"
+    "lag grid, so only a zone inside the key never masks what the pick\n"
+    "keeps. A half_chips under one lag column (0.5 chip below two lag\n"
+    "columns a chip) marks the peak's own lag alone. A caller that never\n"
+    "calls this gets today's list exactly. The two-epoch twin rule\n"
+    "(async-dsss-receiver.md §7.1) keeps the mainlobe's width whatever this\n"
+    "sets, so a peak past a narrower zone but inside the mainlobe -- an\n"
+    "emitter's shoulder off the lag grid -- is still held a dwell as a twin.\n"
+    "\n"
+    "Both values are mutators' (#2022): they travel in the state blob and a\n"
+    "restore applies them.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "all_doppler : int\n"
+    "    1 = every Doppler bin of every roll; 0 = one row.\n"
+    "half_chips : float\n"
+    "    Half-width across the lags, chips; <= 0 = the template's mainlobe.\n"
+    "    Finite.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns ``DP_ERR_UNSUPPORTED``. The exception message\n"
+    "    is the reason the C call gives, or ``set_peak_zone: only a search\n"
+    "    (framing='continuous' or 'burst') lists peaks; Correlator.flavor\n"
+    "    says which this is`` when it gives none.\n"
+    "ValueError\n"
+    "    If the C call returns ``DP_ERR_INVALID``. The exception message is\n"
+    "    the reason the C call gives, or ``set_peak_zone: all_doppler must\n"
+    "    be 0 or 1 and half_chips finite`` when it gives none.\n"
+    "ValueError\n"
+    "    If the C call returns any other non-zero status. The exception\n"
+    "    message is the reason the C call gives, or ``set_peak_zone\n"
+    "    failed``, with the return code appended (gh-869), when it gives\n"
+    "    none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.correlation import Correlator\n"
+    ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
+    ">>> ref = np.where(code & 1, -1, 1).astype(np.complex64)\n"
+    ">>> a = Correlator(ref, framing=\"continuous\", sample_rate=2e6, "
+    "chip_rate=1e6, symbol_rate=1e3,\n"
+    "...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)\n"
+    ">>> a.set_max_peaks(8)\n"
+    ">>> a.set_peak_zone(1, 1.0)\n" },
   { "set_carrier_freq_hz",
     (PyCFunction)(void *)CorrelatorObj_set_carrier_freq_hz,
     METH_VARARGS | METH_KEYWORDS,

@@ -394,8 +394,9 @@ typedef struct
   uint32_t n_twins;      
   uint32_t blk_epoch; 
   uint32_t rate_hyps; 
-  uint32_t _pad2;     
+  uint32_t zone_all_doppler; 
   double carrier_freq_hz; 
+  double zone_half_chips; 
 } search_extra_t;
 
 #define DP_CORRELATOR_SEARCH_EXTRA_OFF                                       \

@@ -102,6 +102,8 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
 |  float \_Complex \* | [**zcol**](#variable-zcol)  <br> |
 |  float \_Complex \* | [**zcolout**](#variable-zcolout)  <br> |
+|  int | [**zone\_all\_doppler**](#variable-zone_all_doppler)  <br> |
+|  double | [**zone\_half\_chips**](#variable-zone_half_chips)  <br> |
 |  float \_Complex \* | [**ztmp**](#variable-ztmp)  <br> |
 
 
@@ -1327,6 +1329,41 @@ float _Complex* dp_correlator_state_t::zcolout;
 
 
 Column-padded scratch, (ny\_out). General path only. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable zone\_all\_doppler 
+
+```C++
+int dp_correlator_state_t::zone_all_doppler;
+```
+
+
+
+[**dp\_correlator\_set\_peak\_zone()**](correlator__core_8h.md#function-dp_correlator_set_peak_zone): 1 = a listed peak's zone covers every Doppler bin of every roll; 0 = one native row (default). 
+
+
+        
+
+<hr>
+
+
+
+### variable zone\_half\_chips 
+
+```C++
+double dp_correlator_state_t::zone_half_chips;
+```
+
+
+
+... and its half-width in chips across the lags; &lt;= 0 = the template's mainlobe (shape.zone, the default). 
  
 
 

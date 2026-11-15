@@ -7,6 +7,7 @@
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
@@ -349,6 +350,556 @@ _test_fractional_period_phase (double ratio)
   dp_RateConverter_destroy (rc);
   free (y);
   free (x);
+  return 0;
+}
+
+/* Today's peak zone (one native Doppler row by the template's mainlobe) on
+   every searcher a pool owns: its receivers' and its controller's search. */
+static int
+_zone_today (dp_async_dsss_pool_state_t *p)
+{
+  for (size_t i = 0; i < p->n_receivers; i++)
+    DP_REQUIRE (dp_correlator_set_peak_zone (p->rx[i]->acq, 0, 0.0, NULL)
+                == DP_OK);
+  DP_REQUIRE (dp_correlator_set_peak_zone (p->search->acq, 0, 0.0, NULL)
+              == DP_OK);
+  return 0;
+}
+
+/* The pool's outcome with the receivers' whole-Doppler peak zone is
+   today's (#3060): the zone removes only peaks the pick drops (rule 1:
+   within a chip of a stronger one's code phase, at any Doppler), so with
+   two emitters, both listed either way, nothing the pick keeps moves --
+   even on a deep block, where today's list fills on the first dwell with
+   the emitters' own lags (their slow-time sidelobes). Two pools on one
+   stream, one with today's zone, compared push by push over the whole run:
+   every receiver's state, code phase and carrier, its symbols, and the
+   released counts; and both emitters held. Rates: the design's 2 samples a
+   chip and a fractional one (2.2); spans: one roll and several; depth: one
+   epoch, and a deep block inside a code-only window. Where the list fills
+   AND a weaker emitter lies past it, the zone is meant to change the
+   outcome: _test_zone_lists_the_weaker. Sabotage: make the receiver's
+   zone 450 chips wide (it masks B, 400 chips from A) -> runs diverge. */
+static int
+_zone_run (const uint8_t *code, double ratio, double span, int deep,
+           int *compared)
+{
+  const double    tsym = POOL_FS / POOL_RS;
+  float _Complex *a, *b;
+  size_t          na, nb;
+  double         *da, *db;
+  const size_t    w = deep ? 450u : 0u, f = deep ? 500u : 0u;
+  /* The deep runs at the design level (47 dB-Hz): even there a deep block
+     lifts the emitters' own lags (their slow-time sidelobes) over the gate
+     on enough rows to fill today's list, which the run asserts. */
+  const double cn0 = deep ? 47.0 : 50.0;
+  dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, cn0,
+                            deep ? 600 : 300, 1000, 11, w, f, &a, &na, &da);
+  dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, -300.0, 120.0,
+                            deep ? 600 : 300, 200, 12, w, f, &b, &nb, &db);
+  size_t n = na < nb ? na : nb;
+  for (size_t i = 0; i < n; i++)
+    a[i] += (float)M_SQRT1_2 * b[i];
+  free (b);
+  free (da);
+  free (db);
+  float _Complex *x = a;
+  if (ratio != 1.0)
+    {
+      const size_t              cap = (size_t)ceil ((double)n * ratio) + 64;
+      dp_RateConverter_state_t *rc  = dp_RateConverter_create (ratio, 0);
+      x                             = malloc (cap * sizeof *x);
+      DP_REQUIRE (rc && x);
+      n = dp_RateConverter_execute (rc, a, n, x, cap);
+      dp_RateConverter_destroy (rc);
+      free (a);
+    }
+  const double fs = POOL_FS * ratio;
+  const double co = deep ? 450.0 / POOL_RS : 0.0, dr = deep ? 500.0 : 0.0;
+  dp_async_dsss_pool_state_t *pn = dp_async_dsss_pool_create (
+      code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, span, 4, 8, 0,
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1);
+  dp_async_dsss_pool_state_t *po = dp_async_dsss_pool_create (
+      code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, span, 4, 8, 0,
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1);
+  DP_REQUIRE (pn && po);
+  DP_REQUIRE (_zone_today (po) == 0);
+  const size_t blk  = (size_t)ceil (1023.0 * POOL_SPC * ratio);
+  int          same = 1, filled = 0;
+  size_t       pushes = 0;
+  float _Complex sn[4096], so[4096];
+  for (size_t pos = 0; pos < n && same; pos += blk)
+    {
+      const size_t take = n - pos < blk ? n - pos : blk;
+      const size_t hn   = dp_async_dsss_pool_push (pn, x + pos, take);
+      const size_t ho   = dp_async_dsss_pool_push (po, x + pos, take);
+      pushes++;
+      filled |= po->search->acq->n_peaks == po->search->acq->max_peaks;
+      same &= hn == ho;
+      for (size_t i = 0; i < 3; i++)
+        {
+          const async_dsss_receiver_status_t s1
+              = dp_async_dsss_pool_status (pn, i);
+          const async_dsss_receiver_status_t s2
+              = dp_async_dsss_pool_status (po, i);
+          same &= s1.state == s2.state && s1.chip_phase == s2.chip_phase
+                  && s1.doppler_hz == s2.doppler_hz;
+          const size_t k1 = dp_async_dsss_pool_symbols (pn, i, sn, 4096);
+          const size_t k2 = dp_async_dsss_pool_symbols (po, i, so, 4096);
+          same &= k1 == k2 && memcmp (sn, so, k1 * sizeof *sn) == 0;
+        }
+      same &= pn->released_duplicate == po->released_duplicate
+              && pn->released_ghost == po->released_ghost
+              && pn->released_lost == po->released_lost;
+    }
+  /* A run counts when both emitters were held by its end. */
+  const int held
+      = dp_async_dsss_pool_status (po, 0).state == ASYNC_DSSS_RX_TRACKING
+        && dp_async_dsss_pool_status (po, 1).state == ASYNC_DSSS_RX_TRACKING;
+  if (held)
+    (*compared)++;
+  DP_CHECK_MSG (same, "the whole-Doppler zone changed an outcome");
+  /* On the deep block the identity holds where today's list fills. */
+  if (deep)
+    DP_CHECK_MSG (filled, "a deep run filled today's list");
+  if (!same || !held)
+    printf ("  zone identity: ratio %.2f span %.0f deep %d: %s after %zu "
+            "pushes, %s\n",
+            ratio, span, deep, same ? "identical" : "DIVERGED", pushes,
+            held ? "both held" : "not both held when compared");
+  dp_async_dsss_pool_destroy (pn);
+  dp_async_dsss_pool_destroy (po);
+  free (x);
+  return 0;
+}
+
+static int
+_test_zone_keeps_the_outcome (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double ratios[2] = { 1.0, 1.1 };
+  const double spans[2]  = { 500.0, 5000.0 };
+  int          compared = 0, runs = 0;
+  for (int r = 0; r < 2; r++)
+    for (int sp = 0; sp < 2; sp++)
+      for (int deep = 0; deep < 2; deep++)
+        {
+          runs++;
+          (void)_zone_run (code, ratios[r], spans[sp], deep, &compared);
+        }
+  DP_CHECK_MSG (compared == runs, "every run held both emitters");
+  printf ("  zone identity: %d of %d runs compared\n", compared, runs);
+  return 0;
+}
+
+/* Whether a search-only receiver's last decided dwell lists a peak within
+   `half` columns of lag `col` (circularly over `nx`). */
+static int
+_lists_lag (const dp_async_dsss_receiver_state_t *r, size_t col, size_t half)
+{
+  const size_t nx = r->acq->search->lag_bins;
+  for (size_t k = 0; k < r->acq->n_peaks; k++)
+    {
+      const size_t c = r->acq->peaks[k].col;
+      const size_t d = c > col ? c - col : col - c;
+      if ((d < nx - d ? d : nx - d) <= half)
+        return 1;
+    }
+  return 0;
+}
+
+/* The case the zone is for (#3067): a strong emitter S 20 dB above a weak
+   one W, data throughout, on a deep block. S's data spreads it over many
+   Doppler rows of its own lag, each its own peak under today's zone (one
+   row), so its lag takes every slot of the list and W is never listed;
+   with the whole-Doppler zone S is one peak and W is listed. The list, not
+   the acquisition, is asserted: whether W is then taken is §7.2 rule 2's
+   business; that the zone covers every row is read off the working mask.
+   Sabotage, each red: the zone one native row (today's) -> W unlisted;
+   one row short of the whole axis -> a row left unmasked. */
+static int
+_test_zone_lists_the_weaker (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    tsym = POOL_FS / POOL_RS;
+  float _Complex *w, *sg;
+  size_t          nw, ns;
+  double         *dw, *ds;
+  /* W carries the noise at 47 dB-Hz; S is rendered clean and set 20 dB
+     above it, 400 chips and 500 Hz away. */
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, -300.0, 47.0, 200,
+                   1000, 21, &w, &nw, &dw);
+  dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, 300.0, 200, 200,
+                   22, &sg, &ns, &ds);
+  const size_t    n    = nw < ns ? nw : ns;
+  float _Complex *both = malloc (n * sizeof *both);
+  DP_REQUIRE (both);
+  for (size_t i = 0; i < n; i++)
+    both[i] = w[i] + 10.0f * sg[i];
+  /* Three search-only receivers on the deep block: on W alone (where W's
+     lag is), and on S + W with today's zone and with the receiver's. */
+  dp_async_dsss_receiver_state_t *r[3];
+  for (int k = 0; k < 3; k++)
+    {
+      r[k] = dp_async_dsss_receiver_create (
+          code, 1023, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9, 5000.0, 4,
+          8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
+          450.0 / POOL_RS, 500.0);
+      DP_REQUIRE (r[k] != NULL);
+      (void)dp_async_dsss_receiver_set_search_only (r[k], 4);
+    }
+  DP_REQUIRE (dp_correlator_set_peak_zone (r[1]->acq, 0, 0.0, NULL) == DP_OK);
+  DP_REQUIRE (r[0]->acq->search->coherent_bins > 1);
+  size_t       w_col = 0, dwells = 0, old_full = 0, old_w = 0, new_w = 0;
+  int          full_col = 1;
+  const size_t blk      = 1023 * POOL_SPC;
+  for (size_t pos = 0; pos + blk <= n; pos += blk)
+    {
+      uint64_t d0[3];
+      for (int k = 0; k < 3; k++)
+        {
+          d0[k] = r[k]->acq->search->dwells;
+          float _Complex none[1];
+          (void)dp_async_dsss_receiver_steps (r[k], (k ? both : w) + pos, blk,
+                                              none, 0);
+          double ph[16], dp[16], cc[16];
+          (void)dp_async_dsss_receiver_take_picks (r[k], ph, dp, cc, 16);
+        }
+      if (r[0]->acq->search->dwells == d0[0])
+        continue;
+      DP_REQUIRE (r[0]->acq->n_peaks > 0);
+      w_col = r[0]->acq->peaks[0].col;
+      dwells++;
+      old_full += r[1]->acq->n_peaks == r[1]->acq->max_peaks;
+      old_w += _lists_lag (r[1], w_col, 2);
+      new_w += _lists_lag (r[2], w_col, 2);
+      /* The zone covers every Doppler bin of every roll: the first listed
+         peak's lag is masked in every surface row. */
+      const size_t nx   = r[2]->acq->search->lag_bins;
+      const size_t rows = r[2]->acq->search->n_surf / nx;
+      const size_t c0   = r[2]->acq->peaks[0].col;
+      for (size_t row = 0; row < rows; row++)
+        full_col &= r[2]->acq->peak_mask[row * nx + c0] != 0;
+    }
+  DP_CHECK_MSG (full_col, "the zone covers every Doppler row");
+  DP_CHECK_MSG (dwells >= 2, "the run decided dwells to compare");
+  DP_CHECK_MSG (old_full == dwells, "today's list fills on S's lag");
+  DP_CHECK_MSG (old_w == 0, "today's list never lists W");
+  DP_CHECK_MSG (new_w == dwells, "the whole-Doppler zone lists W");
+  if (old_w || new_w != dwells || old_full != dwells)
+    printf ("  zone lists the weaker: %zu dwells; old full %zu, old W %zu, "
+            "new W %zu\n",
+            dwells, old_full, old_w, new_w);
+  for (int k = 0; k < 3; k++)
+    dp_async_dsss_receiver_destroy (r[k]);
+  free (both);
+  free (w);
+  free (sg);
+  free (dw);
+  free (ds);
+  return 0;
+}
+
+/* The first decided dwell that picks both of a same-lag pair, today's zone
+   (`first[0]`) and the receiver's (`first[1]`); B starts `b_pre` samples
+   in (A at 1000). -1 when a run never picks both. */
+static int
+_pair_first_two (const uint8_t *code, size_t b_pre, double half_df,
+                 int first[2])
+{
+  const double    tsym = POOL_FS / POOL_RS, fc = 2.5e9;
+  const size_t    n_sym = 1000;
+  float _Complex *a0, *b0;
+  size_t          na, nb;
+  double         *da, *db;
+  /* Same delay (at b_pre = 1000), no residual: each channel puts its own
+     Doppler on. A carries the noise at 50 dB-Hz; B is clean, 3 dB below.
+     Code-only windows (450 of 500 symbols) for the deep block. */
+  dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 0.0, 50.0,
+                            n_sym, 1000, 31, 450, 500, &a0, &na, &da);
+  dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 0.0, 300.0,
+                            n_sym, b_pre, 32, 450, 500, &b0, &nb, &db);
+  const size_t    n = (na < nb ? na : nb) - 8;
+  float _Complex *x = calloc (n + 64, sizeof *x);
+  float _Complex *y = malloc ((n + 64) * sizeof *y);
+  DP_REQUIRE (x && y);
+  const double    ppm[2] = { half_df / fc * 1e6, -half_df / fc * 1e6 };
+  float _Complex *src[2] = { a0, b0 };
+  for (int k = 0; k < 2; k++)
+    {
+      dp_doppler_channel_state_t *ch
+          = dp_doppler_channel_create (POOL_FS, fc, ppm[k], 0.0);
+      DP_REQUIRE (ch);
+      size_t got = 0;
+      for (size_t o = 0; o < n && got < n; o += 32768)
+        {
+          const size_t m = n - o < 32768 ? n - o : 32768;
+          got += dp_doppler_channel_execute (ch, src[k] + o, m, y + got,
+                                             n + 64 - got);
+        }
+      for (size_t i = 0; i < n && i < got; i++)
+        x[i] += (k ? (float)M_SQRT1_2 : 1.0f) * y[i];
+      dp_doppler_channel_destroy (ch);
+    }
+  /* Two search-only receivers, today's zone and the receiver's, ranks 0
+     and 1, no exclusions. */
+  dp_async_dsss_receiver_state_t *r[2];
+  for (int k = 0; k < 2; k++)
+    {
+      r[k] = dp_async_dsss_receiver_create (
+          code, 1023, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9,
+          half_df + 5e3, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 0.0,
+          false, 450.0 / POOL_RS, 500.0);
+      DP_REQUIRE (r[k] != NULL);
+      (void)dp_async_dsss_receiver_set_search_only (r[k], 2);
+    }
+  DP_REQUIRE (dp_correlator_set_peak_zone (r[0]->acq, 0, 0.0, NULL) == DP_OK);
+  DP_REQUIRE (r[0]->acq->search->coherent_bins == 90);
+  int          dwell[2] = { 0, 0 };
+  const size_t blk      = 1023 * POOL_SPC;
+  first[0] = first[1] = -1;
+  /* Stop once the answer is known: both picked by both, or the zone's
+     search already more than a dwell past today's first. */
+  for (size_t pos = 0; pos + blk <= n; pos += blk)
+    for (int k = 0; k < 2; k++)
+      {
+        if (first[0] > 0 && (first[1] > 0 || dwell[1] > first[0] + 1))
+          break;
+        const uint64_t d0 = r[k]->acq->search->dwells;
+        float _Complex none[1];
+        (void)dp_async_dsss_receiver_steps (r[k], x + pos, blk, none, 0);
+        double       ph[16], dp[16], cc[16];
+        const size_t np
+            = dp_async_dsss_receiver_take_picks (r[k], ph, dp, cc, 16);
+        if (r[k]->acq->search->dwells == d0)
+          continue;
+        dwell[k]++;
+        if (first[k] < 0 && np >= 2)
+          first[k] = dwell[k];
+      }
+  for (int k = 0; k < 2; k++)
+    dp_async_dsss_receiver_destroy (r[k]);
+  free (x);
+  free (y);
+  free (a0);
+  free (b0);
+  free (da);
+  free (db);
+  return 0;
+}
+
+/* The one place the zone may delay a pick where the list did not fill: a
+   carrier set. The zone is a lag at the middle of the total dwell; the
+   pick's key is a code phase carried to the dwell's end at the hit's own
+   Doppler, so two emitters at one lag and +/- 30 kHz apart at 2.5 GHz on a
+   deep block (D = 90, 1023 chips) sit (60e3 / 2.5e9) * 0.5 * 90 * 1023 =
+   1.1 chips apart in the key: today the search can pick both in one total
+   dwell; the whole-Doppler zone lists one, and the other waits for a later
+   dwell, by when their code clocks (24 ppm apart) have drifted apart. Each
+   emitter is dilated by its own DopplerChannel so the stimulus is the
+   physics the key models.
+
+   The contract is the bound: over start offsets on both sides of the
+   crossing (where B at 993-996 samples puts the pair on one lag in the
+   second dwell's middle), at +/- 30 kHz and at +/- 2 kHz, the second
+   emitter is picked, and no more than one dwell later than today. The
+   receiver's zone, half the key wide, sits inside the key, so no wait was
+   measured at all; a zone as wide as the key waited two dwells at
+   +/- 2 kHz. Sabotage, red: a zone that never releases a lag (the working
+   mask kept from dwell to dwell) -> the second is never picked. */
+static int
+_test_zone_delays_a_same_lag_pair (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const size_t offs[4] = { 990, 993, 996, 1004 };
+  int          worst = 0, all = 1;
+  for (int o = 0; o < 4; o++)
+    {
+      int first[2];
+      DP_REQUIRE (_pair_first_two (code, offs[o], 30e3, first) == 0);
+      all &= first[0] > 0 && first[1] > 0;
+      const int late = first[1] - first[0];
+      worst          = late > worst ? late : worst;
+      if (first[1] < 0 || late > 1)
+        printf ("  same-lag pair, B at %zu: both picked first at dwell %d "
+                "today, %d with the zone\n",
+                offs[o], first[0], first[1]);
+    }
+  DP_CHECK_MSG (all, "the pair is picked, today and with the zone");
+  DP_CHECK_MSG (worst <= 1, "the zone delays the second by one dwell at most");
+  /* A small Doppler difference (+/- 2 kHz): the key-against-lag offset is
+     tiny and the pair drifts 0.07 chip a dwell, so a zone wider than the
+     key would hold the second back for many dwells; within the key it is
+     still one at most, wherever today picks both. */
+  const size_t near[3]  = { 999, 1002, 1005 };
+  int          compared = 0;
+  for (int o = 0; o < 3; o++)
+    {
+      int first[2];
+      DP_REQUIRE (_pair_first_two (code, near[o], 2e3, first) == 0);
+      /* Where today picks both inside the run, the zone picks both and at
+         most a dwell later; a run where today never does says nothing, so
+         most runs must be ones where it does. */
+      const int ok
+          = first[0] > 0 ? first[1] > 0 && first[1] <= first[0] + 1 : 1;
+      compared += first[0] > 0;
+
+      if (!ok)
+        printf ("  same-lag pair +/- 2 kHz, B at %zu: both first at dwell %d "
+                "today, %d with the zone\n",
+                near[o], first[0], first[1]);
+      DP_CHECK_MSG (ok, "+/- 2 kHz: one dwell later at most");
+    }
+  DP_CHECK_MSG (compared >= 2, "+/- 2 kHz: today picks both in most runs");
+  return 0;
+}
+
+/* The key's hole is not widened by the zone: two emitters whose code
+   phases are 1.5 chips apart (outside the one-chip key) at different
+   Dopplers are both held. Within a chip they are one signal to the pick
+   and the exclusions, today as with the zone (async-dsss-receiver.md §7.2
+   rules 1 and 3): 2 of 1023 code phases per held emitter. The receiver's
+   zone is half the key (1 column at 2.002 a chip), so a neighbour 1.5
+   chips away is well outside it. Sabotage: a zone of 2 chips (4 columns)
+   -> B is masked behind A and never held. (At 3 columns B's peak lands
+   just past the zone; the carrier bound's +/- 2 kHz set is what catches a
+   zone that wide.) */
+static int
+_test_zone_keeps_a_neighbour_past_the_key (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    tsym = POOL_FS / POOL_RS;
+  float _Complex *a, *b;
+  size_t          na, nb;
+  double         *da, *db;
+  /* 3 samples at 2 a chip: 1.5 chips apart. */
+  /* Pure code (a code-only window over every symbol): no data transition
+     ever weakens A below B in an epoch, so A lists first every dwell. */
+  dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, 50.0,
+                            300, 1000, 41, 300, 300, &a, &na, &da);
+  dp_dsss_windowed_capture (code, 1023, POOL_SPC, POOL_FS, tsym, -300.0, 120.0,
+                            300, 1003, 42, 300, 300, &b, &nb, &db);
+  const size_t n = na < nb ? na : nb;
+  for (size_t i = 0; i < n; i++)
+    a[i] += 0.5f * b[i]; /* 6 dB below A: A lists first every dwell */
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p != NULL);
+  const size_t blk = 1023 * POOL_SPC;
+  for (size_t pos = 0; pos < n; pos += blk)
+    (void)dp_async_dsss_pool_push (p, a + pos, n - pos < blk ? n - pos : blk);
+  async_dsss_receiver_status_t st[3];
+  size_t                       held = 0;
+  for (size_t i = 0; i < 3; i++)
+    {
+      st[i] = dp_async_dsss_pool_status (p, i);
+      held += st[i].state == ASYNC_DSSS_RX_TRACKING;
+    }
+  DP_CHECK_MSG (held == 2, "both emitters 1.5 chips apart are held");
+  DP_CHECK (_chip_dist (st[0].chip_phase, st[1].chip_phase, 1023.0) > 1.0);
+  DP_CHECK (p->released_duplicate == 0);
+  dp_async_dsss_pool_destroy (p);
+  free (a);
+  free (b);
+  free (da);
+  free (db);
+  return 0;
+}
+
+/* A lone strong emitter seeds nothing but itself under the zone: with its
+   own lag masked in every row, its code cross-correlation sidelobes reach
+   the list where its own lag used to fill it, and §7.2 rule 2 must still
+   refuse them -- on one epoch (where rule 2 has no floor) and on a deep
+   block with data inside it. S at 20 and 30 dB over the design level,
+   three receivers: one holds S, and no other is ever seeded (no ghost or
+   duplicate released, the other two idle every push); with a real weak
+   emitter W beside S, W is held where the deep search can take it (12 dB
+   down) and nothing beyond S and W is ever seeded. */
+static int
+_test_zone_seeds_no_ghost (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double tsym = POOL_FS / POOL_RS;
+  /* lvl 0, 1: S alone at +20, +30 dB. lvl 2: W at the design level and
+     S 12 dB over it, where the deep search takes both (§7.2's table): S
+     and W held. lvl 3: S 20 dB over W, past that table's limit (#3067):
+     S held, W's state not asserted. Nothing else is ever busy. */
+  for (int deep = 0; deep < 2; deep++)
+    for (int lvl = 0; lvl < 4; lvl++)
+      {
+        const double    gain   = lvl == 1 ? 30.0 : lvl == 2 ? 12.0 : 20.0;
+        const int       with_w = lvl >= 2;
+        float _Complex *nz, *sg;
+        size_t          nn, ns;
+        double         *dn, *ds;
+        /* The design's noise (a 47 dB-Hz capture less its clean copy) plus
+           S scaled `gain` dB over it, S at 200 Hz, data throughout. */
+        dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, 47.0,
+                         deep ? 600 : 300, 1000, 51, &nz, &nn, &dn);
+        dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, 200.0, 300.0,
+                         deep ? 600 : 300, 1000, 51, &sg, &ns, &ds);
+        size_t          n   = nn < ns ? nn : ns;
+        const float     g   = (float)pow (10.0, gain / 20.0);
+        float _Complex *wc  = NULL;
+        double         *dwc = NULL;
+        size_t          nwc = n;
+        if (with_w) /* W, clean, at unit amplitude: the design level */
+          {
+            dp_dsss_capture (code, 1023, POOL_SPC, POOL_FS, tsym, -300.0,
+                             300.0, deep ? 600 : 300, 200, 52, &wc, &nwc,
+                             &dwc);
+            n = n < nwc ? n : nwc;
+          }
+        for (size_t i = 0; i < n; i++)
+          nz[i] = (nz[i] - sg[i]) + g * sg[i] + (with_w ? wc[i] : 0.0f);
+        dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
+            code, 1023, 3, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9,
+            5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+            false, deep ? 450.0 / POOL_RS : 0.0, deep ? 500.0 : 0.0, 1);
+        DP_REQUIRE (p != NULL);
+        const size_t blk    = 1023 * POOL_SPC;
+        int          others = 0;
+        for (size_t pos = 0; pos < n; pos += blk)
+          {
+            (void)dp_async_dsss_pool_push (p, nz + pos,
+                                           n - pos < blk ? n - pos : blk);
+            int busy = 0;
+            for (size_t i = 0; i < 3; i++)
+              busy += dp_async_dsss_pool_status (p, i).state
+                      != ASYNC_DSSS_RX_IDLE;
+            others |= busy > (with_w ? 2 : 1);
+          }
+        int held = 0;
+        for (size_t i = 0; i < 3; i++)
+          held += dp_async_dsss_pool_status (p, i).state
+                  == ASYNC_DSSS_RX_TRACKING;
+        if (lvl == 2)
+          DP_CHECK_MSG (held == 2, "S and W 12 dB apart are both held");
+        else
+          DP_CHECK_MSG (held >= 1 && held <= (with_w ? 2 : 1),
+                        "the strong emitter is held");
+        DP_CHECK_MSG (!others && p->released_ghost == 0
+                          && p->released_duplicate == 0,
+                      "nothing but the strong emitter is ever seeded");
+        if (held < 1 || (lvl == 2 && held != 2) || others || p->released_ghost
+            || p->released_duplicate)
+          printf ("  no ghost: deep %d +%.0f dB: held %d, another busy %d, "
+                  "ghosts %llu, duplicates %llu\n",
+                  deep, gain, held, others,
+                  (unsigned long long)p->released_ghost,
+                  (unsigned long long)p->released_duplicate);
+        dp_async_dsss_pool_destroy (p);
+        free (nz);
+        free (sg);
+        free (dn);
+        free (ds);
+        free (wc);
+        free (dwc);
+      }
   return 0;
 }
 
@@ -1234,6 +1785,11 @@ main (void)
   DP_CHECK (_test_two_emitters_two_holders () == 0);
   DP_CHECK (_test_fractional_period_phase (1.1) == 0);
   DP_CHECK (_test_fractional_period_phase (1.05) == 0);
+  DP_CHECK (_test_zone_keeps_the_outcome () == 0);
+  DP_CHECK (_test_zone_lists_the_weaker () == 0);
+  DP_CHECK (_test_zone_delays_a_same_lag_pair () == 0);
+  DP_CHECK (_test_zone_keeps_a_neighbour_past_the_key () == 0);
+  DP_CHECK (_test_zone_seeds_no_ghost () == 0);
   DP_CHECK (_test_threads_change_nothing () == 0);
   DP_CHECK (_test_state_round_trip () == 0);
   DP_CHECK (_test_chunk_invariance () == 0);

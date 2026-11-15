@@ -3390,6 +3390,27 @@ search_zone_cols (const dp_correlator_state_t *st)
          / srch->code_bins;
 }
 
+/* The half-width across the lags of the zone a listed peak marks:
+ * dp_correlator_set_peak_zone()'s, in lag columns (a chip is lag_bins / sf
+ * of them), else the mainlobe's. The twin rule keeps the mainlobe's
+ * (search_zone_cols) whatever this is. */
+static inline size_t
+search_list_zone_cols (const dp_correlator_state_t *st)
+{
+  const dp_correlator_search_t *srch = st->search;
+  if (!(st->zone_half_chips > 0.0))
+    return search_zone_cols (st);
+  /* The most whole columns whose width stays within half_chips: never
+     wider than asked, so a zone of the pick's key masks only what the key
+     would drop (2,048 lags on 1,023 chips is 2.002 a chip; a ceiling made
+     that 3 columns, 1.5 chips). Clamped before the cast: a finite
+     half_chips can still be huge, and the zone clamps to half the axis
+     anyway. */
+  const double c = floor (st->zone_half_chips * (double)srch->lag_bins
+                          / (double)srch->sf);
+  return c < (double)srch->lag_bins ? (size_t)c : srch->lag_bins;
+}
+
 /* The chip phase a hit seeds a code loop with, in Dll's convention: the
  * inverted lag (search_chip_phase_of_col) advanced by the dwell's dilation.
  * Both dp_correlator_build_handoff() and the hit's own chip_phase (filled in
@@ -3745,9 +3766,10 @@ search_scan_surface (dp_correlator_state_t *st, const float *surf,
 
 /* The list over a surface, after search_scan_surface() has run the decide
  * pass on it: the working mask holds the band mask, the slots the band's
- * first maxima. The gate is `eta` in the surface's units, the zone one
- * Doppler row (`interp` surface rows) by the mainlobe (`shape.zone`
- * columns -- one chip for a code); every
+ * first maxima. The gate is `eta` in the surface's units, the zone
+ * dp_correlator_set_peak_zone()'s: by default one Doppler row (`interp`
+ * surface rows) by the mainlobe (`shape.zone` columns -- one chip for a
+ * code), or every Doppler row by its chips; every
  * pick after the first is one fanned scan of the working mask. When
  * nothing crosses the gate the strongest cell is still taken for the
  * inspection fields, as the classic detector always reported its maximum
@@ -3768,7 +3790,8 @@ search_list_peaks (dp_correlator_state_t *st, const float *surf, float gate)
       if (st->n_peaks == st->max_peaks)
         break;
       det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx,
-                     srch->interp, search_zone_cols (st));
+                     st->zone_all_doppler ? rows / 2 : srch->interp,
+                     search_list_zone_cols (st));
       dp_pool_run (search_block_pool (st), search_chunks (srch),
                    search_tile_pick, &sc);
       best = search_merge_best (st, surf);
@@ -6385,6 +6408,24 @@ dp_correlator_set_max_peaks (dp_correlator_state_t *st, size_t n,
   return 0;
 }
 
+int
+dp_correlator_set_peak_zone (dp_correlator_state_t *st, int all_doppler,
+                             double half_chips, const char **why)
+{
+  if (!st->search) /* only a search lists peaks (correlator.md §4) */
+    return DP_ERR_UNSUPPORTED;
+  if ((all_doppler != 0 && all_doppler != 1) || !isfinite (half_chips))
+    {
+      if (why)
+        *why = "set_peak_zone: all_doppler must be 0 or 1 and half_chips "
+               "finite";
+      return DP_ERR_INVALID;
+    }
+  st->zone_all_doppler = all_doppler;
+  st->zone_half_chips  = half_chips;
+  return 0;
+}
+
 void
 dp__search_reset (dp_correlator_state_t *st)
 {
@@ -7336,6 +7377,8 @@ dp__search_get_state (const dp_correlator_state_t *st, void *blob)
   ex.blk_epoch        = (uint32_t)srch->blk_epoch;
   ex.rate_hyps        = (uint32_t)srch->rate_hyps;
   ex.carrier_freq_hz  = srch->carrier_freq_hz;
+  ex.zone_all_doppler = (uint32_t)(st->zone_all_doppler != 0);
+  ex.zone_half_chips  = st->zone_half_chips;
   dp_w_bytes (&w, &ex, sizeof ex);
 
   /* The carry: the framer's own snapshot, zero-padded to a fixed size. */
@@ -7399,6 +7442,7 @@ search_state_check (const dp_correlator_state_t *st, const void *blob,
       || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks
       || ex.blk_epoch >= (uint32_t)srch->coherent_bins
       || ex.rate_hyps != (uint32_t)srch->rate_hyps || ex.keep_surface > 1
+      || ex.zone_all_doppler > 1 || !isfinite (ex.zone_half_chips)
       || !dp_correlator_carrier_freq_ok (ex.carrier_freq_hz, srch->fs))
     return DP_ERR_INVALID;
 
@@ -7482,6 +7526,8 @@ dp__search_set_state (dp_correlator_state_t *st, const void *blob)
   srch->samples_consumed = ex.samples_consumed;
   srch->nc_count         = ex.nc_count;
   srch->keep_surface     = ex.keep_surface;
+  st->zone_all_doppler   = (int)ex.zone_all_doppler;
+  st->zone_half_chips    = ex.zone_half_chips;
   st->consumed           = 0;
 
   if (srch->nc_surface)

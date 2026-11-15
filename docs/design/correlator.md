@@ -346,7 +346,7 @@ on every flavor. -->
 
 | methods                                                                                                                                  | served by                  |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `set_max_peaks`, `configure_search_raw`, `set_threads`, `surface_complex`                                                                | both searches              |
+| `set_max_peaks`, `set_peak_zone`, `configure_search_raw`, `set_threads`, `surface_complex`                                               | both searches              |
 | `set_carrier_freq_hz`, `set_telemetry`, `surface`, `surface_doppler_hz`, `surface_chip_phase`, `block_prompt`, `block_raw`               | the continuous search      |
 | `execute`, `execute_all`, `execute_coherent`, `execute_power_sum`, `execute_power_max`, `execute_peaks`, `bank_power_max`, `bank_detect` | the maps                   |
 | `push`                                                                                                                                   | the detectors and searches |
@@ -589,6 +589,22 @@ code-rate ramp. Its definition, its two schedules and its one rule
 - **The peak list** (`det_peak_list`) is the one peak picker for every
     detecting flavor: one peak for a detector, up to `max_peaks` for a
     search, zoned by span. On equal cells it keeps the lowest index.
+- **The peak zone.** By default a search's listed peak masks one native
+    Doppler row by the template's mainlobe across the lags, so one strong
+    emitter can fill the list with its own lag: its slow-time sidelobes,
+    its alias in the neighbouring rolls, and inside a coherent dwell its
+    data's spread. A weaker emitter elsewhere is then never listed
+    ([#3067](https://github.com/doppler-dsp/doppler/issues/3067)).
+    `set_peak_zone(all_doppler, half_chips)` widens the zone to every
+    Doppler bin of every roll and sets its half-width in chips: the most
+    whole lag columns within it. The `AsyncDsssReceiver` asks for
+    `(1, DP_CORRELATOR_SAME_PHASE_CHIPS / 2)`, half the width its pick
+    treats as one signal: with a carrier set the pick's key moves each hit
+    off the lag grid by its own Doppler's dilation, so only a zone inside
+    the key never masks a pair the key keeps. Its searcher lists about one
+    peak an emitter. A caller who never sets it gets the default list. The
+    two-epoch twin rule keeps the mainlobe's width either way, so a peak
+    past a narrower zone but inside the mainlobe is still held as a twin.
 - **NaN is never a peak.** The scan's seed skips NaN cells, so a NaN in
     cell 0 does not hide a finite peak elsewhere, and masked and unmasked
     scans pick alike. At `threshold = 0` an all-NaN frame reports

@@ -51,34 +51,34 @@ level: `make_signal` sets unit average power of signal plus noise, which at
 
 **What is measured, per (rate, detector, bandwidth, level):**
 
-- *slips* -- whole-symbol slips, counted as changes in the alignment
-  `BerMeter.align` detects on each frame's sync word and payload head: the
-  library's instrument, gated on a false-alarm probability, never a lag
-  search. The number in brackets is how many of those symbols were
-  slipped inside an idle run, read off the loop's own timing: the whole
-  symbols its `mu` probe moved across that gap. The rest slipped in data,
-  which costs the frame; a slip in the idle run costs nothing a frame sync
-  does not recover.
-- *SER* and its exact interval, scored frame by frame against the
-  alignment detected for that frame, only while the strobe holds the eye it
-  held at the marker (`score_frame`), and stopped on an error count. *loss*
-  is `ESN0_DB - ber_esn0_db_for_ser(2, ser.lo)`: the Es/N0 the coherent
-  bound would need to make the measured rate's lower limit, against the
-  Es/N0 sent. A loss of 0 is a receiver on the bound. So SER is the
-  decision quality between slips, and the slip column is the rest.
-- *walk* -- how far the strobe drifted across each idle run short of a
-  slip, RMS over the gaps in symbols, from the loop's `mu` probe; *data* is
-  the same over the `G` data symbols before each gap, so the two are one
-  loop over two kinds of symbol and their ratio is what the gap costs.
-- *at sync* and *settle* -- how much of a gap's walk is still there when
-  the sync word arrives (128 dotted symbols after the gap), and how many
-  symbols after the gap it takes to fall to 10%. Both come from one curve,
-  estimated across every gap that did not slip by regressing the post-gap
-  displacement on the gap's own walk (`recovery`).
+- *slips gap / data / other* -- whole symbols slipped, read off the STREAM by
+  the shared counter `_frame_slips.frame_slips`: every frame is cut into
+  256-symbol markers from its sync word to its end, and `BerMeter.align`
+  detects each marker's lag -- the library's instrument, gated on a
+  false-alarm probability, never a lag search. A change of lag between two
+  markers of one frame is a slip in data, which costs the frame. A change
+  between one frame's last marker and the next frame's first is a slip in the
+  idle run or the dotted preamble, which a frame sync recovers. *other* is a
+  change spanning a marker that was not detected. The count is net per
+  bracket: a slip that goes and comes back inside one 256-symbol block, or
+  inside one idle run, is not seen. *unaligned* counts markers that missed
+  the false-alarm gate; where it is in the thousands the loop has lost the
+  stream and the slip count is a floor, not a count.
+- *SER* and its exact interval, scored block by block under the alignment
+  the block before it gave, only where the two agree (`measure`), and
+  stopped on an error count. *loss* is
+  `ESN0_DB - ber_esn0_db_for_ser(2, ser.lo)`: the Es/N0 the coherent bound
+  would need to make the measured rate's lower limit, against the Es/N0
+  sent. So SER is the decision quality between slips, and no loss is
+  quoted without the slip count beside it.
 - *lock* -- the share of gap symbols during which `RateSync` still declares
   lock, and its `lock_stat` inside the gaps against inside the data.
 
-**What this does not measure.** One Es/N0. The header's claim is about a
+**What this does not measure.** The loop's timing drift. `RateSync`'s
+`mu` probe is the strobe's fractional position, and unwrapping it assumes
+less than half a sample of motion a symbol; on the hot rows that fails
+hundreds of thousands of times, so no column here is derived from it.
+And one Es/N0. The header's claim is about a
 trend, and a crossover between the detectors, if there is one, needs an
 Es/N0 axis this subject does not sweep; it answers the claim only where
 the specification puts the floor.
@@ -97,6 +97,7 @@ import numpy as np
 from doppler.ber import BerMeter, ber_esn0_db_for_ser, ber_settle_syms
 from doppler.telemetry import Telemetry
 from doppler.track import RateSync
+from doppler.track.tests._frame_slips import Marker, frame_slips
 from doppler.track.tests._mpsk_rx_harness import (
     clock_offset_inside_bw,
     make_signal,
@@ -174,10 +175,6 @@ LAG_SPAN = 16
 #: symbol, must fit the ring before it is drained.
 BLOCK = 1 << 18
 
-#: Symbols after a gap over which its displacement is followed, and the
-#: fraction of it that counts as settled.
-FOLLOW = 1500
-SETTLED_FRAC = 0.1
 
 #: One seed per rate for the payload, one for the noise. Every detector,
 #: bandwidth and level sees the same symbols AND the same noise, so the
@@ -310,44 +307,9 @@ def run_sync(x: np.ndarray, ted: str, bn: float):
     return y, probes, bool(rs.clipped)
 
 
-def strobe_symbols(mu: np.ndarray) -> np.ndarray:
-    """The strobe's position in symbols, unwrapped, from the `mu` probe.
-
-    `mu` is the fractional part of the strobe's position in input samples,
-    so its change per symbol is the tracked rate's departure from the true
-    one and it wraps once per sample the strobe walks. Unwrapped and
-    divided by `SPS`, it is the strobe's displacement in symbols: a whole
-    symbol of it is a slip. The fast twin checks that calibration against
-    a known clock offset rather than trusting this paragraph.
-    """
-    return np.unwrap(mu.astype(np.float64), period=1.0) / SPS
-
-
-def recovery(walks: np.ndarray, after: np.ndarray):
-    """Share of a gap's walk left at the sync word, and symbols to 10%.
-
-    `after[k, n]` is gap k's strobe displacement `n` symbols after the gap
-    ends, and `walks[k]` the displacement at its end, both against the
-    strobe's average over the data before the gap. Regressing the one on
-    the other across the gaps, `h(n) = sum(w*d(n)) / sum(w*w)`, gives the
-    share of a gap's walk still present `n` symbols later; noise after the
-    gap is independent of the walk and averages out.
-
-    Gaps that slipped are left out by the caller: a slip lands the strobe
-    on the neighbouring eye, where it is settled with a whole symbol of
-    "walk" left, and the slip column already counts it.
-
-    Returns `(h at the sync word, first n with h <= SETTLED_FRAC)`, the
-    second None when it never gets there inside `FOLLOW` -- an absence,
-    not a large number -- and both None with no gap to regress.
-    """
-    den = float(np.sum(walks * walks)) if walks.size else 0.0
-    if den <= 0.0:
-        return None, None
-    h = (walks[:, None] * after).sum(axis=0) / den
-    below = np.flatnonzero(h <= SETTLED_FRAC)
-    at_sync = float(h[len(field_bits(DOTS))])
-    return at_sync, (int(below[0]) if below.size else None)
+def sync_at(stream: Stream) -> np.ndarray:
+    """Each frame's sync-word index in truth: start + gap + dots."""
+    return stream.starts + stream.gap + len(field_bits(DOTS))
 
 
 @dataclass
@@ -358,149 +320,121 @@ class Row:
     ted: str
     bn: float
     level: float
-    gaps: int
+    frames: int
     unaligned: int
-    slips: int
-    slips_in_gap: int
+    slips_gap: int
+    slips_data: int
+    slips_other: int
     ser: object
     loss_db: float
-    walk_gap: float
-    walk_data: float
-    at_sync: float | None
-    settle: int | None
     lock_in_gap: float
     stat_gap: float
     stat_data: float
     clipped: bool
 
-
-def score_frame(meter, rx, tau, *, a, e, t0, lag) -> None:
-    """Score one frame's symbols where the strobe holds the marker's eye.
-
-    The alignment is the one `align` detected at this frame's marker, so
-    it is right only while the strobe stays on the eye it held there. A
-    slip in the data moves it half a symbol and then a whole one, after
-    which every symbol is scored against its neighbour's truth -- half of
-    them wrong, and a single slip early in a frame would outweigh every
-    honest error in the run. So a symbol is scored only while the loop's
-    own timing (`tau`, from its `mu` probe) is within half a symbol of
-    where it stood at the marker. The cut is made on the timing, never on
-    the errors, and what it removes is counted where it belongs: in the
-    slip column.
-
-    Scored in blocks of 16 so the count stops on the error target rather
-    than overshooting it by a frame.
-    """
-    i_m = int(t0 - lag)
-    if not 0 <= i_m < tau.size:
-        return
-    lo, hi = max(int(a - lag), 0), min(int(e - lag), tau.size)
-    held = np.abs(tau[lo:hi] - tau[i_m]) < 0.5
-    # rx index of output i is i + lag - meter.lag (see `measure`).
-    shift = lag - meter.lag
-    edges = np.flatnonzero(np.diff(np.r_[0, held.astype(np.int8), 0]))
-    for r0, r1 in zip(edges[::2], edges[1::2]):
-        for b in range(lo + r0, lo + r1, 16):
-            if meter.enough:
-                return
-            meter.score(rx, lo=b + shift, hi=min(b + 16, lo + r1) + shift)
-
-
-def _sub_slip(d) -> np.ndarray:
-    """Displacements with their whole-symbol part removed, in [-0.5, 0.5)."""
-    d = np.asarray(d, np.float64)
-    return d - np.round(d)
+    @property
+    def slips(self) -> int:
+        """Every slipped symbol the markers saw."""
+        return self.slips_gap + self.slips_data + self.slips_other
 
 
 def measure(stream: Stream, y, probes, *, rate, ted, bn, level, clipped):
-    """Every column of a row, from one run's symbols and probes."""
-    meter = BerMeter(m=M, target_errors=TARGET_ERRORS)
-    meter.set_truth(stream.truth)
+    """Every column of a row, from one run's symbols and probes.
+
+    **Slips are read off the stream, not the loop**, by the shared counter
+    `_frame_slips.frame_slips`: 256-symbol markers tile each frame from its
+    sync word to its end, each one's lag is detected against truth, and a
+    change between two markers of one frame is a data slip, one across the
+    idle run and the dots a gap slip. Its docstring states the bound: the
+    count is net per bracket. Frames before the loop's settling budget are
+    not counted.
+
+    **SER is scored between slips.** A marker's block is scored with the
+    alignment detected on the marker before it in the same frame, and only
+    when the two agree: a slip inside it would score half of it against
+    its neighbour's truth, and one slip would then outweigh every honest
+    error in the row. Which blocks are scored is decided by the markers,
+    never by the errors. The head is a marker only, so a frame's first
+    `N_MARKER` symbols are never scored.
+    """
+    starts, ends = stream.starts, stream.ends
+    fs = frame_slips(
+        y,
+        stream.truth,
+        sync_at(stream),
+        ends,
+        m=M,
+        n_marker=N_MARKER,
+        lag_span=LAG_SPAN,
+    )
+    scorer = BerMeter(m=M, target_errors=TARGET_ERRORS)
+    scorer.set_truth(stream.truth)
     pad = 4 * LAG_SPAN + 64
     ypad = np.concatenate([np.zeros(pad, np.complex64), y])
-    tau = strobe_symbols(probes["mu"])
-    locked = probes["locked"]
-    stat = probes["lock"]
-    nfix = len(field_bits(DOTS))
+    locked, stat = probes["locked"], probes["lock"]
     g = stream.gap
     settle = ber_settle_syms(bn, 0.0)
 
-    guess, prev = 0, None
-    unaligned = slips = in_gap = 0
-    walks, datas, lock_gap, st_gap, st_data = [], [], [], [], []
-    follow_w, follow_d = [], []
-    for k, (a, e) in enumerate(zip(stream.starts, stream.ends)):
-        t0 = int(a + g + nfix)  # the sync word
-        # The marker stops at the frame's end: running on into the next
-        # idle run would put a transition-free stretch in it, which scores
-        # as well one lag either side and is refused as ambiguous.
-        n_marker = int(min(N_MARKER, e - t0))
-        # rx[j] = ypad[j + pad - guess] = y[j - guess], so a symbol that
-        # sits at lag L in `y` sits at L - guess here, inside the span.
-        rx = ypad[pad - guess :]
-        meter.align(rx, t0=t0, n_marker=n_marker, lag_span=LAG_SPAN)
-        if not meter.align_ok:
-            # Counted, and `prev` kept: a slip across an unaligned frame
-            # still shows as the next aligned frame's change of lag.
-            unaligned += a >= settle
+    unaligned = gap_sl = data_sl = other_sl = 0
+    lock_gap, st_gap, st_data = [], [], []
+    for f in fs:
+        a, e = int(starts[f.frame]), int(ends[f.frame])
+        if a < settle:
             continue
-        lag = meter.lag + guess
-        # The loop's own timing across this frame's idle run. Symbol t of
-        # the stream is output t - lag.
-        i0, i1 = int(a - lag), int(a + g - lag)
-        if k > 0 and a >= settle and i0 - g >= 0 and i1 < tau.size:
-            w = tau[i1] - tau[i0]
-            slipped = prev is not None and lag != prev
-            if slipped:
-                slips += abs(lag - prev)
-                # Whole symbols the strobe moved across this idle run: the
-                # part of the change of lag that happened in the gap.
-                in_gap += min(abs(lag - prev), round(abs(w)))
-            walks.append(w)
-            lock_gap.append(locked[i0:i1].mean())
-            st_gap.append(stat[i0:i1].mean())
-            # The data reference only where the previous frame holds G
-            # data symbols, so it never reaches back into the last gap.
-            if a - stream.starts[k - 1] - g >= g:
-                datas.append(tau[i0] - tau[i0 - g])
-                st_data.append(stat[i0 - g : i0].mean())
-            j1 = i1 + FOLLOW
-            if not slipped and e - (a + g) >= FOLLOW and j1 <= tau.size:
-                ref = tau[i0 - 128 : i0].mean()
-                follow_w.append(tau[i1] - ref)
-                follow_d.append(tau[i1:j1] - ref)
-        if a >= settle and not meter.enough:
-            score_frame(meter, rx, tau, a=a, e=e, t0=t0, lag=lag)
-        prev, guess = lag, lag
+        gap_sl += f.gap
+        data_sl += f.data
+        other_sl += f.other
+        unaligned += sum(lag is None for lag in f.lags)
+        found = [
+            (mk, lag) for mk, lag in zip(f.markers, f.lags) if lag is not None
+        ]
+        for (pm, plag), (mk, lag) in zip(found, found[1:]):
+            if lag == plag and mk.tiles and not scorer.enough:
+                _score_block(scorer, ypad[pad - plag :], pm, mk)
+        head = f.lags[0]
+        if f.frame == 0 or head is None or e - head > locked.size:
+            continue
+        i0, i1 = a - head, a + g - head
+        lock_gap.append(locked[i0:i1].mean())
+        st_gap.append(stat[i0:i1].mean())
+        st_data.append(stat[i1 + len(field_bits(DOTS)) : e - head].mean())
 
-    ser = meter.ser()
-    at_sync, settle_n = recovery(
-        np.asarray(follow_w), np.asarray(follow_d).reshape(-1, FOLLOW)
-    )
-    # The walk columns are the drift SHORT of a slip: the whole-symbol part
-    # is the slip column's, and left in, one slip outweighs a thousand
-    # gaps of honest drift in an RMS.
-    walks_a, datas_a = _sub_slip(walks), _sub_slip(datas)
+    ser = scorer.ser()
     return Row(
         rate=rate,
         ted=ted,
         bn=bn,
         level=level,
-        gaps=len(walks),
+        frames=len(lock_gap),
         unaligned=unaligned,
-        slips=slips,
-        slips_in_gap=int(in_gap),
+        slips_gap=gap_sl,
+        slips_data=data_sl,
+        slips_other=other_sl,
         ser=ser,
         loss_db=ESN0_DB - ber_esn0_db_for_ser(M, ser.lo),
-        walk_gap=float(np.sqrt(np.mean(walks_a**2))),
-        walk_data=float(np.sqrt(np.mean(datas_a**2))),
-        at_sync=at_sync,
-        settle=settle_n,
         lock_in_gap=float(np.mean(lock_gap)),
         stat_gap=float(np.mean(st_gap)),
         stat_data=float(np.mean(st_data)),
         clipped=clipped,
     )
+
+
+def _score_block(scorer, rx, marker: Marker, blk: Marker) -> None:
+    """Score `blk` under the alignment `marker` gives, in steps of 16.
+
+    `rx` is the decided stream shifted so `marker`'s lag sits at zero.
+    Detecting the marker on the scorer leaves the marker's own symbols
+    excluded and `blk`'s in, and the steps of 16 stop the count on the
+    error target rather than a block past it.
+    """
+    scorer.align(rx, t0=marker.t, n_marker=marker.n, lag_span=LAG_SPAN)
+    if not scorer.align_ok:
+        return
+    lo = blk.t - scorer.lag
+    for b in range(lo, lo + blk.n, 16):
+        if scorer.enough:
+            return
+        scorer.score(rx, lo=b, hi=min(b + 16, lo + blk.n))
 
 
 def run_row(stream: Stream, x_unit, *, rate, ted, bn, level) -> Row:
@@ -537,24 +471,21 @@ def sweep(frames: int = FRAMES, levels=LEVELS, bandwidths=BANDWIDTHS):
 
 
 HEADER = (
-    "| sym/s | G | TED | bn | level | slips (gap) | SER [99% CI] | loss dB "
-    "| walk gap / data | at sync | settle | lock in gap "
-    "| lock_stat gap / data |"
+    "| sym/s | G | TED | bn | level | slips gap / data / other "
+    "| SER [99% CI] | loss dB | lock in gap | lock_stat gap / data |"
 )
 
 
 def table_row(r: Row) -> str:
     """One markdown table row."""
     s = r.ser
-    settle = "never" if r.settle is None else f"{r.settle}"
-    at_sync = "n/a" if r.at_sync is None else f"{100 * r.at_sync:.0f}%"
     clip = " clipped" if r.clipped else ""
     unal = f", {r.unaligned} unaligned" if r.unaligned else ""
     return (
         f"| {r.rate} | {GAP_SYMBOLS[r.rate]} | {r.ted} | {r.bn:g} "
-        f"| {r.level:g}x{clip} | {r.slips} ({r.slips_in_gap}){unal} "
+        f"| {r.level:g}x{clip} "
+        f"| {r.slips_gap} / {r.slips_data} / {r.slips_other}{unal} "
         f"| {s.p_hat:.4f} [{s.lo:.4f}, {s.hi:.4f}] | {r.loss_db:+.2f} "
-        f"| {r.walk_gap:.3f} / {r.walk_data:.3f} | {at_sync} | {settle} "
         f"| {100 * r.lock_in_gap:.0f}% "
         f"| {r.stat_gap:+.2f} / {r.stat_data:+.2f} |"
     )

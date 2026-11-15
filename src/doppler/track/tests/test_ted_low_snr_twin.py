@@ -2,30 +2,29 @@
 
 The subject runs 1000 frames of the specification's gapped stream through
 `RateSync` at Es/N0 = 3 dB, for both detectors, two bandwidths and three
-levels, and takes about half a minute. This runs one point of it -- the
-receiver's bandwidth at the contracted level, both detectors, 300 frames --
-and pins the qualitative result the full run found there, plus the
-calibrations every column of that run rests on.
+levels, in under a minute. This runs five rows of it at the receiver's
+bandwidth -- Gardner at 0.5x, 1x and 2x of the contracted level, the DTTL
+at 1x and 2x -- over 300 frames at the sweep's own seed, and pins the
+three results the full run found there, plus the calibrations every
+column rests on.
 
-**What it pins.** At 3 dB on the gapped stream, at the bandwidth
-`AsyncDsssReceiver` uses, the DTTL slips inside the transition-free idle
-run more often than Gardner, and drifts further across it short of a slip,
-while its SER is no worse. The full run measured 34 against 15 gap slips
-in 1000 frames at 3000 sym/s and 23 against 10 at 7000.
+**What it pins**, each held in all 18 runs of a scratch check (seeds 1-8
+and 751, both rates, 300 frames), so none rests on a chosen seed:
 
-**Why this seed.** The effect is real but modest, so 300 frames resolve it
-only on some realisations; at the sweep's own seed 751 they read 9
-against 7, too close to pin. Seed `TWIN_SEED` reads 10 against 3. The seed
-was chosen for its margin, which is a regression pin and not a
-significance test: what makes the effect a finding is the full sweep, and
-the same ordering in 8 of 9 seeds at 300 frames (the ninth a tie). If a
-change to `RateSync` makes the DTTL hold the idle run as well as Gardner,
-this goes red; that is the moment to rerun `make characterize` and read
-the table.
+- Gardner at half the contracted level slips nothing; at the contract it
+  does. The level, through Gardner's `A^2` loop gain, decides whether the
+  loop slips at all.
+- At the contract, both detectors slip in the idle run and its dotted
+  preamble more than twice as often as in data.
+- Over-driven 2x, Gardner slips in data, where a slip costs the frame, at
+  least five times as often as the DTTL.
 
-**What it does not cover.** The other 23 rows, and whether the counts
-still hold at 1000 frames -- that waits for the next `make characterize`
-(doppler#692).
+The full run's DTTL-against-Gardner count IN the gap is not pinned: it
+reads 80 against 47 at 3000 sym/s and 65 against 62 at 7000, and in the
+scratch check the DTTL had more in 12 of 18 runs. That is not a result.
+
+**What it does not cover.** The other rows, and whether the counts hold at
+1000 frames -- that waits for the next `make characterize` (doppler#692).
 """
 
 from __future__ import annotations
@@ -35,73 +34,91 @@ import re
 import numpy as np
 import pytest
 
-from doppler.telemetry import Telemetry
 from doppler.tests._repo import repo_root
-from doppler.track import RateSync
 from doppler.track.tests.characterization.ted_low_snr.characterize import (
     BN_RECEIVER,
     DOTS,
     GAP_SYMBOLS,
+    SEED,
     SPS,
     SYNC,
-    TEDS,
     contract_scale,
     frame_segment,
     make_stream,
     run_row,
     stimulus,
-    strobe_symbols,
 )
 from doppler.wfm import field_bits
 
 TWIN_FRAMES = 300
-TWIN_SEED = 4
+TWIN_SEED = SEED
 RATE = 3000
 
 ROOT = repo_root(__file__)
 RX_H = (
-    ROOT / "native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+    ROOT
+    / "native/inc/doppler"
+    / "async_dsss_receiver"
+    / ("async_dsss_receiver_core.h")
+)
+
+#: (detector, level) rows the twin runs, all at `BN_RECEIVER`.
+ROWS = (
+    ("gardner", 0.5),
+    ("gardner", 1.0),
+    ("dttl", 1.0),
+    ("gardner", 2.0),
+    ("dttl", 2.0),
 )
 
 
 @pytest.fixture(scope="module")
-def point():
-    """Gardner and DTTL at the receiver's point, on one stream and noise."""
+def rows():
+    """The five rows, on one stream and one noise realisation."""
     stream = make_stream(GAP_SYMBOLS[RATE], TWIN_FRAMES, TWIN_SEED)
     x = stimulus(stream, TWIN_SEED)
-    rows = {
-        ted: run_row(stream, x, rate=RATE, ted=ted, bn=BN_RECEIVER, level=1.0)
-        for ted in TEDS
+    return {
+        (ted, lv): run_row(
+            stream, x, rate=RATE, ted=ted, bn=BN_RECEIVER, level=lv
+        )
+        for ted, lv in ROWS
     }
-    return rows["gardner"], rows["dttl"]
 
 
-def test_dttl_slips_in_the_gap_more_than_gardner(point):
-    """The full run's finding: the idle run is where the DTTL slips."""
-    g, d = point
-    assert d.slips_in_gap >= 5 and d.slips_in_gap >= 2 * g.slips_in_gap, (
-        f"gap slips: dttl {d.slips_in_gap}, gardner {g.slips_in_gap} in "
-        f"{d.gaps} gaps -- the DTTL no longer slips across the "
-        f"transition-free run more than Gardner; rerun make characterize"
+def _slips(r) -> str:
+    return (
+        f"{r.ted} {r.level:g}x: gap {r.slips_gap}, data {r.slips_data}, "
+        f"other {r.slips_other}"
     )
 
 
-def test_dttl_drifts_further_across_the_gap(point):
-    """Short of a slip, the DTTL's strobe also moves further in the gap."""
-    g, d = point
-    assert d.walk_gap > 1.1 * g.walk_gap, (
-        f"gap walk (symbols RMS): dttl {d.walk_gap:.3f}, gardner "
-        f"{g.walk_gap:.3f}"
-    )
+def test_level_decides_whether_gardner_slips(rows):
+    """Half the contracted level: no slips. The contract: some."""
+    half, unit = rows["gardner", 0.5], rows["gardner", 1.0]
+    assert half.slips == 0 and unit.slips >= 5, (_slips(half), _slips(unit))
 
 
-def test_dttl_ser_is_no_worse_at_the_floor(point):
+@pytest.mark.parametrize("ted", ["gardner", "dttl"])
+def test_slips_land_in_the_gap_not_the_data(rows, ted):
+    """At the contract the idle run and its dots take the slips."""
+    r = rows[ted, 1.0]
+    assert r.slips_gap >= 5 and r.slips_gap > 2 * r.slips_data, _slips(r)
+
+
+def test_hot_gardner_slips_in_data_where_dttl_does_not(rows):
+    """At 2x, Gardner's `A^2` gain costs frames; the DTTL's `A^1` does not."""
+    g, d = rows["gardner", 2.0], rows["dttl", 2.0]
+    assert g.slips_data >= 5 * max(d.slips_data, 1), (_slips(g), _slips(d))
+
+
+def test_dttl_ser_is_no_worse_at_the_floor(rows):
     """The header's "degrades faster at low SNR" does not show in SER.
 
     Both are scored between slips on the same symbols and noise, and the
-    loss is taken on each interval's lower limit.
+    loss is taken on each interval's lower limit -- beside the slip counts,
+    never instead of them.
     """
-    g, d = point
+    g, d = rows["gardner", 1.0], rows["dttl", 1.0]
     assert np.isfinite(g.loss_db) and np.isfinite(d.loss_db)
     assert d.loss_db <= g.loss_db + 0.25, (
         f"loss dB: dttl {d.loss_db:+.2f}, gardner {g.loss_db:+.2f}"
@@ -159,25 +176,3 @@ def test_frame_is_the_specification_frame():
     flipped[g + nd + ns] ^= 1
     assert d.crc_ok(flipped) == 0
     assert frame_segment(g, np.zeros(1, np.uint8)) is not None
-
-
-def test_strobe_symbols_reads_a_known_clock_error():
-    """`strobe_symbols` is calibrated against an OPEN loop of known drift.
-
-    With `bn = 0` the control never moves, so a receiver told `sps*(1+eps)`
-    against a stimulus at `sps` moves its strobe by exactly `eps` symbols a
-    symbol. Every walk and slip attribution in the subject rests on this
-    unit, so it is checked against that truth rather than asserted.
-    """
-    eps = 1e-3
-    rng = np.random.default_rng(1)
-    x = np.repeat(1.0 - 2.0 * rng.integers(0, 2, 4000), SPS).astype(
-        np.complex64
-    )
-    rs = RateSync(sps=SPS * (1 + eps), pulse="iandd", m=4, bn=0.0)
-    tlm = Telemetry(1 << 16)
-    rs.set_telemetry(tlm, "s")
-    rs.steps(x)
-    tau = strobe_symbols(np.asarray(tlm.read_dict()["s.mu"]))
-    slope = (tau[-1] - tau[500]) / (tau.size - 1 - 500)
-    assert abs(abs(slope) - eps) < 0.01 * eps, (slope, eps)

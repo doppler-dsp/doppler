@@ -276,8 +276,10 @@ class Signature(NamedTuple):
 #: as a `*` prose line. A statement fires when it draws `dp_cgauss(` AND
 #: carries a 1/sqrt(2) in any spelling and any order: a division by
 #: sqrt(2) (`sqrt`/`sqrtf`, `2`, `2.0`, `2.0f`, `M_SQRT2`, `1.414...`) or a
-#: factor of sqrt(1/2) (`M_SQRT1_2`, `sqrt(0.5)`, `0.707...`). Casts between
-#: the factor and the draw do not matter.
+#: factor of sqrt(1/2) (`M_SQRT1_2`, `sqrt(0.5)`, `0.707...`,
+#: `M_SQRT2 / 2`), with any float suffix and any casts. The factor and the
+#: draw must share one PRODUCT term (`top_terms()`): a scaled QPSK symbol
+#: PLUS correctly-scaled noise is not the defect.
 #:
 #: What it does NOT see, by design: a sigma divided on an EARLIER statement
 #: (`s = sigma / sqrt(2); x = s * dp_cgauss(&st);`) -- that needs data flow,
@@ -285,12 +287,45 @@ class Signature(NamedTuple):
 #: multiplication by sqrt(2) (`M_SQRT2 * ... dp_cgauss`) is a different,
 #: louder scaling with legitimate uses (test_detection_core.c builds a
 #: real-valued Gaussian that way); it does not fire.
-_ROOT2 = r"(?:sqrtf?\s*\(\s*2(?:\.0*)?f?\s*\)|\bM_SQRT2\b|\b1\.41421\d*f?)"
-_ROOT_HALF = r"(?:\bM_SQRT1_2\b|sqrtf?\s*\(\s*0?\.50*f?\s*\)|\b0\.7071\d*f?)"
-NOISE_LEVEL = re.compile(
-    rf"(?=.*\bdp_cgauss\s*\()(?=.*(?:/\s*(?:\(\s*\w+\s*\)\s*)?{_ROOT2}"
-    rf"|{_ROOT_HALF}))"
+#: Any run of C casts: `(double)`, `(unsigned long)`, `((float))`.
+_CAST = r"(?:\(+\s*[A-Za-z_][\w ]*\)+\s*)*"
+#: A floating literal suffix.
+_SFX = r"[fFlL]?"
+_TWO = rf"2(?:\.0*)?{_SFX}"
+_ROOT2 = (
+    rf"(?:sqrt[fl]?\s*\(\s*{_CAST}{_TWO}\s*\)|\bM_SQRT2\b"
+    rf"|\b1\.4142\d*{_SFX})"
 )
+_ROOT_HALF = (
+    rf"(?:\bM_SQRT1_2\b|sqrt[fl]?\s*\(\s*{_CAST}0?\.50*{_SFX}\s*\)"
+    rf"|\b0\.707\d*{_SFX}|\bM_SQRT2\s*/\s*{_TWO}(?![\w.]))"
+)
+NOISE_LEVEL = re.compile(
+    rf"(?=.*\bdp_cgauss\s*\()(?=.*(?:/\s*{_CAST}{_ROOT2}|{_ROOT_HALF}))"
+)
+
+
+def top_terms(stmt: str) -> list[str]:
+    """Split a statement at `+`, `-` and `=` outside every bracket.
+
+    The 1/sqrt(2) and the draw must share one PRODUCT term to be the
+    defect: `M_SQRT1_2 * (b0 + I * b1) + sigma * dp_cgauss (&st)` is a
+    unit-power QPSK symbol plus correctly-scaled noise, not a hand level.
+    `->` is a member access, not a minus.
+    """
+    terms: list[str] = []
+    cur: list[str] = []
+    depth = 0
+    for k, c in enumerate(stmt):
+        depth += (c in "([") - (c in ")]")
+        arrow = c == "-" and stmt[k + 1 : k + 2] == ">"
+        if depth == 0 and c in "+-=" and not arrow:
+            terms.append("".join(cur))
+            cur = []
+        else:
+            cur.append(c)
+    terms.append("".join(cur))
+    return terms
 
 
 def c_statements(text: str) -> list[tuple[int, str]]:
@@ -305,7 +340,18 @@ def c_statements(text: str) -> list[tuple[int, str]]:
     def blank(m: re.Match[str]) -> str:
         return re.sub(r"[^\n]", " ", m.group(0))
 
-    text = re.sub(r"/\*.*?\*/|//[^\n]*", blank, text, flags=re.S)
+    def scrub(m: re.Match[str]) -> str:
+        """A literal empties (`"/*"` must not open a comment, nor hide the
+        code after it); a comment blanks to spaces."""
+        t = m.group(0)
+        return t[0] * 2 if t[0] in "\"'" else blank(m)
+
+    text = re.sub(
+        r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|/\*.*?\*/|//[^\n]*',
+        scrub,
+        text,
+        flags=re.S,
+    )
     out: list[tuple[int, str]] = []
     buf: list[str] = []
     start = 0
@@ -515,7 +561,7 @@ def occurrences(root: Path = ROOT) -> list[tuple[str, str, int, str, str]]:
                 if not sig.statements:
                     continue
                 for n, stmt in c_statements(text):
-                    if sig.pattern.search(stmt):
+                    if any(sig.pattern.search(t) for t in top_terms(stmt)):
                         found.append((sig.marker, rel, n, stmt, sig.instead))
             sigs = [sig for sig in sigs if not sig.statements]
             for n, line in enumerate(text.splitlines(), 1):

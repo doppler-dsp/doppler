@@ -97,6 +97,15 @@ def test_every_spelling_of_the_second_sqrt2_fails(tmp_path: Path) -> None:
         "y = sigma * sqrt (0.5) * dp_cgauss (&st);",
         "y = 0.70710678 * sigma * dp_cgauss (&st);",
         "y = sigma / 1.41421356 * dp_cgauss (&st);",
+        # The re-review's spellings: doubled and multi-word casts, a cast
+        # inside the sqrt, long-double and short constants, M_SQRT2 / 2.
+        "y = (sigma / ((double)) sqrt (2)) * dp_cgauss (&st);",
+        "y = (sigma / (long double) sqrtl (2.0L)) * dp_cgauss (&st);",
+        "y = (sigma / sqrt ((double) 2)) * dp_cgauss (&st);",
+        "y = sigma / 1.4142 * dp_cgauss (&st);",
+        "y = 0.707f * sigma * dp_cgauss (&st);",
+        "y = M_SQRT2 / 2.0 * sigma * dp_cgauss (&st);",
+        "y = dp_cgauss (&st) * sigma * M_SQRT1_2;",
     ):
         r = _run(tmp_path, _fn(line))
         assert r.returncode == 1, line + "\n" + r.stdout
@@ -124,6 +133,14 @@ def test_a_wrap_before_the_product_is_still_the_draw(tmp_path: Path):
     r = _run(tmp_path, body)
     assert r.returncode == 1, r.stdout
     assert f"[level] {TEST}:4" in r.stdout
+
+
+def test_a_string_literal_does_not_hide_the_draw(tmp_path: Path):
+    """A ``"/*"`` or a URL in a string earlier on the line opened a
+    comment in the first statement cut and swallowed the draw."""
+    for pre in ('puts ("/*");', 'puts ("http://x");', "char c = '/';"):
+        r = _run(tmp_path, _fn(pre + " " + DRAW))
+        assert r.returncode == 1, pre + "\n" + r.stdout
 
 
 def test_a_macro_is_read_whole(tmp_path: Path) -> None:
@@ -157,6 +174,19 @@ def test_what_is_not_the_defect_passes(tmp_path: Path) -> None:
             TEST,
         ),
         (_fn("v = sqrt (2.0) * creal (dp_cgauss (&st));"), TEST),
+        # A unit-power QPSK symbol PLUS correctly-scaled noise: the root-2
+        # and the draw are in different product terms.
+        (
+            _fn("y = M_SQRT1_2 * (b0 + I * b1) + sigma * dp_cgauss (&st);"),
+            TEST,
+        ),
+        (
+            _fn("y = (si + I * sq) / sqrt (2.0) + sigma * dp_cgauss (&st);"),
+            TEST,
+        ),
+        (_fn("y = s->a / sqrt (2.0) - s->sigma * dp_cgauss (&s->st);"), TEST),
+        # A string mentioning the defect is not code.
+        (_fn('puts ("sigma / sqrt (2.0) * dp_cgauss (&st)");'), TEST),
         (
             _fn(
                 "double s = sigma / sqrt (2.0);", "x = s; y = dp_cgauss (&st);"

@@ -1071,7 +1071,11 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     needs: [pin, changes]
     name: ${{ matrix.san.label }}
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: on an ubuntu-26.04 host the TSan runtime
+    # dies at startup ("unexpected memory mapping") before any test runs,
+    # with the same container and tree that pass on 24.04 (#3058). The
+    # image pins the toolchain; this pins the one input it cannot.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false

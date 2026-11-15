@@ -311,15 +311,26 @@ def top_terms(stmt: str) -> list[str]:
     The 1/sqrt(2) and the draw must share one PRODUCT term to be the
     defect: `M_SQRT1_2 * (b0 + I * b1) + sigma * dp_cgauss (&st)` is a
     unit-power QPSK symbol plus correctly-scaled noise, not a hand level.
-    `->` is a member access, not a minus.
+
+    Only a BINARY `+`/`-` splits: one that follows an operand (an
+    identifier, a number, `)` or `]`). A unary sign (`* -dp_cgauss`), an
+    exponent's sign (`1e-3`), `->`, `++` and `--` stay inside the term.
     """
     terms: list[str] = []
     cur: list[str] = []
     depth = 0
     for k, c in enumerate(stmt):
         depth += (c in "([") - (c in ")]")
-        arrow = c == "-" and stmt[k + 1 : k + 2] == ">"
-        if depth == 0 and c in "+-=" and not arrow:
+        prev = "".join(cur).rstrip()
+        after_operand = bool(prev) and (
+            prev[-1].isalnum() or prev[-1] in "_)]"
+        )
+        exponent = re.search(r"(?<![\w.])(?:\d+\.?\d*|\.\d+)[eE]$", prev)
+        binary = after_operand and not exponent
+        # `->`, and the first half of `++`/`--` (the second follows no
+        # operand, so is never binary).
+        sign = c in "+-" and binary and stmt[k + 1 : k + 2] not in (">", c)
+        if depth == 0 and (sign or c == "="):
             terms.append("".join(cur))
             cur = []
         else:

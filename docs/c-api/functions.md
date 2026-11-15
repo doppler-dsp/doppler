@@ -2146,6 +2146,9 @@
 * **search\_rate\_better** ([**correlator\_private.h**](correlator__private_8h.md))
 * **search\_rate\_count\_at** ([**correlator\_private.h**](correlator__private_8h.md))
 * **search\_resolve\_tile\_alias** ([**correlator\_private.h**](correlator__private_8h.md))
+* **search\_tile\_alias\_applies** ([**correlator\_private.h**](correlator__private_8h.md))
+* **search\_tile\_alias\_pick** ([**correlator\_private.h**](correlator__private_8h.md))
+* **search\_tile\_alias\_power** ([**correlator\_private.h**](correlator__private_8h.md))
 * **symsync\_step** ([**symsync\_core.h**](symsync__core_8h.md))
 * **symsync\_step\_ted** ([**symsync\_core.h**](symsync__core_8h.md))
 

@@ -106,6 +106,25 @@ adr_handover_phase (const dp_async_dsss_receiver_state_t *state,
   return phase;
 }
 
+/* A tracking receiver's code phase at the stream's next sample. The Dll's
+ * own phase is at the next sample IT runs, and the live chain runs whole
+ * tsamps-sample periods, carrying the rest (car_carry_buf), so the stream's
+ * next sample is car_carry_len past it. Fed whole periods (as the pool
+ * feeds it) at a whole-sample period the carry is 0; at a fractional period
+ * it is a constant remainder, up to a whole period -- at 2.2 samples a chip,
+ * 2,140 samples, which read ~50 chips off and let the pool's search re-seed
+ * every held signal (#3063) -- and fed arbitrary blocks it is anything.
+ * Carried at the rate the code NCO runs, the loop's rate plus the carrier
+ * aid (dll_core.h: code_rate excludes the aid). */
+static double
+adr_live_chip_phase (const dp_async_dsss_receiver_state_t *s)
+{
+  const double ahead = (double)s->car_carry_len / s->spc
+                       * (dp_dll_get_code_rate (s->dll) + s->dll->rate_aid);
+  return dp_fmod_pos (dp_dll_get_code_phase (s->dll) + ahead,
+                      (double)s->code_len);
+}
+
 /* Every state transition goes through here so the two running clocks stay
  * honest: `state_samples` counts from the entry, and the release clock
  * (`both_down_samples`) only ever runs inside tracking. */
@@ -2157,8 +2176,10 @@ dp_async_dsss_receiver_configure_chain_raw (
   /* Read before the rebuild, while sps is still the old grid's: the sum
      is loop 1 PLUS loop 2. Loop 2's residual alone (what this read before
      #2414) dropped loop 1's carrier, so a receiver tracking +2.4 kHz was
-     rebuilt near 0 Hz and lost the signal. */
-  double chip_phase     = dp_dll_get_code_phase (state->dll);
+     rebuilt near 0 Hz and lost the signal. The phase is the stream's next
+     sample's, not the Dll's: the rebuild drops the samples the old chain
+     carried, so the new chain's first sample is the stream's next (#3063). */
+  double chip_phase     = adr_live_chip_phase (state);
   double doppler_hz_now = adr_tracked_doppler_hz (state);
 
   adr_rebuild_track_chain (state, chip_phase, doppler_hz_now, segments, sps,
@@ -2265,18 +2286,7 @@ dp_async_dsss_receiver_get_chip_phase (
   if (state->state == ASYNC_DSSS_RX_REFINING)
     return adr_handover_phase (state, state->seed_doppler_hz_est,
                                state->refine_samples_fed);
-  /* The Dll's phase is at the next sample IT runs, and the live chain runs
-     whole tsamps-sample periods, carrying the rest (car_carry_buf), so the
-     stream's next sample is car_carry_len past it. At a whole-sample period
-     the hand-over lands on a period boundary and the carry is 0; at a
-     fractional one it is a constant remainder, up to a whole period -- at
-     2.2 samples a chip, 2,140 samples, which read ~50 chips off and let
-     the pool's search re-seed every held signal (#3063). Carried at the
-     loop's own code rate, which a dilation or the rate aid moves. */
-  const double ahead = (double)state->car_carry_len / state->spc
-                       * dp_dll_get_code_rate (state->dll);
-  return dp_fmod_pos (dp_dll_get_code_phase (state->dll) + ahead,
-                      (double)state->code_len);
+  return adr_live_chip_phase (state);
 }
 double
 dp_async_dsss_receiver_get_code_rate (

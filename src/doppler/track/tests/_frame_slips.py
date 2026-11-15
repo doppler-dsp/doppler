@@ -33,7 +33,9 @@ can sit between them to split the change.
 each frame's head until it re-finds the stream. A change of lag across the
 missed markers is counted, as *other*. If it never re-finds the stream,
 every frame from the first miss on is marked `lost` (`lost_from`): a lost
-stream reads as lost, never as a small count.
+stream reads as lost, never as a small count. A miss with no later frame
+head left to search -- in the last frame, or at the capture's end -- is
+not a loss; it stays an unresolved miss.
 
 **The count is net per bracket.** A slip that goes and comes back between
 two markers -- inside one `n_marker` block of data, or inside one gap --
@@ -49,6 +51,16 @@ from dataclasses import dataclass
 import numpy as np
 
 from doppler.ber import BerMeter
+
+#: The widest search `BerMeter.align` makes in one call: it holds at most
+#: `BER_MAX_LAGS` = 2048 lags (`native/src/ber_meter/ber_meter_core.c`)
+#: and silently narrows a wider `lag_span` to 1023. A wider search is laid
+#: as tiles of this half-width.
+TILE_SPAN = 1023
+
+#: Lags each tile shares with the next, so a peak on one tile's edge, which
+#: that tile refuses as saturated, lies inside its neighbour.
+TILE_OVERLAP = 64
 
 
 @dataclass(frozen=True)
@@ -174,7 +186,8 @@ def frame_slips(
         until it re-acquires; if it never does, every frame from the first
         miss on is marked `lost`. A lag that moved more than this since the
         last detection cannot be re-found, and reads as lost, never as a
-        smaller count.
+        smaller count. Searched in tiles of `TILE_SPAN`, the meter's
+        own limit, so any width is the width asked for.
 
     Returns
     -------
@@ -214,7 +227,7 @@ def frame_slips(
     rpad = np.concatenate([np.zeros(pad, np.complex64), rx])
     markers = frame_markers(sync_at, ends, n_marker)
 
-    def search(mk: Marker, centre: int, span: int) -> int | None:
+    def search_one(mk: Marker, centre: int, span: int) -> int | None:
         # view[j] = rpad[j + pad - centre] = rx[j - centre]: a symbol at
         # lag L in `rx` sits at L - centre here, inside the search span.
         start = pad - centre
@@ -223,11 +236,27 @@ def frame_slips(
         meter.align(rpad[start:], t0=mk.t, n_marker=mk.n, lag_span=span)
         return meter.lag + centre if meter.align_ok else None
 
+    def search(mk: Marker, centre: int, span: int) -> int | None:
+        # The meter searches at most TILE_SPAN either side and quietly
+        # narrows a wider request, so a wide search is laid as tiles,
+        # nearest first, overlapping by TILE_OVERLAP so a peak on one
+        # tile's edge (refused there as saturated) is inside the next.
+        if span <= TILE_SPAN:
+            return search_one(mk, centre, span)
+        step = 2 * TILE_SPAN + 1 - TILE_OVERLAP
+        k_max = -(-(span - TILE_SPAN) // step)
+        for k in sorted(range(-k_max, k_max + 1), key=abs):
+            lag = search_one(mk, centre + k * step, TILE_SPAN)
+            if lag is not None and abs(lag - centre) <= span:
+                return lag
+        return None
+
     per: dict[int, list] = {}
     guess = 0
     prev: tuple[Marker, int] | None = None
     searching = False  # a wide search missed: wait for the next head
     first_miss: int | None = None  # frame of the first miss since a find
+    confirmed = False  # a LATER frame's head was searched wide, and missed
     for mk in markers:
         rec = per.setdefault(mk.frame, [0, 0, 0, [], []])
         rec[3].append(mk)
@@ -245,6 +274,8 @@ def frame_slips(
         elif mk.head:
             lag = search(mk, guess, reacquire_span)
             searching = lag is None
+            if searching and first_miss is not None:
+                confirmed = confirmed or mk.frame > first_miss
         rec[4].append(lag)
         if lag is None:
             # A miss is evidence of a loss only where every lag the wide
@@ -254,7 +285,7 @@ def frame_slips(
             if first_miss is None and inside:
                 first_miss = mk.frame
             continue
-        first_miss = None
+        first_miss, confirmed = None, False
         if prev is not None:
             pm, plag = prev
             d = abs(lag - plag)
@@ -265,8 +296,10 @@ def frame_slips(
             else:
                 rec[2] += d
         prev, guess = (mk, lag), lag
-    gone = first_miss if searching else None
-    # (first_miss is None when every unrecovered miss was near the end.)
+    # Lost only when a later frame's head was searched wide and missed too:
+    # a miss in the last frame, or near the capture's end, had no later
+    # head to be re-found at, so it stays an unresolved miss (lag None).
+    gone = first_miss if searching and confirmed else None
     return [
         FrameSlips(
             k, g, d, o, tuple(ms), tuple(ls), gone is not None and k >= gone

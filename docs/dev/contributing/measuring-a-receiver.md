@@ -255,6 +255,56 @@ Python bindings. The named operating points deliberately do **not** ship —
 they are our conventions, not an API, and a caller measuring their own
 receiver wants the machinery rather than our choice of `sps = 8`.
 
+______________________________________________________________________
+
+## Where a measurement lives
+
+Three homes, told apart by the question and by what may run it:
+
+| the question                                       | its home                                                                             | what runs it                                                                |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| does one behavior of one object hold?              | a unit test: `native/tests/test_<obj>_core.c`, or a module's `tests/`                | `make test`, `make test-python`, every push                                 |
+| does a claim the C header makes hold?              | a validation harness, `native/validation/<obj>_*.c`                                  | its `--check` subset in CTest every push; the full run by `make validate-c` |
+| how does it behave across an envelope, in minutes? | a characterization subject, `src/doppler/<module>/tests/characterization/<subject>/` | `make characterize`, on purpose; never CI                                   |
+
+A characterization's per-push cover is its **fast twin**: a test that pins
+the qualitative result the sweep found, and the calibrations its columns
+rest on, in seconds. `make characterization-check` refuses a subject
+without one. `src/doppler/track/tests/characterization/ted_low_snr/` is a
+worked example.
+
+### A dilated scene moves every clock together
+
+When the question has a clock error in it, the default stimulus is the
+composer's Doppler channel: `doppler` in ppm with the `carrier_hz` it is
+referred to, and `snr_mode="esno"`. The channel rescales the time base, so
+the code, carrier and data clocks move together, the way they do on the air:
+
+```python
+from doppler.wfm import Composer, Segment
+
+seg = Segment(
+    type="bpsk",
+    sps=8,
+    fs=24_000.0,  # 3000 sym/s
+    snr=3.0,
+    snr_mode="esno",  # Es/N0, per symbol
+    doppler=1.0,  # ppm of the time base
+    carrier_hz=2.2e9,  # the carrier that ppm is referred to
+    num_samples=24_000,
+)
+x = Composer([seg]).compose()
+assert x.size == 24_000
+```
+
+`RateConverter` is not a way to make one. Its only rate offset,
+`execute_ctrl`, steers its terminal stage, not the output rate, and a clock
+moved by resampling a finished stimulus is moved apart from its carrier:
+the last trap in the table above. Telling a receiver a different nominal
+`sps` (`clock_offset_inside_bw`) is the same move, and it is sound only
+where there is no carrier for the clock to part from, as in a baseband
+timing-loop measurement.
+
 ## Related pages
 
 - [Receiver Test Harness](../../design/rx-test.md) — the design and the ten goals

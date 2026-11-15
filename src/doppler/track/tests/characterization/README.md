@@ -21,9 +21,9 @@ The sweeps are seeded: a rerun at the same commit prints the same numbers.
 
 |         |                                                                                                                   |
 | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| date    | 2026-11-15, 14:06 to 14:07 UTC                                                                                    |
+| date    | 2026-11-15, 14:20 to 14:21 UTC                                                                                    |
 | machine | `omni-x7358h`: Intel Core Ultra X7 358H, Linux 6.18 (WSL2), Python 3.13.18                                        |
-| commit  | `0182a0f78` plus the counter's re-acquire, before it was committed                                                |
+| commit  | `f127cf9da` plus tiled re-acquire, before it was committed                                                        |
 | command | `make characterize CHARACTERIZATIONS=src/doppler/track/tests/characterization/ted_low_snr/characterize.py` (60 s) |
 
 Rectangular BPSK, 8 samples a symbol, Es/N0 3 dB, a 1 ppm data clock, into
@@ -32,32 +32,32 @@ Rectangular BPSK, 8 samples a symbol, Es/N0 3 dB, a 1 ppm data clock, into
 is `RateSync`'s contract, unit symbol amplitude. Every row sees the same
 symbols and the same noise.
 
-| sym/s | G   | TED     | bn    | level | slips gap / data / other                                          | SER [99% CI]            | loss dB | lock in gap | lock_stat gap / data |
-| ----- | --- | ------- | ----- | ----- | ----------------------------------------------------------------- | ----------------------- | ------- | ----------- | -------------------- |
-| 3000  | 367 | gardner | 0.005 | 0.5x  | 0 / 0 / 0, 3 unaligned                                            | 0.0277 [0.0255, 0.0300] | +0.20   | 100%        | +0.15 / +0.41        |
-| 3000  | 367 | gardner | 0.005 | 1x    | 47 / 8 / 3, 4 unaligned                                           | 0.0326 [0.0301, 0.0354] | +0.53   | 100%        | +0.14 / +0.39        |
-| 3000  | 367 | gardner | 0.005 | 2x    | 622 / 216 / 8, 15 unaligned                                       | 0.0426 [0.0393, 0.0462] | +1.10   | 99%         | +0.11 / +0.32        |
-| 3000  | 367 | gardner | 0.01  | 0.5x  | 68 / 91 / 3, 3 unaligned                                          | 0.0327 [0.0301, 0.0354] | +0.53   | 99%         | +0.14 / +0.37        |
-| 3000  | 367 | gardner | 0.01  | 1x    | 507 / 51 / 1, 3 unaligned                                         | 0.0403 [0.0371, 0.0437] | +0.98   | 100%        | +0.12 / +0.35        |
-| 3000  | 367 | gardner | 0.01  | 2x    | lost from frame 999: 1364 / 4850 / 5242 before it, 5476 unaligned | —                       | —       | 64%         | +0.07 / +0.20        |
-| 3000  | 367 | dttl    | 0.005 | 0.5x  | 1 / 0 / 0, 2 unaligned                                            | 0.0289 [0.0266, 0.0313] | +0.28   | 100%        | +0.14 / +0.41        |
-| 3000  | 367 | dttl    | 0.005 | 1x    | 81 / 4 / 0, 3 unaligned                                           | 0.0320 [0.0295, 0.0347] | +0.49   | 100%        | +0.14 / +0.39        |
-| 3000  | 367 | dttl    | 0.005 | 2x    | 303 / 7 / 0, 2 unaligned                                          | 0.0350 [0.0323, 0.0380] | +0.67   | 100%        | +0.13 / +0.37        |
-| 3000  | 367 | dttl    | 0.01  | 0.5x  | 276 / 21 / 3, 4 unaligned                                         | 0.0341 [0.0315, 0.0370] | +0.62   | 100%        | +0.13 / +0.37        |
-| 3000  | 367 | dttl    | 0.01  | 1x    | 591 / 81 / 7, 4 unaligned                                         | 0.0374 [0.0344, 0.0405] | +0.81   | 100%        | +0.13 / +0.36        |
-| 3000  | 367 | dttl    | 0.01  | 2x    | 1185 / 990 / 283, 606 unaligned                                   | 0.0425 [0.0392, 0.0461] | +1.10   | 99%         | +0.11 / +0.32        |
-| 7000  | 357 | gardner | 0.005 | 0.5x  | 0 / 0 / 0, 3 unaligned                                            | 0.0270 [0.0248, 0.0292] | +0.15   | 100%        | +0.15 / +0.41        |
-| 7000  | 357 | gardner | 0.005 | 1x    | 62 / 6 / 0, 1 unaligned                                           | 0.0294 [0.0271, 0.0319] | +0.32   | 100%        | +0.14 / +0.38        |
-| 7000  | 357 | gardner | 0.005 | 2x    | 595 / 226 / 1, 1 unaligned                                        | 0.0399 [0.0368, 0.0433] | +0.96   | 99%         | +0.11 / +0.32        |
-| 7000  | 357 | gardner | 0.01  | 0.5x  | 89 / 104 / 1, 1 unaligned                                         | 0.0313 [0.0288, 0.0340] | +0.44   | 99%         | +0.14 / +0.36        |
-| 7000  | 357 | gardner | 0.01  | 1x    | 501 / 50 / 5, 2 unaligned                                         | 0.0352 [0.0324, 0.0382] | +0.68   | 100%        | +0.13 / +0.35        |
-| 7000  | 357 | gardner | 0.01  | 2x    | 1432 / 4885 / 4505, 5275 unaligned                                | 0.0936 [0.0862, 0.1015] | +3.31   | 63%         | +0.07 / +0.20        |
-| 7000  | 357 | dttl    | 0.005 | 0.5x  | 4 / 0 / 0, 2 unaligned                                            | 0.0278 [0.0256, 0.0301] | +0.21   | 100%        | +0.15 / +0.41        |
-| 7000  | 357 | dttl    | 0.005 | 1x    | 65 / 5 / 0, 1 unaligned                                           | 0.0295 [0.0272, 0.0320] | +0.33   | 100%        | +0.14 / +0.39        |
-| 7000  | 357 | dttl    | 0.005 | 2x    | 282 / 10 / 1, 2 unaligned                                         | 0.0307 [0.0283, 0.0333] | +0.40   | 100%        | +0.14 / +0.37        |
-| 7000  | 357 | dttl    | 0.01  | 0.5x  | 256 / 29 / 3, 3 unaligned                                         | 0.0305 [0.0281, 0.0331] | +0.40   | 100%        | +0.14 / +0.37        |
-| 7000  | 357 | dttl    | 0.01  | 1x    | 549 / 76 / 8, 28 unaligned                                        | 0.0336 [0.0310, 0.0365] | +0.59   | 100%        | +0.13 / +0.36        |
-| 7000  | 357 | dttl    | 0.01  | 2x    | 1155 / 1035 / 237, 385 unaligned                                  | 0.0411 [0.0378, 0.0445] | +1.02   | 99%         | +0.11 / +0.32        |
+| sym/s | G   | TED     | bn    | level | slips gap / data / other           | SER [99% CI]            | loss dB | lock in gap | lock_stat gap / data |
+| ----- | --- | ------- | ----- | ----- | ---------------------------------- | ----------------------- | ------- | ----------- | -------------------- |
+| 3000  | 367 | gardner | 0.005 | 0.5x  | 0 / 0 / 0, 3 unaligned             | 0.0277 [0.0255, 0.0300] | +0.20   | 100%        | +0.15 / +0.41        |
+| 3000  | 367 | gardner | 0.005 | 1x    | 47 / 8 / 3, 4 unaligned            | 0.0326 [0.0301, 0.0354] | +0.53   | 100%        | +0.14 / +0.39        |
+| 3000  | 367 | gardner | 0.005 | 2x    | 622 / 216 / 8, 15 unaligned        | 0.0426 [0.0393, 0.0462] | +1.10   | 99%         | +0.11 / +0.32        |
+| 3000  | 367 | gardner | 0.01  | 0.5x  | 68 / 91 / 3, 3 unaligned           | 0.0327 [0.0301, 0.0354] | +0.53   | 99%         | +0.14 / +0.37        |
+| 3000  | 367 | gardner | 0.01  | 1x    | 507 / 51 / 1, 3 unaligned          | 0.0403 [0.0371, 0.0437] | +0.98   | 100%        | +0.12 / +0.35        |
+| 3000  | 367 | gardner | 0.01  | 2x    | 1364 / 4850 / 5242, 5476 unaligned | 0.0845 [0.0778, 0.0916] | +2.97   | 64%         | +0.07 / +0.20        |
+| 3000  | 367 | dttl    | 0.005 | 0.5x  | 1 / 0 / 0, 2 unaligned             | 0.0289 [0.0266, 0.0313] | +0.28   | 100%        | +0.14 / +0.41        |
+| 3000  | 367 | dttl    | 0.005 | 1x    | 81 / 4 / 0, 3 unaligned            | 0.0320 [0.0295, 0.0347] | +0.49   | 100%        | +0.14 / +0.39        |
+| 3000  | 367 | dttl    | 0.005 | 2x    | 303 / 7 / 0, 2 unaligned           | 0.0350 [0.0323, 0.0380] | +0.67   | 100%        | +0.13 / +0.37        |
+| 3000  | 367 | dttl    | 0.01  | 0.5x  | 276 / 21 / 3, 4 unaligned          | 0.0341 [0.0315, 0.0370] | +0.62   | 100%        | +0.13 / +0.37        |
+| 3000  | 367 | dttl    | 0.01  | 1x    | 591 / 81 / 7, 4 unaligned          | 0.0374 [0.0344, 0.0405] | +0.81   | 100%        | +0.13 / +0.36        |
+| 3000  | 367 | dttl    | 0.01  | 2x    | 1185 / 990 / 283, 606 unaligned    | 0.0425 [0.0392, 0.0461] | +1.10   | 99%         | +0.11 / +0.32        |
+| 7000  | 357 | gardner | 0.005 | 0.5x  | 0 / 0 / 0, 3 unaligned             | 0.0270 [0.0248, 0.0292] | +0.15   | 100%        | +0.15 / +0.41        |
+| 7000  | 357 | gardner | 0.005 | 1x    | 62 / 6 / 0, 1 unaligned            | 0.0294 [0.0271, 0.0319] | +0.32   | 100%        | +0.14 / +0.38        |
+| 7000  | 357 | gardner | 0.005 | 2x    | 595 / 226 / 1, 1 unaligned         | 0.0399 [0.0368, 0.0433] | +0.96   | 99%         | +0.11 / +0.32        |
+| 7000  | 357 | gardner | 0.01  | 0.5x  | 89 / 104 / 1, 1 unaligned          | 0.0313 [0.0288, 0.0340] | +0.44   | 99%         | +0.14 / +0.36        |
+| 7000  | 357 | gardner | 0.01  | 1x    | 501 / 50 / 5, 2 unaligned          | 0.0352 [0.0324, 0.0382] | +0.68   | 100%        | +0.13 / +0.35        |
+| 7000  | 357 | gardner | 0.01  | 2x    | 1432 / 4885 / 4505, 5275 unaligned | 0.0936 [0.0862, 0.1015] | +3.31   | 63%         | +0.07 / +0.20        |
+| 7000  | 357 | dttl    | 0.005 | 0.5x  | 4 / 0 / 0, 2 unaligned             | 0.0278 [0.0256, 0.0301] | +0.21   | 100%        | +0.15 / +0.41        |
+| 7000  | 357 | dttl    | 0.005 | 1x    | 65 / 5 / 0, 1 unaligned            | 0.0295 [0.0272, 0.0320] | +0.33   | 100%        | +0.14 / +0.39        |
+| 7000  | 357 | dttl    | 0.005 | 2x    | 282 / 10 / 1, 2 unaligned          | 0.0307 [0.0283, 0.0333] | +0.40   | 100%        | +0.14 / +0.37        |
+| 7000  | 357 | dttl    | 0.01  | 0.5x  | 256 / 29 / 3, 3 unaligned          | 0.0305 [0.0281, 0.0331] | +0.40   | 100%        | +0.14 / +0.37        |
+| 7000  | 357 | dttl    | 0.01  | 1x    | 549 / 76 / 8, 28 unaligned         | 0.0336 [0.0310, 0.0365] | +0.59   | 100%        | +0.13 / +0.36        |
+| 7000  | 357 | dttl    | 0.01  | 2x    | 1155 / 1035 / 237, 385 unaligned   | 0.0411 [0.0378, 0.0445] | +1.02   | 99%         | +0.11 / +0.32        |
 
 Reading the columns: slips are whole symbols, counted by the shared
 counter `src/doppler/track/tests/_frame_slips.py` from 256-symbol
@@ -98,7 +98,10 @@ to 0.14 inside it.
 
 **`RateSync`'s default bandwidth, 0.01, is too wide for this floor** with
 either detector: 556 to 679 slips at the contracted level, and at 0.5x
-Gardner already slips in data (91 and 104). At 2x it slips about 4,900 symbols in data at either rate, with over 5,000 markers missing, and the counter loses the 3000 sym/s stream in its last frame; the DTTL slips about 1,000.
+Gardner already slips in data (91 and 104). At 2x the loop barely holds the
+stream: over 5,000 markers miss, about 4,500 to 5,200 slipped symbols span a
+miss (*other*), so its 4,850 and 4,885 data slips are floors, not counts;
+the DTTL slips about 1,000.
 
 **What this does not say.** One Es/N0, so no crossover: the header's
 "degrades faster at low SNR" is a trend, and this run shows only that at

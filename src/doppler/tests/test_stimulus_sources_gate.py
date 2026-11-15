@@ -106,6 +106,12 @@ def test_every_spelling_of_the_second_sqrt2_fails(tmp_path: Path) -> None:
         "y = 0.707f * sigma * dp_cgauss (&st);",
         "y = M_SQRT2 / 2.0 * sigma * dp_cgauss (&st);",
         "y = dp_cgauss (&st) * sigma * M_SQRT1_2;",
+        # A unary sign or an exponent's sign is not a sum: the confirm
+        # review found both escaping the first term split.
+        "y = sigma / sqrt (2.0) * -dp_cgauss (&st);",
+        "y = sigma / sqrt (2.0) * 1e-3 * dp_cgauss (&st);",
+        "y = sigma / sqrt (2.0) * 1.5E+2 * dp_cgauss (&st);",
+        "y = -sigma / sqrt (2.0) * dp_cgauss (&s->st);",
     ):
         r = _run(tmp_path, _fn(line))
         assert r.returncode == 1, line + "\n" + r.stdout

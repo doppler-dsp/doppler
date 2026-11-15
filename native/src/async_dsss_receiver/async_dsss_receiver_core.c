@@ -2265,7 +2265,18 @@ dp_async_dsss_receiver_get_chip_phase (
   if (state->state == ASYNC_DSSS_RX_REFINING)
     return adr_handover_phase (state, state->seed_doppler_hz_est,
                                state->refine_samples_fed);
-  return dp_dll_get_code_phase (state->dll);
+  /* The Dll's phase is at the next sample IT runs, and the live chain runs
+     whole tsamps-sample periods, carrying the rest (car_carry_buf), so the
+     stream's next sample is car_carry_len past it. At a whole-sample period
+     the hand-over lands on a period boundary and the carry is 0; at a
+     fractional one it is a constant remainder, up to a whole period -- at
+     2.2 samples a chip, 2,140 samples, which read ~50 chips off and let
+     the pool's search re-seed every held signal (#3063). Carried at the
+     loop's own code rate, which a dilation or the rate aid moves. */
+  const double ahead = (double)state->car_carry_len / state->spc
+                       * dp_dll_get_code_rate (state->dll);
+  return dp_fmod_pos (dp_dll_get_code_phase (state->dll) + ahead,
+                      (double)state->code_len);
 }
 double
 dp_async_dsss_receiver_get_code_rate (

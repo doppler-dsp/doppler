@@ -349,9 +349,10 @@ static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
                   "was when lost). Only as good as `locked`: with the carrier "
                   "unlocked, loop 1 free-runs and this wanders." },
   { "chip_phase",
-    "Code phase, chips: the live Dll's; while refining, the seed's advanced "
-    "by the clock dilation since (what the hand-over starts from), so a "
-    "refining receiver's signal can be excluded too." },
+    "Code phase, chips, at the sample after the last one fed: the live Dll's, "
+    "carried over the partial period the chain holds; while refining, the "
+    "seed's advanced by the clock dilation since (what the hand-over starts "
+    "from), so a refining receiver's signal can be excluded too." },
   { "code_rate",
     "The Dll's code rate, chips per nominal chip (~1.0 at lock), without the "
     "carrier aid; a coasting Dll's is its held rate." },

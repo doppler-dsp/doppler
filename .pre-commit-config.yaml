@@ -145,9 +145,9 @@ repos:
         pass_filenames: false
         types_or: [c]
 
-      # Every gate the acq engine prices splits pfa over acq_band_cells(), the
-      # cells its maximum ranges over; a hand count of the native cells fired
-      # it at about twice its pfa (doppler#2218).
+      # Every gate the acq engine prices splits pfa over
+      # search_band_cells(), the cells its maximum ranges over; a hand count
+      # of the native cells fired it at about twice its pfa (doppler#2218).
       - id: acq-pfa-split
         name: the acq gate is priced over one cell count
         entry: make -s lint-acq-pfa-split

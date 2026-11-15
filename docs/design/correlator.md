@@ -63,8 +63,9 @@ ruled.
     was decided on.
 - **Doppler rate** *(not yet reviewed)*: the Doppler's derivative, Hz/s
     (`doppler_rate`).
-- **Doppler uncertainty**, ±U *(not yet reviewed)*: the full Doppler range
-    the caller asks the search to cover (`doppler_uncertainty`) [±50 kHz].
+- **Doppler uncertainty**, ±U *(not yet reviewed)*: the half-range of the
+    Doppler the caller asks the search to cover (`doppler_uncertainty`)
+    [±50 kHz].
 - **delay** (τ) *(not yet reviewed)*: the offset between the signal's
     epoch boundaries and the engine's; continuous, 0 to N samples.
     **Sub-sample delay**: its fractional part only.
@@ -151,7 +152,8 @@ ruled.
     when K > 1.
 - **measured Pd**: the fraction of trial acquisition sequences detected.
 - **underpowered**: the engine's flag: `pd_burst` < `pd` on a burst
-    search, else `pd_predicted` < `pd`; never set without a design C/N0.
+    search where `pd_burst` is defined, else `pd_predicted` < `pd`; never
+    set without a design C/N0.
 - **as built**: what the committed engine does through its public door.
     **Emulated**: a harness arranging the engine to imitate something not
     built [re-pushing the stream at P offsets].
@@ -296,7 +298,8 @@ naming the knob through its trailing `why`, and the binding raises it as
 Normalized units are one stated argument away, `sample_rate=1.0`.
 
 One warning for both searches, on `underpowered`, whose meaning is each
-search's own (`pd_predicted < pd` continuous, `pd_burst < pd` burst), with
+search's own (`pd_predicted < pd` continuous; `pd_burst < pd` burst, or
+`pd_predicted < pd` where `pd_burst` is NaN), with
 one message that names both remedies.
 
 ## 4. The members, and who serves each
@@ -605,10 +608,14 @@ code-rate ramp. Its definition, its two schedules and its one rule
     anywhere in a total dwell, and there are no overlapped dwells
     ([#3054](https://github.com/doppler-dsp/doppler/issues/3054)). At a
     marginal design point that alignment loss is the largest single loss.
-    On §9's UNO Q case an aligned acquisition sequence has an acquisition
-    Pd of 0.999 with a 64-epoch coherent dwell and a randomly placed one
-    0.705, and no configuration the door builds exceeds about 0.81 (a
-    32-epoch coherent dwell with a non-coherent count of 2, 0.805).
+    On §9's UNO Q case, with a 64-epoch coherent dwell on one roll and
+    Doppler uniform over ±50 kHz and rate over ±1 kHz/s, an aligned
+    acquisition sequence has an acquisition Pd of 0.999 at zero delay and
+    0.975 with the delay uniform over an epoch, and a randomly placed one
+    0.705.
+    On one roll nothing exceeds about 0.81: the sizer's 41-epoch coherent
+    dwell with four rate hypotheses gets 0.807, and a 32-epoch coherent dwell with a non-coherent
+    count of 2, pinned through `configure_search_raw`, 0.805.
     `pd_burst` is conservative there (0.635 against 0.705) and NaN when the
     non-coherent count exceeds 1.
 - **A burst search's Doppler rolls come from the Doppler uncertainty and
@@ -644,7 +651,8 @@ Unless it names another box, everything below
 was measured at #2457's point on the x86 dev box, and §9.1's profile also on
 a Snapdragon X2. Every number here is a run in
 [the measurement record](correlator-measurements.md#9-cost-and-parallelism),
-or on the A53 an issue it names; the record says which runs have their
+or, for the UNO Q case (here and in §8), a run recorded in the issue it
+names, whose harness lives there; the record says which runs have their
 harness and raw output committed beside it.
 
 The search's signals lie below the noise before correlation gain, so
@@ -810,7 +818,7 @@ its own issue.
     ([its README](../example-projects/uno-q.md)) shows the A53 cache-bound:
     `fft` runs 34 Mbin/s at 4,096 points against 6.7 at 65,536. So §9.2's
     conclusion that bandwidth is not the limit is the x86 box's only. On
-    that board the burst search has compute to spare and is short on
+    that board the one-roll burst search has compute to spare and is short on
     acquisition Pd, 3 dB as built and 1 to 2 with overlapped dwells (§9), so
     narrower arithmetic is not on that application's critical path.
 - **The arm64 two-thread case** gained nothing over one thread at the design

@@ -11,7 +11,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from doppler.track.tests._frame_slips import frame_markers, frame_slips
+from doppler.track.tests._frame_slips import (
+    frame_markers,
+    frame_slips,
+    lost_from,
+)
 
 GAP, DOTS, BODY, NMK = 367, 128, 2000, 256
 
@@ -107,3 +111,61 @@ def test_the_docstring_examples_run():
 
     res = doctest.testmod(mod, optionflags=doctest.ELLIPSIS)
     assert res.attempted > 0 and res.failed == 0, res
+
+
+def test_a_jump_past_the_narrow_span_is_reacquired_and_counted():
+    """40 symbols dropped in one idle run: past `lag_span`, still counted.
+
+    Searching only around the old lag, every later marker would miss and
+    the run would read as lost from frame 1, or worse, as a small count.
+    """
+    truth, sync, ends, sym = _stream(4)
+    rx = np.delete(sym, np.arange(ends[0] + 50, ends[0] + 90))
+    fs = frame_slips(rx, truth, sync, ends)
+    assert lost_from(fs) is None
+    assert _counts(fs) == [(0, 0, 0), (40, 0, 0), (0, 0, 0), (0, 0, 0)]
+    assert all(lag is not None for f in fs for lag in f.lags)
+
+
+def test_a_stream_that_is_gone_reads_as_lost_not_as_a_count():
+    """Noise from frame 2 on: the counter says lost from 2, not zero slips."""
+    truth, sync, ends, sym = _stream(5)
+    rng = np.random.default_rng(9)
+    rx = sym.copy()
+    rx[ends[1] :] = (1 - 2.0 * rng.integers(0, 2, rx.size - ends[1])).astype(
+        np.complex64
+    )
+    fs = frame_slips(rx, truth, sync, ends)
+    assert lost_from(fs) == 2
+    assert [f.lost for f in fs] == [False, False, True, True, True]
+
+
+def test_the_stream_is_reacquired_after_a_lost_frame():
+    """A frame of noise hiding a 40-symbol jump: re-found at the next head.
+
+    Every marker of frame 1 misses, its wide searches too, so the counter
+    waits for frame 2's head and searches wide there. The jump spans the
+    missed markers, so it is booked to `other`, not lost and not dropped.
+    """
+    truth, sync, ends, sym = _stream(4)
+    rng = np.random.default_rng(9)
+    rx = sym.copy()
+    n1 = ends[1] - ends[0]
+    rx[ends[0] : ends[1]] = (1 - 2.0 * rng.integers(0, 2, n1)).astype(
+        np.complex64
+    )
+    rx = np.delete(rx, np.arange(ends[0] + 50, ends[0] + 90))
+    fs = frame_slips(rx, truth, sync, ends)
+    assert lost_from(fs) is None
+    assert all(lag is None for lag in fs[1].lags)
+    assert all(lag is not None for f in fs[2:] for lag in f.lags)
+    assert sum(f.other for f in fs) == 40
+    assert sum(f.gap + f.data for f in fs) == 0
+
+
+def test_a_capture_that_stops_early_is_not_lost():
+    """Markers past the end of `rx` were never received: not a loss."""
+    truth, sync, ends, sym = _stream(3)
+    fs = frame_slips(sym[: ends[1] + 600], truth, sync, ends)
+    assert lost_from(fs) is None
+    assert _counts(fs) == [(0, 0, 0)] * 3

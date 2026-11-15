@@ -276,7 +276,8 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                curl-fail \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals size-mul named-args acq-pfa-split \
-               finding-citations test-all-ci changelog-fragments dup-include
+               finding-citations test-all-ci changelog-fragments dup-include \
+               windows-macro-names
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -507,6 +508,12 @@ LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
 # except vendor/; C_FILES is not the list, because it leaves out the
 # native/inc headers where every one of those repeats was. No allowlist.
 LINT_dup-include = $(UV) run python scripts/check_dup_includes.py
+
+# <windows.h> defines near, far, IN, OUT, small and others as object-like
+# macros, so an identifier with one of those names breaks only the Windows
+# legs (PR #1975, PR #3071). Every tracked .c/.h except vendor/; uses that
+# predate the gate are scripts/.windows-macro-names-exempt, which only shrinks.
+LINT_windows-macro-names = $(UV) run python scripts/check_windows_macro_names.py
 
 # The acquisition engine prices a gate at three sites, and only the commit
 # site has an exact pin (test_correlator_search.c). Each must split pfa over the one

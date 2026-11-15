@@ -29,27 +29,27 @@ standard rules unless the owner sets otherwise, and no number is picked.
 Every row names its source. A row that neither sets is **NOT SET**, and is
 not invented.
 
-| quantity                             | value                                                                                                                  | source                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| link                                 | forward (network to user), the command (I) channel only                                                                | owner; 415.1-B-1 §4.2                                                          |
-| modulation                           | BPSK: with no range channel, the I channel's parameters apply to BPSK                                                  | 415.1-B-1 table 4-1, note 1                                                    |
-| carrier suppression                  | 30 dB minimum                                                                                                          | 415.1-B-1 table 4-1                                                            |
-| code                                 | Gold, 2^10 − 1 = 1,023 chips, the generator of figure 4-1, a user-unique initial condition                             | 415.1-B-1 table 4-1, §4.4                                                      |
-| chip rate                            | F_fwd × 31 / (221 × 96)                                                                                                | 415.1-B-1 table 4-1                                                            |
-| chip-rate coherence with the carrier | peak chip-rate error at most 0.01 chips/s, relative to absolute coherence with the carrier rate                        | 415.1-B-1 table 4-2                                                            |
-| data on the code                     | modulo-2 added, asynchronously                                                                                         | 415.1-B-1 table 4-1                                                            |
-| symbol rate                          | 3,000 sym/s (case L) and 7,000 sym/s (case H), §1.5; the standard allows 0.1 to 300 ks/s                               | owner; the range, 415.1-B-1 table 4-1                                          |
-| symbol clock                         | within 1 ppm of nominal, on no relation to the code or the carrier; its stability is NOT SET                           | owner: no link standard sets it (415.1, 232.0, 231.0 and 401.0 give no figure) |
-| carrier frequency F_fwd              | 2.2 to 2.8 GHz                                                                                                         | owner                                                                          |
-| chip rate, epoch rate                | 3.2146 to 4.0913 Mcps; 3,142.3 to 3,999.3 Hz                                                                           | derived from the two rows above                                                |
-| frequency uncertainty                | Doppler pre-compensated; the received signal within ±1,500 Hz of best lock                                             | owner, taking 415.1-B-1 §7.4.1's figure; pre-compensation, §6.1                |
-| frequency rate                       | 400 Hz/s                                                                                                               | owner                                                                          |
-| acquisition                          | short-code PN lock with probability at least 90% within 20 s of arrival, the signal within ±1,500 Hz of best lock      | 415.1-B-1 §7.4.1                                                               |
-| sensitivity floor                    | Es/N0 = 3 dB: C/N0 37.8 dB-Hz at 3,000 sym/s, 41.5 at 7,000; the BPSK bound there is a symbol error rate of 2.3%       | owner                                                                          |
-| capture                              | complex samples at 11 MSa/s                                                                                            | owner                                                                          |
-| data                                 | the stimulus of §1.4: a random payload between an acquisition sequence and a CRC-16; no transfer-frame header, no SDLS | owner; each part's source in §1.4                                              |
-| coding                               | none in this certification; the link will be coded later                                                               | owner                                                                          |
-| between frames                       | all-zero data: code alone, no symbol transitions                                                                       | owner; 415.1-B-1 §6.1                                                          |
+| quantity                             | value                                                                                                                | source                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| link                                 | forward (network to user), the command (I) channel only                                                              | owner; 415.1-B-1 §4.2                                                                      |
+| modulation                           | BPSK: with no range channel, the I channel's parameters apply to BPSK                                                | 415.1-B-1 table 4-1, note 1                                                                |
+| carrier suppression                  | 30 dB minimum                                                                                                        | 415.1-B-1 table 4-1                                                                        |
+| code                                 | Gold, 2^10 − 1 = 1,023 chips, the generator of figure 4-1, a user-unique initial condition                           | 415.1-B-1 table 4-1, §4.4                                                                  |
+| chip rate                            | F_fwd × 31 / (221 × 96)                                                                                              | 415.1-B-1 table 4-1                                                                        |
+| chip-rate coherence with the carrier | peak chip-rate error at most 0.01 chips/s, relative to absolute coherence with the carrier rate                      | 415.1-B-1 table 4-2                                                                        |
+| data on the code                     | modulo-2 added, asynchronously                                                                                       | 415.1-B-1 table 4-1                                                                        |
+| symbol rate                          | 3,000 sym/s (case L) and 7,000 sym/s (case H), §1.5; the standard allows 0.1 to 300 ks/s                             | owner; the range, 415.1-B-1 table 4-1                                                      |
+| symbol clock                         | within 1 ppm of nominal, on no relation to the code or the carrier; its stability is NOT SET                         | owner: no link standard sets it (415.1, 232.0, 231.0 and 401.0 give no figure)             |
+| carrier frequency F_fwd              | 2.2 to 2.8 GHz                                                                                                       | owner                                                                                      |
+| chip rate, epoch rate                | 3.2146 to 4.0913 Mcps; 3,142.3 to 3,999.3 Hz                                                                         | derived from the two rows above                                                            |
+| frequency uncertainty                | Doppler pre-compensated; the received signal within ±1,500 Hz of best lock                                           | owner-adopted: the owner sets it, taking 415.1-B-1 §7.4.1's figure; pre-compensation, §6.1 |
+| frequency rate                       | 400 Hz/s                                                                                                             | owner                                                                                      |
+| acquisition                          | short-code PN lock with probability at least 90% within 20 s of arrival, the signal within ±1,500 Hz of best lock    | 415.1-B-1 §7.4.1                                                                           |
+| sensitivity floor                    | Es/N0 = 3 dB: C/N0 37.8 dB-Hz at 3,000 sym/s, 41.5 at 7,000; the BPSK bound there is a symbol error rate of 2.3%     | owner                                                                                      |
+| capture                              | complex samples at 11 MSa/s                                                                                          | owner                                                                                      |
+| data                                 | the stimulus of §1.4: one CCSDS TC transfer frame a period, 8 to 1,024 octets, with its error control field; no SDLS | owner; 232.0-B-4 §4.1, each field's section in §1.4                                        |
+| coding                               | none in this certification; the link will be coded later                                                             | owner                                                                                      |
+| between frames                       | all-zero data: code alone, no symbol transitions                                                                     | owner; 415.1-B-1 §6.1                                                                      |
 
 Carrier and code come from one timebase, the chip rate a fixed fraction of
 the carrier, and Doppler moves them together; the data clock belongs to
@@ -174,22 +174,46 @@ different problems, and §4's refining stage answers the second. At the
 
 ### 1.4 The stimulus, one period
 
-The stimulus repeats one period: a gap, then one frame. The owner reduced
-the framing to the parts that help a receiver and an error count, with no
-coding.
+The stimulus repeats one period: a gap, an acquisition sequence, a start
+sequence, then one CCSDS TC transfer frame of 232.0-B-4 with a data field
+of random length. There is no coding and no SDLS.
 
-| part                 | content                                                                                                                  | source                                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| gap                  | `G` symbols of all-zero data: code alone                                                                                 | owner; 415.1-B-1 §6.1                                                                                  |
-| acquisition sequence | alternating ones and zeros, 128 bits                                                                                     | 231.0-B-4 §7.2.2 (16 octets is its preferred minimum length)                                           |
-| start sequence       | `1110 1011 1001 0000` (EB90), 16 bits, bit 0 first: it marks where the payload starts, so an error count needs no search | 231.0-B-4 §5.2.2.2                                                                                     |
-| payload              | random bits, a whole number of octets drawn per frame from 1 to 1,017                                                    | owner; the range, 232.0-B-4 §4.1.3.1.2 (the data field's maximum with the error control field present) |
-| error control        | a 16-bit CRC over the payload, G(X) = X^16 + X^12 + X^5 + 1, preset to all ones                                          | 232.0-B-4 §4.1.4.2                                                                                     |
+| part                 | content                                                                                                                | source                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| gap                  | `G` symbols of all-zero data: code alone                                                                               | owner; 415.1-B-1 §6.1                                        |
+| acquisition sequence | alternating ones and zeros, 128 bits                                                                                   | 231.0-B-4 §7.2.2 (16 octets is its preferred minimum length) |
+| start sequence       | `1110 1011 1001 0000` (EB90), 16 bits, bit 0 first: it marks where the frame starts, so an error count needs no search | 231.0-B-4 §5.2.2.2                                           |
+| transfer frame       | a 5-octet primary header, a data field of 1 to 1,017 octets, a 2-octet error control field: 8 to 1,024 octets in all   | owner; 232.0-B-4 §4.1.1, the fields below                    |
 
-Dropped from a TC transfer frame and its coding layer: the primary header
-with its counting sequence number, the BCH codeblocks, the tail sequence
-and the randomizer. A payload of 8 to 8,136 bits lasts 2.7 ms to 2.7 s at
-3,000 sym/s and 1.1 ms to 1.16 s at 7,000.
+The frame, field by field, in transmission order:
+
+| field                      | bits       | value in the stimulus                                                                | source                                      |
+| -------------------------- | ---------- | ------------------------------------------------------------------------------------ | ------------------------------------------- |
+| transfer frame version     | 2          | `00`                                                                                 | 232.0-B-4 §4.1.2.2.2                        |
+| bypass flag                | 1          | `1`, Type-B \*                                                                       | 232.0-B-4 §4.1.2.3.1                        |
+| control command flag       | 1          | `0`, Type-D: the data field is a frame data unit \*                                  | 232.0-B-4 §4.1.2.3.2, table 4-1 (Type-BD)   |
+| reserved spare             | 2          | `00`                                                                                 | 232.0-B-4 §4.1.2.4.2                        |
+| spacecraft identifier      | 10         | 42 \*                                                                                | 232.0-B-4 §4.1.2.5                          |
+| virtual channel identifier | 6          | 1 \*                                                                                 | 232.0-B-4 §4.1.2.6                          |
+| frame length               | 10         | the frame's total octets minus one: 7 to 1,023                                       | 232.0-B-4 §4.1.2.7.2, §4.1.2.7.3            |
+| frame sequence number      | 8          | 0 * (the value the COP sets on a Type-B frame)                                       | 232.0-B-4 §4.1.2.8, note 3                  |
+| data field                 | 8 to 8,136 | random octets, a whole number drawn per frame from 1 to 1,017; no segment header     | owner; 232.0-B-4 §4.1.3.1.2, §4.1.3.2.2.1.2 |
+| frame error control (FECF) | 16         | CRC over the header and data field, G(X) = X^16 + X^12 + X^5 + 1, preset to all ones | 232.0-B-4 §4.1.4.1.2, §4.1.4.2              |
+
+\* Arbitrary stimulus content, not the specification: a receiver at this
+point makes no use of the field, and any value would do.
+
+**The 1,024-octet maximum is normative from three sections**, not from the
+frame-length field: a 5-octet header (§4.1.1), a data field of at most 1,017
+octets when the error control field is present (§4.1.3.1.2), and that field's
+2 octets (§4.1.4.1.2). §4.1.2.7's note 2 says the 10-bit length field limits
+a frame to 1,024 octets; it is a note, and it agrees. The minimum, 1 octet of
+data, is the smallest whole number the mandatory data field can hold
+(§4.1.1 b, §4.1.3.1.2).
+
+Dropped from 231.0-B-4's coding layer: the BCH codeblocks, the tail
+sequence and the randomizer. A frame of 64 to 8,192 bits lasts 21 ms to
+2.73 s at 3,000 sym/s and 9.1 ms to 1.17 s at 7,000.
 
 **The gap is twice what the search needs.** The need is the search model's,
 read from `create()` at the worst corner: the 2.2 GHz end, a design C/N0 of
@@ -206,14 +230,26 @@ least 2·K·D − 1 epochs
 
 These are the model's numbers, not a detection measured at the band edge,
 and the gap's length is open (§1.7). The search does not hold its dwell
-`K·D` inside a gap today (#3082). §4.3's runs use these gaps, and a data
-clock 1 ppm fast.
+`K·D` inside a gap today (#3082). §4.2's and §4.3's runs use these gaps,
+and a data clock 1 ppm fast. They predate the header: their frame was the
+data field and a CRC-16 over it alone, 5 octets shorter than the transfer
+frame above, with the same gap, acquisition sequence and start sequence.
 
-**It is built from shipped tools.** The frame door assembles each period
-as a bit stream, a continuous DSSS source takes that stream as its `data=`,
-the composer's Doppler channel moves it, and a `RateConverter` takes it to
-11 MSa/s. Two shorter spellings drop a part without saying so: `frame=` on
-a continuous DSSS source
+**It is built from shipped tools.** Each frame is one `FrameDesc`: the
+header and data field by `add_field`, the error control field by
+`add_derived` and `add_stage_over(STAGE_CRC16, "header", "fecf")`.
+`FrameDesc` has no stage that fills a length count, so the frame-length
+field cannot be a derived field; it needs none, because each description
+is one frame of one known length, and the caller writes the count into the
+header's bits. Checked against main's build at 1, 17 and 1,017 data
+octets: the length field reads the total minus one, the FECF matches
+232.0-B-4 §4.1.4.2 computed independently, and `crc_ok()` passes.
+`FrameDesc` does not bound the data field at 1,017 octets; the stimulus
+does. The frame door assembles each period as a bit stream, a continuous
+DSSS source takes that stream as its `data=`, the composer's Doppler
+channel moves it, and a `RateConverter` takes it to 11 MSa/s. Two
+shorter spellings drop a part without saying so: `frame=` on a continuous
+DSSS source
 ([#3083](https://github.com/doppler-dsp/doppler/issues/3083)), and
 `Synth.steps()`, which skips the Doppler channel
 ([#3091](https://github.com/doppler-dsp/doppler/issues/3091)).
@@ -300,6 +336,12 @@ The owner's statement is two statements:
     after Doppler, so the symbol timing loop is the only thing that knows
     the data clock, and it acquires and holds it with no aid.
 
+415.1-B-1 §2.1 offers BPSK for the forward data "when RF and PN coherency
+is not required". That coherency is the turn-around kind, for ranging,
+which this point does not do (owner: "DSSS BPSK only and we aren't doing
+turn-around ranging"). It does not release the chip rate from table 4-1's
+ratio or from table 4-2's 0.01 chips/s, and §1's row stands as written.
+
 The receiver as built models the first as coherent at the source and
 dilated in flight. The code-rate offset is `chip_rate · fd / fc` wherever it
 is used: the search's hand-off phase (§2.2), the hand-over and both code
@@ -330,6 +372,18 @@ Not ruled by the owner, and not decided here:
     on the wrong Doppler never releases without it
     ([#3092](https://github.com/doppler-dsp/doppler/issues/3092)).
 1. **The knob names** of §4.4.
+1. **The margin under the M-PSK loop's hold limit** that the derived
+    bandwidth keeps (§4.4). The measured rows are the evidence; no factor
+    is ruled.
+1. **What the 20 dB loop-SNR rule becomes** where the derived bandwidth
+    cannot meet it: at 3,000 sym/s, 3 dB and 400 Hz/s it lands at 15 to
+    17 dB (§4.4). Whether the rule stays a requirement there, or becomes a
+    report and a warning, is not ruled.
+1. **Case L's excess loss at large residual**: about twice the partial's
+    sinc² at 2 to 3 kHz, with the Dll's lock flag falling while the
+    symbols decode (§4.3).
+1. **Symbol slips at `segments` 8**: one seed slipped in every case L
+    scene, static included, while the M-PSK loop held lock (§4.3).
 1. **What must hold at the floor**: the allowed loss against the BPSK bound,
     and how soon after arrival the receiver must be decoding.
 1. **Whether the link resolves half-cycle flips** (differential coding, or
@@ -1296,80 +1350,152 @@ none (§1.7).
 Also a dated record, measured 2026-11-15: scratch patches on main
 `f34f70027`, none of them in the tree, five seeds a cell. It is to be
 measured again through the knobs of §4.4 once they are built, not through
-the patches. The tables are
-[the experiment record on #3090](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6899249652).
+the patches. The tables are in two records on #3090:
+[the first round](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6899249652)
+and
+[the second, un-steered round](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6901179061).
 
-What the patches change: the code loop's carrier tracking is off; the
-search's Doppler is the hand-over, with no refine dwell; the M-PSK carrier
-loop runs at `bn` 0.033; the correction before despreading is steered from
-the M-PSK loop's own frequency, first order, with a 2 s time constant; and
-the code loop's rate aid is held at the search's estimate. Seven scenes
-(static at +1,500, −1,500 and 0 Hz; sweeps from one band edge to the other
-at ±400 Hz/s; ramps from 0 Hz at ±400 Hz/s), two carriers (2.2 and
-2.8 GHz) and five seeds make 70 runs a row, the as-built receiver beside
-them on the same runs:
+What the receiver measured here changes:
+
+- the code loop's carrier tracking is off, and the correction before
+    despreading is frozen at the hand-over;
+- the search's Doppler is the hand-over, with no refine dwell;
+- the code loop's rate aid is held at the search's estimate;
+- the M-PSK carrier loop runs at a `bn` wide enough for the frequency rate
+    (below).
+
+Seven scenes (static at +1,500, −1,500 and 0 Hz; sweeps from one band edge
+to the other at ±400 Hz/s; ramps from 0 Hz at ±400 Hz/s), two carriers (2.2
+and 2.8 GHz) and five seeds make 70 runs a row. The as-built receiver runs
+beside them on the same runs:
 
 |              | carried of 70 (as built) | loss against the bound | flips | slips | first data, median | hand-over error |
 | ------------ | ------------------------ | ---------------------- | ----- | ----- | ------------------ | --------------- |
-| case L, 3 dB | 69 (32)                  | 1.0 dB                 | 1     | 0     | 0.07 s             | −0.4 ± 10 Hz    |
+| case L, 3 dB | 68 (32)                  | 1.0 dB                 | 4     | 0     | 0.07 s             | −0.4 ± 10 Hz    |
 | case L, 5 dB | 70 (64)                  | 1.0 dB                 | 0     | 0     | 0.07 s             | −0.8 ± 10 Hz    |
-| case H, 3 dB | 70 (35)                  | 1.5 dB                 | 2     | 0     | 0.05 s             | 0 ± 14 Hz       |
-| case H, 5 dB | 70 (24)                  | 1.6 dB                 | 0     | 0     | 0.05 s             | 0 ± 14 Hz       |
+| case H, 3 dB | 70 (35)                  | 1.6 dB                 | 3     | 0     | 0.05 s             | 0 ± 14 Hz       |
+| case H, 5 dB | 70 (24)                  | 1.7 dB                 | 0     | 0     | 0.05 s             | 0 ± 14 Hz       |
+
+That is M-PSK `bn` 0.033.
+
+**The steer is not needed.** The first round also steered the correction
+from the M-PSK loop's frequency, with a 2 s time constant, and carried 279
+of 280. Frozen, the same receiver carries 278. The owner: "You don't need
+to steer it at all." The steer stays in this record as measured and not
+needed. It is not in §4.4.
 
 What each part was measured to do, one at a time:
 
-| part                                                         | measured                                                                                                                                                                                  |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| carrier tracking off, the correction frozen at the hand-over | case L: 0.8 to 0.9 dB of loss, 0 to 2 flips, M-PSK loop SNR 20 to 23 dB; but no run carried on any case L ramp, the symbol Es/N0 near −5 dB once the residual reaches 2.5 to 3.1 kHz      |
-| the search's Doppler as the hand-over                        | −24 to −29 ± 36 to 38 Hz (case L) and −14 to −21 ± 14 to 16 Hz (case H), against the refine's −108 ± 38 and −42 ± 52 Hz (case L) and spreads of 644 to 826 Hz (case H)                    |
-| the refine's dwell                                           | ages the estimate by 0.12 s, 48 Hz at 400 Hz/s: a race the M-PSK loop loses at 3 dB; without it, 79 of 80 case L ramp runs carried                                                        |
-| what steers the correction                                   | the M-PSK loop's frequency: a static residual of 0 ± 3 Hz; the Doppler derived from the code loop: −3 to −8 ± 9 to 18 Hz, and fewer runs carried                                          |
-| the steer's time constant                                    | 0.25 s is too fast; 2 s and 4 s carry alike (of 50 in case L at 3 dB: 40 and 39 steered from the M-PSK loop, 29 and 31 from the code loop), the ramp lag the rate times the time constant |
-| gating the steer on lock                                     | no gain; alone, it loses runs                                                                                                                                                             |
-| the M-PSK loop's `bn`                                        | 0.01 pulls in from 20 Hz (case L); 0.033 from 100 to 120 Hz, at a loop SNR of about 16 dB                                                                                                 |
-| the DTTL against Gardner                                     | no difference                                                                                                                                                                             |
-| `K` (case H, 2.2 GHz)                                        | SER 4.9% at `K` = 4, 3.8% at 8, 3.5% at 12, at 3 dB                                                                                                                                       |
-| the code loop's Doppler                                      | about 1 s to settle to 26 to 37 Hz of spread                                                                                                                                              |
+| part                                   | measured                                                                                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the correction frozen at the hand-over | at an M-PSK `bn` that holds the ramp, every static scene and 38 of 40 case L sweeps and ramps carry at 3 dB; the residual reaches 2,963 Hz, the sweep's whole span, with the M-PSK loop locked          |
+| the search's Doppler as the hand-over  | −24 to −29 ± 36 to 38 Hz (case L) and −14 to −21 ± 14 to 16 Hz (case H), against the refine's −108 ± 38 and −42 ± 52 Hz (case L) and spreads of 644 to 826 Hz (case H)                                  |
+| the refine's dwell                     | ages the estimate by 0.12 s, 48 Hz at 400 Hz/s: a race the M-PSK loop loses at 3 dB; without it, 79 of 80 case L ramp runs carried                                                                      |
+| the M-PSK loop's `bn`                  | at 0.010, no case L sweep or ramp carries (0 of 40 at 3 and 5 dB, at any steer time constant); 0.020 carries 19 and 39 of 40, 0.033 carries 38 and 40; case H carries at 0.010                          |
+| energy against the residual            | case H loses the partial's sinc², 0.55 dB at 3 kHz; case L loses about twice that, 1.10 dB at 3 kHz and 3 dB, and its Dll lock flag falls to 0.40 and 0.11 at 2 to 3 kHz while the symbols still decode |
+| `segments` 8 (case L)                  | about halves case L's excess at large residual, but not to the shorter partial's sinc²; one seed slips symbols in every scene                                                                           |
+| the steer, and its time constant       | not needed (above); 0.25 s is too fast; 2 s and 4 s carry alike                                                                                                                                         |
+| gating the steer on lock               | no gain; alone, it loses runs                                                                                                                                                                           |
+| the DTTL against Gardner               | no difference                                                                                                                                                                                           |
+| the code loop's Doppler                | about 1 s to settle to 26 to 37 Hz of spread                                                                                                                                                            |
 
-Not covered: 6 dB; noise-free case H; `reacquire`; where the remaining
-1.0 dB (case L) and 1.5 dB (case H) go; more than five seeds a cell.
+**Withdrawn:** the first round read "a frozen correction is fatal across
+the band in case L", with the symbol Es/N0 near −5 dB at 2.5 to 3.1 kHz of
+residual. Those frozen runs used M-PSK `bn` 0.010, which cannot hold
+400 Hz/s at 3,000 sym/s. The M-PSK loop was unlocked; the energy was there.
 
-### 4.4 Proposed, not yet built: the carrier knobs
+**The Dll's lock flag and the release rule.** With the correction frozen,
+case L's Dll lock flag falls at large residual while the symbols still
+decode. The release reads (`adr_release_clock()`,
+`async_dsss_receiver_core.c:1594-1598`):
+
+- with `reacquire`: the receiver's symbol lock alone. That is cos 2φ on the
+    demodulated output symbols, after the M-PSK carrier loop
+    (`:890-906`).
+- without `reacquire`: the Dll's flag or the symbol lock.
+
+So the Dll's flag falling alone cannot release the receiver, with
+`reacquire` on or off. The code loop's coast needs both flags down
+(`:784`). `reacquire` was not exercised in this experiment; that is a gap,
+not a result.
+
+The Dll's look window depends on the symbol rate. With `segments` above 1
+and at least two partials a symbol, the receiver sets the Dll's symbol
+period (`:299-307`). Its look and its steer then sum ⌊P⌋ − 1 partials
+coherently (`dll_core.c:1361`, `aid_look()`), where P is the number of
+partials a symbol. That is 239 to 250 µs in case L, at a sinc² of 9 to
+10 dB at 3 kHz. In case H it is one partial or per-partial looks: 63 to
+80 µs. Whether that explains case L's excess loss is open (§1.7).
+
+Not covered: 6 dB; noise-free case H; `reacquire`; more than five seeds a
+cell.
+
+### 4.4 Proposed, not yet built: three changes
 
 **Proposed, not yet built, and the names are not ruled**: `refine`,
-`carrier_loop`, `carrier_steer_s` and `demod_bn_carrier` are placeholders
-(§1.7). The owner's ruling is that §4.3's changes become constructor
-knobs. Nothing certified is removed: every default is the receiver as
-built, so a caller who sets none gets today's behavior bit for bit. Each
-knob is one thing §4.3 measured alone.
+`carrier_loop` and `demod_bn_carrier` are placeholders (§1.7). The owner's
+ruling is that §4.3's changes become constructor knobs. Nothing certified
+is removed: every default is the receiver as built, so a caller who sets
+none gets today's behavior bit for bit.
 
-| knob (constructor) | type               | default, as built | §4.3's value | what it switches                                                                                                                                                            |
-| ------------------ | ------------------ | ----------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `refine`           | bool               | true              | false        | false: the search's Doppler is the hand-over and the refine's dwell is not spent (tracking starts at the seed's sample); the `refine_*` settings are then unused            |
-| `carrier_loop`     | bool               | true              | false        | the code loop's carrier tracking on the partials (`costas_update()` in `async_dsss_receiver_core.c`); false: the partials no longer drive the correction before despreading |
-| `carrier_steer_s`  | double, s          | 0.0               | 2.0          | above 0: the correction before despreading follows the M-PSK loop's frequency, first order, with this time constant; 0.0: not steered                                       |
-| `demod_bn_carrier` | double, per symbol | 0.01              | 0.033        | the M-PSK carrier loop's noise bandwidth, today the fixed `ASYNC_DSSS_RX_DEMOD_BN_CARRIER`                                                                                  |
+| knob (constructor) | type               | default, as built | §4.3's value | what it switches                                                                                                                                                                                               |
+| ------------------ | ------------------ | ----------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `refine`           | bool               | true              | false        | false: the search's Doppler is the hand-over and the refine's dwell is not spent (tracking starts at the seed's sample); the `refine_*` settings are then unused                                               |
+| `carrier_loop`     | bool               | true              | false        | the code loop's carrier tracking on the partials (`costas_update()` in `async_dsss_receiver_core.c`); false: the correction before despreading is frozen at the hand-over, and the M-PSK loop owns the carrier |
+| `demod_bn_carrier` | double, per symbol | 0.0: derived      | derived      | the M-PSK carrier loop's noise bandwidth; given, it is used as given; 0.0 derives it, as `lost_confirm_s` and `code_only_s` do                                                                                 |
 
-`K` is not a new knob: it is the existing `segments`, default 4. In case H
-at 2.2 GHz the SER falls as it grows (§4.3); at 2.8 GHz the frozen
-correction carried no run at any `K`, so it is not resolved there.
+`refine` false needs nothing else, and is useful alone: case H's false
+lock (#3089).
 
-Combinations, stated so none is a surprise:
+**The M-PSK bandwidth is derived when not given** (owner: "The bandwidth
+should be derived if not given", and "The maximum sweep rate of a second
+order perfect integrator is calculable from the bandwidth"). It is the
+larger of the as-built 0.010 and what `doppler_rate` needs at this symbol
+rate and C/N0. The loop is `dp_loop_filter`, once a symbol, ζ 0.707:
 
-- `carrier_loop` false with `carrier_steer_s` 0 is the frozen correction.
-    It works only while the Doppler stays within about 1.5 kHz of the
-    hand-over, and failed every case L ramp (§4.3).
-- `carrier_loop` true with `carrier_steer_s` above 0 puts two drivers on
-    one correction and was never run: refused at construction.
-- `refine` false needs nothing else, and is useful alone: case H's false
-    lock (#3089).
-- `demod_bn_carrier` 0.033 runs the M-PSK loop at about 16 dB of loop SNR,
-    under the 20 dB the loops are sized to (§1.3); at the 3 dB floor that
-    rule asks for at most 0.010.
+- wn = 8ζ·bn / (4ζ² + 1) a symbol (`loop_filter_core.c:20`);
+- ki = 4θ² / (4 + 4ζθ + θ²), θ = wn (`:44-50`).
 
-Not knobs: the timing detector (no difference measured), gating the steer
-on lock (no gain), and steering from the code loop's Doppler (worse than
-the M-PSK loop's).
+A second-order loop with a perfect integrator holds a frequency rate up to
+
+R_max = ki · g · Rs² / 2π Hz/s,
+
+where g is the discriminator's peak mean output. For the hard-limited BPSK
+detector of `carrier_nda_disc()`,
+
+g(γ) = E[cos 2φ] = (γ/2) · e^(−γ) · ₁F₁(2; 3; γ),
+
+with γ the symbol Es/N0: 0.567 at 3 dB, 0.697 at 5 dB. So the derivation
+takes `cn0_dbhz`, which the constructor already has. The tree's squaring
+loss (`mpsk.md` §3.2) is a variance penalty, not this gain.
+
+**Acquisition needs margin under the limit**, and how much is not ruled.
+The measured rows, case L sweeps and ramps at 400 Hz/s, carried of 40:
+
+| `bn`  | R_max, 3 dB     | carried, 3 dB | R_max, 5 dB  | carried, 5 dB | loop SNR, 3 dB |
+| ----- | --------------- | ------------- | ------------ | ------------- | -------------- |
+| 0.010 | 285 Hz/s (0.7×) | 0             | 350 (0.9×)   | 0             | about 20 dB    |
+| 0.015 | 637 (1.6×)      | 10 \*         | 783 (2.0×)   | 21 \*         | about 18 dB    |
+| 0.020 | 1,125 (2.8×)    | 19            | 1,383 (3.5×) | 39            | 17.4 dB        |
+| 0.033 | 3,010 (7.5×)    | 38            | 3,701 (9.3×) | 40            | 14.8 dB        |
+
+\* With the steer, which took part of the ramp off the loop; the other
+rows are frozen.
+
+Case H at 0.010 has 3.9× and 4.8×, and carried 36 and 40 of 40.
+
+The consequence: at 3,000 sym/s, 3 dB and 400 Hz/s, the derived `bn` lands
+near 0.02 to 0.033. That is 15 to 17 dB of loop SNR, so the 20 dB loop-SNR
+rule the loops are sized to (§1.3) cannot hold there with this loop. What
+the rule becomes at that point is open (§1.7). Case H and every static
+point get the derivation's floor, 0.010, and keep 20 dB.
+
+`K` is not a new knob: it is the existing `segments`, default 4. At 8 it
+about halves case L's excess loss at large residual (§4.3). It also slipped
+symbols on one seed in every scene, which is not diagnosed.
+
+Not knobs: the steer (not needed), the timing detector (no difference
+measured) and gating on lock (no gain).
 
 The order is [`adding-algorithms.md`](../dev/contributing/adding-algorithms.md)'s:
 this section agreed, then declared in `objects/async_dsss_receiver.toml`,

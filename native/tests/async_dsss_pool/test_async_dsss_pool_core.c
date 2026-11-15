@@ -269,8 +269,12 @@ _test_fractional_period_phase (double ratio)
   DP_REQUIRE (p && q);
   (void)dp_async_dsss_receiver_set_search_only (q, 2);
   const size_t blk   = (size_t)ceil (1023.0 * POOL_SPC * ratio);
-  size_t       picks = 0, matched = 0, q_fed = 0;
-  double       worst = 0.0;
+  size_t       picks = 0, matched = 0, q_fed = 0, handovers = 0;
+  int          prev_state[3] = { -1, -1, -1 };
+  double       prev_phase[3] = { 0 };
+  size_t       prev_fed      = 0;
+  double       step_worst    = 0.0;
+  double       worst         = 0.0;
   for (size_t pos = 0; pos < m; pos += blk)
     {
       const size_t len = m - pos < blk ? m - pos : blk;
@@ -293,6 +297,27 @@ _test_fractional_period_phase (double ratio)
           st[i] = dp_async_dsss_pool_status (p, i);
           tracking += st[i].state == ASYNC_DSSS_RX_TRACKING;
         }
+      /* No step at the hand-over: a receiver that was refining after the
+         last push and tracks after this one reports the phase the refine
+         did, carried over the samples fed since (no carrier set, so no
+         dilation). */
+      for (size_t i = 0; i < 3; i++)
+        {
+          if (prev_state[i] == ASYNC_DSSS_RX_REFINING
+              && st[i].state == ASYNC_DSSS_RX_TRACKING)
+            {
+              const double want
+                  = fmod (prev_phase[i]
+                              + (double)(fed - prev_fed) / (POOL_SPC * ratio),
+                          1023.0);
+              step_worst = fmax (step_worst,
+                                 _chip_dist (want, st[i].chip_phase, 1023.0));
+              handovers++;
+            }
+          prev_state[i] = st[i].state;
+          prev_phase[i] = st[i].chip_phase;
+        }
+      prev_fed = fed;
       if (tracking < 2)
         continue;
       for (size_t j = 0; j < k; j++)
@@ -306,11 +331,14 @@ _test_fractional_period_phase (double ratio)
           matched += d <= 1.0;
         }
     }
+  DP_CHECK_MSG (handovers == 2, "both receivers handed over");
+  DP_CHECK_MSG (step_worst < 1.0, "no phase step at the hand-over");
   DP_CHECK_MSG (picks > 0, "the searcher picked a held emitter");
   DP_CHECK_MSG (matched == picks, "every pick within a chip of its holder");
-  if (matched != picks)
-    printf ("  ratio %.3f: %zu of %zu picks within a chip; worst %.2f\n",
-            ratio, matched, picks, worst);
+  if (matched != picks || step_worst >= 1.0)
+    printf ("  ratio %.3f: %zu of %zu picks within a chip, worst %.2f; "
+            "hand-over step %.2f chips\n",
+            ratio, matched, picks, worst, step_worst);
   size_t held = 0;
   for (size_t i = 0; i < 3; i++)
     held += dp_async_dsss_pool_status (p, i).state == ASYNC_DSSS_RX_TRACKING;

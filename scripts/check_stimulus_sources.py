@@ -326,7 +326,9 @@ def top_terms(stmt: str) -> list[str]:
     and so does a sign after a CAST (`(float _Complex) -dp_cgauss`): a
     `)` closing a group that is only a type name is not an operand. A hex
     float's exponent (`0x1p-3`) is not recognised and would split; no such
-    literal is in the tree.
+    literal is in the tree. Nor is a cast to a typedef without `_t`
+    (`(cplx) -dp_cgauss`): telling it from a parenthesised value needs type
+    information.
     """
     terms: list[str] = []
     cur: list[str] = []

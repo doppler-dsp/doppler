@@ -1088,7 +1088,9 @@ typedef enum
                             lost).
                             Only as good as `locked`: with the carrier
                             unlocked, loop 1 free-runs and this wanders. */
-    double chip_phase; /**< Code phase, chips: the live Dll's; while
+    double chip_phase; /**< Code phase, chips, at the sample after the
+                            last one fed: the live Dll's, carried over
+                            the partial period the chain holds; while
                             refining, the seed's advanced by the clock
                             dilation since (what the hand-over starts
                             from), so a refining receiver's signal can be
@@ -1545,11 +1547,15 @@ typedef enum
    *  @return Outputs per symbol; set at create or by
    *          configure_chain_raw(). */
   int    dp_async_dsss_receiver_get_n (const dp_async_dsss_receiver_state_t *state);
-  /** @brief The live Dll's code phase, chips, in the Dll's instantaneous
-   *  convention -- the mirror of dp_correlator_hit_t::code_phase's correlation-lag
-   *  convention (dp_correlator_build_handoff()). While refining there is no live
-   *  Dll: it is the seed's phase advanced by the clock dilation since, the
-   *  phase the hand-over starts the live chain from.
+  /** @brief The code phase, chips, at the sample after the last one fed,
+   *  in the Dll's instantaneous convention -- the mirror of
+   *  dp_correlator_hit_t::code_phase's correlation-lag convention
+   *  (dp_correlator_build_handoff()). Tracking, it is the live Dll's phase
+   *  carried over the partial period the chain holds (it runs whole
+   *  periods), so it names the same sample a search's picks are carried to
+   *  at any sample rate (#3063). While refining there is no live Dll: it is
+   *  the seed's phase advanced by the clock dilation since, the phase the
+   *  hand-over starts the live chain from.
    *  @param state  Must be non-NULL.
    *  @return Code phase, chips. */
   double dp_async_dsss_receiver_get_chip_phase (

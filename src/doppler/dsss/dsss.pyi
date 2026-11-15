@@ -45,7 +45,7 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     doppler_hz : float
         Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's plus what loop 2 has taken up beyond it (the seed while refining, 0 while searching, frozen where it was when lost). Only as good as `locked`: with the carrier unlocked, loop 1 free-runs and this wanders.
     chip_phase : float
-        Code phase, chips: the live Dll's; while refining, the seed's advanced by the clock dilation since (what the hand-over starts from), so a refining receiver's signal can be excluded too.
+        Code phase, chips, at the sample after the last one fed: the live Dll's, carried over the partial period the chain holds; while refining, the seed's advanced by the clock dilation since (what the hand-over starts from), so a refining receiver's signal can be excluded too.
     code_rate : float
         The Dll's code rate, chips per nominal chip (~1.0 at lock), without the carrier aid; a coasting Dll's is its held rate.
     cn0_dbhz_est : float
@@ -85,9 +85,10 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
 
     @property
     def chip_phase(self) -> float:
-        """Code phase, chips: the live Dll's; while refining, the seed's
-        advanced by the clock dilation since (what the hand-over starts from),
-        so a refining receiver's signal can be excluded too.
+        """Code phase, chips, at the sample after the last one fed: the live
+        Dll's, carried over the partial period the chain holds; while refining,
+        the seed's advanced by the clock dilation since (what the hand-over
+        starts from), so a refining receiver's signal can be excluded too.
         """
 
     @property
@@ -156,7 +157,7 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
     doppler_hz : float
         Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's plus what loop 2 has taken up beyond it (the seed while refining, 0 while searching, frozen where it was when lost). Only as good as `locked`: with the carrier unlocked, loop 1 free-runs and this wanders.
     chip_phase : float
-        Code phase, chips: the live Dll's; while refining, the seed's advanced by the clock dilation since (what the hand-over starts from), so a refining receiver's signal can be excluded too.
+        Code phase, chips, at the sample after the last one fed: the live Dll's, carried over the partial period the chain holds; while refining, the seed's advanced by the clock dilation since (what the hand-over starts from), so a refining receiver's signal can be excluded too.
     code_rate : float
         The Dll's code rate, chips per nominal chip (~1.0 at lock), without the carrier aid; a coasting Dll's is its held rate.
     cn0_dbhz_est : float
@@ -196,9 +197,10 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
 
     @property
     def chip_phase(self) -> float:
-        """Code phase, chips: the live Dll's; while refining, the seed's
-        advanced by the clock dilation since (what the hand-over starts from),
-        so a refining receiver's signal can be excluded too.
+        """Code phase, chips, at the sample after the last one fed: the live
+        Dll's, carried over the partial period the chain holds; while refining,
+        the seed's advanced by the clock dilation since (what the hand-over
+        starts from), so a refining receiver's signal can be excluded too.
         """
 
     @property
@@ -3301,12 +3303,15 @@ class AsyncDsssReceiver:
 
     @property
     def chip_phase(self) -> float:
-        """The live Dll's code phase, chips, in the Dll's instantaneous
-        convention -- the mirror of dp_correlator_hit_t::code_phase's
-        correlation-lag convention (dp_correlator_build_handoff()). While
-        refining there is no live Dll: it is the seed's phase advanced by the
-        clock dilation since, the phase the hand-over starts the live chain
-        from.
+        """The code phase, chips, at the sample after the last one fed, in the
+        Dll's instantaneous convention -- the mirror of
+        dp_correlator_hit_t::code_phase's correlation-lag convention
+        (dp_correlator_build_handoff()). Tracking, it is the live Dll's phase
+        carried over the partial period the chain holds (it runs whole
+        periods), so it names the same sample a search's picks are carried to
+        at any sample rate (#3063). While refining there is no live Dll: it is
+        the seed's phase advanced by the clock dilation since, the phase the
+        hand-over starts the live chain from.
         """
 
     @property

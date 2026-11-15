@@ -112,6 +112,9 @@ def test_every_spelling_of_the_second_sqrt2_fails(tmp_path: Path) -> None:
         "y = sigma / sqrt (2.0) * 1e-3 * dp_cgauss (&st);",
         "y = sigma / sqrt (2.0) * 1.5E+2 * dp_cgauss (&st);",
         "y = -sigma / sqrt (2.0) * dp_cgauss (&s->st);",
+        # A sign after a cast is unary too.
+        "y = sigma / sqrt (2.0) * (float _Complex) -dp_cgauss (&st);",
+        "y = sigma / sqrt (2.0) * (double) -1.0 * dp_cgauss (&st);",
     ):
         r = _run(tmp_path, _fn(line))
         assert r.returncode == 1, line + "\n" + r.stdout
@@ -191,6 +194,8 @@ def test_what_is_not_the_defect_passes(tmp_path: Path) -> None:
             TEST,
         ),
         (_fn("y = s->a / sqrt (2.0) - s->sigma * dp_cgauss (&s->st);"), TEST),
+        # A parenthesised VALUE (not a type) is an operand: this is a sum.
+        (_fn("y = (a) / sqrt (2.0) - (sigma) * dp_cgauss (&st);"), TEST),
         # A string mentioning the defect is not code.
         (_fn('puts ("sigma / sqrt (2.0) * dp_cgauss (&st)");'), TEST),
         (

@@ -80,7 +80,7 @@ near_far_rx (const uint8_t *code, int deep, size_t rank)
   dp_async_dsss_receiver_state_t *r = dp_async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, FS, 2, cn0_of (FLOOR_ESN0_DB), 1e-3, 0.9,
       SPAN, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
-      deep ? (double)CODE_ONLY / SYM_RATE : 0.0, deep ? 500.0 : 0.0);
+      deep ? (double)CODE_ONLY / SYM_RATE : 0.0, deep ? 500.0 : 0.0, true);
   if (r && rank)
     (void)dp_async_dsss_receiver_set_rank (r, rank);
   return r;

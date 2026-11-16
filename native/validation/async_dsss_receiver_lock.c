@@ -77,6 +77,26 @@
  *                  within RELOCK_WATCH_S); the receiver stays tracking
  *                  throughout (lost_confirm_s = 0)
  *
+ * RAMP. The hand-over at the CCSDS 415.1-B-1 point
+ * (docs/design/async-dsss-receiver.md §1, §4.4): the Gold code at 2.8 GHz x
+ * 31/21216 chips a second, 3,000 sym/s, 11 MSa/s in, 4 dB Es/N0, +/-1,500
+ * Hz, a 400 Hz/s rate bound and a 275-symbol code-only window, so the
+ * search runs 140 deep. The emitter is the shipped synth (PRBS data, the
+ * window opening every 1,000-symbol frame) at two samples a chip, a
+ * RateConverter to 11 MSa/s and a DopplerChannel at the carrier on a +400
+ * Hz/s ramp from -1,000 and from -500 Hz, plus the shipped awgn. Each draw
+ * (its own data and noise) runs twice, refine true (as built) and refine
+ * false (the search's Doppler is the hand-over), RAMP_S each: RAMP_TRIALS
+ * draws from each start in the sweep; --check runs refine false alone,
+ * RAMP_CHECK_TRIALS draws a start, each to its hand-over. Asserted in both:
+ * refine false hands over within the header's bound (half a row plus the
+ * half-dwell age at the rate bound) of the truth at the hand-over sample,
+ * on every draw. Printed: each arm's largest hand-over error, symbol lock
+ * at 0.5 s and at 2.0 s with Wilson 95% intervals, the paired draws where
+ * only one arm is locked at 0.5 s, and for a draw not locked at 2.0 s
+ * whether it is on its emitter and whether code lock is up -- late or
+ * wrong. The lock rates move with the draw and are not asserted.
+ *
  * What is asserted, the same in the sweep and in --check: the emitter
  * sends the harness's bits (BITS mode, every one of them) and each run's
  * bits covered it; every row is mid-data (its flips within
@@ -121,9 +141,11 @@
  *                                                arrival row's formats
  */
 #include "async_dsss_receiver_common.h" /* SF..EPOCH_MS, make_rx, ... */
+#include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
@@ -131,6 +153,7 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_stats_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -954,6 +977,194 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
   return 0;
 }
 
+/* ── RAMP: the hand-over with and without the refine ──────────────────── */
+#define RAMP_S_EARLY 0.5
+#define RAMP_S 2.0
+#define RAMP_TRIALS 30u
+/* --check: the asserted arm alone, each draw to its hand-over. */
+#define RAMP_CHECK_TRIALS 3u
+#define RAMP_ON_HZ 50.0
+#define RAMP_FS 11e6
+#define RAMP_CHUNK 16384u
+
+typedef struct
+{
+  double ho_err_hz;  /* handed-over Doppler minus the truth at that sample */
+  int    lock_early; /* tracking, code and symbol lock at RAMP_S_EARLY     */
+  int    lock_end;   /* the same at RAMP_S                                */
+  int    on_end;     /* tracked carrier within RAMP_ON_HZ of the truth     */
+  int    code_end;   /* code lock up at RAMP_S                             */
+} ramp_t;
+
+/* One draw at the 415.1-B-1 point, 2.8 GHz, from `f0` Hz at +400 Hz/s. */
+static int
+run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
+          int to_handover, double *bound_hz, ramp_t *r)
+{
+  const double fc = 2.8e9, chip = fc * 31.0 / 21216.0, sym = 3000.0;
+  const double cn0 = 4.0 + 10.0 * log10 (sym), fs2 = 2.0 * chip;
+  const double rate                  = 400.0;
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, SF, chip, sym, RAMP_FS, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, refine);
+  dp_wfm_synth_state_t *syn
+      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                             100u + seed, 2, 15, 0, 0, 0.0);
+  dp_RateConverter_state_t   *rc = dp_RateConverter_create (RAMP_FS / fs2, 0);
+  dp_doppler_channel_state_t *ch = dp_doppler_channel_create (
+      RAMP_FS, fc, f0 / fc * 1e6, rate / fc * 1e6);
+  dp_awgn_state_t *nz = dp_awgn_create (
+      7919u + seed,
+      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (RAMP_FS)), 1.0f));
+  float _Complex *r2  = malloc (RAMP_CHUNK * sizeof *r2);
+  float _Complex *r11 = malloc (2 * RAMP_CHUNK * sizeof *r11);
+  float _Complex *x   = malloc (4 * RAMP_CHUNK * sizeof *x);
+  float _Complex *ns  = malloc (4 * RAMP_CHUNK * sizeof *ns);
+  float _Complex *out = malloc (4 * RAMP_CHUNK * sizeof *out);
+  DP_REQUIRE (rx && syn && rc && ch && nz && r2 && r11 && x && ns && out);
+  const size_t D = rx->acq->search->coherent_bins;
+  DP_REQUIRE (D == 140);
+  DP_REQUIRE (dp_wfm_synth_set_dsss_cont (syn, code, SF, chip / sym,
+                                          WFM_DSSS_DATA_PRBS, NULL, 0)
+                  == 0
+              && dp_wfm_synth_set_dsss_window (syn, 275, 1000) == 0);
+  /* The header's bound for refine false: half a row, and the half-dwell
+     age at the rate bound. */
+  *bound_hz         = 0.5 * rx->acq->search->doppler_res_hz
+                      + rate * 0.5 * (double)D * (double)SF / chip;
+  *r                = (ramp_t){ .ho_err_hz = NAN };
+  size_t fed        = 0;
+  int    early_done = 0;
+  while (fed < (size_t)(RAMP_S * RAMP_FS)
+         && !(to_handover && !isnan (r->ho_err_hz)))
+    {
+      dp_wfm_synth_steps (syn, r2, RAMP_CHUNK);
+      const size_t m
+          = dp_RateConverter_execute (rc, r2, RAMP_CHUNK, r11, 2 * RAMP_CHUNK);
+      const size_t k
+          = dp_doppler_channel_execute (ch, r11, m, x, 4 * RAMP_CHUNK);
+      (void)dp_awgn_generate (nz, k, ns, k);
+      for (size_t i = 0; i < k; i++)
+        x[i] += ns[i];
+      (void)dp_async_dsss_receiver_steps (rx, x, k, out, 4 * RAMP_CHUNK);
+      fed += k;
+      if (isnan (r->ho_err_hz) && rx->state == ASYNC_DSSS_RX_TRACKING)
+        {
+          const double at
+              = (double)(rx->samples_in - rx->state_samples) / RAMP_FS;
+          r->ho_err_hz
+              = dp_async_dsss_receiver_get_doppler_hz (rx) - (f0 + rate * at);
+        }
+      if (!early_done && fed >= (size_t)(RAMP_S_EARLY * RAMP_FS))
+        {
+          early_done    = 1;
+          r->lock_early = dp_async_dsss_receiver_get_tracking (rx)
+                          && dp_async_dsss_receiver_get_code_locked (rx)
+                          && dp_async_dsss_receiver_get_locked (rx);
+        }
+    }
+  const async_dsss_receiver_status_t st = dp_async_dsss_receiver_status (rx);
+  r->code_end = dp_async_dsss_receiver_get_code_locked (rx);
+  r->lock_end = dp_async_dsss_receiver_get_tracking (rx) && r->code_end
+                && dp_async_dsss_receiver_get_locked (rx);
+  r->on_end   = st.state == ASYNC_DSSS_RX_TRACKING
+                && fabs (st.doppler_hz - (f0 + rate * (double)fed / RAMP_FS))
+                       < RAMP_ON_HZ;
+  free (r2);
+  free (r11);
+  free (x);
+  free (ns);
+  free (out);
+  dp_awgn_destroy (nz);
+  dp_doppler_channel_destroy (ch);
+  dp_RateConverter_destroy (rc);
+  dp_wfm_synth_destroy (syn);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
+static void
+ramp_rate (const char *what, size_t k, size_t n)
+{
+  double lo, hi;
+  dp_wilson ((double)k, (double)n, &lo, &hi);
+  printf ("    %-34s %2zu of %zu [%.3f, %.3f]\n", what, k, n, lo, hi);
+}
+
+/* Both arms on the same draws. Asserted: refine false hands over inside the
+   header's bound on every draw. Printed: the rest. */
+static int
+ramp_rows (const uint8_t *code, int check, int emit)
+{
+  /* --check runs the asserted arm alone, RAMP_CHECK_TRIALS draws a start,
+     each to its hand-over: the search hands over the same Doppler on every
+     draw from one start, so a few gate it as well as the sweep's thirty.
+     The sweep runs both arms to RAMP_S and prints the rates. */
+  const uint32_t      trials = check ? RAMP_CHECK_TRIALS : RAMP_TRIALS;
+  const int           a0     = check ? 1 : 0;
+  static const double f0s[]  = { -1000.0, -500.0 };
+  size_t early[2] = { 0, 0 }, end[2] = { 0, 0 }, over[2] = { 0, 0 };
+  size_t only[2] = { 0, 0 }, late_wrong[2][3] = { { 0 } }, n = 0;
+  double worst[2] = { 0.0, 0.0 }, bound = 0.0;
+  if (emit)
+    printf ("# ramp\nf0_hz,seed,refine,ho_err_hz,lock_0_5s,lock_2s,"
+            "on_2s,code_2s\n");
+  else
+    printf ("ramp: 415.1-B-1 at 2.8 GHz, +400 Hz/s, refine true and false on "
+            "the same draws\n");
+  for (size_t f = 0; f < 2; f++)
+    for (uint32_t s = 1; s <= trials; s++, n++)
+      {
+        ramp_t r[2] = { { .ho_err_hz = NAN }, { .ho_err_hz = NAN } };
+        for (int a = a0; a < 2; a++) /* a: 0 refine true, 1 refine false */
+          {
+            DP_REQUIRE (
+                run_ramp (code, a == 0, f0s[f], s, check, &bound, &r[a]) == 0);
+            const double e = fabs (r[a].ho_err_hz);
+            worst[a]       = isnan (e) || e > worst[a] ? e : worst[a];
+            over[a] += isnan (e) || e > bound;
+            early[a] += (size_t)r[a].lock_early;
+            end[a] += (size_t)r[a].lock_end;
+            if (!r[a].lock_end) /* not locked at RAMP_S: why */
+              late_wrong[a][r[a].on_end ? (r[a].code_end ? 0 : 1) : 2]++;
+            if (emit)
+              printf ("%.0f,%u,%d,%.2f,%d,%d,%d,%d\n", f0s[f], s, a == 0,
+                      r[a].ho_err_hz, r[a].lock_early, r[a].lock_end,
+                      r[a].on_end, r[a].code_end);
+          }
+        if (!check && r[0].lock_early != r[1].lock_early)
+          only[r[1].lock_early]++; /* [0]: only as built, [1]: only false */
+        DP_CHECK_MSG (!isnan (r[1].ho_err_hz)
+                          && fabs (r[1].ho_err_hz) <= bound,
+                      "refine false hands over within half a row plus the "
+                      "half-dwell age of the truth");
+      }
+  if (!emit && check)
+    printf ("  refine false: hand-over error largest %.1f Hz, %zu of %zu past "
+            "%.1f Hz (--check: to the hand-over; the sweep has the rates)\n",
+            worst[1], over[1], n, bound);
+  else if (!emit)
+    {
+      static const char *arm[2] = { "refine true (as built)", "refine false" };
+      for (int a = 0; a < 2; a++)
+        {
+          printf ("  %s: hand-over error largest %.1f Hz, %zu of %zu past "
+                  "%.1f Hz\n",
+                  arm[a], worst[a], over[a], n, bound);
+          ramp_rate ("symbol lock at 0.5 s", early[a], n);
+          ramp_rate ("symbol lock at 2.0 s", end[a], n);
+          printf ("    not locked at 2.0 s: %zu on the emitter with code "
+                  "lock, %zu on it without, %zu off it (> %.0f Hz)\n",
+                  late_wrong[a][0], late_wrong[a][1], late_wrong[a][2],
+                  RAMP_ON_HZ);
+        }
+      printf ("  paired at 0.5 s: only refine false %zu, only as built "
+              "%zu\n",
+              only[1], only[0]);
+    }
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1023,6 +1234,8 @@ main (int argc, char **argv)
         }
       DP_CHECK_MSG (got == want, "enough dropout draws settled to measure");
     }
+
+  DP_REQUIRE (ramp_rows (code, check, emit) == 0);
 
   /* QUALITY: --check is one draw at every Es/N0, the sweep five; both
      assert the same at 10 dB and above and measure the rest. */

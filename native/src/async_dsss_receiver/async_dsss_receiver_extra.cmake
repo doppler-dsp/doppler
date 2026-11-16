@@ -9,6 +9,14 @@
 target_link_libraries(bench_async_dsss_receiver_core PRIVATE awgn_core
                                                              wfm_synth_core)
 
+# awgn_core and wfm_synth_core: the hand-over tests' specification-point
+# emitter is the library's continuous DSSS synth with its code-only window,
+# taken to the input rate and through a DopplerChannel, plus the shipped
+# noise (_test_no_refine_hands_over_the_search_doppler). The test's alone,
+# as above.
+target_link_libraries(test_async_dsss_receiver_core PRIVATE awgn_core
+                                                            wfm_synth_core)
+
 # An attach that cannot allocate is DP_ERR_MEMORY and changes nothing
 # (#2846). The test compiles async_dsss_receiver_core.c INTO itself, so its
 # link line is the core's dependency list without async_dsss_receiver_core,

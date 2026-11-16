@@ -101,7 +101,7 @@ extern "C"
       size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate, int threads);
+      double doppler_rate, int threads, bool refine);
 
   void dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *state);
 

@@ -80,6 +80,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**rank**](#variable-rank)  <br> |
 |  [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  bool | [**reacquire**](#variable-reacquire)  <br> |
+|  bool | [**refine**](#variable-refine)  <br> |
 |  double | [**refine\_design\_margin\_db**](#variable-refine_design_margin_db)  <br> |
 |  [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* | [**refine\_dll**](#variable-refine_dll)  <br> |
 |  float \_Complex \* | [**refine\_dll\_out\_buf**](#variable-refine_dll_out_buf)  <br> |
@@ -963,6 +964,23 @@ bool dp_async_dsss_receiver_state_t::reacquire;
 
 
 Config: release on symbol lock alone and reset to searching, never lost (see [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)). 
+
+
+        
+
+<hr>
+
+
+
+### variable refine 
+
+```C++
+bool dp_async_dsss_receiver_state_t::refine;
+```
+
+
+
+Config: a seed refines its Doppler before tracking; false hands the seed straight to tracking (see [**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)). 
 
 
         

@@ -72,6 +72,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                                              "code_only_s",
                                              "doppler_rate",
                                              "threads",
+                                             "refine",
                                              NULL };
   PyObject          *code_obj            = NULL;
   PyObject          *n_receivers_obj     = NULL;
@@ -106,16 +107,17 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   double             code_only_s                   = 0.0;
   double             doppler_rate                  = 0.0;
   int                threads                       = 0;
+  int                refine_raw                    = true;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|OdddiddddOOidOdOOpOddpddi", kwlist, &code_obj,
+          args, kwds, "O|OdddiddddOOidOdOOpOddpddip", kwlist, &code_obj,
           &n_receivers_obj, &chip_rate, &symbol_rate, &sample_rate, &m,
           &cn0_dbhz, &pfa, &pd, &doppler_uncertainty, &segments_obj, &sps_obj,
           &differential, &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
           &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate,
-          &threads))
+          &threads, &refine_raw))
     return -1;
   if (n_receivers_obj != NULL)
     {
@@ -265,6 +267,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
     }
   size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
   bool           reacquire           = (int)reacquire_raw;
+  bool           refine              = (int)refine_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -278,7 +281,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
       doppler_uncertainty, segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, code_only_s, doppler_rate, threads);
+      lost_confirm_s, reacquire, code_only_s, doppler_rate, threads, refine);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -294,7 +297,8 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                        "refine_samples_per_symbol >= 1, refine_n_fft >= 1, "
                        "refine_zero_pad >= 1; and for the searcher a finite "
                        "cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
-                       "doppler_uncertainty >= 0)");
+                       "doppler_uncertainty >= 0; refine false needs a "
+                       "search at least 25 code periods deep)");
       return -1;
     }
   return 0;
@@ -1371,6 +1375,11 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "    the same request, at most one worker a Doppler tile, with its\n"
     "    once-an-epoch stages inline and its once-a-block ones fanned when a\n"
     "    block is more than one epoch (async-dsss-receiver.md §5).\n"
+    "refine : bool, default True\n"
+    "    The receivers' own refine: false hands a seed straight to tracking, "
+    "and\n"
+    "    is refused, as the receiver refuses it, when the search's depth is\n"
+    "    under 25 (dp_async_dsss_receiver_create()). Default true.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1389,8 +1398,9 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "    one input sample with reacquire), refine_samples_per_symbol >= 1,\n"
     "    refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a "
     "finite\n"
-    "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=\n"
-    "    0)``.\n"
+    "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= "
+    "0;\n"
+    "    refine false needs a search at least 25 code periods deep)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

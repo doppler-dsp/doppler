@@ -1162,7 +1162,7 @@ dp_async_dsss_receiver_create (
     double refine_design_margin_db, size_t refine_n_fft,
     size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
     double carrier_freq_hz, double lost_confirm_s, bool reacquire,
-    double code_only_s, double doppler_rate)
+    double code_only_s, double doppler_rate, bool refine)
 {
   /* symbol_rate becomes the carrier estimator's sample rate, which PSD
      refuses unless finite: refused here, at create, because that estimator
@@ -1305,6 +1305,20 @@ dp_async_dsss_receiver_create (
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
+  /* With no refine the search's Doppler is the hand-over, and the carrier
+     loop pulls in from it only while half the search's Doppler row is
+     inside the loop's acquisition bound (async-dsss-receiver.md §4.4).
+     Both are fixed here: the row is chip_rate / (code_len * D) and the
+     bound bn * chip_rate / (2 * code_len) (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ),
+     so the rule is D >= 1 / bn at any chip rate, compared in whole bins
+     because at D = 1 / bn the two are equal. Outside it a seed would hand
+     the loop a residual it cannot pull in, so the receiver is not built. */
+  if (!refine
+      && obj->acq->search->coherent_bins < ASYNC_DSSS_RX_NO_REFINE_MIN_BINS)
+    {
+      dp_async_dsss_receiver_destroy (obj);
+      return NULL;
+    }
   (void)dp_correlator_set_max_peaks (obj->acq, ASYNC_DSSS_RX_MAX_PEAKS, NULL);
   /* One emitter, one listed peak: a zone over every Doppler bin of every
      roll, so a strong emitter's own lag -- its slow-time sidelobes, its
@@ -1338,6 +1352,7 @@ dp_async_dsss_receiver_create (
 
   obj->lost_confirm_s       = lost_confirm_s;
   obj->reacquire            = reacquire;
+  obj->refine               = refine;
   obj->lost_confirm_samples = lost_confirm_samples;
   obj->code_only_s          = code_only_s;
   obj->doppler_rate         = doppler_rate;
@@ -1568,9 +1583,22 @@ dp_async_dsss_receiver_seed (dp_async_dsss_receiver_state_t *state,
   if (!dp_async_dsss_receiver_seed_ok (state, chip_phase, doppler_hz_est))
     return DP_ERR_INVALID;
 
-  adr_rebuild_refine_chain (state, chip_phase, doppler_hz_est);
-
-  adr_enter (state, ASYNC_DSSS_RX_REFINING);
+  /* With no refine the seed is the hand-over: the live chain is built at
+     the seed's own sample, the next one this receiver is fed, from the
+     seed's phase and Doppler -- the hand-over at zero samples of refine
+     (adr_handover_phase()) -- and the refine chain is neither rebuilt nor
+     run. */
+  if (!state->refine)
+    {
+      adr_rebuild_track_chain (state, chip_phase, doppler_hz_est,
+                               state->segments, state->sps, state->n);
+      adr_enter (state, ASYNC_DSSS_RX_TRACKING);
+    }
+  else
+    {
+      adr_rebuild_refine_chain (state, chip_phase, doppler_hz_est);
+      adr_enter (state, ASYNC_DSSS_RX_REFINING);
+    }
   state->seed_chip_phase     = chip_phase;
   state->seed_doppler_hz_est = doppler_hz_est;
   state->doppler_hz_est      = doppler_hz_est;
@@ -2516,6 +2544,9 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
      searching), so lost is no state it can be in, and nothing would take
      it out: refused, as a state the object cannot reach. */
   if (s->reacquire && extra.state == ASYNC_DSSS_RX_LOST)
+    return DP_ERR_INVALID;
+  /* Likewise refining, for a receiver built without the refine. */
+  if (!s->refine && extra.state == ASYNC_DSSS_RX_REFINING)
     return DP_ERR_INVALID;
   /* The seed fields are only ever what seed() accepted (or the zeros reset
      leaves), so a blob outside the seed domain is forged. Refused here,

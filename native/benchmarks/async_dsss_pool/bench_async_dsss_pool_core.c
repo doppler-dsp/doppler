@@ -388,20 +388,11 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
       const air_row_t            *w   = &rows[r];
       air_src_t                   src = { 0 };
       dp_async_dsss_pool_state_t *p   = dp_async_dsss_pool_create (
-          code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9,
-          pt->span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
-          pt->carrier_hz, 2.0, false,
-          w->deep ? pt->code_only_s : CODE_LEN / chip, pt->rate_hz_s,
-          w->threads);
-      /* One push: block_periods code periods at 11 MSa/s, or the pool's
-         own dwell. */
-      const size_t periods = pt->block_periods ? pt->block_periods
-                             : p ? dp_async_dsss_pool_get_coherent_bins (p)
-                                 : 1;
-      const size_t block
-          = (size_t)llround ((double)periods * CODE_LEN / chip * fs_in);
-      float _Complex *x = x_fixed ? x_fixed : malloc (block * sizeof *x);
-      if (!p || !x || !air_src_init (&src, code, w, pt, sym, fs_in, block))
+          code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9, 50e3, 4,
+          8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, AIR_CARRIER, 2.0, false,
+          w->deep ? CODE_ONLY_S : CODE_LEN / chip, DOPPLER_RATE, w->threads,
+          true);
+      if (!p || !air_src_init (&src, code, w, chip, sym, cn0, fs_in, block))
         {
           (void)fprintf (stderr, "bench_async_dsss_pool[%s]: setup failed\n",
                          w->name);
@@ -549,7 +540,7 @@ main (void)
           code, CODE_LEN, rows[k].n_rx, chip, sym, chip * (double)spc, 2, cn0,
           1e-3, 0.9, rows[k].span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
           100000, rows[k].carrier_hz, 2.0, false, CODE_ONLY_S, DOPPLER_RATE,
-          rows[k].threads);
+          rows[k].threads, true);
       rc[k] = dp_RateConverter_create (fs / fs_in, 0);
       if (!p[k] || !rc[k])
         {

@@ -44,6 +44,8 @@ extern "C"
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
   (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS                                      \
+  ((size_t)(1.0 / ASYNC_DSSS_RX_BN_CARRIER + 0.5))
 #define ASYNC_DSSS_RX_DLL_BN 0.002
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
   /* The damping of both Dlls this receiver builds, the tracker and the
@@ -175,6 +177,7 @@ typedef enum
     double   lost_confirm_s;       
     uint64_t lost_confirm_samples; 
     bool     reacquire;            
+    bool     refine;               
     uint64_t state_samples;        
     double   code_only_s;  
     double   doppler_rate; 
@@ -273,7 +276,7 @@ typedef enum
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate);
+      double doppler_rate, bool refine);
 
   void dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state);
 

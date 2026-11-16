@@ -2426,6 +2426,24 @@ class AsyncDsssReceiver:
         bounded against: at most `f_epoch / sqrt(2 * doppler_rate)` epochs
         (dp_correlator_create_continuous()). Default 0: the window is the only
         bound.
+    refine : bool, default True
+        Whether a seed refines its Doppler before tracking. True (the default):
+        a seed enters refining, CarrierAcquisition estimates the residual over
+        its dwell, and tracking starts from the refined Doppler (the `refine_*`
+        parameters). False: a seed builds the tracking chain at once, at the
+        seed's own sample, from the seed's code phase and Doppler; the receiver
+        goes from searching (or idle) to tracking and never reads refining, and
+        the `refine_*` parameters are unused. The Doppler handed over is the
+        search's: the block's mean, within half a Doppler row of it, so within
+        half a row plus `doppler_rate` times half the dwell (`coherent_bins`
+        code periods) of the Doppler at the hand-over sample. False holds only
+        while half the search's Doppler row, `chip_rate / (code_len *
+        coherent_bins)`, is inside the carrier loop's acquisition bound,
+        ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is `coherent_bins >=
+        ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`, 25, at any chip rate. A receiver
+        configured outside it (a one-epoch search, D = 1, among them) is
+        refused, and a blob in the refining state is refused by set_state().
+        The name is a placeholder (async-dsss-receiver.md §4.4).
 
     Raises
     ------
@@ -2439,7 +2457,8 @@ class AsyncDsssReceiver:
         refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll
         partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576;
         and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a
-        finite doppler_uncertainty >= 0)``.
+        finite doppler_uncertainty >= 0; refine false needs a search at least
+        25 code periods deep)``.
 
     Examples
     --------
@@ -2451,6 +2470,24 @@ class AsyncDsssReceiver:
     ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
     >>> (rx.tracking, rx.refining, rx.lost)       # searching
     (0, 0, 0)
+
+    With `refine` false a seed goes straight to tracking; that needs a
+    search at least 25 code periods deep, here a 0.1 s code-only window:
+
+    >>> fast = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+    ...                          sample_rate=6.138e6, doppler_uncertainty=500.0,
+    ...                          code_only_s=0.1, refine=False)
+    >>> fast.coherent_bins
+    150
+    >>> fast.seed(chip_phase=512.25, doppler_hz_est=-150.0, cn0_dbhz_est=48.0)
+    >>> (fast.tracking, fast.refining, fast.doppler_hz)
+    (1, 0, -150.0)
+    >>> try:                                       # one epoch deep: refused
+    ...     AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+    ...                       sample_rate=6.138e6, refine=False)
+    ... except ValueError:
+    ...     print("refused")
+    refused
 
     """
 
@@ -2480,6 +2517,7 @@ class AsyncDsssReceiver:
         reacquire: bool = False,
         code_only_s: float = 0.0,
         doppler_rate: float = 0.0,
+        refine: bool = True,
     ) -> None: ...
     def steps(
         self,
@@ -3526,6 +3564,10 @@ class AsyncDsssPool:
         the same request, at most one worker a Doppler tile, with its
         once-an-epoch stages inline and its once-a-block ones fanned when a
         block is more than one epoch (async-dsss-receiver.md §5).
+    refine : bool, default True
+        The receivers' own refine: false hands a seed straight to tracking, and
+        is refused, as the receiver refuses it, when the search's depth is
+        under 25 (dp_async_dsss_receiver_create()). Default true.
 
     Raises
     ------
@@ -3538,8 +3580,8 @@ class AsyncDsssPool:
         or finite and above sample_rate / 2, lost_confirm_s >= 0 (and at least
         one input sample with reacquire), refine_samples_per_symbol >= 1,
         refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite
-        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >=
-        0)``.
+        cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
+        refine false needs a search at least 25 code periods deep)``.
 
     Examples
     --------
@@ -3587,6 +3629,7 @@ class AsyncDsssPool:
         code_only_s: float = 0.0,
         doppler_rate: float = 0.0,
         threads: int = 0,
+        refine: bool = True,
     ) -> None: ...
     def push(self, x: npt.NDArray[np.complex64]) -> int:
         """Step every receiver on one block, running the controller at every

@@ -71,6 +71,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                                              "reacquire",
                                              "code_only_s",
                                              "doppler_rate",
+                                             "refine",
                                              NULL };
   PyObject          *code_obj            = NULL;
   double             chip_rate           = 1000000.0;
@@ -102,15 +103,17 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   int                reacquire_raw                 = false;
   double             code_only_s                   = 0.0;
   double             doppler_rate                  = 0.0;
+  int                refine_raw                    = true;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|dddiddddOOidOdOOpOddpdd", kwlist, &code_obj,
+          args, kwds, "O|dddiddddOOidOdOOpOddpddp", kwlist, &code_obj,
           &chip_rate, &symbol_rate, &sample_rate, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_obj, &sps_obj, &differential,
           &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
-          &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate))
+          &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate,
+          &refine_raw))
     return -1;
   if (segments_obj != NULL)
     {
@@ -240,6 +243,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
     }
   size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
   bool           reacquire           = (int)reacquire_raw;
+  bool           refine              = (int)refine_raw;
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -253,7 +257,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, code_only_s, doppler_rate);
+      lost_confirm_s, reacquire, code_only_s, doppler_rate, refine);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -269,7 +273,8 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                        "of at most 2^20 Dll partials, segments * chip_rate / "
                        "(code_len * symbol_rate) <= 1048576; and for the "
                        "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
-                       "a finite doppler_uncertainty >= 0)");
+                       "a finite doppler_uncertainty >= 0; refine false "
+                       "needs a search at least 25 code periods deep)");
       return -1;
     }
   return 0;
@@ -2618,6 +2623,35 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    (dp_correlator_create_continuous()). Default 0: the window is the "
     "only\n"
     "    bound.\n"
+    "refine : bool, default True\n"
+    "    Whether a seed refines its Doppler before tracking. True (the "
+    "default):\n"
+    "    a seed enters refining, CarrierAcquisition estimates the residual "
+    "over\n"
+    "    its dwell, and tracking starts from the refined Doppler (the "
+    "`refine_*`\n"
+    "    parameters). False: a seed builds the tracking chain at once, at "
+    "the\n"
+    "    seed's own sample, from the seed's code phase and Doppler; the "
+    "receiver\n"
+    "    goes from searching (or idle) to tracking and never reads refining, "
+    "and\n"
+    "    the `refine_*` parameters are unused. The Doppler handed over is "
+    "the\n"
+    "    search's: the block's mean, within half a Doppler row of it, so "
+    "within\n"
+    "    half a row plus `doppler_rate` times half the dwell "
+    "(`coherent_bins`\n"
+    "    code periods) of the Doppler at the hand-over sample. False holds "
+    "only\n"
+    "    while half the search's Doppler row, `chip_rate / (code_len *\n"
+    "    coherent_bins)`, is inside the carrier loop's acquisition bound,\n"
+    "    ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is `coherent_bins >=\n"
+    "    ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`, 25, at any chip rate. A receiver\n"
+    "    configured outside it (a one-epoch search, D = 1, among them) is\n"
+    "    refused, and a blob in the refining state is refused by "
+    "set_state().\n"
+    "    The name is a placeholder (async-dsss-receiver.md §4.4).\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -2637,7 +2671,9 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    partials, segments * chip_rate / (code_len * symbol_rate) <= "
     "1048576;\n"
     "    and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a\n"
-    "    finite doppler_uncertainty >= 0)``.\n"
+    "    finite doppler_uncertainty >= 0; refine false needs a search at "
+    "least\n"
+    "    25 code periods deep)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -2649,7 +2685,29 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "...                        sample_rate=6.138e6, "
     "doppler_uncertainty=500.0)\n"
     ">>> (rx.tracking, rx.refining, rx.lost)       # searching\n"
-    "(0, 0, 0)\n",
+    "(0, 0, 0)\n"
+    "\n"
+    "With `refine` false a seed goes straight to tracking; that needs a\n"
+    "search at least 25 code periods deep, here a 0.1 s code-only window:\n"
+    "\n"
+    ">>> fast = AsyncDsssReceiver(code, chip_rate=3.069e6, "
+    "symbol_rate=2700.0,\n"
+    "...                          sample_rate=6.138e6, "
+    "doppler_uncertainty=500.0,\n"
+    "...                          code_only_s=0.1, refine=False)\n"
+    ">>> fast.coherent_bins\n"
+    "150\n"
+    ">>> fast.seed(chip_phase=512.25, doppler_hz_est=-150.0, "
+    "cn0_dbhz_est=48.0)\n"
+    ">>> (fast.tracking, fast.refining, fast.doppler_hz)\n"
+    "(1, 0, -150.0)\n"
+    ">>> try:                                       # one epoch deep: "
+    "refused\n"
+    "...     AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,\n"
+    "...                       sample_rate=6.138e6, refine=False)\n"
+    "... except ValueError:\n"
+    "...     print(\"refused\")\n"
+    "refused\n",
   .tp_methods = AsyncDsssReceiverObj_methods,
   .tp_getset  = AsyncDsssReceiver_getset,
   .tp_new     = AsyncDsssReceiverObj_new,

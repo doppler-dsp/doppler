@@ -1377,9 +1377,9 @@ only divides it into partials. With no data the despread signal is a
 tone, so the gap holds the loop on any window; the data is where the
 window matters.
 
-Proposed, not built, and the names are placeholders (§1.7). Every default
-is the receiver as built, so a caller who sets none gets the as-built
-behavior bit for bit.
+`refine` is built; `carrier_window` is proposed, not built. Both names are
+placeholders (§1.7). Every default is the receiver as built, so a caller
+who sets none gets the as-built behavior bit for bit.
 
 | knob (constructor) | type | default, as built                                                   | proposed      | what it switches                                                                                                                                                 |
 | ------------------ | ---- | ------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1387,10 +1387,42 @@ behavior bit for bit.
 | `carrier_window`   | enum | `partials`: each partial squared, the squares summed over the block | `code_period` | the carrier loop's error from one coherent sum over the code-period window find_max_power picks, squared and halved                                              |
 
 `refine` false skips the refining state: a seed builds the tracking chain
-at the seed's sample. It holds only while half the search's Doppler row is
-inside the carrier loop's pull-in, which a deep block gives (14.5 Hz
-against 63 to 80 Hz here, §2.3) and a one-epoch search does not (§4), so a
-refusal or a warning at `D = 1` is part of the knob's design.
+at the seed's own sample, from its code phase and Doppler, and the
+receiver goes from searching (or idle) to tracking. The pool passes it to
+every receiver. It holds only while half the search's Doppler row is
+inside the carrier loop's pull-in, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, which
+a deep block gives (14.5 Hz against 63 to 80 Hz here, §2.3) and a
+one-epoch search does not (§4). The row is `chip_rate / (code_len · D)` and
+the pull-in `bn · chip_rate / (2 · code_len)`, so the rule is `D ≥ 1 / bn`,
+25 at the carrier loop's 0.04, at any chip rate
+(`ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`). Create refuses `refine` false below
+it, and `set_state()` refuses a blob in the refining state, a state such a
+receiver cannot reach.
+
+At 2.8 GHz on a +400 Hz/s ramp from −1,000 and −500 Hz, 30 draws from each
+start, both settings on the same draws (`validate_async_dsss_receiver_lock`,
+RAMP, the full sweep of `make validate-c`; its `--check` runs `refine`
+false alone, three draws a start, to the hand-over):
+
+|                          | `refine` true (as built)                   | `refine` false                            |
+| ------------------------ | ------------------------------------------ | ----------------------------------------- |
+| hand-over error, largest | 225.5 Hz; 47 of 60 past the bound          | 13.6 Hz; 0 of 60 past the bound           |
+| symbol lock at 0.5 s     | 42 of 60 [0.575, 0.801]                    | 52 of 60 [0.758, 0.931]                   |
+| symbol lock at 2.0 s     | 46 of 60 [0.646, 0.856]                    | 55 of 60 [0.819, 0.964]                   |
+| not locked at 2.0 s      | 4 on the emitter with code lock, 10 off it | 3 on the emitter with code lock, 2 off it |
+
+The bound is the header's: half a row plus `doppler_rate` times half the
+dwell, 21.3 Hz here; the validator asserts it on every `refine` false draw
+it runs, in the sweep and in `--check`, and the C test pins it on one (`_test_no_refine_hands_over_the_search_doppler`).
+The lock rates are printed, not asserted. Intervals are Wilson 95%.
+
+`refine` false is not a strict improvement draw by draw. Paired at 0.5 s,
+15 draws lock only with it and 5 only as built (sign test p about 0.04);
+those 5 are late, not wrong: each is locked on its emitter by 2.0 s. Its
+5 misses at 2.0 s are misses as built too. Three are on the emitter with
+code lock and no symbol lock yet. In two the carrier left the emitter
+after a hand-over inside the bound. Those misses are the open item, the
+carrier loop's margin (§4.5).
 `code_period` holds only while a symbol
 is at least a code period, which the specification's case is (§1.5); a
 receiver configured outside it keeps `partials`, and a refusal or a warning
@@ -1436,9 +1468,10 @@ Each with what would confirm it or kill it.
 ### 4.6 Next steps
 
 1. The owner rules the knob names (§1.7).
-1. [`adding-algorithms.md`](../dev/contributing/adding-algorithms.md) in
-    order: declare in `objects/async_dsss_receiver.toml`, implement, pin
-    each knob in C and prove it by sabotage, bind.
+1. `carrier_window` through
+    [`adding-algorithms.md`](../dev/contributing/adding-algorithms.md) in
+    order, as `refine` went: declare in `objects/async_dsss_receiver.toml`,
+    implement, pin in C and prove it by sabotage, bind.
 1. Measure again through the knobs at the 4 dB floor, with:
     - **an as-built baseline row at the 4 dB design.** §4.2 has none; its
         as-built comparison is the record's runs at the 3 dB design;

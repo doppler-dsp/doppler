@@ -533,13 +533,19 @@ spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
   return 1;
 }
 
+/* On ONE thread: the receiver's speed goal is one thread, and a search
+   that fans its block across a worker pool would otherwise turn these
+   rows into wall-time rows on a many-core box. */
 static dp_async_dsss_receiver_state_t *
 spec_rx (const uint8_t *code, double chip, double fc, double cn0)
 {
-  return dp_async_dsss_receiver_create (code, 1023, chip, 3000.0, 11e6, 2, cn0,
-                                        1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
-                                        14.0, 64, 8, false, 100000, fc, 0.0,
-                                        false, 275.0 / 3000.0, 400.0, true, 0);
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, 1023, chip, 3000.0, 11e6, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / 3000.0, 400.0,
+      true, 0);
+  if (rx)
+    (void)dp_async_dsss_receiver_set_threads (rx, 1);
+  return rx;
 }
 
 static void

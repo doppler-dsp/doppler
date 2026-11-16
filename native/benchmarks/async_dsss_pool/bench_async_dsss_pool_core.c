@@ -371,6 +371,18 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
 {
   const double fs_in = 11e6, chip = pt->chip, cn0 = pt->cn0;
   int          ok = 1;
+  /* A point that fixes the push's length gets its buffer once, before any
+     pool, as the 5 Mcps rows always have: allocated per row after the
+     pool, the same row read 30% slower on bare metal (memory layout, not
+     work), so the existing rows keep their layout exactly. */
+  const size_t fixed_block = pt->block_periods
+                                 ? (size_t)llround ((double)pt->block_periods
+                                                    * CODE_LEN / chip * fs_in)
+                                 : 0;
+  float _Complex *x_fixed
+      = fixed_block ? malloc (fixed_block * sizeof *x_fixed) : NULL;
+  if (fixed_block && !x_fixed)
+    return 0;
   for (int r = 0; r < n_rows && ok; r++)
     {
       const air_row_t            *w   = &rows[r];
@@ -388,14 +400,15 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
                                  : 1;
       const size_t block
           = (size_t)llround ((double)periods * CODE_LEN / chip * fs_in);
-      float _Complex *x = malloc (block * sizeof *x);
+      float _Complex *x = x_fixed ? x_fixed : malloc (block * sizeof *x);
       if (!p || !x || !air_src_init (&src, code, w, pt, sym, fs_in, block))
         {
           (void)fprintf (stderr, "bench_async_dsss_pool[%s]: setup failed\n",
                          w->name);
           dp_async_dsss_pool_destroy (p);
           air_src_free (&src);
-          free (x);
+          if (!x_fixed)
+            free (x);
           ok = 0;
           break;
         }
@@ -461,8 +474,10 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
         }
       dp_async_dsss_pool_destroy (p);
       air_src_free (&src);
-      free (x);
+      if (!x_fixed)
+        free (x);
     }
+  free (x_fixed);
   return ok;
 }
 

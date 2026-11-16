@@ -74,12 +74,18 @@ int dp_async_dsss_receiver_set_search_only (
     dp_async_dsss_receiver_state_t *state, size_t n_picks);
 
 /**
- * @brief Take a search-only receiver's waiting picks, strongest first,
- *        and clear them.
+ * @brief Take a search-only receiver's waiting picks, in the order their
+ *        dwells found them (each dwell's strongest first), and clear them.
+ *
+ * A pick waits until taken. Taken calls after the one that found it, its
+ * phase is carried to the sample after the last one fed, dilated with a
+ * carrier, as a hit is carried to its hand-off; and a signal a later dwell
+ * picks again (within the exclusions' one chip) replaces its waiting pick
+ * with the fresher estimate, so the list holds each signal once.
  *
  * @param state         Must be non-NULL.
  * @param chip_phase    Out: each pick's code phase at the sample after
- *                      the call that found it, chips; at least @p max.
+ *                      the last one fed, chips; at least @p max.
  * @param doppler_hz    Out: its Doppler estimate, Hz.
  * @param cn0_dbhz      Out: its C/N0 estimate, dB-Hz.
  * @param max           Capacity of each array.

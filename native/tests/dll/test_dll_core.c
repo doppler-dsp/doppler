@@ -34,6 +34,7 @@
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -1222,9 +1223,13 @@ _test_window_sum_is_the_look_back (void)
       dp_dll_destroy (d);
     }
   /* One segment: the period is the only window, so the sum is that
-     epoch's own prompt sum -- the emitted prompt times the period, to the
-     bit (the prompt is it divided by (float)tsamps). Sabotage: no write
-     on the one-segment path -> it stays 0, red. */
+     epoch's own prompt sum -- the emitted prompt times the period (the
+     prompt is it divided by (float)tsamps). Compared within 4 ulp a part,
+     not to the bit: under fast-math the library's division and this
+     one may round differently (a reciprocal multiply for one, a divide
+     for the other), so the last bit is the build's (#3102's coverage
+     job, clang Debug).
+     Sabotage: no write on the one-segment path -> it stays 0, red. */
   {
     dp_dll_state_t *d
         = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, 1);
@@ -1237,7 +1242,13 @@ _test_window_sum_is_the_look_back (void)
         if (n == 1)
           {
             epochs++;
-            exact += dp_dll_get_window_sum (d) / (float)tsamps == out1[0]
+            const float _Complex q = dp_dll_get_window_sum (d) / (float)tsamps;
+            const float tr
+                = 4.0f * FLT_EPSILON * fabsf (crealf (out1[0])) + FLT_MIN;
+            const float ti
+                = 4.0f * FLT_EPSILON * fabsf (cimagf (out1[0])) + FLT_MIN;
+            exact += fabsf (crealf (q) - crealf (out1[0])) <= tr
+                     && fabsf (cimagf (q) - cimagf (out1[0])) <= ti
                      && cabsf (out1[0]) > 0.0f;
           }
       }

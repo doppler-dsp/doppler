@@ -69,7 +69,7 @@ floor the receiver was held to: its BER is under 5% at 5 dB and over 10% at
 BER sits from the bound.
 
 **The 3.069 Mcps point** is the receiver's
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.85.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip, on
 continuous random data with no data-free block, `carrier_freq_hz` 0, and a
 search over ±3 kHz (±1/T_E). It covers that point and no other: not the
@@ -1379,7 +1379,7 @@ release clock at the design's 2 s. Once tracking with symbol lock held for
 200 blocks, ten windows per trial, three trials per C/N0; per window the
 fraction of blocks with each flag off, the longest both-off run, whether
 `lost` fired, and the pull-in after the data resumes. Three
-conditions: no Doppler, and [the specification](async-dsss-receiver.md#13-the-earlier-points)'s two worst cases through the shipped
+conditions: no Doppler, and [the specification](async-dsss-receiver.md#5-the-pool-n-receivers-one-search)'s two worst cases through the shipped
 `doppler_channel`, apart, since they do not coincide on a pass — the
 offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
 it) and the rate (500 Hz/s from zero).

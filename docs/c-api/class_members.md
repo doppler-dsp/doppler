@@ -285,6 +285,7 @@
 ## e
 
 * **excl** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_tonemeas\_state\_t**](structdp__tonemeas__state__t.md))
+* **excl\_at** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **errors** ([**ber\_interval\_t**](structber__interval__t.md), [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md), [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md), [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**node\_sync\_t**](structnode__sync__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **epoch** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md))
 * **ev** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md))
@@ -397,6 +398,7 @@
 * **gain\_phase** ([**dp\_agc\_state\_t**](structdp__agc__state__t.md))
 * **gain\_update\_period** ([**dp\_agc\_state\_t**](structdp__agc__state__t.md))
 * **ghost\_window** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
+* **group** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **gain** ([**dp\_boxcar\_state\_t**](structdp__boxcar__state__t.md))
 * **gen** ([**dp\_pool\_t**](structdp__pool__t.md), [**rs\_t**](structrs__t.md))
 * **gap\_noise** ([**wfm\_segment\_t**](structwfm__segment__t.md))
@@ -703,6 +705,7 @@
 
 ## p
 
+* **pick\_at** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **pick\_cn0** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **pick\_doppler** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **pick\_phase** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))

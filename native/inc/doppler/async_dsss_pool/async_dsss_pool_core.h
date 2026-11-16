@@ -16,21 +16,25 @@
  *    only while some receiver is idle: with every receiver holding there
  *    is nobody to hand a detection to, so it stops, and a fresh search
  *    starts on the period one is free.
- * 2. **Then the receivers, in parallel.** The same period goes to every
+ * 2. **Then the receivers, in parallel.** The same periods go to every
  *    receiver, one per task on the `dp_parallel` workers when at least two
  *    hold a signal (idle ones cost nothing, so they run inline). A receiver
  *    touches only its own state, so the result does not depend on the
  *    thread count: one thread and N give the same bytes.
- * 3. **Then the controller, serially, at every code period of the
- *    stream.** A receiver is fed exactly one code period (`code_len *
- *    sample_rate / chip_rate` samples, its floor when that is not whole)
- *    per call, on the grid of the pool's sample count from create or
- *    reset; push() keeps what is left past the last whole period and feeds
- *    it with the next push. Every call and every controller step is then a
+ * 3. **Then the controller, serially, once a group of
+ *    ASYNC_DSSS_POOL_PERIODS_PER_JOIN code periods.** A receiver is fed
+ *    exactly one code period (`code_len * sample_rate / chip_rate` samples,
+ *    its floor when that is not whole) per call, the search and the
+ *    receivers a group of those periods at a time, the workers joined once
+ *    a group, on the grid of the pool's sample count from create or reset;
+ *    push() keeps what is left past the last whole group and feeds it with
+ *    the next push. Every call and every controller step is then a
  *    position in the stream, not a call boundary, so any blocking of one
  *    stream gives the same receivers, the same releases and the same
- *    symbols. The cost is latency: up to one code period of a push waits
- *    for the next. It reads every receiver's status() and:
+ *    symbols. The cost is latency: up to one group of a push waits for the
+ *    next, and a release or a seed comes up to a group's periods less one
+ *    after the period that called for it. It reads every receiver's
+ *    status() and:
  *    - **releases the lost.** A receiver in the lost state (its release
  *      rule fired: the emitter left, or the seed never locked) is reset to
  *      idle. With `reacquire` the receiver does this itself and is never
@@ -150,7 +154,11 @@ extern "C"
  * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
  * of a magic names one layout, so this pool steps past every number the
  * magic has carried (#2569; scripts/check_state_versions.py). */
-#define ASYNC_DSSS_POOL_STATE_VERSION 7u /* v7: its receivers' blobs carry
+#define ASYNC_DSSS_POOL_STATE_VERSION 8u /* v8: the carry is a group of
+                                              periods, and its receivers'
+                                              blobs carry the exclusions'
+                                              and picks' samples (ADRX
+                                              v18); v7: its receivers' blobs carry
                                               the refine hand-over ring
                                               (ADRX v17, #2974); v6: the
                                               receivers' search child is
@@ -161,6 +169,17 @@ extern "C"
   /** The ghost rule's window, s: the trailing span both its tests read
    *  (doppler#2529). */
 #define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
+  /** Code periods the receivers step between joins: push() feeds the search
+   *  and every receiver M periods at a time, on a grid of M periods counted
+   *  from create or reset, each receiver call still one period, and the
+   *  controller runs once at the end of each M (async-dsss-receiver.md §5).
+   *  A join costs about as much as a receiver's period (measured on WSL2),
+   *  so fewer joins is the pool's main cost lever; 16 is the size of the
+   *  three measured (4, 8, 16) that met the pool's 45.4 ns gate at both
+   *  ends of the band at the 415.1-B-1 point. */
+#ifndef ASYNC_DSSS_POOL_PERIODS_PER_JOIN
+#define ASYNC_DSSS_POOL_PERIODS_PER_JOIN 16u
+#endif
   /** How near the lattice the mean carrier delta must sit, Hz. */
 #define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
   /** The stillness limit: the carrier delta's standard deviation over the
@@ -198,13 +217,15 @@ extern "C"
                            input's own (dp_async_dsss_receiver_steps()). */
     size_t         *n_sym;   /**< Symbols each receiver emitted, last push. */
     const float _Complex *feed_x; /**< The block push() is stepping.    */
-    size_t                feed_n; /**< Samples in feed_x: one code
-                                         period while push() steps. */
-    size_t   period;             /**< Samples a code period: the controller
-                                      runs every period of `samples`.   */
+    size_t                feed_n; /**< Samples in feed_x: one group
+                                         while push() steps.        */
+    size_t   period;             /**< Samples a code period: one receiver
+                                      call.                             */
+    size_t   group;              /**< Samples a join: period times
+                                      ASYNC_DSSS_POOL_PERIODS_PER_JOIN. */
     float _Complex *carry;       /**< The pushed samples past the last whole
-                                      period, not yet fed: period long. */
-    size_t          carry_len;   /**< How many; < period.               */
+                                      group, not yet fed: group long.   */
+    size_t          carry_len;   /**< How many; < group.                */
     size_t   n_receivers;        /**< Receivers, fixed at create.         */
     uint64_t samples;            /**< Input samples pushed since create or
                                       reset: the pool's shared clock.   */
@@ -398,13 +419,14 @@ extern "C"
 
   /**
    * @brief Step every receiver on one block, running the controller at
-   *        every code period it crosses.
+   *        every group of code periods it completes.
    *
-   * Hands every whole code period it completes to every receiver (header
-   * step 1), keeps each one's symbols for symbols(), and after each period
-   * releases the lost, resolves duplicates, releases ghosts, seeds the idle
-   * receivers and sets the search's levers (step 3). The samples past the
-   * last whole period are kept for
+   * Hands every whole group of ASYNC_DSSS_POOL_PERIODS_PER_JOIN code
+   * periods it completes to the search and every receiver, one period a
+   * call (header steps 1 and 2), keeps each one's symbols for symbols(),
+   * and after each group releases the lost, resolves duplicates, releases
+   * ghosts, seeds the idle receivers and sets the search's levers (step
+   * 3). The samples past the last whole group are kept for
    * the next push. Accepts any block size, and state carries across calls:
    * the result is a function of the stream, not of its blocking.
    *

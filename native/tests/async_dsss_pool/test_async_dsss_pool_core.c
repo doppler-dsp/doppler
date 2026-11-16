@@ -34,6 +34,10 @@
 #define CI_CONFIRM_S 0.02
 #define CI_B_OFF (300000u)
 
+/* One push the controller acts on: a group of code periods at 2 samples a
+   chip (ASYNC_DSSS_POOL_PERIODS_PER_JOIN), the receivers' grid. */
+#define POOL_GROUP ((size_t)2046 * ASYNC_DSSS_POOL_PERIODS_PER_JOIN)
+
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 /* A pool on the Gold-1023 design point; the receiver tests' _slow_rx()
@@ -964,7 +968,7 @@ _test_duplicates_keep_the_first (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  float _Complex z[2046] = { 0 };
+  static float _Complex z[POOL_GROUP];
   /* rung: 0 = longer in its state, 1 = higher C/N0, 2 = lower index. */
   for (int rung = 0; rung < 3; rung++)
     {
@@ -980,7 +984,7 @@ _test_duplicates_keep_the_first (void)
              index and the lower C/N0. */
           DP_REQUIRE (dp_async_dsss_receiver_seed (r1, 100.0, 0.0, 45.0)
                       == DP_OK);
-          (void)dp_async_dsss_pool_push (p, z, 2046);
+          (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
           DP_REQUIRE (dp_async_dsss_pool_status (p, 1).state
                       == ASYNC_DSSS_RX_REFINING);
           DP_REQUIRE (dp_async_dsss_receiver_seed (r0, 100.5, 0.0, 60.0)
@@ -997,7 +1001,7 @@ _test_duplicates_keep_the_first (void)
           expect_keeper = rung == 1 ? 1 : 0;
         }
       const uint64_t before = p->released_duplicate;
-      (void)dp_async_dsss_pool_push (p, z, 2046);
+      (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
       DP_CHECK (p->released_duplicate == before + 1);
       const size_t loser = 1 - expect_keeper;
       DP_CHECK_MSG (dp_async_dsss_pool_status (p, expect_keeper).state
@@ -1022,7 +1026,7 @@ _test_duplicate_zone_is_one_chip_circular (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  float _Complex z[2046] = { 0 };
+  static float _Complex z[POOL_GROUP];
   static const struct
   {
     double a, b;
@@ -1038,7 +1042,7 @@ _test_duplicate_zone_is_one_chip_circular (void)
                   == DP_OK);
       /* status() advances a refining receiver's phase by the samples
          since its seed, alike for both, so their distance holds. */
-      const size_t held = dp_async_dsss_pool_push (p, z, 2046);
+      const size_t held = dp_async_dsss_pool_push (p, z, POOL_GROUP);
       DP_CHECK_MSG (held == (rows[k].dup ? 1u : 2u),
                     rows[k].dup ? "one signal held twice" : "two signals");
       DP_CHECK (p->released_duplicate == (uint64_t)rows[k].dup);
@@ -1170,13 +1174,15 @@ _test_state_round_trip (void)
   /* Mid-period, so the blob carries a part-filled carry, with the release
      on and B leaving after the split. */
   const size_t half = 250000 + 777;
-  DP_REQUIRE (half % (1023 * POOL_SPC) != 0 && half < CI_B_OFF);
+  DP_REQUIRE (half % (1023 * POOL_SPC * ASYNC_DSSS_POOL_PERIODS_PER_JOIN) != 0
+              && half < CI_B_OFF);
   dp_async_dsss_pool_state_t *a = _pool (code, 3, CI_CONFIRM_S, 2);
   dp_async_dsss_pool_state_t *b = _pool (code, 3, CI_CONFIRM_S, 1);
   dp_async_dsss_pool_state_t *c = _pool (code, 2, CI_CONFIRM_S, 1);
   DP_REQUIRE (a && b && c);
   (void)dp_async_dsss_pool_push (a, x, half);
-  DP_REQUIRE (a->carry_len == half % (1023 * POOL_SPC));
+  DP_REQUIRE (a->carry_len
+              == half % (1023 * POOL_SPC * ASYNC_DSSS_POOL_PERIODS_PER_JOIN));
   const size_t   bytes = dp_async_dsss_pool_state_bytes (a);
   unsigned char *blob  = malloc (bytes);
   dp_async_dsss_pool_get_state (a, blob);
@@ -1251,7 +1257,7 @@ _test_refused_restore_changes_nothing (void)
      header, extra, carry, and receivers 0 and 1. */
   const size_t cells = src->n_receivers * src->ghost_window;
   const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 10
-                       + src->period * sizeof (float _Complex)
+                       + src->group * sizeof (float _Complex)
                        + src->n_receivers * sizeof (uint64_t)
                        + cells * (sizeof (double) + 1)
                        + 2 * dp_async_dsss_receiver_state_bytes (src->rx[0]);
@@ -1324,20 +1330,50 @@ _test_telemetry_one_producer (void)
    exclusions, and the clock and counts at 0; set_threads refuses a
    negative count unchanged. Sabotage: leave the search's exclusions -> a
    reset pool still skips the old phases. */
+/* A pool reset with a part-filled carry gives a blob set_state() takes:
+   get_state() writes the whole carry and set_state() refuses a nonzero
+   tail past carry_len, so a reset that left the old samples behind gave a
+   blob no pool would restore, one that was not a function of the state.
+   Sabotage: drop the carry's memset from reset() -> red. */
+static int
+_test_reset_clears_the_carry (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  size_t                      n;
+  float _Complex             *x = _two_emitters (code, &n);
+  dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
+  dp_async_dsss_pool_state_t *q = _pool (code, 3, 0.0, 1);
+  DP_REQUIRE (p && q && x && n > POOL_GROUP);
+  (void)dp_async_dsss_pool_push (p, x, POOL_GROUP / 2 + 17);
+  DP_REQUIRE (p->carry_len == POOL_GROUP / 2 + 17);
+  dp_async_dsss_pool_reset (p);
+  const size_t   bytes = dp_async_dsss_pool_state_bytes (p);
+  unsigned char *a     = malloc (bytes);
+  DP_REQUIRE (a && bytes == dp_async_dsss_pool_state_bytes (q));
+  dp_async_dsss_pool_get_state (p, a);
+  DP_CHECK (dp_async_dsss_pool_set_state (q, a) == DP_OK);
+  free (a);
+  dp_async_dsss_pool_destroy (p);
+  dp_async_dsss_pool_destroy (q);
+  free (x);
+  return 0;
+}
+
 static int
 _test_reset_and_threads (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  float _Complex z[2046]        = { 0 };
+  static float _Complex z[POOL_GROUP];
   dp_async_dsss_pool_state_t *p = _pool (code, 3, 0.0, 1);
   DP_REQUIRE (p != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 10.0, 0.0, 45.0)
               == DP_OK);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[1], 10.2, 0.0, 45.0)
               == DP_OK);
-  (void)dp_async_dsss_pool_push (p, z, 2046);
-  DP_REQUIRE (p->released_duplicate == 1 && p->samples == 2046);
+  (void)dp_async_dsss_pool_push (p, z, POOL_GROUP);
+  DP_REQUIRE (p->released_duplicate == 1 && p->samples == POOL_GROUP);
   DP_REQUIRE (dp_async_dsss_receiver_get_n_exclusions (p->search) == 1);
   dp_async_dsss_pool_reset (p);
   DP_CHECK (p->samples == 0 && p->released_duplicate == 0
@@ -1726,8 +1762,18 @@ _distinct_pair (const uint8_t *code, double cn0_b, double df_b, size_t delay)
 /* Neither test alone releases: each guards a true track the other would
    take. A co-moving emitter one lattice step from A (55 dB-Hz) passes the
    carrier test and is kept by its code lock; a weaker one on its own
-   carrier (50 dB-Hz, just handed off, its code lock still low) passes the
-   code-lock test and is kept by its carrier. Sabotage: drop the code-lock
+   carrier (46 dB-Hz, just handed off, its code lock still low) passes the
+   code-lock test and is kept by its carrier. The controller reads the
+   rings once a group (ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods), so this
+   probe asks at 1/16 of the steps a per-period controller did, and the
+   weak one must still be low at one of them: at 16 periods a group it is
+   on 10 of 10 noise draws up to 46 dB-Hz and 9 of 10 at 47 (10 of 10 to
+   51 at one period a step), so it sits at 46, the highest with no draw
+   missing (it was 50 at one period a step). Measured on identical streams, M =
+   1 against 16: the weak one is kept on all 90 draws from 44 to 52 dB-Hz in
+   both, and a real ghost (_test_ghost_is_released's scene, parents at 60, 65
+   and 70 dB-Hz, 10 draws each) is released on the same counts (8, 9, 8 of 10),
+   a median 3 to 8 ms later at 16. Sabotage: drop the code-lock
    test -> the co-moving emitter is released; drop the carrier test -> the
    weak one is. */
 static int
@@ -1739,7 +1785,7 @@ _test_ghost_needs_both_tests (void)
   DP_CHECK_MSG (comove.kept, "a co-moving emitter is kept");
   DP_CHECK_MSG (comove.carrier_alone, "the carrier test alone would fire");
   DP_CHECK (!comove.lock_alone);
-  const _pair_t weak = _distinct_pair (code, 50.0, -437.0, 2 * 198);
+  const _pair_t weak = _distinct_pair (code, 46.0, -437.0, 2 * 198);
   DP_CHECK_MSG (weak.kept, "a weak emitter on its own carrier is kept");
   DP_CHECK_MSG (weak.lock_alone, "the code-lock test alone would fire");
   DP_CHECK (!weak.carrier_alone);
@@ -1814,6 +1860,7 @@ main (void)
   DP_CHECK (_test_duplicates_keep_the_first () == 0);
   DP_CHECK (_test_duplicate_zone_is_one_chip_circular () == 0);
   DP_CHECK (_test_reset_and_threads () == 0);
+  DP_CHECK (_test_reset_clears_the_carry () == 0);
   DP_CHECK (_test_telemetry_one_producer () == 0);
   DP_CHECK (_test_lost_is_released () == 0);
   DP_CHECK (_test_two_emitters_two_holders () == 0);

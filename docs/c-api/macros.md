@@ -29,6 +29,7 @@
 * **ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **ASYNC\_DSSS\_POOL\_NO\_RECEIVER** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
+* **ASYNC\_DSSS\_POOL\_PERIODS\_PER\_JOIN** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **ASYNC\_DSSS\_POOL\_STATE\_MAGIC** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **ASYNC\_DSSS\_POOL\_STATE\_VERSION** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

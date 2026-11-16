@@ -85,7 +85,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 |  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, the ghost rule's history (each receiver's carriers and code-lock flags over its window), and each receiver's state, and the search's, which carries the exclusions the controller gave it. The last push's symbols do not travel._ |
 |  int | [**dp\_async\_dsss\_pool\_get\_threads**](#function-dp_async_dsss_pool_get_threads) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Workers push() steps the receivers on, the calling thread included: what set\_threads() asked for, at most n\_receivers, and the online cores for 0._  |
 |  int | [**dp\_async\_dsss\_pool\_ghost\_of**](#function-dp_async_dsss_pool_ghost_of) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t i, size\_t j) <br>_Whether receiver_ `j` _tracks a Doppler-offset sidelobe of receiver_`i's` _signal, by the controller's ghost rule (header step 2) over the history it holds now._ |
-|  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Step every receiver on one block, running the controller at every code period it crosses._  |
+|  size\_t | [**dp\_async\_dsss\_pool\_push**](#function-dp_async_dsss_pool_push) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Step every receiver on one block, running the controller at every group of code periods it completes._  |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_pool\_receiver**](#function-dp_async_dsss_pool_receiver) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, size\_t receiver) <br>_Borrow receiver_ `receiver` _, for C-only configuration: its lock and chain settings (_[_**dp\_async\_dsss\_receiver\_configure\_lock\_raw()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_lock_raw) _,_[_**dp\_async\_dsss\_receiver\_configure\_chain\_raw()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_configure_chain_raw) _)._ |
 |  void | [**dp\_async\_dsss\_pool\_reset**](#function-dp_async_dsss_pool_reset) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Every receiver back to idle and the search to no exclusions; the clock, the release counts, the search's period count and the ghost history back to 0._  |
 |  int | [**dp\_async\_dsss\_pool\_set\_state**](#function-dp_async_dsss_pool_set_state) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, const void \* blob) <br>_Restore the state, whole or not at all._ `DP_ERR_INVALID` _on a blob of another object or version, another receiver count, a carry of a period or more, a ghost history control() cannot leave (a length past the window, a flag other than 0 or 1, a nonzero entry outside a ring's span, or a history on a receiver not tracking), or a receiver blob its receiver refuses; a refusal leaves the pool and every receiver as they were._ |
@@ -132,6 +132,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 | define  | [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s)  `0.2`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_RECEIVERS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_receivers)  `[**ASYNC\_DSSS\_RX\_MAX\_PEAKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_max_peaks)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_NO\_RECEIVER**](async__dsss__pool__core_8h.md#define-async_dsss_pool_no_receiver)  `(-1)`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_PERIODS\_PER\_JOIN**](async__dsss__pool__core_8h.md#define-async_dsss_pool_periods_per_join)  `16u`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_MAGIC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'P', 'L')`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `/* multi line expression */`<br> |
 
@@ -143,8 +144,8 @@ The pool owns one search and N receivers that each hold one signal (docs/design/
 
 
 * **One search, while any receiver is idle.** push() feeds each whole code period to the search first, its tiles across the workers, and only while some receiver is idle: with every receiver holding there is nobody to hand a detection to, so it stops, and a fresh search starts on the period one is free.
-* **Then the receivers, in parallel.** The same period goes to every receiver, one per task on the `dp_parallel` workers when at least two hold a signal (idle ones cost nothing, so they run inline). A receiver touches only its own state, so the result does not depend on the thread count: one thread and N give the same bytes.
-* **Then the controller, serially, at every code period of the stream.** A receiver is fed exactly one code period (`code_len * sample_rate / chip_rate` samples, its floor when that is not whole) per call, on the grid of the pool's sample count from create or reset; push() keeps what is left past the last whole period and feeds it with the next push. Every call and every controller step is then a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases and the same symbols. The cost is latency: up to one code period of a push waits for the next. It reads every receiver's status() and:
+* **Then the receivers, in parallel.** The same periods go to every receiver, one per task on the `dp_parallel` workers when at least two hold a signal (idle ones cost nothing, so they run inline). A receiver touches only its own state, so the result does not depend on the thread count: one thread and N give the same bytes.
+* **Then the controller, serially, once a group of ASYNC\_DSSS\_POOL\_PERIODS\_PER\_JOIN code periods.** A receiver is fed exactly one code period (`code_len * sample_rate / chip_rate` samples, its floor when that is not whole) per call, the search and the receivers a group of those periods at a time, the workers joined once a group, on the grid of the pool's sample count from create or reset; push() keeps what is left past the last whole group and feeds it with the next push. Every call and every controller step is then a position in the stream, not a call boundary, so any blocking of one stream gives the same receivers, the same releases and the same symbols. The cost is latency: up to one group of a push waits for the next, and a release or a seed comes up to a group's periods less one after the period that called for it. It reads every receiver's status() and:
   * **releases the lost.** A receiver in the lost state (its release rule fired: the emitter left, or the seed never locked) is reset to idle. With `reacquire` the receiver does this itself and is never lost.
   * **resolves duplicates.** Two receivers that hold a signal (refining or tracking) within one chip of each other's code phase, circularly, hold the same signal. The one that keeps it is the one tracking over the one refining, then the one in its state longer (status().state\_samples: the first to lock), then the higher C/N0 estimate, then the lower index. The other is reset to idle.
   * **releases ghosts.** A receiver can take a strong emitter's Doppler-offset sidelobe, hundreds of chips from the emitter's own phase, where the duplicate key cannot see it: it despreads the emitter's own data. Two of its traits give it away together (doppler#2529), each over the same trailing window of [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__pool__core_8h.md#define-async_dsss_pool_ghost_window_s) of whole code periods, both receivers tracking throughout:
@@ -477,7 +478,7 @@ Both tests over the last [**ASYNC\_DSSS\_POOL\_GHOST\_WINDOW\_S**](async__dsss__
 
 ### function dp\_async\_dsss\_pool\_push 
 
-_Step every receiver on one block, running the controller at every code period it crosses._ 
+_Step every receiver on one block, running the controller at every group of code periods it completes._ 
 ```C++
 size_t dp_async_dsss_pool_push (
     dp_async_dsss_pool_state_t * state,
@@ -488,7 +489,7 @@ size_t dp_async_dsss_pool_push (
 
 
 
-Hands every whole code period it completes to every receiver (header step 1), keeps each one's symbols for symbols(), and after each period releases the lost, resolves duplicates, releases ghosts, seeds the idle receivers and sets the search's levers (step 3). The samples past the last whole period are kept for the next push. Accepts any block size, and state carries across calls: the result is a function of the stream, not of its blocking.
+Hands every whole group of ASYNC\_DSSS\_POOL\_PERIODS\_PER\_JOIN code periods it completes to the search and every receiver, one period a call (header steps 1 and 2), keeps each one's symbols for symbols(), and after each group releases the lost, resolves duplicates, releases ghosts, seeds the idle receivers and sets the search's levers (step 3). The samples past the last whole group are kept for the next push. Accepts any block size, and state carries across calls: the result is a function of the stream, not of its blocking.
 
 
 
@@ -1030,6 +1031,23 @@ Most receivers a pool runs: one pick per peak a dwell reports ([**ASYNC\_DSSS\_R
 
 
 `status().state` for a receiver index past the pool: no such receiver. 
+
+
+        
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_POOL\_PERIODS\_PER\_JOIN 
+
+```C++
+#define ASYNC_DSSS_POOL_PERIODS_PER_JOIN `16u`
+```
+
+
+
+Code periods the receivers step between joins: push() feeds the search and every receiver M periods at a time, on a grid of M periods counted from create or reset, each receiver call still one period, and the controller runs once at the end of each M (async-dsss-receiver.md §5). A join costs about as much as a receiver's period (measured on WSL2), so fewer joins is the pool's main cost lever; 16 is the size of the three measured (4, 8, 16) that met the pool's 45.4 ns gate at both ends of the band at the 415.1-B-1 point. 
 
 
         

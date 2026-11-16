@@ -92,9 +92,9 @@ dp_async_dsss_pool_create (
       (void)dp_async_dsss_receiver_set_pooled (s->rx[i], true);
     }
   /* The one search (§5): a receiver of the same parameters that reports
-     each dwell's picks instead of seeding itself. Each period it runs
+     each dwell's picks instead of seeding itself. Each group it runs
      first, its tiles fanned across the workers, and the receivers after
-     it (feed_period()). */
+     it (feed_group()). */
   s->search = dp_async_dsss_receiver_create (
       code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
       pd, doppler_uncertainty, segments, sps, differential,
@@ -123,7 +123,8 @@ dp_async_dsss_pool_create (
      period is not whole; the receivers' partials close on their code
      NCOs' phase, so the block need not be exactly a period). */
   s->period = s->rx[0]->tsamps;
-  s->carry  = dp_xcalloc (s->period, sizeof *s->carry);
+  s->group  = s->period * ASYNC_DSSS_POOL_PERIODS_PER_JOIN;
+  s->carry  = dp_xcalloc (s->group, sizeof *s->carry);
   /* The ghost rule's clock is the controller's: one step a code period. */
   s->lattice_hz   = chip_rate / (2.0 * (double)code_len);
   s->ghost_window = (size_t)llround (ASYNC_DSSS_POOL_GHOST_WINDOW_S * chip_rate
@@ -172,10 +173,12 @@ dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *s)
   dp_async_dsss_receiver_reset (s->search);
   (void)dp_async_dsss_receiver_set_exclusions (s->search, NULL, 0);
   (void)dp_async_dsss_receiver_set_search_only (s->search, s->n_receivers);
-  s->searching          = false;
-  s->search_periods     = 0;
-  s->samples            = 0;
-  s->carry_len          = 0;
+  s->searching      = false;
+  s->search_periods = 0;
+  s->samples        = 0;
+  s->carry_len      = 0;
+  /* The blob writes the whole carry and refuses a nonzero unused tail. */
+  memset (s->carry, 0, s->group * sizeof *s->carry);
   s->released_lost      = 0;
   s->released_duplicate = 0;
   s->released_ghost     = 0;
@@ -236,7 +239,7 @@ hist_clear (dp_async_dsss_pool_state_t *s, size_t i)
    any other state clears it, so a ring is always one unbroken track. */
 static void
 hist_record (dp_async_dsss_pool_state_t *s, size_t i,
-             const async_dsss_receiver_status_t *st)
+             const async_dsss_receiver_status_t *st, size_t pos)
 {
   const size_t w = s->ghost_window;
   if (st->state != ASYNC_DSSS_RX_TRACKING)
@@ -245,8 +248,8 @@ hist_record (dp_async_dsss_pool_state_t *s, size_t i,
         hist_clear (s, i);
       return;
     }
-  s->car_hist[i * w + s->hist_pos] = st->doppler_hz;
-  s->cl_hist[i * w + s->hist_pos]  = (uint8_t)(st->code_locked != 0);
+  s->car_hist[i * w + pos] = st->doppler_hz;
+  s->cl_hist[i * w + pos]  = (uint8_t)(st->code_locked != 0);
   if (s->hist_len[i] < w)
     s->hist_len[i]++;
 }
@@ -310,7 +313,7 @@ dp_async_dsss_pool_ghost_of (const dp_async_dsss_pool_state_t *s, size_t i,
   return code_lock_low (s, j) && carrier_lockstep (s, i, j);
 }
 
-/* Header step 2. Serial, at each code-period crossing, and a function of
+/* Header step 3. Serial, at each group's end, and a function of
    the receivers' statuses alone, so it is the same at any thread count.
    Returns the holders it leaves. */
 static size_t
@@ -326,11 +329,10 @@ control (dp_async_dsss_pool_state_t *s)
         {
           dp_async_dsss_receiver_reset (s->rx[i]);
           st[i] = dp_async_dsss_receiver_status (s->rx[i]);
+          hist_clear (s, i);
           s->released_lost++;
         }
-      hist_record (s, i, &st[i]);
     }
-  s->hist_pos = (s->hist_pos + 1) % s->ghost_window;
   /* Duplicates, pair by pair in index order. A loser is reset at once, so
      it holds nothing in the pairs after it. */
   for (size_t i = 0; i < n; i++)
@@ -395,16 +397,27 @@ control (dp_async_dsss_pool_state_t *s)
   return holders;
 }
 
-/* One receiver's share of a segment: the samples, appended to its own
-   row. */
+/* One receiver's share of a group: each period in its own call, the
+   symbols appended to its own row, and its status after each into its own
+   ghost ring at that period's slot -- the ring is the receiver's alone,
+   so the workers never share a write. */
+static void
+feed_period (dp_async_dsss_pool_state_t *s, size_t i, size_t k)
+{
+  float _Complex *row = s->sym_buf + i * s->sym_cap;
+  s->n_sym[i] += dp_async_dsss_receiver_steps (
+      s->rx[i], s->feed_x + k * s->period, s->period, row + s->n_sym[i],
+      s->sym_cap - s->n_sym[i]);
+  const async_dsss_receiver_status_t st
+      = dp_async_dsss_receiver_status (s->rx[i]);
+  hist_record (s, i, &st, (s->hist_pos + k) % s->ghost_window);
+}
+
 static void
 feed_one (size_t i, void *ctx)
 {
-  dp_async_dsss_pool_state_t *s   = ctx;
-  float _Complex             *row = s->sym_buf + i * s->sym_cap;
-  s->n_sym[i] += dp_async_dsss_receiver_steps (s->rx[i], s->feed_x, s->feed_n,
-                                               row + s->n_sym[i],
-                                               s->sym_cap - s->n_sym[i]);
+  for (size_t k = 0; k < ASYNC_DSSS_POOL_PERIODS_PER_JOIN; k++)
+    feed_period (ctx, i, k);
 }
 
 static size_t
@@ -423,7 +436,7 @@ count_holders (const dp_async_dsss_pool_state_t *s)
    least two hold a signal -- an idle receiver costs nothing, so fanning
    idle ones out would pay a join for no work; then the controller. */
 static void
-feed_period (dp_async_dsss_pool_state_t *s, const float _Complex *x)
+feed_group (dp_async_dsss_pool_state_t *s, const float _Complex *x)
 {
   size_t idle = 0;
   for (size_t i = 0; i < s->n_receivers; i++)
@@ -432,19 +445,28 @@ feed_period (dp_async_dsss_pool_state_t *s, const float _Complex *x)
     dp_async_dsss_receiver_reset (s->search); /* a fresh search, aligned */
   s->searching = idle > 0;
   if (idle)
-    {
-      float _Complex none[1];
-      (void)dp_async_dsss_receiver_steps (s->search, x, s->period, none, 0);
-      s->search_periods++;
-    }
+    for (size_t k = 0; k < ASYNC_DSSS_POOL_PERIODS_PER_JOIN; k++)
+      {
+        float _Complex none[1];
+        (void)dp_async_dsss_receiver_steps (s->search, x + k * s->period,
+                                            s->period, none, 0);
+        s->search_periods++;
+      }
   s->feed_x = x;
-  s->feed_n = s->period;
-  if (s->n_receivers - idle >= 2)
+  s->feed_n = s->group;
+  /* Across the workers, receiver by receiver; serial, period by period,
+     so every receiver reads a period while it is still in cache. The
+     receivers are independent inside a group, so the order changes no
+     byte. */
+  if (s->n_receivers - idle >= 2 && s->workers)
     dp_pool_run (s->workers, s->n_receivers, feed_one, s);
   else
-    for (size_t i = 0; i < s->n_receivers; i++)
-      feed_one (i, s);
+    for (size_t k = 0; k < ASYNC_DSSS_POOL_PERIODS_PER_JOIN; k++)
+      for (size_t i = 0; i < s->n_receivers; i++)
+        feed_period (s, i, k);
   s->feed_x = NULL;
+  s->hist_pos
+      = (s->hist_pos + ASYNC_DSSS_POOL_PERIODS_PER_JOIN) % s->ghost_window;
   (void)control (s);
 }
 
@@ -455,7 +477,9 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
   /* A period's call emits that period's symbols plus at most one carried
      period's (sym_extra), and a push feeds at most x_len / period + 1
      periods. */
-  const size_t need = (x_len / s->period + 2) * (s->period + s->sym_extra);
+  const size_t need
+      = (x_len / s->period + 2 * ASYNC_DSSS_POOL_PERIODS_PER_JOIN)
+        * (s->period + s->sym_extra);
   if (need > s->sym_cap)
     {
       free (s->sym_buf);
@@ -478,23 +502,23 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
   size_t pos = 0;
   if (s->carry_len)
     {
-      const size_t want = s->period - s->carry_len;
+      const size_t want = s->group - s->carry_len;
       const size_t take = x_len < want ? x_len : want;
       memcpy (s->carry + s->carry_len, x, take * sizeof *x);
       s->carry_len += take;
       pos = take;
-      if (s->carry_len < s->period)
+      if (s->carry_len < s->group)
         return count_holders (s);
-      feed_period (s, s->carry);
+      feed_group (s, s->carry);
       s->carry_len = 0;
     }
-  for (; x_len - pos >= s->period; pos += s->period)
-    feed_period (s, x + pos);
+  for (; x_len - pos >= s->group; pos += s->group)
+    feed_group (s, x + pos);
   s->carry_len = x_len - pos;
   /* The tail, and zeros past it: the blob writes the whole buffer. */
   memcpy (s->carry, x + pos, s->carry_len * sizeof *x);
   memset (s->carry + s->carry_len, 0,
-          (s->period - s->carry_len) * sizeof *s->carry);
+          (s->group - s->carry_len) * sizeof *s->carry);
   return count_holders (s);
 }
 
@@ -677,7 +701,7 @@ size_t
 dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *s)
 {
   size_t n = sizeof (dp_state_hdr_t) + sizeof (async_dsss_pool_extra_t)
-             + s->period * sizeof *s->carry + hist_bytes (s);
+             + s->group * sizeof *s->carry + hist_bytes (s);
   for (size_t i = 0; i < s->n_receivers; i++)
     n += dp_async_dsss_receiver_state_bytes (s->rx[i]);
   return n + dp_async_dsss_receiver_state_bytes (s->search);
@@ -703,7 +727,7 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
   dp_w_bytes (&_w, &extra, sizeof extra);
   /* The whole buffer, its unused tail zeros (create, reset and every
      refill keep it so), so the blob is a function of the state alone. */
-  dp_w_bytes (&_w, s->carry, s->period * sizeof *s->carry);
+  dp_w_bytes (&_w, s->carry, s->group * sizeof *s->carry);
   /* The rings too: every entry outside a ring's span is 0 (hist_clear). */
   for (size_t i = 0; i < s->n_receivers; i++)
     {
@@ -730,17 +754,17 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   async_dsss_pool_extra_t extra = { 0 };
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_receivers != (uint64_t)s->n_receivers || extra.threads < 0
-      || extra.threads > INT_MAX || extra.carry_len >= (uint64_t)s->period
+      || extra.threads > INT_MAX || extra.carry_len >= (uint64_t)s->group
       || extra.searching > 1
       || (s->tlm
           && effective_threads ((int)extra.threads, s->n_receivers) != 1))
     return DP_ERR_INVALID;
   const float _Complex *carry
-      = dp_r_reserve (&_r, s->period * sizeof *s->carry);
+      = dp_r_reserve (&_r, s->group * sizeof *s->carry);
   if (!carry)
     return DP_ERR_INVALID;
   /* Only what push() can leave: zeros past the carried samples. */
-  for (size_t k = (size_t)extra.carry_len; k < s->period; k++)
+  for (size_t k = (size_t)extra.carry_len; k < s->group; k++)
     if (carry[k] != 0)
       return DP_ERR_INVALID;
   /* The rings, likewise only what control() can leave: a length up to the
@@ -790,7 +814,7 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
      the count its writer RESOLVED (its cores, its tiles), and the rule has
      to be applied on this machine (#2776). */
   build_workers (s, (int)extra.threads);
-  memcpy (s->carry, carry, s->period * sizeof *s->carry);
+  memcpy (s->carry, carry, s->group * sizeof *s->carry);
   s->carry_len          = (size_t)extra.carry_len;
   s->samples            = extra.samples;
   s->released_lost      = extra.released_lost;

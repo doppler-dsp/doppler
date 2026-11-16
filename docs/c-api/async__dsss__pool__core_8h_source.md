@@ -45,7 +45,11 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 7u /* v7: its receivers' blobs carry
+#define ASYNC_DSSS_POOL_STATE_VERSION 8u /* v8: the carry is a group of
+                                              periods, and its receivers'
+                                              blobs carry the exclusions'
+                                              and picks' samples (ADRX
+                                              v18); v7: its receivers' blobs carry
                                               the refine hand-over ring
                                               (ADRX v17, #2974); v6: the
                                               receivers' search child is
@@ -54,6 +58,9 @@ extern "C"
                                               controller's search */
 
 #define ASYNC_DSSS_POOL_GHOST_WINDOW_S 0.2
+#ifndef ASYNC_DSSS_POOL_PERIODS_PER_JOIN
+#define ASYNC_DSSS_POOL_PERIODS_PER_JOIN 16u
+#endif
 #define ASYNC_DSSS_POOL_GHOST_EPS_HZ 10.0
 #define ASYNC_DSSS_POOL_GHOST_STILL_HZ 10.0
 #define ASYNC_DSSS_POOL_GHOST_LOCK_FRAC 0.2
@@ -73,6 +80,7 @@ extern "C"
     const float _Complex *feed_x; 
     size_t                feed_n; 
     size_t   period;             
+    size_t   group;              
     float _Complex *carry;       
     size_t          carry_len;   
     size_t   n_receivers;        

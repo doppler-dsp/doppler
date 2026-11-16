@@ -615,9 +615,18 @@ decim_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
   for (; xi < num_in && oi < max_out; xi++)
     {
       /* 1. Accumulate x[n] × reversed_h into integrate-and-dump */
+      /* Register 0 goes first, alone, so the loop's vectors start at
+         register 1 -- where the dump's shift reads them (iad[t] for
+         t >= 1) and its clear writes them. A store read back at another
+         offset cannot be forwarded: with the loop starting at 0, every
+         vector the dump loaded straddled two of this loop's stores, and
+         the dump cost more than the 19 multiply-adds (6.8 ns against
+         3.9, x86-64-v2, gcc 16). Each register is still one multiply-add
+         of its own, so the split moves no bit. */
       const float *h    = get_branch (s, ph);
       float _Complex xv = in[xi] * scale;
-      for (size_t t = 0; t < N; t++)
+      iad[0] += xv * h[N - 1];
+      for (size_t t = 1; t < N; t++)
         iad[t] += xv * h[N - 1 - t];
 
       /* 2. Advance NCO */
@@ -633,7 +642,12 @@ decim_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
             tfd[t - 1] = iad[t] + tfd[t];
           if (N > 1)
             tfd[N - 2] = iad[N - 1];
-          memset (iad, 0, N * sizeof (*iad));
+          /* Cleared on the accumulate loop's own split (0, then 1 up),
+             not by memset, so the stores it reads next line up with its
+             loads. */
+          iad[0] = 0.0f;
+          for (size_t t = 1; t < N; t++)
+            iad[t] = 0.0f;
           out[oi++] = y;
         }
       ph = new_ph;

@@ -371,35 +371,31 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
 {
   const double fs_in = 11e6, chip = pt->chip, cn0 = pt->cn0;
   int          ok = 1;
-  /* A point that fixes the push's length gets its buffer once, before any
-     pool, as the 5 Mcps rows always have: allocated per row after the
-     pool, the same row read 30% slower on bare metal (memory layout, not
-     work), so the existing rows keep their layout exactly. */
-  const size_t fixed_block = pt->block_periods
-                                 ? (size_t)llround ((double)pt->block_periods
-                                                    * CODE_LEN / chip * fs_in)
-                                 : 0;
-  float _Complex *x_fixed
-      = fixed_block ? malloc (fixed_block * sizeof *x_fixed) : NULL;
-  if (fixed_block && !x_fixed)
-    return 0;
   for (int r = 0; r < n_rows && ok; r++)
     {
       const air_row_t            *w   = &rows[r];
       air_src_t                   src = { 0 };
       dp_async_dsss_pool_state_t *p   = dp_async_dsss_pool_create (
-          code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9, 50e3, 4,
-          8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, AIR_CARRIER, 2.0, false,
-          w->deep ? CODE_ONLY_S : CODE_LEN / chip, DOPPLER_RATE, w->threads,
-          true, 0);
-      if (!p || !air_src_init (&src, code, w, chip, sym, cn0, fs_in, block))
+          code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9,
+          pt->span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
+          pt->carrier_hz, 2.0, false,
+          w->deep ? pt->code_only_s : CODE_LEN / chip, pt->rate_hz_s,
+          w->threads, true, 0);
+      /* One push: block_periods code periods at 11 MSa/s, or the pool's
+         own dwell. */
+      const size_t periods = pt->block_periods ? pt->block_periods
+                             : p ? dp_async_dsss_pool_get_coherent_bins (p)
+                                 : 1;
+      const size_t block
+          = (size_t)llround ((double)periods * CODE_LEN / chip * fs_in);
+      float _Complex *x = malloc (block * sizeof *x);
+      if (!p || !x || !air_src_init (&src, code, w, pt, sym, fs_in, block))
         {
           (void)fprintf (stderr, "bench_async_dsss_pool[%s]: setup failed\n",
                          w->name);
           dp_async_dsss_pool_destroy (p);
           air_src_free (&src);
-          if (!x_fixed)
-            free (x);
+          free (x);
           ok = 0;
           break;
         }
@@ -465,10 +461,8 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
         }
       dp_async_dsss_pool_destroy (p);
       air_src_free (&src);
-      if (!x_fixed)
-        free (x);
+      free (x);
     }
-  free (x_fixed);
   return ok;
 }
 

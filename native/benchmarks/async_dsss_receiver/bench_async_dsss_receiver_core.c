@@ -533,18 +533,13 @@ spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
   return 1;
 }
 
-/* On ONE thread: the receiver's speed goal is one thread, and a search
-   that fans its block across a worker pool would otherwise turn these
-   rows into wall-time rows on a many-core box. */
 static dp_async_dsss_receiver_state_t *
 spec_rx (const uint8_t *code, double chip, double fc, double cn0)
 {
-  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, 1023, chip, 3000.0, 11e6, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / 3000.0, 400.0);
-  if (rx)
-    (void)dp_async_dsss_receiver_set_threads (rx, 1);
-  return rx;
+  return dp_async_dsss_receiver_create (code, 1023, chip, 3000.0, 11e6, 2, cn0,
+                                        1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
+                                        14.0, 64, 8, false, 100000, fc, 0.0,
+                                        false, 275.0 / 3000.0, 400.0, true, 0);
 }
 
 static void
@@ -666,7 +661,6 @@ run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
     return 1;
   const uint64_t s0 = dp_async_dsss_receiver_status (rx).state_samples;
   double         times[ITERATIONS];
-  int            symbol_up_blocks = 0;
   for (int r = 0; r < ITERATIONS; r++)
     {
       (void)spec_src_next (&src, x, BLOCK);
@@ -674,9 +668,8 @@ run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
       sink += dp_async_dsss_receiver_steps (rx, x, BLOCK, out, BLOCK);
       uint64_t t1 = jm_bench_now_ns ();
       times[r]    = jm_bench_elapsed_sec (t0, t1);
-      symbol_up_blocks += dp_async_dsss_receiver_get_locked (rx) == 1;
     }
-  if (!tracking_code_locked (rx, "after the timed rounds"))
+  if (!tracking (rx, "after the timed rounds"))
     return 1;
   if (dp_async_dsss_receiver_status (rx).state_samples - s0
       != (uint64_t)ITERATIONS * BLOCK)
@@ -694,10 +687,6 @@ run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
   printf ("    locked after %.2f s, tracking at %.0f Hz\n",
           (double)(b + 1) * BLOCK / fs_in,
           dp_async_dsss_receiver_get_doppler_hz (rx));
-  printf ("    symbol lock %s at the end, up in %d of %d timed blocks "
-          "(printed, not required: #3253)\n",
-          dp_async_dsss_receiver_get_locked (rx) == 1 ? "up" : "DOWN",
-          symbol_up_blocks, ITERATIONS);
   (void)sink;
   dp_async_dsss_receiver_destroy (rx);
   spec_src_free (&src);

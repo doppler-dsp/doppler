@@ -1006,7 +1006,8 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   const double rate                  = 400.0;
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, SF, chip, sym, RAMP_FS, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, refine);
+      14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, refine,
+      0);
   dp_wfm_synth_state_t *syn
       = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              100u + seed, 2, 15, 0, 0, 0.0);

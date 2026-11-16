@@ -110,13 +110,15 @@
  * const double code_only_s         = 0.0;    // no window: D = 1
  * const double doppler_rate        = 0.0;
  * const bool   refine              = true;   // D = 1 needs the refine
+ * const int    carrier_window = ASYNC_DSSS_RX_CARRIER_PARTIALS; // as built
  *
  * dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
  *     code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
  *     pd, doppler_uncertainty, segments, sps, differential,
  *     refine_max_error_db, refine_sps, refine_margin_db, refine_n_fft,
  *     refine_zero_pad, refine_sequential, refine_max_blocks, carrier_freq_hz,
- *     lost_confirm_s, reacquire, code_only_s, doppler_rate, refine);
+ *     lost_confirm_s, reacquire, code_only_s, doppler_rate, refine,
+ *     carrier_window);
  * float _Complex syms[4096];
  * size_t n = dp_async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
  * dp_async_dsss_receiver_destroy(rx);
@@ -195,6 +197,17 @@ extern "C"
  *  (async-dsss-receiver.md §4.4). */
 #define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS                                      \
   ((size_t)(1.0 / ASYNC_DSSS_RX_BN_CARRIER + 0.5))
+  /** The window the pre-despread carrier loop forms its error over
+   *  (dp_async_dsss_receiver_create()'s `carrier_window`). */
+  typedef enum
+  {
+    /** Each of the code period's partials squared, the squares summed:
+        the receiver as built. */
+    ASYNC_DSSS_RX_CARRIER_PARTIALS = 0,
+    /** One coherent sum over the code-period window the Dll's look-back
+        picked (dp_dll_get_window_sum()), squared. */
+    ASYNC_DSSS_RX_CARRIER_CODE_PERIOD = 1
+  } async_dsss_rx_carrier_window_t;
   /** The Dll's bn, per epoch whatever the steer rate (the symbol-period aid
    * steers once per symbol and keeps bn per epoch): DsssReceiver's value,
    * narrower than dp_dll_create()'s default 0.01 for noise immunity at the
@@ -450,6 +463,9 @@ typedef enum
                                         before tracking; false hands the
                                         seed straight to tracking (see
                                         dp_async_dsss_receiver_create()). */
+    int      carrier_window;       /**< Config: an
+                                        async_dsss_rx_carrier_window_t, the
+                                        carrier loop's error window.     */
     uint64_t state_samples;        /**< Running: samples fed since the
                                         current state was entered.       */
     double   code_only_s;  /**< Config: the code-only window, seconds
@@ -767,9 +783,30 @@ typedef enum
    *                search, D = 1, among them) is refused, and a blob in the
    *                refining state is refused by set_state(). The name is a
    *                placeholder (async-dsss-receiver.md §4.4).
+   * @param carrier_window  The window the pre-despread carrier loop forms
+   *                its error over, once a code period (the loop's update).
+   *                ASYNC_DSSS_RX_CARRIER_PARTIALS (0, the default, as
+   *                built): each of the period's `segments` partials
+   *                squared and the squares summed, so each partial is a
+   *                noisy estimate on its own. ASYNC_DSSS_RX_CARRIER_CODE_PERIOD
+   *                (1): one coherent sum over the code-period window the
+   *                Dll's look-back picks every period (the window a data
+   *                transition does not split, dp_dll_get_window_sum()),
+   *                squared and halved -- `segments` times the coherent
+   *                integration of a partial; at `segments` 1 the period is
+   *                the only window and the two windows are one error. The
+   *                look-back picks that
+   *                window whether or not the symbol-period aid steers the
+   *                code loop, and this changes nothing the aid does. It
+   *                holds only while a symbol is at least a code period
+   *                (`symbol_rate * code_len <= chip_rate`), so a window
+   *                free of transitions exists: a receiver configured
+   *                outside it is refused. The name is a placeholder
+   *                (async-dsss-receiver.md §4.4).
    * @return A new receiver, searching; NULL on an invalid argument,
    *         including reacquire with a lost_confirm_s under one sample,
-   *         and refine false with coherent_bins under 25.
+   *         refine false with coherent_bins under 25, and carrier_window
+   *         code_period with a symbol shorter than a code period.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -810,7 +847,7 @@ typedef enum
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate, bool refine);
+      double doppler_rate, bool refine, int carrier_window);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */

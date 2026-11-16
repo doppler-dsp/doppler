@@ -48,6 +48,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
 |  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
+|  int | [**carrier\_window**](#variable-carrier_window)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
@@ -396,6 +397,24 @@ double dp_async_dsss_receiver_state_t::carrier_freq_hz;
 
 
 nominal RF carrier, Hz; &gt; 0 enables the carrier-&gt;code rate aiding, 0 = off (config, not running state  restored by create). 
+
+
+        
+
+<hr>
+
+
+
+### variable carrier\_window 
+
+```C++
+int dp_async_dsss_receiver_state_t::carrier_window;
+```
+
+
+
+Config: an async\_dsss\_rx\_carrier\_window\_t, the carrier loop's error window. 
+ 
 
 
         

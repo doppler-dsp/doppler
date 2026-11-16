@@ -7,17 +7,23 @@
  *
  * Hot loop — real taps, CF32 signal (JM_VEC_F32 width-portable):
  *   Broadcast h[k] to JM_SIMD_WIDTH_F32 float lanes; FMA directly.
- *   Stride = JM_SIMD_WIDTH_F32/2 complex outputs per iteration.
- *   Cost: 1 FMA per tap, stride outputs/iteration.
+ *   FIR_RGROUP (4) vectors of outputs per pass, each its own running sum.
+ *   Cost: 1 FMA per tap per vector, 4 independent sums in flight.
  *
- * Hot loop — complex taps, CF32 signal (AVX-512 only):
+ * Hot loop — complex taps, CF32 signal (AVX-512):
  *   For each tap h[k] = h_r + j*h_i and 8 parallel output lanes:
  *     vx      = loadu_ps(&scratch[i + M-1 - k])
  *     vx_swap = permute_ps(vx, 0xB1)   [swap real/imag in each pair]
  *     acc    += fmadd(h_r, vx, acc)
  *     acc    += fmadd(h_i, vx_swap*SIGN, acc)  [SIGN negates real parts]
  *   Cost: 2 FMA + 1 permute + 1 mul per tap, 8 outputs/iteration.
- *   Falls back to scalar on non-AVX-512 targets.
+ *
+ * Hot loop — complex taps, AVX2 / SSE2 / NEON (JM_VEC_F32, 8 or 4 lanes):
+ *   The same identity with the sign applied once per output, not per tap:
+ *   a += h_r * x, b += h_i * swap(x), y = a + [-1 +1] * b. FIR_RGROUP (4)
+ *   vectors of outputs per pass. Measured against the scalar loop below,
+ *   AVX2+FMA: 0.20x at 15 taps, 0.29x at 63, 0.31x at 255.
+ *   Falls back to scalar on every other target.
  */
 
 #include "doppler/fir/fir_core.h"
@@ -186,9 +192,20 @@ dp_fir_execute_max_out (dp_fir_state_t *state)
  * Zeroed complex samples after the input in scratch. The last, partial group
  * of outputs runs through the SAME vector body as every full group (see
  * inner_real_cf32), and that body reads a whole group of inputs: up to
- * FIR_PAD - 1 past the end. 8 = the widest group (AVX-512: 16 floats).
+ * FIR_PAD - 1 past the end. The pad is the widest group any kernel runs:
+ * 8 complex at least (the AVX-512 complex-tap group), and the real-tap and
+ * AVX2 / SSE2 / NEON complex-tap group of FIR_RGROUP vectors where it is
+ * larger (16 on AVX2, 32 on AVX-512).
  */
-#define FIR_PAD 8
+#define FIR_PAD FIR_PAD_
+#if JM_SIMD_WIDTH_F32 >= 2
+/* inner_real_cf32's group: FIR_RGROUP vectors, one sum each. */
+#define FIR_RGROUP 4
+#define FIR_RGROUP_C (FIR_RGROUP * (JM_SIMD_WIDTH_F32 / 2))
+#define FIR_PAD_ (FIR_RGROUP_C > 8 ? FIR_RGROUP_C : 8)
+#else
+#define FIR_PAD_ 8
+#endif
 
 static int
 ensure_scratch (dp_fir_state_t *f, size_t num_samples)
@@ -262,6 +279,73 @@ inner_cf32 (const float _Complex *JM_RESTRICT buf,
     }
 }
 
+#elif JM_SIMD_WIDTH_F32 == 8 || JM_SIMD_WIDTH_F32 == 4
+
+/* Swap I and Q in every complex pair of a vector: [a b c d] -> [b a d c].
+ * jm_simd.h has no lane permute, so it is spelled per instruction set. */
+#if JM_SIMD_WIDTH_F32 == 8
+#define FIR_SWAP_IQ(v) _mm256_permute_ps (v, 0xB1)
+#elif defined(__aarch64__)
+#define FIR_SWAP_IQ(v) vrev64q_f32 (v)
+#else
+#define FIR_SWAP_IQ(v) _mm_shuffle_ps (v, v, 0xB1)
+#endif
+
+/* FIR_RGROUP vectors of outputs from buf[i ..]. For x = [xr xi] and tap
+ * h = hr + j hi, two running sums per vector: a += hr * x = [hr xr, hr xi]
+ * and b += hi * swap(x) = [hi xi, hi xr]. Then y = a + [-1 +1] * b
+ * = [hr xr - hi xi, hr xi + hi xr], the sign applied once, not per tap.
+ * Every output, the last partial group's included, comes out of this one
+ * body (#1893), and the groups keep 2 * FIR_RGROUP sums in flight. */
+static inline void
+cf32_vgroup (const float _Complex *JM_RESTRICT buf,
+             const float _Complex *JM_RESTRICT h, size_t M, size_t i,
+             float _Complex *JM_RESTRICT dst)
+{
+  static const float sign[8]
+      = { -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f };
+  const size_t w = JM_SIMD_WIDTH_F32 / 2;
+  JM_VEC_F32   a[FIR_RGROUP], b[FIR_RGROUP];
+  for (int s = 0; s < FIR_RGROUP; s++)
+    a[s] = b[s] = JM_ZERO_F32 ();
+  for (size_t k = 0; k < M; k++)
+    {
+      const JM_VEC_F32 hr = JM_SPLAT_F32 (crealf (h[k]));
+      const JM_VEC_F32 hi = JM_SPLAT_F32 (cimagf (h[k]));
+      for (int s = 0; s < FIR_RGROUP; s++)
+        {
+          const JM_VEC_F32 x
+              = JM_LOAD_F32 ((const float *)&buf[i + s * w + M - 1 - k]);
+          JM_FMA_F32 (a[s], x, hr);
+          JM_FMA_F32 (b[s], FIR_SWAP_IQ (x), hi);
+        }
+    }
+  const JM_VEC_F32 sg = JM_LOAD_F32 (sign);
+  for (int s = 0; s < FIR_RGROUP; s++)
+    JM_STORE_F32 ((float *)&dst[s * w],
+                  JM_ADD_F32 (a[s], JM_MUL_F32 (b[s], sg)));
+}
+
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__ ((optimize ("no-aggressive-loop-optimizations")))
+#endif
+JM_HOT static void
+inner_cf32 (const float _Complex *JM_RESTRICT buf,
+            const float _Complex *JM_RESTRICT h, size_t M,
+            float _Complex *JM_RESTRICT out, size_t N)
+{
+  size_t i = 0;
+  for (; i + FIR_RGROUP_C <= N; i += FIR_RGROUP_C)
+    cf32_vgroup (buf, h, M, i, &out[i]);
+  if (i < N)
+    {
+      /* The same body over the zero pad (FIR_PAD >= one group). */
+      float _Complex tmp[FIR_RGROUP_C];
+      cf32_vgroup (buf, h, M, i, tmp);
+      memcpy (&out[i], tmp, (N - i) * sizeof (float _Complex));
+    }
+}
+
 #else /* scalar fallback for complex taps */
 
 #if defined(__GNUC__) && !defined(__clang__)
@@ -296,14 +380,41 @@ inner_cf32 (const float _Complex *JM_RESTRICT buf,
  * complex samples.  JM_MAC_F32 broadcasts the real scalar tap h[k] across
  * all lanes and FMAs with the interleaved I/Q data — no permute needed.
  *
- * Width  | ISA       | complex outputs/iter
- * -------|-----------|---------------------
- *    16  | AVX-512   | 8
- *     8  | AVX2+FMA  | 4
- *     1  | scalar    | loop never runs; tail handles all samples
+ * Width  | ISA       | complex outputs per group (FIR_RGROUP = 4 vectors)
+ * -------|-----------|---------------------------------------------------
+ *    16  | AVX-512   | 32
+ *     8  | AVX2+FMA  | 16
+ *     4  | SSE2      | 8 (from jm_simd.h's SSE2 tier, just-makeit#2651;
+ *        |           |    a multiply then an add: SSE has no FMA)
+ *     1  | scalar    | not compiled; the auto-vectorised loop below runs
+ *
+ * One running sum per vector is a dependent chain M taps long; four let the
+ * adds overlap. Measured on the 255-tap row: 0.34x of one sum under
+ * AVX2+FMA, 0.38x under that SSE2 tier.
  */
 
 #if JM_SIMD_WIDTH_F32 >= 2
+
+/* FIR_RGROUP vectors of outputs, each its own running sum over the taps in
+ * order. One sum alone is a dependent add chain M long (a multiply then an
+ * add per tap where there is no FMA); independent sums let the adds overlap.
+ * Every output, the last partial group's included, comes out of this one
+ * body, so an output's bits do not depend on where the caller split the
+ * stream (#1893, #2805). */
+static inline void
+real_group (const float _Complex *JM_RESTRICT buf, const float *JM_RESTRICT h,
+            size_t M, size_t i, float _Complex *JM_RESTRICT dst)
+{
+  const size_t w = JM_SIMD_WIDTH_F32 / 2;
+  JM_VEC_F32   acc[FIR_RGROUP];
+  for (int s = 0; s < FIR_RGROUP; s++)
+    acc[s] = JM_ZERO_F32 ();
+  for (size_t k = 0; k < M; k++)
+    for (int s = 0; s < FIR_RGROUP; s++)
+      JM_MAC_F32 (acc[s], (const float *)&buf[i + s * w + M - 1 - k], h[k]);
+  for (int s = 0; s < FIR_RGROUP; s++)
+    JM_STORE_F32 ((float *)&dst[s * w], acc[s]);
+}
 
 #if defined(__GNUC__) && !defined(__clang__)
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
@@ -313,27 +424,15 @@ inner_real_cf32 (const float _Complex *JM_RESTRICT buf,
                  const float *JM_RESTRICT h, size_t M,
                  float _Complex *JM_RESTRICT out, size_t N)
 {
-  const size_t stride = JM_SIMD_WIDTH_F32 / 2;
-  size_t       i      = 0;
-  for (; i + stride <= N; i += stride)
-    {
-      JM_VEC_F32 acc = JM_ZERO_F32 ();
-      for (size_t k = 0; k < M; k++)
-        JM_MAC_F32 (acc, (const float *)&buf[i + M - 1 - k], h[k]);
-      JM_STORE_F32 ((float *)&out[i], acc);
-    }
+  size_t i = 0;
+  for (; i + FIR_RGROUP_C <= N; i += FIR_RGROUP_C)
+    real_group (buf, h, M, i, &out[i]);
   if (i < N)
     {
-      /* The same body once more over the zero pad, keeping the lanes that
-       * exist. A scalar tail rounds differently from the fused body (a
-       * separate multiply and add, or, under -ffast-math, a reassociated sum
-       * over the taps), which made an output's last bit depend on where the
-       * caller split the stream (#1893). */
-      JM_VEC_F32 acc = JM_ZERO_F32 ();
-      for (size_t k = 0; k < M; k++)
-        JM_MAC_F32 (acc, (const float *)&buf[i + M - 1 - k], h[k]);
-      float _Complex tmp[JM_SIMD_WIDTH_F32 / 2];
-      JM_STORE_F32 ((float *)tmp, acc);
+      /* The same body over the zero pad (FIR_PAD >= one group), keeping
+       * the outputs that exist. */
+      float _Complex tmp[FIR_RGROUP_C];
+      real_group (buf, h, M, i, tmp);
       memcpy (&out[i], tmp, (N - i) * sizeof (float _Complex));
     }
 }

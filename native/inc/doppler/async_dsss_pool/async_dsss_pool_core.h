@@ -282,6 +282,10 @@ extern "C"
    *                     receiver refuses it, when the search's depth is
    *                     under 25 (dp_async_dsss_receiver_create()). Default
    *                     true.
+   * @param carrier_window The receivers' own carrier_window
+   *                     (dp_async_dsss_receiver_create()), refused as the
+   *                     receiver refuses it. Default
+   *                     ASYNC_DSSS_RX_CARRIER_PARTIALS.
    * @return A new pool, every receiver idle; NULL on an invalid
    *         argument, or one any receiver refuses.
    * @note Caller must call dp_async_dsss_pool_destroy() when done.
@@ -312,7 +316,7 @@ extern "C"
       size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate, int threads, bool refine);
+      double doppler_rate, int threads, bool refine, int carrier_window);
 
   /**
    * @brief Destroy a pool and every receiver.

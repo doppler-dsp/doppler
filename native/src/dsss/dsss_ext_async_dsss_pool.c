@@ -73,6 +73,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                                              "doppler_rate",
                                              "threads",
                                              "refine",
+                                             "carrier_window",
                                              NULL };
   PyObject          *code_obj            = NULL;
   PyObject          *n_receivers_obj     = NULL;
@@ -108,16 +109,17 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   double             doppler_rate                  = 0.0;
   int                threads                       = 0;
   int                refine_raw                    = true;
+  const char        *carrier_window_str            = "partials";
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|OdddiddddOOidOdOOpOddpddip", kwlist, &code_obj,
+          args, kwds, "O|OdddiddddOOidOdOOpOddpddips", kwlist, &code_obj,
           &n_receivers_obj, &chip_rate, &symbol_rate, &sample_rate, &m,
           &cn0_dbhz, &pfa, &pd, &doppler_uncertainty, &segments_obj, &sps_obj,
           &differential, &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
           &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate,
-          &threads, &refine_raw))
+          &threads, &refine_raw, &carrier_window_str))
     return -1;
   if (n_receivers_obj != NULL)
     {
@@ -265,9 +267,22 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
         }
       Py_DECREF (_ix);
     }
-  size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
-  bool           reacquire           = (int)reacquire_raw;
-  bool           refine              = (int)refine_raw;
+  size_t refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
+  bool   reacquire           = (int)reacquire_raw;
+  bool   refine              = (int)refine_raw;
+  int    carrier_window      = 0;
+  if (strcmp (carrier_window_str, "partials") == 0)
+    carrier_window = 0;
+  else if (strcmp (carrier_window_str, "code_period") == 0)
+    carrier_window = 1;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "carrier_window must be one of \"partials\", "
+                    "\"code_period\", got '%s'",
+                    carrier_window_str);
+      return -1;
+    }
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -281,7 +296,8 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
       doppler_uncertainty, segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, code_only_s, doppler_rate, threads, refine);
+      lost_confirm_s, reacquire, code_only_s, doppler_rate, threads, refine,
+      carrier_window);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -298,7 +314,9 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                        "refine_zero_pad >= 1; and for the searcher a finite "
                        "cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
                        "doppler_uncertainty >= 0; refine false needs a "
-                       "search at least 25 code periods deep)");
+                       "search at least 25 code periods deep; carrier_window "
+                       "code_period needs a symbol of at least a code "
+                       "period)");
       return -1;
     }
   return 0;
@@ -1380,6 +1398,9 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "and\n"
     "    is refused, as the receiver refuses it, when the search's depth is\n"
     "    under 25 (dp_async_dsss_receiver_create()). Default true.\n"
+    "carrier_window : Literal[\"partials\", \"code_period\"], default "
+    "\"partials\"\n"
+    "    One of ``\"partials\"``, ``\"code_period\"``.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1400,7 +1421,9 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "finite\n"
     "    cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= "
     "0;\n"
-    "    refine false needs a search at least 25 code periods deep)``.\n"
+    "    refine false needs a search at least 25 code periods deep;\n"
+    "    carrier_window code_period needs a symbol of at least a code "
+    "period)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

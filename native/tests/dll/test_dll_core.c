@@ -1171,9 +1171,81 @@ output_level_is_input_level_free (void)
   return 0;
 }
 
+/* dp_dll_get_window_sum(): the prompt's coherent sum over the code-period
+ * window the look-back picked. A clean, aligned stream whose data symbol is
+ * 2.5 code periods long, its first transition half a period in: a period
+ * then holds at most one transition, so some window the look-back compares
+ * (the natural one, or one borrowing the previous period's tail) misses it
+ * by at most a partial, and the winner's magnitude stays near tsamps every
+ * epoch -- where the natural window, split in half, is near 0. With and
+ * without the symbol-period aid: the look-back runs either way. Sabotage:
+ * keep the natural window's sum -> the split epochs read near 0, red. */
+static int
+_test_window_sum_is_the_look_back (void)
+{
+  const size_t sf = 63, sps = 2, seg = 8, tsamps = sf * sps, nper = 40;
+  uint8_t      code[63];
+  make_code (code, sf, 11u);
+  float _Complex *rx = malloc (nper * tsamps * sizeof *rx);
+  DP_REQUIRE (rx != NULL);
+  make_async_signal (rx, nper * tsamps, code, sf, sps, 0.0, 2.5 * tsamps,
+                     0.5 * tsamps, 0.0, 5u, 0u);
+  for (int aid = 0; aid < 2; aid++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, seg);
+      DP_REQUIRE (d != NULL);
+      if (aid)
+        DP_REQUIRE (dp_dll_set_symbol_period (d, 2.5 * seg) == DP_OK);
+      DP_CHECK (cabsf (dp_dll_get_window_sum (d)) == 0.0f);
+      static float _Complex out[256];
+      double worst = HUGE_VAL;
+      for (size_t p = 0; p < nper; p++)
+        {
+          const size_t n = dp_dll_steps (d, rx + p * tsamps, tsamps, out, 256);
+          if (p >= 2 && n > 0)
+            {
+              const double m = cabsf (dp_dll_get_window_sum (d));
+              worst          = m < worst ? m : worst;
+            }
+        }
+      DP_CHECK (worst >= (1.0 - 1.5 / (double)seg) * (double)tsamps);
+      dp_dll_reset (d);
+      DP_CHECK (cabsf (dp_dll_get_window_sum (d)) == 0.0f);
+      dp_dll_destroy (d);
+    }
+  /* One segment: the period is the only window, so the sum is that
+     epoch's own prompt sum -- the emitted prompt times the period, to the
+     bit (the prompt is it divided by (float)tsamps). Sabotage: no write
+     on the one-segment path -> it stays 0, red. */
+  {
+    dp_dll_state_t *d
+        = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, 1);
+    DP_REQUIRE (d != NULL);
+    static float _Complex out1[8];
+    size_t epochs = 0, exact = 0;
+    for (size_t p = 0; p < nper; p++)
+      {
+        const size_t n = dp_dll_steps (d, rx + p * tsamps, tsamps, out1, 8);
+        if (n == 1)
+          {
+            epochs++;
+            exact += dp_dll_get_window_sum (d) / (float)tsamps == out1[0]
+                     && cabsf (out1[0]) > 0.0f;
+          }
+      }
+    DP_REQUIRE (epochs > nper / 2);
+    DP_CHECK (exact == epochs);
+    dp_dll_destroy (d);
+  }
+  free (rx);
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK (_test_window_sum_is_the_look_back () == 0);
 
   /* ---------------------------------------------------------------- *
    * 1. Lifecycle, NULL-code guard, init==create parity               *

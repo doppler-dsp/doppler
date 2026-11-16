@@ -79,7 +79,7 @@ _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/de
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads, bool refine) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
+|  [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* | [**dp\_async\_dsss\_pool\_create**](#function-dp_async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, size\_t n\_receivers, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, int threads, bool refine, int carrier\_window) <br>_Create a pool of_ `n_receivers` _receivers built alike._ |
 |  void | [**dp\_async\_dsss\_pool\_destroy**](#function-dp_async_dsss_pool_destroy) ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_Destroy a pool and every receiver._  |
 |  size\_t | [**dp\_async\_dsss\_pool\_get\_coherent\_bins**](#function-dp_async_dsss_pool_get_coherent_bins) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state) <br>_The receivers' slow-time depth D, epochs per coherent block (_ [_**dp\_async\_dsss\_receiver\_get\_coherent\_bins()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_coherent_bins) _); alike for all._ |
 |  void | [**dp\_async\_dsss\_pool\_get\_state**](#function-dp_async_dsss_pool_get_state) (const [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob:` _the clock, the release counts, the thread count (a mutator's value, #2022), the samples carried to the next whole period, the ghost rule's history (each receiver's carriers and code-lock flags over its window), and each receiver's state, and the search's, which carries the exclusions the controller gave it. The last push's symbols do not travel._ |
@@ -226,7 +226,8 @@ dp_async_dsss_pool_state_t * dp_async_dsss_pool_create (
     double code_only_s,
     double doppler_rate,
     int threads,
-    bool refine
+    bool refine,
+    int carrier_window
 ) 
 ```
 
@@ -268,6 +269,7 @@ Every parameter after `n_receivers` and before `threads` is [**dp\_async\_dsss\_
 * `doppler_rate` Doppler rate bound, Hz/s. 
 * `threads` Workers push() steps the receivers on, the calling thread included: 1 = serial, 0 = the online cores (default). The receivers' step uses at most `n_receivers` of them; the controller's search runs before them on the same request, at most one worker a Doppler tile, with its once-an-epoch stages inline and its once-a-block ones fanned when a block is more than one epoch (async-dsss-receiver.md §5). 
 * `refine` The receivers' own refine: false hands a seed straight to tracking, and is refused, as the receiver refuses it, when the search's depth is under 25 ([**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)). Default true. 
+* `carrier_window` The receivers' own carrier\_window ([**dp\_async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_create)), refused as the receiver refuses it. Default ASYNC\_DSSS\_RX\_CARRIER\_PARTIALS. 
 
 
 

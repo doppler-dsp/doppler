@@ -1540,7 +1540,7 @@ int dp_correlator_search::threads;
 
 
 
-workers the pool runs on, the caller included; 1 without a pool 
+workers a push fans on, the caller included; 1 = serial. The pool starts at the first push or at set\_threads(), never at create. 
  
 
 

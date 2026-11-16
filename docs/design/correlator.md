@@ -732,8 +732,8 @@ bandwidth-bound target such as a GPU on unified memory.
 
 ### 9.3 How each stage splits across workers
 
-Every stage of the search's map runs once a block and, on an engine of more
-than one tile, fans once on its pool:
+Every stage of the search's map runs once a block and fans once on its
+pool:
 
 | stage                                    | split by                                                                                                                   |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -746,18 +746,21 @@ than one tile, fans once on its pool:
     task's arithmetic, and the decide pass's chunk count is fixed by the grid,
     not the pool, so its float sums fold in one order. The surface and every
     hit are bit-identical at any thread count.
-- **The pool is not capped at one worker a tile when $D > 1$ and the
-    engine has more than one tile,** since every stage fans finer than
-    tiles. At $D = 1$ a block is one epoch and the cap stays: there the fans
-    run every epoch, and the caller's `epoch_fan` decides. The cap also
-    holds at one tile, whatever $D$: a one-tile search runs serial at any
-    thread count
-    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
+- **The pool is not capped at one worker a tile when $D > 1$,** since
+    every stage fans finer than tiles. That holds at one tile too: its map
+    fans by epoch, capture bin and row, and only its decide pass stays one
+    chunk
+    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)). At
+    $D = 1$ a block is one epoch and the cap stays: there the fans run
+    every epoch, and the caller's `epoch_fan` decides; one tile at $D = 1$
+    runs serial at any thread count.
 - **Each map stage (forward, slow time, rows) cuts 4 chunks a worker,** and a chunk claims whichever
     per-worker slot (plans and scratch) is free, so a fast worker takes more
     of a stage than a slow one.
 - **Memory grows with the thread count** at $D > 1$: plans and scratch are
-    per worker, not per tile.
+    per worker, not per tile. They and the workers start at the engine's
+    first push, or at `set_threads()`, never at create: a pool of receivers
+    sets each to one worker before any is pushed, and none builds them.
 
 What it buys at the design point and at ±15 kHz (11 tiles), ns a sample:
 
@@ -822,10 +825,6 @@ its own issue.
     narrower type must be chosen deterministically from the caller's
     request and the ISA, and recorded in the blob or refused on restore,
     never picked from a per-machine timing cache.
-- **A one-tile search at depth uses one worker**
-    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)): the
-    request could stand whenever $D > 1$, whatever the tile count, with the
-    thread-identity test extended to that engine.
 - **Measure on the A53.** The UNO Q burst search measured 152 ns a sample
     at one tile, $D = 64$, one thread (10% of one core), and 657 with five
     rate hypotheses

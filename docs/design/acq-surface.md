@@ -930,13 +930,13 @@ on a persistent worker pool (`dp_correlator_set_threads()`,
 `Correlator.set_threads()`, read back as `threads`). Each worker slot owns
 its plans and scratch, every output row is one slot's same arithmetic, and
 the per-cell passes that decide a surface merge serially in chunk order, so
-the result is bit-identical at any thread count. A continuous engine with
-more than one tile starts with a pool of the machine's online cores. At
+the result is bit-identical at any thread count. A continuous engine asks
+for the machine's online cores, and starts its workers at its first push. At
 $D = 1$ it is capped at one worker a tile (a worker past the tile count
 only wakes and waits); at $D > 1$ every stage fans finer than tiles and
-the count stands (§18.3). A regrid to one tile
-(`configure_search_raw`) drops it to serial; a burst engine and a
-single-tile one run serially.
+the count stands (§18.3), at one tile too. A regrid to one tile at
+$D = 1$ (`configure_search_raw`) drops it to serial; a burst engine runs
+serially until `set_threads()` asks for more.
 
 **Across engines,** shards are independent: coarse-Doppler channels, rate
 hypotheses, time blocks. `push` releases the GIL (`nogil = true` in

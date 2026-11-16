@@ -250,6 +250,14 @@ for an end-to-end decode through physically-coupled Doppler.
 The receiver reports one consistent picture by value through `status()`.
 It carries no timestamp: the caller owns the sample clock and stamps it.
 
+**`refine`** decides what a detection hands to tracking. True, the default,
+refines the search's Doppler first. False hands the search's own Doppler
+straight to tracking, with no refining state, which takes a search at
+least 25 code periods deep: set `code_only_s` (and `doppler_rate`) so
+`coherent_bins` reaches 25, or the receiver refuses to build. The pool
+takes the same flag for all its receivers. The name is a placeholder
+([async-dsss-receiver](../design/async-dsss-receiver.md) §4.4).
+
 ## `AsyncDsssPool` — N receivers, one search
 
 `AsyncDsssPool` runs N `AsyncDsssReceiver`s on one stream under a controller

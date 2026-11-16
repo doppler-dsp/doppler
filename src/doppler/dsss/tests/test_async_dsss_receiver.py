@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 from doppler.dsss import (
+    AsyncDsssPool,
     AsyncDsssReceiver,
     ReceiverStatus,
 )
@@ -216,6 +217,26 @@ def test_reacquire_needs_a_release_interval():
     with pytest.raises(ValueError, match=msg):  # rounds to zero samples
         _new_receiver(70.0, lost_confirm_s=1e-9, reacquire=True)
     _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
+
+
+def test_refine_false_needs_a_deep_search():
+    # refine=False hands a seed straight to tracking, which holds only on
+    # a search at least 25 code periods deep: one epoch deep is refused,
+    # in the receiver and in the pool it builds them for.
+    code = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    kw = {"chip_rate": CHIP_RATE, "symbol_rate": SYM_RATE, "sample_rate": FS}
+    msg = "refine false needs a search at least 25 code periods deep"
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssReceiver(code, refine=False, **kw)
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssPool(code, n_receivers=2, threads=1, refine=False, **kw)
+    rx = AsyncDsssReceiver(code, code_only_s=0.1, refine=False, **kw)
+    assert rx.coherent_bins >= 25
+    rx.seed(chip_phase=512.25, doppler_hz_est=-150.0, cn0_dbhz_est=48.0)
+    assert (rx.tracking, rx.refining, rx.doppler_hz) == (1, 0, -150.0)
+    AsyncDsssPool(
+        code, n_receivers=2, threads=1, code_only_s=0.1, refine=False, **kw
+    )
 
 
 def test_lifecycle_walks_every_state():

@@ -235,6 +235,8 @@ shown to fit so the API need not change when they arrive.
 
 The plan is a list of **symbol classes** and a list of **runs**:
 
+<!-- docs-snippet: skip=proposed struct layout for review, not a compilable program -->
+
 ```c
 typedef struct {            /* one entry of a class's fixed pattern      */
   uint32_t phase;           /* pattern phase, or OFDM_ALL_PHASES         */

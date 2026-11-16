@@ -1461,7 +1461,17 @@ less). No row measures either at this point (§9). In order:
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
 1. The pool resamples the capture once, and its search and receivers are
     created at that rate, so each tracker works on $N$ samples a code
-    period (§5).
+    period (§5). **Measured, and not built: it costs the floor.** With the
+    trackers on the resampled stream (2.0 samples a chip, band-limited by
+    the resampler) in place of the capture's 3.4 and 2.7, the loss against
+    the bound at 4 dB goes from 1.07 to 3.39 dB at 2.8 GHz, and at 2.2 GHz
+    the receivers that change alignment within 4 s go from 3 of 88 to 7 of
+    90; at 7 dB the two match within 0.04 dB. A stream resampled outside
+    the pool gives the same counts to the error, so the cause is the rate
+    and the band limit, not the pool. The hypothesis is that it spends
+    carrier-loop margin the receiver does not have at the floor (§4.5), so
+    it is to be measured again once the carrier error is formed on the code
+    period (§4.4).
 1. The pool joins its workers once every several code periods, on a fixed
     grid, each receiver call still one period.
 1. The search's resampler, written so the compiler vectorizes it.

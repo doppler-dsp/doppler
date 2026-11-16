@@ -87,7 +87,11 @@ extern "C"
    * @param s  Real-tap filter state (dp_fir_create_real).  Must be non-NULL.
    * @param x  One input sample.
    * @return The filtered output sample.
+   *
+   * @note C only: the body uses the C99 complex library, which C++ does not
+   *   have (dp_complex.h, "From C++"). A C++ caller uses dp_fir_execute().
    */
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT float _Complex
   fir_step (dp_fir_state_t *s, float _Complex x)
   {
@@ -110,6 +114,7 @@ extern "C"
       }
     return CMPLXF (re, im);
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Create a FIR filter from complex CF32 tap coefficients.

@@ -22,6 +22,7 @@ extern "C"
 {
 #endif
 
+#ifndef __cplusplus
   JM_FORCEINLINE float _Complex
   dp_square_clip (float _Complex y, float lin)
   {
@@ -29,6 +30,13 @@ extern "C"
     float i = fminf (fmaxf (cimagf (y), -lin), lin);
     return r + i * I;
   }
+#else
+  /* From C++ this is a call into the library's out-of-line copy
+     (square_clip.c), not an inlined body: the body uses the C99 complex
+     library, which C++ does not have (dp_complex.h, "From C++"). A plain
+     comment, because this block's Doxygen is also the Python docstring. */
+  float _Complex dp_square_clip (float _Complex y, float lin);
+#endif
 
   JM_FORCEINLINE size_t
   dp_next_pow_two (size_t n)

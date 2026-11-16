@@ -848,7 +848,14 @@ dp_lo_init (&lo, 0.25);
 float _Complex s0 = lo_step (&lo);   // 1 + 0j
 float _Complex s1 = lo_step (&lo);   // 0 + 1j
 ```
- 
+
+
+
+
+
+**Note:**
+
+C only, with [**lo\_step\_ctrl()**](lo__core_8h.md#function-lo_step_ctrl): the bodies build their result with CMPLXF, which C++ does not have ([**dp\_complex.h**](dp__complex_8h.md), "From C++"). A C++ caller uses [**dp\_lo\_steps()**](lo__core_8h.md#function-dp_lo_steps) and [**dp\_lo\_steps\_ctrl()**](lo__core_8h.md#function-dp_lo_steps_ctrl). 
 
 
 

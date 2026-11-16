@@ -250,6 +250,14 @@ jobs:
       # link time. Reads `nm`, so it needs the build above.
       run: make installed-headers-check
 
+    - name: Verify installed headers parse as C++, and a C++ consumer runs
+      # No C++ compiler reads a doppler header anywhere else: the build is
+      # LANGUAGES C. So a header that stopped parsing as C++ was found by a
+      # downstream (#3108). Both g++ and clang++, from the image; they
+      # disagree about real things, which is also why this is in the Linux
+      # job alone: on macOS `g++` IS clang++.
+      run: make cxx-headers-check
+
     - name: Verify the exported CMake link interface names no absolute path
       # v0.51.0 exported find_library's `/usr/lib64/libm.so` into
       # doppler-targets.cmake, so CMake consumers of the static library on

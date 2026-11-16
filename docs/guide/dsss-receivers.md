@@ -250,16 +250,19 @@ for an end-to-end decode through physically-coupled Doppler.
 The receiver reports one consistent picture by value through `status()`.
 It carries no timestamp: the caller owns the sample clock and stamps it.
 
-## `AsyncDsssPool` — N receivers, each searching for itself
+## `AsyncDsssPool` — N receivers, one search
 
 `AsyncDsssPool` runs N `AsyncDsssReceiver`s on one stream under a controller
-that searches nothing itself (design
-[async-dsss-receiver](../design/async-dsss-receiver.md) §8). `push()` steps
-every receiver on the block in parallel. At each code period of the stream
-the controller releases the lost and resets the later of two receivers on one
-code phase. It also hands each searcher the phases the others hold and a rank,
-so N receivers hold N different signals. The result depends neither on how
-the stream is blocked nor on the thread count.
+that owns the one search (design
+[async-dsss-receiver](../design/async-dsss-receiver.md) §5, §8). A pooled
+receiver has no search of its own: it is idle until the controller seeds
+it. `push()` cuts the stream into code periods; in each, the search runs
+while any receiver is idle, then every receiver steps, in parallel when two
+or more hold a signal. At each code period the controller releases the
+lost, resets the later of two receivers on one code phase, seeds the idle
+receivers from the search's picks, and gives the search the phases already
+held, so N receivers hold N different signals. The result depends neither
+on how the stream is blocked nor on the thread count.
 
 `status(i)` is receiver `i`'s record, the same fields as `ReceiverStatus`.
 

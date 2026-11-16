@@ -98,6 +98,17 @@ void dp__dd_map_destroy (dp__dd_map_t *map);
 int dp__dd_map_reserve (dp__dd_map_t *map, int slots);
 
 /**
+ * @brief Free a map's worker slots past @p slots, keeping at least one.
+ *
+ * The plans and scratch of workers a pool no longer runs. Setup path,
+ * never while a stage is fanned; dp__dd_map_reserve() builds them again.
+ *
+ * @param map    The map.
+ * @param slots  The slots to keep; as many as it has or more is a no-op.
+ */
+void dp__dd_map_trim (dp__dd_map_t *map, int slots);
+
+/**
  * @brief A map's shape.
  * @param map  The map.
  * @return Its shape, owned by the map.

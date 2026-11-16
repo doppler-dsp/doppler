@@ -2745,6 +2745,13 @@ dp__dd_map_reserve (dp__dd_map_t *m, int slots)
 }
 
 void
+dp__dd_map_trim (dp__dd_map_t *m, int slots)
+{
+  while (m->slots > slots && m->slots > 1)
+    dd_slot_free (&m->slot[--m->slots]);
+}
+
+void
 dp__dd_map_destroy (dp__dd_map_t *m)
 {
   if (!m)
@@ -5066,40 +5073,22 @@ search_map_build (const dp_correlator_state_t *st, const float _Complex *ref,
   return 0;
 }
 
-/* Run the caller's request (threads_req) on the grid in effect. At D = 1,
-   never more workers than tiles: every per-epoch fan hands out one tile a
-   task, so a worker past window_bins only wakes and waits, every epoch. At
-   0 (the online cores) on a three-tile search that was 15 idle workers of
-   18, and the pool's scene example spent 26 s of 35 in the kernel. A block
-   of D > 1 epochs fans finer than tiles -- the map over epochs, bins and
-   (tile, row), the decide pass over search_chunks() -- so there the request
-   stands (#3047: 3 tiles at D = 90 ran 14.0 ns a sample at 8 threads capped
-   to 3, 11.0 uncapped). A count already running is kept, so a regrid that
-   leaves the cap where it was does not rebuild the pool. */
+/* Start the workers the plan counts (srch->threads), a map slot each: a
+   fanned chunk claims a free slot (dd_range). A failed reserve leaves fewer
+   slots, and the pool is cut to them, so no worker ever waits for a slot:
+   slower, never wrong. A pool already running at the count is kept. */
 static void
-search_apply_threads (dp_correlator_state_t *st)
+search_start_threads (dp_correlator_state_t *st)
 {
   dp_correlator_search_t *const srch = st->search;
-  const int                     n    = srch->threads_req;
-  long                          want = 1;
-  if (n != 1 && srch->window_bins > 1)
-    {
-      want = n > 0 ? n : dp_cpu_count ();
-      if (srch->coherent_bins <= 1 && want > (long)srch->window_bins)
-        want = (long)srch->window_bins;
-    }
-  if (want < 1)
-    want = 1;
-  /* The map's worker slots, one a worker: a fanned chunk claims a free one
-     (dd_range). A failed reserve leaves fewer slots, and the pool is cut
-     to them, so no worker ever waits for a slot: slower, never wrong. */
+  long                          want = srch->threads;
   if (st->dd_map)
     {
       (void)dp__dd_map_reserve (st->dd_map, (int)want);
       if (want > (long)st->dd_map->slots)
         want = st->dd_map->slots;
     }
-  if (want == srch->threads && (want == 1) == (st->pool == NULL))
+  if (st->pool && want == dp_pool_threads (st->pool))
     return;
   dp_pool_destroy (st->pool);
   st->pool      = NULL;
@@ -5108,6 +5097,53 @@ search_apply_threads (dp_correlator_state_t *st)
     return;
   st->pool      = dp_pool_create ((int)want);
   srch->threads = dp_pool_threads (st->pool);
+}
+
+/* Plan the caller's request (threads_req) on the grid in effect. At D = 1,
+   never more workers than tiles: every per-epoch fan hands out one tile a
+   task, so a worker past window_bins only wakes and waits, every epoch. At
+   0 (the online cores) on a three-tile search that was 15 idle workers of
+   18, and the pool's scene example spent 26 s of 35 in the kernel. A block
+   of D > 1 epochs fans finer than tiles -- the map over epochs, bins and
+   (tile, row), the decide pass over search_chunks() -- so there the request
+   stands (#3047: 3 tiles at D = 90 ran 14.0 ns a sample at 8 threads capped
+   to 3, 11.0 uncapped), at one tile too: its map fans the same way, and
+   only its decide pass stays one chunk (#3055). One tile at D = 1 is the
+   cap's own answer, one worker.
+
+   This only counts: the workers and their slots start at the first push
+   that finds none (dp__search_push) or at set_threads(). Every engine is
+   created asking for the online cores, and a pool of N receivers sets each
+   to one worker straight after: built at create, that was a worker a core
+   started and stopped and 0.45 MB of plans and scratch a core, per
+   receiver, for nothing (10 receivers at the 415.1-B-1 point on 20 cores:
+   93 MB). A pool already running at the count is kept, on the slots of a
+   map the regrid may have rebuilt; a count that dropped gives its slots
+   back. */
+static void
+search_apply_threads (dp_correlator_state_t *st)
+{
+  dp_correlator_search_t *const srch = st->search;
+  const int                     n    = srch->threads_req;
+  long                          want = 1;
+  if (n != 1)
+    {
+      want = n > 0 ? n : dp_cpu_count ();
+      if (srch->coherent_bins <= 1 && want > (long)srch->window_bins)
+        want = (long)srch->window_bins;
+    }
+  if (want < 1)
+    want = 1;
+  if (st->pool && want == srch->threads)
+    {
+      search_start_threads (st);
+      return;
+    }
+  dp_pool_destroy (st->pool);
+  st->pool      = NULL;
+  srch->threads = (int)want;
+  if (st->dd_map)
+    dp__dd_map_trim (st->dd_map, (int)want);
 }
 
 static int
@@ -5305,9 +5341,9 @@ dp_correlator_regrid (dp_correlator_state_t *st, size_t new_db, size_t new_nc,
       st->noise_hi       = new_n_surf - 1;
     }
   /* The tile count or the depth may have moved, so the cap on the caller's
-     request may have too: narrowing to one tile runs serially, a depth of 1
-     caps at the tiles, and widening again comes back to the request, not to
-     the cap (#2746, #2797, #3047). */
+     request may have too: a depth of 1 caps at the tiles (one tile runs
+     serially), and deepening or widening again comes back to the request,
+     not to the cap (#2746, #2797, #3047, #3055). */
   search_apply_threads (st);
   return 0;
 
@@ -5795,8 +5831,10 @@ search_acq_create_impl (const float _Complex *replica, size_t sf,
   /* The roll per thread (docs/design/acq-surface.md §13): a continuous
      engine asks for the machine's online cores, which dp_correlator_regrid
      caps at one worker a tile at D = 1 and leaves whole at D > 1
-     (search_apply_threads), so a single-tile one runs serially; a burst
-     engine asks for one. dp_correlator_set_threads() changes the request. */
+     (search_apply_threads), so a single-tile one at D = 1 runs serially; a
+     burst engine asks for one. Nothing starts here: the workers do at the
+     first push, or at dp_correlator_set_threads(), which changes the
+     request. */
   st->search->threads     = 1;
   st->search->threads_req = continuous ? 0 : 1;
   if (dp_correlator_regrid (st, best_d, best_nc, best_window_bins, replica,
@@ -6377,6 +6415,9 @@ dp_correlator_set_threads (dp_correlator_state_t *st, int n)
     return DP_ERR_UNSUPPORTED;
   srch->threads_req = n;
   search_apply_threads (st);
+  /* Asked for by name: the workers start here, not at the next push. */
+  if (srch->threads > 1 && !st->pool)
+    search_start_threads (st);
   return DP_OK;
 }
 
@@ -6614,6 +6655,8 @@ dp__search_push (dp_correlator_state_t *st, const float _Complex *x,
   const size_t                  nx       = srch->code_bins;
   const size_t                  wideband = srch->window_bins > 1;
   search_rate_table (st); /* no-op without rate hypotheses */
+  if (srch->threads > 1 && !st->pool)
+    search_start_threads (st); /* the planned workers, at their first use */
 
   /* The room a frame that ENDS A DWELL needs: its whole list (max_peaks
      results). A caller's buffer smaller than a list can never offer that,

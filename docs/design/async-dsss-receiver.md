@@ -1377,11 +1377,10 @@ only divides it into partials. With no data the despread signal is a
 tone, so the gap holds the loop on any window; the data is where the
 window matters.
 
-`refine` is built; `carrier_window` is proposed, not built. Both names are
-placeholders (§1.7). Every default is the receiver as built, so a caller
+Both knobs are built; their names are placeholders (§1.7). Every default is the receiver as built, so a caller
 who sets none gets the as-built behavior bit for bit.
 
-| knob (constructor) | type | default, as built                                                   | proposed      | what it switches                                                                                                                                                 |
+| knob (constructor) | type | default, as built                                                   | the other     | what it switches                                                                                                                                                 |
 | ------------------ | ---- | ------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `refine`           | bool | true                                                                | false         | false: the search's Doppler is the hand-over and the refine's dwell is not spent (tracking starts at the seed's sample); the `refine_*` settings are then unused |
 | `carrier_window`   | enum | `partials`: each partial squared, the squares summed over the block | `code_period` | the carrier loop's error from one coherent sum over the code-period window find_max_power picks, squared and halved                                              |
@@ -1423,11 +1422,45 @@ those 5 are late, not wrong: each is locked on its emitter by 2.0 s. Its
 code lock and no symbol lock yet. In two the carrier left the emitter
 after a hand-over inside the bound. Those misses are the open item, the
 carrier loop's margin (§4.5).
-`code_period` holds only while a symbol
-is at least a code period, which the specification's case is (§1.5); a
-receiver configured outside it keeps `partials`, and a refusal or a warning
-there is part of the knob's design. `K` is the existing `segments`, default
-4 (§4.5 on 8).
+`carrier_window` `code_period` forms the carrier loop's error, once a code
+period, from one coherent sum: the prompt over the code-period window the
+Dll's look-back picks (find_max_power's winner, `dp_dll_get_window_sum()`),
+squared and halved, in place of each partial squared. The look-back picks
+that window every period, the symbol-period aid on or off, and the knob
+changes nothing the aid does. It holds only while a symbol is at least a
+code period (`symbol_rate · code_len ≤ chip_rate`), so a window free of
+transitions exists; the specification's case is (§1.5), and create refuses
+`code_period` outside it. The pool passes it to every receiver. `K` is the
+existing `segments`, default 4 (§4.5 on 8).
+
+At the 415.1-B-1 point, three emitters with known bits on one code, a pool
+of four at 11 MSa/s, both windows on the same draws, 30 draws a cell at
+4 dB and 40 at 7 dB (`validate_async_dsss_receiver_ber`, SPEC, the full
+sweep, 26 minutes on the dev box). "Slipped" is a receiver whose alignment
+to its emitter's bits at the end is not its alignment at the start; the
+loss is the Es/N0 the BPSK bound needs for the unslipped receivers' error
+rate, subtracted from the Es/N0 applied (95% intervals):
+
+| Es/N0, carrier | `partials` (as built): slipped, loss | `code_period`: slipped, loss   |
+| -------------- | ------------------------------------ | ------------------------------ |
+| 4 dB, 2.2 GHz  | 3 of 85; 0.91 dB [0.88, 0.94]        | 0 of 88; 0.78 dB [0.75, 0.81]  |
+| 4 dB, 2.8 GHz  | 31 of 89; 3.23 dB [3.20, 3.27]       | 2 of 89; 0.79 dB [0.76, 0.82]  |
+| 7 dB, 2.2 GHz  | 0 of 120; 0.86 dB [0.82, 0.90]       | 0 of 120; 0.84 dB [0.79, 0.88] |
+| 7 dB, 2.8 GHz  | 0 of 120; 0.74 dB [0.70, 0.78]       | 0 of 120; 0.71 dB [0.67, 0.75] |
+
+A slipped receiver errs on about half its symbols after the slip; over
+every receiver scored, slipped included, the 2.8 GHz floor read 7.9 dB as
+built and 1.4 dB with `code_period` (the same scene in a scratch harness
+on other draws). The unslipped subset still holds flips a receiver
+recovered from, so its loss moves with the code underneath, and the slip
+count is the steadier statistic. With the symbol-period aid off (a scratch
+build, for the record) `code_period` reads the same: 2 of 90 slipped at
+2.8 GHz, 0.78 dB.
+The floor's half-cycle flips (§4.5) are `partials`', and at 7 dB, where
+neither flips, the two windows agree. The pool's one front end (§4.6)
+costs the floor nothing with `code_period`: on the stream resampled to
+2,048 samples a period, 1 of 90 slipped at each carrier, 0.80 and 0.79 dB
+among the unslipped, against 7 and 32 of 90 with `partials`.
 
 Alternatives measured and not proposed (the carrier loop off, a steered
 correction, a derived M-PSK bandwidth) are in
@@ -1468,10 +1501,6 @@ Each with what would confirm it or kill it.
 ### 4.6 Next steps
 
 1. The owner rules the knob names (§1.7).
-1. `carrier_window` through
-    [`adding-algorithms.md`](../dev/contributing/adding-algorithms.md) in
-    order, as `refine` went: declare in `objects/async_dsss_receiver.toml`,
-    implement, pin in C and prove it by sabotage, bind.
 1. Measure again through the knobs at the 4 dB floor, with:
     - **an as-built baseline row at the 4 dB design.** §4.2 has none; its
         as-built comparison is the record's runs at the 3 dB design;

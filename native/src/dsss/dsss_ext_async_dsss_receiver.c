@@ -72,6 +72,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                                              "code_only_s",
                                              "doppler_rate",
                                              "refine",
+                                             "carrier_window",
                                              NULL };
   PyObject          *code_obj            = NULL;
   double             chip_rate           = 1000000.0;
@@ -104,16 +105,17 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   double             code_only_s                   = 0.0;
   double             doppler_rate                  = 0.0;
   int                refine_raw                    = true;
+  const char        *carrier_window_str            = "partials";
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|dddiddddOOidOdOOpOddpddp", kwlist, &code_obj,
+          args, kwds, "O|dddiddddOOidOdOOpOddpddps", kwlist, &code_obj,
           &chip_rate, &symbol_rate, &sample_rate, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_obj, &sps_obj, &differential,
           &refine_max_error_db, &refine_samples_per_symbol_obj,
           &refine_design_margin_db, &refine_n_fft_obj, &refine_zero_pad_obj,
           &refine_sequential_raw, &refine_max_n_blocks_obj, &carrier_freq_hz,
           &lost_confirm_s, &reacquire_raw, &code_only_s, &doppler_rate,
-          &refine_raw))
+          &refine_raw, &carrier_window_str))
     return -1;
   if (segments_obj != NULL)
     {
@@ -241,9 +243,22 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
         }
       Py_DECREF (_ix);
     }
-  size_t         refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
-  bool           reacquire           = (int)reacquire_raw;
-  bool           refine              = (int)refine_raw;
+  size_t refine_max_n_blocks = (size_t)refine_max_n_blocks_raw;
+  bool   reacquire           = (int)reacquire_raw;
+  bool   refine              = (int)refine_raw;
+  int    carrier_window      = 0;
+  if (strcmp (carrier_window_str, "partials") == 0)
+    carrier_window = 0;
+  else if (strcmp (carrier_window_str, "code_period") == 0)
+    carrier_window = 1;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "carrier_window must be one of \"partials\", "
+                    "\"code_period\", got '%s'",
+                    carrier_window_str);
+      return -1;
+    }
   PyArrayObject *code_arr
       = jm_array_arg (code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "code");
   if (!code_arr)
@@ -257,7 +272,8 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       segments, sps, differential, refine_max_error_db,
       refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
       refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-      lost_confirm_s, reacquire, code_only_s, doppler_rate, refine);
+      lost_confirm_s, reacquire, code_only_s, doppler_rate, refine,
+      carrier_window);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -274,7 +290,9 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                        "(code_len * symbol_rate) <= 1048576; and for the "
                        "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
                        "a finite doppler_uncertainty >= 0; refine false "
-                       "needs a search at least 25 code periods deep)");
+                       "needs a search at least 25 code periods deep; "
+                       "carrier_window code_period needs a symbol of at "
+                       "least a code period)");
       return -1;
     }
   return 0;
@@ -2652,6 +2670,9 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    refused, and a blob in the refining state is refused by "
     "set_state().\n"
     "    The name is a placeholder (async-dsss-receiver.md §4.4).\n"
+    "carrier_window : Literal[\"partials\", \"code_period\"], default "
+    "\"partials\"\n"
+    "    One of ``\"partials\"``, ``\"code_period\"``.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -2673,7 +2694,9 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "    and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a\n"
     "    finite doppler_uncertainty >= 0; refine false needs a search at "
     "least\n"
-    "    25 code periods deep)``.\n"
+    "    25 code periods deep; carrier_window code_period needs a symbol of "
+    "at\n"
+    "    least a code period)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

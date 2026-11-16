@@ -57,10 +57,14 @@
  *                                               row a burst
  */
 #include "async_dsss_receiver_common.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
 #include "dp_ber_test.h"
 #include "dp_dsss_test.h"
 #include "dp_test.h"
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -285,6 +289,312 @@ run_burst (const uint8_t *code, double esn0_db, uint32_t seed, dp_ber_t *acc,
   return 0;
 }
 
+/* ── SPEC: the receivers at the 415.1-B-1 point, as a pool runs them ─────
+ *
+ * docs/design/async-dsss-receiver.md §1, §4.4. Three emitters with KNOWN
+ * bits on one Gold code, a 275-symbol constant block (the code-only window)
+ * opening every 1,000 symbols, each the shipped continuous DSSS synth at two
+ * samples a chip, a RateConverter to 11 MSa/s and a DopplerChannel at the
+ * carrier (-900, +100 and +1,100 Hz, 0, 300 and 600 chips apart), plus the
+ * shipped awgn at Es/N0. An AsyncDsssPool of four receivers at 11 MSa/s
+ * (+/-1,500 Hz, 400 Hz/s, the window, the carrier set) takes them; each
+ * receiver holding an emitter at the end is scored against that emitter's
+ * bits with dp_ber_test.h: settled, aligned by a detected marker, and
+ * checked for a changed alignment at the end ("slipped": a carrier
+ * half-cycle or a symbol it never recovered). The clean tally is the
+ * unslipped receivers'. Both carrier windows (create()'s carrier_window)
+ * run on the same draws, so each row is a paired before and after.
+ *
+ * The sweep: 2.2 and 2.8 GHz, 4 dB (SPEC_TRIALS_FLOOR draws) and 7 dB
+ * (SPEC_TRIALS_HI), SPEC_S each, printed. --check: one draw at 2.8 GHz,
+ * the band's harder end, at 7 dB, SPEC_CHECK_S long, both windows
+ * (about 5 s of the run), asserting that every emitter is held and aligned,
+ * none slipped, and the clean loss is under SPEC_LOSS_MAX_DB (measured 0.7
+ * to 0.9 dB as built). The floor's rows move with the draw and are
+ * printed, not asserted. */
+#define SPEC_FS 11e6
+#define SPEC_SYM 3000.0
+#define SPEC_K 3
+#define SPEC_NRX 4
+#define SPEC_PUSH 4096u
+#define SPEC_CHUNK 16384u
+#define SPEC_S 4.0
+#define SPEC_CHECK_S 2.0
+#define SPEC_TRIALS_FLOOR 30
+#define SPEC_TRIALS_HI 40
+#define SPEC_LOSS_MAX_DB 1.5
+
+static const double spec_dop[SPEC_K]  = { -900.0, 100.0, 1100.0 };
+static const size_t spec_lag2[SPEC_K] = { 0, 600, 1200 };
+
+typedef struct
+{
+  dp_wfm_synth_state_t       *syn;
+  dp_RateConverter_state_t   *rc;
+  dp_doppler_channel_state_t *ch;
+  float complex              *buf;
+  size_t                      len, cap, lag;
+} spec_em_t;
+
+static int
+spec_em_next (spec_em_t *e, float complex *r2, float complex *r11, size_t n)
+{
+  while (e->len < n)
+    {
+      size_t m = SPEC_CHUNK / 2;
+      if (e->lag)
+        {
+          m = e->lag < m ? e->lag : m;
+          memset (r2, 0, m * sizeof *r2);
+          e->lag -= m;
+        }
+      else
+        dp_wfm_synth_steps (e->syn, r2, m);
+      const size_t r
+          = dp_RateConverter_execute (e->rc, r2, m, r11, SPEC_CHUNK);
+      if (e->cap - e->len < 2 * r + 64)
+        return 0;
+      e->len += dp_doppler_channel_execute (e->ch, r11, r, e->buf + e->len,
+                                            e->cap - e->len);
+    }
+  return 1;
+}
+
+typedef struct
+{
+  size_t   held, scored, unaligned, slipped;
+  dp_ber_t all, clean;
+} spec_t;
+
+/* One draw: the pool on SPEC_S of the scene at `fc`, every holding
+   receiver scored into `out`. */
+static int
+spec_draw (const uint8_t *code, double fc, double esn0, int window,
+           uint32_t seed, double secs, spec_t *out)
+{
+  const double chip = fc * 31.0 / 21216.0, fs2 = 2.0 * chip;
+  const double cn0    = esn0 + 10.0 * log10 (SPEC_SYM);
+  const size_t n_in   = (size_t)(secs * SPEC_FS);
+  const size_t n_bits = (size_t)(secs * SPEC_SYM) + 400;
+  uint8_t     *bits[SPEC_K];
+  spec_em_t    em[SPEC_K];
+  uint32_t     st = trial_rng (seed);
+  for (int k = 0; k < SPEC_K; k++)
+    {
+      bits[k] = dp_xmalloc (n_bits);
+      for (size_t i = 0; i < n_bits; i++)
+        bits[k][i] = i % 1000 < 275 ? 0 : (uint8_t)(dp_uni (&st) < 0.5);
+      em[k].syn = dp_dsss_cont_emitter (code, SF, 2, fs2, 0.0, chip / SPEC_SYM,
+                                        100u + seed, WFM_DSSS_DATA_BITS,
+                                        bits[k], n_bits);
+      em[k].rc  = dp_RateConverter_create (SPEC_FS / fs2, 0);
+      em[k].ch  = dp_doppler_channel_create (SPEC_FS, fc,
+                                             spec_dop[k] / fc * 1e6, 0.0);
+      em[k].cap = 8 * SPEC_CHUNK;
+      em[k].buf = dp_xmalloc (em[k].cap * sizeof *em[k].buf);
+      em[k].len = 0;
+      em[k].lag = spec_lag2[k];
+      DP_REQUIRE (em[k].syn && em[k].rc && em[k].ch);
+    }
+  dp_awgn_state_t *g = dp_awgn_create (
+      7919u + seed,
+      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (SPEC_FS)), 1.0f));
+  dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
+      code, SF, SPEC_NRX, chip, SPEC_SYM, SPEC_FS, 2, cn0, 1e-3, 0.9, 1500.0,
+      4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 2.0, false,
+      275.0 / SPEC_SYM, 400.0, 0, true, window);
+  DP_REQUIRE (g && p);
+  float complex *x    = dp_xmalloc (SPEC_PUSH * sizeof *x);
+  float complex *r2   = dp_xmalloc (SPEC_CHUNK * sizeof *r2);
+  float complex *r11  = dp_xmalloc (SPEC_CHUNK * sizeof *r11);
+  const size_t   ocap = (size_t)(secs * SPEC_SYM) + 4096;
+  float complex *tmp  = dp_xmalloc (ocap * sizeof *tmp);
+  float complex *syms[SPEC_NRX];
+  size_t         ns[SPEC_NRX], first_in[SPEC_NRX];
+  for (int i = 0; i < SPEC_NRX; i++)
+    {
+      syms[i]     = dp_xmalloc (ocap * sizeof **syms);
+      ns[i]       = 0;
+      first_in[i] = SIZE_MAX;
+    }
+  for (size_t pos = 0; pos + SPEC_PUSH <= n_in; pos += SPEC_PUSH)
+    {
+      (void)dp_awgn_generate (g, SPEC_PUSH, x, SPEC_PUSH);
+      for (int k = 0; k < SPEC_K; k++)
+        {
+          DP_REQUIRE (spec_em_next (&em[k], r2, r11, SPEC_PUSH));
+          for (size_t i = 0; i < SPEC_PUSH; i++)
+            x[i] += em[k].buf[i];
+          em[k].len -= SPEC_PUSH;
+          memmove (em[k].buf, em[k].buf + SPEC_PUSH,
+                   em[k].len * sizeof *em[k].buf);
+        }
+      (void)dp_async_dsss_pool_push (p, x, SPEC_PUSH);
+      for (int i = 0; i < SPEC_NRX; i++)
+        {
+          const size_t got = dp_async_dsss_pool_symbols (p, i, tmp, ocap);
+          if (dp_async_dsss_pool_status (p, i).state != ASYNC_DSSS_RX_TRACKING)
+            { /* only the CURRENT track's symbols */
+              ns[i]       = 0;
+              first_in[i] = SIZE_MAX;
+              continue;
+            }
+          if (got && first_in[i] == SIZE_MAX)
+            first_in[i] = pos + SPEC_PUSH;
+          if (ns[i] + got <= ocap)
+            {
+              memcpy (syms[i] + ns[i], tmp, got * sizeof *tmp);
+              ns[i] += got;
+            }
+        }
+    }
+  int taken[SPEC_K] = { 0 };
+  for (int i = 0; i < SPEC_NRX; i++)
+    {
+      const async_dsss_receiver_status_t s = dp_async_dsss_pool_status (p, i);
+      if (s.state != ASYNC_DSSS_RX_TRACKING || ns[i] < 2000)
+        continue;
+      int k = -1;
+      for (int j = 0; j < SPEC_K && k < 0; j++)
+        if (!taken[j] && fabs (s.doppler_hz - spec_dop[j]) < 150.0)
+          k = j;
+      if (k < 0)
+        continue;
+      taken[k] = 1;
+      out->held++;
+      int          ok = 0;
+      const size_t settle
+          = dp_ber_settle (p->rx[i]->rx->l.timing.bn,
+                           p->rx[i]->rx->l.bn_carrier, NULL, NULL, ns[i], &ok);
+      /* Truth from the bit emitter k was on when this receiver first
+         emitted: the chain's delays are a few dozen symbols, inside the
+         alignment's span. */
+      const double t0
+          = (double)first_in[i] / SPEC_FS - (double)spec_lag2[k] / fs2;
+      long base = (long)floor (t0 * SPEC_SYM) - 60;
+      if (base < 0)
+        base = 0;
+      const uint8_t  *truth   = bits[k] + base;
+      const size_t    n_truth = n_bits - (size_t)base;
+      const size_t    guard   = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
+      dp_ber_marker_t mk, mk_end;
+      if (!ok || settle + 2 * guard + 500 >= ns[i])
+        {
+          out->unaligned++;
+          continue;
+        }
+      dp_ber_sync_t sy = align_at (syms[i], ns[i], truth, n_truth,
+                                   settle + DP_BER_LAG_SPAN, &mk);
+      if (!sy.ok)
+        {
+          out->unaligned++;
+          continue;
+        }
+      dp_ber_sync_t end
+          = align_at (syms[i], ns[i], truth, n_truth, ns[i] - guard, &mk_end);
+      const int slip
+          = !end.ok || end.lag != sy.lag || cos (end.phase - sy.phase) < 0.0;
+      out->slipped += (size_t)slip;
+      out->scored++;
+      const long   e  = (long)(mk.t0 + mk.n) - sy.lag;
+      const size_t lo = (e > 0 && (size_t)e > settle) ? (size_t)e : settle;
+      dp_ber_score (&out->all, syms[i], lo, ns[i], truth, n_truth, &mk, &sy);
+      if (!slip)
+        dp_ber_score (&out->clean, syms[i], lo, ns[i], truth, n_truth, &mk,
+                      &sy);
+    }
+  for (int i = 0; i < SPEC_NRX; i++)
+    free (syms[i]);
+  free (tmp);
+  free (x);
+  free (r2);
+  free (r11);
+  for (int k = 0; k < SPEC_K; k++)
+    {
+      free (bits[k]);
+      free (em[k].buf);
+      dp_wfm_synth_destroy (em[k].syn);
+      dp_RateConverter_destroy (em[k].rc);
+      dp_doppler_channel_destroy (em[k].ch);
+    }
+  dp_awgn_destroy (g);
+  dp_async_dsss_pool_destroy (p);
+  return 0;
+}
+
+static double
+spec_loss (double esn0, unsigned long e, unsigned long n)
+{
+  return n ? esn0 - dp_ber_esn0_db_for_ser (2, (double)e / (double)n) : NAN;
+}
+
+/* The rows: both windows at each carrier and Es/N0 on the same draws. */
+static int
+spec_rows (const uint8_t *code, int check, int emit)
+{
+  static const double fcs[2]   = { 2.2e9, 2.8e9 };
+  static const double esn0s[2] = { 4.0, 7.0 };
+  static const char  *wname[2] = { "partials", "code_period" };
+  if (emit)
+    printf ("# spec\nfc_ghz,esn0_db,window,draws,held,scored,unaligned,"
+            "slipped,clean_errors,clean_symbols,clean_ser,clean_ser_lo,"
+            "clean_ser_hi,clean_loss_db,all_errors,all_symbols,all_ser\n");
+  else
+    printf ("spec: 415.1-B-1, 3 emitters, a pool of 4 at 11 MSa/s, %s\n",
+            check ? "2.8 GHz, 7 dB, one draw" : "4 and 7 dB");
+  for (int f = check ? 1 : 0; f < 2; f++)
+    for (int e = check ? 1 : 0; e < 2; e++)
+      for (int w = 0; w < 2; w++)
+        {
+          const int draws = check            ? 1
+                            : esn0s[e] < 5.0 ? SPEC_TRIALS_FLOOR
+                                             : SPEC_TRIALS_HI;
+          spec_t    t     = { 0 };
+          dp_ber_init (&t.all, 2, ULONG_MAX);
+          dp_ber_init (&t.clean, 2, ULONG_MAX);
+          for (int d = 1; d <= draws; d++)
+            DP_REQUIRE (spec_draw (code, fcs[f], esn0s[e], w, (uint32_t)d,
+                                   check ? SPEC_CHECK_S : SPEC_S, &t)
+                        == 0);
+          const dp_ber_ci_t ci
+              = dp_ber_ci (t.clean.errors, t.clean.symbols, 0.95);
+          const double loss
+              = spec_loss (esn0s[e], t.clean.errors, t.clean.symbols);
+          if (emit)
+            printf ("%.1f,%.1f,%s,%d,%zu,%zu,%zu,%zu,%lu,%lu,%.4e,%.4e,%.4e,"
+                    "%.3f,%lu,%lu,%.4e\n",
+                    fcs[f] / 1e9, esn0s[e], wname[w], draws, t.held, t.scored,
+                    t.unaligned, t.slipped, t.clean.errors, t.clean.symbols,
+                    t.clean.symbols ? (double)t.clean.errors / t.clean.symbols
+                                    : NAN,
+                    ci.lo, ci.hi, loss, t.all.errors, t.all.symbols,
+                    t.all.symbols ? (double)t.all.errors / t.all.symbols
+                                  : NAN);
+          else
+            printf ("  %.1f GHz %.0f dB %-11s held %zu/%d, slipped %zu of "
+                    "%zu, clean loss %.2f dB [%.2f, %.2f] (%lu / %lu), all "
+                    "%.2f dB\n",
+                    fcs[f] / 1e9, esn0s[e], wname[w], t.held, SPEC_K * draws,
+                    t.slipped, t.scored, loss,
+                    esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.lo),
+                    esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.hi),
+                    t.clean.errors, t.clean.symbols,
+                    spec_loss (esn0s[e], t.all.errors, t.all.symbols));
+          if (check)
+            {
+              DP_CHECK_MSG (t.held == SPEC_K && t.scored == SPEC_K,
+                            "at 7 dB every emitter is held and aligned");
+              DP_CHECK_MSG (t.slipped == 0, "at 7 dB no receiver slips");
+              DP_CHECK_MSG (loss <= SPEC_LOSS_MAX_DB,
+                            "at 7 dB the clean loss is under "
+                            "SPEC_LOSS_MAX_DB");
+            }
+          dp_ber_free (&t.all);
+          dp_ber_free (&t.clean);
+        }
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -416,6 +726,7 @@ main (int argc, char **argv)
                   DP_BER_M2M4_AGREE_DB, r->ok);
         }
     }
+  DP_REQUIRE (spec_rows (code, check, emit) == 0);
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_receiver_ber");
   DP_TEST_END ("validate_async_dsss_receiver_ber");

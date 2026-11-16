@@ -258,6 +258,13 @@ typedef struct {
                                   output is divided by, a mean of the
                                   look-back magnitude over
                                   DLL_OUT_LEVEL_PERIODS periods (#2495). */
+    float _Complex win_p;    /**< Scratch: the prompt's coherent sum over the
+                                  code-period window the last epoch's
+                                  look-back picked (find_max_power's
+                                  winner), with or without the symbol-period
+                                  aid; dp_dll_get_window_sum(). Written and
+                                  read within one steps() call, so not
+                                  state: zero in the blob.               */
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
     float _Complex acc_o;     /**< offset (noise) correlator accumulator.     */
     double off_chips;        /**< this look's offset code phase, whole chips. */
@@ -1472,6 +1479,25 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
                             double down_thresh, size_t n_looks, double alpha,
                             uint32_t n_up, uint32_t n_down);
 
+/** @brief The prompt's coherent sum over the code-period window the last
+ *         epoch's look-back picked.
+ *
+ * Each epoch the look-back (find_max_power) compares the natural window,
+ * the whole period, with every window that borrows the previous period's
+ * tail, and keeps the strongest: the one a data transition does not split.
+ * This is that window's complex prompt sum, unnormalized: the raw
+ * accumulator over the window's samples, not divided by their count. With
+ * one segment the whole period is the only window, so it is that epoch's
+ * own prompt sum, the emitted prompt times `sf * sps` (the emitted value
+ * is this divided by `(float)(sf * sps)`). It is computed every epoch
+ * whether or not the symbol-period aid steers the loop (the aid only
+ * changes what steers; the winner also sets the output's level).
+ * A consumer reads it after the steps() call that crossed the epoch; it is
+ * scratch, not state, and 0 after create, reset and set_state.
+ *  @param state  Must be non-NULL.
+ *  @return The winning window's prompt sum. */
+float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
+
 /** @brief Current lock decision (1 = locked, 0 = not), with the configured
  *         verify-count / hysteresis rule applied (see dp_dll_configure_lock).
  *  @param state  Must be non-NULL.
@@ -1566,7 +1592,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 17u /* v17: the conversion's carried remainder, inc_resid, so a command under one phase-word step still moves the increment (#3249); v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 16u /* v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

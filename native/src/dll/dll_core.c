@@ -113,6 +113,7 @@ seed (dp_dll_state_t *s)
   s->have_prev_epoch    = 0;
   s->out_level          = 0.0;
   s->out_level_n        = 0;
+  s->win_p              = 0.0f;
   s->rng = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
   draw_offset (s);
   /* Clear the lock detector's running state; keep its config (threshold/
@@ -643,6 +644,7 @@ dp_dll_get_state (const dp_dll_state_t *s, void *blob)
   tmp.aid_ring_e = tmp.aid_ring_l = NULL;
   tmp.aid_power                   = NULL;
   memset (&tmp.tlm, 0, sizeof tmp.tlm);
+  tmp.win_p = 0.0f; /* scratch: dp_dll_get_window_sum() */
   dp_w_bytes (&_w, &tmp, sizeof tmp);
   if (s->segments > 1)
     {
@@ -933,6 +935,9 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
             continue;
           float _Complex prompt = state->acc_p / (float)tsamps;
           float _Complex noise  = state->acc_o / (float)tsamps;
+          /* One segment: the whole period is the only window, so the
+             look-back's winner is this epoch's own raw prompt sum. */
+          state->win_p = state->acc_p;
           dll_update (state);
           lock_look (state, prompt, noise);
           if (emitted < max_out)
@@ -1063,8 +1068,9 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                  Step 4 (Python: `max_window = correlations.argmax()`):
                  plain argmax over ALL w candidates below -- no margin or
                  hysteresis, matching the reference exactly. */
-              double best_abs  = cabsf (state->sums[w - 1]) / tsamps;
-              size_t best_widx = 0; /* 0 = natural (unshifted) window */
+              double best_abs         = cabsf (state->sums[w - 1]) / tsamps;
+              size_t best_widx        = 0; /* 0 = natural (unshifted) window */
+              float _Complex best_sum = state->sums[w - 1];
               if (state->have_prev_epoch)
                 for (size_t k = 0; k + 1 < w; k++)
                   {
@@ -1074,11 +1080,13 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                     if (p > best_abs)
                       {
                         best_abs = p;
+                        best_sum = combined;
                         /* chunks borrowed from the previous epoch's tail;
                            Python's own window_index/step_size. */
                         best_widx = w - 1 - k;
                       }
                   }
+              state->win_p = best_sum;
               /* Step 5 (Python: `get_window(early, last_early,
                  window_index)`/`get_window(late, ...)`, then
                  `early_power`/`late_power`): reconstruct E/L over the
@@ -1490,6 +1498,11 @@ dp_dll_configure_lock_raw (dp_dll_state_t *state, double up_thresh,
   state->noise_ema  = 0.0;
   state->lock_stat  = 0.0;
   dp_lockdet_reset (&state->lock);
+}
+
+float _Complex dp_dll_get_window_sum (const dp_dll_state_t *state)
+{
+  return state->win_p;
 }
 
 int

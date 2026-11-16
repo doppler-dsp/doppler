@@ -914,6 +914,7 @@
 * **dp\_dll\_get\_segments** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_get\_state** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_get\_symbol\_window** ([**dll\_core.h**](dll__core_8h.md))
+* **dp\_dll\_get\_window\_sum** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_hold\_here** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_init** ([**dll\_core.h**](dll__core_8h.md))
 * **dp\_dll\_lock\_epoch** ([**dll\_core.h**](dll__core_8h.md))

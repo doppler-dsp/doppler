@@ -92,6 +92,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  size\_t | [**dp\_dll\_get\_segments**](#function-dp_dll_get_segments) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Partial correlations per code period._  |
 |  void | [**dp\_dll\_get\_state**](#function-dp_dll_get_state) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
 |  size\_t | [**dp\_dll\_get\_symbol\_window**](#function-dp_dll_get_symbol_window) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
+|  float \_Complex | [**dp\_dll\_get\_window\_sum**](#function-dp_dll_get_window_sum) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The prompt's coherent sum over the code-period window the last epoch's look-back picked._  |
 |  void | [**dp\_dll\_hold\_here**](#function-dp_dll_hold_here) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
 |  int | [**dp\_dll\_init**](#function-dp_dll_init) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, double sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
 |  void | [**dp\_dll\_lock\_epoch**](#function-dp_dll_lock_epoch) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
@@ -1133,6 +1134,40 @@ size_t dp_dll_get_symbol_window (
 **Returns:**
 
 Window length L in partials, or 0 with the aid off. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_get\_window\_sum 
+
+_The prompt's coherent sum over the code-period window the last epoch's look-back picked._ 
+```C++
+float _Complex dp_dll_get_window_sum (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+Each epoch the look-back (find\_max\_power) compares the natural window, the whole period, with every window that borrows the previous period's tail, and keeps the strongest: the one a data transition does not split. This is that window's complex prompt sum, unnormalized: the raw accumulator over the window's samples, not divided by their count. With one segment the whole period is the only window, so it is that epoch's own prompt sum, the emitted prompt times `sf * sps` (the emitted value is this divided by `(float)(sf * sps)`). It is computed every epoch whether or not the symbol-period aid steers the loop (the aid only changes what steers; the winner also sets the output's level). A consumer reads it after the steps() call that crossed the epoch; it is scratch, not state, and 0 after create, reset and set\_state. 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The winning window's prompt sum. 
 
 
 

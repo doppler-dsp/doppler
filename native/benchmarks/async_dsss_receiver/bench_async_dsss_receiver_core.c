@@ -169,7 +169,8 @@ run_searching (jm_bench_t *bench, const uint8_t *code)
   float _Complex                 *x  = malloc (n * sizeof *x);
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, sf, chip, sym, chip * (double)spc, 2, cn0, 1e-3, 0.9, span, 4, 8,
-      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
+      0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true,
+      0);
   float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
   if (!g || !x || !rx || !out)
     {
@@ -237,7 +238,7 @@ run_create (jm_bench_t *bench, const uint8_t *code)
       dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
           code, sf, chip, sym, chip * (double)spc, 2, cn0, 1e-3, 0.9, 5000.0,
           4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
-          CODE_ONLY_S, 0.0, true);
+          CODE_ONLY_S, 0.0, true, 0);
       uint64_t t1 = jm_bench_now_ns ();
       if (!rx || rx->acq->search->window_bins != 5
           || !(rx->acq->search->coherent_bins > 1))
@@ -332,7 +333,7 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, w.sf, w.chip_rate, w.sym_rate, w.chip_rate * (double)w.spc, 2, cn0,
       1e-3, 0.9, span, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-      false, 0.0, 0.0, true);
+      false, 0.0, 0.0, true, 0);
   float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
   if (!x || !nz || !g || !rx || !out
       || dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) != DP_OK)

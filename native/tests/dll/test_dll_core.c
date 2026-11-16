@@ -1178,329 +1178,81 @@ output_level_is_input_level_free (void)
   return 0;
 }
 
-/* The filter's contract (loop_filter_core.h) is a unit-gain actuator: one
- * unit of the integrator moves the code phase by one chip per update. The
- * coherent full-epoch loop applied the integrator as a code-rate ratio, so a
- * unit moved the phase by `sf` chips: an integral path `sf` times the
- * contract's (doppler#3234). Seeded directly, with no error to disturb it,
- * the integrator is steered into the NCO and the phase that increment moves
- * in one period is read back, per code length. Returns the failed checks. */
+/* dp_dll_get_window_sum(): the prompt's coherent sum over the code-period
+ * window the look-back picked. A clean, aligned stream whose data symbol is
+ * 2.5 code periods long, its first transition half a period in: a period
+ * then holds at most one transition, so some window the look-back compares
+ * (the natural one, or one borrowing the previous period's tail) misses it
+ * by at most a partial, and the winner's magnitude stays near tsamps every
+ * epoch -- where the natural window, split in half, is near 0. With and
+ * without the symbol-period aid: the look-back runs either way. Sabotage:
+ * keep the natural window's sum -> the split epochs read near 0, red. */
 static int
-the_integrator_moves_the_phase_one_chip_per_update (size_t sf)
+_test_window_sum_is_the_look_back (void)
 {
-  int          fails = 0;
-  const size_t sps   = 4;
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 17u);
-  dp_dll_state_t *d
-      = dp_dll_create (code, sf, (double)sps, 0.0, 0.002, 0.707, 0.5, 1);
-  DP_REQUIRE (code && d);
-  const double integ
-      = 0.01; /* chips per update, 66 or more LSB of phase_inc */
-  const uint32_t nominal = nco_norm_freq_to_inc (d->inv_tsamps);
-  d->lf.integ            = integ;
-  dll_steer (d, 1.0, 1.0, 1.0); /* e = 0: the integrator alone steers */
-  const double dinc  = (double)(int32_t)(d->code_nco.phase_inc - nominal)
-                       / 4294967296.0; /* cycles per sample */
-  const double chips = dinc * ((double)sf * (double)sps) * (double)sf;
-  DP_CHECK_MSG (fabs (chips - integ) <= 0.02 * integ,
-                "one unit of the integrator is one chip per update");
-  if (fabs (chips - integ) > 0.02 * integ)
-    DP_TEST_ERR ("  sf %zu: moved %.6f chips for integ %.6f (the old gain: "
-                 "%.6f)\n",
-                 sf, chips, integ, integ * (double)sf);
-  /* code_rate is the ratio to the nominal rate: integ chips of sf */
-  DP_CHECK_MSG (fabs (dp_dll_get_code_rate (d) - (1.0 + integ / (double)sf))
-                    < 1e-12,
-                "code_rate is 1 + integ / sf");
-  dp_dll_destroy (d);
-  free (code);
-  return fails;
-}
-
-/* The gain table is restored verbatim from a blob, so one saved before the
- * integral path became a unit-gain actuator (version 15) would resume the loop
- * sf times too wide, bit-exactly: that blob is refused. Returns failed checks.
- */
-static int
-a_blob_from_before_the_unit_gain_integral_path_is_refused (void)
-{
-  int          fails = 0;
-  const size_t sf    = 31;
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 5u);
-  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
-  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
-  DP_REQUIRE (code && a && b);
-  const size_t bytes = dp_dll_state_bytes (a);
-  void        *blob  = malloc (bytes);
-  DP_REQUIRE (blob);
-  dp_dll_get_state (a, blob);
-  DP_CHECK (dp_dll_set_state (b, blob) == DP_OK); /* the current version */
-  ((dp_state_hdr_t *)blob)->version = 15u;
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
-                "a version 15 blob carries the old gain table");
-  free (blob);
-  dp_dll_destroy (a);
-  dp_dll_destroy (b);
-  free (code);
-  return fails;
-}
-
-/* The code NCO's increment is a 32-bit word and the conversion truncates, so
- * a command under one step (2^-32 cycles per sample) used to be dropped at
- * every steer and the loop read as frozen (doppler#3249). The remainder is
- * carried, so the MEAN increment over many steers is the commanded one. The
- * integrator is seeded so the command is `lsb` steps exactly (the gain table
- * says how many cycles per sample one unit of it is), the error is zero so
- * nothing else moves it, and the mean of the increments is compared with
- * the exact frequency the steer asked for. Without the carry the mean is the
- * truncated nominal, off by the fraction of a step the command and the
- * nominal rate together leave: 0.29 here. Returns the failed checks. */
-static int
-the_mean_increment_follows_a_command_under_one_step (size_t segments,
-                                                     double lsb)
-{
-  int          fails = 0;
-  const size_t sf    = 127;
-  const double step  = 1.0 / 4294967296.0; /* one phase-word step, cycles */
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 21u);
-  dp_dll_state_t *d
-      = dp_dll_create (code, sf, 4.0, 0.0, 0.002, 0.707, 0.5, segments);
-  DP_REQUIRE (code && d);
-  d->lf.integ      = lsb * step / d->ctrl_i;
-  const size_t n   = 4000;
-  double       sum = 0.0;
-  for (size_t k = 0; k < n; k++)
+  const size_t sf = 63, sps = 2, seg = 8, tsamps = sf * sps, nper = 40;
+  uint8_t      code[63];
+  make_code (code, sf, 11u);
+  float _Complex *rx = malloc (nper * tsamps * sizeof *rx);
+  DP_REQUIRE (rx != NULL);
+  make_async_signal (rx, nper * tsamps, code, sf, sps, 0.0, 2.5 * tsamps,
+                     0.5 * tsamps, 0.0, 5u, 0u);
+  for (int aid = 0; aid < 2; aid++)
     {
-      dll_steer (d, 1.0, 1.0, 1.0); /* e = 0: the integrator alone steers */
-      sum += (double)d->code_nco.phase_inc;
+      dp_dll_state_t *d
+          = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, seg);
+      DP_REQUIRE (d != NULL);
+      if (aid)
+        DP_REQUIRE (dp_dll_set_symbol_period (d, 2.5 * seg) == DP_OK);
+      DP_CHECK (cabsf (dp_dll_get_window_sum (d)) == 0.0f);
+      static float _Complex out[256];
+      double worst = HUGE_VAL;
+      for (size_t p = 0; p < nper; p++)
+        {
+          const size_t n = dp_dll_steps (d, rx + p * tsamps, tsamps, out, 256);
+          if (p >= 2 && n > 0)
+            {
+              const double m = cabsf (dp_dll_get_window_sum (d));
+              worst          = m < worst ? m : worst;
+            }
+        }
+      DP_CHECK (worst >= (1.0 - 1.5 / (double)seg) * (double)tsamps);
+      dp_dll_reset (d);
+      DP_CHECK (cabsf (dp_dll_get_window_sum (d)) == 0.0f);
+      dp_dll_destroy (d);
     }
-  /* the exact frequency asked for, in steps: nominal plus the command */
-  const double want = (d->inv_tsamps + lsb * step) / step;
-  const double got  = sum / (double)n;
-  /* the carry holds the mean to a step over the number of steers */
-  DP_CHECK_MSG (fabs (got - want) <= 2.0 / (double)n,
-                "the mean increment is the commanded one");
-  if (fabs (got - want) > 2.0 / (double)n)
-    DP_TEST_ERR ("  segments %zu, command %+.3f step: mean %.4f, asked %.4f "
-                 "(off %.4f steps; the tolerance is %.4f)\n",
-                 segments, lsb, got, want, got - want, 2.0 / (double)n);
-  dp_dll_destroy (d);
-  free (code);
-  return fails;
-}
-
-/* A held loop follows its held rate to one phase-word step of accumulated
- * phase, however long the hold. The held rate is the integrator's, plus the
- * carrier aid, here chosen so the commanded increment is half a step past a
- * whole word (the worst case for a truncation): converted once at the hold's
- * start the word is half a step short at every sample, which at the
- * certified point (sf 1023, 2 samples per chip) is 0.5 step x 2046 samples x
- * 1023 chips = 2.4e-4 chip per period, 1.5 chips over a 2 s hold's 6,285
- * periods. Converted at every period boundary through the carried remainder
- * (dll_set_inc) the accumulated difference stays within one step, 4.9e-4 chip,
- * at any length. `refreshes` calls dp_dll_set_rate_aid() that many times
- * before each period -- the receivers' carrier aids the code while it coasts
- * -- and `swing` alternates the aid between two commands 0.3 step either side,
- * so the held rate itself moves. Sabotaged: the held branch of dll_steer
- * returns without converting -- the drift reads 1.5 chips at 6,285 periods and
- * 0.024 at 100. */
-static int
-a_hold_follows_its_rate_to_a_step (size_t periods, int refreshes, int swing)
-{
-  int          fails = 0;
-  const size_t sf    = 1023;
-  const double step  = 1.0 / 4294967296.0; /* one phase-word step, cycles */
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 3u);
-  dp_dll_state_t *d = dp_dll_create (code, sf, 2.0, 0.0, 0.002, 0.707, 0.5, 1);
-  DP_REQUIRE (code && d);
-  dp_dll_hold_here (d);
-  dp_dll_set_coast (d, 1);
-  const double f0      = d->inv_tsamps;
-  const double target  = (floor (f0 / step) + 0.5) * step;
-  double       applied = 0.0, asked = 0.0;
-  for (size_t k = 0; k < periods; k++)
-    {
-      const double f = target + (swing ? (k & 1u ? 0.3 : -0.3) * step : 0.0);
-      for (int r = 0; r < refreshes + 1; r++)
-        dp_dll_set_rate_aid (d, f / f0 - 1.0);
-      dll_steer (d, 1.0, 1.0, 1.0); /* one period boundary, held */
-      applied += (double)d->code_nco.phase_inc;
-      asked += d->inv_tsamps * (1.0 + d->rate_aid) / step;
-    }
-  const double steps = fabs (applied - asked); /* words, accumulated */
-  const double chips = steps * step * (double)(sf * 2u) * (double)sf;
-  DP_CHECK_MSG (steps <= 1.0 + 1e-6,
-                "a held rate is followed to one phase-word step");
-  DP_CHECK_MSG (chips < 1e-3, "and so to under a thousandth of a chip");
-  printf ("  hold %zu periods, %d refreshes, swing %d: %.3f steps = %.2e "
-          "chip\n",
-          periods, refreshes, swing, steps, chips);
-  dp_dll_destroy (d);
-  free (code);
-  return fails;
-}
-
-/* A blob taken mid-hold resumes bit for bit and passes the remainder's
- * range check: the carry keeps the remainder in [0, one step) in a hold too.
- */
-static int
-a_blob_taken_mid_hold_resumes (void)
-{
-  int          fails = 0;
-  const size_t sf    = 63;
-  const double step  = 1.0 / 4294967296.0;
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 9u);
-  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.005, 0.707, 0.5, 1);
-  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.005, 0.707, 0.5, 1);
-  DP_REQUIRE (code && a && b);
-  dp_dll_hold_here (a);
-  dp_dll_set_coast (a, 1);
-  dp_dll_set_rate_aid (a, 0.37 * step / a->inv_tsamps);
-  for (int k = 0; k < 50; k++)
-    dll_steer (a, 1.0, 1.0, 1.0);
-  DP_CHECK_MSG (a->inc_resid >= 0.0 && a->inc_resid < step,
-                "mid-hold the remainder is under one step");
-  void *blob = malloc (dp_dll_state_bytes (a));
-  DP_REQUIRE (blob);
-  dp_dll_get_state (a, blob);
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
-                "a blob taken mid-hold is accepted");
-  for (int k = 0; k < 200; k++)
-    {
-      dll_steer (a, 1.0, 1.0, 1.0);
-      dll_steer (b, 1.0, 1.0, 1.0);
-      DP_CHECK (a->code_nco.phase_inc == b->code_nco.phase_inc);
-      DP_CHECK (a->inc_resid == b->inc_resid);
-    }
-  free (blob);
-  dp_dll_destroy (a);
-  dp_dll_destroy (b);
-  free (code);
-  return fails;
-}
-
-/* The remainder's upper edge. A command f in [-2^-53, 0) has floor -1, and
- * under strict IEEE evaluation f - floor(f) rounds up to exactly 1.0, so the
- * remainder is the whole step 2^-32 (gcc, and any build that does not
- * reassociate). A compiler that reassociates under -ffast-math (clang's
- * -O3, which folds a literal command) computes f - (floor(f) + word)
- * instead, the exact remainder, step + f: one 1e-20 below the step for
- * f = -1e-20. Both are in [step - 2^-53, step], and that interval is what
- * every build must produce; the edge itself, exactly one step, the range
- * check must still accept, because an IEEE build writes it. So the pin
- * asserts (1) the produced remainder lies in the interval, (2) its blob is
- * accepted, restores the same remainder and, after one more conversion on
- * each object, leaves both with the same word and remainder, and (3) a
- * forged remainder of exactly one step is accepted and one ulp past it is
- * refused. Sabotaged: the range check's `<=` made `<` -- (3) goes red on
- * every compiler, (1) and (2) on a build that rounds to the edge.
- *
- * The command is fed twice, as a literal and as a volatile. The project
- * builds with -ffast-math, under which a literal can be folded and
- * reassociated (clang's -O3 did, and an `== step` on it failed on macOS and
- * Windows): a pin that asserts exact equality on a folded literal asserts
- * the compiler's evaluation order, not the object. The volatile is the
- * value the loop actually hands the conversion, and both must land in the
- * interval. */
-static int
-the_remainders_upper_edge_is_produced_and_accepted (void)
-{
-  int          fails = 0;
-  const size_t sf    = 31;
-  const double step  = 1.0 / 4294967296.0;
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 7u);
-  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
-  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
-  DP_REQUIRE (code && a && b);
-  a->inc_resid = 0.0;
-  dll_set_inc (a, -1e-20); /* a literal: the compiler may fold it */
-  DP_CHECK_MSG (
-      a->inc_resid <= step && a->inc_resid >= step - ldexp (1.0, -53),
-      "a command just under zero leaves one step, to 2^-53, to carry");
-  b->inc_resid            = 0.0;
-  volatile double runtime = -1e-20; /* a runtime value: it is not folded */
-  dll_set_inc (b, runtime);
-  DP_CHECK_MSG (b->inc_resid <= step
-                    && b->inc_resid >= step - ldexp (1.0, -53),
-                "and so does the same command as a runtime value");
-  void *blob = malloc (dp_dll_state_bytes (a));
-  DP_REQUIRE (blob);
-  dp_dll_get_state (a, blob);
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
-                "the remainder the object produces is accepted");
-  DP_CHECK_MSG (b->inc_resid == a->inc_resid, "and restored");
-  dll_set_inc (a, 3e-4);
-  dll_set_inc (b, 3e-4);
-  DP_CHECK_MSG (a->code_nco.phase_inc == b->code_nco.phase_inc
-                    && a->inc_resid == b->inc_resid,
-                "and the next conversion agrees on both objects");
-  dp_dll_state_t *in
-      = (dp_dll_state_t *)((char *)blob + sizeof (dp_state_hdr_t));
-  in->inc_resid = step; /* what a build that rounds to the edge writes */
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
-                "a remainder of exactly one step is accepted");
-  in->inc_resid = nextafter (step, 1.0);
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
-                "one ulp past the edge is refused");
-  free (blob);
-  dp_dll_destroy (a);
-  dp_dll_destroy (b);
-  free (code);
-  return fails;
-}
-
-/* A blob from before the remainder was carried (version 16) is refused, and
- * so is a carried remainder no conversion could have dropped: it is added to
- * the next steer's frequency, so a forged value is a forged rate. */
-static int
-the_carried_remainder_is_in_the_blob_and_checked (void)
-{
-  int          fails = 0;
-  const size_t sf    = 31;
-  uint8_t     *code  = malloc (sf);
-  make_code (code, sf, 5u);
-  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
-  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
-  DP_REQUIRE (code && a && b);
-  a->lf.integ = 0.3 * (1.0 / 4294967296.0) / a->ctrl_i; /* 0.3 of a step */
-  dll_steer (a, 1.0, 1.0, 1.0);
-  DP_CHECK_MSG (a->inc_resid > 0.0, "the steer left a remainder to carry");
-  const size_t bytes = dp_dll_state_bytes (a);
-  void        *blob  = malloc (bytes);
-  DP_REQUIRE (blob);
-  dp_dll_get_state (a, blob);
-  DP_CHECK (dp_dll_set_state (b, blob) == DP_OK);
-  DP_CHECK_MSG (b->inc_resid == a->inc_resid,
-                "the remainder resumes bit for bit");
-  dp_dll_state_t *in
-      = (dp_dll_state_t *)((char *)blob + sizeof (dp_state_hdr_t));
-  const double keep = in->inc_resid;
-  in->inc_resid     = 2.0 / 4294967296.0; /* more than one step */
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
-                "a remainder over one step is refused");
-  in->inc_resid = -1e-12;
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
-                "a negative remainder is refused");
-  in->inc_resid                     = keep;
-  ((dp_state_hdr_t *)blob)->version = 16u;
-  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
-                "a version 16 blob has no remainder");
-  free (blob);
-  dp_dll_destroy (a);
-  dp_dll_destroy (b);
-  free (code);
-  return fails;
+  /* One segment: the period is the only window, so the sum is that
+     epoch's own prompt sum -- the emitted prompt times the period, to the
+     bit (the prompt is it divided by (float)tsamps). Sabotage: no write
+     on the one-segment path -> it stays 0, red. */
+  {
+    dp_dll_state_t *d
+        = dp_dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, 1);
+    DP_REQUIRE (d != NULL);
+    static float _Complex out1[8];
+    size_t epochs = 0, exact = 0;
+    for (size_t p = 0; p < nper; p++)
+      {
+        const size_t n = dp_dll_steps (d, rx + p * tsamps, tsamps, out1, 8);
+        if (n == 1)
+          {
+            epochs++;
+            exact += dp_dll_get_window_sum (d) / (float)tsamps == out1[0]
+                     && cabsf (out1[0]) > 0.0f;
+          }
+      }
+    DP_REQUIRE (epochs > nper / 2);
+    DP_CHECK (exact == epochs);
+    dp_dll_destroy (d);
+  }
+  free (rx);
+  return 0;
 }
 
 int
 main (void)
 {
+  DP_CHECK (_test_window_sum_is_the_look_back () == 0);
 
   /* ---------------------------------------------------------------- *
    * 1. Lifecycle, NULL-code guard, init==create parity               *

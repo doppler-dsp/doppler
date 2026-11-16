@@ -808,9 +808,18 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
        * applied PRE-despread so despreading stays coherent (no residual
        * carrier rotating within the correlation) instead of leaving the whole
        * carrier burden to the post-despread loop. */
+      /* The error's window (create()'s carrier_window): each partial
+         squared and the squares summed, or the one coherent sum over the
+         code-period window the look-back picked this period, squared. */
       float _Complex sq = 0.0f;
-      for (size_t i = 0; i < n_out; i++)
-        sq += dll_out[i] * dll_out[i];
+      if (s->carrier_window == ASYNC_DSSS_RX_CARRIER_CODE_PERIOD)
+        {
+          const float _Complex w = dp_dll_get_window_sum (s->dll);
+          sq                     = w * w;
+        }
+      else
+        for (size_t i = 0; i < n_out; i++)
+          sq += dll_out[i] * dll_out[i];
       double phi       = 0.5 * atan2 (cimag (sq), creal (sq));
       float _Complex P = (float)cos (phi) + (float)sin (phi) * I;
       costas_update (&s->car, P);
@@ -1162,7 +1171,7 @@ dp_async_dsss_receiver_create (
     double refine_design_margin_db, size_t refine_n_fft,
     size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
     double carrier_freq_hz, double lost_confirm_s, bool reacquire,
-    double code_only_s, double doppler_rate, bool refine)
+    double code_only_s, double doppler_rate, bool refine, int carrier_window)
 {
   /* symbol_rate becomes the carrier estimator's sample rate, which PSD
      refuses unless finite: refused here, at create, because that estimator
@@ -1204,6 +1213,13 @@ dp_async_dsss_receiver_create (
      (adr_new_carrier_acq) refuses a pfa or pd outside (0, 1), so they are
      refused here, at create (doppler#2103). */
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0))
+    return NULL;
+  /* The code-period window holds only while a symbol is at least a code
+     period: then some window of one period is free of transitions, which
+     the look-back finds (dp_dll_get_window_sum()). */
+  if (carrier_window != ASYNC_DSSS_RX_CARRIER_PARTIALS
+      && !(carrier_window == ASYNC_DSSS_RX_CARRIER_CODE_PERIOD
+           && symbol_rate * (double)code_len <= chip_rate))
     return NULL;
   /* The code-only window in whole epochs, design async-dsss-receiver.md §2.3:
      floor(W * chip_rate / sf) - 1 epochs fit at ANY chip phase, and under
@@ -1353,6 +1369,7 @@ dp_async_dsss_receiver_create (
   obj->lost_confirm_s       = lost_confirm_s;
   obj->reacquire            = reacquire;
   obj->refine               = refine;
+  obj->carrier_window       = carrier_window;
   obj->lost_confirm_samples = lost_confirm_samples;
   obj->code_only_s          = code_only_s;
   obj->doppler_rate         = doppler_rate;

@@ -391,7 +391,7 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
           code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9, 50e3, 4,
           8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, AIR_CARRIER, 2.0, false,
           w->deep ? CODE_ONLY_S : CODE_LEN / chip, DOPPLER_RATE, w->threads,
-          true);
+          true, 0);
       if (!p || !air_src_init (&src, code, w, chip, sym, cn0, fs_in, block))
         {
           (void)fprintf (stderr, "bench_async_dsss_pool[%s]: setup failed\n",
@@ -540,7 +540,7 @@ main (void)
           code, CODE_LEN, rows[k].n_rx, chip, sym, chip * (double)spc, 2, cn0,
           1e-3, 0.9, rows[k].span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
           100000, rows[k].carrier_hz, 2.0, false, CODE_ONLY_S, DOPPLER_RATE,
-          rows[k].threads, true);
+          rows[k].threads, true, 0);
       rc[k] = dp_RateConverter_create (fs / fs_in, 0);
       if (!p[k] || !rc[k])
         {

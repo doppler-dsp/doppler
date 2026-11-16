@@ -769,6 +769,7 @@ dp_dll_get_noise_est function
 dp_dll_get_segments function
 dp_dll_get_state function
 dp_dll_get_symbol_window function
+dp_dll_get_window_sum function
 dp_dll_hold_here function
 dp_dll_init function
 dp_dll_lock_epoch function

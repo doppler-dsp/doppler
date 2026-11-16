@@ -110,6 +110,7 @@ _DLL state._ [More...](#detailed-description)
 |  uint32\_t | [**tap\_off**](#variable-tap_off)  <br> |
 |  uint32\_t | [**tap\_spacing**](#variable-tap_spacing)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
+|  float \_Complex | [**win\_p**](#variable-win_p)  <br> |
 |  int | [**wrap\_await**](#variable-wrap_await)  <br> |
 |  int | [**wrap\_pending**](#variable-wrap_pending)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
@@ -1473,6 +1474,24 @@ dll_tlm_t dp_dll_state_t::tlm;
 
 
 live telemetry attachment; zeroed in blobs 
+
+
+        
+
+<hr>
+
+
+
+### variable win\_p 
+
+```C++
+float _Complex dp_dll_state_t::win_p;
+```
+
+
+
+Scratch: the prompt's coherent sum over the code-period window the last epoch's look-back picked (find\_max\_power's winner), with or without the symbol-period aid; [**dp\_dll\_get\_window\_sum()**](dll__core_8h.md#function-dp_dll_get_window_sum). Written and read within one steps() call, so not state: zero in the blob. 
+ 
 
 
         

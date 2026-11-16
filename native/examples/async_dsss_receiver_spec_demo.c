@@ -321,7 +321,7 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
       cn0_dbhz, pfa, pd, doppler_uncertainty, segments, sps, differential,
       refine_max_error_db, refine_samples_per_sym, refine_design_margin_db,
       refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
-      carrier_freq_hz, lost_confirm_s, reacquire, 0.0, 0.0, true);
+      carrier_freq_hz, lost_confirm_s, reacquire, 0.0, 0.0, true, 0);
   CHECK (rx != NULL, "the receiver opens");
 
   /* The caller's buffers: one push in, one push of symbols out (a push of TE

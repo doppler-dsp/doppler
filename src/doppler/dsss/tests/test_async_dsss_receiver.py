@@ -239,6 +239,37 @@ def test_refine_false_needs_a_deep_search():
     )
 
 
+def test_carrier_window_names_and_domain():
+    # carrier_window is a named choice; code_period needs a symbol of at
+    # least a code period, refused otherwise, in the receiver and the pool.
+    code = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    kw = {"chip_rate": CHIP_RATE, "sample_rate": FS}
+    AsyncDsssReceiver(
+        code, symbol_rate=SYM_RATE, carrier_window="partials", **kw
+    )
+    AsyncDsssReceiver(
+        code, symbol_rate=SYM_RATE, carrier_window="code_period", **kw
+    )
+    AsyncDsssPool(
+        code,
+        n_receivers=2,
+        threads=1,
+        symbol_rate=SYM_RATE,
+        carrier_window="code_period",
+        **kw,
+    )
+    short = 2.0 * CHIP_RATE / SF  # two symbols a code period
+    msg = "carrier_window code_period needs a symbol of at least a code"
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssReceiver(
+            code, symbol_rate=short, carrier_window="code_period", **kw
+        )
+    with pytest.raises(ValueError):
+        AsyncDsssReceiver(
+            code, symbol_rate=SYM_RATE, carrier_window="nonsense", **kw
+        )
+
+
 def test_lifecycle_walks_every_state():
     # `lifecycle` names each state the receiver passes through, in order:
     # it searches, refines, tracks, and -- with the release rule armed and

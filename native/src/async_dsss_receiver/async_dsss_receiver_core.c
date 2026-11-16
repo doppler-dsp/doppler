@@ -1663,6 +1663,22 @@ adr_unheld (const dp_async_dsss_receiver_state_t *s)
   return s->pooled ? ASYNC_DSSS_RX_IDLE : ASYNC_DSSS_RX_SEARCHING;
 }
 
+/* Pick k's phase carried from its sample (pick_at) to `to`, as adr_pick()
+   carries a hit: dilated with a carrier, and exactly the stored phase when
+   the two samples are the same. */
+static double
+adr_pick_phase_at (const dp_async_dsss_receiver_state_t *s, size_t k,
+                   uint64_t to)
+{
+  const double shift = (double)(to - s->pick_at[k]) / s->spc;
+  if (shift == 0.0)
+    return s->pick_phase[k];
+  double g = shift;
+  if (s->carrier_freq_hz > 0.0)
+    g *= 1.0 + s->pick_doppler[k] / s->carrier_freq_hz;
+  return dp_fmod_pos (s->pick_phase[k] + g, (double)s->code_len);
+}
+
 /* A search-only receiver's dwell (set_search_only()): the pick for ranks 0
  * … pick_want - 1, each survivor kept with its phase at the sample after
  * this call. The hits' phases are carried there from the dwell's end, t,
@@ -1675,9 +1691,13 @@ adr_collect_picks (dp_async_dsss_receiver_state_t *s,
                    const dp_correlator_hit_t *hits, size_t n_hits, double t,
                    uint64_t in0)
 {
-  const double L     = (double)s->code_len;
-  const double end   = (double)s->samples_in; /* the sample after the call */
-  const double ex_sh = (end - (double)in0) / s->spc;
+  const double L   = (double)s->code_len;
+  const double end = (double)s->samples_in; /* the sample after the call */
+  /* The exclusions name the sample they were set at (excl_at), which a
+     controller setting them before every call makes this call's first;
+     one set calls earlier is carried over those calls too. */
+  (void)in0;
+  const double ex_sh = (end - (double)s->excl_at) / s->spc;
   double       saved[ASYNC_DSSS_RX_MAX_EXCLUSIONS];
   memcpy (saved, s->excl, sizeof saved);
   for (size_t k = 0; k < s->n_excl; k++)
@@ -1696,10 +1716,20 @@ adr_collect_picks (dp_async_dsss_receiver_state_t *s,
           s->refused_hits++;
           continue;
         }
-      s->pick_phase[s->n_picks]   = ho.chip_phase;
-      s->pick_doppler[s->n_picks] = ho.doppler_hz_est;
-      s->pick_cn0[s->n_picks]     = ho.cn0_dbhz_est;
-      s->n_picks++;
+      /* A dwell before this one, not yet taken, may have picked the same
+         signal: its slot takes this dwell's fresher estimate, so a list
+         taken after several dwells holds each signal once. */
+      size_t slot = s->n_picks;
+      for (size_t q = 0; q < s->n_picks && slot == s->n_picks; q++)
+        if (adr_same_code_phase (adr_pick_phase_at (s, q, s->samples_in),
+                                 ho.chip_phase, s->code_len))
+          slot = q;
+      s->pick_phase[slot]   = ho.chip_phase;
+      s->pick_doppler[slot] = ho.doppler_hz_est;
+      s->pick_cn0[slot]     = ho.cn0_dbhz_est;
+      s->pick_at[slot]      = s->samples_in; /* `end`'s sample */
+      if (slot == s->n_picks)
+        s->n_picks++;
     }
   s->rank = rank;
   memcpy (s->excl, saved, sizeof saved);
@@ -2114,7 +2144,9 @@ dp_async_dsss_receiver_take_picks (dp_async_dsss_receiver_state_t *state,
   const size_t n = state->n_picks < max ? state->n_picks : max;
   for (size_t k = 0; k < n; k++)
     {
-      chip_phase[k] = state->pick_phase[k];
+      /* Carried from its call's end to the sample after the last fed:
+         nothing when it is taken right after that call. */
+      chip_phase[k] = adr_pick_phase_at (state, k, state->samples_in);
       doppler_hz[k] = state->pick_doppler[k];
       cn0_dbhz[k]   = state->pick_cn0[k];
     }
@@ -2122,6 +2154,7 @@ dp_async_dsss_receiver_take_picks (dp_async_dsss_receiver_state_t *state,
   memset (state->pick_phase, 0, sizeof state->pick_phase);
   memset (state->pick_doppler, 0, sizeof state->pick_doppler);
   memset (state->pick_cn0, 0, sizeof state->pick_cn0);
+  memset (state->pick_at, 0, sizeof state->pick_at);
   return n;
 }
 
@@ -2156,7 +2189,8 @@ dp_async_dsss_receiver_set_exclusions (dp_async_dsss_receiver_state_t *state,
     state->excl[i] = dp_fmod_pos (phases[i], cl);
   for (size_t i = phases_len; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
     state->excl[i] = 0.0;
-  state->n_excl = phases_len;
+  state->n_excl  = phases_len;
+  state->excl_at = state->samples_in; /* the sample they name */
   return DP_OK;
 }
 
@@ -2473,7 +2507,9 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .n_picks             = (uint64_t)s->n_picks,
     .refine_hist_cap     = (uint64_t)s->refine_hist_cap,
     .refine_hist_len     = (uint64_t)s->refine_hist_len,
+    .excl_at             = s->excl_at,
   };
+  memcpy (extra.pick_at, s->pick_at, sizeof extra.pick_at);
   memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
   memcpy (extra.pick_phase, s->pick_phase, sizeof extra.pick_phase);
   memcpy (extra.pick_doppler, s->pick_doppler, sizeof extra.pick_doppler);
@@ -2541,6 +2577,14 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
                      ? extra.refine_samples_fed
                      : extra.refine_hist_cap))
     return DP_ERR_INVALID;
+  /* The samples the exclusions and picks name are ones already fed, and an
+     untaken slot's is zero, as take_picks() leaves it. */
+  if (extra.excl_at > extra.samples_in)
+    return DP_ERR_INVALID;
+  for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_PEAKS; i++)
+    if (i < extra.n_picks ? extra.pick_at[i] > extra.samples_in
+                          : extra.pick_at[i] != 0)
+      return DP_ERR_INVALID;
   /* Only what set_exclusions() can leave: folded phases, a zeroed tail. */
   for (size_t i = 0; i < ASYNC_DSSS_RX_MAX_EXCLUSIONS; i++)
     if (i < extra.n_excl
@@ -2622,5 +2666,11 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   memcpy (s->pick_phase, extra.pick_phase, sizeof s->pick_phase);
   memcpy (s->pick_doppler, extra.pick_doppler, sizeof s->pick_doppler);
   memcpy (s->pick_cn0, extra.pick_cn0, sizeof s->pick_cn0);
+  memcpy (s->pick_at, extra.pick_at, sizeof s->pick_at);
+  s->excl_at = extra.excl_at;
+  /* set_threads()'s value (#2022): the same request the writer's last
+     call made, which on a machine with as many cores runs as many. */
+  if (extra.threads != (int64_t)s->acq->search->threads)
+    (void)dp_correlator_set_threads (s->acq, (int)extra.threads);
   return DP_OK;
 }

@@ -54,11 +54,15 @@ def test_refuses(kw):
 
 def test_push_status_symbols():
     p = _pool(n_receivers=2)
-    assert p.push(np.zeros(2046, dtype=np.complex64)) == 0
-    assert p.samples == 2046
+    # 16 code periods: a whole number of the pool's joins (it feeds the
+    # receivers ASYNC_DSSS_POOL_PERIODS_PER_JOIN periods at a time, 4, 8
+    # or 16), so every sample pushed has reached them.
+    n = 16 * 2046
+    assert p.push(np.zeros(n, dtype=np.complex64)) == 0
+    assert p.samples == n
     st = p.status(0)
     # 3 is idle: a pooled receiver waits for the controller's seed
-    assert st.state == 3 and st.state_samples == 2046
+    assert st.state == 3 and st.state_samples == n
     assert type(st).__name__ == "PoolReceiverStatus"
     assert p.status(2).state == -1  # past the pool
     assert p.symbols(0).size == 0

@@ -1534,8 +1534,6 @@ less). No row measures either at this point (§9). In order:
     carrier-loop margin the receiver does not have at the floor (§4.5), so
     it is to be measured again once the carrier error is formed on the code
     period (§4.4).
-1. The pool joins its workers once every several code periods, on a fixed
-    grid, each receiver call still one period.
 1. The search's resampler, written so the compiler vectorizes it.
 1. Kernel changes, each adopted only on a measured gain of half or more.
 
@@ -1586,13 +1584,25 @@ from the bound (§2.1).
 - **N receivers, each refining and tracking.** A pooled receiver has no
     search of its own (§6). One receiver holds one signal, so N bounds how
     many are held: 3 for the proof of concept, up to 10.
-- **The controller steps once a code period.** Each period the search runs
-    first, while any receiver is idle; then every receiver takes the same
-    period, across the workers when two or more hold a signal; then the
-    controller reads the statuses. Its levers, the seeds and the
-    exclusions, have something new to act on only when a dwell ends, but
-    the lost, duplicate and ghost rules are read every period. The workers
-    are therefore joined once a code period. The search runs on
+- **The controller steps once a group of M code periods**
+    (`ASYNC_DSSS_POOL_PERIODS_PER_JOIN`, 16), on a grid counted from create
+    or reset, so how the stream is cut into pushes changes nothing. In each
+    group the search runs first, one call a period, while any receiver was
+    idle at the group's start; then every receiver takes the group's M
+    periods, one call a period, across the workers when two or more hold a
+    signal, each worker writing its own receiver's ghost history after
+    each period; then the controller reads the statuses once. The workers
+    are joined once a group, not once a period: a join costs about as much
+    as a receiver's period on WSL2. What moves for a caller: a pushed
+    sample reaches the receivers when its group is whole, and the lost,
+    duplicate and ghost releases and the seeds land up to M − 1 periods
+    later than once a period would. The ghost rule still reads one ring
+    row a period, written by the workers, and decides at the group's end:
+    on identical streams a real ghost was released on the same draws'
+    counts at M = 1 and 16 (25 of 30), a median 3 to 8 ms later, and a
+    weak true emitter (44 to 52 dB-Hz, 90 draws) was kept in both. The search carries its exclusions and
+    its picks by the sample each names, and a signal picked again in a
+    later dwell of one group replaces its earlier pick. The search runs on
     the pool's thread count, at most one worker a Doppler tile, so a
     one-tile search is serial
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)). It fans the
@@ -1836,7 +1846,8 @@ move the limit, and is not built (doppler#2531).
 
 ## 8. The controller
 
-The bookkeeper of §5. It owns the search and runs once a code period. It:
+The bookkeeper of §5. It owns the search and runs once a group of M code
+periods (§5). It:
 
 - **reads each receiver's `status()`** (state, chip phase, carrier, code and
     symbol lock) and keeps the table of who holds what, never the

@@ -163,7 +163,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br>_Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._  |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `18u /\* v18: no threads, the search's own blob carries set\_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `18u /\* v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (chip\_rate, code\_len) `([**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DEMOD\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_demod_bn_carrier)  `0.01`<br> |
@@ -1641,7 +1641,7 @@ int dp_async_dsss_receiver_set_exclusions (
 
 
 
-Replaces the list. A peak within one chip, circularly, of any of them is dropped from a dwell's list at any Doppler, before ranking (set\_rank()). Phases are chips in status().chip\_phase's convention and are folded into [0, code\_len). An empty list (the default) excludes nothing. A tracking receiver is not affected: the list applies to its next search. A mutator's value, so it travels in the state blob (#2022).
+Replaces the list. A peak within one chip, circularly, of any of them is dropped from a dwell's list at any Doppler, before ranking (set\_rank()). Phases are chips in status().chip\_phase's convention, at the sample after the last one fed when they are set, and are folded into [0, code\_len); a dwell decided calls later carries them from that sample to its own. An empty list (the default) excludes nothing. A tracking receiver is not affected: the list applies to its next search. A mutator's value, so it travels in the state blob (#2022).
 
 
 
@@ -2195,7 +2195,7 @@ _Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._
 
 _Layout version of the AsyncDsssReceiver blob (history below)._ 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `18u /* v18: no threads, the search's own blob carries set_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `18u /* v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
 ```
 
 

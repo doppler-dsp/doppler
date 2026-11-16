@@ -60,6 +60,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**excl**](#variable-excl)  <br> |
+|  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
@@ -73,6 +74,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**n\_picks**](#variable-n_picks)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
+|  uint64\_t | [**pick\_at**](#variable-pick_at)  <br> |
 |  double | [**pick\_cn0**](#variable-pick_cn0)  <br> |
 |  double | [**pick\_doppler**](#variable-pick_doppler)  <br> |
 |  double | [**pick\_phase**](#variable-pick_phase)  <br> |
@@ -618,6 +620,24 @@ those phases, chips, in [0, code\_len), the status() convention.
 
 
 
+### variable excl\_at 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::excl_at;
+```
+
+
+
+samples\_in when they were set: the sample they name, which a dwell decided later carries them from. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable had\_lock 
 
 ```C++
@@ -842,6 +862,23 @@ double dp_async_dsss_receiver_state_t::pfa;
 
 Also CarrierAcquisition's own pfa. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable pick\_at 
+
+```C++
+uint64_t dp_async_dsss_receiver_state_t::pick_at[ASYNC_DSSS_RX_MAX_PEAKS];
+```
+
+
+
+its phase's sample, samples\_in at the end of that call: take\_picks() carries the phase from there. 
 
 
         

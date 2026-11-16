@@ -4385,6 +4385,76 @@ _test_pooled_and_search_only (void)
   return 0;
 }
 
+/* A controller that reads the search once every several calls (the pool's
+ * group, async-dsss-receiver.md §5) gets what one reading every call gets:
+ * the capture of _test_pooled_and_search_only(), calls of 3,001 samples,
+ * where the code phase at sample s is (s - 777) / 2 chips.
+ *
+ * - Picks taken only every TAKE_EVERY calls name the sample after the last
+ *   one fed: the first is that sample's chip clock within half a chip,
+ *   though its dwell ended calls before.
+ * - Every dwell in between picked the one emitter; the waiting list holds
+ *   it once.
+ * - Exclusions set once, at sample 0, to the emitter's phase there keep it
+ *   out of every dwell after, though each decides many calls later.
+ *
+ * Sabotages, each red: take a pick at its own call's end (no carry) -> the
+ * phase check; append a repeated pick -> the count; carry exclusions from
+ * the deciding call's first sample instead of the one they were set at ->
+ * the emitter is picked. */
+#define TAKE_EVERY 5u
+static int
+_test_picks_and_exclusions_carry (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double    fs = SLOW_CR * SLOW_SPC;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, 1500.0, 55.0, 900,
+                   777, 41, &x, &n, &data);
+  dp_async_dsss_receiver_state_t *srch = _slow_rx (code, 47.0, 5000.0, 0, 0);
+  dp_async_dsss_receiver_state_t *excl = _slow_rx (code, 47.0, 5000.0, 0, 0);
+  DP_REQUIRE (srch && excl);
+  DP_REQUIRE (dp_async_dsss_receiver_set_search_only (srch, 4) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_set_search_only (excl, 4) == DP_OK);
+  const double at0 = fmod (-777.0 / 2.0 + 1023.0, 1023.0);
+  DP_REQUIRE (dp_async_dsss_receiver_set_exclusions (excl, &at0, 1) == DP_OK);
+  static float _Complex out[8192];
+  const size_t P     = 3001;
+  size_t       takes = 0, most = 0, excluded_picks = 0, calls = 0;
+  for (size_t off = 0; off + P <= n; off += P, calls++)
+    {
+      (void)dp_async_dsss_receiver_steps (srch, x + off, P, out, 8192);
+      (void)dp_async_dsss_receiver_steps (excl, x + off, P, out, 8192);
+      if (srch->n_picks > most)
+        most = srch->n_picks;
+      double ph[8], dop[8], cn0[8];
+      excluded_picks
+          += dp_async_dsss_receiver_take_picks (excl, ph, dop, cn0, 8);
+      if ((calls + 1) % TAKE_EVERY)
+        continue;
+      const size_t k
+          = dp_async_dsss_receiver_take_picks (srch, ph, dop, cn0, 8);
+      if (k && takes++ == 0)
+        {
+          const double end = (double)(off + P);
+          DP_CHECK (
+              _chip_dist (ph[0], fmod ((end - 777.0) / 2.0, 1023.0), 1023.0)
+              <= 0.5);
+        }
+    }
+  DP_REQUIRE (takes >= 2); /* dwells were waiting at more than one take */
+  DP_CHECK (most == 1);
+  DP_CHECK (excluded_picks == 0);
+  dp_async_dsss_receiver_destroy (srch);
+  dp_async_dsss_receiver_destroy (excl);
+  free (x);
+  free (data);
+  return 0;
+}
+
 /* Two equal emitters on ONE carrier stack their sidelobes on one cell
  * (doppler#2556, review 5630513120). On a deep block over a code-only
  * window an emitter's Doppler-offset sidelobes are fixed cells on its own
@@ -5597,6 +5667,7 @@ main (void)
   DP_CHECK (_test_refining_reports_the_seed_phase () == 0);
   DP_CHECK (_test_nested_trace_version_refused () == 0);
   DP_CHECK (_test_pooled_and_search_only () == 0);
+  DP_CHECK (_test_picks_and_exclusions_carry () == 0);
   DP_CHECK (_test_resampled_search_hands_off_into_its_history () == 0);
   DP_CHECK (_test_chunking_changes_nothing () == 0);
   DP_CHECK (_test_no_refine_hands_over_the_search_doppler () == 0);

@@ -518,6 +518,9 @@ typedef enum
     size_t   n_excl; /**< set_exclusions(): code phases held.            */
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; /**< those phases, chips,
                           in [0, code_len), the status() convention.     */
+    uint64_t excl_at; /**< samples_in when they were set: the sample they
+                          name, which a dwell decided later carries them
+                          from.                                          */
     bool     pooled;     /**< set_pooled(): not holding means idle, not
                               searching (§6 of the design page).        */
     size_t   pick_want;  /**< set_search_only(): picks a dwell reports
@@ -530,6 +533,9 @@ typedef enum
                               a receiver fed the same samples.          */
     double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; /**< its Doppler, Hz. */
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     /**< its C/N0, dB-Hz. */
+    uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; /**< its phase's sample,
+                              samples_in at the end of that call:
+                              take_picks() carries the phase from there. */
     uint64_t refused_hits;         /**< Searching hits the seed domain refused
                                         as seeds, since create or reset. In
                                         the blob with state_samples, so a
@@ -1452,8 +1458,10 @@ typedef enum
    *
    * Replaces the list. A peak within one chip, circularly, of any of them is
    * dropped from a dwell's list at any Doppler, before ranking
-   * (set_rank()). Phases are chips in status().chip_phase's convention and
-   * are folded into [0, code_len). An empty list (the default) excludes
+   * (set_rank()). Phases are chips in status().chip_phase's convention, at
+   * the sample after the last one fed when they are set, and are folded
+   * into [0, code_len); a dwell decided calls later carries them from that
+   * sample to its own. An empty list (the default) excludes
    * nothing. A tracking receiver is not affected: the list applies to its
    * next search. A mutator's value, so it travels in the state blob
    * (#2022).
@@ -1818,12 +1826,15 @@ typedef enum
     uint64_t refine_hist_len; /**< v17: the ring's live count, always
                                    min(refine_samples_fed, cap); packed
                                    oldest first after the carry.        */
+    uint64_t excl_at; /**< v18: the sample the exclusions name.          */
+    uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; /**< v18: each pick's
+                                   sample, the unused tail zeroed.      */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: no threads, the search's own blob carries set_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

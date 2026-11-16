@@ -215,12 +215,14 @@ typedef enum
     size_t   rank;   
     size_t   n_excl; 
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; 
+    uint64_t excl_at; 
     bool     pooled;     
     size_t   pick_want;  
     size_t   n_picks;    
     double   pick_phase[ASYNC_DSSS_RX_MAX_PEAKS]; 
     double   pick_doppler[ASYNC_DSSS_RX_MAX_PEAKS]; 
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
+    uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
     uint64_t refused_hits;         
     uint64_t both_down_samples;    
     int      had_lock;             
@@ -449,10 +451,12 @@ typedef enum
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
     uint64_t refine_hist_cap; 
     uint64_t refine_hist_len; 
+    uint64_t excl_at; 
+    uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: no threads, the search's own blob carries set_threads()'s request (#3055); v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

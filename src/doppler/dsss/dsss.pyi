@@ -3189,11 +3189,12 @@ class AsyncDsssReceiver:
 
         Replaces the list. A peak within one chip, circularly, of any of them
         is dropped from a dwell's list at any Doppler, before ranking
-        (set_rank()). Phases are chips in status().chip_phase's convention and
-        are folded into [0, code_len). An empty list (the default) excludes
-        nothing. A tracking receiver is not affected: the list applies to its
-        next search. A mutator's value, so it travels in the state blob
-        (#2022).
+        (set_rank()). Phases are chips in status().chip_phase's convention, at
+        the sample after the last one fed when they are set, and are folded
+        into [0, code_len); a dwell decided calls later carries them from that
+        sample to its own. An empty list (the default) excludes nothing. A
+        tracking receiver is not affected: the list applies to its next search.
+        A mutator's value, so it travels in the state blob (#2022).
 
         Parameters
         ----------
@@ -3641,15 +3642,16 @@ class AsyncDsssPool:
     ) -> None: ...
     def push(self, x: npt.NDArray[np.complex64]) -> int:
         """Step every receiver on one block, running the controller at every
-        code period it crosses.
+        group of code periods it completes.
 
-        Hands every whole code period it completes to every receiver (header
-        step 1), keeps each one's symbols for symbols(), and after each period
-        releases the lost, resolves duplicates, releases ghosts, seeds the idle
-        receivers and sets the search's levers (step 3). The samples past the
-        last whole period are kept for the next push. Accepts any block size,
-        and state carries across calls: the result is a function of the stream,
-        not of its blocking.
+        Hands every whole group of ASYNC_DSSS_POOL_PERIODS_PER_JOIN code
+        periods it completes to the search and every receiver, one period a
+        call (header steps 1 and 2), keeps each one's symbols for symbols(),
+        and after each group releases the lost, resolves duplicates, releases
+        ghosts, seeds the idle receivers and sets the search's levers (step 3).
+        The samples past the last whole group are kept for the next push.
+        Accepts any block size, and state carries across calls: the result is a
+        function of the stream, not of its blocking.
 
         Parameters
         ----------

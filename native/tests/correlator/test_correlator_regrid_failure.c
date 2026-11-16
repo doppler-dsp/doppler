@@ -156,7 +156,9 @@ snap (const dp_correlator_state_t *s)
    drop search_apply_threads from dp_correlator_regrid, or apply `threads` in
    place of `threads_req` -> the widened engine reads 1. Cap every depth
    (the rule before #3047) -> the D > 1 widen reads 3 at 4 asked; drop the
-   cap -> the D = 1 widen reads 4. */
+   cap -> the D = 1 widen reads 4. One tile at D > 1 takes the request
+   whole as a tiled block does (#3055); sabotage: ask for workers only at
+   window_bins > 1 -> the deep narrowing reads 1 at 2 and 4 asked. */
 static int
 threads_follow_the_request (void)
 {
@@ -169,8 +171,6 @@ threads_follow_the_request (void)
       dp_correlator_state_t *a = make_engine ();
       DP_REQUIRE_MSG (a && a->search->window_bins == 1, "a one-tile engine");
       DP_CHECK (dp_correlator_set_threads (a, n) == DP_OK);
-      DP_CHECK (a->search->threads
-                == 1); /* one tile: serial, whatever asked */
       DP_REQUIRE_MSG (dp_correlator_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL,
                                             a->search->carrier_freq_hz)
                           == 0,
@@ -179,16 +179,29 @@ threads_follow_the_request (void)
       DP_REQUIRE_MSG (dp_correlator_regrid (a, NEW_D, NEW_NC, 1, NULL,
                                             a->search->carrier_freq_hz)
                           == 0,
-                      "narrow");
+                      "narrow, a block of several epochs");
+      DP_CHECK_MSG (a->search->threads == w,
+                    "one tile at D > 1 takes the request whole");
+      DP_REQUIRE_MSG (dp_correlator_regrid (a, 1, NEW_NC, 1, NULL,
+                                            a->search->carrier_freq_hz)
+                          == 0,
+                      "narrow, one epoch a block");
       DP_CHECK (a->search->threads == 1);
-      DP_CHECK_MSG (a->pool == NULL, "one tile runs without a pool");
+      DP_CHECK_MSG (a->pool == NULL, "one tile at D = 1 runs without a pool");
       DP_REQUIRE_MSG (dp_correlator_regrid (a, NEW_D, NEW_NC, NEW_WINDOW, NULL,
                                             a->search->carrier_freq_hz)
                           == 0,
                       "widen again");
       DP_CHECK (a->search->threads == w);
-      DP_CHECK_MSG ((a->pool != NULL) == (w > 1),
-                    "a pool exactly when fanned");
+      /* A regrid only counts the workers; the first push starts them
+         (10 pooled receivers used to start and stop a worker a core each
+         at create). Sabotage: build the pool in search_apply_threads ->
+         the first check; drop dp__search_push's start -> the second. */
+      DP_CHECK_MSG (a->pool == NULL, "a regrid starts no worker");
+      dp_correlator_hit_t hh[4];
+      (void)run_hits (a, hh, 4);
+      DP_CHECK_MSG ((a->pool != NULL) == (w > 1) && a->search->threads == w,
+                    "a pool exactly when fanned, from the first push");
       DP_REQUIRE_MSG (dp_correlator_regrid (a, 1, NEW_NC, NEW_WINDOW, NULL,
                                             a->search->carrier_freq_hz)
                           == 0,

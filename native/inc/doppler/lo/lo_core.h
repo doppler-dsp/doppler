@@ -139,7 +139,12 @@ extern "C"
    * float _Complex s0 = lo_step (&lo);   // 1 + 0j
    * float _Complex s1 = lo_step (&lo);   // 0 + 1j
    * @endcode
+   *
+   * @note C only, with lo_step_ctrl(): the bodies build their result with
+   *   CMPLXF, which C++ does not have (dp_complex.h, "From C++"). A C++
+   *   caller uses dp_lo_steps() and dp_lo_steps_ctrl().
    */
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT float _Complex lo_step (dp_lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
@@ -187,6 +192,7 @@ extern "C"
     state->phase += state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return out;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Create an LO instance.

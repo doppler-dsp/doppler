@@ -555,7 +555,11 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   JM_FORCEINLINE float
   nco_frac_to_weight (uint32_t frac)
   {
-    return (float)(frac >> 8) * 0x1p-24f;
+    /* 2^-24, spelled as an exact quotient rather than `0x1p-24f`: a
+     * hexadecimal float literal is C99 and C++17, and this header is
+     * included from C++11 (`make cxx-headers-check`). The quotient of two
+     * powers of two is folded to the same constant, bit for bit. */
+    return (float)(frac >> 8) * (1.0f / 16777216.0f);
   }
 
   /**

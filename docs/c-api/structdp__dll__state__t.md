@@ -96,6 +96,7 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**rate\_i**](#variable-rate_i)  <br> |
 |  double | [**rate\_p**](#variable-rate_p)  <br> |
 |  uint32\_t | [**rng**](#variable-rng)  <br> |
+|  float \* | [**rtab**](#variable-rtab)  <br> |
 |  double | [**seed\_chip**](#variable-seed_chip)  <br> |
 |  double | [**seg\_chips**](#variable-seg_chips)  <br> |
 |  size\_t | [**seg\_idx**](#variable-seg_idx)  <br> |
@@ -1227,6 +1228,23 @@ uint32_t dp_dll_state_t::rng;
 
 xorshift32 state for the random offset. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable rtab 
+
+```C++
+float* dp_dll_state_t::rtab;
+```
+
+
+
+The replica's +-1 values on its half-chip grid, 2 sf + 1 floats: entry i is the sign of chip i / 2 and entry 2 sf repeats entry 0, so a tap reads its two grid points without the wrap test or the chip-to-sign step [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word) takes. Owned: [**dp\_dll\_create()**](dll__core_8h.md#function-dp_dll_create) builds it from the code, [**dp\_dll\_destroy()**](dll__core_8h.md#function-dp_dll_destroy) frees it. NULL means none: [**dp\_dll\_init()**](dll__core_8h.md#function-dp_dll_init) allocates nothing, and its taps go through [**dll\_replica\_word()**](dll__core_8h.md#function-dll_replica_word), to the same values. Derived from `code`, so zeroed in blobs and kept across set\_state like it. 
 
 
         

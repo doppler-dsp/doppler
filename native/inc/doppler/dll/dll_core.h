@@ -319,6 +319,16 @@ typedef struct {
     float _Complex *aid_ring_l; /**< last `aid_ring` late partials.          */
     double        *aid_power;  /**< per-hypothesis window-power EMA (Q).    */
     int owns_code;           /**< 1 if dp_dll_destroy() frees `code`.         */
+    /** The replica's +-1 values on its half-chip grid, 2 sf + 1 floats:
+        entry i is the sign of chip i / 2 and entry 2 sf repeats entry 0, so
+        a tap
+        reads its two grid points without the wrap test or the chip-to-sign
+        step dll_replica_word() takes. Owned: dp_dll_create() builds it from
+        the code, dp_dll_destroy() frees it. NULL means none: dp_dll_init()
+        allocates nothing, and its taps go through dll_replica_word(), to the
+        same values. Derived from `code`, so zeroed in blobs and kept across
+        set_state like it. */
+    float *rtab;
     dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */
 } dp_dll_state_t;
 
@@ -1592,7 +1602,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 16u /* v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 17u /* v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

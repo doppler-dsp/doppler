@@ -914,6 +914,7 @@
 * **rate\_aid** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rate\_i** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rate\_p** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
+* **rtab** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rs** ([**dp\_doppler\_channel\_state\_t**](structdp__doppler__channel__state__t.md), [**dp\_rs\_codec\_state\_t**](structdp__rs__codec__state__t.md))
 * **rtaps** ([**dp\_fir\_state\_t**](structdp__fir__state__t.md))
 * **rx\_checked** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))

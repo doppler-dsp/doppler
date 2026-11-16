@@ -31,6 +31,7 @@
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "dp_chunk_inv.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
@@ -1260,10 +1261,236 @@ _test_window_sum_is_the_look_back (void)
   return 0;
 }
 
+/* The block correlate (dll_block) against the per-sample path it stands in
+ * for. A block is two samples or more, so a stream pushed one sample a call
+ * never takes it: dp_chunk_inv.h's single-sample partition IS the
+ * per-sample path, and every other partition moves where the blocks start
+ * and end. Three paths, one answer, to the bit:
+ *
+ *   the per-sample path   (pulls of one sample)
+ *   blocks over rtab       (a create()d Dll, its table)
+ *   blocks without it      (the same Dll with rtab dropped: dp_dll_init's
+ *                           case, the taps through dll_replica_word)
+ *
+ * at segments 4 (blocks stop four words short of each partial's close) and
+ * 1 (at the wrap), at 2.2 samples a chip so the phase word is never on the
+ * grid. Puts across the wrap both ways arrive mid-stream at fixed SAMPLES,
+ * whatever the partition, so wrap_pending and wrap_await are crossed by the
+ * partitions too; the run asserts it put each at least once.
+ *
+ * Sabotage, each red: a block one sample longer than dll_block_len allows
+ * (it swallows the sample that closes a partial or wraps: 60 partitions
+ * disagree); the block loop's early and late taps swapped (58).
+ *
+ * And the table is no part of the state: the blob of a create()d Dll is
+ * the blob with rtab dropped, set_state keeps the live table, and a Dll
+ * resumed mid-stream from a blob into a fresh create()d one continues
+ * bit-for-bit. Sabotage, red: get_state leaving rtab in the snapshot;
+ * set_state taking the blob's NULL. */
+enum
+{
+  BLK_SF   = 63,
+  BLK_NPER = 240,
+  BLK_NPUT = 12
+};
+
+typedef struct
+{
+  const uint8_t *code;
+  size_t         segments;
+  int            table;
+  const size_t  *put_at; /* BLK_NPUT absolute sample indices, ascending */
+  int           *saw_pending, *saw_await;
+} blk_cfg_t;
+
+typedef struct
+{
+  dp_dll_state_t  *d;
+  const blk_cfg_t *c;
+  size_t           pos, next_put;
+} blk_obj_t;
+
+static void *
+blk_create (void *arg)
+{
+  const blk_cfg_t *c = arg;
+  blk_obj_t       *o = calloc (1, sizeof *o);
+  if (!o)
+    return NULL;
+  o->c = c;
+  o->d = dp_dll_create (c->code, BLK_SF, 2.2, 3.0, 0.01, 0.707, 0.5,
+                        c->segments);
+  if (!o->d)
+    {
+      free (o);
+      return NULL;
+    }
+  if (!c->table)
+    {
+      free (o->d->rtab);
+      o->d->rtab = NULL;
+    }
+  return o;
+}
+
+static void
+blk_destroy (void *obj)
+{
+  blk_obj_t *o = obj;
+  dp_dll_destroy (o->d);
+  free (o);
+}
+
+/* Push n samples, stopping at each fixed put sample to move the phase. */
+static size_t
+blk_process (void *obj, const void *in, size_t n, void *out, size_t cap)
+{
+  blk_obj_t            *o   = obj;
+  const float _Complex *x   = in;
+  float _Complex       *y   = out;
+  size_t                got = 0, done = 0;
+  while (done < n)
+    {
+      size_t m = n - done;
+      if (o->next_put < BLK_NPUT)
+        {
+          const size_t at = o->c->put_at[o->next_put];
+          if (at == o->pos)
+            {
+              /* Across the wrap at every put: an even put walks the phase
+                 forward 0.3 of a period at a time until it is past 0.6,
+                 then jumps 0.45 forward over the end (wrap_pending); an
+                 odd one the mirror, back over the start (wrap_await). A
+                 step is under half a period, so it goes the way it says. */
+              const double sfd = (double)BLK_SF,
+                           fwd = (o->next_put & 1u) ? -1.0 : 1.0;
+              while (fwd > 0 ? o->d->chip_pos <= 0.6 * sfd
+                             : o->d->chip_pos >= 0.4 * sfd)
+                dp_dll_set_code_phase (o->d, o->d->chip_pos + fwd * 0.3 * sfd);
+              dp_dll_set_code_phase (o->d, o->d->chip_pos + fwd * 0.45 * sfd);
+              *o->c->saw_pending |= o->d->wrap_pending;
+              *o->c->saw_await |= o->d->wrap_await;
+              o->next_put++;
+              continue;
+            }
+          if (at - o->pos < m)
+            m = at - o->pos;
+        }
+      got += dp_dll_steps (o->d, x + done, m, y + got, cap - got);
+      done += m;
+      o->pos += m;
+    }
+  return got;
+}
+
+static int
+_test_block_correlate_is_the_per_sample_path (void)
+{
+  uint8_t         code[BLK_SF];
+  const size_t    n = (size_t)((double)(BLK_SF * BLK_NPER) * 2.2);
+  float _Complex *x = malloc (n * sizeof *x);
+  float _Complex *a = malloc (n * sizeof *a);
+  float _Complex *b = malloc (n * sizeof *b);
+  size_t          put_at[BLK_NPUT];
+  DP_REQUIRE (x && a && b);
+  make_code (code, BLK_SF, 3141u);
+  /* The code at a rate 1e-4 off, a carrier spinning a few degrees a
+     period, and noise: every tap and the loop's steer see changing data. */
+  uint32_t r = 2718u;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double chip = (double)i * (1.0 + 1e-4) / 2.2;
+      const float  v    = code[(size_t)floor (chip) % BLK_SF] ? -1.0f : 1.0f;
+      const float  ph   = (float)(1e-3 * (double)i);
+      const float  nr   = (float)(dp_xs32 (&r) >> 8) / 16777216.0f - 0.5f;
+      const float  ni   = (float)(dp_xs32 (&r) >> 8) / 16777216.0f - 0.5f;
+      x[i] = v * (cosf (ph) + I * sinf (ph)) + 0.8f * (nr + I * ni);
+    }
+  for (size_t k = 0; k < BLK_NPUT; k++)
+    put_at[k] = (k + 1) * (n / (BLK_NPUT + 1)) + 7 * k;
+
+  const size_t segs[2] = { 4, 1 };
+  for (size_t si = 0; si < 2; si++)
+    {
+      int          pend = 0, wait = 0;
+      blk_cfg_t    ct   = { code, segs[si], 1, put_at, &pend, &wait };
+      blk_cfg_t    cn   = { code, segs[si], 0, put_at, &pend, &wait };
+      dp_ci_spec_t spec = { .name     = "dp_dll (table)",
+                            .create   = blk_create,
+                            .destroy  = blk_destroy,
+                            .process  = blk_process,
+                            .arg      = &ct,
+                            .in_size  = sizeof (float _Complex),
+                            .out_size = sizeof (float _Complex),
+                            .out_cap  = n,
+                            .frame_n  = (size_t)(BLK_SF * 2.2) };
+      DP_CHECK_MSG (dp_chunk_invariance (&spec, x, n) == 0,
+                    "blocks over the table give the per-sample bits");
+      spec.name = "dp_dll (no table)";
+      spec.arg  = &cn;
+      DP_CHECK_MSG (dp_chunk_invariance (&spec, x, n) == 0,
+                    "blocks without the table give the per-sample bits");
+      /* The two one-shots, table against none. */
+      void *ot = blk_create (&ct), *on = blk_create (&cn);
+      DP_REQUIRE (ot && on);
+      const size_t kt = blk_process (ot, x, n, a, n);
+      const size_t kn = blk_process (on, x, n, b, n);
+      DP_CHECK (kt > 0 && kt == kn);
+      DP_CHECK_MSG (memcmp (a, b, kt * sizeof *a) == 0,
+                    "the table changes no bit");
+      blk_destroy (ot);
+      blk_destroy (on);
+      DP_CHECK_MSG (pend && wait, "the puts crossed the wrap both ways");
+      printf ("  block correlate, segments %zu: %zu outputs, one answer by "
+              "every partition, table or not\n",
+              segs[si], kt);
+    }
+
+  /* The table is no part of the state. */
+  {
+    dp_dll_state_t *d
+        = dp_dll_create (code, BLK_SF, 2.2, 3.0, 0.01, 0.707, 0.5, 4);
+    DP_REQUIRE (d && d->rtab);
+    const size_t   half = n / 2 + 13;
+    const size_t   na   = dp_dll_steps (d, x, half, a, n);
+    const size_t   cb   = dp_dll_state_bytes (d);
+    unsigned char *b1 = malloc (cb), *b2 = malloc (cb);
+    DP_REQUIRE (b1 && b2);
+    dp_dll_get_state (d, b1);
+    float *keep = d->rtab;
+    d->rtab     = NULL;
+    dp_dll_get_state (d, b2);
+    d->rtab = keep;
+    DP_CHECK_MSG (memcmp (b1, b2, cb) == 0,
+                  "a create()d Dll's blob is its blob without the table");
+    DP_CHECK (dp_dll_set_state (d, b1) == DP_OK);
+    DP_CHECK_MSG (d->rtab == keep, "set_state keeps the live table");
+    /* Resume mid-stream into a fresh create()d Dll, its own table. */
+    dp_dll_state_t *e
+        = dp_dll_create (code, BLK_SF, 2.2, 0.0, 0.01, 0.707, 0.5, 4);
+    DP_REQUIRE (e && e->rtab && e->rtab != keep);
+    DP_CHECK (dp_dll_set_state (e, b1) == DP_OK);
+    const size_t nd = dp_dll_steps (d, x + half, n - half, a + na, n - na);
+    const size_t ne = dp_dll_steps (e, x + half, n - half, b, n);
+    DP_CHECK (nd > 0 && nd == ne);
+    DP_CHECK_MSG (memcmp (a + na, b, nd * sizeof *b) == 0,
+                  "a Dll resumed from the blob continues bit-for-bit");
+    free (b1);
+    free (b2);
+    dp_dll_destroy (d);
+    dp_dll_destroy (e);
+  }
+  free (x);
+  free (a);
+  free (b);
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK (_test_window_sum_is_the_look_back () == 0);
+  DP_CHECK (_test_block_correlate_is_the_per_sample_path () == 0);
 
   /* ---------------------------------------------------------------- *
    * 1. Lifecycle, NULL-code guard, init==create parity               *

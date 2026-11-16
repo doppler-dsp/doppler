@@ -277,6 +277,11 @@ extern "C"
    *                     stages inline and its once-a-block ones fanned
    *                     when a block is more than one epoch
    *                     (async-dsss-receiver.md §5).
+   * @param refine       The receivers' own refine: false hands a seed
+   *                     straight to tracking, and is refused, as the
+   *                     receiver refuses it, when the search's depth is
+   *                     under 25 (dp_async_dsss_receiver_create()). Default
+   *                     true.
    * @return A new pool, every receiver idle; NULL on an invalid
    *         argument, or one any receiver refuses.
    * @note Caller must call dp_async_dsss_pool_destroy() when done.
@@ -307,7 +312,7 @@ extern "C"
       size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s, bool reacquire, double code_only_s,
-      double doppler_rate, int threads);
+      double doppler_rate, int threads, bool refine);
 
   /**
    * @brief Destroy a pool and every receiver.

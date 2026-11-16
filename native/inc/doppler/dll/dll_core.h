@@ -324,9 +324,10 @@ typedef struct {
         a tap
         reads its two grid points without the wrap test or the chip-to-sign
         step dll_replica_word() takes. Owned: dp_dll_create() builds it from
-        the code, dp_dll_destroy() frees it. NULL means none: dp_dll_init()
-        allocates nothing, and its taps go through dll_replica_word(), to the
-        same values. Derived from `code`, so zeroed in blobs and kept across
+        the code when it can (a failed allocation leaves NULL), and
+        dp_dll_destroy() frees it. NULL means none: dp_dll_init() allocates
+        nothing, and its taps go through dll_replica_word(), to the same
+        values. Derived from `code`, so zeroed in blobs and kept across
         set_state like it. */
     float *rtab;
     dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */

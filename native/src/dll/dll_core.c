@@ -488,14 +488,15 @@ static float *
 build_rtab (const uint8_t *code, size_t sf)
 {
   size_t n;
-  if (!dp_size_mul (sf, 2, &n) || !dp_size_add (n, 1, &n))
-    return NULL;
-  float *t = dp_mallocn (n, sizeof *t);
-  if (!t)
-    return NULL;
-  for (size_t i = 0; i < 2 * sf; i++)
-    t[i] = dll_chip_sign (code[i >> 1]);
-  t[2 * sf] = t[0];
+  float *t = dp_size_mul (sf, 2, &n) && dp_size_add (n, 1, &n)
+                 ? dp_mallocn (n, sizeof *t)
+                 : NULL;
+  if (t)
+    {
+      for (size_t i = 0; i < 2 * sf; i++)
+        t[i] = dll_chip_sign (code[i >> 1]);
+      t[2 * sf] = t[0];
+    }
   return t;
 }
 
@@ -530,14 +531,9 @@ dp_dll_create (const uint8_t *code, size_t code_len, double sps,
     }
   obj->code      = copy;
   obj->owns_code = 1;
-  obj->rtab      = build_rtab (copy, obj->sf);
-  if (!obj->rtab)
-    {
-      free_segment_buffers (obj);
-      free (copy);
-      free (obj);
-      return NULL;
-    }
+  /* A table that could not be allocated is no table: the taps read the
+     code, to the same values (dp_dll_init()'s case). */
+  obj->rtab = build_rtab (copy, obj->sf);
   seed (obj);
   return obj;
 }
@@ -972,9 +968,8 @@ dll_block_len (const dp_dll_state_t *s, size_t left)
       limit = t > 4u ? t - 4u : 0u;
     }
   const uint64_t inc = s->code_nco.phase_inc, ph = s->code_nco.phase;
-  if (inc == 0)
-    return left;
-  if (limit <= ph + inc)
+  /* A phase that does not advance has no block length to divide for. */
+  if (inc == 0 || limit <= ph + inc)
     return 0;
   const uint64_t k = (limit - 1 - ph) / inc;
   return k < left ? (size_t)k : left;

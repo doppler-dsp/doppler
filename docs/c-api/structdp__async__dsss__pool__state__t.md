@@ -43,6 +43,7 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 |  size\_t | [**feed\_n**](#variable-feed_n)  <br> |
 |  const float \_Complex \* | [**feed\_x**](#variable-feed_x)  <br> |
 |  size\_t | [**ghost\_window**](#variable-ghost_window)  <br> |
+|  size\_t | [**group**](#variable-group)  <br> |
 |  size\_t \* | [**hist\_len**](#variable-hist_len)  <br> |
 |  size\_t | [**hist\_pos**](#variable-hist_pos)  <br> |
 |  double | [**lattice\_hz**](#variable-lattice_hz)  <br> |
@@ -147,7 +148,8 @@ float _Complex* dp_async_dsss_pool_state_t::carry;
 
 
 
-The pushed samples past the last whole period, not yet fed: period long. 
+The pushed samples past the last whole group, not yet fed: group long. 
+ 
 
 
         
@@ -164,7 +166,7 @@ size_t dp_async_dsss_pool_state_t::carry_len;
 
 
 
-How many; &lt; period. 
+How many; &lt; group. 
  
 
 
@@ -199,7 +201,8 @@ size_t dp_async_dsss_pool_state_t::feed_n;
 
 
 
-Samples in feed\_x: one code period while push() steps. 
+Samples in feed\_x: one group while push() steps. 
+ 
 
 
         
@@ -236,6 +239,23 @@ size_t dp_async_dsss_pool_state_t::ghost_window;
 
 Controller steps (code periods) in the ghost rule's window. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable group 
+
+```C++
+size_t dp_async_dsss_pool_state_t::group;
+```
+
+
+
+Samples a join: period times ASYNC\_DSSS\_POOL\_PERIODS\_PER\_JOIN. 
 
 
         
@@ -340,7 +360,7 @@ size_t dp_async_dsss_pool_state_t::period;
 
 
 
-Samples a code period: the controller runs every period of `samples`. 
+Samples a code period: one receiver call. 
  
 
 

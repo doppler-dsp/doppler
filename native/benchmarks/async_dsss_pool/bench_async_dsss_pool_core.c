@@ -143,7 +143,12 @@ all_searching (dp_async_dsss_pool_state_t *p, size_t n_rx, uint64_t pushed,
  *
  * Two depths: D = 150, the design's (a 500-symbol code-only block), and
  * D = 1 (a code-only block of one code period). Every push is the D = 150
- * dwell's length, so the rows compare per sample. */
+ * dwell's length, so the rows compare per sample.
+ *
+ * And the same rows at the CCSDS 415.1-B-1 specification point
+ * (async-dsss-receiver.md §1), at 2.2 and 2.8 GHz: nine emitters held and
+ * the tenth receiver idle, so the search runs every period, on one thread
+ * and on 16, every push the pool's own dwell (main() names the point). */
 #define AIR_RX 10
 #define AIR_ITERS 4
 #define AIR_MAX_PUSHES 80
@@ -152,6 +157,24 @@ all_searching (dp_async_dsss_pool_state_t *p, size_t n_rx, uint64_t pushed,
 #define AIR_CARRIER 2.5e9
 #define AIR_CODE_ONLY_SYM 500u
 #define AIR_FRAME_SYM 1000u
+
+/* The operating point an on-air row runs at. The rows above it run the
+   5 Mcps point (AIR_5MCPS); the 415.1-B-1 rows run the specification point
+   (docs/design/async-dsss-receiver.md §1) at a band end. */
+typedef struct
+{
+  double chip;        /* chips a second */
+  double cn0;         /* the pool's design C/N0, dB-Hz */
+  double carrier_hz;  /* RF carrier */
+  double span_hz;     /* the receivers' doppler_uncertainty, +/- */
+  double code_only_s; /* the deep rows' code-only window */
+  double rate_hz_s;   /* the search's rate bound */
+  double f_lo, f_hi;  /* emitters spread over [f_lo, f_hi] at the start */
+  double ramp_hz_s;   /* every emitter's Doppler rate */
+  double tol_hz;      /* a tracked Doppler within this of its emitter's */
+  size_t code_only_sym, frame_sym; /* the synth's data-free window */
+  size_t block_periods; /* code periods a push; 0: the pool's own D */
+} air_pt_t;
 
 typedef struct
 {
@@ -164,11 +187,13 @@ typedef struct
   int         threads;
 } air_row_t;
 
-/* Emitter k's Doppler, Hz: spread over +/- 40 kHz. */
+/* Emitter k's Doppler, Hz, t seconds into the stream: spread over the
+   point's [f_lo, f_hi], all on the point's ramp. */
 static double
-air_doppler (int k, int k_on)
+air_doppler (const air_pt_t *pt, int k, int k_on, double t)
 {
-  return -40e3 + 80e3 * ((double)k + 0.37) / (double)k_on;
+  return pt->f_lo + (pt->f_hi - pt->f_lo) * ((double)k + 0.37) / (double)k_on
+         + pt->ramp_hz_s * t;
 }
 
 /* K emitters and the noise as one stream at 11 MSa/s, made a push at a
@@ -206,8 +231,9 @@ air_src_free (air_src_t *a)
 
 static int
 air_src_init (air_src_t *a, const uint8_t *code, const air_row_t *w,
-              double chip, double sym, double cn0, double fs_in, size_t block)
+              const air_pt_t *pt, double sym, double fs_in, size_t block)
 {
+  const double chip = pt->chip, cn0 = pt->cn0;
   const double fs10 = 2.0 * chip;
   *a                = (air_src_t){ 0 };
   a->k              = w->k;
@@ -222,23 +248,24 @@ air_src_init (air_src_t *a, const uint8_t *code, const air_row_t *w,
     return 0;
   for (int k = 0; k < w->k; k++)
     {
-      const double f = air_doppler (k, w->k);
+      const double f = air_doppler (pt, k, w->k, 0.0);
       a->amp[k] = (float)pow (10.0, (w->gain_db + (k == 0 ? w->lead_db : 0.0))
                                         / 20.0);
       a->syn[k] = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs10, 0.0,
                                        WFM_SYNTH_SNR_CLEAN, 1,
                                        100u + (uint32_t)k, 2, 15, 0, 0, 0.0);
       a->rc[k]  = dp_RateConverter_create (fs_in / fs10, 0);
-      a->ch[k]  = dp_doppler_channel_create (fs_in, AIR_CARRIER,
-                                             f / AIR_CARRIER * 1e6, 0.0);
+      a->ch[k]  = dp_doppler_channel_create (
+          fs_in, pt->carrier_hz, f / pt->carrier_hz * 1e6,
+          pt->ramp_hz_s / pt->carrier_hz * 1e6);
       a->buf[k] = malloc (a->cap * sizeof *a->buf[k]);
       a->lag[k] = 197u * (size_t)k; /* at 10 MSa/s: 216.7 at 11 */
       if (!a->syn[k] || !a->rc[k] || !a->ch[k] || !a->buf[k]
           || dp_wfm_synth_set_dsss_cont (a->syn[k], code, CODE_LEN, chip / sym,
                                          WFM_DSSS_DATA_PRBS, NULL, 0)
                  != 0
-          || dp_wfm_synth_set_dsss_window (a->syn[k], AIR_CODE_ONLY_SYM,
-                                           AIR_FRAME_SYM)
+          || dp_wfm_synth_set_dsss_window (a->syn[k], pt->code_only_sym,
+                                           pt->frame_sym)
                  != 0)
         return 0;
     }
@@ -250,7 +277,8 @@ air_src_init (air_src_t *a, const uint8_t *code, const air_row_t *w,
    the strongest, when fewer are expected than are on the air), so a
    duplicate, a ghost or a sidelobe held in place of a signal fails it. */
 static int
-air_holds (dp_async_dsss_pool_state_t *p, const air_row_t *w)
+air_holds (dp_async_dsss_pool_state_t *p, const air_row_t *w,
+           const air_pt_t *pt, double t)
 {
   int held[AIR_MAX_K] = { 0 }, n = 0;
   for (size_t i = 0; i < AIR_RX; i++)
@@ -260,7 +288,9 @@ air_holds (dp_async_dsss_pool_state_t *p, const air_row_t *w)
         continue;
       int k = -1;
       for (int j = 0; j < w->k && k < 0; j++)
-        if (!held[j] && fabs (st.doppler_hz - air_doppler (j, w->k)) < 1e3)
+        if (!held[j]
+            && fabs (st.doppler_hz - air_doppler (pt, j, w->k, t))
+                   < pt->tol_hz)
           k = j;
       if (k < 0)
         return 0;
@@ -305,53 +335,67 @@ air_src_next (air_src_t *a, float _Complex *x, size_t n)
   return 1;
 }
 
-static int
-bench_on_air (jm_bench_t *bench, const uint8_t *code, double chip, double sym,
-              double cn0)
-{
-  const double    fs_in  = 11e6;
-  const air_row_t rows[] = {
-    { "push[air,K=0,D=150,threads=4]", 0, 0, 0.0, 0.0, 1, 4 },
-    { "push[air,K=1,design,D=150,threads=4]", 1, 1, 0.0, 0.0, 1, 4 },
-    { "push[air,K=1,+6dB,D=150,threads=4]", 1, 1, 6.0, 0.0, 1, 4 },
-    { "push[air,K=5,design,D=150,threads=4]", 5, 5, 0.0, 0.0, 1, 4 },
-    { "push[air,K=9,design,D=150,threads=1]", 9, 9, 0.0, 0.0, 1, 1 },
-    { "push[air,K=9,design,D=150,threads=4]", 9, 9, 0.0, 0.0, 1, 4 },
-    { "push[air,K=9,design,D=150,threads=10]", 9, 9, 0.0, 0.0, 1, 10 },
-    { "push[air,K=9,+6dB,D=150,threads=4]", 9, 9, 6.0, 0.0, 1, 4 },
-    { "push[air,near-far+20dB,D=150,threads=4]", 2, 1, 0.0, 20.0, 1, 4 },
-    { "push[air,K=0,D=1,threads=4]", 0, 0, 0.0, 0.0, 0, 4 },
-    { "push[air,K=1,design,D=1,threads=4]", 1, 1, 0.0, 0.0, 0, 4 },
-    { "push[air,K=9,design,D=1,threads=1]", 9, 9, 0.0, 0.0, 0, 1 },
-    { "push[air,K=9,design,D=1,threads=4]", 9, 9, 0.0, 0.0, 0, 4 },
-    { "push[air,K=9,design,D=1,threads=10]", 9, 9, 0.0, 0.0, 0, 10 },
-    { "push[air,near-far+20dB,D=1,threads=4]", 2, 1, 0.0, 20.0, 0, 4 },
-  };
-  const int n_rows = (int)(sizeof rows / sizeof *rows);
-  /* One push: the D = 150 dwell at 11 MSa/s, for every row. */
-  const size_t    block = (size_t)llround (150.0 * CODE_LEN / chip * fs_in);
-  float _Complex *x     = malloc (block * sizeof *x);
-  if (!x)
-    return 0;
+static const air_row_t AIR_5MCPS_ROWS[] = {
+  { "push[air,K=0,D=150,threads=4]", 0, 0, 0.0, 0.0, 1, 4 },
+  { "push[air,K=1,design,D=150,threads=4]", 1, 1, 0.0, 0.0, 1, 4 },
+  { "push[air,K=1,+6dB,D=150,threads=4]", 1, 1, 6.0, 0.0, 1, 4 },
+  { "push[air,K=5,design,D=150,threads=4]", 5, 5, 0.0, 0.0, 1, 4 },
+  { "push[air,K=9,design,D=150,threads=1]", 9, 9, 0.0, 0.0, 1, 1 },
+  { "push[air,K=9,design,D=150,threads=4]", 9, 9, 0.0, 0.0, 1, 4 },
+  { "push[air,K=9,design,D=150,threads=10]", 9, 9, 0.0, 0.0, 1, 10 },
+  { "push[air,K=9,+6dB,D=150,threads=4]", 9, 9, 6.0, 0.0, 1, 4 },
+  { "push[air,near-far+20dB,D=150,threads=4]", 2, 1, 0.0, 20.0, 1, 4 },
+  { "push[air,K=0,D=1,threads=4]", 0, 0, 0.0, 0.0, 0, 4 },
+  { "push[air,K=1,design,D=1,threads=4]", 1, 1, 0.0, 0.0, 0, 4 },
+  { "push[air,K=9,design,D=1,threads=1]", 9, 9, 0.0, 0.0, 0, 1 },
+  { "push[air,K=9,design,D=1,threads=4]", 9, 9, 0.0, 0.0, 0, 4 },
+  { "push[air,K=9,design,D=1,threads=10]", 9, 9, 0.0, 0.0, 0, 10 },
+  { "push[air,near-far+20dB,D=1,threads=4]", 2, 1, 0.0, 20.0, 0, 4 },
+};
 
-  printf ("\n=== async_dsss_pool on the air: 11 MSa/s in, 2.5 GHz carrier, "
-          "data-free blocks, %d receivers ===\n",
-          AIR_RX);
-  int ok = 1;
+/* The 415.1-B-1 rows: nine emitters held and the tenth receiver idle, so
+   the search runs every period, on one thread and on 16 (the dev box's
+   cores), at each band end. */
+static const air_row_t AIR_SPEC_22_ROWS[] = {
+  { "push[415.1,2.2GHz,K=9,threads=1]", 9, 9, 0.0, 0.0, 1, 1 },
+  { "push[415.1,2.2GHz,K=9,threads=16]", 9, 9, 0.0, 0.0, 1, 16 },
+};
+static const air_row_t AIR_SPEC_28_ROWS[] = {
+  { "push[415.1,2.8GHz,K=9,threads=1]", 9, 9, 0.0, 0.0, 1, 1 },
+  { "push[415.1,2.8GHz,K=9,threads=16]", 9, 9, 0.0, 0.0, 1, 16 },
+};
+
+static int
+bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
+              double sym, const air_row_t *rows, int n_rows)
+{
+  const double fs_in = 11e6, chip = pt->chip, cn0 = pt->cn0;
+  int          ok = 1;
   for (int r = 0; r < n_rows && ok; r++)
     {
       const air_row_t            *w   = &rows[r];
       air_src_t                   src = { 0 };
       dp_async_dsss_pool_state_t *p   = dp_async_dsss_pool_create (
-          code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9, 50e3, 4,
-          8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, AIR_CARRIER, 2.0, false,
-          w->deep ? CODE_ONLY_S : CODE_LEN / chip, DOPPLER_RATE, w->threads);
-      if (!p || !air_src_init (&src, code, w, chip, sym, cn0, fs_in, block))
+          code, CODE_LEN, AIR_RX, chip, sym, fs_in, 2, cn0, 1e-3, 0.9,
+          pt->span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
+          pt->carrier_hz, 2.0, false,
+          w->deep ? pt->code_only_s : CODE_LEN / chip, pt->rate_hz_s,
+          w->threads);
+      /* One push: block_periods code periods at 11 MSa/s, or the pool's
+         own dwell. */
+      const size_t periods = pt->block_periods ? pt->block_periods
+                             : p ? dp_async_dsss_pool_get_coherent_bins (p)
+                                 : 1;
+      const size_t block
+          = (size_t)llround ((double)periods * CODE_LEN / chip * fs_in);
+      float _Complex *x = malloc (block * sizeof *x);
+      if (!p || !x || !air_src_init (&src, code, w, pt, sym, fs_in, block))
         {
           (void)fprintf (stderr, "bench_async_dsss_pool[%s]: setup failed\n",
                          w->name);
           dp_async_dsss_pool_destroy (p);
           air_src_free (&src);
+          free (x);
           ok = 0;
           break;
         }
@@ -377,7 +421,8 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, double chip, double sym,
               = p->released_duplicate + p->released_ghost + p->released_lost;
           /* Steady state: the held set right, nothing released since the
              push before, and one settled push skipped after lock. */
-          const int holds = air_holds (p, w) && rel == released;
+          const int holds = air_holds (p, w, pt, (double)pushed / fs_in)
+                            && rel == released;
           released        = rel;
           settled         = holds ? settled + 1 : 0;
           if (settled >= 2 && p->search_periods - s0 == fed)
@@ -416,8 +461,8 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, double chip, double sym,
         }
       dp_async_dsss_pool_destroy (p);
       air_src_free (&src);
+      free (x);
     }
-  free (x);
   return ok;
 }
 
@@ -564,8 +609,63 @@ main (void)
               (double)block_in / sec / fs_in);
     }
 
-  if (!bench_on_air (&_bench, code, chip, sym, cn0))
+  /* The 5 Mcps point the rows above pin: +/- 50 kHz, a 2.5 GHz carrier,
+     emitters spread over +/- 40 kHz with no ramp, a 500-symbol data-free
+     block in every 1,000-symbol frame, every push the D = 150 dwell. */
+  const air_pt_t at5 = { .chip          = chip,
+                         .cn0           = cn0,
+                         .carrier_hz    = AIR_CARRIER,
+                         .span_hz       = 50e3,
+                         .code_only_s   = CODE_ONLY_S,
+                         .rate_hz_s     = DOPPLER_RATE,
+                         .f_lo          = -40e3,
+                         .f_hi          = 40e3,
+                         .ramp_hz_s     = 0.0,
+                         .tol_hz        = 1e3,
+                         .code_only_sym = AIR_CODE_ONLY_SYM,
+                         .frame_sym     = AIR_FRAME_SYM,
+                         .block_periods = 150 };
+  printf ("\n=== async_dsss_pool on the air: 11 MSa/s in, 2.5 GHz carrier, "
+          "data-free blocks, %d receivers ===\n",
+          AIR_RX);
+  if (!bench_on_air (&_bench, code, &at5, sym, AIR_5MCPS_ROWS,
+                     (int)(sizeof AIR_5MCPS_ROWS / sizeof *AIR_5MCPS_ROWS)))
     return 1;
+
+  /* The 415.1-B-1 specification point at each band end: chips at
+     fc x 31/21216, 3,000 sym/s, +/-1,500 Hz, a 400 Hz/s rate bound, a
+     275-symbol code-only window in every 1,000-symbol frame, 4 dB Es/N0.
+     The nine emitters sit 311 Hz apart from -1,335 Hz to +1,154 Hz (a
+     tracked Doppler is matched within 150 Hz) and hold their Doppler, as
+     the receiver's 415.1-B-1 rows do: on +400 Hz/s ramps the as-built pool
+     holds three of nine at a wrong Doppler and the row never reaches a
+     steady state (measured when these rows were written), and holding a
+     signal costs the same either way. Every push is the pool's own dwell,
+     D code periods. */
+  const double     spec_cn0     = 4.0 + 10.0 * log10 (sym);
+  const double     fcs[2]       = { 2.2e9, 2.8e9 };
+  const air_row_t *spec_rows[2] = { AIR_SPEC_22_ROWS, AIR_SPEC_28_ROWS };
+  for (int i = 0; i < 2; i++)
+    {
+      const air_pt_t sp = { .chip          = fcs[i] * 31.0 / 21216.0,
+                            .cn0           = spec_cn0,
+                            .carrier_hz    = fcs[i],
+                            .span_hz       = 1500.0,
+                            .code_only_s   = 275.0 / sym,
+                            .rate_hz_s     = 400.0,
+                            .f_lo          = -1450.0,
+                            .f_hi          = 1350.0,
+                            .ramp_hz_s     = 0.0,
+                            .tol_hz        = 150.0,
+                            .code_only_sym = 275,
+                            .frame_sym     = AIR_FRAME_SYM,
+                            .block_periods = 0 };
+      printf ("\n=== async_dsss_pool at 415.1-B-1, %.1f GHz: %.4f Mcps, "
+              "11 MSa/s in, 4 dB Es/N0, 9 emitters, %d receivers ===\n",
+              fcs[i] / 1e9, sp.chip / 1e6, AIR_RX);
+      if (!bench_on_air (&_bench, code, &sp, sym, spec_rows[i], 2))
+        return 1;
+    }
   jm_bench_write_json (&_bench, "async_dsss_pool");
   for (int k = 0; k < N_ROWS; k++)
     {

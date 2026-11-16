@@ -87,15 +87,24 @@ present is open (§1.7).
 ### 1.2 The sample rate is derived, not chosen
 
 The caller states its capture's `sample_rate` (11 MSa/s here); neither the
-receiver nor the pool takes a samples-per-chip. Each derives $N$, the
-samples in one code period, as the smallest power of two of at least two
-samples a chip: 2,048 for a 1,023-chip code, a rate of
-$5\,\text{Mcps} \times 2048/1023 = 10.0098$ MSa/s. It resamples once, on the
-way in (one front end per pool, shared by its receivers and its search).
-The Dll already tracks on a fractional code NCO, and a search tile is one
-bin of the $N$-point transform, $1/T_E$ wide, whatever $N$ is. At the
+receiver nor the pool takes a samples-per-chip. The **search** derives $N$,
+the samples in one code period, as the smallest power of two of at least
+two samples a chip: 2,048 for a 1,023-chip code, a rate of
+$5\,\text{Mcps} \times 2048/1023 = 10.0098$ MSa/s. A search tile is one bin
+of the $N$-point transform, $1/T_E$ wide, whatever $N$ is. At the
 415.1-B-1 point $N$ is still 2,048, a rate of 6.4354 to 8.1905 MSa/s from
 the 11 MSa/s capture across 2.2 to 2.8 GHz.
+
+**Only the search is resampled.** The receiver builds a resampler for its
+search and for nothing else (`dp_async_dsss_receiver_create()`), and skips
+it when the caller's code period is already a whole number of samples.
+Refining and tracking run at the caller's rate, in blocks of
+`floor(code_len · sample_rate / chip_rate)` samples, 3,500 at 2.2 GHz and
+2,750 at 2.8 GHz, where a code period is 3,500.64 and 2,750.50; the
+partials close on the code NCO's phase, so a block need not be a whole
+period. A pool has no front end of its own: its one search resamples
+inside its own receiver, and every pooled receiver reads the caller's
+capture as it arrives (§5).
 
 **Why a power of two.** Every search transform is one code period long. At
 two samples a chip that is $2 \times 1023 = 2 \cdot 3 \cdot 11 \cdot 31$,
@@ -180,6 +189,15 @@ starts, a gap of at least 2·K·D − 1 epochs
 These are the model's numbers, not a detection measured at the band edge,
 and the gap's length is open (§1.7). The search does not hold its dwell
 `K·D` inside a gap (#3082).
+
+**72 is the model's need, not the depth the search runs.** Given this gap
+the engine takes the deepest block §2.1's rule allows, which here is the
+400 Hz/s drift bound: `coherent_bins` reads 108 at 2.2 GHz and 140 at
+2.8 GHz, with one look (`n_noncoh` 1), a dwell of 34.4 and 35.0 ms. A whole
+block of that depth lands inside the gap wherever it starts once the gap
+holds 2·D − 1 code periods, 215 and 279; the 275-symbol gap holds 287 and
+365 whole ones. So the gap holds one whole block at the depth run, and is
+twice the need only at the model's depth.
 
 **It is built from shipped tools.** Each frame is one `FrameDesc`: the
 header and data field by `add_field`, the error control field by
@@ -865,10 +883,9 @@ after.** Its error squares each despread partial before any longer sum, so
 the coherent integration ahead of the non-linearity is one partial, a
 `K`-th of an epoch (about 256 chips at `K` = 4), not a symbol or an epoch.
 Its noise bandwidth is 0.04 of the epoch rate, 125.7 to 160.0 Hz across
-2.2 to 2.8 GHz. At the 415.1-B-1 floor in case L, by arithmetic from the
-squaring loss `1/(1 + 1/(2ρ))` and not yet measured, a partial carries
-−3.2 to −4.3 dB, squaring costs 3.1 to 3.7 dB, and the loop's SNR falls
-from 15.7 to 16.8 dB to 12.0 to 13.7 dB
+2.2 to 2.8 GHz. At the 415.1-B-1 point's 4 dB floor the loop's SNR
+measures 10.2 to 12.8 dB (§4.2), under the 14.5 dB or so where half-cycle
+flips stop
 ([#3090](https://github.com/doppler-dsp/doppler/issues/3090)).
 
 **Its one job also forbids coupling `segments` to a demodulator's `sps`.** The
@@ -1369,7 +1386,12 @@ behavior bit for bit.
 | `refine`           | bool | true                                                                | false         | false: the search's Doppler is the hand-over and the refine's dwell is not spent (tracking starts at the seed's sample); the `refine_*` settings are then unused |
 | `carrier_window`   | enum | `partials`: each partial squared, the squares summed over the block | `code_period` | the carrier loop's error from one coherent sum over the code-period window find_max_power picks, squared and halved                                              |
 
-`refine` false needs nothing else. `code_period` holds only while a symbol
+`refine` false skips the refining state: a seed builds the tracking chain
+at the seed's sample. It holds only while half the search's Doppler row is
+inside the carrier loop's pull-in, which a deep block gives (14.5 Hz
+against 63 to 80 Hz here, §2.3) and a one-epoch search does not (§4), so a
+refusal or a warning at `D = 1` is part of the knob's design.
+`code_period` holds only while a symbol
 is at least a code period, which the specification's case is (§1.5); a
 receiver configured outside it keeps `partials`, and a refusal or a warning
 there is part of the knob's design. `K` is the existing `segments`, default
@@ -1427,6 +1449,24 @@ Each with what would confirm it or kill it.
         confidence, so 3,000 bound it under 1e-3, Pd 0.999's complement.
 1. Settle §4.5's hypotheses at that count.
 
+**Speed.** The goals, at 11 MSa/s in on the portable build: the receiver
+at least five times real time on one thread in searching and in tracking
+(18 ns a sample or less), and the pool at least twice real time on all
+cores with nine receivers tracking and the search running (45.4 ns or
+less). No row measures either at this point (§9). In order:
+
+1. Benchmark rows at this point for the receiver and the pool, and a
+    profile by stage.
+1. A one-tile deep search fans its block across the workers
+    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
+1. The pool resamples the capture once, and its search and receivers are
+    created at that rate, so each tracker works on $N$ samples a code
+    period (§5).
+1. The pool joins its workers once every several code periods, on a fixed
+    grid, each receiver call still one period.
+1. The search's resampler, written so the compiler vectorizes it.
+1. Kernel changes, each adopted only on a measured gain of half or more.
+
 ______________________________________________________________________
 
 ## 5. The pool: N receivers, one search
@@ -1457,9 +1497,12 @@ is set against the LEO nadir-pass figure `f_dot_max = (f_c/c)·(v²/h)`,
 about 579 Hz/s at 2.5 GHz and 800 km; the engine's coherent depth is sized
 from the bound (§2.1).
 
-- **One front end.** The caller's capture at `sample_rate` is resampled once
-    to $N$ samples a code period (§1.2); the search and every receiver read
-    the same samples.
+- **No shared front end.** The pool hands every code period of the
+    caller's capture, as it arrives, to the search and to each receiver.
+    The search resamples it to $N$ samples a code period inside its own
+    receiver (§1.2); each tracking receiver wipes the carrier and
+    correlates over the capture's own samples, so N trackers do that work
+    N times.
 - **One search, owned by the controller.** Code phase across the whole
     carrier range, ±50 kHz, with the slow-time Doppler search of §2.3, on
     the one acquisition kernel. It runs **only while at least one receiver

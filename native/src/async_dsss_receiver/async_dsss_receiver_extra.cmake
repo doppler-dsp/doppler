@@ -1,10 +1,13 @@
 # Hand-owned (jm includes this file and never writes it, gh-1351).
 #
 # awgn_core: the bench's searching row feeds the receiver the shipped noise
-# generator, and nothing else here uses it. Linked onto the bench alone: a
-# bare `depends_on` would also inject awgn's header into the receiver's
-# public one and link it into the core and every composer of it.
-target_link_libraries(bench_async_dsss_receiver_core PRIVATE awgn_core)
+# generator, and nothing else here uses it; wfm_synth_core: the 415.1-B-1
+# rows' emitter is the library's continuous DSSS synth, as the pool bench's
+# on-air rows. Linked onto the bench alone: a bare `depends_on` would also
+# inject their headers into the receiver's public one and link them into
+# the core and every composer of it.
+target_link_libraries(bench_async_dsss_receiver_core PRIVATE awgn_core
+                                                             wfm_synth_core)
 
 # An attach that cannot allocate is DP_ERR_MEMORY and changes nothing
 # (#2846). The test compiles async_dsss_receiver_core.c INTO itself, so its

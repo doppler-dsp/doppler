@@ -1,11 +1,11 @@
 ---
-description: "the dated runs behind the design page under the same section numbers: the pool's lock, arrival and cost runs (§6, §9), the pinned bench and the search profile, and every step of the receiver's build (§12)"
+description: "the dated runs behind the design page under the same section numbers: the receiver at the 415.1-B-1 point and the rounds before it (§4), the pool's lock, arrival and cost runs (§6, §9), the pinned bench and the search profile, and every step of the receiver's build (§12)"
 ---
 
 # AsyncDsssReceiver and AsyncDsssPool — the measurement record
 
 *The dated record behind [the design page](async-dsss-receiver.md): the
-pool's runs under §6 and §9, then what each step of its old §12 measured, in the order it was measured, with the
+receiver at the 415.1-B-1 point under §4, the pool's runs under §6 and §9, then what each step of its old §12 measured, in the order it was measured, with the
 numbers, the wrong guesses and what corrected them. The design page
 states what is; this page is why. Section numbers are shared — a `§12.17`
 cited in an issue, a harness or a code comment is the same entry here and
@@ -20,6 +20,302 @@ against, which the design page's §12 held until 6c732291f removed it. The map:
 step 1 is §12.2; steps 2–4 are §12.6; step 6 is §12.3; step 7 is §12.14 and §12.17;
 step 8 is §12.1 and §12.17; step 11 is §12.7; step 12 is §12.9; step 13 is §12.8.
 
+## 4. The receiver at the 415.1-B-1 point
+
+*The runs behind §4.2 to §4.4 of the design page: measured 2026-11-15 on
+main `f34f70027` with scratch patches, none in the tree, five seeds a cell.
+The design page states the results at the specification point the owner
+set, 3,000 sym/s at a 4 dB floor. These entries keep, verbatim, what the
+page carried before that rewrite, at
+[`0061ac803`](https://github.com/doppler-dsp/doppler/blob/0061ac8032c424b02af89232f3f53fbca49f1d79/docs/design/async-dsss-receiver.md): the points the
+receiver was measured at before this one, the rounds at the 3 dB floor and
+at 7,000 sym/s, and the alternatives that were measured and not proposed.
+A section reference inside them is to the page at that commit.*
+
+### 4.2 What was measured (2026-11-15) — the earlier points, and the receiver as built at the 415.1-B-1 point
+
+**The earlier points**, as the design page's §1.3 gave them:
+
+Two earlier points carry most of the measured numbers on this page.
+
+**The 5 Mcps point** is where the pool and its search were sized (§5–§9):
+
+| quantity                 | value                                                                      |
+| ------------------------ | -------------------------------------------------------------------------- |
+| nominal frequency        | 2.5 GHz, uncertainty ±50 kHz                                               |
+| frequency rate of change | < 500 Hz/s                                                                 |
+| waveform                 | continuous DSSS BPSK, asynchronous rectangular data                        |
+| code                     | CCSDS command-link Gold code, 1,023 chips, at 5 Mcps                       |
+| capture                  | complex samples at 11 MSa/s                                                |
+| data rate                | 3 kbps (3,000 sym/s), on no fixed relation to the chip clock               |
+| data-free block          | periodic and long, common to every signal: 500 all-zero symbols by default |
+| signals                  | up to 10 on the one code at once                                           |
+| sensitivity              | Es/N0 ≥ 5 dB                                                               |
+| deliverable              | one C receiver and one pool in `libdoppler.{a,so}`, the same via Python    |
+
+In numbers: one code epoch $T_E$ is 1,023 chips at 5 Mcps, 204.6 µs, so
+$1/T_E$ is 4,887.6 Hz, one search tile's width, and ±50 kHz is 21 tiles.
+A symbol spans 1.63 epochs. Es/N0 ≥ 5 dB at 3,000 sym/s is C/N0 ≥ 39.8
+dB-Hz. The default data-free block is 167 ms, 814 whole epochs.
+
+Two of those are derived. **500 Hz/s** is set against the LEO nadir-pass
+figure `f_dot_max = (f_c/c)·(v²/h)`, about 579 Hz/s at 2.5 GHz and 800 km;
+the engine's coherent depth is sized from the bound (§2.1). **5 dB** is the
+floor the receiver was held to: its BER is under 5% at 5 dB and over 10% at
+4 dB, with the self-referenced EVM and the blind M2M4 SNR agreeing
+(`_test_awgn_esn0_floor` in
+`native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c`, at the
+3.069 Mcps point, at the levels as labeled; below). §3.3 gives how far that
+BER sits from the bound.
+
+**The 3.069 Mcps point** is the receiver's
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
+23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip, on
+continuous random data with no data-free block, `carrier_freq_hz` 0, and a
+search over ±3 kHz (±1/T_E). It covers that point and no other: not the
+415.1-B-1 point's chip rates, neither case of §1.5, not the data-free gap,
+and not the coupling of code to carrier (§1.6), which `carrier_freq_hz` 0
+turns off. The C test that pins its 5 dB floor, `_test_awgn_esn0_floor`,
+adds 3 dB less noise than its label
+([#689](https://github.com/doppler-dsp/doppler/issues/689)); at its true
+5 dB it does not decode random data
+([#3080](https://github.com/doppler-dsp/doppler/issues/3080)).
+
+**The code loop and the demodulator's carrier loop are sized to a loop SNR
+of at least 20 dB at the floor.** `rho(dB) = Es/N0(dB) − 10·log10(2·bn)`,
+with `bn` normalized to the loop's own update rate so the rate cancels,
+gives `bn ≤ 0.0158` at 5 dB. The Dll ships at `bn` 0.002
+(`ASYNC_DSSS_RX_DLL_BN`) and MpskReceiver's carrier loop at 0.01. The code
+loop's per-epoch SNR is Es/N0 over `epochs_per_symbol`, 1.63 at the 5 Mcps
+point, inside the same bound. The carrier loop (correction before
+despreading, error formed after) is wider, 0.04
+(`ASYNC_DSSS_RX_BN_CARRIER`): pull-in and the 500 Hz/s ramp set its width,
+not jitter (§4). There is no FLL. `bn` does not set the floor: sizing a
+loop for steady-state jitter and pulling one in from a coarse estimate are
+different problems, and §4's refining stage answers the second. At the
+415.1-B-1 floor of 3 dB the same rule asks for `bn ≤ 0.010`.
+
+**The gap at the 3 dB floor, and the frame the runs used**, from the design
+page's §1.4:
+
+These are the model's numbers, not a detection measured at the band edge,
+and the gap's length is open (§1.7). The search does not hold its dwell
+`K·D` inside a gap today (#3082). The same rule at the earlier 3 dB floor
+gave 367 symbols (D 96), which §4.2 and §4.3's first two rounds used; the
+third round uses 275. All rounds run a data clock 1 ppm fast, and all
+predate the header: their frame was the data field and a CRC-16 over it
+alone, 5 octets shorter than the transfer frame above, with the same
+acquisition sequence and start sequence.
+
+**Faster symbols**, from the design page's §1.5:
+
+**Faster symbols were an experiment.** At 7,000 sym/s an epoch holds 1.75
+to 2.23 symbols, no code-period window is free of a transition, and the
+code loop's symbol-scale look shrinks to one partial. `create()` accepts it
+(the chain asks only that the symbol rate not exceed the chip rate), and
+`steps_max_out()` is not a bound above one symbol a code period
+([#2469](https://github.com/doppler-dsp/doppler/issues/2469)). What the
+receiver did there is in the dated record (§4.2, §4.3).
+
+**The receiver as built at the 415.1-B-1 point**, the design page's §4.2:
+
+This is a dated record, kept as an index: measured 2026-11-15, before the
+owner fixed the point at 3,000 sym/s and a 4 dB floor, so its case H and
+3 dB rows are the experiments that ruling set aside. It is the receiver as
+built, on §1.4's stimulus rendered with shipped tools, the
+Doppler verified in every run. The numbers and their tables are on the
+issues each row names.
+
+| what                               | result                                                                                                                                                                                                                                                             | record                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| the stimulus                       | builds with shipped tools and no new code; a frame on a continuous source, and Doppler through `Synth.steps()`, are dropped without a word                                                                                                                         | [#3083](https://github.com/doppler-dsp/doppler/issues/3083), [#3091](https://github.com/doppler-dsp/doppler/issues/3091) |
+| Es/N0 in the 11 MSa/s capture      | 0.06 to 0.17 dB under the source's, mostly the capture's bandwidth                                                                                                                                                                                                 | none; where Es/N0 is defined is open (§1.7)                                                                              |
+| the timing detector alone at 3 dB  | Gardner and the DTTL tie at the contracted level; over-driven, Gardner loses frames and the DTTL does not                                                                                                                                                          | [PR #3087](https://github.com/doppler-dsp/doppler/pull/3087)                                                             |
+| the level into the timing loop     | 0.50 to 0.63 of the contracted level: cold, not hot                                                                                                                                                                                                                | [#3079](https://github.com/doppler-dsp/doppler/issues/3079)                                                              |
+| case H                             | a wrong hand-over in every noise-free run: the code loop's output level collapses on the acquisition sequence, which then wins the Doppler refine; the receiver recovers only with `reacquire`, about 2 s a bad attempt                                            | [#3089](https://github.com/doppler-dsp/doppler/issues/3089), [#3092](https://github.com/doppler-dsp/doppler/issues/3092) |
+| case L, the static band edge, 3 dB | carrier half-cycle flips, 18 to 38 in a cell of five runs; 1.7 to 3.3 dB of loss between them; the carrier loops move first                                                                                                                                        | [#3090](https://github.com/doppler-dsp/doppler/issues/3090)                                                              |
+| case L under 400 Hz/s              | the carrier loop (correction before despreading, error formed after) often fails to pull in: the refine's error in the scene (sd 57 to 121 Hz, biased negative) against a pull-in bound of 0.02 of the epoch rate, 63 to 80 Hz; nothing hands the rate to any loop | [#3090](https://github.com/doppler-dsp/doppler/issues/3090)                                                              |
+| timing slips                       | none counted in any carried run                                                                                                                                                                                                                                    | none                                                                                                                     |
+| search sizing                      | the dwell `K·D` is not held inside the gap                                                                                                                                                                                                                         | [#3082](https://github.com/doppler-dsp/doppler/issues/3082)                                                              |
+
+Ruled out on the way: an over-driven Gardner loop, whole-epoch cancellation
+in the carrier loop, a 45° lag in the outer carrier loop, and a stale
+Doppler estimate as the main cause.
+
+**What stays open, by the stage that owns it.** A finding is taken to the
+lowest stage that owns it and validated there on §1.4's stimulus; a stage's
+certification is not repeated. `MpskReceiver`, `CarrierNda`, `RateSync`,
+the correlator, `resamp` and `lockdet` have records in the
+[validation log](../dev/contributing/validation-log.md); four stages have
+none (§1.7).
+
+| stage                                    | finding                                                                                                                                                               | record                                                                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| test tools                               | the DSSS test captures add 3 dB less noise than their label                                                                                                           | [#689](https://github.com/doppler-dsp/doppler/issues/689)                                                                |
+| symbol timing                            | the loop is level-sensitive, and the receiver hands it 0.50 to 0.63 of its contracted level                                                                           | [#3079](https://github.com/doppler-dsp/doppler/issues/3079)                                                              |
+| matched filter and carrier               | `MpskReceiver` and `CarrierNda` run at settings their records did not                                                                                                 | none                                                                                                                     |
+| code loop                                | case H: the symbol period buys the code loop nothing at `K` = 4 (§1.5)                                                                                                | [#3089](https://github.com/doppler-dsp/doppler/issues/3089)                                                              |
+| the Doppler refine into the carrier loop | residuals of hundreds of hertz against a pull-in of 63 to 80 Hz                                                                                                       | [#3080](https://github.com/doppler-dsp/doppler/issues/3080), [#3090](https://github.com/doppler-dsp/doppler/issues/3090) |
+| search                                   | the dwell `K·D` is not bounded by the gap; the band edge is charged at the band's average loss, and one roll cannot tell which side of the fold a signal is on (§1.5) | [#3082](https://github.com/doppler-dsp/doppler/issues/3082)                                                              |
+| receiver                                 | the code-carrier coupling has never run in a certification (§1.6)                                                                                                     | none                                                                                                                     |
+| receiver                                 | `steps_max_out()` is not a bound above one symbol a code period                                                                                                       | [#2469](https://github.com/doppler-dsp/doppler/issues/2469)                                                              |
+| receiver                                 | two symbol-lock detectors on one symbol stream                                                                                                                        | [#3077](https://github.com/doppler-dsp/doppler/issues/3077)                                                              |
+
+### 4.3 What was measured (2026-11-15) — the carrier, in three rounds, and the proposal as first written
+
+**The carrier, measured in three rounds**, the design page's §4.3:
+
+A dated record, measured 2026-11-15: scratch patches on main `f34f70027`,
+none of them in the tree, five seeds a cell. Every round runs seven scenes
+(static at +1,500, −1,500 and 0 Hz; sweeps from one band edge to the other
+at ±400 Hz/s; ramps from 0 Hz at ±400 Hz/s) at 2.2 and 2.8 GHz. The tables
+are on #3090: [round 1](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6899249652), [round 2](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6901179061), [round 3](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6902451986), and the
+code loop's [measurement](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6901486835) and [window reading](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6901708084).
+
+**Rounds 1 and 2, at the earlier 3 dB floor, cases L and H: alternatives,
+measured.** These rounds took the carrier away from the code loop:
+
+- the carrier loop off, the correction before despreading
+    frozen at the hand-over, the M-PSK loop owning the carrier;
+- the search's Doppler as the hand-over, with no refine dwell;
+- the code loop's rate aid held at the hand-over;
+- an M-PSK `bn` wide enough for the frequency rate.
+
+That carried 278 of 280 runs, against 155 as built. Steering the frozen
+correction from the M-PSK loop's frequency carried 279: not needed (owner:
+"You don't need to steer it at all"). An earlier reading, "a frozen
+correction is fatal across the band in case L", is withdrawn: those runs
+used M-PSK `bn` 0.010, which cannot hold 400 Hz/s at 3,000 sym/s, so the
+M-PSK loop was unlocked.
+
+What the alternatives showed, kept because they still apply if any becomes
+a knob:
+
+- **The M-PSK loop's hold limit** (owner: "The maximum sweep rate of a
+    second order perfect integrator is calculable from the bandwidth"). The
+    loop is `dp_loop_filter`, once a symbol, ζ 0.707: wn = 8ζ·bn / (4ζ² + 1)
+    a symbol (`loop_filter_core.c:20`), ki = 4θ² / (4 + 4ζθ + θ²), θ = wn
+    (`:44-50`). It holds a frequency rate up to R_max = ki · g · Rs² / 2π,
+    where g is the discriminator's peak mean output. For the hard-limited
+    BPSK detector of `carrier_nda_disc()` that is
+    g(γ) = (γ/2) · e^(−γ) · ₁F₁(2; 3; γ), with γ the symbol Es/N0. At `bn`
+    0.010 the limit is 0.7 to 0.9× of 400 Hz/s, and no case L sweep or ramp
+    carried. At 0.020 it is 2.8 to 3.5×, and 19 and 39 of 40 carried. At
+    0.033 it is 7.5 to 9.3×, and 38 and 40 carried.
+- **If that bandwidth is ever exposed**, it is derived when not given
+    (owner: "The bandwidth should be derived if not given"): the larger of
+    the as-built 0.010 and what `doppler_rate` needs at the symbol rate and
+    C/N0. At 3,000 sym/s and 400 Hz/s that lands near 0.02 to 0.033, which
+    is 15 to 17 dB of loop SNR, under the 20 dB rule of §1.3. The margin
+    under the limit was never ruled.
+- **With the correction frozen**, the residual reaches the sweep's full
+    2,963 Hz. Case L then loses about twice the partial's sinc² at 2 to
+    3 kHz, with the code loop's lock flag falling while the symbols decode.
+    The lock flag's window follows the symbol rate: with `segments` above 1
+    and two or more partials a symbol, the code loop's look and steer sum
+    ⌊P⌋ − 1 partials coherently (`dll_core.c:1361`, `aid_look()`). The release
+    reads the symbol lock (`async_dsss_receiver_core.c:1594-1598`), which
+    held, so the flag falling never released a receiver. `reacquire` was
+    not exercised.
+
+**Round 3, at the specification point: the receiver as built, given a
+better hand-over.** The owner: "I'm unconvinced we needed to bypass the code
+loop's carrier tracking, acquisition puts it well inside its loop bw and it
+should just track". This round runs case L only, with the receiver designed
+at the 4 dB floor and the 275-symbol gap. Every row is the receiver as
+built (the carrier loop on at `bn` 0.04, M-PSK `bn` 0.010)
+except for the search's Doppler as the hand-over with no refine dwell. Rows:
+
+- **A**: symbol-period aid on.
+- **A'**: aid off.
+- **C**: A', with the carrier loop's error formed from one coherent sum
+    over the code-period window find_max_power already picks
+    (`dll_core.c:1055-1068`), squared and halved, in place of the sum of
+    squared partials (`async_dsss_receiver_core.c:812-815`). It is a scratch
+    switch, `SCR_CDET`.
+
+Cells are carried of 70, loss against the bound, and flips (clean onsets
+plus frames inverted without one):
+
+| Es/N0                 | A'                  | C                      | A                    | as built (rounds 1-2, 3 dB design) |
+| --------------------- | ------------------- | ---------------------- | -------------------- | ---------------------------------- |
+| 3 dB, below the floor | 43 · 2.1 dB · 99+25 | **69 · 1.2 dB · 31+1** | 44 · 1.8 dB · 108+22 | 32 · 2.1 dB · 115+21               |
+| **4 dB, the floor**   | 69 · 1.3 dB · 64+9  | **70 · 1.1 dB · 4**    | 67 · 1.3 dB · 54+6   | –                                  |
+| 5 dB                  | 70 · 1.2 dB · 12    | **70 · 1.0 dB · 0**    | 70 · 1.1 dB · 12     | 64 · 1.2 dB · 18                   |
+
+- **The hand-over alone fixes everything but the flips.** First data comes
+    0.07 s after arrival, the hand-over error is −0 ± 10 Hz, and A' carries
+    69 and 70 of 70 at 4 and 5 dB. The owner's reason holds: acquisition
+    puts the loop well inside its bandwidth, and it tracks.
+- **The flips are in the data.** Counting every polarity change against the
+    truth, at the floor A' has 5 in the gap, 3 on the dots and 138 in the
+    data. C has 0, 1 and 7.
+- **The detector is the item.** The carrier loop (correction before
+    despreading, error formed after), at `bn` 0.04, measures 10.2 to 12.8 dB of
+    loop SNR at the floor as built, under the ~14.5 dB where flips stopped.
+    With C it measures 13.2 to 16.8 dB. A Monte Carlo of each detector matches
+    every measurement to within 0.6 dB.
+- **Not causes:**
+    - the symbol-period aid (A against A');
+    - the sample rate: a whole multiple of the code-period rate changed
+        nothing;
+    - blocks giving the carrier loop `segments` ± 1 partials: every block
+        gives exactly `segments`.
+
+**The proposal as first written**, the design page's §4.4 ("Proposed, not
+yet built: the hand-over, and the carrier detector on the code period"):
+
+The design statement the detector follows is the owner's, in his words,
+with what was measured beside each:
+
+| the owner                                                                                                                      | measured (§4.3, round 3)                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "The integration window should be fixed at the epoch boundary, the segments only divide up an epoch" (epoch = the code period) | the carrier error from one coherent sum over the code-period window cuts the flips at the floor from 146 to 8                                      |
+| "When no data is present it is a tone"                                                                                         | the loop holds the tone in the gap (5 of A''s 146 flips there, 0 of C's 8); with C its gap loop SNR is 16.8 / 15.4 dB at the floor (2.2 / 2.8 GHz) |
+
+**Proposed, not yet built, and the names are not ruled**: `refine` and
+`carrier_window` are placeholders (§1.7). The owner's ruling is that §4.3's
+changes become constructor knobs. Nothing certified is removed: every
+default is the receiver as built, so a caller who sets none gets today's
+behavior bit for bit.
+
+| knob (constructor) | type | default, as built                                                   | proposed      | what it switches                                                                                                                                                 |
+| ------------------ | ---- | ------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `refine`           | bool | true                                                                | false         | false: the search's Doppler is the hand-over and the refine's dwell is not spent (tracking starts at the seed's sample); the `refine_*` settings are then unused |
+| `carrier_window`   | enum | `partials`: each partial squared, the squares summed over the block | `code_period` | the carrier loop's error from one coherent sum over the code-period window find_max_power picks, squared and halved                                              |
+
+`refine` false needs nothing else, and is useful alone: case H's false lock
+(#3089), in the dated record.
+
+`code_period` holds only while a symbol is at least a code period, which the
+specification's case is (§1.5). In the model, at 7,000 sym/s on the dots it
+loses 14.5 to 18 dB of loop SNR against today's detector. A receiver
+configured outside the case keeps `partials`, and a refusal or a warning
+there is part of the knob's design.
+
+Measured alternatives, not proposed (§4.3): the carrier loop
+off, the steer (not needed), and the derived M-PSK bandwidth, which keeps its
+ruling should it ever be exposed. Not knobs: the symbol-period aid (no
+difference), the timing detector (no difference), and gating on lock (no
+gain). `K` is the existing `segments`, default 4; at 8 the prototype
+slipped symbols on one seed in every scene
+([#3095](https://github.com/doppler-dsp/doppler/issues/3095)).
+
+**What is not shown:**
+
+- Five seeds a cell, so nothing here speaks to Pd 0.999.
+- `reacquire` was not exercised.
+- The detector row is a scratch build (`SCR_CDET`) on `f34f70027`. It is to
+    be measured again once built properly through
+    [`adding-algorithms.md`](../dev/contributing/adding-algorithms.md).
+- The as-built certification still covers only its own point (§1.3).
+- The names are placeholders.
+
+The order is [`adding-algorithms.md`](../dev/contributing/adding-algorithms.md)'s:
+this section agreed, then declared in `objects/async_dsss_receiver.toml`,
+implemented, each knob pinned in C and proven by sabotage, bound, and
+§4.3's table measured again through the knobs.
+
 ## 6 and 9. The pool's runs
 
 *The runs behind §6 and §9 of the design page. §6.1 to §9.2 predate the
@@ -32,7 +328,11 @@ trial's carrier, arrival and symbol-lock time. Every one of those tables,
 and every number the design page quotes from them, is rendered from their
 data, committed beside this page in `async-dsss-receiver-measurements/` by
 its `record.py`, whose `--check` (in `make docs-invariants`) fails when
-either page differs from the data.*
+either page differs from the data. The pool as built before the design
+page's one search, with its never-stopping central searcher and its cell
+receivers, is the design page at
+[`4a4c437d0`](https://github.com/doppler-dsp/doppler/blob/4a4c437d0/docs/design/async-dsss-receiver.md);
+the design page's §9 keeps what it taught.*
 
 <!-- async-dsss-pool:stamp:start -->
 
@@ -1079,7 +1379,7 @@ release clock at the design's 2 s. Once tracking with symbol lock held for
 200 blocks, ten windows per trial, three trials per C/N0; per window the
 fraction of blocks with each flag off, the longest both-off run, whether
 `lost` fired, and the pull-in after the data resumes. Three
-conditions: no Doppler, and [the specification](async-dsss-receiver.md#13-the-earlier-points)'s two worst cases through the shipped
+conditions: no Doppler, and [the specification](async-dsss-receiver.md#5-the-pool-n-receivers-one-search)'s two worst cases through the shipped
 `doppler_channel`, apart, since they do not coincide on a pass — the
 offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
 it) and the rate (500 Hz/s from zero).

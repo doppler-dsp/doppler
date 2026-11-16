@@ -5530,7 +5530,7 @@ int dp_correlator_set_threads (
 
 
 
-A continuous engine is created with a pool of the machine's online cores when it has more than one tile; a burst engine, and a single-tile one, run serially. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included). At a depth of one epoch (D = 1) the count is capped at `window_bins`: every per-epoch fan hands out one tile a task, so a worker past that only wakes and waits. At D &gt; 1 every stage fans finer than tiles (epochs, capture bins, rows, chunks of rows), so the count is taken whole, and each worker holds its own FFT plans and scratch: memory grows with the count. The request is kept, and every regrid re-applies it, so an engine narrowed to one tile and widened again runs on the request, not on the 1 the narrow grid ran on. The workers are created here, once, and parked between pushes; nothing is created per push. The surface is bit-identical at every count  every output row and every decide chunk is computed whole by one worker, and the chunk count is the grid's  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
+A continuous engine is created asking for the machine's online cores, except with one tile at a depth of one epoch, which runs serially; a burst engine runs serially until asked. Its workers start at its first push, so an engine set to one thread before it is pushed never starts any. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included). At a depth of one epoch (D = 1) the count is capped at `window_bins`: every per-epoch fan hands out one tile a task, so a worker past that only wakes and waits. At D &gt; 1 every stage fans finer than tiles (epochs, capture bins, rows, chunks of rows), so the count is taken whole, and each worker holds its own FFT plans and scratch: memory grows with the count. The request is kept, and every regrid re-applies it, so an engine narrowed to one tile and widened again runs on the request, not on the 1 the narrow grid ran on. The workers are created here, once, and parked between pushes; nothing is created per push after the first. The surface is bit-identical at every count  every output row and every decide chunk is computed whole by one worker, and the chunk count is the grid's  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
 
 
 
@@ -5545,7 +5545,7 @@ A continuous engine is created with a pool of the machine's online cores when it
 
 **Returns:**
 
-DP\_OK. The count actually running is `threads`. 
+DP\_OK. The count a push runs on is `threads`. 
 ```C++
 >>> import numpy as np
 >>> from doppler.correlation import Correlator

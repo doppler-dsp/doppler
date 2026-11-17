@@ -82,8 +82,8 @@
  * therefore rx.phase.code - truth.code + 0.5 chip_rate / fs.
  *
  * `--spc N` renders the scene at N samples a chip (2: the front end
- * interpolates, the band +/-1 chip rate) for the comparison with the
- * default 4.
+ * interpolates, and the held chips' images pass its transition band) for
+ * the comparison with the default 4.
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]

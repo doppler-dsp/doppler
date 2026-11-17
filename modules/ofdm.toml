@@ -1,0 +1,20 @@
+[module.ofdm]
+doc = """
+A general OFDM modulator: constellation points and a layout in, baseband samples out, for any OFDM signal a layout can describe.
+
+A layout is a list of classes (a kind of OFDM symbol: transform length, subcarrier map, fixed pilot pattern, scale, cyclic prefix, window) and a list of runs (a count of OFDM symbols of one class). The modulator names no standard and does not import wfmgen: it is a library object a C or Python caller uses directly, and the IEEE 802.11 presets and wfmgen's `ofdm` type are callers of it. Build the layout with `add_class`, `add_fixed` and `add_run`, then `modulate` the points.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.ofdm import Ofdm
+>>> o = Ofdm()
+>>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1   # DC and edge null
+>>> o.add_class(8, m)
+0
+>>> o.add_run(0, 2)
+0
+>>> o.modulate(np.ones(12, np.complex64)).size
+16
+"""
+objects = ["ofdm"]

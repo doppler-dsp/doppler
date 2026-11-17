@@ -1428,3 +1428,38 @@ unit = "symbol"
 definition = "Hard-deciding 65,536 received 1024-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
 domain = "sym"
 count = 1
+
+["c:ofdm::modulate[n_fft=64]"]
+name = "OFDM modulate, n_fft 64"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 64, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=64,window=2]"]
+name = "OFDM modulate, n_fft 64 with a 2-sample window"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 64 with a 2-sample window, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=256]"]
+name = "OFDM modulate, n_fft 256"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 256, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=1024]"]
+name = "OFDM modulate, n_fft 1024"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 1024, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=4096]"]
+name = "OFDM modulate, n_fft 4096"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 4096, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1

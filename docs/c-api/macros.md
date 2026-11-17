@@ -378,6 +378,19 @@
 * **N\_TYPES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
+## o
+
+* **OFDM\_ALL\_PHASES** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_COUNT\_MAX** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_CP\_DEFAULT** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_DATA** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_NULL** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_N\_FFT\_MAX** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_N\_PHASE\_MAX** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_STATE\_MAGIC** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_STATE\_VERSION** ([**ofdm\_core.h**](ofdm__core_8h.md))
+
+
 ## p
 
 * **PN\_STATE\_MAGIC** ([**pn\_core.h**](pn__core_8h.md))

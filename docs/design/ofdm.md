@@ -69,13 +69,13 @@ Each term is defined once here and used in this sense on this page and on
 
 ## 1. Who calls it
 
-| who                           | with what                                   | what they do with the answer                               |
-| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
-| A C application               | a layout and constellation points           | renders OFDM samples into its own buffer, no Python        |
-| A Python script               | `doppler.ofdm`: a `LayoutDesc` and an array | renders a signal of any OFDM structure, no wfmgen running  |
-| A standard's preset           | a layout it built (802.11: [wlan](wlan.md)) | renders that standard's PPDUs through the same modulator   |
-| wfmgen                        | a layout, as an `ofdm` source's description | a waveform type, summed with other sources in a scene      |
-| A future OFDM receiver's test | a layout declared once                      | scores demodulation against truth the generator also holds |
+| who                           | with what                                     | what they do with the answer                               |
+| ----------------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| A C application               | a layout and constellation points             | renders OFDM samples into its own buffer, no Python        |
+| A Python script               | `doppler.ofdm`: an `Ofdm` object and an array | renders a signal of any OFDM structure, no wfmgen running  |
+| A standard's preset           | a layout it built (802.11: [wlan](wlan.md))   | renders that standard's PPDUs through the same modulator   |
+| wfmgen                        | a layout, as an `ofdm` source's description   | a waveform type, summed with other sources in a scene      |
+| A future OFDM receiver's test | a layout declared once                        | scores demodulation against truth the generator also holds |
 
 The last row is the reason the generator comes first: the library has no OFDM
 receiver, and a receiver is measured against a generator that is already
@@ -280,30 +280,48 @@ modulator, and each is a finding:
 
 ## 5. The object, and where it lives
 
-**C.** A core header and source for an `ofdm` component, in the tree's
-usual places for one: the layout structs above, a `ofdm_t`
-modulator over one layout, and a pure render of a whole layout for callers
-that want no state. The header includes `fft`, `dp_complex.h` and
-`dp_state.h` and nothing else of the library. A C application calls it with
-no Python in the process.
+**C.** `native/inc/doppler/ofdm/ofdm_core.h` and
+`native/src/ofdm/ofdm_core.c`: the layout structs above and a modulator state
+that holds one layout and the position in it. The header
+includes `fft`, `dp_state.h` and nothing else of the library. A C
+application calls it with no Python in the process.
 
-**Python.** A module of its own, `doppler.ofdm`: the modulator object
-(`Ofdm`) and `LayoutDesc`. It is not a part of `wfm` and does not import it,
-so `import doppler.ofdm` works in a process that has never loaded wfmgen.
-wfmgen's `ofdm` type imports it, never the reverse.
+**The calls.** The layout is built by calls, as `Frame` is built by
+`add_field` and `add_stage`, because a struct-pointer constructor is not
+jm-expressible (the note in `objects/conv_enc.toml`): `add_class`,
+`add_subcarrier_gain` and `add_polarity` (a class's optional arrays),
+`add_fixed` and `add_run`. `check` checks the whole layout; `modulate` checks on first use, and adding to
+a checked layout re-opens it, keeping the position and the held window tail,
+so a signal can be extended while it is rendered. `modulate` renders whole OFDM symbols from the
+points it is given and `finish` returns the window tail still held.
+`points_remaining` says how many points the rest of the layout consumes, and
+the position is readable (`run_index`, `sym_in_run`, `tail_len`).
 
-**`LayoutDesc` is built by calls**, as `FrameDesc` is (`add_field`,
-`add_stage` in `objects/frame.toml`): `add_class`, `add_fixed`, `add_run`,
-each taking scalars and arrays (`uint32_t`, `int32_t[]`, `float _Complex[]`,
-`uint8_t[]`), because a struct-pointer constructor is not jm-expressible (the
-note in `objects/conv_enc.toml`). That is expected to need no new jm type;
-PR 5 declares the builders, and where that expectation is wrong it says so.
-Standard builders (a layout from a preset) are free functions that fill a
-`LayoutDesc`; they live with the standard.
+**Python.** A module of its own, `doppler.ofdm`, holding the modulator object
+`Ofdm`, which holds its layout. It is not a part of `wfm` and does not import
+it, so `import doppler.ofdm` works in a process that has never loaded wfmgen.
+wfmgen's `ofdm` type imports it, never the reverse. A separate value object
+for a layout that wfmgen's faces carry (a JSON scene, a CLI file) is wfmgen's
+concern ([wlan](wlan.md), "The faces"), as `frame` is for `FrameDesc`.
+Standard builders (a layout from a preset) are free functions that fill an
+`Ofdm`; they live with the standard.
 
-A face that must carry a layout as one value (a JSON scene, a CLI file) is
-wfmgen's concern and follows the `frame` precedent there
-([wlan](wlan.md), "The faces").
+A refused build call raises `ValueError`, and a `modulate` whose point count
+ends inside an OFDM symbol, or runs past the layout, returns an empty array
+and leaves the modulator as it was.
+
+### The window
+
+The boundary between two OFDM symbols is a raised-cosine cross-fade of
+`window` samples: `rise[j] = sin^2 (pi (j + 1/2) / (2 window))` and
+`fall[j] = 1 - rise[j]`. The later symbol's first `window` samples are
+weighted by `rise`. The earlier symbol is continued past its end by `window`
+samples of the transform output, `x[(useful + j) mod n_fft]`, weighted by
+`fall`, and overlap-added. The length used at a boundary is the later symbol's
+class `window`; the first symbol rises from silence over its own, and the
+last continues over its own. A window of 0 is no window: the output is the
+symbols back to back. A layout whose window is longer than an OFDM symbol of
+its class does not pass `check`.
 
 ### State
 
@@ -314,8 +332,9 @@ most `window` samples). It implements the state triplet
 `serializable = "true"`.
 
 - **The layout is configuration**, so it enters the blob as a reject key,
-    not as state: a `dp_hash64` of its canonical serialization, so a blob
-    never restores into a different layout.
+    not as state: a `dp_hash64` of its canonical serialization (the fixed
+    entries held sorted by phase and subcarrier, so two orders of entry are
+    one layout), and a blob never restores into a different one.
 - **`set_state` decodes into a temporary, checks it whole, then commits**
     (the standing rule): the run index must name a run, the count must be
     within the run, and the tail length must be at most the window.
@@ -356,11 +375,15 @@ never a second implementation in the tree.
     sum over runs of the OFDM symbol length; scaling the
     layout's `scale` scales the output linearly.
 1. **State**: the shared round trip, and a mid-stream split, taken inside a
-    window transition and inside a cyclic prefix, that resumes bit for bit.
+    window transition, that resumes bit for bit. A call renders whole OFDM
+    symbols, the unit that consumes points, so a split falls on an OFDM-symbol
+    boundary and the window tail is what crosses it.
 1. **Sabotage.** Each pin is proven by breaking the code it pins and
     requiring the test to go red, before the Python face exists.
-1. **Probes** on the modulator's own derived values (the data count, the
-    run length), since it is stateful.
+1. **The position is observable.** `run_index`, `sym_in_run` and `tail_len`
+    are read-only properties, and a reset object's state is byte for byte a
+    fresh one's. Telemetry probes (the lifecycle's other instrument) are not
+    in the first PR; an issue carries them.
 
 What a standard's preset is proven against is that standard's page. The
 modulator's pins make no claim about any standard.
@@ -405,7 +428,7 @@ section 6, and nothing else is claimed.
     against the standard's text.** The letters are not certified until
     validated against the specifications.
 1. **The word is layout.** The modulator's description is a layout, so that
-    it is not mistaken for wfmgen's `Plan`: `LayoutDesc`, a source field
+    it is not mistaken for wfmgen's `Plan`: `--ofdm-layout`, a source field
     `layout`, a scene key `"layout"`, `--ofdm-layout FILE`. "Transform plan"
     means the FFT's and nothing else.
 1. **The modulator is a general library object** in its own module,

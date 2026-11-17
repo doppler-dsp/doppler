@@ -14,13 +14,13 @@
  * ### What this header claims, and what it does not
  *
  * Every number the design page marks checked against the standard's text
- * is a constant here. Every number it does not mark checked, or gives no
- * value for, is NOT here: it is a member of dp_wlan_tables_t, empty until it
- * is transcribed from the text (dp_wlan_tables_empty()). A builder that
- * needs an empty entry refuses (returns 0 or -1) and changes nothing. A
- * test of this component fills the tables with SYNTHETIC values to prove the
- * machinery (lengths, counts, field offsets, the chain's own inverses) and
- * claims no conformance with any 802.11 text. The tables are:
+ * is a constant here, or a member of dp_wlan_tables_t, which
+ * dp_wlan_tables_standard() returns filled with the Clause 17 literals
+ * transcribed from the text and each pinned in the test against its printed
+ * form. dp_wlan_tables_empty() is the same struct with nothing in it: a
+ * builder that needs an empty entry refuses (returns 0 or -1) and changes
+ * nothing, and the machinery tests run on SYNTHETIC tables that claim no
+ * conformance. The tables are:
  *
  *   - the SIGNAL field's RATE bits for each (constellation, code rate);
  *   - the L-STF and L-LTF subcarrier values (17.3.3) and each field's
@@ -92,7 +92,8 @@ extern "C"
 /**
  * @brief The code rate of the BCC, with puncturing (Figure 17-9).
  *
- * `WLAN_CODE_5_6` is Clause 19's and is unchecked against the text.
+ * `WLAN_CODE_5_6` is Clause 19's and is unchecked against the text; Clause 17
+ * has no RATE bits for it.
  */
 typedef enum
 {
@@ -150,6 +151,20 @@ typedef struct
  * @return A pointer to a static, all-empty dp_wlan_tables_t.
  */
 const dp_wlan_tables_t *dp_wlan_tables_empty (void);
+
+/**
+ * @brief The tables of IEEE Std 802.11-2024 Clause 17, transcribed from the
+ *        text: the RATE bits (Table 17-6), the L-STF and L-LTF sequences
+ *        (Eq. 17-6, 17-8), one scale for every field, the constellation
+ *        bit encodings (Figure 17-10, Tables 17-14 to 17-18, as relabels of
+ *        the library's maps) and the second interleaver permutation
+ *        (Eq. 17-16, 17-17).
+ *
+ * The 5/6 code rate has no entry: it is Clause 19's, not Clause 17's, and
+ * dp_wlan_signal_bits() refuses it.
+ * @return A pointer to a static, filled dp_wlan_tables_t.
+ */
+const dp_wlan_tables_t *dp_wlan_tables_standard (void);
 
 /* ── The object ──────────────────────────────────────────────────────────── */
 
@@ -358,7 +373,7 @@ size_t dp_wlan_mpdu (dp_wlan_mac_t mode, const uint8_t *header,
 /**
  * @brief The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least
  *        significant bit first, an even-parity bit over the first 17, and six
- *        zero tail bits. The bit order is not checked against the text.
+ *        zero tail bits (Figure 17-5, 17.3.4.1).
  * @param t          The tables (RATE bits).
  * @param r          The rate.
  * @param length     PSDU octets, 1 to WLAN_PSDU_MAX.

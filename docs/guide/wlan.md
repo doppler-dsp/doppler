@@ -13,12 +13,12 @@ written once, and a caller builds a frame without knowing them.
 
 **What is certified, and what is not.** Every number the design page
 ([`docs/design/wlan.md`](../design/wlan.md)) marks checked against the text of
-IEEE Std 802.11-2024 is a constant in `wlan`. Every number it does not mark
-checked is not in the tree: the SIGNAL field's RATE bits, the L-STF and L-LTF
-subcarrier values, the constellation labels where they differ from the
-library's maps, and the second interleaver permutation. A builder that needs
-one refuses. Nothing here claims conformance with 802.11a, g, n or ac until
-those tables are transcribed from the text and the Annex I example passes.
+IEEE Std 802.11-2024 is a constant in `wlan` or a literal in
+`dp_wlan_tables_standard()`: the RATE bits, the L-STF and L-LTF sequences,
+the constellation encodings and the second interleaver permutation, each
+pinned in the unit test against its printed form. The 5/6 code rate is
+Clause 19's and is not checked. Nothing here claims conformance with 802.11a,
+g, n or ac until Annex I's stage-by-stage example passes.
 
 ## A rate
 

@@ -96,8 +96,9 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  void | [**dp\_wlan\_reset**](#function-dp_wlan_reset) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state) <br>_Reset a rate holder: nothing to reset, the rate is configuration._  |
 |  size\_t | [**dp\_wlan\_scrambler\_sequence**](#function-dp_wlan_scrambler_sequence) (uint8\_t state, size\_t n, uint8\_t \* out) <br>_The scrambling sequence from a register state._  |
 |  uint8\_t | [**dp\_wlan\_scrambler\_state\_from\_sequence**](#function-dp_wlan_scrambler_state_from_sequence) (uint8\_t seq7) <br>_The register state that produces a scrambling sequence whose first seven bits, read as an integer with the first bit most significant, are_ `seq7` _(Annex I writes the example's start this way: 54)._ |
-|  size\_t | [**dp\_wlan\_signal\_bits**](#function-dp_wlan_signal_bits) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t length, uint8\_t \* out) <br>_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits. The bit order is not checked against the text._  |
+|  size\_t | [**dp\_wlan\_signal\_bits**](#function-dp_wlan_signal_bits) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t length, uint8\_t \* out) <br>_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits (Figure 17-5, 17.3.4.1)._  |
 |  const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* | [**dp\_wlan\_tables\_empty**](#function-dp_wlan_tables_empty) (void) <br>_The tables with nothing in them._  |
+|  const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* | [**dp\_wlan\_tables\_standard**](#function-dp_wlan_tables_standard) (void) <br>_The tables of IEEE Std 802.11-2024 Clause 17, transcribed from the text: the RATE bits (Table 17-6), the L-STF and L-LTF sequences (Eq. 17-6, 17-8), one scale for every field, the constellation bit encodings (Figure 17-10, Tables 17-14 to 17-18, as relabels of the library's maps) and the second interleaver permutation (Eq. 17-16, 17-17)._  |
 
 
 
@@ -154,7 +155,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 
 
 
-Every number the design page marks checked against the standard's text is a constant here. Every number it does not mark checked, or gives no value for, is NOT here: it is a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), empty until it is transcribed from the text ([**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty)). A builder that needs an empty entry refuses (returns 0 or -1) and changes nothing. A test of this component fills the tables with SYNTHETIC values to prove the machinery (lengths, counts, field offsets, the chain's own inverses) and claims no conformance with any 802.11 text. The tables are:
+Every number the design page marks checked against the standard's text is a constant here, or a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), which [**dp\_wlan\_tables\_standard()**](wlan__core_8h.md#function-dp_wlan_tables_standard) returns filled with the Clause 17 literals transcribed from the text and each pinned in the test against its printed form. [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) is the same struct with nothing in it: a builder that needs an empty entry refuses (returns 0 or -1) and changes nothing, and the machinery tests run on SYNTHETIC tables that claim no conformance. The tables are:
 
 
 
@@ -203,7 +204,7 @@ enum dp_wlan_code_t {
 
 
 
-`WLAN_CODE_5_6` is Clause 19's and is unchecked against the text. 
+`WLAN_CODE_5_6` is Clause 19's and is unchecked against the text; Clause 17 has no RATE bits for it. 
 
 
         
@@ -1088,7 +1089,7 @@ The register state, 1..127; 0 for 0 or a value above 127.
 
 ### function dp\_wlan\_signal\_bits 
 
-_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits. The bit order is not checked against the text._ 
+_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits (Figure 17-5, 17.3.4.1)._ 
 ```C++
 size_t dp_wlan_signal_bits (
     const dp_wlan_tables_t * t,
@@ -1142,6 +1143,33 @@ const dp_wlan_tables_t * dp_wlan_tables_empty (
 **Returns:**
 
 A pointer to a static, all-empty [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_tables\_standard 
+
+_The tables of IEEE Std 802.11-2024 Clause 17, transcribed from the text: the RATE bits (Table 17-6), the L-STF and L-LTF sequences (Eq. 17-6, 17-8), one scale for every field, the constellation bit encodings (Figure 17-10, Tables 17-14 to 17-18, as relabels of the library's maps) and the second interleaver permutation (Eq. 17-16, 17-17)._ 
+```C++
+const dp_wlan_tables_t * dp_wlan_tables_standard (
+    void
+) 
+```
+
+
+
+The 5/6 code rate has no entry: it is Clause 19's, not Clause 17's, and [**dp\_wlan\_signal\_bits()**](wlan__core_8h.md#function-dp_wlan_signal_bits) refuses it. 
+
+**Returns:**
+
+A pointer to a static, filled [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md). 
 
 
 

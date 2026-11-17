@@ -14,6 +14,85 @@ dp_wlan_tables_empty (void)
   return &EMPTY_TABLES;
 }
 
+/* ── IEEE Std 802.11-2024, Clause 17: the tables ─────────────────────────
+ * Each is a literal, transcribed from the text by the standard's owner
+ * (issue #3109, 2026-11-17) and cited to its table, equation or figure.
+ * native/tests/wlan/test_wlan_core.c holds each against an independent
+ * copy of the printed form and goes red on a one-entry change. */
+
+/* Eq. (17-6): S(-26:26) = sqrt(13/6) * {...}, k = -26..26, DC zero. */
+#define SQ 1.47196014f /* sqrt (13/6) */
+#define SP (SQ + SQ * I)
+#define SM (-SQ - SQ * I)
+static const float _Complex STF[53]
+    = { 0,  0, SP, 0, 0,  0, SM, 0, 0, 0, SP, 0, 0,  0, SM, 0, 0,  0,
+        SM, 0, 0,  0, SP, 0, 0,  0, 0, 0, 0,  0, SM, 0, 0,  0, SM, 0,
+        0,  0, SP, 0, 0,  0, SP, 0, 0, 0, SP, 0, 0,  0, SP, 0, 0 };
+
+/* Eq. (17-8): L(-26:26), unity scale, DC zero. */
+static const float _Complex LTF[53]
+    = { 1,  1,  -1, -1, 1,  1, -1, 1,  -1, 1, 1,  1,  1,  1, 1,  -1, -1, 1,
+        1,  -1, 1,  -1, 1,  1, 1,  1,  0,  1, -1, -1, 1,  1, -1, 1,  -1, 1,
+        -1, -1, -1, -1, -1, 1, 1,  -1, -1, 1, -1, 1,  -1, 1, 1,  1,  1 };
+
+/* Table 17-6: R1..R4, R1 the most significant bit of the integer. */
+static const dp_wlan_signal_rate_t SIGNAL_RATES[8] = {
+  { { 1u, WLAN_CODE_1_2 }, 13u }, /* 6 Mb/s,  1101 */
+  { { 1u, WLAN_CODE_3_4 }, 15u }, /* 9 Mb/s,  1111 */
+  { { 2u, WLAN_CODE_1_2 }, 5u },  /* 12 Mb/s, 0101 */
+  { { 2u, WLAN_CODE_3_4 }, 7u },  /* 18 Mb/s, 0111 */
+  { { 4u, WLAN_CODE_1_2 }, 9u },  /* 24 Mb/s, 1001 */
+  { { 4u, WLAN_CODE_3_4 }, 11u }, /* 36 Mb/s, 1011 */
+  { { 6u, WLAN_CODE_2_3 }, 1u },  /* 48 Mb/s, 0001 */
+  { { 6u, WLAN_CODE_3_4 }, 3u },  /* 54 Mb/s, 0011 */
+};
+
+/* Eq. (17-16), (17-17): j = s*floor(i/s) + (i + N_CBPS - floor(16 i /
+ * N_CBPS)) mod s, s = max(N_BPSC/2, 1). */
+static size_t
+standard_perm2 (size_t i, size_t n_cbps, size_t n_bpsc)
+{
+  const size_t s = n_bpsc / 2 > 1 ? n_bpsc / 2 : 1;
+  return s * (i / s) + (i + n_cbps - (16 * i) / n_cbps) % s;
+}
+
+/* Figure 17-10, Tables 17-14 to 17-18, as the library's symbol index for each
+ * bit group (the first bit of the group is bit 0 of the index). The library's
+ * BPSK is 1 - 2b and its QPSK and QAM put the first bit on the sign of I,
+ * which the standard's Gray labels do not, so each is a relabel; derived
+ * from the standard's levels, held as literals and pinned in the test. */
+static const uint16_t RELABEL_BPSK[2] = { 1, 0 };
+static const uint16_t RELABEL_QPSK[4] = { 3, 2, 1, 0 };
+static const uint16_t RELABEL_QAM16[16]
+    = { 5, 4, 7, 6, 1, 0, 3, 2, 13, 12, 15, 14, 9, 8, 11, 10 };
+static const uint16_t RELABEL_QAM64[64]
+    = { 9,  8,  11, 10, 13, 12, 15, 14, 1,  0,  3,  2,  5,  4,  7,  6,
+        25, 24, 27, 26, 29, 28, 31, 30, 17, 16, 19, 18, 21, 20, 23, 22,
+        41, 40, 43, 42, 45, 44, 47, 46, 33, 32, 35, 34, 37, 36, 39, 38,
+        57, 56, 59, 58, 61, 60, 63, 62, 49, 48, 51, 50, 53, 52, 55, 54 };
+
+/* Every field is scaled to unit average power: its 52 occupied tones carry
+ * 52 units (the L-STF's sqrt(13/6) is what makes 12 tones carry 52), so one
+ * factor, 1/sqrt(52), serves the PPDU (design page, goal 5). */
+static const dp_wlan_tables_t STANDARD_TABLES = {
+  .stf            = STF,
+  .ltf            = LTF,
+  .scale_stf      = 0.13867504905630728, /* 1 / sqrt (52) */
+  .scale_ltf      = 0.13867504905630728,
+  .scale_data     = 0.13867504905630728,
+  .signal_rates   = SIGNAL_RATES,
+  .n_signal_rates = 8,
+  .perm2          = standard_perm2,
+  .relabel = { NULL, RELABEL_BPSK, RELABEL_QPSK, NULL, RELABEL_QAM16, NULL,
+               RELABEL_QAM64 },
+};
+
+const dp_wlan_tables_t *
+dp_wlan_tables_standard (void)
+{
+  return &STANDARD_TABLES;
+}
+
 /* ── Rates ───────────────────────────────────────────────────────────── */
 
 /* The code rate as a fraction: numerator and denominator. */
@@ -291,7 +370,7 @@ dp_wlan_signal_bits (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
   if (rate_bits < 0 || rate_bits > 15)
     return 0;
   memset (out, 0, WLAN_SIG_BITS);
-  for (int i = 0; i < 4; i++) /* R1 first; the order is not checked */
+  for (int i = 0; i < 4; i++) /* R1 first (Figure 17-5) */
     out[i] = (uint8_t)((rate_bits >> (3 - i)) & 1);
   /* out[4] is the reserved bit, 0 */
   for (int i = 0; i < 12; i++) /* LENGTH, least significant bit first */

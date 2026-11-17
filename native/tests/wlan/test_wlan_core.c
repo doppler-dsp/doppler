@@ -675,5 +675,134 @@ main (void)
     free (x);
   }
 
+  /* ── 9. The standard's tables, each against its printed form ──────────
+   * Every expectation below is typed here in the form the standard prints
+   * it (IEEE Std 802.11-2024, as transcribed on #3109), not derived from
+   * the table under test. */
+  {
+    const dp_wlan_tables_t *T = dp_wlan_tables_standard ();
+
+    /* Table 17-6: the RATE bits R1 R2 R3 R4 for each (N_BPSC, code). */
+    static const struct
+    {
+      unsigned       n_bpsc;
+      dp_wlan_code_t code;
+      const char    *bits;
+    } rate_rows[] = {
+      { 1, WLAN_CODE_1_2, "1101" }, { 1, WLAN_CODE_3_4, "1111" },
+      { 2, WLAN_CODE_1_2, "0101" }, { 2, WLAN_CODE_3_4, "0111" },
+      { 4, WLAN_CODE_1_2, "1001" }, { 4, WLAN_CODE_3_4, "1011" },
+      { 6, WLAN_CODE_2_3, "0001" }, { 6, WLAN_CODE_3_4, "0011" },
+    };
+    for (size_t i = 0; i < sizeof rate_rows / sizeof *rate_rows; i++)
+      {
+        dp_wlan_rate_t r = { rate_rows[i].n_bpsc, rate_rows[i].code };
+        uint8_t        sig[WLAN_SIG_BITS];
+        DP_CHECK (dp_wlan_signal_bits (T, &r, 100, sig) == WLAN_SIG_BITS);
+        for (int b = 0; b < 4; b++)
+          DP_CHECK (sig[b] == (uint8_t)(rate_rows[i].bits[b] - '0'));
+      }
+    /* A pair Clause 17 has no RATE for is refused, not guessed. */
+    {
+      dp_wlan_rate_t r56 = { 6, WLAN_CODE_5_6 }, odd = { 1, WLAN_CODE_2_3 };
+      uint8_t        sig[WLAN_SIG_BITS];
+      DP_CHECK (dp_wlan_signal_bits (T, &r56, 100, sig) == 0);
+      DP_CHECK (dp_wlan_signal_bits (T, &odd, 100, sig) == 0);
+    }
+
+    /* Eq. (17-6) and (17-8), k = -26..26, as printed: the L-STF's sign of
+     * (1+j) per tone, scaled by sqrt(13/6), and the L-LTF's +-1. */
+    static const int stf_sign[53]
+        = { 0,  0, 1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0,  0, -1, 0, 0,  0,
+            -1, 0, 0, 0, 1, 0, 0,  0, 0, 0, 0, 0, -1, 0, 0,  0, -1, 0,
+            0,  0, 1, 0, 0, 0, 1,  0, 0, 0, 1, 0, 0,  0, 1,  0, 0 };
+    static const int ltf_val[53]
+        = { 1,  1,  -1, -1, 1,  1, -1, 1,  -1, 1, 1,  1,  1,  1, 1,  -1, -1, 1,
+            1,  -1, 1,  -1, 1,  1, 1,  1,  0,  1, -1, -1, 1,  1, -1, 1,  -1, 1,
+            -1, -1, -1, -1, -1, 1, 1,  -1, -1, 1, -1, 1,  -1, 1, 1,  1,  1 };
+    const double sq = sqrt (13.0 / 6.0);
+    for (int i = 0; i < 53; i++)
+      {
+        DP_CHECK (fabs (crealf (T->stf[i]) - stf_sign[i] * sq) < 1e-6);
+        DP_CHECK (fabs (cimagf (T->stf[i]) - stf_sign[i] * sq) < 1e-6);
+        DP_CHECK (crealf (T->ltf[i]) == (float)ltf_val[i]);
+        DP_CHECK (cimagf (T->ltf[i]) == 0.0f);
+      }
+    DP_CHECK (T->stf[26] == 0.0f && T->ltf[26] == 0.0f); /* DC */
+    /* One scale for every field: 52 occupied tones of unit power. */
+    DP_CHECK (T->scale_stf == T->scale_ltf && T->scale_ltf == T->scale_data);
+    DP_CHECK (fabs (T->scale_data - 1.0 / sqrt (52.0)) < 1e-15);
+
+    /* Eq. (17-16), (17-17): bijective on every Clause 17 (N_CBPS, N_BPSC),
+     * the identity for BPSK (s = 1), and the standard's own worked example
+     * (Annex I.1.6.2: k = 17 goes to i = 13, then j = 12, at 192 / 4). */
+    static const unsigned pairs[4][2]
+        = { { 48, 1 }, { 96, 2 }, { 192, 4 }, { 288, 6 } };
+    for (int p = 0; p < 4; p++)
+      {
+        const size_t n = pairs[p][0], b = pairs[p][1];
+        uint8_t     *seen = calloc (n, 1);
+        for (size_t i = 0; i < n; i++)
+          {
+            const size_t j = T->perm2 (i, n, b);
+            DP_REQUIRE (j < n);
+            DP_CHECK (!seen[j]);
+            seen[j] = 1;
+            if (b == 1)
+              DP_CHECK (j == i);
+          }
+        free (seen);
+      }
+    {
+      const size_t k = 17, i1 = (192 / 16) * (k % 16) + k / 16;
+      DP_CHECK (i1 == 13);
+      DP_CHECK (T->perm2 (i1, 192, 4) == 12);
+    }
+
+    /* Figure 17-10, Tables 17-14 to 17-18: the bit encodings as the
+     * standard prints them (B0 is the first bit of the group), each point
+     * d = (I + jQ) * K_MOD, against dp_wlan_map() through the relabels. */
+    static const int lv16[4] = { -3, -1, 3, 1 }; /* B0B1: 00 01 10 11 */
+    static const int lv64[8]
+        = { -7, -5, -1, -3, 7, 5, 1, 3 }; /* B0B1B2 as MSB-first */
+    static const unsigned nbs[4] = { 1, 2, 4, 6 };
+    for (int ni = 0; ni < 4; ni++)
+      {
+        const unsigned nb       = nbs[ni];
+        const unsigned n_groups = 1u << nb;
+        for (unsigned v = 0; v < n_groups; v++)
+          {
+            uint8_t bits[6];
+            for (unsigned b = 0; b < nb; b++)
+              bits[b] = (uint8_t)((v >> b) & 1u); /* B0 first */
+            double li = 0, lq = 0, K = 1;
+            if (nb == 1)
+              li = bits[0] ? 1 : -1;
+            else if (nb == 2)
+              {
+                K  = 1 / sqrt (2.0);
+                li = bits[0] ? 1 : -1;
+                lq = bits[1] ? 1 : -1;
+              }
+            else if (nb == 4)
+              {
+                K  = 1 / sqrt (10.0);
+                li = lv16[bits[0] * 2 + bits[1]];
+                lq = lv16[bits[2] * 2 + bits[3]];
+              }
+            else
+              {
+                K  = 1 / sqrt (42.0);
+                li = lv64[bits[0] * 4 + bits[1] * 2 + bits[2]];
+                lq = lv64[bits[3] * 4 + bits[4] * 2 + bits[5]];
+              }
+            float _Complex pt;
+            DP_CHECK (dp_wlan_map (T, nb, bits, nb, &pt) == 1);
+            DP_CHECK (fabs (crealf (pt) - li * K) < 1e-5);
+            DP_CHECK (fabs (cimagf (pt) - lq * K) < 1e-5);
+          }
+      }
+  }
+
   DP_TEST_END ("test_wlan_core");
 }

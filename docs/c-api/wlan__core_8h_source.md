@@ -80,6 +80,8 @@ typedef struct
 
 const dp_wlan_tables_t *dp_wlan_tables_empty (void);
 
+const dp_wlan_tables_t *dp_wlan_tables_standard (void);
+
 /* ── The object ──────────────────────────────────────────────────────────── */
 
 typedef struct

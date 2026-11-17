@@ -347,6 +347,31 @@ double dp_RateConverter_gain (const dp_RateConverter_state_t *s);
  * @endcode
  */
 double dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s);
+
+/**
+ * @brief The converter's group delay, in its INPUT samples: where in the
+ *        input timeline an output sample's content sits.
+ *
+ * Output `k` of a fresh stream carries the input at index
+ * `k / rate - group_delay`. The signal's delay, where get_count_lag() is
+ * the output count's: a caller putting the output against the input's own
+ * timeline -- a test that knows where a chip was transmitted and asks
+ * where it was received -- subtracts this. Each stage's delay in its own
+ * For a plan of one resampler stage -- what every rate from about 0.5 up
+ * builds -- it is that stage's dp_resamp_get_execute_delay(). Any other
+ * plan returns NaN rather than a number nothing has checked: the halfband
+ * and CIC stages publish no delay of their own, and no rate builds two
+ * resampler stages to check a cross-stage sum on (doppler#3119).
+ * @param s State. Must be non-NULL.
+ * @return The group delay in input samples, or NaN for any plan but one
+ *         resampler stage.
+ * @code
+ * dp_RateConverter_state_t *rc = dp_RateConverter_create (1.344, 0);
+ * printf ("%d\n", dp_RateConverter_get_group_delay (rc) > 0.0);  // 1
+ * dp_RateConverter_destroy (rc);
+ * @endcode
+ */
+double dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s);
 /**
  * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
  *

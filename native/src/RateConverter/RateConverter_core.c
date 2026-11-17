@@ -1379,6 +1379,19 @@ dp_RateConverter_get_count_lag (const dp_RateConverter_state_t *s)
   return lag;
 }
 
+double
+dp_RateConverter_get_group_delay (const dp_RateConverter_state_t *s)
+{
+  /* One resampler stage, the plan every rate from about 0.5 up builds:
+     the only one whose delay has been checked. HB and CIC publish no delay,
+     and no rate builds two resampler stages, so a cross-stage sum would be
+     a number nothing has checked: both refuse. */
+  if (s->n_stages != 1 || s->stage_types[0] != RC_STAGE_RESAMP)
+    return NAN;
+  return dp_resamp_get_execute_delay (
+      (const resamp_state_t *)s->stage_ptrs[0]);
+}
+
 size_t
 dp_RateConverter_num_stages (const dp_RateConverter_state_t *s)
 {

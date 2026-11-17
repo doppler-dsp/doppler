@@ -699,11 +699,11 @@
 * **out\_buf** ([**dp\_correlator\_search**](structdp__correlator__search.md))
 * **off\_peak** ([**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md))
 * **off\_peak\_amp** ([**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md))
+* **order** ([**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_farrow\_state\_t**](structdp__farrow__state__t.md))
 * **off\_chips** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **out\_level** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **out\_level\_n** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **owns\_code** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
-* **order** ([**dp\_farrow\_state\_t**](structdp__farrow__state__t.md))
 * **one** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))
 * **own** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))
 * **odd\_I** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md))
@@ -989,7 +989,7 @@
 * **sync\_len** ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md))
 * **seed\_chip** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **seed\_w** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md))
-* **sf** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md))
+* **sf** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **snr\_est** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md))
 * **stat\_n** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md))
 * **sum\_im2** ([**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md))
@@ -1203,6 +1203,7 @@
 * **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md))
 * **\_hot\_pad** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_last\_corr\_valid** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
+* **\_pad\_order** ([**dp\_costas\_state\_t**](structdp__costas__state__t.md))
 
 
 

@@ -23,21 +23,31 @@ inline steps from its own loop.
 1. **Discriminator.** Decision-directed BPSK:
     `e = sign(Re P)·Im P / |P|`, which is `sin` of the phase error for a
     unit phasor.
-1. **FLL assist**, when `bn_fll > 0`. A cross-product frequency error of
-    two data-wiped prompts, added straight into the filter's frequency
-    estimate (`k_fll = 4·bn_fll`).
-1. **Filter.** The embedded `dp_loop_filter_state_t lf` at `t = 1` (one
-    update), so `bn` is in cycles per update. `integ` is the frequency
-    estimate in radians per update.
+1. **FLL assist**, when `bn_fll > 0` (order 2 only, §3.2). A
+    cross-product frequency error of two data-wiped prompts, added straight
+    into `lf`'s frequency estimate (`k_fll = 4·bn_fll`).
+1. **Filter.** The active one (§3): the embedded
+    `dp_loop_filter_state_t lf`, or at order 3 the `StateFilter` `sf`, at
+    `t = 1` (one update), so `bn` is in cycles per update. `integ` is the
+    frequency estimate in radians per update.
 1. **Steer.** The NCO frequency is set to `integ / tsamps` radians per
     sample, and its phase steps by `kp·e`.
 1. **Lock.** `|Re P|/|P|` feeds an exponential average
     (`COSTAS_LOCK_ALPHA`), and `dp_lockdet` decides `locked` on it.
 
 The loop is the canonical one of loop-filter.md §2 (detector, filter,
-accumulating oscillator), with one difference: the proportional term is
-applied as an immediate phase step rather than added to the next update's
-increment.
+accumulating oscillator). The proportional term is applied as a phase step
+at the update, and the new frequency from the next update on, which over
+one update is the canonical oscillator's `c = integ + kp·e`. So
+`dp_state_filter_loop_bandwidth()` is Costas's bandwidth, at both orders,
+for the phase at the detector instant: the impulse-response sum read
+there equals `2·Bn` to six digits at `bn` 0.005 to 0.04.
+
+**Where the phase is read matters to a jitter figure.** The NCO phase
+read just after the update, past the `kp·e` step, is not the phase at the
+detector instant. Its sum of squares is 1% under `2·Bn` at `bn` 0.005 and
+7% under at 0.04, at both orders. `costas_jitter` reads `nco.phase` after
+each update, so it holds the jitter to the sum taken at that same point.
 
 ## 2. What it owns
 
@@ -45,6 +55,8 @@ increment.
 | -------------------------- | ---------------------------------------------------------- | ----------- |
 | `nco`                      | the integer NCO: phase and frequency                       | yes         |
 | `lf`                       | the second-order loop filter: gains, `bn`, `zeta`, `integ` | yes         |
+| `sf`                       | the third-order filter: gains, `bn`, `integ`, `rate`       | yes         |
+| `order`                    | the active filter, 2 or 3 (§3)                             | yes         |
 | `tsamps`, `seed_norm_freq` | the update period and the frequency `reset` returns to     | yes         |
 | `bn`, `zeta`               | the loop's retained configuration (equal to `lf`'s)        | yes         |
 | `bn_fll`, `k_fll`          | the FLL assist                                             | yes         |
@@ -54,7 +66,7 @@ increment.
 | `last_error`               | the last discriminator output                              | yes         |
 | `tlm`                      | the telemetry attachment                                   | zeroed      |
 
-The blob is the struct whole (`COSTAS` v3), with the telemetry zeroed and
+The blob is the struct whole (`COSTAS` v4), with the telemetry zeroed and
 restored live, and `set_state` refuses a snapshot `costas_state_ok()`
 rejects. That check uses the same predicates as create and the setters
 (#2022).
@@ -63,62 +75,86 @@ Embedded by value in `Despreader` (`car`), `DsssReceiver` (`car`) and
 `AsyncDsssReceiver` (`car`, `car_held`, `car_frozen`). Each nests the
 Costas blob as a child sub-blob.
 
+**The all-zero Costas.** A receiver holds its spare loops all zero, never
+initialised (`tsamps` 0, `order` 0), until it seeds them, and its blob
+carries them that way. That one state is accepted as it is; every other
+state has `order` 2 or 3.
+
 ## 3. The second loop order
 
-**Proposed, not built.** The order-2 filter cannot hold a frequency ramp
-at a bandwidth narrow enough for the noise. Its steady error on a ramp is
-`x/ki`, and `ki` falls as `bn²`. At the asynchronous DSSS receiver's floor
-that is tens of degrees ([loop-filter.md](loop-filter.md) §10, use case 1).
-A third-order filter has none, so Costas gains it. `StateFilter`, its own
-certified object, is the filter.
+The order-2 filter cannot hold a frequency ramp at a bandwidth narrow
+enough for the noise. Its steady error on a ramp is `x/ki`, and `ki` falls
+as `bn²`. At the asynchronous DSSS receiver's floor that is tens of
+degrees ([loop-filter.md](loop-filter.md) §10, use case 1). A third-order
+filter has none, so Costas holds one. `StateFilter`, its own certified
+object, is the filter.
 
 ### 3.1 Shape: both filters held, one active
 
-`dp_costas_state_t` holds a `dp_state_filter_state_t sf` beside `lf`, and
-`int order`, 2 or 3, which selects the active one. loop-filter.md §13
-anticipates this embedder: acquire on one order, track on the other.
+`dp_costas_state_t` holds a `dp_state_filter_state_t sf` and `order`,
+which selects the active filter, at the end of the struct. Appended last,
+they leave every field the per-sample loop touches (`nco`, `tsamps`,
+`acc`, `acc_n`) at the offset it had before, so the order-2 loop's memory
+layout does not move. loop-filter.md §13 anticipates this embedder:
+acquire on one order, track on the other.
 
 - **`costas_update()`** steps the active filter and steers from its
-    `integ` and `kp`. The FLL assist adds into the active filter's `integ`.
-- **The getters read the active filter.** `get_norm_freq`,
-    `get_nco_freq` and `get_bn` all do, and so do the telemetry's `.freq`
-    and `.nco`. The inactive filter is held but not read.
-- **`configure(bn, zeta)`** retunes the active filter, keeping its
-    estimates. At order 3 `zeta` is accepted and ignored: order 3 has no
-    damping argument (loop-filter.md §11).
+    `integ` and `kp`.
+- **The getters read the active filter:** `get_norm_freq`,
+    `get_nco_freq`, `get_bn`, and the telemetry's `.freq` and `.nco`.
+- **`lf` always carries the retained `bn` and `zeta`.** At order 3, `sf`
+    runs at the same `bn`. `configure(bn, zeta)` retunes both, keeping the
+    estimates, and refuses a `bn` outside either filter's domain. Order 3
+    has no damping argument (loop-filter.md §11), so `zeta` only reaches
+    `lf`.
 - **`reset`** keeps the order, as it keeps `bn`, `zeta` and the lock
     thresholds. It rewinds the active filter's `integ` to the create-time
-    seed and zeroes `rate`.
+    seed and zeroes `rate`. `set_norm_freq` does the same at a new seed.
 
-**Create and init do not change.** A loop is created at order 2. An
-existing caller gets the same struct contents in `lf` and the same output,
-bit for bit.
+**Create and init do not change.** A loop is created at order 2, with
+`sf` all zero.
 
-### 3.2 The switch
+### 3.2 The switch, the rate, and the FLL
 
-`int dp_costas_set_order (dp_costas_state_t *s, int order, double bn, double norm_rate)` selects an order on a live loop. It is `DP_OK`, or
-`DP_ERR_INVALID` with nothing changed when the order is not 2 or 3, or
-when `bn` is outside that order's domain (`dp_loop_filter_params_ok` at
-the retained `zeta`; `dp_state_filter_params_ok` at `t = 1`).
+`int dp_costas_set_order (dp_costas_state_t *s, int order, double bn)`
+selects an order on a live loop. It returns `DP_OK`, or `DP_ERR_INVALID`
+with nothing changed in these cases:
 
-- **2 to 3:**
-    - `sf` is initialised at `bn` and takes `lf.integ`.
-    - `rate` is `2π·norm_rate·tsamps²` radians per update per update, from
-        `norm_rate` in cycles per sample per sample (`R / fs²` for `R` Hz/s).
-        Zero means no rate is known, which is the default because a rate
-        learned by a wide order-2 loop is not there to carry (loop-filter.md
-        §13).
-- **3 to 2:** `lf` is configured at `bn` and takes `sf.integ`. `rate` is
-    dropped, and `norm_rate` is ignored.
-- **Either way:** the NCO's phase and frequency, the lock average and
-    decision, `prev` and the integrate-and-dump are untouched. So the NCO
-    frequency on the update after a switch is the frequency the loop held
-    before it, and the switch steps nothing.
-- **To the same order:** a retune by `configure` that keeps the estimates,
-    except that 3 to 3 also seeds `rate` when `norm_rate` is not zero.
+- the order is not 2 or 3;
+- `bn` is outside `dp_loop_filter_params_ok` at the retained `zeta`, or at
+    order 3 outside `dp_state_filter_params_ok` at `t = 1`;
+- order 3 is asked while `bn_fll > 0`.
+
+What it carries:
+
+- **2 to 3:** `sf` is initialised at `bn`, takes `lf.integ`, and its
+    `rate` starts at 0.
+- **3 to 2:** `lf` takes `sf.integ`, and the rate is dropped.
+- **Either way:** `lf` is retuned to `bn`, keeping its estimate. The NCO's
+    phase and frequency, the lock average and decision, `prev` and the
+    integrate-and-dump are untouched. So the NCO frequency on the update
+    after a switch is the frequency the loop held before it.
+- **To the same order:** a retune that keeps the estimates.
 
 Costas does not decide when to switch. The embedder does (the receiver on
 its lock event), because only it knows what a lock means for its signal.
+
+**The rate has its own setter.** `dp_costas_set_norm_rate` seeds it, as
+`set_norm_freq` seeds the frequency. It is in cycles per sample per
+sample (`R / fs²` for `R` Hz/s), stored as `2π·val·tsamps²` radians per
+update per update. It is refused at order 2, which holds no rate.
+`dp_costas_get_norm_rate` reads it back, or 0 at order 2. One call, one
+meaning: `set_order` does not also seed a rate, so the mutator gate sees
+the rate through its own property.
+
+**The FLL assist is refused at order 3.** The assist is a first-order
+frequency pull into the filter's frequency estimate. With a rate
+integrator behind that estimate it is a different loop, which StateFilter's
+stability range was not derived for and which has not been measured.
+`set_order(3)` refuses while `bn_fll > 0`, `set_bn_fll` refuses a positive
+value at order 3, and the blob check refuses the combination. That costs the
+asynchronous receiver nothing (it runs `bn_fll = 0`). `DsssReceiver`, which
+runs 0.03, stays at order 2. The header says why.
 
 ### 3.3 The blob
 
@@ -127,22 +163,35 @@ The order is a mutator's value, so it travels and is checked, not used as
 a reject key (state-serialization.md, "What goes in the blob", rule 2).
 `costas_state_ok()` adds three checks:
 
-- the order is 2 or 3;
-- the retained `bn` equals the active filter's;
+- the order is 2 or 3, or 0 in the all-zero Costas;
+- at order 3, `sf` runs at the retained `bn` and the FLL assist is off;
 - `sf` is either the all-zero filter (never selected) or one
     `dp_state_filter_state_ok()` accepts.
 
-Every parent nests Costas as a child sub-blob. Its size changes and its
-version does not: a composition sums `child_state_bytes`, and Costas's own
-envelope refuses an old blob.
+**The parents grow and keep their versions.** state-serialization.md: "A
+composition embeds each child as a self-contained sub-blob — the child
+carries its own header, so it is independently validatable, and migrating
+a leaf (which changes its size) propagates automatically because the
+parent sums `child_state_bytes`." Its rule for a bump, "a blob that gains
+a field bumps the object's `*_STATE_VERSION`", is the child's, not the
+parent's. `test_despreader_core.c` pins it on one parent:
 
-| blob                           | version on main | with this work |
-| ------------------------------ | --------------- | -------------- |
-| `COSTAS` (`CSTS`)              | v3              | v4             |
-| `DESPREADER` (`DSPR`)          | v5              | v5, larger     |
-| `DSSS_RECEIVER` (`DSRX`)       | v4              | v4, larger     |
-| `ASYNC_DSSS_RECEIVER` (`ADRX`) | v17             | v17, larger    |
-| `ASYNC_DSSS_POOL` (`ADPL`)     | v7              | v7, larger     |
+- a despreader blob rebuilt exactly as it was before (Costas v3, 64 bytes
+    smaller, both headers so) is refused, with the despreader untouched;
+- the same blob with only the size changed, its Costas header left at v4,
+    is refused too, so the parent's size refuses it and not only the
+    child's version.
+
+| blob                           | on main | on the held train | with this work |
+| ------------------------------ | ------- | ----------------- | -------------- |
+| `COSTAS` (`CSTS`)              | v3      | v3                | v4             |
+| `DESPREADER` (`DSPR`)          | v5      | v5                | v5, larger     |
+| `DSSS_RECEIVER` (`DSRX`)       | v4      | v4                | v4, larger     |
+| `ASYNC_DSSS_RECEIVER` (`ADRX`) | v17     | v19               | unchanged      |
+| `ASYNC_DSSS_POOL` (`ADPL`)     | v7      | v8                | unchanged      |
+
+The table is main's. The train this lands beside carries `ADRX` v19 and
+`ADPL` v8, and a Costas child changes their size, not their versions.
 
 ### 3.4 What each embedder pays
 
@@ -162,54 +211,70 @@ envelope refuses an old blob.
 
 ### 3.5 Certification
 
-**Order 2, unchanged and shown unchanged:**
+**Order 2, unchanged and held unchanged:**
 
-- every existing `test_costas_core.c` pin;
+- every existing `test_costas_core.c` pin, and the embedders' C tests;
+- an **independent order-2 recurrence** in `test_costas_core.c` §10e,
+    written from this page's §1 and not from `costas_update()`, matches the
+    new struct bit for bit over a noisy ramp: every prompt, `lf.integ` and
+    the NCO phase. Sabotaged with a wrong gain and with a stale frequency, it
+    goes red both times. The second sabotage turned only one other check
+    red in the whole file.
 - `validate_costas_pullin --check` and `validate_costas_jitter --check`;
-- the bench rows above;
-- and one new pin: the order-2 output is bit-identical with `sf` and
-    `order` present.
+- the bench rows above.
 
-**Order 3, pinned and sabotaged on its own:**
+**Order 3, pinned and sabotaged on its own** (§10a to §10d):
 
 - zero steady phase error on a frequency ramp, where order 2 holds its
     `x/ki` (`dp_state_filter_steady_error` is the expectation for both);
 - the switch:
-    - the NCO frequency is continuous across it;
-    - `integ` is equal across it;
-    - a seeded `rate` is held;
-    - 2 to 3 to 2 with `rate` zero is the order-2 loop with the same
-        `integ`;
-- the blob round trip at each order, mid-stream;
-- refusals:
-    - a blob with order 4;
-    - a blob whose retained `bn` is not the active filter's;
-    - `set_order` outside each order's domain, with nothing changed.
+    - the NCO frequency and phase are unchanged across it;
+    - `integ` carries both ways;
+    - a seeded rate is held;
+    - 2 to 3 to 2 with no update between is the order-2 loop, bit for bit;
+- an order-3 blob split mid-stream resumes bit for bit;
+- refusals that change nothing:
+    - forged blobs: order 4, `sf.bn` not the retained `bn`, an FLL assist
+        at order 3;
+    - `set_order` outside each order's domain, and with the FLL on;
+    - `set_bn_fll` at order 3, and `set_norm_rate` at order 2 or NaN.
+- Each was sabotaged and went red: order 3 stepping `lf`; no carry 2 to 3;
+    no carry 3 to 2; the order unchecked; the FLL allowed at order 3; the
+    rate gain zeroed.
 
-**The validators:**
+**The validators, at both orders, asserting in the sweep and in `--check`
+alike** (order 2 had asserted only under `--check`, #1566):
 
-- `costas_pullin` gains order 3, with the same assertions in `--check` and
-    the sweep: it acquires at and inside `bn/m` on both signs, and the bound
-    scales with `bn`.
-- `costas_jitter` gains order 3, with its noise gain from
-    `dp_state_filter_loop_bandwidth` (`G = 2·Bn` cycles per update, the
-    Parseval sum the order-2 rows compute from `kp` and `ki`). The same
-    linearization-factor band and threshold assertions apply at each order.
-- Whether order 3's pull-in reaches `bn/m` at all is open
-    ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)). If it
-    does not, the bound the validator asserts for order 3 is the one it
-    measures, stated as such, and not `bn/m` relabeled.
+- **`costas_pullin`:** order 3 acquires at and inside `bn/m` on both
+    signs, and the bound scales with `bn`.
+    - Past the bound (reported), both orders reach 2x and neither reaches 4x
+        at the shared budget of 250 updates.
+    - Given 1,000 updates, order 3 reaches 4x and order 2 still does not.
+        So past the bound, order 3 pulls in further but slower
+        ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
+- **`costas_jitter`:** order 3's linearization factor is 1.07 against
+    order 2's 1.06, inside the same band. The jitter is proportional to
+    `bn`, with a clear threshold. Its noise gain is the impulse-response sum
+    at the point it reads the phase, after the update (§1), extended by the
+    rate path.
+- A wrong order-3 phase gain turns both red.
 
 ### 3.6 The Python face
 
-`set_order(order, bn, norm_rate=0.0)` and a read-only `order` property, in
-`objects/costas.toml`. The order and both filters are in the blob, so the
-mutator gate (`test_mutator_state.py`) holds them like every other setter.
+In `objects/costas.toml`:
+
+- `set_order(order, bn)`;
+- a read-only `order`;
+- a writable `norm_rate`, refused at order 2.
+
+The serialization matrix has an order-3 row, `Costas (order 3)`, with a
+rate seeded. Through it the mutator gate (`test_mutator_state.py`) shows
+`norm_rate` travels in the blob, and the matrix round-trips order 3 from
+Python.
 
 ### 3.7 Not in this work
 
 - **Choosing the order automatically:** it is the embedder's.
 - **A Kalman flavor of the filter:** that is `StateFilter`'s (loop-filter.md
     §13.1). Costas holds whichever `StateFilter` that work produces.
-- **Moving `bn_fll` into a third filter:** it stays an addition into the
-    active filter's frequency estimate.
+- **The FLL assist at order 3:** refused until it is measured (§3.2).

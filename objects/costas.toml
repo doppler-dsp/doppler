@@ -12,6 +12,7 @@ depends_on = [
   { name = "lo", link = true },
   { name = "lockdet", link = true },
   { name = "loop_filter", link = true },
+  { name = "state_filter", link = true },
   { name = "dp_tlm", link = true },
 ]
 fragment = "generated"
@@ -88,6 +89,14 @@ params = [
 ]
 
 [[costas.methods]]
+name = "set_order"
+doc = "Select the active loop filter on a live loop: order 2 (the PI loop every Costas starts on) or order 3 (StateFilter, which also tracks the carrier's rate), at loop bandwidth bn. The frequency estimate carries across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises ValueError, changing nothing, for another order, a bn outside the order's domain, or order 3 while bn_fll > 0."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "order", type = "int" }, { name = "bn", type = "double" }]
+
+[[costas.methods]]
 name = "reset"
 doc = "Re-seed the loop to the create-time frequency/phase; preserve config."
 arg_type = "void"
@@ -126,4 +135,17 @@ type = "double"
 writable = true
 # The C setter refuses and keeps the value (doppler#2646).
 error = "ValueError"
-error_message = "Costas: bn_fll must be >= 0 and finite (0 = pure PLL)"
+error_message = "Costas: bn_fll must be >= 0 and finite (0 = pure PLL), and 0 at order 3"
+
+[[costas.properties]]
+name = "order"
+type = "int"
+doc = "The active loop filter's order: 2 (the PI loop) or 3 (StateFilter); set with set_order()."
+
+[[costas.properties]]
+name = "norm_rate"
+type = "double"
+writable = true
+# The C setter refuses and keeps the value: order 2 holds no rate.
+error = "ValueError"
+error_message = "Costas: norm_rate needs order 3 (set_order) and a finite value"

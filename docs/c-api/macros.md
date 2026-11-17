@@ -377,6 +377,11 @@
 * **PSD\_STATE\_VERSION** ([**psd\_core.h**](psd__core_8h.md))
 
 
+## q
+
+* **QAM\_BPS\_MAX** ([**mpsk\_core.h**](mpsk__core_8h.md))
+
+
 ## r
 
 * **RC\_MAX\_STAGES** ([**RateConverter\_core.h**](RateConverter__core_8h.md))

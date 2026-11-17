@@ -1363,6 +1363,9 @@
 * **dp\_mpsk\_diff\_map** ([**mpsk\_core.h**](mpsk__core_8h.md))
 * **dp\_mpsk\_map** ([**mpsk\_core.h**](mpsk__core_8h.md))
 * **dp\_mpsk\_soft\_demap** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **dp\_qam\_bits\_per\_symbol** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **dp\_qam\_demap** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **dp\_qam\_map** ([**mpsk\_core.h**](mpsk__core_8h.md))
 * **dp\_mpsk\_receiver\_bits** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **dp\_mpsk\_receiver\_bits\_max\_out** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
 * **dp\_mpsk\_receiver\_bits\_real** ([**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md))
@@ -2005,6 +2008,15 @@
 * **pn\_mls\_poly** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_register\_mask** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_step** ([**pn\_core.h**](pn__core_8h.md))
+
+
+## q
+
+* **qam\_axis\_gray** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **qam\_bps** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **qam\_constellation** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **qam\_scale** ([**mpsk\_core.h**](mpsk__core_8h.md))
+* **qam\_slice** ([**mpsk\_core.h**](mpsk__core_8h.md))
 
 
 ## r

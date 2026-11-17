@@ -550,6 +550,9 @@ extern "C"
    *  @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
    *                for a specialised (branch-free) instantiation.
    *  @return 1 if this output was an on-time strobe that produced a symbol. */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_ratesync_steps(). */
   JM_FORCEINLINE JM_HOT int
   ratesync_loop_take_output (ratesync_loop_t *s, float _Complex y,
                              float _Complex *y_out, int ted)
@@ -666,6 +669,7 @@ extern "C"
     *y_out     = on;
     return 1;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Per-input timing step with the TED selection as a parameter.
@@ -695,6 +699,9 @@ extern "C"
    *               for a specialised (branch-free) instantiation.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
+#ifndef __cplusplus
+  /* C only: calls ratesync_loop_take_output(), which is C only (dp_complex.h,
+     "From C++"). A C++ caller uses dp_ratesync_steps(). */
   JM_FORCEINLINE JM_HOT int
   ratesync_step_ted (dp_ratesync_state_t *s, float _Complex x,
                      float _Complex *y_out, int ted)
@@ -717,6 +724,7 @@ extern "C"
       emitted |= ratesync_loop_take_output (&s->loop, ys[oi], y_out, ted);
     return emitted;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Per-input timing step (the inline composition API).
@@ -729,6 +737,9 @@ extern "C"
    * @param y_out  Receives the symbol when the return is 1.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
+#ifndef __cplusplus
+  /* C only: calls ratesync_loop_take_output(), which is C only (dp_complex.h,
+     "From C++"). A C++ caller uses dp_ratesync_steps(). */
   JM_FORCEINLINE JM_HOT int
   ratesync_step (dp_ratesync_state_t *s, float _Complex x, float _Complex *y_out)
   {
@@ -737,6 +748,7 @@ extern "C"
       dp_ratesync_loop_tlm_flush (&s->loop);
     return r;
   }
+#endif /* !__cplusplus */
 
   /** @brief Output-buffer hint for the generated binding; 0 means "the input
    *  length is already a safe bound" — with `sps >= m >= 2` a block can never

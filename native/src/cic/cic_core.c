@@ -22,6 +22,17 @@
 
 #include "doppler/cic/cic_core.h"
 
+/* The library's out-of-line copy of dp_cic_decimate(). The body lives ONCE,
+   as the JM_FORCEINLINE definition in cic_core.h; JM_FORCEINLINE is a plain
+   `inline`, so this `extern` declaration asks this translation unit, and
+   only this one, to emit that same definition with external linkage (the
+   idiom of util's saturate.c). A C caller still inlines the header's copy;
+   a C++ caller, which the header gives only the prototype, links this
+   (doppler#3108). */
+extern size_t dp_cic_decimate (dp_cic_state_t *state, const float _Complex *in,
+                               size_t n_in, float _Complex *out,
+                               size_t max_out);
+
 #include <math.h>
 
 #include <string.h>

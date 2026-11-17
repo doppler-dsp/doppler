@@ -8,6 +8,7 @@
  */
 #include <stdio.h>
 
+#include "doppler/cic/cic_core.h"
 #include "doppler/fir/fir_core.h"
 #include "doppler/lo/lo_core.h"
 #include "doppler/util/util_core.h"
@@ -18,17 +19,23 @@ int
 main (void)
 {
   const float taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
-  float _Complex x[N], y[N];
+  float _Complex x[N], y[N], d[N];
 
   dp_lo_state_t  *lo  = dp_lo_create (0.0625);
   dp_fir_state_t *fir = dp_fir_create_real (taps, 5);
-  if (!lo || !fir)
+  dp_cic_state_t *cic = dp_cic_create (4);
+  if (!lo || !fir || !cic)
     return 2;
 
   if (dp_lo_steps (lo, N, x, N) != N)
     return 3;
   if (dp_fir_execute (fir, x, N, y) != N)
     return 4;
+  /* C inlines the header's dp_cic_decimate; C++ links the library's copy
+     of the same body. */
+  size_t nd = dp_cic_decimate (cic, y, N, d, N);
+  if (nd != N / 4)
+    return 5;
 
   for (size_t i = 0; i < N; i++)
     {
@@ -37,6 +44,10 @@ main (void)
               (double)crealf (z), (double)cimagf (z));
     }
 
+  for (size_t i = 0; i < nd; i++)
+    printf ("%a %a\n", (double)crealf (d[i]), (double)cimagf (d[i]));
+
+  dp_cic_destroy (cic);
   dp_fir_destroy (fir);
   dp_lo_destroy (lo);
   return 0;

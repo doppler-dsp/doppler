@@ -64,7 +64,7 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
 |  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
-|  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**workers**](#variable-workers)  <br> |
+|  [**dp\_pool\_t**](dp__parallel_8h.md#typedef-dp_pool_t) \* | [**workers**](#variable-workers)  <br> |
 
 
 

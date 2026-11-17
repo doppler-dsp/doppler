@@ -147,6 +147,16 @@
 /** @brief Standard x86-64 cache-line size (64 bytes). */
 #define DP_CACHELINE 64
 
+/* C linkage for everything below, from C++ too. The functions are `static
+   inline`, so this changes no symbol; it is what lets a component header
+   (f32_buffer_core.h and its siblings) redeclare them inside its own
+   `extern "C"` block without a linkage conflict (doppler#3108). The system
+   headers above stay outside it. */
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 /* =========================================================================
  * Platform-agnostic memory helpers
  * All platform-specific logic lives HERE, outside any macro, so that
@@ -1793,5 +1803,9 @@ typedef enum
 DECLARE_DP_BUFFER (f32, float)  /**< 32-bit float  complex (8 bytes/sample)  */
 DECLARE_DP_BUFFER (f64, double) /**< 64-bit double _Complex (16 bytes/sample) */
 DECLARE_DP_BUFFER (i16, int16_t) /**< 16-bit int    complex (4 bytes/sample) */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DP_BUFFER_H */

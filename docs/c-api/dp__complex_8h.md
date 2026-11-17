@@ -121,7 +121,7 @@ What C++ does not get is the C99 complex LIBRARY: `crealf`, `cimagf`, `conjf`, `
 
 
 * a per-sample fast path (`fir_step`, `lo_step`) is not declared to C++ at all; call the object's block function instead;
-* a function that is part of an object's API and has an out-of-line copy in the library is declared to C++ as a prototype, and the call links that copy.
+* a function that is part of an object's API and has an out-of-line copy in the library is declared to C++ as a prototype, and the call links that copy. Where the API function is header-only ([**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate)), the library emits that copy from the same inline definition with an `extern` declaration, so there is still one body.
 
 
 
@@ -135,7 +135,7 @@ What C++ does not get is the C99 complex LIBRARY: `crealf`, `cimagf`, `conjf`, `
 That snippet is `tests/install/cxx-consumer/main.cpp`, which the gate below compiles, runs and compares with its C twin.
 
 
-`make cxx-headers-check` holds this: every installed header must parse as C++, bar the shrinking list in `scripts/.cxx-headers-exempt`. 
+`make cxx-headers-check` holds this: every installed header must parse as C++, bar the shrinking list in `scripts/.cxx-headers-exempt` and the private and Python-only headers in `scripts/.cxx-headers-not-cxx`, which no consumer includes. 
 
 
 

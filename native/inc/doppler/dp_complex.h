@@ -69,7 +69,9 @@
  *   at all; call the object's block function instead;
  * - a function that is part of an object's API and has an out-of-line copy
  *   in the library is declared to C++ as a prototype, and the call links
- *   that copy.
+ *   that copy. Where the API function is header-only (dp_cic_decimate()),
+ *   the library emits that copy from the same inline definition with an
+ *   `extern` declaration, so there is still one body.
  *
  * `std::complex<T>` is layout-compatible with `T _Complex`
  * (the C++ standard, clause complex.numbers), so a C++ caller hands its
@@ -85,7 +87,9 @@
  * below compiles, runs and compares with its C twin.
  *
  * `make cxx-headers-check` holds this: every installed header must parse
- * as C++, bar the shrinking list in `scripts/.cxx-headers-exempt`.
+ * as C++, bar the shrinking list in `scripts/.cxx-headers-exempt` and the
+ * private and Python-only headers in `scripts/.cxx-headers-not-cxx`, which
+ * no consumer includes.
  */
 #ifndef DP_COMPLEX_H
 #define DP_COMPLEX_H

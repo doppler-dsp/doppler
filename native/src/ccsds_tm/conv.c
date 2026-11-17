@@ -11,8 +11,8 @@
 #include "doppler/viterbi/viterbi_core.h"
 
 const conv_code_t dp_CCSDS_TM_CONV = {
-  /* .k      */ 7u,
-  /* .n      */ 2u,
-  /* .poly   */ { 0171u, 0133u },
-  /* .invert */ 0x2u /* 3.3.1(5): G2's output path only */
+  .k      = 7u,
+  .n      = 2u,
+  .poly   = { 0171u, 0133u },
+  .invert = 0x2u /* 3.3.1(5): G2's output path only */
 };

@@ -83,10 +83,13 @@ main (void)
    */
   {
     static const conv_code_t IMP[] = {
-      { 3u, 2u, { 07u, 05u }, 0u },
-      { 7u, 2u, { 0171u, 0133u }, 0x2u }, /* CCSDS */
-      { 7u, 3u, { 0171u, 0165u, 0133u }, 0x5u },
-      { 9u, 2u, { 0753u, 0561u }, 0u },
+      { .k = 3u, .n = 2u, .poly = { 07u, 05u }, .invert = 0u },
+      { .k      = 7u,
+        .n      = 2u,
+        .poly   = { 0171u, 0133u },
+        .invert = 0x2u }, /* CCSDS */
+      { .k = 7u, .n = 3u, .poly = { 0171u, 0165u, 0133u }, .invert = 0x5u },
+      { .k = 9u, .n = 2u, .poly = { 0753u, 0561u }, .invert = 0u },
     };
     for (size_t ci = 0; ci < sizeof IMP / sizeof IMP[0]; ci++)
       {

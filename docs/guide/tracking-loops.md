@@ -138,6 +138,45 @@ f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
 locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
 ```
 
+### Order 3 — a carrier that ramps
+
+A Doppler ramp leaves the default loop a steady phase lag of `x/ki`, which
+grows as the loop narrows. `set_order(3, bn)` switches a live loop to a
+[`StateFilter`](#statefilter-a-loop-filter-for-a-drifting-carrier), which
+also tracks the carrier's rate and holds a ramp with no steady lag. The
+frequency estimate carries across the switch. The rate starts at zero, or
+is seeded through `norm_rate` in cycles per sample² (`R / fs²` for `R`
+Hz/s). The FLL assist and order 3 do not combine: `set_order(3, ...)`
+refuses while `bn_fll > 0`. The loop is the same object, and its blob
+carries the order. [Costas's design](../design/costas.md#3-the-second-loop-order)
+has what a switch carries.
+
+```python
+import numpy as np
+from doppler.track import Costas
+
+tsamps, nsym, ramp = 16, 6000, 2e-8         # ramp: cycles/sample^2
+n = np.arange(nsym * tsamps)
+bits = np.where(np.random.default_rng(1).random(nsym) < 0.5, -1.0, 1.0)
+rx = (np.repeat(bits, tsamps)
+      * np.exp(1j * 2 * np.pi * 0.5 * ramp * n**2)).astype(np.complex64)
+
+def mean_lag(order):
+    c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=tsamps)
+    if order == 3:
+        c.set_order(3, 0.05)                # keeps the frequency estimate
+    e = []
+    for s in range(nsym):
+        c.steps(rx[s * tsamps:(s + 1) * tsamps])
+        e.append(c.last_error)              # sin(phase error), per symbol
+    return c, float(np.mean(e[-2000:]))
+
+c2, lag2 = mean_lag(2)
+c3, lag3 = mean_lag(3)
+assert c3.order == 3 and lag2 > 1e-3      # order 2 lags the ramp...
+assert abs(lag3) < 0.02 * lag2            # ...order 3 holds it
+```
+
 ## CarrierMpsk — M-PSK carrier-tracking loop
 
 `CarrierMpsk` is the M-ary generalization of `Costas`: the same integer-NCO

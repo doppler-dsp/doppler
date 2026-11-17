@@ -24,7 +24,12 @@ static void
 seed (dp_costas_state_t *s, double init_norm_freq)
 {
   dp_lo_init (&s->nco, init_norm_freq);
-  s->lf.integ    = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
+  s->lf.integ = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
+  if (s->order == 3) /* the active filter starts at the seed, rate 0 */
+    {
+      s->sf.integ = s->lf.integ;
+      s->sf.rate  = 0.0;
+    }
   s->acc         = 0.0f;
   s->acc_n       = 0;
   s->prev        = 0.0f;
@@ -49,6 +54,10 @@ dp_costas_init (dp_costas_state_t *s, double bn, double zeta,
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
   s->_pad = 0; /* the struct is the blob: no byte of it left undefined */
+  /* Order 2, the third-order filter all zero until selected. */
+  memset (&s->sf, 0, sizeof s->sf);
+  s->order      = 2;
+  s->_pad_order = 0;
   dp_loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
   dp_lockdet_init (&s->lock, COSTAS_LOCK_DEFAULT_UP, COSTAS_LOCK_DEFAULT_DOWN,
                    COSTAS_LOCK_DEFAULT_N_UP, COSTAS_LOCK_DEFAULT_N_DOWN);
@@ -81,7 +90,11 @@ dp_costas_destroy (dp_costas_state_t *state)
 void
 dp_costas_reset (dp_costas_state_t *state)
 {
+  /* The order is configuration, kept as bn and zeta are; the estimates
+     rewind to the seed (rate 0). */
   dp_loop_filter_reset (&state->lf);
+  if (state->order == 3)
+    dp_state_filter_reset (&state->sf);
   seed (state, state->seed_norm_freq);
 }
 
@@ -144,9 +157,21 @@ costas_state_ok (const dp_costas_state_t *s)
   const int lf_ok  = seeded ? dp_loop_filter_state_ok (&s->lf)
                             : dp_loop_filter_embedded_ok (&s->lf)
                                   && !dp_loop_filter_state_ok (&s->lf);
+  /* The order (dp_costas_set_order): 2 or 3, or 0 in the all-zero loop a
+     receiver holds before it seeds it; the third-order filter is
+     the all-zero one it starts as, or one a live filter could hold; at
+     order 3 it runs at the retained bn and the FLL assist is off. */
+  static const dp_state_filter_state_t zero_sf;
+  const int sf_zero = memcmp (&s->sf, &zero_sf, sizeof zero_sf) == 0;
+  const int sf_ok   = sf_zero || dp_state_filter_state_ok (&s->sf);
+  const int order_ok
+      = s->_pad_order == 0
+        && ((s->order == 0 && !seeded && sf_zero) || s->order == 2
+            || (s->order == 3 && !sf_zero && s->sf.bn == s->bn
+                && s->sf.t == 1.0 && s->bn_fll == 0.0));
   return lf_ok && s->bn == s->lf.bn && s->zeta == s->lf.zeta
          && dp_loop_filter_fll_bn_ok (s->bn_fll) && s->k_fll == 4.0 * s->bn_fll
-         && dp_lockdet_state_ok (&s->lock);
+         && dp_lockdet_state_ok (&s->lock) && sf_ok && order_ok;
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
@@ -163,8 +188,16 @@ dp_costas_configure (dp_costas_state_t *state, double bn, double zeta)
   /* The loop filter refuses outside its domain before writing anything, so
      bn and zeta are stored only once it took them: the getter never reports
      a bandwidth the loop is not running (doppler#2112). */
+  /* At order 3 the active filter takes bn too, keeping its frequency and
+     rate; both domains are checked before either filter is written. */
+  if (state->order == 3
+      && (!dp_state_filter_params_ok (bn, 1.0)
+          || !dp_loop_filter_params_ok (bn, zeta, 1.0)))
+    return DP_ERR_INVALID;
   if (dp_loop_filter_configure (&state->lf, bn, zeta, 1.0) != DP_OK)
     return DP_ERR_INVALID;
+  if (state->order == 3)
+    (void)dp_state_filter_configure (&state->sf, bn, 1.0);
   state->bn   = bn;
   state->zeta = zeta;
   return DP_OK;
@@ -252,9 +285,9 @@ dp_costas_get_nco_freq (const dp_costas_state_t *state)
    * (kp*e radians every tsamps samples == kp*e/(2*pi*tsamps) cycles/sample).
    * Its mean rides a frequency ramp with no lag; the integrator-only
    * get_norm_freq lags by the constant Type-II ramp error. */
+  const double kp = state->order == 3 ? state->sf.kp : state->lf.kp;
   return state->nco.norm_freq
-         + (state->lf.kp * state->last_error)
-               / (2.0 * M_PI * (double)state->tsamps);
+         + (kp * state->last_error) / (2.0 * M_PI * (double)state->tsamps);
 }
 
 void
@@ -262,6 +295,8 @@ dp_costas_set_norm_freq (dp_costas_state_t *state, double val)
 {
   state->seed_norm_freq = val;
   dp_loop_filter_reset (&state->lf);
+  if (state->order == 3)
+    dp_state_filter_reset (&state->sf);
   seed (state, val);
 }
 
@@ -319,7 +354,67 @@ dp_costas_set_bn_fll (dp_costas_state_t *state, double val)
      assist the loop is running (doppler#2646). */
   if (!dp_loop_filter_fll_bn_ok (val))
     return DP_ERR_INVALID;
+  /* Not measured with a rate integrator behind it (costas.md 3.2). */
+  if (state->order == 3 && val > 0.0)
+    return DP_ERR_INVALID;
   state->bn_fll = val;
   state->k_fll  = 4.0 * val;
   return DP_OK;
+}
+
+int
+dp_costas_set_order (dp_costas_state_t *state, int order, double bn)
+{
+  if (order != 2 && order != 3)
+    return DP_ERR_INVALID;
+  if (!dp_loop_filter_params_ok (bn, state->zeta, 1.0))
+    return DP_ERR_INVALID;
+  if (order == 3
+      && (!dp_state_filter_params_ok (bn, 1.0) || state->bn_fll > 0.0))
+    return DP_ERR_INVALID;
+  /* Domains checked: nothing below can refuse. The frequency estimate is
+     the active filter's, carried into the one selected. */
+  const double integ = state->order == 3 ? state->sf.integ : state->lf.integ;
+  (void)dp_loop_filter_configure (&state->lf, bn, state->zeta, 1.0);
+  if (order == 3)
+    {
+      if (state->order == 3)
+        (void)dp_state_filter_configure (&state->sf, bn, 1.0);
+      else
+        {
+          dp_state_filter_init (&state->sf, bn, 1.0);
+          state->sf.integ = integ;
+          state->sf.rate  = 0.0;
+        }
+    }
+  else
+    state->lf.integ = integ;
+  state->order = order;
+  state->bn    = bn;
+  return DP_OK;
+}
+
+int
+dp_costas_get_order (const dp_costas_state_t *state)
+{
+  return state->order;
+}
+
+int
+dp_costas_set_norm_rate (dp_costas_state_t *state, double val)
+{
+  if (state->order != 3 || !isfinite (val))
+    return DP_ERR_INVALID;
+  const double ts = (double)state->tsamps;
+  state->sf.rate  = 2.0 * M_PI * val * ts * ts;
+  return DP_OK;
+}
+
+double
+dp_costas_get_norm_rate (const dp_costas_state_t *state)
+{
+  if (state->order != 3)
+    return 0.0;
+  const double ts = (double)state->tsamps;
+  return state->sf.rate / (2.0 * M_PI * ts * ts);
 }

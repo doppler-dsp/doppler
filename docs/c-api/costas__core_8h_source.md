@@ -18,6 +18,7 @@
 #include "doppler/lo/lo_core.h"
 #include "doppler/lockdet/lockdet_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include <math.h>
 #include "doppler/telemetry/telemetry_core.h"
@@ -55,6 +56,13 @@ typedef struct {
     dp_lockdet_state_t lock;    
     double last_error;       
     costas_tlm_t tlm;        
+    /* The third-order filter and the order sit LAST, after every field the
+       per-sample loop touches (nco, tsamps, acc, acc_n): appended here they
+       leave each of those at the offset it had before order 3 existed, so
+       the order-2 loop's memory layout is the one it always had. */
+    dp_state_filter_state_t sf; 
+    int32_t order;              
+    int32_t _pad_order;         
 } dp_costas_state_t;
 
 void dp_costas_init(dp_costas_state_t *s, double bn, double zeta,
@@ -93,14 +101,28 @@ costas_update(dp_costas_state_t *s, float _Complex P)
     }
     s->prev = P;
     s->have_prev = 1;
-    dp_loop_filter_step(&s->lf, e);
+    /* The active filter (dp_costas_set_order). The FLL above writes lf only:
+     * order 3 refuses bn_fll > 0, so k_fll is 0 there. */
+    double integ, kp;
+    if (s->order == 3)
+    {
+        (void)dp_state_filter_step(&s->sf, e);
+        integ = s->sf.integ;
+        kp    = s->sf.kp;
+    }
+    else
+    {
+        dp_loop_filter_step(&s->lf, e);
+        integ = s->lf.integ;
+        kp    = s->lf.kp;
+    }
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
-    double car_w = s->lf.integ / (double)s->tsamps;
+    double car_w = integ / (double)s->tsamps;
     dp_lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
      * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
-    s->nco.phase += nco_norm_phase_to_word ((s->lf.kp * e) / (2.0 * M_PI));
+    s->nco.phase += nco_norm_phase_to_word ((kp * e) / (2.0 * M_PI));
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);
@@ -122,7 +144,7 @@ void dp_costas_tlm_flush(const dp_costas_state_t *s);
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
  * a whole-struct snapshot resumes the loop exactly. */
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
-#define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
+#define COSTAS_STATE_VERSION 4u /* v4: sf + order */
 
 size_t dp_costas_state_bytes(const dp_costas_state_t *state);
 void dp_costas_get_state(const dp_costas_state_t *state, void *blob);
@@ -145,6 +167,14 @@ double dp_costas_get_lock_metric(const dp_costas_state_t *state);
 double dp_costas_get_last_error(const dp_costas_state_t *state);
 double dp_costas_get_bn_fll(const dp_costas_state_t *state);
 int dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
+
+int dp_costas_set_order(dp_costas_state_t *state, int order, double bn);
+
+int dp_costas_get_order(const dp_costas_state_t *state);
+
+int dp_costas_set_norm_rate(dp_costas_state_t *state, double val);
+
+double dp_costas_get_norm_rate(const dp_costas_state_t *state);
 
 void dp_costas_configure_lock(dp_costas_state_t *state, double up_thresh,
                            double down_thresh, uint32_t n_up,

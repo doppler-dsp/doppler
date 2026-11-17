@@ -3009,7 +3009,14 @@ class AsyncDsssReceiver:
           chain's, and ".state" says which;
         - "<prefix>.phase.code" -- the code NCO's prompt phase at the call's
           first sample, chips (dp_dll_get_code_phase_ahead()), exact to within
-          a code-loop update inside the carried samples.
+          a code-loop update inside the carried samples. It is the code NCO's
+          word, the START of a sample's dwell; the Dll takes its prompt at the
+          dwell's CENTRE, half an increment later (dll_tap_base(),
+          nco_dwell_center(): the zero-order-hold rule). So a prompt on the
+          continuous code phase reads here half a sample BEFORE it (0.5
+          chip_rate / fs chips), with no correlation lost -- measured in the
+          pull-in captures, -0.186 chip at 2.69 samples a chip (0.500 sample)
+          and -0.148 at 3.42 (0.505).
 
         The two phases are stamped at the call's first sample, which is the
         stamp the caller set (dp_tlm_set_now()) for this block, so a caller who

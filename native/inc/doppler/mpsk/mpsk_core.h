@@ -406,8 +406,19 @@ qam_scale (int m)
   return 1.0 / sqrt (2.0 * (double)(m - 1) / 3.0);
 }
 
-/** @brief The first @p b bits of @p r as a number, first bit most
- *         significant (the reverse of how the label packs them). */
+/**
+ * @brief The first @p b bits of @p r as a number, first bit most
+ *        significant (the reverse of how the label packs them).
+ *
+ * The axis's bits sit LSB-first in the label, in transmission order; the
+ * Gray code of a level index reads with the first transmitted bit as its
+ * top bit. This is the one place that reversal is written, used by both
+ * qam_constellation() and qam_slice().
+ *
+ * @param r  Label bits for one axis (only the low @p b are read).
+ * @param b  Bits per axis, log2(M) / 2.
+ * @return   The @p b bits reversed, as an integer in `[0, 2^b)`.
+ */
 JM_FORCEINLINE unsigned
 qam_axis_gray (unsigned r, int b)
 {

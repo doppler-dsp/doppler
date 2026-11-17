@@ -84,8 +84,9 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    const conv_code_t c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
-    conv_enc_t        raw;
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0x2u };
+    conv_enc_t raw;
     dp_conv_enc_init (&raw);
     DP_REQUIRE (dp_conv_encode (&raw, &c, in, N, want, sizeof want)
                 == (size_t)N * 2u);

@@ -135,7 +135,8 @@ main (void)
 
   /* ── what the object costs over the kernel it calls ──────────────────── */
   {
-    const conv_code_t    c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0x2u };
     conv_enc_t           raw;
     dp_conv_enc_state_t *obj
         = dp_conv_enc_create (CODES[2].poly, 2, 7u, 0x2u, 0u, 0u);

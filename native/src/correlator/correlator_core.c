@@ -7422,6 +7422,7 @@ dp__search_get_state (const dp_correlator_state_t *st, void *blob)
   ex.carrier_freq_hz  = srch->carrier_freq_hz;
   ex.zone_all_doppler = (uint32_t)(st->zone_all_doppler != 0);
   ex.zone_half_chips  = st->zone_half_chips;
+  ex.threads_req      = (int32_t)srch->threads_req;
   dp_w_bytes (&w, &ex, sizeof ex);
 
   /* The carry: the framer's own snapshot, zero-padded to a fixed size. */
@@ -7486,6 +7487,7 @@ search_state_check (const dp_correlator_state_t *st, const void *blob,
       || ex.blk_epoch >= (uint32_t)srch->coherent_bins
       || ex.rate_hyps != (uint32_t)srch->rate_hyps || ex.keep_surface > 1
       || ex.zone_all_doppler > 1 || !isfinite (ex.zone_half_chips)
+      || ex._pad != 0
       || !dp_correlator_carrier_freq_ok (ex.carrier_freq_hz, srch->fs))
     return DP_ERR_INVALID;
 
@@ -7572,6 +7574,12 @@ dp__search_set_state (dp_correlator_state_t *st, const void *blob)
   st->zone_all_doppler   = (int)ex.zone_all_doppler;
   st->zone_half_chips    = ex.zone_half_chips;
   st->consumed           = 0;
+  /* The thread request is a mutator's value (#2022), restored through its
+     setter: the target's own grid and cores cap it as the call would, and
+     the output is the same at every count. Set only when it moved, so a
+     restore at the same request keeps the running pool. */
+  if (ex.threads_req != (int32_t)srch->threads_req)
+    (void)dp_correlator_set_threads (st, (int)ex.threads_req);
 
   if (srch->nc_surface)
     {

@@ -551,7 +551,7 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
  * count must name one stream point, or the blob is refused.  acq's
  * retired magic 'ACQR' is not reused. */
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
-#define CORRELATOR_STATE_VERSION 3u
+#define CORRELATOR_STATE_VERSION 4u
 size_t dp_correlator_state_bytes (const dp_correlator_state_t *state);
 void dp_correlator_get_state (const dp_correlator_state_t *state, void *blob);
 int dp_correlator_set_state (dp_correlator_state_t *state, const void *blob);

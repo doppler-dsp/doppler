@@ -397,6 +397,8 @@ typedef struct
   uint32_t zone_all_doppler; 
   double carrier_freq_hz; 
   double zone_half_chips; 
+  int32_t threads_req; 
+  uint32_t _pad;       
 } search_extra_t;
 
 #define DP_CORRELATOR_SEARCH_EXTRA_OFF                                       \

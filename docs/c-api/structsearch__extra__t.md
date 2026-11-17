@@ -36,6 +36,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 
 | Type | Name |
 | ---: | :--- |
+|  uint32\_t | [**\_pad**](#variable-_pad)  <br> |
 |  uint32\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  uint16\_t | [**has\_nc**](#variable-has_nc)  <br> |
@@ -47,6 +48,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 |  uint32\_t | [**nc\_count**](#variable-nc_count)  <br> |
 |  uint32\_t | [**rate\_hyps**](#variable-rate_hyps)  <br> |
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
+|  int32\_t | [**threads\_req**](#variable-threads_req)  <br> |
 |  uint32\_t | [**zone\_all\_doppler**](#variable-zone_all_doppler)  <br> |
 |  double | [**zone\_half\_chips**](#variable-zone_half_chips)  <br> |
 
@@ -108,6 +110,24 @@ Build the byte buffer with [**dp\_correlator\_state\_bytes()**](correlator__core
     
 ## Public Attributes Documentation
 
+
+
+
+### variable \_pad 
+
+```C++
+uint32_t search_extra_t::_pad;
+```
+
+
+
+Zero: the struct's tail, written. 
+ 
+
+
+        
+
+<hr>
 
 
 
@@ -299,6 +319,24 @@ uint64_t search_extra_t::samples_consumed;
 
 
 Stream offset framed so far. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable threads\_req 
+
+```C++
+int32_t search_extra_t::threads_req;
+```
+
+
+
+CORRELATOR\_STATE\_VERSION 4: [**dp\_correlator\_set\_threads()**](correlator__core_8h.md#function-dp_correlator_set_threads)'s n, the REQUEST (a mutator, #2022), restored through the setter, so the target's grid and cores cap it as they would at the call. 
  
 
 

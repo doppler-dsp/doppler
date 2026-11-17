@@ -237,7 +237,7 @@ _The one FFT cross-correlator, with coherent integrate-and-dump._ [More...](#det
 | Type | Name |
 | ---: | :--- |
 | define  | [**CORRELATOR\_STATE\_MAGIC**](correlator__core_8h.md#define-correlator_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','O','R','L')`<br>_State-blob magic ('CORL'); set\_state() rejects any other._  |
-| define  | [**CORRELATOR\_STATE\_VERSION**](correlator__core_8h.md#define-correlator_state_version)  `3u`<br>_State-blob layout version; set\_state() rejects any other. 2: the search's extra block carries keep\_surface (#2022); 3: and the peak zone (_ [_**dp\_correlator\_set\_peak\_zone()**_](correlator__core_8h.md#function-dp_correlator_set_peak_zone) _, doppler#3067)._ |
+| define  | [**CORRELATOR\_STATE\_VERSION**](correlator__core_8h.md#define-correlator_state_version)  `4u`<br>_State-blob layout version; set\_state() rejects any other. 2: the search's extra block carries keep\_surface (#2022); 3: and the peak zone (_ [_**dp\_correlator\_set\_peak\_zone()**_](correlator__core_8h.md#function-dp_correlator_set_peak_zone) _, doppler#3067); 4: and the thread request (_[_**dp\_correlator\_set\_threads()**_](correlator__core_8h.md#function-dp_correlator_set_threads) _, #3055)._ |
 | define  | [**DP\_CORRELATOR\_CN0\_NONE**](correlator__core_8h.md#define-dp_correlator_cn0_none)  `NAN`<br>_The design C/N0 that means "none given" (doppler#1484): a burst engine then sizes for the whole preamble, its_ `pd_predicted` _is NaN and it is never_`underpowered` _._ |
 | define  | [**DP\_CORRELATOR\_DELAY\_LOSS\_NODES**](correlator__core_8h.md#define-dp_correlator_delay_loss_nodes)  `4`<br> |
 | define  | [**DP\_CORRELATOR\_MAX\_PEAKS**](correlator__core_8h.md#define-dp_correlator_max_peaks)  `64u`<br> |
@@ -5530,7 +5530,7 @@ int dp_correlator_set_threads (
 
 
 
-A continuous engine is created asking for the machine's online cores, except with one tile at a depth of one epoch, which runs serially; a burst engine runs serially until asked. Its workers start at its first push, so an engine set to one thread before it is pushed never starts any. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included). At a depth of one epoch (D = 1) the count is capped at `window_bins`: every per-epoch fan hands out one tile a task, so a worker past that only wakes and waits. At D &gt; 1 every stage fans finer than tiles (epochs, capture bins, rows, chunks of rows), so the count is taken whole, and each worker holds its own FFT plans and scratch: memory grows with the count. The request is kept, and every regrid re-applies it, so an engine narrowed to one tile and widened again runs on the request, not on the 1 the narrow grid ran on. The workers are created here, once, and parked between pushes; nothing is created per push after the first. The surface is bit-identical at every count  every output row and every decide chunk is computed whole by one worker, and the chunk count is the grid's  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
+A continuous engine is created asking for the machine's online cores, except with one tile at a depth of one epoch, which runs serially; a burst engine runs serially until asked. Its workers start at its first push, so an engine set to one thread before it is pushed never starts any. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included). At a depth of one epoch (D = 1) the count is capped at `window_bins`: every per-epoch fan hands out one tile a task, so a worker past that only wakes and waits. At D &gt; 1 every stage fans finer than tiles (epochs, capture bins, rows, chunks of rows), so the count is taken whole, and each worker holds its own FFT plans and scratch: memory grows with the count. The request is kept, and every regrid re-applies it, so an engine narrowed to one tile and widened again runs on the request, not on the 1 the narrow grid ran on. The workers are created here, once, and parked between pushes; nothing is created per push after the first. The surface is bit-identical at every count  every output row and every decide chunk is computed whole by one worker, and the chunk count is the grid's  so this changes the cost of a push and nothing about its result. The request travels in the state blob (a mutator's value, #2022): [**dp\_correlator\_set\_state()**](correlator__core_8h.md#function-dp_correlator_set_state) applies it through this call, so the target's grid and cores cap it as they would here. Setup path, never hot; not while another thread is inside push().
 
 
 
@@ -6104,9 +6104,9 @@ _State-blob magic ('CORL'); set\_state() rejects any other._
 
 ### define CORRELATOR\_STATE\_VERSION 
 
-_State-blob layout version; set\_state() rejects any other. 2: the search's extra block carries keep\_surface (#2022); 3: and the peak zone (_ [_**dp\_correlator\_set\_peak\_zone()**_](correlator__core_8h.md#function-dp_correlator_set_peak_zone) _, doppler#3067)._
+_State-blob layout version; set\_state() rejects any other. 2: the search's extra block carries keep\_surface (#2022); 3: and the peak zone (_ [_**dp\_correlator\_set\_peak\_zone()**_](correlator__core_8h.md#function-dp_correlator_set_peak_zone) _, doppler#3067); 4: and the thread request (_[_**dp\_correlator\_set\_threads()**_](correlator__core_8h.md#function-dp_correlator_set_threads) _, #3055)._
 ```C++
-#define CORRELATOR_STATE_VERSION `3u`
+#define CORRELATOR_STATE_VERSION `4u`
 ```
 
 

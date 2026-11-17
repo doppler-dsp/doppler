@@ -21,6 +21,7 @@ target_link_libraries(costas_core PUBLIC
     lo_core
     lockdet_core
     loop_filter_core
+    state_filter_core
     dp_tlm_core)
 
 add_executable(test_costas_core
@@ -30,6 +31,7 @@ target_link_libraries(test_costas_core
                       PRIVATE costas_core lo_core
     lockdet_core
     loop_filter_core
+    state_filter_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_costas_core
@@ -44,6 +46,7 @@ target_link_libraries(bench_costas_core
                       PRIVATE costas_core lo_core
     lockdet_core
     loop_filter_core
+    state_filter_core
     dp_tlm_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

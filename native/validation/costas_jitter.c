@@ -43,21 +43,39 @@ phi_rad (uint32_t p)
 /* Analytic loop noise gain G = sum phi[k]^2 for a unit measurement-noise
  * impulse through the linearized loop (Kd=1), in costas's update order: the
  * NCO advances by the integrator frequency, then the discriminator nudges
- * phase. */
+ * phase, then the filter steps (order 3: the rate first, then the frequency
+ * by the rate). The loop is the canonical one dp_state_filter_loop_bandwidth()
+ * models; what differs is where phi is read. phase_var() reads nco.phase
+ * after each update, past the kp*e step, so G is summed at that same point.
+ * Read at the detector instant (before the step) the sum is 2 Bn of that
+ * function exactly; read here it is 1% under at bn 0.005 and 7% under at
+ * 0.04 (docs/design/costas.md section 1). */
 static double
-noise_gain (double kp, double ki)
+noise_gain (double kp, double ki, double kr)
 {
-  double phi = 0, freq = 0, g = 0;
-  for (int k = 0; k < 200000; k++)
+  double phi = 0, freq = 0, rate = 0, g = 0;
+  for (int k = 0; k < 400000; k++)
     {
       phi += freq;
       double n = (k == 0) ? 1.0 : 0.0;
       double e = -phi + n;
       phi += kp * e;
-      freq += ki * e;
+      rate += kr * e;
+      freq += rate + ki * e;
       g += phi * phi;
     }
   return g;
+}
+
+/* The order the closed-loop runs take (docs/design/costas.md section 3). */
+static int g_order = 2;
+
+static void
+init_loop (dp_costas_state_t *s, double bn)
+{
+  dp_costas_init (s, bn, 0.707, 0.0, 1, 0.0);
+  if (g_order == 3)
+    (void)dp_costas_set_order (s, 3, bn);
 }
 
 /* open-loop discriminator variance at phi=0 (frozen loop). */
@@ -95,7 +113,7 @@ phase_var (double snr, double bn, dp_awgn_state_t *g, float *nb, long n)
   dp_awgn_set_amplitude (g, (float)sqrt (1.0 / snr));
   dp_awgn_reset (g);
   dp_costas_state_t s;
-  dp_costas_init (&s, bn, 0.707, 0.0, 1, 0.0);
+  init_loop (&s, bn);
   long   have = 0, pos = 0, warm = n / 4;
   double m = 0, m2 = 0;
   for (long k = 0; k < n; k++)
@@ -129,58 +147,65 @@ main (int argc, char **argv)
   long             N     = check ? 1500000 : 4000000;
   int              fail  = 0;
 
-  dp_costas_state_t s;
-  dp_costas_init (&s, 0.02, 0.707, 0.0, 1, 0.0);
-  double gain = noise_gain (s.lf.kp, s.lf.ki);
-  printf ("Costas phase jitter  (tsamps=1, bn=0.02, noise gain G=%.4f)\n",
-          gain);
-  printf ("  SNR(dB)  sig_disc^2   sig_phi^2    G*disc      ratio\n");
-  double r_hi = 0;
-  int    nhi  = 0;
-  for (double sdb = 20; sdb >= 8; sdb -= 4)
+  double r_all[2] = { 0.0, 0.0 };
+  for (g_order = 2; g_order <= 3; g_order++)
     {
-      double snr = pow (10, sdb / 10);
-      double dv  = disc_var (snr, g, nb, check ? 400000 : 1000000);
-      double pv  = phase_var (snr, 0.02, g, nb, N);
-      double r   = pv / (gain * dv);
-      printf ("   %4.1f   %.3e   %.3e   %.3e   %.3f\n", sdb, dv, pv, gain * dv,
-              r);
-      if (sdb >= 12)
+      dp_costas_state_t s;
+      init_loop (&s, 0.02);
+      double gain = g_order == 3 ? noise_gain (s.sf.kp, s.sf.ki, s.sf.kr)
+                                 : noise_gain (s.lf.kp, s.lf.ki, 0.0);
+      printf ("[order %d] Costas phase jitter  (tsamps=1, bn=0.02, noise gain "
+              "G=%.4f)\n",
+              g_order, gain);
+      printf ("  SNR(dB)  sig_disc^2   sig_phi^2    G*disc      ratio\n");
+      double r_hi = 0;
+      int    nhi  = 0;
+      for (double sdb = 20; sdb >= 8; sdb -= 4)
         {
-          r_hi += r;
-          nhi++;
+          double snr = pow (10, sdb / 10);
+          double dv  = disc_var (snr, g, nb, check ? 400000 : 1000000);
+          double pv  = phase_var (snr, 0.02, g, nb, N);
+          double r   = pv / (gain * dv);
+          printf ("   %4.1f   %.3e   %.3e   %.3e   %.3f\n", sdb, dv, pv,
+                  gain * dv, r);
+          if (sdb >= 12)
+            {
+              r_hi += r;
+              nhi++;
+            }
         }
-    }
-  r_hi /= nhi;
+      r_hi /= nhi;
 
-  /* sigma_phi^2 proportional to bn (the loop noise bandwidth) at SNR=16 dB */
-  printf ("  --- jitter proportional to bn (SNR=16 dB) ---\n");
-  double snr16 = pow (10, 1.6), prev = 0;
-  int    mono = 1;
-  for (double bn = 0.005; bn <= 0.041; bn *= 2)
-    {
-      double pv = phase_var (snr16, bn, g, nb, N);
-      printf ("   bn=%.3f  sig_phi^2=%.3e  (sig_phi^2/bn=%.3e)\n", bn, pv,
-              pv / bn);
-      if (prev > 0 && !(pv > 1.6 * prev && pv < 2.5 * prev))
-        mono = 0; /* ~doubles when bn doubles */
-      prev = pv;
-    }
+      /* sigma_phi^2 proportional to bn (the loop noise bandwidth) at SNR=16 dB
+       */
+      printf ("  --- jitter proportional to bn (SNR=16 dB) ---\n");
+      double snr16 = pow (10, 1.6), prev = 0;
+      int    mono = 1;
+      for (double bn = 0.005; bn <= 0.041; bn *= 2)
+        {
+          double pv = phase_var (snr16, bn, g, nb, N);
+          printf ("   bn=%.3f  sig_phi^2=%.3e  (sig_phi^2/bn=%.3e)\n", bn, pv,
+                  pv / bn);
+          if (prev > 0 && !(pv > 1.6 * prev && pv < 2.5 * prev))
+            mono = 0; /* ~doubles when bn doubles */
+          prev = pv;
+        }
 
-  /* tracking threshold: jitter explodes at low SNR */
-  double thr = phase_var (pow (10, 0.0), 0.02, g, nb, N); /* 0 dB */
-  double hi  = phase_var (pow (10, 2.0), 0.02, g, nb, N); /* 20 dB */
-  printf ("  threshold: sig_phi^2(0 dB)=%.2e  >> (20 dB)=%.2e  (x%.0f)\n", thr,
-          hi, thr / hi);
+      /* tracking threshold: jitter explodes at low SNR */
+      double thr = phase_var (pow (10, 0.0), 0.02, g, nb, N); /* 0 dB */
+      double hi  = phase_var (pow (10, 2.0), 0.02, g, nb, N); /* 20 dB */
+      printf ("  threshold: sig_phi^2(0 dB)=%.2e  >> (20 dB)=%.2e  (x%.0f)\n",
+              thr, hi, thr / hi);
 
-  if (check)
-    {
+      /* The same assertions in the sweep and in --check (#1566), at each
+         order. */
       if (r_hi < 1.0 || r_hi > 1.45) /* analytic-gain match, stable factor */
         fail = 1;
       if (!mono) /* jitter ~ proportional to bn */
         fail = 1;
       if (thr / hi < 20.0) /* clear tracking threshold */
         fail = 1;
+      r_all[g_order - 2] = r_hi;
     }
   free (nb);
   dp_awgn_destroy (g);
@@ -190,8 +215,8 @@ main (int argc, char **argv)
       return 1;
     }
   if (check)
-    printf ("PASS: phase jitter ~ G*sigma_disc^2 (factor %.2f), prop. to bn, "
-            "with a tracking threshold\n",
-            r_hi);
+    printf ("PASS: phase jitter ~ G*sigma_disc^2 (factor %.2f at order 2, "
+            "%.2f at order 3), prop. to bn, with a tracking threshold\n",
+            r_all[0], r_all[1]);
   return 0;
 }

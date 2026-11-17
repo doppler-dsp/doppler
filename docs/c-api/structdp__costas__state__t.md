@@ -37,6 +37,7 @@ _Costas loop state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  int32\_t | [**\_pad**](#variable-_pad)  <br> |
+|  int32\_t | [**\_pad\_order**](#variable-_pad_order)  <br> |
 |  float \_Complex | [**acc**](#variable-acc)  <br> |
 |  size\_t | [**acc\_n**](#variable-acc_n)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
@@ -48,8 +49,10 @@ _Costas loop state._ [More...](#detailed-description)
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) | [**nco**](#variable-nco)  <br> |
+|  int32\_t | [**order**](#variable-order)  <br> |
 |  float \_Complex | [**prev**](#variable-prev)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) | [**sf**](#variable-sf)  <br> |
 |  [**costas\_tlm\_t**](structcostas__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
@@ -100,7 +103,10 @@ _Costas loop state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_create), or embed by value and [**dp\_costas\_init()**](costas__core_8h.md#function-dp_costas_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the inline composition helpers can drive them; treat the integrate-and-dump and diagnostic fields as internal. 
+Allocate with [**dp\_costas\_create()**](costas__core_8h.md#function-dp_costas_create), or embed by value and [**dp\_costas\_init()**](costas__core_8h.md#function-dp_costas_init). The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the inline composition helpers can drive them; treat the integrate-and-dump and diagnostic fields as internal.
+
+
+Two loop filters are held and one is active (`order`, set by [**dp\_costas\_set\_order()**](costas__core_8h.md#function-dp_costas_set_order)): `lf`, the second-order loop every Costas starts on, and `sf`, a third-order StateFilter that also holds the carrier's rate, so it tracks a frequency ramp with no steady phase error (docs/design/costas.md section 3). `lf` always carries the retained `bn` and `zeta`; at order 3 `sf` runs at the same `bn`. 
 
 
     
@@ -118,6 +124,24 @@ int32_t dp_costas_state_t::_pad;
 
 
 The 4 bytes the compiler would put before the double, named so dp\_costas\_init zeroes them: the blob is the struct whole, and a stack-built loop copied into a receiver otherwise carried 4 stack bytes into its blob. The layout and size are unchanged. 
+
+
+        
+
+<hr>
+
+
+
+### variable \_pad\_order 
+
+```C++
+int32_t dp_costas_state_t::_pad_order;
+```
+
+
+
+written 0: the struct is the blob. 
+ 
 
 
         
@@ -326,6 +350,24 @@ integer carrier NCO (uint32 phase).
 
 
 
+### variable order 
+
+```C++
+int32_t dp_costas_state_t::order;
+```
+
+
+
+the active filter: 2 (`lf`) or 3 (`sf`); 0 only in the all-zero Costas: one never initialised, as a receiver holds its spare loops (tsamps 0) until it seeds them, which round-trips as is. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable prev 
 
 ```C++
@@ -353,6 +395,24 @@ double dp_costas_state_t::seed_norm_freq;
 
 
 create-time carrier freq, for reset. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sf 
+
+```C++
+dp_state_filter_state_t dp_costas_state_t::sf;
+```
+
+
+
+3rd-order loop (frequency and rate); all zero until order 3 is first selected. 
  
 
 

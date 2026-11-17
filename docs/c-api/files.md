@@ -59,6 +59,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**arith\_core.h**](arith__core_8h.md) _Arith module — public C API for fixed-point arithmetic on Q15 (int16\_t) and Q8 (int8\_t) arrays. All elementwise operations write into a caller-supplied output buffer of the same length as the shorter input. Saturation clamps results to the representable range rather than wrapping, matching the two's-complement DSP convention._     
             * **dir** [**async\_dsss\_pool**](dir_8a6668f3097fb7847a23b1f65b3df26f.md)     
                 * **file** [**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md) _AsyncDsssPool_  _N AsyncDsssReceivers on one stream under a controller (docs/design/async-dsss-receiver.md §5-§8)._    
+                * **file** [**async\_dsss\_pool\_private.h**](async__dsss__pool__private_8h.md) _The ghost rule's counterfactual, for the measurement that keeps the rule as it is._     
             * **dir** [**async\_dsss\_receiver**](dir_565c73e0c8995e904663dd9fb6485ceb.md)     
                 * **file** [**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcquisition refine -&gt; Costas/Dll/RateConverter/ MpskReceiver track, one object._     
                 * **file** [**async\_dsss\_receiver\_private.h**](async__dsss__receiver__private_8h.md) _A receiver's roles inside an AsyncDsssPool: pooled (idle until seeded) and search-only (the controller's one search)._     

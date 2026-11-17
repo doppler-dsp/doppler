@@ -320,6 +320,7 @@
 * **dp\_async\_dsss\_pool\_status** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_symbols** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **dp\_async\_dsss\_pool\_symbols\_max\_out** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
+* **dp\_\_async\_dsss\_pool\_ghost\_of\_any\_k** ([**async\_dsss\_pool\_private.h**](async__dsss__pool__private_8h.md))
 * **dp\_async\_dsss\_receiver\_configure\_chain\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_configure\_lock\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **dp\_async\_dsss\_receiver\_configure\_search\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

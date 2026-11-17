@@ -12,6 +12,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) _One raw detection, as the search reported it._     
 * **struct** [**burst\_capture\_event\_t**](structburst__capture__event__t.md) _One captured burst's event, as_ `events()` _hands it back._    
 * **struct** [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) _One detection between acquisition and emission._     
+* **struct** [**carrier\_acq\_tlm\_t**](structcarrier__acq__tlm__t.md) _Telemetry attachment: a borrowed context and this object's probe ids. NULL ctx (the default) means detached: every probe site is one predicted-not-taken branch per tested block. Not part of the state blob, and kept across reset() and set\_state()._     
 * **struct** [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — the probe site is then a single predicted-not-taken branch per block loop. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM)._     
 * **struct** [**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md) _Which coding is applied to one Transfer Frame._     
 * **struct** [**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md) _The shape of one CADU, and what each stage covered._     
@@ -92,6 +93,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_interp\_table\_state\_t**](structdp__interp__table__state__t.md) _InterpolatedTable state._     
 * **struct** [**dp\_iq16\_t**](structdp__iq16__t.md) _One q15 complex sample: the element the i16 ring's view hands back._     
 * **struct** [**dp\_lo\_state\_t**](structdp__lo__state__t.md) _LO state._     
+* **struct** [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) _A lock detector's RULE: its levels and verify counts, without its running count or decision._     
 * **struct** [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) _Lock-detector state (embeddable by value; pointer-free POD)._     
 * **struct** [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) _Second-order PI loop filter state (embeddable by value)._     
 * **struct** [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) _M-PSK receiver state._     

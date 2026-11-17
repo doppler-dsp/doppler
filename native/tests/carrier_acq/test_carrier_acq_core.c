@@ -190,9 +190,77 @@ _test_derived_threshold_round_trip (void)
   return 0;
 }
 
+/* The telemetry pairs each decision with the statistic it thresholds,
+ * per tested block: five records a block in sequential mode, ".ready" 0
+ * while ".stat" stays at or under ".thr", and 1 on the first block where
+ * it is above -- the block the estimator decides on -- whose ".hz" is the
+ * decision's residual_hz and ".n" its n_blocks. A threshold or statistic
+ * published from anywhere but the decision breaks the pairing. The level
+ * (0.4 against unit-power noise, pfa 1e-6) decides after 46 blocks; the
+ * estimate itself is noise-limited there and is not what this pins. */
+#define AMP 0.4f
+static int
+_test_telemetry_pairs_decision_with_statistic (void)
+{
+  size_t          n;
+  float _Complex *x
+      = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 777u, &n);
+  uint32_t st = 99u;
+  for (size_t i = 0; i < n; i++) /* weak enough to take several blocks */
+    x[i] = AMP * x[i] + (float _Complex)dp_cgauss (&st);
+  dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+      SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+      0, 1e-6, 0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
+  dp_tlm_t *t = dp_tlm_create (1u << 16);
+  DP_REQUIRE (ca != NULL && t != NULL);
+  DP_REQUIRE (dp_carrier_acq_set_telemetry (ca, t, "ca", 1) == DP_OK);
+  DP_CHECK (dp_carrier_acq_set_telemetry (ca, t, "ca", 0) == DP_ERR_INVALID);
+  dp_carrier_acq_steps (ca, x, n);
+  DP_REQUIRE (ca->ready);
+  DP_REQUIRE (ca->n_blocks > 2); /* the pairing is seen over several */
+
+  const int id_stat  = dp_tlm_probe_id (t, "ca.stat");
+  const int id_thr   = dp_tlm_probe_id (t, "ca.thr");
+  const int id_hz    = dp_tlm_probe_id (t, "ca.hz");
+  const int id_n     = dp_tlm_probe_id (t, "ca.n");
+  const int id_ready = dp_tlm_probe_id (t, "ca.ready");
+  DP_REQUIRE (id_stat >= 0 && id_thr >= 0 && id_hz >= 0 && id_n >= 0
+              && id_ready >= 0);
+  const size_t  cap = dp_tlm_read_max_out (t);
+  dp_tlm_rec_t *r   = malloc ((cap ? cap : 1) * sizeof *r);
+  DP_REQUIRE (r != NULL);
+  const size_t got = dp_tlm_read (t, 0, r, cap);
+  DP_CHECK (got == 5 * ca->n_blocks); /* every block tested */
+  size_t blocks = 0, decided_at = 0;
+  for (size_t i = 0; i + 5 <= got; i += 5)
+    {
+      DP_REQUIRE (r[i].probe == id_stat && r[i + 1].probe == id_thr
+                  && r[i + 2].probe == id_hz && r[i + 3].probe == id_n
+                  && r[i + 4].probe == id_ready);
+      blocks++;
+      DP_CHECK ((size_t)r[i + 3].value == blocks);
+      const int above = r[i].value > r[i + 1].value;
+      DP_CHECK ((int)r[i + 4].value == above);
+      if (above && !decided_at)
+        {
+          decided_at = blocks;
+          DP_CHECK (fabs (r[i + 2].value - ca->residual_hz) < 1e-3);
+        }
+    }
+  DP_CHECK (decided_at == ca->n_blocks);
+  printf ("  telemetry: %zu tested blocks, decided at %zu, %.1f Hz\n", blocks,
+          decided_at, ca->residual_hz);
+  free (r);
+  free (x);
+  dp_carrier_acq_destroy (ca);
+  dp_tlm_destroy (t);
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK (_test_telemetry_pairs_decision_with_statistic () == 0);
   DP_CHECK (_test_derived_threshold_false_alarms () == 0);
   DP_CHECK (_test_derived_threshold_round_trip () == 0);
   /* ── sequential=true: fires early, accurate residual_hz ── */

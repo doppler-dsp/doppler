@@ -2994,7 +2994,28 @@ class AsyncDsssReceiver:
           in cycles a sample at the input rate, so times chip_rate * spc for
           Hz;
         - "<prefix>.refused" -- the hits refused as seeds so far
-          (status().refused_hits).
+          (status().refused_hits);
+        - "<prefix>.ho_src" -- which estimate the live chain was built from, an
+          ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's, 2 the
+          data template's, 3 the squared stream's);
+        - "<prefix>.cn0" -- the seed's C/N0 estimate, dB-Hz
+          (status().cn0_dbhz_est): constant over a tenure, since the receiver
+          keeps no running estimate while tracking;
+        - "<prefix>.phase.car" -- the pre-despread carrier NCO's phase at the
+          call's FIRST sample, cycles in [0, 1)
+          (dp_costas_get_nco_phase_ahead() past the samples the chain still
+          carries), exact: the loop steers only at a period's end. The phase of
+          the tracking chain; while searching or refining it is the placeholder
+          chain's, and ".state" says which;
+        - "<prefix>.phase.code" -- the code NCO's prompt phase at the call's
+          first sample, chips (dp_dll_get_code_phase_ahead()), exact to within
+          a code-loop update inside the carried samples.
+
+        The two phases are stamped at the call's first sample, which is the
+        stamp the caller set (dp_tlm_set_now()) for this block, so a caller who
+        knows the transmitted carrier and code phase at that sample subtracts
+        them for the loops' true errors -- the stress the discriminator outputs
+        ".car.e" and ".code.e" only estimate.
 
         Feed blocks of about a code period, as the examples do, and these read
         as a time series of the lifecycle: when the search hit, how long the
@@ -3021,7 +3042,12 @@ class AsyncDsssReceiver:
         - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
           symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its
           decision (dp_async_dsss_receiver_get_locked()), the one its users act
-          on, once per emitted symbol.
+          on, once per emitted symbol;
+        - "<prefix>.ref" and "<prefix>.ref_sq" -- the refine's two estimators,
+          the data template's and the squared stream's
+          (dp_carrier_acq_set_telemetry(): ".stat", ".thr", ".hz", ".n",
+          ".ready"), once per tested block while refining. ".ref_sq.hz" is the
+          squared tone's frequency, twice the residual.
 
         The carrier and code loops report their filters two ways: ".car.freq"
         and ".code.rate" (and the demodulator's ".demod.car.freq") are the
@@ -3071,11 +3097,16 @@ class AsyncDsssReceiver:
         ...                        sample_rate=6.138e6, doppler_uncertainty=500.0)
         >>> tlm = Telemetry(1 << 12)
         >>> rx.set_telemetry(tlm, "rx")
-        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-        ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+        >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
+        ...                                                    "rx.code")))
+        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
-        ...                                                    "rx.r")))
-        ['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
+        ...                                                    "rx.refu")))
+        ['rx.handover_hz', 'rx.ho_src', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
+        >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
+        ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
+        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref_sq"))
+        ['rx.ref_sq.hz', 'rx.ref_sq.n', 'rx.ref_sq.ready', 'rx.ref_sq.stat', 'rx.ref_sq.thr']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """

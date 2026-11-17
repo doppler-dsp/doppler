@@ -46,6 +46,7 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  double | [**excl**](#variable-excl)  <br> |
 |  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
+|  uint64\_t | [**ho\_src**](#variable-ho_src)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
@@ -302,6 +303,24 @@ uint8_t async_dsss_receiver_extra_t::had_lock;
 
 
 v4: both flags have been up; the loops coast. 
+
+
+        
+
+<hr>
+
+
+
+### variable ho\_src 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::ho_src;
+```
+
+
+
+v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 3. 
+ 
 
 
         

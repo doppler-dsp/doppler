@@ -236,6 +236,8 @@ adr_free_refine_chain (dp_async_dsss_receiver_state_t *s)
  * discipline applied at the call site. Also resets refine_samples_fed
  * and the shared carry buffer (fresh chain: no leftover partial-period
  * tail). Cannot fail (the sub-object allocations are trusted). */
+static int adr_tlm_attach (dp_async_dsss_receiver_state_t *s);
+
 static void
 adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                           double doppler_hz_est)
@@ -269,6 +271,11 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->car_carry_len      = 0;
   s->refine_hist_len    = 0;
   s->refine_hist_head   = 0;
+  s->ho_src             = ASYNC_DSSS_RX_HO_NONE;
+  /* The new estimators report under the old names, as the track chain's
+     loops do after their rebuild. */
+  if (s->tlm)
+    (void)adr_tlm_attach (s);
 }
 
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
@@ -417,7 +424,9 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX], rc[DP_TLM_NAME_MAX],
       demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX], sym_lock[DP_TLM_NAME_MAX],
       sym_locked[DP_TLM_NAME_MAX], st[DP_TLM_NAME_MAX],
-      handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX];
+      handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX],
+      ref[DP_TLM_NAME_MAX], ref_sq[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX],
+      ph_code[DP_TLM_NAME_MAX], cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
@@ -427,7 +436,13 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (sym_locked, p, "sym.locked") != DP_OK
       || dp_tlm_name_join (st, p, "state") != DP_OK
       || dp_tlm_name_join (handover, p, "handover_hz") != DP_OK
-      || dp_tlm_name_join (refused, p, "refused") != DP_OK)
+      || dp_tlm_name_join (refused, p, "refused") != DP_OK
+      || dp_tlm_name_join (ref, p, "ref") != DP_OK
+      || dp_tlm_name_join (ref_sq, p, "ref_sq") != DP_OK
+      || dp_tlm_name_join (ph_car, p, "phase.car") != DP_OK
+      || dp_tlm_name_join (ph_code, p, "phase.code") != DP_OK
+      || dp_tlm_name_join (cn0, p, "cn0") != DP_OK
+      || dp_tlm_name_join (ho_src, p, "ho_src") != DP_OK)
     return DP_ERR_INVALID;
   /* The searcher first: it is the one child whose attach allocates (a
      scratch context of its own, checked before it registers anything), so
@@ -445,6 +460,12 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
     r = dp_RateConverter_set_telemetry (s->rc, t, rc, d);
   if (r == DP_OK)
     r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
+  /* The refine's two estimators: each test beside its threshold, while
+     refining (dp_carrier_acq_set_telemetry()). */
+  if (r == DP_OK)
+    r = dp_carrier_acq_set_telemetry (s->ca, t, ref, d);
+  if (r == DP_OK)
+    r = dp_carrier_acq_set_telemetry (s->ca_sq, t, ref_sq, d);
   /* The receiver's own decision, the one its users act on: the symbol-lock
      metric and the lockdet's flag, once per emitted symbol. */
   if (r == DP_OK)
@@ -466,6 +487,18 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       if (s->tlm_state < 0 || s->tlm_handover < 0 || s->tlm_refused < 0)
         r = DP_ERR_INVALID;
     }
+  /* With them, once a call: the hand-over's source, the seed's C/N0, and
+     the loops' NCO phases at the call's first sample. */
+  if (r == DP_OK)
+    {
+      s->tlm_ho_src     = dp_tlm_probe (t, ho_src, d);
+      s->tlm_cn0        = dp_tlm_probe (t, cn0, d);
+      s->tlm_phase_car  = dp_tlm_probe (t, ph_car, d);
+      s->tlm_phase_code = dp_tlm_probe (t, ph_code, d);
+      if (s->tlm_ho_src < 0 || s->tlm_cn0 < 0 || s->tlm_phase_car < 0
+          || s->tlm_phase_code < 0)
+        r = DP_ERR_INVALID;
+    }
   return r;
 }
 
@@ -481,8 +514,11 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   (void)dp_mpsk_receiver_set_telemetry (s->rx, NULL, p, 1);
   if (s->acq)
     (void)dp_correlator_set_telemetry (s->acq, NULL, p, 1, NULL);
+  (void)dp_carrier_acq_set_telemetry (s->ca, NULL, p, 1);
+  (void)dp_carrier_acq_set_telemetry (s->ca_sq, NULL, p, 1);
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
+  s->tlm_ho_src = s->tlm_cn0 = s->tlm_phase_car = s->tlm_phase_code = -1;
 }
 
 /* Size the track chain's per-period scratch for the chain just built. One
@@ -1316,6 +1352,8 @@ dp_async_dsss_receiver_create (
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
   obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
   obj->tlm_state = obj->tlm_handover = obj->tlm_refused = -1;
+  obj->tlm_ho_src = obj->tlm_cn0 = obj->tlm_phase_car = obj->tlm_phase_code
+      = -1;
 
   obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
@@ -1969,6 +2007,9 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
             + (sq->ready   ? 0.5 * sq->residual_hz
                : ca->ready ? ca->residual_hz
                            : 0.0); /* give-up: unrefined */
+      int ho_src = sq->ready   ? ASYNC_DSSS_RX_HO_SQUARED
+                   : ca->ready ? ASYNC_DSSS_RX_HO_DATA
+                               : ASYNC_DSSS_RX_HO_SEED;
       /* samples_consumed_refine: freq_refine.refine_seed_carrier_acq()'s
        * own elapsed-time formula, ported verbatim -- a resampled chain
        * has no exact raw-sample-to-block correspondence to track through
@@ -2105,6 +2146,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           || handover_chip_phase >= (double)state->code_len)
         {
           refined_doppler_hz_est = state->seed_doppler_hz_est;
+          ho_src                 = ASYNC_DSSS_RX_HO_SEED;
           handover_chip_phase    = adr_handover_phase (
               state, refined_doppler_hz_est, samples_consumed_refine);
         }
@@ -2130,6 +2172,7 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
                                    state->sps, state->n);
           adr_enter (state, ASYNC_DSSS_RX_TRACKING);
           state->doppler_hz_est = refined_doppler_hz_est;
+          state->ho_src         = ho_src;
         }
       const size_t n_out = adr_steps (state, tail, tail_len, out, max_out);
       free (join);
@@ -2149,6 +2192,16 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
   /* Counted up front: every tail adr_steps() recurses on ends where this
      call's input ends, so a tail of t samples starts at samples_in - t. */
   state->samples_in += x_len;
+  /* The loops' NCO phases at this call's first sample, before it runs:
+     the chain still holds car_carry_len samples it has not wiped, so the
+     first new sample is that many past the NCOs' next one. */
+  double ph_car = 0.0, ph_code = 0.0;
+  if (state->tlm && x_len)
+    {
+      ph_car
+          = dp_costas_get_nco_phase_ahead (&state->car, state->car_carry_len);
+      ph_code = dp_dll_get_code_phase_ahead (state->dll, state->car_carry_len);
+    }
   size_t n_out = adr_steps (state, x, x_len, out, max_out);
   /* The lifecycle, once a call and after it, on the block's stamp: where
      the receiver ended up, the Doppler its chain was built from, and the
@@ -2160,6 +2213,10 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       dp_tlm_emit (state->tlm, state->tlm_handover, state->doppler_hz_est);
       dp_tlm_emit (state->tlm, state->tlm_refused,
                    (double)state->refused_hits);
+      dp_tlm_emit (state->tlm, state->tlm_ho_src, (double)state->ho_src);
+      dp_tlm_emit (state->tlm, state->tlm_cn0, state->cn0_dbhz_est);
+      dp_tlm_emit (state->tlm, state->tlm_phase_car, ph_car);
+      dp_tlm_emit (state->tlm, state->tlm_phase_code, ph_code);
     }
   return n_out;
 }
@@ -2532,6 +2589,13 @@ dp_async_dsss_receiver_get_demod_sync_lock_rule (
 }
 
 int
+dp_async_dsss_receiver_get_handover_source (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return state->ho_src;
+}
+
+int
 dp_async_dsss_receiver_get_code_locked (
     const dp_async_dsss_receiver_state_t *state)
 {
@@ -2621,6 +2685,7 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .refine_hist_cap     = (uint64_t)s->refine_hist_cap,
     .refine_hist_len     = (uint64_t)s->refine_hist_len,
     .excl_at             = s->excl_at,
+    .ho_src              = (uint64_t)s->ho_src,
   };
   memcpy (extra.pick_at, s->pick_at, sizeof extra.pick_at);
   memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
@@ -2677,6 +2742,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.state > ASYNC_DSSS_RX_LOST || extra.pooled > 1
+      || extra.ho_src > ASYNC_DSSS_RX_HO_SQUARED
       || (extra.state == ASYNC_DSSS_RX_IDLE && !extra.pooled)
       || (extra.state == ASYNC_DSSS_RX_SEARCHING && extra.pooled)
       || extra.pick_want > ASYNC_DSSS_RX_MAX_PEAKS
@@ -2783,6 +2849,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   memcpy (s->pick_cn0, extra.pick_cn0, sizeof s->pick_cn0);
   memcpy (s->pick_at, extra.pick_at, sizeof s->pick_at);
   s->excl_at = extra.excl_at;
+  s->ho_src  = (int)extra.ho_src;
   /* set_threads()'s value (#2022): the same request the writer's last
      call made, which on a machine with as many cores runs as many. */
   if (extra.threads != (int64_t)s->acq->search->threads)

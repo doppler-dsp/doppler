@@ -3705,10 +3705,12 @@ static int
 _test_tlm_names_documented (void)
 {
   static const char *const children[]
-      = { "rx.car.", "rx.code.", "rx.demod.", "rx.acq." };
+      = { "rx.car.", "rx.code.", "rx.demod.",
+          "rx.acq.", "rx.ref.",  "rx.ref_sq." };
   static const char *const own[]
-      = { "rx.state", "rx.handover_hz", "rx.refused", "rx.sym.lock",
-          "rx.sym.locked" };
+      = { "rx.state",    "rx.handover_hz", "rx.refused",
+          "rx.sym.lock", "rx.sym.locked",  "rx.ho_src",
+          "rx.cn0",      "rx.phase.car",   "rx.phase.code" };
   enum
   {
     N_CHILD = sizeof children / sizeof children[0],
@@ -3743,6 +3745,143 @@ _test_tlm_names_documented (void)
   return 0;
 }
 
+/* The probes added for measuring the receiver in situ say what the header
+ * says they do, call by call:
+ * - ".phase.car" and ".phase.code" are the NCO phases at the call's first
+ *   sample: the leaf getters asked, before the call, for the phase that
+ *   many samples past the ones the chain still carries;
+ * - ".ho_src" is the hand-over's choice: NONE while refining, then the
+ *   estimate the refine decided with (squared before data before seed);
+ * - ".ref.*" / ".ref_sq.*" report while refining, and only then;
+ * - ".cn0" is the seed's estimate.
+ * And ho_src rides the blob: a restored receiver reports the hand-over it
+ * made, and a forged value past _SQUARED is refused. */
+static int
+_test_tlm_in_situ_probes (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs          = 1.0e6 * (double)spc;
+  const double    tsym        = fs / 35714.29;
+  const size_t    te          = sf * spc;
+  const size_t    n_sym       = 400;
+  const size_t    pre_silence = te * 5 + 3;
+  const double    cn0         = 70.0;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
+                   &x, &n, &data);
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (cn0, 35714.29, 0.0, false);
+  dp_tlm_t *t = dp_tlm_create (1 << 20);
+  DP_REQUIRE (rx != NULL && t != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, t, "rx", 1) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (dp_async_dsss_receiver_get_handover_source (rx)
+            == ASYNC_DSSS_RX_HO_NONE);
+  const int id_car  = dp_tlm_probe_id (t, "rx.phase.car");
+  const int id_code = dp_tlm_probe_id (t, "rx.phase.code");
+  const int id_ho   = dp_tlm_probe_id (t, "rx.ho_src");
+  const int id_cn0  = dp_tlm_probe_id (t, "rx.cn0");
+  const int id_st   = dp_tlm_probe_id (t, "rx.state");
+  DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_ho >= 0 && id_cn0 >= 0);
+  dp_tlm_rec_t   *recs = malloc ((1u << 20) * sizeof *recs);
+  float _Complex *syms = malloc (n * sizeof *syms);
+  DP_REQUIRE (recs != NULL && syms != NULL);
+  size_t calls = 0, tracked = 0, refining = 0;
+  int    ho_seen = ASYNC_DSSS_RX_HO_NONE;
+  /* Not a whole period a call: the chain then carries a varying part of
+     one between calls, which is what the phase probes must look past. */
+  const size_t chunk   = te + te / 2 + 1;
+  size_t       carried = 0;
+  for (size_t pos = pre_silence; pos + chunk <= n; pos += chunk)
+    {
+      const double want_car
+          = dp_async_dsss_receiver_get_tracking (rx)
+                ? dp_costas_get_nco_phase_ahead (&rx->car, rx->car_carry_len)
+                : NAN;
+      const double want_code
+          = dp_async_dsss_receiver_get_tracking (rx)
+                ? dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
+                : NAN;
+      carried += rx->car_carry_len > 0;
+      (void)dp_async_dsss_receiver_steps (rx, x + pos, chunk, syms, n);
+      calls++;
+      const size_t k   = dp_tlm_read (t, 0, recs, 1u << 20);
+      float        car = NAN, code = NAN, ho = NAN, c0 = NAN, st = NAN;
+      for (size_t j = 0; j < k; j++)
+        {
+          if (recs[j].probe == id_car)
+            car = recs[j].value;
+          else if (recs[j].probe == id_code)
+            code = recs[j].value;
+          else if (recs[j].probe == id_ho)
+            ho = recs[j].value;
+          else if (recs[j].probe == id_cn0)
+            c0 = recs[j].value;
+          else if (recs[j].probe == id_st)
+            st = recs[j].value;
+        }
+      DP_CHECK (c0 == (float)cn0);
+      DP_CHECK ((int)ho == dp_async_dsss_receiver_get_handover_source (rx));
+      DP_CHECK ((int)st == (int)rx->state);
+      if (isfinite (want_car) && dp_async_dsss_receiver_get_tracking (rx))
+        {
+          tracked++;
+          DP_CHECK (car == (float)want_car);
+          DP_CHECK (code == (float)want_code);
+        }
+      if (rx->state == ASYNC_DSSS_RX_REFINING)
+        {
+          refining++;
+          DP_CHECK ((int)ho == ASYNC_DSSS_RX_HO_NONE);
+        }
+      if ((int)ho != ASYNC_DSSS_RX_HO_NONE)
+        ho_seen = (int)ho;
+    }
+  DP_CHECK (tracked > 20 && refining > 0);
+  DP_CHECK (carried > tracked / 2); /* the look-past is exercised */
+  /* The choice the refine made, as the hand-over reads it. */
+  const int want = rx->ca_sq->ready ? ASYNC_DSSS_RX_HO_SQUARED
+                   : rx->ca->ready  ? ASYNC_DSSS_RX_HO_DATA
+                                    : ASYNC_DSSS_RX_HO_SEED;
+  DP_CHECK (ho_seen == want);
+  DP_CHECK (_tlm_emitted (t, "rx.ref.stat") > 0
+            || _tlm_emitted (t, "rx.ref_sq.stat") > 0);
+  DP_CHECK (_tlm_emitted (t, "rx.ref.stat") == _tlm_emitted (t, "rx.ref.thr"));
+
+  /* ho_src in the blob: kept across a round trip, and refused past 3. */
+  {
+    dp_async_dsss_receiver_state_t *dst
+        = _searching_rx (cn0, 35714.29, 0.0, false);
+    DP_REQUIRE (dst != NULL);
+    const size_t   cb   = dp_async_dsss_receiver_state_bytes (rx);
+    unsigned char *blob = malloc (cb);
+    DP_REQUIRE (blob != NULL);
+    dp_async_dsss_receiver_get_state (rx, blob);
+    DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_OK);
+    DP_CHECK (dp_async_dsss_receiver_get_handover_source (dst) == want);
+    const size_t at = sizeof (dp_state_hdr_t)
+                      + offsetof (async_dsss_receiver_extra_t, ho_src);
+    DP_REQUIRE (at + sizeof (uint64_t) <= cb);
+    const uint64_t forged = ASYNC_DSSS_RX_HO_SQUARED + 1;
+    memcpy (blob + at, &forged, sizeof forged);
+    DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_ERR_INVALID);
+    free (blob);
+    dp_async_dsss_receiver_destroy (dst);
+  }
+  printf ("  in-situ probes: %zu calls, %zu refining, %zu tracked, "
+          "hand-over source %d\n",
+          calls, refining, tracked, ho_seen);
+  free (recs);
+  free (syms);
+  free (x);
+  free (data);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_tlm_destroy (t);
+  return 0;
+}
+
 /* The five lock rules a caller draws beside the statistics. The symbol
  * rule is the header's constants; the four children's are their own
  * objects' (each forward returns what the child's getter does, on the
@@ -3759,8 +3898,7 @@ _test_lock_rules (void)
   DP_CHECK (s.down_thresh == ASYNC_DSSS_RX_LOCK_DOWN);
   DP_CHECK (s.n_up == ASYNC_DSSS_RX_LOCK_N_UP);
   DP_CHECK (s.n_down == ASYNC_DSSS_RX_LOCK_N_DOWN);
-  dp_async_dsss_receiver_configure_lock_raw (rx, 0.61, 0.27, 16, 0.05, 11,
-                                             6);
+  dp_async_dsss_receiver_configure_lock_raw (rx, 0.61, 0.27, 16, 0.05, 11, 6);
   dp_lockdet_rule_t c = dp_async_dsss_receiver_get_code_lock_rule (rx);
   DP_CHECK (c.up_thresh == 0.61 && c.down_thresh == 0.27);
   DP_CHECK (c.n_up == 11 && c.n_down == 6);
@@ -5873,6 +6011,7 @@ main (void)
   DP_CHECK (_test_tlm_searching_and_refused () == 0);
   DP_CHECK (_test_tlm_names_documented () == 0);
   DP_CHECK (_test_lock_rules () == 0);
+  DP_CHECK (_test_tlm_in_situ_probes () == 0);
   DP_CHECK (_test_slow_time_depth_from_physical_inputs () == 0);
   DP_CHECK (_test_threads_change_nothing_but_cost () == 0);
   DP_CHECK (_test_refine_squared_estimate () == 0);

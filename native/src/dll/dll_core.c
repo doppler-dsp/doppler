@@ -1655,6 +1655,14 @@ dp_dll_get_lock_rule (const dp_dll_state_t *state)
 }
 
 double
+dp_dll_get_code_phase_ahead (const dp_dll_state_t *state, size_t ahead)
+{
+  const uint32_t ph
+      = state->code_nco.phase + (uint32_t)ahead * state->code_nco.phase_inc;
+  return nco_word_to_norm (ph) * (double)state->sf;
+}
+
+double
 dp_dll_get_lock_stat (const dp_dll_state_t *state)
 {
   return state->lock_stat;

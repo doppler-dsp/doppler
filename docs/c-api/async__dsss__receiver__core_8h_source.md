@@ -94,6 +94,11 @@ extern "C"
 #define ASYNC_DSSS_RX_LOCK_N_UP 30u
 #define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
+#define ASYNC_DSSS_RX_HO_NONE 0
+#define ASYNC_DSSS_RX_HO_SEED 1
+#define ASYNC_DSSS_RX_HO_DATA 2
+#define ASYNC_DSSS_RX_HO_SQUARED 3
+
 /* SSOT: enum=async_dsss_rx_state */
 typedef enum
 {
@@ -114,6 +119,7 @@ typedef enum
     dp_dll_state_t           *refine_dll; 
     dp_RateConverter_state_t *refine_rc;  
     dp_carrier_acq_state_t   *ca;         
+    dp_carrier_acq_state_t   *ca_sq;      
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
     uint64_t refine_periods;     
@@ -224,6 +230,7 @@ typedef enum
     double   pick_cn0[ASYNC_DSSS_RX_MAX_PEAKS];     
     uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
     uint64_t refused_hits;         
+    int      ho_src;               
     uint64_t both_down_samples;    
     int      had_lock;             
     int      car_coasting;         
@@ -254,6 +261,10 @@ typedef enum
     int32_t   tlm_state;      
     int32_t   tlm_handover;   
     int32_t   tlm_refused;    
+    int32_t   tlm_phase_car;  
+    int32_t   tlm_phase_code; 
+    int32_t   tlm_cn0;        
+    int32_t   tlm_ho_src;     
     /* The hand-over starts the live chain at the refine's estimate, and
      * the refine decides up to its chain's lag past it, so the start can
      * lie in input an earlier call already passed (#2974). The last
@@ -406,6 +417,20 @@ typedef enum
   double dp_async_dsss_receiver_get_lock_threshold (
       const dp_async_dsss_receiver_state_t *state);
 
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_sym_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_car_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_code_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_sync_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+
+  int dp_async_dsss_receiver_get_handover_source (
+      const dp_async_dsss_receiver_state_t *state);
+
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
    * car_held + dll + rc + rx, a fixed shape; segments/sps/n/
@@ -453,10 +478,11 @@ typedef enum
     uint64_t refine_hist_len; 
     uint64_t excl_at; 
     uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
+    uint64_t ho_src; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 19u /* v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

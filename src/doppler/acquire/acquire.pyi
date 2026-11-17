@@ -154,6 +154,76 @@ class CarrierAcquisition:
 
         """
 
+    def set_telemetry(
+        self,
+        tlm: object | None,
+        prefix: str,
+        decim: int = 1,
+    ) -> None:
+        """Attach (or detach) a telemetry context and register the estimator's
+        probes on it.
+
+        Five probes, emitted once per TESTED block -- every block in sequential
+        mode, once at dwell_target otherwise -- and thinned by decim:
+
+        - "<prefix>.stat": the test statistic the decision compares, the
+          correlator's peak over its noise estimate (dimensionless);
+        - "<prefix>.thr": the threshold it was compared against at this block
+          count (the ratio a detection must exceed; it falls as blocks accrue);
+        - "<prefix>.hz": the frequency of the correlation peak, Hz, refined to
+          a sub-bin as the decision's residual_hz is -- so on the block that
+          decides, it IS residual_hz;
+        - "<prefix>.n": blocks folded so far (n_blocks);
+        - "<prefix>.ready": the decision, 0 or 1.
+
+        A dwell that reaches its give-up cap without deciding shows as a last
+        record with ".ready" 0 at ".n" equal to the cap. Setup path, never hot;
+        the context is borrowed and must outlive the attachment (SPSC rules in
+        dp_tlm/dp_tlm_core.h). Passing NULL detaches.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix; NULL means "ca".
+        decim : int
+            Emit every decim-th tested block; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.acquire import CarrierAcquisition
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> ca = CarrierAcquisition(
+        ...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+        ...     psd_template=np.array([], dtype=np.float32))
+        >>> ca.set_telemetry(tlm, "ca")
+        >>> sorted(tlm.probe_names)
+        ['ca.hz', 'ca.n', 'ca.ready', 'ca.stat', 'ca.thr']
+        >>> rng = np.random.default_rng(12345)
+        >>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)
+        >>> data = np.repeat(bits, 8)
+        >>> t = np.arange(len(data))
+        >>> ca.steps((data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
+        ...     np.complex64))
+        >>> recs = tlm.read()        # five records per tested block
+        >>> len(recs) % 5
+        0
+        >>> name = {i: n for n, i in tlm.probe_names.items()}
+        >>> last = {name[int(r["probe"])]: float(r["value"]) for r in recs[-5:]}
+        >>> last["ca.ready"], round(last["ca.hz"]), last["ca.stat"] > last["ca.thr"]
+        (1.0, 123, True)
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 

@@ -1,4 +1,5 @@
 #include "doppler/costas/costas_core.h"
+#include "doppler/nco/nco_core.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -330,6 +331,16 @@ dp_lockdet_rule_t
 dp_costas_get_lock_rule (const dp_costas_state_t *state)
 {
   return dp_lockdet_rule (&state->lock);
+}
+
+double
+dp_costas_get_nco_phase_ahead (const dp_costas_state_t *state, size_t ahead)
+{
+  /* Unsigned wrap is the NCO's own modulus: (ahead mod 2^32) * inc mod
+     2^32 is exactly ahead increments. */
+  const uint32_t ph
+      = state->nco.phase + (uint32_t)ahead * state->nco.phase_inc;
+  return nco_word_to_norm (ph);
 }
 
 double

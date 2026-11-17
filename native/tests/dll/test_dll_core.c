@@ -1504,6 +1504,19 @@ main (void)
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
+    /* The code phase predicted n samples ahead is the phase after n
+       samples. Zero input steers nothing (a zero discriminator), so the
+       rate holds through the updates the samples cross. */
+    {
+      const double now      = dp_dll_get_code_phase (c);
+      const double ahead    = dp_dll_get_code_phase_ahead (c, 100);
+      float _Complex z[100] = { 0 };
+      float _Complex o[8];
+      DP_CHECK (dp_dll_get_code_phase_ahead (c, 0) == now);
+      (void)dp_dll_steps (c, z, 100, o, 8);
+      DP_CHECK_NEAR (dp_dll_get_code_phase (c), ahead, 1e-9);
+      DP_CHECK (fabs (ahead - now) > 1.0); /* it did move */
+    }
     /* The lock rule reads back the verify counts set_lock_verify set,
        keeping the levels configure_lock derived. */
     {

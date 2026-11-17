@@ -1239,6 +1239,23 @@ int dp_dll_set_lock_verify(dp_dll_state_t *state, uint32_t n_up, uint32_t n_down
 double dp_dll_get_code_phase(const dp_dll_state_t *state);
 
 /**
+ * @brief The prompt code phase @p ahead samples from now, at the code
+ *        NCO's present rate.
+ *
+ * dp_dll_get_code_phase() is the code NCO's post-advance phase: the phase
+ * of the next sample. This adds @p ahead increments in the NCO's own
+ * 32-bit arithmetic, so it is exact until the loop next steers the NCO;
+ * a discriminator update inside those samples moves the rate by the
+ * loop's correction, which this does not see.
+ *
+ * @param state  Must be non-NULL.
+ * @param ahead  Samples past the next one (0 = get_code_phase()).
+ * @return Phase in chips, from 0 up to code_len (exclusive).
+ */
+double dp_dll_get_code_phase_ahead(const dp_dll_state_t *state,
+                                   size_t ahead);
+
+/**
  * @brief Set the prompt code phase, in chips: the correction a holder
  *        applies to a coasting loop.
  *

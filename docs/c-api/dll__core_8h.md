@@ -84,8 +84,10 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dp\_dll\_destroy**](#function-dp_dll_destroy) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Destroy a DLL instance and release all memory (incl. the code copy)._  |
 |  double | [**dp\_dll\_get\_bn**](#function-dp_dll_get_bn) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Loop noise bandwidth currently in use._  |
 |  double | [**dp\_dll\_get\_code\_phase**](#function-dp_dll_get_code_phase) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current prompt code phase._  |
+|  double | [**dp\_dll\_get\_code\_phase\_ahead**](#function-dp_dll_get_code_phase_ahead) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, size\_t ahead) <br>_The prompt code phase_ `ahead` _samples from now, at the code NCO's present rate._ |
 |  double | [**dp\_dll\_get\_code\_rate**](#function-dp_dll_get_code_rate) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The loop's own code rate, without the carrier rate aid._  |
 |  double | [**dp\_dll\_get\_last\_error**](#function-dp_dll_get_last_error) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Last discriminator output, the loop stress._  |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_dll\_get\_lock\_rule**](#function-dp_dll_get_lock_rule) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The rule the code lock decision is made by: the levels the lock statistic R is compared against and the verify counts (_ [_**dp\_dll\_configure\_lock()**_](dll__core_8h.md#function-dp_dll_configure_lock) _,_[_**dp\_dll\_set\_lock\_verify()**_](dll__core_8h.md#function-dp_dll_set_lock_verify) _)._ |
 |  double | [**dp\_dll\_get\_lock\_stat**](#function-dp_dll_get_lock_stat) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Last lock test statistic R (compare against the configured eta)._  |
 |  int | [**dp\_dll\_get\_locked**](#function-dp_dll_get_locked) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_dll\_configure\_lock)._  |
 |  double | [**dp\_dll\_get\_noise\_est**](#function-dp_dll_get_noise_est) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._  |
@@ -869,6 +871,45 @@ Phase in chips, from 0 up to code\_len (exclusive) once a sample has run (it is 
 
 
 
+### function dp\_dll\_get\_code\_phase\_ahead 
+
+_The prompt code phase_ `ahead` _samples from now, at the code NCO's present rate._
+```C++
+double dp_dll_get_code_phase_ahead (
+    const dp_dll_state_t * state,
+    size_t ahead
+) 
+```
+
+
+
+[**dp\_dll\_get\_code\_phase()**](dll__core_8h.md#function-dp_dll_get_code_phase) is the code NCO's post-advance phase: the phase of the next sample. This adds `ahead` increments in the NCO's own 32-bit arithmetic, so it is exact until the loop next steers the NCO; a discriminator update inside those samples moves the rate by the loop's correction, which this does not see.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ahead` Samples past the next one (0 = get\_code\_phase()). 
+
+
+
+**Returns:**
+
+Phase in chips, from 0 up to code\_len (exclusive). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_dll\_get\_code\_rate 
 
 _The loop's own code rate, without the carrier rate aid._ 
@@ -932,6 +973,40 @@ double dp_dll_get_last_error (
 **Returns:**
 
 Dimensionless error from -1 to 1; 0 after create/reset. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_get\_lock\_rule 
+
+_The rule the code lock decision is made by: the levels the lock statistic R is compared against and the verify counts (_ [_**dp\_dll\_configure\_lock()**_](dll__core_8h.md#function-dp_dll_configure_lock) _,_[_**dp\_dll\_set\_lock\_verify()**_](dll__core_8h.md#function-dp_dll_set_lock_verify) _)._
+```C++
+dp_lockdet_rule_t dp_dll_get_lock_rule (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule ([**dp\_lockdet\_rule()**](lockdet__core_8h.md#function-dp_lockdet_rule)). 
 
 
 

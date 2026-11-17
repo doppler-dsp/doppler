@@ -325,6 +325,9 @@ size_t dp_dll_get_symbol_window(const dp_dll_state_t *state);
 int dp_dll_set_lock_verify(dp_dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dp_dll_get_code_phase(const dp_dll_state_t *state);
 
+double dp_dll_get_code_phase_ahead(const dp_dll_state_t *state,
+                                   size_t ahead);
+
 void dp_dll_set_code_phase(dp_dll_state_t *state, double chips);
 double dp_dll_get_code_rate(const dp_dll_state_t *state);
 
@@ -343,6 +346,8 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
 float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
 
 int dp_dll_get_locked(const dp_dll_state_t *state);
+
+dp_lockdet_rule_t dp_dll_get_lock_rule(const dp_dll_state_t *state);
 
 double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 

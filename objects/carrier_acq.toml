@@ -138,6 +138,20 @@ doc = "Discard the running PSD average and detection state; counters return to z
 arg_type = "void"
 return_type = "void"
 
+# Telemetry: the decision beside the statistic it thresholds, once per
+# tested block (dp_carrier_acq_set_telemetry). The capsule is retained for
+# as long as it is attached; a refusal raises ValueError.
+[[carrier_acq.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
 [[carrier_acq.properties]]
 name = "ready"
 type = "bool"

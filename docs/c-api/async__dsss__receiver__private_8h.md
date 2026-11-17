@@ -65,6 +65,7 @@ _A receiver's roles inside an AsyncDsssPool: pooled (idle until seeded) and sear
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_\_adsss\_refine\_decided**](#function-dp__adsss_refine_decided) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* s) <br>_Whether the refine has decided (docs/design/async-dsss-receiver.md §4.7): the squared estimator is ready, or the data template has decided_  _ready, or at its give-up cap._ |
 |  int | [**dp\_\_adsss\_same\_code\_phase**](#function-dp__adsss_same_code_phase) (double a, double b, double code\_len) <br>_One signal's code phase:_ `a` _and_`b` _within DP\_CORRELATOR\_SAME\_PHASE\_CHIPS of each other, circularly over a code of_`code_len` _chips._ |
 
 
@@ -226,6 +227,26 @@ The picks written, at most `max`; any past it are dropped.
 <hr>
 ## Public Static Functions Documentation
 
+
+
+
+### function dp\_\_adsss\_refine\_decided 
+
+_Whether the refine has decided (docs/design/async-dsss-receiver.md §4.7): the squared estimator is ready, or the data template has decided_  _ready, or at its give-up cap._
+```C++
+static inline int dp__adsss_refine_decided (
+    const dp_async_dsss_receiver_state_t * s
+) 
+```
+
+
+
+Both estimators fold every block, so when the data template decides the squared one has been tested on each block it saw (on the same block, at dwell\_target, when not sequential): the refine takes no longer than the data template alone. The receiver's one test, and the tests' (#2974's split rows stop on it). 
+
+
+        
+
+<hr>
 
 
 

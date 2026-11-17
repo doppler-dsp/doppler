@@ -27,6 +27,7 @@ const jm_any_fn jm_bound_symbols_carrier_acq[] = {
     (jm_any_fn)dp_carrier_acq_destroy,
     (jm_any_fn)dp_carrier_acq_reset,
     (jm_any_fn)dp_carrier_acq_steps,
+    (jm_any_fn)dp_carrier_acq_set_telemetry,
     (jm_any_fn)dp_carrier_acq_state_bytes,
     (jm_any_fn)dp_carrier_acq_get_state,
     (jm_any_fn)dp_carrier_acq_set_state,

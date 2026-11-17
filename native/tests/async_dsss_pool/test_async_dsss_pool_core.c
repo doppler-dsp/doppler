@@ -6,6 +6,7 @@
  */
 #include "doppler/RateConverter/RateConverter_core.h"
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
@@ -1590,6 +1591,8 @@ typedef struct
   double                      df_end;  /* receiver 1's carrier minus 0's */
   int                         tracked; /* receiver 1 reached tracking     */
   long n, code_up, sym_up, both_down;  /* its tracking steps and flags   */
+  int  rule_k, any_k; /* while both rings were full: the ghost rule, and its
+                         counterfactual with k = 0 admitted, took it      */
 } _g415_t;
 
 /* The sidelobe the ghost scenes seed on: 167 chips from the code's peak,
@@ -1657,6 +1660,7 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
   out->tracked         = 0;
   out->df_end          = NAN;
   out->n = out->code_up = out->sym_up = out->both_down = 0;
+  out->rule_k = out->any_k = 0;
   for (;;)
     {
       const size_t want = push - p->carry_len;
@@ -1690,6 +1694,8 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
           out->code_up += s1.code_locked != 0;
           out->sym_up += s1.locked != 0;
           out->both_down += !s1.code_locked && !s1.locked;
+          out->rule_k |= dp_async_dsss_pool_ghost_of (p, 0, 1);
+          out->any_k |= dp__async_dsss_pool_ghost_of_any_k (p, 0, 1);
         }
       if (s1.state == ASYNC_DSSS_RX_IDLE || t - t_seed > tmax_s)
         break;
@@ -1744,8 +1750,10 @@ _test_ghost_is_released (void)
                         && (double)z.code_up
                                < ASYNC_DSSS_POOL_GHOST_LOCK_FRAC * (double)z.n,
                     "it sits on A's carrier with its code lock low");
-    DP_CHECK_MSG (p->released_ghost == 0,
+    DP_CHECK_MSG (p->released_ghost == 0 && !z.rule_k,
                   "the ghost rule does not take a k = 0 ghost");
+    DP_CHECK_MSG (z.any_k, "the rule with k = 0 admitted would have: it is "
+                           "the k != 0 test alone that keeps it");
     /* Whichever end it came to, its flags say why: freed by the loss
        release only after both flags were down for the confirm span (0.5 s,
        in whole pushes), and otherwise still tracking. */

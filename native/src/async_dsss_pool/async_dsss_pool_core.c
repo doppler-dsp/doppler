@@ -5,6 +5,7 @@
  *        docs/design/async-dsss-receiver.md §8 for why.
  */
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include <limits.h>
 #include <math.h>
@@ -280,9 +281,12 @@ still (double sd)
    on its parent's carrier offset by k / (2 T_E), so the delta is still
    and on the lattice; two emitters' carriers move apart. Both rings are
    full, and every ring is written at the same slots, so slot b of one is
-   the same step as slot b of the other. */
+   the same step as slot b of the other. `allow_k0` admits k = 0 as well:
+   the rule's counterfactual, for the measurement that keeps it out
+   (dp__async_dsss_pool_ghost_of_any_k()); the rule itself never sets it. */
 static int
-carrier_lockstep (const dp_async_dsss_pool_state_t *s, size_t i, size_t j)
+carrier_lockstep (const dp_async_dsss_pool_state_t *s, size_t i, size_t j,
+                  int allow_k0)
 {
   const size_t  w  = s->ghost_window;
   const double *fi = s->car_hist + i * w, *fj = s->car_hist + j * w;
@@ -291,7 +295,8 @@ carrier_lockstep (const dp_async_dsss_pool_state_t *s, size_t i, size_t j)
     m += fj[b] - fi[b];
   m /= (double)w;
   const double k = (double)llround (m / s->lattice_hz);
-  if (k == 0.0 || fabs (m - k * s->lattice_hz) >= ASYNC_DSSS_POOL_GHOST_EPS_HZ)
+  if ((k == 0.0 && !allow_k0)
+      || fabs (m - k * s->lattice_hz) >= ASYNC_DSSS_POOL_GHOST_EPS_HZ)
     return 0;
   double v = 0.0; /* two passes: the delta is ~1500 Hz, its spread ~5 */
   for (size_t b = 0; b < w; b++)
@@ -302,15 +307,29 @@ carrier_lockstep (const dp_async_dsss_pool_state_t *s, size_t i, size_t j)
   return still (sqrt (v / (double)w));
 }
 
-int
-dp_async_dsss_pool_ghost_of (const dp_async_dsss_pool_state_t *s, size_t i,
-                             size_t j)
+static int
+ghost_test (const dp_async_dsss_pool_state_t *s, size_t i, size_t j,
+            int allow_k0)
 {
   const size_t w = s->ghost_window;
   if (i >= s->n_receivers || j >= s->n_receivers || i == j
       || s->hist_len[i] < w || s->hist_len[j] < w)
     return 0;
-  return code_lock_low (s, j) && carrier_lockstep (s, i, j);
+  return code_lock_low (s, j) && carrier_lockstep (s, i, j, allow_k0);
+}
+
+int
+dp_async_dsss_pool_ghost_of (const dp_async_dsss_pool_state_t *s, size_t i,
+                             size_t j)
+{
+  return ghost_test (s, i, j, 0);
+}
+
+int
+dp__async_dsss_pool_ghost_of_any_k (const dp_async_dsss_pool_state_t *s,
+                                    size_t i, size_t j)
+{
+  return ghost_test (s, i, j, 1);
 }
 
 /* Header step 3. Serial, at each group's end, and a function of

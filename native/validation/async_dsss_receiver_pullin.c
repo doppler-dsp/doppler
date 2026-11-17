@@ -88,19 +88,40 @@
  * place of ASYNC_DSSS_RX_BN_CARRIER: the loop filter is re-initialised
  * through the receiver's state on each entry into tracking (integrator
  * kept), and each row records the bandwidth it ran at (bn_car).
+ * `--bn-carrier rule` takes it from the owner's loop rule instead
+ * (docs/design/async-dsss-receiver.md §1.3: about 20 dB of loop SNR at the
+ * 4 dB floor, `rho - 10 log10(2 bn)`, with rho the per-update SNR there),
+ * per carrier: pi_bn_rule(), the one place the rule is written.
+ * `--loop-order N` names the carrier loop's order, recorded per row
+ * (loop_order); 2 is the built loop, and 3 refuses until Costas has an
+ * order to select (§4.9).
+ *
+ * `--design` prints only the `# design` section, which --emit also prints:
+ * per carrier, level, window and order, the loop the rule and the run's
+ * bandwidth ask for, read through the shipped exact functions
+ * (dp_state_filter_loop_bandwidth / _loop_stable / _steady_error, with
+ * dp_loop_filter_init's and dp_state_filter_init's gains): the detector's
+ * slope at that level (a Monte Carlo of the error the receiver forms, on
+ * the shipped awgn), the delivered bandwidth at that slope and at the
+ * delays the lag instrument measured, the loop SNR in the rule's
+ * convention and on the squared phase with the slope referred (reported,
+ * not designed to), order 3's lower gain edge, and the ramp's lag.
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
- *             [--bn-carrier BN]
+ *             [--bn-carrier BN|rule] [--loop-order 2|3] [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--telemetry DIR --draw FC,ESN0,RATE,CW,SEED [--from S]
  *              [--to S]]
  */
 #include "async_dsss_receiver_common.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/ber/ber_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 #include "doppler/timing/timing_core.h"
 #include "dp_air_test.h"
 #include "dp_ber_test.h"
@@ -158,7 +179,8 @@ typedef struct
      spacing. */
   double base_row_hz, base_half_sample_chip, base_unamb_hz, base_pullin_hz;
   double base_half_spacing_chip;
-  double bn_car; /* the carrier loop's bandwidth the draw tracked with */
+  double bn_car;     /* the carrier loop's bandwidth the draw tracked with */
+  int    loop_order; /* the carrier loop's order the draw tracked with */
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
@@ -282,6 +304,34 @@ static double    pi_cell_key[PI_CELLS][4];
    period) the draws track with, in place of the built
    ASYNC_DSSS_RX_BN_CARRIER; NAN: as built. */
 static double pi_bn_car = NAN;
+/* --bn-carrier rule: the bandwidth comes from pi_bn_rule() per carrier. */
+static int pi_bn_rule_on = 0;
+/* --loop-order: the carrier loop's order (2: the built loop). */
+static int pi_loop_order = 2;
+
+/* The owner's loop rule, docs/design/async-dsss-receiver.md §1.3: a loop
+   SNR of PI_LOOP_SNR_DB at the floor, in the rule's convention
+   `rho - 10 log10(2 bn)`, rho the per-update SNR (C/N0 at the antenna
+   times the update period). The one place the rule is written; every
+   bandwidth the rule sets comes from here. */
+#define PI_LOOP_SNR_DB 20.0
+#define PI_FLOOR_ESN0_DB 4.0
+/* The partials window's count, which the design rows assume and every draw
+   checks against the receiver it built (rx->segments). */
+#define PI_PARTIALS 4
+static double
+pi_bn_rule (double rho_floor)
+{
+  return rho_floor / (2.0 * pow (10.0, PI_LOOP_SNR_DB / 10.0));
+}
+
+/* The per-update SNR rho = C/N0 T for a carrier fc at Es/N0 esn0. */
+static double
+pi_rho (double fc, double esn0)
+{
+  const double chip = fc * 31.0 / 21216.0, T = (double)SF / chip;
+  return pow (10.0, (esn0 + 10.0 * log10 (PI_SYM)) / 10.0) * T;
+}
 /* The five lock rules each cell's flags were decided by (the same for
    every draw of a cell: the configuration sets them). */
 #define PI_RULES 5
@@ -534,11 +584,13 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
          hand-over's frequency -- kept (dp_loop_filter_init() does not touch
          it). The block the hand-over fell in ran at the built bandwidth:
          at most one block, 0.37 ms, about 1.5 code periods. */
-      if (tracking && !was_tracking && !isnan (pi_bn_car))
+      if (tracking && !was_tracking && (!isnan (pi_bn_car) || pi_bn_rule_on))
         {
-          rx->car.bn = pi_bn_car;
-          dp_loop_filter_init (&rx->car.lf, pi_bn_car, rx->car.lf.zeta,
-                               rx->car.lf.t);
+          const double bn = pi_bn_rule_on
+                                ? pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB))
+                                : pi_bn_car;
+          rx->car.bn      = bn;
+          dp_loop_filter_init (&rx->car.lf, bn, rx->car.lf.zeta, rx->car.lf.t);
         }
       if (tracking && isnan (d->ho_err_hz))
         {
@@ -743,6 +795,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
     const double rho = pow (10.0, cn0 / 10.0) * T;
     const double K
         = cw == ASYNC_DSSS_RX_CARRIER_PARTIALS ? (double)rx->segments : 1.0;
+    DP_CHECK_MSG (rx->segments == PI_PARTIALS,
+                  "the design rows' partials count is the receiver's");
     const double deg = 180.0 / M_PI;
     d->base_lag_deg  = deg * 2.0 * M_PI * fabs (d->rate) * T * T / ki;
     d->base_sd_deg   = deg * sqrt (bn / rho * (1.0 + K / (2.0 * rho)));
@@ -758,6 +812,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
     d->base_pullin_hz         = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (chip, SF)
                                 * rx->car.lf.bn / ASYNC_DSSS_RX_BN_CARRIER;
     d->bn_car                 = rx->car.lf.bn;
+    d->loop_order             = pi_loop_order;
     d->base_half_spacing_chip = 0.5 * rx->dll->spacing;
     double sc = 0.0, sc2 = 0.0, sk = 0.0, sk2 = 0.0, pk = 0.0, spk = 0.0;
     size_t n_off = 0, n_all = 0;
@@ -1069,7 +1124,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   "off_code_frac,"                                                            \
   "ho_peak_deg,steady_peak_deg,base_lag_deg,base_sd_deg,base_ho_deg,"         \
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
-  "base_half_spacing_chip,bn_car,win_natural_frac\n"
+  "base_half_spacing_chip,bn_car,win_natural_frac,loop_order\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1080,7 +1135,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
-      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f\n",
+      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d\n",
       d->fc / 1e9, d->esn0, d->rate, d->cw ? "code_period" : "partials", seed,
       d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->seed_err_hz,
       d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
@@ -1095,7 +1150,8 @@ emit_row (const draw_t *d, uint32_t seed)
       d->base_lag_deg, d->base_sd_deg, d->base_ho_deg, d->base_row_hz,
       d->base_half_sample_chip, d->base_unamb_hz, d->base_pullin_hz,
       d->base_half_spacing_chip, d->bn_car,
-      d->win_n ? (double)d->win_natural / (double)d->win_n : NAN);
+      d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
+      d->loop_order);
 }
 
 static int
@@ -1170,10 +1226,130 @@ check_cell (const draw_t *ds, size_t n)
                 "its error rate is under the bound's PI_MARGIN_DB lower");
 }
 
+/* The detector's mean slope at per-update SNR rho with kw partials: the
+   error the receiver forms (adr_track_period: each partial squared, the
+   squares summed, half the angle, its sine), on a carrier at +/-PI_SLOPE_D
+   rad, the noise the shipped awgn at rho/kw a partial. Common noise for
+   both signs, so the difference is the slope and not two noise draws. */
+#define PI_SLOPE_N 200000
+#define PI_SLOPE_D 0.05
+static double
+pi_slope (double rho, int kw, uint64_t seed)
+{
+  const float amp = dp_awgn_amplitude_for_snr (
+      (float)(10.0 * log10 (rho / (double)kw)), 1.0f);
+  dp_awgn_state_t *g = dp_awgn_create (seed, amp);
+  DP_REQUIRE (g != NULL);
+  const float _Complex sp = cexpf (I * (float)PI_SLOPE_D), sm = conjf (sp);
+  float _Complex n[4];
+  double acc = 0.0;
+  for (int i = 0; i < PI_SLOPE_N; i++)
+    {
+      DP_REQUIRE (dp_awgn_generate (g, (size_t)kw, n, 4) == (size_t)kw);
+      float _Complex qp = 0.0f, qm = 0.0f;
+      for (int k = 0; k < kw; k++)
+        {
+          const float _Complex a = sp + n[k], b = sm + n[k];
+          qp += a * a, qm += b * b;
+        }
+      acc += sin (0.5 * atan2 (cimagf (qp), crealf (qp)))
+             - sin (0.5 * atan2 (cimagf (qm), crealf (qm)));
+    }
+  dp_awgn_destroy (g);
+  return acc / ((double)PI_SLOPE_N * 2.0 * PI_SLOPE_D);
+}
+
+/* Order 3's lower gain edge at a delay: the least stable loop gain, by
+   bisection on dp_state_filter_loop_stable(). Order 2 has none (0). */
+static double
+pi_k_low (int order, const double g[3], double delay)
+{
+  if (order == 2)
+    return 0.0;
+  double lo = 0.01, hi = 1.0;
+  for (int i = 0; i < 50; i++)
+    {
+      const double m = 0.5 * (lo + hi);
+      if (dp_state_filter_loop_stable (3, g[0], g[1], g[2], delay, m))
+        hi = m;
+      else
+        lo = m;
+    }
+  return hi;
+}
+
+/* The `# design` section: see the file comment. Delays 0, 1 and 1.75
+   updates span what the lag instrument measured (lag.epoch_T uniform over
+   one update, the look-back adding up to 0.75 on most code-period
+   updates). The run's bandwidth row is the built ASYNC_DSSS_RX_BN_CARRIER,
+   or --bn-carrier's. */
+static void
+pi_design (const double fcs[2], const double esn0s[4])
+{
+  static const double delays[3] = { 0.0, 1.0, 1.75 };
+  printf ("# design\nfc_ghz,esn0_db,carrier_window,order,bn_source,bn,"
+          "T_us,rho,kw,slope,delay,bn_delivered,lsnr_rule_db,lsnr_sq_db,"
+          "k_low,lag400_deg\n");
+  for (int f = 0; f < 2; f++)
+    for (int e = 0; e < 4; e++)
+      for (int cw = 0; cw < 2; cw++)
+        {
+          const double chip = fcs[f] * 31.0 / 21216.0, T = (double)SF / chip;
+          const double rho = pi_rho (fcs[f], esn0s[e]);
+          const int    kw  = cw ? 1 : PI_PARTIALS; /* code_period: one */
+          const double k
+              = pi_slope (rho, kw, 4410u + (uint64_t)(f * 8 + e * 2 + cw));
+          const double bns[2]
+              = { pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)),
+                  pi_bn_rule_on || isnan (pi_bn_car) ? ASYNC_DSSS_RX_BN_CARRIER
+                                                     : pi_bn_car };
+          for (int order = 2; order <= 3; order++)
+            for (int b = 0; b < 2; b++)
+              for (int di = 0; di < 3; di++)
+                {
+                  double g[3];
+                  if (order == 2)
+                    {
+                      dp_loop_filter_state_t lf;
+                      dp_loop_filter_init (&lf, bns[b], 0.707, 1.0);
+                      g[0] = lf.kp, g[1] = lf.ki, g[2] = 0.0;
+                    }
+                  else
+                    {
+                      dp_state_filter_state_t sf;
+                      dp_state_filter_init (&sf, bns[b], 1.0);
+                      g[0] = sf.kp, g[1] = sf.ki, g[2] = sf.kr;
+                    }
+                  const double bd = dp_state_filter_loop_bandwidth (
+                      order, g[0], g[1], g[2], delays[di], k);
+                  /* The page's claim (4.9): at every level, window and
+                     measured delay, the loop is stable at the detector's
+                     slope, and order 3's slope clears its lower edge. */
+                  DP_CHECK_MSG (!isnan (bd), "the loop is stable at the "
+                                             "detector's slope");
+                  DP_CHECK_MSG (k > pi_k_low (order, g, delays[di]),
+                                "the slope is above the lower gain edge");
+                  printf (
+                      "%.1f,%.1f,%s,%d,%s,%.5f,%.2f,%.4f,%d,%.4f,%.2f,"
+                      "%.6f,%.2f,%.2f,%.4f,%.3f\n",
+                      fcs[f] / 1e9, esn0s[e], cw ? "code_period" : "partials",
+                      order, b ? "run" : "rule", bns[b], T * 1e6, rho, kw, k,
+                      delays[di], bd, 10.0 * log10 (rho / (2.0 * bns[b])),
+                      10.0
+                          * log10 (k * k * rho
+                                   / (4.0 * bd * (1.0 + kw / (2.0 * rho)))),
+                      pi_k_low (order, g, delays[di]),
+                      360.0
+                          * dp_state_filter_steady_error (
+                              order, g[1], g[2], 2, PI_RATE_HZ_S * T * T));
+                }
+        }
+}
+
 int
 main (int argc, char **argv)
 {
-  int         check = 0, emit = 0;
+  int         check = 0, emit = 0, design = 0;
   unsigned    draws = PI_DRAWS, shard = 0, shards = 1, spc = 0;
   double      secs = PI_DRAW_S, from_s = 0.0, to_s = PI_DRAW_S;
   const char *tlm_dir = NULL, *one = NULL;
@@ -1204,9 +1380,24 @@ main (int argc, char **argv)
         to_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--bn-carrier") == 0 && i + 1 < argc)
         {
-          pi_bn_car = strtod (argv[++i], NULL);
-          DP_REQUIRE (pi_bn_car > 0.0 && pi_bn_car < 0.25);
+          if (strcmp (argv[++i], "rule") == 0)
+            pi_bn_rule_on = 1;
+          else
+            {
+              pi_bn_car = strtod (argv[i], NULL);
+              DP_REQUIRE (pi_bn_car > 0.0 && pi_bn_car < 0.25);
+            }
         }
+      else if (strcmp (argv[i], "--loop-order") == 0 && i + 1 < argc)
+        {
+          pi_loop_order = atoi (argv[++i]);
+          DP_REQUIRE (pi_loop_order == 2 || pi_loop_order == 3);
+          DP_REQUIRE_MSG (pi_loop_order == 2,
+                          "--loop-order 3 needs Costas's order, not built "
+                          "yet (docs/design/async-dsss-receiver.md 4.9)");
+        }
+      else if (strcmp (argv[i], "--design") == 0)
+        design = 1;
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
@@ -1241,7 +1432,9 @@ main (int argc, char **argv)
           "--telemetry names its draw with --draw");
       /* One stem names the draw's files: the capture and its rules. */
       char stem[256], path[1100], rules[1100], bn_tag[32] = "";
-      if (!isnan (pi_bn_car))
+      if (pi_bn_rule_on)
+        (void)snprintf (bn_tag, sizeof bn_tag, "_bnrule");
+      else if (!isnan (pi_bn_car))
         (void)snprintf (bn_tag, sizeof bn_tag, "_bn%g", pi_bn_car);
       (void)snprintf (stem, sizeof stem,
                       "pullin_%.1fGHz_%.0fdB_%.0fHzs_%s_s%u%s%s", g, es, rt,
@@ -1276,6 +1469,12 @@ main (int argc, char **argv)
       emit_row (&d, sd);
       DP_TEST_EMIT_END ("validate_async_dsss_receiver_pullin --telemetry");
       DP_TEST_END ("validate_async_dsss_receiver_pullin --telemetry");
+    }
+  if (design)
+    {
+      pi_design (fcs, esn0s);
+      DP_TEST_EMIT_END ("validate_async_dsss_receiver_pullin --design");
+      DP_TEST_END ("validate_async_dsss_receiver_pullin --design");
     }
   if (emit)
     printf ("%s", PI_ROW_HEAD);
@@ -1349,6 +1548,8 @@ main (int argc, char **argv)
       DP_CHECK_MSG (!rd.false_lock, "the live carrier holds a 400 Hz/s ramp "
                                     "at 10 dB");
     }
+  if (emit)
+    pi_design (fcs, esn0s);
   if (emit)
     {
       /* The cells' histograms, and every attributed change. The rate is

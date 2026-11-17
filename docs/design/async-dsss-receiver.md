@@ -2229,12 +2229,12 @@ loop moves to a third-order filter, `StateFilter`
 `carrier_window`) and its order are ruled here together, because each one
 changes what the other has to carry.
 
-**The figures in this section are provisional.** They come from the
-shipped exact functions (`dp_state_filter_loop_bandwidth`,
-`dp_state_filter_loop_stable`, `dp_state_filter_steady_error`, and
-`dp_loop_filter_init`'s gains for order 2), evaluated outside the tree.
-No figure here is citable until the pull-in validator prints it, in a
-`# design` section built on the same calls (step 6 below).
+**Where the figures come from.** Every figure below is printed by
+`validate_async_dsss_receiver_pullin --design` from the shipped exact
+functions (`dp_state_filter_loop_bandwidth`, `_loop_stable`,
+`_steady_error`, and the two filters' own gains). That holds except where
+a row is marked dev, which means a development run, not citable. The
+section lives on the integration branch until the validator lands.
 
 #### Why the order changes
 
@@ -2431,41 +2431,50 @@ fraction of the `bn` asked for:
 | 3, 0.04     | 0.85-1.00           | 0.89-1.05 | 1.00-1.20 | 1.63-2.26 |
 | 2, 0.01     |                     | 0.85-0.88 | 1.01-1.06 |           |
 
-**The loop SNR: a convention, and a model.**
+**The bandwidth is the owner's rule, §1.3, as written** (ruled 11-17: "My
+rule as written, report squared-phase beside it"). `bn` is set so that
+`ρ − 10·log10(2·bn) = 20 dB` at the 4 dB floor, with `ρ` the per-update
+SNR there: `bn = ρ_floor / 200`, 0.0120 at 2.2 GHz and 0.0094 at 2.8 GHz.
+It is derived at create from `T` and the floor's `ρ`, not stored as a
+constant. The validator writes the rule once, `pi_bn_rule()`, and
+`--bn-carrier rule` tracks with it. The receiver's create gets one named
+function with the same body when it adopts.
 
-- **Model fit.** On the squared phase, `SNR = 1/(4σ²)`, with noise
-    referred to phase through the slope:
-    `σ² = (Bn(K, d)/(K²·ρ))·(1 + Kw/(2ρ))`. At the two measured points it
-    reproduces the dev measurement to 0.5 dB:
+**What the loop is expected to read there, on the squared phase.** This
+is reported, not designed to. The model is `SNR = 1/(4σ²)` with the noise
+referred to phase through the detector's slope `g`:
+`σ² = (Bn(g, d)/(g²·ρ))·(1 + Kw/(2ρ))`.
 
-    - order 2, 2.8 GHz, 4 dB, `code_period`, `bn` 0.04: 7.35 to 7.68 dB
-        against 7.6 measured;
-    - `bn` 0.01: 13.78 to 13.86 dB against 14.3 measured.
+- At the two dev points (order 2, 2.8 GHz, 4 dB, `code_period`) it read
+    within 0.5 dB of the measurement: 7.35 to 7.68 against 7.6 at `bn`
+    0.04, and 13.78 to 13.86 against 14.3 at 0.01.
+- Without the `1/g²` it reads 2 to 3 dB high. That disagrees with §4.8's
+    loop-alone jitter, which matched the unreferred form to 6%. The table
+    shows measured against both.
 
-    Without the `1/K²` the model reads 2 to 3 dB high. This disagrees with
-    §4.8's loop-alone jitter, which matched the unreferred form to 6%. Why
-    is open, and the measurement decides it.
+At the rule's `bn`, the 4 dB floor, delays 0 to 1.75:
 
-- **Two conventions.** §1.3's rule, `ρ(dB) − 10·log10(2·bn) ≥ 20`, has no
-    squaring loss and no slope. The squared-phase form has both. At the 4 dB
-    floor they ask for different loops:
+| loop on the squared phase   | 2.2 GHz `cp` | 2.2 GHz `parts` | 2.8 GHz `cp` | 2.8 GHz `parts` |
+| --------------------------- | ------------ | --------------- | ------------ | --------------- |
+| detector slope `g`          | 0.825        | 0.667           | 0.762        | 0.594           |
+| order 2, dB                 | 14.8 to 15.0 | 11.7 to 11.9    | 14.2 to 14.3 | 10.5 to 10.7    |
+| order 3, dB                 | 14.6 to 14.9 | 11.2 to 11.4    | 13.9 to 14.1 | 9.8 to 9.9      |
+| ramp lag, 400 Hz/s, order 2 | 29.0°        | 29.0°           | 28.9°        | 28.9°           |
 
-| bandwidth for 20 dB, order 3   | 2.2 GHz | 2.8 GHz |
-| ------------------------------ | ------- | ------- |
-| §1.3's rule                    | 0.0120  | 0.0094  |
-| squared phase, no slope        | 0.0050  | 0.0037  |
-| squared phase, `cp`, K 0.74    | 0.0030  | 0.0023  |
-| squared phase, `parts`, K 0.58 | 0.0013  | 0.0009  |
+- **`g`** is a Monte Carlo of the receiver's own error on the shipped
+    `awgn`. The code-period values match §4.8's closed form (0.83, 0.76).
+- **Order 3** reads slightly lower than order 2 at the same `bn`: its
+    delivered bandwidth at `g` is a little wider.
+- **Lag:** order 2's lag at the rule's `bn` is about 29°, which is why
+    order 3 comes with the rule. Order 3 has none.
 
-The owner's "about 20 dB, `bn` 0.01 or less" is §1.3's convention. The
-fold the loop slips on is on the squared phase (±π/2 on `φ`), which is
-why that convention predicts the slips. **This is the first ruling the
-page needs:** which loop SNR the 20 dB rule is stated in. The `bn` follows
-from it at create, from `T`, the floor's `ρ` and the window's slope, not
-as a constant.
-
-At 10 dB every form asks for a wider loop (0.006 to 0.048), so the floor
-sets it.
+Every figure here is printed by the validator:
+`validate_async_dsss_receiver_pullin --design`, the `# design` section.
+--emit prints the same section. Each figure is a shipped exact function at
+the measured slope and delays. The section asserts the page's stability
+claim on every row: the loop is stable at the detector's slope, and the
+slope clears order 3's lower gain edge. Its sabotage (a slope of 0.2) goes
+red on all 96 order-3 rows.
 
 #### 3. Acquisition
 

@@ -328,7 +328,9 @@ run_burst (const uint8_t *code, double esn0_db, uint32_t seed, dp_ber_t *acc,
  * a rectangular chip's power at 2.8 GHz (0.38 dB) and 0.946 at 2.2 (0.24).
  * SPEC_LOSS_MAX_DB is a regression margin, not a derived bound: set above
  * the 0.7 to 0.9 dB this row read when it was written, on a two-samples-a-
- * chip stimulus whose band (+/-1 chip rate) kept 0.903 (0.44 dB). */
+ * chip stimulus: the interpolating front end, which keeps 0.9993 of the
+ * chip power and, despread, 0.945 of the correlation at 2.8 GHz, where
+ * the default keeps 0.913 (0.30 dB less; test_dp_air.c). */
 #define SPEC_FS 11e6
 #define SPEC_SYM 3000.0
 #define SPEC_K 3
@@ -342,8 +344,7 @@ run_burst (const uint8_t *code, double esn0_db, uint32_t seed, dp_ber_t *acc,
 
 static const double spec_dop[SPEC_K] = { -900.0, 100.0, 1100.0 };
 /* `--spc N`: the scene at N whole samples a chip (0: dp_air_test.h's
-   default, 4); 2 makes the front end interpolate, its band +/-1 chip
-   rate, for the comparison. */
+   default, 4); 2 makes the front end interpolate, for the comparison. */
 static unsigned spec_spc = 0;
 
 /* Each emitter's code offset: silence ahead of its first chip. */

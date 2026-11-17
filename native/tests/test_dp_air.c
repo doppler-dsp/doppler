@@ -135,73 +135,86 @@ main (void)
 
   /* 3 and 4. One clean emitter at 2.8 GHz (2.69 samples a chip), 700 Hz
      off and ramping at 400 Hz/s, its frame start drawn at symbol 618.
-     Despread whole code periods against the truth. */
-  {
-    dp_air_emitter_t e = emitter (code, 2.8e9, 700.0, 400.0, 50.0, 618, 7u);
-    dp_air_t         a;
-    DP_REQUIRE (dp_air_init (&a, &e, 1, FS, NAN, 0u, n));
-    DP_REQUIRE (dp_air_next (&a, x, n));
-    const double spp     = FS / e.chip_rate * 1023.0; /* samples a period */
-    size_t       periods = 0, real_ok = 0, full = 0, off_low = 0;
-    long   sym_sign[1000] = { 0 }; /* per frame position: +1/-1 seen, 0 none */
-    size_t window_mixed = 0, data_pos = 0, data_neg = 0;
-    for (size_t p0 = 2000; p0 + (size_t)spp + 4 < n; p0 += (size_t)spp)
-      {
-        double _Complex on = 0, off = 0;
-        double energy  = 0.0;
-        long   sym0    = -2;
-        int    one_sym = 1;
-        for (size_t j = p0; j < p0 + (size_t)spp; j++)
-          {
-            const dp_air_truth_t t   = dp_air_truth (&a, 0, j);
-            const double         ch  = t.code_chips;
-            const size_t         c0  = (size_t)floor (ch);
-            const size_t         c1  = (c0 + 1) % 1023;
-            const double _Complex lo = cexp (
-                -2.0 * M_PI * I * (t.car_cycles - floor (t.car_cycles)));
-            const double _Complex z = (double _Complex)x[j] * lo;
-            on += z * (code[c0] ? -1.0 : 1.0);
-            off += z * (code[c1] ? -1.0 : 1.0);
-            energy += cabs (z);
-            if (sym0 == -2)
-              sym0 = t.symbol;
-            else if (t.symbol != sym0)
-              one_sym = 0;
-          }
-        /* Only periods inside one symbol: a data edge would halve it. */
-        if (!one_sym)
-          continue;
-        periods++;
-        full += cabs (on) > 0.85 * energy;
-        off_low += cabs (off) < 0.1 * energy;
-        real_ok += fabs (cimag (on)) < 0.1 * fabs (creal (on));
-        const long pos  = sym0 % 1000;
-        const long sign = creal (on) > 0.0 ? 1 : -1;
-        if (pos < 275)
-          {
-            if (sym_sign[pos] && sym_sign[pos] != sign)
-              window_mixed++;
-            sym_sign[pos] = sign;
-            window_mixed += sym_sign[0] && sign != sym_sign[0];
-          }
-        else
-          {
-            data_pos += sign > 0;
-            data_neg += sign < 0;
-          }
-      }
-    printf ("  despread on the truth: %zu periods, full %zu, real %zu, one "
-            "chip off near zero %zu; code-only window mixed %zu, data "
-            "+%zu/-%zu\n",
-            periods, full, real_ok, off_low, window_mixed, data_pos, data_neg);
-    DP_REQUIRE (periods > 50);
-    DP_CHECK (full == periods);
-    DP_CHECK (real_ok == periods);
-    DP_CHECK (off_low == periods);
-    DP_CHECK (window_mixed == 0);
-    DP_CHECK (data_pos > 5 && data_neg > 5);
-    dp_air_free (&a);
-  }
+     Despread whole code periods against the truth, rendered at the
+     default 4 samples a chip and at 2 (the interpolating front end). */
+  for (unsigned spc = 4; spc >= 2; spc -= 2)
+    {
+      dp_air_emitter_t e = emitter (code, 2.8e9, 700.0, 400.0, 50.0, 618, 7u);
+      e.spc              = spc;
+      dp_air_t a;
+      DP_REQUIRE (dp_air_init (&a, &e, 1, FS, NAN, 0u, n));
+      DP_REQUIRE (dp_air_next (&a, x, n));
+      const double spp     = FS / e.chip_rate * 1023.0; /* samples a period */
+      size_t       periods = 0, real_ok = 0, full = 0, off_low = 0;
+      long sym_sign[1000] = { 0 }; /* per frame position: +1/-1 seen, 0 none */
+      size_t window_mixed = 0, data_pos = 0, data_neg = 0, balanced = 0;
+      for (size_t p0 = 2000; p0 + (size_t)spp + 4 < n; p0 += (size_t)spp)
+        {
+          double _Complex on = 0, off = 0, early = 0, late = 0;
+          double energy  = 0.0;
+          long   sym0    = -2;
+          int    one_sym = 1;
+          for (size_t j = p0; j < p0 + (size_t)spp; j++)
+            {
+              const dp_air_truth_t t   = dp_air_truth (&a, 0, j);
+              const double         ch  = t.code_chips;
+              const size_t         c0  = (size_t)floor (ch);
+              const size_t         c1  = (c0 + 1) % 1023;
+              const double _Complex lo = cexp (
+                  -2.0 * M_PI * I * (t.car_cycles - floor (t.car_cycles)));
+              const double _Complex z = (double _Complex)x[j] * lo;
+              on += z * (code[c0] ? -1.0 : 1.0);
+              off += z * (code[c1] ? -1.0 : 1.0);
+              /* Half a chip either side of the truth: on any band the
+                 correlation peak is symmetric about the true phase. */
+              const size_t ce = (size_t)floor (fmod (ch + 1022.5, 1023.0));
+              const size_t cl = (size_t)floor (fmod (ch + 0.5, 1023.0));
+              early += z * (code[ce] ? -1.0 : 1.0);
+              late += z * (code[cl] ? -1.0 : 1.0);
+              energy += cabs (z);
+              if (sym0 == -2)
+                sym0 = t.symbol;
+              else if (t.symbol != sym0)
+                one_sym = 0;
+            }
+          /* Only periods inside one symbol: a data edge would halve it. */
+          if (!one_sym)
+            continue;
+          periods++;
+          full += cabs (on) > 0.85 * energy;
+          off_low += cabs (off) < 0.1 * energy;
+          real_ok += fabs (cimag (on)) < 0.1 * fabs (creal (on));
+          balanced += cabs (on) > cabs (early) && cabs (on) > cabs (late)
+                      && fabs (cabs (early) - cabs (late)) < 0.1 * cabs (on);
+          const long pos  = sym0 % 1000;
+          const long sign = creal (on) > 0.0 ? 1 : -1;
+          if (pos < 275)
+            {
+              if (sym_sign[pos] && sym_sign[pos] != sign)
+                window_mixed++;
+              sym_sign[pos] = sign;
+              window_mixed += sym_sign[0] && sign != sym_sign[0];
+            }
+          else
+            {
+              data_pos += sign > 0;
+              data_neg += sign < 0;
+            }
+        }
+      printf ("  despread on the truth at %u samples a chip: %zu periods, "
+              "full %zu, real %zu, balanced %zu, one chip off near zero "
+              "%zu; code-only window mixed %zu, data +%zu/-%zu\n",
+              spc, periods, full, real_ok, balanced, off_low, window_mixed,
+              data_pos, data_neg);
+      DP_REQUIRE (periods > 50);
+      DP_CHECK (real_ok == periods);
+      DP_CHECK (balanced == periods);
+      DP_CHECK (full == periods);
+      DP_CHECK (off_low == periods);
+      DP_CHECK (window_mixed == 0);
+      DP_CHECK (data_pos > 5 && data_neg > 5);
+      dp_air_free (&a);
+    }
   /* 5. An emitter given its payload: every whole-symbol half period
      despread on the truth carries the bit dp_air_symbol_bit() names for
      that symbol, window symbols and data alike, under one fixed sign

@@ -132,6 +132,8 @@
 
 #include "doppler/imdmeas/imdmeas_core.h"
 
+#include "doppler/ofdm/ofdm_core.h"
+
 #include "doppler/Resampler/Resampler_core.h"
 
 #include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"

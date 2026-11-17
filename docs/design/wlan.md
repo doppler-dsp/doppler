@@ -450,7 +450,8 @@ cannot hold as flat rows, so it follows the one precedent for a structured
 input: `frame` is `object = "frame.FrameDesc"` with `surface = "bespoke"` and
 `copy_fn`, `free_fn` and `parse_fn` (`modules/wfm_compose.toml:477-492`), a
 `--frame FILE` option, a JSON object, and an owned object on the Python
-face. `layout` is the same: an `ofdm.LayoutDesc` (the `doppler.ofdm` module),
+face. `layout` is the same: an `ofdm.LayoutDesc` (the `doppler.ofdm` module, a
+value object of this type's PR; the modulator `Ofdm` holds its own layout),
 `--ofdm-layout FILE`, a scene's `"layout"` object. A `standard` preset
 expands to the same object, so `standard = none` with a layout and
 `standard = 802.11a` are two ways to fill one field. Whether a second

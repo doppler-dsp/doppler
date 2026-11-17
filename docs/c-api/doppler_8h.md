@@ -64,6 +64,7 @@
 * `#include "doppler/tonemeas/tonemeas_core.h"`
 * `#include "doppler/nprmeas/nprmeas_core.h"`
 * `#include "doppler/imdmeas/imdmeas_core.h"`
+* `#include "doppler/ofdm/ofdm_core.h"`
 * `#include "doppler/Resampler/Resampler_core.h"`
 * `#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"`
 * `#include "doppler/HalfbandDecimatorR2C/HalfbandDecimatorR2C_core.h"`

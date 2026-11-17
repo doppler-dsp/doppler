@@ -1213,6 +1213,15 @@ def bn(argv: list[str]) -> int:
     out.write_text(
         "Carrier-loop bandwidth, side by side (development data; "
         "false locks and blocks off the emitter apart where stated).\n\n"
+        "Loop SNR: the design figure is the loop bandwidth for the phase "
+        "at the detector instant (2 Bn, dp_state_filter_loop_bandwidth). "
+        "The measured carrier error reads rx.phase.car at each call's first "
+        "sample, a uniform point of the update, between that instant and "
+        "the phase after the kp e step (the sum costas_jitter holds its "
+        "jitter to: 0.982 of 2 Bn at bn 0.01, 0.931 at 0.04, "
+        "docs/design/costas.md section 1). So a measured loop SNR may sit "
+        "0 to 0.08 dB above the design column at bn 0.01 and 0 to 0.31 dB "
+        "at 0.04 for that alone.\n\n"
         + table(head, body)
         + "\n"
         + sizing_note(cells),

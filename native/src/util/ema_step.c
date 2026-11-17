@@ -8,10 +8,9 @@
  * definition, for the Python binding and for any caller that reaches the
  * function through the library rather than the header.
  *
- * The shape is saturate.c's, deliberately, and not square_clip.c's — that
- * one carries a hand-copied second body, which is precisely the duplication
- * this function exists to end. An EMA with two source copies would be the
- * joke telling itself.
+ * The shape is saturate.c's, deliberately, and not a hand-copied second
+ * body, which is precisely the duplication this function exists to end. An
+ * EMA with two source copies would be the joke telling itself.
  */
 #include "doppler/util/util_core.h"
 

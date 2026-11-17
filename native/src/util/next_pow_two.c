@@ -5,7 +5,7 @@
  * this `extern` declaration is the C99 idiom asking this translation unit —
  * and only this one — to emit the out-of-line copy the Python binding and
  * any library-reaching caller need. See saturate.c for the full note on why
- * this shape rather than square_clip.c's hand-copied second body.
+ * this shape rather than a hand-copied second body.
  */
 #include "doppler/util/util_core.h"
 

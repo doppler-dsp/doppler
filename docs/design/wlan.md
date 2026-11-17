@@ -20,13 +20,13 @@ its state and its proofs.*
 !!! warning "No preset claims conformance yet"
 
     The general shape is the deliverable. Every clause, table and figure
-    number below refers to IEEE Std 802.11-2020 unless it says otherwise,
-    and **none of them is checked against the text**: every standard-fixed
-    number here is from memory, and section 9 lists them for checking. No
-    test, header, document or changelog line says a preset "conforms to"
-    802.11a, g, n or ac, or cites Annex I as passed, until the numbers are
-    checked against the standard's text. Builders for the letters are
-    labeled unverified until then.
+    number below refers to IEEE Std 802.11-2024 unless it says otherwise.
+    Section 9 lists each standard-fixed number and says whether it is
+    **checked against that text**; the rest are unchecked. No test, header,
+    document or changelog line says a preset "conforms to" 802.11a, g, n or
+    ac, or cites Annex I as passed, until section 7's proofs run against
+    tables transcribed from the text. A builder labels as unverified any
+    number section 9 does not mark checked.
 
 wfmgen gains one waveform type, `ofdm`. It is a caller of the general OFDM
 modulator; the IEEE 802.11 OFDM PHYs are layouts that `wlan` builds for it.
@@ -104,9 +104,9 @@ symbol; `N_SYM` OFDM symbols in the Data field.
 
 1. **The standard rules.** Every 802.11 number comes from the standard's
     text and is cited where it is written into code. A preset has no
-    tunable that the standard fixes. Until the text is in hand the number
-    is labeled unverified where it is written, and the preset claims no
-    conformance (Ruled, section 10).
+    tunable that the standard fixes. A number section 9 does not mark
+    checked is labeled unverified where it is written, and the preset
+    claims no conformance (Ruled, section 10).
 1. **A preset is a layout.** `wlan` builds layouts; the modulator is the
     general one of [ofdm](ofdm.md) and branches on no standard.
 1. **Nothing is implemented twice.** Each PHY block calls the object that
@@ -252,8 +252,8 @@ means it is written and in review.
 | Puncturing to 2/3, 3/4, 5/6            | built (#3113)            | `punct_period`, `punct_mask` in `conv_code_t`; `conv_enc`, `viterbi` | the three patterns, from the text; a decoder reads 0.0 at each deleted position |
 | Interleaver, first permutation         | exists                   | `dp_interleave_index (k, N_CBPS/16, 16)`                             | nothing                                                                         |
 | Interleaver, second permutation        | absent                   |                                                                      | the within-group bit rotation; 802.11-specific, lives in `wlan`                 |
-| BPSK, QPSK map (Tables 17-8, 17-9)     | exists, to pin           | `mpsk`: `dp_mpsk_map`; `qam_map` at M = 4 is the same as QPSK        | the labels, from the text; see the note below                                   |
-| 16/64/256/1024-QAM map                 | built (#3115)            | `mpsk` module: `qam_map`, M = 4 to 1024, the library's own Gray map  | whether Tables 17-10 and 17-11 are that map; no standard is claimed             |
+| BPSK, QPSK map (Tables 17-15, 17-16)   | exists, to pin           | `mpsk`: `dp_mpsk_map`; `qam_map` at M = 4 is the same as QPSK        | the labels, from the text; see the note below                                   |
+| 16/64/256/1024-QAM map                 | built (#3115)            | `mpsk` module: `qam_map`, M = 4 to 1024, the library's own Gray map  | whether Tables 17-17 and 17-18 are that map; no standard is claimed             |
 | Subcarrier map, pilots, cyclic prefix  | not built                | `ofdm`, [the modulator](ofdm.md)                                     | the modulator and its layout                                                    |
 | Window (17.3.2.5)                      | not built                | `ofdm`                                                               | in the modulator                                                                |
 | L-STF, L-LTF sequences (17.3.3)        | absent                   |                                                                      | two constant tables in `wlan`                                                   |
@@ -275,8 +275,8 @@ Two rows carry a decision rather than a gap:
 
 - **BPSK and QPSK.** `mpsk` sends BPSK bit `b` as `1 - 2b` (bit 0 is +1,
     `mpsk_core.h`), and its QPSK is Gray-labeled with the first point at
-    pi/4; the QAM map at M = 4 is that same QPSK. Whether Tables 17-8 and
-    17-9 are those maps on complemented bits, or some other relabeling, **is
+    pi/4; the QAM map at M = 4 is that same QPSK. Whether Tables 17-15 and
+    17-16 are those maps on complemented bits, or some other relabeling, **is
     to be pinned from the text**. The same holds for 16-QAM and up against
     `qam`'s derived map: where the standard's table differs, `wlan` owns the
     relabeling, a table, and `qam` is not changed to carry a standard.
@@ -672,9 +672,10 @@ Rows 4 and 5 are the second slice; each later row is its own.
 The rule is that the anchor is the standard, never the implementation
 under test and never a second implementation in the tree. The modulator's
 own proofs are on [its page](ofdm.md) and need no standard. What follows
-holds a preset to a standard, and **none of it can run until the text is in
-hand**; until then the layout builders are labeled unverified and the tests
-pin only what is derivable (a layout's structure, the lengths, the
+holds a preset to a standard, and **none of it can run until the tables
+are transcribed from the text**; until then the layout builders label
+unverified what section 9 does not mark checked, and the tests pin only
+what is derivable (a layout's structure, the lengths, the
 round trip of the coding chain's own inverses), claiming no conformance.
 
 1. **Annex I, stage by stage, when the text is read.** Annex I encodes one
@@ -688,7 +689,7 @@ round trip of the coding chain's own inverses), claiming no conformance.
     text (section 10).
 1. **The tables Annex I does not exercise, literal by literal.** Annex I
     covers one rate: 16-QAM at 3/4. The BPSK, QPSK and 64-QAM maps
-    (Tables 17-8 to 17-11), the 2/3 puncture pattern (Figure 17-9), the
+    (Tables 17-15 to 17-18), the 2/3 puncture pattern (Figure 17-9), the
     RATE encodings (Table 17-6) and the timing constants (Table 17-5) are
     each small enough to pin entry by entry against the standard.
 1. **The FCS.** The CRC is pinned by its published catalogue check value
@@ -741,37 +742,52 @@ contents and CRCs) and no sample vector. What anchors them is unknown 8.3.
     a `data:LEN` description so the PSDU rides `pull_new`; it is read from the
     code and not yet tried.
 
-## 9. Standard-fixed numbers, none verified against the text
+## 9. Standard-fixed numbers, and which are checked against the text
 
-Every number below is from memory and is **unverified**. A builder that
-writes one of them into code labels it so, and a test that holds it
-claims no conformance.
+Each row says whether the number is checked against the text of IEEE Std
+802.11-2024, the edition every clause, table and figure number on this
+page refers to. A row marked unchecked is from memory: a builder that
+writes it into code labels it unverified, and a test that holds it claims
+no conformance.
 
-| number                                                                                                                                                                                        | cited as                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| Clause numbers: OFDM 17, ERP 18, HT 19, VHT 21, HE 27                                                                                                                                         | 802.11-2020, 802.11ax-2021 |
-| The worked example is Annex I                                                                                                                                                                 | 802.11-2020                |
-| `N_FFT` 64, `Δf` 312.5 kHz, `N_SD` 48, `N_SP` 4; GI 0.8 µs, OFDM symbol 4 µs; L-STF 8 µs, L-LTF 8 µs                                                                                          | Table 17-5                 |
-| pilots on subcarriers -21, -7, 7, 21 with values 1, 1, 1, -1                                                                                                                                  | 17.3.5.9, 17.3.5.10        |
-| eight rates and their modulation and coding pairs; RATE bits                                                                                                                                  | Tables 17-4, 17-6          |
-| scrambler `x^7 + x^4 + 1` and its 127-bit sequence                                                                                                                                            | 17.3.5.5                   |
-| BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                   |
-| puncture patterns for 2/3 and 3/4 (and 5/6 in later clauses)                                                                                                                                  | Figure 17-9                |
-| interleaver permutations, 16 columns                                                                                                                                                          | 17.3.5.7                   |
-| constellation maps and `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                        | Tables 17-7 to 17-11       |
-| L-STF and L-LTF sequences, the √(13/6) factor, and the per-field normalization symbol                                                                                                         | 17.3.3                     |
-| window, `T_TR` 100 ns as an example                                                                                                                                                           | 17.3.2.5                   |
-| transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7         |
-| Annex I example: 100 octets, 36 Mb/s, scrambler initial state 1011101                                                                                                                         | Annex I                    |
-| ERP-OFDM signal extension, 6 µs                                                                                                                                                               | Clause 18                  |
-| MAC frame format: header, body, FCS; the 24-octet three-address data header (Frame Control, Duration/ID, three addresses, Sequence Control); QoS Control and HT Control as optional additions | Clause 9                   |
-| FCS: CRC-32, generator polynomial, initial value, final complement and byte order on the wire                                                                                                 | Clause 9 (FCS field)       |
-| HT-SIG, VHT-SIG-B CRC-8 parameters                                                                                                                                                            | Clauses 19, 21             |
-| L-SIG LENGTH field width and the PSDU length it limits                                                                                                                                        | 17.3.4                     |
-| HT: 52 + 4 subcarriers at 20 MHz, 108 + 6 at 40 MHz, 13 and 18 interleaver columns, short GI 0.4 µs, rate 5/6                                                                                 | Clause 19                  |
-| VHT: `N_FFT` 256 and 512, 234 + 8 subcarriers at 80 MHz, 256-QAM at MCS 8 and 9                                                                                                               | Clause 21                  |
-| HE: `Δf` 78.125 kHz, GI 0.8 / 1.6 / 3.2 µs, 1024-QAM at MCS 10 and 11                                                                                                                         | Clause 27                  |
-| `K_MOD` for 256-QAM and 1024-QAM (1/√170, 1/√682)                                                                                                                                             | Clauses 21, 27             |
+| number                                                                                                                                                                                        | cited as                                                                   | against the text                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Clause numbers: OFDM 17, ERP 18, HT 19, VHT 21, HE 27                                                                                                                                         | table of contents                                                          | checked                                                                                |
+| The worked example is Annex I                                                                                                                                                                 | Annex I                                                                    | checked                                                                                |
+| `N_FFT` 64, `Δf` 312.5 kHz, `N_SD` 48, `N_SP` 4; GI 0.8 µs, OFDM symbol 4 µs; L-STF 8 µs, L-LTF 8 µs                                                                                          | Table 17-5                                                                 | checked                                                                                |
+| pilots on subcarriers -21, -7, 7, 21 with values 1, 1, 1, -1                                                                                                                                  | 17.3.5.9, 17.3.5.10, Eq. (17-24)                                           | checked                                                                                |
+| eight rates and their modulation and coding pairs; RATE bits                                                                                                                                  | Tables 17-4, 17-6                                                          | checked                                                                                |
+| scrambler `x^7 + x^4 + 1`                                                                                                                                                                     | 17.3.5.5, Eq. (17-14)                                                      | checked                                                                                |
+| BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                                                                   | checked                                                                                |
+| puncture patterns for 2/3 and 3/4                                                                                                                                                             | Figure 17-9                                                                | checked                                                                                |
+| puncture pattern for 5/6                                                                                                                                                                      | Clause 19                                                                  | unchecked                                                                              |
+| interleaver, 16 columns (the first permutation uses `N_CBPS/16`)                                                                                                                              | 17.3.5.7, Eq. (17-15)                                                      | checked                                                                                |
+| `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                                               | Table 17-14                                                                | checked                                                                                |
+| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | unchecked against the library's maps (section 4)                                       |
+| L-STF and L-LTF sequences, the √(13/6) factor, and the per-field normalization symbol                                                                                                         | 17.3.3                                                                     | unchecked                                                                              |
+| window, `T_TR` about 100 ns                                                                                                                                                                   | 17.3.2.5                                                                   | checked                                                                                |
+| transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7                                                         | unchecked                                                                              |
+| Annex I example: 100 octets, 36 Mb/s                                                                                                                                                          | Annex I                                                                    | checked                                                                                |
+| Annex I example: `SCRAMBLER_INITIAL_VALUE` 54                                                                                                                                                 | I.1.5.2                                                                    | checked; see the note below                                                            |
+| ERP-OFDM signal extension, 6 µs (`aSignalExtension`)                                                                                                                                          | Clause 18                                                                  | checked                                                                                |
+| MAC frame format: header, body, FCS; the 24-octet three-address data header (Frame Control, Duration/ID, three addresses, Sequence Control); QoS Control and HT Control as optional additions | Clause 9                                                                   | unchecked                                                                              |
+| FCS: CRC-32, generator polynomial, ones complement and byte order on the wire                                                                                                                 | 9.2.4.9                                                                    | checked; reproduced over Annex I's first 96 octets, the last four octets `67 33 21 B6` |
+| HT-SIG, VHT-SIG-B CRC-8 parameters                                                                                                                                                            | Clauses 19, 21                                                             | unchecked                                                                              |
+| L-SIG LENGTH is 12 bits and limits the PSDU to 1 to 4,095 octets                                                                                                                              | 17.3.4.3, Table 17-1                                                       | checked                                                                                |
+| HT: 52 + 4 subcarriers at 20 MHz, 108 + 6 at 40 MHz; 13 and 18 interleaver columns; short GI 0.4 µs                                                                                           | Clause 19 (Table 19-17 for the columns)                                    | checked                                                                                |
+| VHT: 234 + 8 subcarriers at 80 MHz; 256-QAM at MCS 8 and 9                                                                                                                                    | Table 21-5, Clause 21 MCS tables                                           | checked                                                                                |
+| VHT: `N_FFT` 256 and 512                                                                                                                                                                      | derived, not stated: Table 21-5 gives `N_ST` 242 and 484 at `Δf` 312.5 kHz | consistent                                                                             |
+| HE: `Δf` 78.125 kHz, GI 0.8 / 1.6 / 3.2 µs                                                                                                                                                    | Table 27-13                                                                | checked                                                                                |
+| HE: 1024-QAM at MCS 10 and 11                                                                                                                                                                 | Clause 27                                                                  | unchecked                                                                              |
+| `K_MOD` for 256-QAM and 1024-QAM (1/√170, 1/√682)                                                                                                                                             | 21.3.10.9, 27.3.12                                                         | checked                                                                                |
+
+**The Annex I scrambler start, two ways.** The text gives the example's
+`SCRAMBLER_INITIAL_VALUE` as 54. That value is the first seven bits of the
+scrambling sequence, `0110110`, not the shift register's contents. The
+register state that produces it is `1011101`: running `x^7 + x^4 + 1` from
+that state gives the sequence `0110110 0000 1100 1...`. A builder is
+seeded from either spelling and a test holds both, so the two cannot
+drift.
 
 ## 10. Decisions
 
@@ -817,10 +833,12 @@ claims no conformance.
 
 ### Open
 
-1. **The standard's text.** There is none in `~/refs`. Section 7's first two
-    proofs need Annex I and the Clause 17 tables transcribed from it, and
-    every number in section 9, including the MAC frame format and the FCS,
-    needs checking against it. Until it is read no preset is certified.
+1. **The standard's tables.** There is no copy of the text in `~/refs`.
+    Section 7's first two proofs need Annex I and the Clause 17 tables
+    transcribed from it, and the rows section 9 marks unchecked (the MAC
+    frame format, the mask and accuracy limits, the training sequences,
+    the constellation tables against the library's maps) need checking
+    against it. Until those proofs run no preset is certified.
 1. **What anchors HT, VHT and HE.** Unknown 3 in section 8: no printed
     waveform exists for them.
 1. **Confirm the Es/N0 definition.** Section 5 proposes MER on the data
@@ -849,14 +867,14 @@ CRC, `qam`) are on [ofdm](ofdm.md); PR 6 onward consume them.
 
 | PR  | what                                                                                            | phases                        | size        |
 | --- | ----------------------------------------------------------------------------------------------- | ----------------------------- | ----------- |
-| 6   | `wlan`: layout and chain builders for non-HT, the minimal MAC; Annex I test when text read      | declare, implement, pin, bind | ~1400 lines |
+| 6   | `wlan`: layout and chain builders for non-HT, the minimal MAC; Annex I test when transcribed    | declare, implement, pin, bind | ~1400 lines |
 | 7   | `wfm_synth` type `ofdm`: enum, source fields, `LayoutDesc` on the faces, bridge, capture, state | all of section 5              | ~1300 lines |
 | 8   | characterization: window, mask, EVM, PAPR, speed; the reports for `ofdm` and `wlan`             | explore, certify              | ~800 lines  |
 | 9   | guide section, C and Python examples, gallery decision, benches                                 | user story, land              | ~500 lines  |
 | 10+ | HT 20 MHz; HT 40 MHz; VHT; LDPC; HE SU, each its own slice                                      |                               |             |
 
-PR 6 needs the modulator (PR 5). PR 6's builders are labeled unverified until
-the text is read. Each pin in PRs 6 and 7 is proven by sabotage before the
+PR 6 needs the modulator (PR 5). PR 6's builders label unverified what
+section 9 does not mark checked. Each pin in PRs 6 and 7 is proven by sabotage before the
 Python face exists.
 
 **What PR 7 checks first.** Before any C, `scripts/gen_wfm_defaults.py --check` on the new manifest rows, which is the generator that has not yet

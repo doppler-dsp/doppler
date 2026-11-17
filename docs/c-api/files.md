@@ -10,6 +10,7 @@ Here is a list of all files with brief descriptions:
             * **file** [**clib\_common.h**](clib__common_8h.md) _Common C99 types and performance macros for doppler._     
             * **file** [**doppler.h**](doppler_8h.md) 
             * **file** [**dp\_complex.h**](dp__complex_8h.md) _The complex-math surface, routed so it survives Windows._ 
+            * **file** [**dp\_crc.h**](dp__crc_8h.md) _One parametric CRC: the Rocksoft model over a bit stream._     
             * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
             * **file** [**dp\_format.h**](dp__format_8h.md) _Complex sample formats, named by their BLUE/Platinum codes._     
             * **file** [**dp\_hash64.h**](dp__hash64_8h.md) _FNV-1a 64 over bytes, incrementally: the one content hash in doppler._     

@@ -71,6 +71,7 @@
 * [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md)
 * [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md)
 * [**dp\_costas\_state\_t**](structdp__costas__state__t.md)
+* [**dp\_crc\_t**](structdp__crc__t.md)
 * [**dp\_delay\_state\_t**](structdp__delay__state__t.md)
 * [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md)
 * [**dp\_dll\_state\_t**](structdp__dll__state__t.md)

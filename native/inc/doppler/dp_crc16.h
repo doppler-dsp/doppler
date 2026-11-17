@@ -10,10 +10,14 @@
  * this one inline so the two ends can never drift.
  *
  * Header-only (like `wfm_synth_mls_poly`) so no component grows a link-line
- * dependency for a 10-line kernel.
+ * dependency for a 10-line kernel. It is one row of the parametric CRC in
+ * `dp_crc.h` (CRC-16/IBM-3740, the catalogue's name for this model), not a
+ * second implementation of the arithmetic.
  */
 #ifndef DP_CRC16_H
 #define DP_CRC16_H
+
+#include "doppler/dp_crc.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -38,14 +42,8 @@ extern "C" {
 static inline uint16_t
 dp_crc16_ccitt (const uint8_t *bits, size_t n)
 {
-  uint16_t crc = 0xFFFFu;
-  for (size_t i = 0; i < n; i++)
-    {
-      crc ^= (uint16_t)((bits[i] & 1u) << 15);
-      crc = (crc & 0x8000u) ? (uint16_t)((crc << 1) ^ 0x1021u)
-                            : (uint16_t)(crc << 1);
-    }
-  return crc;
+  const dp_crc_t model = DP_CRC_16_IBM_3740;
+  return (uint16_t)dp_crc_bits (&model, bits, n);
 }
 
 #ifdef __cplusplus

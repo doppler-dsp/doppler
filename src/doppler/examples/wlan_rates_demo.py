@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import math
 
+# --8<-- [start:rates]
 from doppler.wlan import Wlan
 
-# --8<-- [start:rates]
 FRAME = 1500  # the PSDU, in octets
 RATES = [
     ("bpsk", "r12"),

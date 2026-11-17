@@ -143,10 +143,9 @@ dp_wlan_n_cbps (const dp_wlan_rate_t *r)
 unsigned
 dp_wlan_n_dbps (const dp_wlan_rate_t *r)
 {
-  unsigned num, den;
-  if (!dp_wlan_rate_ok (r))
+  unsigned num = 0, den = 1;
+  if (!dp_wlan_rate_ok (r) || !code_fraction (r->code, &num, &den))
     return 0u;
-  code_fraction (r->code, &num, &den);
   return WLAN_N_SD * r->n_bpsc * num / den;
 }
 

@@ -38,7 +38,7 @@
  *
  * @code
  * dp_wlan_rate_t r = { 4u, WLAN_CODE_3_4 };      // 16-QAM, rate 3/4
- * size_t n_sym = dp_wlan_n_sym (&r, 100u);       // 100-octet PSDU
+ * size_t n_sym = dp_wlan_rate_n_sym (&r, 100u);  // 100-octet PSDU
  * @endcode
  */
 #ifndef DP_WLAN_CORE_H

@@ -15,8 +15,8 @@ dp_wlan_tables_empty (void)
 }
 
 /* ── IEEE Std 802.11-2024, Clause 17: the tables ─────────────────────────
- * Each is a literal, transcribed from the text by the standard's owner
- * (issue #3109, 2026-11-17) and cited to its table, equation or figure.
+ * Each literal is cited to its table,
+ * equation or figure.
  * native/tests/wlan/test_wlan_core.c holds each against an independent
  * copy of the printed form and goes red on a one-entry change. */
 
@@ -222,7 +222,7 @@ dp_wlan_reset (dp_wlan_state_t *state)
 }
 
 size_t
-dp_wlan_n_sym (dp_wlan_state_t *state, size_t psdu_len)
+dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len)
 {
   const dp_wlan_rate_t r = { state->n_bpsc, (dp_wlan_code_t)state->code };
   return dp_wlan_rate_n_sym (&r, psdu_len);
@@ -239,8 +239,9 @@ dp_wlan_n_sym (dp_wlan_state_t *state, size_t psdu_len)
  * The sequence itself is the library's `pn` (Galois, polynomial 0x48, seven
  * bits): any seed gives this recurrence, and the 127 seeds give the 127
  * non-zero first-seven-bit prefixes, so the seed for a wanted prefix is the
- * one whose first seven chips are it. The conversions between a state and a
- * prefix are the recurrence run forward and backward. */
+ * one whose first seven chips are it. The state and the prefix are related
+ * by the recurrence run forward and backward; the prefix and the pn seed are
+ * related by a fixed linear map over GF(2) (SCR_SEED_OF_PREFIX_BIT). */
 
 #define SCR_POLY 0x48u
 
@@ -277,32 +278,30 @@ dp_wlan_scrambler_state_from_sequence (uint8_t seq7)
   return (uint8_t)state;
 }
 
+/* The pn seed whose first seven chips are a wanted prefix. The first seven
+ * chips are a linear (over GF(2)) and invertible function of the seed, so the
+ * inverse is linear too: the seed for a prefix is the XOR of the seeds of its
+ * set bits. The seven below are the seeds of the unit prefixes, found once by
+ * searching all 127 seeds, and the test pins the whole map against that
+ * search for every one of the 127 prefixes. */
+static const uint8_t SCR_SEED_OF_PREFIX_BIT[7] = { 64, 32, 16, 8, 68, 34, 17 };
+
 size_t
 dp_wlan_scrambler_sequence (uint8_t state, size_t n, uint8_t *out)
 {
   if (state == 0 || state > 127)
     return 0;
   const unsigned want = scr_prefix_from_state (state);
-  for (uint64_t seed = 1; seed < 128; seed++)
-    {
-      dp_pn_state_t *p = dp_pn_create (SCR_POLY, seed, 7, PN_GALOIS);
-      if (!p)
-        return 0;
-      uint8_t head[7];
-      dp_pn_generate (p, 7, head, 7);
-      unsigned v = 0;
-      for (int i = 0; i < 7; i++)
-        v = (v << 1) | head[i];
-      if (v == want)
-        {
-          dp_pn_reset (p); /* the seed's own sequence, from its start */
-          dp_pn_generate (p, n, out, n);
-          dp_pn_destroy (p);
-          return n;
-        }
-      dp_pn_destroy (p);
-    }
-  return 0; /* unreachable: the 127 seeds give the 127 prefixes */
+  unsigned       seed = 0;
+  for (int b = 0; b < 7; b++)
+    if ((want >> b) & 1u)
+      seed ^= SCR_SEED_OF_PREFIX_BIT[b];
+  dp_pn_state_t *p = dp_pn_create (SCR_POLY, seed, 7, PN_GALOIS);
+  if (!p)
+    return 0;
+  dp_pn_generate (p, n, out, n);
+  dp_pn_destroy (p);
+  return n;
 }
 
 /* ── The minimal MAC ─────────────────────────────────────────────────── */
@@ -617,6 +616,8 @@ dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
         {
           const size_t a = dp_ofdm_modulate (o, pts, n_pts, out, n_samples);
           const size_t b
+              /* o->tail_len is read from the modulator's public struct: the
+               * modulator has no getter for it (ofdm_core.h) */
               = a ? dp_ofdm_finish (o, o->tail_len, out + a, n_samples - a)
                   : 0;
           if (a + b == n_samples)

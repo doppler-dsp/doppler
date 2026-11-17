@@ -108,7 +108,7 @@ unsigned dp_wlan_n_dbps (const dp_wlan_rate_t *r);
 
 size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 
-size_t dp_wlan_n_sym (dp_wlan_state_t *state, size_t psdu_len);
+size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
 size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window);
 

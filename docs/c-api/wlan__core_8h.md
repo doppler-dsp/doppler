@@ -87,7 +87,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  size\_t | [**dp\_wlan\_mpdu\_len**](#function-dp_wlan_mpdu_len) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, size\_t header\_len, size\_t body\_len) <br>_The PSDU length a MAC wrap produces._  |
 |  unsigned | [**dp\_wlan\_n\_cbps**](#function-dp_wlan_n_cbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Coded bits per OFDM symbol,_ `48 * n_bpsc` _._ |
 |  unsigned | [**dp\_wlan\_n\_dbps**](#function-dp_wlan_n_dbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Data bits per OFDM symbol,_ `N_CBPS * code rate` _._ |
-|  size\_t | [**dp\_wlan\_n\_sym**](#function-dp_wlan_n_sym) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._ |
+|  size\_t | [**dp\_wlan\_n\_sym**](#function-dp_wlan_n_sym) (const [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._ |
 |  size\_t | [**dp\_wlan\_points**](#function-dp_wlan_points) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, float \_Complex \* out, size\_t cap) <br>_The constellation points a PPDU's layout takes, in layout order: the SIGNAL field's 48, then the Data field's_ `48 * n_sym` _._ |
 |  size\_t | [**dp\_wlan\_ppdu**](#function-dp_wlan_ppdu) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, unsigned window, float \_Complex \* out, size\_t cap) <br>_Render a PPDU to samples._  |
 |  size\_t | [**dp\_wlan\_ppdu\_len**](#function-dp_wlan_ppdu_len) (size\_t n\_sym, unsigned window) <br>_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`160 + 160 + 80 + 80 * n_sym` _, plus the_`window` _samples of the last symbol's window tail._ |
@@ -525,6 +525,13 @@ int dp_wlan_layout (
 
 
 
+**Note:**
+
+On -1 `o` may already hold some of the classes: it is not to be used again, only destroyed. [**dp\_wlan\_ppdu()**](wlan__core_8h.md#function-dp_wlan_ppdu) builds into its own modulator and destroys it, so it is unaffected. 
+
+
+
+
 
         
 
@@ -734,7 +741,7 @@ unsigned dp_wlan_n_dbps (
 _The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._
 ```C++
 size_t dp_wlan_n_sym (
-    dp_wlan_state_t * state,
+    const dp_wlan_state_t * state,
     size_t psdu_len
 ) 
 ```

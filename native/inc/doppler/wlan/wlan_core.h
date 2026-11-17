@@ -277,7 +277,7 @@ size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
  *
  * @endcode
  */
-size_t dp_wlan_n_sym (dp_wlan_state_t *state, size_t psdu_len);
+size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
 /**
  * @brief The samples a PPDU of @p n_sym Data symbols occupies:
@@ -476,6 +476,9 @@ size_t dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
  * @param window  Window length in samples at each symbol boundary, 0 for none.
  * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0,
  *         or the modulator refuses a call.
+ * @note On -1 @p o may already hold some of the classes: it is not to be
+ *       used again, only destroyed. dp_wlan_ppdu() builds into its own
+ *       modulator and destroys it, so it is unaffected.
  */
 int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
                     size_t n_sym, unsigned window);

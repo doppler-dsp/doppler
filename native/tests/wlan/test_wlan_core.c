@@ -804,5 +804,91 @@ main (void)
       }
   }
 
+  /* ── 10. Each field's average power is 1 ─────────────────────────────────
+   * The scale 1/sqrt(52) is a claim: every field leaves the modulator at unit
+   * average power over its useful samples (design page, goal 5). Pinned here
+   * so a change to the modulator's transform normalization cannot move it
+   * silently. No window, so the fields do not overlap. */
+  {
+    const dp_wlan_tables_t *T = dp_wlan_tables_standard ();
+    static uint8_t          psdu[1000];
+    uint32_t                seed = 4242;
+    for (int i = 0; i < 1000; i++)
+      psdu[i] = (uint8_t)dp_xs32 (&seed);
+    static const dp_wlan_rate_t rates[4] = { { 1, WLAN_CODE_1_2 },
+                                             { 2, WLAN_CODE_1_2 },
+                                             { 4, WLAN_CODE_3_4 },
+                                             { 6, WLAN_CODE_3_4 } };
+    for (int ri = 0; ri < 4; ri++)
+      {
+        const size_t    n_sym = dp_wlan_rate_n_sym (&rates[ri], 1000);
+        const size_t    n     = 400 + 80 * n_sym;
+        float _Complex *x     = malloc (n * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        DP_CHECK (dp_wlan_ppdu (T, &rates[ri], psdu, 1000, 93, 0, x, n) == n);
+        /* L-STF: 160 samples, no prefix; L-LTF: 128 useful after a 32
+         * prefix; SIGNAL and Data: 64 useful after a 16 prefix. */
+        const struct
+        {
+          size_t first, len;
+        } f[3] = { { 0, 160 }, { 192, 128 }, { 336, 64 } };
+        for (int k = 0; k < 3; k++)
+          {
+            double pw = 0;
+            for (size_t m = 0; m < f[k].len; m++)
+              pw += (double)(crealf (x[f[k].first + m])
+                                 * crealf (x[f[k].first + m])
+                             + cimagf (x[f[k].first + m])
+                                   * cimagf (x[f[k].first + m]));
+            pw /= (double)f[k].len;
+            DP_CHECK (fabs (pw - 1.0) < 1e-4); /* training and SIGNAL: exact */
+          }
+        /* Data: BPSK and QPSK points all have unit power, so each symbol is
+         * exact; 16- and 64-QAM average to 1 over symbols, not per symbol. */
+        double total = 0;
+        for (size_t s = 0; s < n_sym; s++)
+          {
+            double       pw   = 0;
+            const size_t base = 400 + 80 * s + 16;
+            for (size_t m = 0; m < 64; m++)
+              pw += (double)(crealf (x[base + m]) * crealf (x[base + m])
+                             + cimagf (x[base + m]) * cimagf (x[base + m]));
+            pw /= 64.0;
+            total += pw;
+            if (rates[ri].n_bpsc <= 2)
+              DP_CHECK (fabs (pw - 1.0) < 1e-4);
+          }
+        DP_CHECK (fabs (total / (double)n_sym - 1.0)
+                  < 0.03); /* 1000 octets: the QAM mean is statistical */
+        free (x);
+      }
+  }
+
+  /* ── 11. The scrambler seed is a linear map of the prefix ───────────────
+   * dp_wlan_scrambler_sequence() reaches the pn seed by XORing seven
+   * literals. Pinned for all 127 states against the search it replaced:
+   * the seed whose first seven chips are the state's prefix. */
+  for (unsigned st = 1; st < 128; st++)
+    {
+      uint8_t got[70], want[70];
+      DP_CHECK (dp_wlan_scrambler_sequence ((uint8_t)st, 70, got) == 70);
+      int found = 0;
+      for (uint64_t sd = 1; sd < 128 && !found; sd++)
+        {
+          dp_pn_state_t *p = dp_pn_create (0x48u, sd, 7, PN_GALOIS);
+          dp_pn_generate (p, 70, want, 70);
+          dp_pn_destroy (p);
+          found = memcmp (got, want, 70) == 0;
+        }
+      DP_CHECK (found);
+      /* the 127 states give 127 distinct prefixes: the map is a bijection */
+      for (unsigned o = 1; o < st; o++)
+        {
+          uint8_t other[7];
+          dp_wlan_scrambler_sequence ((uint8_t)o, 7, other);
+          DP_CHECK (memcmp (got, other, 7) != 0);
+        }
+    }
+
   DP_TEST_END ("test_wlan_core");
 }

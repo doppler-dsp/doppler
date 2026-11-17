@@ -59,6 +59,7 @@
 #
 # Recorded 2026-09-12 from the `sweep validators` job, run 34712193774.
 
+validate_async_dsss_pool_ghosts         16.6  # NEW: the 415.1 ghost populations spot check (forced k = 0 and 2, a second emitter at two levels, the pool alone, 2.8 GHz, one draw each): 9.4 s on the dev box, scaled by validate_async_dsss_receiver_ber's CI/dev ratio (1.77) until CI's sweep job measures it
 validate_async_dsss_receiver_refine     12.6  # NEW: the 415.1 refine spot check, 300 noise dwells and the static 7 dB hand-over grid (20 offsets, both arms) at 2.8 GHz: 7.1 s on the dev box, scaled by validate_async_dsss_receiver_ber's CI/dev ratio (1.77) until CI's sweep job measures it
 validate_async_dsss_receiver_release    10.8  # CI's sweep job on #3104 (the Dll block correlate), two runners: 10.78 and 7.82 s; was 19.7
 validate_async_dsss_receiver_lock        2.5  # CI's sweep job on #3104 (the Dll block correlate), two runners: 2.51 and 1.72 s; was 4.6. CI's sweep job on #2481: 4.6 s. #2473 added the certification's per-push evidence -- # quality at five Es/N0 and # falselock, 2 s of noise at each design point -- which the report's limits are asserted on; was 2.2 s

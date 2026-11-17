@@ -554,6 +554,23 @@ add_test(NAME validate_async_dsss_receiver_pullin_telemetry
                  ${CMAKE_CURRENT_BINARY_DIR} --draw 2.8,10,0,0,1 --secs 2
                  --from 1 --to 1.2 --check)
 
+# The pool's ghosts at the 415.1-B-1 point: a forced sidelobe ghost at k
+# lattice steps (released at k = 2, never at k = 0), a distinct emitter on a
+# stronger one's carrier (never released; and how often the rule with
+# k = 0 admitted would have), and the ghosts the pool takes on its own. The
+# spot check: 2.8 GHz, k = 0 and 2, B at 38.8 and 50 dB-Hz, one draw each.
+add_executable(validate_async_dsss_pool_ghosts
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_pool_ghosts.c)
+target_include_directories(validate_async_dsss_pool_ghosts
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_pool_ghosts
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_async_dsss_pool_ghosts
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_pool_ghosts
+         COMMAND validate_async_dsss_pool_ghosts --check)
+
 # The refine at the 415.1-B-1 point: its per-dwell false-alarm rate on
 # noise against the design (one test an estimator, refine_sequential
 # false: pfa each, 2 pfa the hand-over taking either), and the hand-over

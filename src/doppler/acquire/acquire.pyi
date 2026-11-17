@@ -285,8 +285,11 @@ class CarrierAcquisition:
 
     @property
     def ready(self) -> bool:
-        """True once a detection has fired (or the dwell_target give-up cap was
-        reached) -- residual_hz is only meaningful once this is true.
+        """True once a detection has fired, and only then: residual_hz is
+        meaningful once this is true. A dwell that reaches its give-up cap
+        (dwell_target, or max_n_blocks in sequential mode) without detecting
+        leaves it False, with n_blocks at the cap and steps() a no-op until
+        reset().
         """
 
     @property

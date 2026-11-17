@@ -90,6 +90,7 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  double | [**dp\_RateConverter\_get\_bank\_sps**](#function-dp_rateconverter_get_bank_sps) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Samples per symbol on the terminal stage's grid — the rate the pre-terminal tap runs at._  |
 |  bool | [**dp\_RateConverter\_get\_clipped**](#function-dp_rateconverter_get_clipped) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Has any planned CIC stage clipped its input since the last reset?_  |
 |  double | [**dp\_RateConverter\_get\_count\_lag**](#function-dp_rateconverter_get_count_lag) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_How far the output COUNT can trail the rate, in INPUT samples: after_ `m` _inputs a fresh converter has emitted at least_`(m - lag) * rate` _outputs, whatever the call sizes._ |
+|  double | [**dp\_RateConverter\_get\_group\_delay**](#function-dp_rateconverter_get_group_delay) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_The converter's group delay, in its INPUT samples: where in the input timeline an output sample's content sits._  |
 |  bool | [**dp\_RateConverter\_get\_narrow\_pulse**](#function-dp_rateconverter_get_narrow_pulse) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Is this converter's rectangular matched filter degenerately narrow?_  |
 |  double | [**dp\_RateConverter\_get\_rate**](#function-dp_rateconverter_get_rate) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. A rate that is not finite and &gt; 0 is refused and leaves the converter as it was._  |
 |  void | [**dp\_RateConverter\_get\_state**](#function-dp_rateconverter_get_state) (const [**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
@@ -1123,6 +1124,46 @@ printf ("%.1f\n", dp_RateConverter_get_count_lag (rc));   // 1.0
 dp_RateConverter_destroy (rc);
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_RateConverter\_get\_group\_delay 
+
+_The converter's group delay, in its INPUT samples: where in the input timeline an output sample's content sits._ 
+```C++
+double dp_RateConverter_get_group_delay (
+    const dp_RateConverter_state_t * s
+) 
+```
+
+
+
+Output `k` of a fresh stream carries the input at index `k / rate - group_delay`. The signal's delay, where get\_count\_lag() is the output count's: a caller putting the output against the input's own timeline  a test that knows where a chip was transmitted and asks where it was received  subtracts this. Each stage's delay in its own For a plan of one resampler stage  what every rate from about 0.5 up builds  it is that stage's [**dp\_resamp\_get\_execute\_delay()**](resamp__core_8h.md#function-dp_resamp_get_execute_delay). Any other plan returns NaN rather than a number nothing has checked: the halfband and CIC stages publish no delay of their own, and no rate builds two resampler stages to check a cross-stage sum on (doppler#3119). 
+
+**Parameters:**
+
+
+* `s` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The group delay in input samples, or NaN for any plan but one resampler stage. 
+```C++
+dp_RateConverter_state_t *rc = dp_RateConverter_create (1.344, 0);
+printf ("%d\n", dp_RateConverter_get_group_delay (rc) > 0.0);  // 1
+dp_RateConverter_destroy (rc);
+```
+ 
+
+
+
 
 
         

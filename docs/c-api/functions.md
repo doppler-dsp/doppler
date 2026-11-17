@@ -171,6 +171,7 @@
 * **dp\_RateConverter\_get\_bank\_sps** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_clipped** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_count\_lag** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **dp\_RateConverter\_get\_group\_delay** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_narrow\_pulse** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **dp\_RateConverter\_get\_state** ([**RateConverter\_core.h**](RateConverter__core_8h.md))

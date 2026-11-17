@@ -1113,13 +1113,15 @@ the chain under both.
     (`costas_wipeoff` with `costas_update` never called) feeds a collection
     `Dll` whose look-back segments oversample each epoch, then a
     `RateConverter` to `CarrierAcquisition`'s own rate, then
-    `CarrierAcquisition`. Oversampling is required rather than tidy: the
-    asynchronous data's residual carrier rides a spectrum about
-    `symbol_rate` wide, which one dump per epoch aliases. When the
-    estimator reports ready or gives up, the live chain is built **fresh**
-    from the seed's chip phase, advanced by the clock dilation over the
-    refine (doppler#1249) — not wherever the refine `Dll` drifted to — and
-    the refined Doppler, or the seed's on a give-up. It starts at the
+    two `CarrierAcquisition`s: one on that stream against the data
+    spectrum, one on its square against a tone (§4.7). Oversampling is
+    required rather than tidy: the asynchronous data's residual carrier
+    rides a spectrum about `symbol_rate` wide, which one dump per epoch
+    aliases. When the squared estimator reports ready, or the data one
+    reports ready or gives up, the live chain is built **fresh** from the
+    seed's chip phase, advanced by the clock dilation over the refine
+    (doppler#1249) — not wherever the refine `Dll` drifted to — and the
+    refined Doppler, or the seed's when both give up. It starts at the
     refine's estimate of where it stopped, `ceil(k · period)` samples from
     the hand-off (k whole code periods, the fraction carried in its phase),
     on the same input sample at any chunking: the refine decides up to its
@@ -1537,7 +1539,107 @@ less). No row measures either at this point (§9). In order:
 1. The search's resampler, written so the compiler vectorizes it.
 1. Kernel changes, each adopted only on a measured gain of half or more.
 
-### 4.7 The carrier loop's bandwidth, computed at create
+### 4.7 The refine: a squared stream and a derived threshold
+
+The refine estimates the seed's residual carrier from the despread stream,
+`refine_samples_per_symbol` samples a symbol (12 kSa/s at 3 kbps). The
+stream carries the asynchronous data, except inside a code-only window,
+and the search's hit lands anywhere in a frame: over 20 start phases at
+the 415.1 point, seeds fell from symbol 6 to symbol 966 of 1000, so a dwell
+can be all code-only, all data, or both. Two estimators fold every block:
+
+| estimator | input                                          | template                                      | threshold                    |
+| --------- | ---------------------------------------------- | --------------------------------------------- | ---------------------------- |
+| data      | the despread stream                            | the data spectrum, sinc², `symbol_rate` wide  | `CARRIER_ACQ_KAPPA` (fitted) |
+| squared   | its square, from the `Dll`'s level start-up on | a tone: the CA's own PSD kernel of a constant | derived (below)              |
+
+**Squaring removes the data.** BPSK's ±1 squares to 1, so
+$x^2 = A^2 e^{j 2\theta} + 2 A e^{j\theta} n + n^2$ is a tone at twice
+the residual on a code-only block and on a data block alike. A sample a
+symbol edge splits has amplitude $(1 - 2f)A$; its square is still a
+positive real, a loss of power and never of sign. The estimate is halved.
+
+- **Loss.** With $\rho = (E_s/N_0) / 4$ a sample, the squared stream's SNR
+    is $\rho^2 / (4\rho + 2)$: a loss of $\rho / (4\rho + 2)$, −8.6 dB at
+    4 dB, −7.6 at 5, −5.9 at 7, −4.6 at 10. Halving the estimate takes the
+    error to half, 6 dB back in variance.
+- **Range.** $2f$ must lie inside the two-sided PSD, so $|f| < r/4$: 3.0
+    kHz at 415.1 and 2.7 kHz at 3.069 Mcps. The search hands over within
+    half a Doppler row, 1.5 kHz at 3.069 Mcps (one epoch deep).
+- **The `Dll`'s level start-up is skipped.** The refine `Dll` is rebuilt at
+    every seed, and its output level holds only once
+    `DLL_OUT_LEVEL_PERIODS / 2` periods have accrued: before that a period
+    is divided by its own small, noisy magnitude. Those samples are a heavy
+    tail on noise: through the receiver's own chain, noise alone fired the
+    squared estimator on 2.4% of dwells at 2.2 GHz, 0.7% at 2.8 GHz and 1.7%
+    at 3.069 Mcps against a 0.1% target, all of it the first block. Skipped,
+    it fires on 1, 0 and 1 of 2000. The squared estimator's dwell is what
+    is left of the data one's, so it decides no later.
+
+**The hand-over.** The squared estimate when its estimator is ready;
+failing that, the data estimate when it is; failing both, the seed's own
+Doppler. The refine decides when the squared estimator is ready or the
+data one decides (`dp__adsss_refine_decided()`): both fold every block, so
+the squared one has been tested on each block the data one saw, and the
+refine takes no longer than the data estimator alone. The live chain
+starts past the further of the two estimators' reach.
+
+**The squared estimator's threshold is derived.** `CARRIER_ACQ_KAPPA` was
+fitted to the data template; on the tone template it realizes about 0 at
+pfa 1e-3, too strict to use. The statistic is $\max_k C[k] /
+\mathrm{median}_k C[k]$ with $C[k] = \sum_m P[m]\, t[(m - k) \bmod N]$,
+$P$ the averaged periodogram of $n$ Hann-windowed blocks of $L$ samples
+zero-padded to $N$:
+
+- **One lag.** Per block, $C$ is a complex Gaussian quadratic form
+    $x^H A x$, $A_{jk} = w_j w_k\, \tau(j - k)$, $\tau$ the template's
+    transform at lag $j - k$. Under noise it is a weighted sum of
+    exponentials, moment-matched to $\chi^2_\nu$ with
+    $\nu = 2n\, \mathrm{tr}(A)^2 / \|A\|_F^2$.
+- **The peak over lags.** The lags are one smooth process, not cells:
+    measured, the count of independent lags a cell model needs grows with
+    the level (39 to 72 for the tone template), and a fixed count realizes
+    2.4 to 5.7 times the target. Rice's upcrossing count of a $\chi^2_\nu$
+    process over the $N$ circular lags,
+    $N \sqrt{2 y \lambda_2 / \pi}\, f_\nu(y)$, with
+    $\lambda_2 = 1 - \mathrm{corr}_C(1)$ from the exact lag covariance
+    $\mathrm{tr}(A_0 A_D)$, plus one lag's own tail.
+- **The median.** A sample median of correlated lags, normal about the
+    $\chi^2_\nu$ median with standard error $1 / (2 f(m) \sqrt{N_\mathrm{eff}})$,
+    $N_\mathrm{eff} = \|A\|_F^2 / \sum_j A_{jj}^2$; the tail is averaged over
+    it.
+- **The threshold** solves that probability at `pfa`, by bisection. Every
+    input is the window's and the template's, from one transform of the
+    template, with no matrix formed (`carrier_acq_null_stats()`), and the
+    incomplete gamma is the detection module's one (`dp__gammaq()`).
+
+Realized, it is conservative: 0.3 to 0.9 of the target over 40,000
+noise-only dwells a row (pfa 1e-2 and 1e-3, 4 and 16 blocks, the squared
+and the unsquared Gaussian), and 157 of 20,000 at pfa 1e-2 and 16 blocks in
+`test_carrier_acq_core`, $[0.67\%, 0.92\%]$ at 95%. The data estimator keeps
+`CARRIER_ACQ_KAPPA`: for the sinc² template $N_\mathrm{eff} = 2.9$, too
+few lags for the median's normal model, and the derived rule over-corrects
+there, realizing about 0. The rule is the CA's (`carrier_acq_private.h`),
+switched on for the squared estimator only, and travels in the CA's blob.
+
+**Hand-over error.** One built receiver at the 415.1 point (2.2 and 2.8
+GHz, 80 draws a row: 20 frame start phases by 4 seeds) and at 3.069 Mcps
+(20 seeds); median / max, Hz, as built (the data estimator alone) → now:
+
+| Es/N0 | 415.1 2.2 GHz static | 415.1 2.8 GHz static | 3.069 static      | 415.1 2.2 GHz 400 Hz/s | 3.069 400 Hz/s      |
+| ----- | -------------------- | -------------------- | ----------------- | ---------------------- | ------------------- |
+| 4 dB  | 28 / 239 → 9 / 32    | 37 / 291 → 7 / 168   | 75 / 248 → 5 / 16 | 38 / 136 → 17 / 88     | 78 / 197 → 22 / 40  |
+| 5 dB  | 30 / 233 → 7 / 163   | 39 / 284 → 6 / 32    | 98 / 192 → 5 / 13 | 27 / 98 → 13 / 87      | 91 / 1459 → 10 / 30 |
+| 7 dB  | 39 / 282 → 4 / 129   | 41 / 357 → 4 / 15    | 77 / 325 → 5 / 15 | 37 / 425 → 9 / 146     | 73 / 195 → 5 / 25   |
+| 10 dB | 19 / 194 → 3 / 12    | 57 / 292 → 3 / 12    | 57 / 229 → 3 / 10 | 23 / 294 → 10 / 22     | 49 / 212 → 8 / 17   |
+
+No row is worse than as built in median, 90th percentile, maximum or the
+rate of errors past half a bin; that rate falls from 1 to 55% to at most
+1.2%, and the 2.8 GHz 400 Hz/s rows, not shown, likewise. The squared
+estimator decides 1410 of the 1440 draws; the other 30, all on 415.1 and
+28 of them at 4 and 5 dB, hand over the data estimate.
+
+### 4.8 The carrier loop's bandwidth, computed at create
 
 **Proposed, not built.** The pre-despread carrier loop's bandwidth is a
 constant, `ASYNC_DSSS_RX_BN_CARRIER`: 0.04 of the code-period rate, 120 to
@@ -1761,38 +1863,36 @@ The hand-over error the search delivers:
     principles (below). At 3.069 Mcps, hand-overs past 200 to 250 Hz walk
     to a false lock, which is the pull-in limit above.
 
-The refine is CarrierAcquisition's PSD-matched filter over the despread
-stream: `N` FFT blocks of 64 samples at 12 kSa/s (5.33 ms each), averaged
-noncoherently. `N` is 16 at 4 dB, 12 at 5, 8 at 6 and the floor of 7
-from 7 dB up, a dwell `T_d` of 85 to 37 ms.
+The refine (§4.7) folds the despread stream in `N` FFT blocks of 64
+samples at 12 kSa/s (5.33 ms each), averaged noncoherently, through two
+estimators: the data spectrum's template on the stream, and a tone's on its
+square, where the data drops out. `N` is 16 at 4 dB, 12 at 5, 8 at 6 and
+the floor of 7 from 7 dB up, a dwell `T_d` of 85 to 37 ms; the squared
+estimator starts after the refine `Dll`'s level start-up, one block in.
+The squared estimate is handed over when it is found, in 1,410 of 1,440
+draws over §4.7's grid; the data estimate otherwise.
 
-Its bound is the frequency Cramér-Rao bound for a tone:
-`σ_f² = 3 / (2π²·C/N0·T³)`, taken over one block and divided by `N`,
-since the blocks are averaged noncoherently. The data's squaring loss
-multiplies it by `1 + 1/(2·Es/N0)`. A ramp adds `R·T_d/2`, 17 Hz at most
-at 400 Hz/s; the 415.1 runs below are static.
+Its bound is the frequency Cramér-Rao bound for a tone,
+`σ_f² = 3 / (2π²·C/N0·T³)` over one block, divided by the blocks
+averaged. Squaring scales C/N0 by `ρ/(4ρ + 2)`, `ρ = (Es/N0)/4`, and the
+estimate of `2f` is halved, a factor 1/4 on the variance. A ramp adds
+`R·T_d/2`, 17 Hz at most at 400 Hz/s; the 415.1 runs below are static.
 
-| Es/N0 | `N` | bound, 3σ | the estimator alone on a tone, median / max | the receiver at 2.2 GHz, median / max | the receiver at 2.8 GHz, median / max |
-| ----- | --- | --------- | ------------------------------------------- | ------------------------------------- | ------------------------------------- |
-| 4 dB  | 16  | 9.5 Hz    | 18 / 89 Hz                                  | 78 / 176 Hz                           | 35 / 207 Hz                           |
-| 5 dB  | 12  | 9.6       | 16 / 85                                     | 55 / 110                              | 27 / 208                              |
-| 6 dB  | 8   | 10.3      | 16 / 80                                     | 43 / 107                              | 48 / 156                              |
-| 7 dB  | 7   | 9.7       | 14 / 70                                     | 35 / 111                              | 35 / 129                              |
-| 10 dB | 7   | 6.7       | 7.5 / 35                                    | 21 / 66                               | 24 / 65                               |
+| Es/N0 | `N`, squared | bound, 3σ | the receiver at 2.2 GHz, median / max | the receiver at 2.8 GHz, median / max |
+| ----- | ------------ | --------- | ------------------------------------- | ------------------------------------- |
+| 4 dB  | 15           | 12.0 Hz   | 9.1 / 32 Hz                           | 6.5 / 168 Hz                          |
+| 5 dB  | 11           | 11.9      | 6.9 / 163                             | 5.7 / 32                              |
+| 7 dB  | 6            | 11.8      | 4.0 / 129                             | 4.1 / 15                              |
+| 10 dB | 6            | 7.8       | 2.8 / 12                              | 2.8 / 12                              |
 
-The estimator alone is the receiver's CarrierAcquisition with its
-arguments, on a tone at the stated Es/N0 (1,320 estimates a row). On a
-noise-free tone it is exact to 0.02 Hz, so neither it nor its sub-bin
-interpolation carries a bias. The receiver columns are 20 draws a cell.
+The receiver columns are 80 draws a cell: 20 frame start phases by 4
+seeds (§4.7).
 
-**A finding about the refine:** on its own, its maxima are 5 to 9 times
-the 3σ bound. In the receiver its maxima are 1.3 to 2.4 times its own,
-and its medians 1.7 to 4.3 times. At
-10 dB the receiver's median is still 21 to 24 Hz, where the bound is under
-7 Hz at 3σ. The receiver's excess is not localized. The candidates are
-data inside the dwell (on BPSK data the estimator alone reads 57 Hz
-median at 10 dB) and the frozen-carrier and refine-Dll chain ahead of
-it.
+**A finding about the refine:** the squared estimator's own errors stay
+under 41 Hz at every point, a median 1.5 to 3.4 times the bound's
+(0.67σ). Every larger hand-over error but one, from 43 to 168 Hz, is a
+draw the squared estimator gave up on and the data template decided: 30
+draws in 1,440, at 4 to 7 dB on 415.1. The tail is the data template's.
 
 With a stated hand-over bound `e_h`:
 
@@ -1874,11 +1974,12 @@ the owner's to state. As an illustration only, at 400 Hz/s with
 #### The refine's dwell: where averaging helps and where it hurts
 
 The refine's error is the hand-over stress. These numbers come from the
-receiver's CarrierAcquisition, with its own arguments, driven alone on
-identical draws. That is a carrier `±75 Hz` from the seed, tone or BPSK at
-4 samples a symbol, static or 400 Hz/s, with 2,000 draws a cell, measured
-at the hand-over instant. They are a scratch measurement; the refine is
-unchanged.
+receiver's data-template CarrierAcquisition, with its own arguments,
+driven alone on identical draws. That is a carrier `±75 Hz` from the seed,
+tone or BPSK at 4 samples a symbol, static or 400 Hz/s, with 2,000 draws a
+cell, measured at the hand-over instant. They are a scratch measurement of
+that estimator; the refine's squared one (§4.7) is the answer to the tails
+they show.
 
 **The instant.** The receiver starts tracking at the dwell's end
 (`samples_consumed_refine`, rounded up to a whole code period). It seeds
@@ -1974,7 +2075,7 @@ All held but two:
 - **Where averaging stops helping:** the dwell where the ramp's bias,
     `R·N·T_b/2`, outgrows the averaging's gain. That is
     `N_opt³ = 2σ_1²/(R·T_b)²`.
-- **For the refine as built, the shipped dwell already sits there:**
+- **For the data template, the shipped dwell already sits there:**
     85 ms at 4 dB down to 37 ms at 10 dB on a tone at 400 Hz/s. On data
     the optimum is longer than any dwell it uses.
 - **Which combiner:** averaging the PSD before the pick beats every
@@ -1988,10 +2089,13 @@ All held but two:
     then dominates past `N` 4 to 5. There, only a line through the
     per-block picks removes it, reaching 4.7 Hz at 4 dB and a rate
     besides.
-- **What else counts:** whether the dwell holds data. The receiver's
-    measured medians (21 to 78 Hz) sit between this tone row and this
-    BPSK row at the same `N`. That is what dwells sometimes inside and
-    sometimes past the data-free window would give.
+- **What else counts:** whether the dwell holds data. The data template's
+    medians in the receiver (19 to 98 Hz, §4.7) sit between this tone row
+    and this BPSK row at the same `N`, as dwells sometimes inside and
+    sometimes past the data-free window give. The refine's squared
+    estimator (§4.7) is a tone's template on a stream with the data
+    removed, so a dwell over data is the tone row; its medians are 3 to
+    9 Hz at the static points.
 
 #### Removing a stress rather than budgeting for it
 
@@ -2470,9 +2574,32 @@ the reviewer's populations, the pair caught all 416 Doppler-offset ghosts in
 a median 0.20 s and released 23 of 2050 true emitters, all 20 dB below a
 60 dB-Hz partner they co-move with (doppler#2550). A ghost on its parent's
 own carrier (k = 0) is left alone: allowing it releases most true emitters
-that share a stronger one's Doppler (doppler#2551). The constants are
-`ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the measurements
-behind them are on doppler#2529.
+that share a stronger one's Doppler (doppler#2551). At the 415.1-B-1 point
+(11 MSa/s in, a pool designed at 4 dB Es/N0), allowing it would release 65
+to 78 of about 95 second emitters held on a 70 dB-Hz one's carrier at 38.8
+to 44 dB-Hz, within 0.8 to 1.4 s; the rule as it is releases none. The
+constants are `ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the
+measurements behind them are on doppler#2529 and doppler#2551.
+
+**Where a k = 0 ghost goes.** The refine's squared estimator (§4.7) pulls a
+sidelobe seed onto the lattice point nearest it, so at 2.2 GHz a seed one
+step off often lands on its parent's carrier. A k = 0 ghost leaves by the
+loss release (`lost_confirm_s`) when both its lock flags are down. One that
+decodes its parent's data through the sidelobe holds symbol lock, and
+nothing releases it. Seeded on a 60 dB-Hz parent's sidelobe and run 10 s at
+`lost_confirm_s` 2.0, at both 415.1 carriers: 13 of 40 k = 0 seeds are
+held without the squared estimator and 11 of 40 with it; of 160 seeds one
+or two steps off, none and 2. The k = ±1 seeds the squared estimator moves
+onto the carrier leave by the loss release instead, a median 2.5 s after
+the seed against under 1 s by the ghost rule.
+
+**The code's own sidelobe.** A Gold-1023 code's autocorrelation sidelobes
+are 63 or 65 of its peak's 1023, about −24 dB. Beside a 70 dB-Hz emitter
+that is about 46 dB-Hz, above the gate of a pool designed at the 38.8 dB-Hz
+floor, so the pool's own search can seed one: at the 415.1 point, 167 chips
+from its parent, in 6 of 126 tenures. It sits on its parent's carrier with
+code and symbol lock, so the duplicate rule, the ghost rule and the loss
+release all leave it.
 
 ### 8.1 The holder owns the clock; events are SigMF annotations
 

@@ -66,7 +66,12 @@
  *        sidelobe is not the code's triangle.
  *      Neither alone will do: a distinct emitter can co-move with another
  *      on the lattice (but holds code lock), and a true track near the
- *      floor loses code lock (but its carrier is its own).
+ *      floor loses code lock (but its carrier is its own). A ghost on its
+ *      parent's own carrier (k = 0) is not this rule's: a true emitter
+ *      sharing a stronger one's carrier looks the same
+ *      (docs/design/async-dsss-receiver.md §8). It leaves by the loss
+ *      release when both its lock flags are down, and is held while it
+ *      decodes its parent's data (its symbol lock up).
  *      dp_async_dsss_pool_ghost_of() is the test. The ghost is reset to
  *      idle; the search's sidelobe rule then keeps it off that cell, but
  *      for noise lifting it past the gate.

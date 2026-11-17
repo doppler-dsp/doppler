@@ -322,7 +322,15 @@ typedef enum
                                                CarrierAcquisition's
                                                rate.                    */
     dp_carrier_acq_state_t   *ca;         /**< Owned CarrierAcquisition
-                                               refining the Doppler.    */
+                                               refining the Doppler from
+                                               the despread stream (the
+                                               data template).          */
+    dp_carrier_acq_state_t   *ca_sq;      /**< Owned CarrierAcquisition on
+                                               the SQUARED despread stream
+                                               (a tone at twice the
+                                               residual, data or none;
+                                               a tone's template, the
+                                               derived threshold).      */
     size_t refine_segments; /**< dp_dll_lookback_segments() result,
                                   computed once at create: config for
                                   refine_dll's layout, needed again by
@@ -1834,7 +1842,7 @@ typedef enum
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 18u /* v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 19u /* v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

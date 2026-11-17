@@ -3810,6 +3810,181 @@ _test_slow_time_depth_from_physical_inputs (void)
   return 0;
 }
 
+/* The refine's squared estimator (async-dsss-receiver.md §4.7), seeded
+ * directly so the dwell is known: a 3.069 Mcps receiver handed a Doppler
+ * 150 Hz off the truth, on a dwell that is all code-only and on one that is
+ * all data. The squared stream is a tone at twice the residual on both, so
+ * the squared estimate is what is handed over, inside an eighth of a bin
+ * (a bin is 10.8 kSa/s / 64, 169 Hz). Sabotage: hand over the squared
+ * estimate unhalved -> 150 Hz off; feed the squared estimator unsquared ->
+ * the data dwell finds no tone and the code-only one reads half the
+ * residual. */
+#define SQ_F0 500.0
+#define SQ_DELTA 150.0
+static dp_async_dsss_receiver_state_t *
+_sq_rx (const uint8_t *code, double cn0)
+{
+  return dp_async_dsss_receiver_create (
+      code, 1023, SLOW_CR, SLOW_RS, SLOW_CR * (double)SLOW_SPC, 2, cn0, 1e-3,
+      0.9, 1500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
+      false, 0.0, 0.0, true, 0);
+}
+
+/* Seeds `rx` SQ_DELTA off a SQ_F0 stimulus and pushes it a code period at a
+   time until the refine hands over; returns the hand-over Doppler minus the
+   truth (NAN if the stream ends first). */
+static double
+_sq_handover (dp_async_dsss_receiver_state_t *rx, const uint8_t *code,
+              double cn0, int code_only, size_t n_sym, uint32_t seed,
+              void (*after_seed) (dp_async_dsss_receiver_state_t *))
+{
+  const double    fs = SLOW_CR * (double)SLOW_SPC;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_windowed_capture (code, 1023, SLOW_SPC, fs, fs / SLOW_RS, SQ_F0, cn0,
+                            n_sym, 0, seed, code_only ? n_sym + 4 : 0,
+                            code_only ? n_sym + 4 : 0, &x, &n, &data);
+  double err = NAN;
+  if (dp_async_dsss_receiver_seed (rx, 0.0, SQ_F0 + SQ_DELTA, cn0) == DP_OK)
+    {
+      if (after_seed)
+        after_seed (rx);
+      const size_t te = 1023 * SLOW_SPC;
+      float _Complex out[64];
+      for (size_t p = 0; p + te <= n && isnan (err); p += te)
+        {
+          (void)dp_async_dsss_receiver_steps (rx, x + p, te, out, 64);
+          if (rx->state == ASYNC_DSSS_RX_TRACKING)
+            err = rx->doppler_hz_est - SQ_F0;
+        }
+    }
+  free (x);
+  free (data);
+  return err;
+}
+
+static int
+_test_refine_squared_estimate (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double cn0 = 7.0 + 10.0 * log10 (SLOW_RS);
+  for (int code_only = 1; code_only >= 0; code_only--)
+    {
+      dp_async_dsss_receiver_state_t *rx = _sq_rx (code, cn0);
+      DP_REQUIRE (rx != NULL);
+      const double err = _sq_handover (rx, code, cn0, code_only, 400, 1, NULL);
+      printf ("squared refine, %s dwell, 7 dB: hand-over %.2f Hz off "
+              "(seeded %.0f off)\n",
+              code_only ? "code-only" : "data", err, SQ_DELTA);
+      DP_CHECK_MSG (rx->ca_sq->ready,
+                    "the squared estimator decides the refine");
+      DP_CHECK_MSG (fabs (err) < 10800.0 / 64.0 / 8.0,
+                    "and hands over within an eighth of a bin");
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  return 0;
+}
+
+/* The squared estimator's give-up (§4.7). Far under the design point
+ * neither estimator clears its threshold: the seed's own Doppler is handed
+ * over, exactly. And with
+ * the squared one unable to fire (its false-alarm target set beyond reach
+ * once seed() has built the chain; at this stimulus it never gives up on
+ * its own where the data template fires, 0 of 270 draws from 0 to 5 dB),
+ * the data template's estimate is handed over, as before the squared one
+ * existed. Sabotage: drop the data template from the fallback -> the seed's
+ * 150 Hz is handed over, red; drop the give-up cap from the decision (the
+ * squared or the data estimator ready, nothing else) -> the refine under
+ * the design point never ends, red. */
+static void
+_sq_unreachable (dp_async_dsss_receiver_state_t *rx)
+{
+  rx->ca_sq->pfa = 1e-300;
+}
+
+static int
+_test_refine_squared_fallback (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  {
+    /* A receiver designed for 7 dB, the signal at -15 dB: the dwell is the
+       design point's, and nothing in it clears either threshold. (At 0 dB
+       the squared estimator still fires, 13 Hz off, at 70 blocks.) */
+    const double                    cn0 = 7.0 + 10.0 * log10 (SLOW_RS);
+    dp_async_dsss_receiver_state_t *rx  = _sq_rx (code, cn0);
+    DP_REQUIRE (rx != NULL);
+    const double err = _sq_handover (rx, code, cn0 - 22.0, 0, 800, 1, NULL);
+    DP_REQUIRE_MSG (!isnan (err) && !rx->ca_sq->ready && !rx->ca->ready,
+                    "22 dB under the design point both estimators give up");
+    DP_CHECK_MSG (rx->doppler_hz_est == SQ_F0 + SQ_DELTA,
+                  "the seed's Doppler is handed over");
+    dp_async_dsss_receiver_destroy (rx);
+  }
+  {
+    const double                    cn0 = 7.0 + 10.0 * log10 (SLOW_RS);
+    dp_async_dsss_receiver_state_t *rx  = _sq_rx (code, cn0);
+    DP_REQUIRE (rx != NULL);
+    const double err
+        = _sq_handover (rx, code, cn0, 0, 800, 1, _sq_unreachable);
+    DP_REQUIRE_MSG (!isnan (err) && !rx->ca_sq->ready && rx->ca->ready,
+                    "the squared estimator gives up, the data one fires");
+    DP_CHECK_MSG (rx->doppler_hz_est
+                      == (SQ_F0 + SQ_DELTA) + rx->ca->residual_hz,
+                  "the data template's estimate is handed over");
+    printf ("squared estimator given up: the data template's %.2f Hz off\n",
+            err);
+    dp_async_dsss_receiver_destroy (rx);
+  }
+  return 0;
+}
+
+/* The squared estimator never sees the refine Dll's level start-up
+ * (§4.7): through the receiver's own refine chain, noise alone fires it
+ * 1.7% of dwells at 3.069 Mcps when it does (pfa 1e-3), and 1 in 2000
+ * when it skips them. A regression pin on the skip, at the count, not a
+ * rate claim (the rate is the CA test's and the design page's): 400
+ * noise-only refines, at most one fire. Sabotage: no skip -> about 7. */
+static int
+_test_refine_squared_skips_level_startup (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double                    cn0 = 5.0 + 10.0 * log10 (SLOW_RS);
+  dp_async_dsss_receiver_state_t *rx  = _sq_rx (code, cn0);
+  DP_REQUIRE (rx != NULL);
+  const size_t    push = 4092;
+  float _Complex *x    = malloc (push * sizeof *x), out[64];
+  DP_REQUIRE (x != NULL);
+  uint32_t st    = 77u;
+  size_t   fired = 0;
+  for (int t = 0; t < 400; t++)
+    {
+      dp_async_dsss_receiver_reset (rx);
+      DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+      /* A dwell is about 105 pushes here; a refine that never ends is a
+         failure, not a hang. */
+      for (int k = 0; k < 2000 && rx->state == ASYNC_DSSS_RX_REFINING; k++)
+        {
+          for (size_t i = 0; i < push; i++)
+            x[i] = dp_cgauss (&st);
+          (void)dp_async_dsss_receiver_steps (rx, x, push, out, 64);
+        }
+      DP_REQUIRE_MSG (rx->state != ASYNC_DSSS_RX_REFINING,
+                      "a noise-only refine ends");
+      fired += rx->ca_sq->ready;
+    }
+  printf ("squared estimator on noise alone: %zu of 400 refines fired\n",
+          fired);
+  DP_CHECK_MSG (fired <= 1, "the squared estimator skips the refine Dll's "
+                            "level start-up");
+  free (x);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 /* set_threads() changes the cost and nothing else: five Doppler tiles
  * searched serially and on a pool give the same symbols and the same
  * status, sample for sample. Sabotage: let a tile's rows depend on its
@@ -4782,7 +4957,9 @@ _test_rank_and_exclusions_domain_and_blob (void)
 }
 
 /* ── a version-2 AccTrace blob, nested in the receiver, is refused ──────
- * receiver -> CarrierAcquisition -> PSD -> AccTrace (#2094): a version-2
+ * receiver -> CarrierAcquisition -> PSD -> AccTrace (#2094), twice: the
+ * refine's data-template and squared estimators each nest one (the macro
+ * counts both and clobbers the first). A version-2
  * trace held the mean, which version 3 reads as a sum, so the receiver
  * refuses it, searching or seeded. NOT atomic: the receiver restores its
  * earlier children before the CarrierAcquisition's trace refuses, so a
@@ -4811,7 +4988,7 @@ _test_nested_trace_version_refused (void)
       DP_STATE_NESTED_VERSION_TEST (
           dp_async_dsss_receiver, rx,
           (void)dp_async_dsss_receiver_steps (rx, x + n / 2, n / 2, sym, n),
-          ACC_TRACE_STATE_MAGIC, 2u, 1, 0);
+          ACC_TRACE_STATE_MAGIC, 2u, 2, 0);
       dp_async_dsss_receiver_destroy (rx);
     }
   free (sym);
@@ -5042,10 +5219,7 @@ _test_chunking_changes_nothing (void)
 static int
 _refine_decided (const dp_async_dsss_receiver_state_t *rx)
 {
-  const dp_carrier_acq_state_t *ca = rx->ca;
-  return ca->ready
-         || ca->n_blocks
-                >= (ca->sequential ? ca->max_n_blocks : ca->dwell_target);
+  return dp__adsss_refine_decided (rx);
 }
 
 /* Refining, the refine decided, the live chain's start still to come. */
@@ -5139,28 +5313,29 @@ _split_resumes (const chunking_geom_t *g, const float _Complex *x, size_t n,
  * (doppler#2974, the state rule), at the two places it holds what the
  * hand-over needs:
  *
- *   waiting: at 3.5 samples a chip the refine decides 16 samples short of
- *       the start, so fed 16 a call one call ends refining, the refine
- *       decided, no live chain yet. Sabotage: don't restore
- *       refine_samples_fed -> the restored receiver waits from 0 for a
- *       start ~5488 samples on, and its symbols differ.
- *   the ring: at 2.5 samples a chip fed 3 a call, the refine decides 7
- *       past the start, so the hand-over reads 4 samples back into the
- *       ring. The checkpoint is taken the call before the deciding one
- *       (found by a run that went through), the ring full and wrapped, so
- *       what the hand-over reads is the restored ring's. Sabotage: restore
- *       the ring's count but not its samples -> the restored live chain
- *       starts on zeros, and its symbols differ. */
+ *   waiting: at 3.5 samples a chip the refine decides at most 14 samples
+ *       short of the start (the further of its two estimators' reach,
+ *       async-dsss-receiver.md §4.7), so fed 14 a call one call ends
+ *       refining, the refine decided, no live chain yet. Sabotage: don't
+ * restore refine_samples_fed -> the restored receiver waits from 0 for a start
+ * ~5488 samples on, and its symbols differ. the ring: at 2.5 samples a chip
+ * fed 3 a call, the refine decides 7 past the start, so the hand-over reads 4
+ * samples back into the ring. The checkpoint is taken the call before the
+ * deciding one (found by a run that went through), the ring full and wrapped,
+ * so what the hand-over reads is the restored ring's. Sabotage: restore the
+ * ring's count but not its samples -> the restored live chain starts on zeros,
+ * and its symbols differ. */
 static int
 _test_handover_round_trips (void)
 {
+
   static const struct
   {
     double fs_chips;
     size_t dec, chunk;
     int (*at) (const dp_async_dsss_receiver_state_t *);
   } rows[]
-      = { { 3.5, 2, 16, _at_waiting }, { 2.5, 2, 3, _at_last_refine_call } };
+      = { { 3.5, 2, 14, _at_waiting }, { 2.5, 2, 3, _at_last_refine_call } };
   for (size_t r = 0; r < sizeof rows / sizeof rows[0]; r++)
     {
       chunking_geom_t g = { rows[r].fs_chips * 1.0e6, 35714.29, 0.5, 0 };
@@ -5656,6 +5831,9 @@ main (void)
   DP_CHECK (_test_tlm_names_documented () == 0);
   DP_CHECK (_test_slow_time_depth_from_physical_inputs () == 0);
   DP_CHECK (_test_threads_change_nothing_but_cost () == 0);
+  DP_CHECK (_test_refine_squared_estimate () == 0);
+  DP_CHECK (_test_refine_squared_fallback () == 0);
+  DP_CHECK (_test_refine_squared_skips_level_startup () == 0);
   DP_CHECK (_test_dwells_start_on_the_block_grid () == 0);
   DP_CHECK (_test_depth_finds_what_one_epoch_misses () == 0);
   DP_CHECK (_test_ranks_and_exclusions_split_two_signals () == 0);

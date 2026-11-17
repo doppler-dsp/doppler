@@ -31,10 +31,11 @@ extern "C"
     return r + i * I;
   }
 #else
-  /* From C++ this is a call into the library's out-of-line copy
-     (square_clip.c), not an inlined body: the body uses the C99 complex
-     library, which C++ does not have (dp_complex.h, "From C++"). A plain
-     comment, because this block's Doxygen is also the Python docstring. */
+  /* From C++ this is a call into the library's out-of-line copy, which
+     square_clip.c emits from the inlined definition above, so there is one
+     body: that body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A plain comment, because this block's
+     Doxygen is also the Python docstring. */
   float _Complex dp_square_clip (float _Complex y, float lin);
 #endif
 

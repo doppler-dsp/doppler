@@ -1504,6 +1504,16 @@ main (void)
     DP_CHECK (c != NULL);
     if (!c)
       return 1;
+    /* The lock rule reads back the verify counts set_lock_verify set,
+       keeping the levels configure_lock derived. */
+    {
+      const dp_lockdet_rule_t r0 = dp_dll_get_lock_rule (c);
+      DP_CHECK (dp_dll_set_lock_verify (c, 4, 7) == DP_OK);
+      const dp_lockdet_rule_t r = dp_dll_get_lock_rule (c);
+      DP_CHECK (r.n_up == 4 && r.n_down == 7);
+      DP_CHECK (r.up_thresh == r0.up_thresh && r.up_thresh > 0.0);
+      DP_CHECK (r.down_thresh == r0.down_thresh);
+    }
     DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
     DP_CHECK (c->sf == 31 && c->sps == 2);
     DP_CHECK (dp_dll_get_code_rate (c) == 1.0);

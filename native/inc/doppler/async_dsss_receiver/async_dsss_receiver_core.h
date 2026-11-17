@@ -1770,6 +1770,53 @@ typedef enum
   double dp_async_dsss_receiver_get_lock_threshold (
       const dp_async_dsss_receiver_state_t *state);
 
+  /** @brief The rules behind the receiver's five lock decisions, each its
+   *         levels and verify counts (dp_lockdet_rule_t), for a caller that
+   *         draws a lock statistic beside the line it is decided against.
+   *
+   * - sym: the symbol-lock decision (`locked`) on the lock metric, always
+   *   ASYNC_DSSS_RX_LOCK_UP / _DOWN / _N_UP / _N_DOWN; telemetry
+   *   ".sym.lock";
+   * - car: the pre-despread carrier loop's decision on its lock metric
+   *   (dp_costas_get_lock_rule()); ".car.lock";
+   * - code: the Dll's decision on its statistic R
+   *   (dp_dll_get_lock_rule()), as configure_lock_raw() last retuned it on
+   *   the Dll held now; ".code.lock";
+   * - demod, demod_sync: the demodulator's carrier and timing decisions
+   *   (dp_mpsk_receiver_get_lock_rule(), _get_sync_lock_rule());
+   *   ".demod.lock" and ".demod.sync.lock".
+   *
+   * The tracking chain is rebuilt at every seed, so read them after the
+   * hand-over; each rebuild sets the same rules.
+   * @param state  Must be non-NULL.
+   * @return The rule. */
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_sym_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  /** @brief The carrier loop's lock rule; see
+   *         dp_async_dsss_receiver_get_sym_lock_rule().
+   * @param state  Must be non-NULL.
+   * @return The rule. */
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_car_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  /** @brief The code loop's lock rule; see
+   *         dp_async_dsss_receiver_get_sym_lock_rule().
+   * @param state  Must be non-NULL.
+   * @return The rule. */
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_code_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  /** @brief The demodulator's carrier lock rule; see
+   *         dp_async_dsss_receiver_get_sym_lock_rule().
+   * @param state  Must be non-NULL.
+   * @return The rule. */
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+  /** @brief The demodulator's timing lock rule; see
+   *         dp_async_dsss_receiver_get_sym_lock_rule().
+   * @param state  Must be non-NULL.
+   * @return The rule. */
+  dp_lockdet_rule_t dp_async_dsss_receiver_get_demod_sync_lock_rule (
+      const dp_async_dsss_receiver_state_t *state);
+
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
    * car_held + dll + rc + rx, a fixed shape; segments/sps/n/

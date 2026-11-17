@@ -2496,6 +2496,41 @@ dp_async_dsss_receiver_get_lock_threshold (
   return state->sym_lockdet.up_thresh;
 }
 
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_sym_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_lockdet_rule (&state->sym_lockdet);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_car_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_costas_get_lock_rule (&state->car);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_code_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_dll_get_lock_rule (state->dll);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_demod_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_mpsk_receiver_get_lock_rule (state->rx);
+}
+
+dp_lockdet_rule_t
+dp_async_dsss_receiver_get_demod_sync_lock_rule (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return dp_mpsk_receiver_get_sync_lock_rule (state->rx);
+}
+
 int
 dp_async_dsss_receiver_get_code_locked (
     const dp_async_dsss_receiver_state_t *state)

@@ -3743,6 +3743,49 @@ _test_tlm_names_documented (void)
   return 0;
 }
 
+/* The five lock rules a caller draws beside the statistics. The symbol
+ * rule is the header's constants; the four children's are their own
+ * objects' (each forward returns what the child's getter does, on the
+ * child the receiver tracks with), and configure_lock_raw() moves the
+ * code rule alone. */
+static int
+_test_lock_rules (void)
+{
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (70.0, 35714.29, 0.0, false);
+  DP_REQUIRE (rx != NULL);
+  dp_lockdet_rule_t s = dp_async_dsss_receiver_get_sym_lock_rule (rx);
+  DP_CHECK (s.up_thresh == ASYNC_DSSS_RX_LOCK_UP);
+  DP_CHECK (s.down_thresh == ASYNC_DSSS_RX_LOCK_DOWN);
+  DP_CHECK (s.n_up == ASYNC_DSSS_RX_LOCK_N_UP);
+  DP_CHECK (s.n_down == ASYNC_DSSS_RX_LOCK_N_DOWN);
+  dp_async_dsss_receiver_configure_lock_raw (rx, 0.61, 0.27, 16, 0.05, 11,
+                                             6);
+  dp_lockdet_rule_t c = dp_async_dsss_receiver_get_code_lock_rule (rx);
+  DP_CHECK (c.up_thresh == 0.61 && c.down_thresh == 0.27);
+  DP_CHECK (c.n_up == 11 && c.n_down == 6);
+  dp_lockdet_rule_t s2 = dp_async_dsss_receiver_get_sym_lock_rule (rx);
+  DP_CHECK (memcmp (&s, &s2, sizeof s) == 0);
+
+  dp_lockdet_rule_t a = dp_async_dsss_receiver_get_car_lock_rule (rx);
+  dp_lockdet_rule_t b = dp_costas_get_lock_rule (&rx->car);
+  DP_CHECK (memcmp (&a, &b, sizeof a) == 0 && a.n_up >= 1);
+  a = dp_async_dsss_receiver_get_code_lock_rule (rx);
+  b = dp_dll_get_lock_rule (rx->dll);
+  DP_CHECK (memcmp (&a, &b, sizeof a) == 0 && a.n_up >= 1);
+  a = dp_async_dsss_receiver_get_demod_lock_rule (rx);
+  b = dp_mpsk_receiver_get_lock_rule (rx->rx);
+  DP_CHECK (memcmp (&a, &b, sizeof a) == 0 && a.n_up >= 1);
+  a = dp_async_dsss_receiver_get_demod_sync_lock_rule (rx);
+  b = dp_mpsk_receiver_get_sync_lock_rule (rx->rx);
+  DP_CHECK (memcmp (&a, &b, sizeof a) == 0 && a.n_up >= 1);
+  /* And they are five different rules, not one read five times. */
+  DP_CHECK (dp_async_dsss_receiver_get_car_lock_rule (rx).up_thresh
+            != dp_async_dsss_receiver_get_code_lock_rule (rx).up_thresh);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 /* The earlier design point of docs/design/async-dsss-receiver.md (§1): the
  * Gold-1023 receiver at 3.069 Mchip/s and 2700 symbols/s, two samples a chip.
  */
@@ -5829,6 +5872,7 @@ main (void)
   DP_CHECK (_test_tlm_lifecycle_probes () == 0);
   DP_CHECK (_test_tlm_searching_and_refused () == 0);
   DP_CHECK (_test_tlm_names_documented () == 0);
+  DP_CHECK (_test_lock_rules () == 0);
   DP_CHECK (_test_slow_time_depth_from_physical_inputs () == 0);
   DP_CHECK (_test_threads_change_nothing_but_cost () == 0);
   DP_CHECK (_test_refine_squared_estimate () == 0);

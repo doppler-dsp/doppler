@@ -1515,6 +1515,13 @@ float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
  *  @return 1 when locked, 0 otherwise (0 after create/reset). */
 int dp_dll_get_locked(const dp_dll_state_t *state);
 
+/** @brief The rule the code lock decision is made by: the levels the lock
+ *         statistic R is compared against and the verify counts
+ *         (dp_dll_configure_lock(), dp_dll_set_lock_verify()).
+ *  @param state  Must be non-NULL.
+ *  @return The rule (dp_lockdet_rule()). */
+dp_lockdet_rule_t dp_dll_get_lock_rule(const dp_dll_state_t *state);
+
 /** @brief Last lock test statistic R (compare against the configured eta).
  *  @param state  Must be non-NULL.
  *  @return R = sqrt(2 sum|P|^2 / E|O|^2) from the last completed group of

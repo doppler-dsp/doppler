@@ -326,6 +326,12 @@ dp_costas_get_locked (const dp_costas_state_t *state)
   return state->lock.locked;
 }
 
+dp_lockdet_rule_t
+dp_costas_get_lock_rule (const dp_costas_state_t *state)
+{
+  return dp_lockdet_rule (&state->lock);
+}
+
 double
 dp_costas_get_last_error (const dp_costas_state_t *state)
 {

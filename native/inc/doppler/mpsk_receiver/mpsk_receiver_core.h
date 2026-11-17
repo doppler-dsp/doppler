@@ -1038,6 +1038,22 @@ extern "C"
   double
   dp_mpsk_receiver_get_sync_lock_drop_thresh (const dp_mpsk_receiver_state_t *state);
 
+  /** @brief The carrier lock decision's whole rule: lock_thresh,
+   *         lock_drop_thresh and the verify counts (8 up, 32 down) that the
+   *         two threshold getters leave out.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return The rule (dp_lockdet_rule()). */
+  dp_lockdet_rule_t
+  dp_mpsk_receiver_get_lock_rule (const dp_mpsk_receiver_state_t *state);
+
+  /** @brief The timing lock decision's whole rule, on `sync.lock`: its two
+   *         levels and its verify counts, where the timing decision keeps
+   *         its hysteresis.
+   * @param state  Receiver state. Must be non-NULL.
+   *  @return The rule (dp_lockdet_rule()). */
+  dp_lockdet_rule_t
+  dp_mpsk_receiver_get_sync_lock_rule (const dp_mpsk_receiver_state_t *state);
+
   /** @brief Matched-filter bank arms in use — derived unless pinned (§8.1).
    * @param state  Receiver state. Must be non-NULL.
    *  @return Number of polyphase arms in the cascade's terminal stage. */

@@ -5287,6 +5287,38 @@ main (void)
                       && hgot[h].peak_mag == href[h].peak_mag
                       && hgot[h].test_stat == href[h].test_stat);
         }
+      /* The request is a mutator's value (#2022): it travels in the blob
+         and a restore applies it through set_threads, so a target at one
+         worker resumes at three. A blob whose tail is not zero is refused
+         and leaves the target's request as it was. Sabotage: drop the
+         restore, or the write, in get/set_state -> the request reads 1. */
+      {
+        DP_REQUIRE (dp_correlator_set_threads (o, 3) == DP_OK
+                    && o->search->threads == 3);
+        dp_correlator_state_t *t = burst_from_code (
+            CODE7, sf, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 0.0);
+        DP_REQUIRE (t != NULL && t->search->threads_req == 1);
+        const size_t sb = dp_correlator_state_bytes (o);
+        DP_REQUIRE (sb == dp_correlator_state_bytes (t));
+        unsigned char *blob = malloc (sb), *bad = malloc (sb);
+        DP_REQUIRE (blob && bad);
+        dp_correlator_get_state (o, blob);
+        DP_CHECK (dp_correlator_set_state (t, blob) == DP_OK);
+        DP_CHECK_MSG (t->search->threads_req == 3 && t->search->threads == 3,
+                      "the thread request travels in the blob");
+        const size_t at_pad
+            = DP_CORRELATOR_SEARCH_EXTRA_OFF + offsetof (search_extra_t, _pad);
+        const uint32_t one = 1;
+        DP_REQUIRE (dp_correlator_set_threads (t, 1) == DP_OK);
+        memcpy (bad, blob, sb);
+        memcpy (bad + at_pad, &one, sizeof one);
+        DP_CHECK (dp_correlator_set_state (t, bad) == DP_ERR_INVALID);
+        DP_CHECK_MSG (t->search->threads_req == 1,
+                      "a refused blob leaves the request as it was");
+        free (blob);
+        free (bad);
+        dp_correlator_destroy (t);
+      }
       free (ogot);
       free (oref);
       dp_correlator_destroy (o);

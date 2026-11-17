@@ -2270,7 +2270,9 @@ installed-headers-check: build ## Verify installed headers declare only what the
 # (doppler#3108). Two halves, because parsing is not meaning:
 #
 #   1. every installed header parses as C++ under g++ AND clang++, bar the
-#      shrink-only list scripts/.cxx-headers-exempt;
+#      shrink-only list scripts/.cxx-headers-exempt and the private or
+#      Python-only headers of scripts/.cxx-headers-not-cxx, which the gate
+#      checks no consumer's include reaches;
 #   2. a C++ program that includes the headers bare, hands std::complex
 #      buffers over by pointer and passes one complex BY VALUE both ways,
 #      prints exactly what its C twin prints.

@@ -162,6 +162,9 @@ extern "C"
    * Execute
    * ------------------------------------------------------------------ */
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_ratesync_steps(). */
   JM_FORCEINLINE JM_HOT int
   ratesync_loop_take_output (ratesync_loop_t *s, float _Complex y,
                              float _Complex *y_out, int ted)
@@ -278,7 +281,11 @@ extern "C"
     *y_out     = on;
     return 1;
   }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+  /* C only: calls ratesync_loop_take_output(), which is C only (dp_complex.h,
+     "From C++"). A C++ caller uses dp_ratesync_steps(). */
   JM_FORCEINLINE JM_HOT int
   ratesync_step_ted (dp_ratesync_state_t *s, float _Complex x,
                      float _Complex *y_out, int ted)
@@ -301,7 +308,11 @@ extern "C"
       emitted |= ratesync_loop_take_output (&s->loop, ys[oi], y_out, ted);
     return emitted;
   }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+  /* C only: calls ratesync_loop_take_output(), which is C only (dp_complex.h,
+     "From C++"). A C++ caller uses dp_ratesync_steps(). */
   JM_FORCEINLINE JM_HOT int
   ratesync_step (dp_ratesync_state_t *s, float _Complex x, float _Complex *y_out)
   {
@@ -310,6 +321,7 @@ extern "C"
       dp_ratesync_loop_tlm_flush (&s->loop);
     return r;
   }
+#endif /* !__cplusplus */
 
   size_t dp_ratesync_steps_max_out (dp_ratesync_state_t *state);
 

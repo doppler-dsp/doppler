@@ -51,6 +51,7 @@ mpsk_gray_decode (unsigned g)
   return k;
 }
 
+#ifndef __cplusplus
 JM_FORCEINLINE float _Complex
 mpsk_constellation (unsigned g, int m)
 {
@@ -70,6 +71,7 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
   *ahat       = (float)cos (ta) + (float)sin (ta) * I;
   return mpsk_gray_encode (ki);
 }
+#endif /* !__cplusplus */
 
 JM_FORCEINLINE uint8_t
 mpsk_bpsk_bit (double re)

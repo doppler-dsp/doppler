@@ -6,49 +6,12 @@
 # the gate fails on a header that is missing from it, and on a line whose
 # header now parses. What crosses into C++ and what does not is
 # native/inc/doppler/dp_complex.h, "From C++".
-doppler/RateConverter/RateConverter_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/agc/agc_core.h  # an inline body uses the C99 complex library (`crealf`)
-doppler/async_dsss_pool/async_dsss_pool_core.h  # <stdatomic.h> types, which C++ has only from C++23, via dp_parallel.h
-doppler/async_dsss_receiver/async_dsss_receiver_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/async_dsss_receiver/async_dsss_receiver_private.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/burst_capture/burst_capture_core.h  # <stdatomic.h> types, which C++ has only from C++23, via dp_parallel.h
-doppler/burst_demod/burst_demod_core.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/carrier_acq/carrier_acq_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside, via f32_buffer/f32_buffer_core.h
-doppler/carrier_mpsk/carrier_mpsk_core.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/carrier_nda/carrier_nda_core.h  # an inline body uses the C99 complex library (`crealf`)
-doppler/cic/cic_core.h  # an inline body uses the C99 complex library (`crealf`)
-doppler/correlator/correlator_core.h  # <stdatomic.h> types, which C++ has only from C++23, via dp_parallel.h
-doppler/correlator/correlator_private.h  # <stdatomic.h> types, which C++ has only from C++23, via dp_parallel.h
+doppler/async_dsss_pool/async_dsss_pool_core.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
+doppler/async_dsss_receiver/async_dsss_receiver_core.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
+doppler/async_dsss_receiver/async_dsss_receiver_private.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
 doppler/costas/costas_core.h  # an inline body calls lo_step(), which is C-only
-doppler/ddc/ddc_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/ddcr/ddcr_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
 doppler/despreader/despreader_core.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
 doppler/dll/dll_core.h  # an inline body uses the C99 complex library (`cabsf`)
-doppler/doppler.h  # a hexadecimal float literal (C99, C++17) in an inline body, via u8_to_f32/u8_to_f32_core.h
-doppler/dp_event_log/dp_event_log_core.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/dp_interrupt_pyadopt.h  # needs Python.h: a CPython-extension helper, not a C++ consumer header
-doppler/dp_parallel.h  # <stdatomic.h> types, which C++ has only from C++23
-doppler/dsss_burst_receiver/dsss_burst_receiver_core.h  # <stdatomic.h> types, which C++ has only from C++23, via dp_parallel.h
-doppler/dsss_receiver/dsss_receiver_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/f32_buffer/f32_buffer_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside
-doppler/f64_buffer/f64_buffer_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside
-doppler/i16_buffer/i16_buffer_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside
-doppler/imdmeas/imdmeas_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside, via f32_buffer/f32_buffer_core.h
-doppler/mpsk/mpsk_core.h  # an inline body uses the C99 complex library (`I`)
-doppler/mpsk_receiver/mpsk_receiver_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/mpsk_receiver/mpsk_rx_loops.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/nprmeas/nprmeas_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside, via f32_buffer/f32_buffer_core.h
-doppler/psd/psd_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside, via f32_buffer/f32_buffer_core.h
-doppler/ratesync/ratesync_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/specan/specan_core.h  # an inline body uses the C99 complex library (`crealf`), via agc/agc_core.h
-doppler/spectrogram/spectrogram_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside, via f32_buffer/f32_buffer_core.h
-doppler/symsync/symsync_core.h  # an inline body uses the C99 complex library (`crealf`)
-doppler/tonemeas/tonemeas_core.h  # buffer/buffer.h defines its functions outside extern "C"; this header redeclares them inside, via f32_buffer/f32_buffer_core.h
-doppler/u8_to_f32/u8_to_f32_core.h  # a hexadecimal float literal (C99, C++17) in an inline body
-doppler/wfm/wfm_compose.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/wfm/wfm_private.h  # `restrict` in a private inline helper; C++ has no such keyword
-doppler/wfm/wfm_surface.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/wfm_compose/wfm_compose_bridge.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/wfm_reader/wfm_reader_core.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/wfm_synth/wfm_synth_core.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
-doppler/wfm_writer/wfm_writer_core.h  # an inline body uses the C99 complex library (`I`), via mpsk/mpsk_core.h
+doppler/doppler.h  # an inline body calls lo_step(), which is C-only, via costas/costas_core.h
+doppler/dsss_receiver/dsss_receiver_core.h  # an inline body uses the C99 complex library (`cabsf`), via dll/dll_core.h
+doppler/mpsk_receiver/mpsk_receiver_core.h  # an inline body calls mpsk_rx_fold(), which is C-only

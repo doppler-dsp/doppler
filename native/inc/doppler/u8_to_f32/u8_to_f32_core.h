@@ -146,7 +146,11 @@ void dp_u8_to_f32_reset(dp_u8_to_f32_state_t *state);
 JM_FORCEINLINE float
 u8_to_f32_shift(uint8_t x)
 {
-    return (float)((int32_t)x - 128) * 0x1p-7f;
+    /* 2^-7, spelled as an exact quotient rather than `0x1p-7f`: a
+     * hexadecimal float literal is C99 and C++17, and this header is
+     * included from C++11 (`make cxx-headers-check`). The quotient of two
+     * powers of two is folded to the same constant, bit for bit. */
+    return (float)((int32_t)x - 128) * (1.0f / 128.0f);
 }
 
 /**

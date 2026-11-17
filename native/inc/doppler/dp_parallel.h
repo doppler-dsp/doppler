@@ -24,9 +24,25 @@
 
 #include "doppler/clib_common.h" /* dp_mallocn / dp_xmallocn / dp_xcalloc */
 #include "doppler/dp_thread.h"
-#include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
+
+/**
+ * @brief A persistent worker pool for repeated parallel-for runs.
+ *
+ * Create with dp_pool_create(), run with dp_pool_run(), free with
+ * dp_pool_destroy().  All fields are internal.
+ *
+ * From C++ the type is opaque and nothing else in this file is declared:
+ * the pool's run state is a C11 `atomic_size_t`, which C++ has only from
+ * C++23, and every function here is a `static inline` body. A component
+ * that carries a pool holds a `dp_pool_t *`, which means the same in both
+ * languages, so its own struct is laid out identically (doppler#3108).
+ */
+typedef struct dp_pool dp_pool_t;
+
+#ifndef __cplusplus
+#include <stdatomic.h>
 
 /**
  * @brief One parallel-for run: the range, the work, and the shared cursor.
@@ -147,13 +163,8 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
  * call dp_pool_run() unconditionally. The pool is not reentrant: one run at
  * a time, from one thread. Every failure to create a helper leaves a smaller
  * pool (dp_pool_threads() says how big), never a broken one. */
-/**
- * @brief A persistent worker pool for repeated parallel-for runs.
- *
- * Create with dp_pool_create(), run with dp_pool_run(), free with
- * dp_pool_destroy().  All fields are internal.
- */
-typedef struct
+/** @brief dp_pool_t's fields; all internal. */
+struct dp_pool
 {
   dp_mutex_t mu;   /**< guards every field below except work.next */
   dp_cond_t  wake; /**< helpers wait here between runs           */
@@ -165,7 +176,7 @@ typedef struct
   unsigned long   gen;  /**< bumped per run; helpers wake on a change */
   int             busy; /**< helpers still draining the current run   */
   dp_pf_shared_t  work; /**< the current run's range, body and cursor */
-} dp_pool_t;
+};
 
 /** A pool helper's thread body: park on @c wake until dp_pool_run() bumps
  * @c gen or dp_pool_destroy() sets @c stop, drain the run's cursor with
@@ -311,5 +322,7 @@ dp_pool_destroy (dp_pool_t *p)
   dp_mutex_destroy (&p->mu);
   free (p);
 }
+
+#endif /* !__cplusplus */
 
 #endif /* DP_PARALLEL_H */

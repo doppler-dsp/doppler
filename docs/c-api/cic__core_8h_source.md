@@ -64,6 +64,7 @@ size_t dp_cic_decimate_max_out(dp_cic_state_t *state);
 
 double dp_cic_dc_gain(const dp_cic_state_t *state);
 
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT size_t
 dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
              size_t n_in, float _Complex *out, size_t max_out)
@@ -131,6 +132,16 @@ dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
     state->clipped |= (uint8_t)clip;   /* sticky; cleared by reset() */
     return n_out;
 }
+#else
+/* From C++ this is a call into the library's out-of-line copy, which
+   cic_core.c emits from the inlined definition above (the `extern` idiom
+   of util's saturate.c), so there is one body: that body uses the C99
+   complex library, which C++ does not have (dp_complex.h, "From C++"). A
+   plain comment, because this block's Doxygen is also the Python
+   docstring. */
+size_t dp_cic_decimate(dp_cic_state_t *state, const float _Complex *in,
+                       size_t n_in, float _Complex *out, size_t max_out);
+#endif /* !__cplusplus */
 
 void dp_cic_reconfigure(dp_cic_state_t *state, uint32_t R);
 

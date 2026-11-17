@@ -98,7 +98,12 @@ mpsk_gray_decode (unsigned g)
  * @param g  Gray label, masked to the low log2(M) bits.
  * @param m  M in {2,4,8}.
  * @return   Unit-amplitude constellation point.
+ *
+ * @note C only, with mpsk_slice(): both bodies use the C99 complex library,
+ *   which C++ does not have (dp_complex.h, "From C++"). A C++ caller uses
+ *   the array functions, mpsk_map() and mpsk_demap().
  */
+#ifndef __cplusplus
 JM_FORCEINLINE float _Complex
 mpsk_constellation (unsigned g, int m)
 {
@@ -131,6 +136,7 @@ mpsk_slice (float _Complex y, int m, float _Complex *ahat)
   *ahat       = (float)cos (ta) + (float)sin (ta) * I;
   return mpsk_gray_encode (ki);
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief BPSK hard decision on a real value: negative is bit 1.

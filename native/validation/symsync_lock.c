@@ -34,9 +34,11 @@
  *
  * Usage: symsync_lock [--check]
  */
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/symsync/symsync_core.h"
 #include "dp_rng_test.h"
+#include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,15 +112,21 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
   const size_t   n         = chunk_sym * SPS;
   const double   beta = 0.35, T = SPS, span = 8 * SPS;
   float complex *rx   = malloc (n * sizeof (*rx));
+  float complex *nz   = malloc (n * sizeof (*nz));
   int           *bits = malloc (chunk_sym * sizeof (*bits));
 
   dp_symsync_state_t *s = dp_symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC,
                                              SYMSYNC_TED_GARDNER);
-  uint32_t            bit_st = 999u, noise_st = 4242u;
-  long                got = 0, exceed = 0;
-  double              block_sum = 0.0;
-  size_t              block_n   = 0;
-  int                 warmed_up = 0;
+  uint32_t            bit_st = 999u;
+  /* The shipped noise (doppler#689), its level set each chunk from that
+     chunk's own signal power: dp_awgn_amplitude_for_snr() is the one answer
+     to "per rail or total". */
+  dp_awgn_state_t *g = dp_awgn_create (4242u, 1.0f);
+  DP_REQUIRE (rx && nz && bits && g);
+  long   got = 0, exceed = 0;
+  double block_sum = 0.0;
+  size_t block_n   = 0;
+  int    warmed_up = 0;
 
   while (got < n_blocks)
     {
@@ -140,10 +148,13 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
       double p = 0;
       for (size_t i = 0; i < n; i++)
         p += crealf (rx[i]) * crealf (rx[i]) + cimagf (rx[i]) * cimagf (rx[i]);
-      p         = sqrt (p / (double)n);
-      double sd = sqrt (pow (10.0, -esno_db / 10.0)) * p;
+      DP_REQUIRE (dp_awgn_set_amplitude (
+                      g, dp_awgn_amplitude_for_snr ((float)esno_db,
+                                                    (float)(p / (double)n)))
+                  == DP_OK);
+      (void)dp_awgn_generate (g, n, nz, n);
       for (size_t i = 0; i < n; i++)
-        rx[i] += (float complex) (sd / sqrt (2.0)) * dp_cgauss (&noise_st);
+        rx[i] += nz[i];
 
       for (size_t i = 0; i < n && got < n_blocks; i++)
         {
@@ -168,7 +179,9 @@ measure_pd (size_t avgs, double threshold, double esno_db, long n_blocks)
         }
     }
   free (rx);
+  free (nz);
   free (bits);
+  dp_awgn_destroy (g);
   dp_symsync_destroy (s);
   return (double)exceed / (double)n_blocks;
 }

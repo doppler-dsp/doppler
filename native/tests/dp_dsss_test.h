@@ -49,41 +49,23 @@
  * so the level is stated in the unit the receivers are specified in rather
  * than as a bare sigma.
  *
- * ## KNOWN DEFECT: these captures are 3.01 dB quieter than they claim (#689)
+ * ## The noise is the library's (#689)
  *
- * The noise line scales `dp_cgauss` by `sigma / sqrt(2)` — the factor for the
- * OTHER complex-Gaussian convention, the one carrying unit variance PER
- * COMPONENT. `dp_cgauss` carries `E|z|^2 = 1` (see dp_rng_test.h), so the
- * injected power is `sigma^2 / 2`: **a capture asking for 60.0 dB-Hz really
- * delivers 63.01.** Measured over 2e6 draws, `E|n|^2 = 0.4996` against a
- * target of 1.0.
- *
- * The corroboration is physical rather than algebraic, and it is what makes
- * this certain: these tests print EVM about 3 dB BETTER than their nominal
- * Es/N0, which no receiver can do — impairments only move EVM the wrong way.
- *
- * It is pre-existing and faithfully reproduced. The private `cgauss` these
- * builders were copied from had the same `E|z|^2 = 1`, so the factor was
- * already wrong on `main`; the migration is byte-identical, defect included.
- * What made it findable is that the convention is now written down once
- * instead of being re-derived per file behind the phrase "unit-variance
- * complex Gaussian", which is ambiguous between precisely these two readings.
- *
- * **It is not fixed here, and the reason is a finding of its own.** Removing
- * the `/sqrt(2)` makes `test_async_dsss_receiver_core` fail, and not in the
- * way a 3 dB correction should. Its BER sweep goes non-monotonic — 6.0 dB
- * Es/N0 decodes at 0.0029, 8.0 dB fails at 0.4389, 10.0 dB decodes at
- * 0.0000 — which is not a threshold, it is acquisition succeeding or failing
- * per point. Raising the sweep would not fix it. So the honest reading is
- * that these BER assertions have been passing on 3 dB of noise they were
- * never supposed to have, and correcting the level is a receiver
- * investigation rather than a constant. That is #689, not this file.
+ * Every capture's noise comes from the shipped `awgn` object, sized by
+ * dp_awgn_amplitude_for_snr() for a unit-power signal at `cn0_dbhz` over
+ * `fs` -- the one answer to "per rail or total" -- through
+ * dp_dsss_add_awgn() below, on a stream of its own. Until #689 the builders
+ * scaled `dp_cgauss` (`E|z|^2 = 1`) by a hand `sigma / sqrt(2)`, the factor
+ * for the other complex-Gaussian convention, so every capture ran 3.01 dB
+ * quieter than its label; test_dp_dsss.c now asserts the label's power, both
+ * rails counted.
  *
  * Both allocate. The caller frees `*x_out` and `*data_out`.
  */
 #ifndef DP_DSSS_TEST_H
 #define DP_DSSS_TEST_H
 
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
@@ -92,6 +74,30 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+/**
+ * Add complex AWGN at `cn0_dbhz` dB-Hz over `fs`, against a unit-power
+ * signal, to `x[0..n)`: the shipped generator, sized by
+ * dp_awgn_amplitude_for_snr() (the per-sample SNR is `cn0_dbhz - 10 log10
+ * fs`), never a hand sigma (#689). `seed` picks the stream. Aborts on an
+ * allocation failure, as a test fixture may.
+ */
+static inline void
+dp_dsss_add_awgn (float _Complex *x, size_t n, double fs, double cn0_dbhz,
+                  uint32_t seed)
+{
+  dp_awgn_state_t *g = dp_awgn_create (
+      (uint64_t)seed,
+      dp_awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
+  float _Complex *nz = malloc ((n ? n : 1) * sizeof *nz);
+  if (!g || !nz)
+    abort ();
+  (void)dp_awgn_generate (g, n, nz, n);
+  for (size_t i = 0; i < n; i++)
+    x[i] += nz[i];
+  free (nz);
+  dp_awgn_destroy (g);
+}
 
 /** pi, spelled once for the phase accumulators below. */
 #define DP_DSSS_PI 3.14159265358979323846
@@ -223,10 +229,7 @@ dp_dsss_windowed_capture (const uint8_t *code, size_t sf, size_t spc,
   size_t          tot = pre_silence + n;
   float _Complex *x   = calloc (tot, sizeof *x);
 
-  double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  double sigma   = 1.0 / amp_snr;
-  for (size_t i = 0; i < tot; i++)
-    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+  dp_dsss_add_awgn (x, tot, fs, cn0_dbhz, seed ^ 0x6a09e667u);
 
   for (size_t idx = 0; idx < n; idx++)
     {
@@ -284,10 +287,7 @@ dp_dsss_ramp_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   size_t          tot = pre_silence + n;
   float _Complex *x   = calloc (tot, sizeof *x);
 
-  double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  double sigma   = 1.0 / amp_snr;
-  for (size_t i = 0; i < tot; i++)
-    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+  dp_dsss_add_awgn (x, tot, fs, cn0_dbhz, seed ^ 0x6a09e667u);
 
   for (size_t idx = 0; idx < n; idx++)
     {
@@ -352,11 +352,8 @@ dp_dsss_dilated_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   dp_doppler_channel_destroy (ch);
   free (clean);
 
-  double   amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  double   sigma   = 1.0 / amp_snr;
-  uint32_t st      = seed ^ 0x9e3779b9u; /* the data's stream, decorrelated */
-  for (size_t i = 0; i < out; i++)
-    x[i] += (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+  /* The data's stream, decorrelated. */
+  dp_dsss_add_awgn (x, out, fs, cn0_dbhz, seed ^ 0x9e3779b9u);
 
   *x_out = x;
   *n_out = out;

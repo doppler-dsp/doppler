@@ -1,38 +1,20 @@
 /**
  * @file test_dp_dsss.c
- * @brief `dp_dsss_test.h`'s self-test — including its documented defect.
+ * @brief `dp_dsss_test.h`'s self-test: the capture's level and structure.
  *
- * Two DSSS receiver suites take their capture from this header. Nothing
- * tested it.
+ * The DSSS receiver suites take their capture from this header, so the
+ * level it labels is the level every one of their claims is stated at.
  *
- * ## The point of this file: #689 is a paragraph, and paragraphs do not fail
+ * ## The level is the label (#689)
  *
- * The header carries a **KNOWN DEFECT** in its own docstring: the noise line
- * scales `dp_cgauss` by `sigma / sqrt(2)`, which is the factor for the *other*
- * complex-Gaussian convention — the one carrying unit variance per component.
- * `dp_cgauss` carries `E|z|^2 = 1`, so the injected power is `sigma^2 / 2` and
- * **every capture is 3.01 dB quieter than it claims**. The header even records
- * the measurement: `E|n|^2 = 0.4996` against a target of 1.0.
- *
- * It is deliberately not fixed. Removing the `/sqrt(2)` makes
- * `test_async_dsss_receiver_core` fail non-monotonically — 6 dB decodes, 8 dB
- * fails, 10 dB decodes — which is acquisition succeeding or failing per point
- * rather than a threshold, so correcting the level is a receiver
- * investigation. That is doppler#689.
- *
- * Which leaves the defect held in place by nothing but prose. This file makes
- * it a **characterization**: the 3.01 dB is measured and asserted, so
- *
- *   - the magnitude in #689 is a measured fact rather than a recollection;
- *   - the level cannot drift further without a gate noticing;
- *   - and removing the `/sqrt(2)` turns this test RED **on purpose**, which is
- *     the correct outcome — it forces the receiver investigation #689 asks
- *     for instead of letting a one-character fix quietly re-tune two BER
- *     sweeps that have been passing on 3 dB of noise they never had.
- *
- * **When #689 is fixed, this assertion is meant to be updated**, not deleted:
- * change the expected power from `sigma^2/2` to `sigma^2` in the same commit
- * that fixes the header, and the pair keeps meaning what it says.
+ * Until #689 the header scaled `dp_cgauss` (`E|z|^2 = 1`) by
+ * `sigma / sqrt(2)`, the factor for the other complex-Gaussian convention,
+ * so every capture ran 3.01 dB quieter than it claimed, and this file
+ * asserted that measured defect so it could not drift unseen. The noise now
+ * comes from the shipped `awgn`, sized by dp_awgn_amplitude_for_snr(), and
+ * this file asserts the corrected contract: a capture asking for a C/N0
+ * delivers it, its noise power counted over both rails. Restoring the
+ * `/ sqrt(2)` (or any other per-rail reading) turns it red.
  */
 #include "dp_dsss_test.h"
 #include "dp_test.h"
@@ -68,39 +50,40 @@ main (void)
   const double FS   = 1.0e6;
   const double TSYM = (double)(SF * SPC);
 
-  printf (
-      "dp_dsss_test.h self-test — the DSSS capture, and its known defect\n");
+  printf ("dp_dsss_test.h self-test — the DSSS capture, and its level\n");
 
-  /* ── 1. doppler#689: the capture is 3.01 dB quieter than it claims ────── */
+  /* ── 1. The capture delivers the C/N0 it is asked for (#689) ─────────── */
 
-  /* cn0 = 60 dB-Hz at fs = 1e6 makes `amp_snr` exactly 1, hence `sigma` = 1,
-     so the target noise power is 1.0 and any discrepancy is the factor rather
-     than arithmetic. This is the header's own worked example. */
+  /* cn0 = 60 dB-Hz at fs = 1e6 is a per-sample SNR of 0 dB against the
+     unit-power signal, so the noise power must be 1.0, both rails counted:
+     any discrepancy is a convention rather than arithmetic. */
   {
     float _Complex *x    = NULL;
     double         *data = NULL;
     size_t          n    = 0;
-    double          p, p_db;
+    double          p;
 
     dp_dsss_capture (CODE7, SF, SPC, FS, TSYM, 0.0, 60.0, NSYM, PRE, 7u, &x,
                      &n, &data);
     DP_REQUIRE (x != NULL && data != NULL);
 
     /* The pre-silence is noise ONLY, which is what makes this a clean read of
-       the noise level rather than of the capture. */
-    p    = mean_power (x, 0, PRE);
-    p_db = 10.0 * log10 (p);
-
-    DP_CHECK_MSG (fabs (p - 0.5) < 0.02,
-                  "the injected noise power is sigma^2/2, not sigma^2 — "
-                  "doppler#689, and this reproduces the header's own 0.4996");
-    DP_CHECK_NEAR (p_db, -3.01, 0.2);
-    /* Stated as the thing a reader cares about: a capture asking for 60 dB-Hz
-       delivers 63.01. Assert the discrepancy is really ~3 dB and not, say,
-       6 dB or 0 dB, so a future drift in either direction is caught. */
-    DP_CHECK_MSG (p < 0.9,
-                  "...and it is NOT the sigma^2 the caller asked for, so this "
-                  "assertion is about the defect rather than about rounding");
+       the noise level rather than of the capture. 2e5 draws: the mean's
+       relative spread is about 1/sqrt(2e5), 0.2%. */
+    p = mean_power (x, 0, PRE);
+    printf ("  noise power at 60 dB-Hz over 1 MSa/s: %.4f (label 1.0)\n", p);
+    DP_CHECK_MSG (fabs (p - 1.0) < 0.02,
+                  "the noise power is the label's, sigma^2 over both rails, "
+                  "not sigma^2/2 (doppler#689)");
+    DP_CHECK_NEAR (10.0 * log10 (p), 0.0, 0.1); /* the label, in dB */
+    /* Both rails counted: each carries half, so neither reading of
+       "per rail" can pass for the other. */
+    {
+      double re = 0.0;
+      for (size_t i = 0; i < PRE; i++)
+        re += (double)crealf (x[i]) * (double)crealf (x[i]);
+      DP_CHECK (fabs (re / (double)PRE - 0.5) < 0.01);
+    }
 
     free (x);
     free (data);

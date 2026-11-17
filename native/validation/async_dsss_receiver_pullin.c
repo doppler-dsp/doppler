@@ -58,18 +58,13 @@
  * contract claims a working link -- 10 dB, static, the receiver as built
  * (the partials carrier window) -- every draw works,
  * aligns and does not slip, and its error rate's 95% upper limit is under
- * the bound's 3 dB lower (a margin, not a derived limit); and the live
- * carrier holds a 400 Hz/s ramp at 10 dB, its end within the false-lock
- * limit (a quarter of the symbol rate) of the truth -- a 3 s draw in
- * --check, long enough that the hand-over's frozen Doppler is past that
- * limit, so it tells the live carrier (status().doppler_hz) from it. The 4 and
- * 5 dB cells, the use case's own floor, are printed with their intervals and
+ * the bound's 3 dB lower (a margin, not a derived limit). The 4 and 5 dB
+ * cells, the use case's own floor, are printed with their intervals and
  * not claimed: they do not meet the zero-transition criterion today; nor
  * is the code-period window at 10 dB, whose code lock changes over the data
  * on some draws (2.8 GHz, seed 1: twice, from 12.7 s). The
  * payload outlasts every run. --check: 2.8 GHz (2.69 samples a chip), 10
- * dB, static, both carrier windows, one 20 s draw each, and the 3 s ramp
- * draw.
+ * dB, static, both carrier windows, one 20 s draw each.
  *
  * Telemetry: `--telemetry DIR --draw FC_GHZ,ESN0,RATE,CW,SEED [--from S
  * --to S]` runs that one draw (its row as the sweep prints it) and captures
@@ -88,10 +83,15 @@
  *
  * `--spc N` renders the scene at N samples a chip (2: the front end
  * interpolates, and the held chips' images pass its transition band) for
- * the comparison with the default 4.
+ * the comparison with the default 4. `--bn-carrier BN` tracks with the
+ * pre-despread carrier loop at noise bandwidth BN per code period in
+ * place of ASYNC_DSSS_RX_BN_CARRIER: the loop filter is re-initialised
+ * through the receiver's state on each entry into tracking (integrator
+ * kept), and each row records the bandwidth it ran at (bn_car).
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
+ *             [--bn-carrier BN]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--telemetry DIR --draw FC,ESN0,RATE,CW,SEED [--from S]
  *              [--to S]]
@@ -124,6 +124,10 @@
 #define PI_RATE_HZ_S 400.0
 #define PI_MARGIN_DB 3.0
 #define PI_MAX_CELL 64u
+/* The excursion levels a change's second before is read against, deg of
+   carrier phase: short of the fold, where a fast excursion already costs
+   the demodulator cos(phi) of the symbol's amplitude. */
+static const double PI_EXC_DEG[3] = { 30.0, 45.0, 60.0 };
 /* The --check ramp draw: long enough that the hand-over's Doppler, frozen,
    is past the false-lock limit (a quarter of the symbol rate, 750 Hz) at
    400 Hz/s with margin, so the test can tell the live carrier from it. */
@@ -137,6 +141,26 @@ typedef struct
   size_t frame_off;
   double ho_err_hz;
   int    ho_src;
+  /* How close acquisition brings the receiver before any loop sees it,
+     against the channel's truth: the search's own seed at the sample the
+     chain is built from (its Doppler, its code phase in chips, the
+     dwell-start convention of rx.phase.code), the code loop's starting
+     error at the first block after the hand-over (within a block, 0.37
+     ms, of it), and the hand-over's age: the refine's span from the seed
+     to the hand-over, over which a ramp moves the truth by rate x age. */
+  double seed_err_hz, seed_code_chip, seed_t_s;
+  double ho_code_chip, ho_age_s;
+  /* What they are read against, from the objects: the search's Doppler
+     row (dp_correlator_get_doppler_res_hz()) and half a search sample in
+     chips; the carrier loop's unambiguous range 1/(4T) (its squared
+     detector over one code period) and its pull-in
+     (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ); the code discriminator's half
+     spacing. */
+  double base_row_hz, base_half_sample_chip, base_unamb_hz, base_pullin_hz;
+  double base_half_spacing_chip;
+  double bn_car; /* the carrier loop's bandwidth the draw tracked with */
+  size_t win_n, win_natural; /* settled blocks; of them, the look-back
+                                kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
   size_t sym_tog, code_tog;
   double sym_tog1_s, code_tog1_s; /* NAN: none */
@@ -147,7 +171,126 @@ typedef struct
   int           false_lock, aligned, slipped, works, data_ended;
   unsigned long errors, scored;
   double        evm_db, m2m4_db;
+  /* The carrier loop's stress against the truth (degrees of carrier
+     phase; the detector's period is 180, its fold +/-90), and the code
+     loop's (chips): steady from 1 s after the hand-over over the blocks on
+     the emitter's code (within half a chip), the transient over the first
+     0.5 s, with the design's baselines beside them. */
+  double car_mean_deg, car_sd_deg, code_mean_chip, code_sd_chip;
+  size_t car_slips, ho_slips; /* steps past the fold: steady, transient */
+  double cross_win_frac;  /* of the settled blocks on the emitter, the share
+                             whose second before holds a fold crossing */
+  double exc_win_frac[3]; /* and the share whose second before holds a
+                             carrier error past each of PI_EXC_DEG */
+  double lock_mem_s;      /* the symbol-lock statistic's memory, 1 /
+                             lock_alpha symbols, read from the receiver */
+  double exc_mem_frac[3]; /* the share whose lock_mem_s before holds a
+                             carrier error past each of PI_EXC_DEG */
+  double coast_mem_frac;  /* the share whose lock_mem_s before holds a
+                             coasting block: the rate a change's coast_mem
+                             is read against */
+  double off_code_frac;   /* of the tracking blocks from 1 s after the
+                             hand-over, the share more than half a chip off
+                             the emitter's code */
+  double ho_peak_deg;     /* the largest error over the hand-over's 0.5 s */
+  double steady_peak_deg; /* and over 0.5 s from 1 s after: the jitter's
+                             own peak, what the hand-over's is read against */
+  double base_lag_deg, base_sd_deg, base_ho_deg;
 } draw_t;
+
+/* What the report draws, accumulated in C over a cell's draws: each lock
+   decision's statistic (tracking, data blocks, from 1 s after the
+   hand-over), each search or refine test's statistic over its threshold
+   (every test), and the loops' errors (tracking, from 1 s after the
+   hand-over; the demod's two are its own detector outputs, no truth). */
+enum
+{
+  PQ_SYM,
+  PQ_CAR,
+  PQ_CODE,
+  PQ_DEMOD,
+  PQ_SYNC,
+  PQ_ACQ,
+  PQ_REF,
+  PQ_REFSQ,
+  PQ_CAR_ERR,
+  PQ_CODE_ERR,
+  PQ_DCAR_E,
+  PQ_DSYNC_E,
+  PQ_LAG,
+  PQ_N
+};
+static const struct
+{
+  const char *name;  /* the report's name for it */
+  const char *probe; /* the receiver probe under "rx." (NULL: computed) */
+  const char *thr;   /* the probe it is divided by, or NULL */
+  double      lo, hi;
+  size_t      nb;
+} PQ[PQ_N] = {
+  { "sym.lock", "rx.sym.lock", NULL, -1.0, 1.0, 100 },
+  { "car.lock", "rx.car.lock", NULL, -1.0, 1.0, 100 },
+  { "code.lock", "rx.code.lock", NULL, 0.0, 30.0, 120 },
+  { "demod.lock", "rx.demod.lock", NULL, -1.0, 1.0, 100 },
+  { "demod.sync.lock", "rx.demod.sync.lock", NULL, -1.0, 1.0, 100 },
+  { "acq.stat/gate", "rx.acq.stat", "rx.acq.gate", 0.0, 5.0, 100 },
+  { "ref.stat/thr", "rx.ref.stat", "rx.ref.thr", 0.0, 5.0, 100 },
+  { "ref_sq.stat/thr", "rx.ref_sq.stat", "rx.ref_sq.thr", 0.0, 5.0, 100 },
+  { "car.err_deg", NULL, NULL, -90.0, 90.0, 90 }, /* x sign(ramp) */
+  { "code.err_chip", NULL, NULL, -0.5, 0.5, 100 },
+  { "demod.car.e", "rx.demod.car.e", NULL, -1.0, 1.0, 100 },
+  { "demod.sync.e", "rx.demod.sync.e", NULL, -1.25, 1.25, 100 },
+  { "lag.epoch_T", NULL, NULL, 0.0, 1.0, 40 }, /* see the binning */
+};
+
+/* One change of a flag users act on, after it was sustained, with what
+   the report attributes it by: the flag's statistic at the block it
+   changed in, against its rule; the carrier loop's stress over the second
+   before (its largest error, its rms, steps past the fold) and the code
+   loop's largest error; and the symbols' EVM over +/-0.5 s around it
+   (dp_test_evm_db_hard_range(); NAN when the track does not span it). */
+typedef struct
+{
+  double            fc, esn0, rate;
+  int               cw;
+  uint32_t          seed;
+  int               flag, up; /* 0 sym, 1 code; the new value */
+  double            t_s, stat;
+  dp_lockdet_rule_t rule;
+  double            car_max_deg, car_rms_deg, code_max_chip;
+  double            car_max_mem_deg; /* over the lock statistic's memory */
+  int coast_mem, coast_1s; /* the receiver coasted in the change's block or
+                              in the lock memory / the second before it */
+  size_t car_slips;
+  double evm_db, draw_evm_db;
+  int    false_lock; /* the draw's verdict */
+  int    on_code;    /* the code within half a chip there */
+} trans_t;
+
+/* The whole run's histograms and transitions, printed at the end so the
+   emitted sections stay whole. */
+#define PI_CELLS 32u
+/* [cell][population][quantity]. Population 0, ON the emitter: a block
+   whose code error is within half a chip, of a draw that is not a false
+   lock. Population 1, OFF it: the rest -- a receiver on another code
+   phase (a sidelobe, a re-acquisition elsewhere) or on the carrier's
+   alias tracks something else, and its statistics are another
+   distribution, not the tail of this one. */
+static dp_hist_t pi_hist[PI_CELLS][2][PQ_N];
+static double    pi_cell_key[PI_CELLS][4];
+/* --bn-carrier: the pre-despread carrier loop's noise bandwidth (per code
+   period) the draws track with, in place of the built
+   ASYNC_DSSS_RX_BN_CARRIER; NAN: as built. */
+static double pi_bn_car = NAN;
+/* The five lock rules each cell's flags were decided by (the same for
+   every draw of a cell: the configuration sets them). */
+#define PI_RULES 5
+static const char *const pi_rule_name[PI_RULES]
+    = { "sym", "car", "code", "demod", "demod_sync" };
+static dp_lockdet_rule_t pi_rule[PI_CELLS][PI_RULES];
+static size_t            pi_n_cells;
+static trans_t          *pi_trans;
+static size_t            pi_n_trans, pi_cap_trans;
 
 /* A draw's telemetry: the receiver's own probes and the scene's truth,
    captured from `from_s` to `to_s` of the draw into `path`, with the
@@ -165,12 +308,47 @@ uni (uint32_t *st)
   return dp_uni (st);
 }
 
+/* What "the second before held X" is read against: of the settled
+   blocks on the emitter (tracking from 1 s after the hand-over, within
+   half a chip of the emitter's code), the share whose second before --
+   the blocks [b - w1, b), the window a change's attribution reads --
+   holds a block marked in `ind`. */
+static double
+win_frac (const uint8_t *ind, const float *e_car, const float *e_cod,
+          size_t n_blk, size_t w1, double blk_s, double t_track_s)
+{
+  size_t in_win = 0, hit = 0, all = 0;
+  for (size_t b = 0; b < n_blk; b++)
+    {
+      if (b >= 1)
+        in_win += ind[b - 1];
+      if (b > w1)
+        in_win -= ind[b - 1 - w1];
+      const double t = (double)b * blk_s;
+      if (isnan (e_car[b]) || isnan (t_track_s) || t < t_track_s + 1.0
+          || fabs (e_cod[b]) > 0.5f)
+        continue;
+      all++;
+      hit += in_win > 0;
+    }
+  return all ? (double)hit / (double)all : NAN;
+}
+
 /* One draw: the receiver on `secs` of the scene. */
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           uint32_t seed, double secs, unsigned spc, const capture_t *cp,
-          draw_t *d)
+          dp_hist_t *cell_hist, draw_t *d)
 {
+  /* This draw's bins by block population (on / off the emitter's code),
+     merged into the cell's once the draw's verdict is known: a false
+     lock's go to "off" whole (cell_hist: [2][PQ_N], or NULL). */
+  dp_hist_t  draw_hist[2][PQ_N];
+  dp_hist_t *hist = NULL;
+  if (cell_hist)
+    for (int v = 0; v < 2; v++)
+      for (int q = 0; q < PQ_N; q++)
+        dp_hist_init (&draw_hist[v][q], PQ[q].lo, PQ[q].hi, PQ[q].nb);
   const double chip = fc * 31.0 / 21216.0;
   const double cn0  = esn0 + 10.0 * log10 (PI_SYM);
   uint32_t     st   = trial_rng (seed * 7919u + (uint32_t)(fc / 1e8)
@@ -224,8 +402,54 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   float complex *syms  = dp_xmalloc (ocap * sizeof *syms);
   float complex *tmp   = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
-  d->ho_err_hz = NAN;
-  d->t_track_s = NAN;
+  d->ho_err_hz   = NAN;
+  d->t_track_s   = NAN;
+  d->seed_err_hz = d->seed_code_chip = d->seed_t_s = NAN;
+  d->ho_code_chip = d->ho_age_s = NAN;
+  /* The instrument: the receiver's own probes on every draw that is not a
+     capture, read back each block (dp_tlm_read()), so the stress and the
+     statistics come from the probes the capture shows, not a second
+     reading of the state. Per block: the loops' true errors and the two
+     flags' statistics, for the transitions' attribution. */
+  float    *e_car = dp_xmalloc (n_blk * sizeof *e_car);
+  float    *e_cod = dp_xmalloc (n_blk * sizeof *e_cod);
+  float    *v_sym = dp_xmalloc (n_blk * sizeof *v_sym);
+  float    *v_cod = dp_xmalloc (n_blk * sizeof *v_cod);
+  size_t   *s_end = dp_xmalloc (n_blk * sizeof *s_end);
+  uint32_t *s_gen = dp_xmalloc (n_blk * sizeof *s_gen);
+  uint8_t  *cross = dp_xmalloc (n_blk);
+  /* Per block: whether the receiver coasted in it (rx.coast, the loop
+     control it decides once a code period from the two flags). */
+  uint8_t      *coast     = dp_xcalloc (n_blk, 1);
+  int           pid_coast = -1;
+  uint32_t      gen       = 0;
+  dp_tlm_t     *itlm      = NULL;
+  dp_tlm_rec_t *recs      = NULL;
+  size_t        rcap      = 0;
+  int           pid[PQ_N], pthr[PQ_N];
+  double        last_v[PQ_N], last_t[PQ_N];
+  uint64_t      at_v[PQ_N], at_t[PQ_N];
+  int           was_tracking = 0;
+  if (!(cp && cp->path))
+    {
+      itlm = dp_tlm_create (1u << 16);
+      DP_REQUIRE (itlm != NULL);
+      DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, itlm, "rx", 1)
+                  == DP_OK);
+      for (int q = 0; q < PQ_N; q++)
+        {
+          pid[q]  = PQ[q].probe ? dp_tlm_probe_id (itlm, PQ[q].probe) : -1;
+          pthr[q] = PQ[q].thr ? dp_tlm_probe_id (itlm, PQ[q].thr) : -1;
+          DP_REQUIRE (!PQ[q].probe || pid[q] >= 0);
+          DP_REQUIRE (!PQ[q].thr || pthr[q] >= 0);
+          last_v[q] = last_t[q] = NAN;
+          at_v[q] = at_t[q] = UINT64_MAX;
+        }
+      rcap      = dp_tlm_capacity (itlm);
+      pid_coast = dp_tlm_probe_id (itlm, "rx.coast");
+      DP_REQUIRE (pid_coast >= 0);
+      recs = dp_xmalloc (rcap * sizeof *recs);
+    }
   /* The capture: probes registered first (the capture sizes its ring
      from the table), the scene's truth beside the receiver's own, once a
      block on the block's stamp -- the stamp the receiver's phase probes
@@ -233,6 +457,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   dp_tlm_t         *tlm    = NULL;
   dp_tlm_capture_t *cap    = NULL;
   int               id_car = -1, id_code = -1, id_hz = -1, id_data = -1;
+  int               id_ecar = -1, id_ecod = -1;
   dp_sample_clock_t clk;
   const size_t      b_from
       = cp && cp->path ? (size_t)(cp->from_s * PI_FS) / PI_PUSH : SIZE_MAX;
@@ -250,8 +475,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           id_code = dp_tlm_probe (tlm, "truth.code", 1);
           id_hz   = dp_tlm_probe (tlm, "truth.hz", 1);
           id_data = dp_tlm_probe (tlm, "truth.data", 1);
-          DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0
-                      && id_data >= 0);
+          id_ecar = dp_tlm_probe (tlm, "err.car_deg", 1);
+          id_ecod = dp_tlm_probe (tlm, "err.code_chip", 1);
+          DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0 && id_data >= 0
+                      && id_ecar >= 0 && id_ecod >= 0);
           dp_sample_clock_init (&clk, PI_FS, 0);
           cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
           DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
@@ -267,10 +494,52 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           dp_tlm_emit (tlm, id_data,
                        (double)(t.symbol >= 0 && t.symbol % 1000 >= 275));
         }
+      /* The loops' true errors at this call's first sample, read with the
+         getters the receiver's rx.phase.car / rx.phase.code probes are
+         read with, before the call runs: the carrier against the
+         channel's own phase, folded to the detector's period (half a
+         cycle); the code against the chip, the half-sample dwell-start
+         convention applied. A capture carries them as err.car_deg and
+         err.code_chip, so a figure draws them as records. */
+      e_car[b] = e_cod[b] = NAN;
+      if (was_tracking)
+        {
+          const dp_air_truth_t t
+              = dp_air_truth (&air, 0, (uint64_t)b * PI_PUSH);
+          const double ec
+              = dp_costas_get_nco_phase_ahead (&rx->car, rx->car_carry_len)
+                - (t.car_cycles - floor (t.car_cycles));
+          e_car[b] = (float)(ec - 0.5 * floor (ec / 0.5 + 0.5));
+          const double ek
+              = dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
+                - t.code_chips + 0.5 * chip / PI_FS;
+          e_cod[b] = (float)(ek - (double)SF * floor (ek / (double)SF + 0.5));
+          if (isnan (d->ho_code_chip))
+            d->ho_code_chip = e_cod[b];
+          if (tlm)
+            {
+              dp_tlm_emit (tlm, id_ecar, 360.0 * e_car[b]);
+              dp_tlm_emit (tlm, id_ecod, e_cod[b]);
+            }
+        }
       DP_REQUIRE (dp_air_next (&air, x, PI_PUSH));
+      if (itlm)
+        dp_tlm_set_now (itlm, (uint64_t)b * PI_PUSH);
       const size_t got
           = dp_async_dsss_receiver_steps (rx, x, PI_PUSH, tmp, ocap);
       const int tracking = rx->state == ASYNC_DSSS_RX_TRACKING;
+      /* --bn-carrier: on every entry into tracking (each seed rebuilds the
+         chain), the carrier loop's filter is re-initialised at the asked
+         bandwidth through its public state, its integrator -- the
+         hand-over's frequency -- kept (dp_loop_filter_init() does not touch
+         it). The block the hand-over fell in ran at the built bandwidth:
+         at most one block, 0.37 ms, about 1.5 code periods. */
+      if (tracking && !was_tracking && !isnan (pi_bn_car))
+        {
+          rx->car.bn = pi_bn_car;
+          dp_loop_filter_init (&rx->car.lf, pi_bn_car, rx->car.lf.zeta,
+                               rx->car.lf.t);
+        }
       if (tracking && isnan (d->ho_err_hz))
         {
           const uint64_t at = rx->samples_in - rx->state_samples;
@@ -278,6 +547,21 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
                               - dp_air_truth (&air, 0, at).car_hz;
           d->ho_src         = dp_async_dsss_receiver_get_handover_source (rx);
           d->t_track_s      = (double)at / PI_FS;
+          d->ho_age_s       = d->t_track_s - d->seed_t_s;
+        }
+      /* The first seed: the refine's chain is built at the seed's sample,
+         the first it is fed, so that sample is the state's entry. A refine
+         spans many blocks, so the seed is seen refining before it hands
+         over. */
+      if (rx->state == ASYNC_DSSS_RX_REFINING && isnan (d->seed_t_s))
+        {
+          const uint64_t       i0 = rx->samples_in - rx->state_samples;
+          const dp_air_truth_t t  = dp_air_truth (&air, 0, i0);
+          const double         ek
+              = rx->seed_chip_phase - t.code_chips + 0.5 * chip / PI_FS;
+          d->seed_t_s       = (double)i0 / PI_FS;
+          d->seed_err_hz    = rx->seed_doppler_hz_est - t.car_hz;
+          d->seed_code_chip = ek - (double)SF * floor (ek / (double)SF + 0.5);
         }
       if (!tracking)
         { /* only the current track's symbols are scored */
@@ -301,6 +585,97 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       const long sym
           = dp_air_truth (&air, 0, b * PI_PUSH + PI_PUSH / 2).symbol;
       data[b] = (uint8_t)(sym >= 0 && sym % 1000 >= 275);
+      if (!tracking)
+        gen++;
+      s_end[b] = tracking ? ns : SIZE_MAX;
+      s_gen[b] = gen;
+      v_sym[b] = v_cod[b] = NAN;
+      if (itlm)
+        {
+          /* The block's population: on the emitter's code (within half
+             a chip) or off it. */
+          if (cell_hist)
+            hist = draw_hist[isnan (e_cod[b]) || fabs (e_cod[b]) > 0.5f];
+          /* Settled: tracking, 1 s after the hand-over. */
+          const int settled
+              = tracking && !isnan (d->t_track_s)
+                && (double)b * PI_PUSH / PI_FS >= d->t_track_s + 1.0;
+          const size_t nr = dp_tlm_read (itlm, 0, recs, rcap);
+          DP_REQUIRE_MSG (dp_tlm_dropped (itlm) == 0,
+                          "the instrument's ring drops nothing");
+          for (size_t i = 0; i < nr; i++)
+            {
+              const int    id = recs[i].probe;
+              const double v  = recs[i].value;
+              if (id == pid_coast && v != 0.0)
+                coast[b] = 1;
+              for (int q = 0; q < PQ_N; q++)
+                {
+                  if (id != pid[q] && id != pthr[q])
+                    continue;
+                  if (!PQ[q].thr)
+                    { /* a lock statistic or a demod error */
+                      if (q == PQ_SYM)
+                        v_sym[b] = (float)v;
+                      if (q == PQ_CODE)
+                        v_cod[b] = (float)v;
+                      const int on = q == PQ_DCAR_E || q == PQ_DSYNC_E
+                                         ? settled
+                                         : settled && data[b];
+                      if (hist && on)
+                        dp_hist_add (&hist[q], v);
+                      continue;
+                    }
+                  /* a test over its threshold: paired on the stamp */
+                  if (id == pid[q])
+                    {
+                      last_v[q] = v;
+                      at_v[q]   = recs[i].n;
+                    }
+                  else
+                    {
+                      last_t[q] = v;
+                      at_t[q]   = recs[i].n;
+                    }
+                  if (at_v[q] == at_t[q] && at_v[q] != UINT64_MAX)
+                    {
+                      /* a search or refine test precedes tracking: no code
+                         error to place it by, so the draw's own set */
+                      if (cell_hist && last_t[q] > 0.0)
+                        dp_hist_add (&draw_hist[0][q], last_v[q] / last_t[q]);
+                      at_v[q] = at_t[q] = UINT64_MAX;
+                    }
+                }
+            }
+          if (hist && settled && !isnan (e_car[b]))
+            {
+              /* signed with the ramp, so the two directions' lags add
+                 rather than cancel in a cell's pool */
+              dp_hist_add (&hist[PQ_CAR_ERR],
+                           (d->rate < 0.0 ? -360.0 : 360.0) * e_car[b]);
+              dp_hist_add (&hist[PQ_CODE_ERR], e_cod[b]);
+            }
+          /* The carrier error's window, against the update that uses it.
+             The receiver updates the carrier at the end of each of its
+             periods and has fed the Dll exactly through the last one (the
+             carry holds the rest), so the Dll's code phase now, in code
+             periods, is how long ago its last epoch ended: the end of the
+             partials' window. The code-period window ends there too when
+             the look-back kept the natural window (its sum IS the epoch's
+             whole sum), and earlier by the chunks it borrowed otherwise
+             -- a count the Dll does not keep, so only the natural share
+             is counted. Read once a block: the block's last update. */
+          if (hist && settled && tracking)
+            {
+              const dp_dll_state_t *dl = rx->dll;
+              dp_hist_add (&hist[PQ_LAG], dp_dll_get_code_phase_ahead (dl, 0)
+                                              / (double)dl->sf);
+              d->win_n++;
+              d->win_natural += dl->segments <= 1
+                                || dl->win_p == dl->sums[dl->segments - 1];
+            }
+        }
+      was_tracking = tracking;
       if (tlm && (b + 1 >= b_to || b + 1 == n_blk))
         {
           dp_tlm_set_now (tlm, (uint64_t)(b + 1) * PI_PUSH);
@@ -356,6 +731,213 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       if (first >= 0)
         d->code_tog1_s = (double)first * blk_s;
     }
+  /* The loops' stress, against the design's baselines (design §4.8, "The
+     two stresses"; the loop as coded: one update a code period T, the
+     loop filter's own ki and bn): the ramp's lag 2 pi R T^2 / ki
+     noise-free, the jitter sqrt((bn / rho)(1 + K / (2 rho))) with rho the
+     C/N0 at the antenna over T and K the window's partials, and a
+     hand-over step's peak 0.49 * 2 pi df T / (1.886 bn). */
+  {
+    const double T  = (double)SF / chip;
+    const double bn = rx->car.lf.bn, ki = rx->car.lf.ki;
+    const double rho = pow (10.0, cn0 / 10.0) * T;
+    const double K
+        = cw == ASYNC_DSSS_RX_CARRIER_PARTIALS ? (double)rx->segments : 1.0;
+    const double deg = 180.0 / M_PI;
+    d->base_lag_deg  = deg * 2.0 * M_PI * fabs (d->rate) * T * T / ki;
+    d->base_sd_deg   = deg * sqrt (bn / rho * (1.0 + K / (2.0 * rho)));
+    d->base_ho_deg
+        = deg * 0.49 * 2.0 * M_PI * fabs (d->ho_err_hz) * T / (1.886 * bn);
+    DP_REQUIRE (dp_correlator_get_doppler_res_hz (rx->acq, &d->base_row_hz)
+                == DP_OK);
+    d->base_half_sample_chip
+        = 0.5 / (rx->spc * (rx->srch_rs ? rx->srch_ratio : 1.0));
+    d->base_unamb_hz = 1.0 / (4.0 * T);
+    /* The shipped pull-in, scaled to the bandwidth the loop ran at (it is
+       proportional to bn: ASYNC_DSSS_RX_CARRIER_PULLIN_HZ's own form). */
+    d->base_pullin_hz         = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (chip, SF)
+                                * rx->car.lf.bn / ASYNC_DSSS_RX_BN_CARRIER;
+    d->bn_car                 = rx->car.lf.bn;
+    d->base_half_spacing_chip = 0.5 * rx->dll->spacing;
+    double sc = 0.0, sc2 = 0.0, sk = 0.0, sk2 = 0.0, pk = 0.0, spk = 0.0;
+    size_t n_off = 0, n_all = 0;
+    size_t n     = 0;
+    d->car_slips = d->ho_slips = 0;
+    /* One definition of a crossing of the fold, used by the stress, the
+       transitions and their baseline: the folded error jumps by more than
+       a quarter cycle (90 degrees) between consecutive tracked blocks. A
+       crossing that comes back counts twice: these are crossings, not net
+       cycle slips. */
+    for (size_t b = 0; b < n_blk; b++)
+      cross[b] = (uint8_t)(b > 0 && !isnan (e_car[b]) && !isnan (e_car[b - 1])
+                           && fabs (e_car[b] - e_car[b - 1]) > 0.25);
+    /* The baselines: what "a crossing preceded this change" and "the
+       carrier error passed X in the second before it" are read against,
+       each in the window a change's attribution reads. */
+    {
+      const size_t w1 = (size_t)(1.0 / blk_s);
+      d->cross_win_frac
+          = win_frac (cross, e_car, e_cod, n_blk, w1, blk_s, d->t_track_s);
+      /* The lock statistic's own memory, in whole blocks (at least one):
+         whether the excursion sits AT the change, not a second before. */
+      d->lock_mem_s     = 1.0 / rx->lock_alpha / PI_SYM;
+      const size_t wm   = (size_t)fmax (1.0, round (d->lock_mem_s / blk_s));
+      uint8_t     *mark = dp_xmalloc (n_blk);
+      for (size_t x = 0; x < 3; x++)
+        {
+          for (size_t b = 0; b < n_blk; b++)
+            mark[b] = (uint8_t)(!isnan (e_car[b])
+                                && fabs (360.0 * e_car[b]) > PI_EXC_DEG[x]);
+          d->exc_win_frac[x]
+              = win_frac (mark, e_car, e_cod, n_blk, w1, blk_s, d->t_track_s);
+          d->exc_mem_frac[x]
+              = win_frac (mark, e_car, e_cod, n_blk, wm, blk_s, d->t_track_s);
+        }
+      free (mark);
+      d->coast_mem_frac
+          = win_frac (coast, e_car, e_cod, n_blk, wm, blk_s, d->t_track_s);
+    }
+    for (size_t b = 0; b < n_blk; b++)
+      {
+        const double t = (double)b * blk_s;
+        if (isnan (e_car[b]))
+          continue;
+        const int slip = cross[b];
+        if (t < d->t_track_s + 0.5)
+          {
+            pk = fmax (pk, fabs (360.0 * e_car[b]));
+            d->ho_slips += (size_t)slip;
+          }
+        if (t >= d->t_track_s + 1.0 && t < d->t_track_s + 1.5)
+          spk = fmax (spk, fabs (360.0 * e_car[b]));
+        if (t >= d->t_track_s + 1.0)
+          {
+            n_all++;
+            if (fabs (e_cod[b]) > 0.5f)
+              { /* off the emitter: not this loop's stress */
+                n_off++;
+                continue;
+              }
+            d->car_slips += (size_t)slip;
+            sc += e_car[b];
+            sc2 += (double)e_car[b] * e_car[b];
+            sk += e_cod[b];
+            sk2 += (double)e_cod[b] * e_cod[b];
+            n++;
+          }
+      }
+    d->off_code_frac   = n_all ? (double)n_off / (double)n_all : NAN;
+    d->ho_peak_deg     = isnan (d->t_track_s) ? NAN : pk;
+    d->steady_peak_deg = isnan (d->t_track_s) ? NAN : spk;
+    const double mc = n ? sc / (double)n : NAN, mk = n ? sk / (double)n : NAN;
+    d->car_mean_deg = 360.0 * mc;
+    d->car_sd_deg
+        = n ? 360.0 * sqrt (fmax (sc2 / (double)n - mc * mc, 0.0)) : NAN;
+    d->code_mean_chip = mk;
+    d->code_sd_chip   = n ? sqrt (fmax (sk2 / (double)n - mk * mk, 0.0)) : NAN;
+  }
+
+  if (hist)
+    {
+      const size_t c = (size_t)((dp_hist_t (*)[2][PQ_N])cell_hist - pi_hist);
+      DP_REQUIRE (c < PI_CELLS);
+      pi_rule[c][0] = dp_async_dsss_receiver_get_sym_lock_rule (rx);
+      pi_rule[c][1] = dp_async_dsss_receiver_get_car_lock_rule (rx);
+      pi_rule[c][2] = dp_async_dsss_receiver_get_code_lock_rule (rx);
+      pi_rule[c][3] = dp_async_dsss_receiver_get_demod_lock_rule (rx);
+      pi_rule[c][4] = dp_async_dsss_receiver_get_demod_sync_lock_rule (rx);
+    }
+
+  const size_t trans0 = pi_n_trans;
+  /* Every change of the two flags after each was sustained, with its
+     attribution (trans_t). Enumerated with the same counter the row's
+     totals come from: each call from the last change, whose value is then
+     the reference. */
+  if (itlm)
+    {
+      const uint8_t          *fl[2]  = { f_sym, f_cod };
+      const int64_t           sus[2] = { s_sym, s_cod };
+      const float            *vs[2]  = { v_sym, v_cod };
+      const size_t            tot[2] = { d->sym_tog, d->code_tog };
+      const dp_lockdet_rule_t rl[2]
+          = { dp_async_dsss_receiver_get_sym_lock_rule (rx),
+              dp_async_dsss_receiver_get_code_lock_rule (rx) };
+      const size_t w1 = (size_t)(1.0 / blk_s), wh = (size_t)(0.5 / blk_s);
+      for (int f = 0; f < 2; f++)
+        {
+          if (sus[f] < 0)
+            continue;
+          size_t  from = (size_t)sus[f], seen = 0;
+          int64_t at = -1;
+          while (dp_ber_lock_transitions (fl[f], data, n_blk, from, &at) > 0
+                 && at >= 0)
+            {
+              const size_t k  = (size_t)at;
+              trans_t      tr = { 0 };
+              tr.fc = d->fc, tr.esn0 = d->esn0, tr.rate = d->rate;
+              tr.cw = cw, tr.seed = seed, tr.flag = f, tr.up = fl[f][k] != 0;
+              tr.t_s     = (double)k * blk_s;
+              tr.rule    = rl[f];
+              tr.on_code = !isnan (e_cod[k]) && fabs (e_cod[k]) <= 0.5f;
+              tr.stat    = NAN;
+              for (size_t j = k + 1; j-- > 0 && isnan (tr.stat);)
+                tr.stat = vs[f][j];
+              double mx = 0.0, s2 = 0.0, kx = 0.0;
+              size_t m = 0;
+              for (size_t j = k > w1 ? k - w1 : 0; j < k; j++)
+                {
+                  if (isnan (e_car[j]))
+                    continue;
+                  tr.car_slips += cross[j];
+                  mx = fmax (mx, fabs (360.0 * e_car[j]));
+                  s2 += 360.0 * 360.0 * (double)e_car[j] * e_car[j];
+                  kx = fmax (kx, fabs ((double)e_cod[j]));
+                  m++;
+                }
+              tr.car_max_deg = m ? mx : NAN;
+              {
+                const size_t wm
+                    = (size_t)fmax (1.0, round (d->lock_mem_s / blk_s));
+                double mm = 0.0;
+                size_t q  = 0;
+                for (size_t j = k > wm ? k - wm : 0; j < k; j++)
+                  if (!isnan (e_car[j]))
+                    {
+                      mm = fmax (mm, fabs (360.0 * e_car[j]));
+                      q++;
+                    }
+                tr.car_max_mem_deg = q ? mm : NAN;
+                for (size_t j = k > wm ? k - wm : 0; j <= k; j++)
+                  tr.coast_mem |= coast[j];
+                for (size_t j = k > w1 ? k - w1 : 0; j <= k; j++)
+                  tr.coast_1s |= coast[j];
+              }
+              tr.car_rms_deg   = m ? sqrt (s2 / (double)m) : NAN;
+              tr.code_max_chip = m ? kx : NAN;
+              tr.evm_db        = NAN;
+              tr.draw_evm_db   = NAN; /* the draw's, once it is scored */
+              const size_t a   = k > wh ? k - wh : 0;
+              const size_t z   = k + wh < n_blk ? k + wh : n_blk - 1;
+              if (s_end[a] != SIZE_MAX && s_end[z] != SIZE_MAX
+                  && s_gen[a] == gen && s_gen[z] == gen && s_end[z] > s_end[a]
+                  && s_end[z] <= ns)
+                tr.evm_db
+                    = dp_test_evm_db_hard_range (syms, s_end[a], s_end[z], 2);
+              if (pi_n_trans == pi_cap_trans)
+                {
+                  pi_cap_trans = pi_cap_trans ? 2 * pi_cap_trans : 256;
+                  pi_trans
+                      = realloc (pi_trans, pi_cap_trans * sizeof *pi_trans);
+                  DP_REQUIRE (pi_trans != NULL);
+                }
+              pi_trans[pi_n_trans++] = tr;
+              seen++;
+              from = k;
+            }
+          DP_CHECK_MSG (seen == tot[f], "every counted change is attributed");
+        }
+    }
+
   const uint64_t n_in = (uint64_t)n_blk * PI_PUSH;
   /* The live carrier (status().doppler_hz, where the emitter is now), not
      get_doppler_hz(), the hand-over's: under a ramp that one is the
@@ -425,10 +1007,43 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
         }
       free (truth);
     }
+  for (size_t i = trans0; i < pi_n_trans; i++)
+    {
+      pi_trans[i].draw_evm_db = d->evm_db;
+      pi_trans[i].false_lock  = d->false_lock;
+    }
+  if (cell_hist)
+    {
+      for (int v = 0; v < 2; v++)
+        {
+          dp_hist_t *into = cell_hist + ((d->false_lock || v) ? PQ_N : 0);
+          for (int q = 0; q < PQ_N; q++)
+            {
+              into[q].under += draw_hist[v][q].under;
+              into[q].over += draw_hist[v][q].over;
+              for (size_t k = 0; k < draw_hist[v][q].nb; k++)
+                into[q].c[k] += draw_hist[v][q].c[k];
+            }
+        }
+    }
   d->works = s_sym >= 0 && s_cod >= 0 && d->sym_tog == 0 && d->code_tog == 0
              && !d->false_lock;
   d->data_ended = dp_air_data_ended (&air);
 
+  if (itlm)
+    {
+      (void)dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1);
+      dp_tlm_destroy (itlm);
+    }
+  free (recs);
+  free (e_car);
+  free (e_cod);
+  free (v_sym);
+  free (v_cod);
+  free (s_end);
+  free (s_gen);
+  free (cross);
+  free (coast);
   free (f_sym);
   free (f_cod);
   free (data);
@@ -441,16 +1056,46 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   return 0;
 }
 
+/* The draw row's section and header, the sweep's and a capture's. */
+#define PI_ROW_HEAD                                                           \
+  "# pullin\nfc_ghz,esn0_db,rate_hz_s,carrier_window,seed,f0_hz,"             \
+  "frame_off,ho_err_hz,ho_src,seed_err_hz,seed_code_chip,seed_t_s,"           \
+  "ho_code_chip,ho_age_s,t_track_s,t_sym_s,t_code_s,sym_tog,"                 \
+  "sym_tog1_s,code_tog,code_tog1_s,end_resid_hz,false_lock,"                  \
+  "aligned,slipped,errors,scored,evm_db,m2m4_db,works,car_mean_deg,"          \
+  "car_sd_deg,code_mean_chip,code_sd_chip,car_slips,ho_slips,cross_win_frac," \
+  "exc30_win_frac,exc45_win_frac,exc60_win_frac,lock_mem_s,"                  \
+  "exc30_mem_frac,exc45_mem_frac,exc60_mem_frac,coast_mem_frac,"              \
+  "off_code_frac,"                                                            \
+  "ho_peak_deg,steady_peak_deg,base_lag_deg,base_sd_deg,base_ho_deg,"         \
+  "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
+  "base_half_spacing_chip,bn_car,win_natural_frac\n"
+
 static void
 emit_row (const draw_t *d, uint32_t seed)
 {
-  printf ("%.1f,%.1f,%.0f,%s,%u,%.1f,%zu,%.2f,%d,%.4f,%.4f,%.4f,%zu,%.4f,"
-          "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d\n",
-          d->fc / 1e9, d->esn0, d->rate, d->cw ? "code_period" : "partials",
-          seed, d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->t_track_s,
-          d->t_sym_s, d->t_code_s, d->sym_tog, d->sym_tog1_s, d->code_tog,
-          d->code_tog1_s, d->end_resid_hz, d->false_lock, d->aligned,
-          d->slipped, d->errors, d->scored, d->evm_db, d->m2m4_db, d->works);
+  printf (
+      "%.1f,%.1f,%.0f,%s,%u,%.1f,%zu,%.2f,%d,%.2f,%.4f,%.4f,%.4f,%.4f,%."
+      "4f,%.4f,%.4f,%zu,%.4f,"
+      "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
+      "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
+      "%.3f,%.3f,%.3f,"
+      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f\n",
+      d->fc / 1e9, d->esn0, d->rate, d->cw ? "code_period" : "partials", seed,
+      d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->seed_err_hz,
+      d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
+      d->t_track_s, d->t_sym_s, d->t_code_s, d->sym_tog, d->sym_tog1_s,
+      d->code_tog, d->code_tog1_s, d->end_resid_hz, d->false_lock, d->aligned,
+      d->slipped, d->errors, d->scored, d->evm_db, d->m2m4_db, d->works,
+      d->car_mean_deg, d->car_sd_deg, d->code_mean_chip, d->code_sd_chip,
+      d->car_slips, d->ho_slips, d->cross_win_frac, d->exc_win_frac[0],
+      d->exc_win_frac[1], d->exc_win_frac[2], d->lock_mem_s,
+      d->exc_mem_frac[0], d->exc_mem_frac[1], d->exc_mem_frac[2],
+      d->coast_mem_frac, d->off_code_frac, d->ho_peak_deg, d->steady_peak_deg,
+      d->base_lag_deg, d->base_sd_deg, d->base_ho_deg, d->base_row_hz,
+      d->base_half_sample_chip, d->base_unamb_hz, d->base_pullin_hz,
+      d->base_half_spacing_chip, d->bn_car,
+      d->win_n ? (double)d->win_natural / (double)d->win_n : NAN);
 }
 
 static int
@@ -557,6 +1202,11 @@ main (int argc, char **argv)
         from_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--to") == 0 && i + 1 < argc)
         to_s = strtod (argv[++i], NULL);
+      else if (strcmp (argv[i], "--bn-carrier") == 0 && i + 1 < argc)
+        {
+          pi_bn_car = strtod (argv[++i], NULL);
+          DP_REQUIRE (pi_bn_car > 0.0 && pi_bn_car < 0.25);
+        }
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
@@ -590,17 +1240,20 @@ main (int argc, char **argv)
                      == 5,
           "--telemetry names its draw with --draw");
       /* One stem names the draw's files: the capture and its rules. */
-      char stem[256], path[1100], rules[1100];
+      char stem[256], path[1100], rules[1100], bn_tag[32] = "";
+      if (!isnan (pi_bn_car))
+        (void)snprintf (bn_tag, sizeof bn_tag, "_bn%g", pi_bn_car);
       (void)snprintf (stem, sizeof stem,
-                      "pullin_%.1fGHz_%.0fdB_%.0fHzs_%s_s%u%s", g, es, rt,
+                      "pullin_%.1fGHz_%.0fdB_%.0fHzs_%s_s%u%s%s", g, es, rt,
                       cw ? "code_period" : "partials", sd,
-                      spc ? (spc == 2 ? "_spc2" : "_spcN") : "");
+                      spc ? (spc == 2 ? "_spc2" : "_spcN") : "", bn_tag);
       (void)snprintf (path, sizeof path, "%s/%s.tlm", tlm_dir, stem);
       (void)snprintf (rules, sizeof rules, "%s/%s.rules.csv", tlm_dir, stem);
       const capture_t cp = { path, rules, from_s, to_s };
       draw_t          d;
-      DP_REQUIRE (run_draw (code, g * 1e9, es, rt, cw, sd, secs, spc, &cp, &d)
-                  == 0);
+      DP_REQUIRE (
+          run_draw (code, g * 1e9, es, rt, cw, sd, secs, spc, &cp, NULL, &d)
+          == 0);
       DP_CHECK_MSG (!d.data_ended, "the payload outlasted the run");
       /* --check (the ctest): the capture holds the receiver's probes and
          the truth, then is removed, so the run leaves nothing behind. */
@@ -619,16 +1272,13 @@ main (int argc, char **argv)
           DP_CHECK (remove (rules) == 0);
           DP_CHECK (remove (path) == 0);
         }
-      printf ("# pullin\n");
+      printf ("%s", PI_ROW_HEAD);
       emit_row (&d, sd);
       DP_TEST_EMIT_END ("validate_async_dsss_receiver_pullin --telemetry");
       DP_TEST_END ("validate_async_dsss_receiver_pullin --telemetry");
     }
   if (emit)
-    printf ("# pullin\nfc_ghz,esn0_db,rate_hz_s,carrier_window,seed,f0_hz,"
-            "frame_off,ho_err_hz,ho_src,t_track_s,t_sym_s,t_code_s,sym_tog,"
-            "sym_tog1_s,code_tog,code_tog1_s,end_resid_hz,false_lock,"
-            "aligned,slipped,errors,scored,evm_db,m2m4_db,works\n");
+    printf ("%s", PI_ROW_HEAD);
   else
     printf ("pull-in: 415.1-B-1, 11 MSa/s, 3000 sym/s, %u draw(s) of %.0f s "
             "a cell; C/N0 at the antenna; works = sustained, no change over "
@@ -646,12 +1296,23 @@ main (int argc, char **argv)
                 || (!isnan (only_rate) && fabs (rates[r] - only_rate) > 1e-9))
               continue;
             size_t n = 0;
+            DP_REQUIRE (pi_n_cells < PI_CELLS);
+            dp_hist_t *h = &pi_hist[pi_n_cells][0][0];
+            for (int v = 0; v < 2; v++)
+              for (int q = 0; q < PQ_N; q++)
+                dp_hist_init (&pi_hist[pi_n_cells][v][q], PQ[q].lo, PQ[q].hi,
+                              PQ[q].nb);
+            pi_cell_key[pi_n_cells][0] = fcs[f];
+            pi_cell_key[pi_n_cells][1] = esn0s[e];
+            pi_cell_key[pi_n_cells][2] = rates[r];
+            pi_cell_key[pi_n_cells][3] = cw;
+            pi_n_cells++;
             for (uint32_t s = 1; s <= draws; s++)
               {
                 if ((s - 1) % shards != shard)
                   continue;
                 DP_REQUIRE (run_draw (code, fcs[f], esn0s[e], rates[r], cw, s,
-                                      secs, spc, NULL, &ds[n])
+                                      secs, spc, NULL, h, &ds[n])
                             == 0);
                 DP_CHECK_MSG (!ds[n].data_ended,
                               "the payload outlasted the run");
@@ -674,7 +1335,7 @@ main (int argc, char **argv)
       draw_t rd;
       DP_REQUIRE (run_draw (code, 2.8e9, 10.0, PI_RATE_HZ_S,
                             ASYNC_DSSS_RX_CARRIER_PARTIALS, 1, PI_RAMP_CHECK_S,
-                            spc, NULL, &rd)
+                            spc, NULL, NULL, &rd)
                   == 0);
       const double lim = 0.25 * PI_SYM;
       printf ("  ramp: 2.8 GHz 10 dB +/-400 Hz/s partials, %.0f s: live "
@@ -688,6 +1349,55 @@ main (int argc, char **argv)
       DP_CHECK_MSG (!rd.false_lock, "the live carrier holds a 400 Hz/s ramp "
                                     "at 10 dB");
     }
+  if (emit)
+    {
+      /* The cells' histograms, and every attributed change. The rate is
+         the cell's magnitude; a draw's sign is in its row. */
+      printf ("# hist\nfc_ghz,esn0_db,rate_hz_s,carrier_window,draws,"
+              "quantity,lo,hi,count\n");
+      for (size_t c = 0; c < pi_n_cells; c++)
+        for (int v = 0; v < 2; v++)
+          for (int q = 0; q < PQ_N; q++)
+            {
+              char pre[160];
+              (void)snprintf (pre, sizeof pre, "%.1f,%.1f,%.0f,%s,%s,%s",
+                              pi_cell_key[c][0] / 1e9, pi_cell_key[c][1],
+                              pi_cell_key[c][2],
+                              pi_cell_key[c][3] != 0.0 ? "code_period"
+                                                       : "partials",
+                              v ? "off" : "on", PQ[q].name);
+              dp_hist_emit (&pi_hist[c][v][q], pre);
+            }
+      printf ("# rule\nfc_ghz,esn0_db,rate_hz_s,carrier_window,rule,"
+              "up_thresh,down_thresh,n_up,n_down\n");
+      for (size_t c = 0; c < pi_n_cells; c++)
+        for (int k = 0; k < PI_RULES; k++)
+          printf ("%.1f,%.1f,%.0f,%s,%s,%.6g,%.6g,%u,%u\n",
+                  pi_cell_key[c][0] / 1e9, pi_cell_key[c][1],
+                  pi_cell_key[c][2],
+                  pi_cell_key[c][3] != 0.0 ? "code_period" : "partials",
+                  pi_rule_name[k], pi_rule[c][k].up_thresh,
+                  pi_rule[c][k].down_thresh, pi_rule[c][k].n_up,
+                  pi_rule[c][k].n_down);
+      printf ("# transition\nfc_ghz,esn0_db,rate_hz_s,carrier_window,seed,"
+              "flag,up,t_s,stat,up_thresh,down_thresh,car_max_deg,"
+              "car_rms_deg,car_slips,code_max_chip,evm_db,draw_evm_db,"
+              "false_lock,on_code,car_max_mem_deg,coast_mem,coast_1s\n");
+      for (size_t i = 0; i < pi_n_trans; i++)
+        {
+          const trans_t *t = &pi_trans[i];
+          printf ("%.1f,%.1f,%.0f,%s,%u,%s,%d,%.4f,%.4g,%.4g,%.4g,%.2f,%.2f,"
+                  "%zu,%.4f,%.3f,%.3f,%d,%d,%.2f,%d,%d\n",
+                  t->fc / 1e9, t->esn0, t->rate,
+                  t->cw ? "code_period" : "partials", t->seed,
+                  t->flag ? "code" : "sym", t->up, t->t_s, t->stat,
+                  t->rule.up_thresh, t->rule.down_thresh, t->car_max_deg,
+                  t->car_rms_deg, t->car_slips, t->code_max_chip, t->evm_db,
+                  t->draw_evm_db, t->false_lock, t->on_code,
+                  t->car_max_mem_deg, t->coast_mem, t->coast_1s);
+        }
+    }
+  free (pi_trans);
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_receiver_pullin");
   DP_TEST_END ("validate_async_dsss_receiver_pullin");

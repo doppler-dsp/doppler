@@ -1780,6 +1780,35 @@ exactly the information an outer code is there to use.
     code — the C tests do exercise it. It is the first thing to fix the next
     time `mpsk` is re-certified.
 
+### 9.8 Square QAM — the same labelling, one more family
+
+`qam_map`, `qam_demap` and `qam_bits_per_symbol` (`mpsk_core.h`) carry
+M = 4, 16, 64, 256 and 1024 beside the PSK maps, for the multicarrier
+standards that put QAM on each subcarrier. The label is 16 bits wide, not a
+byte, because 1024-QAM is ten bits.
+
+The mapping is the one in section 9.3 extended to two axes. Label bits
+`0 .. b-1` are the in-phase axis and bits `b .. 2b-1` the quadrature axis,
+`b = log2(M) / 2`, in the order the bits are transmitted. On an axis the first
+bit is the sign, in `mpsk_bpsk_bit`'s polarity (0 positive, 1 negative), and
+the axis's bits, read with the first bit most significant, are the Gray code of
+the level's index counted from the largest positive level down. The levels are
+the odd integers scaled to unit average energy, `1 / sqrt(2 (M - 1) / 3)`.
+Three consequences are tested rather than assumed: nearest neighbors differ in
+one bit, QAM-4 equals QPSK point for point, and the hard decision is the
+nearest point of the alphabet, which for a square constellation is two
+independent roundings (no `atan2`, and amplitude decides where M-PSK's phase
+did).
+
+**What this does not claim.** Every standard that carries QAM prescribes its
+own table from bit groups to levels, and its bit order and sign are
+properties of its text. This mapping is the library's one convention; a PHY
+that needs another table pins it from the standard and says so. Soft decisions
+are a separate item, [#3112](https://github.com/doppler-dsp/doppler/issues/3112),
+and an unsupported M writes a zero point or label 0 rather than raising, as
+the PSK maps have no check either, so a caller tests
+`qam_bits_per_symbol (m) != 0` first.
+
 ______________________________________________________________________
 
 ## 10. Component reuse

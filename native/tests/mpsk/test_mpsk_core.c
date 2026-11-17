@@ -23,6 +23,7 @@
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static const int M_ALL[] = { 2, 4, 8 };
 enum
@@ -798,6 +799,205 @@ main (void)
       if (llr[i] != -12345.0f)
         wrote = 1;
     DP_CHECK_MSG (wrote, "an exactly-sufficient buffer must be accepted");
+  }
+
+  /* ── 8. QAM: square constellations beside the PSK ones ─────────────────
+   *
+   * Every property below is checkable without the mapping's own table:
+   * unit average energy against a numeric mean, Gray adjacency against
+   * bit counts, the decision against an exhaustive nearest-point search,
+   * QAM-4 against the library's QPSK (a second, unrelated implementation),
+   * and the polarity against mpsk_bpsk_bit(). The one literal is 16-QAM's
+   * level order, which is the library's convention and is stated as such in
+   * the header; no standard's table is claimed or pinned.
+   */
+  {
+    static const int QM[] = { 4, 16, 64, 256, 1024 };
+    static const int QB[] = { 2, 4, 6, 8, 10 };
+
+    for (int q = 0; q < 5; q++)
+      {
+        const int m = QM[q];
+        DP_CHECK (qam_bps (m) == QB[q] && dp_qam_bits_per_symbol (m) == QB[q]);
+        DP_CHECK_MSG ((1 << QB[q]) == m, "bits per symbol is log2 of M");
+
+        /* the whole alphabet, once */
+        float _Complex *pts = malloc ((size_t)m * sizeof *pts);
+        DP_REQUIRE (pts != NULL);
+        double esum = 0.0;
+        for (int g = 0; g < m; g++)
+          {
+            pts[g] = qam_constellation ((unsigned)g, m);
+            esum += (double)crealf (pts[g]) * crealf (pts[g])
+                    + (double)cimagf (pts[g]) * cimagf (pts[g]);
+          }
+        DP_CHECK_MSG (fabs (esum / m - 1.0) < 1e-5,
+                      "unit AVERAGE energy, measured over the alphabet");
+
+        /* every point distinct, and the nearest neighbor is 2*scale away */
+        const double dmin     = 2.0 * qam_scale (m);
+        double       seen_min = 1e9;
+        int          distinct = 1;
+        for (int a = 0; a < m; a++)
+          for (int b = a + 1; b < m; b++)
+            {
+              const double d = cabsf (pts[a] - pts[b]);
+              if (d < seen_min)
+                seen_min = d;
+              if (d < 1e-6)
+                distinct = 0;
+            }
+        DP_CHECK_MSG (distinct, "no two labels share a point");
+        DP_CHECK_MSG (fabs (seen_min - dmin) < 1e-5,
+                      "minimum distance is two levels' spacing");
+
+        /* Gray: every pair of points at the minimum distance differs in
+           exactly one bit, on both axes at once */
+        int gray_ok = 1;
+        for (int a = 0; a < m; a++)
+          for (int b = a + 1; b < m; b++)
+            if (fabs (cabsf (pts[a] - pts[b]) - dmin) < 1e-4
+                && bits_set ((unsigned)(a ^ b)) != 1)
+              gray_ok = 0;
+        DP_CHECK_MSG (gray_ok, "nearest neighbors differ in exactly one bit");
+
+        /* the decision against an exhaustive search over the alphabet, on
+           points inside, between and well outside the constellation */
+        uint32_t st         = 4001u + (uint32_t)q;
+        int      nearest_ok = 1, label_ok = 1;
+        for (int t = 0; t < 4000; t++)
+          {
+            const double ext = (double)(1 << (QB[q] / 2)) * qam_scale (m);
+            const float  re
+                = (float)((dp_xs32 (&st) / 4294967296.0 - 0.5) * 2.6 * ext);
+            const float im
+                = (float)((dp_xs32 (&st) / 4294967296.0 - 0.5) * 2.6 * ext);
+            const float _Complex y = re + im * I;
+            int    best            = 0;
+            double bd              = 1e30;
+            for (int g = 0; g < m; g++)
+              {
+                const double d = cabsf (y - pts[g]);
+                if (d < bd)
+                  {
+                    bd   = d;
+                    best = g;
+                  }
+              }
+            float _Complex ahat;
+            const unsigned got = qam_slice (y, m, &ahat);
+            /* a tie between points is a measure-zero event on this
+               stimulus; compare by distance so a legal tie-break passes */
+            if (fabs (cabsf (y - ahat) - bd) > 1e-5)
+              nearest_ok = 0;
+            if (got != (unsigned)best
+                && fabs (cabsf (y - pts[got]) - bd) > 1e-5)
+              label_ok = 0;
+            if (cabsf (ahat - pts[got]) > 1e-6)
+              label_ok = 0;
+          }
+        DP_CHECK_MSG (nearest_ok, "the slicer returns the nearest point");
+        DP_CHECK_MSG (label_ok,
+                      "and its label, and ahat is that label's point");
+
+        /* a clean round trip, labels through points and back */
+        int rt_ok = 1;
+        for (int g = 0; g < m; g++)
+          {
+            float _Complex ahat;
+            if (qam_slice (pts[g], m, &ahat) != (unsigned)g)
+              rt_ok = 0;
+          }
+        DP_CHECK_MSG (rt_ok, "slice inverts constellation for every label");
+
+        /* the first bit of each axis is its sign, in the library's
+           polarity: 0 positive, 1 negative (mpsk_bpsk_bit) */
+        const int b       = QB[q] / 2;
+        int       sign_ok = 1;
+        for (int g = 0; g < m; g++)
+          {
+            const unsigned bi = (unsigned)g & 1u, bq = ((unsigned)g >> b) & 1u;
+            if (mpsk_bpsk_bit (crealf (pts[g])) != bi
+                || mpsk_bpsk_bit (cimagf (pts[g])) != bq)
+              sign_ok = 0;
+          }
+        DP_CHECK_MSG (sign_ok, "bit 0 of each axis is the sign, 1 negative");
+        free (pts);
+      }
+
+    /* QAM-4 IS QPSK, against the PSK implementation */
+    for (unsigned g = 0; g < 4u; g++)
+      DP_CHECK_MSG (
+          cabsf (qam_constellation (g, 4) - mpsk_constellation (g, 4)) < 1e-6f,
+          "QAM-4 equals the library's QPSK point for point");
+
+    /* the one literal: 16-QAM's level order on the I axis (label bits 0,1),
+       as a convention the header states */
+    {
+      const double          s      = qam_scale (16);
+      static const unsigned lab[4] = { 0u, 2u, 3u, 1u };
+      static const double   lev[4] = { 3.0, 1.0, -1.0, -3.0 };
+      for (int i = 0; i < 4; i++)
+        DP_CHECK_MSG (
+            fabs (crealf (qam_constellation (lab[i], 16)) - s * lev[i]) < 1e-6,
+            "16-QAM levels 3 1 -1 -3 carry labels 0 2 3 1");
+    }
+
+    /* an unsupported M is refused: zero point, label 0, nothing claimed */
+    {
+      float _Complex ahat = 7.0f;
+      for (int bad = 0; bad < 5; bad++)
+        {
+          static const int BAD[] = { 0, 2, 8, 32, 4096 };
+          DP_CHECK (qam_bps (BAD[bad]) == 0);
+          DP_CHECK (qam_constellation (1u, BAD[bad]) == 0.0f);
+          DP_CHECK (qam_slice (1.0f, BAD[bad], &ahat) == 0u && ahat == 0.0f);
+        }
+    }
+
+    /* array functions: the loop equals the inline, and an exactly-sized
+       buffer is enough */
+    {
+      enum
+      {
+        N = 257
+      };
+      uint16_t lab[N], back[N];
+      float _Complex pt[N];
+      uint32_t st = 99u;
+      for (int q = 0; q < 5; q++)
+        {
+          for (int i = 0; i < N; i++)
+            lab[i] = (uint16_t)(dp_xs32 (&st) % (uint32_t)QM[q]);
+          dp_qam_map (lab, N, pt, QM[q]);
+          dp_qam_demap (pt, N, back, QM[q]);
+          int ok = 1;
+          for (int i = 0; i < N; i++)
+            ok &= (back[i] == lab[i])
+                  && pt[i] == qam_constellation (lab[i], QM[q]);
+          DP_CHECK_MSG (ok, "map then demap returns every label, per M");
+        }
+      /* unsupported M: every output is zero, which no supported M produces
+         as a LABEL ... so the points are checked, the labels documented */
+      for (int i = 0; i < N; i++)
+        pt[i] = 5.0f;
+      dp_qam_map (lab, N, pt, 3);
+      int zero = 1;
+      for (int i = 0; i < N; i++)
+        zero &= (pt[i] == 0.0f);
+      DP_CHECK_MSG (zero, "an unsupported M writes zero points");
+    }
+
+    /* edge clamp: well outside lands on the corner, not on an index past it
+     */
+    {
+      float _Complex ahat;
+      const unsigned outside = qam_slice (1000.0f - 1000.0f * I, 16, &ahat);
+      DP_CHECK_MSG (fabs (crealf (ahat) - 3.0 * qam_scale (16)) < 1e-6
+                        && fabs (cimagf (ahat) + 3.0 * qam_scale (16)) < 1e-6,
+                    "well outside decides to the nearest corner");
+      DP_CHECK (outside == (0u | (1u << 2)) /* I +3 -> 0, Q -3 -> raw 1 */);
+    }
   }
 
   DP_TEST_END ("test_mpsk_core");

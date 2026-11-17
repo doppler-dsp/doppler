@@ -342,6 +342,215 @@ void dp_mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
  */
 int dp_mpsk_bits_per_symbol(int m);
 
+/* ── QAM: square constellations beside the PSK ones ──────────────────────
+ *
+ * Square M-QAM for M = 4, 16, 64, 256, 1024: the same Gray-labelled map and
+ * hard decision as the PSK above, for the constellations the multicarrier
+ * standards carry on each subcarrier. A symbol's `log2(M)` bits pack
+ * LSB-first into one **16-bit** label (1024-QAM is 10 bits, so the byte
+ * `mpsk` uses is too small), in the order the bits are transmitted.
+ *
+ * ## The mapping, and what it is derived from
+ *
+ * Each axis carries `b = log2(M)/2` bits. Label bits `0 .. b-1` are the
+ * in-phase axis and bits `b .. 2b-1` the quadrature axis, in transmission
+ * order. On an axis the FIRST bit is the sign — the same polarity as
+ * mpsk_bpsk_bit(): 0 is the positive half-plane, 1 the negative — and the
+ * `b` bits, read as a number with the first bit most significant, are the
+ * Gray code of the level's index counted from the largest positive level
+ * down. So adjacent levels differ in exactly one bit, on both axes at once
+ * (a slip to a neighbor is one bit error), and QAM-4 is QPSK point for point:
+ * `qam_constellation (g, 4)` equals `mpsk_constellation (g, 4)`. 16-QAM per
+ * axis reads `00 -> +3, 01 -> +1, 11 -> -1, 10 -> -3`.
+ *
+ * Levels are the odd integers `-(L-1) .. +(L-1)`, `L = 2^b`, scaled to
+ * **unit average energy**: `1/sqrt(2 (M-1) / 3)`, which is `1/sqrt(2)` at
+ * M = 4 and `1/sqrt(10)` at M = 16. That figure is derived, not recalled:
+ * the mean of the squared odd integers on one axis is `(L^2 - 1) / 3`.
+ *
+ * **No standard is claimed.** Every standard that carries QAM prescribes its
+ * own table from bit groups to levels, and the bit order and the sign of
+ * each such table are properties of its text. This mapping is the library's
+ * one convention; a PHY that needs another pins that table from the
+ * standard, by relabeling at its own boundary or by its own table, and says
+ * so. Nothing here conforms to a standard until its numbers are checked.
+ */
+
+/** @brief Largest QAM bits per symbol (1024-QAM). */
+#define QAM_BPS_MAX 10
+
+/**
+ * @brief Bits per QAM symbol = log2(M).
+ * @param m  Constellation size: 4, 16, 64, 256 or 1024.
+ * @return 2, 4, 6, 8 or 10; 0 for any other @p m (unsupported).
+ */
+JM_FORCEINLINE int
+qam_bps (int m)
+{
+  return (m == 4)     ? 2
+         : (m == 16)  ? 4
+         : (m == 64)  ? 6
+         : (m == 256) ? 8
+         : (m == 1024) ? 10
+                       : 0;
+}
+
+/**
+ * @brief The factor that gives a square M-QAM unit average energy.
+ * @param m  Constellation size.
+ * @return `1 / sqrt (2 (M - 1) / 3)`.
+ */
+JM_FORCEINLINE double
+qam_scale (int m)
+{
+  return 1.0 / sqrt (2.0 * (double)(m - 1) / 3.0);
+}
+
+/** @brief The first @p b bits of @p r as a number, first bit most
+ *         significant (the reverse of how the label packs them). */
+JM_FORCEINLINE unsigned
+qam_axis_gray (unsigned r, int b)
+{
+  unsigned g = 0;
+  for (int t = 0; t < b; t++)
+    g |= ((r >> t) & 1u) << (b - 1 - t);
+  return g;
+}
+
+/**
+ * @brief Constellation point for label @p g (square QAM), unit average
+ *        energy.
+ *
+ * @param g  Label, masked to the low log2(M) bits.
+ * @param m  M in {4, 16, 64, 256, 1024}.
+ * @return   The point; 0 for an unsupported @p m.
+ */
+JM_FORCEINLINE float _Complex
+qam_constellation (unsigned g, int m)
+{
+  const int nb = qam_bps (m);
+  if (nb == 0)
+    return 0.0f;
+  const int      b    = nb / 2;
+  const unsigned mask = (1u << b) - 1u;
+  /* index from the largest positive level down: j = gray_decode (g) */
+  const int    L  = 1 << b;
+  const int    ji = (int)mpsk_gray_decode (qam_axis_gray (g & mask, b));
+  const int    jq = (int)mpsk_gray_decode (qam_axis_gray ((g >> b) & mask, b));
+  const double s  = qam_scale (m);
+  return (float)(s * (double)(L - 1 - 2 * ji))
+         + (float)(s * (double)(L - 1 - 2 * jq)) * I;
+}
+
+/**
+ * @brief Hard-decide @p y to the nearest QAM point; return its label.
+ *
+ * The axes decide independently: each is quantized to the nearest level and
+ * clamped to the outermost, which for a square constellation IS the nearest
+ * point. Writes that point to @p ahat. Inverse of qam_constellation().
+ *
+ * @param y     Received symbol; amplitude matters (unlike M-PSK).
+ * @param m     M in {4, 16, 64, 256, 1024}.
+ * @param ahat  Out: the nearest constellation point; 0 for an unsupported m.
+ * @return      The label (0 .. M-1); 0 for an unsupported @p m.
+ */
+JM_FORCEINLINE unsigned
+qam_slice (float _Complex y, int m, float _Complex *ahat)
+{
+  const int nb = qam_bps (m);
+  if (nb == 0)
+    {
+      *ahat = 0.0f;
+      return 0u;
+    }
+  const int    b  = nb / 2;
+  const int    L  = 1 << b;
+  const double s  = qam_scale (m);
+  double       ax[2] = { (double)crealf (y), (double)cimagf (y) };
+  unsigned     lab[2];
+  double       pt[2];
+  for (int a = 0; a < 2; a++)
+    {
+      /* index j from the largest positive level down, nearest, clamped */
+      long j = lround (((double)(L - 1) - ax[a] / s) / 2.0);
+      if (j < 0)
+        j = 0;
+      if (j > L - 1)
+        j = L - 1;
+      lab[a] = qam_axis_gray (mpsk_gray_encode ((unsigned)j), b);
+      pt[a]  = s * (double)(L - 1 - 2 * (int)j);
+    }
+  *ahat = (float)pt[0] + (float)pt[1] * I;
+  return lab[0] | (lab[1] << b);
+}
+
+/**
+ * @brief Map QAM labels to unit-average-energy constellation points.
+ *
+ * Element-wise inverse of dp_qam_demap(): each input is one symbol's
+ * `log2(M)` bits packed LSB-first in transmission order, each output its cf32
+ * point. @p out must hold @p sym_len points. For an unsupported @p m every
+ * output is 0, which is not a constellation point of any supported M, so
+ * check dp_qam_bits_per_symbol() first.
+ *
+ * @param sym      Labels (0 .. M-1), one per symbol, 16-bit.
+ * @param sym_len  Number of symbols.
+ * @param out      Out: @p sym_len constellation points.
+ * @param m        M in {4, 16, 64, 256, 1024}.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.mpsk import qam_map, qam_demap
+ * >>> sym = np.array([0, 1, 3, 2], dtype=np.uint16)   # 16-QAM, I axis
+ * >>> np.round(qam_map(sym, 16).real * np.sqrt(10), 3)
+ * array([ 3., -3., -1.,  1.])
+ * >>> np.array_equal(qam_demap(qam_map(sym, 16), 16), sym)
+ * True
+ *
+ * @endcode
+ */
+void dp_qam_map(const uint16_t *sym, size_t sym_len, float _Complex *out, int m);
+
+/**
+ * @brief Hard-decide QAM symbols to their labels.
+ *
+ * Element-wise inverse of dp_qam_map(). Each axis is decided on its own to
+ * the nearest level, so a received point outside the constellation lands on
+ * the nearest edge point. For an unsupported @p m every label is 0.
+ *
+ * @param x      Received symbols; amplitude matters.
+ * @param x_len  Number of symbols.
+ * @param out    Out: @p x_len labels.
+ * @param m      M in {4, 16, 64, 256, 1024}.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.mpsk import qam_demap
+ * >>> v = np.array([3.2, -0.9, 0.2, -2.7]) / np.sqrt(10)
+ * >>> x = (v + 1j * v[::-1]).astype(np.complex64)
+ * >>> qam_demap(x, 16).tolist()
+ * [4, 11, 14, 1]
+ *
+ * @endcode
+ */
+void dp_qam_demap(const float _Complex *x, size_t x_len, uint16_t *out, int m);
+
+/**
+ * @brief Bits per QAM symbol = log2(M).
+ *
+ * @param m  M in {4, 16, 64, 256, 1024}.
+ * @return   2, 4, 6, 8 or 10 (0 for an unsupported M).
+ *
+ * @code
+ * >>> from doppler.mpsk import qam_bits_per_symbol
+ * >>> [qam_bits_per_symbol(m) for m in (4, 16, 64, 256, 1024)]
+ * [2, 4, 6, 8, 10]
+ *
+ * @endcode
+ */
+int dp_qam_bits_per_symbol(int m);
+
+
 #ifdef __cplusplus
 }
 #endif

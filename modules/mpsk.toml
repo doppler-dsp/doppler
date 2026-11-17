@@ -1,6 +1,7 @@
 [module.mpsk]
 doc = """
 M-ary PSK mapping: hard and soft, including differential, symbol map/demap for BPSK, QPSK, and 8-PSK constellations.
+Square QAM (4 to 1024 points) rides beside it: `qam_map` and `qam_demap` take a 16-bit label, since 1024-QAM is ten bits, and decide by nearest point rather than by phase.
 
 This is the decision primitive, and its transmit inverse, that the
 `doppler.track.CarrierMpsk` carrier loop and the M-PSK receiver compose.
@@ -115,3 +116,42 @@ return_type = "int"
 name = "m"
 type = "int"
 default = "4"
+
+# Square QAM beside the PSK maps (the OFDM design's `qam` primitive). Same
+# shapes as mpsk_map / mpsk_demap, with a 16-bit label because 1024-QAM is ten
+# bits per symbol. The mapping is the library's one convention and claims no
+# standard's table (see the QAM block in mpsk_core.h).
+[[module.mpsk.functions]]
+name = "qam_map"
+out_type = "float _Complex"
+
+[[module.mpsk.functions.params]]
+name = "sym"
+type = "uint16_t[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "16"
+
+[[module.mpsk.functions]]
+name = "qam_demap"
+out_type = "uint16_t"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "16"
+
+[[module.mpsk.functions]]
+name = "qam_bits_per_symbol"
+return_type = "int"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "16"

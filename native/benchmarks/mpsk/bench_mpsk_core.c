@@ -48,13 +48,18 @@ min_sec (const double *t, int n)
 }
 
 static void
-report (const char *name, const double *t, int m)
+report_bps (const char *name, const double *t, int bps)
 {
-  double s   = min_sec (t, ITERATIONS);
-  double ns  = s / (double)BENCH_N * 1e9;
-  int    bps = dp_mpsk_bits_per_symbol (m);
+  double s  = min_sec (t, ITERATIONS);
+  double ns = s / (double)BENCH_N * 1e9;
   printf ("  %-22s %7.2f ns/sym  %7.2f ns/bit  %8.1f Msym/s\n", name, ns,
           ns / (double)bps, (double)BENCH_N / s / 1e6);
+}
+
+static void
+report (const char *name, const double *t, int m)
+{
+  report_bps (name, t, dp_mpsk_bits_per_symbol (m));
 }
 
 int
@@ -160,6 +165,62 @@ main (void)
 
       printf ("\n");
     }
+
+  /* QAM beside the PSK maps: one map and one hard demap per symbol, swept
+     over M for the same reason -- ten bits a symbol at 1024-QAM makes a
+     per-symbol number flatter it by five against QPSK. Labels are 16-bit.
+     The slicer decides each axis by a rounding, with no atan2, which is what
+     the PSK rows above are measured against. */
+  {
+    static const int QM[5] = { 4, 16, 64, 256, 1024 };
+    uint16_t        *qsym  = malloc ((size_t)BENCH_N * sizeof *qsym);
+    uint16_t        *qout  = malloc ((size_t)BENCH_N * sizeof *qout);
+    if (!qsym || !qout)
+      return 1;
+    static double t_qmap[5][ITERATIONS], t_qdem[5][ITERATIONS];
+
+    for (int qi = 0; qi < 5; qi++)
+      {
+        const int m   = QM[qi];
+        const int bps = dp_qam_bits_per_symbol (m);
+        char      name[64];
+
+        uint32_t lfsr = 0xBEEFu;
+        for (int i = 0; i < BENCH_N; i++)
+          {
+            lfsr = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
+            qsym[i] = (uint16_t)(lfsr % (uint32_t)m);
+          }
+        dp_qam_map (qsym, BENCH_N, iq, m);
+
+        for (int r = 0; r < ITERATIONS; r++)
+          {
+            t0 = jm_bench_now_ns ();
+            dp_qam_map (qsym, BENCH_N, iq, m);
+            t1            = jm_bench_now_ns ();
+            t_qmap[qi][r] = jm_bench_elapsed_sec (t0, t1);
+          }
+        (void)snprintf (name, sizeof name, "qam_map[m=%d]", m);
+        jm_bench_add_unit (&_bench, name, t_qmap[qi], ITERATIONS, BENCH_N,
+                           "symbol");
+        report_bps (name, t_qmap[qi], bps);
+
+        for (int r = 0; r < ITERATIONS; r++)
+          {
+            t0 = jm_bench_now_ns ();
+            dp_qam_demap (iq, BENCH_N, qout, m);
+            t1            = jm_bench_now_ns ();
+            t_qdem[qi][r] = jm_bench_elapsed_sec (t0, t1);
+          }
+        (void)snprintf (name, sizeof name, "qam_demap[m=%d]", m);
+        jm_bench_add_unit (&_bench, name, t_qdem[qi], ITERATIONS, BENCH_N,
+                           "symbol");
+        report_bps (name, t_qdem[qi], bps);
+        printf ("\n");
+      }
+    free (qsym);
+    free (qout);
+  }
 
   free (sym);
   free (out);

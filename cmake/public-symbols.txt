@@ -1348,6 +1348,9 @@ dp_push_send_cf64 function
 dp_push_send_ci16 function
 dp_push_send_ci32 function
 dp_push_send_ci8 function
+dp_qam_bits_per_symbol function
+dp_qam_demap function
+dp_qam_map function
 dp_qpsk_map function
 dp_ratesync_configure function
 dp_ratesync_configure_lock_raw function
@@ -1895,6 +1898,11 @@ pn_fits_register function
 pn_mls_poly function
 pn_register_mask function
 pn_step function
+qam_axis_gray function
+qam_bps function
+qam_constellation function
+qam_scale function
+qam_slice function
 ratesync_loop_take_output function
 ratesync_step function
 ratesync_step_ted function

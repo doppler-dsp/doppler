@@ -43,8 +43,10 @@
  *      (refining or tracking) within one chip of each other's code phase,
  *      circularly, hold the same signal. The one that keeps it is the one
  *      tracking over the one refining, then the one in its state longer
- *      (status().state_samples: the first to lock), then the higher C/N0
- *      estimate, then the lower index. The other is reset to idle.
+ *      (status().state_samples: the first to lock), then the higher
+ *      status().cn0_dbhz_est -- the C/N0 the search estimated at its seed,
+ *      not a live one: the receiver keeps none while tracking -- then the
+ *      lower index. The other is reset to idle.
  *    - **releases ghosts.** A receiver can take a strong emitter's
  *      Doppler-offset sidelobe, hundreds of chips from the emitter's own
  *      phase, where the duplicate key cannot see it: it despreads the
@@ -53,7 +55,9 @@
  *      @ref ASYNC_DSSS_POOL_GHOST_WINDOW_S of whole code periods, both
  *      receivers tracking throughout:
  *      - its carrier moves in lockstep with a stronger holder's (a higher
- *        status().cn0_dbhz_est), a whole nonzero number k of lattice
+ *        status().cn0_dbhz_est: stronger at its seed, as the search
+ *        estimated it, since no receiver keeps a running estimate), a
+ *        whole nonzero number k of lattice
  *        steps away: the carrier delta's mean is within
  *        @ref ASYNC_DSSS_POOL_GHOST_EPS_HZ of k times chip_rate /
  *        (2 code_len), and its standard deviation below

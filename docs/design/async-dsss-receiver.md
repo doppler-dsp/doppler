@@ -2541,7 +2541,9 @@ periods (§5). It:
 - **resolves duplicates**: two receivers holding the same code phase (within
     a chip, the exclusions' key) hold the same signal; the one that keeps it
     is the one tracking over the one refining, then the first to lock, then
-    the higher C/N0 estimate, then the lower index, and the other goes idle;
+    the higher C/N0 its seed was estimated at (`status().cn0_dbhz_est`, the
+    search's estimate at the seed; a receiver keeps no running one), then the
+    lower index, and the other goes idle;
 - **releases ghosts** (below);
 - **runs the receivers in parallel** between its steps, one per worker,
     with a serial path when there is one CPU; the results do not depend on
@@ -2560,7 +2562,8 @@ tracks a copy no exclusion names. The controller releases such a ghost on
 two of its traits together, each over the same trailing 0.2 s (owner ruling
 on doppler#2529):
 
-- **its carrier moves in lockstep with a stronger holder's**, a whole nonzero
+- **its carrier moves in lockstep with a stronger holder's** (stronger as
+    each was estimated at its seed, `status().cn0_dbhz_est`), a whole nonzero
     number of steps of $1/(2T_E)$ away: the sidelobe sits on its parent's
     carrier a tile off, and the carrier loop, updating once a code period
     from a squaring combine, reads that modulo half the epoch rate;

@@ -41,6 +41,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_air_test.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdint.h>
@@ -443,7 +444,6 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
  * no state change, as run_tracking(). */
 #define SPEC_MAX_LOCK_S 3.0
 #define SPEC_ITERS 10
-#define SPEC_CHUNK 16384u
 #define SPEC_CODE_ONLY_SYM 275u
 #define SPEC_FRAME_SYM 1000u
 
@@ -453,84 +453,45 @@ typedef struct
   double      carrier_hz;
 } spec_pt_t;
 
-/* The spec-point stream at 11 MSa/s, a block at a time, by the on-air pool
-   rows' chain (bench_async_dsss_pool_core.c's air_src_*): the library's
-   continuous DSSS synth at 2 samples a chip with PRBS data and a 275-symbol
-   code-only window opening every 1,000-symbol frame (the window the
-   search's depth is sized for), a RateConverter to 11 MSa/s, a
-   DopplerChannel, plus the shipped AWGN; `amp` 0 is noise alone. */
+/* The spec-point stream at 11 MSa/s, a block at a time: the use-case
+   scene (native/tests/dp_air_test.h -- the library's continuous DSSS synth
+   with PRBS data and a 275-symbol code-only window opening every
+   1,000-symbol frame, the front end's converter to 11 MSa/s, a
+   DopplerChannel 1 kHz off, the shipped AWGN); `amp` 0 is noise alone. */
 typedef struct
 {
-  float                       amp;
-  dp_wfm_synth_state_t       *syn;
-  dp_RateConverter_state_t   *rc;
-  dp_doppler_channel_state_t *ch;
-  dp_awgn_state_t            *noise;
-  float _Complex             *r2, *r11, *buf;
-  size_t                      r11_cap, cap, len;
+  dp_air_t air;
 } spec_src_t;
 
 static void
 spec_src_free (spec_src_t *s)
 {
-  dp_wfm_synth_destroy (s->syn);
-  dp_RateConverter_destroy (s->rc);
-  dp_doppler_channel_destroy (s->ch);
-  dp_awgn_destroy (s->noise);
-  free (s->r2);
-  free (s->r11);
-  free (s->buf);
+  dp_air_free (&s->air);
 }
 
 static int
 spec_src_init (spec_src_t *s, const uint8_t *code, double chip, double sym,
                double fc, double cn0, double fs_in, float amp, size_t block)
 {
-  const double fs2 = 2.0 * chip;
-  *s               = (spec_src_t){ 0 };
-  s->amp           = amp;
-  s->r11_cap       = 2 * SPEC_CHUNK;
-  s->cap           = block + 4 * SPEC_CHUNK;
-  s->syn = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0, WFM_SYNTH_SNR_CLEAN,
-                                1, 100u, 2, 15, 0, 0, 0.0);
-  s->rc  = dp_RateConverter_create (fs_in / fs2, 0);
-  s->ch  = dp_doppler_channel_create (fs_in, fc, -1000.0 / fc * 1e6, 0.0);
-  s->noise = dp_awgn_create (
-      7919u,
-      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs_in)), 1.0f));
-  s->r2  = malloc (SPEC_CHUNK * sizeof *s->r2);
-  s->r11 = malloc (s->r11_cap * sizeof *s->r11);
-  s->buf = malloc (s->cap * sizeof *s->buf);
-  return s->syn && s->rc && s->ch && s->noise && s->r2 && s->r11 && s->buf
-         && dp_wfm_synth_set_dsss_cont (s->syn, code, 1023, chip / sym,
-                                        WFM_DSSS_DATA_PRBS, NULL, 0)
-                == 0
-         && dp_wfm_synth_set_dsss_window (s->syn, SPEC_CODE_ONLY_SYM,
-                                          SPEC_FRAME_SYM)
-                == 0;
+  dp_air_emitter_t e = { 0 };
+  e.code             = code;
+  e.code_len         = 1023;
+  e.chip_rate        = chip;
+  e.sym_rate         = sym;
+  e.carrier_hz       = fc;
+  e.f0_hz            = -1000.0;
+  e.cn0_dbhz         = cn0 + (amp > 0.0f ? 20.0 * log10 ((double)amp) : 0.0);
+  e.code_only_sym    = SPEC_CODE_ONLY_SYM;
+  e.frame_sym        = SPEC_FRAME_SYM;
+  e.seed             = 100u;
+  return dp_air_init (&s->air, &e, amp > 0.0f ? 1 : 0, fs_in, cn0, 7919u,
+                      block);
 }
 
 static int
 spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
 {
-  (void)dp_awgn_generate (s->noise, n, x, n);
-  if (s->amp == 0.0f)
-    return 1;
-  while (s->len < n)
-    {
-      dp_wfm_synth_steps (s->syn, s->r2, SPEC_CHUNK);
-      const size_t r = dp_RateConverter_execute (s->rc, s->r2, SPEC_CHUNK,
-                                                 s->r11, s->r11_cap);
-      if (s->cap - s->len < 2 * r + 64)
-        return 0;
-      s->len += dp_doppler_channel_execute (s->ch, s->r11, r, s->buf + s->len,
-                                            s->cap - s->len);
-    }
-  for (size_t i = 0; i < n; i++)
-    x[i] += s->amp * s->buf[i];
-  s->len -= n;
-  memmove (s->buf, s->buf + n, s->len * sizeof *s->buf);
-  return 1;
+  return dp_air_next (&s->air, x, n);
 }
 
 /* On ONE thread: the receiver's speed goal is one thread, and a search

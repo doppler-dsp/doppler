@@ -49,3 +49,10 @@ target_include_directories(test_adr_telemetry_oom PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc/doppler/async_dsss_receiver
     ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_adr_telemetry_oom COMMAND test_adr_telemetry_oom)
+
+# native/tests on the bench's include path: its 415.1-B-1 rows run the
+# receiver on the use-case scene, native/tests/dp_air_test.h, the one
+# builder the tests and validators measure on, so the bench times the
+# receiver on the stimulus it is certified on rather than a private copy.
+target_include_directories(bench_async_dsss_receiver_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)

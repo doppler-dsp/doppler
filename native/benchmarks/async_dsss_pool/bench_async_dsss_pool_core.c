@@ -44,6 +44,7 @@
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_air_test.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdint.h>
@@ -153,7 +154,6 @@ all_searching (dp_async_dsss_pool_state_t *p, size_t n_rx, uint64_t pushed,
 #define AIR_ITERS 4
 #define AIR_MAX_PUSHES 80
 #define AIR_MAX_K 9
-#define AIR_CHUNK 65536u
 #define AIR_CARRIER 2.5e9
 #define AIR_CODE_ONLY_SYM 500u
 #define AIR_FRAME_SYM 1000u
@@ -197,79 +197,47 @@ air_doppler (const air_pt_t *pt, int k, int k_on, double t)
 }
 
 /* K emitters and the noise as one stream at 11 MSa/s, made a push at a
-   time: each emitter's synth runs at 10 MSa/s into its RateConverter and
-   DopplerChannel, whose output collects in `buf` until a push's worth is
-   there. */
+   time: the use-case scene (native/tests/dp_air_test.h) -- each emitter the
+   library's continuous DSSS synth with PRBS data and the point's code-only
+   window, the front end's converter to 11 MSa/s, a DopplerChannel at its
+   Doppler on the point's ramp, at its gain against the noise -- plus the
+   shipped AWGN at the point's C/N0. */
 typedef struct
 {
-  int                         k;
-  float                       amp[AIR_MAX_K];
-  dp_wfm_synth_state_t       *syn[AIR_MAX_K];
-  dp_RateConverter_state_t   *rc[AIR_MAX_K];
-  dp_doppler_channel_state_t *ch[AIR_MAX_K];
-  float _Complex             *buf[AIR_MAX_K];
-  size_t                      len[AIR_MAX_K], lag[AIR_MAX_K], cap;
-  dp_awgn_state_t            *noise;
-  float _Complex             *e10, *e11;
-  size_t                      e11_cap;
+  dp_air_t air;
 } air_src_t;
 
 static void
 air_src_free (air_src_t *a)
 {
-  for (int i = 0; i < AIR_MAX_K; i++)
-    {
-      dp_wfm_synth_destroy (a->syn[i]);
-      dp_RateConverter_destroy (a->rc[i]);
-      dp_doppler_channel_destroy (a->ch[i]);
-      free (a->buf[i]);
-    }
-  dp_awgn_destroy (a->noise);
-  free (a->e10);
-  free (a->e11);
+  dp_air_free (&a->air);
 }
 
 static int
 air_src_init (air_src_t *a, const uint8_t *code, const air_row_t *w,
               const air_pt_t *pt, double sym, double fs_in, size_t block)
 {
-  const double chip = pt->chip, cn0 = pt->cn0;
-  const double fs10 = 2.0 * chip;
-  *a                = (air_src_t){ 0 };
-  a->k              = w->k;
-  a->cap            = block + 4 * AIR_CHUNK;
-  a->e11_cap        = 2 * AIR_CHUNK;
-  a->noise          = dp_awgn_create (
-      8807u,
-      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (fs_in)), 1.0f));
-  a->e10 = malloc (AIR_CHUNK * sizeof *a->e10);
-  a->e11 = malloc (a->e11_cap * sizeof *a->e11);
-  if (!a->noise || !a->e10 || !a->e11)
+  dp_air_emitter_t e[DP_AIR_MAX_K];
+  if (w->k > DP_AIR_MAX_K)
     return 0;
   for (int k = 0; k < w->k; k++)
     {
-      const double f = air_doppler (pt, k, w->k, 0.0);
-      a->amp[k] = (float)pow (10.0, (w->gain_db + (k == 0 ? w->lead_db : 0.0))
-                                        / 20.0);
-      a->syn[k] = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs10, 0.0,
-                                       WFM_SYNTH_SNR_CLEAN, 1,
-                                       100u + (uint32_t)k, 2, 15, 0, 0, 0.0);
-      a->rc[k]  = dp_RateConverter_create (fs_in / fs10, 0);
-      a->ch[k]  = dp_doppler_channel_create (
-          fs_in, pt->carrier_hz, f / pt->carrier_hz * 1e6,
-          pt->ramp_hz_s / pt->carrier_hz * 1e6);
-      a->buf[k] = malloc (a->cap * sizeof *a->buf[k]);
-      a->lag[k] = 197u * (size_t)k; /* at 10 MSa/s: 216.7 at 11 */
-      if (!a->syn[k] || !a->rc[k] || !a->ch[k] || !a->buf[k]
-          || dp_wfm_synth_set_dsss_cont (a->syn[k], code, CODE_LEN, chip / sym,
-                                         WFM_DSSS_DATA_PRBS, NULL, 0)
-                 != 0
-          || dp_wfm_synth_set_dsss_window (a->syn[k], pt->code_only_sym,
-                                           pt->frame_sym)
-                 != 0)
-        return 0;
+      e[k]               = (dp_air_emitter_t){ 0 };
+      e[k].code          = code;
+      e[k].code_len      = CODE_LEN;
+      e[k].chip_rate     = pt->chip;
+      e[k].sym_rate      = sym;
+      e[k].carrier_hz    = pt->carrier_hz;
+      e[k].f0_hz         = air_doppler (pt, k, w->k, 0.0);
+      e[k].rate_hz_s     = pt->ramp_hz_s;
+      e[k].cn0_dbhz      = pt->cn0 + w->gain_db + (k == 0 ? w->lead_db : 0.0);
+      e[k].code_only_sym = pt->code_only_sym;
+      e[k].frame_sym     = pt->frame_sym;
+      /* 98.5 chips apart: 197 samples at two a chip */
+      e[k].lag_s = 98.5 * (double)k / pt->chip;
+      e[k].seed  = 100u + (uint32_t)k;
     }
-  return 1;
+  return dp_air_init (&a->air, e, w->k, fs_in, pt->cn0, 8807u, block);
 }
 
 /* Whether the pool holds what the row says: exactly `expect` receivers
@@ -304,35 +272,7 @@ air_holds (dp_async_dsss_pool_state_t *p, const air_row_t *w,
 static int
 air_src_next (air_src_t *a, float _Complex *x, size_t n)
 {
-  (void)dp_awgn_generate (a->noise, n, x, n);
-  for (int k = 0; k < a->k; k++)
-    {
-      while (a->len[k] < n)
-        {
-          size_t m = AIR_CHUNK / 2;
-          if (a->lag[k])
-            { /* the emitter's delay: silence ahead of its first chip */
-              m = a->lag[k] < m ? a->lag[k] : m;
-              for (size_t i = 0; i < m; i++)
-                a->e10[i] = 0;
-              a->lag[k] -= m;
-            }
-          else
-            dp_wfm_synth_steps (a->syn[k], a->e10, m);
-          const size_t r    = dp_RateConverter_execute (a->rc[k], a->e10, m,
-                                                        a->e11, a->e11_cap);
-          const size_t room = a->cap - a->len[k];
-          if (room < 2 * r + 64)
-            return 0;
-          a->len[k] += dp_doppler_channel_execute (
-              a->ch[k], a->e11, r, a->buf[k] + a->len[k], room);
-        }
-      for (size_t i = 0; i < n; i++)
-        x[i] += a->amp[k] * a->buf[k][i];
-      a->len[k] -= n;
-      memmove (a->buf[k], a->buf[k] + n, a->len[k] * sizeof *a->buf[k]);
-    }
-  return 1;
+  return dp_air_next (&a->air, x, n);
 }
 
 static const air_row_t AIR_5MCPS_ROWS[] = {

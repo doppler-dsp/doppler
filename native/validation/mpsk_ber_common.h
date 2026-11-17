@@ -287,9 +287,13 @@ mpsk_ber_measure (const mpsk_ber_cfg_t *c, double esn0_db,
            inside the settled part of the record whatever the (still unknown)
            lag turns out to be, and scoring starts after it ends — the symbols
            that fixed the alignment are never also scored. */
-        mk.sym    = NULL;
-        mk.n      = DP_BER_SYNC_SYMS;
-        mk.t0     = settle + (size_t)DP_BER_LAG_SPAN;
+        mk.sym = NULL;
+        mk.n   = DP_BER_SYNC_SYMS;
+        mk.t0  = dp_ber_marker_place (truth, nsym, c->m,
+                                      settle + (size_t)DP_BER_LAG_SPAN, 0,
+                                      DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+        if (mk.t0 == SIZE_MAX)
+          mk.t0 = nsym; /* no resolvable stretch: refused as unaligned */
         mk.period = 0;
         mk.reps   = 0;
         sy = dp_ber_sync (out, n, truth, nsym, &mk, c->m, DP_BER_LAG_SPAN,

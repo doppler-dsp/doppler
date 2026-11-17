@@ -309,6 +309,102 @@ test_sync_resolves (void)
   }
 }
 
+/* A blind marker that lands in a run of identical symbols can fix no
+ * alignment at any Es/N0: the run correlates alike at every lag. The
+ * stimulus is the async DSSS receiver's at the 415.1-B-1 point: BPSK with
+ * a 275-symbol all-zero code-only window in each 1000-symbol frame, the
+ * frame start drawn. A caller that places its marker at "settle + span"
+ * sits inside that window for some draws -- a clean 10 dB burst read as
+ * unaligned, 281 of 960 in the run that found it. dp_ber_marker_place()
+ * moves it to the first stretch the detector can resolve, and leaves a
+ * resolvable position where it is. */
+static void
+test_marker_skips_a_degenerate_stretch (void)
+{
+  enum
+  {
+    NSYM  = 6000,
+    FRAME = 1000,
+    IDLE  = 275,
+    OFF   = 619 /* the frame start, drawn: the window opens at 381 */
+  };
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t     st     = 2026u;
+  const int    m      = 2;
+  const long   lag    = 37;
+  const double sigma  = sqrt (0.5 / pow (10.0, 10.0 / 10.0));
+  const size_t settle = 185; /* + the span puts the marker at 385 */
+
+  for (int i = 0; i < NSYM; i++)
+    {
+      size_t pos = ((size_t)i + OFF) % FRAME;
+      truth[i]   = pos < IDLE ? 0u : (uint8_t)(dp_xs64 (&st) & 1u);
+    }
+  build (rx, NSYM, truth, NSYM, m, lag, 0.4, sigma, &st);
+
+  /* Where the old rule put it: inside the window, refused. */
+  const size_t    t_old = settle + (size_t)DP_BER_LAG_SPAN;
+  dp_ber_marker_t mk    = { NULL, DP_BER_SYNC_SYMS, t_old, 0, 0 };
+  DP_CHECK ((t_old + OFF) % FRAME < IDLE);
+  dp_ber_sync_t sy = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m,
+                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
+  DP_CHECK (!sy.ok);
+
+  /* Placed: past the window, and the same detector resolves the lag. */
+  size_t t = dp_ber_marker_place (truth, NSYM, m, t_old, 0, DP_BER_LAG_SPAN,
+                                  DP_BER_SYNC_PFA, 1);
+  DP_CHECK (t != SIZE_MAX && t > t_old);
+  mk.t0 = t;
+  sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
+                       DP_BER_SYNC_PFA);
+  DP_CHECK (sy.ok);
+  DP_CHECK (sy.lag == lag);
+
+  /* Backward from the end, the same: the last frame's window is at
+     5381..5655, and a marker asked for at 5400 moves earlier. */
+  t = dp_ber_marker_place (truth, NSYM, m, 5400, 0, DP_BER_LAG_SPAN,
+                           DP_BER_SYNC_PFA, -1);
+  DP_CHECK (t != SIZE_MAX && t < 5400);
+  mk.t0 = t;
+  sy    = dp_ber_sync (rx, NSYM, truth, NSYM, &mk, m, DP_BER_LAG_SPAN,
+                       DP_BER_SYNC_PFA);
+  DP_CHECK (sy.ok && sy.lag == lag);
+
+  /* A resolvable position is left where it is, so no caller that never sat
+     in a degenerate stretch changes the symbols it measures. */
+  DP_CHECK ((2881u + OFF) % FRAME == 500u); /* data either side */
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, 2881, 0, DP_BER_LAG_SPAN,
+                                 DP_BER_SYNC_PFA, 1)
+            == 2881);
+
+  /* At the record's end there is no lag span of truth past the marker,
+     and the detector needs none: the last whole marker, on data, stays.
+     (A placement that wanted the span refused here, and a validator's
+     end-of-burst slip check read a clean burst as SLIPPED.) */
+  DP_CHECK (((size_t)NSYM - DP_BER_SYNC_SYMS + OFF) % FRAME == 363u);
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, NSYM - DP_BER_SYNC_SYMS, 0,
+                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1)
+            == (size_t)NSYM - DP_BER_SYNC_SYMS);
+
+  /* And the one-call path aligns the burst the old placement lost. */
+  {
+    dp_ber_t        acc;
+    dp_ber_report_t r;
+    dp_ber_init (&acc, m, DP_BER_TARGET_ERRORS);
+    r = dp_ber_measure (&acc, rx, NSYM, truth, NSYM, 10.0, settle, 1, NULL);
+    DP_CHECK (r.aligned);
+    DP_CHECK (r.lag == lag);
+    dp_ber_free (&acc);
+  }
+
+  /* A record that is all one run has nowhere to place one. */
+  memset (truth, 0, sizeof truth);
+  DP_CHECK (dp_ber_marker_place (truth, NSYM, m, t_old, 0, DP_BER_LAG_SPAN,
+                                 DP_BER_SYNC_PFA, 1)
+            == SIZE_MAX);
+}
+
 /* The false-alarm gate: a marker correlated against a stream that does NOT
  * contain it must be rejected. A `min over lag` search cannot fail this test
  * because it never asks the question -- it always returns its best lag. */
@@ -709,6 +805,7 @@ main (void)
   test_ci_coverage ();
   test_sync_resolves ();
   test_sync_rejects_garbage ();
+  test_marker_skips_a_degenerate_stretch ();
   test_score_counts_exactly ();
   test_settle ();
   test_sanity_gate ();

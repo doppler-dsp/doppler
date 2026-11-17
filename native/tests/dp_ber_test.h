@@ -96,7 +96,9 @@
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /** @brief Default operating point: the SER a characterisation anchors at.
  *
@@ -265,6 +267,92 @@ dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
                       ? "no marker detection: raise the marker length or Es/N0"
                       : "ambiguous peak: a runner-up lag is within 3 dB";
   return o;
+}
+
+/**
+ * @brief Where a marker borrowed from truth can fix an alignment at all.
+ *
+ * A blind marker (`sym = NULL`, `period = 0`) is a stretch of truth, and
+ * whether a stretch can fix an alignment is a property of the truth alone:
+ * a run of identical symbols (a code-only window, an idle pattern, a
+ * preamble of ones) correlates the same at every lag, so no Es/N0 makes
+ * its peak unique. dp_ber_sync() then refuses, correctly, and a caller that
+ * placed its marker at a fixed offset loses the burst for a reason that is
+ * about where it looked, not about the receiver.
+ *
+ * So this asks the detector itself. Starting at @p t, it replays truth
+ * noiselessly over the marker and the lag search either side, and runs
+ * dp_ber_align_detect() on that replay with the same marker length, span
+ * and Pfa; the first position where the clean replay aligns at lag 0 is
+ * returned. There is no second criterion to drift from the detector's:
+ * a stretch is resolvable exactly when the detector resolves it with no
+ * noise at all. Where @p t already is resolvable it is returned unchanged,
+ * so a caller that never sat on a degenerate stretch measures the same
+ * symbols as before.
+ *
+ * Steps are half a marker, toward @p dir, until the marker would leave
+ * the truth.
+ *
+ * @param truth     Transmitted symbol indices (0..m-1).
+ * @param n_truth   How many.
+ * @param m         Constellation order.
+ * @param t         The caller's preferred marker start.
+ * @param n_marker  Marker length; 0 selects DP_BER_SYNC_SYMS.
+ * @param lag_span  The lag search half-width the caller will sync with.
+ * @param pfa       The Pfa the caller will sync with.
+ * @param dir       +1 to look later in the record, -1 earlier.
+ * @return          The marker start to use, or SIZE_MAX when no stretch in
+ *                  that direction can fix an alignment.
+ */
+static inline size_t
+dp_ber_marker_place (const uint8_t *truth, size_t n_truth, int m, size_t t,
+                     size_t n_marker, long lag_span, double pfa, int dir)
+{
+  const size_t    n    = n_marker ? n_marker : DP_BER_SYNC_SYMS;
+  const size_t    span = (size_t)lag_span;
+  const size_t    step = n / 2 ? n / 2 : 1;
+  float _Complex *rep
+      = (float _Complex *)malloc ((n + 2 * span) * sizeof *rep);
+  size_t out = SIZE_MAX;
+  if (!rep)
+    return SIZE_MAX;
+  for (;;)
+    {
+      if (t + n > n_truth)
+        {
+          /* Past the end: only a step back can bring the marker inside. */
+          if (dir >= 0 || n > n_truth)
+            break;
+          t = n_truth - n;
+          continue;
+        }
+      /* The replay is the truth that exists around the marker, up to a
+         span either side: the detector needs no more than the record
+         holds, and neither does this. */
+      const size_t a = t > span ? t - span : 0;
+      const size_t b = t + n + span < n_truth ? t + n + span : n_truth;
+      const size_t w = b - a;
+      for (size_t i = 0; i < w; i++)
+        rep[i] = cexpf (
+            I * (float)(2.0 * M_PI * truth[a + i] / m + mpsk_phi0 (m)));
+      ber_align_t al = dp_ber_align_detect (rep, w, truth + a, w, m, t - a, n,
+                                            0, (int)lag_span, pfa);
+      if (al.ok && al.lag == 0)
+        {
+          out = t;
+          break;
+        }
+      if (dir < 0)
+        {
+          if (t < step)
+            break;
+          t -= step;
+        }
+      else
+        t += step;
+    }
+  free (rep);
+  return out;
 }
 
 /* --- 3. The settled window ----------------------------------------------- */
@@ -720,7 +808,9 @@ dp_ber_print (const char *label, const dp_ber_report_t *r)
  * @param esn0_db  Matched-filter Es/N0 the stimulus was built at.
  * @param settle   Window start from dp_ber_settle().
  * @param settled  dp_ber_settle()'s `ok`: did every indicator reach lock?
- * @param mk       Marker, or NULL to align on a prefix of the settled window.
+ * @param mk       Marker, or NULL to align on truth from a lag span past
+ *                 @p settle, at the first stretch that can fix an alignment
+ *                 (dp_ber_marker_place()).
  * @return         The per-burst report (also folded into @p b).
  */
 static inline dp_ber_report_t
@@ -737,9 +827,18 @@ dp_ber_measure (dp_ber_t *b, const float _Complex *rx, size_t n_rx,
       /* Align on truth symbols placed a full lag-span past the settling
          point, so the marker is guaranteed to sit inside the settled part of
          the record whatever the (still unknown) lag turns out to be. */
-      local.sym    = NULL;
-      local.n      = DP_BER_SYNC_SYMS;
-      local.t0     = settle + (size_t)DP_BER_LAG_SPAN;
+      local.sym = NULL;
+      local.n   = DP_BER_SYNC_SYMS;
+      /* ... and moved on past any stretch of truth no alignment can be
+         fixed on (dp_ber_marker_place()). None at all is spelled as a t0
+         past the end of the truth, which the detector refuses, so the
+         burst reports unaligned rather than borrowing a SIZE_MAX that
+         wraps the detector's bounds check. */
+      local.t0 = dp_ber_marker_place (truth, n_truth, b->m,
+                                      settle + (size_t)DP_BER_LAG_SPAN, 0,
+                                      DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+      if (local.t0 == SIZE_MAX)
+        local.t0 = n_truth;
       local.period = 0;
       local.reps   = 0;
       mk           = &local;

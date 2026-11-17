@@ -953,9 +953,13 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
           }
         else
           {
-            mk.sym    = NULL;
-            mk.n      = DP_BER_SYNC_SYMS;
-            mk.t0     = settle + (size_t)DP_BER_LAG_SPAN;
+            mk.sym = NULL;
+            mk.n   = DP_BER_SYNC_SYMS;
+            mk.t0  = dp_ber_marker_place (truth, nsym, pt->m,
+                                          settle + (size_t)DP_BER_LAG_SPAN, 0,
+                                          DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+            if (mk.t0 == SIZE_MAX)
+              mk.t0 = nsym; /* none: past the end, refused below */
             mk.period = 0;
             mk.reps   = 0;
           }

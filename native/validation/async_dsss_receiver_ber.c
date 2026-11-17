@@ -145,14 +145,19 @@ typedef struct
   unsigned long scored;    /* and the symbols scored                    */
 } burst_t;
 
-/* The detected alignment over a marker of `truth` at `t0`. */
+/* The detected alignment over a marker of `truth` at `t0`, or at the first
+   stretch from there toward `dir` that can fix one at all
+   (dp_ber_marker_place(): a marker inside the code-only window's run of
+   zeros correlates alike at every lag). */
 static dp_ber_sync_t
 align_at (const float complex *rx, size_t n, const uint8_t *truth,
-          size_t n_truth, size_t t0, dp_ber_marker_t *mk)
+          size_t n_truth, size_t t0, int dir, dp_ber_marker_t *mk)
 {
+  size_t at  = dp_ber_marker_place (truth, n_truth, 2, t0, DP_BER_SYNC_SYMS,
+                                    DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, dir);
   mk->sym    = NULL;
   mk->n      = DP_BER_SYNC_SYMS;
-  mk->t0     = t0;
+  mk->t0     = at == SIZE_MAX ? n_truth : at;
   mk->period = 0;
   mk->reps   = 0;
   return dp_ber_sync (rx, n, truth, n_truth, mk, 2, DP_BER_LAG_SPAN,
@@ -251,11 +256,11 @@ run_burst (const uint8_t *code, double esn0_db, uint32_t seed, dp_ber_t *acc,
       if (ok && out->settle + 2 * guard + 500 < n)
         {
           dp_ber_sync_t sy = align_at (syms, n, truth, n_truth,
-                                       out->settle + DP_BER_LAG_SPAN, &mk);
+                                       out->settle + DP_BER_LAG_SPAN, 1, &mk);
           if (sy.ok)
             {
               dp_ber_sync_t end
-                  = align_at (syms, n, truth, n_truth, n - guard, &mk_end);
+                  = align_at (syms, n, truth, n_truth, n - guard, -1, &mk_end);
               out->settled = 1;
               out->lag     = sy.lag;
               out->slipped = !end.ok || end.lag != sy.lag
@@ -484,15 +489,15 @@ spec_draw (const uint8_t *code, double fc, double esn0, int window,
           continue;
         }
       dp_ber_sync_t sy = align_at (syms[i], ns[i], truth, n_truth,
-                                   settle + DP_BER_LAG_SPAN, &mk);
+                                   settle + DP_BER_LAG_SPAN, 1, &mk);
       if (!sy.ok)
         {
           out->unaligned++;
           continue;
         }
-      dp_ber_sync_t end
-          = align_at (syms[i], ns[i], truth, n_truth, ns[i] - guard, &mk_end);
-      const int slip
+      dp_ber_sync_t end = align_at (syms[i], ns[i], truth, n_truth,
+                                    ns[i] - guard, -1, &mk_end);
+      const int     slip
           = !end.ok || end.lag != sy.lag || cos (end.phase - sy.phase) < 0.0;
       out->slipped += (size_t)slip;
       out->scored++;

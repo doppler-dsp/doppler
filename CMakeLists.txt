@@ -1456,6 +1456,19 @@ target_include_directories(test_dp_hash64
 target_compile_options(test_dp_hash64 PRIVATE -O2)
 add_test(NAME test_dp_hash64 COMMAND test_dp_hash64)
 
+# native/inc/doppler/dp_crc.h is the one parametric CRC (width, polynomial,
+# init, reflection, final XOR) that dp_crc16.h, the FCS and the SIG-field
+# check are rows of. Header-only and owned by no object, so it is registered
+# here and links nothing. The test pins the catalogue's check values, zlib's
+# and binascii's CRCs, the properties a CRC must have, and that the
+# CRC-16-CCITT the burst frame carries did not move.
+add_executable(test_dp_crc native/tests/test_dp_crc.c)
+target_include_directories(test_dp_crc
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_crc PRIVATE -O2)
+add_test(NAME test_dp_crc COMMAND test_dp_crc)
+
 # native/inc/doppler/wfm/wfm_time.h is the BLUE timecode <-> UNIX epoch conversion,
 # shared by wfm_reader and wfm_writer (separate components, so header-only)
 # and belonging to no object. Its test is mostly about the judgement around

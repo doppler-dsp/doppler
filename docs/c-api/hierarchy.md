@@ -60,6 +60,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) _Correlator state, every flavor._ 
 * **struct** [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _like the borrowed code._
 * **struct** [**dp\_costas\_state\_t**](structdp__costas__state__t.md) _Costas loop state._ 
+* **struct** [**dp\_crc\_t**](structdp__crc__t.md) _A CRC model: width, polynomial, initial register, output reflection and output XOR._ 
 * **struct** [**dp\_delay\_state\_t**](structdp__delay__state__t.md) _Delay state._ 
 * **struct** [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) _Despreader state._ 
 * **struct** [**dp\_dll\_state\_t**](structdp__dll__state__t.md) _DLL state._ 

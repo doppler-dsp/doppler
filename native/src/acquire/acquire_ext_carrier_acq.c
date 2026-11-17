@@ -16,6 +16,7 @@
 typedef struct
 {
   PyObject_HEAD dp_carrier_acq_state_t *handle;
+  PyObject *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
 } CarrierAcquisitionObject;
 
 static void
@@ -23,6 +24,7 @@ CarrierAcquisitionObj_dealloc (CarrierAcquisitionObject *self)
 {
   if (self->handle)
     dp_carrier_acq_destroy (self->handle);
+  Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -207,6 +209,79 @@ CarrierAcquisitionObj_reset (CarrierAcquisitionObject *self,
       return NULL;
     }
   dp_carrier_acq_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+CarrierAcquisitionObj_set_telemetry (CarrierAcquisitionObject *self,
+                                     PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_carrier_acq_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  /* retain: the kernel keeps `tlm`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (tlm_obj != Py_None)
+    Py_INCREF (tlm_obj);
+  Py_XSETREF (self->_jm_retain_set_telemetry_tlm,
+              tlm_obj != Py_None ? tlm_obj : NULL);
   Py_RETURN_NONE;
 }
 
@@ -452,6 +527,75 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
     ">>> ca.reset()                    # discard the running PSD average\n"
     ">>> ca.n_blocks\n"
     "0\n" },
+  { "set_telemetry", (PyCFunction)(void *)CarrierAcquisitionObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> None\n"
+    "\n"
+    "Attach (or detach) a telemetry context and register the estimator's\n"
+    "probes on it.\n"
+    "\n"
+    "Five probes, emitted once per TESTED block -- every block in sequential\n"
+    "mode, once at dwell_target otherwise -- and thinned by decim:\n"
+    "\n"
+    "- \"<prefix>.stat\": the test statistic the decision compares, the\n"
+    "  correlator's peak over its noise estimate (dimensionless);\n"
+    "- \"<prefix>.thr\": the threshold it was compared against at this block\n"
+    "  count (the ratio a detection must exceed; it falls as blocks accrue);\n"
+    "- \"<prefix>.hz\": the frequency of the correlation peak, Hz, refined "
+    "to\n"
+    "  a sub-bin as the decision's residual_hz is -- so on the block that\n"
+    "  decides, it IS residual_hz;\n"
+    "- \"<prefix>.n\": blocks folded so far (n_blocks);\n"
+    "- \"<prefix>.ready\": the decision, 0 or 1.\n"
+    "\n"
+    "A dwell that reaches its give-up cap without deciding shows as a last\n"
+    "record with \".ready\" 0 at \".n\" equal to the cap. Setup path, never "
+    "hot;\n"
+    "the context is borrowed and must outlive the attachment (SPSC rules in\n"
+    "dp_tlm/dp_tlm_core.h). Passing NULL detaches.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : object | None\n"
+    "    Telemetry context to attach, or NULL to detach.\n"
+    "prefix : str\n"
+    "    Probe-name prefix; NULL means \"ca\".\n"
+    "decim : int\n"
+    "    Emit every decim-th tested block; >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_telemetry failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.acquire import CarrierAcquisition\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> ca = CarrierAcquisition(\n"
+    "...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,\n"
+    "...     psd_template=np.array([], dtype=np.float32))\n"
+    ">>> ca.set_telemetry(tlm, \"ca\")\n"
+    ">>> sorted(tlm.probe_names)\n"
+    "['ca.hz', 'ca.n', 'ca.ready', 'ca.stat', 'ca.thr']\n"
+    ">>> rng = np.random.default_rng(12345)\n"
+    ">>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)\n"
+    ">>> data = np.repeat(bits, 8)\n"
+    ">>> t = np.arange(len(data))\n"
+    ">>> ca.steps((data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(\n"
+    "...     np.complex64))\n"
+    ">>> recs = tlm.read()        # five records per tested block\n"
+    ">>> len(recs) % 5\n"
+    "0\n"
+    ">>> name = {i: n for n, i in tlm.probe_names.items()}\n"
+    ">>> last = {name[int(r[\"probe\"])]: float(r[\"value\"]) for r in "
+    "recs[-5:]}\n"
+    ">>> last[\"ca.ready\"], round(last[\"ca.hz\"]), last[\"ca.stat\"] > "
+    "last[\"ca.thr\"]\n"
+    "(1.0, 123, True)\n" },
   { "state_bytes", (PyCFunction)CarrierAcquisitionObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"

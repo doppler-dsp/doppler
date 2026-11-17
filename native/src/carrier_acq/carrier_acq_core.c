@@ -334,8 +334,8 @@ dp_carrier_acq_reset (dp_carrier_acq_state_t *state)
 /* Sub-bin refine the peak at `lag` directly off the detector's own
  * det_out (the correlation map from the dump that just fired -- no
  * second correlation pass needed) and mark ready. */
-static void
-carrier_acq_finish (dp_carrier_acq_state_t *s, size_t lag)
+static double
+carrier_acq_lag_hz (const dp_carrier_acq_state_t *s, size_t lag)
 {
   size_t nfft    = s->nfft;
   float  y1      = crealf (s->det->det_out[(lag + nfft - 1) % nfft]);
@@ -345,7 +345,13 @@ carrier_acq_finish (dp_carrier_acq_state_t *s, size_t lag)
   double bin_pos = (double)lag + frac;
   if (bin_pos > (double)nfft / 2.0)
     bin_pos -= (double)nfft;
-  s->residual_hz = bin_pos * s->sample_rate_hz / (double)nfft;
+  return bin_pos * s->sample_rate_hz / (double)nfft;
+}
+
+static void
+carrier_acq_finish (dp_carrier_acq_state_t *s, size_t lag)
+{
+  s->residual_hz = carrier_acq_lag_hz (s, lag);
   s->ready       = true;
 }
 
@@ -441,6 +447,47 @@ carrier_acq_process_block (dp_carrier_acq_state_t *s,
   size_t n_res = dp_correlator_push (s->det, s->power_buf, s->nfft, result, 1);
   if (n_res > 0)
     carrier_acq_finish (s, result[0].col);
+  /* The detector's own statistic and peak from the dump just made (its
+     state is public; the statistic is not recomputed here). */
+  if (s->tlm.ctx)
+    {
+      dp_tlm_emit (s->tlm.ctx, s->tlm.id_stat, s->det->test_stat);
+      dp_tlm_emit (s->tlm.ctx, s->tlm.id_thr, eta_nc);
+      dp_tlm_emit (s->tlm.ctx, s->tlm.id_hz,
+                   carrier_acq_lag_hz (s, (size_t)s->det->peak_col));
+      dp_tlm_emit (s->tlm.ctx, s->tlm.id_n, (double)s->n_blocks);
+      dp_tlm_emit (s->tlm.ctx, s->tlm.id_ready, (double)s->ready);
+    }
+}
+
+int
+dp_carrier_acq_set_telemetry (dp_carrier_acq_state_t *state, dp_tlm_t *tlm,
+                              const char *prefix, uint32_t decim)
+{
+  if (!tlm) /* detach: the probe site reverts to one branch */
+    {
+      state->tlm.ctx = NULL;
+      return DP_OK;
+    }
+  if (decim == 0)
+    return DP_ERR_INVALID;
+  const char              *p      = prefix ? prefix : "ca";
+  static const char *const sfx[5] = { "stat", "thr", "hz", "n", "ready" };
+  char                     name[5][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 5; i++) /* every name before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID;
+  int id[5];
+  for (size_t i = 0; i < 5; i++)
+    if ((id[i] = dp_tlm_probe (tlm, name[i], decim)) < 0)
+      return DP_ERR_INVALID; /* table full: attach fails whole */
+  state->tlm.id_stat  = id[0];
+  state->tlm.id_thr   = id[1];
+  state->tlm.id_hz    = id[2];
+  state->tlm.id_n     = id[3];
+  state->tlm.id_ready = id[4];
+  state->tlm.ctx      = tlm; /* last: the emit site gates on ctx */
+  return DP_OK;
 }
 
 void

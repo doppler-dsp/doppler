@@ -40,6 +40,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  bool | [**align\_pending**](#variable-align_pending)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
+|  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca\_sq**](#variable-ca_sq)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
 |  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
@@ -62,6 +63,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**excl**](#variable-excl)  <br> |
 |  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
+|  int | [**ho\_src**](#variable-ho_src)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
@@ -128,8 +130,12 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
+|  int32\_t | [**tlm\_cn0**](#variable-tlm_cn0)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
 |  int32\_t | [**tlm\_handover**](#variable-tlm_handover)  <br> |
+|  int32\_t | [**tlm\_ho\_src**](#variable-tlm_ho_src)  <br> |
+|  int32\_t | [**tlm\_phase\_car**](#variable-tlm_phase_car)  <br> |
+|  int32\_t | [**tlm\_phase\_code**](#variable-tlm_phase_code)  <br> |
 |  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
 |  int32\_t | [**tlm\_refused**](#variable-tlm_refused)  <br> |
 |  int32\_t | [**tlm\_state**](#variable-tlm_state)  <br> |
@@ -257,7 +263,25 @@ dp_carrier_acq_state_t* dp_async_dsss_receiver_state_t::ca;
 
 
 
-Owned CarrierAcquisition refining the Doppler. 
+Owned CarrierAcquisition refining the Doppler from the despread stream (the data template). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ca\_sq 
+
+```C++
+dp_carrier_acq_state_t* dp_async_dsss_receiver_state_t::ca_sq;
+```
+
+
+
+Owned CarrierAcquisition on the SQUARED despread stream (a tone at twice the residual, data or none; a tone's template, the derived threshold). 
  
 
 
@@ -647,6 +671,24 @@ int dp_async_dsss_receiver_state_t::had_lock;
 
 
 Running: both lock flags have been up since the hand-over. After that both down holds both loops (dp\_dll\_set\_coast, the carrier's own hold) so a departed emitter's receiver cannot free-run onto a neighbour's code (#1271). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ho\_src 
+
+```C++
+int dp_async_dsss_receiver_state_t::ho_src;
+```
+
+
+
+ASYNC\_DSSS\_RX\_HO\_\*: which estimate the live chain was built from, NONE again at every seed. In the blob, so a resumed receiver reports the hand-over it made. 
  
 
 
@@ -1829,6 +1871,24 @@ NULL = detached.
 
 
 
+### variable tlm\_cn0 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_cn0;
+```
+
+
+
+"&lt;prefix&gt;.cn0" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_decim 
 
 ```C++
@@ -1856,6 +1916,59 @@ int32_t dp_async_dsss_receiver_state_t::tlm_handover;
 
 
 "&lt;prefix&gt;.handover\_hz" id, -1 detached. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_ho\_src 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_ho_src;
+```
+
+
+
+"&lt;prefix&gt;.ho\_src" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_phase\_car 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_phase_car;
+```
+
+
+
+"&lt;prefix&gt;.phase.car" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_phase\_code 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_phase_code;
+```
+
+
+
+"&lt;prefix&gt;.phase.code" id, -1 detached. 
 
 
         

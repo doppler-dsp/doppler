@@ -34,6 +34,7 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) <br>_A lock detector's RULE: its levels and verify counts, without its running count or decision._  |
 | struct | [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) <br>_Lock-detector state (embeddable by value; pointer-free POD)._  |
 
 
@@ -67,6 +68,7 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 |  void | [**dp\_lockdet\_get\_state**](#function-dp_lockdet_get_state) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, void \* blob) <br>_Serialize the detector state into_ `blob` _._ |
 |  void | [**dp\_lockdet\_init**](#function-dp_lockdet_init) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Initialise a lock detector in place (no allocation)._  |
 |  void | [**dp\_lockdet\_reset**](#function-dp_lockdet_reset) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Drop the lock and clear the verify counter; keep the config. Returns the detector to the unlocked state with an empty verify run, as if freshly constructed with the same thresholds. Call it at a segment boundary so a decision made on one capture does not leak into an unrelated next one._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_lockdet\_rule**](#function-dp_lockdet_rule) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* s) <br>_The rule a lock detector decides by, read from its state._  |
 |  int | [**dp\_lockdet\_set\_state**](#function-dp_lockdet_set_state) ([**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state, const void \* blob) <br>_Restore a state written by_ [_**dp\_lockdet\_get\_state()**_](lockdet__core_8h.md#function-dp_lockdet_get_state) _._ |
 |  size\_t | [**dp\_lockdet\_state\_bytes**](#function-dp_lockdet_state_bytes) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**dp\_lockdet\_state\_ok**](#function-dp_lockdet_state_ok) (const [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) \* s) <br>_A lock-detector state a blob may carry: a decision that is 0 or 1._  |
@@ -363,6 +365,50 @@ void dp_lockdet_reset (
 False
 ```
  
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_lockdet\_rule 
+
+_The rule a lock detector decides by, read from its state._ 
+```C++
+JM_FORCEINLINE  dp_lockdet_rule_t dp_lockdet_rule (
+    const dp_lockdet_state_t * s
+) 
+```
+
+
+
+The one reader every embedding object's `get_*lock_rule()` returns through, so the four fields are copied in one place.
+
+
+
+
+**Parameters:**
+
+
+* `s` Must be non-NULL. 
+
+
+
+**Returns:**
+
+Its thresholds and verify counts. 
+```C++
+dp_lockdet_state_t d;
+dp_lockdet_init (&d, 0.85, 0.78, 8, 32);
+dp_lockdet_rule_t r = dp_lockdet_rule (&d);
+// r.up_thresh 0.85, r.down_thresh 0.78, r.n_up 8, r.n_down 32
+```
+ 
+
 
 
 

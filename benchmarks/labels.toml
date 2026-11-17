@@ -1355,3 +1355,76 @@ unit = "call"
 definition = "Constructing one HalfbandDecimatorR2C from a one-tap float32 filter: the cost of building the object, paid once per object."
 domain = "call"
 count = 1
+
+# Square QAM beside the M-PSK maps (PR qam). One unit is one symbol; the
+# page reads it in symbols per second.
+
+["c:mpsk::qam_map[m=4]"]
+name = "QAM map, 4 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (2 bits each, 16-bit) to 4-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=4]"]
+name = "QAM hard demap, 4 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 4-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=16]"]
+name = "QAM map, 16 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (4 bits each, 16-bit) to 16-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=16]"]
+name = "QAM hard demap, 16 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 16-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=64]"]
+name = "QAM map, 64 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (6 bits each, 16-bit) to 64-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=64]"]
+name = "QAM hard demap, 64 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 64-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=256]"]
+name = "QAM map, 256 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (8 bits each, 16-bit) to 256-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=256]"]
+name = "QAM hard demap, 256 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 256-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=1024]"]
+name = "QAM map, 1024 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (10 bits each, 16-bit) to 1024-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=1024]"]
+name = "QAM hard demap, 1024 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 1024-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1

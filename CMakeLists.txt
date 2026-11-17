@@ -1201,17 +1201,12 @@ target_include_directories(test_dp_mf
 target_compile_options(test_dp_mf PRIVATE -O2)
 add_test(NAME test_dp_mf COMMAND test_dp_mf)
 
-# native/tests/dp_dsss_test.h carries a KNOWN DEFECT in its own docstring
-# (doppler#689): the noise is scaled for the wrong complex-Gaussian
-# convention, so every capture is 3.01 dB quieter than it claims. It is
-# deliberately unfixed -- correcting it makes an async BER sweep go
-# non-monotonic, which is a receiver investigation rather than a constant --
-# and until now it was held in place by prose alone. The self-test makes it a
-# CHARACTERIZATION: the 3.01 dB is measured and asserted, so the magnitude is
-# a fact, the level cannot drift further unnoticed, and a one-character "fix"
-# turns the test red ON PURPOSE rather than quietly re-tuning two BER sweeps.
+# native/tests/dp_dsss_test.h's captures take their noise from the shipped
+# awgn (doppler#689: a hand sigma/sqrt(2) on dp_cgauss had every capture
+# 3.01 dB quieter than its label). The self-test asserts the label's power,
+# so a per-rail reading turns it red.
 add_executable(test_dp_dsss native/tests/test_dp_dsss.c)
-target_link_libraries(test_dp_dsss PRIVATE ${DP_MATH_LIBRARY})
+target_link_libraries(test_dp_dsss PRIVATE awgn_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_dsss
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)

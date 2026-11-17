@@ -39,6 +39,21 @@ signal records `stim.on` beside the object's probes (the lock validator's
 lifecycle stories do), and the plot shows the cuts from that record, not
 from a schedule restated here. It needs `--time`: the shading is placed by
 each record's sample stamp, which only the time axis shares across probes.
+
+`--line PROBE=VALUE[:LABEL]` draws a horizontal reference at VALUE on
+PROBE's panel: a lock rule's two levels, a detector's fold, a design
+baseline. The value is the caller's, read from where it is recorded (a
+rules file beside the capture, a design equation); the plotter draws it
+and derives nothing. Repeat it for several lines.
+`--xlim T0,T1` zooms the shared axis to [T0, T1].
+
+`--names PROBE=V:NAME,...` labels a coded probe's panel with the names of
+its values (a lifecycle state, a hand-over source) and draws it as the
+steps it is, held from each record to the next. The names are the
+caller's, read from the object's own header. `--mark PROBE` draws a
+vertical line across every panel at each record where PROBE changes
+value, so a symptom on any panel can be placed against, say, the state it
+happened in. Both need nothing but the probe's own records.
 """
 
 from __future__ import annotations
@@ -88,6 +103,16 @@ def _is_symbol(name):
     return name.endswith((".i", ".q"))
 
 
+def _changes(xs, values):
+    """The x of each record whose value differs from the one before.
+
+    >>> _changes([0.0, 1.0, 2.0, 3.0], [0, 0, 2, 2])
+    [2.0]
+    """
+    xs, values = list(xs), list(values)
+    return [xs[k] for k in range(1, len(xs)) if values[k] != values[k - 1]]
+
+
 def _off_spans(xs, values, end):
     """The spans `[x0, x1)` over which a step-held probe reads 0.
 
@@ -134,6 +159,28 @@ def main(argv=None):
         help="grey every panel wherever PROBE reads 0 (e.g. stim.on, the "
         "stimulus a harness records); needs --time",
     )
+    ap.add_argument(
+        "--line",
+        action="append",
+        default=[],
+        metavar="PROBE=VALUE[:LABEL]",
+        help="a horizontal reference on PROBE's panel (repeatable)",
+    )
+    ap.add_argument(
+        "--xlim", metavar="T0,T1", help="the shared x range to show"
+    )
+    ap.add_argument(
+        "--names",
+        action="append",
+        default=[],
+        metavar="PROBE=V:NAME,...",
+        help="name a coded probe's values on its axis (repeatable)",
+    )
+    ap.add_argument(
+        "--mark",
+        metavar="PROBE",
+        help="a vertical line across every panel where PROBE changes",
+    )
     args = ap.parse_args(argv)
     if args.shade and not args.time:
         raise SystemExit(
@@ -166,6 +213,30 @@ def main(argv=None):
         return 0
 
     names = _match(series, args.probes)
+    lines = {}
+    for spec in args.line:
+        probe, _, rest = spec.partition("=")
+        value, _, label = rest.partition(":")
+        for hit in _match(names, [probe]):
+            lines.setdefault(hit, []).append((float(value), label))
+    named = {}
+    for spec in args.names:
+        probe, _, rest = spec.partition("=")
+        ticks = {}
+        for item in rest.split(","):
+            v, _, label = item.partition(":")
+            ticks[float(v)] = label
+        for hit in _match(names, [probe]):
+            named[hit] = ticks
+    marks = []
+    if args.mark:
+        hits = _match(series, [args.mark])
+        if len(hits) != 1:
+            raise SystemExit(
+                f"--mark names one probe; {args.mark!r} matches "
+                + ", ".join(sorted(hits))
+            )
+        marks = _changes(xs[hits[0]], series[hits[0]])
     spans = []
     if args.shade:
         hits = _match(series, [args.shade])
@@ -202,12 +273,35 @@ def main(argv=None):
         # continuous quantity sampled per symbol, so it stays a line.
         for x0, x1 in spans:
             ax.axvspan(x0, x1, color="0.85", lw=0, zorder=0)
+        for x in marks:
+            ax.axvline(x, color="C1", lw=0.7, ls=":", zorder=1)
         if _is_symbol(name):
             ax.plot(xs[name], series[name], ".", ms=1.5)
+        elif name in named:
+            ax.plot(xs[name], series[name], lw=0.9, drawstyle="steps-post")
+            ax.set_yticks(list(named[name]))
+            ax.set_yticklabels(list(named[name].values()), fontsize=7)
         else:
             ax.plot(xs[name], series[name], lw=0.9)
+        for value, label in lines.get(name, ()):
+            ax.axhline(value, color="C3", lw=0.8, ls="--", zorder=1)
+            if label:
+                ax.annotate(
+                    label,
+                    (1.0, value),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(-2, 1),
+                    textcoords="offset points",
+                    ha="right",
+                    va="bottom",
+                    fontsize=6,
+                    color="C3",
+                )
         ax.set_ylabel(name.split(".", 1)[-1], fontsize=8)
         ax.grid(alpha=0.3)
+    if args.xlim:
+        t0, t1 = (float(v) for v in args.xlim.split(","))
+        axes[-1, 0].set_xlim(t0, t1)
     axes[-1, 0].set_xlabel(
         "time (s)" if args.time else "record index (per probe)"
     )

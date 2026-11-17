@@ -151,6 +151,7 @@
 #include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 #include "doppler/timing/timing_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "dp_air_test.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_stats_test.h"
@@ -1002,33 +1003,35 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
           int to_handover, double *bound_hz, ramp_t *r)
 {
   const double fc = 2.8e9, chip = fc * 31.0 / 21216.0, sym = 3000.0;
-  const double cn0 = 4.0 + 10.0 * log10 (sym), fs2 = 2.0 * chip;
+  const double cn0                   = 4.0 + 10.0 * log10 (sym);
   const double rate                  = 400.0;
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, SF, chip, sym, RAMP_FS, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
       14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, refine,
       0);
-  dp_wfm_synth_state_t *syn
-      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             100u + seed, 2, 15, 0, 0, 0.0);
-  dp_RateConverter_state_t   *rc = dp_RateConverter_create (RAMP_FS / fs2, 0);
-  dp_doppler_channel_state_t *ch = dp_doppler_channel_create (
-      RAMP_FS, fc, f0 / fc * 1e6, rate / fc * 1e6);
-  dp_awgn_state_t *nz = dp_awgn_create (
-      7919u + seed,
-      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (RAMP_FS)), 1.0f));
-  float _Complex *r2  = malloc (RAMP_CHUNK * sizeof *r2);
-  float _Complex *r11 = malloc (2 * RAMP_CHUNK * sizeof *r11);
-  float _Complex *x   = malloc (4 * RAMP_CHUNK * sizeof *x);
-  float _Complex *ns  = malloc (4 * RAMP_CHUNK * sizeof *ns);
-  float _Complex *out = malloc (4 * RAMP_CHUNK * sizeof *out);
-  DP_REQUIRE (rx && syn && rc && ch && nz && r2 && r11 && x && ns && out);
+  /* The emitter on the air (native/tests/dp_air_test.h): the shipped synth
+     with its window, the front end's converter, a Doppler channel on the
+     ramp, the shipped noise; the truth is the channel's own offset. */
+  dp_air_emitter_t e = { 0 };
+  e.code             = code;
+  e.code_len         = SF;
+  e.chip_rate        = chip;
+  e.sym_rate         = sym;
+  e.carrier_hz       = fc;
+  e.f0_hz            = f0;
+  e.rate_hz_s        = rate;
+  e.cn0_dbhz         = cn0;
+  e.code_only_sym    = 275;
+  e.frame_sym        = 1000;
+  e.seed             = 100u + seed;
+  dp_air_t        air;
+  float _Complex *x   = malloc (RAMP_CHUNK * sizeof *x);
+  float _Complex *out = malloc (RAMP_CHUNK * sizeof *out);
+  DP_REQUIRE (
+      rx && x && out
+      && dp_air_init (&air, &e, 1, RAMP_FS, cn0, 7919u + seed, RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
   DP_REQUIRE (D == 140);
-  DP_REQUIRE (dp_wfm_synth_set_dsss_cont (syn, code, SF, chip / sym,
-                                          WFM_DSSS_DATA_PRBS, NULL, 0)
-                  == 0
-              && dp_wfm_synth_set_dsss_window (syn, 275, 1000) == 0);
   /* The header's bound for refine false: half a row, and the half-dwell
      age at the rate bound. */
   *bound_hz         = 0.5 * rx->acq->search->doppler_res_hz
@@ -1039,23 +1042,14 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   while (fed < (size_t)(RAMP_S * RAMP_FS)
          && !(to_handover && !isnan (r->ho_err_hz)))
     {
-      dp_wfm_synth_steps (syn, r2, RAMP_CHUNK);
-      const size_t m
-          = dp_RateConverter_execute (rc, r2, RAMP_CHUNK, r11, 2 * RAMP_CHUNK);
-      const size_t k
-          = dp_doppler_channel_execute (ch, r11, m, x, 4 * RAMP_CHUNK);
-      (void)dp_awgn_generate (nz, k, ns, k);
-      for (size_t i = 0; i < k; i++)
-        x[i] += ns[i];
-      (void)dp_async_dsss_receiver_steps (rx, x, k, out, 4 * RAMP_CHUNK);
-      fed += k;
+      DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
+      (void)dp_async_dsss_receiver_steps (rx, x, RAMP_CHUNK, out, RAMP_CHUNK);
+      fed += RAMP_CHUNK;
       if (isnan (r->ho_err_hz) && rx->state == ASYNC_DSSS_RX_TRACKING)
-        {
-          const double at
-              = (double)(rx->samples_in - rx->state_samples) / RAMP_FS;
-          r->ho_err_hz
-              = dp_async_dsss_receiver_get_doppler_hz (rx) - (f0 + rate * at);
-        }
+        r->ho_err_hz
+            = dp_async_dsss_receiver_get_doppler_hz (rx)
+              - dp_air_truth (&air, 0, rx->samples_in - rx->state_samples)
+                    .car_hz;
       if (!early_done && fed >= (size_t)(RAMP_S_EARLY * RAMP_FS))
         {
           early_done    = 1;
@@ -1069,17 +1063,11 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   r->lock_end = dp_async_dsss_receiver_get_tracking (rx) && r->code_end
                 && dp_async_dsss_receiver_get_locked (rx);
   r->on_end   = st.state == ASYNC_DSSS_RX_TRACKING
-                && fabs (st.doppler_hz - (f0 + rate * (double)fed / RAMP_FS))
+                && fabs (st.doppler_hz - dp_air_truth (&air, 0, fed).car_hz)
                        < RAMP_ON_HZ;
-  free (r2);
-  free (r11);
   free (x);
-  free (ns);
   free (out);
-  dp_awgn_destroy (nz);
-  dp_doppler_channel_destroy (ch);
-  dp_RateConverter_destroy (rc);
-  dp_wfm_synth_destroy (syn);
+  dp_air_free (&air);
   dp_async_dsss_receiver_destroy (rx);
   return 0;
 }

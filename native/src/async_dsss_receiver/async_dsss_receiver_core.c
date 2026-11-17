@@ -426,7 +426,9 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       sym_locked[DP_TLM_NAME_MAX], st[DP_TLM_NAME_MAX],
       handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX],
       ref[DP_TLM_NAME_MAX], ref_sq[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX],
-      ph_code[DP_TLM_NAME_MAX], cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX];
+      ph_code[DP_TLM_NAME_MAX], cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX],
+      had_lock[DP_TLM_NAME_MAX], coast[DP_TLM_NAME_MAX], hold[DP_TLM_NAME_MAX],
+      release[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
@@ -442,7 +444,11 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (ph_car, p, "phase.car") != DP_OK
       || dp_tlm_name_join (ph_code, p, "phase.code") != DP_OK
       || dp_tlm_name_join (cn0, p, "cn0") != DP_OK
-      || dp_tlm_name_join (ho_src, p, "ho_src") != DP_OK)
+      || dp_tlm_name_join (ho_src, p, "ho_src") != DP_OK
+      || dp_tlm_name_join (had_lock, p, "had_lock") != DP_OK
+      || dp_tlm_name_join (coast, p, "coast") != DP_OK
+      || dp_tlm_name_join (hold, p, "hold") != DP_OK
+      || dp_tlm_name_join (release, p, "release") != DP_OK)
     return DP_ERR_INVALID;
   /* The searcher first: it is the one child whose attach allocates (a
      scratch context of its own, checked before it registers anything), so
@@ -499,6 +505,19 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
           || s->tlm_phase_code < 0)
         r = DP_ERR_INVALID;
     }
+  /* The loop control the two flags drive: had_lock, the coast and the
+     hold point's re-mark, once a code period where it is decided; and the
+     release clock against its confirm interval, once a call. */
+  if (r == DP_OK)
+    {
+      s->tlm_had_lock = dp_tlm_probe (t, had_lock, d);
+      s->tlm_coast    = dp_tlm_probe (t, coast, d);
+      s->tlm_hold     = dp_tlm_probe (t, hold, d);
+      s->tlm_release  = dp_tlm_probe (t, release, d);
+      if (s->tlm_had_lock < 0 || s->tlm_coast < 0 || s->tlm_hold < 0
+          || s->tlm_release < 0)
+        r = DP_ERR_INVALID;
+    }
   return r;
 }
 
@@ -519,6 +538,7 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
   s->tlm_ho_src = s->tlm_cn0 = s->tlm_phase_car = s->tlm_phase_code = -1;
+  s->tlm_had_lock = s->tlm_coast = s->tlm_hold = s->tlm_release = -1;
 }
 
 /* Size the track chain's per-period scratch for the chain just built. One
@@ -879,6 +899,12 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
     s->car = s->car_held;
   s->car_coasting = car_coast;
   dp_dll_set_coast (s->dll, s->had_lock && !code_up && !sym_up);
+  if (s->tlm && s->tlm_coast >= 0)
+    {
+      dp_tlm_emit (s->tlm, s->tlm_had_lock, (double)s->had_lock);
+      dp_tlm_emit (s->tlm, s->tlm_coast, (double)car_coast);
+      dp_tlm_emit (s->tlm, s->tlm_hold, (double)(code_up && sym_up));
+    }
   for (size_t i = 0; i < s->tsamps; i++)
     s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
   size_t n_out
@@ -1354,6 +1380,7 @@ dp_async_dsss_receiver_create (
   obj->tlm_state = obj->tlm_handover = obj->tlm_refused = -1;
   obj->tlm_ho_src = obj->tlm_cn0 = obj->tlm_phase_car = obj->tlm_phase_code
       = -1;
+  obj->tlm_had_lock = obj->tlm_coast = obj->tlm_hold = obj->tlm_release = -1;
 
   obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
@@ -2217,6 +2244,11 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
       dp_tlm_emit (state->tlm, state->tlm_cn0, state->cn0_dbhz_est);
       dp_tlm_emit (state->tlm, state->tlm_phase_car, ph_car);
       dp_tlm_emit (state->tlm, state->tlm_phase_code, ph_code);
+      dp_tlm_emit (state->tlm, state->tlm_release,
+                   state->lost_confirm_samples
+                       ? (double)state->both_down_samples
+                             / (double)state->lost_confirm_samples
+                       : 0.0);
     }
   return n_out;
 }

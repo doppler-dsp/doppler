@@ -118,7 +118,7 @@ Carlo against the real object rather than trusted on faith
 | Check                 | Method                                                                           | Nominal target             | Measured                         |
 | --------------------- | -------------------------------------------------------------------------------- | -------------------------- | -------------------------------- |
 | False-alarm rate      | 500,000 independent noise-only `avgs`-symbol blocks                              | pfa = 1e-3 (~500 expected) | **429** false declares (8.58e-4) |
-| Detection probability | 2,000 independent raised-cosine BPSK blocks at exactly the `esno_min` design SNR | pd = 0.9                   | **1.0000** true declares         |
+| Detection probability | 2,000 independent raised-cosine BPSK blocks at exactly the `esno_min` design SNR | pd = 0.9                   | **0.9960** true declares (1,992) |
 
 At the default operating point (rolloff=0.35, esno_min=10dB, pfa=1e-3,
 pd=0.9) this gives `avgs=133`, `threshold=0.311` (`threshold` is

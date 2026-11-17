@@ -305,13 +305,14 @@ _test_acquire_and_decode (void)
  * on. */
 static double
 _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
-                       double rate_hz_per_s, size_t n_periods, double sigma,
+                       double rate_hz_per_s, size_t n_periods, double cn0_dbhz,
                        double bn_fll, uint32_t seed)
 {
   size_t          tsamps = sf * spc;
   size_t          n      = n_periods * tsamps;
-  float _Complex *x      = malloc (n * sizeof *x);
-  uint32_t        nst    = seed;
+  float _Complex *x      = calloc (n, sizeof *x);
+  /* The shipped noise at the stated C/N0 (dp_dsss_test.h, #689). */
+  dp_dsss_add_awgn (x, n, fs, cn0_dbhz, seed);
   for (size_t idx = 0; idx < n; idx++)
     {
       double t               = (double)idx / fs;
@@ -319,9 +320,7 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
       float _Complex carrier = (float _Complex) (cos (ph) + I * sin (ph));
       size_t cph             = (idx / spc) % sf;
       float  csgn            = (code[cph] & 1u) ? -1.0f : 1.0f;
-      float _Complex noise
-          = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&nst);
-      x[idx] = csgn * carrier + noise;
+      x[idx] += csgn * carrier;
     }
 
   dp_dll_state_t *dll
@@ -369,8 +368,12 @@ _test_carrier_dll_composition_ramp (void)
   const double rate_hz_per_s = 500.0; /* the specification's worst case */
   const size_t n_periods     = 2700;  /* matches this session's own
                                           Python floor-sweep scale */
-  const double sigma = 0.6;           /* a stressed, not comfortable,
-                                          operating point */
+  /* A stressed, not comfortable, operating point: noise power 0.18
+     against the unit signal, 7.4 dB a sample. It was written as a bare
+     sigma of 0.6, which the hand-scaled noise this test used before #689
+     delivered as 0.6^2 / 2; stated here as the C/N0 it always ran at,
+     10 log10 (fs / 0.18). */
+  const double cn0_dbhz = 10.0 * log10 (fs / 0.18);
 
   uint8_t *code = malloc (sf);
   uint32_t cst  = 7;
@@ -378,9 +381,9 @@ _test_carrier_dll_composition_ramp (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
   double err_off = _run_ramp_composition (code, sf, spc, fs, rate_hz_per_s,
-                                          n_periods, sigma, 0.0, 11);
+                                          n_periods, cn0_dbhz, 0.0, 11);
   double err_on  = _run_ramp_composition (code, sf, spc, fs, rate_hz_per_s,
-                                          n_periods, sigma, 0.03, 11);
+                                          n_periods, cn0_dbhz, 0.03, 11);
   free (code);
 
   /* The mechanism must be NEEDED: a bare PLL (bn_fll=0) should not track

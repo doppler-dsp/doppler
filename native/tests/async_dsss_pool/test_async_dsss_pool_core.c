@@ -1070,13 +1070,8 @@ _test_lost_is_released (void)
   double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, fs / sym_rate, 0.0, cn0, 400, pre, 7,
                    &x, &n, &data);
-  float _Complex *off = malloc (tail_n * sizeof *off);
-  {
-    const double sigma = 1.0 / sqrt (pow (10.0, cn0 / 10.0) / fs);
-    uint32_t     st    = 99;
-    for (size_t i = 0; i < tail_n; i++)
-      off[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
-  }
+  float _Complex *off = calloc (tail_n, sizeof *off);
+  dp_dsss_add_awgn (off, tail_n, fs, cn0, 99u); /* the shipped noise, #689 */
   dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
       CODE7, 7, 1, 1.0e6, sym_rate, 4.0 * 1.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4,
       8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0,

@@ -39,6 +39,7 @@
 #include "doppler/correlator/correlator_private.h" /* the search's extra block */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
+#include "dp_air_test.h"
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
@@ -860,14 +861,11 @@ _test_awgn_esn0_floor (void)
       uint8_t *chips   = malloc (n_chips);
       dp_wfm_cont_dsss_chips (code, sf, dbits, n_data, cps, n_chips, chips);
 
-      size_t          pre   = sf * spc * 5 + 3;
-      size_t          n     = n_chips * spc;
-      size_t          tot   = pre + n;
-      float _Complex *x     = calloc (tot, sizeof *x);
-      double          amp   = sqrt (pow (10.0, cn0 / 10.0) / fs);
-      double          sigma = 1.0 / amp;
-      for (size_t i = 0; i < tot; i++)
-        x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+      size_t          pre = sf * spc * 5 + 3;
+      size_t          n   = n_chips * spc;
+      size_t          tot = pre + n;
+      float _Complex *x   = calloc (tot, sizeof *x);
+      dp_dsss_add_awgn (x, tot, fs, cn0, st); /* the shipped noise, #689 */
       for (size_t i = 0; i < n; i++)
         x[pre + i] += (float)(1.0 - 2.0 * (double)chips[i / spc]);
 
@@ -940,11 +938,8 @@ _test_awgn_esn0_floor (void)
 static float _Complex *
 _noise_tail (size_t n, double fs, double cn0_dbhz, uint32_t seed)
 {
-  float _Complex *x     = malloc (n * sizeof *x);
-  double          sigma = 1.0 / sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  uint32_t        st    = seed;
-  for (size_t i = 0; i < n; i++)
-    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+  float _Complex *x = calloc (n, sizeof *x);
+  dp_dsss_add_awgn (x, n, fs, cn0_dbhz, seed); /* the shipped noise, #689 */
   return x;
 }
 
@@ -3708,9 +3703,10 @@ _test_tlm_names_documented (void)
       = { "rx.car.", "rx.code.", "rx.demod.",
           "rx.acq.", "rx.ref.",  "rx.ref_sq." };
   static const char *const own[]
-      = { "rx.state",    "rx.handover_hz", "rx.refused",
-          "rx.sym.lock", "rx.sym.locked",  "rx.ho_src",
-          "rx.cn0",      "rx.phase.car",   "rx.phase.code" };
+      = { "rx.state",      "rx.handover_hz", "rx.refused", "rx.sym.lock",
+          "rx.sym.locked", "rx.ho_src",      "rx.cn0",     "rx.phase.car",
+          "rx.phase.code", "rx.had_lock",    "rx.coast",   "rx.hold",
+          "rx.release" };
   enum
   {
     N_CHILD = sizeof children / sizeof children[0],
@@ -5202,10 +5198,7 @@ _test_resampled_search_hands_off_into_its_history (void)
   const size_t    n_sig = (size_t)((double)n_sym * tsym);
   const size_t    n     = pre + n_sig;
   float _Complex *x     = calloc (n, sizeof *x);
-  uint32_t        st    = 11;
-  const double    sigma = 1.0 / sqrt (pow (10.0, 90.0 / 10.0) / fs);
-  for (size_t i = 0; i < n; i++)
-    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+  dp_dsss_add_awgn (x, n, fs, 90.0, 11u); /* the shipped noise, #689 */
   for (size_t i = 0; i < n_sig; i++)
     {
       const size_t chip = (size_t)((double)i * chip_rate / fs) % sf;
@@ -5853,11 +5846,11 @@ _test_no_refine_needs_a_deep_search (void)
  * specification point (async-dsss-receiver.md §1, §4.4): the CCSDS Gold
  * code at 2.8 GHz x 31/21216 chips a second, 3,000 sym/s, 11 MSa/s in, 4 dB
  * Es/N0, +/-1,500 Hz, a 400 Hz/s rate bound and a 275-symbol code-only
- * window, so the search runs 140 deep. The emitter is the library's
- * continuous DSSS synth (PRBS data, the window opening every 1,000-symbol
- * frame) at two samples a chip, a RateConverter to 11 MSa/s and a
- * DopplerChannel at the carrier on a +400 Hz/s ramp from -1,000 and -500
- * Hz, plus the shipped AWGN.
+ * window, so the search runs 140 deep. The emitter is the 415.1 scene
+ * (dp_air_test.h: the shipped synth with its window, the front end's
+ * converter to 11 MSa/s, a DopplerChannel at the carrier) on a +400 Hz/s
+ * ramp from -1,000 and -500 Hz, plus the shipped AWGN; the truth at the
+ * hand-over is the channel's own offset there.
  *
  * What the header claims for refine false, and nothing about the loops
  * after it: the receiver goes searching -> tracking without refining, and
@@ -5877,7 +5870,7 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
                 int *never_refining)
 {
   const double     fc = 2.8e9, chip = fc * 31.0 / 21216.0, sym = 3000.0;
-  const double     cn0 = 4.0 + 10.0 * log10 (sym), fs2 = 2.0 * chip;
+  const double     cn0  = 4.0 + 10.0 * log10 (sym);
   const double     rate = 400.0;
   uint8_t          code[1023];
   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
@@ -5887,27 +5880,28 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
       code, 1023, chip, sym, RAMP_FS, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5,
       4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, false,
       0);
-  dp_wfm_synth_state_t *syn
-      = dp_wfm_synth_create (WFM_SYNTH_DSSS, fs2, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
-                             100u + seed, 2, 15, 0, 0, 0.0);
-  dp_RateConverter_state_t   *rc = dp_RateConverter_create (RAMP_FS / fs2, 0);
-  dp_doppler_channel_state_t *ch = dp_doppler_channel_create (
-      RAMP_FS, fc, f0 / fc * 1e6, rate / fc * 1e6);
-  dp_awgn_state_t *nz = dp_awgn_create (
-      7919u + seed,
-      dp_awgn_amplitude_for_snr ((float)(cn0 - 10.0 * log10 (RAMP_FS)), 1.0f));
-  float _Complex *r2  = malloc (RAMP_CHUNK * sizeof *r2);
-  float _Complex *r11 = malloc (2 * RAMP_CHUNK * sizeof *r11);
-  float _Complex *x   = malloc (4 * RAMP_CHUNK * sizeof *x);
-  float _Complex *ns  = malloc (4 * RAMP_CHUNK * sizeof *ns);
-  float _Complex *out = malloc (4 * RAMP_CHUNK * sizeof *out);
-  DP_REQUIRE (rx && syn && rc && ch && nz && r2 && r11 && x && ns && out);
+  /* The emitter on the air (dp_air_test.h): the shipped synth with its
+     window, the front end's converter, a Doppler channel on the ramp. */
+  dp_air_emitter_t e = { 0 };
+  e.code             = code;
+  e.code_len         = 1023;
+  e.chip_rate        = chip;
+  e.sym_rate         = sym;
+  e.carrier_hz       = fc;
+  e.f0_hz            = f0;
+  e.rate_hz_s        = rate;
+  e.cn0_dbhz         = cn0;
+  e.code_only_sym    = 275;
+  e.frame_sym        = 1000;
+  e.seed             = 100u + seed;
+  dp_air_t        air;
+  float _Complex *x   = malloc (RAMP_CHUNK * sizeof *x);
+  float _Complex *out = malloc (RAMP_CHUNK * sizeof *out);
+  DP_REQUIRE (
+      rx && x && out
+      && dp_air_init (&air, &e, 1, RAMP_FS, cn0, 7919u + seed, RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
   DP_REQUIRE (D == 140);
-  DP_REQUIRE (dp_wfm_synth_set_dsss_cont (syn, code, 1023, chip / sym,
-                                          WFM_DSSS_DATA_PRBS, NULL, 0)
-                  == 0
-              && dp_wfm_synth_set_dsss_window (syn, 275, 1000) == 0);
   /* Half a row, and the half-dwell age at the rate bound. */
   *bound_hz       = 0.5 * rx->acq->search->doppler_res_hz
                     + rate * 0.5 * (double)D * 1023.0 / chip;
@@ -5915,36 +5909,23 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
   *err_hz         = NAN;
   for (size_t fed = 0; fed < (size_t)(0.5 * RAMP_FS) && isnan (*err_hz);)
     {
-      dp_wfm_synth_steps (syn, r2, RAMP_CHUNK);
-      const size_t m
-          = dp_RateConverter_execute (rc, r2, RAMP_CHUNK, r11, 2 * RAMP_CHUNK);
-      const size_t k
-          = dp_doppler_channel_execute (ch, r11, m, x, 4 * RAMP_CHUNK);
-      (void)dp_awgn_generate (nz, k, ns, k);
-      for (size_t i = 0; i < k; i++)
-        x[i] += ns[i];
-      (void)dp_async_dsss_receiver_steps (rx, x, k, out, 4 * RAMP_CHUNK);
-      fed += k;
+      DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
+      (void)dp_async_dsss_receiver_steps (rx, x, RAMP_CHUNK, out, RAMP_CHUNK);
+      fed += RAMP_CHUNK;
       if (rx->state == ASYNC_DSSS_RX_REFINING)
         *never_refining = 0;
       if (rx->state == ASYNC_DSSS_RX_TRACKING)
         {
-          /* The hand-over's sample: tracking since state_samples ago. */
-          const double at
-              = (double)(rx->samples_in - rx->state_samples) / RAMP_FS;
-          *err_hz
-              = dp_async_dsss_receiver_get_doppler_hz (rx) - (f0 + rate * at);
+          /* The hand-over's sample: tracking since state_samples ago; the
+             truth there is the channel's own offset. */
+          const uint64_t at = rx->samples_in - rx->state_samples;
+          *err_hz           = dp_async_dsss_receiver_get_doppler_hz (rx)
+                              - dp_air_truth (&air, 0, at).car_hz;
         }
     }
-  free (r2);
-  free (r11);
   free (x);
-  free (ns);
   free (out);
-  dp_awgn_destroy (nz);
-  dp_doppler_channel_destroy (ch);
-  dp_RateConverter_destroy (rc);
-  dp_wfm_synth_destroy (syn);
+  dp_air_free (&air);
   dp_async_dsss_receiver_destroy (rx);
   return 0;
 }
@@ -5959,6 +5940,9 @@ _test_no_refine_hands_over_the_search_doppler (void)
       int    never_refining;
       DP_REQUIRE (_ramp_handover (f0s[i], 1u, &err, &bound, &never_refining)
                   == 0);
+      printf ("  no-refine hand-over from %.0f Hz: %.1f Hz off the truth "
+              "(bound %.1f)\n",
+              f0s[i], err, bound);
       DP_CHECK (never_refining == 1);
       DP_CHECK (!isnan (err) && fabs (err) <= bound);
     }

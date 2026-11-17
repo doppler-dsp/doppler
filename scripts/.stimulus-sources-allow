@@ -51,22 +51,3 @@ evm::src/doppler/tests/_validation_common.py::def clamp_evm_db(evm: float) -> fl
 
 evm::src/doppler/resample/tests/test_RateConverter.py::def _best_evm_db(y: np.ndarray, syms: np.ndarray) -> float: | SAFE: TRUTH-referenced and minimised over strobe alignment. Open loop the cascade's strobe phase is arbitrary, so minimising isolates the matched filter from the timing loop that does not exist yet -- the one thing ber_evm_db is built to refuse.
 evm::src/doppler/resample/tests/test_RateConverter.py::def _sweep_evm_db(sps: float, compensate: int) -> float: | SAFE: delegates to _best_evm_db above, which the gate cannot follow because that helper is itself not a sanctioned name. Same reason as its callee.
-
-# ── KNOWN VIOLATIONS: the hand-scaled noise level (doppler#689) ───────
-# `dp_cgauss` is unit power (E|z|^2 = 1, 0.5 per component). Each site
-# below scales it by a further 1/sqrt(2) per component, so it carries
-# 3.01 dB less noise than its cn0 / esno label. ONE LINE PER SITE: the key
-# is the whole C statement (wrapped lines joined), and identical
-# statements in one file are separate sites, so the count is what the
-# ratchet holds. Recorded as debt, not endorsed;
-# the fix is #689's, and removing a line is the only direction allowed.
-
-level::native/tests/async_dsss_pool/test_async_dsss_pool_core.c::off[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): the pool's lost-emitter test, noise at a cn0 label. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c::x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): the receiver's spec-floor, noise-tail and resampled-search tests, noise at a cn0 label. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c::x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): the receiver's spec-floor, noise-tail and resampled-search tests, noise at a cn0 label. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c::x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): the receiver's spec-floor, noise-tail and resampled-search tests, noise at a cn0 label. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/dp_dsss_test.h::x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): dp_dsss_{windowed,ramp,dilated}_capture, the shared DSSS capture builders. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/dp_dsss_test.h::x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): dp_dsss_{windowed,ramp,dilated}_capture, the shared DSSS capture builders. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/dp_dsss_test.h::x[i] += (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st) | VIOLATION (doppler#689): dp_dsss_{windowed,ramp,dilated}_capture, the shared DSSS capture builders. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/tests/dsss_receiver/test_dsss_receiver_core.c::float _Complex noise = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&nst) | VIOLATION (doppler#689): the burst receiver's ramp composition, noise at a cn0 label. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.
-level::native/validation/symsync_lock.c::rx[i] += (float complex) (sd / sqrt (2.0)) * dp_cgauss (&noise_st) | VIOLATION (doppler#689): measure_pd, whose sd is already the TOTAL noise std at esno_db. dp_cgauss is already unit power, so the / sqrt(2) delivers 3.01 dB less noise than stated. One entry per site.

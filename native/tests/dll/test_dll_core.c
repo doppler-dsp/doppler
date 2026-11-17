@@ -27,6 +27,7 @@
  *   12. segments > 1: the output's level does not follow the input's,
  *       from -30 to +30 dB of gain (#2495)
  */
+#include "doppler/awgn/awgn_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_complex.h"
@@ -44,16 +45,18 @@
 
 /* Carrier-free spread signal with an ASYNCHRONOUS BPSK data clock: symbol
  * period `tsym` samples (any real), first boundary at `phi` samples, random
- * data; the incoming code runs at rate (1+delta). `sigma_rail` > 0 adds
- * complex Gaussian noise of that per-rail std (0 = clean). The stream 6b
- * and 6c share. */
+ * data; the incoming code runs at rate (1+delta). `snr` > 0 adds the
+ * shipped complex AWGN at that per-sample amplitude SNR against the unit
+ * signal -- the detection module's convention, power SNR `snr^2` -- and 0
+ * leaves it clean. The stream 6b and 6c share. Until #689 this took a
+ * "per-rail" sigma for a hand-scaled dp_cgauss, whose E|z|^2 = 1 put the
+ * noise 3 dB under the snr its caller sized the detector with. */
 static void
 make_async_signal (float _Complex *rx, size_t N, const uint8_t *code,
                    size_t sf, size_t sps, double delta, double tsym,
-                   double phi, double sigma_rail, uint32_t dseed,
-                   uint32_t nseed)
+                   double phi, double snr, uint32_t dseed, uint32_t nseed)
 {
-  uint32_t ds = dseed, ns = nseed;
+  uint32_t ds   = dseed;
   int      data = 1;
   long     cur  = -1;
   double   inv  = 1.0 / (double)sps;
@@ -69,9 +72,21 @@ make_async_signal (float _Complex *rx, size_t N, const uint8_t *code,
       size_t ci = (size_t)fmod (cph, (double)sf);
       float  cs = (code[ci] & 1u) ? -1.0f : 1.0f;
       rx[nn]    = (float)data * cs;
-      if (sigma_rail > 0.0)
-        rx[nn] += (float)sigma_rail * dp_cgauss (&ns);
       cph += inv * (1.0 + delta);
+    }
+  if (snr > 0.0)
+    {
+      dp_awgn_state_t *g = dp_awgn_create (
+          nseed,
+          dp_awgn_amplitude_for_snr ((float)(20.0 * log10 (snr)), 1.0f));
+      float _Complex *nz = malloc (N * sizeof *nz);
+      if (!g || !nz)
+        abort (); /* a fixture out of memory */
+      (void)dp_awgn_generate (g, N, nz, N);
+      for (size_t nn = 0; nn < N; nn++)
+        rx[nn] += nz[nn];
+      free (nz);
+      dp_awgn_destroy (g);
     }
 }
 
@@ -1815,8 +1830,7 @@ main (void)
     size_t          N   = (size_t)(nsym * tsym) + 2 * te;
     float _Complex *rx  = malloc (N * sizeof (*rx));
     float _Complex *out = malloc (N * sizeof (*out));
-    make_async_signal (rx, N, code, sf, sps, 0.0, tsym, phi,
-                       1.0 / a / sqrt (2.0), 7u, 99u);
+    make_async_signal (rx, N, code, sf, sps, 0.0, tsym, phi, a, 7u, 99u);
     /* Feed one epoch per call and count the epochs the flag was up. */
     size_t          nep = N / te;
     size_t          up0 = 0, up1 = 0;

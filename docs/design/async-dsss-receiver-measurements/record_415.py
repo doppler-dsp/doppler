@@ -1155,7 +1155,12 @@ def bn_row(data: Data, cell: Cell, rows: Rows) -> list[str]:
     coast = sum(t.get("coast_mem") == "1" for t in trans)
     t_sym = [float(r["t_sym_s"]) for r in rows if r["t_sym_s"] != "nan"]
     return [
-        f"{float(rows[0]['bn_car']):g}",
+        f"{float(rows[0]['bn_car']):g}"
+        + (
+            f" o3{rows[0]['acq']}"
+            if rows[0].get("loop_order", "2") == "3"
+            else ""
+        ),
         f"{sum(r['works'] == '1' for r in rows)}/{n}",
         str(n - len(ok)),
         f"{len(outside)} ({sum(r['works'] == '1' for r in outside)} work)",

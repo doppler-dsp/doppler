@@ -265,6 +265,10 @@ typedef enum
     int32_t   tlm_phase_code; 
     int32_t   tlm_cn0;        
     int32_t   tlm_ho_src;     
+    int32_t   tlm_had_lock;   
+    int32_t   tlm_coast;      
+    int32_t   tlm_hold;       
+    int32_t   tlm_release;    
     /* The hand-over starts the live chain at the refine's estimate, and
      * the refine decides up to its chain's lag past it, so the start can
      * lie in input an earlier call already passed (#2974). The last

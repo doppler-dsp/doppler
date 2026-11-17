@@ -1,0 +1,779 @@
+/**
+ * @file test_ofdm_core.c
+ * @brief The general OFDM modulator: its layout, its render, its state.
+ *
+ * What anchors each check, since the module is general and names no standard:
+ *
+ *   - the STRUCTURE is held by inverting the primitive: a forward transform
+ *     of each OFDM symbol's body, written here as a plain double-precision
+ *     sum, must return the grid that went in. The expected grid is spelled
+ *     out in this file from the layout's own words (which subcarriers are
+ *     data, which hold a pilot in which phase), not computed by the module;
+ *   - the SHAPE of a symbol (prefix, cyclic body) and of the window are held
+ *     at literals derivable by hand from the header's contract;
+ *   - the STATE is held by resuming: a render split at every OFDM-symbol
+ *     boundary, through get/set into a fresh modulator, must equal one call
+ *     bit for bit.
+ *
+ * The full render is held against an independent numpy implementation in
+ * src/doppler/ofdm/tests/. No standard is named here and none is claimed.
+ */
+#include "doppler/ofdm/ofdm_core.h"
+#include "dp_state_test.h"
+#include "dp_test.h"
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define TWO_PI 6.283185307179586476925286766559
+
+typedef float _Complex cf;
+
+/* Coefficient k of the forward sum over N samples: (1/N) sum x[m] e^{-j 2 pi
+   k m / N}. The inverse of the module's own transform, and nothing else. */
+static double _Complex coef (const cf *x, unsigned n, int k)
+{
+  double _Complex s = 0;
+  for (unsigned m = 0; m < n; m++)
+    s += (double _Complex)x[m]
+         * cexp (-I * TWO_PI * (double)k * (double)m / (double)n);
+  return s / (double)n;
+}
+
+static int
+close_c (double _Complex a, double _Complex b, double tol)
+{
+  return cabs (a - b) <= tol;
+}
+
+/* A class with its optional arrays: the class, then its gains and polarity. */
+static int
+add_cls (dp_ofdm_state_t *o, uint32_t n_fft, const uint8_t *map,
+         size_t map_len, uint32_t useful, uint32_t cp, uint32_t window,
+         double scale, const cf *gain, size_t gain_len, uint32_t n_phase,
+         const cf *pol, size_t pol_len)
+{
+  const int i = dp_ofdm_add_class (o, n_fft, map, map_len, useful, cp, window,
+                                   scale, n_phase);
+  if (i < 0)
+    return i;
+  if (gain_len && dp_ofdm_add_subcarrier_gain (o, (uint32_t)i, gain, gain_len))
+    return -1;
+  if (pol_len && dp_ofdm_add_polarity (o, (uint32_t)i, pol, pol_len))
+    return -1;
+  return i;
+}
+
+/* An 8-point class: k = -4 and DC null, six data subcarriers. */
+static const uint8_t MAP8[8]  = { 0, 1, 1, 1, 0, 1, 1, 1 };
+static const int     DATA8[6] = { -3, -2, -1, 1, 2, 3 };
+
+/* The layout the structure and state checks share. Two phases, a polarity
+   sequence of three, a pilot in every phase on a data subcarrier (k = 3) and
+   one only in phase 1 (k = -1); run A is four symbols from polarity element
+   1, run B is two symbols from phase 1 with no prefix. */
+/* A layout the builders refuse is a broken test, not a finding: stop. */
+#define MUST(cond)                                                            \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          DP_TEST_ERR ("layout setup failed: %s\n", #cond);                   \
+          exit (1);                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
+static dp_ofdm_state_t *
+make_layout (uint32_t window, double scale)
+{
+  dp_ofdm_state_t *o = dp_ofdm_create ();
+  MUST (o != NULL);
+  const cf pol[3] = { 1.0f, -1.0f, 2.0f * I };
+  MUST (add_cls (o, 8u, MAP8, 8u, 0u, 2u, window, scale, NULL, 0u, 2u, pol, 3u)
+        == 0);
+  MUST (dp_ofdm_add_fixed (o, 0u, OFDM_ALL_PHASES, 3, 1.0 * I) == 0);
+  MUST (dp_ofdm_add_fixed (o, 0u, 1u, -1, 2.0) == 0);
+  MUST (dp_ofdm_add_run (o, 0u, 4u, OFDM_CP_DEFAULT, 1u, 0u) == 0);
+  MUST (dp_ofdm_add_run (o, 0u, 2u, 0u, 0u, 1u) == 1);
+  return o;
+}
+
+/* Points each of the six symbols takes: 6 data subcarriers less one pilot in
+   phase 0, less two in phase 1. Phases 0 1 0 1, then 1 0. */
+static const unsigned NEED[6]   = { 5, 4, 5, 4, 4, 5 };
+static const unsigned SYMLEN[6] = { 10, 10, 10, 10, 8, 8 };
+static const unsigned PHASE[6]  = { 0, 1, 0, 1, 1, 0 };
+/* Polarity element: run A starts at 1 (-1, 2j, 1, -1), run B at 0 (1, -1). */
+static const cf POLV[6] = { -1.0f, 2.0f * I, 1.0f, -1.0f, 1.0f, -1.0f };
+
+static void
+fill_points (cf *p, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    p[i] = (float)(1 + (int)(i % 5)) + (float)((int)(i % 3) - 1) * I;
+}
+
+static int
+bit_equal (const cf *a, const cf *b, size_t n)
+{
+  return memcmp (a, b, n * sizeof *a) == 0;
+}
+
+int
+main (void)
+{
+  /* ── 1. what the builders refuse ───────────────────────────────────────*/
+  {
+    dp_ofdm_state_t *o = dp_ofdm_create ();
+    DP_REQUIRE (o != NULL);
+    DP_CHECK_MSG (
+        add_cls (o, 1u, MAP8, 1u, 0u, 0u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u) < 0,
+        "a one-point transform is not an OFDM symbol");
+    DP_CHECK_MSG (
+        add_cls (o, 8u, MAP8, 7u, 0u, 0u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u) < 0,
+        "the map must be n_fft long");
+    DP_CHECK_MSG (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 0u, NULL, 0u) < 0,
+        "a pattern period of 0");
+    DP_CHECK_MSG (
+        add_cls (o, 8u, MAP8, 8u, 0u, 9u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u) < 0,
+        "a prefix longer than the body it is copied from");
+    DP_CHECK_MSG (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 9u, 1.0, NULL, 0u, 1u, NULL, 0u) < 0,
+        "a window longer than the symbol");
+    const uint8_t bad[8] = { 0, 1, 2, 1, 0, 1, 1, 1 };
+    DP_CHECK_MSG (
+        add_cls (o, 8u, bad, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u) < 0,
+        "a map value other than data or null");
+    const cf g[4] = { 1, 1, 1, 1 };
+    DP_CHECK_MSG (o->n_cls == 0, "a refused class leaves no trace");
+    DP_REQUIRE (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, 1u) == 0);
+    DP_CHECK_MSG (dp_ofdm_add_subcarrier_gain (o, 0u, g, 4u) < 0,
+                  "a gain array that is not n_fft long");
+    DP_CHECK_MSG (dp_ofdm_add_subcarrier_gain (o, 1u, g, 8u) < 0,
+                  "gains for a class that does not exist");
+    DP_CHECK_MSG (dp_ofdm_add_polarity (o, 0u, g, 0u) < 0,
+                  "an empty polarity sequence");
+    const cf g8[8] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+    DP_CHECK (dp_ofdm_add_subcarrier_gain (o, 0u, g8, 8u) == 0);
+    DP_CHECK_MSG (dp_ofdm_add_subcarrier_gain (o, 0u, g8, 8u) < 0,
+                  "a class has one set of gains");
+    DP_CHECK (dp_ofdm_add_polarity (o, 0u, g8, 8u) == 0);
+    DP_CHECK_MSG (dp_ofdm_add_polarity (o, 0u, g8, 8u) < 0,
+                  "and one polarity sequence");
+    dp_ofdm_destroy (o);
+    o = dp_ofdm_create ();
+    DP_REQUIRE (o != NULL);
+
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 2u, NULL, 0u)
+        == 0);
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 1u, 0u, 0, 1.0) < 0,
+                  "a fixed entry for a class that does not exist");
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 2u, 0, 1.0) < 0,
+                  "a phase at or past the period");
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 0u, -5, 1.0) < 0,
+                  "k below -n_fft/2");
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 0u, 4, 1.0) < 0,
+                  "k at n_fft/2 (the top is n_fft/2 - 1)");
+    DP_CHECK (dp_ofdm_add_fixed (o, 0u, 0u, -4, 1.0) == 0);
+    DP_CHECK (dp_ofdm_add_fixed (o, 0u, 0u, 3, 1.0) == 0);
+    DP_CHECK_MSG (dp_ofdm_add_run (o, 1u, 1u, OFDM_CP_DEFAULT, 0u, 0u) < 0,
+                  "a run of a class that does not exist");
+    DP_CHECK_MSG (dp_ofdm_add_run (o, 0u, 0u, OFDM_CP_DEFAULT, 0u, 0u) < 0,
+                  "a run of no OFDM symbols");
+    DP_CHECK_MSG (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 2u) < 0,
+                  "a first phase at or past the period");
+    DP_CHECK_MSG (dp_ofdm_add_run (o, 0u, 1u, 9u, 0u, 0u) < 0,
+                  "a per-run prefix longer than the body");
+    DP_CHECK_MSG (dp_ofdm_check (o) < 0, "a layout with no run does not seal");
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_CHECK (dp_ofdm_check (o) == 0);
+    DP_CHECK_MSG (dp_ofdm_check (o) == 0, "sealing again is idempotent");
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 0u, 1, 1.0) == 0 && !o->sealed,
+                  "adding to a sealed layout re-opens it");
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 0u, 9, 1.0) < 0 && !o->sealed,
+                  "a refused add leaves it as it was");
+    DP_CHECK (dp_ofdm_check (o) == 0 && o->sealed);
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 0u, 99, 1.0) < 0 && o->sealed,
+                  "and a refused add does not re-open a sealed one");
+    dp_ofdm_destroy (o);
+
+    /* Two entries on one subcarrier in one phase make the grid ambiguous. */
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 2u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_fixed (o, 0u, OFDM_ALL_PHASES, 2, 1.0) == 0);
+    DP_REQUIRE (dp_ofdm_add_fixed (o, 0u, 1u, 2, 1.0) == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_CHECK_MSG (dp_ofdm_check (o) < 0,
+                  "an all-phase entry and a phase entry on one subcarrier");
+    DP_CHECK (dp_ofdm_points_remaining (o) == 0);
+    dp_ofdm_destroy (o);
+
+    /* A per-run prefix that makes the symbol shorter than its window. */
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 2u, 6u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, 0u, 0u, 0u) == 0);
+    DP_CHECK_MSG (dp_ofdm_check (o) == 0, "window 6 fits an 8-sample symbol");
+    dp_ofdm_destroy (o);
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 4u, 2u, 6u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, 0u, 0u, 0u) == 0);
+    DP_CHECK_MSG (dp_ofdm_check (o) < 0,
+                  "a run whose prefix leaves the symbol shorter than the "
+                  "window");
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 2. the grid, by inverting the primitive ───────────────────────────*/
+  {
+    const double     scale = 0.5;
+    dp_ofdm_state_t *o     = make_layout (0u, scale);
+    DP_CHECK (dp_ofdm_points_remaining (o) == 27);
+    cf pts[27];
+    fill_points (pts, 27);
+    cf out[56];
+    DP_CHECK_MSG (dp_ofdm_modulate_max_out (o, 27) == 56,
+                  "four symbols of 10 and two of 8 samples");
+    DP_CHECK (dp_ofdm_modulate (o, pts, 27, out, 56) == 56);
+    DP_CHECK (dp_ofdm_points_remaining (o) == 0);
+
+    size_t at = 0, used = 0;
+    for (int s = 0; s < 6; s++)
+      {
+        const unsigned cp   = SYMLEN[s] - 8u;
+        const cf      *body = out + at + cp;
+
+        /* the expected grid, from the layout's words */
+        double _Complex want[8];
+        for (int i = 0; i < 8; i++)
+          want[i] = 0;
+        int taken_k3 = 1, taken_km1 = PHASE[s] == 1;
+        want[3 + 4] = I * (double _Complex)POLV[s];
+        if (taken_km1)
+          want[-1 + 4] = 2.0 * (double _Complex)POLV[s];
+        unsigned drawn = 0;
+        for (int i = 0; i < 6; i++)
+          {
+            const int k = DATA8[i];
+            if ((k == 3 && taken_k3) || (k == -1 && taken_km1))
+              continue;
+            want[k + 4] = (double _Complex)pts[used + drawn];
+            drawn++;
+          }
+        DP_CHECK_MSG (drawn == NEED[s], "the data count of the phase");
+        for (int k = -4; k < 4; k++)
+          DP_CHECK_MSG (
+              close_c (coef (body, 8u, k) / scale, want[k + 4], 2e-6),
+              "the forward transform of a body returns the grid");
+        /* the cyclic prefix is the tail of the body */
+        for (unsigned i = 0; i < cp; i++)
+          DP_CHECK_MSG (out[at + i] == body[8 - cp + i],
+                        "the prefix is the last samples of the body");
+        used += drawn;
+        at += SYMLEN[s];
+      }
+    DP_CHECK (used == 27 && at == 56);
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 3. the shape of a symbol, at a literal ────────────────────────────*/
+  {
+    /* One data subcarrier, k = 1, in a 4-point transform: x[m] = j^m, which
+       is 1, j, -1, -j. A body of ten samples reads it cyclically, and a
+       prefix of three is the last three of the ten. */
+    const uint8_t    map4[4] = { 0, 0, 0, 1 }; /* index k + 2: k = 1 is 3 */
+    dp_ofdm_state_t *o       = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 4u, map4, 4u, 10u, 3u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    const cf one = 1.0f;
+    cf       out[13];
+    DP_REQUIRE (dp_ofdm_modulate (o, &one, 1, out, 13) == 13);
+    const cf want[13] = { -I,   1.0f, I, /* the prefix: body[7..9] */
+                          1.0f, I,    -1.0f, -I, 1.0f, I, -1.0f, -I, 1.0f, I };
+    for (int i = 0; i < 13; i++)
+      DP_CHECK_MSG (cabsf (out[i] - want[i]) < 1e-6f,
+                    "a body read cyclically from the transform, prefixed");
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 4. the subcarrier gain, the scale and the polarity ────────────────*/
+  {
+    /* Gain 2j on subcarrier k = 1 and 3 on k = -1; scale 0.25; one fixed
+       entry whose polarity follows the sequence from element 2. */
+    cf gain[8];
+    for (int i = 0; i < 8; i++)
+      gain[i] = 1.0f;
+    gain[1 + 4]             = 2.0f * I;
+    gain[-1 + 4]            = 3.0f;
+    const cf         pol[3] = { 1.0f, -1.0f, 2.0f * I };
+    dp_ofdm_state_t *o      = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 0.25, gain, 8u, 1u, pol, 3u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_fixed (o, 0u, 0u, 2, 1.0) == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 4u, OFDM_CP_DEFAULT, 2u, 0u) == 0);
+    cf pts[20], out[32];
+    fill_points (pts, 20);
+    DP_REQUIRE (dp_ofdm_points_remaining (o) == 20);
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 20, out, 32) == 32);
+    const cf pv[4]
+        = { 2.0f * I, 1.0f, -1.0f, 2.0f * I }; /* elements 2,0,1,2 */
+    for (int s = 0; s < 4; s++)
+      {
+        const cf *body = out + 8 * s;
+        unsigned  d    = 0;
+        for (int k = -4; k < 4; k++)
+          {
+            double _Complex want = 0;
+            if (k == 2)
+              want = (double _Complex)pv[s];
+            else if (MAP8[k + 4])
+              want = (double _Complex)pts[5 * s + d++];
+            if (k == 1)
+              want *= 2.0 * I;
+            if (k == -1)
+              want *= 3.0;
+            DP_CHECK_MSG (close_c (coef (body, 8u, k) / 0.25, want, 4e-6),
+                          "gain multiplies the grid, polarity multiplies "
+                          "only the fixed entry, scale the transform");
+          }
+      }
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 5. the window, against its formula ────────────────────────────────*/
+  {
+    /* cp = 0, a body of exactly one transform, so the continuation of a
+       symbol past its end is its own first samples. A: k = 1, B: j times
+       it; window 2: rise = sin^2 (pi (j + 1/2) / 4). */
+    const uint8_t    map4[4] = { 0, 0, 0, 1 };
+    dp_ofdm_state_t *o       = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 4u, map4, 4u, 0u, 0u, 2u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 2u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    const cf pts[2] = { 1.0f, I };
+    cf       out[8], tail[2];
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 2, out, 8) == 8);
+    DP_CHECK_MSG (dp_ofdm_finish_max_out (o, 99) == 2, "a held tail of 2");
+    DP_CHECK (dp_ofdm_finish (o, 2, tail, 2) == 2);
+    DP_CHECK_MSG (dp_ofdm_finish (o, 2, tail, 2) == 0, "finish clears it");
+
+    const double r0 = sin (M_PI * 0.5 / 4.0), r1 = sin (M_PI * 1.5 / 4.0);
+    const double rise[2] = { r0 * r0, r1 * r1 };
+    cf           A[4], B[4];
+    for (int m = 0; m < 4; m++)
+      {
+        A[m] = cexpf (I * (float)(TWO_PI * m / 4.0));
+        B[m] = I * A[m];
+      }
+    cf want[8];
+    for (int i = 0; i < 4; i++)
+      want[i] = A[i] * (float)(i < 2 ? rise[i] : 1.0);
+    for (int i = 0; i < 4; i++)
+      want[4 + i] = B[i] * (float)(i < 2 ? rise[i] : 1.0)
+                    + (i < 2 ? A[i] * (float)(1.0 - rise[i]) : 0.0f);
+    for (int i = 0; i < 8; i++)
+      DP_CHECK_MSG (cabsf (out[i] - want[i]) < 1e-6f,
+                    "the rise on entry, the fall of the one before");
+    for (int j = 0; j < 2; j++)
+      DP_CHECK_MSG (cabsf (tail[j] - B[j] * (float)(1.0 - rise[j])) < 1e-6f,
+                    "the last symbol's continuation, faded out");
+    dp_ofdm_destroy (o);
+
+    /* A body that is not a whole number of transforms: the continuation is
+       the TRANSFORM's next samples, x[(useful + j) mod n_fft], not the
+       body's first. useful 6 of 4: x[6] = x[2], x[7] = x[3]. */
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 4u, map4, 4u, 6u, 0u, 2u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    cf o1[6], t1[2];
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 1, o1, 6) == 6);
+    DP_REQUIRE (dp_ofdm_finish (o, 2, t1, 2) == 2);
+    for (int j = 0; j < 2; j++)
+      DP_CHECK_MSG (cabsf (t1[j] - A[(6 + j) % 4] * (float)(1.0 - rise[j]))
+                        < 1e-6f,
+                    "continued from the transform at (useful + j) mod n_fft");
+    dp_ofdm_destroy (o);
+
+    /* Two classes with different windows: the boundary uses the LATER
+       symbol's class, for the rise and for the continuation alike. First
+       class window 1, second 3, bodies of exactly 4. */
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 4u, map4, 4u, 0u, 0u, 1u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (
+        add_cls (o, 4u, map4, 4u, 0u, 0u, 3u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 1);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 1u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 1);
+    cf o2[8], t2[3];
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 2, o2, 8) == 8);
+    DP_REQUIRE (dp_ofdm_finish (o, 3, t2, 3) == 3);
+    double r3[3];
+    for (int j = 0; j < 3; j++)
+      {
+        const double s = sin (M_PI * (j + 0.5) / 6.0);
+        r3[j]          = s * s;
+      }
+    DP_CHECK_MSG (cabsf (o2[0] - A[0] * 0.5f) < 1e-6f,
+                  "a window of 1 rises by sin^2 (pi/4) = 1/2");
+    for (int i = 0; i < 4; i++)
+      {
+        const cf v = B[i] * (float)(i < 3 ? r3[i] : 1.0)
+                     + (i < 3 ? A[i % 4] * (float)(1.0 - r3[i]) : 0.0f);
+        DP_CHECK_MSG (cabsf (o2[4 + i] - v) < 1e-6f,
+                      "the boundary's length is the later class's window");
+      }
+    for (int j = 0; j < 3; j++)
+      DP_CHECK (cabsf (t2[j] - B[j] * (float)(1.0 - r3[j])) < 1e-6f);
+    dp_ofdm_destroy (o);
+
+    /* Identical symbols, back to back: a cross-fade of equal continuations
+       is the signal itself, so apart from the first window's rise and the
+       last window's tail the output is the windowless render. */
+    dp_ofdm_state_t *w = dp_ofdm_create (), *n0 = dp_ofdm_create ();
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *q = pass ? n0 : w;
+        DP_REQUIRE (add_cls (q, 4u, map4, 4u, 0u, 0u, pass ? 0u : 3u, 1.0,
+                             NULL, 0u, 1u, NULL, 0u)
+                    == 0);
+        DP_REQUIRE (dp_ofdm_add_run (q, 0u, 5u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+      }
+    const cf same[5] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    cf       ow[20], on[20];
+    DP_REQUIRE (dp_ofdm_modulate (w, same, 5, ow, 20) == 20);
+    DP_REQUIRE (dp_ofdm_modulate (n0, same, 5, on, 20) == 20);
+    for (int i = 3; i < 20; i++)
+      DP_CHECK_MSG (cabsf (ow[i] - on[i]) < 2e-6f,
+                    "a cross-fade of equal signals is that signal");
+    for (int i = 0; i < 3; i++)
+      DP_CHECK (cabsf (ow[i]) < cabsf (on[i]) + 1e-6f);
+    dp_ofdm_destroy (w);
+    dp_ofdm_destroy (n0);
+  }
+
+  /* ── 6. what a call refuses, and that a refusal changes nothing ────────*/
+  {
+    dp_ofdm_state_t *o = make_layout (0u, 1.0);
+    cf               pts[40], out[64], ref[64];
+    fill_points (pts, 40);
+    DP_CHECK (dp_ofdm_modulate (o, pts, 3, out, 64) == 0);
+    DP_CHECK_MSG (dp_ofdm_modulate_max_out (o, 3) == 0,
+                  "3 points ends inside the 5 the first symbol takes");
+    DP_CHECK (dp_ofdm_modulate (o, pts, 28, out, 64) == 0);
+    DP_CHECK_MSG (dp_ofdm_modulate (o, pts, 27, out, 55) == 0,
+                  "short capacity is a refusal, not a truncation");
+    DP_CHECK_MSG (dp_ofdm_points_remaining (o) == 27,
+                  "no refusal moved the position");
+    DP_CHECK (dp_ofdm_modulate (o, pts, 0, out, 64) == 0);
+    DP_CHECK_MSG (dp_ofdm_points_remaining (o) == 27,
+                  "no points renders nothing when the next symbol needs some");
+
+    /* the same render from the start, whole, as the reference */
+    DP_CHECK (dp_ofdm_modulate (o, pts, 27, ref, 64) == 56);
+    DP_CHECK (dp_ofdm_modulate (o, pts, 0, out, 64) == 0);
+    DP_CHECK_MSG (dp_ofdm_modulate (o, pts, 5, out, 64) == 0,
+                  "points past the end of the layout");
+    dp_ofdm_reset (o);
+    DP_CHECK_MSG (dp_ofdm_points_remaining (o) == 27, "reset");
+    DP_CHECK (dp_ofdm_modulate (o, pts, 27, out, 64) == 56);
+    DP_CHECK_MSG (bit_equal (out, ref, 56),
+                  "a reset render equals the first, bit for bit");
+    dp_ofdm_destroy (o);
+  }
+
+  /* A reset forgets the held window tail along with the position. */
+  {
+    dp_ofdm_state_t *o = make_layout (3u, 1.0);
+    cf               pts[27], first[64], second[64];
+    fill_points (pts, 27);
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 27, first, 64) == 56);
+    dp_ofdm_reset (o);
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 27, second, 64) == 56);
+    DP_CHECK_MSG (bit_equal (first, second, 56),
+                  "a windowed render after reset starts from silence");
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 7. a training field takes no points ───────────────────────────────*/
+  {
+    const uint8_t    none8[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    dp_ofdm_state_t *o        = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, none8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_fixed (o, 0u, 0u, 1, 1.0) == 0);
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 1);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 2u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 1u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 1);
+    DP_CHECK_MSG (dp_ofdm_points_remaining (o) == 6,
+                  "two training symbols take nothing, the data symbol six");
+    cf pts[6], out[24];
+    fill_points (pts, 6);
+    DP_CHECK_MSG (dp_ofdm_modulate (o, pts, 0, out, 24) == 16,
+                  "with no points, the symbols that need none render");
+    DP_CHECK (dp_ofdm_points_remaining (o) == 6);
+    DP_CHECK (dp_ofdm_modulate (o, pts, 6, out, 24) == 8);
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 8. a transform that is not a power of two ─────────────────────────*/
+  {
+    uint8_t map12[12];
+    memset (map12, 1, sizeof map12);
+    map12[6]           = 0;
+    dp_ofdm_state_t *o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 12u, map12, 12u, 0u, 3u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    cf pts[11], out[15];
+    fill_points (pts, 11);
+    DP_REQUIRE (dp_ofdm_modulate (o, pts, 11, out, 15) == 15);
+    unsigned d = 0;
+    for (int k = -6; k < 6; k++)
+      {
+        const double _Complex want = k == 0 ? 0 : (double _Complex)pts[d++];
+        DP_CHECK_MSG (close_c (coef (out + 3, 12u, k), want, 4e-6),
+                      "any transform length");
+      }
+    dp_ofdm_destroy (o);
+  }
+
+  /* ── 9. the state: resume at every OFDM-symbol boundary ────────────────*/
+  {
+    for (uint32_t window = 0; window <= 3; window += 3)
+      {
+        dp_ofdm_state_t *ref = make_layout (window, 1.0);
+        cf               pts[27], whole[64], tail_ref[3];
+        fill_points (pts, 27);
+        const size_t nw = dp_ofdm_modulate (ref, pts, 27, whole, 64);
+        DP_REQUIRE (nw == 56);
+        const size_t nt = dp_ofdm_finish (ref, 3, tail_ref, 3);
+        DP_CHECK (nt == window);
+
+        for (int split = 1; split <= 5; split++)
+          {
+            size_t p1 = 0, o1 = 0;
+            for (int s = 0; s < split; s++)
+              {
+                p1 += NEED[s];
+                o1 += SYMLEN[s];
+              }
+            dp_ofdm_state_t *a = make_layout (window, 1.0);
+            cf               part1[64], part2[64], tail2[3];
+            DP_REQUIRE (dp_ofdm_modulate (a, pts, p1, part1, 64) == o1);
+            const size_t nb   = dp_ofdm_state_bytes (a);
+            void        *blob = malloc (nb);
+            DP_REQUIRE (blob != NULL);
+            dp_ofdm_get_state (a, blob);
+
+            dp_ofdm_state_t *b = make_layout (window, 1.0);
+            DP_REQUIRE (dp_ofdm_set_state (b, blob) == DP_OK);
+            DP_CHECK (dp_ofdm_points_remaining (b) == 27 - p1);
+            DP_REQUIRE (dp_ofdm_modulate (b, pts + p1, 27 - p1, part2, 64)
+                        == 56 - o1);
+            DP_CHECK_MSG (bit_equal (part1, whole, o1)
+                              && bit_equal (part2, whole + o1, 56 - o1),
+                          "a split render, through the state, equals one "
+                          "call bit for bit");
+            DP_CHECK (dp_ofdm_finish (b, 3, tail2, 3) == nt);
+            DP_CHECK_MSG (bit_equal (tail2, tail_ref, nt),
+                          "and so does the window's final fall");
+
+            /* a round trip through the same object changes nothing */
+            void *again = malloc (nb);
+            dp_ofdm_get_state (a, again);
+            DP_CHECK (dp_ofdm_set_state (a, blob) == DP_OK);
+            dp_ofdm_get_state (a, again);
+            DP_CHECK (memcmp (blob, again, nb) == 0);
+            free (again);
+            free (blob);
+            dp_ofdm_destroy (a);
+            dp_ofdm_destroy (b);
+          }
+        dp_ofdm_destroy (ref);
+      }
+
+    /* what set_state refuses, and that a refusal leaves the object as it
+       was: a render continued after each rejection still equals one call. */
+    dp_ofdm_state_t *ref = make_layout (3u, 1.0);
+    cf               pts[27], whole[64];
+    fill_points (pts, 27);
+    DP_REQUIRE (dp_ofdm_modulate (ref, pts, 27, whole, 64) == 56);
+
+    dp_ofdm_state_t *src = make_layout (3u, 1.0);
+    cf               part[64];
+    DP_REQUIRE (dp_ofdm_modulate (src, pts, 9, part, 64) == 20);
+    const size_t nb   = dp_ofdm_state_bytes (src);
+    uint8_t     *blob = malloc (nb), *bad = malloc (nb);
+    dp_ofdm_get_state (src, blob);
+
+    dp_ofdm_state_t *dst = make_layout (3u, 1.0);
+    DP_REQUIRE (dp_ofdm_modulate (dst, pts, 9, part, 64) == 20);
+
+    memcpy (bad, blob, nb);
+    bad[0] ^= 0xFF;
+    DP_CHECK_MSG (dp_ofdm_set_state (dst, bad) == DP_ERR_INVALID,
+                  "a clobbered envelope");
+
+    dp_ofdm_state_t *other = make_layout (3u, 2.0);
+    DP_CHECK_MSG (dp_ofdm_state_bytes (other) == nb,
+                  "a layout that differs only in scale has the same size, so "
+                  "only the hash can tell them apart");
+    DP_CHECK_MSG (dp_ofdm_set_state (other, blob) == DP_ERR_INVALID,
+                  "a blob from a different layout is a reject key");
+    dp_ofdm_destroy (other);
+
+    /* offsets: header 16, extra {hash u64, run u32, sym u32, tail u32, win} */
+    uint32_t v;
+    memcpy (bad, blob, nb);
+    v = 7;
+    memcpy (bad + 24, &v, 4);
+    DP_CHECK_MSG (dp_ofdm_set_state (dst, bad) == DP_ERR_INVALID,
+                  "a run index past the layout");
+    memcpy (bad, blob, nb);
+    v = 9;
+    memcpy (bad + 28, &v, 4);
+    DP_CHECK_MSG (dp_ofdm_set_state (dst, bad) == DP_ERR_INVALID,
+                  "a symbol count past the run");
+    memcpy (bad, blob, nb);
+    v = 2;
+    memcpy (bad + 32, &v, 4);
+    DP_CHECK_MSG (dp_ofdm_set_state (dst, bad) == DP_ERR_INVALID,
+                  "a held tail that is not the window the position implies");
+
+    cf rest[64];
+    DP_CHECK_MSG (dp_ofdm_points_remaining (dst) == 18,
+                  "no refusal moved the position");
+    DP_REQUIRE (dp_ofdm_modulate (dst, pts + 9, 18, rest, 64) == 36);
+    DP_CHECK_MSG (bit_equal (part, whole, 20)
+                      && bit_equal (rest, whole + 20, 36),
+                  "the object continues as if nothing was refused");
+    DP_CHECK (dp_ofdm_set_state (dst, blob) == DP_OK);
+    DP_CHECK_MSG (dp_ofdm_points_remaining (dst) == 18,
+                  "and the good blob is accepted");
+
+    free (blob);
+    free (bad);
+    dp_ofdm_destroy (src);
+    dp_ofdm_destroy (dst);
+    dp_ofdm_destroy (ref);
+  }
+
+  /* ── the shared round trip, mid-render with a window tail held ─────────*/
+  {
+    dp_ofdm_state_t *a = make_layout (3u, 1.0), *b = make_layout (3u, 1.0);
+    cf               pts[27], out[64];
+    fill_points (pts, 27);
+    MUST (dp_ofdm_modulate (a, pts, 9, out, 64) == 20);
+    DP_CHECK (a->tail_len == 3);
+    DP_STATE_ROUNDTRIP_TEST (dp_ofdm, a, b);
+    DP_CHECK (b->run_index == a->run_index && b->sym_in_run == a->sym_in_run
+              && b->tail_len == a->tail_len);
+    dp_ofdm_destroy (a);
+    dp_ofdm_destroy (b);
+  }
+
+  /* ── a signal extended while it is rendered ────────────────────────────*/
+  {
+    /* Run A rendered, run B of the same class added, the rest rendered: the
+       position and the held window tail survive the re-open, so the whole
+       equals one call over the full layout. */
+    dp_ofdm_state_t *g = dp_ofdm_create (), *w = dp_ofdm_create ();
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *x = pass ? w : g;
+        MUST (
+            add_cls (x, 8u, MAP8, 8u, 0u, 2u, 3u, 1.0, NULL, 0u, 1u, NULL, 0u)
+            == 0);
+        MUST (dp_ofdm_add_run (x, 0u, 3u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+      }
+    MUST (dp_ofdm_add_run (w, 0u, 2u, OFDM_CP_DEFAULT, 0u, 0u) == 1);
+    cf pts[30], whole[64], p1[64], p2[64];
+    fill_points (pts, 30);
+    MUST (dp_ofdm_modulate (w, pts, 30, whole, 64) == 50);
+    MUST (dp_ofdm_modulate (g, pts, 18, p1, 64) == 30);
+    MUST (dp_ofdm_add_run (g, 0u, 2u, OFDM_CP_DEFAULT, 0u, 0u) == 1);
+    DP_CHECK_MSG (dp_ofdm_points_remaining (g) == 12,
+                  "the added run is the rest of the layout");
+    MUST (dp_ofdm_modulate (g, pts + 18, 12, p2, 64) == 20);
+    DP_CHECK_MSG (bit_equal (p1, whole, 30) && bit_equal (p2, whole + 30, 20),
+                  "an extended layout renders as if built whole");
+    dp_ofdm_destroy (g);
+    dp_ofdm_destroy (w);
+  }
+
+  /* ── 10. a layout is its content, not the order it was entered in ──────*/
+  {
+    /* The same fixed entries entered in the opposite order are the same
+       layout: the pattern is held sorted by (phase, k), so the reject key
+       is canonical and a blob restores across the two. */
+    dp_ofdm_state_t *p = dp_ofdm_create (), *q = dp_ofdm_create ();
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *x = pass ? q : p;
+        MUST (
+            add_cls (x, 8u, MAP8, 8u, 0u, 2u, 0u, 1.0, NULL, 0u, 3u, NULL, 0u)
+            == 0);
+        const int      ks[4] = { 3, -1, 2, -3 };
+        const uint32_t ph[4] = { 1u, 0u, OFDM_ALL_PHASES, 2u };
+        for (int i = 0; i < 4; i++)
+          {
+            const int j = pass ? 3 - i : i;
+            MUST (dp_ofdm_add_fixed (x, 0u, ph[j], ks[j], 1.0 + j) == 0);
+          }
+        MUST (dp_ofdm_add_run (x, 0u, 3u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+      }
+    DP_CHECK_MSG (dp_ofdm_points_remaining (p) == dp_ofdm_points_remaining (q),
+                  "the same pattern, entered in either order");
+    cf pts[20], out[40];
+    fill_points (pts, 20);
+    const size_t first = dp_ofdm_points_remaining (p) / 3;
+    MUST (dp_ofdm_modulate (p, pts, first, out, 40) > 0);
+    void *blob = malloc (dp_ofdm_state_bytes (p));
+    dp_ofdm_get_state (p, blob);
+    DP_CHECK_MSG (dp_ofdm_set_state (q, blob) == DP_OK,
+                  "a blob restores across the two insertion orders");
+    free (blob);
+
+    /* A reset object is, byte for byte, a fresh one. */
+    dp_ofdm_state_t *r = make_layout (3u, 1.0), *f = make_layout (3u, 1.0);
+    cf               all[27], big[64];
+    fill_points (all, 27);
+    MUST (dp_ofdm_modulate (r, all, 27, big, 64) == 56);
+    dp_ofdm_reset (r);
+    const size_t nb = dp_ofdm_state_bytes (r);
+    void        *br = malloc (nb), *bf = malloc (nb);
+    dp_ofdm_get_state (r, br);
+    dp_ofdm_get_state (f, bf);
+    DP_CHECK_MSG (memcmp (br, bf, nb) == 0,
+                  "reset returns the position and the held tail");
+    free (br);
+    free (bf);
+    dp_ofdm_destroy (r);
+    dp_ofdm_destroy (f);
+    dp_ofdm_destroy (p);
+    dp_ofdm_destroy (q);
+  }
+
+  DP_TEST_END ("test_ofdm_core");
+}

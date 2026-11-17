@@ -96,6 +96,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) _M-PSK receiver state._     
 * **struct** [**dp\_nco\_state\_t**](structdp__nco__state__t.md) _NCO state._     
 * **struct** [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._     
+* **struct** [**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) _Ofdm state: the layout (configuration) and the position in it (state)._     
 * **struct** [**dp\_once\_t**](structdp__once__t.md) _The state of one one-time build; start it at_ [_**DP\_ONCE\_INIT**_](dp__once_8h.md#define-dp_once_init) _._    
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._    
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) _One parallel-for run: the range, the work, and the shared cursor._     
@@ -134,6 +135,9 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) _Telemetry attachment for the receiver's own seven probes._     
 * **struct** [**node\_sync\_t**](structnode__sync__t.md) _What one alignment hypothesis scored, and what the runner-up did._     
 * **struct** [**npr\_meas\_t**](structnpr__meas__t.md) _Noise Power Ratio (notched-noise loading) result._     
+* **struct** [**ofdm\_class\_t**](structofdm__class__t.md) _One kind of OFDM symbol. The arrays are owned by the modulator, copied in by_ [_**dp\_ofdm\_add\_class()**_](ofdm__core_8h.md#function-dp_ofdm_add_class) _and_[_**dp\_ofdm\_add\_fixed()**_](ofdm__core_8h.md#function-dp_ofdm_add_fixed) _._    
+* **struct** [**ofdm\_fixed\_t**](structofdm__fixed__t.md) _One entry of a class's fixed pattern._     
+* **struct** [**ofdm\_run\_t**](structofdm__run__t.md) _A run of OFDM symbols of one class._     
 * **struct** [**ppe\_result\_t**](structppe__result__t.md) _Polynomial-phase estimate (one search)._     
 * **struct** [**ratesync\_loop\_t**](structratesync__loop__t.md) _The symbol-timing loop, independent of what feeds it._     
 * **struct** [**ratesync\_tlm\_t**](structratesync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then one predicted-not-taken branch per recovered symbol._     

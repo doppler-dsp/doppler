@@ -1,0 +1,149 @@
+# ofdm -- a general OFDM modulator, driven by a layout.
+#
+# The layout is the one description it takes: a list of CLASSES (one kind of
+# OFDM symbol) and a list of RUNS (a count of symbols of one class), built by
+# calls as `Frame` is built by `add_field` and `add_stage` -- a struct-pointer
+# constructor is not jm-expressible, and a layout is a structure of arrays. It
+# names no standard and includes no wfmgen header; docs/design/ofdm.md owns
+# the shape and what forced each field.
+#
+# Stateful: the run index, the symbol count within the run, and the previous
+# OFDM symbol's window tail cross a call, so it serializes. The layout is
+# configuration and is a reject key (a hash of its canonical form), not state.
+[ofdm]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Ofdm"
+serializable = "true"
+create_error = "MemoryError"
+create_error_message = "Ofdm: out of memory"
+depends_on = [{ name = "fft", link = true }]
+fragment = "generated"
+
+[[ofdm.methods]]
+name = "add_class"
+doc = "Append one kind of OFDM symbol and return its index. `n_fft` is the transform length of this class; `subcarrier_map` has `n_fft` entries, index `k + n_fft/2`, 1 where the subcarrier may carry a constellation point and 0 where it carries nothing the caller supplies. `useful` is how many samples are read cyclically from the inverse transform (0 reads as `n_fft`: a training field of ten short periods reads 160 of 64). `cyclic_prefix` is the default prefix in samples, the last samples of the body copied ahead of it. `window` is the transition into and out of this class in samples. `scale` multiplies the transform output. `n_phase` is the period of the class's fixed pattern in OFDM symbols. A class's per-subcarrier gains and polarity sequence are added by `add_subcarrier_gain` and `add_polarity`."
+arg_type = "void"
+return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a class: n_fft is under 2, subcarrier_map is not n_fft long or holds a value other than 0 or 1, the cyclic prefix is longer than the useful length, the window is longer than the symbol, or n_phase is 0"
+params = [
+    { name = "n_fft", type = "uint32_t" },
+    { name = "subcarrier_map", type = "uint8_t[]" },
+    { name = "useful", type = "uint32_t", default = "0" },
+    { name = "cyclic_prefix", type = "uint32_t", default = "0" },
+    { name = "window", type = "uint32_t", default = "0" },
+    { name = "scale", type = "double", default = "1.0" },
+    { name = "n_phase", type = "uint32_t", default = "1" },
+]
+
+[[ofdm.methods]]
+name = "add_subcarrier_gain"
+doc = "Give a class a complex multiplier per subcarrier: `n_fft` values, index `k + n_fft/2`, applied to the whole grid, data and fixed entries alike. It carries a per-subband phase rotation or any per-subcarrier amplitude. Without it the gain is 1 everywhere. Refuses if the class already has gains."
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "cannot add gains: class_index names no class, the class already has gains, or gain is not n_fft long"
+params = [
+    { name = "class_index", type = "uint32_t" },
+    { name = "gain", type = "float _Complex[]" },
+]
+
+[[ofdm.methods]]
+name = "add_polarity"
+doc = "Give a class a polarity sequence: a complex scalar per OFDM symbol that multiplies the class's fixed entries, never its data. OFDM symbol `n` of a run uses element `(polarity_offset + n) mod len`. Without it the scalar is 1. Refuses if the class already has a sequence."
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "cannot add a polarity sequence: class_index names no class, the class already has one, or it is empty"
+params = [
+    { name = "class_index", type = "uint32_t" },
+    { name = "polarity", type = "float _Complex[]" },
+]
+
+[[ofdm.methods]]
+name = "add_fixed"
+doc = "Append one fixed entry to a class: a pilot, a training value, a boosted pilot. `phase` is the pattern phase it belongs to, or 4294967295 for every phase. `k` is the subcarrier, from `-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its subcarrier in its phase, and is multiplied by the class's polarity element for the OFDM symbol."
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "cannot append a fixed entry: class_index names no class, phase is not below n_phase, or k is outside -n_fft/2 .. n_fft/2 - 1"
+params = [
+    { name = "class_index", type = "uint32_t" },
+    { name = "phase", type = "uint32_t" },
+    { name = "k", type = "int32_t" },
+    { name = "value", type = "double _Complex" },
+]
+
+[[ofdm.methods]]
+name = "add_run"
+doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (4294967295 keeps it); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
+arg_type = "void"
+return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a run: class_index names no class, count is 0, first_phase is not below n_phase, or the prefix does not fit the class's useful length"
+params = [
+    { name = "class_index", type = "uint32_t" },
+    { name = "count", type = "uint32_t" },
+    { name = "cyclic_prefix", type = "uint32_t", default = "4294967295" },
+    { name = "polarity_offset", type = "uint32_t", default = "0" },
+    { name = "first_phase", type = "uint32_t", default = "0" },
+]
+
+[[ofdm.methods]]
+name = "check"
+doc = "Check the whole layout and return 0 if it is usable, or a negative value if not (no run, a window longer than an OFDM symbol, two fixed entries on one subcarrier in one phase). `modulate` checks on first use and returns an empty array for a layout that fails; call this to find out why before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
+arg_type = "void"
+return_type = "int"
+
+[[ofdm.methods]]
+name = "points_remaining"
+doc = "Constellation points the rest of the layout consumes, from the current position. Pass exactly that many to `modulate` to render the rest in one call."
+arg_type = "void"
+return_type = "size_t"
+
+[[ofdm.methods]]
+name = "modulate"
+doc = "Render OFDM symbols from constellation points, in layout order, and return the samples. Each OFDM symbol takes its data count from the points: its data subcarriers less those a fixed entry displaces in its pattern phase. Rendering stops when the next OFDM symbol needs more points than remain; OFDM symbols that need none (training fields) render. A point count that ends inside an OFDM symbol is refused, the modulator untouched, and returns an empty array. The window tail of the last OFDM symbol is held for the next call; `finish` returns it."
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+
+[[ofdm.methods]]
+name = "finish"
+doc = "Return the window tail still held after the last OFDM symbol (empty when the window is 0 or nothing has been rendered) and clear it."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+# A bare finish() returns the whole held tail: the count is instance state.
+count_default = "self->handle->tail_len"
+
+# Where the modulator is in its layout: the internals a caller cannot otherwise
+# see. Read-only; a render moves them, and so does set_state.
+[[ofdm.properties]]
+name = "run_index"
+type = "uint32_t"
+field = true
+doc = "The run the next OFDM symbol belongs to; the number of runs once the layout is rendered."
+
+[[ofdm.properties]]
+name = "sym_in_run"
+type = "uint32_t"
+field = true
+doc = "OFDM symbols already rendered of the run `run_index`."
+
+[[ofdm.properties]]
+name = "tail_len"
+type = "uint32_t"
+field = true
+doc = "Samples of window tail held for the next OFDM symbol."

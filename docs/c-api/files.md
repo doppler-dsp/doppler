@@ -214,6 +214,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**nco\_core.h**](nco__core_8h.md) _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that steers one has to pass through._     
             * **dir** [**nprmeas**](dir_df189228e030028408da81bd0afea7e3.md)     
                 * **file** [**nprmeas\_core.h**](nprmeas__core_8h.md) _NPRMeasure — notched-noise Noise Power Ratio._     
+            * **dir** [**ofdm**](dir_78c6add8c81d41bee73cbf3d222b7ad8.md)     
+                * **file** [**ofdm\_core.h**](ofdm__core_8h.md) _A general OFDM modulator: constellation points and a layout in, baseband samples out._     
             * **dir** [**pn**](dir_95c43a97468bba5f35ca9859d48b4113.md)     
                 * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
             * **dir** [**ppe**](dir_2835f10376dc04900139beed5b4d2457.md)     

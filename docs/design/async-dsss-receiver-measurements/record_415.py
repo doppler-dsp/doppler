@@ -653,7 +653,9 @@ def fig_windows(
         rs = rows[cell]
         nfl = sum(r["false_lock"] != "0" for r in rs)
         ok = [r for r in rs if r["false_lock"] == "0"]
-        cross = sum(int(r["car_slips"]) for r in ok)
+        cross = sum(
+            int(r["car_slips"]) for r in ok if r["t_sym_s"] != "nan"
+        )  # in a link that locked: fold_cell()
         lag = float(ok[0]["base_lag_deg"])
         sd = float(ok[0]["base_sd_deg"])
         for ax, q in zip(
@@ -743,7 +745,7 @@ def windows(argv: list[str]) -> int:
                 str(len(rs)),
                 str(len(rs) - len(ok)),
                 str(sum(r["works"] == "1" for r in rs)),
-                str(sum(int(r["car_slips"]) for r in ok)),
+                fold_cell(ok),
                 str(sum(int(r["sym_tog"]) for r in ok)),
                 str(sum(int(r["code_tog"]) for r in ok)),
                 f"{float(ok[0]['base_sd_deg']):.1f}",
@@ -1083,6 +1085,29 @@ def bn_cells(d: Path) -> tuple[Data, dict[Cell, Rows]]:
     return data, by
 
 
+def fold_cell(ok: Rows) -> str:
+    """Fold crossings over the draws that reached symbol lock, then in
+    parentheses those of the draws that never did. A draw that never
+    locked and was not called false (seed 8 at 2.2 GHz, a data-template
+    hand-over 403 Hz off) spins its carrier for the whole run, and its
+    count would swamp the cell, so it is shown apart.
+
+    >>> fold_cell(
+    ...     [
+    ...         {"car_slips": "2", "t_sym_s": "0.3"},
+    ...         {"car_slips": "5000", "t_sym_s": "nan"},
+    ...     ]
+    ... )
+    '2 (+5000 never locked)'
+    >>> fold_cell([{"car_slips": "0", "t_sym_s": "0.3"}])
+    '0'
+    """
+    locked = sum(int(r["car_slips"]) for r in ok if r["t_sym_s"] != "nan")
+    never = [r for r in ok if r["t_sym_s"] == "nan"]
+    spun = sum(int(r["car_slips"]) for r in never)
+    return f"{locked}" + (f" (+{spun} never locked)" if never else "")
+
+
 def bn_row(data: Data, cell: Cell, rows: Rows) -> list[str]:
     """One cell at one bandwidth: the columns the comparison reads."""
     import statistics as st
@@ -1141,7 +1166,7 @@ def bn_row(data: Data, cell: Cell, rows: Rows) -> list[str]:
         + f" / {float(rows[0]['base_lag_deg']):.2f}",
         f"{sd:.1f} / {base:.1f}",
         f"{loop_snr_db(sd):.1f} / {loop_snr_db(base):.1f}",
-        str(sum(int(r["car_slips"]) for r in ok)),
+        fold_cell(ok),
         f"{below / tot:.1%}" if tot else "n/a",
         f"{sum(int(r['sym_tog']) for r in ok) / max(len(ok), 1):.1f}",
         f"{sum(int(r['code_tog']) for r in ok) / max(len(ok), 1):.2f}",
@@ -1189,10 +1214,30 @@ def bn(argv: list[str]) -> int:
         "Carrier-loop bandwidth, side by side (development data; "
         "false locks and blocks off the emitter apart where stated).\n\n"
         + table(head, body)
-        + "\n",
+        + "\n"
+        + sizing_note(cells),
         encoding="utf-8",
     )
     return 0
+
+
+def sizing_note(cells: list[Cell]) -> str:
+    """The label every table with a 2.8 GHz 10 dB cell carries until the
+    code-lock sizing fix lands: those misses are that, not the carrier.
+
+    >>> sizing_note([("2.8", "10.0", "0", "code_period")])[:12]
+    '\\n2.8 GHz 10 '
+    >>> sizing_note([("2.2", "10.0", "0", "partials")])
+    ''
+    """
+    if not any(c[0] == "2.8" and float(c[1]) == 10.0 for c in cells):
+        return ""
+    return (
+        "\n2.8 GHz 10 dB: the draws that do not work are the code-lock "
+        "sizing (the Dll's look count from the antenna C/N0, not the "
+        "despread one), a separate fix, the same at every carrier-loop "
+        "bandwidth here; they are not the carrier loop.\n"
+    )
 
 
 def lag(argv: list[str]) -> int:

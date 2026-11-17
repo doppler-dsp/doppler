@@ -2279,12 +2279,10 @@ loop-filter.md §13 anticipates ("an embedder that holds both orders").
         `StateFilter` (7 doubles) and the order word.
     - Every blob that nests Costas changes size: `despreader`,
         `dsss_receiver`, `async_dsss_receiver` (three Costas) and through it
-        `async_dsss_pool`. Whether each parent bumps its own version follows
-        state-serialization.md's rule for a nested child, which I check
-        before implementation.
+        `async_dsss_pool`. Each nests Costas as a child sub-blob, so it moves
+        by size, not by version (condition 3 below).
     - The order and the filter's estimates are mutator values (#2022), so
-        they are in the blob, and the order is a reject key for the filter
-        it selects.
+        they travel in the blob and are checked.
 - **Certification:**
     - The order-2 path stays bit-identical. Proof: the existing
         `test_costas_core.c` pins, `costas_pullin --check` and
@@ -2319,9 +2317,9 @@ before a header is edited.
 
 **1. Costas's change is its own spine pass and its own pull request,
 landed before the receiver's adoption.** Costas has no design page
-today, so that PR starts one. The order is carried in the blob and
-checked, per state-serialization.md: a value that changes what the blob
-means is a reject key for the filter it selects. Order 2 is the
+today, so that PR starts one. The order is a mutator's value (`dp_costas_set_order`), so it travels in
+the blob and is checked, per state-serialization.md's rule 2 (the Costas
+page, §3.3). Order 2 is the
 default, and bit-identical on every existing pin and bench row. Order
 3 is pinned and sabotaged on its own. `costas_pullin` and
 `costas_jitter` gain order 3 with the same assertions in `--check` and
@@ -2467,6 +2465,19 @@ At the rule's `bn`, the 4 dB floor, delays 0 to 1.75:
     delivered bandwidth at `g` is a little wider.
 - **Lag:** order 2's lag at the rule's `bn` is about 29°, which is why
     order 3 comes with the rule. Order 3 has none.
+- **Measured at the rule's `bn`, order 2** (dev, 11-17; the same seeds
+    as the 0.04 and 0.01 runs). `code_period` reads what the model says:
+    14.5 dB against 14.3 at 2.8 GHz, and 14.6 against 15.0 at 2.2 GHz.
+    For `partials` (`Kw = 4`) the model is **pessimistic**: 12.3 dB
+    measured against 10.7 at 2.8 GHz, and 12.8 against 11.9 at 2.2 GHz,
+    0.9 to 1.6 dB under.
+    - The model is not tuned to it. Its `Kw = 4` slope is a Monte Carlo of
+        equal-SNR partials, and the receiver's are not equal.
+    - Static cells work: 13 to 16 of 16 at 4 dB.
+    - Every 4 dB ramp cell false-locks, the order-2 lag the table above
+        predicts.
+    - At 10 dB, 2.8 GHz misses are the code-lock sizing, a separate fix,
+        at every bandwidth.
 
 Every figure here is printed by the validator:
 `validate_async_dsss_receiver_pullin --design`, the `# design` section.

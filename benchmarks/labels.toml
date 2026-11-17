@@ -1429,6 +1429,13 @@ definition = "Hard-deciding 65,536 received 1024-QAM points to their labels, eac
 domain = "sym"
 count = 1
 
+["py:ofdm::test_bench_create"]
+name = "OFDM modulator setup, from Python"
+unit = "call"
+definition = "Constructing one Ofdm with an empty layout: the cost of building the object before any class or run is added, paid once per object."
+domain = "call"
+count = 1
+
 ["c:ofdm::modulate[n_fft=64]"]
 name = "OFDM modulate, n_fft 64"
 unit = "symbol"

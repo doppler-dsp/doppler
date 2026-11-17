@@ -5,6 +5,8 @@
  *   AVX-512F  ->  16 float / 8 double lanes  (JM_SIMD_WIDTH_F32 = 16)
  *   AVX2+FMA  ->   8 float / 4 double lanes  (JM_SIMD_WIDTH_F32 =  8)
  *   NEON      ->   4 float / 2 double lanes  (JM_SIMD_WIDTH_F32 =  4)  (aarch64)
+ *   SSE2      ->   4 float / 2 double lanes  (JM_SIMD_WIDTH_F32 =  4)  (x86;
+ *                no FMA, so a MAC is a multiply then an add)
  *   Scalar    ->   1 lane  (auto-vectorisation still applies)
  *
  * Typical usage (FIR inner loop):
@@ -169,7 +171,55 @@ typedef float64x2_t JM_VEC_F64;
 #define JM_HSUM_F64(v)           vaddvq_f64(v)
 
 /* ════════════════════════════════════════════════════════════════════════
- * Tier 4 — Scalar  (1 lane; compiler auto-vectorisation still applies)
+ * Tier 4 — SSE2  (4 float / 2 double lanes; the x86-64 baseline, so a
+ * portable x86-64 build with neither AVX2 nor FMA still runs four float
+ * lanes rather than one. SSE has no fused multiply-add: JM_FMA is a
+ * multiply then an add, rounded twice, so a result can differ from the
+ * AVX2 tier's in the last place. The horizontal sums use SSE2 shuffles.)
+ * ════════════════════════════════════════════════════════════════════════ */
+#elif defined(__SSE2__) || defined(_M_X64) || \
+      (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
+
+#define JM_SIMD_WIDTH_F32    4
+#define JM_SIMD_WIDTH_F64    2
+#define JM_SIMD_WIDTH        JM_SIMD_WIDTH_F32
+
+typedef __m128  JM_VEC_F32;
+typedef __m128d JM_VEC_F64;
+
+#define JM_ZERO_F32()            _mm_setzero_ps()
+#define JM_ZERO_F64()            _mm_setzero_pd()
+#define JM_SPLAT_F32(x)          _mm_set1_ps(x)
+#define JM_SPLAT_F64(x)          _mm_set1_pd(x)
+#define JM_LOAD_F32(p)           _mm_loadu_ps(p)
+#define JM_LOAD_F64(p)           _mm_loadu_pd(p)
+#define JM_STORE_F32(p, v)       _mm_storeu_ps(p, v)
+#define JM_STORE_F64(p, v)       _mm_storeu_pd(p, v)
+#define JM_ADD_F32(a, b)         _mm_add_ps(a, b)
+#define JM_ADD_F64(a, b)         _mm_add_pd(a, b)
+#define JM_MUL_F32(a, b)         _mm_mul_ps(a, b)
+#define JM_MUL_F64(a, b)         _mm_mul_pd(a, b)
+/* Not fused: SSE has no FMA. */
+#define JM_FMA_F32(acc, a, b)    ((acc) = _mm_add_ps(acc, _mm_mul_ps(a, b)))
+#define JM_FMA_F64(acc, a, b)    ((acc) = _mm_add_pd(acc, _mm_mul_pd(a, b)))
+#define JM_MAC_F32(acc, ptr, s)  JM_FMA_F32(acc, JM_LOAD_F32(ptr), JM_SPLAT_F32(s))
+#define JM_MAC_F64(acc, ptr, s)  JM_FMA_F64(acc, JM_LOAD_F64(ptr), JM_SPLAT_F64(s))
+
+static inline float jm_hsum128_f32(__m128 v) {
+    __m128 sh = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 s  = _mm_add_ps(v, sh);   /* (0+1, 1+0, 2+3, 3+2) */
+    sh        = _mm_movehl_ps(sh, s); /* (2+3, 3+2, ...)      */
+    s         = _mm_add_ss(s, sh);   /* (0+1) + (2+3)        */
+    return _mm_cvtss_f32(s);
+}
+static inline double jm_hsum128_f64(__m128d v) {
+    return _mm_cvtsd_f64(_mm_add_sd(v, _mm_unpackhi_pd(v, v)));
+}
+#define JM_HSUM_F32(v)           jm_hsum128_f32(v)
+#define JM_HSUM_F64(v)           jm_hsum128_f64(v)
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Tier 5 — Scalar  (1 lane; compiler auto-vectorisation still applies)
  * ════════════════════════════════════════════════════════════════════════ */
 #else
 

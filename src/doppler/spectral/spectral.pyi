@@ -6,7 +6,13 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 
 PSD_WINDOW: dict[int, str]
+"""Names of the psd_window values, keyed by code (DP_PSD_WINDOW_HANN ..
+DP_PSD_WINDOW_RECT).
+"""
 SPECTROGRAM_MODE: dict[int, str]
+"""Names of the spectrogram_mode values, keyed by code (DP_SPECTROGRAM_POWER ..
+DP_SPECTROGRAM_DB).
+"""
 
 @final
 class FFT:

@@ -274,6 +274,7 @@ dp_ber_evm_db function
 dp_ber_evm_ideal_db function
 dp_ber_evm_scatter_floor_db function
 dp_ber_lock_symbol function
+dp_ber_lock_transitions function
 dp_ber_meter_align function
 dp_ber_meter_ber function
 dp_ber_meter_create function

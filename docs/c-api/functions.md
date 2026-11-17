@@ -393,6 +393,7 @@
 * **dp\_ber\_evm\_ideal\_db** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_evm\_scatter\_floor\_db** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_lock\_symbol** ([**ber\_core.h**](ber__core_8h.md))
+* **dp\_ber\_lock\_transitions** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_qfunc** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_settle\_from** ([**ber\_core.h**](ber__core_8h.md))
 * **dp\_ber\_settle\_syms** ([**ber\_core.h**](ber__core_8h.md))

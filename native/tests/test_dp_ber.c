@@ -589,6 +589,36 @@ test_settle (void)
   f[2500] = 0;
   DP_CHECK (dp_ber_lock_symbol (f, N, 200, 0.9) == 800);
 
+  /* The toggles after it: the late dip is one drop and one recovery,
+     the first at 2500, counted from the sustained lock. */
+  {
+    int64_t first = 0;
+    DP_CHECK (dp_ber_lock_transitions (f, NULL, N, 800, &first) == 2);
+    DP_CHECK (first == 2500);
+    /* The reference is the value at `from`: from inside the dip the flag
+       starts down and the recovery is the one change. */
+    DP_CHECK (dp_ber_lock_transitions (f, NULL, N, 2500, &first) == 1);
+    DP_CHECK (first == 2501);
+    /* Indices not looked at are skipped, not compared. A dip wholly
+       inside them is never seen ... */
+    static unsigned char look[N];
+    memset (look, 1, sizeof look);
+    for (int i = 2450; i < 2550; i++)
+      look[i] = 0;
+    DP_CHECK (dp_ber_lock_transitions (f, look, N, 800, &first) == 0);
+    DP_CHECK (first == -1);
+    /* ... and one still down at the next index looked at counts once,
+       there, not where it happened. */
+    for (int i = 2500; i < 2600; i++)
+      f[i] = 0;
+    DP_CHECK (dp_ber_lock_transitions (f, look, N, 800, &first) == 2);
+    DP_CHECK (first == 2550);
+    for (int i = 2501; i < 2600; i++)
+      f[i] = 1; /* back to the one late dip at 2500 */
+    DP_CHECK (dp_ber_lock_transitions (NULL, NULL, N, 0, &first) == 0);
+    DP_CHECK (first == -1);
+  }
+
   /* A detector that declares early then flaps fails the fraction test. */
   memset (f, 0, sizeof f);
   for (int i = 100; i < 400; i++)

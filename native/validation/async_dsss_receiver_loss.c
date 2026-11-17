@@ -409,8 +409,11 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
     int    ok     = 0;
     size_t settle = dp_ber_settle (mr->l.timing.bn, mr->l.bn_carrier, NULL,
                                    all, n3, &ok);
+    size_t at = dp_ber_marker_place (bits, n_bits, 2, settle + DP_BER_LAG_SPAN,
+                                     DP_BER_SYNC_SYMS, DP_BER_LAG_SPAN,
+                                     DP_BER_SYNC_PFA, 1);
     dp_ber_marker_t mk
-        = { NULL, DP_BER_SYNC_SYMS, settle + DP_BER_LAG_SPAN, 0, 0 };
+        = { NULL, DP_BER_SYNC_SYMS, at == SIZE_MAX ? n_bits : at, 0, 0 };
     dp_ber_sync_t sy = dp_ber_sync (y3, n3, bits, n_bits, &mk, 2,
                                     DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
     if (ok && sy.ok)
@@ -433,8 +436,11 @@ burst (point_t *pt, const uint8_t *code, double es, uint32_t seed, double secs,
       size_t settle = dp_ber_settle (rx->rx->l.timing.bn, rx->rx->l.bn_carrier,
                                      NULL, lk4, n4, &ok);
       size_t base   = symbol_at (first4 == SIZE_MAX ? 0 : first4 * TE);
-      dp_ber_marker_t mk
-          = { NULL, DP_BER_SYNC_SYMS, settle + DP_BER_LAG_SPAN, 0, 0 };
+      size_t at     = dp_ber_marker_place (
+          bits + base, n_bits - base, 2, settle + DP_BER_LAG_SPAN,
+          DP_BER_SYNC_SYMS, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+      dp_ber_marker_t mk = { NULL, DP_BER_SYNC_SYMS,
+                             at == SIZE_MAX ? n_bits - base : at, 0, 0 };
       dp_ber_sync_t sy = dp_ber_sync (y4, n4, bits + base, n_bits - base, &mk,
                                       2, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
       if (ok && sy.ok)

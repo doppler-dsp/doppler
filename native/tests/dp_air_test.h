@@ -22,14 +22,18 @@
  *
  * ## The front end's band
  *
- * The RateConverter is the band limit, and `spc` decides which band. At 2
- * samples a chip it interpolates, and the band is the GENERATION rate's,
- * plus or minus one chip rate: the chip spectrum cut at its first null. At
- * 4 it decimates to `fs`, so the edge sits at the output's own Nyquist, the
- * front end being modelled, and at both 415.1 carriers it is still one
- * resampler stage, whose delay is published (dp_RateConverter_get_group_
- * delay()). At 8 the plan gains a halfband stage, whose delay is not, and
- * the code truth below would be unknown. So DP_AIR_SPC is 4.
+ * The RateConverter is the band limit, and `spc` decides which band. Its
+ * one resampler stage is a 60 dB Kaiser bank whose pass and stop edges are
+ * 0.4 and 0.6 of the SLOWER side's rate. At 4 samples a chip it decimates
+ * to `fs`: it passes to 0.4 fs and stops from 0.6 fs, a front end's
+ * anti-alias filter about the output's own Nyquist -- the model -- and at
+ * both 415.1 carriers that is one stage, whose delay is published
+ * (dp_RateConverter_get_group_delay()). At 2 it interpolates from the
+ * generation rate, and the held chips' images inside its transition band
+ * come through: the scene then keeps 0.9993 of the chip power, where 4
+ * keeps 0.946 (2.2 GHz) and 0.917 (2.8 GHz) (test_dp_air.c). At 8 the plan
+ * gains a halfband stage, whose delay is not published, and the code truth
+ * below would be unknown. So DP_AIR_SPC is 4.
  *
  * ## Level
  *
@@ -97,8 +101,8 @@ typedef struct
   size_t   n_bits;              /**< payload bits                         */
   unsigned spc; /**< whole samples a chip it is rendered at; 0 means
                      DP_AIR_SPC. To show what the front end's band does:
-                     at 2 the converter interpolates and the band is +/-1
-                     chip rate */
+                     at 2 the converter interpolates and the held chips'
+                     images come through its transition band */
 } dp_air_emitter_t;
 
 /** A scene: emitters, the rate they are received at, and the noise. */

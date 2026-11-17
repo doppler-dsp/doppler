@@ -215,6 +215,72 @@ main (void)
       DP_CHECK (data_pos > 5 && data_neg > 5);
       dp_air_free (&a);
     }
+  /* 6. What the front end does to the despread signal, clean (no noise):
+     every whole symbol despread on the truth's chips and carrier, its mean
+     (the correlation the band keeps) and its spread about the mean (self-
+     noise, from aliasing or anything else the front end adds), at the
+     default four samples a chip and at two. Measured, 2026-11-17: the
+     self-noise ceiling is near 60 dB at both settings and carriers, so
+     folded energy does not limit the receiver; at 2.8 GHz the band keeps
+     less of the correlation at four samples a chip than at two (0.913
+     against 0.945, 0.30 dB), what the paired pull-in run lost there. At
+     2.2 GHz four keeps slightly more (0.953 against 0.945). */
+  for (int fci = 0; fci < 2; fci++)
+    {
+      double mean_at[2] = { 0.0, 0.0 };
+      for (unsigned spc = 4; spc >= 2; spc -= 2)
+        {
+          const double     fc = fci ? 2.8e9 : 2.2e9;
+          dp_air_emitter_t e  = emitter (code, fc, 0.0, 0.0, 50.0, 300, 7u);
+          e.spc               = spc;
+          dp_air_t a;
+          DP_REQUIRE (dp_air_init (&a, &e, 1, FS, NAN, 0u, n));
+          DP_REQUIRE (dp_air_next (&a, x, n));
+          double s1 = 0.0, s2 = 0.0, pw = 0.0;
+          size_t ns = 0, cnt = 0;
+          long   cur = -1;
+          double acc = 0.0;
+          for (size_t j = 4000; j < n; j++)
+            {
+              const dp_air_truth_t t   = dp_air_truth (&a, 0, j);
+              const double _Complex lo = cexp (
+                  -2.0 * M_PI * I * (t.car_cycles - floor (t.car_cycles)));
+              const double v
+                  = creal ((double _Complex)x[j] * lo)
+                    * (code[(size_t)floor (t.code_chips)] ? -1.0 : 1.0);
+              pw += (double)crealf (x[j]) * crealf (x[j])
+                    + (double)cimagf (x[j]) * cimagf (x[j]);
+              if (t.symbol != cur)
+                {
+                  if (cur >= 0 && cnt > 100)
+                    {
+                      const double m = fabs (acc) / (double)cnt;
+                      s1 += m;
+                      s2 += m * m;
+                      ns++;
+                    }
+                  cur = t.symbol;
+                  acc = 0.0;
+                  cnt = 0;
+                }
+              acc += v;
+              cnt++;
+            }
+          const double mean    = s1 / (double)ns;
+          const double var     = s2 / (double)ns - mean * mean;
+          const double ceil_db = 10.0 * log10 (mean * mean / var);
+          printf ("  despread at %.1f GHz, %u samples a chip: %zu symbols, "
+                  "mean %.4f, power %.4f, self-noise ceiling %.1f dB\n",
+                  fc / 1e9, spc, ns, mean, pw / (double)(n - 4000), ceil_db);
+          DP_REQUIRE (ns > 200);
+          DP_CHECK (ceil_db > 45.0); /* no measurable self-noise */
+          mean_at[spc == 4 ? 0 : 1] = mean;
+          dp_air_free (&a);
+        }
+      if (fci)
+        DP_CHECK (20.0 * log10 (mean_at[0] / mean_at[1]) < -0.2);
+    }
+
   /* 5. An emitter given its payload: every whole-symbol half period
      despread on the truth carries the bit dp_air_symbol_bit() names for
      that symbol, window symbols and data alike, under one fixed sign

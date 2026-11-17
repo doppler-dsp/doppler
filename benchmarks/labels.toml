@@ -1496,3 +1496,49 @@ unit = "call"
 definition = "One Wlan.n_sym call for a 1500-octet PSDU: the arithmetic plus the call across the binding."
 domain = "call"
 count = 1
+
+["c:state_filter::step"]
+name = "Third-order state filter, one update at a time"
+unit = "sample"
+definition = "The inline three-line update of the third-order loop filter (rate, frequency, control), called once per input error; throughput counts input errors."
+samples = 1
+
+["c:state_filter::steps"]
+name = "Third-order state filter, 65,536-error blocks"
+unit = "sample"
+definition = "The block path of the third-order loop filter fed 65,536 loop errors per round; throughput counts input errors."
+samples = 1
+
+["c:state_filter::configure"]
+name = "Third-order state filter retune, from C"
+unit = "call"
+definition = "Retuning the gains of a third-order loop filter for a new bn and t: the bisection on the exact bandwidth, paid once per retune."
+domain = "call"
+count = 1
+
+["c:state_filter::stable"]
+name = "Third-order state filter stability test, from C"
+unit = "call"
+definition = "dp_state_filter_stable at a detector delay of two updates: the doubling sum over the balanced state matrix that decides stability exactly; the Kalman flavor's start rule calls it along a covariance trajectory."
+domain = "call"
+count = 1
+
+["c:state_filter::bandwidth"]
+name = "Third-order state filter exact bandwidth, from C"
+unit = "call"
+definition = "dp_state_filter_bandwidth at a detector delay of two updates: the same doubling sum, read as the exact noise bandwidth; the Kalman flavor's noise-ratio bisection calls it a hundred times."
+domain = "call"
+count = 1
+
+["py:state_filter::test_bench_step"]
+name = "Third-order state filter update, from Python"
+unit = "call"
+definition = "One StateFilter.step call from Python: the filter update plus the call across the binding, one input error per call."
+domain = "call"
+count = 1
+
+["py:state_filter::test_bench_steps_64k"]
+name = "Third-order state filter, 65,536-error blocks, from Python"
+unit = "sample"
+definition = "StateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
+samples = 1

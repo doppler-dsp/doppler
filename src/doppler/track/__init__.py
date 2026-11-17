@@ -28,6 +28,7 @@ from .track import (  # noqa: E402
     MpskReceiver,
     MpskReceiverR,
     RateSync,
+    StateFilter,
     SymbolSync,
 )
 
@@ -42,4 +43,5 @@ __all__ = [
     "RateSync",
     "MpskReceiverR",
     "BpskReceiver",
+    "StateFilter",
 ]

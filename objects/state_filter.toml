@@ -1,0 +1,89 @@
+[state_filter]
+arg_type = "double"
+return_type = "double"
+mutable = "true"
+no_state = "true"
+no_step = "false"
+class_name = "StateFilter"
+serializable = "true"
+# create() is the untrusted boundary, as the loop filter's is: a NULL means
+# the domain was violated (bn, t, or a bn*t past the stability bound), not
+# that malloc failed.
+create_error = "ValueError"
+create_error_message = "bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)"
+fragment = "generated"
+
+[[state_filter.init_params]]
+name = "bn"
+type = "double"
+default = "0.01"
+
+[[state_filter.init_params]]
+name = "t"
+type = "double"
+default = "1.0"
+
+[[state_filter.methods]]
+name = "configure"
+doc = "Recompute the gains for a new (bn, t); preserves the frequency and rate estimates. Raises ValueError, changing nothing, when (bn, t) is outside the domain."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "bn", type = "double" }, { name = "t", type = "double" }]
+
+[[state_filter.methods]]
+name = "reset"
+doc = "Zero the frequency and rate estimates; keep the configured gains."
+arg_type = "void"
+return_type = "void"
+
+[[state_filter.methods]]
+name = "bandwidth"
+doc = "Exact delivered noise bandwidth of this loop, in cycles per update, for a detector delay of `delay` updates and a loop gain of `gain` times nominal. NaN when the loop is not stable there."
+arg_type = "void"
+return_type = "double"
+params = [{ name = "delay", type = "double", default = "0.0" }, { name = "gain", type = "double", default = "1.0" }]
+
+[[state_filter.methods]]
+name = "stable"
+doc = "Whether this loop is stable for a detector delay of `delay` updates and a loop gain of `gain` times nominal."
+arg_type = "void"
+return_type = "bool"
+params = [{ name = "delay", type = "double", default = "0.0" }, { name = "gain", type = "double", default = "1.0" }]
+
+[[state_filter.properties]]
+name = "kp"
+type = "double"
+field = true
+
+[[state_filter.properties]]
+name = "ki"
+type = "double"
+field = true
+
+[[state_filter.properties]]
+name = "kr"
+type = "double"
+field = true
+
+[[state_filter.properties]]
+name = "integ"
+type = "double"
+writable = true
+field = true
+
+[[state_filter.properties]]
+name = "rate"
+type = "double"
+writable = true
+field = true
+
+[[state_filter.properties]]
+name = "bn"
+type = "double"
+field = true
+
+[[state_filter.properties]]
+name = "t"
+type = "double"
+field = true

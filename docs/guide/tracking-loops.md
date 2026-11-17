@@ -49,6 +49,59 @@ lf.configure(0.05, 0.707, 1.0)   # wider bandwidth; integ preserved
 lf.reset()                       # zero the integrator
 ```
 
+## StateFilter — a loop filter for a drifting carrier
+
+`LoopFilter` nulls a frequency *step* but not a frequency *ramp*: against a
+carrier whose frequency drifts at `r` cycles per update per update, a
+second-order loop settles to a steady phase error of `r / ki`, and `ki` falls
+as the square of the bandwidth, so the narrower the loop, the further it lags.
+`StateFilter` is the third-order sibling for exactly that case. It keeps a
+rate estimate in cascade with the frequency estimate, so a frequency ramp is
+tracked with zero steady phase error, at the same noise bandwidth, from the
+same two numbers: `bn` and `t`. There is no damping argument and no other
+coefficient to pick.
+
+```python
+from doppler.track import StateFilter
+
+sf = StateFilter(bn=0.01, t=1.0)
+sf.step(0.25)                   # rate += kr*e; integ += rate + ki*e
+round(sf.integ, 8)              # the frequency estimate; sf.rate is its slope
+```
+
+Close both loops on a ramp and read the steady error:
+
+```python
+--8<-- "src/doppler/examples/state_filter_ramp_demo.py:ramp"
+```
+
+The second-order error is the closed form `r / ki`; the third-order one is
+zero. Seed `integ` and `rate` when the frequency and its rate are already
+known, and use `configure(bn, t)` to widen to acquire and narrow to track
+without losing either estimate.
+
+### What the loop needs of the rest
+
+A third-order loop is conditionally stable in the loop gain `K`, the product
+of the discriminator's slope and the oscillator's gain. `StateFilter` is
+stable from about a quarter of nominal `K` upward, and the sampled loop has
+an upper edge that falls with the detector's delay. `bn*t` is limited to
+0.12, the largest value for which the loop is stable at every gain from 0.5
+to 2 and every detector delay up to two updates; `StateFilter(...)` raises
+`ValueError` beyond it. The object cannot see `K` or the delay, so it
+answers for the ones you know:
+
+```python
+--8<-- "src/doppler/examples/state_filter_ramp_demo.py:exact"
+```
+
+`bandwidth(delay, gain)` is the loop's exact delivered noise bandwidth in
+cycles per update, `NaN` where the loop is not stable; `stable(delay, gain)`
+is the yes or no. Both are exact for an integer `delay`. The design page,
+[The Loop Filter](../design/loop-filter.md), derives them and states what
+the second-order loop's bandwidth is by the same expression. The C example
+is `native/examples/state_filter_demo.c`.
+
 ## Costas — carrier-tracking loop
 
 `Costas` is the first loop built on `LoopFilter`: a continuous BPSK

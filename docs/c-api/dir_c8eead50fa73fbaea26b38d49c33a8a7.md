@@ -152,6 +152,7 @@
 | dir | [**specan**](dir_6ce576ad24803d600633e2545d7ab991.md) <br> |
 | dir | [**spectral**](dir_bb80cb4693a043f62f72e53e1f90a405.md) <br> |
 | dir | [**spectrogram**](dir_0e14824f67e83f19566ffb7fc1ca7a06.md) <br> |
+| dir | [**state\_filter**](dir_f99952e39f9637fbb70decda0be42187.md) <br> |
 | dir | [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md) <br> |
 | dir | [**symsync**](dir_f3bf1d4e9482041dff7e7824fe611ddf.md) <br> |
 | dir | [**syncword**](dir_e299403a0e03806f7aa46ec15fc4c91a.md) <br> |

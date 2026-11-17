@@ -87,6 +87,7 @@
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
+ *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--telemetry DIR --draw FC,ESN0,RATE,CW,SEED [--from S]
  *              [--to S]]
  */
@@ -514,6 +515,7 @@ main (int argc, char **argv)
   unsigned    draws = PI_DRAWS, shard = 0, shards = 1, spc = 0;
   double      secs = PI_DRAW_S, from_s = 0.0, to_s = PI_DRAW_S;
   const char *tlm_dir = NULL, *one = NULL;
+  double      only_fc = NAN, only_es = NAN, only_rate = NAN; /* NAN: all */
   for (int i = 1; i < argc; i++)
     {
       check |= strcmp (argv[i], "--check") == 0;
@@ -528,6 +530,12 @@ main (int argc, char **argv)
         tlm_dir = argv[++i];
       else if (strcmp (argv[i], "--draw") == 0 && i + 1 < argc)
         one = argv[++i];
+      else if (strcmp (argv[i], "--fc") == 0 && i + 1 < argc)
+        only_fc = strtod (argv[++i], NULL) * 1e9;
+      else if (strcmp (argv[i], "--esn0") == 0 && i + 1 < argc)
+        only_es = strtod (argv[++i], NULL);
+      else if (strcmp (argv[i], "--rate") == 0 && i + 1 < argc)
+        only_rate = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--from") == 0 && i + 1 < argc)
         from_s = strtod (argv[++i], NULL);
       else if (strcmp (argv[i], "--to") == 0 && i + 1 < argc)
@@ -615,6 +623,11 @@ main (int argc, char **argv)
       for (size_t r = 0; r < (check ? 1u : 2u); r++)
         for (int cw = 0; cw < 2; cw++)
           {
+            /* --fc / --esn0 / --rate: one slice of the grid. */
+            if ((!isnan (only_fc) && fabs (fcs[f] - only_fc) > 1e6)
+                || (!isnan (only_es) && fabs (esn0s[e] - only_es) > 1e-9)
+                || (!isnan (only_rate) && fabs (rates[r] - only_rate) > 1e-9))
+              continue;
             size_t n = 0;
             for (uint32_t s = 1; s <= draws; s++)
               {

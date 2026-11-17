@@ -1116,7 +1116,7 @@
 * **truth\_len** ([**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md))
 * **total\_bytes** ([**dp\_chunk\_t**](structdp__chunk__t.md))
 * **test\_stat\_peak** ([**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md))
-* **threads\_req** ([**dp\_correlator\_search**](structdp__correlator__search.md))
+* **threads\_req** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**search\_extra\_t**](structsearch__extra__t.md))
 * **twin\_col** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **twin\_row** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **tlm\_ctx** ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md))
@@ -1221,7 +1221,7 @@
 
 ## _
 
-* **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md))
+* **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md), [**search\_extra\_t**](structsearch__extra__t.md))
 * **\_hot\_pad** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_last\_corr\_valid** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_pad\_order** ([**dp\_costas\_state\_t**](structdp__costas__state__t.md))

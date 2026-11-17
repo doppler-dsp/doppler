@@ -34,6 +34,7 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
 #include "doppler/carrier_acq/carrier_acq_core.h" /* its blob magic, for forging */
+#include "doppler/correlator/correlator_private.h" /* the search's extra block */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
 #include "dp_chunk_inv.h"
@@ -3724,12 +3725,30 @@ _test_threads_change_nothing_but_cost (void)
   DP_CHECK_EQ_SZ (na, nb);
   DP_CHECK (na > 0 && memcmp (sa, sb, na * sizeof *sa) == 0);
   /* Every running field, through the blob: equal but for the thread count
-     each carries. */
+     each carries -- the receiver's own, and its search's request (a
+     mutator's value of the Correlator's, #2022), found in the blob as the
+     search's own blob. */
   const size_t   nbytes = dp_async_dsss_receiver_state_bytes (a);
   unsigned char *ba = malloc (nbytes), *bb = malloc (nbytes);
   dp_async_dsss_receiver_get_state (a, ba);
   dp_async_dsss_receiver_get_state (b, bb);
   ((async_dsss_receiver_extra_t *)(bb + sizeof (dp_state_hdr_t)))->threads = 1;
+  {
+    const size_t   cb  = dp_correlator_state_bytes (a->acq);
+    unsigned char *cba = malloc (cb);
+    DP_REQUIRE (cba != NULL && cb <= nbytes);
+    dp_correlator_get_state (a->acq, cba);
+    size_t at = SIZE_MAX;
+    for (size_t i = 0; i + cb <= nbytes && at == SIZE_MAX; i++)
+      if (memcmp (ba + i, cba, cb) == 0)
+        at = i;
+    DP_REQUIRE_MSG (at != SIZE_MAX, "the search's blob nests whole");
+    const int32_t one = 1;
+    memcpy (bb + at + DP_CORRELATOR_SEARCH_EXTRA_OFF
+                + offsetof (search_extra_t, threads_req),
+            &one, sizeof one);
+    free (cba);
+  }
   DP_CHECK (memcmp (ba, bb, nbytes) == 0);
   free (ba);
   free (bb);

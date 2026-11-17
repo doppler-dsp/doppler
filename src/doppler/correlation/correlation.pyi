@@ -1095,8 +1095,11 @@ class Correlator:
         push after the first. The surface is bit-identical at every count --
         every output row and every decide chunk is computed whole by one
         worker, and the chunk count is the grid's -- so this changes the cost
-        of a push and nothing about its result. Setup path, never hot; not
-        while another thread is inside push().
+        of a push and nothing about its result. The request travels in the
+        state blob (a mutator's value, #2022): dp_correlator_set_state()
+        applies it through this call, so the target's grid and cores cap it as
+        they would here. Setup path, never hot; not while another thread is
+        inside push().
 
         Parameters
         ----------

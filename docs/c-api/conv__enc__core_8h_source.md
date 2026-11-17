@@ -29,7 +29,9 @@ extern "C"
   } dp_conv_enc_state_t;
 
   dp_conv_enc_state_t *dp_conv_enc_create (const uint32_t *poly, size_t poly_len,
-                                     uint32_t k, uint32_t invert);
+                                     uint32_t k, uint32_t invert,
+                                     uint32_t punct_period,
+                                     uint32_t punct_mask);
 
   dp_conv_enc_state_t *dp_conv_enc_create_code (const conv_code_t *c);
 
@@ -54,7 +56,7 @@ extern "C"
    */
 
 #define CONV_ENC_STATE_MAGIC DP_FOURCC ('C', 'V', 'E', 'N')
-#define CONV_ENC_STATE_VERSION 1u
+#define CONV_ENC_STATE_VERSION 2u
 
   size_t dp_conv_enc_state_bytes (const dp_conv_enc_state_t *s);
 

@@ -41,13 +41,17 @@ ConvEncoderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ConvEncoderObj_init (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]   = { "poly", "k", "invert", NULL };
-  PyObject    *poly_obj   = NULL;
-  long long    k_raw      = 7;
-  long long    invert_raw = 0;
+  static char *kwlist[]
+      = { "poly", "k", "invert", "punct_period", "punct_mask", NULL };
+  PyObject *poly_obj         = NULL;
+  long long k_raw            = 7;
+  long long invert_raw       = 0;
+  long long punct_period_raw = 0;
+  long long punct_mask_raw   = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LL", kwlist, &poly_obj,
-                                    &k_raw, &invert_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LLLL", kwlist, &poly_obj,
+                                    &k_raw, &invert_raw, &punct_period_raw,
+                                    &punct_mask_raw))
     return -1;
   if (k_raw < 0 || k_raw > (long long)UINT32_MAX)
     {
@@ -65,7 +69,25 @@ ConvEncoderObj_init (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
                     (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t       invert = (uint32_t)invert_raw;
+  uint32_t invert = (uint32_t)invert_raw;
+  if (punct_period_raw < 0 || punct_period_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "punct_period: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)punct_period_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t punct_period = (uint32_t)punct_period_raw;
+  if (punct_mask_raw < 0 || punct_mask_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "punct_mask: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)punct_mask_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t       punct_mask = (uint32_t)punct_mask_raw;
   PyArrayObject *poly_arr
       = jm_array_arg (poly_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS, "poly");
   if (!poly_arr)
@@ -73,14 +95,17 @@ ConvEncoderObj_init (ConvEncoderObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t poly_len = (size_t)PyArray_SIZE (poly_arr);
-  self->handle = dp_conv_enc_create ((const uint32_t *)PyArray_DATA (poly_arr),
-                                     poly_len, k, invert);
+  self->handle
+      = dp_conv_enc_create ((const uint32_t *)PyArray_DATA (poly_arr),
+                            poly_len, k, invert, punct_period, punct_mask);
   Py_DECREF (poly_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
                        "ConvEncoder: not a usable code (need 1 to 6 non-zero "
-                       "polynomials, each under 2**k, and 2 <= k <= 9)");
+                       "polynomials, each under 2**k, 2 <= k <= 9, and "
+                       "punct_period and punct_mask either both 0 or a "
+                       "pattern that fits)");
       return -1;
     }
   return 0;
@@ -391,6 +416,9 @@ static PyMethodDef ConvEncoderObj_methods[] = {
     "\n"
     "Outputs are emitted in polynomial order per input bit: for `[G1, G2]`,\n"
     "`out[2i]` is `G1`'s symbol for input bit `i` and `out[2i+1]` is `G2`'s.\n"
+    "A punctured encoder omits the symbols its pattern deletes, so the\n"
+    "indexing above holds only for the unpunctured code; the pattern\n"
+    "position carries across calls like the register does.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -420,9 +448,12 @@ static PyMethodDef ConvEncoderObj_methods[] = {
     "\n"
     "Symbols dp_conv_enc_encode writes for n_in input bits.\n"
     "\n"
-    "Exactly `n_in * n` — a convolutional code has no fill and no latency on\n"
-    "the encode side, which is the asymmetry with dp_viterbi_decode_max_out,\n"
-    "where the traceback still owes bits at the start of a stream.\n"
+    "Exactly `n_in * n` unpunctured — a convolutional code has no fill and\n"
+    "no latency on the encode side, which is the asymmetry with\n"
+    "dp_viterbi_decode_max_out, where the traceback still owes bits at the\n"
+    "start of a stream. Punctured, it is dp_conv_coded_len from the\n"
+    "encoder's current place in the pattern, so it depends on what has been\n"
+    "encoded already.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -540,15 +571,25 @@ static PyTypeObject ConvEncoderObjType = {
     "    Constraint length, 2 to `CONV_K_MAX`.\n"
     "invert : int, default 0\n"
     "    Bit `j` complements output `j`.\n"
+    "punct_period : int, default 0\n"
+    "    Input bits per puncturing pattern, 0 for none (default: 0). See\n"
+    "    conv_code_t for the pattern.\n"
+    "punct_mask : int, default 0\n"
+    "    Bit `i * n + j` transmits output `j` of input `i` of the period\n"
+    "    (default: 0). Both zero is the unpunctured code; one without the "
+    "other\n"
+    "    is refused.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``ConvEncoder: not "
     "a\n"
-    "    usable code (need 1 to 6 non-zero polynomials, each under 2**k, and "
-    "2\n"
-    "    <= k <= 9)``.\n"
+    "    usable code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= "
+    "k\n"
+    "    <= 9, and punct_period and punct_mask either both 0 or a pattern "
+    "that\n"
+    "    fits)``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -556,7 +597,11 @@ static PyTypeObject ConvEncoderObjType = {
     ">>> from doppler.coding import ConvEncoder\n"
     ">>> e = ConvEncoder([0o171, 0o133], k=7, invert=0x2)\n"
     ">>> e.encode(np.zeros(8, dtype=np.uint8)).size\n"
-    "16\n",
+    "16\n"
+    ">>> p = ConvEncoder([0o171, 0o133], k=7, punct_period=3,\n"
+    "...                 punct_mask=0b100111)\n"
+    ">>> p.encode(np.zeros(6, dtype=np.uint8)).size\n"
+    "8\n",
   .tp_methods = ConvEncoderObj_methods,
   .tp_new     = ConvEncoderObj_new,
   .tp_init    = (initproc)ConvEncoderObj_init,

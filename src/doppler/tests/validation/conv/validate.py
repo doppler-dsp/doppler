@@ -247,6 +247,43 @@ def characterise(d) -> None:
     )
     R.md()
 
+    # ── 2.5 puncturing ─────────────────────────────────────────────
+    R.md("### 2.5 Puncturing — what each rate costs, at equal Eb/N0 (NEW)")
+    R.md()
+    names = {0: "1/2 (mother)", 1: "2/3", 2: "3/4"}
+    rows = []
+    for r in d["puncture"]:
+        rows.append(
+            [
+                names[int(r["rate_idx"])],
+                f"{r['ebn0_db']:.1f}",
+                f"{r['esn0_db']:.2f}",
+                _fmt(r["ber"], r["bits"]),
+                f"{_uncoded_ber(r['ebn0_db']):.3e}",
+            ]
+        )
+    R.table(["rate", "Eb/N0 dB", "Es/N0 dB", "soft BER", "uncoded BPSK"], rows)
+    R.md(
+        "The mother code's symbols with some deleted, decoded with the "
+        "deleted positions put back as zero-valued LLRs. Es/N0 is per "
+        "TRANSMITTED symbol, so holding Eb/N0 fixed charges each rate for "
+        "the symbols it keeps: a higher rate spends fewer symbols per bit, "
+        "and the Es/N0 column rises with it. The patterns are rate-2/3 and "
+        "3/4 shapes (period 2 keeping 3 of 4 symbols, period 3 keeping 4 of "
+        "6), chosen to exercise the machinery; they are not any standard's "
+        "and nothing here claims conformance to one."
+    )
+    R.md()
+    R.md(
+        "The ordering is the point. Puncturing trades error rate for "
+        "bandwidth, and every step up in rate costs error rate at the same "
+        "Eb/N0 while still beating no coding at all at 3 dB. Where a row "
+        "reads zero errors the run is shorter than the answer and says "
+        "nothing about the rate, which is why the limits below read only "
+        "the points where the error count is non-zero."
+    )
+    R.md()
+
 
 def plots(d) -> None:
     import matplotlib
@@ -420,6 +457,29 @@ def limits(d) -> None:
         f"{100.0 * worst_ratio:.0f} %) — see §2.4 for why the shorter "
         f"windows cannot support this claim",
     )
+    pun = {
+        (int(r["rate_idx"]), round(r["ebn0_db"], 1)): r for r in d["puncture"]
+    }
+    R.limit(
+        all(
+            pun[(0, e)]["ber"] <= pun[(1, e)]["ber"] <= pun[(2, e)]["ber"]
+            for e in (3.0, 4.0)
+        )
+        and pun[(0, 3.0)]["ber"] < pun[(1, 3.0)]["ber"] < pun[(2, 3.0)]["ber"],
+        "at equal Eb/N0 the error rate rises with the code rate "
+        "(1/2 < 2/3 < 3/4) at 3 dB and 4 dB, where every rate has errors "
+        "to count",
+    )
+    R.limit(
+        pun[(2, 3.0)]["ber"] >= 10.0 * pun[(0, 3.0)]["ber"],
+        f"rate 3/4 costs at least 10x the mother code's error rate at "
+        f"Eb/N0 = 3 dB (measured "
+        f"{pun[(2, 3.0)]['ber'] / pun[(0, 3.0)]['ber']:.0f}x)",
+    )
+    R.limit(
+        all(pun[(i, 3.0)]["ber"] < _uncoded_ber(3.0) for i in (0, 1, 2)),
+        "every rate still beats uncoded BPSK at Eb/N0 = 3 dB",
+    )
 
 
 def build(write: bool = True) -> Report:
@@ -572,6 +632,34 @@ def build(write: bool = True) -> Report:
                 "viterbi §8",
                 "—",
             ],
+            [
+                "C19",
+                "a punctured code emits the mother symbols less the pattern's"
+                " deletions, and its phase carries across calls",
+                "§5, §5c (NEW)",
+                "—",
+            ],
+            [
+                "C20",
+                "the decoder reads only transmitted symbols, supplies zero"
+                " LLRs for deleted ones, and refuses a length ending inside"
+                " an input",
+                "viterbi §9, §9b (NEW)",
+                "§2.5",
+            ],
+            [
+                "C21",
+                "the pattern and the phase are in the state blob, and a blob"
+                " from another pattern is refused",
+                "viterbi §9c, conv_enc §8 (NEW)",
+                "—",
+            ],
+            [
+                "C22",
+                "node synchronization is not defined for a punctured code",
+                "viterbi §9b (NEW)",
+                "—",
+            ],
         ],
     )
     R.md(
@@ -634,7 +722,8 @@ def build(write: bool = True) -> Report:
         ],
     )
     R.summary(
-        "\n- Raw sweeps: `data/ber.csv`, `data/depth.csv`, `data/nodesync.csv`"
+        "\n- Raw sweeps: `data/ber.csv`, `data/depth.csv`, "
+        "`data/nodesync.csv`, `data/puncture.csv`"
     )
     if write:
         R.emit(HERE / "results.md")

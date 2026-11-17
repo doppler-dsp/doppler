@@ -22,7 +22,7 @@ serializable = "true"
 # reaches malloc, and a blanket MemoryError sends the caller looking at the
 # wrong thing entirely (jm gh-482).
 create_error = "ValueError"
-create_error_message = "Viterbi: not a usable code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= 9, and depth >= 1)"
+create_error_message = "Viterbi: not a usable code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= 9, depth >= 1, and punct_period and punct_mask either both 0 or a pattern that fits)"
 depends_on = [{ name = "conv", link = true }]
 fragment = "generated"
 
@@ -50,6 +50,20 @@ default = "0"
 name = "depth"
 type = "size_t"
 default = "35"
+
+# The puncturing pattern (see conv_code_t): the encoder's, or the decoder
+# reads a stream it was never sent. After `depth` so a positional caller of
+# the older signature is unchanged. Constructor arguments, not setters: the
+# pattern is a reject key in the state blob.
+[[viterbi.init_params]]
+name = "punct_period"
+type = "uint32_t"
+default = "0"
+
+[[viterbi.init_params]]
+name = "punct_mask"
+type = "uint32_t"
+default = "0"
 
 [[viterbi.methods]]
 name = "decode"

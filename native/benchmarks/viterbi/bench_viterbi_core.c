@@ -84,7 +84,7 @@ main (void)
 
   for (int d = 0; d < 2; d++)
     {
-      v[d] = dp_viterbi_create (POLY, 2, K, INVERT, depths[d]);
+      v[d] = dp_viterbi_create (POLY, 2, K, INVERT, depths[d], 0u, 0u);
       if (!v[d])
         {
           (void)fprintf (stderr, "bench_viterbi: create(depth=%zu) NULL\n",

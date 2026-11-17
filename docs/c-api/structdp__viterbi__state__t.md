@@ -45,6 +45,7 @@ _A streaming maximum-likelihood (Viterbi) decoder._ [More...](#detailed-descript
 |  uint32\_t | [**nstate**](#variable-nstate)  <br> |
 |  unsigned \* | [**out0**](#variable-out0)  <br> |
 |  unsigned \* | [**out1**](#variable-out1)  <br> |
+|  unsigned | [**phase**](#variable-phase)  <br> |
 |  float \* | [**pm**](#variable-pm)  <br> |
 |  float \* | [**pm2**](#variable-pm2)  <br> |
 |  uint32\_t \* | [**pred0**](#variable-pred0)  <br> |
@@ -262,6 +263,23 @@ unsigned* dp_viterbi_state_t::out1;
 
 per state: output word on the pred1 branch 
  
+
+
+        
+
+<hr>
+
+
+
+### variable phase 
+
+```C++
+unsigned dp_viterbi_state_t::phase;
+```
+
+
+
+position in the puncturing pattern; 0 unpunctured 
 
 
         

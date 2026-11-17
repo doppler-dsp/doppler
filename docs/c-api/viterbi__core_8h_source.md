@@ -29,6 +29,7 @@ typedef struct
   uint8_t *dec;  
   size_t   head; 
   size_t   fill; 
+  unsigned phase; 
   /* Derived once: for each state, its two predecessors and their output
      words. The butterfly -- predecessors (ns << 1) & mask and | 1, both on
      the same input bit ns >> (k-2) -- holds for every k. */
@@ -40,7 +41,7 @@ typedef struct
 /*<<property_struct_fields>>*/
 } dp_viterbi_state_t;
 
-dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
+dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth, uint32_t punct_period, uint32_t punct_mask);
 
 void dp_viterbi_destroy(dp_viterbi_state_t *state);
 
@@ -94,7 +95,7 @@ int dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
  */
 
 #define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
-#define VITERBI_STATE_VERSION 1u
+#define VITERBI_STATE_VERSION 2u
 
 size_t dp_viterbi_state_bytes (const dp_viterbi_state_t *s);
 

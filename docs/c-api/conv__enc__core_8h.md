@@ -61,7 +61,7 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 | Type | Name |
 | ---: | :--- |
 |  const [**conv\_code\_t**](structconv__code__t.md) \* | [**dp\_conv\_enc\_code**](#function-dp_conv_enc_code) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_The code this encoder was built for._  |
-|  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**dp\_conv\_enc\_create**](#function-dp_conv_enc_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert) <br>_Build an encoder for the code the polynomials describe._  |
+|  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**dp\_conv\_enc\_create**](#function-dp_conv_enc_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert, uint32\_t punct\_period, uint32\_t punct\_mask) <br>_Build an encoder for the code the polynomials describe._  |
 |  [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* | [**dp\_conv\_enc\_create\_code**](#function-dp_conv_enc_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_Build an encoder from a code already assembled._  |
 |  void | [**dp\_conv\_enc\_destroy**](#function-dp_conv_enc_destroy) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state) <br>_Free an encoder. NULL is a no-op._  |
 |  size\_t | [**dp\_conv\_enc\_encode**](#function-dp_conv_enc_encode) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Encode information bits into channel symbols._  |
@@ -69,7 +69,7 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 |  void | [**dp\_conv\_enc\_get\_state**](#function-dp_conv_enc_get_state) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s, void \* blob) <br>_Serialize the register into_ `blob` _._ |
 |  void | [**dp\_conv\_enc\_reset**](#function-dp_conv_enc_reset) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* state) <br>_Return the register to all-zero, keeping the code._  |
 |  int | [**dp\_conv\_enc\_set\_state**](#function-dp_conv_enc_set_state) ([**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s, const void \* blob) <br>_Restore a register from_ `blob` _._ |
-|  size\_t | [**dp\_conv\_enc\_state\_bytes**](#function-dp_conv_enc_state_bytes) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_Bytes_ [_**dp\_conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-dp_conv_enc_get_state) _writes: envelope, code identity and the register._ |
+|  size\_t | [**dp\_conv\_enc\_state\_bytes**](#function-dp_conv_enc_state_bytes) (const [**dp\_conv\_enc\_state\_t**](structdp__conv__enc__state__t.md) \* s) <br>_Bytes_ [_**dp\_conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-dp_conv_enc_get_state) _writes: envelope, code identity (puncturing pattern included), the register and the pattern phase._ |
 
 
 
@@ -102,7 +102,7 @@ _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#deta
 | Type | Name |
 | ---: | :--- |
 | define  | [**CONV\_ENC\_STATE\_MAGIC**](conv__enc__core_8h.md#define-conv_enc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'V', 'E', 'N')`<br>_Blob type tag: "CVEN"._  |
-| define  | [**CONV\_ENC\_STATE\_VERSION**](conv__enc__core_8h.md#define-conv_enc_state_version)  `1u`<br>_Blob format version._  |
+| define  | [**CONV\_ENC\_STATE\_VERSION**](conv__enc__core_8h.md#define-conv_enc_state_version)  `2u`<br>_Blob format version._  |
 
 ## Detailed Description
 
@@ -140,7 +140,7 @@ Bit convention follows `conv` and the rest of the coding chain: **unpacked** bit
 
 ```C++
 const uint32_t poly[2] = { 0171u, 0133u };
-dp_conv_enc_state_t *e = dp_conv_enc_create (poly, 2, 7u, 0x2u);  // CCSDS
+dp_conv_enc_state_t *e = dp_conv_enc_create (poly, 2, 7u, 0x2u, 0u, 0u); // CCSDS
 uint8_t sym[2 * N];
 const size_t n = dp_conv_enc_encode (e, bits, N, sym, sizeof sym);
 dp_conv_enc_destroy (e);
@@ -197,7 +197,9 @@ dp_conv_enc_state_t * dp_conv_enc_create (
     const uint32_t * poly,
     size_t poly_len,
     uint32_t k,
-    uint32_t invert
+    uint32_t invert,
+    uint32_t punct_period,
+    uint32_t punct_mask
 ) 
 ```
 
@@ -209,6 +211,9 @@ The array IS the code: its length gives the number of outputs per input bit, so 
 `invert` is a mask over the outputs, and it is not decoration: CCSDS complements G2 and most codes complement nothing. An encoder built without it round-trips perfectly against a decoder built without it, and interoperates with nothing — which is why it is a parameter here rather than a property of any one standard's configuration.
 
 
+**Puncturing is part of the encoder, and it is fixed at create.** The pattern deletes mother-code symbols to raise the rate; the encoder's output shortens accordingly and its phase in the pattern is running state that survives between calls. The pattern is a constructor argument and not a setter because it sizes what a blob means: a blob from an encoder with another pattern is refused.
+
+
 
 ```C++
 >>> import numpy as np
@@ -216,6 +221,10 @@ The array IS the code: its length gives the number of outputs per input bit, so 
 >>> e = ConvEncoder([0o171, 0o133], k=7, invert=0x2)
 >>> e.encode(np.zeros(8, dtype=np.uint8)).size
 16
+>>> p = ConvEncoder([0o171, 0o133], k=7, punct_period=3,
+...                 punct_mask=0b100111)
+>>> p.encode(np.zeros(6, dtype=np.uint8)).size
+8
 ```
 
 
@@ -229,6 +238,8 @@ The array IS the code: its length gives the number of outputs per input bit, so 
 * `poly_len` Number of polynomials, 1 to `CONV_N_MAX`. 
 * `k` Constraint length, 2 to `CONV_K_MAX`. 
 * `invert` Bit `j` complements output `j`. 
+* `punct_period` Input bits per puncturing pattern, 0 for none (default: 0). See [**conv\_code\_t**](structconv__code__t.md) for the pattern. 
+* `punct_mask` Bit `i * n + j` transmits output `j` of input `i` of the period (default: 0). Both zero is the unpunctured code; one without the other is refused. 
 
 
 
@@ -335,7 +346,7 @@ size_t dp_conv_enc_encode (
 The register carries across calls, so a long record may be fed in blocks and the symbol sequence is identical to one call — which is the property a standard fixes and a chunked encoder silently breaks.
 
 
-Outputs are emitted in polynomial order per input bit: for `[G1, G2]`, `out[2i]` is `G1`'s symbol for input bit `i` and `out[2i+1]` is `G2`'s.
+Outputs are emitted in polynomial order per input bit: for `[G1, G2]`, `out[2i]` is `G1`'s symbol for input bit `i` and `out[2i+1]` is `G2`'s. A punctured encoder omits the symbols its pattern deletes, so the indexing above holds only for the unpunctured code; the pattern position carries across calls like the register does.
 
 
 
@@ -388,7 +399,7 @@ size_t dp_conv_enc_encode_max_out (
 
 
 
-Exactly `n_in * n` — a convolutional code has no fill and no latency on the encode side, which is the asymmetry with [**dp\_viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-dp_viterbi_decode_max_out), where the traceback still owes bits at the start of a stream.
+Exactly `n_in * n` unpunctured — a convolutional code has no fill and no latency on the encode side, which is the asymmetry with [**dp\_viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-dp_viterbi_decode_max_out), where the traceback still owes bits at the start of a stream. Punctured, it is [**dp\_conv\_coded\_len**](conv__core_8h.md#function-dp_conv_coded_len) from the encoder's current place in the pattern, so it depends on what has been encoded already.
 
 
 
@@ -522,7 +533,7 @@ The code identity travels in the blob and is CHECKED rather than restored: `crea
 
 ### function dp\_conv\_enc\_state\_bytes 
 
-_Bytes_ [_**dp\_conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-dp_conv_enc_get_state) _writes: envelope, code identity and the register._
+_Bytes_ [_**dp\_conv\_enc\_get\_state**_](conv__enc__core_8h.md#function-dp_conv_enc_get_state) _writes: envelope, code identity (puncturing pattern included), the register and the pattern phase._
 ```C++
 size_t dp_conv_enc_state_bytes (
     const dp_conv_enc_state_t * s
@@ -578,7 +589,7 @@ _Blob type tag: "CVEN"._
 
 _Blob format version._ 
 ```C++
-#define CONV_ENC_STATE_VERSION `1u`
+#define CONV_ENC_STATE_VERSION `2u`
 ```
 
 

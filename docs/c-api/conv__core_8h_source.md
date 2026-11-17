@@ -33,6 +33,8 @@ extern "C"
     unsigned n;                  
     uint32_t poly[CONV_N_MAX];   
     uint32_t invert;             
+    unsigned punct_period;       
+    uint32_t punct_mask;         
   } conv_code_t;
 
   int dp_conv_code_valid (const conv_code_t *c);
@@ -51,11 +53,26 @@ extern "C"
     return (((bit & 1u) << (c->k - 1u)) | state) >> 1;
   }
 
+  /* ── puncturing ──────────────────────────────────────────────────────── */
+
+  int dp_conv_punctured (const conv_code_t *c);
+
+  unsigned dp_conv_kept (const conv_code_t *c, unsigned phase);
+
+  size_t dp_conv_coded_len (const conv_code_t *c, unsigned phase, size_t n_in);
+
+  int dp_conv_steps_for (const conv_code_t *c, unsigned phase, size_t n_syms,
+                         size_t *steps);
+
+  unsigned dp_conv_phase_after (const conv_code_t *c, unsigned phase,
+                                size_t n_in);
+
   /* ── the encoder ─────────────────────────────────────────────────────── */
 
   typedef struct
   {
-    uint32_t reg; 
+    uint32_t reg;   
+    uint32_t phase; 
   } conv_enc_t;
 
   void dp_conv_enc_init (conv_enc_t *s);

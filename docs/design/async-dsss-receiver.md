@@ -2314,6 +2314,75 @@ steers the Costas NCO from it.
 
 **C. A new carrier object.** Rejected: it would be a second Costas.
 
+**A is the choice, on four conditions** (VA, 11-17), each met on the page
+before a header is edited.
+
+**1. Costas's change is its own spine pass and its own pull request,
+landed before the receiver's adoption.** Costas has no design page
+today, so that PR starts one. The order is carried in the blob and
+checked, per state-serialization.md: a value that changes what the blob
+means is a reject key for the filter it selects. Order 2 is the
+default, and bit-identical on every existing pin and bench row. Order
+3 is pinned and sabotaged on its own. `costas_pullin` and
+`costas_jitter` gain order 3 with the same assertions in `--check` and
+the sweep. The receiver's PR is then small.
+
+**2. What each Costas user pays.** The struct grows by 64 bytes: the 56
+of a `StateFilter`, plus the order word padded to 8.
+`costas_wipeoff()`, once a sample, does not change. `costas_update()`,
+once an update, gains one branch on the order.
+
+| user                | Costas held                         | per update              | bench rows that must tie (`bench-ab`) |
+| ------------------- | ----------------------------------- | ----------------------- | ------------------------------------- |
+| `Costas` itself     | 1                                   | one branch              | `costas`                              |
+| `Despreader`        | 1 (`car`)                           | one branch              | `despreader`                          |
+| `DsssReceiver`      | 1 (`car`)                           | one branch              | `dsss_receiver`                       |
+| `AsyncDsssReceiver` | 3 (`car`, `car_held`, `car_frozen`) | one branch (`car` only) | `async_dsss_receiver`                 |
+| `AsyncDsssPool`     | 3 per receiver, N + 1 receivers     | as the receiver         | `async_dsss_pool`                     |
+
+The burst chain (`burst_despreader`, `burst_demod`, `burst_capture`)
+holds its loop filters directly and embeds no Costas, so it pays
+nothing. If the order-2 rows do not tie, the alternative is two update
+functions, `costas_update()` unchanged and a `costas_update3()`, with
+the embedder choosing. The measurement decides.
+
+**3. Every blob that moves, before one is touched.**
+
+| blob                           | packs Costas                  | on main | on the stack (train) | moves with this work                |
+| ------------------------------ | ----------------------------- | ------- | -------------------- | ----------------------------------- |
+| `COSTAS` (`CSTS`)              | itself, whole struct          | v3      | v3                   | v3 to v4, in Costas's PR            |
+| `DESPREADER` (`DSPR`)          | child sub-blob (`DP_W_CHILD`) | v5      | v5                   | size only, no bump                  |
+| `DSSS_RECEIVER` (`DSRX`)       | child sub-blob                | v4      | v4                   | size only, no bump                  |
+| `ASYNC_DSSS_RECEIVER` (`ADRX`) | three child sub-blobs         | v17     | v19                  | size, and once if adoption adds one |
+| `ASYNC_DSSS_POOL` (`ADPL`)     | the receivers as children     | v7      | v8                   | size only, no bump                  |
+
+A composition sums `child_state_bytes`, so a leaf's migration
+propagates without a parent bump (state-serialization.md, the envelope
+section), and an old blob is refused by Costas's own envelope check.
+`COSTAS` is bumped once, in Costas's PR. The receiver bumps only if its
+adoption adds a field of its own (the narrow `bn`, an acquisition
+state), and then once, numbered after whatever main holds when it
+lands: v20 if the train's v19 is already there. Nothing is bumped twice
+for one landing.
+
+**4. Switching order on a live loop**, in Costas's terms, since Costas
+owns the switch:
+
+- **2 to 3:** the state filter's `integ` takes `lf.integ`, the
+    frequency estimate in radians per update.
+    - `rate` is zeroed, or seeded by the caller in Costas's units:
+        `2π·R·T²` radians per update per update for `R` Hz/s at an update
+        period `T`.
+    - The NCO's phase and frequency, the lock metric, the lock
+        detector and the FLL's previous prompt are untouched, so the NCO
+        frequency is continuous across the switch.
+- **3 to 2:** `lf.integ` takes the state filter's `integ`, and `rate`
+    is dropped.
+- **Pins:** the NCO frequency is identical on the update before and
+    after a switch; `integ` is equal across it; a seeded `rate` is held;
+    a switch then a switch back with `rate` zero is an order-2 loop with
+    the same `integ`.
+
 A costs one blob version in the object that owns the loop, and keeps one
 steering path. B moves fewer blobs but splits the loop across two
 objects, and the coast's `car_held = car` copy would have to learn about
@@ -2344,11 +2413,14 @@ the second one.
     to 0.265 over that delay range. That leaves 9.3 dB of downward margin
     for `code_period` (0.74 / 0.254) and 7.2 dB for `partials`
     (0.58 / 0.254) at `bn` 0.01 and `d` 1.75.
-- **Partials and K_MIN:** `partials` at 0.55 is within 0.8 dB of the
-    rectangle's certified floor. Below the floor, slope at hand-over (a
-    frequency error, a decorrelated window) is not measured. That is
-    [#3123](https://github.com/doppler-dsp/doppler/issues/3123)'s "lower
-    edge under noise", and the reason the measurement logs it.
+- **Partials, K_MIN and the edge:** `partials` at 0.55 is 0.8 dB above
+    `K_MIN` 0.5. That is StateFilter's **stated floor**, the bottom of the
+    certified rectangle, not its stability edge. The edge is 0.245 to 0.265
+    here, 6.3 to 7.0 dB below 0.55. Below the certified floor the loop is
+    still stable, but it is outside what StateFilter claims. Slope at
+    hand-over (a frequency error, a decorrelated window) is not measured.
+    That is [#3123](https://github.com/doppler-dsp/doppler/issues/3123)'s
+    "lower edge under noise", and the reason the measurement logs it.
 
 **The loop's delivered bandwidth at the receiver's `(K, d)`**, as a
 fraction of the `bn` asked for:

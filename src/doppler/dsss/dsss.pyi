@@ -3382,9 +3382,12 @@ class AsyncDsssReceiver:
 
     @property
     def doppler_hz(self) -> float:
-        """The Doppler estimate the chain was built from, Hz: the seed's while
-        refining, the CarrierAcquisition-refined value once tracking. The live
-        carrier is status().doppler_hz.
+        """The HAND-OVER's Doppler, Hz: what the live chain was built from,
+        frozen for the track's whole tenure -- the seed's while refining, the
+        refine's estimate from the hand-over on. It does not follow the
+        carrier: under a 400 Hz/s ramp it is 400 Hz stale a second later. Where
+        the emitter is now is status().doppler_hz, a field of the same name
+        with the other meaning.
         """
 
     @property

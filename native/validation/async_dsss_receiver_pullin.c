@@ -93,8 +93,18 @@
  * 4 dB floor, `rho - 10 log10(2 bn)`, with rho the per-update SNR there),
  * per carrier: pi_bn_rule(), the one place the rule is written.
  * `--loop-order N` names the carrier loop's order, recorded per row
- * (loop_order); 2 is the built loop, and 3 refuses until Costas has an
- * order to select (§4.9).
+ * (loop_order); 2 is the built loop. At 3, `--acq a|b|c` is how the loop
+ * gets there (docs/design/async-dsss-receiver.md 4.9, "Acquisition"),
+ * recorded per row (acq), with BN the tracking bandwidth (--bn-carrier's,
+ * or the rule's, or the built one):
+ *   a  enter tracking at order 2 at the built bandwidth; at the stint's
+ *      first lock (both flags up, the coast's own event) switch to
+ *      order 3 at BN (dp_costas_set_order: the frequency carries, the
+ *      rate starts at 0);
+ *   b  enter at order 3 at the built bandwidth; at the first lock narrow
+ *      to BN (dp_costas_configure: frequency and rate kept);
+ *   c  order 3 at BN from the entry into tracking (the default; the
+ *      control).
  *
  * `--design` prints only the `# design` section, which --emit also prints:
  * per carrier, level, window and order, the loop the rule and the run's
@@ -109,7 +119,8 @@
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
- *             [--bn-carrier BN|rule] [--loop-order 2|3] [--design]
+ *             [--bn-carrier BN|rule] [--loop-order 2|3 [--acq a|b|c]]
+ *             [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--telemetry DIR --draw FC,ESN0,RATE,CW,SEED [--from S]
  *              [--to S]]
@@ -181,6 +192,7 @@ typedef struct
   double base_half_spacing_chip;
   double bn_car;     /* the carrier loop's bandwidth the draw tracked with */
   int    loop_order; /* the carrier loop's order the draw tracked with */
+  char   acq;        /* --acq at order 3, '-' at order 2 */
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
@@ -308,6 +320,9 @@ static double pi_bn_car = NAN;
 static int pi_bn_rule_on = 0;
 /* --loop-order: the carrier loop's order (2: the built loop). */
 static int pi_loop_order = 2;
+/* --acq: how an order-3 loop is reached ('a', 'b' or 'c'; see the file
+   comment). */
+static char pi_acq = 'c';
 
 /* The owner's loop rule, docs/design/async-dsss-receiver.md §1.3: a loop
    SNR of PI_LOOP_SNR_DB at the floor, in the rule's convention
@@ -480,6 +495,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   double        last_v[PQ_N], last_t[PQ_N];
   uint64_t      at_v[PQ_N], at_t[PQ_N];
   int           was_tracking = 0;
+  int           narrowed     = 0; /* --acq a/b: this stint's lock seen */
   if (!(cp && cp->path))
     {
       itlm = dp_tlm_create (1u << 16);
@@ -578,19 +594,46 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       const size_t got
           = dp_async_dsss_receiver_steps (rx, x, PI_PUSH, tmp, ocap);
       const int tracking = rx->state == ASYNC_DSSS_RX_TRACKING;
-      /* --bn-carrier: on every entry into tracking (each seed rebuilds the
-         chain), the carrier loop's filter is re-initialised at the asked
-         bandwidth through its public state, its integrator -- the
-         hand-over's frequency -- kept (dp_loop_filter_init() does not touch
-         it). The block the hand-over fell in ran at the built bandwidth:
-         at most one block, 0.37 ms, about 1.5 code periods. */
-      if (tracking && !was_tracking && (!isnan (pi_bn_car) || pi_bn_rule_on))
+      /* --bn-carrier / --loop-order: on every entry into tracking (each
+         seed rebuilds the chain) the carrier loop is set through Costas's
+         own API (configure keeps the integrator, the hand-over's
+         frequency; set_order carries it). The block the hand-over fell in
+         ran as built: at most one block, 0.37 ms, about 1.5 code periods. */
+      const double bn_track = pi_bn_rule_on
+                                  ? pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB))
+                              : !isnan (pi_bn_car) ? pi_bn_car
+                                                   : ASYNC_DSSS_RX_BN_CARRIER;
+      if (tracking && !was_tracking)
         {
-          const double bn = pi_bn_rule_on
-                                ? pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB))
-                                : pi_bn_car;
-          rx->car.bn      = bn;
-          dp_loop_filter_init (&rx->car.lf, bn, rx->car.lf.zeta, rx->car.lf.t);
+          narrowed = 0;
+          if (pi_loop_order == 3)
+            {
+              /* Through Costas's own switch: the frequency the hand-over
+                 seeded carries, the rate starts at 0. Design a enters at
+                 order 2 and switches at the lock below. */
+              if (pi_acq == 'b')
+                DP_REQUIRE (
+                    dp_costas_set_order (&rx->car, 3, ASYNC_DSSS_RX_BN_CARRIER)
+                    == DP_OK);
+              else if (pi_acq == 'c')
+                DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track)
+                            == DP_OK);
+            }
+          else if (!isnan (pi_bn_car) || pi_bn_rule_on)
+            DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
+                        == DP_OK);
+        }
+      /* --acq a/b: at the stint's first lock, the receiver's own event
+         (both flags up: had_lock), the loop goes to its tracking form. */
+      if (tracking && pi_loop_order == 3 && !narrowed && rx->had_lock
+          && pi_acq != 'c')
+        {
+          narrowed = 1;
+          if (pi_acq == 'a')
+            DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track) == DP_OK);
+          else
+            DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
+                        == DP_OK);
         }
       if (tracking && isnan (d->ho_err_hz))
         {
@@ -813,6 +856,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
                                 * rx->car.lf.bn / ASYNC_DSSS_RX_BN_CARRIER;
     d->bn_car                 = rx->car.lf.bn;
     d->loop_order             = pi_loop_order;
+    d->acq                    = pi_loop_order == 3 ? pi_acq : '-';
     d->base_half_spacing_chip = 0.5 * rx->dll->spacing;
     double sc = 0.0, sc2 = 0.0, sk = 0.0, sk2 = 0.0, pk = 0.0, spk = 0.0;
     size_t n_off = 0, n_all = 0;
@@ -1124,7 +1168,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   "off_code_frac,"                                                            \
   "ho_peak_deg,steady_peak_deg,base_lag_deg,base_sd_deg,base_ho_deg,"         \
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
-  "base_half_spacing_chip,bn_car,win_natural_frac,loop_order\n"
+  "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1135,7 +1179,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
-      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d\n",
+      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c\n",
       d->fc / 1e9, d->esn0, d->rate, d->cw ? "code_period" : "partials", seed,
       d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->seed_err_hz,
       d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
@@ -1151,7 +1195,7 @@ emit_row (const draw_t *d, uint32_t seed)
       d->base_half_sample_chip, d->base_unamb_hz, d->base_pullin_hz,
       d->base_half_spacing_chip, d->bn_car,
       d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
-      d->loop_order);
+      d->loop_order, d->acq);
 }
 
 static int
@@ -1392,9 +1436,11 @@ main (int argc, char **argv)
         {
           pi_loop_order = atoi (argv[++i]);
           DP_REQUIRE (pi_loop_order == 2 || pi_loop_order == 3);
-          DP_REQUIRE_MSG (pi_loop_order == 2,
-                          "--loop-order 3 needs Costas's order, not built "
-                          "yet (docs/design/async-dsss-receiver.md 4.9)");
+        }
+      else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
+        {
+          pi_acq = argv[++i][0];
+          DP_REQUIRE (pi_acq == 'a' || pi_acq == 'b' || pi_acq == 'c');
         }
       else if (strcmp (argv[i], "--design") == 0)
         design = 1;
@@ -1436,6 +1482,11 @@ main (int argc, char **argv)
         (void)snprintf (bn_tag, sizeof bn_tag, "_bnrule");
       else if (!isnan (pi_bn_car))
         (void)snprintf (bn_tag, sizeof bn_tag, "_bn%g", pi_bn_car);
+      if (pi_loop_order == 3)
+        {
+          const size_t l = strlen (bn_tag);
+          (void)snprintf (bn_tag + l, sizeof bn_tag - l, "_o3%c", pi_acq);
+        }
       (void)snprintf (stem, sizeof stem,
                       "pullin_%.1fGHz_%.0fdB_%.0fHzs_%s_s%u%s%s", g, es, rt,
                       cw ? "code_period" : "partials", sd,

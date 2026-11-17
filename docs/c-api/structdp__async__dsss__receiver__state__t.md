@@ -131,13 +131,17 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm**](#variable-tlm)  <br> |
 |  int32\_t | [**tlm\_cn0**](#variable-tlm_cn0)  <br> |
+|  int32\_t | [**tlm\_coast**](#variable-tlm_coast)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
+|  int32\_t | [**tlm\_had\_lock**](#variable-tlm_had_lock)  <br> |
 |  int32\_t | [**tlm\_handover**](#variable-tlm_handover)  <br> |
 |  int32\_t | [**tlm\_ho\_src**](#variable-tlm_ho_src)  <br> |
+|  int32\_t | [**tlm\_hold**](#variable-tlm_hold)  <br> |
 |  int32\_t | [**tlm\_phase\_car**](#variable-tlm_phase_car)  <br> |
 |  int32\_t | [**tlm\_phase\_code**](#variable-tlm_phase_code)  <br> |
 |  char | [**tlm\_prefix**](#variable-tlm_prefix)  <br> |
 |  int32\_t | [**tlm\_refused**](#variable-tlm_refused)  <br> |
+|  int32\_t | [**tlm\_release**](#variable-tlm_release)  <br> |
 |  int32\_t | [**tlm\_state**](#variable-tlm_state)  <br> |
 |  int32\_t | [**tlm\_sym\_lock**](#variable-tlm_sym_lock)  <br> |
 |  int32\_t | [**tlm\_sym\_locked**](#variable-tlm_sym_locked)  <br> |
@@ -1889,6 +1893,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_cn0;
 
 
 
+### variable tlm\_coast 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_coast;
+```
+
+
+
+"&lt;prefix&gt;.coast" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_decim 
 
 ```C++
@@ -1898,6 +1920,24 @@ uint32_t dp_async_dsss_receiver_state_t::tlm_decim;
 
 
 The attach's decimation. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_had\_lock 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_had_lock;
+```
+
+
+
+"&lt;prefix&gt;.had\_lock" id, -1 detached. 
  
 
 
@@ -1933,6 +1973,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_ho_src;
 
 
 "&lt;prefix&gt;.ho\_src" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_hold 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_hold;
+```
+
+
+
+"&lt;prefix&gt;.hold" id, -1 detached. 
  
 
 
@@ -2004,6 +2062,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_refused;
 
 
 "&lt;prefix&gt;.refused" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_release 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_release;
+```
+
+
+
+"&lt;prefix&gt;.release" id, -1 detached. 
  
 
 

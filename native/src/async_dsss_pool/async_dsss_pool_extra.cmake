@@ -8,8 +8,8 @@ target_link_libraries(bench_async_dsss_pool_core PRIVATE awgn_core gold_core
                                                          wfm_synth_core)
 
 # awgn_core and wfm_synth_core: the ghost tests' 415.1-B-1 emitter is the
-# library's continuous DSSS synth with its code-only window, taken to 11
-# MSa/s and through a DopplerChannel, plus the shipped noise
-# (_test_ghost_is_released). The test's alone, as above.
+# use-case scene, native/tests/dp_air_test.h (the shipped synth with its
+# code-only window, the front end's converter to 11 MSa/s, a DopplerChannel,
+# the shipped noise; _test_ghost_is_released). The test's alone, as above.
 target_link_libraries(test_async_dsss_pool_core PRIVATE awgn_core
                                                         wfm_synth_core)

@@ -2092,8 +2092,9 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
 /** @brief State-blob layout version; set_state() rejects any other. 2: the
  *  search's extra block carries keep_surface (#2022); 3: and the peak zone
- *  (dp_correlator_set_peak_zone(), doppler#3067). */
-#define CORRELATOR_STATE_VERSION 3u
+ *  (dp_correlator_set_peak_zone(), doppler#3067); 4: and the thread request
+ *  (dp_correlator_set_threads(), #3055). */
+#define CORRELATOR_STATE_VERSION 4u
 /**
  * @brief Size in bytes of this correlator's state blob.
  * @param state  Must be non-NULL.
@@ -3128,8 +3129,11 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  * nothing is created per push after the first. The surface is bit-identical at every
  * count -- every output row and every decide chunk is computed whole by
  * one worker, and the chunk count is the grid's -- so this changes the
- * cost of a push and nothing about its result. Setup path, never hot;
- * not while another thread is inside push().
+ * cost of a push and nothing about its result. The request travels in
+ * the state blob (a mutator's value, #2022): dp_correlator_set_state()
+ * applies it through this call, so the target's grid and cores cap it as
+ * they would here. Setup path, never hot; not while another thread is
+ * inside push().
  *
  * @param state Must be non-NULL.
  * @param n     Thread count; 0 = online cores, 1 = serial.

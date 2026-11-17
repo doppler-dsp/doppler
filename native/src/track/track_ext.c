@@ -1,9 +1,9 @@
 /*
  * track_ext.c — Python extension module track
  *
- * Objects: LoopFilter, Costas, Dll, SymbolSync, RateSync, CarrierMpsk,
- * CarrierNda, MpskReceiver, BpskReceiver, MpskReceiverR GENERATED — do not
- * hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * Objects: LoopFilter, StateFilter, Costas, Dll, SymbolSync, RateSync,
+ * CarrierMpsk, CarrierNda, MpskReceiver, BpskReceiver, MpskReceiverR GENERATED
+ * — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -197,6 +197,7 @@ jm_capsule_lend (void *ptr, const char *name, PyObject *owner)
 #include "track_ext_mpsk_receiver.c"
 #include "track_ext_mpskreceiverr.c"
 #include "track_ext_ratesync.c"
+#include "track_ext_state_filter.c"
 #include "track_ext_symsync.c"
 
 /* ======================================================== */
@@ -227,6 +228,8 @@ PyInit_track (void)
   import_array ();
   if (PyType_Ready (&LoopFilterObjType) < 0)
     return NULL;
+  if (PyType_Ready (&StateFilterObjType) < 0)
+    return NULL;
   if (PyType_Ready (&CostasObjType) < 0)
     return NULL;
   if (PyType_Ready (&DllObjType) < 0)
@@ -252,6 +255,14 @@ PyInit_track (void)
   if (PyModule_AddObject (m, "LoopFilter", (PyObject *)&LoopFilterObjType) < 0)
     {
       Py_DECREF (&LoopFilterObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&StateFilterObjType);
+  if (PyModule_AddObject (m, "StateFilter", (PyObject *)&StateFilterObjType)
+      < 0)
+    {
+      Py_DECREF (&StateFilterObjType);
       Py_DECREF (m);
       return NULL;
     }

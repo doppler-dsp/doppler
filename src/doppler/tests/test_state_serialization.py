@@ -90,6 +90,7 @@ from doppler.track import (
     MpskReceiver,
     MpskReceiverR,
     RateSync,
+    StateFilter,
     SymbolSync,
 )
 from doppler.wfm import PN, Gold, _SynthEngine
@@ -548,6 +549,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "LoopFilter": (
         lambda: LoopFilter(0.01, 0.707, 1.0),
+        lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
+    ),
+    # The third-order sibling: both accumulators (frequency and rate) must
+    # travel, so a split that drops the rate shows in the second half.
+    "StateFilter": (
+        lambda: StateFilter(0.01, 1.0),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
     ),
     # Lock detector — a real metric stream wobbling across the hysteresis

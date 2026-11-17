@@ -313,6 +313,356 @@ class LoopFilter:
         """
 
 @final
+class StateFilter:
+    """Create a state filter, validating its arguments.
+
+    Parameters
+    ----------
+    bn : float, default 0.01
+        Loop noise bandwidth, normalized cycles/sample; >= 0 (default 0.01).
+        `bn = 0` is a deliberately frozen loop.
+    t : float, default 1.0
+        Update period in samples; > 0 (default 1.0).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``bn must be >= 0 and t
+        > 0, both finite, with bn*t no larger than the bound the third-order
+        loop is stable to (docs/design/loop-filter.md section 12)``.
+
+    Examples
+    --------
+    >>> from doppler.track import StateFilter
+    >>> sf = StateFilter(bn=0.01, t=1.0)
+    >>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t
+    (0.023622, 0.000279)
+    >>> sf.integ, sf.rate                  # both estimates start at zero
+    (0.0, 0.0)
+    >>> StateFilter(bn=0.5)                # bn*t past the stability bound
+    Traceback (most recent call last):
+        ...
+    ValueError: bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)
+
+    """
+
+    def __init__(self, bn: float = 0.01, t: float = 1.0) -> None: ...
+    def step(self, x: float, /) -> float:
+        """Advance the loop one update with error x and return the control
+        value the tracker should apply.
+
+        `rate += kr*x; integ += rate + ki*x; control = integ + kp*x`. Inline,
+        with no test of any kind: this is the hot step of a tracking loop.
+
+        Parameters
+        ----------
+        x : float
+            Loop error (discriminator output) for this update.
+
+        Returns
+        -------
+        float
+            Control value `integ + kp*x`.
+
+        Examples
+        --------
+        >>> from doppler.track import StateFilter
+        >>> sf = StateFilter(bn=0.02, t=1.0)
+        >>> round(sf.step(1.0), 6)             # unit error: kr + ki + kp
+        0.047602
+        >>> round(sf.rate, 8), round(sf.integ, 8)
+        (1.257e-05, 0.00109406)
+
+        """
+
+    def steps(
+        self,
+        x: npt.NDArray[np.float64],
+        out: npt.NDArray[np.float64] | None = None,
+    ) -> NDArray[np.float64]:
+        """Filter a block of loop errors, one control value per update.
+
+        Equivalent to dp_state_filter_step() once per element in order,
+        carrying both accumulators across the block.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.float64]
+            Loop-error array, one discriminator sample per update.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import StateFilter
+        >>> sf = StateFilter(bn=0.05, t=1.0)
+        >>> ctl = sf.steps(np.full(50, 0.1))   # constant error into the loop
+        >>> round(float(ctl[0]), 4)            # the first nudge
+        0.0117
+        >>> round(float(ctl[-1]), 4)           # open loop: ramping
+        0.0638
+
+        """
+
+    def configure(self, bn: float, t: float) -> None:
+        """Recompute the gains for a new (bn, t); preserves the frequency and
+        rate estimates. Raises ValueError, changing nothing, when (bn, t) is
+        outside the domain.
+
+        As dp_loop_filter_configure() does for the second-order filter: widen
+        to acquire, narrow to track, holding the estimates. A `(bn, t)` outside
+        dp_state_filter_params_ok() is refused and changes nothing.
+
+        Parameters
+        ----------
+        bn : float
+            Loop noise bandwidth, normalized cycles/sample.
+        t : float
+            Update period in samples.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.track import StateFilter
+        >>> sf = StateFilter(bn=0.01, t=1.0)
+        >>> _ = sf.step(1.0)
+        >>> before = sf.rate
+        >>> sf.configure(0.05, 1.0)            # widen the loop, keep lock
+        >>> sf.rate == before                  # the estimates are preserved
+        True
+        >>> round(sf.kp, 6)                    # the gains rose
+        0.111058
+
+        """
+
+    def reset(self) -> None:
+        """Zero the frequency and rate estimates; keep the configured gains.
+
+        Examples
+        --------
+        >>> from doppler.track import StateFilter
+        >>> sf = StateFilter(bn=0.02, t=1.0)
+        >>> for _ in range(10):
+        ...     _ = sf.step(1.0)               # open loop: both estimates ramp
+        >>> round(sf.integ, 6), round(sf.rate, 6)
+        (0.011506, 0.000126)
+        >>> sf.reset()
+        >>> sf.integ, sf.rate                  # cleared, gains kept
+        (0.0, 0.0)
+
+        """
+
+    def bandwidth(self, delay: float = 0.0, gain: float = 1.0) -> float:
+        """Exact delivered noise bandwidth of this loop, in cycles per update,
+        for a detector delay of `delay` updates and a loop gain of `gain` times
+        nominal. NaN when the loop is not stable there.
+
+        Parameters
+        ----------
+        delay : float
+            Detector delay in updates.
+        gain : float
+            Loop gain as a multiple of nominal.
+
+        Returns
+        -------
+        float
+            Cycles per update, or NaN if not stable there.
+
+        See Also
+        --------
+        dp_state_filter_loop_bandwidth()
+
+        Examples
+        --------
+        >>> from doppler.track import StateFilter
+        >>> sf = StateFilter(bn=0.03, t=1.0)
+        >>> round(sf.bandwidth(), 6)           # delay 0: the bandwidth asked for
+        0.03
+        >>> round(sf.bandwidth(delay=1.0), 6)  # one update of detector delay
+        0.032646
+        >>> sf.bandwidth(gain=0.05)            # unstable: no bandwidth
+        nan
+
+        """
+
+    def stable(self, delay: float = 0.0, gain: float = 1.0) -> bool:
+        """Whether this loop is stable for a detector delay of `delay` updates
+        and a loop gain of `gain` times nominal.
+
+        Parameters
+        ----------
+        delay : float
+            Detector delay in updates.
+        gain : float
+            Loop gain as a multiple of nominal.
+
+        Returns
+        -------
+        bool
+            true if stable, false if not.
+
+        See Also
+        --------
+        dp_state_filter_loop_stable()
+
+        Examples
+        --------
+        >>> from doppler.track import StateFilter
+        >>> sf = StateFilter(bn=0.12, t=1.0)   # the bound itself
+        >>> sf.stable(delay=2.0, gain=2.0)     # worst corner of the rectangle
+        True
+        >>> sf.stable(delay=2.0, gain=400.0)   # a detector slope far too high
+        False
+        >>> sf.stable(gain=0.05)               # ...and far too low
+        False
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the StateFilter has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the StateFilter has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes, /) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the StateFilter has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def kp(self) -> float:
+        """proportional gain (from bn, t)."""
+
+    @property
+    def ki(self) -> float:
+        """frequency-path gain (from bn, t)."""
+
+    @property
+    def kr(self) -> float:
+        """rate-path gain (from bn, t)."""
+
+    @property
+    def integ(self) -> float:
+        """frequency estimate, control units per update."""
+    @integ.setter
+    def integ(self, value: float) -> None: ...
+    @property
+    def rate(self) -> float:
+        """its slope, control units per update per update."""
+    @rate.setter
+    def rate(self, value: float) -> None: ...
+    @property
+    def bn(self) -> float:
+        """loop noise bandwidth, normalized cycles/sample."""
+
+    @property
+    def t(self) -> float:
+        """update period in samples."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "StateFilter":
+        """Enter a context manager, returning this object.
+
+        Lets a StateFilter be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        StateFilter
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+        /,
+    ) -> None:
+        """Exit a context manager, releasing the StateFilter.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class Costas:
     """Costas component.
 

@@ -10,3 +10,4 @@ custom_block_demo.py: builds the argv a CLI pipeline spawns; there is no signal 
 halfband_r2c_demo.py: prints the tone it shifted and the mirror it rejected; the resampling guide has the figures
 ofdm_demo.py: checks the grid by transforming the signal back and prints the numbers; the spectrum and EVM figures belong to the modulator's characterization (#3117)
 wlan_rates_demo.py: prints a table of symbol counts and airtimes; the guide carries it and there is no signal to draw until the PPDU renderer reaches Python
+state_filter_ramp_demo.py: prints two steady phase errors and a bandwidth; the ramp trace is two numbers, so the tracking-loops guide section carries it

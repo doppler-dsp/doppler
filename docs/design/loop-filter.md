@@ -1,5 +1,5 @@
 ---
-description: "the second-order PI every tracking loop in the library embeds by value: where its gains come from, the unit condition its bn promise depends on, and what it deliberately does not bound"
+description: "the PI loop filters every tracking loop embeds by value: where the second-order gains come from, the unit condition the bn promise depends on, and the design of its state-filter sibling"
 ---
 
 # The Loop Filter
@@ -355,3 +355,589 @@ ______________________________________________________________________
     loop whose update clock changes — a handover from a fixed-rate
     acquisition tap to a symbol-rate decision-directed one — must re-`init`,
     and forgetting to is [MPSK Receiver](mpsk.md) §10's open item.
+
+______________________________________________________________________
+
+# Part II — the state filter
+
+Sections 1–9 describe the second-order object. Part II describes its
+third-order sibling, `StateFilter`: the use case that shaped it, its form,
+the exact discrete-time derivation its gains come from, the domain it is
+stable on, what embedding it costs, and what the sweep measured. The
+contract is `native/inc/doppler/state_filter/state_filter_core.h` and the
+evidence is
+`src/doppler/track/tests/validation/state_filter/results.md`.
+
+## 10. Use cases
+
+1. **A narrow loop that must also follow a frequency ramp.** A carrier loop
+    that updates once per code period (250 to 318 microseconds) on a signal
+    whose carrier drifts at 400 Hz/s, run at a signal-to-noise ratio near
+    4 dB per symbol. The loop needs a narrow noise bandwidth (`bn*t` about
+    0.01) to ride out the noise and no steady phase error on a frequency
+    ramp. The second-order filter cannot do both: its steady phase error
+    under a ramp of `r` cycles per update per update is `r/ki` (§14), and
+    `ki` falls as the square of the bandwidth. At `bn*t = 0.01` the
+    lag is tens of degrees at the ramp rates a satellite-class Doppler
+    produces, so the loop either loses the ramp or, widened to hold it,
+    slips on noise. The caller that needs this is the asynchronous DSSS
+    receiver's pre-despread carrier loop; adopting the filter there is its
+    own work, after this object is certified.
+1. **A rate-aided oscillator.** Any loop whose controlled quantity has a
+    steady slope (a Doppler rate, a clock drift rate) and that would
+    otherwise carry the lag of use case 1.
+1. **Everything that is second order today stays second order.** The
+    seven embedders of §1 are not asked to change, and §13 says why that
+    is the constraint that shapes the struct.
+
+## 11. The form
+
+**Structure.** The filter adds one accumulator, in cascade with the
+integrator. With `e` the error and `c` the control:
+
+```text
+rate  += kr * e              the rate estimate
+integ += rate + ki * e       the frequency estimate (as today, plus rate)
+c      = integ + kp * e
+```
+
+so `F(z) = kp + ki/(1-z^-1) + kr/(1-z^-1)^2`. `integ` keeps its meaning
+(§1, the running frequency estimate); `rate` is its slope, in the caller's
+control units per update. A caller who knows a Doppler rate may seed it
+(§13).
+
+**The loop it sits in** is the one the existing harness assumes (§2, and
+`native/validation/loop_filter_noise_bw.c`): a unit detector, the filter,
+and an oscillator that accumulates the control, plus a transport delay of
+`d` updates in the error path (`d = 0` is the canonical loop and the only
+one the second-order header's bandwidth figure describes). With
+`u = z^-1` the characteristic polynomial is
+
+```text
+(1-u)^3 + u^(1+d) * [ kp*(1-u)^2 + ki*(1-u) + kr ] = 0
+```
+
+and `H = L/(1+L)` with `L = F(z) * u^(1+d) / (1-u)`. At `d = 0` the
+substitution `w = z - 1` writes it as `w^3 + kp*w^2 + ki*z*w + kr*z^2`, so
+the three gains are linear in the three coefficients of any desired
+discrete pole polynomial: placing the roots is a linear solve, not a fit.
+
+**The shape, and why the caller gives only `bn`.** Order 3 has no damping
+argument: the shape of the loop is fixed by the design and the caller gives
+`bn` and `t`. The shape is the analog prototype
+`s^3 + b*w0*s^2 + a*w0^2*s + w0^3` with `a = b = 2`, the third-order
+Butterworth polynomial `(s + w0)(s^2 + w0*s + w0^2)`: one real pole and a
+pair at the same radius, 60 degrees off the negative real axis. The noise
+bandwidth of the prototype is
+`Bn = w0 * (a*b^2 + a^2 - b) / (4*(a*b - 1))`, which is `(5/6) * w0` for
+this shape. The two constants live in one place in the header, so another
+shape is a change of two numbers and a rerun of the validator. §12 compares
+this shape with two others on the one property the automatic case depends on.
+
+### 11.1 The exact discrete derivation
+
+Written out so it can be checked, and held against the Parseval sum by the
+C test and the validator (agreement to about `1e-9`). It does not use the
+analog relation between `wn` and `Bn`.
+
+1. **The loop.** The detector reads the error `w[n] - phi[n]` `d` updates
+    late (`e[n] = w[n-d] - phi[n-d]`), the filter of §11, and the oscillator
+    `phi[n+1] = phi[n] + c[n]`.
+
+1. **The transfer function.** With `u = z^-1`, `L = F(z) u^(1+d) / (1-u)`
+    and `H = L / (1 + L)`. At `d = 0`, with \`N(z) = kp (z-1)^2 + ki z (z-1)
+
+    - kr z^2` for order 3 (`N = kp (z-1) + ki z`for order 2),`H = N / D`with`D = (z-1)^3 + N` (`D = (z-1)^2 + N\`).
+
+1. **The noise bandwidth is Parseval on the impulse response.**
+    `Bn = (1/2) * sum_n h[n]^2`, cycles per update, exactly (the harness
+    computes this sum by running the real step). Write the loop as a linear
+    system `x[n+1] = A x[n] + b w[n]`, `y = c x + d w` whose state is what
+    the simulation carries: the oscillator phase, the frequency estimate,
+    the rate estimate and the detector's delay line. Then
+    `sum h^2 = d^2 + c P c^T` where `P` solves the discrete Lyapunov
+    equation `P = A P A^T + b b^T`. That is a finite linear solve, so the
+    answer is algebraic in the gains, not a series. Written this way a slow
+    loop is a matrix close to the identity, every entry a small combination
+    of the gains and of 1; the polynomial form `D(z)` above holds the same
+    loop as large coefficients that nearly cancel, and loses the digits the
+    small gains live in (a companion-form solve read 0.0008 for a loop of
+    bandwidth 0.001).
+
+    **Which phase.** The bandwidth is that of the oscillator phase at the
+    detector instant, `phi[n]`. A phase read after the `kp*e` step of the same
+    update is a different signal: the Costas lane, running this same loop,
+    measured the sum of squares of that later phase 1% to 7% under `2*Bn`, so
+    a figure compared with `Bn` must say where the phase is read.
+
+1. **Stability is positivity.** The pair `(A, b)` is controllable, so `A` is
+    stable exactly when the solution `P` is positive definite (a Cholesky
+    factorization whose every pivot is positive). One solve gives both the
+    bandwidth and the verdict.
+
+    **Conditioning, and where the verdict is trusted.** The gains of a slow
+    loop span many decades (`kr` is about `1e-9` where `kp` is `4e-3` at
+    `bn*t = 1e-3`), and a Cholesky pivot of `P` in the raw coordinates can
+    flip negative on a loop that is stable with a margin of `1e-4`. That is
+    what happened to gains off the design manifold, the ones a converging
+    Kalman filter holds (Part III): the verdict was erratic, a false "not
+    stable" at isolated updates of a stable trajectory. Balancing the
+    coordinates alone left 2 disagreements in 1404 judged cases, and a solve
+    in extended precision alone left 5; and extended precision is not on every
+    platform (`long double` is `double` on MSVC and on Apple's arm64). So the
+    function no longer solves for `P` and tests it for positivity. It sums
+    `P = sum_k A^k b b^T (A^T)^k` by doubling, `P <- P + A P A^T` with
+    `A <- A A`, in balanced coordinates (a diagonal similarity by powers of
+    two, which changes only the conditioning), all in `double`: every term of
+    the sum is positive semidefinite (single entries may be negative), so the
+    sum cannot lose definiteness by cancellation at any scale the gains span,
+    and the loop is stable exactly when `A^(2^j)` goes to zero (the largest
+    entry of the balanced power under 1e-12 is the stable verdict; non-finite
+    or above 1e150 is not stable; 64 passes without either is not stable), which a pole at
+    radius `1 - delta` does in about `log2 (40/delta)` passes (36 at `delta`
+    1e-9). An unstable loop overflows or stalls at order one, and a marginal
+    one (a gain at zero, a pole at `z = 1`) never goes to zero, which is the
+    "not controllable reads as not stable" rule falling out of the same test.
+    The function is verified on the design gains from `STATE_FILTER_BNT_MIN` to
+    `STATE_FILTER_BNT_MAX` at delays 0 to 4 and loop gains 0.5 to 2
+    (bandwidth within 3.1e-11 of the closed form), and against a simulation of
+    the loop's own state recursion over the Kalman recursion's gains at
+    `bn*t` from 1e-3 to 0.08, starts of 1 to 5 times, at the four corners `K`
+    in {0.5, 2} by delay in {0, 2}: 1404 cases judged, no disagreement, the
+    same on every platform because there is one code path. Two limits are
+    stated, not hidden. A loop within about `1e-12` of the unit circle is
+    within rounding of the edge, and either answer is within that rounding.
+    A gain at or below zero reads as not stable by rule, which is the correct
+    frozen verdict and is why a Kalman gain that crosses zero in a transient is
+    reported as outside the rectangle there. The gains themselves
+    (`create`, the blob check) come from the closed-form bisection and do not
+    pass through this function, so a blob written on one platform is accepted
+    on another to the last bit of the gains.
+
+    **Which phase.** The bandwidth is that of the oscillator phase at the
+    detector instant, `phi[n]`. A phase read after the `kp*e` step of the same
+    update is a different signal: the Costas lane, running this same loop,
+    measured the sum of squares of that later phase 1% to 7% under `2*Bn`, so
+    a figure compared with `Bn` must say where the phase is read.
+
+1. **Stability is positivity.** The pair `(A, b)` is controllable, so `A` is
+    stable exactly when the solution `P` is positive definite (a Cholesky
+    factorization whose every pivot is positive). One solve gives both the
+    bandwidth and the verdict.
+
+    **Conditioning, and where the verdict is trusted.** The gains of a slow
+    loop span many decades (`kr` is about `1e-9` where `kp` is `4e-3` at
+    `bn*t = 1e-3`), and a Cholesky pivot of `P` in the raw coordinates can
+    flip negative on a loop that is stable with a margin of `1e-4`. That is
+    what happened to gains off the design manifold, the ones a converging
+    Kalman filter holds (Part III): the verdict was erratic, a false "not
+    stable" at isolated updates of a stable trajectory. The solve therefore
+    runs in balanced coordinates (a diagonal similarity by powers of two,
+    which leaves the positivity of `P` and the bandwidth exactly as they were
+    and changes only the conditioning) and in extended precision (`long  double`: 64 bits of mantissa on x86-64 with gcc or clang, 113 on aarch64,
+    and the same as `double` on MSVC, where the balancing alone remains).
+    Neither alone removes the defect on the measured gains (balancing alone
+    left 2 disagreements in 1404 cases, extended precision alone 5); both do.
+    The function is verified on the design gains from `STATE_FILTER_BNT_MIN` to
+    `STATE_FILTER_BNT_MAX` at delays 0 to 4 and loop gains 0.5 to 2 (accurate
+    to 1.6e-11), and against a simulation of the loop's own state recursion
+    over the Kalman recursion's gains at `bn*t` from 1e-3 to 0.08, starts of 1
+    to 5 times, at the four corners `K` in {0.5, 2} by delay in {0, 2}: 1404
+    cases judged, no disagreement. Two limits are stated, not hidden. A loop
+    within about `1e-9` of the unit circle is within rounding of the edge, and
+    either answer is within that rounding. A gain at or below zero reads as
+    not stable by rule, which is the correct frozen verdict and is why a
+    Kalman gain that crosses zero in a transient is reported as outside the
+    rectangle there.
+
+1. **Order 2, solved.** The Lyapunov equation gives
+    `Bn = (2 kp^2 + (2 + kp) ki) / (2 kp (4 - 2 kp - ki))` and the loop is
+    stable exactly when `kp > 0`, `ki > 0` and `2 kp + ki < 4` (Jury; the
+    denominator is the last condition).
+
+1. **Order 3, solved.** With `d1 = kp + ki + kr - 3`, `d2 = 3 - 2 kp - ki`,
+    `d3 = kp - 1`, the loop is stable exactly when `kr > 0`,
+    `4 kp + 2 ki + kr < 8`, `|d3| < 1` and `|d3^2 - 1| > |d3 d1 - d2|`, and
+
+    ```text
+    Bn = ( 2 ki^2 kp + 4 ki^2 + 4 ki kp^2 + 3 ki kp kr + 4 ki kr
+           + 4 kp^2 kr + kp kr^2 - 4 kp kr + kr^2 )
+         / ( 2 (ki kp + kp kr - kr) (8 - 2 ki - 4 kp - kr) )
+    ```
+
+1. **The gains.** The design fixes a shape, the two constants `a` and
+    `b`; the gains are `kp = b*th`, `ki = a*th^2`, `kr = th^3`, the analog
+    coefficients at `th = w0*t`. The scale `th` is then **solved** so that
+    the exact `Bn` above equals `bn*t`: one monotone equation in one
+    unknown, started from `th = 1.2 * bn*t` (the prototype's `w0 = bn / (5/6)`). The delivered bandwidth is
+    `bn` by construction, at `d = 0`, and the discretization only moves the
+    shape. A matched-pole family (`z = exp(s*t)` on the analog roots) is the
+    alternative way to fix the shape; §15 lists the choice.
+
+1. **A delay.** An integer `d` replaces `u` by `u^(1+d)` in `L`: the
+    companion form grows to `3 + d` states and step 3 is unchanged. A
+    fractional `d = k + f` replaces `u^(1+d)` by `u^(1+k) * ((1-f) + f*u)`,
+    linear interpolation of the detector's error between the two nearest
+    updates; step 3 is unchanged on the larger polynomial, and the answer
+    is exact for that model (§12), and for a real delay at integer `d`.
+
+1. **The check.** Steps 1 to 4 applied to order 2 give the closed form
+    above, the expression [#3121](https://github.com/doppler-dsp/doppler/issues/3121)'s
+    exact second-order design is built on.
+
+**What this means for order 2.** The shipped gains are the bilinear map of
+the analog relation, and the closed form of step 4 evaluates their exact
+delivered bandwidth, which becomes the stated figure in place of the fitted
+closed form in the header: at zeta 0.707 the shipped loop is wide by 0.9% at
+`bn*t = 0.01` and 3.6% at 0.04. The default does not change, and nothing in
+the second-order struct, blob or any embedder moves with this work.
+[#3121](https://github.com/doppler-dsp/doppler/issues/3121) asks for a
+second, exact design for order 2 as an option for callers past the `bn*t`
+budget; the exact bandwidth function of §12 is what it is built on, and its
+interface is that issue's.
+
+### 11.2 Cross-check against the legacy discrete-time design
+
+#3121 carries a legacy design: a cubic in `kp` with `ki = kp^2 / (4 zeta^2)`,
+reported not exact when measured (-0.018% at `bn` 0.01, -0.44% at 0.05,
+-6.2% at 0.2). Its filter differs from this object's. Written as
+`c[n] = c[n-1] + kp (e[n] - e[n-1]) + ki e[n-1]` it is
+`F = kp + ki u / (1 - u)`, one update more delay on the integral path than
+`F = kp + ki / (1 - u)`. The steps of §11.1 applied to each topology, with
+`g = 1 / (4 zeta^2)` and `B = bn*t`:
+
+| topology                | `H = N / D`, `D = (z-1)^2 + N` | exact `Bn`                                                         |
+| ----------------------- | ------------------------------ | ------------------------------------------------------------------ |
+| this object             | `N = kp (z-1) + ki z`          | `(2 kp^2 + (2 + kp) ki) / (2 kp (4 - 2 kp - ki))`                  |
+| legacy (issue's recipe) | `N = kp (z-1) + ki`            | `(ki^2 - 3 ki kp + 2 ki + 2 kp^2) / (2 (kp - ki) (4 - 2 kp + ki))` |
+
+- **The issue's measurement is the exact `Bn` of the legacy topology.** The
+    closed form reproduces its -0.0178%, -0.4403% and -6.2039% at `bn` 0.01,
+    0.05 and 0.2 to the digits printed, so the residual is not a measurement
+    artifact and not a model mismatch.
+- **The legacy cubic is the exact solution of its own topology with one
+    coefficient wrong.** Setting `Bn = B` with `ki = g kp^2` in the second
+    row gives `(1 + 2B) kp^3 - 12 zeta^2 (1 + 2B) kp^2 + (4 zeta^2 (8B + 2) +   16 zeta^4 (4B + 2)) kp - 128 B zeta^4 = 0`. The legacy recipe has the
+    same `kp` and constant coefficients and a different `kp^2` coefficient,
+    `a = -4 zeta^2 (2B + 3) / (2B + 1)` where the exact one is
+    `a = -12 zeta^2`. With that one coefficient replaced, the root measures
+    zero error by Parseval to rounding (below `1e-11` percent at `bn` from
+    0.001 to 0.2). The residual is therefore one coefficient of the formula,
+    not a different loop.
+- **This object's topology has an exact design under the same damping
+    definition, and it is a quadratic**, not a cubic. Setting `Bn = B` with
+    `ki = g kp^2` in the first row gives
+    `g (1 + 2B) kp^2 + (2 + 2g + 4B) kp - 8B = 0`, solved by the positive
+    root. Measured by the issue's reproducer (Parseval on `LoopFilter`'s
+    recurrence), its error is zero to rounding at `bn` from 0.001 to 0.2
+    (below `1e-10` percent). At zeta 0.707 and `bn` 0.05 it gives
+    `kp = 0.12241`, against `0.12455` for the legacy cubic as issued,
+    `0.12507` for its corrected root and `0.12473` for the shipped bilinear
+    gains.
+
+## 12. The domain, the stability bound, and the gain a loop may have
+
+**One predicate.** The third-order create and configure refuse outside a
+domain defined once, as `dp_loop_filter_params_ok` does for order 2
+(`bn >= 0`, `t > 0`, finite, finite gains), plus a bound on `bn*t`. The
+bound is not a tuning figure. It is derived from a stated requirement: the
+loop at its nominal gain is stable, with its poles inside the unit circle,
+and stays stable for every loop gain `K` (the discriminator slope times the
+oscillator gain; §3) in a stated range, for a stated delay budget.
+
+**A third-order loop is conditionally stable in `K`.** Scaling the loop
+gain scales all three coefficients, and the Routh condition on the analog
+prototype becomes `K > 1/(a*b)`: 0.25 of nominal is the lower edge
+for every bandwidth, and nothing in the analog loop bounds `K` above. In
+the sampled loop the delay bounds it above, roughly in proportion to
+`1/(bn*t*(1+d))`, and a delay also nudges the lower edge up. A second-order
+loop has no lower edge at all, so an order-2 embedder never had to ask.
+
+**The range to design for.** `K_min` is the detector's slope at the lowest
+per-update signal-to-noise ratio the caller specifies. The owner of the
+caller sets that ratio; the slope at it comes from the detector's own
+model, which is the embedder's, not this object's. A detector's slope falls below 1 as the
+ratio falls, so `K` presents on the low side, which is the conditional side
+of a third-order loop. One caller measures 0.58 at its floor and 0.72 to
+0.76 in the mode it will use. The rectangle `K` from 0.5 to 2, `d` from 0 to
+2 is the claim, with that reason: `K_MIN = 0.5` is the floor the automatic
+case covers. The measured lower edge at the bound is 0.236 of nominal at a
+delay of zero and 0.310 at two updates, 4.1 dB under that floor at the worst
+delay and 5.4 dB under the 0.58 one caller measures.
+
+The shape is judged first by its **downward** margin at `d_max`, and only
+then by its transient. Arithmetic from the exact `H(z)` of §11.1 (gains solved
+to the exact `bn*t`) gives the lower edge `K_low` of three shapes at `d` of
+0, 1 and 2, and the price each pays in steady acceleration error (the gain
+`kr / (bn*t)^3`, larger is better). The first row is a less damped shape
+whose constants are chosen for the comparison; the other two are the
+Butterworth polynomial of the design and the triple real pole
+`(s + w0)^3`:
+
+| shape (`a`, `b`)               | `Bn/w0` | `K_low` at `bn*t` 0.01 | at 0.04        | at 0.08        | `kr/(bn*t)^3` |
+| ------------------------------ | ------- | ---------------------- | -------------- | -------------- | ------------- |
+| less damped (1.5, 2), chosen   | 0.7812  | 0.331, 0.334, 0.337    | .323 .335 .348 | .314 .337 .363 | 2.00          |
+| Butterworth (2, 2), the design | 0.8333  | 0.249, 0.252, 0.255    | .244 .256 .268 | .240 .262 .288 | 1.65          |
+| triple real pole (3, 3)        | 1.0312  | 0.111, 0.112, 0.113    | .110 .114 .118 | .109 .117 .126 | 0.86          |
+
+Read against a detector that reaches 0.58: the less damped shape has about
+4.6 dB of downward margin at best; the Butterworth shape has about 7 dB at
+zero delay and 5.4 dB at the worst delay at the bound, and costs 18% of the
+acceleration gain against the less damped shape (the steady error under a
+given acceleration is 21% larger); the triple pole gives 14 dB and costs
+more than half of it. That cost is what "stable in the automatic case" buys
+in noise-bandwidth efficiency. The Butterworth shape is the design.
+
+**At the bound itself** (`bn*t = 0.12`, Butterworth), the stable gain
+interval `[K_low, K_high]` is `[0.236, 7.8]` at `d = 0`, `[0.268, 3.6]` at
+1 and `[0.310, 2.1]` at 2 (and `[0.251, 7.3]` at 0.5, `[0.288, 2.9]` at 1.5
+in the interpolation model). The margin that is left at the bound is
+`0.58 / 0.310`, 5.4 dB downward, at the worst delay, and 2.1 upward: the
+bound is set by the upward side, and the downward side has room.
+
+**What the object can and cannot detect.** It can check, from its own
+gains, that the nominal loop and the declared `K` range are stable at the
+declared delay budget (a predicate on `bn*t`). It cannot see `K` or the
+caller's delay: a detector of slope 0.3 delivers an unstable loop with no
+error anywhere. The page's section 3 promise (unit gain) is therefore
+stronger for order 3: for order 2 a wrong `K` changes the bandwidth, for
+order 3 below an edge it breaks the loop.
+
+**One function, one home.** The exact bandwidth and stability function
+takes the gains and the order of the loop it describes (2 or 3), so it serves
+order 2 as well. It lives with the state filter: a new component, so the
+certified loop filter's code does not change in this work, and the loop
+filter's header points to it. A second home would be a second copy of the
+Lyapunov solve.
+
+**The delay is not told to the object.** Two options: tell it (a `delay`
+argument, gains and predicate accounting for it), or have the page tell the
+embedder to budget it. The object is *not* told. A told delay
+makes `bn*t` mean something different per caller, and the caller's delay is
+rarely an integer (a mean-over-window detector contributes a fraction of an
+update, and its window also narrows the loop). Instead the object **owns the
+exact expression**: a public function that, for a given `(bn, t, order)`, a
+delay in updates (exact at an integer, and the interpolation model of
+§11.1 between integers) and a gain `K`, returns
+the delivered noise bandwidth and whether the loop is stable. It is the
+tool a caller sizes from, and the validator's sweep over `d` and `K` runs
+through the same function, so the figures the page quotes come from the
+shipped code. This applies to order 2 as well: the header's delay-free
+figure is `d = 0`; a caller with one update of delay is wider than the
+header says, which is the leading hypothesis for a measured shortfall in
+loop SNR at the DSSS caller, and the page owes both orders as a function of
+`d` in 0, 1, 2.
+
+## 13. What is preserved, and the embedding cost
+
+**The sibling form changes no byte of the second-order state, step or
+benchmark, and the second-order gains stay as they are.**
+[#3121](https://github.com/doppler-dsp/doppler/issues/3121) asks for an exact
+second-order design as an option; that is a change to `LoopFilter` of its
+own, and a re-derivation of the shipped gains would move every embedder's
+numbers and every blob.
+
+**The cost of changing the shared struct.** The second-order state is
+public and embedded by value (§4). Adding `kr`, `rate` and an order to it
+changes its size, and every embedder that snapshots it whole moves:
+
+| embedder              | how it packs the filter             | blob that moves                            |
+| --------------------- | ----------------------------------- | ------------------------------------------ |
+| the filter itself     | whole struct                        | `LPFL` v1                                  |
+| `costas`              | whole-struct snapshot               | `COSTAS` v3                                |
+| `carrier_mpsk`        | whole-struct snapshot               | `CARRIER_MPSK` v1                          |
+| `carrier_nda`         | whole-struct snapshot               | `CARRIER_NDA` v5                           |
+| `symsync`             | whole-struct snapshot               | `SYMSYNC` v5                               |
+| `dll`                 | whole snapshot, plus `held_lf`      | `DLL` v15                                  |
+| `burst_despreader`    | whole snapshot, two filters         | `BURST_DESPREADER` v3                      |
+| `ratesync`            | field-wise, nests the filter's blob | loop v2, state v2 (via `LPFL`)             |
+| `mpsk_receiver` loops | field-wise, nests the filter's blob | loops v7, receiver v7 and its real variant |
+
+and every composition that nests those (the despreaders and the receivers
+that compose them, through `despreader`, `dsss_receiver`,
+`async_dsss_receiver`) changes size with them. The honest answer to "does
+every composed blob in the library move" is yes, if the struct grows, and
+the step would also gain a branch on the order in the hot path of every
+tracking loop (`JM_FORCEINLINE JM_HOT`), which a benchmark row has to
+prove costs nothing and could not be guaranteed to.
+
+**The alternative: a sibling object, `StateFilter`.** The
+second-order struct, its step, its blob magic (`LPFL`) and every embedder
+stay as they are. The third-order filter is its own public struct (`kp`,
+`ki`, `kr`, `integ`, `rate`, `bn`, `t`), its own step (the three lines of
+§11, `JM_FORCEINLINE JM_HOT`, no order test), its own state triplet with
+its own magic, its own create, configure, reset and predicate. An embedder
+adopts it by holding that struct in place of, or beside, the second-order
+one, and its blob moves **then and only then**: each adoption is a
+version bump of one object, in the work that adopts it, with the
+benchmark's order-2 rows unmoved by construction. This also keeps the
+"certify the object, then the composition" order.
+
+**Order is a choice of type, not a mode.** There is no create-time order
+argument, no reject key, and no configure across orders, because there is
+nothing for an order to switch. Within order 3, `configure(bn, t)` retunes
+the gains and leaves `integ` and `rate`, as order 2 does (§5); `reset`
+zeroes both accumulators and leaves the gains; the blob carries gains,
+`bn`, `t`, `integ` and `rate`, and set-state accepts only a filter a live
+one could be (the same rule as `dp_loop_filter_state_ok`). `integ` and
+`rate` are public fields: a caller seeds `integ` (a known frequency) and
+`rate` (a known rate) exactly as the second-order embedders seed `integ`
+today, and a writable Python property for either is a mutator the #2022
+gate probes, so both are in the blob. The header states the unit of `rate`
+as it states `integ`'s: `integ` is the control per update, `rate` is its
+change per update, so a Doppler rate of `R` Hz/s at an update period `T`
+seconds is `rate = R * T^2` in cycles per update per update, when the
+control is in cycles per update.
+
+**An embedder that holds both orders.** Acquiring on order 2 and tracking
+on order 3 is the obvious use, and at the switch the embedder carries
+`integ` (the frequency estimate the acquisition earned, as `configure` does
+in §5), zeroes `rate`, and seeds it only if it has an independent estimate.
+Zeroing is the default because a rate learned by a wide second-order loop
+is not available to carry. Whether pull-in (§15, unknown 3) needs a seeded
+rate is for the measurement to say.
+
+**The name.** The sibling is `StateFilter`: a
+filter over an explicit state vector (the frequency estimate and its rate),
+not "LoopFilter3". The house pattern is the loop filter's own (component
+`loop_filter`, header `loop_filter/loop_filter_core.h`, C names
+`dp_loop_filter_*`, class `LoopFilter` in the `track` module), so the
+component is `state_filter`, with C names under the `dp_state_filter_`
+prefix and the class `StateFilter` in the same module. Nothing in the tree
+is named `StateFilter`, `state_filter` or `kalman`, in any case or spelling,
+so there is nothing to collide with or reuse. The second-order blob stays
+byte-identical, and the question of an `order=` argument on `LoopFilter` is
+closed: there is none.
+
+**Reuse check.** Nothing in the tree is a second integrator. The
+`bn_fll` assist in `costas` and `carrier_mpsk` is a first-order
+frequency-error term fed into the same integrator; the `dll` aid adds an
+external rate to a nominal code rate; the burst capture's rate
+hypotheses are a search, not a tracker. The third-order filter is new.
+
+### 13.1 One recurrence, two flavors
+
+A Kalman flavor of the same object is planned and is not built. The
+fixed-gain object is shaped so that adding it is a view and some fields,
+not a reshaping.
+
+**The recurrence.** The filter estimates the state `x = (integ, rate)` of
+the quantity being tracked, with the oscillator's accumulated phase
+correction as the third state of the loop. Each update predicts, then
+corrects with the error `e` through a gain vector `g = (kp, ki, kr)`:
+
+```text
+predict   rate' = rate ;  integ' = integ + rate
+correct   rate  = rate' + kr * e ;  integ = integ' + ki * e + kr * e
+control   c     = integ + kp * e
+```
+
+(the three lines of §11 are this recurrence with the prediction folded in).
+**The fixed-gain flavor holds `g` constant, solved from `bn` (§11.1).** A
+Kalman flavor computes `g` each update from a covariance recursion given a
+process-noise and a measurement-noise level. For a constant-acceleration
+model the recursion converges to a constant `g`, the steady-state Kalman
+gain of an alpha-beta-gamma tracker, which depends only on the ratio of the
+two noise levels. So the fixed-gain loop is the steady-state case of the
+Kalman recurrence at some noise ratio, and that ratio is what `bn` selects.
+That correspondence is a claim for the Kalman work to prove, not one this
+page relies on.
+
+**What the two share:** the state `(integ, rate)`, the step's signature
+(`e` in, `c` out), the blob envelope and its `reset`, the caller's units
+(§13), the seeding of `integ` and `rate`, and the exact bandwidth and
+stability function of §12 evaluated at the CURRENT gains, which is what
+lets a caller ask what a Kalman filter's gains deliver at any moment.
+**What the Kalman flavor adds:** the covariance matrix as state, its
+constructor's arguments (the two noise levels and an initial covariance),
+and the per-update gain refresh. Nothing for it is added now: no
+covariance field, no argument, no code.
+
+**The hot step does not pay for the flavor.** The fixed-gain step stays the
+three lines of §11, inline, with no flavor test: an embedder compiles that
+and nothing else. A Kalman flavor does not change that step. It refreshes
+the gain fields from its covariance recursion in its own function, called
+before the same inline step, so the step reads the gains it always reads. A
+view shares methods verbatim, so the binding's `step` cannot be both; the
+binding path may call an out-of-line step that tests the flavor, which costs
+a branch on the Python path only (a call that already costs a Python
+dispatch) and leaves every C embedder's inline step and its benchmark rows
+untouched. Whether `jm` lets a view's method call a differently named C
+function is a question for phase 2 to answer against the manifest, not for
+this page to assume; if it does not, the Kalman flavor is a separate type
+(a difference in method signature is a separate type, and a gain refresh
+that takes the noise levels per update is one).
+
+**The blob carries a flavor key from version 1.** What a state filter's
+blob describes depends on its flavor (a covariance has its own payload),
+which is the case the state-serialization page calls a reject key: set-state
+into a filter of one flavor refuses a blob of another, never reinterprets
+it. So version 1 carries a `flavor` word in its extra header, `0` for
+fixed-gain, and set-state refuses any other value. A Kalman flavor later
+adds `flavor = 1` with its own payload under the same version, because it
+changes no byte of flavor 0; without the key the first Kalman blob would
+need a version bump to be told apart. The key is written, not stored in the
+struct: the type implies it until a second flavor exists.
+
+## 14. Closed forms a caller sizes from
+
+Owned by the object, as `dp_loop_filter_wn` is for order 2, so nobody
+re-derives them. All are exact for the discrete loop at `d = 0`, from the
+final-value theorem on `1/(1 + L)`: the steady phase error to an input of
+polynomial order `m`.
+
+| input                                     | order 2    | order 3  |
+| ----------------------------------------- | ---------- | -------- |
+| phase step, frequency step                | 0          | 0        |
+| frequency ramp `r` (cycles/update/update) | `r / ki`   | 0        |
+| frequency acceleration `a` (per update^3) | `a*n / ki` | `a / kr` |
+
+Under an acceleration `a` the second-order phase error is a ramp, growing
+by `a / ki` per update, so a caller sizes a dwell from the time it takes
+that ramp to reach the error it can tolerate. `r / ki` is the exact
+discrete form of `2*pi*R / wn^2`; the two differ in
+the first order of `wn*t`, and the exact one takes the gains the object
+holds. The function takes the state and the input's order, so a caller does
+not choose between the analog and the discrete form. In the units of use
+case 1: a ramp of `R` Hz/s at an update period of `T` s is
+`r = R * T^2` cycles per update per update.
+
+## 15. The unknowns, and what the sweep measured
+
+Written before the sweep, so that it answered them rather than confirmed a
+decision. The sweep is `native/validation/state_filter_loop.c`, and the
+report `src/doppler/track/tests/validation/state_filter/results.md`
+measures the same through the binding.
+
+1. **Delivered noise bandwidth against requested, as a function of `bn*t`
+    and `d`.** Zero excess at `d = 0`, to 1e-8 or better across `bn*t` 0.001
+    to 0.12. A detector delay widens the loop: at `bn*t = 0.04` the
+    delivered bandwidth is 1.12 times `bn*t` at one update and 1.26 at two,
+    and 1.42 and 2.31 at the bound. No closed form in `bn*t*d` was found;
+    `dp_state_filter_loop_bandwidth` is the expression.
+1. **The transient** to a frequency step: at the same `bn` the third-order
+    loop settles in about 3.3 times the updates of the second-order loop and
+    peaks about 9% higher (report §2.5). The price of the rate state; the
+    ramp it nulls is the use case.
+1. **Pull-in range** with a real discriminator is a property of the
+    composition and is not measured on the filter
+    ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
+1. **The steady error under a frequency acceleration** is `a/kr` against
+    the simulated loop to 1e-4 (C test §8).
+1. **Behavior at the stability bound.** Past the lower gain edge the
+    unstable mode grows by 1e-5 to 4e-3 per update at the delay-1 cells
+    swept, a slow growth; past the upper edge it grows too fast to measure
+    over the window.
+1. **Behavior at the lower gain edge, under noise,** with a detector whose
+    slope compresses with signal-to-noise ratio is the composition's
+    ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
+1. **Delay as a range.** The edges are not monotone in the interpolation
+    model of §12, so the rectangle is verified on a grid; a pure fractional
+    delay is not modeled
+    ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
+1. **A detector that averages over its window** is the embedder's model; the
+    object certifies the canonical loop and gives the embedder the expression
+    for the rest.
+1. **The gain family.** The gains are the analog coefficients at the solved
+    scale; matched poles are the other way to fix the shape and are not
+    compared ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).

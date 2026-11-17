@@ -83,6 +83,7 @@
 * `#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"`
 * `#include "doppler/dp_event_log/dp_event_log_core.h"`
 * `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/state_filter/state_filter_core.h"`
 * `#include "doppler/costas/costas_core.h"`
 * `#include "doppler/dll/dll_core.h"`
 * `#include "doppler/symsync/symsync_core.h"`

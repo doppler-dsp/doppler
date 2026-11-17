@@ -80,6 +80,15 @@
  *  Halving it from 400 changed no result; measured, not guessed. */
 #define N_UPDATES 250u
 
+/** The loop order the trials run (docs/design/costas.md section 3): 2 is
+ *  the loop every Costas starts on, 3 is selected by dp_costas_set_order()
+ *  at the same bn before the first update. Both get the same N_UPDATES, so
+ *  the two envelopes compare at one budget. Measured (11-17): in it both
+ *  acquire at and inside the bound and at 2x, neither at 4x; given 4x the
+ *  updates, order 3 also acquires at 4x and order 2 still does not, so past
+ *  the bound order 3 pulls in further but slower (doppler#3123). */
+static int g_order = 2;
+
 /**
  * @brief The seed offset, in cycles per SAMPLE, at `frac` of the bound.
  *
@@ -113,12 +122,18 @@ acquires (double bn, double f0, float sigma, int modulated, uint32_t seed)
   dp_costas_state_t *c = dp_costas_create (bn, 0.707, 0.0, TSAMPS, 0.0);
   if (!c)
     return 0;
+  if (g_order == 3 && dp_costas_set_order (c, 3, bn) != DP_OK)
+    {
+      dp_costas_destroy (c);
+      return 0;
+    }
+  const size_t  n_updates = N_UPDATES;
   uint32_t      ds = seed * 7919u + 1u, ns = seed;
   float complex in[TSAMPS];
   float complex out[4];
   double        sym = 1.0;
 
-  for (size_t u = 0; u < N_UPDATES; u++)
+  for (size_t u = 0; u < n_updates; u++)
     {
       if (modulated)
         sym = (dp_xs32 (&ds) & 1u) ? 1.0 : -1.0;
@@ -163,7 +178,8 @@ success_frac (double bn, double frac, float sigma, int modulated, int n)
 int
 main (int argc, char **argv)
 {
-  int         check  = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  (void)check; /* the same assertions either way; --check names the ctest */
   int         fail   = 0;
   const int   TRIALS = 16;
   const float SIGMA  = 0.30f;
@@ -172,55 +188,70 @@ main (int argc, char **argv)
   printf ("  bn=%.3f -> bound %.3e cyc/sample\n\n", BN_NOMINAL,
           seed_offset_cyc_per_sample (BN_NOMINAL, M_BPSK, 1.0, TSAMPS));
 
-  /* ── 1. AT and inside the bound, both signs. This is the gate. ────────── */
-  printf ("Inside the bound (asserted), %d draws each\n", TRIALS);
-  for (int modulated = 0; modulated <= 1; modulated++)
+  /* Each section runs at both orders, and asserts the same thing in the
+     sweep and in --check (a sweep that asserts nothing proves nothing,
+     #1566). Order 2's sections asserted only under --check until order 3
+     joined them. */
+  for (g_order = 2; g_order <= 3; g_order++)
     {
-      for (double frac = -1.0; frac <= 1.001; frac += 0.5)
+      /* ── 1. AT and inside the bound, both signs. This is the gate.
+       * ────────── */
+      printf ("[order %d] Inside the bound (asserted), %d draws each\n",
+              g_order, TRIALS);
+      for (int modulated = 0; modulated <= 1; modulated++)
         {
-          if (fabs (frac) < 1e-9)
-            continue; /* zero offset proves nothing about pull-in */
-          double f = success_frac (BN_NOMINAL, frac, SIGMA, modulated, TRIALS);
-          printf ("  %-11s frac=%+.1f  acquired %.0f%%\n",
-                  modulated ? "BPSK data" : "bare tone", frac, 100.0 * f);
-          if (check && f < 1.0)
+          for (double frac = -1.0; frac <= 1.001; frac += 0.5)
+            {
+              if (fabs (frac) < 1e-9)
+                continue; /* zero offset proves nothing about pull-in */
+              double f
+                  = success_frac (BN_NOMINAL, frac, SIGMA, modulated, TRIALS);
+              printf ("  %-11s frac=%+.1f  acquired %.0f%%\n",
+                      modulated ? "BPSK data" : "bare tone", frac, 100.0 * f);
+              if (f < 1.0)
+                fail = 1;
+            }
+        }
+
+      /* ── 2. The bound SCALES with bn — the law's actual content.
+       * ──────────── */
+      printf (
+          "\nThe bound tracks bn (asserted): same fraction, different bn\n");
+      for (double bn = BN_NOMINAL / 2.0; bn <= BN_NOMINAL * 2.001; bn *= 2.0)
+        {
+          double f = success_frac (bn, 1.0, SIGMA, 1, TRIALS);
+          printf ("  bn=%.3f  offset=%.3e cyc/sample  acquired %.0f%%\n", bn,
+                  seed_offset_cyc_per_sample (bn, M_BPSK, 1.0, TSAMPS),
+                  100.0 * f);
+          if (f < 1.0)
             fail = 1;
         }
-    }
 
-  /* ── 2. The bound SCALES with bn — the law's actual content. ──────────── */
-  printf ("\nThe bound tracks bn (asserted): same fraction, different bn\n");
-  for (double bn = BN_NOMINAL / 2.0; bn <= BN_NOMINAL * 2.001; bn *= 2.0)
-    {
-      double f = success_frac (bn, 1.0, SIGMA, 1, TRIALS);
-      printf ("  bn=%.3f  offset=%.3e cyc/sample  acquired %.0f%%\n", bn,
-              seed_offset_cyc_per_sample (bn, M_BPSK, 1.0, TSAMPS), 100.0 * f);
-      if (check && f < 1.0)
-        fail = 1;
-    }
+      /* ── 3. SYMMETRY: +k and -k must behave alike (doppler#982).
+       * ──────────── */
+      printf ("\nSign symmetry inside the bound (asserted)\n");
+      for (double frac = 0.5; frac <= 1.001; frac += 0.5)
+        {
+          double pos = success_frac (BN_NOMINAL, +frac, SIGMA, 1, TRIALS);
+          double neg = success_frac (BN_NOMINAL, -frac, SIGMA, 1, TRIALS);
+          printf ("  frac=%.1f  +%.0f%% / -%.0f%%\n", frac, 100.0 * pos,
+                  100.0 * neg);
+          if (fabs (pos - neg) > 1e-9)
+            fail = 1;
+        }
 
-  /* ── 3. SYMMETRY: +k and -k must behave alike (doppler#982). ──────────── */
-  printf ("\nSign symmetry inside the bound (asserted)\n");
-  for (double frac = 0.5; frac <= 1.001; frac += 0.5)
-    {
-      double pos = success_frac (BN_NOMINAL, +frac, SIGMA, 1, TRIALS);
-      double neg = success_frac (BN_NOMINAL, -frac, SIGMA, 1, TRIALS);
-      printf ("  frac=%.1f  +%.0f%% / -%.0f%%\n", frac, 100.0 * pos,
-              100.0 * neg);
-      if (check && fabs (pos - neg) > 1e-9)
-        fail = 1;
-    }
-
-  /* ── 4. The envelope BEYOND the bound — reported, never asserted. ─────── */
-  printf ("\nBeyond the bound (reported only — dp_sym_test.h's rule)\n");
-  for (double frac = 2.0; frac <= 6.001; frac += 2.0)
-    {
-      /* Half the draws: this section asserts nothing, so its precision buys
-         nothing but runtime. */
-      double pos = success_frac (BN_NOMINAL, +frac, SIGMA, 1, TRIALS / 2);
-      double neg = success_frac (BN_NOMINAL, -frac, SIGMA, 1, TRIALS / 2);
-      printf ("  frac=%.0fx  +%.0f%% / -%.0f%%\n", frac, 100.0 * pos,
-              100.0 * neg);
+      /* ── 4. The envelope BEYOND the bound — reported, never asserted.
+       * ─────── */
+      printf ("\nBeyond the bound (reported only — dp_sym_test.h's rule)\n");
+      for (double frac = 2.0; frac <= 6.001; frac += 2.0)
+        {
+          /* Half the draws: this section asserts nothing, so its precision
+             buys nothing but runtime. */
+          double pos = success_frac (BN_NOMINAL, +frac, SIGMA, 1, TRIALS / 2);
+          double neg = success_frac (BN_NOMINAL, -frac, SIGMA, 1, TRIALS / 2);
+          printf ("  frac=%.0fx  +%.0f%% / -%.0f%%\n", frac, 100.0 * pos,
+                  100.0 * neg);
+        }
     }
 
   if (fail)

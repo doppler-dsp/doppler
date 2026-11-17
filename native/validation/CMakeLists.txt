@@ -545,6 +545,14 @@ dp_gnu_compile_options(validate_async_dsss_receiver_pullin
                        PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_async_dsss_receiver_pullin
          COMMAND validate_async_dsss_receiver_pullin --check)
+# `--telemetry DIR --draw ...`: one draw's capture, the receiver's probes
+# with the scene's truth beside them and the lock rules, the report's
+# figures' source. A short window of a 2 s draw, so the capture path and
+# the probes it reads cannot rot; `--check` removes the passing capture.
+add_test(NAME validate_async_dsss_receiver_pullin_telemetry
+         COMMAND validate_async_dsss_receiver_pullin --telemetry
+                 ${CMAKE_CURRENT_BINARY_DIR} --draw 2.8,10,0,0,1 --secs 2
+                 --from 1 --to 1.2 --check)
 
 # How far below a stronger emitter a weaker one is still taken, the weak
 # one at the specification's floor and the strong one up to 20 dB above it,

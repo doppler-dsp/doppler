@@ -66,12 +66,36 @@
  * payload outlasts every run. --check: 2.8 GHz (2.69 samples a chip), 10
  * dB, static, both carrier windows, one 20 s draw each.
  *
+ * Telemetry: `--telemetry DIR --draw FC_GHZ,ESN0,RATE,CW,SEED [--from S
+ * --to S]` runs that one draw (its row as the sweep prints it) and captures
+ * the receiver's own probes over the window, with the scene's truth beside
+ * them as capture probes once a block, on the block's stamp: truth.car
+ * (cycles), truth.code (chips), truth.hz, truth.data. The five lock rules
+ * the flags were decided by go to <stem>.rules.csv beside it. Two conventions
+ * a reader of the capture needs: the carrier truth is the channel's own phase;
+ * and rx.phase.code is the code NCO's word, the start of a sample's
+ * dwell, where the Dll takes its prompt at the dwell's centre half an
+ * increment later (dll_tap_base(), nco_dwell_center()): a prompt on the
+ * code truth reads half a receive sample before it, with no correlation
+ * lost -- measured at 30 dB, -0.186 chip at 2.8 GHz (2.69 samples a chip,
+ * 0.500 sample) and -0.148 at 2.2 (3.42, 0.505). The code error is
+ * therefore rx.phase.code - truth.code + 0.5 chip_rate / fs.
+ *
+ * `--spc N` renders the scene at N samples a chip (2: the front end
+ * interpolates, the band +/-1 chip rate) for the comparison with the
+ * default 4.
+ *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
- *             [--draws N] [--secs S] [--shard i/n]
+ *             [--draws N] [--secs S] [--shard i/n] [--spc N]
+ *             [--telemetry DIR --draw FC,ESN0,RATE,CW,SEED [--from S]
+ *              [--to S]]
  */
 #include "async_dsss_receiver_common.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/ber/ber_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/timing/timing_core.h"
 #include "dp_air_test.h"
 #include "dp_ber_test.h"
 #include "dp_dsss_test.h"
@@ -112,6 +136,16 @@ typedef struct
   double        evm_db, m2m4_db;
 } draw_t;
 
+/* A draw's telemetry: the receiver's own probes and the scene's truth,
+   captured from `from_s` to `to_s` of the draw into `path`, with the
+   receiver's five lock rules beside it in `rules`. */
+typedef struct
+{
+  const char *path;  /* NULL: no capture */
+  const char *rules; /* where the lock rules go */
+  double      from_s, to_s;
+} capture_t;
+
 static double
 uni (uint32_t *st)
 {
@@ -121,7 +155,8 @@ uni (uint32_t *st)
 /* One draw: the receiver on `secs` of the scene. */
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
-          uint32_t seed, double secs, draw_t *d)
+          uint32_t seed, double secs, unsigned spc, const capture_t *cp,
+          draw_t *d)
 {
   const double chip = fc * 31.0 / 21216.0;
   const double cn0  = esn0 + 10.0 * log10 (PI_SYM);
@@ -157,6 +192,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   e.seed             = 100u + seed;
   e.bits             = pay;
   e.n_bits           = n_pay;
+  e.spc              = spc;
   dp_air_t air;
   DP_REQUIRE (dp_air_init (&air, &e, 1, PI_FS, cn0, 8807u + seed, PI_PUSH));
 
@@ -177,8 +213,47 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   size_t         ns = 0, first_in = SIZE_MAX;
   d->ho_err_hz = NAN;
   d->t_track_s = NAN;
+  /* The capture: probes registered first (the capture sizes its ring
+     from the table), the scene's truth beside the receiver's own, once a
+     block on the block's stamp -- the stamp the receiver's phase probes
+     are at. Attached for the window only. */
+  dp_tlm_t         *tlm    = NULL;
+  dp_tlm_capture_t *cap    = NULL;
+  int               id_car = -1, id_code = -1, id_hz = -1, id_data = -1;
+  dp_sample_clock_t clk;
+  const size_t      b_from
+      = cp && cp->path ? (size_t)(cp->from_s * PI_FS) / PI_PUSH : SIZE_MAX;
+  const size_t b_to
+      = cp && cp->path ? (size_t)(cp->to_s * PI_FS) / PI_PUSH : 0;
   for (size_t b = 0; b < n_blk; b++)
     {
+      if (b == b_from)
+        {
+          tlm = dp_tlm_create (1u << 18);
+          DP_REQUIRE (tlm != NULL);
+          DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
+                      == DP_OK);
+          id_car  = dp_tlm_probe (tlm, "truth.car", 1);
+          id_code = dp_tlm_probe (tlm, "truth.code", 1);
+          id_hz   = dp_tlm_probe (tlm, "truth.hz", 1);
+          id_data = dp_tlm_probe (tlm, "truth.data", 1);
+          DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0
+                      && id_data >= 0);
+          dp_sample_clock_init (&clk, PI_FS, 0);
+          cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
+          DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
+        }
+      if (tlm)
+        {
+          const uint64_t       at = (uint64_t)b * PI_PUSH;
+          const dp_air_truth_t t  = dp_air_truth (&air, 0, at);
+          dp_tlm_set_now (tlm, at);
+          dp_tlm_emit (tlm, id_car, t.car_cycles - floor (t.car_cycles));
+          dp_tlm_emit (tlm, id_code, t.code_chips);
+          dp_tlm_emit (tlm, id_hz, t.car_hz);
+          dp_tlm_emit (tlm, id_data,
+                       (double)(t.symbol >= 0 && t.symbol % 1000 >= 275));
+        }
       DP_REQUIRE (dp_air_next (&air, x, PI_PUSH));
       const size_t got
           = dp_async_dsss_receiver_steps (rx, x, PI_PUSH, tmp, ocap);
@@ -213,6 +288,37 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       const long sym
           = dp_air_truth (&air, 0, b * PI_PUSH + PI_PUSH / 2).symbol;
       data[b] = (uint8_t)(sym >= 0 && sym % 1000 >= 275);
+      if (tlm && (b + 1 >= b_to || b + 1 == n_blk))
+        {
+          dp_tlm_set_now (tlm, (uint64_t)(b + 1) * PI_PUSH);
+          (void)dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1);
+          DP_CHECK_MSG (dp_tlm_capture_close (cap) == DP_OK,
+                        "the draw's capture lost nothing");
+          (void)dp_tlm_capture_destroy (cap);
+          dp_tlm_destroy (tlm);
+          tlm = NULL;
+          /* The lock rules the flags were decided by, from the objects. */
+          FILE *fr = fopen (cp->rules, "w");
+          DP_REQUIRE (fr != NULL);
+          (void)fprintf (fr, "rule,up_thresh,down_thresh,n_up,n_down\n");
+          const struct
+          {
+            const char       *name;
+            dp_lockdet_rule_t r;
+          } rules[] = {
+            { "sym", dp_async_dsss_receiver_get_sym_lock_rule (rx) },
+            { "car", dp_async_dsss_receiver_get_car_lock_rule (rx) },
+            { "code", dp_async_dsss_receiver_get_code_lock_rule (rx) },
+            { "demod", dp_async_dsss_receiver_get_demod_lock_rule (rx) },
+            { "demod_sync",
+              dp_async_dsss_receiver_get_demod_sync_lock_rule (rx) },
+          };
+          for (size_t k = 0; k < sizeof rules / sizeof *rules; k++)
+            (void)fprintf (fr, "%s,%.6g,%.6g,%u,%u\n", rules[k].name,
+                           rules[k].r.up_thresh, rules[k].r.down_thresh,
+                           rules[k].r.n_up, rules[k].r.n_down);
+          DP_REQUIRE (fclose (fr) == 0);
+        }
     }
 
   /* Lock and its transitions, over the data. */
@@ -404,22 +510,33 @@ check_cell (const draw_t *ds, size_t n)
 int
 main (int argc, char **argv)
 {
-  int      check = 0, emit = 0;
-  unsigned draws = PI_DRAWS, shard = 0, shards = 1;
-  double   secs = PI_DRAW_S;
+  int         check = 0, emit = 0;
+  unsigned    draws = PI_DRAWS, shard = 0, shards = 1, spc = 0;
+  double      secs = PI_DRAW_S, from_s = 0.0, to_s = PI_DRAW_S;
+  const char *tlm_dir = NULL, *one = NULL;
   for (int i = 1; i < argc; i++)
     {
       check |= strcmp (argv[i], "--check") == 0;
       emit |= strcmp (argv[i], "--emit") == 0;
       if (strcmp (argv[i], "--draws") == 0 && i + 1 < argc)
         draws = (unsigned)strtoul (argv[++i], NULL, 10);
-      if (strcmp (argv[i], "--secs") == 0 && i + 1 < argc)
+      else if (strcmp (argv[i], "--secs") == 0 && i + 1 < argc)
         secs = strtod (argv[++i], NULL);
-      if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
+      else if (strcmp (argv[i], "--spc") == 0 && i + 1 < argc)
+        spc = (unsigned)strtoul (argv[++i], NULL, 10);
+      else if (strcmp (argv[i], "--telemetry") == 0 && i + 1 < argc)
+        tlm_dir = argv[++i];
+      else if (strcmp (argv[i], "--draw") == 0 && i + 1 < argc)
+        one = argv[++i];
+      else if (strcmp (argv[i], "--from") == 0 && i + 1 < argc)
+        from_s = strtod (argv[++i], NULL);
+      else if (strcmp (argv[i], "--to") == 0 && i + 1 < argc)
+        to_s = strtod (argv[++i], NULL);
+      else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
         DP_REQUIRE (sscanf (argv[++i], "%u/%u", &shard, &shards) == 2
                     && shards > 0 && shard < shards);
     }
-  if (check)
+  if (check && !tlm_dir) /* the sweep's spot check; a capture keeps --secs */
     {
       draws = 1;
       secs  = PI_CHECK_S;
@@ -431,6 +548,57 @@ main (int argc, char **argv)
   static const double fcs[2]   = { 2.2e9, 2.8e9 };
   static const double esn0s[4] = { 4.0, 5.0, 7.0, 10.0 };
   static const double rates[2] = { 0.0, PI_RATE_HZ_S };
+
+  /* One named draw with its telemetry: --telemetry DIR --draw
+     FC_GHZ,ESN0,RATE,CW,SEED [--from S --to S]. The capture is the
+     receiver's probes and the scene's truth over the window, beside it
+     the five lock rules; the draw's row is printed as the sweep prints
+     it, so the capture is of a row the record has. */
+  if (tlm_dir)
+    {
+      double   g = 0, es = 0, rt = 0;
+      int      cw = 0;
+      unsigned sd = 0;
+      DP_REQUIRE_MSG (
+          one
+              && sscanf (one, "%lf,%lf,%lf,%d,%u", &g, &es, &rt, &cw, &sd)
+                     == 5,
+          "--telemetry names its draw with --draw");
+      /* One stem names the draw's files: the capture and its rules. */
+      char stem[256], path[1100], rules[1100];
+      (void)snprintf (stem, sizeof stem,
+                      "pullin_%.1fGHz_%.0fdB_%.0fHzs_%s_s%u%s", g, es, rt,
+                      cw ? "code_period" : "partials", sd,
+                      spc ? (spc == 2 ? "_spc2" : "_spcN") : "");
+      (void)snprintf (path, sizeof path, "%s/%s.tlm", tlm_dir, stem);
+      (void)snprintf (rules, sizeof rules, "%s/%s.rules.csv", tlm_dir, stem);
+      const capture_t cp = { path, rules, from_s, to_s };
+      draw_t          d;
+      DP_REQUIRE (run_draw (code, g * 1e9, es, rt, cw, sd, secs, spc, &cp, &d)
+                  == 0);
+      DP_CHECK_MSG (!d.data_ended, "the payload outlasted the run");
+      /* --check (the ctest): the capture holds the receiver's probes and
+         the truth, then is removed, so the run leaves nothing behind. */
+      if (check)
+        {
+          FILE *fc = fopen (path, "rb");
+          DP_CHECK_MSG (fc != NULL, "the capture was written");
+          if (fc)
+            {
+              DP_CHECK (fseek (fc, 0, SEEK_END) == 0 && ftell (fc) > 0);
+              (void)fclose (fc);
+            }
+          char aux[1200];
+          (void)snprintf (aux, sizeof aux, "%s-meta", path);
+          DP_CHECK (remove (aux) == 0);
+          DP_CHECK (remove (rules) == 0);
+          DP_CHECK (remove (path) == 0);
+        }
+      printf ("# pullin\n");
+      emit_row (&d, sd);
+      DP_TEST_EMIT_END ("validate_async_dsss_receiver_pullin --telemetry");
+      DP_TEST_END ("validate_async_dsss_receiver_pullin --telemetry");
+    }
   if (emit)
     printf ("# pullin\nfc_ghz,esn0_db,rate_hz_s,carrier_window,seed,f0_hz,"
             "frame_off,ho_err_hz,ho_src,t_track_s,t_sym_s,t_code_s,sym_tog,"
@@ -453,7 +621,7 @@ main (int argc, char **argv)
                 if ((s - 1) % shards != shard)
                   continue;
                 DP_REQUIRE (run_draw (code, fcs[f], esn0s[e], rates[r], cw, s,
-                                      secs, &ds[n])
+                                      secs, spc, NULL, &ds[n])
                             == 0);
                 DP_CHECK_MSG (!ds[n].data_ended,
                               "the payload outlasted the run");

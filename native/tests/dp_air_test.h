@@ -68,7 +68,7 @@
 #include <string.h>
 
 /** Emitters a scene holds at most. */
-#define DP_AIR_MAX_K 8
+#define DP_AIR_MAX_K 16
 /** Whole samples a chip the synth renders at (see "The front end's band"). */
 #define DP_AIR_SPC 4u
 /** Synth samples rendered per step of the chain. */

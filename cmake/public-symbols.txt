@@ -625,12 +625,16 @@ dp_costas_get_lock_metric function
 dp_costas_get_locked function
 dp_costas_get_nco_freq function
 dp_costas_get_norm_freq function
+dp_costas_get_norm_rate function
+dp_costas_get_order function
 dp_costas_get_state function
 dp_costas_init function
 dp_costas_reset function
 dp_costas_set_bn function
 dp_costas_set_bn_fll function
 dp_costas_set_norm_freq function
+dp_costas_set_norm_rate function
+dp_costas_set_order function
 dp_costas_set_state function
 dp_costas_set_telemetry function
 dp_costas_state_bytes function

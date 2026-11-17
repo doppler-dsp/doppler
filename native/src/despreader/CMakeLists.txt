@@ -22,6 +22,7 @@ target_link_libraries(despreader_core PUBLIC
     lo_core
     lockdet_core
     loop_filter_core
+    state_filter_core
     dp_tlm_core
     dll_core
     detection_core)
@@ -34,6 +35,7 @@ target_link_libraries(test_despreader_core
     lo_core
     lockdet_core
     loop_filter_core
+    state_filter_core
     dp_tlm_core
     dll_core
     detection_core
@@ -51,6 +53,7 @@ target_link_libraries(bench_despreader_core
     lo_core
     lockdet_core
     loop_filter_core
+    state_filter_core
     dp_tlm_core
     dll_core
     detection_core

@@ -94,7 +94,11 @@ typedef struct
   const uint8_t *bits;          /**< its payload, 0/1, or NULL for PRBS:
                                      one bit per DATA symbol (the window's
                                      symbols take none), sent once      */
-  size_t n_bits;                /**< payload bits                         */
+  size_t   n_bits;              /**< payload bits                         */
+  unsigned spc; /**< whole samples a chip it is rendered at; 0 means
+                     DP_AIR_SPC. To show what the front end's band does:
+                     at 2 the converter interpolates and the band is +/-1
+                     chip rate */
 } dp_air_emitter_t;
 
 /** A scene: emitters, the rate they are received at, and the noise. */
@@ -106,6 +110,7 @@ typedef struct
   dp_air_emitter_t em[DP_AIR_MAX_K];
   float            amp[DP_AIR_MAX_K];
   double           fs_gen[DP_AIR_MAX_K];     /**< synth rate, Hz   */
+  unsigned         spc[DP_AIR_MAX_K];        /**< samples a chip   */
   double           skip_chips[DP_AIR_MAX_K]; /**< frame start */
   size_t           lag[DP_AIR_MAX_K];        /**< silence left, synth
                                                   samples             */
@@ -171,14 +176,15 @@ dp_air_init (dp_air_t *a, const dp_air_emitter_t *em, int k, double fs,
     {
       const dp_air_emitter_t *e = &em[i];
       a->em[i]                  = *e;
-      a->fs_gen[i]              = (double)DP_AIR_SPC * e->chip_rate;
+      a->spc[i]                 = e->spc ? e->spc : DP_AIR_SPC;
+      a->fs_gen[i]              = (double)a->spc[i] * e->chip_rate;
       a->amp[i]                 = (float)pow (
           10.0,
           (e->cn0_dbhz - (isnan (ref_cn0_dbhz) ? e->cn0_dbhz : ref_cn0_dbhz))
               / 20.0);
       a->syn[i] = dp_wfm_synth_create (WFM_SYNTH_DSSS, a->fs_gen[i], 0.0,
                                        WFM_SYNTH_SNR_CLEAN, 1, e->seed,
-                                       (int)DP_AIR_SPC, 15, 0, 0, 0.0);
+                                       (int)a->spc[i], 15, 0, 0, 0.0);
       a->rc[i]  = dp_RateConverter_create (fs / a->fs_gen[i], 0);
       a->ch[i]  = dp_doppler_channel_create (
           fs, e->carrier_hz, e->f0_hz / e->carrier_hz * 1e6,
@@ -201,7 +207,7 @@ dp_air_init (dp_air_t *a, const dp_air_emitter_t *em, int k, double fs,
          -- which the truth adds back. */
       const double cps   = e->chip_rate / e->sym_rate;
       const size_t chips = (size_t)ceil ((double)e->frame_off * cps);
-      size_t       drop  = chips * DP_AIR_SPC;
+      size_t       drop  = chips * a->spc[i];
       a->skip_chips[i]   = (double)chips;
       while (drop)
         {
@@ -270,9 +276,11 @@ typedef struct
  * The truth for emitter `i` at receive sample `k`: the channel's carrier
  * phase there, and the chip it is sending, mapped back through the
  * channel's dilation and delay, the converter's group delay and the
- * emitter's lag. Exact to the shipped objects' own closed forms; the chip
- * boundary convention is the synth's (chip c occupies its samples
- * [c spc, (c + 1) spc)).
+ * emitter's lag. Exact to the shipped objects' own closed forms. The
+ * synth's samples are point values, so chip c -- its samples c spc to
+ * (c + 1) spc - 1 -- spans (c spc - 0.5, (c + 1) spc - 0.5) samples once
+ * the converter interpolates them: chip phase is (sample + 0.5) / spc.
+ * test_dp_air.c pins it by the correlation peak's symmetry about it.
  */
 static inline dp_air_truth_t
 dp_air_truth (const dp_air_t *a, int i, uint64_t k)
@@ -292,7 +300,10 @@ dp_air_truth (const dp_air_t *a, int i, uint64_t k)
       = t_ch - dp_RateConverter_get_group_delay (a->rc[i]) / a->fs_gen[i];
   const double s
       = t_gen * a->fs_gen[i] - (double)llround (e->lag_s * a->fs_gen[i]);
-  o.tx_chips = s / (double)DP_AIR_SPC + a->skip_chips[i];
+  /* The synth's samples are point values: chip c is samples c spc to
+     (c + 1) spc - 1, so as the converter interpolates them the chip spans
+     half a sample either side, (c spc - 0.5, (c + 1) spc - 0.5). */
+  o.tx_chips = (s + 0.5) / (double)a->spc[i] + a->skip_chips[i];
   if (s < 0.0)
     {
       o.code_chips = NAN;

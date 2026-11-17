@@ -412,8 +412,11 @@ CarrierAcquisition_getprop_nfft (CarrierAcquisitionObject *self,
 
 static PyGetSetDef CarrierAcquisition_getset[] = {
   { "ready", (getter)CarrierAcquisition_getprop_ready, NULL,
-    "True once a detection has fired (or the dwell_target give-up cap was "
-    "reached) -- residual_hz is only meaningful once this is true.\n",
+    "True once a detection has fired, and only then: residual_hz is "
+    "meaningful once this is true. A dwell that reaches its give-up cap "
+    "(dwell_target, or max_n_blocks in sequential mode) without detecting "
+    "leaves it False, with n_blocks at the cap and steps() a no-op until "
+    "reset().\n",
     NULL },
   { "residual_hz", (getter)CarrierAcquisition_getprop_residual_hz, NULL,
     "Sub-bin-refined residual carrier frequency estimate, Hz. Valid only when "

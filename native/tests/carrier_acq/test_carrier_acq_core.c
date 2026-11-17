@@ -257,9 +257,39 @@ _test_telemetry_pairs_decision_with_statistic (void)
   return 0;
 }
 
+/* A give-up is not a detection: a dwell that reaches its cap without
+ * crossing the threshold leaves ready False, n_blocks at the cap, and
+ * further steps() a no-op -- what the `ready` property says. Noise only,
+ * at the fixed dwell of 4 blocks. */
+static int
+_test_give_up_leaves_ready_false (void)
+{
+  dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
+      SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, DP_PSD_WINDOW_HANN, 0.0f, NULL,
+      0, 1e-6, 0.9, 2.0, /*sequential=*/false, MAX_N_BLOCKS);
+  DP_REQUIRE (ca != NULL);
+  ca->dwell_target   = 4;
+  const size_t    n  = 64 * ca->psd->k.n;
+  float _Complex *x  = malloc (n * sizeof *x);
+  uint32_t        st = 4242u;
+  DP_REQUIRE (x != NULL);
+  for (size_t i = 0; i < n; i++)
+    x[i] = dp_cgauss (&st);
+  dp_carrier_acq_steps (ca, x, n);
+  DP_CHECK (ca->n_blocks == ca->dwell_target);
+  DP_CHECK (!ca->ready);
+  DP_CHECK (ca->residual_hz == 0.0);
+  dp_carrier_acq_steps (ca, x, n); /* a no-op now */
+  DP_CHECK (ca->n_blocks == ca->dwell_target && !ca->ready);
+  free (x);
+  dp_carrier_acq_destroy (ca);
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK (_test_give_up_leaves_ready_false () == 0);
   DP_CHECK (_test_telemetry_pairs_decision_with_statistic () == 0);
   DP_CHECK (_test_derived_threshold_false_alarms () == 0);
   DP_CHECK (_test_derived_threshold_round_trip () == 0);

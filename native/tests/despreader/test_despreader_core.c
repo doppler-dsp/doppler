@@ -21,6 +21,7 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -400,6 +401,58 @@ main (void)
     DP_CHECK (b->car.acc == a->car.acc);       /* costas child */
     DP_CHECK (b->code.acc_p == a->code.acc_p); /* dll child */
     DP_CHECK (b->code_copy != NULL && b->code.code == b->code_copy);
+
+    /* A blob from before Costas held its third-order filter is refused,
+       and the despreader's own version did not move for it: a composition
+       sums its children's sizes, so a child's migration reaches the parent
+       as a size (docs/design/state-serialization.md), and the old blob is
+       refused by it. The pre-change blob is rebuilt exactly: Costas v3 is
+       the v4 struct without `sf`, `order` and its pad, which sit together
+       at its end, and every enclosing header is that much smaller. */
+    {
+      const size_t H    = sizeof (dp_state_hdr_t);
+      const size_t cut  = offsetof (dp_costas_state_t, sf);
+      const size_t gone = sizeof (dp_state_filter_state_t)
+                          + 2 * sizeof (int32_t); /* sf, order, pad */
+      DP_CHECK (DESPREADER_STATE_VERSION == 5u && COSTAS_STATE_VERSION == 4u);
+      const size_t   n   = dp_despreader_state_bytes (a);
+      unsigned char *now = malloc (n), *old = malloc (n - gone);
+      DP_REQUIRE (now != NULL && old != NULL);
+      dp_despreader_get_state (a, now);
+      /* [despreader hdr][costas hdr][costas struct][dll child][rest] */
+      const size_t costas = H + H; /* the costas payload starts here */
+      memcpy (old, now, costas + cut);
+      memcpy (old + costas + cut, now + costas + cut + gone,
+              n - (costas + cut + gone));
+      dp_state_hdr_t h;
+      memcpy (&h, old, sizeof h); /* the despreader's header */
+      h.bytes -= (uint32_t)gone;
+      memcpy (old, &h, sizeof h);
+      memcpy (&h, old + H, sizeof h); /* the costas child's header */
+      DP_CHECK (h.magic == COSTAS_STATE_MAGIC && h.version == 4u);
+      h.version = 3u;
+      h.bytes -= (uint32_t)gone;
+      memcpy (old + H, &h, sizeof h);
+      unsigned char *pre = malloc (n), *pos = malloc (n);
+      DP_REQUIRE (pre != NULL && pos != NULL);
+      dp_despreader_get_state (b, pre);
+      DP_CHECK_MSG (dp_despreader_set_state (b, old) == DP_ERR_INVALID,
+                    "a despreader blob from before Costas v4 is refused");
+      dp_despreader_get_state (b, pos);
+      DP_CHECK (memcmp (pre, pos, n) == 0); /* and nothing changed */
+      /* The size alone refuses it: the same blob with the costas child's
+         version left at 4 is refused too, so "larger, same version" is
+         held by the parent's size and not only by the child's version. */
+      h.version = 4u;
+      memcpy (old + H, &h, sizeof h);
+      DP_CHECK_MSG (dp_despreader_set_state (b, old) == DP_ERR_INVALID,
+                    "a despreader blob one Costas v3 smaller is refused by "
+                    "its size");
+      free (now);
+      free (old);
+      free (pre);
+      free (pos);
+    }
     dp_despreader_destroy (a);
     dp_despreader_destroy (b);
   }

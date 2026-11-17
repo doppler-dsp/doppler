@@ -140,6 +140,15 @@ def _acc_feed(conv: Callable[[NDArray[np.complex64]], NDArray[Any]]) -> _Feed:
     return feed
 
 
+def _costas_order3() -> Any:
+    """A Costas switched to its third-order loop, with a carrier rate
+    seeded, so the order, the filter and the rate are all non-default."""
+    c = Costas(0.01, 0.707, 0.0, 4, 0.0)
+    c.set_order(3, 0.01)
+    c.norm_rate = 1e-9
+    return c
+
+
 def _burst_despreader_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     """Despread a block; return the serialized state (no output stream)."""
     o.steps(seg)
@@ -537,6 +546,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # real error stream (feed the segment's real part).
     "Costas": (
         lambda: Costas(0.01, 0.707, 0.0, 4, 0.0),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
+    # Order 3 (docs/design/costas.md section 3): the third-order filter and
+    # its rate travel too, and norm_rate is only settable there.
+    "Costas (order 3)": (
+        lambda: _costas_order3(),
         lambda o, seg: np.array(o.steps(seg)),
     ),
     "CarrierMpsk": (

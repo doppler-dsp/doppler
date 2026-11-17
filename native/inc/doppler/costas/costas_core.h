@@ -39,6 +39,7 @@
 #include "doppler/lo/lo_core.h"
 #include "doppler/lockdet/lockdet_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/state_filter/state_filter_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include <math.h>
 #include "doppler/telemetry/telemetry_core.h"
@@ -78,6 +79,13 @@ typedef struct {
  * The carrier NCO (`nco`) and PI loop (`lf`) are public sub-components so the
  * inline composition helpers can drive them; treat the integrate-and-dump and
  * diagnostic fields as internal.
+ *
+ * Two loop filters are held and one is active (`order`, set by
+ * dp_costas_set_order()): `lf`, the second-order loop every Costas starts
+ * on, and `sf`, a third-order StateFilter that also holds the carrier's
+ * rate, so it tracks a frequency ramp with no steady phase error
+ * (docs/design/costas.md section 3). `lf` always carries the retained
+ * `bn` and `zeta`; at order 3 `sf` runs at the same `bn`.
  */
 typedef struct {
     dp_lo_state_t nco;          /**< integer carrier NCO (uint32 phase).      */
@@ -102,6 +110,18 @@ typedef struct {
                                   + verify counters, stepped per symbol.   */
     double last_error;       /**< last PLL discriminator (loop stress).    */
     costas_tlm_t tlm;        /**< live telemetry attachment; zeroed in blobs */
+    /* The third-order filter and the order sit LAST, after every field the
+       per-sample loop touches (nco, tsamps, acc, acc_n): appended here they
+       leave each of those at the offset it had before order 3 existed, so
+       the order-2 loop's memory layout is the one it always had. */
+    dp_state_filter_state_t sf; /**< 3rd-order loop (frequency and rate); all
+                                     zero until order 3 is first selected.  */
+    int32_t order;              /**< the active filter: 2 (`lf`) or 3 (`sf`);
+                                     0 only in the all-zero Costas: one
+                                     never initialised, as a receiver holds
+                                     its spare loops (tsamps 0) until it
+                                     seeds them, which round-trips as is.  */
+    int32_t _pad_order;         /**< written 0: the struct is the blob.       */
 } dp_costas_state_t;
 
 /**
@@ -180,14 +200,28 @@ costas_update(dp_costas_state_t *s, float _Complex P)
     }
     s->prev = P;
     s->have_prev = 1;
-    dp_loop_filter_step(&s->lf, e);
+    /* The active filter (dp_costas_set_order). The FLL above writes lf only:
+     * order 3 refuses bn_fll > 0, so k_fll is 0 there. */
+    double integ, kp;
+    if (s->order == 3)
+    {
+        (void)dp_state_filter_step(&s->sf, e);
+        integ = s->sf.integ;
+        kp    = s->sf.kp;
+    }
+    else
+    {
+        dp_loop_filter_step(&s->lf, e);
+        integ = s->lf.integ;
+        kp    = s->lf.kp;
+    }
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
-    double car_w = s->lf.integ / (double)s->tsamps;
+    double car_w = integ / (double)s->tsamps;
     dp_lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
      * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
-    s->nco.phase += nco_norm_phase_to_word ((s->lf.kp * e) / (2.0 * M_PI));
+    s->nco.phase += nco_norm_phase_to_word ((kp * e) / (2.0 * M_PI));
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);
@@ -273,8 +307,9 @@ void dp_costas_tlm_flush(const dp_costas_state_t *s);
  * a whole-struct snapshot resumes the loop exactly. */
 /** @brief State-blob magic for the Costas loop (FourCC "CSTS"). */
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
-/** @brief State-blob layout version (v3 added the lockdet decision rule). */
-#define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
+/** @brief State-blob layout version (v4 added the third-order filter and the
+ *  active order; v3 the lockdet decision rule). */
+#define COSTAS_STATE_VERSION 4u /* v4: sf + order */
 
 /**
  * @brief Serialized-state byte size.
@@ -465,8 +500,84 @@ double dp_costas_get_bn_fll(const dp_costas_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    FLL bandwidth, normalized to the symbol rate (0 = off).
  * @return DP_OK, or DP_ERR_INVALID when @p val is refused.
+ *
+ * Refused too when @p val > 0 at order 3: a first-order frequency pull
+ * into a loop that holds a rate is a different loop from the one
+ * StateFilter's stability range was derived for, and it has not been
+ * measured (docs/design/costas.md section 3.2).
  */
 int dp_costas_set_bn_fll(dp_costas_state_t *state, double val);
+
+/**
+ * @brief Select the active loop filter on a live loop: order 2 (the PI
+ *        loop every Costas starts on) or order 3 (StateFilter, which also
+ *        tracks the carrier's rate), at loop bandwidth @p bn.
+ *
+ * What carries across (docs/design/costas.md section 3.2):
+ * - 2 to 3: the third-order filter is initialised at @p bn and takes the
+ *   frequency estimate `lf.integ`; its rate starts at 0
+ *   (dp_costas_set_norm_rate() seeds one).
+ * - 3 to 2: the PI loop takes the third-order filter's frequency estimate;
+ *   the rate is dropped.
+ * - Either way, and to the same order: `lf` is retuned to (@p bn, the
+ *   retained zeta), keeping its estimate; the NCO's phase and frequency,
+ *   the lock metric and decision, the FLL's previous prompt and the
+ *   integrate-and-dump are untouched, so the NCO frequency is continuous.
+ *
+ * Costas never chooses the order; the embedder does.
+ *
+ * @param state  Must be non-NULL.
+ * @param order  2 or 3.
+ * @param bn     Loop noise bandwidth per update: in
+ *               dp_loop_filter_params_ok() at the retained zeta, and at
+ *               order 3 also in dp_state_filter_params_ok() at `t = 1`.
+ * @return DP_OK, or DP_ERR_INVALID with nothing changed for another order,
+ *         a @p bn outside those domains, or order 3 while bn_fll > 0.
+ *
+ * @code
+ * >>> from doppler.track import Costas
+ * >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
+ * >>> c.set_order(3, 0.02)
+ * >>> c.order, round(c.norm_freq, 6), c.bn  # the estimate carries across
+ * (3, 0.01, 0.02)
+ * >>> c.norm_rate = 1e-9                    # seed the carrier's rate
+ * >>> round(c.norm_rate * 1e9, 9)
+ * 1.0
+ * >>> c.set_order(2, 0.05)                  # back to the PI loop
+ * >>> c.order, c.norm_rate                  # the rate is dropped
+ * (2, 0.0)
+ *
+ * @endcode
+ */
+int dp_costas_set_order(dp_costas_state_t *state, int order, double bn);
+
+/**
+ * @param state  Must be non-NULL.
+ * @return The active loop filter's order, 2 or 3.
+ */
+int dp_costas_get_order(const dp_costas_state_t *state);
+
+/**
+ * @brief Seed the third-order filter's carrier rate, as
+ *        dp_costas_set_norm_freq() seeds the frequency.
+ *
+ * @p val is the rate of the carrier frequency in cycles per sample per
+ * sample: `R / fs^2` for `R` Hz/s at a sample rate `fs`. It is stored as
+ * the filter's own rate, `2 pi val tsamps^2` radians per update per update.
+ *
+ * @param state  Must be non-NULL.
+ * @param val    Carrier rate, cycles/sample^2; finite.
+ * @return DP_OK, or DP_ERR_INVALID with nothing changed at order 2 (that
+ *         loop holds no rate) or for a non-finite @p val.
+ */
+int dp_costas_set_norm_rate(dp_costas_state_t *state, double val);
+
+/**
+ * @param state  Must be non-NULL.
+ * @return The third-order filter's carrier rate, cycles/sample^2; 0 at
+ *         order 2.
+ */
+double dp_costas_get_norm_rate(const dp_costas_state_t *state);
 
 /**
  * @brief Re-tune the carrier lock detector's thresholds and verify counts.

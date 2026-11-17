@@ -911,6 +911,59 @@ class Costas:
 
         """
 
+    def set_order(self, order: int, bn: float) -> None:
+        """Select the active loop filter on a live loop: order 2 (the PI loop
+        every Costas starts on) or order 3 (StateFilter, which also tracks the
+        carrier's rate), at loop bandwidth bn. The frequency estimate carries
+        across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises
+        ValueError, changing nothing, for another order, a bn outside the
+        order's domain, or order 3 while bn_fll > 0.
+
+        What carries across (docs/design/costas.md section 3.2):
+
+        - 2 to 3: the third-order filter is initialised at bn and takes the
+          frequency estimate `lf.integ`; its rate starts at 0
+          (dp_costas_set_norm_rate() seeds one).
+        - 3 to 2: the PI loop takes the third-order filter's frequency
+          estimate; the rate is dropped.
+        - Either way, and to the same order: `lf` is retuned to (bn, the
+          retained zeta), keeping its estimate; the NCO's phase and frequency,
+          the lock metric and decision, the FLL's previous prompt and the
+          integrate-and-dump are untouched, so the NCO frequency is continuous.
+
+        Costas never chooses the order; the embedder does.
+
+        Parameters
+        ----------
+        order : int
+            2 or 3.
+        bn : float
+            Loop noise bandwidth per update: in dp_loop_filter_params_ok() at
+            the retained zeta, and at order 3 also in
+            dp_state_filter_params_ok() at `t = 1`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_order failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.track import Costas
+        >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
+        >>> c.set_order(3, 0.02)
+        >>> c.order, round(c.norm_freq, 6), c.bn  # the estimate carries across
+        (3, 0.01, 0.02)
+        >>> c.norm_rate = 1e-9                    # seed the carrier's rate
+        >>> round(c.norm_rate * 1e9, 9)
+        1.0
+        >>> c.set_order(2, 0.05)                  # back to the PI loop
+        >>> c.order, c.norm_rate                  # the rate is dropped
+        (2, 0.0)
+
+        """
+
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve
         config.
@@ -1043,10 +1096,31 @@ class Costas:
         ValueError
             On assignment, if ``dp_costas_set_bn_fll`` refuses the value by
             returning non-zero. The exception message is ``Costas: bn_fll must
-            be >= 0 and finite (0 = pure PLL)``, with the return code appended.
+            be >= 0 and finite (0 = pure PLL), and 0 at order 3``, with the
+            return code appended.
         """
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
+    @property
+    def order(self) -> int:
+        """The active loop filter's order: 2 (the PI loop) or 3 (StateFilter);
+        set with set_order().
+        """
+
+    @property
+    def norm_rate(self) -> float:
+        """Norm rate.
+
+        Raises
+        ------
+        ValueError
+            On assignment, if ``dp_costas_set_norm_rate`` refuses the value by
+            returning non-zero. The exception message is ``Costas: norm_rate
+            needs order 3 (set_order) and a finite value``, with the return
+            code appended.
+        """
+    @norm_rate.setter
+    def norm_rate(self, value: float) -> None: ...
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 

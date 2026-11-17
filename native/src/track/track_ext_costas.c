@@ -424,6 +424,34 @@ CostasObj_configure_lock (CostasObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+CostasObj_set_order (CostasObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "order", "bn", NULL };
+  int          order     = 0;
+  double       bn        = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "id", _kwlist, &order, &bn))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_costas_set_order (self->handle, order, bn);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_order failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 CostasObj_reset (CostasObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -621,7 +649,56 @@ Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "Costas: bn_fll must be >= 0 and finite (0 = pure PLL)",
+                    "Costas: bn_fll must be >= 0 and finite (0 = pure PLL), "
+                    "and 0 at order 3",
+                    (long long)_rc);
+      return -1;
+    }
+  return 0;
+}
+static PyObject *
+Costas_getprop_order (CostasObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)dp_costas_get_order (self->handle));
+}
+static PyObject *
+Costas_getprop_norm_rate (CostasObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dp_costas_get_norm_rate (self->handle));
+}
+static int
+Costas_setprop_norm_rate (CostasObject *self, PyObject *value,
+                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  double v = 0.0;
+  if (!PyArg_Parse (value, "d", &v))
+    return -1;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int _rc = dp_costas_set_norm_rate (self->handle, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Costas: norm_rate needs order 3 (set_order) and a "
+                    "finite value",
                     (long long)_rc);
       return -1;
     }
@@ -660,8 +737,24 @@ static PyGetSetDef Costas_getset[] = {
     "ValueError\n"
     "    On assignment, if ``dp_costas_set_bn_fll`` refuses the value by\n"
     "    returning non-zero. The exception message is ``Costas: bn_fll must\n"
-    "    be >= 0 and finite (0 = pure PLL)``, with the return code "
-    "appended.\n",
+    "    be >= 0 and finite (0 = pure PLL), and 0 at order 3``, with the\n"
+    "    return code appended.\n",
+    NULL },
+  { "order", (getter)Costas_getprop_order, NULL,
+    "The active loop filter's order: 2 (the PI loop) or 3 (StateFilter); set "
+    "with set_order().\n",
+    NULL },
+  { "norm_rate", (getter)Costas_getprop_norm_rate,
+    (setter)Costas_setprop_norm_rate,
+    "Norm rate.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    On assignment, if ``dp_costas_set_norm_rate`` refuses the value by\n"
+    "    returning non-zero. The exception message is ``Costas: norm_rate\n"
+    "    needs order 3 (set_order) and a finite value``, with the return\n"
+    "    code appended.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -910,6 +1003,59 @@ static PyMethodDef CostasObj_methods[] = {
     "False\n"
     ">>> c.configure_lock(0.9, 0.8, 4, 16)   # tighter declare, faster "
     "drop\n" },
+  { "set_order", (PyCFunction)(void *)CostasObj_set_order,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_order(order, bn) -> None\n"
+    "\n"
+    "Select the active loop filter on a live loop: order 2 (the PI loop every "
+    "Costas starts on) or order 3 (StateFilter, which also tracks the "
+    "carrier's rate), at loop bandwidth bn. The frequency estimate carries "
+    "across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises "
+    "ValueError, changing nothing, for another order, a bn outside the "
+    "order's domain, or order 3 while bn_fll > 0.\n"
+    "\n"
+    "What carries across (docs/design/costas.md section 3.2):\n"
+    "\n"
+    "- 2 to 3: the third-order filter is initialised at bn and takes the\n"
+    "  frequency estimate `lf.integ`; its rate starts at 0\n"
+    "  (dp_costas_set_norm_rate() seeds one).\n"
+    "- 3 to 2: the PI loop takes the third-order filter's frequency\n"
+    "  estimate; the rate is dropped.\n"
+    "- Either way, and to the same order: `lf` is retuned to (bn, the\n"
+    "  retained zeta), keeping its estimate; the NCO's phase and frequency,\n"
+    "  the lock metric and decision, the FLL's previous prompt and the\n"
+    "  integrate-and-dump are untouched, so the NCO frequency is continuous.\n"
+    "\n"
+    "Costas never chooses the order; the embedder does.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "order : int\n"
+    "    2 or 3.\n"
+    "bn : float\n"
+    "    Loop noise bandwidth per update: in dp_loop_filter_params_ok() at\n"
+    "    the retained zeta, and at order 3 also in\n"
+    "    dp_state_filter_params_ok() at `t = 1`.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_order failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.track import Costas\n"
+    ">>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)\n"
+    ">>> c.set_order(3, 0.02)\n"
+    ">>> c.order, round(c.norm_freq, 6), c.bn  # the estimate carries across\n"
+    "(3, 0.01, 0.02)\n"
+    ">>> c.norm_rate = 1e-9                    # seed the carrier's rate\n"
+    ">>> round(c.norm_rate * 1e9, 9)\n"
+    "1.0\n"
+    ">>> c.set_order(2, 0.05)                  # back to the PI loop\n"
+    ">>> c.order, c.norm_rate                  # the rate is dropped\n"
+    "(2, 0.0)\n" },
   { "reset", (PyCFunction)CostasObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

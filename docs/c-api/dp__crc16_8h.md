@@ -10,6 +10,7 @@
 
 _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._ [More...](#detailed-description)
 
+* `#include "doppler/dp_crc.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -88,7 +89,7 @@ _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame pr
 The DSSS burst frame convention is `sync | payload | CRC-16`, with the 16-bit trailer computed over the payload bits only and transmitted MSB-first. `burst_demod` validates it on receive and a frame's CRC stage (`WFM_STAGE_CRC16`, `wfm/wfm_frame.h`) appends it on transmit; both call this one inline so the two ends can never drift.
 
 
-Header-only (like `wfm_synth_mls_poly`) so no component grows a link-line dependency for a 10-line kernel. 
+Header-only (like `wfm_synth_mls_poly`) so no component grows a link-line dependency for a 10-line kernel. It is one row of the parametric CRC in `dp_crc.h` (CRC-16/IBM-3740, the catalogue's name for this model), not a second implementation of the arithmetic. 
 
 
     

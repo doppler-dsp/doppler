@@ -459,6 +459,7 @@
 * **id\_peak** ([**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md))
 * **id\_row** ([**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md))
 * **id\_stat** ([**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md))
+* **init** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **inv\_sps** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **inv\_tsamps** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **inv\_tsamps2** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
@@ -712,7 +713,7 @@
 * **peak\_mag** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **preamble\_start** ([**burst\_capture\_event\_t**](structburst__capture__event__t.md), [**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md), [**dsss\_br\_event\_t**](structdsss__br__event__t.md))
 * **period** ([**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md), [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
-* **poly** ([**conv\_code\_t**](structconv__code__t.md), [**dp\_pn\_state\_t**](structdp__pn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md))
+* **poly** ([**conv\_code\_t**](structconv__code__t.md), [**dp\_crc\_t**](structdp__crc__t.md), [**dp\_pn\_state\_t**](structdp__pn__state__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md))
 * **prefix** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
 * **pulse** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md), [**dp\_ratesync\_state\_t**](structdp__ratesync__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **pulse\_sps** ([**dp\_RateConverter\_state\_t**](structdp__RateConverter__state__t.md))
@@ -858,6 +859,7 @@
 * **row\_fwd** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **row\_inv** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **row\_ref\_spec** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
+* **refout** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **rate\_aid** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rate\_i** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rate\_p** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
@@ -1116,6 +1118,7 @@
 * **work\_fft** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **work\_pad** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **work\_trunc** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md), [**dp\_fft2d\_state\_t**](structdp__fft2d__state__t.md), [**dp\_fft\_state\_t**](structdp__fft__state__t.md))
+* **width** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **wrap\_await** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **wrap\_pending** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **wake** ([**dp\_pool\_t**](structdp__pool__t.md))
@@ -1128,6 +1131,11 @@
 * **worst\_spur\_is\_harm** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **when\_row** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **when\_value** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+
+
+## x
+
+* **xorout** ([**dp\_crc\_t**](structdp__crc__t.md))
 
 
 ## z

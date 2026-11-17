@@ -83,7 +83,8 @@ main (void)
    * callers, which is the kind of divergence nobody would look for.
    */
   {
-    const conv_code_t   c = { 7u, 2u, { 0171u, 0133u }, 0u };
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0u };
     dp_viterbi_state_t *a = dp_viterbi_create (POLY, 2, 7u, 0u, 60u, 0u, 0u);
     dp_viterbi_state_t *b = dp_viterbi_create_code (&c, 60u);
     DP_REQUIRE (a != NULL && b != NULL);
@@ -114,8 +115,9 @@ main (void)
 
     conv_enc_t e;
     dp_conv_enc_init (&e);
-    const conv_code_t c  = { 7u, 2u, { 0171u, 0133u }, 0u };
-    const size_t      ns = dp_conv_encode (&e, &c, in, N, sym, sizeof sym);
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0u };
+    const size_t ns = dp_conv_encode (&e, &c, in, N, sym, sizeof sym);
     DP_REQUIRE (ns == (size_t)N * 2u);
     for (size_t i = 0; i < ns; i++)
       llr[i] = sym[i] ? -8.0f : 8.0f;
@@ -143,13 +145,31 @@ main (void)
    */
   {
     static const conv_code_t CODES[] = {
-      { 3u, 2u, { 07u, 05u }, 0u },            /* the classic K=3 r=1/2   */
-      { 4u, 2u, { 017u, 013u }, 0u },          /* K=4                     */
-      { 7u, 2u, { 0171u, 0133u }, 0x2u },      /* CCSDS, inverted output  */
-      { 9u, 2u, { 0753u, 0561u }, 0u },        /* K=9, 256 states         */
-      { 7u, 3u, { 0171u, 0165u, 0133u }, 0u }, /* rate 1/3                */
-      { 5u, 1u, { 023u }, 0u },                /* rate 1/1: still a code  */
-      { 7u, 2u, { 0171u, 0133u }, 0x3u },      /* BOTH outputs inverted   */
+      { .k      = 3u,
+        .n      = 2u,
+        .poly   = { 07u, 05u },
+        .invert = 0u }, /* the classic K=3 r=1/2   */
+      { .k = 4u, .n = 2u, .poly = { 017u, 013u }, .invert = 0u }, /* K=4 */
+      { .k      = 7u,
+        .n      = 2u,
+        .poly   = { 0171u, 0133u },
+        .invert = 0x2u }, /* CCSDS, inverted output  */
+      { .k      = 9u,
+        .n      = 2u,
+        .poly   = { 0753u, 0561u },
+        .invert = 0u }, /* K=9, 256 states         */
+      { .k      = 7u,
+        .n      = 3u,
+        .poly   = { 0171u, 0165u, 0133u },
+        .invert = 0u }, /* rate 1/3                */
+      { .k      = 5u,
+        .n      = 1u,
+        .poly   = { 023u },
+        .invert = 0u }, /* rate 1/1: still a code  */
+      { .k      = 7u,
+        .n      = 2u,
+        .poly   = { 0171u, 0133u },
+        .invert = 0x3u }, /* BOTH outputs inverted   */
     };
     enum
     {
@@ -720,7 +740,8 @@ main (void)
     uninverted.invert      = 0u;
     conv_code_t otherpoly  = CCSDS;
     otherpoly.poly[0]      = 0155u; /* still k bits, still non-zero */
-    const conv_code_t K9   = { 9u, 2u, { 0753u, 0561u }, 0u };
+    const conv_code_t K9
+        = { .k = 9u, .n = 2u, .poly = { 0753u, 0561u }, .invert = 0u };
 
     const struct
     {

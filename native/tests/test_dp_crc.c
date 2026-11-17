@@ -74,8 +74,13 @@ parity (const uint8_t *bits, size_t n)
 int
 main (void)
 {
-  static const uint8_t CHECK[9] = "123456789"; /* the catalogue's message */
-  uint8_t              bits[8 * 9];
+  /* The catalogue's message, the nine ASCII digits 1 to 9. Spelled as nine
+   * characters because a string initializer would imply a tenth, the NUL, and
+   * -Wunterminated-string-initialization (gcc 15, clang 21) warns that a nine
+   * byte array drops it. */
+  static const uint8_t CHECK[9]
+      = { '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+  uint8_t bits[8 * 9];
 
   /* ── 1. the catalogue's check values, both entry points ────────────── */
   static const struct

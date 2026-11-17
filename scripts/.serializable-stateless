@@ -93,3 +93,8 @@ wfm_writer
 f32_buffer
 f64_buffer
 i16_buffer
+
+# wlan: the rate (a constellation and a code rate) is configuration reached by
+# no mutator, and every builder is a pure function of its arguments: nothing
+# runs between calls, so there is nothing to checkpoint.
+wlan

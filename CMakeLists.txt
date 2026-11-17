@@ -817,6 +817,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:acc_f32_core>)
 # the capture's whole C test suite went unregistered once.
 
 # ── Modules (add_subdirectory lines appended here by just-makeit) ─────────────
+add_subdirectory(native/src/wlan)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wlan_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wlan_core>)
 add_subdirectory(native/src/wfm_writer)
 add_subdirectory(native/src/wfm_sink)
 add_subdirectory(native/src/wfm_reader)

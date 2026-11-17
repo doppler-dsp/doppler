@@ -1,0 +1,15 @@
+[module.wlan]
+doc = """
+IEEE 802.11 non-HT OFDM builders: the minimal MAC with its FCS, the scrambler, and the PPDU's coding chain, for the layouts the OFDM modulator takes.
+
+Examples
+--------
+>>> from doppler.wlan import Wlan
+>>> w = Wlan(constellation="qam16", code_rate="r34")
+>>> w.n_dbps
+144
+>>> w.n_sym(100)
+6
+
+"""
+objects = ["wlan"]

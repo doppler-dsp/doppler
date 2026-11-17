@@ -186,6 +186,8 @@
 
 #include "doppler/wfm_writer/wfm_writer_core.h"
 
+#include "doppler/wlan/wlan_core.h"
+
 #endif /* DOPPLER_H */
 ```
 

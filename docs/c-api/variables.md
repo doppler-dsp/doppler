@@ -71,6 +71,9 @@
 * **DOPPLER\_LIFETIME\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 * **dp\_wfm\_reader\_state\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **dp\_wfm\_writer\_state\_t** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
+* **dp\_wlan\_code\_t** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_mac\_t** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_perm2\_fn** ([**wlan\_core.h**](wlan__core_8h.md))
 
 
 ## e

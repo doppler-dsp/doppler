@@ -618,6 +618,7 @@ MODULE_FAMILY = {
     "ccsds": "wfm",
     "mpsk": "wfm",
     "ofdm": "wfm",
+    "wlan": "wfm",
     "impairment": "wfm",
     "cvt": "data",
     "accumulator": "data",

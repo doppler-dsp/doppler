@@ -1,0 +1,1355 @@
+
+
+# File wlan\_core.h
+
+
+
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wlan**](dir_9cf874ec4d1fafc8af25ee841f0634a9.md) **>** [**wlan\_core.h**](wlan__core_8h.md)
+
+[Go to the source code of this file](wlan__core_8h_source.md)
+
+_IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation points and the layout the OFDM modulator takes out._ [More...](#detailed-description)
+
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/conv/conv_core.h"`
+* `#include "doppler/dp_crc.h"`
+* `#include "doppler/ofdm/ofdm_core.h"`
+* `#include <stddef.h>`
+* `#include <stdint.h>`
+* `#include "doppler/mpsk/mpsk_core.h"`
+* `#include "doppler/fft/fft_core.h"`
+* `#include "doppler/pn/pn_core.h"`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Classes
+
+| Type | Name |
+| ---: | :--- |
+| struct | [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) <br>_A non-HT rate, by the two columns of Table 17-4 that do not change with the clocking: a constellation and a code rate._  |
+| struct | [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) <br>_A (rate, SIGNAL RATE bits) pair of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _._ |
+| struct | [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) <br>_A non-HT rate, held with what follows from it._  |
+| struct | [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) <br>_What the standard supplies and this tree does not yet hold._  |
+
+
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| enum  | [**dp\_wlan\_code\_t**](#enum-dp_wlan_code_t)  <br>_The code rate of the BCC, with puncturing (Figure 17-9)._  |
+| enum  | [**dp\_wlan\_mac\_t**](#enum-dp_wlan_mac_t)  <br>_What the caller supplies, and what the PSDU is (section 3)._  |
+| typedef size\_t(\* | [**dp\_wlan\_perm2\_fn**](#typedef-dp_wlan_perm2_fn)  <br>_The second interleaver permutation: input index_ `i` _to output._ |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Public Functions
+
+| Type | Name |
+| ---: | :--- |
+|  int | [**dp\_wlan\_bcc**](#function-dp_wlan_bcc) ([**dp\_wlan\_code\_t**](wlan__core_8h.md#enum-dp_wlan_code_t) code, [**conv\_code\_t**](structconv__code__t.md) \* c) <br>_The BCC at a code rate: K = 7, generators 133 and 171 octal, with the puncture pattern of the rate._  |
+|  [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* | [**dp\_wlan\_create**](#function-dp_wlan_create) (int constellation, int code\_rate) <br>_Create a rate holder, by the index of the constellation and of the code rate._  |
+|  size\_t | [**dp\_wlan\_data\_bits**](#function-dp_wlan_data_bits) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, uint8\_t \* out, size\_t cap) <br>_The Data field's bits: SERVICE (16 zeros), the PSDU (each octet least significant bit first), six tail bits and pad bits to a whole number of symbols, all scrambled except the tail, which is reset to zero after scrambling._  |
+|  void | [**dp\_wlan\_destroy**](#function-dp_wlan_destroy) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state) <br>_Destroy a rate holder._  |
+|  size\_t | [**dp\_wlan\_encode**](#function-dp_wlan_encode) ([**dp\_wlan\_code\_t**](wlan__core_8h.md#enum-dp_wlan_code_t) code, const uint8\_t \* in, size\_t n, uint8\_t \* out, size\_t cap) <br>_The BCC over a field's bits, punctured to the rate: the encoder starts at zero and runs the whole field._  |
+|  size\_t | [**dp\_wlan\_interleave**](#function-dp_wlan_interleave) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned n\_bpsc, const uint8\_t \* in, size\_t n, uint8\_t \* out) <br>_Interleave a coded field, one OFDM symbol of_ `n_cbps` _at a time: the first permutation (_`N_CBPS/16` _rows by 16 columns), then the tables' second permutation._ |
+|  int | [**dp\_wlan\_layout**](#function-dp_wlan_layout) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* o, const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, size\_t n\_sym, unsigned window) <br>_Build a PPDU's layout into an OFDM modulator: four classes (L-STF, L-LTF, SIGNAL, Data), the pilots as fixed entries with the pilot polarity, and four runs._  |
+|  size\_t | [**dp\_wlan\_map**](#function-dp_wlan_map) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned n\_bpsc, const uint8\_t \* bits, size\_t n, float \_Complex \* out) <br>_Map interleaved bits to constellation points: groups of_ `n_bpsc` _bits, through the library's maps (or the tables' relabeling)._ |
+|  size\_t | [**dp\_wlan\_mpdu**](#function-dp_wlan_mpdu) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, const uint8\_t \* header, size\_t header\_len, const uint8\_t \* body, size\_t body\_len, uint8\_t \* out, size\_t out\_cap) <br>_Wrap the caller's octets as one MPDU._  |
+|  size\_t | [**dp\_wlan\_mpdu\_len**](#function-dp_wlan_mpdu_len) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, size\_t header\_len, size\_t body\_len) <br>_The PSDU length a MAC wrap produces._  |
+|  unsigned | [**dp\_wlan\_n\_cbps**](#function-dp_wlan_n_cbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Coded bits per OFDM symbol,_ `48 * n_bpsc` _._ |
+|  unsigned | [**dp\_wlan\_n\_dbps**](#function-dp_wlan_n_dbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Data bits per OFDM symbol,_ `N_CBPS * code rate` _._ |
+|  size\_t | [**dp\_wlan\_n\_sym**](#function-dp_wlan_n_sym) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._ |
+|  size\_t | [**dp\_wlan\_points**](#function-dp_wlan_points) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, float \_Complex \* out, size\_t cap) <br>_The constellation points a PPDU's layout takes, in layout order: the SIGNAL field's 48, then the Data field's_ `48 * n_sym` _._ |
+|  size\_t | [**dp\_wlan\_ppdu**](#function-dp_wlan_ppdu) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, unsigned window, float \_Complex \* out, size\_t cap) <br>_Render a PPDU to samples._  |
+|  size\_t | [**dp\_wlan\_ppdu\_len**](#function-dp_wlan_ppdu_len) (size\_t n\_sym, unsigned window) <br>_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`160 + 160 + 80 + 80 * n_sym` _, plus the_`window` _samples of the last symbol's window tail._ |
+|  size\_t | [**dp\_wlan\_rate\_n\_sym**](#function-dp_wlan_rate_n_sym) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs:_ `ceil((16 + 8 * psdu_len + 6) / N_DBPS)` _._ |
+|  int | [**dp\_wlan\_rate\_ok**](#function-dp_wlan_rate_ok) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a data-bit count per OFDM symbol that is whole._ |
+|  void | [**dp\_wlan\_reset**](#function-dp_wlan_reset) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state) <br>_Reset a rate holder: nothing to reset, the rate is configuration._  |
+|  size\_t | [**dp\_wlan\_scrambler\_sequence**](#function-dp_wlan_scrambler_sequence) (uint8\_t state, size\_t n, uint8\_t \* out) <br>_The scrambling sequence from a register state._  |
+|  uint8\_t | [**dp\_wlan\_scrambler\_state\_from\_sequence**](#function-dp_wlan_scrambler_state_from_sequence) (uint8\_t seq7) <br>_The register state that produces a scrambling sequence whose first seven bits, read as an integer with the first bit most significant, are_ `seq7` _(Annex I writes the example's start this way: 54)._ |
+|  size\_t | [**dp\_wlan\_signal\_bits**](#function-dp_wlan_signal_bits) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t length, uint8\_t \* out) <br>_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits. The bit order is not checked against the text._  |
+|  const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* | [**dp\_wlan\_tables\_empty**](#function-dp_wlan_tables_empty) (void) <br>_The tables with nothing in them._  |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**WLAN\_GI**](wlan__core_8h.md#define-wlan_gi)  `16u`<br>_Guard interval, in samples (0.8 us at 20 MHz)._  |
+| define  | [**WLAN\_LTF\_LEN**](wlan__core_8h.md#define-wlan_ltf_len)  `160u`<br>_The L-LTF, in samples (8 us at 20 MHz)._  |
+| define  | [**WLAN\_N\_FFT**](wlan__core_8h.md#define-wlan_n_fft)  `64u`<br>_Transform length at 20 MHz (Table 17-5)._  |
+| define  | [**WLAN\_N\_SD**](wlan__core_8h.md#define-wlan_n_sd)  `48u`<br>_Data subcarriers per OFDM symbol (Table 17-5)._  |
+| define  | [**WLAN\_N\_SP**](wlan__core_8h.md#define-wlan_n_sp)  `4u`<br>_Pilot subcarriers per OFDM symbol (Table 17-5)._  |
+| define  | [**WLAN\_PILOT\_K**](wlan__core_8h.md#define-wlan_pilot_k)  `{ -21, -7, 7, 21 }`<br>_The pilot subcarrier indices (17.3.5.9)._  |
+| define  | [**WLAN\_PILOT\_V**](wlan__core_8h.md#define-wlan_pilot_v)  `{ 1.0, 1.0, 1.0, -1.0 }`<br>_The pilot values before the polarity element (17.3.5.10)._  |
+| define  | [**WLAN\_POLARITY\_LEN**](wlan__core_8h.md#define-wlan_polarity_len)  `127u`<br>_Length of the pilot polarity sequence._  |
+| define  | [**WLAN\_PSDU\_MAX**](wlan__core_8h.md#define-wlan_psdu_max)  `4095u`<br>_The largest PSDU, in octets (LENGTH is 12 bits; 17.3.4.3)._  |
+| define  | [**WLAN\_SERVICE\_BITS**](wlan__core_8h.md#define-wlan_service_bits)  `16u`<br>_Bits in the SERVICE field._  |
+| define  | [**WLAN\_SIG\_BITS**](wlan__core_8h.md#define-wlan_sig_bits)  `24u`<br>_Bits in the SIGNAL field (24: RATE, reserved, LENGTH, parity, tail)._  |
+| define  | [**WLAN\_STF\_LEN**](wlan__core_8h.md#define-wlan_stf_len)  `160u`<br>_The L-STF, in samples (8 us at 20 MHz)._  |
+| define  | [**WLAN\_SYM\_LEN**](wlan__core_8h.md#define-wlan_sym_len)  `80u`<br>_An OFDM symbol with its guard interval, in samples._  |
+| define  | [**WLAN\_TAIL\_BITS**](wlan__core_8h.md#define-wlan_tail_bits)  `6u`<br>_Tail bits that return the BCC encoder to zero._  |
+
+## Detailed Description
+
+
+`wlan` is a table of PPDU formats and a builder from a format and a PSDU to a layout and the constellation points the layout takes (docs/design/wlan.md section 3). It calls the library's own blocks: the parametric CRC for the FCS, `conv` with puncturing for the BCC, the block interleaver's first permutation, the M-PSK and QAM maps, and the OFDM modulator ([**ofdm\_core.h**](ofdm__core_8h.md)) for the layout. What it adds is the 802.11 rules about field contents, written once.
+
+
+#### What this header claims, and what it does not
+
+
+
+Every number the design page marks checked against the standard's text is a constant here. Every number it does not mark checked, or gives no value for, is NOT here: it is a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), empty until it is transcribed from the text ([**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty)). A builder that needs an empty entry refuses (returns 0 or -1) and changes nothing. A test of this component fills the tables with SYNTHETIC values to prove the machinery (lengths, counts, field offsets, the chain's own inverses) and claims no conformance with any 802.11 text. The tables are:
+
+
+
+* the SIGNAL field's RATE bits for each (constellation, code rate);
+* the L-STF and L-LTF subcarrier values (17.3.3) and each field's normalization;
+* the constellation bit-to-level labels, where they differ from the library's maps (Tables 17-15 to 17-18);
+* the second permutation of the interleaver (17.3.5.7).
+
+
+
+
+
+#### A PPDU
+
+
+
+L-STF (160 samples at 20 MHz), L-LTF (160), SIGNAL (one OFDM symbol of 80), then `n_sym` Data OFDM symbols of 80. Durations scale with the clocking (20, 10, 5 MHz) and the sample counts do not: this component counts samples at one per `1/bandwidth`.
+
+
+
+```C++
+dp_wlan_rate_t r = { 4u, WLAN_CODE_3_4 };      // 16-QAM, rate 3/4
+size_t n_sym = dp_wlan_n_sym (&r, 100u);       // 100-octet PSDU
+```
+ 
+
+
+
+    
+## Public Types Documentation
+
+
+
+
+### enum dp\_wlan\_code\_t 
+
+_The code rate of the BCC, with puncturing (Figure 17-9)._ 
+```C++
+enum dp_wlan_code_t {
+    WLAN_CODE_1_2 = 0,
+    WLAN_CODE_2_3 = 1,
+    WLAN_CODE_3_4 = 2,
+    WLAN_CODE_5_6 = 3
+};
+```
+
+
+
+`WLAN_CODE_5_6` is Clause 19's and is unchecked against the text. 
+
+
+        
+
+<hr>
+
+
+
+### enum dp\_wlan\_mac\_t 
+
+_What the caller supplies, and what the PSDU is (section 3)._ 
+```C++
+enum dp_wlan_mac_t {
+    WLAN_MAC_NONE = 0,
+    WLAN_MAC_FCS = 1,
+    WLAN_MAC_DATA = 2
+};
+```
+
+
+
+
+<hr>
+
+
+
+### typedef dp\_wlan\_perm2\_fn 
+
+_The second interleaver permutation: input index_ `i` _to output._
+```C++
+typedef size_t(* dp_wlan_perm2_fn) (size_t i, size_t n_cbps, size_t n_bpsc);
+```
+
+
+
+
+<hr>
+## Public Functions Documentation
+
+
+
+
+### function dp\_wlan\_bcc 
+
+_The BCC at a code rate: K = 7, generators 133 and 171 octal, with the puncture pattern of the rate._ 
+```C++
+int dp_wlan_bcc (
+    dp_wlan_code_t code,
+    conv_code_t * c
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `code` The rate. 
+* `c` The code. Must be non-NULL. 
+
+
+
+**Returns:**
+
+1 on success, 0 for an unknown rate. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_create 
+
+_Create a rate holder, by the index of the constellation and of the code rate._ 
+```C++
+dp_wlan_state_t * dp_wlan_create (
+    int constellation,
+    int code_rate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `constellation` 0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM. 
+* `code_rate` 0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL if either index is outside its range or the pair's data bits per OFDM symbol are not a whole number. 
+
+
+
+
+**Note:**
+
+Caller must call [**dp\_wlan\_destroy()**](wlan__core_8h.md#function-dp_wlan_destroy) when done.
+
+
+
+```C++
+>>> from doppler.wlan import Wlan
+>>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s at 20 MHz
+>>> w.n_bpsc, w.n_cbps, w.n_dbps
+(4, 192, 144)
+>>> Wlan(constellation="qam256")
+Traceback (most recent call last):
+    ...
+ValueError: constellation must be one of "bpsk", "qpsk", "qam16", "qam64", got 'qam256'
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_data\_bits 
+
+_The Data field's bits: SERVICE (16 zeros), the PSDU (each octet least significant bit first), six tail bits and pad bits to a whole number of symbols, all scrambled except the tail, which is reset to zero after scrambling._ 
+```C++
+size_t dp_wlan_data_bits (
+    const dp_wlan_rate_t * r,
+    const uint8_t * psdu,
+    size_t len,
+    uint8_t state,
+    uint8_t * out,
+    size_t cap
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `r` The rate. 
+* `psdu` PSDU octets. 
+* `len` Their count, 1 to WLAN\_PSDU\_MAX. 
+* `state` The scrambler register state, 1..127. 
+* `out` `n_sym * N_DBPS` unpacked bits. 
+* `cap` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Bits written, or 0 for an invalid rate, length or state, or a capacity that is too small. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_destroy 
+
+_Destroy a rate holder._ 
+```C++
+void dp_wlan_destroy (
+    dp_wlan_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` May be NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_encode 
+
+_The BCC over a field's bits, punctured to the rate: the encoder starts at zero and runs the whole field._ 
+```C++
+size_t dp_wlan_encode (
+    dp_wlan_code_t code,
+    const uint8_t * in,
+    size_t n,
+    uint8_t * out,
+    size_t cap
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `code` The rate. 
+* `in` Unpacked bits. 
+* `n` Their count. 
+* `out` The coded, punctured bits. 
+* `cap` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Bits written, or 0 if `code` is unknown or `cap` is too small. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_interleave 
+
+_Interleave a coded field, one OFDM symbol of_ `n_cbps` _at a time: the first permutation (_`N_CBPS/16` _rows by 16 columns), then the tables' second permutation._
+```C++
+size_t dp_wlan_interleave (
+    const dp_wlan_tables_t * t,
+    unsigned n_bpsc,
+    const uint8_t * in,
+    size_t n,
+    uint8_t * out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `t` The tables (second permutation). 
+* `n_bpsc` Bits per subcarrier. 
+* `in` Coded bits, a whole number of symbols. 
+* `n` Their count. 
+* `out` `n` interleaved bits. 
+
+
+
+**Returns:**
+
+`n`, or 0 if the tables hold no second permutation, `n` is not a whole number of symbols, or `n_bpsc` is invalid. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_layout 
+
+_Build a PPDU's layout into an OFDM modulator: four classes (L-STF, L-LTF, SIGNAL, Data), the pilots as fixed entries with the pilot polarity, and four runs._ 
+```C++
+int dp_wlan_layout (
+    dp_ofdm_state_t * o,
+    const dp_wlan_tables_t * t,
+    size_t n_sym,
+    unsigned window
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `o` A fresh modulator from [**dp\_ofdm\_create()**](ofdm__core_8h.md#function-dp_ofdm_create). 
+* `t` The tables (L-STF and L-LTF values and the scales). 
+* `n_sym` Data OFDM symbols. 
+* `window` Window length in samples at each symbol boundary, 0 for none. 
+
+
+
+**Returns:**
+
+0 and a checked layout, or -1 if a table is empty, `n_sym` is 0, or the modulator refuses a call. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_map 
+
+_Map interleaved bits to constellation points: groups of_ `n_bpsc` _bits, through the library's maps (or the tables' relabeling)._
+```C++
+size_t dp_wlan_map (
+    const dp_wlan_tables_t * t,
+    unsigned n_bpsc,
+    const uint8_t * bits,
+    size_t n,
+    float _Complex * out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `t` The tables (relabeling). 
+* `n_bpsc` 1, 2, 4 or 6. 
+* `bits` Unpacked bits, a whole number of groups. 
+* `n` Their count. 
+* `out` `n / n_bpsc` unit-average-power points. 
+
+
+
+**Returns:**
+
+Points written, or 0 for an invalid `n_bpsc` or a partial group. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_mpdu 
+
+_Wrap the caller's octets as one MPDU._ 
+```C++
+size_t dp_wlan_mpdu (
+    dp_wlan_mac_t mode,
+    const uint8_t * header,
+    size_t header_len,
+    const uint8_t * body,
+    size_t body_len,
+    uint8_t * out,
+    size_t out_cap
+) 
+```
+
+
+
+The FCS is CRC-32/ISO-HDLC over every octet before it, appended least significant octet first. The check value of that CRC (`CBF43926` over the nine ASCII digits) is pinned by the test, independent of 802.11.
+
+
+
+
+**Parameters:**
+
+
+* `mode` The wrap. 
+* `header` Header octets (DATA mode; may be NULL otherwise). 
+* `header_len` Their count. 
+* `body` The caller's octets. 
+* `body_len` Their count. 
+* `out` Receives [**dp\_wlan\_mpdu\_len()**](wlan__core_8h.md#function-dp_wlan_mpdu_len) octets. 
+* `out_cap` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Octets written, or 0 (and `out` untouched) if the length is 0 or too large or `out_cap` is too small. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_mpdu\_len 
+
+_The PSDU length a MAC wrap produces._ 
+```C++
+size_t dp_wlan_mpdu_len (
+    dp_wlan_mac_t mode,
+    size_t header_len,
+    size_t body_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `mode` How the caller's octets are wrapped. 
+* `header_len` Header octets (WLAN\_MAC\_DATA only). 
+* `body_len` The caller's octets: the body in DATA mode, the whole PSDU or MPDU otherwise. 
+
+
+
+**Returns:**
+
+Octets, or 0 if the result is 0 or above WLAN\_PSDU\_MAX. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_n\_cbps 
+
+_Coded bits per OFDM symbol,_ `48 * n_bpsc` _._
+```C++
+unsigned dp_wlan_n_cbps (
+    const dp_wlan_rate_t * r
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `r` A valid rate. 
+
+
+
+**Returns:**
+
+`N_CBPS`, or 0 for an invalid rate. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_n\_dbps 
+
+_Data bits per OFDM symbol,_ `N_CBPS * code rate` _._
+```C++
+unsigned dp_wlan_n_dbps (
+    const dp_wlan_rate_t * r
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `r` A valid rate. 
+
+
+
+**Returns:**
+
+`N_DBPS`, or 0 for an invalid rate. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_n\_sym 
+
+_The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._
+```C++
+size_t dp_wlan_n_sym (
+    dp_wlan_state_t * state,
+    size_t psdu_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` A rate holder from [**dp\_wlan\_create()**](wlan__core_8h.md#function-dp_wlan_create). 
+* `psdu_len` Octets, 1 to WLAN\_PSDU\_MAX. 
+
+
+
+**Returns:**
+
+The symbol count, or 0 for a length of 0 or above WLAN\_PSDU\_MAX.
+
+
+
+```C++
+>>> from doppler.wlan import Wlan
+>>> w = Wlan(constellation="qam16", code_rate="r34")
+>>> w.n_sym(100)
+6
+>>> w.n_sym(0)
+0
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_points 
+
+_The constellation points a PPDU's layout takes, in layout order: the SIGNAL field's 48, then the Data field's_ `48 * n_sym` _._
+```C++
+size_t dp_wlan_points (
+    const dp_wlan_tables_t * t,
+    const dp_wlan_rate_t * r,
+    const uint8_t * psdu,
+    size_t len,
+    uint8_t state,
+    float _Complex * out,
+    size_t cap
+) 
+```
+
+
+
+The SIGNAL field is BPSK at rate 1/2, not scrambled; the Data field runs [**dp\_wlan\_data\_bits()**](wlan__core_8h.md#function-dp_wlan_data_bits), [**dp\_wlan\_encode()**](wlan__core_8h.md#function-dp_wlan_encode), [**dp\_wlan\_interleave()**](wlan__core_8h.md#function-dp_wlan_interleave) and [**dp\_wlan\_map()**](wlan__core_8h.md#function-dp_wlan_map).
+
+
+
+
+**Parameters:**
+
+
+* `t` The tables. 
+* `r` The rate. 
+* `psdu` PSDU octets. 
+* `len` Their count. 
+* `state` The scrambler register state, 1..127. 
+* `out` Receives `48 + 48 * n_sym` points. 
+* `cap` Capacity of `out`, in points. 
+
+
+
+**Returns:**
+
+Points written, or 0 if any stage refuses. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_ppdu 
+
+_Render a PPDU to samples._ 
+```C++
+size_t dp_wlan_ppdu (
+    const dp_wlan_tables_t * t,
+    const dp_wlan_rate_t * r,
+    const uint8_t * psdu,
+    size_t len,
+    uint8_t state,
+    unsigned window,
+    float _Complex * out,
+    size_t cap
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `t` The tables. 
+* `r` The rate. 
+* `psdu` PSDU octets. 
+* `len` Their count. 
+* `state` The scrambler register state, 1..127. 
+* `window` Window length in samples, 0 for none. 
+* `out` Receives [**dp\_wlan\_ppdu\_len()**](wlan__core_8h.md#function-dp_wlan_ppdu_len) samples. 
+* `cap` Capacity of `out`, in samples. 
+
+
+
+**Returns:**
+
+Samples written, or 0 if any stage refuses (changing nothing). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_ppdu\_len 
+
+_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`160 + 160 + 80 + 80 * n_sym` _, plus the_`window` _samples of the last symbol's window tail._
+```C++
+size_t dp_wlan_ppdu_len (
+    size_t n_sym,
+    unsigned window
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n_sym` Data OFDM symbols. 
+* `window` Window length in samples, 0 for none. 
+
+
+
+**Returns:**
+
+Samples. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_rate\_n\_sym 
+
+_The Data OFDM symbols a PSDU needs:_ `ceil((16 + 8 * psdu_len + 6) / N_DBPS)` _._
+```C++
+size_t dp_wlan_rate_n_sym (
+    const dp_wlan_rate_t * r,
+    size_t psdu_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `r` A valid rate. 
+* `psdu_len` Octets, 1 to WLAN\_PSDU\_MAX. 
+
+
+
+**Returns:**
+
+The symbol count, or 0 for an invalid rate or length. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_rate\_ok 
+
+_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a data-bit count per OFDM symbol that is whole._
+```C++
+int dp_wlan_rate_ok (
+    const dp_wlan_rate_t * r
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `r` The rate. 
+
+
+
+**Returns:**
+
+1 if it is, 0 if not. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_reset 
+
+_Reset a rate holder: nothing to reset, the rate is configuration._ 
+```C++
+void dp_wlan_reset (
+    dp_wlan_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL.
+
+
+```C++
+>>> from doppler.wlan import Wlan
+>>> w = Wlan(constellation="qpsk", code_rate="r34")
+>>> w.reset()                      # nothing runs, so nothing changes
+>>> w.n_dbps
+72
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_scrambler\_sequence 
+
+_The scrambling sequence from a register state._ 
+```C++
+size_t dp_wlan_scrambler_sequence (
+    uint8_t state,
+    size_t n,
+    uint8_t * out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` The register state, 1..127 (`x1` the most significant bit). 
+* `n` Bits wanted. 
+* `out` `n` unpacked bits. 
+
+
+
+**Returns:**
+
+`n`, or 0 for a state of 0 or above 127. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_scrambler\_state\_from\_sequence 
+
+_The register state that produces a scrambling sequence whose first seven bits, read as an integer with the first bit most significant, are_ `seq7` _(Annex I writes the example's start this way: 54)._
+```C++
+uint8_t dp_wlan_scrambler_state_from_sequence (
+    uint8_t seq7
+) 
+```
+
+
+
+The sequence is the library's `pn` (a Galois register, polynomial `0x48`, seven bits) and obeys `s[n] = s[n-7] xor s[n-4]`, so it is its own history: the register `x1..x7` is `s[0], s[-1], ..., s[-6]` (an integer with `x1` most significant) and the first output is `x7 xor x4`. The state that produces given first seven bits is the recurrence run backward seven steps, and the state 1011101 (93) produces the sequence 0110110 (54).
+
+
+
+
+**Parameters:**
+
+
+* `seq7` The first seven sequence bits, 1..127. 
+
+
+
+**Returns:**
+
+The register state, 1..127; 0 for 0 or a value above 127. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_signal\_bits 
+
+_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits. The bit order is not checked against the text._ 
+```C++
+size_t dp_wlan_signal_bits (
+    const dp_wlan_tables_t * t,
+    const dp_wlan_rate_t * r,
+    size_t length,
+    uint8_t * out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `t` The tables (RATE bits). 
+* `r` The rate. 
+* `length` PSDU octets, 1 to WLAN\_PSDU\_MAX. 
+* `out` WLAN\_SIG\_BITS unpacked bits. 
+
+
+
+**Returns:**
+
+WLAN\_SIG\_BITS, or 0 if the rate has no RATE bits in the tables or the length is outside 1 to WLAN\_PSDU\_MAX. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_tables\_empty 
+
+_The tables with nothing in them._ 
+```C++
+const dp_wlan_tables_t * dp_wlan_tables_empty (
+    void
+) 
+```
+
+
+
+
+
+**Returns:**
+
+A pointer to a static, all-empty [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md). 
+
+
+
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define WLAN\_GI 
+
+_Guard interval, in samples (0.8 us at 20 MHz)._ 
+```C++
+#define WLAN_GI `16u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_LTF\_LEN 
+
+_The L-LTF, in samples (8 us at 20 MHz)._ 
+```C++
+#define WLAN_LTF_LEN `160u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_N\_FFT 
+
+_Transform length at 20 MHz (Table 17-5)._ 
+```C++
+#define WLAN_N_FFT `64u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_N\_SD 
+
+_Data subcarriers per OFDM symbol (Table 17-5)._ 
+```C++
+#define WLAN_N_SD `48u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_N\_SP 
+
+_Pilot subcarriers per OFDM symbol (Table 17-5)._ 
+```C++
+#define WLAN_N_SP `4u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_PILOT\_K 
+
+_The pilot subcarrier indices (17.3.5.9)._ 
+```C++
+#define WLAN_PILOT_K `{ -21, -7, 7, 21 }`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_PILOT\_V 
+
+_The pilot values before the polarity element (17.3.5.10)._ 
+```C++
+#define WLAN_PILOT_V `{ 1.0, 1.0, 1.0, -1.0 }`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_POLARITY\_LEN 
+
+_Length of the pilot polarity sequence._ 
+```C++
+#define WLAN_POLARITY_LEN `127u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_PSDU\_MAX 
+
+_The largest PSDU, in octets (LENGTH is 12 bits; 17.3.4.3)._ 
+```C++
+#define WLAN_PSDU_MAX `4095u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_SERVICE\_BITS 
+
+_Bits in the SERVICE field._ 
+```C++
+#define WLAN_SERVICE_BITS `16u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_SIG\_BITS 
+
+_Bits in the SIGNAL field (24: RATE, reserved, LENGTH, parity, tail)._ 
+```C++
+#define WLAN_SIG_BITS `24u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_STF\_LEN 
+
+_The L-STF, in samples (8 us at 20 MHz)._ 
+```C++
+#define WLAN_STF_LEN `160u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_SYM\_LEN 
+
+_An OFDM symbol with its guard interval, in samples._ 
+```C++
+#define WLAN_SYM_LEN `80u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_TAIL\_BITS 
+
+_Tail bits that return the BCC encoder to zero._ 
+```C++
+#define WLAN_TAIL_BITS `6u`
+```
+
+
+
+
+<hr>
+
+------------------------------
+The documentation for this class was generated from the following file `native/inc/doppler/wlan/wlan_core.h`
+

@@ -478,6 +478,20 @@
 * **WFM\_SYNTH\_SNR\_CLEAN** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_MAGIC** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_VERSION** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **WLAN\_GI** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_LTF\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_N\_FFT** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_N\_SD** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_N\_SP** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_PILOT\_K** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_PILOT\_V** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_POLARITY\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_PSDU\_MAX** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_SERVICE\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_SIG\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_STF\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_SYM\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_TAIL\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
 
 
 

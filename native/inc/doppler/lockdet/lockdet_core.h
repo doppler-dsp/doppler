@@ -109,6 +109,51 @@ extern "C"
   }
 
   /**
+   * @brief A lock detector's RULE: its levels and verify counts, without its
+   *        running count or decision.
+   *
+   * What a caller plotting a lock statistic needs beside it: the level the
+   * statistic must exceed to count a hit, the level it must fall under to
+   * count a miss, and how many consecutive of each move the decision. A
+   * statistic that crosses @c up_thresh fewer than @c n_up times in a row
+   * declares nothing; the decision probe shows where the rule actually
+   * fired, and this says why.
+   */
+  typedef struct
+  {
+    double   up_thresh;   /**< hit when the metric is above this.          */
+    double   down_thresh; /**< miss when the metric is below this.         */
+    uint32_t n_up;        /**< consecutive hits that declare.              */
+    uint32_t n_down;      /**< consecutive misses that drop.               */
+  } dp_lockdet_rule_t;
+
+  /**
+   * @brief The rule a lock detector decides by, read from its state.
+   *
+   * The one reader every embedding object's `get_*lock_rule()` returns
+   * through, so the four fields are copied in one place.
+   *
+   * @param s  Must be non-NULL.
+   * @return Its thresholds and verify counts.
+   * @code
+   * dp_lockdet_state_t d;
+   * dp_lockdet_init (&d, 0.85, 0.78, 8, 32);
+   * dp_lockdet_rule_t r = dp_lockdet_rule (&d);
+   * // r.up_thresh 0.85, r.down_thresh 0.78, r.n_up 8, r.n_down 32
+   * @endcode
+   */
+  JM_FORCEINLINE dp_lockdet_rule_t
+  dp_lockdet_rule (const dp_lockdet_state_t *s)
+  {
+    dp_lockdet_rule_t r;
+    r.up_thresh   = s->up_thresh;
+    r.down_thresh = s->down_thresh;
+    r.n_up        = s->n_up;
+    r.n_down      = s->n_down;
+    return r;
+  }
+
+  /**
    * @brief Initialise a lock detector in place (no allocation).
    *
    * Stores the thresholds and verify counts (each count clamped to >= 1; a

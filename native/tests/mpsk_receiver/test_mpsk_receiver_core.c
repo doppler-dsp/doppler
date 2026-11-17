@@ -261,6 +261,22 @@ main (void)
 
   /* 1. Lifecycle / validation / getters / reset reproducibility */
   {
+    /* The two whole rules: their levels are the threshold getters' and
+       their counts are the header's (8 up, 32 down on the carrier). */
+    {
+      dp_mpsk_receiver_state_t *r = RX (4, SPS, M_OUT, 0, 0.01, 0.5, 0.0);
+      DP_REQUIRE (r != NULL);
+      dp_lockdet_rule_t c = dp_mpsk_receiver_get_lock_rule (r);
+      DP_CHECK (c.up_thresh == dp_mpsk_receiver_get_lock_thresh (r));
+      DP_CHECK (c.down_thresh == dp_mpsk_receiver_get_lock_drop_thresh (r));
+      DP_CHECK (c.n_up == 8 && c.n_down == 32);
+      dp_lockdet_rule_t t = dp_mpsk_receiver_get_sync_lock_rule (r);
+      DP_CHECK (t.up_thresh == dp_mpsk_receiver_get_sync_lock_thresh (r));
+      DP_CHECK (t.down_thresh
+                == dp_mpsk_receiver_get_sync_lock_drop_thresh (r));
+      DP_CHECK (t.n_up >= 1 && t.n_down >= 1);
+      dp_mpsk_receiver_destroy (r);
+    }
     /* invalid args -> NULL */
     DP_CHECK (RX (3, SPS, M_OUT, 0, 0.01, 0.5, 0.0) == NULL); /* bad m  */
     DP_CHECK (RX (4, SPS, 3, 0, 0.01, 0.5, 0.0) == NULL);     /* m_out odd  */

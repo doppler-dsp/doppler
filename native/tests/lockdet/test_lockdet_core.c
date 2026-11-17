@@ -20,6 +20,14 @@ main (void)
   DP_CHECK (d->n_up == 3 && d->n_down == 2);
   DP_CHECK (d->cnt == 0 && d->locked == 0);
 
+  /* The rule reads back the configuration, every field to its own field:
+     four distinct values, so a swapped pair cannot pass. */
+  {
+    dp_lockdet_rule_t r = dp_lockdet_rule (d);
+    DP_CHECK (r.up_thresh == 1.5 && r.down_thresh == 1.2);
+    DP_CHECK (r.n_up == 3 && r.n_down == 2);
+  }
+
   dp_lockdet_state_t z;
   memset (&z, 0, sizeof z);
   dp_lockdet_init (&z, 1.0, 1.0, 0, 0);

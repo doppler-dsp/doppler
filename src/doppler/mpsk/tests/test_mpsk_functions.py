@@ -55,3 +55,20 @@ class TestMpskFunctions(unittest.TestCase):
         else:
             self.assertIsInstance(result, int)
             self.assertNotIsInstance(result, bool)
+
+    @unittest.skip("out_type changes the call's shape: no contract call yet")
+    def test_qam_map_contract(self):
+        pass
+
+    @unittest.skip("out_type changes the call's shape: no contract call yet")
+    def test_qam_demap_contract(self):
+        pass
+
+    def test_qam_bits_per_symbol_contract(self):
+        try:
+            result = module.qam_bits_per_symbol(m=1)
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, int)
+            self.assertNotIsInstance(result, bool)

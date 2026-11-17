@@ -159,3 +159,59 @@ def test_soft_demap_default_m_matches_its_hard_sibling():
     mpsk_soft_demap(x, a)  # m defaults to 4, like mpsk_demap
     mpsk_soft_demap(x, b, 4)
     assert np.array_equal(a, b)
+
+
+# ── QAM, beside the PSK maps ───────────────────────────────────────────────
+#
+# The ALGORITHM is pinned in C (native/tests/mpsk/test_mpsk_core.c, section
+# 8). What only Python can see is the door: the 16-bit label dtype (1024-QAM
+# is ten bits, so a uint8 label cannot carry it), that the module exports the
+# functions, and that the binding passes the mapping through unchanged.
+
+QAM_M = (4, 16, 64, 256, 1024)
+
+
+def test_qam_bits_per_symbol():
+    from doppler.mpsk import qam_bits_per_symbol
+
+    assert [qam_bits_per_symbol(m) for m in QAM_M] == [2, 4, 6, 8, 10]
+    assert qam_bits_per_symbol(8) == 0  # an M-PSK order is not a QAM order
+
+
+@pytest.mark.parametrize("m", QAM_M)
+def test_qam_roundtrip_all_labels_and_unit_average_energy(m):
+    from doppler.mpsk import qam_demap, qam_map
+
+    lab = np.arange(m, dtype=np.uint16)
+    pts = qam_map(lab, m)
+    assert pts.dtype == np.complex64
+    np.testing.assert_array_equal(qam_demap(pts, m), lab)
+    assert float(np.mean(np.abs(pts) ** 2)) == pytest.approx(1.0, abs=1e-5)
+
+
+def test_qam_labels_past_a_byte_survive():
+    """1024-QAM labels run to 1023: a byte-wide binding would alias them."""
+    from doppler.mpsk import qam_demap, qam_map
+
+    lab = np.array([0, 255, 256, 511, 512, 1023], dtype=np.uint16)
+    np.testing.assert_array_equal(qam_demap(qam_map(lab, 1024), 1024), lab)
+
+
+def test_qam_4_is_the_librarys_qpsk():
+    from doppler.mpsk import qam_map
+
+    lab = np.arange(4, dtype=np.uint8)
+    np.testing.assert_allclose(
+        qam_map(lab.astype(np.uint16), 4), mpsk_map(lab, 4), atol=1e-6
+    )
+
+
+def test_qam_decision_is_nearest_point_not_phase():
+    """Unlike M-PSK, amplitude decides: the same phase, two radii, two
+    labels."""
+    from doppler.mpsk import qam_demap
+
+    s = 1.0 / math.sqrt(10.0)
+    inner = np.array([1 * s + 1j * s], dtype=np.complex64)
+    outer = np.array([3 * s + 3j * s], dtype=np.complex64)
+    assert qam_demap(inner, 16)[0] != qam_demap(outer, 16)[0]

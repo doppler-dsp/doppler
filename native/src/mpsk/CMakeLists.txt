@@ -12,7 +12,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(mpsk_core OBJECT mpsk_core.c mpsk_map.c mpsk_demap.c mpsk_diff_map.c mpsk_diff_demap.c mpsk_soft_demap.c mpsk_bits_per_symbol.c)
+add_library(mpsk_core OBJECT mpsk_core.c mpsk_map.c mpsk_demap.c mpsk_diff_map.c mpsk_diff_demap.c mpsk_soft_demap.c mpsk_bits_per_symbol.c qam_map.c qam_demap.c qam_bits_per_symbol.c)
 target_include_directories(mpsk_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

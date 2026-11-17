@@ -831,6 +831,28 @@ JM_FORCEINLINE unsigned qam_axis_gray (
 
 
 
+The axis's bits sit LSB-first in the label, in transmission order; the Gray code of a level index reads with the first transmitted bit as its top bit. This is the one place that reversal is written, used by both [**qam\_constellation()**](mpsk__core_8h.md#function-qam_constellation) and [**qam\_slice()**](mpsk__core_8h.md#function-qam_slice).
+
+
+
+
+**Parameters:**
+
+
+* `r` Label bits for one axis (only the low `b` are read). 
+* `b` Bits per axis, log2(M) / 2. 
+
+
+
+**Returns:**
+
+The `b` bits reversed, as an integer in `[0, 2^b)`. 
+
+
+
+
+
+        
 
 <hr>
 

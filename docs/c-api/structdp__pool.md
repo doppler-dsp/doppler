@@ -1,14 +1,14 @@
 
 
-# Struct dp\_pool\_t
+# Struct dp\_pool
 
 
 
-[**ClassList**](annotated.md) **>** [**dp\_pool\_t**](structdp__pool__t.md)
+[**ClassList**](annotated.md) **>** [**dp\_pool**](structdp__pool.md)
 
 
 
-_A persistent worker pool for repeated parallel-for runs._ [More...](#detailed-description)
+_dp\_pool\_t's fields; all internal._ 
 
 * `#include <dp_parallel.h>`
 
@@ -89,13 +89,6 @@ _A persistent worker pool for repeated parallel-for runs._ [More...](#detailed-d
 
 
 
-## Detailed Description
-
-
-Create with dp\_pool\_create(), run with dp\_pool\_run(), free with dp\_pool\_destroy(). All fields are internal. 
-
-
-    
 ## Public Attributes Documentation
 
 
@@ -104,7 +97,7 @@ Create with dp\_pool\_create(), run with dp\_pool\_run(), free with dp\_pool\_de
 ### variable busy 
 
 ```C++
-int dp_pool_t::busy;
+int dp_pool::busy;
 ```
 
 
@@ -122,7 +115,7 @@ helpers still draining the current run
 ### variable done 
 
 ```C++
-dp_cond_t dp_pool_t::done;
+dp_cond_t dp_pool::done;
 ```
 
 
@@ -140,7 +133,7 @@ the caller waits here for the run's end
 ### variable gen 
 
 ```C++
-unsigned long dp_pool_t::gen;
+unsigned long dp_pool::gen;
 ```
 
 
@@ -157,7 +150,7 @@ bumped per run; helpers wake on a change
 ### variable helpers 
 
 ```C++
-int dp_pool_t::helpers;
+int dp_pool::helpers;
 ```
 
 
@@ -175,7 +168,7 @@ helper threads actually running
 ### variable mu 
 
 ```C++
-dp_mutex_t dp_pool_t::mu;
+dp_mutex_t dp_pool::mu;
 ```
 
 
@@ -192,7 +185,7 @@ guards every field below except work.next
 ### variable stop 
 
 ```C++
-int dp_pool_t::stop;
+int dp_pool::stop;
 ```
 
 
@@ -209,7 +202,7 @@ set by dp\_pool\_destroy(): helpers exit
 ### variable th 
 
 ```C++
-dp_thread_t* dp_pool_t::th;
+dp_thread_t* dp_pool::th;
 ```
 
 
@@ -226,7 +219,7 @@ helper thread handles (max\_threads - 1 slots; the first `helpers` are live)
 ### variable wake 
 
 ```C++
-dp_cond_t dp_pool_t::wake;
+dp_cond_t dp_pool::wake;
 ```
 
 
@@ -244,7 +237,7 @@ helpers wait here between runs
 ### variable work 
 
 ```C++
-dp_pf_shared_t dp_pool_t::work;
+dp_pf_shared_t dp_pool::work;
 ```
 
 

@@ -118,12 +118,16 @@ extern "C"
    * @param diff  `on_time[k] - on_time[k-1]`.
    * @return Raw, un-normalized timing error. @see dp_symsync_ted_slope
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE double
   gardner_ted (float _Complex mid, float _Complex diff)
   {
     return (double)(crealf (mid) * crealf (diff)
                     + cimagf (mid) * cimagf (diff));
   }
+#endif /* !__cplusplus */
 
   /** @brief Pulse code for dp_symsync_ted_slope(); values match rc_pulse_t. */
   enum
@@ -217,6 +221,9 @@ extern "C"
    * @param prev  `on_time[k-1]`.
    * @return Raw, un-normalized timing error. @see dp_symsync_ted_slope
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE double
   dttl_ted (float _Complex mid, float _Complex y, float _Complex prev)
   {
@@ -226,6 +233,7 @@ extern "C"
                 - (cimagf (prev) >= 0.0f ? 1.0 : -1.0);
     return (double)crealf (mid) * si + (double)cimagf (mid) * sq;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Per-sample symbol-timing step with the TED selection as a
@@ -254,6 +262,9 @@ extern "C"
    *               for a specialised (branch-free) instantiation.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE JM_HOT int
   symsync_step_ted (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out,
                     int ted)
@@ -336,6 +347,7 @@ extern "C"
     s->prev_ontime = y;
     return emit;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Emit the timing loop's telemetry records for the symbol just
@@ -371,6 +383,9 @@ extern "C"
    * @param y_out  Receives the symbol when the return is 1.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE JM_HOT int
   symsync_step (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out)
   {
@@ -379,6 +394,7 @@ extern "C"
       dp_symsync_tlm_flush (s);
     return r;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Initialise a SymbolSync in place (no allocation).

@@ -285,6 +285,9 @@ extern "C"
    * @param pe     Receives the phase error.
    * @param lock   Receives the lock signal.
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_nda_steps(). */
   JM_FORCEINLINE void
   carrier_nda_disc (float _Complex z, int m, double *pe, double *lock)
   {
@@ -371,6 +374,7 @@ extern "C"
     *pe   = pe8;                      /* Im((z/|z|)^8) / 4 */
     *lock = ql * ql - 4.0f * qe * qe; /* Re((z/|z|)^8)     */
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Initialise an NDA carrier loop in place (no allocation).
@@ -400,6 +404,9 @@ extern "C"
    * @param x  One input sample.
    * @return The de-rotated sample to feed the moving-average arm.
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_nda_steps(). */
   JM_FORCEINLINE JM_HOT float _Complex
   carrier_nda_wipeoff (dp_carrier_nda_state_t *s, float _Complex x)
   {
@@ -408,6 +415,7 @@ extern "C"
      * carrier_nda_steer). The LO owns the phase accumulation and scaling. */
     return x * conjf (lo_step_ctrl (&s->nco, s->ctl_cyc));
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Slide the moving-average arm by one sample; discriminate the
@@ -426,6 +434,9 @@ extern "C"
    * @param lock  Receives the lock signal.
    * @return Always 1 (one discriminator output per input sample).
    */
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_nda_steps(). */
   JM_FORCEINLINE JM_HOT int
   carrier_nda_arm_step (dp_carrier_nda_state_t *s, float _Complex d, double *pe,
                         double *lock)
@@ -438,6 +449,7 @@ extern "C"
     carrier_nda_disc (dp_boxcar_step (&s->arm, d), s->m, pe, lock);
     return 1;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Steer the NCO with a phase error through the loop filter.

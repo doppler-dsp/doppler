@@ -371,6 +371,9 @@ wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
  * @return Unit-modulus constellation point (a unit-amplitude line at
  *         `bit_mod == 0`), which is what Synth's unit-power SNR reference needs.
  */
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE float _Complex
 wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
 {
@@ -395,6 +398,7 @@ wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
     }
     return mpsk_constellation(g, 1 << s->bit_mod);
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief One continuous-DSSS chip: `code[n % n_code] ^ data`, as a BPSK sign.
@@ -494,6 +498,9 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
  *         pn, bpsk), or a ±1/√2 QPSK point. 0 when the source is empty or
  *         its data has ended.
  */
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE float _Complex
 wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
 {
@@ -523,6 +530,7 @@ wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
     uint8_t b = pn_step(s->pn);
     return (b ? -1.0f : 1.0f) + 0.0f * I;
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Prime the shaper's delay line so its output aligns with the dense FIR.
@@ -538,6 +546,9 @@ wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
  * @param s  Shaper-attached synth state (`s->shaper != NULL`); consumes
  *           the symbols the first `nsps` outputs need and sets `primed`.
  */
+#ifndef __cplusplus
+/* C only: calls wfm_synth_next_symbol(), which is C only (dp_complex.h, "From
+   C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE void
 wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
 {
@@ -553,6 +564,7 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
     }
     s->primed = 1;
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Produce `m` polyphase-shaped baseband samples into `out`.
@@ -570,6 +582,9 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
  * @param m     Number of baseband samples to produce.
  * @param syms  Caller scratch, capacity >= dp_resamp_interp_inputs_needed(s, m).
  */
+#ifndef __cplusplus
+/* C only: calls wfm_synth_next_symbol(), which is C only (dp_complex.h, "From
+   C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE void
 wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
                 float _Complex *syms)
@@ -581,6 +596,7 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
         syms[k] = wfm_synth_next_symbol(s);
     dp_resamp_interp_fill(s->shaper, syms, out, m);
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Allocate and configure a waveform synthesiser.
@@ -1046,6 +1062,7 @@ void dp_wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *outpu
  * (1+0j)
  * @endcode
  */
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT float _Complex
 dp_wfm_synth_step(dp_wfm_synth_state_t *state)
 {
@@ -1172,6 +1189,12 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
         dp_awgn_generate(state->awgn, 1, &noise, 1);
     return sym * carrier + noise;
 }
+/* dp_wfm_synth_step() above is C only: the body uses the C99 complex
+   library and calls wfm_synth_shape(), which is C only (dp_complex.h,
+   "From C++"). A C++ caller uses dp_wfm_synth_steps(). A plain comment, and
+   here rather than above it, because its Doxygen is also the Python
+   docstring. */
+#endif /* !__cplusplus */
 
 /**
  * @brief Generate a block of output samples.

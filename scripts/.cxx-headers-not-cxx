@@ -1,0 +1,12 @@
+# Installed headers that are not C++ headers at all (doppler#3108).
+#
+# Read by scripts/check_cxx_headers.py (`make cxx-headers-check`), which
+# does not ask these to parse as C++. One header a line, then `#` and the
+# reason. Not a ratchet, so what may be listed is decided by the gate, not
+# by judgment: a `*_private.h` or a header that includes Python.h, and
+# included by no installed header that is off this list. Anything else
+# a consumer can reach must parse, and belongs in .cxx-headers-exempt
+# until it does.
+doppler/correlator/correlator_private.h  # private: the correlator's detection layer, shared by its flavors and the acquisition engine; its inline bodies use the C99 complex library (`creal`)
+doppler/dp_interrupt_pyadopt.h  # Python-only: a CPython-extension helper for a hand-written binding; it includes Python.h
+doppler/wfm/wfm_private.h  # private: internals shared by the wfm composer, the Plan and the synth; `restrict` in an inline helper, which C++ does not have

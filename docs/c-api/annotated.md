@@ -102,7 +102,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._    
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) _One parallel-for run: the range, the work, and the shared cursor._     
 * **struct** [**dp\_pn\_state\_t**](structdp__pn__state__t.md) _PN state._     
-* **struct** [**dp\_pool\_t**](structdp__pool__t.md) _A persistent worker pool for repeated parallel-for runs._     
+* **struct** [**dp\_pool**](structdp__pool.md) _dp\_pool\_t's fields; all internal._     
 * **struct** [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) _PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._     
 * **struct** [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md) _PSD's per-frame kernel: one frame of n samples in, nfft DC-centred power bins out, and their reading against the full-scale reference._     
 * **struct** [**dp\_psd\_state\_t**](structdp__psd__state__t.md) _PSD state. Allocate with_ [_**dp\_psd\_create()**_](psd__core_8h.md#function-dp_psd_create) _._    

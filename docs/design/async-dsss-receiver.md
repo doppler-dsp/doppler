@@ -2221,6 +2221,250 @@ Reading it against the receiver:
 - **Widening:** a `bn` widened by `2·e_h` moves toward the as-built
     loop's pull-in.
 
+### 4.9 The carrier loop's order and its window, ruled together
+
+**Proposed, not built; for the owner's ruling.** The pre-despread carrier
+loop moves to a third-order filter, `StateFilter`
+([loop-filter.md](loop-filter.md) §10 to §15). Its window (§4.4,
+`carrier_window`) and its order are ruled here together, because each one
+changes what the other has to carry.
+
+**The figures in this section are provisional.** They come from the
+shipped exact functions (`dp_state_filter_loop_bandwidth`,
+`dp_state_filter_loop_stable`, `dp_state_filter_steady_error`, and
+`dp_loop_filter_init`'s gains for order 2), evaluated outside the tree.
+No figure here is citable until the pull-in validator prints it, in a
+`# design` section built on the same calls (step 6 below).
+
+#### Why the order changes
+
+The second-order loop cannot hold both the ramp and the noise at the
+floor. Its steady error on a ramp of `R` Hz/s is `x/ki`, with
+`x = R·T²` (loop-filter.md §14), and `ki` falls as `bn²`:
+
+| `bn` | 2.2 GHz, order 2 | 2.8 GHz, order 2 | order 3 |
+| ---- | ---------------- | ---------------- | ------- |
+| 0.04 | 2.70°            | 1.67°            | 0       |
+| 0.01 | 41.56°           | 25.66°           | 0       |
+
+That is the lag at 400 Hz/s, noise-free (`dp_state_filter_steady_error`).
+Measured (dev runs, not citable):
+
+- At `bn` 0.01 the static cells work: 2.8 GHz `code_period` at 4 dB went
+    from 0 of 16 to 16 of 16.
+- Under the ramp, every 4 dB draw false-locked, and 2.2 GHz failed at
+    10 dB.
+
+So no single second-order `bn` serves both. Order 3 has no steady error
+on a ramp. Its acceleration error is `a/kr`, which a linear Doppler ramp
+does not excite except at its onset (a rate step: a transient, not a
+steady error).
+
+#### 1. Where the third order lives
+
+The carrier loop is a `dp_costas_state_t` held by value (`car`, plus
+`car_held` and `car_frozen`). Costas embeds a `dp_loop_filter_state_t`
+`lf` and steers its NCO from `lf.integ` and `lf.kp` inside
+`costas_update()`.
+
+**A. Costas holds both orders (recommended).** `dp_costas_state_t` gains
+a `dp_state_filter_state_t sf` beside `lf`, plus the active order.
+`costas_update()` steps the active filter and steers from its `integ` and
+`kp`. The FLL assist and the getters (`get_norm_freq`, `get_nco_freq`)
+read the active filter's `integ`. A switch carries `integ` across, as
+loop-filter.md §13 anticipates ("an embedder that holds both orders").
+
+- **Blobs:**
+    - `COSTAS` v3 to v4: it snapshots the struct whole, which grows by one
+        `StateFilter` (7 doubles) and the order word.
+    - Every blob that nests Costas changes size: `despreader`,
+        `dsss_receiver`, `async_dsss_receiver` (three Costas) and through it
+        `async_dsss_pool`. Whether each parent bumps its own version follows
+        state-serialization.md's rule for a nested child, which I check
+        before implementation.
+    - The order and the filter's estimates are mutator values (#2022), so
+        they are in the blob, and the order is a reject key for the filter
+        it selects.
+- **Certification:**
+    - The order-2 path stays bit-identical. Proof: the existing
+        `test_costas_core.c` pins, `costas_pullin --check` and
+        `costas_jitter --check` unchanged, and a `bench-ab` row for
+        `costas_update` because the hot inline gains a branch (once an
+        update, not a sample).
+    - Order 3 needs pins of its own: zero steady error on a ramp; a switch
+        that keeps `integ` and seeds `rate`; the blob round trip at each
+        order; the refusal of a blob with an unknown order.
+    - Binding the setter in Python is a manifest change (`costas.toml`);
+        it can follow the C work.
+- **Reach:** every Costas user (despreader, DsssReceiver) can then use
+    order 3. Nothing changes for them unless they ask.
+
+**B. The receiver composes the order itself.** The receiver holds a
+`StateFilter` (and a held copy for the coast) beside its Costas, and
+steers the Costas NCO from it.
+
+- This needs `costas_update()` split into a discriminator and a steer, so
+    that no private copy of the steering exists. That split is a Costas
+    refactor that must be bit-identical anyway.
+- `COSTAS` does not move. The receiver's blob grows by two filters, and
+    the Costas `lf` it carries becomes dead state.
+- Every Costas getter the receiver uses (rate aid, reported Doppler,
+    `get_nco_freq`) would read the wrong filter unless it is re-plumbed.
+- Only the async receiver gets the order.
+
+**C. A new carrier object.** Rejected: it would be a second Costas.
+
+A costs one blob version in the object that owns the loop, and keeps one
+steering path. B moves fewer blobs but splits the loop across two
+objects, and the coast's `car_held = car` copy would have to learn about
+the second one.
+
+#### 2. The numbers
+
+**The cells.** `ρ = C/N0·T` at the antenna:
+
+| carrier, `T`      | 4 dB  | 10 dB |
+| ----------------- | ----- | ----- |
+| 2.2 GHz, 318.2 µs | 2.398 | 9.547 |
+| 2.8 GHz, 250.0 µs | 1.884 | 7.501 |
+
+**Where the receiver sits in StateFilter's rectangle.**
+
+- **Gain:** `K` is the detector's slope at the floor.
+    - `code_period`: 0.76 to 0.83 by §4.8's closed form; 0.72 to 0.76 by
+        the dev slope table.
+    - `partials`: 0.55 to 0.65 by §4.8's Monte Carlo; 0.58 by the slope
+        table.
+- **Delay:** `d` from the lag instrument (dev). The window's end lags the
+    update uniformly over 0 to 1 update. On about 70% of `code_period`
+    updates the look-back adds 0.25 to 0.75, so `d` lies in 0 to 1.75.
+- **Edges:** both are inside `K_MIN` 0.5 to `K_MAX` 2, and `d` is inside
+    `DELAY_MAX` 2.
+- **Lower gain edge:** order 3's `K_low` at `bn` 0.0025 to 0.04 is 0.245
+    to 0.265 over that delay range. That leaves 9.3 dB of downward margin
+    for `code_period` (0.74 / 0.254) and 7.2 dB for `partials`
+    (0.58 / 0.254) at `bn` 0.01 and `d` 1.75.
+- **Partials and K_MIN:** `partials` at 0.55 is within 0.8 dB of the
+    rectangle's certified floor. Below the floor, slope at hand-over (a
+    frequency error, a decorrelated window) is not measured. That is
+    [#3123](https://github.com/doppler-dsp/doppler/issues/3123)'s "lower
+    edge under noise", and the reason the measurement logs it.
+
+**The loop's delivered bandwidth at the receiver's `(K, d)`**, as a
+fraction of the `bn` asked for:
+
+| order, `bn` | K 0.58, d 0 to 1.75 | K 0.76    | K 1       | K 2       |
+| ----------- | ------------------- | --------- | --------- | --------- |
+| 3, 0.01     | 0.87-0.90           | 0.90-0.94 | 1.00-1.05 | 1.56-1.69 |
+| 3, 0.04     | 0.85-1.00           | 0.89-1.05 | 1.00-1.20 | 1.63-2.26 |
+| 2, 0.01     |                     | 0.85-0.88 | 1.01-1.06 |           |
+
+**The loop SNR: a convention, and a model.**
+
+- **Model fit.** On the squared phase, `SNR = 1/(4σ²)`, with noise
+    referred to phase through the slope:
+    `σ² = (Bn(K, d)/(K²·ρ))·(1 + Kw/(2ρ))`. At the two measured points it
+    reproduces the dev measurement to 0.5 dB:
+
+    - order 2, 2.8 GHz, 4 dB, `code_period`, `bn` 0.04: 7.35 to 7.68 dB
+        against 7.6 measured;
+    - `bn` 0.01: 13.78 to 13.86 dB against 14.3 measured.
+
+    Without the `1/K²` the model reads 2 to 3 dB high. This disagrees with
+    §4.8's loop-alone jitter, which matched the unreferred form to 6%. Why
+    is open, and the measurement decides it.
+
+- **Two conventions.** §1.3's rule, `ρ(dB) − 10·log10(2·bn) ≥ 20`, has no
+    squaring loss and no slope. The squared-phase form has both. At the 4 dB
+    floor they ask for different loops:
+
+| bandwidth for 20 dB, order 3   | 2.2 GHz | 2.8 GHz |
+| ------------------------------ | ------- | ------- |
+| §1.3's rule                    | 0.0120  | 0.0094  |
+| squared phase, no slope        | 0.0050  | 0.0037  |
+| squared phase, `cp`, K 0.74    | 0.0030  | 0.0023  |
+| squared phase, `parts`, K 0.58 | 0.0013  | 0.0009  |
+
+The owner's "about 20 dB, `bn` 0.01 or less" is §1.3's convention. The
+fold the loop slips on is on the squared phase (±π/2 on `φ`), which is
+why that convention predicts the slips. **This is the first ruling the
+page needs:** which loop SNR the 20 dB rule is stated in. The `bn` follows
+from it at create, from `T`, the floor's `ρ` and the window's slope, not
+as a constant.
+
+At 10 dB every form asks for a wider loop (0.006 to 0.048), so the floor
+sets it.
+
+#### 3. Acquisition
+
+The hand-over's error is 7 to 19 Hz (medians, dev). The tails pass 48 Hz,
+and the 27 data-template hand-overs are hundreds of hertz off. Order 3's
+pull-in with this discriminator is not known
+([#3123](https://github.com/doppler-dsp/doppler/issues/3123)). §4.8 had
+the order-2 loop at its sized `bn` holding a 100 Hz step under the ramp
+in only 26 of 40 draws.
+
+Three designs, all to be measured:
+
+- **(a) Acquire at order 2, wide, then switch to order 3, narrow.**
+    `integ` is carried. `rate` starts at zero or is seeded from the order-2
+    loop's `integ` slope over the acquisition. The order-2 pull-in is
+    known.
+- **(b) Order 3 from the first update, wide, then narrowed by
+    `dp_state_filter_configure`.** `configure` keeps `integ` and `rate`, so
+    the rate the wide loop learned carries across with no seeding question.
+    Its pull-in at the wide `bn` is the unknown.
+- **(c) Order 3 narrow from the first update.** Expected to fail: the
+    narrow `bn` is 0.001 to 0.012, against hand-over errors past 48 Hz. It
+    is measured only as the control.
+
+**When to narrow:** on the same event the coast uses, both flags up
+(`code_up && sym_up`, §4.4). A narrowing is a gain change with the
+estimates kept, so its transient is bounded by the error at that moment.
+
+#### 4. The window
+
+The owner agreed `code_period` is the mode for this use case (§1.5: a
+symbol is at least a code period at every 415.1 carrier). The default
+flips on results. The order sharpens the case for it:
+
+- The slope is higher (0.74 against 0.58).
+- `Kw = 1` takes less squaring loss than `Kw = 4`.
+- So `partials` needs a loop 2.6 times narrower for the same loop SNR
+    (0.0009 against 0.0023 at 2.8 GHz).
+- The window comparison (dev) had 0 false locks and 35 fold crossings for
+    `code_period`, against 4 and 1,337 for `partials`.
+
+The proposal is that order 3 and `code_period` are ruled together, with
+`partials` kept as the option it is.
+
+#### 5. Open, not built
+
+- **Updating the carrier loop on the code loop's epoch** instead of the
+    receiver's sample grid. That removes the delay that sweeps over 0 to 1
+    update (the lag instrument). It is not ruled.
+- **Coast and release reading the despreader's own flags** instead of the
+    symbol-lock statistic. Not ruled.
+- **The 2.8 GHz 10 dB code-lock sizing** (the look count from the
+    despread C/N0) is a separate fix and is kept out of this change.
+
+#### 6. The measurement that decides
+
+The pull-in validator, extended:
+
+- A `--loop-order 2|3` flag beside `--bn-carrier`, and the acquisition
+    design of §3 as a flag.
+- A `# design` section printing every figure above from the shipped
+    functions, so the page cites the tree.
+- Runs: the static and ramp cells at 4 and 10 dB, both carriers, both
+    windows, the same seeds as the order-2 runs.
+
+It reports the order-2 table's columns: works, false locks, loop SNR
+measured against design, fold crossings, lock changes, time to lock. It
+adds two: the slope at hand-over, and the lowest per-block slope seen,
+against `K_low`. The table decides the order, the window, the acquisition
+design and the `bn` convention.
+
 ______________________________________________________________________
 
 ## 5. The pool: N receivers, one search

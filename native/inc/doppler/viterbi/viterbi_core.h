@@ -53,6 +53,7 @@ typedef struct
   uint8_t *dec;  /**< depth x nstate decisions: which predecessor won   */
   size_t   head; /**< ring cursor, in steps                            */
   size_t   fill; /**< steps recorded, saturating at depth              */
+  unsigned phase; /**< position in the puncturing pattern; 0 unpunctured */
 
   /* Derived once: for each state, its two predecessors and their output
      words. The butterfly -- predecessors (ns << 1) & mask and | 1, both on
@@ -78,6 +79,14 @@ typedef struct
  * and costs only the traceback walk, not the add-compare-selects (measured
  * in `native/benchmarks/viterbi/bench_viterbi_core.c`).
  *
+ * **A punctured code is decoded by putting the deleted symbols back as
+ * erasures.** Given the puncturing pattern the encoder used, the decoder
+ * reads only the transmitted symbols from its input and supplies an LLR of
+ * exactly zero for each deleted one, so the branch metric ignores it. It is
+ * the same trellis and the same add-compare-selects; what changes is how many
+ * input values one step consumes, and the decoder's place in the pattern is
+ * running state that survives between calls.
+ *
  * @code
  * >>> import numpy as np
  * >>> from doppler.coding import Viterbi
@@ -94,11 +103,16 @@ typedef struct
  * @param invert    Bitmask over outputs: bit @c j set means output @c j is
  *                  transmitted inverted (default: 0; CCSDS sets bit 1).
  * @param depth     Traceback depth in information bits, >= 1 (default: 35).
+ * @param punct_period  Input bits per puncturing pattern, 0 for none
+ *                  (default: 0). Must be the encoder's.
+ * @param punct_mask    Bit `i * n + j` marks output `j` of input `i` of the
+ *                  period as transmitted (default: 0). Must be the
+ *                  encoder's; see @ref conv_code_t.
  * @return Heap-allocated state, or NULL for an invalid code (see
  *         dp_conv_code_valid()), @p depth 0, or allocation failure.
  * @note Caller must call dp_viterbi_destroy() when done.
  */
-dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth);
+dp_viterbi_state_t *dp_viterbi_create(const uint32_t *poly, size_t poly_len, uint32_t k, uint32_t invert, size_t depth, uint32_t punct_period, uint32_t punct_mask);
 
 /**
  * @brief Free a decoder and everything it allocated. NULL is a no-op.
@@ -129,7 +143,10 @@ void dp_viterbi_reset(dp_viterbi_state_t *state);
  * @brief Bits @ref dp_viterbi_decode will emit for @p n_in soft symbols.
  *
  * Accounts for the fill still owed at the start of a stream, so a caller can
- * size a buffer exactly rather than conservatively.
+ * size a buffer exactly rather than conservatively. For a punctured code the
+ * step count comes from the pattern, not from `n_in / n`, so it depends on
+ * where in the pattern the decoder is. A length that ends mid-bit gives 0,
+ * which is also what decode will return for it.
  *
  * @param state  The decoder.
  * @param n_in   Number of soft symbols the next call would be given.
@@ -161,8 +178,12 @@ size_t dp_viterbi_decode_max_out (const dp_viterbi_state_t *state, size_t n_in);
  * until a test asserted the count against a literal.
  *
  * @param state    The decoder.
- * @param in       Log-likelihood ratios, one per channel symbol. @p n_in
- *                 must be a multiple of the code's `n`.
+ * @param in       Log-likelihood ratios, one per TRANSMITTED channel symbol.
+ *                 @p n_in must end on a whole input bit's symbols: a
+ *                 multiple of `n` unpunctured, and for a punctured code
+ *                 exactly what @ref dp_conv_steps_for accepts from the
+ *                 decoder's current place in the pattern. Any other length
+ *                 is refused.
  * @param n_in     Number of LLRs in @p in.
  * @param out      Receives the decoded information bits, one per byte.
  * @param max_out  Capacity of @p out; see @ref dp_viterbi_decode_max_out.
@@ -281,6 +302,11 @@ typedef struct
  * was mid-stream, so those bits are re-encoded from the wrong state and
  * would bias every hypothesis by a few symbols.
  *
+ * @note Node synchronization is defined for an unpunctured code. On a
+ *       punctured one it returns 0 / does not score: the alignment space of
+ *       a punctured stream is `punct_period * n` symbols, which this does not
+ *       search (tracked in #3111).
+ *
  * @param v      A decoder for the code being synchronized. It is RESET, and
  *               left holding this scoring run's state — a caller decoding
  *               with it afterwards must reset it again.
@@ -357,7 +383,7 @@ int dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
 /** @brief Blob type tag: "VTRB". */
 #define VITERBI_STATE_MAGIC DP_FOURCC ('V', 'T', 'R', 'B')
 /** @brief Blob format version. */
-#define VITERBI_STATE_VERSION 1u
+#define VITERBI_STATE_VERSION 2u
 
 /**
  * @brief Bytes @ref dp_viterbi_get_state writes: envelope, code identity,

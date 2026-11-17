@@ -85,7 +85,7 @@ main (void)
   static double        t_enc[N_CODES][ITERATIONS];
   for (size_t c = 0; c < N_CODES; c++)
     {
-      enc[c] = dp_conv_enc_create (CODES[c].poly, 2, CODES[c].k, 0u);
+      enc[c] = dp_conv_enc_create (CODES[c].poly, 2, CODES[c].k, 0u, 0u, 0u);
       if (!enc[c])
         {
           (void)fprintf (stderr, "bench_conv_enc: create(k=%u) NULL\n",
@@ -137,7 +137,8 @@ main (void)
   {
     const conv_code_t    c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
     conv_enc_t           raw;
-    dp_conv_enc_state_t *obj = dp_conv_enc_create (CODES[2].poly, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *obj
+        = dp_conv_enc_create (CODES[2].poly, 2, 7u, 0x2u, 0u, 0u);
     if (!obj)
       return 1;
     dp_conv_enc_init (&raw);

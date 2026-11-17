@@ -36,6 +36,7 @@ _Encoder state: the shift register, and nothing else._ [More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
+|  uint32\_t | [**phase**](#variable-phase)  <br> |
 |  uint32\_t | [**reg**](#variable-reg)  <br> |
 
 
@@ -84,12 +85,30 @@ _Encoder state: the shift register, and nothing else._ [More...](#detailed-descr
 ## Detailed Description
 
 
-Held in a struct rather than passed by value because the encoder is **continuous** — a caller encoding a long record in chunks must carry the register across calls or introduce a discontinuity at every chunk boundary that no decoder expects. 
+Held in a struct rather than passed by value because the encoder is **continuous** — a caller encoding a long record in chunks must carry the register across calls or introduce a discontinuity at every chunk boundary that no decoder expects. The puncturing phase is carried for the same reason: a chunk that ends mid-pattern must not restart it. 
 
 
     
 ## Public Attributes Documentation
 
+
+
+
+### variable phase 
+
+```C++
+uint32_t conv_enc_t::phase;
+```
+
+
+
+position in the puncturing pattern; 0 unpunctured 
+ 
+
+
+        
+
+<hr>
 
 
 

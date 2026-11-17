@@ -18,13 +18,21 @@ class ConvEncoder:
         Constraint length, 2 to `CONV_K_MAX`.
     invert : int, default 0
         Bit `j` complements output `j`.
+    punct_period : int, default 0
+        Input bits per puncturing pattern, 0 for none (default: 0). See
+        conv_code_t for the pattern.
+    punct_mask : int, default 0
+        Bit `i * n + j` transmits output `j` of input `i` of the period
+        (default: 0). Both zero is the unpunctured code; one without the other
+        is refused.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``ConvEncoder: not a
-        usable code (need 1 to 6 non-zero polynomials, each under 2**k, and 2
-        <= k <= 9)``.
+        usable code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k
+        <= 9, and punct_period and punct_mask either both 0 or a pattern that
+        fits)``.
 
     Examples
     --------
@@ -33,6 +41,10 @@ class ConvEncoder:
     >>> e = ConvEncoder([0o171, 0o133], k=7, invert=0x2)
     >>> e.encode(np.zeros(8, dtype=np.uint8)).size
     16
+    >>> p = ConvEncoder([0o171, 0o133], k=7, punct_period=3,
+    ...                 punct_mask=0b100111)
+    >>> p.encode(np.zeros(6, dtype=np.uint8)).size
+    8
 
     """
 
@@ -41,6 +53,8 @@ class ConvEncoder:
         poly: npt.NDArray[np.uint32],
         k: int = 7,
         invert: int = 0,
+        punct_period: int = 0,
+        punct_mask: int = 0,
     ) -> None: ...
     def reset(self) -> None:
         """Return the register to all-zero, keeping the code.
@@ -71,6 +85,9 @@ class ConvEncoder:
 
         Outputs are emitted in polynomial order per input bit: for `[G1, G2]`,
         `out[2i]` is `G1`'s symbol for input bit `i` and `out[2i+1]` is `G2`'s.
+        A punctured encoder omits the symbols its pattern deletes, so the
+        indexing above holds only for the unpunctured code; the pattern
+        position carries across calls like the register does.
 
         Parameters
         ----------
@@ -101,9 +118,12 @@ class ConvEncoder:
     def encode_max_out(self, n_in: int, /) -> int:
         """Symbols dp_conv_enc_encode writes for n_in input bits.
 
-        Exactly `n_in * n` — a convolutional code has no fill and no latency on
-        the encode side, which is the asymmetry with dp_viterbi_decode_max_out,
-        where the traceback still owes bits at the start of a stream.
+        Exactly `n_in * n` unpunctured — a convolutional code has no fill and
+        no latency on the encode side, which is the asymmetry with
+        dp_viterbi_decode_max_out, where the traceback still owes bits at the
+        start of a stream. Punctured, it is dp_conv_coded_len from the
+        encoder's current place in the pattern, so it depends on what has been
+        encoded already.
 
         Parameters
         ----------
@@ -237,13 +257,20 @@ class Viterbi:
         (default: 0; CCSDS sets bit 1).
     depth : int, default 35
         Traceback depth in information bits, >= 1 (default: 35).
+    punct_period : int, default 0
+        Input bits per puncturing pattern, 0 for none (default: 0). Must be the
+        encoder's.
+    punct_mask : int, default 0
+        Bit `i * n + j` marks output `j` of input `i` of the period as
+        transmitted (default: 0). Must be the encoder's; see conv_code_t.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``Viterbi: not a usable
         code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= 9,
-        and depth >= 1)``.
+        depth >= 1, and punct_period and punct_mask either both 0 or a pattern
+        that fits)``.
 
     Examples
     --------
@@ -261,6 +288,8 @@ class Viterbi:
         k: int = 7,
         invert: int = 0,
         depth: int = 35,
+        punct_period: int = 0,
+        punct_mask: int = 0,
     ) -> None: ...
     def reset(self) -> None:
         """Return to the all-zero start state, discarding the traceback.
@@ -310,8 +339,11 @@ class Viterbi:
         Parameters
         ----------
         x : npt.NDArray[np.float32]
-            Log-likelihood ratios, one per channel symbol. n_in must be a
-            multiple of the code's `n`.
+            Log-likelihood ratios, one per TRANSMITTED channel symbol. n_in
+            must end on a whole input bit's symbols: a multiple of `n`
+            unpunctured, and for a punctured code exactly what
+            dp_conv_steps_for accepts from the decoder's current place in the
+            pattern. Any other length is refused.
         out : npt.NDArray[np.uint8] | None
             Receives the decoded information bits, one per byte.
 
@@ -336,7 +368,10 @@ class Viterbi:
         """Bits dp_viterbi_decode will emit for n_in soft symbols.
 
         Accounts for the fill still owed at the start of a stream, so a caller
-        can size a buffer exactly rather than conservatively.
+        can size a buffer exactly rather than conservatively. For a punctured
+        code the step count comes from the pattern, not from `n_in / n`, so it
+        depends on where in the pattern the decoder is. A length that ends
+        mid-bit gives 0, which is also what decode will return for it.
 
         Parameters
         ----------

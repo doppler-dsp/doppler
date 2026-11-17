@@ -58,13 +58,18 @@
  * contract claims a working link -- 10 dB, static, the receiver as built
  * (the partials carrier window) -- every draw works,
  * aligns and does not slip, and its error rate's 95% upper limit is under
- * the bound's 3 dB lower (a margin, not a derived limit). The 4 and 5 dB
- * cells, the use case's own floor, are printed with their intervals and
+ * the bound's 3 dB lower (a margin, not a derived limit); and the live
+ * carrier holds a 400 Hz/s ramp at 10 dB, its end within the false-lock
+ * limit (a quarter of the symbol rate) of the truth -- a 3 s draw in
+ * --check, long enough that the hand-over's frozen Doppler is past that
+ * limit, so it tells the live carrier (status().doppler_hz) from it. The 4 and
+ * 5 dB cells, the use case's own floor, are printed with their intervals and
  * not claimed: they do not meet the zero-transition criterion today; nor
  * is the code-period window at 10 dB, whose code lock changes over the data
  * on some draws (2.8 GHz, seed 1: twice, from 12.7 s). The
  * payload outlasts every run. --check: 2.8 GHz (2.69 samples a chip), 10
- * dB, static, both carrier windows, one 20 s draw each.
+ * dB, static, both carrier windows, one 20 s draw each, and the 3 s ramp
+ * draw.
  *
  * Telemetry: `--telemetry DIR --draw FC_GHZ,ESN0,RATE,CW,SEED [--from S
  * --to S]` runs that one draw (its row as the sweep prints it) and captures
@@ -119,19 +124,26 @@
 #define PI_RATE_HZ_S 400.0
 #define PI_MARGIN_DB 3.0
 #define PI_MAX_CELL 64u
+/* The --check ramp draw: long enough that the hand-over's Doppler, frozen,
+   is past the false-lock limit (a quarter of the symbol rate, 750 Hz) at
+   400 Hz/s with margin, so the test can tell the live carrier from it. */
+#define PI_RAMP_CHECK_S 3.0
 
 typedef struct
 {
-  double        fc, esn0, rate;
-  int           cw;
-  double        f0;
-  size_t        frame_off;
-  double        ho_err_hz;
-  int           ho_src;
-  double        t_track_s, t_sym_s, t_code_s; /* NAN: never */
-  size_t        sym_tog, code_tog;
-  double        sym_tog1_s, code_tog1_s; /* NAN: none */
-  double        end_resid_hz;
+  double fc, esn0, rate;
+  int    cw;
+  double f0;
+  size_t frame_off;
+  double ho_err_hz;
+  int    ho_src;
+  double t_track_s, t_sym_s, t_code_s; /* NAN: never */
+  size_t sym_tog, code_tog;
+  double sym_tog1_s, code_tog1_s; /* NAN: none */
+  double end_resid_hz;
+  double end_stale_hz; /* the hand-over's Doppler against the end's
+                          truth: what end_resid_hz would read if it
+                          took get_doppler_hz() (the --check margin) */
   int           false_lock, aligned, slipped, works, data_ended;
   unsigned long errors, scored;
   double        evm_db, m2m4_db;
@@ -345,10 +357,15 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
         d->code_tog1_s = (double)first * blk_s;
     }
   const uint64_t n_in = (uint64_t)n_blk * PI_PUSH;
-  d->end_resid_hz     = dp_async_dsss_receiver_get_doppler_hz (rx)
-                        - dp_air_truth (&air, 0, n_in).car_hz;
-  d->false_lock       = rx->state == ASYNC_DSSS_RX_TRACKING
-                        && fabs (d->end_resid_hz) >= 0.25 * PI_SYM;
+  /* The live carrier (status().doppler_hz, where the emitter is now), not
+     get_doppler_hz(), the hand-over's: under a ramp that one is the
+     Doppler of tens of seconds ago. */
+  d->end_resid_hz = dp_async_dsss_receiver_status (rx).doppler_hz
+                    - dp_air_truth (&air, 0, n_in).car_hz;
+  d->end_stale_hz = dp_async_dsss_receiver_get_doppler_hz (rx)
+                    - dp_air_truth (&air, 0, n_in).car_hz;
+  d->false_lock   = rx->state == ASYNC_DSSS_RX_TRACKING
+                    && fabs (d->end_resid_hz) >= 0.25 * PI_SYM;
 
   /* The error rate of the current track, against the payload as each
      symbol carried it. */
@@ -649,6 +666,28 @@ main (int argc, char **argv)
             check_cell (ds, n);
           }
   free (ds);
+  if (check)
+    {
+      /* The live carrier holds a 400 Hz/s ramp: at 10 dB, the receiver as
+         built, the end's carrier is within the false-lock limit of the
+         truth. The draw is sized so the hand-over's Doppler is past it. */
+      draw_t rd;
+      DP_REQUIRE (run_draw (code, 2.8e9, 10.0, PI_RATE_HZ_S,
+                            ASYNC_DSSS_RX_CARRIER_PARTIALS, 1, PI_RAMP_CHECK_S,
+                            spc, NULL, &rd)
+                  == 0);
+      const double lim = 0.25 * PI_SYM;
+      printf ("  ramp: 2.8 GHz 10 dB +/-400 Hz/s partials, %.0f s: live "
+              "carrier %.1f Hz off the truth; the hand-over's Doppler "
+              "%.0f Hz off, %.2fx the %.0f Hz limit\n",
+              PI_RAMP_CHECK_S, rd.end_resid_hz, rd.end_stale_hz,
+              fabs (rd.end_stale_hz) / lim, lim);
+      DP_CHECK_MSG (fabs (rd.end_stale_hz) > 1.2 * lim,
+                    "the draw is long enough to tell the live carrier from "
+                    "the hand-over's");
+      DP_CHECK_MSG (!rd.false_lock, "the live carrier holds a 400 Hz/s ramp "
+                                    "at 10 dB");
+    }
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_receiver_pullin");
   DP_TEST_END ("validate_async_dsss_receiver_pullin");

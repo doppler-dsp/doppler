@@ -64,6 +64,7 @@
 * `#include "doppler/tonemeas/tonemeas_core.h"`
 * `#include "doppler/nprmeas/nprmeas_core.h"`
 * `#include "doppler/imdmeas/imdmeas_core.h"`
+* `#include "doppler/ofdm/ofdm_core.h"`
 * `#include "doppler/Resampler/Resampler_core.h"`
 * `#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"`
 * `#include "doppler/HalfbandDecimatorR2C/HalfbandDecimatorR2C_core.h"`
@@ -82,6 +83,7 @@
 * `#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"`
 * `#include "doppler/dp_event_log/dp_event_log_core.h"`
 * `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/state_filter/state_filter_core.h"`
 * `#include "doppler/costas/costas_core.h"`
 * `#include "doppler/dll/dll_core.h"`
 * `#include "doppler/symsync/symsync_core.h"`
@@ -95,6 +97,7 @@
 * `#include "doppler/frame/frame_core.h"`
 * `#include "doppler/wfm_reader/wfm_reader_core.h"`
 * `#include "doppler/wfm_writer/wfm_writer_core.h"`
+* `#include "doppler/wlan/wlan_core.h"`
 
 
 

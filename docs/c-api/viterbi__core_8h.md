@@ -64,7 +64,7 @@ _Soft-decision Viterbi decoding of convolutional codes._ [More...](#detailed-des
 |  size\_t | [**dp\_node\_sync\_score**](#function-dp_node_sync_score) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* v, const float \* llr, size\_t n\_llr) <br>_Score the alignment as given: decode, re-encode, count disagreements against the received hard decisions._  |
 |  size\_t | [**dp\_node\_sync\_scored\_symbols**](#function-dp_node_sync_scored_symbols) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* v, size\_t n\_llr) <br>_Symbols_ [_**dp\_node\_sync\_score**_](viterbi__core_8h.md#function-dp_node_sync_score) _will actually score for a window of_`n_llr` _, which is fewer than_`n_llr` _._ |
 |  const [**conv\_code\_t**](structconv__code__t.md) \* | [**dp\_viterbi\_code**](#function-dp_viterbi_code) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* s) <br>_The code this decoder was built for._  |
-|  [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* | [**dp\_viterbi\_create**](#function-dp_viterbi_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert, size\_t depth) <br>_Build a decoder for the code the polynomials describe._  |
+|  [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* | [**dp\_viterbi\_create**](#function-dp_viterbi_create) (const uint32\_t \* poly, size\_t poly\_len, uint32\_t k, uint32\_t invert, size\_t depth, uint32\_t punct\_period, uint32\_t punct\_mask) <br>_Build a decoder for the code the polynomials describe._  |
 |  [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* | [**dp\_viterbi\_create\_code**](#function-dp_viterbi_create_code) (const [**conv\_code\_t**](structconv__code__t.md) \* c, size\_t depth) <br>_Build a decoder from a code already assembled._  |
 |  size\_t | [**dp\_viterbi\_decode**](#function-dp_viterbi_decode) ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* state, const float \* in, size\_t n\_in, uint8\_t \* out, size\_t max\_out) <br>_Decode soft channel symbols into information bits._  |
 |  size\_t | [**dp\_viterbi\_decode\_max\_out**](#function-dp_viterbi_decode_max_out) (const [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) \* state, size\_t n\_in) <br>_Bits_ [_**dp\_viterbi\_decode**_](viterbi__core_8h.md#function-dp_viterbi_decode) _will emit for_`n_in` _soft symbols._ |
@@ -106,7 +106,7 @@ _Soft-decision Viterbi decoding of convolutional codes._ [More...](#detailed-des
 | Type | Name |
 | ---: | :--- |
 | define  | [**VITERBI\_STATE\_MAGIC**](viterbi__core_8h.md#define-viterbi_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('V', 'T', 'R', 'B')`<br>_Blob type tag: "VTRB"._  |
-| define  | [**VITERBI\_STATE\_VERSION**](viterbi__core_8h.md#define-viterbi_state_version)  `1u`<br>_Blob format version._  |
+| define  | [**VITERBI\_STATE\_VERSION**](viterbi__core_8h.md#define-viterbi_state_version)  `2u`<br>_Blob format version._  |
 
 ## Detailed Description
 
@@ -218,6 +218,13 @@ The first `k - 1` decoded bits are excluded from the count: the encoder used for
 
 
 
+**Note:**
+
+Node synchronization is defined for an unpunctured code. On a punctured one it returns 0 / does not score: the alignment space of a punctured stream is `punct_period * n` symbols, which this does not search (tracked in #3111).
+
+
+
+
 **Parameters:**
 
 
@@ -323,7 +330,9 @@ dp_viterbi_state_t * dp_viterbi_create (
     size_t poly_len,
     uint32_t k,
     uint32_t invert,
-    size_t depth
+    size_t depth,
+    uint32_t punct_period,
+    uint32_t punct_mask
 ) 
 ```
 
@@ -333,6 +342,9 @@ The array IS the code: its length gives the number of outputs per input bit, so 
 
 
 `depth` is the traceback depth in information bits. The conventional rule of thumb is `5*(k-1)` or more; a longer depth is safer at low Es/N0 and costs only the traceback walk, not the add-compare-selects (measured in `native/benchmarks/viterbi/bench_viterbi_core.c`).
+
+
+**A punctured code is decoded by putting the deleted symbols back as erasures.** Given the puncturing pattern the encoder used, the decoder reads only the transmitted symbols from its input and supplies an LLR of exactly zero for each deleted one, so the branch metric ignores it. It is the same trellis and the same add-compare-selects; what changes is how many input values one step consumes, and the decoder's place in the pattern is running state that survives between calls.
 
 
 
@@ -356,6 +368,8 @@ dtype('uint8')
 * `k` Constraint length, 2 to `CONV_K_MAX` (default: 7); every polynomial must fit in `k` bits and be non-zero. 
 * `invert` Bitmask over outputs: bit `j` set means output `j` is transmitted inverted (default: 0; CCSDS sets bit 1). 
 * `depth` Traceback depth in information bits, &gt;= 1 (default: 35). 
+* `punct_period` Input bits per puncturing pattern, 0 for none (default: 0). Must be the encoder's. 
+* `punct_mask` Bit `i * n + j` marks output `j` of input `i` of the period as transmitted (default: 0). Must be the encoder's; see [**conv\_code\_t**](structconv__code__t.md). 
 
 
 
@@ -449,7 +463,7 @@ Streaming: state carries across calls, so a long capture may be fed in blocks an
 
 
 * `state` The decoder. 
-* `in` Log-likelihood ratios, one per channel symbol. `n_in` must be a multiple of the code's `n`. 
+* `in` Log-likelihood ratios, one per TRANSMITTED channel symbol. `n_in` must end on a whole input bit's symbols: a multiple of `n` unpunctured, and for a punctured code exactly what [**dp\_conv\_steps\_for**](conv__core_8h.md#function-dp_conv_steps_for) accepts from the decoder's current place in the pattern. Any other length is refused. 
 * `n_in` Number of LLRs in `in`. 
 * `out` Receives the decoded information bits, one per byte. 
 * `max_out` Capacity of `out`; see [**dp\_viterbi\_decode\_max\_out**](viterbi__core_8h.md#function-dp_viterbi_decode_max_out). 
@@ -492,7 +506,7 @@ size_t dp_viterbi_decode_max_out (
 
 
 
-Accounts for the fill still owed at the start of a stream, so a caller can size a buffer exactly rather than conservatively.
+Accounts for the fill still owed at the start of a stream, so a caller can size a buffer exactly rather than conservatively. For a punctured code the step count comes from the pattern, not from `n_in / n`, so it depends on where in the pattern the decoder is. A length that ends mid-bit gives 0, which is also what decode will return for it.
 
 
 
@@ -745,7 +759,7 @@ _Blob type tag: "VTRB"._
 
 _Blob format version._ 
 ```C++
-#define VITERBI_STATE_VERSION `1u`
+#define VITERBI_STATE_VERSION `2u`
 ```
 
 

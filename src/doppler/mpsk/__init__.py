@@ -1,4 +1,5 @@
 """M-ary PSK mapping: hard and soft, including differential, symbol map/demap for BPSK, QPSK, and 8-PSK constellations.
+Square QAM (4 to 1024 points) rides beside it: `qam_map` and `qam_demap` take a 16-bit label, since 1024-QAM is ten bits, and decide by nearest point rather than by phase.
 
 This is the decision primitive, and its transmit inverse, that the
 `doppler.track.CarrierMpsk` carrier loop and the M-PSK receiver compose.
@@ -35,6 +36,9 @@ from .mpsk import (  # noqa: E402
     mpsk_diff_map,
     mpsk_map,
     mpsk_soft_demap,
+    qam_bits_per_symbol,
+    qam_demap,
+    qam_map,
 )
 
 __all__ = [
@@ -44,4 +48,7 @@ __all__ = [
     "mpsk_diff_demap",
     "mpsk_bits_per_symbol",
     "mpsk_soft_demap",
+    "qam_bits_per_symbol",
+    "qam_demap",
+    "qam_map",
 ]

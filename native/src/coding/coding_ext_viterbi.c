@@ -41,15 +41,19 @@ ViterbiObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
 {
-  static char       *kwlist[]   = { "poly", "k", "invert", "depth", NULL };
-  PyObject          *poly_obj   = NULL;
-  long long          k_raw      = 7;
-  long long          invert_raw = 0;
-  PyObject          *depth_obj  = NULL;
-  unsigned long long depth_raw  = 35;
+  static char *kwlist[]
+      = { "poly", "k", "invert", "depth", "punct_period", "punct_mask", NULL };
+  PyObject          *poly_obj         = NULL;
+  long long          k_raw            = 7;
+  long long          invert_raw       = 0;
+  PyObject          *depth_obj        = NULL;
+  unsigned long long depth_raw        = 35;
+  long long          punct_period_raw = 0;
+  long long          punct_mask_raw   = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LLO", kwlist, &poly_obj,
-                                    &k_raw, &invert_raw, &depth_obj))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|LLOLL", kwlist, &poly_obj,
+                                    &k_raw, &invert_raw, &depth_obj,
+                                    &punct_period_raw, &punct_mask_raw))
     return -1;
   if (k_raw < 0 || k_raw > (long long)UINT32_MAX)
     {
@@ -87,7 +91,25 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
         }
       Py_DECREF (_ix);
     }
-  size_t         depth = (size_t)depth_raw;
+  size_t depth = (size_t)depth_raw;
+  if (punct_period_raw < 0 || punct_period_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "punct_period: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)punct_period_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t punct_period = (uint32_t)punct_period_raw;
+  if (punct_mask_raw < 0 || punct_mask_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "punct_mask: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)punct_mask_raw, (long long)0, (long long)UINT32_MAX);
+      return -1;
+    }
+  uint32_t       punct_mask = (uint32_t)punct_mask_raw;
   PyArrayObject *poly_arr
       = jm_array_arg (poly_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS, "poly");
   if (!poly_arr)
@@ -95,15 +117,17 @@ ViterbiObj_init (ViterbiObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t poly_len = (size_t)PyArray_SIZE (poly_arr);
-  self->handle = dp_viterbi_create ((const uint32_t *)PyArray_DATA (poly_arr),
-                                    poly_len, k, invert, depth);
+  self->handle
+      = dp_viterbi_create ((const uint32_t *)PyArray_DATA (poly_arr), poly_len,
+                           k, invert, depth, punct_period, punct_mask);
   Py_DECREF (poly_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
                        "Viterbi: not a usable code (need 1 to 6 non-zero "
-                       "polynomials, each under 2**k, 2 <= k <= 9, and depth "
-                       ">= 1)");
+                       "polynomials, each under 2**k, 2 <= k <= 9, depth >= "
+                       "1, and punct_period and punct_mask either both 0 or "
+                       "a pattern that fits)");
       return -1;
     }
   return 0;
@@ -430,8 +454,11 @@ static PyMethodDef ViterbiObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.float32]\n"
-    "    Log-likelihood ratios, one per channel symbol. n_in must be a\n"
-    "    multiple of the code's `n`.\n"
+    "    Log-likelihood ratios, one per TRANSMITTED channel symbol. n_in\n"
+    "    must end on a whole input bit's symbols: a multiple of `n`\n"
+    "    unpunctured, and for a punctured code exactly what\n"
+    "    dp_conv_steps_for accepts from the decoder's current place in the\n"
+    "    pattern. Any other length is refused.\n"
     "out : npt.NDArray[np.uint8] | None\n"
     "    Receives the decoded information bits, one per byte.\n"
     "\n"
@@ -455,7 +482,10 @@ static PyMethodDef ViterbiObj_methods[] = {
     "Bits dp_viterbi_decode will emit for n_in soft symbols.\n"
     "\n"
     "Accounts for the fill still owed at the start of a stream, so a caller\n"
-    "can size a buffer exactly rather than conservatively.\n"
+    "can size a buffer exactly rather than conservatively. For a punctured\n"
+    "code the step count comes from the pattern, not from `n_in / n`, so it\n"
+    "depends on where in the pattern the decoder is. A length that ends\n"
+    "mid-bit gives 0, which is also what decode will return for it.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -578,6 +608,13 @@ static PyTypeObject ViterbiObjType = {
     "    (default: 0; CCSDS sets bit 1).\n"
     "depth : int, default 35\n"
     "    Traceback depth in information bits, >= 1 (default: 35).\n"
+    "punct_period : int, default 0\n"
+    "    Input bits per puncturing pattern, 0 for none (default: 0). Must be "
+    "the\n"
+    "    encoder's.\n"
+    "punct_mask : int, default 0\n"
+    "    Bit `i * n + j` marks output `j` of input `i` of the period as\n"
+    "    transmitted (default: 0). Must be the encoder's; see conv_code_t.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -586,7 +623,9 @@ static PyTypeObject ViterbiObjType = {
     "usable\n"
     "    code (need 1 to 6 non-zero polynomials, each under 2**k, 2 <= k <= "
     "9,\n"
-    "    and depth >= 1)``.\n"
+    "    depth >= 1, and punct_period and punct_mask either both 0 or a "
+    "pattern\n"
+    "    that fits)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

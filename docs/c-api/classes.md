@@ -72,6 +72,7 @@
 * [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md)
 * [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md)
 * [**dp\_costas\_state\_t**](structdp__costas__state__t.md)
+* [**dp\_crc\_t**](structdp__crc__t.md)
 * [**dp\_delay\_state\_t**](structdp__delay__state__t.md)
 * [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md)
 * [**dp\_dll\_state\_t**](structdp__dll__state__t.md)
@@ -109,6 +110,7 @@
 * [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md)
 * [**dp\_nco\_state\_t**](structdp__nco__state__t.md)
 * [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md)
+* [**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md)
 * [**dp\_once\_t**](structdp__once__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)
@@ -125,6 +127,7 @@
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
 * [**dp\_specan\_state\_t**](structdp__specan__state__t.md)
 * [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md)
+* [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md)
 * [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)
 * [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md)
 * [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md)
@@ -138,6 +141,10 @@
 * [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md)
 * [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md)
 * [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md)
+* [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md)
+* [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md)
+* [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md)
+* [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md)
 * [**dp\_writer\_t**](structdp__writer__t.md)
 * [**dsss\_br\_event\_t**](structdsss__br__event__t.md)
 * [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md)
@@ -168,6 +175,13 @@
 
 * [**node\_sync\_t**](structnode__sync__t.md)
 * [**npr\_meas\_t**](structnpr__meas__t.md)
+
+
+## o
+
+* [**ofdm\_class\_t**](structofdm__class__t.md)
+* [**ofdm\_fixed\_t**](structofdm__fixed__t.md)
+* [**ofdm\_run\_t**](structofdm__run__t.md)
 
 
 ## p

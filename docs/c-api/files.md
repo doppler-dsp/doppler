@@ -10,6 +10,7 @@ Here is a list of all files with brief descriptions:
             * **file** [**clib\_common.h**](clib__common_8h.md) _Common C99 types and performance macros for doppler._     
             * **file** [**doppler.h**](doppler_8h.md) 
             * **file** [**dp\_complex.h**](dp__complex_8h.md) _The complex-math surface, routed so it survives Windows._ 
+            * **file** [**dp\_crc.h**](dp__crc_8h.md) _One parametric CRC: the Rocksoft model over a bit stream._     
             * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
             * **file** [**dp\_format.h**](dp__format_8h.md) _Complex sample formats, named by their BLUE/Platinum codes._     
             * **file** [**dp\_hash64.h**](dp__hash64_8h.md) _FNV-1a 64 over bytes, incrementally: the one content hash in doppler._     
@@ -217,6 +218,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**nco\_core.h**](nco__core_8h.md) _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that steers one has to pass through._     
             * **dir** [**nprmeas**](dir_df189228e030028408da81bd0afea7e3.md)     
                 * **file** [**nprmeas\_core.h**](nprmeas__core_8h.md) _NPRMeasure — notched-noise Noise Power Ratio._     
+            * **dir** [**ofdm**](dir_78c6add8c81d41bee73cbf3d222b7ad8.md)     
+                * **file** [**ofdm\_core.h**](ofdm__core_8h.md) _A general OFDM modulator: constellation points and a layout in, baseband samples out._     
             * **dir** [**pn**](dir_95c43a97468bba5f35ca9859d48b4113.md)     
                 * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
             * **dir** [**ppe**](dir_2835f10376dc04900139beed5b4d2457.md)     
@@ -244,6 +247,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**spectral\_core.h**](spectral__core_8h.md) _Spectral module — public C API._     
             * **dir** [**spectrogram**](dir_0e14824f67e83f19566ffb7fc1ca7a06.md)     
                 * **file** [**spectrogram\_core.h**](spectrogram__core_8h.md) _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra out, one row every hop samples._     
+            * **dir** [**state\_filter**](dir_f99952e39f9637fbb70decda0be42187.md)     
+                * **file** [**state\_filter\_core.h**](state__filter__core_8h.md) _A filter over an explicit state vector (the frequency estimate and its rate): the fixed-gain third-order tracking loop._     
             * **dir** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md)     
                 * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
                 * **file** [**tlm\_sink.h**](tlm__sink_8h.md) _NATS PUB sink for telemetry records._     
@@ -291,5 +296,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**wfm\_synth\_core.h**](wfm__synth__core_8h.md) _Synth component API._     
             * **dir** [**wfm\_writer**](dir_b07d3bab2c69a70a146b9de213e56c65.md)     
                 * **file** [**wfm\_writer\_core.h**](wfm__writer__core_8h.md) _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._     
+            * **dir** [**wlan**](dir_9cf874ec4d1fafc8af25ee841f0634a9.md)     
+                * **file** [**wlan\_core.h**](wlan__core_8h.md) _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation points and the layout the OFDM modulator takes out._     
             * **file** [**q15\_mac.h**](q15__mac_8h.md) _Static inline Q15 dot-product primitives: scalar fallback and AVX2._     
 

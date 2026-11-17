@@ -40,7 +40,7 @@
  *
  * @code
  * const uint32_t poly[2] = { 0171u, 0133u };
- * dp_conv_enc_state_t *e = dp_conv_enc_create (poly, 2, 7u, 0x2u);  // CCSDS
+ * dp_conv_enc_state_t *e = dp_conv_enc_create (poly, 2, 7u, 0x2u, 0u, 0u); // CCSDS
  * uint8_t sym[2 * N];
  * const size_t n = dp_conv_enc_encode (e, bits, N, sym, sizeof sym);
  * dp_conv_enc_destroy (e);
@@ -86,12 +86,23 @@ extern "C"
    * interoperates with nothing — which is why it is a parameter here rather
    * than a property of any one standard's configuration.
    *
+   * **Puncturing is part of the encoder, and it is fixed at create.** The
+   * pattern deletes mother-code symbols to raise the rate; the encoder's
+   * output shortens accordingly and its phase in the pattern is running state
+   * that survives between calls. The pattern is a constructor argument and
+   * not a setter because it sizes what a blob means: a blob from an encoder
+   * with another pattern is refused.
+   *
    * @code
    * >>> import numpy as np
    * >>> from doppler.coding import ConvEncoder
    * >>> e = ConvEncoder([0o171, 0o133], k=7, invert=0x2)
    * >>> e.encode(np.zeros(8, dtype=np.uint8)).size
    * 16
+   * >>> p = ConvEncoder([0o171, 0o133], k=7, punct_period=3,
+   * ...                 punct_mask=0b100111)
+   * >>> p.encode(np.zeros(6, dtype=np.uint8)).size
+   * 8
    * @endcode
    *
    * @param poly      Generator polynomials, one per output. The array IS the
@@ -99,11 +110,18 @@ extern "C"
    * @param poly_len  Number of polynomials, 1 to `CONV_N_MAX`.
    * @param k         Constraint length, 2 to `CONV_K_MAX`.
    * @param invert    Bit `j` complements output `j`.
+   * @param punct_period  Input bits per puncturing pattern, 0 for none
+   *                  (default: 0). See @ref conv_code_t for the pattern.
+   * @param punct_mask    Bit `i * n + j` transmits output `j` of input `i`
+   *                  of the period (default: 0). Both zero is the unpunctured
+   *                  code; one without the other is refused.
    * @return          Heap-allocated state, or NULL if the code is unusable.
    * @note Caller must call dp_conv_enc_destroy() when done.
    */
   dp_conv_enc_state_t *dp_conv_enc_create (const uint32_t *poly, size_t poly_len,
-                                     uint32_t k, uint32_t invert);
+                                     uint32_t k, uint32_t invert,
+                                     uint32_t punct_period,
+                                     uint32_t punct_mask);
 
   /**
    * @brief Build an encoder from a code already assembled.
@@ -145,9 +163,12 @@ extern "C"
   /**
    * @brief Symbols @ref dp_conv_enc_encode writes for @p n_in input bits.
    *
-   * Exactly `n_in * n` — a convolutional code has no fill and no latency on
-   * the encode side, which is the asymmetry with @ref dp_viterbi_decode_max_out,
-   * where the traceback still owes bits at the start of a stream.
+   * Exactly `n_in * n` unpunctured — a convolutional code has no fill and no
+   * latency on the encode side, which is the asymmetry with
+   * @ref dp_viterbi_decode_max_out, where the traceback still owes bits at
+   * the start of a stream. Punctured, it is @ref dp_conv_coded_len from the
+   * encoder's current place in the pattern, so it depends on what has been
+   * encoded already.
    *
    * @param state  The encoder.
    * @param n_in   Number of input bits.
@@ -164,6 +185,9 @@ extern "C"
    *
    * Outputs are emitted in polynomial order per input bit: for `[G1, G2]`,
    * `out[2i]` is `G1`'s symbol for input bit `i` and `out[2i+1]` is `G2`'s.
+   * A punctured encoder omits the symbols its pattern deletes, so the
+   * indexing above holds only for the unpunctured code; the pattern position
+   * carries across calls like the register does.
    *
    * @param state    The encoder.
    * @param in       @p n_in unpacked input bits, one per byte.
@@ -209,11 +233,11 @@ extern "C"
   /** @brief Blob type tag: "CVEN". */
 #define CONV_ENC_STATE_MAGIC DP_FOURCC ('C', 'V', 'E', 'N')
   /** @brief Blob format version. */
-#define CONV_ENC_STATE_VERSION 1u
+#define CONV_ENC_STATE_VERSION 2u
 
   /**
-   * @brief Bytes @ref dp_conv_enc_get_state writes: envelope, code identity and
-   *        the register.
+   * @brief Bytes @ref dp_conv_enc_get_state writes: envelope, code identity
+   *        (puncturing pattern included), the register and the pattern phase.
    *
    * A constant for this object, unlike the decoder's, whose ring is sized
    * from the configuration.

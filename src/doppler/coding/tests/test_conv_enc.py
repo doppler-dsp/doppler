@@ -155,3 +155,69 @@ def test_context_manager_and_destroy():
     e = ConvEncoder(CCSDS_POLY, k=7)
     e.destroy()
     e.destroy()
+
+
+# A rate-3/4 SHAPE, not any standard's pattern: period 3, keep mother indices
+# 0 1 2 5 of each six.
+P34 = {"punct_period": 3, "punct_mask": 0b100111}
+
+
+def test_a_punctured_stream_is_the_mother_stream_with_positions_struck():
+    """The expected stream is the UNPUNCTURED encoder's output with the
+    listed indices kept, so the oracle is the encoder with no pattern and a
+    literal list, never the pattern arithmetic under test."""
+    bits = np.random.default_rng(3).integers(0, 2, 60).astype(np.uint8)
+    mother = ConvEncoder(CCSDS_POLY, k=7, invert=CCSDS_INVERT).encode(bits)
+    keep = np.array([0, 1, 2, 5])
+    want = np.concatenate([mother[6 * i + keep] for i in range(20)])
+    got = ConvEncoder(CCSDS_POLY, k=7, invert=CCSDS_INVERT, **P34).encode(bits)
+    np.testing.assert_array_equal(got, want)
+
+
+def test_the_pattern_phase_carries_across_calls():
+    """A split that ends mid-pattern must not restart it."""
+    bits = np.random.default_rng(4).integers(0, 2, 61).astype(np.uint8)
+    whole = ConvEncoder(CCSDS_POLY, k=7, **P34).encode(bits)
+    e = ConvEncoder(CCSDS_POLY, k=7, **P34)
+    split = np.concatenate([e.encode(bits[:8]), e.encode(bits[8:])])
+    np.testing.assert_array_equal(whole, split)
+
+
+def test_a_punctured_stream_decodes_through_the_matching_viterbi():
+    bits = np.random.default_rng(5).integers(0, 2, 200).astype(np.uint8)
+    sym = ConvEncoder(CCSDS_POLY, k=7, invert=CCSDS_INVERT, **P34).encode(bits)
+    llr = np.where(sym == 1, -4.0, 4.0).astype(np.float32)
+    out = Viterbi(
+        CCSDS_POLY, k=7, invert=CCSDS_INVERT, depth=60, **P34
+    ).decode(llr)
+    np.testing.assert_array_equal(out, bits[: out.size])
+    assert out.size == 200 - 59
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"punct_period": 3},  # a period with no mask
+        {"punct_mask": 0x7},  # a mask with no period
+        {"punct_period": 3, "punct_mask": 0x33},  # an input keeps nothing
+    ],
+)
+def test_a_pattern_that_is_not_one_is_refused(bad):
+    with pytest.raises(ValueError):
+        ConvEncoder(CCSDS_POLY, k=7, **bad)
+    with pytest.raises(ValueError):
+        Viterbi(CCSDS_POLY, k=7, **bad)
+
+
+def test_a_decoder_refuses_a_length_that_ends_inside_an_input():
+    """The refusal is the kernel's own, and the binding passes it through as
+    it does for an unpunctured code: nothing is decoded and nothing moves, so
+    the next whole block decodes exactly as if the refusal never happened."""
+    bits = np.random.default_rng(6).integers(0, 2, 100).astype(np.uint8)
+    sym = ConvEncoder(CCSDS_POLY, k=7, **P34).encode(bits)
+    llr = np.where(sym == 1, -4.0, 4.0).astype(np.float32)
+
+    v = Viterbi(CCSDS_POLY, k=7, depth=10, **P34)
+    assert v.decode(llr[:1]).size == 0  # half of input 0
+    ref = Viterbi(CCSDS_POLY, k=7, depth=10, **P34).decode(llr)
+    np.testing.assert_array_equal(v.decode(llr), ref)

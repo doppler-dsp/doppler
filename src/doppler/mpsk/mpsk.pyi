@@ -233,3 +233,87 @@ def mpsk_bits_per_symbol(m: int = 4) -> int:
     [1, 2, 3]
 
     """
+
+def qam_map(sym: npt.NDArray[np.uint16], m: int = 16) -> NDArray[np.complex64]:
+    """Map QAM labels to unit-average-energy constellation points.
+
+    Element-wise inverse of dp_qam_demap(): each input is one symbol's
+    `log2(M)` bits packed LSB-first in transmission order, each output its
+    cf32 point. out must hold sym_len points. For an unsupported m every
+    output is 0, which is not a constellation point of any supported M, so
+    check dp_qam_bits_per_symbol() first.
+
+    Parameters
+    ----------
+    sym : npt.NDArray[np.uint16]
+        Labels (0 .. M-1), one per symbol, 16-bit.
+    m : int
+        M in {4, 16, 64, 256, 1024}.
+
+    Returns
+    -------
+    NDArray[np.complex64]
+        Output.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.mpsk import qam_map, qam_demap
+    >>> sym = np.array([0, 1, 3, 2], dtype=np.uint16)   # 16-QAM, I axis
+    >>> np.round(qam_map(sym, 16).real * np.sqrt(10), 3)
+    array([ 3., -3., -1.,  1.])
+    >>> np.array_equal(qam_demap(qam_map(sym, 16), 16), sym)
+    True
+
+    """
+
+def qam_demap(x: npt.NDArray[np.complex64], m: int = 16) -> NDArray[np.uint16]:
+    """Hard-decide QAM symbols to their labels.
+
+    Element-wise inverse of dp_qam_map(). Each axis is decided on its own
+    to the nearest level, so a received point outside the constellation
+    lands on the nearest edge point. For an unsupported m every label is 0.
+
+    Parameters
+    ----------
+    x : npt.NDArray[np.complex64]
+        Received symbols; amplitude matters.
+    m : int
+        M in {4, 16, 64, 256, 1024}.
+
+    Returns
+    -------
+    NDArray[np.uint16]
+        Output.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.mpsk import qam_demap
+    >>> v = np.array([3.2, -0.9, 0.2, -2.7]) / np.sqrt(10)
+    >>> x = (v + 1j * v[::-1]).astype(np.complex64)
+    >>> qam_demap(x, 16).tolist()
+    [4, 11, 14, 1]
+
+    """
+
+def qam_bits_per_symbol(m: int = 16) -> int:
+    """Bits per QAM symbol = log2(M).
+
+    Parameters
+    ----------
+    m : int
+        M in {4, 16, 64, 256, 1024}.
+
+    Returns
+    -------
+    int
+        2, 4, 6, 8 or 10 (0 for an unsupported M).
+
+    Examples
+    --------
+    >>> from doppler.mpsk import qam_bits_per_symbol
+    >>> [qam_bits_per_symbol(m) for m in (4, 16, 64, 256, 1024)]
+    [2, 4, 6, 8, 10]
+
+    """

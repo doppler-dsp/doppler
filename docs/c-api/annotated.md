@@ -61,6 +61,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) _Correlator state, every flavor._     
 * **struct** [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _like the borrowed code._    
 * **struct** [**dp\_costas\_state\_t**](structdp__costas__state__t.md) _Costas loop state._     
+* **struct** [**dp\_crc\_t**](structdp__crc__t.md) _A CRC model: width, polynomial, initial register, output reflection and output XOR._     
 * **struct** [**dp\_delay\_state\_t**](structdp__delay__state__t.md) _Delay state._     
 * **struct** [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) _Despreader state._     
 * **struct** [**dp\_dll\_state\_t**](structdp__dll__state__t.md) _DLL state._     
@@ -98,6 +99,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md) _M-PSK receiver state._     
 * **struct** [**dp\_nco\_state\_t**](structdp__nco__state__t.md) _NCO state._     
 * **struct** [**dp\_nprmeas\_state\_t**](structdp__nprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._     
+* **struct** [**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) _Ofdm state: the layout (configuration) and the position in it (state)._     
 * **struct** [**dp\_once\_t**](structdp__once__t.md) _The state of one one-time build; start it at_ [_**DP\_ONCE\_INIT**_](dp__once_8h.md#define-dp_once_init) _._    
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**dp\_find\_peaks\_f32()**_](spectral__core_8h.md#function-dp_find_peaks_f32) _._    
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) _One parallel-for run: the range, the work, and the shared cursor._     
@@ -113,6 +115,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)     
 * **struct** [**dp\_specan\_state\_t**](structdp__specan__state__t.md) _Specan state. Allocate with_ [_**dp\_specan\_create()**_](specan__core_8h.md#function-dp_specan_create) _._    
 * **struct** [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) _Spectrogram state. Allocate with_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _._    
+* **struct** [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) _Third-order tracking-loop filter state (embeddable by value)._     
 * **struct** [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) _Common 16-byte envelope at the head of every state blob._     
 * **struct** [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) _SymbolSync state._     
 * **struct** [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) _Where a marker was found, and in which polarity._     
@@ -126,6 +129,10 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_uq15\_to\_f32\_state\_t**](structdp__uq15__to__f32__state__t.md) _UQ15ToF32 state._     
 * **struct** [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._     
 * **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) _Synth state: one streaming waveform source._     
+* **struct** [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) _A non-HT rate, by the two columns of Table 17-4 that do not change with the clocking: a constellation and a code rate._     
+* **struct** [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) _A (rate, SIGNAL RATE bits) pair of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _._    
+* **struct** [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) _A non-HT rate, held with what follows from it._     
+* **struct** [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) _What the standard supplies and this tree does not yet hold._     
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md) _Bounds-checked write cursor over a caller-owned state blob._     
 * **struct** [**dsss\_br\_event\_t**](structdsss__br__event__t.md) _One completed burst's event, as_ `events()` _hands it back._    
 * **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) _Receiver-level payload that follows the state envelope: the routing flag, cached hit estimates, the grid (layout key) and the carrier-carry depth._     
@@ -136,6 +143,9 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) _Telemetry attachment for the receiver's own seven probes._     
 * **struct** [**node\_sync\_t**](structnode__sync__t.md) _What one alignment hypothesis scored, and what the runner-up did._     
 * **struct** [**npr\_meas\_t**](structnpr__meas__t.md) _Noise Power Ratio (notched-noise loading) result._     
+* **struct** [**ofdm\_class\_t**](structofdm__class__t.md) _One kind of OFDM symbol. The arrays are owned by the modulator, copied in by_ [_**dp\_ofdm\_add\_class()**_](ofdm__core_8h.md#function-dp_ofdm_add_class) _and_[_**dp\_ofdm\_add\_fixed()**_](ofdm__core_8h.md#function-dp_ofdm_add_fixed) _._    
+* **struct** [**ofdm\_fixed\_t**](structofdm__fixed__t.md) _One entry of a class's fixed pattern._     
+* **struct** [**ofdm\_run\_t**](structofdm__run__t.md) _A run of OFDM symbols of one class._     
 * **struct** [**ppe\_result\_t**](structppe__result__t.md) _Polynomial-phase estimate (one search)._     
 * **struct** [**ratesync\_loop\_t**](structratesync__loop__t.md) _The symbol-timing loop, independent of what feeds it._     
 * **struct** [**ratesync\_tlm\_t**](structratesync__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then one predicted-not-taken branch per recovered symbol._     

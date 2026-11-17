@@ -27,7 +27,8 @@ dp_conv_enc_create_code (const conv_code_t *c)
 
 dp_conv_enc_state_t *
 dp_conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
-                    uint32_t invert)
+                    uint32_t invert, uint32_t punct_period,
+                    uint32_t punct_mask)
 {
   /* Assembled here rather than by the caller: the manifest cannot express a
      conv_code_t, so the declared constructor takes the polynomials and the
@@ -37,9 +38,11 @@ dp_conv_enc_create (const uint32_t *poly, size_t poly_len, uint32_t k,
   conv_code_t c = { 0 };
   if (poly == NULL || poly_len == 0u || poly_len > CONV_N_MAX)
     return NULL;
-  c.k      = k;
-  c.n      = (unsigned)poly_len;
-  c.invert = invert;
+  c.k            = k;
+  c.n            = (unsigned)poly_len;
+  c.invert       = invert;
+  c.punct_period = punct_period;
+  c.punct_mask   = punct_mask;
   for (size_t i = 0; i < poly_len; i++)
     c.poly[i] = poly[i];
   return dp_conv_enc_create_code (&c);
@@ -66,7 +69,7 @@ dp_conv_enc_code (const dp_conv_enc_state_t *s)
 size_t
 dp_conv_enc_encode_max_out (const dp_conv_enc_state_t *state, size_t n_in)
 {
-  return n_in * (size_t)state->code.n;
+  return dp_conv_coded_len (&state->code, state->enc.phase, n_in);
 }
 
 size_t
@@ -87,6 +90,9 @@ dp_conv_enc_encode (dp_conv_enc_state_t *state, const uint8_t *in, size_t n_in,
 typedef struct
 {
   uint32_t reg;
+  uint32_t phase;
+  uint32_t punct_period;
+  uint32_t punct_mask;
   uint32_t k;
   uint32_t n;
   uint32_t invert;
@@ -114,10 +120,13 @@ dp_conv_enc_get_state (const dp_conv_enc_state_t *s, void *blob)
      stack. */
   conv_enc_extra_t extra;
   memset (&extra, 0, sizeof extra);
-  extra.reg    = s->enc.reg;
-  extra.k      = s->code.k;
-  extra.n      = s->code.n;
-  extra.invert = s->code.invert & ((1u << s->code.n) - 1u);
+  extra.reg          = s->enc.reg;
+  extra.phase        = s->enc.phase;
+  extra.punct_period = s->code.punct_period;
+  extra.punct_mask   = s->code.punct_mask;
+  extra.k            = s->code.k;
+  extra.n            = s->code.n;
+  extra.invert       = s->code.invert & ((1u << s->code.n) - 1u);
   for (unsigned j = 0; j < s->code.n; j++)
     extra.poly[j] = s->code.poly[j];
 
@@ -137,6 +146,8 @@ dp_conv_enc_set_state (dp_conv_enc_state_t *s, const void *blob)
      code of this family serializes to the same length — so the code is
      compared field by field. */
   if (extra.k != s->code.k || extra.n != s->code.n
+      || extra.punct_period != s->code.punct_period
+      || extra.punct_mask != s->code.punct_mask
       || extra.invert != (s->code.invert & ((1u << s->code.n) - 1u)))
     return DP_ERR_INVALID;
   for (unsigned j = 0; j < s->code.n; j++)
@@ -149,6 +160,13 @@ dp_conv_enc_set_state (dp_conv_enc_state_t *s, const void *blob)
   if (extra.reg >> (s->code.k - 1u))
     return DP_ERR_INVALID;
 
-  s->enc.reg = extra.reg;
+  /* The pattern position indexes the mask; one past the period would shift
+     the encoder onto bits of the mask that are not its own. */
+  if (s->code.punct_period ? extra.phase >= s->code.punct_period
+                           : extra.phase != 0u)
+    return DP_ERR_INVALID;
+
+  s->enc.reg   = extra.reg;
+  s->enc.phase = extra.phase;
   return DP_OK;
 }

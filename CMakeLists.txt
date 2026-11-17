@@ -569,6 +569,9 @@ target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:symsync_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:symsync_core>)
 add_subdirectory(native/src/dll)
 add_subdirectory(native/src/costas)
+add_subdirectory(native/src/state_filter)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:state_filter_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:state_filter_core>)
 add_subdirectory(native/src/loop_filter)
 add_subdirectory(native/src/dp_event_log)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wfm_writer_core>)
@@ -817,6 +820,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:acc_f32_core>)
 # the capture's whole C test suite went unregistered once.
 
 # ── Modules (add_subdirectory lines appended here by just-makeit) ─────────────
+add_subdirectory(native/src/wlan)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wlan_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wlan_core>)
 add_subdirectory(native/src/wfm_writer)
 add_subdirectory(native/src/wfm_sink)
 add_subdirectory(native/src/wfm_reader)
@@ -849,6 +855,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:source_core>)
 add_subdirectory(native/src/snr)
 add_subdirectory(native/src/sample_clock)
 add_subdirectory(native/src/resample)
+add_subdirectory(native/src/ofdm)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ofdm_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ofdm_core>)
 add_subdirectory(native/src/mpsk)
 add_subdirectory(native/src/measure)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:measure_core>)
@@ -1463,6 +1472,19 @@ target_include_directories(test_dp_hash64
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_hash64 PRIVATE -O2)
 add_test(NAME test_dp_hash64 COMMAND test_dp_hash64)
+
+# native/inc/doppler/dp_crc.h is the one parametric CRC (width, polynomial,
+# init, reflection, final XOR) that dp_crc16.h, the FCS and the SIG-field
+# check are rows of. Header-only and owned by no object, so it is registered
+# here and links nothing. The test pins the catalogue's check values, zlib's
+# and binascii's CRCs, the properties a CRC must have, and that the
+# CRC-16-CCITT the burst frame carries did not move.
+add_executable(test_dp_crc native/tests/test_dp_crc.c)
+target_include_directories(test_dp_crc
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_crc PRIVATE -O2)
+add_test(NAME test_dp_crc COMMAND test_dp_crc)
 
 # native/inc/doppler/wfm/wfm_time.h is the BLUE timecode <-> UNIX epoch conversion,
 # shared by wfm_reader and wfm_writer (separate components, so header-only)

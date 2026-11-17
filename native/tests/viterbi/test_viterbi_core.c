@@ -56,15 +56,15 @@ main (void)
 {
   /* ── 1. the declared constructor, and what it refuses ──────────────────*/
   {
-    DP_CHECK_MSG (dp_viterbi_create (NULL, 0, 7u, 0u, 35u) == NULL,
+    DP_CHECK_MSG (dp_viterbi_create (NULL, 0, 7u, 0u, 35u, 0u, 0u) == NULL,
                   "a NULL polynomial array is not a code");
-    DP_CHECK_MSG (dp_viterbi_create (POLY, 0, 7u, 0u, 35u) == NULL,
+    DP_CHECK_MSG (dp_viterbi_create (POLY, 0, 7u, 0u, 35u, 0u, 0u) == NULL,
                   "zero polynomials is not a code");
-    DP_CHECK_MSG (dp_viterbi_create (POLY, CONV_N_MAX + 1u, 7u, 0u, 35u)
-                      == NULL,
-                  "more polynomials than the code family admits");
+    DP_CHECK_MSG (
+        dp_viterbi_create (POLY, CONV_N_MAX + 1u, 7u, 0u, 35u, 0u, 0u) == NULL,
+        "more polynomials than the code family admits");
 
-    dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 35u);
+    dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 35u, 0u, 0u);
     DP_REQUIRE_MSG (v != NULL, "the CCSDS inner code is constructible");
     DP_CHECK (dp_viterbi_depth (v) == 35u);
     DP_CHECK_MSG (dp_viterbi_code (v)->k == 7u, "k survives the constructor");
@@ -83,8 +83,9 @@ main (void)
    * callers, which is the kind of divergence nobody would look for.
    */
   {
-    const conv_code_t   c = { 7u, 2u, { 0171u, 0133u }, 0u };
-    dp_viterbi_state_t *a = dp_viterbi_create (POLY, 2, 7u, 0u, 60u);
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0u };
+    dp_viterbi_state_t *a = dp_viterbi_create (POLY, 2, 7u, 0u, 60u, 0u, 0u);
     dp_viterbi_state_t *b = dp_viterbi_create_code (&c, 60u);
     DP_REQUIRE (a != NULL && b != NULL);
     DP_CHECK (dp_viterbi_depth (a) == dp_viterbi_depth (b));
@@ -114,13 +115,14 @@ main (void)
 
     conv_enc_t e;
     dp_conv_enc_init (&e);
-    const conv_code_t c  = { 7u, 2u, { 0171u, 0133u }, 0u };
-    const size_t      ns = dp_conv_encode (&e, &c, in, N, sym, sizeof sym);
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0u };
+    const size_t ns = dp_conv_encode (&e, &c, in, N, sym, sizeof sym);
     DP_REQUIRE (ns == (size_t)N * 2u);
     for (size_t i = 0; i < ns; i++)
       llr[i] = sym[i] ? -8.0f : 8.0f;
 
-    dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 60u);
+    dp_viterbi_state_t *v = dp_viterbi_create (POLY, 2, 7u, 0u, 60u, 0u, 0u);
     DP_REQUIRE (v != NULL);
     const size_t cap = dp_viterbi_decode_max_out (v, ns);
     DP_REQUIRE (cap <= sizeof dec);
@@ -143,13 +145,31 @@ main (void)
    */
   {
     static const conv_code_t CODES[] = {
-      { 3u, 2u, { 07u, 05u }, 0u },            /* the classic K=3 r=1/2   */
-      { 4u, 2u, { 017u, 013u }, 0u },          /* K=4                     */
-      { 7u, 2u, { 0171u, 0133u }, 0x2u },      /* CCSDS, inverted output  */
-      { 9u, 2u, { 0753u, 0561u }, 0u },        /* K=9, 256 states         */
-      { 7u, 3u, { 0171u, 0165u, 0133u }, 0u }, /* rate 1/3                */
-      { 5u, 1u, { 023u }, 0u },                /* rate 1/1: still a code  */
-      { 7u, 2u, { 0171u, 0133u }, 0x3u },      /* BOTH outputs inverted   */
+      { .k      = 3u,
+        .n      = 2u,
+        .poly   = { 07u, 05u },
+        .invert = 0u }, /* the classic K=3 r=1/2   */
+      { .k = 4u, .n = 2u, .poly = { 017u, 013u }, .invert = 0u }, /* K=4 */
+      { .k      = 7u,
+        .n      = 2u,
+        .poly   = { 0171u, 0133u },
+        .invert = 0x2u }, /* CCSDS, inverted output  */
+      { .k      = 9u,
+        .n      = 2u,
+        .poly   = { 0753u, 0561u },
+        .invert = 0u }, /* K=9, 256 states         */
+      { .k      = 7u,
+        .n      = 3u,
+        .poly   = { 0171u, 0165u, 0133u },
+        .invert = 0u }, /* rate 1/3                */
+      { .k      = 5u,
+        .n      = 1u,
+        .poly   = { 023u },
+        .invert = 0u }, /* rate 1/1: still a code  */
+      { .k      = 7u,
+        .n      = 2u,
+        .poly   = { 0171u, 0133u },
+        .invert = 0x3u }, /* BOTH outputs inverted   */
     };
     enum
     {
@@ -720,7 +740,8 @@ main (void)
     uninverted.invert      = 0u;
     conv_code_t otherpoly  = CCSDS;
     otherpoly.poly[0]      = 0155u; /* still k bits, still non-zero */
-    const conv_code_t K9   = { 9u, 2u, { 0753u, 0561u }, 0u };
+    const conv_code_t K9
+        = { .k = 9u, .n = 2u, .poly = { 0753u, 0561u }, .invert = 0u };
 
     const struct
     {
@@ -785,6 +806,264 @@ main (void)
 
     free (cb);
     dp_viterbi_destroy (r2);
+    dp_viterbi_destroy (a);
+  }
+
+  /* ── 9. puncturing: erasure insertion at the decoder ───────────────────
+   *
+   * Two oracles that never read the decoder's own depuncturing:
+   *
+   *  (a) EQUIVALENCE. Decoding the punctured stream must give exactly what
+   *      an UNpunctured decoder gives when this test puts the zeros back
+   *      itself, by listing the surviving indices. Both sides run the same
+   *      add-compare-selects, so they must agree bit for bit, with errors in
+   *      the stream so the survivors actually contend.
+   *  (b) CLEAN ROUND TRIP, which is weak alone (a decoder matched to a wrong
+   *      pattern decodes its own output) and is here only the floor.
+   *
+   * The patterns are shapes (rate 2/3, 3/4, a longer one), not a standard's.
+   */
+  {
+    static const struct
+    {
+      unsigned period;
+      uint32_t mask;
+      size_t   nkeep;
+      size_t   keep[8]; /* surviving mother indices within one period */
+    } pat[] = {
+      { 2u, 0x7u, 3u, { 0, 1, 2 } },
+      { 3u, 0x27u, 4u, { 0, 1, 2, 5 } },
+      { 5u, 0x3AFu, 8u, { 0, 1, 2, 3, 5, 7, 8, 9 } },
+    };
+    enum
+    {
+      NB    = 300,
+      DEPTH = 60
+    };
+    for (size_t q = 0; q < sizeof pat / sizeof pat[0]; q++)
+      {
+        conv_code_t c  = CCSDS;
+        c.punct_period = pat[q].period;
+        c.punct_mask   = pat[q].mask;
+        DP_REQUIRE (dp_conv_code_valid (&c));
+
+        uint8_t  in[NB], mother[2 * NB], tx[2 * NB];
+        uint32_t st = 31337u + (uint32_t)q;
+        for (int i = 0; i < NB; i++)
+          in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+        conv_enc_t e;
+        dp_conv_enc_init (&e);
+        dp_conv_encode (&e, &CCSDS, in, NB, mother, sizeof mother);
+        dp_conv_enc_init (&e);
+        const size_t ntx = dp_conv_encode (&e, &c, in, NB, tx, sizeof tx);
+
+        /* tx by the test's own list of survivors: the encoder is not asked */
+        size_t m = 0;
+        float  llr_tx[2 * NB], llr_full[2 * NB];
+        for (size_t t = 0; t < 2u * NB; t++)
+          {
+            const size_t per  = t / (2u * pat[q].period);
+            const size_t idx  = t % (2u * pat[q].period);
+            int          kept = 0;
+            for (size_t k = 0; k < pat[q].nkeep; k++)
+              kept |= (idx == pat[q].keep[k]);
+            llr_full[t] = 0.0f;
+            if (kept)
+              {
+                DP_REQUIRE (m < ntx);
+                DP_CHECK_MSG (tx[m] == mother[t],
+                              "the encoder keeps exactly the listed indices");
+                /* soft values with errors: ~6% of transmitted symbols flip,
+                   magnitudes vary, so survivors contend */
+                const uint32_t r   = dp_xs32 (&st);
+                const float    mag = 1.0f + (float)(r & 7u);
+                float          v   = (tx[m] & 1u) ? -mag : mag;
+                if (((r >> 8) & 15u) == 0u)
+                  v = -v;
+                llr_tx[m]   = v;
+                llr_full[t] = v;
+                m++;
+              }
+            (void)per;
+          }
+        DP_REQUIRE (m == ntx);
+
+        dp_viterbi_state_t *pv = dp_viterbi_create_code (&c, DEPTH);
+        dp_viterbi_state_t *uv = dp_viterbi_create_code (&CCSDS, DEPTH);
+        DP_REQUIRE (pv != NULL && uv != NULL);
+        uint8_t pout[NB], uout[NB];
+        DP_CHECK (dp_viterbi_decode_max_out (pv, ntx)
+                  == dp_viterbi_decode_max_out (uv, 2u * NB));
+        const size_t np = dp_viterbi_decode (pv, llr_tx, ntx, pout, NB);
+        const size_t nu = dp_viterbi_decode (uv, llr_full, 2u * NB, uout, NB);
+        DP_CHECK_MSG (np == nu && np > 0u && memcmp (pout, uout, np) == 0,
+                      "punctured decode equals the unpunctured decoder on "
+                      "the stream with the zeros put back");
+
+        /* chunking at whole-input boundaries must not change a bit */
+        dp_viterbi_reset (pv);
+        uint8_t      cout[NB];
+        size_t       got = 0, sym = 0, done = 0;
+        const size_t cuts[4] = { 7, 1, 40, NB };
+        for (size_t k = 0; k < 4u && done < NB; k++)
+          {
+            size_t take = cuts[k];
+            if (done + take > NB)
+              take = NB - done;
+            const size_t ph = (size_t)pv->phase;
+            const size_t ns = dp_conv_coded_len (&c, (unsigned)ph, take);
+            got += dp_viterbi_decode (pv, llr_tx + sym, ns, cout + got,
+                                      NB - got);
+            sym += ns;
+            done += take;
+          }
+        DP_CHECK_MSG (sym == ntx && got == np && memcmp (cout, uout, got) == 0,
+                      "chunked punctured decode must equal one call");
+
+        dp_viterbi_destroy (uv);
+        dp_viterbi_destroy (pv);
+      }
+  }
+
+  /* ── 9b. clean round trip, and the refusal of a length that ends
+   *        mid-input ───────────────────────────────────────────────────── */
+  {
+    conv_code_t c  = CCSDS;
+    c.punct_period = 3u;
+    c.punct_mask   = 0x27u;
+    enum
+    {
+      NB = 120
+    };
+    uint8_t  in[NB], tx[2 * NB];
+    float    llr[2 * NB];
+    uint32_t st = 9u;
+    for (int i = 0; i < NB; i++)
+      in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+    conv_enc_t e;
+    dp_conv_enc_init (&e);
+    const size_t ntx = dp_conv_encode (&e, &c, in, NB, tx, sizeof tx);
+    to_llr (tx, ntx, llr, 4.0f);
+
+    dp_viterbi_state_t *v = dp_viterbi_create_code (&c, 60u);
+    DP_REQUIRE (v != NULL);
+    uint8_t      out[NB];
+    const size_t n = dp_viterbi_decode (v, llr, ntx, out, sizeof out);
+    DP_CHECK_MSG (n == (size_t)NB - 59u && memcmp (out, in, n) == 0,
+                  "a clean punctured stream decodes to the input");
+
+    /* ends mid-input: step 1 of the pattern keeps one symbol, step 0 keeps
+       two, so 1 symbol is half of input 0 */
+    dp_viterbi_reset (v);
+    memset (out, 0xAA, sizeof out);
+    DP_CHECK_MSG (dp_viterbi_decode (v, llr, 1u, out, sizeof out) == 0,
+                  "a length ending inside an input must refuse");
+    DP_CHECK_MSG (dp_viterbi_decode_max_out (v, 1u) == 0u,
+                  "and max_out says 0 for it");
+    for (size_t i = 0; i < sizeof out; i++)
+      DP_CHECK (out[i] == 0xAAu);
+    DP_CHECK_MSG (v->phase == 0u && v->fill == 0u,
+                  "a refusal leaves the decoder untouched");
+
+    /* node synchronization is not defined for a punctured code */
+    node_sync_t ns;
+    DP_CHECK_MSG (dp_node_sync_scan (v, llr, ntx, &ns) == 0
+                      && dp_node_sync_score (v, llr, ntx) == 0u,
+                  "node sync declines a punctured code");
+    dp_viterbi_destroy (v);
+  }
+
+  /* ── 9c. the state blob: phase is running state, pattern a reject key ──*/
+  {
+    conv_code_t c  = CCSDS;
+    c.punct_period = 3u;
+    c.punct_mask   = 0x27u;
+    enum
+    {
+      NB = 90
+    };
+    uint8_t  in[NB], tx[2 * NB];
+    float    llr[2 * NB];
+    uint32_t st = 777u;
+    for (int i = 0; i < NB; i++)
+      in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+    conv_enc_t e;
+    dp_conv_enc_init (&e);
+    const size_t ntx = dp_conv_encode (&e, &c, in, NB, tx, sizeof tx);
+    for (size_t i = 0; i < ntx; i++)
+      llr[i] = ((tx[i] & 1u) ? -3.0f : 3.0f) + 0.8f * (float)dp_gauss (&st);
+
+    dp_viterbi_state_t *a = dp_viterbi_create_code (&c, 40u);
+    dp_viterbi_state_t *r = dp_viterbi_create_code (&c, 40u);
+    DP_REQUIRE (a != NULL && r != NULL);
+    uint8_t whole[NB], x[NB], y[NB];
+
+    /* split after 50 inputs: 50 mod 3 = 2, so mid-pattern */
+    const size_t head = dp_conv_coded_len (&c, 0u, 50u);
+    const size_t nx0  = dp_viterbi_decode (a, llr, head, x, NB);
+    DP_REQUIRE (a->phase == 2u);
+    void *blob = malloc (dp_viterbi_state_bytes (a));
+    DP_REQUIRE (blob != NULL);
+    dp_viterbi_get_state (a, blob);
+    DP_CHECK (dp_viterbi_set_state (r, blob) == DP_OK);
+    const size_t nx1
+        = dp_viterbi_decode (a, llr + head, ntx - head, x + nx0, NB - nx0);
+    const size_t ny = dp_viterbi_decode (r, llr + head, ntx - head, y, NB);
+
+    dp_viterbi_state_t *u  = dp_viterbi_create_code (&c, 40u);
+    const size_t        nw = dp_viterbi_decode (u, llr, ntx, whole, NB);
+    DP_CHECK_MSG (nx1 == ny && nx0 + nx1 == nw && memcmp (x + nx0, y, ny) == 0
+                      && memcmp (x, whole, nw) == 0,
+                  "a restored punctured decoder resumes bit-for-bit");
+    dp_viterbi_destroy (u);
+
+    /* a decoder that did NOT restore the phase would read the next symbols
+       as input 0 of the pattern; prove the phase is what made it agree */
+    dp_viterbi_state_t *cold = dp_viterbi_create_code (&c, 40u);
+    DP_REQUIRE (cold != NULL);
+    dp_viterbi_set_state (cold, blob);
+    cold->phase = 0u; /* sabotage the restored phase by hand */
+    uint8_t      z[NB];
+    const size_t nz = dp_viterbi_decode (cold, llr + head, ntx - head, z, NB);
+    DP_CHECK_MSG (nz != ny || memcmp (z, y, ny) != 0 || ny == 0u,
+                  "decoding from the wrong phase gives a different answer, "
+                  "so the restored phase is what the agreement rests on");
+    dp_viterbi_destroy (cold);
+
+    /* the pattern is a reject key; the sizes are equal */
+    conv_code_t d         = CCSDS;
+    d.punct_period        = 3u;
+    d.punct_mask          = 0x2Fu;
+    dp_viterbi_state_t *o = dp_viterbi_create_code (&d, 40u);
+    DP_REQUIRE (o != NULL);
+    DP_CHECK (dp_viterbi_state_bytes (o) == dp_viterbi_state_bytes (a));
+    DP_CHECK_MSG (dp_viterbi_set_state (o, blob) == DP_ERR_INVALID,
+                  "a blob from another pattern must be refused");
+    dp_viterbi_state_t *n0 = dp_viterbi_create_code (&CCSDS, 40u);
+    DP_REQUIRE (n0 != NULL);
+    DP_CHECK (dp_viterbi_state_bytes (n0) == dp_viterbi_state_bytes (a));
+    DP_CHECK_MSG (dp_viterbi_set_state (n0, blob) == DP_ERR_INVALID,
+                  "an unpunctured decoder refuses a punctured blob");
+    dp_viterbi_destroy (n0);
+    dp_viterbi_destroy (o);
+
+    /* the phase field: after the 3 x uint64 cursors */
+    const size_t poff = sizeof (dp_state_hdr_t) + 3u * sizeof (uint64_t);
+    uint32_t     good;
+    memcpy (&good, (uint8_t *)blob + poff, sizeof good);
+    DP_REQUIRE_MSG (good == 2u, "this test's phase offset is stale");
+    void *poison = malloc (dp_viterbi_state_bytes (a));
+    DP_REQUIRE (poison != NULL);
+    memcpy (poison, blob, dp_viterbi_state_bytes (a));
+    const uint32_t bad = 3u;
+    memcpy ((uint8_t *)poison + poff, &bad, sizeof bad);
+    DP_CHECK_MSG (dp_viterbi_set_state (r, poison) == DP_ERR_INVALID,
+                  "a phase at the period is not a position in it");
+    free (poison);
+    DP_CHECK (dp_viterbi_set_state (r, blob) == DP_OK);
+
+    free (blob);
+    dp_viterbi_destroy (r);
     dp_viterbi_destroy (a);
   }
 

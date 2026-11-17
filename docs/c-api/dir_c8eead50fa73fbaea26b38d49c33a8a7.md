@@ -24,6 +24,7 @@
 | file | [**clib\_common.h**](clib__common_8h.md) <br>_Common C99 types and performance macros for doppler._  |
 | file | [**doppler.h**](doppler_8h.md) <br> |
 | file | [**dp\_complex.h**](dp__complex_8h.md) <br>_The complex-math surface, routed so it survives Windows._  |
+| file | [**dp\_crc.h**](dp__crc_8h.md) <br>_One parametric CRC: the Rocksoft model over a bit stream._  |
 | file | [**dp\_crc16.h**](dp__crc16_8h.md) <br>_CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._  |
 | file | [**dp\_format.h**](dp__format_8h.md) <br>_Complex sample formats, named by their BLUE/Platinum codes._  |
 | file | [**dp\_hash64.h**](dp__hash64_8h.md) <br>_FNV-1a 64 over bytes, incrementally: the one content hash in doppler._  |
@@ -137,6 +138,7 @@
 | dir | [**mpsk\_receiver**](dir_7dd9db0064eee02f2344cc7ae60c611e.md) <br> |
 | dir | [**nco**](dir_64d3c3497a73d925321234bd516bd8bf.md) <br> |
 | dir | [**nprmeas**](dir_df189228e030028408da81bd0afea7e3.md) <br> |
+| dir | [**ofdm**](dir_78c6add8c81d41bee73cbf3d222b7ad8.md) <br> |
 | dir | [**pn**](dir_95c43a97468bba5f35ca9859d48b4113.md) <br> |
 | dir | [**ppe**](dir_2835f10376dc04900139beed5b4d2457.md) <br> |
 | dir | [**psd**](dir_80b4a8b440284bffd6bf0fbeb7bfe41f.md) <br> |
@@ -150,6 +152,7 @@
 | dir | [**specan**](dir_6ce576ad24803d600633e2545d7ab991.md) <br> |
 | dir | [**spectral**](dir_bb80cb4693a043f62f72e53e1f90a405.md) <br> |
 | dir | [**spectrogram**](dir_0e14824f67e83f19566ffb7fc1ca7a06.md) <br> |
+| dir | [**state\_filter**](dir_f99952e39f9637fbb70decda0be42187.md) <br> |
 | dir | [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md) <br> |
 | dir | [**symsync**](dir_f3bf1d4e9482041dff7e7824fe611ddf.md) <br> |
 | dir | [**syncword**](dir_e299403a0e03806f7aa46ec15fc4c91a.md) <br> |
@@ -166,6 +169,7 @@
 | dir | [**wfm\_reader**](dir_f352698a51aeb04a6ff33c180c5d8d41.md) <br> |
 | dir | [**wfm\_synth**](dir_3fd4fbfbc7cedac951bbaaf096533da9.md) <br> |
 | dir | [**wfm\_writer**](dir_b07d3bab2c69a70a146b9de213e56c65.md) <br> |
+| dir | [**wlan**](dir_9cf874ec4d1fafc8af25ee841f0634a9.md) <br> |
 
 
 

@@ -83,10 +83,13 @@ main (void)
    */
   {
     static const conv_code_t IMP[] = {
-      { 3u, 2u, { 07u, 05u }, 0u },
-      { 7u, 2u, { 0171u, 0133u }, 0x2u }, /* CCSDS */
-      { 7u, 3u, { 0171u, 0165u, 0133u }, 0x5u },
-      { 9u, 2u, { 0753u, 0561u }, 0u },
+      { .k = 3u, .n = 2u, .poly = { 07u, 05u }, .invert = 0u },
+      { .k      = 7u,
+        .n      = 2u,
+        .poly   = { 0171u, 0133u },
+        .invert = 0x2u }, /* CCSDS */
+      { .k = 7u, .n = 3u, .poly = { 0171u, 0165u, 0133u }, .invert = 0x5u },
+      { .k = 9u, .n = 2u, .poly = { 0753u, 0561u }, .invert = 0u },
     };
     for (size_t ci = 0; ci < sizeof IMP / sizeof IMP[0]; ci++)
       {
@@ -233,6 +236,154 @@ main (void)
                   "one symbol short of the output must refuse");
     for (size_t i = 0; i < sizeof out; i++)
       DP_CHECK (out[i] == 0xAAu);
+  }
+
+  /* ── 5. puncturing: the pattern, and the arithmetic over it ────────────
+   *
+   * The oracle is the DEFINITION, written out literally: the mother code's
+   * symbols with the deleted positions struck, read from a list of indices
+   * rather than derived from the mask by the arithmetic under test. Rate 2/3
+   * and 3/4 patterns are used as shapes; nothing here claims they are any
+   * standard's.
+   */
+  {
+    /* P = 3, n = 2: bit i*2+j. Keep indices 0 1 2 5 of each 6. */
+    conv_code_t p34  = CCSDS;
+    p34.punct_period = 3u;
+    p34.punct_mask   = 0x27u; /* 0b100111 */
+    DP_CHECK_MSG (dp_conv_code_valid (&p34), "a pattern that fits is a code");
+    DP_CHECK (dp_conv_punctured (&p34));
+
+    /* both-zero is none; one without the other is a typo */
+    conv_code_t bad = CCSDS;
+    bad.punct_mask  = 0x3u;
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "a mask with no period");
+    bad              = CCSDS;
+    bad.punct_period = 3u;
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "a period with no mask");
+    bad.punct_mask = 0x47u; /* bit 6 is beyond 3*2 */
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "mask bits beyond the period");
+    bad.punct_mask = 0x33u; /* input 1 keeps nothing */
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "an input that keeps nothing");
+    bad.punct_period = 17u; /* 34 bits > 32 */
+    bad.punct_mask   = 0xFFFFFFFFu;
+    DP_CHECK_MSG (!dp_conv_code_valid (&bad), "period * n over 32");
+    bad.punct_period = 16u; /* exactly 32: legal width */
+    DP_CHECK_MSG (dp_conv_code_valid (&bad), "period * n == 32 is the limit");
+    DP_CHECK_MSG (!dp_conv_punctured (&bad), "an all-ones mask punctures "
+                                             "nothing");
+
+    /* the literal oracle */
+    enum
+    {
+      N = 12
+    };
+    static const uint8_t in[N] = { 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0 };
+    uint8_t              mother[2 * N], got[2 * N];
+    conv_enc_t           e;
+    dp_conv_enc_init (&e);
+    dp_conv_encode (&e, &CCSDS, in, N, mother, sizeof mother);
+
+    /* N = 12 inputs = 4 periods; indices 0 1 2 5 of each 6 survive */
+    uint8_t want_all[32];
+    for (size_t per = 0; per < 4; per++)
+      for (size_t i = 0; i < 4; i++)
+        want_all[per * 4 + i] = mother[per * 6 + (size_t[]){ 0, 1, 2, 5 }[i]];
+
+    dp_conv_enc_init (&e);
+    const size_t n = dp_conv_encode (&e, &p34, in, N, got, sizeof got);
+    DP_CHECK_MSG (n == 16u, "12 inputs at 3/4 punctured is 16 symbols");
+    DP_CHECK_MSG (memcmp (got, want_all, 16u) == 0,
+                  "punctured stream is the mother stream with the listed "
+                  "positions struck");
+    DP_CHECK (e.phase == 0u); /* 12 is a whole number of periods */
+
+    /* chunk invariance: the phase carries across every split point */
+    for (size_t cut = 1; cut < N; cut++)
+      {
+        uint8_t a[32] = { 0 };
+        dp_conv_enc_init (&e);
+        const size_t n1 = dp_conv_encode (&e, &p34, in, cut, a, sizeof a);
+        const size_t n2 = dp_conv_encode (&e, &p34, in + cut, N - cut, a + n1,
+                                          sizeof a - n1);
+        DP_CHECK_MSG (n1 + n2 == 16u && memcmp (a, want_all, 16u) == 0,
+                      "chunked punctured encoding must equal one call");
+        DP_CHECK (e.phase == 0u);
+      }
+
+    /* one bit at a time, ending mid-pattern */
+    uint8_t one[32];
+    size_t  w = 0;
+    dp_conv_enc_init (&e);
+    for (size_t i = 0; i < 8; i++)
+      w += dp_conv_encode (&e, &p34, in + i, 1, one + w, sizeof one - w);
+    DP_CHECK_MSG (memcmp (one, want_all, w) == 0 && w == 11u,
+                  "8 single-bit calls: two periods (8) + two inputs (3)");
+    DP_CHECK_MSG (e.phase == 2u, "8 mod 3 inputs leaves the pattern at 2");
+  }
+
+  /* ── 5b. the length arithmetic agrees with a count, and inverts ────────*/
+  {
+    static const struct
+    {
+      unsigned period;
+      uint32_t mask;
+    } pat[] = { { 3u, 0x27u }, { 2u, 0x7u }, { 5u, 0x3AFu }, { 7u, 0x2FFFu } };
+    for (size_t q = 0; q < sizeof pat / sizeof pat[0]; q++)
+      {
+        conv_code_t c  = CCSDS;
+        c.punct_period = pat[q].period;
+        c.punct_mask   = pat[q].mask;
+        DP_REQUIRE (dp_conv_code_valid (&c));
+        for (unsigned ph = 0; ph < c.punct_period; ph++)
+          for (size_t n_in = 0; n_in < 40u; n_in++)
+            {
+              size_t sum = 0;
+              for (size_t i = 0; i < n_in; i++)
+                sum += (size_t)__builtin_popcount (
+                    (pat[q].mask >> (((ph + i) % c.punct_period) * 2u)) & 3u);
+              DP_CHECK_MSG (dp_conv_coded_len (&c, ph, n_in) == sum,
+                            "coded length is the sum of kept symbols");
+              size_t steps = 999;
+              DP_CHECK_MSG (dp_conv_steps_for (&c, ph, sum, &steps)
+                                && steps == n_in,
+                            "steps_for inverts coded_len");
+              DP_CHECK (dp_conv_phase_after (&c, ph, n_in)
+                        == (ph + n_in) % c.punct_period);
+              /* one symbol more or less than a whole number of inputs
+                 ends mid-bit unless the next/previous input keeps one */
+              if (sum > 0u)
+                {
+                  const size_t last = (size_t)__builtin_popcount (
+                      (pat[q].mask
+                       >> (((ph + n_in - 1u) % c.punct_period) * 2u))
+                      & 3u);
+                  if (last == 2u)
+                    DP_CHECK_MSG (
+                        !dp_conv_steps_for (&c, ph, sum - 1u, &steps),
+                        "a length ending inside an input's two "
+                        "symbols is not whole");
+                }
+            }
+      }
+  }
+
+  /* ── 5c. refusals, by a poisoned buffer ────────────────────────────────*/
+  {
+    conv_code_t p    = CCSDS;
+    p.punct_period   = 3u;
+    p.punct_mask     = 0x27u;
+    uint8_t    in[6] = { 1, 1, 0, 1, 0, 1 }, out[8];
+    conv_enc_t e;
+    dp_conv_enc_init (&e);
+    memset (out, 0xAA, sizeof out);
+    DP_CHECK_MSG (dp_conv_encode (&e, &p, in, 6, out, 7) == 0,
+                  "one symbol short of the PUNCTURED length must refuse");
+    for (size_t i = 0; i < sizeof out; i++)
+      DP_CHECK (out[i] == 0xAAu);
+    DP_CHECK_MSG (e.phase == 0u && e.reg == 0u,
+                  "a refusal leaves the encoder untouched");
+    DP_CHECK (dp_conv_encode (&e, &p, in, 6, out, 8) == 8u);
   }
 
   DP_TEST_END ("test_conv_core");

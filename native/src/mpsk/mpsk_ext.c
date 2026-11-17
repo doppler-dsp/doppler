@@ -402,6 +402,93 @@ _bind_mpsk_bits_per_symbol (PyObject *self, PyObject *args, PyObject *kwds)
   return PyLong_FromLong ((long)dp_mpsk_bits_per_symbol (m));
 }
 
+static PyObject *
+_bind_qam_map (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "sym", "m", NULL };
+  PyObject    *sym_obj   = NULL;
+  int          m         = 16;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|i", _kwlist, &sym_obj, &m))
+    return NULL;
+  PyArrayObject *sym_arr = (PyArrayObject *)jm_array_arg (
+      sym_obj, NPY_UINT16, NPY_ARRAY_C_CONTIGUOUS, "sym");
+  if (!sym_arr)
+    {
+      return NULL;
+    }
+  const uint16_t *sym       = (const uint16_t *)PyArray_DATA (sym_arr);
+  size_t          sym_len   = (size_t)PyArray_SIZE (sym_arr);
+  size_t          _dim_need = (size_t)(sym_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (sym_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "qam_map: output of %zu elements is too large", _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_COMPLEX64, 0);
+  if (!_out)
+    {
+      Py_DECREF (sym_arr);
+      return NULL;
+    }
+  dp_qam_map (sym, sym_len,
+              (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
+  Py_DECREF (sym_arr);
+  return _out;
+}
+
+static PyObject *
+_bind_qam_demap (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "x", "m", NULL };
+  PyObject    *x_obj     = NULL;
+  int          m         = 16;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|i", _kwlist, &x_obj, &m))
+    return NULL;
+  PyArrayObject *x_arr = (PyArrayObject *)jm_array_arg (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  size_t                _dim_need = (size_t)(x_len);
+  if (_dim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "qam_demap: output of %zu elements is too large",
+                    _dim_need);
+      return NULL;
+    }
+  npy_intp  _dim = (npy_intp)_dim_need;
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_UINT16, 0);
+  if (!_out)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  dp_qam_demap (x, x_len, (uint16_t *)PyArray_DATA ((PyArrayObject *)_out), m);
+  Py_DECREF (x_arr);
+  return _out;
+}
+
+static PyObject *
+_bind_qam_bits_per_symbol (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "m", NULL };
+  int          m         = 16;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|i", _kwlist, &m))
+    return NULL;
+  return PyLong_FromLong ((long)dp_qam_bits_per_symbol (m));
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
@@ -612,6 +699,84 @@ static PyMethodDef mpsk_module_methods[] = {
     ">>> from doppler.mpsk import mpsk_bits_per_symbol\n"
     ">>> [mpsk_bits_per_symbol(m) for m in (2, 4, 8)]\n"
     "[1, 2, 3]\n" },
+  { "qam_map", (PyCFunction)(void *)_bind_qam_map,
+    METH_VARARGS | METH_KEYWORDS,
+    "Map QAM labels to unit-average-energy constellation points.\n"
+    "\n"
+    "Element-wise inverse of dp_qam_demap(): each input is one symbol's\n"
+    "`log2(M)` bits packed LSB-first in transmission order, each output its\n"
+    "cf32 point. out must hold sym_len points. For an unsupported m every\n"
+    "output is 0, which is not a constellation point of any supported M, so\n"
+    "check dp_qam_bits_per_symbol() first.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "sym : npt.NDArray[np.uint16]\n"
+    "    Labels (0 .. M-1), one per symbol, 16-bit.\n"
+    "m : int\n"
+    "    M in {4, 16, 64, 256, 1024}.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.mpsk import qam_map, qam_demap\n"
+    ">>> sym = np.array([0, 1, 3, 2], dtype=np.uint16)   # 16-QAM, I axis\n"
+    ">>> np.round(qam_map(sym, 16).real * np.sqrt(10), 3)\n"
+    "array([ 3., -3., -1.,  1.])\n"
+    ">>> np.array_equal(qam_demap(qam_map(sym, 16), 16), sym)\n"
+    "True\n" },
+  { "qam_demap", (PyCFunction)(void *)_bind_qam_demap,
+    METH_VARARGS | METH_KEYWORDS,
+    "Hard-decide QAM symbols to their labels.\n"
+    "\n"
+    "Element-wise inverse of dp_qam_map(). Each axis is decided on its own\n"
+    "to the nearest level, so a received point outside the constellation\n"
+    "lands on the nearest edge point. For an unsupported m every label is 0.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.complex64]\n"
+    "    Received symbols; amplitude matters.\n"
+    "m : int\n"
+    "    M in {4, 16, 64, 256, 1024}.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint16]\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.mpsk import qam_demap\n"
+    ">>> v = np.array([3.2, -0.9, 0.2, -2.7]) / np.sqrt(10)\n"
+    ">>> x = (v + 1j * v[::-1]).astype(np.complex64)\n"
+    ">>> qam_demap(x, 16).tolist()\n"
+    "[4, 11, 14, 1]\n" },
+  { "qam_bits_per_symbol", (PyCFunction)(void *)_bind_qam_bits_per_symbol,
+    METH_VARARGS | METH_KEYWORDS,
+    "Bits per QAM symbol = log2(M).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "m : int\n"
+    "    M in {4, 16, 64, 256, 1024}.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    2, 4, 6, 8 or 10 (0 for an unsupported M).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.mpsk import qam_bits_per_symbol\n"
+    ">>> [qam_bits_per_symbol(m) for m in (4, 16, 64, 256, 1024)]\n"
+    "[2, 4, 6, 8, 10]\n" },
   { NULL, NULL, 0, NULL }
 };
 
@@ -621,6 +786,9 @@ static PyModuleDef mpsk_moduledef = {
   .m_doc
   = "M-ary PSK mapping: hard and soft, including differential, symbol "
     "map/demap for BPSK, QPSK, and 8-PSK constellations.\n"
+    "Square QAM (4 to 1024 points) rides beside it: `qam_map` and `qam_demap` "
+    "take a 16-bit label, since 1024-QAM is ten bits, and decide by nearest "
+    "point rather than by phase.\n"
     "\n"
     "This is the decision primitive, and its transmit inverse, that the\n"
     "`doppler.track.CarrierMpsk` carrier loop and the M-PSK receiver "

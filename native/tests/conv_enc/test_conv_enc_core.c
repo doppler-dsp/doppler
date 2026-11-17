@@ -33,26 +33,28 @@ main (void)
 {
   /* ── 1. the declared constructor, and what it refuses ──────────────────*/
   {
-    DP_CHECK_MSG (dp_conv_enc_create (NULL, 0, 7u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (NULL, 0, 7u, 0u, 0u, 0u) == NULL,
                   "a NULL polynomial array is not a code");
-    DP_CHECK_MSG (dp_conv_enc_create (POLY, 0, 7u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 0, 7u, 0u, 0u, 0u) == NULL,
                   "zero polynomials is not a code");
-    DP_CHECK_MSG (dp_conv_enc_create (POLY, CONV_N_MAX + 1u, 7u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, CONV_N_MAX + 1u, 7u, 0u, 0u, 0u)
+                      == NULL,
                   "more polynomials than the code family admits");
-    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, 1u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, 1u, 0u, 0u, 0u) == NULL,
                   "k below the smallest register");
-    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, CONV_K_MAX + 1u, 0u) == NULL,
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, CONV_K_MAX + 1u, 0u, 0u, 0u)
+                      == NULL,
                   "k past the largest the family admits");
     {
       const uint32_t zero[2] = { 0171u, 0u };
-      DP_CHECK_MSG (dp_conv_enc_create (zero, 2, 7u, 0u) == NULL,
+      DP_CHECK_MSG (dp_conv_enc_create (zero, 2, 7u, 0u, 0u, 0u) == NULL,
                     "a zero polynomial is an output carrying nothing");
       const uint32_t wide[2] = { 0171u, 0400u };
-      DP_CHECK_MSG (dp_conv_enc_create (wide, 2, 7u, 0u) == NULL,
+      DP_CHECK_MSG (dp_conv_enc_create (wide, 2, 7u, 0u, 0u, 0u) == NULL,
                     "a polynomial wider than the register");
     }
 
-    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE_MSG (e != NULL, "the CCSDS inner code is constructible");
     DP_CHECK_MSG (dp_conv_enc_code (e)->k == 7u, "k survives the constructor");
     DP_CHECK_MSG (dp_conv_enc_code (e)->n == 2u,
@@ -82,13 +84,14 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    const conv_code_t c = { 7u, 2u, { 0171u, 0133u }, 0x2u };
-    conv_enc_t        raw;
+    const conv_code_t c
+        = { .k = 7u, .n = 2u, .poly = { 0171u, 0133u }, .invert = 0x2u };
+    conv_enc_t raw;
     dp_conv_enc_init (&raw);
     DP_REQUIRE (dp_conv_encode (&raw, &c, in, N, want, sizeof want)
                 == (size_t)N * 2u);
 
-    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE (e != NULL);
     const size_t n = dp_conv_enc_encode (e, in, N, got, sizeof got);
     DP_CHECK_MSG (n == dp_conv_enc_encode_max_out (e, N),
@@ -117,8 +120,8 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    dp_conv_enc_state_t *a = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
-    dp_conv_enc_state_t *b = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *a = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
+    dp_conv_enc_state_t *b = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE (a != NULL && b != NULL);
 
     dp_conv_enc_encode (a, in, N, whole, sizeof whole);
@@ -130,7 +133,7 @@ main (void)
 
     /* ...and the check is not vacuous: a RESET encoder at the same cut point
        must differ, or the register was never carrying anything. */
-    dp_conv_enc_state_t *d = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *d = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE (d != NULL);
     uint8_t restarted[N * 2];
     dp_conv_enc_encode (d, in, CUT, restarted, 2u * CUT);
@@ -156,7 +159,7 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0u);
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0u, 0u, 0u);
     DP_REQUIRE (e != NULL);
     dp_conv_enc_encode (e, in, N, first, sizeof first);
     dp_conv_enc_encode (e, in, N, again,
@@ -173,7 +176,7 @@ main (void)
   /* ── 5. the refusals, verified by a poisoned buffer ────────────────────*/
   {
     uint8_t              in[8] = { 0 }, out[16];
-    dp_conv_enc_state_t *e     = dp_conv_enc_create (POLY, 2, 7u, 0u);
+    dp_conv_enc_state_t *e     = dp_conv_enc_create (POLY, 2, 7u, 0u, 0u, 0u);
     DP_REQUIRE (e != NULL);
     memset (out, 0xAA, sizeof out);
     DP_CHECK_MSG (dp_conv_enc_encode (e, in, 8, out, 15) == 0,
@@ -202,11 +205,11 @@ main (void)
     for (int i = 0; i < N; i++)
       in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
 
-    dp_conv_enc_state_t *a = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *a = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE (a != NULL);
     dp_conv_enc_encode (a, in, N, whole, sizeof whole);
 
-    dp_conv_enc_state_t *b = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *b = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE (b != NULL);
     dp_conv_enc_encode (b, in, CUT, resumed, 2u * CUT);
 
@@ -214,7 +217,7 @@ main (void)
     DP_REQUIRE (blob != NULL);
     dp_conv_enc_get_state (b, blob);
 
-    dp_conv_enc_state_t *r = dp_conv_enc_create (POLY, 2, 7u, 0x2u);
+    dp_conv_enc_state_t *r = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
     DP_REQUIRE (r != NULL);
     DP_CHECK (dp_conv_enc_set_state (r, blob) == DP_OK);
     dp_conv_enc_encode (r, in + CUT, N - CUT, resumed + 2u * CUT,
@@ -237,7 +240,7 @@ main (void)
        field-by-field comparison can see this one. */
     {
       const uint32_t       other[2] = { 0133u, 0171u }; /* swapped */
-      dp_conv_enc_state_t *o        = dp_conv_enc_create (other, 2, 7u, 0x2u);
+      dp_conv_enc_state_t *o = dp_conv_enc_create (other, 2, 7u, 0x2u, 0u, 0u);
       DP_REQUIRE (o != NULL);
       DP_CHECK_MSG (dp_conv_enc_state_bytes (o) == dp_conv_enc_state_bytes (r),
                     "the two blobs are the same size, so length cannot tell "
@@ -254,6 +257,101 @@ main (void)
     dp_conv_enc_destroy (a);
     dp_conv_enc_destroy (b);
     dp_conv_enc_destroy (r);
+  }
+
+  /* ── 8. puncturing at the object: the phase is running state ───────────
+   *
+   * The pattern is a constructor argument and a reject key; the position in
+   * it is state. Each way to get either wrong produces a stream that is
+   * self-consistent and matches no decoder, so each is pinned by a blob that
+   * is the wrong one rather than by a round trip alone.
+   */
+  {
+    enum
+    {
+      N = 30
+    };
+    uint8_t  in[N];
+    uint32_t st = 424242u;
+    for (int i = 0; i < N; i++)
+      in[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+
+    dp_conv_enc_state_t *e = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 3u, 0x27u);
+    DP_REQUIRE (e != NULL);
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, 7u, 0x2u, 3u, 0u) == NULL,
+                  "a period with no mask is refused at create");
+    DP_CHECK_MSG (dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0x27u) == NULL,
+                  "a mask with no period is refused at create");
+
+    /* encode_max_out is the exact length, and it moves with the phase */
+    DP_CHECK (dp_conv_enc_encode_max_out (e, 6) == 8u);
+    uint8_t      whole[2 * N], a[2 * N], b[2 * N];
+    const size_t nw = dp_conv_enc_encode (e, in, N, whole, sizeof whole);
+    DP_CHECK_MSG (nw == 40u, "30 inputs at 3/4 is 40 symbols");
+
+    dp_conv_enc_reset (e);
+    const size_t n1 = dp_conv_enc_encode (e, in, 7, a, sizeof a);
+    DP_CHECK_MSG (dp_conv_enc_encode_max_out (e, 5)
+                      == dp_conv_coded_len (dp_conv_enc_code (e), 7u % 3u, 5),
+                  "max_out reads the phase the encoder is at");
+    DP_CHECK_MSG (n1 == 10u, "7 inputs: two periods (8) + one input (2)");
+
+    /* a blob taken mid-pattern restores the phase, not just the register */
+    const size_t bytes = dp_conv_enc_state_bytes (e);
+    void        *blob  = malloc (bytes);
+    DP_REQUIRE (blob != NULL);
+    dp_conv_enc_get_state (e, blob);
+
+    dp_conv_enc_state_t *r = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 3u, 0x27u);
+    DP_REQUIRE (r != NULL);
+    DP_CHECK (dp_conv_enc_set_state (r, blob) == DP_OK);
+    const size_t n2
+        = dp_conv_enc_encode (e, in + 7, N - 7, a + n1, sizeof a - n1);
+    const size_t n3 = dp_conv_enc_encode (r, in + 7, N - 7, b, sizeof b);
+    DP_CHECK_MSG (n2 == n3 && n1 + n2 == nw && memcmp (a + n1, b, n3) == 0
+                      && memcmp (a, whole, nw) == 0,
+                  "a restored encoder resumes bit-for-bit mid-pattern");
+
+    /* the pattern is a reject key: same k, n, polynomials, invert */
+    dp_conv_enc_state_t *other
+        = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 2u, 0x7u);
+    DP_REQUIRE (other != NULL);
+    DP_CHECK_MSG (dp_conv_enc_state_bytes (other) == bytes,
+                  "same size: only the pattern differs");
+    DP_CHECK_MSG (dp_conv_enc_set_state (other, blob) == DP_ERR_INVALID,
+                  "a blob from another pattern must be refused");
+    dp_conv_enc_state_t *same_len
+        = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 3u, 0x2Fu); /* bit 3 kept */
+    DP_REQUIRE (same_len != NULL);
+    DP_CHECK_MSG (dp_conv_enc_set_state (same_len, blob) == DP_ERR_INVALID,
+                  "a mask differing in one bit must be refused");
+    dp_conv_enc_state_t *none = dp_conv_enc_create (POLY, 2, 7u, 0x2u, 0u, 0u);
+    DP_REQUIRE (none != NULL);
+    DP_CHECK_MSG (dp_conv_enc_set_state (none, blob) == DP_ERR_INVALID,
+                  "an unpunctured encoder refuses a punctured blob");
+
+    /* the phase indexes the mask, so one past the period is refused */
+    const size_t off    = sizeof (dp_state_hdr_t) + sizeof (uint32_t);
+    uint32_t     bad    = 3u;
+    void        *poison = malloc (bytes);
+    DP_REQUIRE (poison != NULL);
+    memcpy (poison, blob, bytes);
+    uint32_t good;
+    memcpy (&good, (uint8_t *)blob + off, sizeof good);
+    DP_REQUIRE_MSG (good == 7u % 3u,
+                    "the blob's phase field is where this test pokes");
+    memcpy ((uint8_t *)poison + off, &bad, sizeof bad);
+    DP_CHECK_MSG (dp_conv_enc_set_state (r, poison) == DP_ERR_INVALID,
+                  "a phase at the period is not a position in it");
+    free (poison);
+    DP_CHECK (dp_conv_enc_set_state (r, blob) == DP_OK);
+
+    free (blob);
+    dp_conv_enc_destroy (none);
+    dp_conv_enc_destroy (same_len);
+    dp_conv_enc_destroy (other);
+    dp_conv_enc_destroy (r);
+    dp_conv_enc_destroy (e);
   }
 
   DP_TEST_END ("test_conv_enc_core");

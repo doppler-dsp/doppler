@@ -1403,3 +1403,190 @@ unit = "call"
 definition = "Constructing one HalfbandDecimatorR2C from a one-tap float32 filter: the cost of building the object, paid once per object."
 domain = "call"
 count = 1
+
+# Square QAM beside the M-PSK maps (PR qam). One unit is one symbol; the
+# page reads it in symbols per second.
+
+["c:mpsk::qam_map[m=4]"]
+name = "QAM map, 4 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (2 bits each, 16-bit) to 4-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=4]"]
+name = "QAM hard demap, 4 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 4-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=16]"]
+name = "QAM map, 16 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (4 bits each, 16-bit) to 16-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=16]"]
+name = "QAM hard demap, 16 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 16-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=64]"]
+name = "QAM map, 64 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (6 bits each, 16-bit) to 64-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=64]"]
+name = "QAM hard demap, 64 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 64-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=256]"]
+name = "QAM map, 256 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (8 bits each, 16-bit) to 256-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=256]"]
+name = "QAM hard demap, 256 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 256-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_map[m=1024]"]
+name = "QAM map, 1024 points"
+unit = "symbol"
+definition = "Mapping 65,536 labels (10 bits each, 16-bit) to 1024-QAM constellation points, one table-free level computation per axis; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["c:mpsk::qam_demap[m=1024]"]
+name = "QAM hard demap, 1024 points"
+unit = "symbol"
+definition = "Hard-deciding 65,536 received 1024-QAM points to their labels, each axis rounded to the nearest level; throughput counts symbols."
+domain = "sym"
+count = 1
+
+["py:ofdm::test_bench_create"]
+name = "OFDM modulator setup, from Python"
+unit = "call"
+definition = "Constructing one Ofdm with an empty layout: the cost of building the object before any class or run is added, paid once per object."
+domain = "call"
+count = 1
+
+["c:ofdm::modulate[n_fft=64]"]
+name = "OFDM modulate, n_fft 64"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 64, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=64,window=2]"]
+name = "OFDM modulate, n_fft 64 with a 2-sample window"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 64 with a 2-sample window, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=256]"]
+name = "OFDM modulate, n_fft 256"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 256, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=1024]"]
+name = "OFDM modulate, n_fft 1024"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 1024, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+count = 1
+
+["c:ofdm::modulate[n_fft=4096]"]
+name = "OFDM modulate, n_fft 4096"
+unit = "symbol"
+definition = "Rendering OFDM symbols of one generic layout (n_fft 4096, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
+domain = "sym"
+["c:wlan::mpdu[body=1500]"]
+name = "802.11 minimal MAC, FCS over a 1500-octet body"
+unit = "frame"
+definition = "Wrapping a 1500-octet body as one MPDU: copying it and appending the CRC-32 frame check sequence, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::data_chain[octets=100,16qam,r34]"]
+name = "802.11 Data field bits, 100 octets, 16-QAM rate 3/4"
+unit = "frame"
+definition = "Assembling the Data field of a 100-octet PSDU (SERVICE, octets, tail, pad), scrambling it and encoding it with the punctured BCC, one frame per unit; the interleaver and the mapper are not included."
+domain = "call"
+count = 1
+
+["py:wlan::test_bench_create"]
+name = "802.11 rate holder setup, from Python"
+unit = "call"
+definition = "Constructing one Wlan: the cost of building the object, paid once per object."
+domain = "call"
+count = 1
+
+["py:wlan::test_bench_n_sym"]
+name = "802.11 symbol count, from Python"
+unit = "call"
+definition = "One Wlan.n_sym call for a 1500-octet PSDU: the arithmetic plus the call across the binding."
+domain = "call"
+count = 1
+
+["c:state_filter::step"]
+name = "Third-order state filter, one update at a time"
+unit = "sample"
+definition = "The inline three-line update of the third-order loop filter (rate, frequency, control), called once per input error; throughput counts input errors."
+samples = 1
+
+["c:state_filter::steps"]
+name = "Third-order state filter, 65,536-error blocks"
+unit = "sample"
+definition = "The block path of the third-order loop filter fed 65,536 loop errors per round; throughput counts input errors."
+samples = 1
+
+["c:state_filter::configure"]
+name = "Third-order state filter retune, from C"
+unit = "call"
+definition = "Retuning the gains of a third-order loop filter for a new bn and t: the bisection on the exact bandwidth, paid once per retune."
+domain = "call"
+count = 1
+
+["c:state_filter::stable"]
+name = "Third-order state filter stability test, from C"
+unit = "call"
+definition = "dp_state_filter_stable at a detector delay of two updates: the doubling sum over the balanced state matrix that decides stability exactly; the Kalman flavor's start rule calls it along a covariance trajectory."
+domain = "call"
+count = 1
+
+["c:state_filter::bandwidth"]
+name = "Third-order state filter exact bandwidth, from C"
+unit = "call"
+definition = "dp_state_filter_bandwidth at a detector delay of two updates: the same doubling sum, read as the exact noise bandwidth; the Kalman flavor's noise-ratio bisection calls it a hundred times."
+domain = "call"
+count = 1
+
+["py:state_filter::test_bench_step"]
+name = "Third-order state filter update, from Python"
+unit = "call"
+definition = "One StateFilter.step call from Python: the filter update plus the call across the binding, one input error per call."
+domain = "call"
+count = 1
+
+["py:state_filter::test_bench_steps_64k"]
+name = "Third-order state filter, 65,536-error blocks, from Python"
+unit = "sample"
+definition = "StateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
+samples = 1

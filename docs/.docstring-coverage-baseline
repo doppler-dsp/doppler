@@ -27,6 +27,7 @@ doppler.interp stub=0 runtime=0
 doppler.interrupt stub=0 runtime=0
 doppler.measure stub=4 runtime=4
 doppler.mpsk stub=0 runtime=0
+doppler.ofdm stub=0 runtime=0
 doppler.resample stub=0 runtime=0
 doppler.snr stub=2 runtime=2
 doppler.source stub=0 runtime=0
@@ -36,6 +37,7 @@ doppler.telemetry stub=0 runtime=0
 doppler.track stub=0 runtime=0
 doppler.util stub=0 runtime=0
 doppler.wfm stub=62 runtime=65
+doppler.wlan stub=0 runtime=0
 
 [symbols]
 # One line per symbol COVERED on at least one face: <qual> <faces>, s=stub r=runtime. A symbol here may never LOSE a

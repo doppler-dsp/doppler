@@ -68,6 +68,7 @@ from doppler.dsss import (
 )
 from doppler.filter import FIR, MovingAverage
 from doppler.impairment import DopplerChannel
+from doppler.ofdm import Ofdm
 from doppler.resample import (
     CIC,
     Farrow,
@@ -89,6 +90,7 @@ from doppler.track import (
     MpskReceiver,
     MpskReceiverR,
     RateSync,
+    StateFilter,
     SymbolSync,
 )
 from doppler.wfm import PN, Gold, _SynthEngine
@@ -296,6 +298,26 @@ def _make_dsss_cont_engine() -> Any:
     rng = np.random.default_rng(3)
     e.set_dsss_cont(rng.integers(0, 2, 31, dtype=np.uint8), 12.7, data="prbs")
     return e
+
+
+def _make_ofdm() -> Any:
+    """A layout of 400 OFDM symbols, 6 data subcarriers each, windowed."""
+    o = Ofdm()
+    m = np.zeros(8, np.uint8)
+    m[[1, 2, 3, 5, 6, 7]] = 1
+    c = o.add_class(8, m, cyclic_prefix=2, window=2)
+    o.add_polarity(c, np.array([1, -1, 1j], np.complex64))
+    o.add_run(c, 400)
+    # Two more classes, not yet run: what the layout builders' probes extend
+    # (a gain is accepted at its class's own length, so two lengths).
+    o.add_class(4, np.ones(4, np.uint8), n_phase=16)
+    o.add_class(8, np.ones(8, np.uint8), n_phase=16)
+    return o
+
+
+def _ofdm_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    n = (seg.size // 6) * 6
+    return np.array(o.modulate(seg[:n]))
 
 
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
@@ -529,6 +551,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: LoopFilter(0.01, 0.707, 1.0),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
     ),
+    # The third-order sibling: both accumulators (frequency and rate) must
+    # travel, so a split that drops the rate shows in the second half.
+    "StateFilter": (
+        lambda: StateFilter(0.01, 1.0),
+        lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
+    ),
     # Lock detector — a real metric stream wobbling across the hysteresis
     # band exercises both state-machine sides and the in-flight verify run.
     "LockDet": (
@@ -580,6 +608,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # the reason the object exists: an encoder resumed without it emits k-1
     # wrong symbols at the boundary, which decodes against a receiver of
     # one's own construction and against nothing else.
+    # A modulator renders whole OFDM symbols, so the feed takes as many of the
+    # segment's points as fill whole symbols (6 data subcarriers each); the
+    # window's tail is what crosses the split.
+    "Ofdm": (_make_ofdm, _ofdm_feed),
     "ConvEncoder": (
         lambda: ConvEncoder(_CCSDS_POLY, k=7, invert=0x2),
         lambda o, seg: np.array(o.encode((seg.real > 0).astype(np.uint8))),

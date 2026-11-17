@@ -122,6 +122,8 @@
 
 #include "doppler/imdmeas/imdmeas_core.h"
 
+#include "doppler/ofdm/ofdm_core.h"
+
 #include "doppler/Resampler/Resampler_core.h"
 
 #include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
@@ -158,6 +160,8 @@
 
 #include "doppler/loop_filter/loop_filter_core.h"
 
+#include "doppler/state_filter/state_filter_core.h"
+
 #include "doppler/costas/costas_core.h"
 
 #include "doppler/dll/dll_core.h"
@@ -183,6 +187,8 @@
 #include "doppler/wfm_reader/wfm_reader_core.h"
 
 #include "doppler/wfm_writer/wfm_writer_core.h"
+
+#include "doppler/wlan/wlan_core.h"
 
 #endif /* DOPPLER_H */
 ```

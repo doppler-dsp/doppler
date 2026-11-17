@@ -143,6 +143,15 @@
 * **DP\_ERR\_UNSUPPORTED** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_NODISCARD** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_OK** ([**clib\_common.h**](clib__common_8h.md))
+* **DP\_CRC\_16\_IBM\_3740** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_16\_KERMIT** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_16\_XMODEM** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_32C** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_32\_BZIP2** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_32\_ISO\_HDLC** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_64\_ECMA\_182** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_8\_ROHC** ([**dp\_crc.h**](dp__crc_8h.md))
+* **DP\_CRC\_8\_SMBUS** ([**dp\_crc.h**](dp__crc_8h.md))
 * **DP\_FMT** ([**dp\_format.h**](dp__format_8h.md))
 * **DP\_HASH64\_INIT** ([**dp\_hash64.h**](dp__hash64_8h.md))
 * **DP\_HASH64\_PRIME** ([**dp\_hash64.h**](dp__hash64_8h.md))
@@ -375,12 +384,30 @@
 * **N\_TYPES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
+## o
+
+* **OFDM\_ALL\_PHASES** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_COUNT\_MAX** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_CP\_DEFAULT** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_DATA** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_NULL** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_N\_FFT\_MAX** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_N\_PHASE\_MAX** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_STATE\_MAGIC** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **OFDM\_STATE\_VERSION** ([**ofdm\_core.h**](ofdm__core_8h.md))
+
+
 ## p
 
 * **PN\_STATE\_MAGIC** ([**pn\_core.h**](pn__core_8h.md))
 * **PN\_STATE\_VERSION** ([**pn\_core.h**](pn__core_8h.md))
 * **PSD\_STATE\_MAGIC** ([**psd\_core.h**](psd__core_8h.md))
 * **PSD\_STATE\_VERSION** ([**psd\_core.h**](psd__core_8h.md))
+
+
+## q
+
+* **QAM\_BPS\_MAX** ([**mpsk\_core.h**](mpsk__core_8h.md))
 
 
 ## r
@@ -410,6 +437,16 @@
 * **SPECAN\_STATE\_VERSION** ([**specan\_core.h**](specan__core_8h.md))
 * **SPECTROGRAM\_STATE\_MAGIC** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
 * **SPECTROGRAM\_STATE\_VERSION** ([**spectrogram\_core.h**](spectrogram__core_8h.md))
+* **STATE\_FILTER\_BNT\_MAX** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_BNT\_MIN** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_DELAY\_LIMIT** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_DELAY\_MAX** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_K\_MAX** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_K\_MIN** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_SHAPE\_A** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_SHAPE\_B** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_STATE\_MAGIC** ([**state\_filter\_core.h**](state__filter__core_8h.md))
+* **STATE\_FILTER\_STATE\_VERSION** ([**state\_filter\_core.h**](state__filter__core_8h.md))
 * **SYMSYNC\_LOCK\_EPS** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_MAGIC** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_VERSION** ([**symsync\_core.h**](symsync__core_8h.md))
@@ -457,6 +494,20 @@
 * **WFM\_SYNTH\_SNR\_CLEAN** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_MAGIC** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_VERSION** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **WLAN\_GI** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_LTF\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_N\_FFT** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_N\_SD** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_N\_SP** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_PILOT\_K** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_PILOT\_V** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_POLARITY\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_PSDU\_MAX** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_SERVICE\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_SIG\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_STF\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_SYM\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_TAIL\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
 
 
 

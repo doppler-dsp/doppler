@@ -82,6 +82,10 @@ extern "C"
   int64_t dp_ber_lock_symbol (const uint8_t *flags, size_t flags_len,
                               size_t sustain, double min_frac);
 
+  size_t dp_ber_lock_transitions (const uint8_t *flags,
+                                  const uint8_t *count_at, size_t flags_len,
+                                  size_t from, int64_t *first);
+
   double dp_ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 

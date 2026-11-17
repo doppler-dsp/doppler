@@ -67,6 +67,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 |  double | [**dp\_ber\_evm\_ideal\_db**](#function-dp_ber_evm_ideal_db) (double esn0\_db) <br>_What_ [_**dp\_ber\_evm\_db()**_](ber__core_8h.md#function-dp_ber_evm_db) _reads on an ideal stream at_`esn0_db` _._ |
 |  double | [**dp\_ber\_evm\_scatter\_floor\_db**](#function-dp_ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
 |  int64\_t | [**dp\_ber\_lock\_symbol**](#function-dp_ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
+|  size\_t | [**dp\_ber\_lock\_transitions**](#function-dp_ber_lock_transitions) (const uint8\_t \* flags, const uint8\_t \* count\_at, size\_t flags\_len, size\_t from, int64\_t \* first) <br>_How often a lock flag changes after a point, and where it first does._  |
 |  double | [**dp\_ber\_qfunc**](#function-dp_ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
 |  size\_t | [**dp\_ber\_settle\_from**](#function-dp_ber_settle_from) (size\_t budget, int64\_t timing\_lock, int64\_t carrier\_lock) <br>_Combine an analytic settling budget with measured lock instants._  |
 |  size\_t | [**dp\_ber\_settle\_syms**](#function-dp_ber_settle_syms) (double bn\_timing, double bn\_carrier) <br>_Symbols to discard before a steady-state measurement means anything._  |
@@ -402,6 +403,72 @@ int64_t dp_ber_lock_symbol (
 **Returns:**
 
 The symbol index, or -1 for "never locked" — the honest answer, which forces the caller to say so rather than measure a transient. 64-bit, so an index past 2^31 symbols is returned whole rather than truncated. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ber\_lock\_transitions 
+
+_How often a lock flag changes after a point, and where it first does._ 
+```C++
+size_t dp_ber_lock_transitions (
+    const uint8_t * flags,
+    const uint8_t * count_at,
+    size_t flags_len,
+    size_t from,
+    int64_t * first
+) 
+```
+
+
+
+The second half of "does this link work": [**dp\_ber\_lock\_symbol()**](ber__core_8h.md#function-dp_ber_lock_symbol) says when a flag became sustained, and a working link then holds it  every change after that point is a toggle a user of the flag acts on. Counts each change of `flags` (nonzero = up) from index `from` on.
+
+
+`count_at` chooses which indices are LOOKED AT; NULL looks at all. An index not looked at is skipped, not compared: the flag is read only where the caller says it means something (the data symbols of a frame whose code-only stretch carries no data, say), so a drop and recovery wholly inside a skipped stretch counts nothing, and a drop there that is still down at the next index looked at counts once, there.
+
+
+
+
+**Parameters:**
+
+
+* `flags` Per-index lock flags; NULL counts nothing. 
+* `count_at` Per-index nonzero = look here, same length; or NULL. 
+* `flags_len` Entries in `flags` (and `count_at`). 
+* `from` First index considered, usually the sustained-lock index; the flag's value at the first index looked at from here on is the reference, not a change. 
+* `first` Out, may be NULL: the index of the first change counted, or -1 when there is none. 
+
+
+
+**Returns:**
+
+Changes counted. 
+```C++
+#include "doppler/ber/ber_core.h"
+#include <stdio.h>
+int main (void)
+{
+  const uint8_t up[10]   = { 0, 1, 1, 1, 0, 0, 1, 1, 1, 1 };
+  const uint8_t data[10] = { 1, 1, 1, 1, 0, 0, 1, 1, 1, 1 };
+  int64_t first;
+  // every index: the drop at 4 and the recovery at 6
+  size_t all = dp_ber_lock_transitions (up, NULL, 10, 1, &first);
+  printf ("%zu %lld\n", all, (long long)first);       // 2 4
+  // indices 4 and 5 carry no data: the dip is never seen
+  size_t seen = dp_ber_lock_transitions (up, data, 10, 1, &first);
+  printf ("%zu %lld\n", seen, (long long)first);      // 0 -1
+  return 0;
+}
+```
+ 
 
 
 

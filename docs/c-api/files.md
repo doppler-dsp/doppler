@@ -291,5 +291,7 @@ Here is a list of all files with brief descriptions:
                 * **file** [**wfm\_synth\_core.h**](wfm__synth__core_8h.md) _Synth component API._     
             * **dir** [**wfm\_writer**](dir_b07d3bab2c69a70a146b9de213e56c65.md)     
                 * **file** [**wfm\_writer\_core.h**](wfm__writer__core_8h.md) _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._     
+            * **dir** [**wlan**](dir_9cf874ec4d1fafc8af25ee841f0634a9.md)     
+                * **file** [**wlan\_core.h**](wlan__core_8h.md) _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation points and the layout the OFDM modulator takes out._     
             * **file** [**q15\_mac.h**](q15__mac_8h.md) _Static inline Q15 dot-product primitives: scalar fallback and AVX2._     
 

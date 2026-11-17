@@ -1,0 +1,64 @@
+# wlan -- IEEE 802.11 non-HT OFDM (Clause 17) builders.
+#
+# The C component builds a PPDU's layout and constellation points from a PSDU
+# (docs/design/wlan.md): the minimal MAC with its FCS, the scrambler, the BCC
+# with puncturing, the interleaver, the mapper and the layout for the OFDM
+# modulator. Its Python face is the rate (the two columns of Table 17-4 that
+# do not change with the clocking) and what follows from it; the builders that
+# need the standard's tables reach Python with the wfmgen type, which owns the
+# tables' source. The rate is configuration, reached by no mutator: there is no
+# running state, so no state blob.
+[wlan]
+arg_type = "void"
+return_type = "void"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Wlan"
+create_error = "ValueError"
+create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, or the pair's data bits per OFDM symbol are not a whole number"
+depends_on = [
+    { name = "ofdm", link = true },
+    { name = "conv", link = true },
+    { name = "mpsk", link = true },
+    { name = "fft", link = true },
+    { name = "pn", link = true },
+]
+fragment = "generated"
+
+[[wlan.init_params]]
+name = "constellation"
+type = "string_enum:bpsk,qpsk,qam16,qam64"
+default = "qam16"
+doc = "The constellation: BPSK, QPSK, 16-QAM or 64-QAM, one to six bits per subcarrier."
+
+[[wlan.init_params]]
+name = "code_rate"
+type = "string_enum:r12,r23,r34,r56"
+default = "r12"
+doc = "The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is 5/6."
+
+[[wlan.methods]]
+name = "n_sym"
+doc = "The Data OFDM symbols a PSDU of `psdu_len` octets needs at this rate, `ceil((16 + 8*psdu_len + 6) / n_dbps)`. 0 for a length of 0 or above 4095."
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "psdu_len", type = "size_t" }]
+
+[[wlan.properties]]
+name = "n_bpsc"
+type = "uint32_t"
+field = true
+doc = "Bits per subcarrier: 1 for BPSK, 2, 4 or 6."
+
+[[wlan.properties]]
+name = "n_cbps"
+type = "uint32_t"
+field = true
+doc = "Coded bits per OFDM symbol, 48 times `n_bpsc`."
+
+[[wlan.properties]]
+name = "n_dbps"
+type = "uint32_t"
+field = true
+doc = "Data bits per OFDM symbol: `n_cbps` times the code rate."

@@ -1469,4 +1469,30 @@ name = "OFDM modulate, n_fft 4096"
 unit = "symbol"
 definition = "Rendering OFDM symbols of one generic layout (n_fft 4096, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy) from constellation points, about 64k samples a round; throughput counts OFDM symbols."
 domain = "sym"
+["c:wlan::mpdu[body=1500]"]
+name = "802.11 minimal MAC, FCS over a 1500-octet body"
+unit = "frame"
+definition = "Wrapping a 1500-octet body as one MPDU: copying it and appending the CRC-32 frame check sequence, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::data_chain[octets=100,16qam,r34]"]
+name = "802.11 Data field bits, 100 octets, 16-QAM rate 3/4"
+unit = "frame"
+definition = "Assembling the Data field of a 100-octet PSDU (SERVICE, octets, tail, pad), scrambling it and encoding it with the punctured BCC, one frame per unit; the interleaver and the mapper are not included."
+domain = "call"
+count = 1
+
+["py:wlan::test_bench_create"]
+name = "802.11 rate holder setup, from Python"
+unit = "call"
+definition = "Constructing one Wlan: the cost of building the object, paid once per object."
+domain = "call"
+count = 1
+
+["py:wlan::test_bench_n_sym"]
+name = "802.11 symbol count, from Python"
+unit = "call"
+definition = "One Wlan.n_sym call for a 1500-octet PSDU: the arithmetic plus the call across the binding."
+domain = "call"
 count = 1

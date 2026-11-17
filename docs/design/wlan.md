@@ -275,11 +275,13 @@ Two rows carry a decision rather than a gap:
 
 - **BPSK and QPSK.** `mpsk` sends BPSK bit `b` as `1 - 2b` (bit 0 is +1,
     `mpsk_core.h`), and its QPSK is Gray-labeled with the first point at
-    pi/4; the QAM map at M = 4 is that same QPSK. Whether Tables 17-15 and
-    17-16 are those maps on complemented bits, or some other relabeling, **is
-    to be pinned from the text**. The same holds for 16-QAM and up against
-    `qam`'s derived map: where the standard's table differs, `wlan` owns the
-    relabeling, a table, and `qam` is not changed to carry a standard.
+    pi/4; the QAM map at M = 4 is that same QPSK. Tables 17-15 and 17-16
+    are read from the text (Figure 17-10): BPSK's first bit 0 is -1, the
+    complement of `mpsk`'s `1 - 2b`, and QPSK's I and Q each take their own
+    bit, so `mpsk`'s QPSK is a relabel of them, `[3, 2, 1, 0]` by bit-group
+    value. The same holds for 16-QAM and 64-QAM against
+    `qam`'s derived map: `wlan` owns the relabeling, a table of 16 and 64
+    entries, and `qam` is not changed to carry a standard.
 - **The scrambler seed.** `pn` reproduces the sequence, but at a phase
     offset from the standard's (four chips for the all-ones state), so the
     standard's initial state is not the `pn` seed and neither is its bit
@@ -673,10 +675,11 @@ Rows 4 and 5 are the second slice; each later row is its own.
 The rule is that the anchor is the standard, never the implementation
 under test and never a second implementation in the tree. The modulator's
 own proofs are on [its page](ofdm.md) and need no standard. What follows
-holds a preset to a standard, and **none of it can run until the tables
-are transcribed from the text**; until then the layout builders label
-unverified what section 9 does not mark checked, and the tests pin only
-what is derivable (a layout's structure, the lengths, the
+holds a preset to a standard, and the tables are
+transcribed from the text (section 9) and each is pinned in the unit test
+against its printed form, with a one-entry sabotage that goes red; what is
+not yet held to the text is Annex I's stage-by-stage example, which waits for
+its fixture. Where the tests pin only what is derivable (a layout's structure, the lengths, the
 round trip of the coding chain's own inverses), claiming no conformance.
 
 1. **Annex I, stage by stage, when the text is read.** Annex I encodes one
@@ -762,10 +765,12 @@ no conformance.
 | BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                                                                   | checked                                                                                |
 | puncture patterns for 2/3 and 3/4                                                                                                                                                             | Figure 17-9                                                                | checked                                                                                |
 | puncture pattern for 5/6                                                                                                                                                                      | Clause 19                                                                  | unchecked                                                                              |
+| SIGNAL bit order: R1..R4, reserved, LENGTH LSB first, even parity, six tail bits                                                                                                              | Figure 17-5, 17.3.4.1                                                      | checked                                                                                |
+| second interleaver permutation, `s = max(N_BPSC/2, 1)`; the worked example `k = 17` to `i = 13`, `j = 12`                                                                                     | Eq. (17-16), (17-17); Annex I.1.6.2, Tables I-17, I-18                     | checked                                                                                |
 | interleaver, 16 columns (the first permutation uses `N_CBPS/16`)                                                                                                                              | 17.3.5.7, Eq. (17-15)                                                      | checked                                                                                |
 | `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                                               | Table 17-14                                                                | checked                                                                                |
-| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | unchecked against the library's maps (section 4)                                       |
-| L-STF and L-LTF sequences, the √(13/6) factor, and the per-field normalization symbol                                                                                                         | 17.3.3                                                                     | unchecked                                                                              |
+| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | checked; held as relabels of the library's maps (section 4)                            |
+| L-STF and L-LTF sequences and the √(13/6) factor                                                                                                                                              | 17.3.3, Eq. (17-6), (17-8)                                                 | checked; the per-field scale is `1/√52`, unit average power, derived (goal 5)          |
 | window, `T_TR` about 100 ns                                                                                                                                                                   | 17.3.2.5                                                                   | checked                                                                                |
 | transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7                                                         | unchecked                                                                              |
 | Annex I example: 100 octets, 36 Mb/s                                                                                                                                                          | Annex I                                                                    | checked                                                                                |

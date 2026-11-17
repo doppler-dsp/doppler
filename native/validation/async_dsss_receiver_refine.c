@@ -1,0 +1,352 @@
+/**
+ * @file async_dsss_receiver_refine.c
+ * @brief The refine at the 415.1-B-1 point: how often it decides on noise,
+ *        and what each of its two estimators hands over.
+ *
+ * The refine (docs/design/async-dsss-receiver.md §4.7) runs two
+ * CarrierAcquisition estimators on the despread stream of a seed: the data
+ * template's on the stream and the squared stream's against a tone's
+ * template, its threshold derived. The hand-over takes the squared
+ * estimate, halved, when it decided; failing it, the data template's;
+ * failing both, the seed's own Doppler. At the use case's configuration
+ * the refine is NOT sequential (refine_sequential false, the binding's
+ * default for the receiver and the pool): each estimator tests ONCE, at
+ * its dwell target. So the design's per-dwell false-alarm rate is each
+ * estimator's pfa -- one test -- and the hand-over's, which takes either,
+ * is at most their union, 2 pfa: the baseline the noise rows are read
+ * against.
+ *
+ * Stimulus: the use-case scene, native/tests/dp_air_test.h, at the 415.1
+ * point (11 MSa/s, 3,000 sym/s, the 275-in-1,000 code-only window), C/N0
+ * at the antenna. Receiver: the specification's configuration, seeded by
+ * hand (dp_async_dsss_receiver_seed()) as the search would seed it.
+ *
+ * NOISE. The scene with no emitter, the noise at the design C/N0's
+ * reference. Each dwell: a reset, a seed at a drawn code phase and a drawn
+ * Doppler in +/-1,500 Hz, then the receiver fed until it leaves refining.
+ * Per estimator, whether it decided (its `ready`); for the hand-over,
+ * which estimate it took (get_handover_source()). Rates with Wilson 95%
+ * intervals against pfa (each estimator) and 2 pfa (the hand-over taking
+ * either).
+ *
+ * HAND-OVER. The emitter on the air, static or on a +/-400 Hz/s ramp (the
+ * sign by seed), at the floor (4 dB) and 7 dB. Each dwell is seeded on the
+ * truth's code phase at that sample, as the receiver's code NCO would read
+ * it (half a receive sample before the continuous phase, the dwell-start
+ * convention of rx.phase.code), and on the truth's Doppler plus an offset
+ * from a grid of OFFSETS across one search row. Each dwell runs twice on
+ * the same scene: as built here, and with the squared estimator SILENCED
+ * (its dwell target set out of reach through the receiver's public state
+ * after the seed, so it never tests). Silenced, the decision rule is "the
+ * data template decided, else the cap" -- the rule without the squared
+ * estimator -- with everything else this build. A read of the data
+ * estimate on the as-built dwell is not possible: each estimator tests
+ * once at its own dwell target, the squared one's ends no later than the
+ * data one's, and the hand-over comes first. Recorded against the
+ * channel's own offset at the hand-over sample: the error of what each arm
+ * handed over, and which estimate it took.
+ *
+ * Asserted, the same in the sweep and --check: every dwell leaves
+ * refining (a hand-over or a give-up, never stuck); and on noise no rate
+ * is shown to exceed its design -- each estimator's interval starts at or
+ * under pfa, the hand-over's at or under 2 pfa. Printed: the rates, and
+ * the hand-over errors as median, 90th percentile and worst, per column.
+ * --check: 2.8 GHz, 300 noise dwells and the static 7 dB hand-over grid
+ * at one noise seed.
+ *
+ * Usage:  validate_async_dsss_receiver_refine [--check] [--emit]
+ *             [--dwells N]
+ */
+#include "async_dsss_receiver_common.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "dp_air_test.h"
+#include "dp_dsss_test.h"
+#include "dp_stats_test.h"
+#include "dp_test.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define RF_FS 11e6
+#define RF_SYM 3000.0
+#define RF_PUSH 4096u
+#define RF_SPAN_HZ 1500.0
+#define RF_RATE_HZ_S 400.0
+#define RF_DWELLS 2000u
+#define RF_CHECK_DWELLS 300u
+#define RF_OFFSETS 20u
+#define RF_NOISE_SEEDS 4u
+#define RF_MAX_S 3.0 /* a refine longer than this is stuck */
+
+static dp_async_dsss_receiver_state_t *
+rf_rx (const uint8_t *code, double fc, double cn0)
+{
+  return dp_async_dsss_receiver_create (
+      code, SF, fc * 31.0 / 21216.0, RF_SYM, RF_FS, 2, cn0, 1e-3, 0.9,
+      RF_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 0.0, false,
+      275.0 / RF_SYM, RF_RATE_HZ_S, true, ASYNC_DSSS_RX_CARRIER_PARTIALS);
+}
+
+/* Feed `rx` from `air` until it leaves refining; the samples fed, or 0 if
+   it was still refining after RF_MAX_S. */
+static uint64_t
+rf_until_decided (dp_async_dsss_receiver_state_t *rx, dp_air_t *air,
+                  float complex *x, float complex *out, size_t ocap)
+{
+  const uint64_t max = (uint64_t)(RF_MAX_S * RF_FS);
+  uint64_t       fed = 0;
+  while (rx->state == ASYNC_DSSS_RX_REFINING && fed < max)
+    {
+      DP_REQUIRE (dp_air_next (air, x, RF_PUSH));
+      (void)dp_async_dsss_receiver_steps (rx, x, RF_PUSH, out, ocap);
+      fed += RF_PUSH;
+    }
+  return rx->state == ASYNC_DSSS_RX_REFINING ? 0 : fed;
+}
+
+static void
+rate_row (const char *what, size_t k, size_t n, double design, int emit)
+{
+  double lo, hi;
+  dp_wilson ((double)k, (double)n, &lo, &hi);
+  if (!emit)
+    printf ("    %-34s %4zu of %zu = %.2e [%.2e, %.2e], design %.1e\n", what,
+            k, n, (double)k / (double)n, lo, hi, design);
+  DP_CHECK_MSG (lo <= design, "no false-alarm rate is shown to exceed its "
+                              "design");
+}
+
+/* NOISE: `n` dwells at carrier `fc`. */
+static int
+noise_rows (const uint8_t *code, double fc, size_t n, int emit)
+{
+  const double cn0 = 4.0 + 10.0 * log10 (RF_SYM);
+  dp_air_t     air;
+  DP_REQUIRE (dp_air_init (&air, NULL, 0, RF_FS, cn0, 4242u, RF_PUSH));
+  dp_async_dsss_receiver_state_t *rx = rf_rx (code, fc, cn0);
+  DP_REQUIRE (rx != NULL);
+  const double   pfa  = rx->pfa;
+  const size_t   ocap = 1u << 14;
+  float complex *x    = dp_xmalloc (RF_PUSH * sizeof *x);
+  float complex *out  = dp_xmalloc (ocap * sizeof *out);
+  uint32_t       st   = trial_rng ((uint32_t)(fc / 1e8));
+  size_t         data = 0, sq = 0, any = 0, stuck = 0;
+  size_t         src[4] = { 0, 0, 0, 0 };
+  if (emit)
+    printf ("# noise\nfc_ghz,dwell,data_ready,sq_ready,ho_src,samples\n");
+  for (size_t d = 0; d < n; d++)
+    {
+      dp_async_dsss_receiver_reset (rx);
+      const double ph  = 1023.0 * dp_uni (&st);
+      const double dop = -RF_SPAN_HZ + 2.0 * RF_SPAN_HZ * dp_uni (&st);
+      DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, dop, cn0) == DP_OK);
+      const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
+      stuck += fed == 0;
+      const int dr = rx->ca->ready, sr = rx->ca_sq->ready;
+      data += (size_t)dr;
+      sq += (size_t)sr;
+      any += (size_t)(dr || sr);
+      const int hs = dp_async_dsss_receiver_get_handover_source (rx);
+      if (hs >= 0 && hs < 4)
+        src[hs]++;
+      if (emit)
+        printf ("%.1f,%zu,%d,%d,%d,%llu\n", fc / 1e9, d, dr, sr, hs,
+                (unsigned long long)fed);
+    }
+  DP_CHECK_MSG (stuck == 0, "every noise dwell leaves refining");
+  if (!emit)
+    printf ("  noise at %.1f GHz: %zu dwells (hand-over from the seed %zu, "
+            "data %zu, squared %zu)\n",
+            fc / 1e9, n, src[ASYNC_DSSS_RX_HO_SEED],
+            src[ASYNC_DSSS_RX_HO_DATA], src[ASYNC_DSSS_RX_HO_SQUARED]);
+  rate_row ("data template decides", data, n, pfa, emit);
+  rate_row ("squared stream decides", sq, n, pfa, emit);
+  rate_row ("either (the hand-over's)", any, n, 2.0 * pfa, emit);
+  free (x);
+  free (out);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_air_free (&air);
+  return 0;
+}
+
+static int
+cmp_dbl (const void *a, const void *b)
+{
+  const double x = *(const double *)a, y = *(const double *)b;
+  return (x > y) - (x < y);
+}
+
+static void
+err_col (const char *what, double *v, size_t n)
+{
+  size_t m = 0;
+  for (size_t i = 0; i < n; i++)
+    if (!isnan (v[i]))
+      v[m++] = fabs (v[i]);
+  if (!m)
+    {
+      printf ("      %-14s none decided\n", what);
+      return;
+    }
+  qsort (v, m, sizeof *v, cmp_dbl);
+  printf ("      %-14s %3zu decided, |err| %.1f / %.1f / %.1f Hz\n", what, m,
+          v[m / 2], v[(size_t)(0.9 * (double)m)], v[m - 1]);
+}
+
+/* One hand-over dwell: the emitter at the 415.1 point, the receiver seeded
+   on the truth's code phase and the truth's Doppler plus `off`. With
+   `silence_sq` the squared estimator is held from ever testing (its dwell
+   target set out of reach through the receiver's public state, after the
+   seed builds it), so the hand-over is the data template's or the cap's:
+   the decision rule without the squared estimator, everything else this
+   build. Returns the error of what was handed over against the channel's
+   offset at the hand-over sample (NAN if it stuck) and the source. */
+static int
+one_handover (const uint8_t *code, double fc, double cn0, double rate,
+              uint32_t s, size_t o, double off_frac, int silence_sq,
+              double *err, int *src)
+{
+  const double                    chip = fc * 31.0 / 21216.0;
+  const size_t                    ocap = 1u << 14;
+  float complex                  *x    = dp_xmalloc (RF_PUSH * sizeof *x);
+  float complex                  *out  = dp_xmalloc (ocap * sizeof *out);
+  dp_async_dsss_receiver_state_t *rx   = rf_rx (code, fc, cn0);
+  DP_REQUIRE (rx != NULL);
+  const double     off = rx->acq->search->doppler_res_hz * off_frac;
+  dp_air_emitter_t e   = { 0 };
+  e.code               = code;
+  e.code_len           = SF;
+  e.chip_rate          = chip;
+  e.sym_rate           = RF_SYM;
+  e.carrier_hz         = fc;
+  e.f0_hz              = -700.0 + 140.0 * (double)o;
+  e.rate_hz_s          = rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate);
+  e.cn0_dbhz           = cn0;
+  e.code_only_sym      = 275;
+  e.frame_sym          = 1000;
+  e.frame_off          = (size_t)(37u * (unsigned)o + 101u * s) % 1000u;
+  e.seed               = 100u + s;
+  dp_air_t air;
+  DP_REQUIRE (dp_air_init (&air, &e, 1, RF_FS, cn0,
+                           9001u + 31u * s + (uint32_t)o, RF_PUSH));
+  /* A block of signal first, so the refine starts mid-run; the seed's
+     code phase is the scene's next sample's, as the receiver's code NCO
+     reads it (half a receive sample before the continuous phase). */
+  DP_REQUIRE (dp_air_next (&air, x, RF_PUSH));
+  const uint64_t       at0 = air.n_out;
+  const dp_air_truth_t t0  = dp_air_truth (&air, 0, at0);
+  const double ph = fmod (t0.code_chips - 0.5 * chip / RF_FS + 1023.0, 1023.0);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, t0.car_hz + off, cn0)
+              == DP_OK);
+  if (silence_sq)
+    rx->ca_sq->dwell_target = SIZE_MAX; /* never tests, never decides */
+  const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
+  const uint64_t at  = at0 + (rx->samples_in - rx->state_samples);
+  *err               = fed ? dp_async_dsss_receiver_get_doppler_hz (rx)
+                                 - dp_air_truth (&air, 0, at).car_hz
+                           : NAN;
+  *src               = dp_async_dsss_receiver_get_handover_source (rx);
+  DP_CHECK_MSG (!silence_sq || !rx->ca_sq->ready,
+                "a silenced squared estimator never decides");
+  dp_air_free (&air);
+  dp_async_dsss_receiver_destroy (rx);
+  free (x);
+  free (out);
+  return 0;
+}
+
+/* HAND-OVER: the offset grid at carrier `fc`, Es/N0 `esn0`, ramp
+   magnitude `rate`, each dwell twice on the same scene: as built here
+   (the squared estimate when it decides) and with the squared estimator
+   silenced (the data template's hand-over). */
+static int
+handover_rows (const uint8_t *code, double fc, double esn0, double rate,
+               size_t seeds, int emit)
+{
+  const double cn0 = esn0 + 10.0 * log10 (RF_SYM);
+  const size_t n   = RF_OFFSETS * seeds;
+  double      *eb  = dp_xmalloc (n * sizeof *eb);
+  double      *ed  = dp_xmalloc (n * sizeof *ed);
+  size_t       k = 0, stuck = 0, sb[4] = { 0 }, sd[4] = { 0 };
+  for (uint32_t s = 1; s <= seeds; s++)
+    for (size_t o = 0; o < RF_OFFSETS; o++, k++)
+      {
+        const double frac
+            = -1.0 + 2.0 * ((double)o + 0.5) / (double)RF_OFFSETS;
+        int hb = 0, hd = 0;
+        DP_REQUIRE (
+            one_handover (code, fc, cn0, rate, s, o, frac, 0, &eb[k], &hb)
+            == 0);
+        DP_REQUIRE (
+            one_handover (code, fc, cn0, rate, s, o, frac, 1, &ed[k], &hd)
+            == 0);
+        stuck += isnan (eb[k]) + isnan (ed[k]);
+        if (hb >= 0 && hb < 4)
+          sb[hb]++;
+        if (hd >= 0 && hd < 4)
+          sd[hd]++;
+        if (emit)
+          printf ("%.1f,%.1f,%.0f,%u,%.3f,%.2f,%d,%.2f,%d\n", fc / 1e9, esn0,
+                  rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate), s, frac, eb[k],
+                  hb, ed[k], hd);
+      }
+  DP_CHECK_MSG (stuck == 0, "every hand-over dwell leaves refining");
+  if (!emit)
+    {
+      printf ("    %.1f GHz %4.1f dB %s: %zu dwells each arm\n", fc / 1e9,
+              esn0, rate == 0.0 ? "static" : "+/-400 Hz/s", n);
+      printf ("      as built (squared %zu, data %zu, seed %zu):\n",
+              sb[ASYNC_DSSS_RX_HO_SQUARED], sb[ASYNC_DSSS_RX_HO_DATA],
+              sb[ASYNC_DSSS_RX_HO_SEED]);
+      err_col ("handed over", eb, n);
+      printf ("      data template, squared silenced (data %zu, seed %zu):\n",
+              sd[ASYNC_DSSS_RX_HO_DATA], sd[ASYNC_DSSS_RX_HO_SEED]);
+      err_col ("handed over", ed, n);
+    }
+  free (eb);
+  free (ed);
+  return 0;
+}
+
+int
+main (int argc, char **argv)
+{
+  int      check = 0, emit = 0;
+  unsigned dwells = RF_DWELLS;
+  for (int i = 1; i < argc; i++)
+    {
+      check |= strcmp (argv[i], "--check") == 0;
+      emit |= strcmp (argv[i], "--emit") == 0;
+      if (strcmp (argv[i], "--dwells") == 0 && i + 1 < argc)
+        dwells = (unsigned)strtoul (argv[++i], NULL, 10);
+    }
+  if (check)
+    dwells = RF_CHECK_DWELLS;
+  DP_REQUIRE (dwells >= 1);
+  uint8_t code[SF];
+  dp_dsss_gold_1023 (code);
+  static const double fcs[2]   = { 2.2e9, 2.8e9 };
+  static const double esn0s[2] = { 4.0, 7.0 };
+  static const double rates[2] = { 0.0, RF_RATE_HZ_S };
+  if (!emit)
+    printf ("refine: 415.1-B-1, 11 MSa/s, 3000 sym/s; refine_sequential "
+            "false (one test an estimator); C/N0 at the antenna\n");
+  for (int f = check ? 1 : 0; f < 2; f++)
+    DP_REQUIRE (noise_rows (code, fcs[f], dwells, emit) == 0);
+  if (emit)
+    printf ("# handover\nfc_ghz,esn0_db,rate_hz_s,seed,offset_rows,"
+            "err_hz,ho_src,data_only_err_hz,data_only_ho_src\n");
+  else
+    printf ("  hand-over: %u offsets across one search row, the error "
+            "against the channel's offset at the hand-over sample\n",
+            RF_OFFSETS);
+  for (int f = check ? 1 : 0; f < 2; f++)
+    for (int e = check ? 1 : 0; e < 2; e++)
+      for (int r = 0; r < (check ? 1 : 2); r++)
+        DP_REQUIRE (handover_rows (code, fcs[f], esn0s[e], rates[r],
+                                   check ? 1u : RF_NOISE_SEEDS, emit)
+                    == 0);
+  if (emit)
+    DP_TEST_EMIT_END ("validate_async_dsss_receiver_refine");
+  DP_TEST_END ("validate_async_dsss_receiver_refine");
+}

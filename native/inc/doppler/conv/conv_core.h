@@ -7,6 +7,10 @@
  * output count, a generator polynomial per output, and which outputs are
  * inverted. This file holds that description once and derives everything from
  * it, so an encoder and a decoder cannot disagree about what the code is.
+ * A **puncturing pattern** is the fifth part of the description: it deletes
+ * symbols from the mother code's output to raise the rate, and the decoder
+ * puts them back as erasures. It lives here for the same reason the
+ * polynomials do, so the two directions read one pattern.
  *
  * ## The one expression
  *
@@ -75,6 +79,22 @@ extern "C"
    *
    * @c invert is a bitmask over outputs, not a flag: bit @c j set means
    * output @c j is transmitted inverted. CCSDS sets bit 1 and nothing else.
+   *
+   * ## Puncturing
+   *
+   * A pattern repeats every @c punct_period input bits. Bit `i * n + j` of
+   * @c punct_mask says whether output @c j of the @c i-th input bit of the
+   * period is **transmitted** (1) or deleted (0), so the mask reads in the
+   * order the encoder emits symbols. Both fields zero is no puncturing, which
+   * is what a zero-initialized code means, so a code written before the
+   * fields existed is unchanged. `punct_period * n` must not exceed 32, and
+   * every input bit must keep at least one symbol: an input that transmits
+   * nothing would leave a decoder unable to say how many input bits a
+   * received stream holds.
+   *
+   * The pattern is part of the code, not of a caller's framing. A decoder
+   * given a different pattern than the encoder used decodes a stream it was
+   * never sent, and nothing in the symbols says so.
    */
   typedef struct
   {
@@ -82,6 +102,9 @@ extern "C"
     unsigned n;                  /**< outputs per input, 1..CONV_N_MAX   */
     uint32_t poly[CONV_N_MAX];   /**< generator polynomials, k bits each */
     uint32_t invert;             /**< bit j: output j is inverted        */
+    unsigned punct_period;       /**< input bits per pattern; 0 = none   */
+    uint32_t punct_mask;         /**< bit i*n+j: transmit output j of
+                                      input i of the period            */
   } conv_code_t;
 
   /**
@@ -91,7 +114,9 @@ extern "C"
    * @return   Non-zero if usable: `k` in `[2, CONV_K_MAX]`, `n` in
    *           `[1, CONV_N_MAX]`, and every polynomial within `k` bits and
    *           non-zero. A zero polynomial is an output that carries no
-   *           information, which is a typo rather than a code.
+   *           information, which is a typo rather than a code. A puncturing
+   *           pattern must be both-zero (none) or satisfy the rules on
+   *           @ref conv_code_t.
    */
   int dp_conv_code_valid (const conv_code_t *c);
 
@@ -139,6 +164,71 @@ extern "C"
     return (((bit & 1u) << (c->k - 1u)) | state) >> 1;
   }
 
+  /* ── puncturing ──────────────────────────────────────────────────────── */
+
+  /**
+   * @brief Does the code delete any of the mother code's symbols?
+   *
+   * @param c  A valid code.
+   * @return   Non-zero if @c punct_period is set and the mask leaves at least
+   *           one symbol out. An all-ones mask is a pattern that punctures
+   *           nothing, and is treated as none.
+   */
+  int dp_conv_punctured (const conv_code_t *c);
+
+  /**
+   * @brief Symbols transmitted for the input bit at pattern position
+   *        @p phase.
+   *
+   * @param c      A valid code.
+   * @param phase  Position within the period, `[0, punct_period)`; ignored
+   *               for an unpunctured code.
+   * @return       `n` unpunctured, otherwise the mask bits set for that
+   *               input.
+   */
+  unsigned dp_conv_kept (const conv_code_t *c, unsigned phase);
+
+  /**
+   * @brief Symbols transmitted for @p n_in input bits starting at @p phase.
+   *
+   * The exact count the encoder writes, so a caller sizes its buffer with
+   * this and not with `n_in * n`.
+   *
+   * @param c      A valid code.
+   * @param phase  Pattern position of the first input bit.
+   * @param n_in   Input bits.
+   * @return       Symbols transmitted.
+   */
+  size_t dp_conv_coded_len (const conv_code_t *c, unsigned phase, size_t n_in);
+
+  /**
+   * @brief How many input bits @p n_syms received symbols hold, from
+   *        @p phase.
+   *
+   * The inverse of @ref dp_conv_coded_len. Every input bit keeps at least one
+   * symbol, so the answer is unique when it exists.
+   *
+   * @param c        A valid code.
+   * @param phase    Pattern position of the first input bit.
+   * @param n_syms   Received symbols.
+   * @param[out] steps  Input bits those symbols cover.
+   * @return  Non-zero if @p n_syms is exactly a whole number of input bits'
+   *          symbols, zero if it ends part way through one.
+   */
+  int dp_conv_steps_for (const conv_code_t *c, unsigned phase, size_t n_syms,
+                         size_t *steps);
+
+  /**
+   * @brief Pattern position after @p n_in more input bits.
+   *
+   * @param c      A valid code.
+   * @param phase  Position now.
+   * @param n_in   Input bits consumed.
+   * @return       `(phase + n_in) mod punct_period`, or 0 unpunctured.
+   */
+  unsigned dp_conv_phase_after (const conv_code_t *c, unsigned phase,
+                                size_t n_in);
+
   /* ── the encoder ─────────────────────────────────────────────────────── */
 
   /**
@@ -147,11 +237,13 @@ extern "C"
    * Held in a struct rather than passed by value because the encoder is
    * **continuous** — a caller encoding a long record in chunks must carry the
    * register across calls or introduce a discontinuity at every chunk
-   * boundary that no decoder expects.
+   * boundary that no decoder expects. The puncturing phase is carried for the
+   * same reason: a chunk that ends mid-pattern must not restart it.
    */
   typedef struct
   {
-    uint32_t reg; /**< the k-1 previous inputs; newest in the high stage */
+    uint32_t reg;   /**< the k-1 previous inputs; newest in the high stage */
+    uint32_t phase; /**< position in the puncturing pattern; 0 unpunctured  */
   } conv_enc_t;
 
   /**
@@ -162,17 +254,22 @@ extern "C"
   void dp_conv_enc_init (conv_enc_t *s);
 
   /**
-   * @brief Encode @p n_in bits, emitting `n_in * c->n` symbols.
+   * @brief Encode @p n_in bits, emitting `n_in * c->n` symbols, fewer when
+   *        the code is punctured.
+   *
+   * A punctured code emits @ref dp_conv_coded_len symbols: each input bit's
+   * outputs in polynomial order, less the ones the pattern deletes.
    *
    * @param s       Encoder state, carried across calls.
    * @param c       The code.
    * @param in      @p n_in unpacked input bits.
    * @param n_in    Number of input bits.
-   * @param out     Receives `n_in * c->n` unpacked symbols, outputs in
+   * @param out     Receives the symbols, one per byte, outputs in
    *                polynomial order per input bit.
    * @param max_out Capacity of @p out.
    * @return        Symbols written, or 0 if the code is invalid or @p max_out
-   *                is too small — in which case @p out is untouched.
+   *                is smaller than @ref dp_conv_coded_len — in which case
+   *                @p out is untouched.
    */
   size_t dp_conv_encode (conv_enc_t *s, const conv_code_t *c, const uint8_t *in,
                       size_t n_in, uint8_t *out, size_t max_out);

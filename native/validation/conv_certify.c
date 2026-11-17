@@ -64,18 +64,21 @@ static const conv_code_t CCSDS
  * input. Measuring it any other way would compare two decoders instead of two
  * inputs. */
 static double
-ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
-           size_t *bits_out, size_t *errs_out)
+ber_point_code (const conv_code_t *code, double esn0_db, unsigned depth,
+                int hard, uint64_t seed, size_t *bits_out, size_t *errs_out)
 {
   const size_t nbits = NBITS;
-  const size_t nsym  = nbits * 2u;
+  /* The symbols actually transmitted: nbits * n unpunctured, fewer when the
+     code deletes some. The mother-code buffer is sized for the larger. */
+  const size_t nmax = nbits * 2u;
+  const size_t nsym = dp_conv_coded_len (code, 0u, nbits);
 
   uint8_t       *in   = malloc (nbits);
-  uint8_t       *sym  = malloc (nsym);
+  uint8_t       *sym  = malloc (nmax);
   uint8_t       *dec  = malloc (nbits);
-  float complex *mod  = malloc (nsym * sizeof *mod);
-  float complex *nz   = malloc (nsym * sizeof *nz);
-  float         *llr  = malloc (nsym * sizeof *llr);
+  float complex *mod  = malloc (nmax * sizeof *mod);
+  float complex *nz   = malloc (nmax * sizeof *nz);
+  float         *llr  = malloc (nmax * sizeof *llr);
   uint8_t       *chip = malloc (nbits);
   dp_pn_state_t *pn   = dp_pn_create (wfm_synth_mls_poly (15), 1u, 15, 0);
 
@@ -89,7 +92,7 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
 
   conv_enc_t e;
   dp_conv_enc_init (&e);
-  dp_conv_encode (&e, &CCSDS, in, nbits, sym, nsym);
+  dp_conv_encode (&e, code, in, nbits, sym, nsym);
   dp_mpsk_map (sym, nsym, mod, 2);
 
   const float      sigma = dp_awgn_amplitude_for_snr ((float)esn0_db, 1.0f);
@@ -109,7 +112,7 @@ ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
         llr[i] = llr[i] < 0.0f ? -1.0f : 1.0f;
     }
 
-  dp_viterbi_state_t *v = dp_viterbi_create_code (&CCSDS, depth);
+  dp_viterbi_state_t *v = dp_viterbi_create_code (code, depth);
   if (!v)
     goto done;
   const size_t got = dp_viterbi_decode (v, llr, nsym, dec, nbits);
@@ -135,6 +138,14 @@ done:
   free (llr);
   free (chip);
   return errs;
+}
+
+static double
+ber_point (double esn0_db, unsigned depth, int hard, uint64_t seed,
+           size_t *bits_out, size_t *errs_out)
+{
+  return ber_point_code (&CCSDS, esn0_db, depth, hard, seed, bits_out,
+                         errs_out);
 }
 
 /* One node-sync point: how far the right alignment sits from the best wrong
@@ -282,6 +293,53 @@ main (int argc, char **argv)
           else
             printf ("  %5.1f  %6zu   %7.4f   %7.4f   %7.4f\n", NODE_ESN0[e],
                     NODE_WIN[w], is, wr, mg);
+        }
+    }
+
+  /* ── puncturing: what each rate costs, at equal Eb/N0 ─────────────────
+   *
+   * The mother code's output with symbols deleted, decoded with the zeros put
+   * back. Es/N0 is per TRANSMITTED symbol, so holding Eb/N0 fixed means
+   * Es/N0 = Eb/N0 + 10 log10 (bits per symbol), which is below Eb/N0 at every
+   * rate under 1 and rises with the rate: a punctured code spends fewer
+   * symbols per bit, so each symbol carries more of the energy budget and the
+   * comparison at equal Eb/N0 is the one that charges the rate honestly.
+   * The patterns are rate-2/3 and 3/4 SHAPES (period 2 keep 3 of 4, period 3
+   * keep 4 of 6), not any standard's. */
+  static const double PEBN0[] = { 3.0, 4.0, 5.0, 6.0 };
+  static const struct
+  {
+    const char *name;
+    unsigned    period;
+    uint32_t    mask;
+    double      rate; /* information bits per transmitted symbol */
+  } PUNCT[] = { { "1/2", 0u, 0u, 0.5 },
+                { "2/3", 2u, 0x7u, 2.0 / 3.0 },
+                { "3/4", 3u, 0x27u, 0.75 } };
+
+  if (emit)
+    printf ("\n# puncture\nrate_idx,rate,ebn0_db,esn0_db,bits,errors,ber\n");
+  else
+    printf ("\n  rate   Eb/N0   Es/N0     BER\n"
+            "  ----   -----   -----   ---------\n");
+
+  for (size_t r = 0; r < sizeof PUNCT / sizeof PUNCT[0]; r++)
+    {
+      conv_code_t c  = CCSDS;
+      c.punct_period = PUNCT[r].period;
+      c.punct_mask   = PUNCT[r].mask;
+      for (size_t b = 0; b < sizeof PEBN0 / sizeof PEBN0[0]; b++)
+        {
+          const double esn0 = PEBN0[b] + 10.0 * log10 (PUNCT[r].rate);
+          size_t       nb = 0, ne = 0;
+          const double ber = ber_point_code (&c, esn0, DEPTH, 0,
+                                             515u + 10u * r + b, &nb, &ne);
+          if (emit)
+            printf ("%zu,%.6f,%.1f,%.4f,%zu,%zu,%.6e\n", r, PUNCT[r].rate,
+                    PEBN0[b], esn0, nb, ne, ber);
+          else
+            printf ("  %4s   %5.1f   %5.2f   %9.3e\n", PUNCT[r].name, PEBN0[b],
+                    esn0, ber);
         }
     }
 

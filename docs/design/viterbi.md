@@ -291,6 +291,39 @@ which polarity.
 
 ______________________________________________________________________
 
+## 10. Puncturing — the pattern is part of the code
+
+A puncturing pattern deletes symbols from the mother code's output to raise
+its rate, and the decoder puts them back as erasures. It is held in
+`conv_code_t` beside the polynomials (`punct_period` and `punct_mask`), so the
+encoder and the decoder read one pattern and cannot disagree about it. Bit
+`i * n + j` of the mask says whether output `j` of input `i` of the period is
+transmitted. Both fields zero is the unpunctured code, and every input must
+keep at least one symbol, so a received length determines how many input bits
+it holds.
+
+**The decoder reads transmitted symbols only.** One step of the trellis takes
+as many LLRs as its input keeps and supplies exactly zero for the rest, so a
+deleted symbol adds nothing to either branch of the metric and the survivor is
+chosen on what was sent. It is the same add-compare-select; what changes is
+how many input values a step consumes. The decoder's place in the pattern is
+running state, carried across calls with the traceback ring, so a block that
+ends mid-pattern does not restart it. A length that ends inside an input's
+symbols is refused with the decoder untouched.
+
+**The pattern is a constructor argument and a reject key.** It is not a setter:
+it sizes what a blob means, and a blob from a decoder (or encoder) with another
+pattern has the same length as this one, so the pattern and the phase are
+stamped in the blob and checked.
+
+**Node synchronization is not defined for a punctured code.** The alignment
+space of a punctured stream is `punct_period * n` symbols and the scoring
+re-encodes the mother code; both would have to change, and neither is claimed.
+
+What was measured is in the `conv` report's section 2.5: at equal Eb/N0 the
+error rate rises with the code rate, and every rate measured still beats
+uncoded BPSK at 3 dB. The patterns it used are shapes, not any standard's.
+
 ## See also
 
 - [The FEC Receive Half](fec-receive.md) — the chain, node sync, lock detection

@@ -46,14 +46,17 @@ struct dp_viterbi_state_t
    CCSDS configuration, the validators) use dp_viterbi_create_code below. */
 dp_viterbi_state_t *
 dp_viterbi_create (const uint32_t *poly, size_t poly_len, uint32_t k,
-                   uint32_t invert, size_t depth)
+                   uint32_t invert, size_t depth, uint32_t punct_period,
+                   uint32_t punct_mask)
 {
   conv_code_t c = { 0 };
   if (!poly || poly_len == 0 || poly_len > CONV_N_MAX)
     return NULL;
-  c.k      = k;
-  c.n      = (unsigned)poly_len;
-  c.invert = invert;
+  c.k            = k;
+  c.n            = (unsigned)poly_len;
+  c.invert       = invert;
+  c.punct_period = punct_period;
+  c.punct_mask   = punct_mask;
   for (size_t i = 0; i < poly_len; i++)
     c.poly[i] = poly[i];
   return dp_viterbi_create_code (&c, depth);
@@ -134,6 +137,7 @@ dp_viterbi_reset (dp_viterbi_state_t *s)
   s->pm[0] = 0.0f;
   s->head  = 0;
   s->fill  = 0;
+  s->phase = 0u;
   memset (s->dec, 0, s->depth * s->nstate);
 }
 
@@ -152,7 +156,9 @@ dp_viterbi_depth (const dp_viterbi_state_t *s)
 size_t
 dp_viterbi_decode_max_out (const dp_viterbi_state_t *s, size_t n_llr)
 {
-  const size_t steps = n_llr / s->code.n;
+  size_t steps;
+  if (!dp_conv_steps_for (&s->code, s->phase, n_llr, &steps))
+    return 0u;
   const size_t owed
       = s->depth - 1u - (s->fill < s->depth - 1u ? s->fill : s->depth - 1u);
   return steps > owed ? steps - owed : 0u;
@@ -180,20 +186,39 @@ dp_viterbi_decode (dp_viterbi_state_t *s, const float *llr, size_t n_llr,
                    uint8_t *out, size_t max_out)
 {
   const conv_code_t *c = &s->code;
-  if (n_llr % c->n != 0u)
+  size_t             steps;
+  if (!dp_conv_steps_for (c, s->phase, n_llr, &steps))
     return 0;
   if (max_out < dp_viterbi_decode_max_out (s, n_llr))
     return 0;
 
-  const size_t   steps = n_llr / c->n;
-  const uint32_t S     = s->nstate;
-  const unsigned npat  = 1u << c->n;
+  const uint32_t S    = s->nstate;
+  const unsigned npat = 1u << c->n;
   float          bm[1u << CONV_N_MAX];
   size_t         nout = 0;
 
+  const int punct = dp_conv_punctured (c);
+  size_t    used  = 0; /* transmitted symbols read so far */
+  float     erased[CONV_N_MAX];
+
   for (size_t t = 0; t < steps; t++)
     {
-      const float *l = llr + t * c->n;
+      const float *l = llr + used;
+      if (punct)
+        {
+          /* Erasure insertion: a deleted symbol is an LLR of exactly zero, so
+             it adds nothing to either branch and the survivor is chosen on
+             what was transmitted. The pattern is read from the code the
+             encoder was built over, not restated here. */
+          const unsigned ph = s->phase;
+          for (unsigned j = 0; j < c->n; j++)
+            erased[j] = ((c->punct_mask >> (ph * c->n + j)) & 1u) ? llr[used++]
+                                                                  : 0.0f;
+          l        = erased;
+          s->phase = (ph + 1u == c->punct_period) ? 0u : ph + 1u;
+        }
+      else
+        used += c->n;
 
       /* Branch metrics once per step, not per state: rate 1/n has only 2^n
          distinct output words, so 128 branches at k=7 index a table of 4. */
@@ -261,6 +286,9 @@ typedef struct
   uint64_t depth;
   uint64_t head;
   uint64_t fill;
+  uint32_t phase;
+  uint32_t punct_period;
+  uint32_t punct_mask;
   uint32_t k;
   uint32_t n;
   uint32_t invert;
@@ -290,12 +318,15 @@ dp_viterbi_get_state (const dp_viterbi_state_t *s, void *blob)
      on the caller's stack. */
   viterbi_extra_t extra;
   memset (&extra, 0, sizeof extra);
-  extra.depth  = (uint64_t)s->depth;
-  extra.head   = (uint64_t)s->head;
-  extra.fill   = (uint64_t)s->fill;
-  extra.k      = s->code.k;
-  extra.n      = s->code.n;
-  extra.invert = s->code.invert & ((1u << s->code.n) - 1u);
+  extra.depth        = (uint64_t)s->depth;
+  extra.head         = (uint64_t)s->head;
+  extra.fill         = (uint64_t)s->fill;
+  extra.phase        = s->phase;
+  extra.punct_period = s->code.punct_period;
+  extra.punct_mask   = s->code.punct_mask;
+  extra.k            = s->code.k;
+  extra.n            = s->code.n;
+  extra.invert       = s->code.invert & ((1u << s->code.n) - 1u);
   for (unsigned j = 0; j < s->code.n; j++)
     extra.poly[j] = s->code.poly[j];
 
@@ -317,7 +348,8 @@ dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob)
      codes of the same k and n differ in no dimension the length can see, so
      the code is compared field by field. */
   if (extra.depth != (uint64_t)s->depth || extra.k != s->code.k
-      || extra.n != s->code.n
+      || extra.n != s->code.n || extra.punct_period != s->code.punct_period
+      || extra.punct_mask != s->code.punct_mask
       || extra.invert != (s->code.invert & ((1u << s->code.n) - 1u)))
     return DP_ERR_INVALID;
   for (unsigned j = 0; j < s->code.n; j++)
@@ -329,11 +361,17 @@ dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob)
      own. */
   if (extra.head >= (uint64_t)s->depth || extra.fill > (uint64_t)s->depth)
     return DP_ERR_INVALID;
+  /* The phase indexes the mask: out of range would read bits that are not
+     this pattern's. */
+  if (s->code.punct_period ? extra.phase >= s->code.punct_period
+                           : extra.phase != 0u)
+    return DP_ERR_INVALID;
 
   dp_r_f32 (&_r, s->pm, s->nstate);
   dp_r_bytes (&_r, s->dec, s->depth * (size_t)s->nstate);
-  s->head = (size_t)extra.head;
-  s->fill = (size_t)extra.fill;
+  s->head  = (size_t)extra.head;
+  s->fill  = (size_t)extra.fill;
+  s->phase = extra.phase;
   return DP_OK;
 }
 
@@ -357,16 +395,18 @@ dp_viterbi_set_state (dp_viterbi_state_t *s, const void *blob)
 size_t
 dp_node_sync_scored_symbols (const dp_viterbi_state_t *v, size_t n_llr)
 {
-  const conv_code_t *c  = dp_viterbi_code (v);
-  const size_t       nb = dp_viterbi_decode_max_out (v, (n_llr / c->n) * c->n);
-  const size_t       warm = dp_viterbi_depth (v);
+  const conv_code_t *c = dp_viterbi_code (v);
+  if (dp_conv_punctured (c))
+    return 0;
+  const size_t nb   = dp_viterbi_decode_max_out (v, (n_llr / c->n) * c->n);
+  const size_t warm = dp_viterbi_depth (v);
   return nb > warm ? (nb - warm) * c->n : 0;
 }
 
 size_t
 dp_node_sync_score (dp_viterbi_state_t *v, const float *llr, size_t n_llr)
 {
-  if (v == NULL || llr == NULL)
+  if (v == NULL || llr == NULL || dp_conv_punctured (dp_viterbi_code (v)))
     return 0;
 
   const conv_code_t *c      = dp_viterbi_code (v);
@@ -432,7 +472,7 @@ int
 dp_node_sync_scan (dp_viterbi_state_t *v, const float *llr, size_t n_llr,
                    node_sync_t *out)
 {
-  if (v == NULL || llr == NULL)
+  if (v == NULL || llr == NULL || dp_conv_punctured (dp_viterbi_code (v)))
     return 0;
 
   const conv_code_t *c = dp_viterbi_code (v);

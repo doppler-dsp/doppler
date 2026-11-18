@@ -50,6 +50,14 @@ OBJECTS = {
 }
 
 
+#: A report whose envelope is being rebuilt asserts fewer limits for a
+#: while. The async receiver's certification moves to the 415.1 point one
+#: harness at a time, each retiring its old-point limits as it moves
+#: (docs/design/async-dsss-receiver.md); its floor is the count the move has
+#: reached, set by the commit that changes it. Every other report: 15.
+ENVELOPE_FLOOR = {"AsyncDsssReceiver": 5}
+
+
 @pytest.fixture(
     scope="module",
     params=sorted(OBJECTS),
@@ -79,7 +87,9 @@ def test_the_envelope_is_not_empty(report):
     it — would leave `test_every_limit_holds` passing vacuously on an
     empty list, which is exactly the failure this module exists to end.
     """
-    assert len(report.limits) >= 15
+    title = report.lines[0].removeprefix("# ").split(" — ")[0]
+    floor = ENVELOPE_FLOOR.get(title, 15)
+    assert len(report.limits) >= floor, (title, len(report.limits))
     assert report.findings, "a report with no findings has not been reviewed"
 
 

@@ -35,6 +35,7 @@
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -134,6 +135,42 @@ bn3_closed (double kp, double ki, double kr)
           + 4 * ki * kr + 4 * kp * kp * kr + kp * kr * kr - 4 * kp * kr
           + kr * kr)
          / (2.0 * (ki * kp + kp * kr - kr) * (8.0 - 2 * ki - 4 * kp - kr));
+}
+
+/* The gains solved in long double by the same bisection on the same closed
+ * form, written here with no code of the object's: what a platform that
+ * evaluates the closed form with other rounding (a fused multiply-add, a wider
+ * register) could produce. The largest relative difference from the object's
+ * double gains, over the grid below, is what a restore's gain tolerance has to
+ * absorb between platforms. */
+static long double
+bn3_ld (long double kp, long double ki, long double kr)
+{
+  return (2 * ki * ki * kp + 4 * ki * ki + 4 * ki * kp * kp + 3 * ki * kp * kr
+          + 4 * ki * kr + 4 * kp * kp * kr + kp * kr * kr - 4 * kp * kr
+          + kr * kr)
+         / (2.0L * (ki * kp + kp * kr - kr) * (8.0L - 2 * ki - 4 * kp - kr));
+}
+
+static void
+gains_ld (double B, long double *kp, long double *ki, long double *kr)
+{
+  const long double a = 2.0L, b = 2.0L;
+  const long double c  = (a * b * b + a * a - b) / (4.0L * (a * b - 1.0L));
+  const long double s0 = (long double)B / c;
+  long double       lo = 0.5L * s0, hi = 1.01L * s0;
+  for (int i = 0; i < 200; i++)
+    {
+      const long double th = 0.5L * (lo + hi);
+      if (bn3_ld (b * th, a * th * th, th * th * th) < (long double)B)
+        lo = th;
+      else
+        hi = th;
+    }
+  const long double th = 0.5L * (lo + hi);
+  *kp                  = b * th;
+  *ki                  = a * th * th;
+  *kr                  = th * th * th;
 }
 
 /* Jury's conditions for the delay-free third-order loop, written from the
@@ -434,7 +471,7 @@ main (void)
     static const double ts[] = { 0.25, 1.0, 7.0 };
     int                 n_cells  = 0;
     double              worst_bw = 0.0, min_pos = 1.0, max_pos = 0.0;
-    double              worst_exact = 0.0, worst_slow = 0.0;
+    double              worst_exact = 0.0, worst_slow = 0.0, worst_gain = 0.0;
     for (size_t ti = 0; ti < sizeof ts / sizeof *ts; ti++)
       for (int i = 0; i <= 400; i++)
         {
@@ -457,6 +494,20 @@ main (void)
             min_pos = pos;
           if (pos > max_pos)
             max_pos = pos;
+          /* the gains against the long double solve (see gains_ld) */
+          {
+            long double rkp, rki, rkr;
+            gains_ld (sf.bn * sf.t, &rkp, &rki, &rkr);
+            const double d1 = (double)fabsl ((sf.kp - rkp) / rkp);
+            const double d2 = (double)fabsl ((sf.ki - rki) / rki);
+            const double d3 = (double)fabsl ((sf.kr - rkr) / rkr);
+            if (d1 > worst_gain)
+              worst_gain = d1;
+            if (d2 > worst_gain)
+              worst_gain = d2;
+            if (d3 > worst_gain)
+              worst_gain = d3;
+          }
           /* the delivered bandwidth, from the independent closed form */
           const double bw = bn3_closed (sf.kp, sf.ki, sf.kr);
           if (fabs (bw / B - 1.0) > worst_bw)
@@ -479,6 +530,15 @@ main (void)
     printf ("  exact function vs bn*t: worst %.2e over bn*t >= 1e-6, "
             "%.2e below 1e-4\n",
             worst_exact, worst_slow);
+    printf ("  gains vs a long double solve: worst relative difference %.2e "
+            "(long double is %d bits), the restore tolerance is 1e-9\n",
+            worst_gain, LDBL_MANT_DIG);
+    /* the gains match a long double solve to rounding (measured 1.6e-15 on
+     * x86-64, where long double is 64 bits; where it is no wider than double
+     * this is the same arithmetic written twice and reads about 0): the
+     * restore tolerance of 1e-9 sits N = 1e-9 / worst times above it, and
+     * CI's other platforms print their own spread above */
+    DP_CHECK (worst_gain < 1e-12);
     DP_CHECK (n_cells == 1203);
     DP_CHECK (worst_exact < 1e-9);      /* the exact function, down to 1e-6 */
     DP_CHECK (min_pos > 0.5 * 1.0001);  /* not at the lower end */

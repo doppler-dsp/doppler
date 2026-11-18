@@ -1454,6 +1454,13 @@ def acq_draw(row: dict[str, str], trans: Rows, secs: float) -> dict:
         frames.update(range(k0, k1 + 1))
     if row["false_lock"] != "0":
         verdict = "false lock"
+    elif row.get("slipped") == "1":
+        # A slip delivers wrong data whatever the flags say: it fails
+        # both scores, and "slipped while locked" counts the ones no flag
+        # saw (owner's rule: a link works when its data is good).
+        verdict = "slipped while locked" if t_acq is not None else "slipped"
+    elif row.get("end_unsynced") == "1":
+        verdict = "end unsynced"
     elif t_acq is None:
         verdict = "never acquired or still toggling"
     elif row["works"] == "1":
@@ -1505,6 +1512,9 @@ def acq(argv: list[str]) -> int:
                 for s in sc
             )
             fl = sum(s["verdict"] == "false lock" for s in sc)
+            slw = sum(s["verdict"] == "slipped while locked" for s in sc)
+            sl = slw + sum(s["verdict"] == "slipped" for s in sc)
+            uns = sum(s["verdict"] == "end unsynced" for s in sc)
             never = sum(
                 s["verdict"] == "never acquired or still toggling" for s in sc
             )
@@ -1547,6 +1557,8 @@ def acq(argv: list[str]) -> int:
                     f"{strict}/{n}",
                     f"{after}/{n}",
                     str(fl),
+                    f"{sl} ({slw})",
+                    str(uns),
                     str(never),
                     (
                         f"{st.median(okf):.2f} / {q(okf, 0.9)} / {okf[-1]:.2f}"
@@ -1571,6 +1583,8 @@ def acq(argv: list[str]) -> int:
         "works (strict)",
         "works after acquisition",
         "false locks",
+        "slipped (while locked)",
+        "end unsynced (#3131)",
         "never acquired or still toggling",
         "acquisition, frames (median / 90th / worst)",
         "frames with a symbol out of lock (median / 90th / worst)",
@@ -1582,8 +1596,9 @@ def acq(argv: list[str]) -> int:
         "Scored the owner's way (11-17): acquisition ends at the last lock "
         "change before both flags stay up to the end of the draw "
         f"({secs:g} s). A transfer frame is 1,000 symbols, 333 ms. False "
-        "locks and draws still toggling at the end fail under both "
-        "scores. No allowance is applied.\n\n"
+        "locks, slips (a different alignment at a synced end) and draws "
+        "still toggling at the end fail under both scores; so does an end "
+        "the meter could not sync (#3131). No allowance is applied.\n\n"
         + table(head, body)
         + "\n"
         + sizing_note(

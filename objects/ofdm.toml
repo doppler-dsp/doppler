@@ -100,9 +100,14 @@ params = [
 
 [[ofdm.methods]]
 name = "check"
-doc = "Check the whole layout and return 0 if it is usable, or a negative value if not (no run, a window longer than an OFDM symbol, two fixed entries on one subcarrier in one phase). `modulate` checks on first use and returns an empty array for a layout that fails; call this to find out why before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
+doc = "Check the whole layout and return 0 if it is usable; raise ValueError, with a sentence naming the condition, if not (no run, a window longer than an OFDM symbol of its class, two fixed entries on one subcarrier in one phase, or memory or a transform plan that could not be built). `modulate` checks on first use and returns an empty array for a layout that fails, without a reason; call this first to learn it before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
 arg_type = "void"
 return_type = "int"
+fn = "dp_ofdm_check_why"
+why = true
+status_return = true
+error = "ValueError"
+error_message = "the layout is not usable"
 
 [[ofdm.methods]]
 name = "points_remaining"

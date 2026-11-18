@@ -280,14 +280,28 @@ dp_ofdm_add_run (dp_ofdm_state_t *o, uint32_t class_index, uint32_t count,
 /* ── sealing ────────────────────────────────────────────────────────────── */
 
 int
-dp_ofdm_check (dp_ofdm_state_t *o)
+dp_ofdm_check_why (dp_ofdm_state_t *o, const char **why)
 {
+  /* The sentence for the condition that failed; every `return -1` and
+     `goto out` below sets it first, and the one left standing at `out` is
+     the allocation (or transform plan) that could not be built. */
+  const char *w = "memory or a transform plan could not be built";
+  if (why)
+    *why = NULL;
   if (!o)
-    return -1;
+    {
+      if (why)
+        *why = "there is no modulator";
+      return -1;
+    }
   if (o->sealed)
     return 0;
   if (o->n_runs == 0)
-    return -1;
+    {
+      if (why)
+        *why = "the layout has no run";
+      return -1;
+    }
 
   /* A window longer than an OFDM symbol of its class cannot be a transition
      inside it. Checked per run, because the prefix is per run. */
@@ -295,7 +309,11 @@ dp_ofdm_check (dp_ofdm_state_t *o)
     {
       const ofdm_run_t *r = &o->runs[i];
       if (o->cls[r->class_index].window > run_sym_len (o, r))
-        return -1;
+        {
+          if (why)
+            *why = "a run's window is longer than an OFDM symbol of its class";
+          return -1;
+        }
     }
 
   uint32_t n_max = 0;
@@ -349,7 +367,10 @@ dp_ofdm_check (dp_ofdm_state_t *o)
                 continue;
               const uint32_t idx = (uint32_t)(f->k + (int32_t)(n / 2));
               if (mark[idx])
-                goto out;
+                {
+                  w = "two fixed entries are on one subcarrier in one phase";
+                  goto out;
+                }
               mark[idx] = 1;
               displaced += c->subcarrier_map[idx];
             }
@@ -392,8 +413,18 @@ dp_ofdm_check (dp_ofdm_state_t *o)
 out:
   free (mark);
   if (rc != 0)
-    free_derived (o);
+    {
+      free_derived (o);
+      if (why)
+        *why = w;
+    }
   return rc;
+}
+
+int
+dp_ofdm_check (dp_ofdm_state_t *o)
+{
+  return dp_ofdm_check_why (o, NULL);
 }
 
 /* ── walking the layout ─────────────────────────────────────────────────── */

@@ -422,8 +422,18 @@ OfdmObj_check (OfdmObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int y = dp_ofdm_check (self->handle);
-  return PyLong_FromLong ((long)y);
+  const char *_why = NULL;
+  int         _rc  = dp_ofdm_check_why (self->handle, &_why);
+  if (_rc != 0)
+    {
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                      "the layout is not usable", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -1180,26 +1190,30 @@ static PyMethodDef OfdmObj_methods[] = {
     ">>> o.add_run(0, 3)\n"
     "1\n" },
   { "check", (PyCFunction)OfdmObj_check, METH_NOARGS,
-    "check() -> int\n"
+    "check() -> None\n"
     "\n"
-    "Check the whole layout and return 0 if it is usable, or a negative value "
-    "if not (no run, a window longer than an OFDM symbol, two fixed entries "
-    "on one subcarrier in one phase). `modulate` checks on first use and "
-    "returns an empty array for a layout that fails; call this to find out "
-    "why before any points exist. Adding a class, fixed entry or run to a "
-    "checked layout re-opens it, keeping the position and the held window "
-    "tail, so a signal can be extended while it is rendered; the next "
-    "`modulate` checks the longer layout.\n"
+    "Check the whole layout and return 0 if it is usable; raise ValueError, "
+    "with a sentence naming the condition, if not (no run, a window longer "
+    "than an OFDM symbol of its class, two fixed entries on one subcarrier in "
+    "one phase, or memory or a transform plan that could not be built). "
+    "`modulate` checks on first use and returns an empty array for a layout "
+    "that fails, without a reason; call this first to learn it before any "
+    "points exist. Adding a class, fixed entry or run to a checked layout "
+    "re-opens it, keeping the position and the held window tail, so a signal "
+    "can be extended while it is rendered; the next `modulate` checks the "
+    "longer layout.\n"
     "\n"
     "Refuses a layout with no run, a window longer than an OFDM symbol of\n"
     "its class, or two fixed entries on one subcarrier in one phase. Derives\n"
     "what the render uses (the data count per phase, the window weights, one\n"
     "inverse transform per distinct length). Idempotent once it has passed.\n"
     "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    0 if the layout is usable, a negative value if not.\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    the reason the C call gives, or ``the layout is not usable``, with\n"
+    "    the return code appended (gh-869), when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1209,12 +1223,13 @@ static PyMethodDef OfdmObj_methods[] = {
     ">>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1\n"
     ">>> o.add_class(8, m)\n"
     "0\n"
-    ">>> o.check() < 0            # no run yet\n"
-    "True\n"
+    ">>> o.check()                # no run yet\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the layout has no run\n"
     ">>> o.add_run(0, 1)\n"
     "0\n"
-    ">>> o.check()\n"
-    "0\n" },
+    ">>> o.check()                # usable: returns None\n" },
   { "points_remaining", (PyCFunction)OfdmObj_points_remaining, METH_NOARGS,
     "points_remaining() -> int\n"
     "\n"

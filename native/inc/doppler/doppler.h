@@ -172,6 +172,8 @@
 
 #include "doppler/state_filter/state_filter_core.h"
 
+#include "doppler/state_filter_kalman/state_filter_kalman_core.h"
+
 #include "doppler/costas/costas_core.h"
 
 #include "doppler/dll/dll_core.h"

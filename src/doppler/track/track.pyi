@@ -663,6 +663,413 @@ class StateFilter:
         """
 
 @final
+class KalmanStateFilter:
+    """The third-order loop filter whose gains come from a Kalman covariance
+    recursion instead of being held: the loop of `StateFilter`, sized from the
+    signal. Give the rms detector error when the loop is locked (`sigma_e`) and
+    the rms change of the rate per update (`sigma_a`), in the loop's own units,
+    or a bandwidth alone (`bn`); the steady-state bandwidth follows from their
+    ratio. An optional initial frequency uncertainty (`sigma_f0`) gives a
+    high-gain start that settles a frequency step about 1.7 times as fast,
+    within a cap the constructor enforces. `step` and `steps` take loop errors
+    and return control values; `kp`, `ki`, `kr` are the gains in force now.
+
+    Parameters
+    ----------
+    sigma_e : float, default 0.0
+        RMS detector error when the loop is locked, in the loop's error units
+        per update. With `sigma_a`: the figures form. Leave 0 for the automatic
+        case (`bn`).
+    sigma_a : float, default 0.0
+        RMS change of the rate per update, in the same units per update per
+        update. With `sigma_e`: the figures form.
+    t : float, default 1.0
+        Update period in samples.
+    sigma_f0 : float, default 0.0
+        Initial frequency uncertainty (figures form), 0 for the steady state:
+        at least the steady state's own frequency deviation and at most the
+        largest start whose gains stay inside the stability rectangle (5 times
+        it up to bn*t 0.04, less above).
+    bn : float, default 0.0
+        The automatic case: the noise bandwidth in cycles per sample, with `t`,
+        and no `sigma_e`, `sigma_a` or `sigma_f0`. The steady-state gains of
+        the optimal filter with that exact bandwidth, from the first update.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``give sigma_e and
+        sigma_a (> 0), or bn alone, in range; see docs``.
+
+    Examples
+    --------
+    >>> from doppler.track import KalmanStateFilter
+    >>> k = KalmanStateFilter(bn=0.01)             # the automatic case
+    >>> round(k.bandwidth(), 6)
+    0.01
+    >>> k.stable()
+    True
+    >>> f = KalmanStateFilter(sigma_e=1.0, sigma_a=1e-3)   # the two figures
+    >>> round(f.bandwidth(), 4)
+    0.0904
+    >>> KalmanStateFilter()                        # neither form
+    Traceback (most recent call last):
+        ...
+    ValueError: give sigma_e and sigma_a (> 0), or bn alone, in range; see docs
+
+    """
+
+    def __init__(
+        self,
+        sigma_e: float = 0.0,
+        sigma_a: float = 0.0,
+        t: float = 1.0,
+        sigma_f0: float = 0.0,
+        bn: float = 0.0,
+    ) -> None: ...
+    def reset(self) -> None:
+        """Return to the start: the estimates zero and the covariance back to
+        the one the filter began with. The noise figures are kept.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import KalmanStateFilter
+        >>> k = KalmanStateFilter(bn=0.01)
+        >>> _ = k.steps(np.full(50, 0.1))
+        >>> round(k.integ, 4)
+        0.0016
+        >>> k.reset()
+        >>> k.integ
+        0.0
+
+        """
+
+    def step(self, x: float, /) -> float:
+        """One update, the call to use: the loop's three lines on the gains in
+        force, then the covariance advanced and the gains refreshed. Inline,
+        over dp_state_filter_kalman_update().
+
+        Parameters
+        ----------
+        x : float
+            Input.
+
+        Returns
+        -------
+        float
+            The control value `integ + kp*e`.
+
+        Examples
+        --------
+        >>> from doppler.track import KalmanStateFilter
+        >>> k = KalmanStateFilter(bn=0.01)
+        >>> round(k.step(0.1), 4)             # the first nudge
+        0.0024
+
+        """
+
+    def steps(
+        self,
+        x: npt.NDArray[np.float64],
+        out: npt.NDArray[np.float64] | None = None,
+    ) -> NDArray[np.float64]:
+        """A block of updates, equivalent to dp_state_filter_kalman_step() once
+        per element.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.float64]
+            Loop errors.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import KalmanStateFilter
+        >>> k = KalmanStateFilter(bn=0.01)
+        >>> y = k.steps(np.full(50, 0.1))     # constant error: open loop, ramping
+        >>> round(float(y[0]), 4), round(float(y[-1]), 4)
+        (0.0024, 0.004)
+
+        """
+
+    def configure(
+        self,
+        sigma_e: float = 0.0,
+        sigma_a: float = 0.0,
+        t: float = 0.0,
+        sigma_f0: float = 0.0,
+        bn: float = 0.0,
+    ) -> None:
+        """Change the figures (or `bn` alone), keeping the frequency and rate
+        estimates; the covariance restarts from the new steady state, so a
+        retune restarts the gain schedule while the estimates carry. An
+        argument of 0 keeps its current value (`sigma_f0` 0 is the steady
+        state), so a call names only what changes. A filter built from `bn`
+        holds the figures that bandwidth implies (`sigma_e` 1), a call with
+        `bn` replaces the stored figures by those it implies, and `bn` may not
+        be mixed with the figures. With no arguments the gains go to the steady
+        state at once and the estimates carry (this ends a high-gain start
+        early); `configure(sigma_f0=x)` alone re-opens the gains with the same
+        figures. Raises ValueError, changing nothing, outside the domain.
+
+        A retune restarts the gain schedule; the estimates carry: the
+        covariance restarts from the new steady state (scaled by the start
+        sigma_f0 means), the gains follow it, and `integ` and `rate` are
+        untouched. An argument of 0 keeps its current value (sigma_f0 0 is the
+        steady state), so a call names only what changes. bn alone is the
+        automatic case and may not be mixed with the figures. A call outside
+        the domain (dp_state_filter_kalman_params_ok()) changes nothing.
+
+        Three behaviors, all in the blob (q, r and t are reject keys, the start
+        is P0):
+
+        - The automatic case holds the figures its bandwidth implies, with
+          `sigma_e` 1 (the detector's rms as the unit) and `sigma_a` the square
+          root of the noise ratio that bandwidth selects; a figures-form call
+          that names one figure keeps the other at that implied value.
+        - A call with bn replaces the stored figures by those the bandwidth
+          implies: a figures-form call that follows keeps the implied `r` and
+          `q`, not the ones the filter was built with.
+        - A call with every argument 0 puts the gains at the steady state at
+          once and keeps the estimates: it ends a high-gain start early, once
+          the loop has pulled in, without changing the design. `configure (k,
+          0, 0, 0, f, 0)` with a frequency uncertainty f alone does the
+          opposite and re-opens the gains with the same figures, as after a
+          loss of lock.
+
+        Parameters
+        ----------
+        sigma_e : float
+            RMS detector error when locked, 0 to keep.
+        sigma_a : float
+            RMS change of the rate per update, 0 to keep.
+        t : float
+            Update period in samples, 0 to keep.
+        sigma_f0 : float
+            Frequency uncertainty, 0 for the steady state.
+        bn : float
+            Noise bandwidth in cycles per sample (automatic form), 0 for the
+            figures form.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import KalmanStateFilter
+        >>> k = KalmanStateFilter(bn=0.01)
+        >>> _ = k.steps(np.full(50, 0.1))
+        >>> k.configure(bn=0.02)               # widen the loop, keep lock
+        >>> round(k.integ, 4), round(k.bn, 4)
+        (0.0016, 0.02)
+
+        """
+
+    def bandwidth(self, delay: float = 0.0, gain: float = 1.0) -> float:
+        """Exact delivered noise bandwidth of this loop AT THE GAINS IN FORCE
+        NOW, in cycles per update, for a detector delay of `delay` updates and
+        a loop gain of `gain` times nominal; the loop it would be if the gains
+        stopped changing. NaN when that loop is not stable there.
+
+        Parameters
+        ----------
+        delay : float
+            Detector delay in updates.
+        gain : float
+            Loop gain as a multiple of nominal.
+
+        Returns
+        -------
+        float
+            Cycles per update, NaN where the frozen loop is not stable.
+
+        Examples
+        --------
+        >>> from doppler.track import KalmanStateFilter
+        >>> k = KalmanStateFilter(bn=0.01)
+        >>> round(k.bandwidth(delay=1.0), 4)   # a detector delay of one update
+        0.0103
+
+        """
+
+    def stable(self, delay: float = 0.0, gain: float = 1.0) -> bool:
+        """Whether the loop at the gains in force now is stable for a detector
+        delay of `delay` updates and a loop gain of `gain` times nominal. A
+        statement about frozen gains, not about the converging loop.
+
+        Parameters
+        ----------
+        delay : float
+            Detector delay in updates.
+        gain : float
+            Loop gain as a multiple of nominal.
+
+        Returns
+        -------
+        bool
+            true where the frozen loop is stable.
+
+        Examples
+        --------
+        >>> from doppler.track import KalmanStateFilter
+        >>> KalmanStateFilter(bn=0.01).stable(delay=2.0)
+        True
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the KalmanStateFilter has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures the state that evolves as the object runs, including any value
+        a setter changed after construction, so a blob taken now and restored
+        later resumes from this point. Construction parameters are not
+        restored: restore into an object built the same way. A core may check
+        some of them and refuse a blob built differently.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the KalmanStateFilter has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes, /) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place, including any value a setter
+        changed after construction. Construction parameters are not restored:
+        restore into an object built the same way. Length is validated against
+        `state_bytes()` before the blob is handed to the C core, which may
+        reject it too: a core may check some construction parameters and refuse
+        a blob built differently.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the KalmanStateFilter has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def kp(self) -> float:
+        """Proportional gain in force now (rewritten each update)."""
+
+    @property
+    def ki(self) -> float:
+        """Integral gain in force now."""
+
+    @property
+    def kr(self) -> float:
+        """Rate gain in force now."""
+
+    @property
+    def integ(self) -> float:
+        """The frequency estimate."""
+
+    @property
+    def rate(self) -> float:
+        """The rate estimate."""
+
+    @property
+    def bn(self) -> float:
+        """The steady-state noise bandwidth in cycles per sample."""
+
+    @property
+    def t(self) -> float:
+        """The update period in samples."""
+
+    @property
+    def sigma_f(self) -> float:
+        """The steady state's frequency deviation for these figures, in the
+        loop's units: the lowest `sigma_f0` accepted; the highest is 5 times it
+        up to bn*t 0.04 and less above (see the validation report).
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+    def __enter__(self) -> "KalmanStateFilter":
+        """Enter a context manager, returning this object.
+
+        Lets a KalmanStateFilter be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
+
+        Returns
+        -------
+        KalmanStateFilter
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+        /,
+    ) -> None:
+        """Exit a context manager, releasing the KalmanStateFilter.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class Costas:
     """Costas component.
 

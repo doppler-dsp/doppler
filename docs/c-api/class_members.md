@@ -85,6 +85,7 @@
 * **built** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))
 * **body** ([**dp\_pf\_shared\_t**](structdp__pf__shared__t.md))
 * **busy** ([**dp\_pool**](structdp__pool.md))
+* **base** ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **bytes** ([**dp\_state\_hdr\_t**](structdp__state__hdr__t.md))
 * **base\_inc** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **bit\_idx** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
@@ -786,6 +787,8 @@
 * **pend** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **pend\_cap** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **pend\_len** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
+* **p** ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
+* **p0** ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **prev\_ontime** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **pwr\_avg** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **probes** ([**dp\_tlm**](structdp__tlm.md), [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md))
@@ -816,7 +819,7 @@
 
 ## q
 
-* **q** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_iq16\_t**](structdp__iq16__t.md))
+* **q** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_iq16\_t**](structdp__iq16__t.md), [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **q\_cap** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **q\_head** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 
@@ -904,7 +907,7 @@
 * **reg\_a** ([**dp\_gold\_state\_t**](structdp__gold__state__t.md))
 * **reg\_b** ([**dp\_gold\_state\_t**](structdp__gold__state__t.md))
 * **rows** ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md))
-* **r** ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md))
+* **r** ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md), [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **real** ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md))
 * **run\_index** ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md))
 * **runs** ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md))

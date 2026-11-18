@@ -62,6 +62,12 @@ definition = "A Costas loop tracking a BPSK carrier: phase detector, loop filter
 samples = 1
 headline = true
 
+["c:costas::steps[order=3]"]
+name = "Costas carrier loop, third order"
+unit = "sample"
+definition = "The Costas loop of c:costas::steps switched to third order (dp_costas_set_order), its loop filter the StateFilter, per input sample."
+samples = 1
+
 ["c:dll::steps"]
 name = "Delay-locked loop (code tracking)"
 unit = "sample"
@@ -1541,4 +1547,16 @@ count = 1
 name = "Third-order state filter, 65,536-error blocks, from Python"
 unit = "sample"
 definition = "StateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
+samples = 1
+
+["py:costas::test_bench_steps_64k"]
+name = "Costas carrier loop, from Python"
+unit = "sample"
+definition = "Costas.steps on 65,536 samples of a BPSK carrier at order 2, per input sample."
+samples = 1
+
+["py:costas::test_bench_steps_64k_order3"]
+name = "Costas carrier loop, third order, from Python"
+unit = "sample"
+definition = "Costas.steps on 65,536 samples of a BPSK carrier with the loop switched to third order (set_order), per input sample."
 samples = 1

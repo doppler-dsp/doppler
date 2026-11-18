@@ -184,7 +184,8 @@ child's, not the parent's. `test_despreader_core.c` pins it on the despreader:
     three per receiver.
 - **Time:** `costas_wipeoff()`, once a sample, has no order in it.
     `costas_update()` has one branch on `order`, once an update, beside a
-    discriminator that divides and takes an absolute value.
+    discriminator that divides and takes an absolute value. The bench
+    rows `costas::steps` and `costas::steps[order=3]` time the two orders.
 
 ### 3.5 What is pinned
 

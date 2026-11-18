@@ -61,13 +61,22 @@ tracked with zero steady phase error, at the same noise bandwidth, from the
 same two numbers: `bn` and `t`. There is no damping argument and no other
 coefficient to pick.
 
-```python
-from doppler.track import StateFilter
-
-sf = StateFilter(bn=0.01, t=1.0)
-sf.step(0.25)                   # rate += kr*e; integ += rate + ki*e
-round(sf.integ, 8)              # the frequency estimate; sf.rate is its slope
+```pycon
+>>> from doppler.track import StateFilter
+>>> sf = StateFilter(bn=0.01, t=1.0)
+>>> round(sf.step(0.25), 8)         # rate += kr*e; integ += rate + ki*e
+0.00597554
+>>> round(sf.integ, 8)              # the frequency estimate
+7.016e-05
+>>> round(sf.rate, 12)              # its slope, per update per update
+4.11883e-07
 ```
+
+`rate` is the change of `integ` per update, so a Doppler rate of `R` Hz/s at
+an update period of `T` seconds is `rate = R * T**2` in cycles per update per
+update (set it with `sf.rate = ...` to start a loop on a known ramp; the
+[design page](../design/loop-filter.md) derives it). The class and its
+members are in the Python reference, `doppler.track.StateFilter`.
 
 Close both loops on a ramp and read the steady error:
 

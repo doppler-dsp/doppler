@@ -13,8 +13,10 @@ import pytest
 
 from doppler.ofdm import Ofdm
 
-CP_DEFAULT = 4294967295
-ALL_PHASES = 4294967295
+# the C sentinels OFDM_CP_DEFAULT and OFDM_ALL_PHASES; test_ofdm_core.c holds
+# that both are 2**32 - 1
+CP_DEFAULT = 2**32 - 1
+ALL_PHASES = 2**32 - 1
 
 
 def _useful(c):

@@ -470,10 +470,10 @@ analog relation between `wn` and `Bn`.
     measured the sum of squares of that later phase 1% to 7% under `2*Bn`, so
     a figure compared with `Bn` must say where the phase is read.
 
-1. **Stability is positivity.** The pair `(A, b)` is controllable, so `A` is
-    stable exactly when the solution `P` is positive definite (a Cholesky
-    factorization whose every pivot is positive). One solve gives both the
-    bandwidth and the verdict.
+1. **Stability is the decay of one sum.** The pair `(A, b)` is controllable,
+    so `A` is stable exactly when `P = sum_k A^k b b^T (A^T)^k` converges, and
+    that sum is the solution of the Lyapunov equation of the previous item.
+    One computation gives both the bandwidth and the verdict.
 
     **Conditioning, and where the verdict is trusted.** The gains of a slow
     loop span many decades (`kr` is about `1e-9` where `kp` is `4e-3` at
@@ -498,14 +498,18 @@ analog relation between `wn` and `Bn`.
     1e-9). An unstable loop overflows or stalls at order one, and a marginal
     one (a gain at zero, a pole at `z = 1`) never goes to zero, which is the
     "not controllable reads as not stable" rule falling out of the same test.
-    The function is verified on the design gains from `STATE_FILTER_BNT_MIN` to
-    `STATE_FILTER_BNT_MAX` at delays 0 to 4 and loop gains 0.5 to 2
-    (bandwidth within 3.1e-11 of the closed form), and against a simulation of
-    the loop's own state recursion over the Kalman recursion's gains at
+    What the tests run: the exact bandwidth at delay 0 and loop gain 1 against
+    the bandwidth asked for from `bn*t` 1e-6 to `STATE_FILTER_BNT_MAX` (1203
+    cells, within 1e-9; not claimed below 1e-6, which is above
+    `STATE_FILTER_BNT_MIN`); the verdict and the bandwidth against a
+    simulation of the real step at `bn*t` 0.03 for delays 0, 0.5, 1, 1.25, 2
+    and 3 and loop gains 1, 0.7 and 1.6; and a simulation of the loop's own
+    state recursion over the Kalman recursion's gains at
     `bn*t` from 1e-3 to 0.08, starts of 1 to 5 times, at the four corners `K`
     in {0.5, 2} by delay in {0, 2}: 1404 cases judged, no disagreement, the
-    same on every platform because there is one code path. Two limits are
-    stated, not hidden. A loop within about `1e-12` of the unit circle is
+    same on every platform because there is one code path. The sweep over
+    every `bn*t` from the floor to the bound, delays 0 to 4 and loop gains 0.5
+    to 2 is not run. Two limits are stated, not hidden. A loop within about `1e-12` of the unit circle is
     within rounding of the edge, and either answer is within that rounding.
     A gain at or below zero reads as not stable by rule, which is the correct
     frozen verdict and is why a Kalman gain that crosses zero in a transient is
@@ -513,42 +517,6 @@ analog relation between `wn` and `Bn`.
     (`create`, the blob check) come from the closed-form bisection and do not
     pass through this function, so a blob written on one platform is accepted
     on another to the last bit of the gains.
-
-    **Which phase.** The bandwidth is that of the oscillator phase at the
-    detector instant, `phi[n]`. A phase read after the `kp*e` step of the same
-    update is a different signal: the Costas lane, running this same loop,
-    measured the sum of squares of that later phase 1% to 7% under `2*Bn`, so
-    a figure compared with `Bn` must say where the phase is read.
-
-1. **Stability is positivity.** The pair `(A, b)` is controllable, so `A` is
-    stable exactly when the solution `P` is positive definite (a Cholesky
-    factorization whose every pivot is positive). One solve gives both the
-    bandwidth and the verdict.
-
-    **Conditioning, and where the verdict is trusted.** The gains of a slow
-    loop span many decades (`kr` is about `1e-9` where `kp` is `4e-3` at
-    `bn*t = 1e-3`), and a Cholesky pivot of `P` in the raw coordinates can
-    flip negative on a loop that is stable with a margin of `1e-4`. That is
-    what happened to gains off the design manifold, the ones a converging
-    Kalman filter holds (Part III): the verdict was erratic, a false "not
-    stable" at isolated updates of a stable trajectory. The solve therefore
-    runs in balanced coordinates (a diagonal similarity by powers of two,
-    which leaves the positivity of `P` and the bandwidth exactly as they were
-    and changes only the conditioning) and in extended precision (`long  double`: 64 bits of mantissa on x86-64 with gcc or clang, 113 on aarch64,
-    and the same as `double` on MSVC, where the balancing alone remains).
-    Neither alone removes the defect on the measured gains (balancing alone
-    left 2 disagreements in 1404 cases, extended precision alone 5); both do.
-    The function is verified on the design gains from `STATE_FILTER_BNT_MIN` to
-    `STATE_FILTER_BNT_MAX` at delays 0 to 4 and loop gains 0.5 to 2 (accurate
-    to 1.6e-11), and against a simulation of the loop's own state recursion
-    over the Kalman recursion's gains at `bn*t` from 1e-3 to 0.08, starts of 1
-    to 5 times, at the four corners `K` in {0.5, 2} by delay in {0, 2}: 1404
-    cases judged, no disagreement. Two limits are stated, not hidden. A loop
-    within about `1e-9` of the unit circle is within rounding of the edge, and
-    either answer is within that rounding. A gain at or below zero reads as
-    not stable by rule, which is the correct frozen verdict and is why a
-    Kalman gain that crosses zero in a transient is reported as outside the
-    rectangle there.
 
 1. **Order 2, solved.** The Lyapunov equation gives
     `Bn = (2 kp^2 + (2 + kp) ki) / (2 kp (4 - 2 kp - ki))` and the loop is

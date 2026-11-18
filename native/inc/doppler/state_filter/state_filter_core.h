@@ -88,8 +88,9 @@ extern "C"
  * STATE_FILTER_K_MAX times nominal and every detector delay from
  * 0 to STATE_FILTER_DELAY_MAX updates, for `bn*t` up to
  * STATE_FILTER_BNT_MAX. `K_MIN` is the floor the automatic case covers for
- * a detector whose slope falls with signal-to-noise ratio (a caller measures
- * 0.58 of nominal at its floor); `DELAY_MAX` covers the delay a
+ * a detector whose slope falls with signal-to-noise ratio: a requirement, with
+ * no measured source of that slope on main yet (the async receiver's pull-in
+ * validator will print one, #3135); `DELAY_MAX` covers the delay a
  * detector that updates on a sample grid sweeps through. The bound is the
  * largest `bn*t` for which the exact stability test passes at the upper
  * corner (`K_MAX`, `DELAY_MAX`), rounded down; the C test derives it from
@@ -280,9 +281,11 @@ void dp_state_filter_reset (dp_state_filter_state_t *state);
  * stability claim is for integer delays. A detector that averages over a
  * window is a third model the caller owns.
  *
- * The test is the positivity of the solution of the loop's Lyapunov
- * equation, which is stability only when the loop's state is driven (the pair
- * (A, b) is controllable). Where it is not, the answer is 0: a gain at zero
+ * The test is whether the sum `P = sum_k A^k b b^T (A^T)^k` converges (below),
+ * which is stability only when the loop's state is driven (the pair (A, b) is
+ * controllable): `P` is then the solution of the loop's Lyapunov equation,
+ * and it exists exactly when every pole is inside the unit circle. Where the
+ * state is not driven, the answer is 0: a gain at zero
  * leaves a state undriven or marginal, so the frozen loop (`bn = 0`, every
  * gain zero), an order-3 loop with `kr = 0` and an order-2 loop with `ki = 0`
  * (a pole-zero cancellation at `z = 1`) all read as not stable, and
@@ -307,11 +310,17 @@ void dp_state_filter_reset (dp_state_filter_state_t *state);
  * answer there is not guaranteed either way; a marginal loop (a gain at zero,
  * a pole at `z = 1`) never goes to zero and reads as not stable.
  *
- * It is verified on the design gains from STATE_FILTER_BNT_MIN to
- * STATE_FILTER_BNT_MAX at delays 0 to 4 and loop gains 0.5 to 2, on loops
- * built at a known radius either side of 1 (1e-6 and 1e-9), and on gains off
- * the design manifold (a Kalman filter's gains while its covariance converges,
- * `bn*t` 1e-3 to 0.08) against a simulation of the loop's own state recursion.
+ * What the tests run, and what they do not: the exact bandwidth at delay 0 and
+ * loop gain 1 against the bandwidth asked for, from `bn*t` 1e-6 to
+ * STATE_FILTER_BNT_MAX (1203 cells, within 1e-9; not claimed below 1e-6,
+ * which is above STATE_FILTER_BNT_MIN); the verdict and the bandwidth against
+ * a simulation of the real step at one design loop (`bn*t` 0.03) for delays
+ * 0, 0.5, 1, 1.25, 2 and 3 and loop gains 1, 0.7 and 1.6; loops built at a
+ * known radius either side of 1 (1e-6 and 1e-9); and gains off the design
+ * manifold (a Kalman filter's gains while its covariance converges, `bn*t`
+ * 1e-3 to 0.08) against a simulation of the loop's own state recursion. The
+ * full sweep (every `bn*t` from the floor to the bound, delays 0 to 4, loop
+ * gains 0.5 to 2) is not run.
  *
  * @param order  2 or 3.
  * @param kp     Proportional gain.

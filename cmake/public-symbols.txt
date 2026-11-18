@@ -1534,6 +1534,7 @@ dp_square_clip function
 dp_state_filter_bandwidth function
 dp_state_filter_configure function
 dp_state_filter_create function
+dp_state_filter_create_why function
 dp_state_filter_destroy function
 dp_state_filter_get_state function
 dp_state_filter_init function
@@ -1567,6 +1568,7 @@ dp_state_filter_kalman_update function
 dp_state_filter_loop_bandwidth function
 dp_state_filter_loop_stable function
 dp_state_filter_params_ok function
+dp_state_filter_params_why function
 dp_state_filter_reset function
 dp_state_filter_set_state function
 dp_state_filter_stable function

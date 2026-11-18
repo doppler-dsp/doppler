@@ -53,6 +53,11 @@ int dp_state_filter_state_ok (const dp_state_filter_state_t *s);
 
 dp_state_filter_state_t *dp_state_filter_create (double bn, double t);
 
+const char *dp_state_filter_params_why (double bn, double t);
+
+dp_state_filter_state_t *dp_state_filter_create_why (double bn, double t,
+                                                     const char **why);
+
 void dp_state_filter_destroy (dp_state_filter_state_t *state);
 
 int dp_state_filter_configure (dp_state_filter_state_t *state, double bn,

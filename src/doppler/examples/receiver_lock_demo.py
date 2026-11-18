@@ -27,6 +27,7 @@ import sys
 # --8<-- [start:chain]
 import numpy as np
 
+from doppler.detection import det_verify_count
 from doppler.examples._extra import require
 from doppler.telemetry import Telemetry
 from doppler.track import Costas, Dll, SymbolSync
@@ -36,7 +37,25 @@ SF, SPS, K = 127, 2, 8  # code chips, samples/chip, partials/epoch
 TE = SF * SPS  # code-epoch length, samples
 DSYM = 4e-3  # symbol-vs-code rate offset (independent, async clock)
 F0 = 3e-4  # residual carrier after acquisition, cycles/sample
-NSYM = 600
+# The run is sized from what the slowest lock needs, so its margin is the
+# rule's and not what is left over. SymbolSync locks last: its timing loop
+# settles in about 5 / bn symbols (the loop filter's settling budget), and
+# its lock then declares after N_UP consecutive passing decisions of AVGS
+# symbols each (symsync's sizing: AVGS = 133 at pfa 1e-3 / pd 0.9, and N_UP
+# from the same pfa and the library's per-decision budget of 1e-6,
+# timing_lock_detector.md). That is
+# DECLARE symbols; the run gives the lock twice that, so a change that
+# doubles the time to declare still ends locked.
+BN_TIMING = 0.02
+AVGS = 133
+N_UP = det_verify_count(1e-3, 1e-6)  # 2
+DECLARE = AVGS * (-(-int(5 / BN_TIMING) // AVGS) + N_UP)  # 532 symbols
+NSYM = 2 * DECLARE
+# The telemetry ring holds the whole run: 17 probes, the Costas's seven once
+# a partial (K a code epoch), the rest once an epoch, over NSYM symbols --
+# about 71,000 records. A ring of 1 << 16 overflowed once the run grew to
+# N_UP = 2, so this is the next power of two.
+TLM_CAP = 1 << 17
 
 
 def make_signal(seed=7):
@@ -86,7 +105,7 @@ def run_chain(code, rx, tlm=None, block=2 * TE):
     """
     d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
     cos = Costas(bn=0.02, zeta=0.707, tsamps=1)
-    ss = SymbolSync(sps=round(K * (1.0 + DSYM)), bn=0.02, zeta=0.707)
+    ss = SymbolSync(sps=round(K * (1.0 + DSYM)), bn=BN_TIMING, zeta=0.707)
     if tlm is not None:
         d.set_telemetry(tlm, "code")
         cos.set_telemetry(tlm, "car")
@@ -112,7 +131,7 @@ def main(out_path="receiver_lock_demo.png"):
     import matplotlib.pyplot as plt
 
     code, rx = make_signal()
-    tlm = Telemetry(1 << 16)
+    tlm = Telemetry(TLM_CAP)
     d, cos, ss = run_chain(code, rx, tlm)
     assert d.locked and cos.locked and ss.locked
 

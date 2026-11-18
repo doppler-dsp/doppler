@@ -60,7 +60,7 @@ import numpy as np
 from doppler.telemetry import Telemetry
 
 code, rx = make_signal()
-tlm = Telemetry(1 << 16)
+tlm = Telemetry(TLM_CAP)
 d, cos, ss = run_chain(code, rx, tlm)
 assert d.locked and cos.locked and ss.locked  # all three pulled in cold
 

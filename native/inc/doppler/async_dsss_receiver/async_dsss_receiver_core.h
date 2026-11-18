@@ -978,7 +978,9 @@ typedef enum
    *   period, except while it
    *   coasts, when loop 1 is held;
    * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
-   *   ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
+   *   ".rate", ".lock", ".locked", ".nco", and the lock statistic's two
+   *   terms ".prompt_amp" and ".offset_pwr"), once per discriminator
+   *   update;
    * - "<prefix>.demod" -- the symbol-domain demodulator
    *   (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing
    *   loops, the symbols, its AGC), once per recovered symbol (the AGC's
@@ -1061,10 +1063,10 @@ typedef enum
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
    * ...                                                    "rx.code")))
-   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
    * ...                                                    "rx.refu")))
-   * ['rx.handover_hz', 'rx.ho_src', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
+   * ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
    * ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref_sq"))

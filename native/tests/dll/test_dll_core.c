@@ -2293,7 +2293,7 @@ main (void)
     dp_dll_destroy (d);
   }
 
-  /* telemetry attach — four records per code epoch in both the coherent
+  /* telemetry attach — seven records per code epoch in both the coherent
    * (segments == 1) and partial-correlation (segments > 1) loops; blobs
    * stay attachment-independent; a live attachment survives set_state. */
   {
@@ -2319,6 +2319,8 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (tlm, "code.lock") == d->tlm.id_lock);
     DP_CHECK (dp_tlm_probe_id (tlm, "code.locked") == d->tlm.id_locked);
     DP_CHECK (dp_tlm_probe_id (tlm, "code.nco") == d->tlm.id_nco);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.prompt_amp") == d->tlm.id_pamp);
+    DP_CHECK (dp_tlm_probe_id (tlm, "code.offset_pwr") == d->tlm.id_opwr);
 
     /* An aid the input does not carry: the NCO's command (".nco") then
      * sits 1e-4 off the loop's own rate (".rate"), so a ".nco" that
@@ -2326,16 +2328,22 @@ main (void)
     dp_dll_set_rate_aid (d, 1e-4);
     size_t k     = dp_dll_steps (d, rx, L, out, 256);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k > 0 && n_rec == 5 * k); /* e, rate, lock, locked, nco */
+    /* e, rate, lock, locked, nco, prompt_amp, offset_pwr */
+    DP_CHECK (k > 0 && n_rec == 7 * k);
     /* The final epoch's records mirror the tracked state (flush order per
-     * epoch: e, rate, lock, locked, nco); ".nco" is the commanded
-     * increment in chips per chip. */
-    DP_CHECK (recs[n_rec - 4].value == (float)d->code_rate);
-    DP_CHECK (recs[n_rec - 3].value == (float)d->lock_stat);
-    DP_CHECK (recs[n_rec - 2].value == (float)dp_dll_get_locked (d));
+     * epoch: e, rate, lock, locked, nco, prompt_amp, offset_pwr); ".nco"
+     * is the commanded increment in chips per chip, and the last two are
+     * the epoch's last look's |P| and |O|^2. */
+    DP_CHECK (recs[n_rec - 6].value == (float)d->code_rate);
+    DP_CHECK (recs[n_rec - 5].value == (float)d->lock_stat);
+    DP_CHECK (recs[n_rec - 4].value == (float)dp_dll_get_locked (d));
     const double nco_cmd
         = nco_word_to_norm (d->code_nco.phase_inc) / d->inv_tsamps;
-    DP_CHECK (recs[n_rec - 1].value == (float)nco_cmd);
+    DP_CHECK (recs[n_rec - 3].value == (float)nco_cmd);
+    DP_CHECK (recs[n_rec - 2].value == (float)d->look_prompt_amp);
+    DP_CHECK (recs[n_rec - 1].value == (float)d->look_offset_pwr);
+    DP_CHECK_MSG (d->look_prompt_amp > 0.0 && d->look_offset_pwr >= 0.0,
+                  "the look's terms are recorded");
     DP_CHECK_MSG (fabs (nco_cmd - d->code_rate) > 5e-5,
                   "the aid separates the command from the loop's rate");
     dp_dll_set_rate_aid (d, 0.0);
@@ -2347,9 +2355,9 @@ main (void)
     DP_CHECK (dp_dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
     size_t k2 = dp_dll_steps (s2, rx, L, out, 256);
     size_t n2 = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 5 == 0);
+    DP_CHECK (k2 > 0 && n2 > 0 && n2 % 7 == 0);
     DP_CHECK (n2
-              <= 5 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
+              <= 7 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
     dp_dll_destroy (s2);
 
     /* Blobs zero the attachment (deterministic) and set_state into an

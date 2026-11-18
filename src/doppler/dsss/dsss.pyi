@@ -406,8 +406,8 @@ class Despreader:
         """Attach (or detach) a telemetry context across the despreader. Pure
         forwarder — the despreader registers no probes of its own: the carrier
         loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" /
-        ".nco" / ".freq_rate" / ".order" and the code loop registers
-        "<prefix>.code.e" / ".rate" / ".lock" / ".locked" / ".nco" (the
+        ".nco" and the code loop registers "<prefix>.code.e" / ".rate" /
+        ".lock" / ".locked" / ".nco" / ".prompt_amp" / ".offset_pwr" (the
         ".locked" pair are the loops' verify-counted lockdet decisions, 0/1;
         ".freq" / ".rate" the filters' integrators and ".nco" their complete
         commands, see dp_costas_set_telemetry() and dp_dll_set_telemetry()) —
@@ -442,10 +442,10 @@ class Despreader:
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
         >>> names = sorted(tlm.probe_names)
-        >>> names[:7]
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.freq_rate', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco', 'ch0.car.order']
-        >>> names[7:]
-        ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.rate']
+        >>> names[:5]
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco']
+        >>> names[5:]
+        ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.offset_pwr', 'ch0.code.prompt_amp', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
@@ -3035,7 +3035,9 @@ class AsyncDsssReceiver:
           ".nco", ".freq_rate", ".order"), once per carrier update: once a code
           period, except while it coasts, when loop 1 is held;
         - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
-          ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
+          ".rate", ".lock", ".locked", ".nco", and the lock statistic's two
+          terms ".prompt_amp" and ".offset_pwr"), once per discriminator
+          update;
         - "<prefix>.demod" -- the symbol-domain demodulator
           (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing
           loops, the symbols, its AGC), once per recovered symbol (the AGC's
@@ -3126,10 +3128,10 @@ class AsyncDsssReceiver:
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
         ...                                                    "rx.code")))
-        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
         ...                                                    "rx.refu")))
-        ['rx.handover_hz', 'rx.ho_src', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
+        ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
         ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref_sq"))

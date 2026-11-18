@@ -1867,7 +1867,7 @@ class Dll:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context and register the code loop's
-        probes on it. Registers five probes, emitted once per code epoch
+        probes on it. Registers seven probes, emitted once per code epoch
         (period) and further thinned by decim: "<prefix>.e" (the
         early-minus-late envelope discriminator — the loop stress),
         "<prefix>.rate" (the tracked code rate, chips advanced per nominal
@@ -1880,10 +1880,17 @@ class Dll:
         "<prefix>.nco" (what the code NCO is commanded: the complete
         loop-filter output, the integrator, the proportional term and the
         carrier aid, as chips per nominal chip, at the NCO's resolution of one
-        phase-increment step; a held loop's held command). Passing NULL
-        detaches. Setup path, never hot: call before the producer thread starts
-        stepping; the context is borrowed and must outlive the attachment (SPSC
-        rules in dp_tlm/dp_tlm_core.h).
+        phase-increment step; a held loop's held command), and the two terms
+        the lock statistic is formed from, for its decomposition (#3134):
+        "<prefix>.prompt_amp" (the epoch's last look's prompt magnitude |P|,
+        the signal term) and "<prefix>.offset_pwr" (that look's offset (noise)
+        tap power |O|^2, the noise reference's input, of which R's denominator
+        E|O|^2 is the running mean). Both are in the units the statistic is
+        formed in -- the look's normalized correlation -- so R = sqrt(2 sum
+        |P|^2 / E|O|^2) over n_looks looks reads off them; one look an epoch,
+        the epoch's last. Passing NULL detaches. Setup path, never hot: call
+        before the producer thread starts stepping; the context is borrowed and
+        must outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -1910,11 +1917,11 @@ class Dll:
         >>> d = Dll(code=code, sps=2)
         >>> d.set_telemetry(tlm, "code")
         >>> sorted(tlm.probe_names)
-        ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
-        >>> x = np.ones(31 * 2 * 50 + 31, dtype=np.complex64)  # 50.5 periods
+        ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.offset_pwr', 'code.prompt_amp', 'code.rate']
+        >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
         >>> _ = d.steps(x)
-        >>> recs = tlm.read()   # five records per code epoch
-        >>> len(recs) > 0 and len(recs) % 5 == 0
+        >>> recs = tlm.read()   # seven records per code epoch
+        >>> len(recs) > 0 and len(recs) % 7 == 0
         True
 
         """

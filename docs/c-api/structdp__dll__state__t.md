@@ -85,6 +85,8 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**lock\_nz**](#variable-lock_nz)  <br> |
 |  double | [**lock\_stat**](#variable-lock_stat)  <br> |
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
+|  double | [**look\_offset\_pwr**](#variable-look_offset_pwr)  <br> |
+|  double | [**look\_prompt\_amp**](#variable-look_prompt_amp)  <br> |
 |  size\_t | [**n\_looks**](#variable-n_looks)  <br> |
 |  double | [**noise\_ema**](#variable-noise_ema)  <br> |
 |  double | [**noise\_guard**](#variable-noise_guard)  <br> |
@@ -1034,6 +1036,42 @@ double dp_dll_state_t::lock_sum;
 
 
 running sum\|P\_k\|^2 over the current window. 
+
+
+        
+
+<hr>
+
+
+
+### variable look\_offset\_pwr 
+
+```C++
+double dp_dll_state_t::look_offset_pwr;
+```
+
+
+
+the last look's offset-tap power \|O\|^2. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable look\_prompt\_amp 
+
+```C++
+double dp_dll_state_t::look_prompt_amp;
+```
+
+
+
+the last look's prompt magnitude \|P\|. 
+ 
 
 
         

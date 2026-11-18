@@ -80,11 +80,13 @@ draw_offset (dp_dll_state_t *s)
 static void
 lock_clear (dp_dll_state_t *s)
 {
-  s->noise_ema  = 0.0;
-  s->lock_sum   = 0.0;
-  s->lock_count = 0;
-  s->lock_nz    = 0;
-  s->lock_stat  = 0.0;
+  s->noise_ema       = 0.0;
+  s->lock_sum        = 0.0;
+  s->lock_count      = 0;
+  s->lock_nz         = 0;
+  s->lock_stat       = 0.0;
+  s->look_prompt_amp = 0.0;
+  s->look_offset_pwr = 0.0;
   dp_lockdet_reset (&s->lock);
 }
 
@@ -158,6 +160,9 @@ lock_look (dp_dll_state_t *s, float _Complex prompt, float _Complex offset)
   double pp = (double)crealf (prompt) * (double)crealf (prompt)
               + (double)cimagf (prompt) * (double)cimagf (prompt);
   s->lock_sum += pp;
+  /* The look's two terms, for the statistic's decomposition (#3134). */
+  s->look_prompt_amp = sqrt (pp);
+  s->look_offset_pwr = po;
   if (++s->lock_count >= s->n_looks)
     {
       double denom = s->noise_ema > DLL_EPS ? s->noise_ema : DLL_EPS;
@@ -591,10 +596,11 @@ dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
       state->tlm.ctx = NULL;
       return DP_OK;
     }
-  const char              *p      = prefix ? prefix : "code";
-  static const char *const sfx[5] = { "e", "rate", "lock", "locked", "nco" };
-  char                     name[5][DP_TLM_NAME_MAX];
-  for (size_t i = 0; i < 5; i++) /* all names before any registration */
+  const char              *p = prefix ? prefix : "code";
+  static const char *const sfx[7]
+      = { "e", "rate", "lock", "locked", "nco", "prompt_amp", "offset_pwr" };
+  char name[7][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 7; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   int id_e      = dp_tlm_probe (tlm, name[0], decim);
@@ -602,8 +608,13 @@ dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
   int id_lock   = dp_tlm_probe (tlm, name[2], decim);
   int id_locked = dp_tlm_probe (tlm, name[3], decim);
   int id_nco    = dp_tlm_probe (tlm, name[4], decim);
-  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0 || id_nco < 0)
+  int id_pamp   = dp_tlm_probe (tlm, name[5], decim);
+  int id_opwr   = dp_tlm_probe (tlm, name[6], decim);
+  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0 || id_nco < 0
+      || id_pamp < 0 || id_opwr < 0)
     return DP_ERR_INVALID; /* table full: attach fails whole */
+  state->tlm.id_pamp   = id_pamp;
+  state->tlm.id_opwr   = id_opwr;
   state->tlm.id_nco    = id_nco;
   state->tlm.id_e      = id_e;
   state->tlm.id_rate   = id_rate;
@@ -624,6 +635,8 @@ dp_dll_tlm_flush (const dp_dll_state_t *s)
      phase word, so over inv_tsamps it is periods per nominal period. */
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_nco,
                nco_word_to_norm (s->code_nco.phase_inc) / s->inv_tsamps);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_pamp, s->look_prompt_amp);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_opwr, s->look_offset_pwr);
 }
 
 /* Serializable state — whole-struct snapshot (loop_filter child and the
@@ -1629,11 +1642,13 @@ dp_dll_configure_lock_raw (dp_dll_state_t *state, double up_thresh,
   state->lock_alpha = alpha;
   /* Re-tuning clears the in-flight statistic and drops the lock so the next
      decision uses only looks gathered under the new config. */
-  state->lock_sum   = 0.0;
-  state->lock_count = 0;
-  state->lock_nz    = 0;
-  state->noise_ema  = 0.0;
-  state->lock_stat  = 0.0;
+  state->lock_sum        = 0.0;
+  state->lock_count      = 0;
+  state->lock_nz         = 0;
+  state->noise_ema       = 0.0;
+  state->lock_stat       = 0.0;
+  state->look_prompt_amp = 0.0;
+  state->look_offset_pwr = 0.0;
   dp_lockdet_reset (&state->lock);
 }
 

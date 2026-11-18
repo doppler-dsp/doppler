@@ -115,6 +115,9 @@ typedef struct {
                             complete loop-filter output (integrator,
                             proportional term and aid) as chips per chip;
                             a held loop's held command */
+    int32_t id_pamp;   /**< "<prefix>.prompt_amp" — the last look's |P| */
+    int32_t id_opwr;   /**< "<prefix>.offset_pwr" — its offset tap's
+                            |O|^2, the noise reference's input           */
 } dll_tlm_t;
 
 /**
@@ -286,6 +289,8 @@ typedef struct {
     size_t n_looks;          /**< non-coherent integration depth N.          */
     double lock_stat;        /**< last statistic R = sqrt(2 sum|P|^2/E|O|^2). */
     size_t lock_nz;          /**< noise looks folded in (cumulative-mean boot).*/
+    double look_prompt_amp;  /**< the last look's prompt magnitude |P|.     */
+    double look_offset_pwr;  /**< the last look's offset-tap power |O|^2.   */
     dp_lockdet_state_t lock;    /**< decision rule: thresholds + verify counters
                                   stepped on R at each N-look decision.       */
     /* ── symbol-timing aid (segments>1 only; period 0 = off).
@@ -1574,7 +1579,7 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
 /**
  * @brief Attach (or detach) a telemetry context and register the code
  * loop's probes on it.
- * Registers five probes, emitted once per code epoch (period) and
+ * Registers seven probes, emitted once per code epoch (period) and
  * further thinned by decim: "<prefix>.e" (the early-minus-late envelope
  * discriminator — the loop stress), "<prefix>.rate" (the tracked code
  * rate, chips advanced per nominal chip, ~1.0 at lock —
@@ -1587,7 +1592,15 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * code NCO is commanded: the complete loop-filter output, the integrator,
  * the proportional term and the carrier aid, as chips per nominal chip,
  * at the NCO's resolution of one phase-increment step; a held loop's
- * held command).  Passing NULL detaches.
+ * held command), and the two terms the lock statistic is formed from, for
+ * its decomposition (#3134): "<prefix>.prompt_amp" (the epoch's last
+ * look's prompt magnitude |P|, the signal term) and "<prefix>.offset_pwr"
+ * (that look's offset (noise) tap power |O|^2, the noise reference's
+ * input, of which R's denominator E|O|^2 is the running mean). Both are in
+ * the units the statistic is formed in -- the look's normalized
+ * correlation -- so R = sqrt(2 sum |P|^2 / E|O|^2) over n_looks looks
+ * reads off them; one look an epoch, the epoch's last.  Passing NULL
+ * detaches.
  * Setup path, never hot: call before the producer thread starts
  * stepping; the context is borrowed and must outlive the attachment
  * (SPSC rules in dp_tlm/dp_tlm_core.h).
@@ -1596,7 +1609,7 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * @param prefix Probe-name prefix, e.g. "code" or "ch0.code".
  * @param decim  Emit every decim-th epoch; >= 1.
  * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         five probes (the attach fails whole; the object stays
+ *         seven probes (the attach fails whole; the object stays
  *         detached).
  * @code
  * >>> import numpy as np
@@ -1607,11 +1620,11 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * >>> d = Dll(code=code, sps=2)
  * >>> d.set_telemetry(tlm, "code")
  * >>> sorted(tlm.probe_names)
- * ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
- * >>> x = np.ones(31 * 2 * 50 + 31, dtype=np.complex64)  # 50.5 periods
+ * ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.offset_pwr', 'code.prompt_amp', 'code.rate']
+ * >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
  * >>> _ = d.steps(x)
- * >>> recs = tlm.read()   # five records per code epoch
- * >>> len(recs) > 0 and len(recs) % 5 == 0
+ * >>> recs = tlm.read()   # seven records per code epoch
+ * >>> len(recs) > 0 and len(recs) % 7 == 0
  * True
  *
  * @endcode
@@ -1627,7 +1640,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 17u /* v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 18u /* v18: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

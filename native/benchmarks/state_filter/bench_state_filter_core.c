@@ -82,6 +82,35 @@ main (void)
             jm_bench_rate_label (JM_BENCH_SAMPLE, _rate, sizeof (_rate)));
   }
 
+  /* create: construction pays the same bisection as configure, plus the
+   * allocation and the free; a caller that builds a filter per burst feels
+   * it. bn varies per call so the compiler cannot hoist the solve. */
+  {
+    enum
+    {
+      CALLS = 500
+    };
+    double times[ITERATIONS];
+    for (int r = 0; r < ITERATIONS; r++)
+      {
+        t0 = jm_bench_now_ns ();
+        for (int i = 0; i < CALLS; i++)
+          {
+            dp_state_filter_state_t *f = dp_state_filter_create (
+                0.005 + 0.0001 * (double)(i & 31), 1.0);
+            _sink = f ? f->kp : 0.0;
+            dp_state_filter_destroy (f);
+          }
+        t1       = jm_bench_now_ns ();
+        times[r] = jm_bench_elapsed_sec (t0, t1);
+      }
+    jm_bench_add_unit (&_bench, "create", times, ITERATIONS, CALLS, "call");
+    double sum = 0.0;
+    for (int r = 0; r < ITERATIONS; r++)
+      sum += times[r];
+    printf ("  create()    %8.1f ns/call\n", sum / ITERATIONS / CALLS * 1e9);
+  }
+
   /* configure: the exact solve for the gains (a bisection on the closed
    * form of the delay-free loop). Not the hot path, but an embedder that
    * retunes every symbol would feel it, so it is a number. */

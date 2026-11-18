@@ -1052,7 +1052,8 @@ IGNORE = TESTS / ".assertion-ratchet-ignore"
 OLD_ASSERT = re.compile(r"(?<![A-Za-z0-9_])CHECK\w*\s*\(")
 NEW_ASSERT = re.compile(
     r"(?<![A-Za-z0-9_])(DP_CHECK|DP_REQUIRE|DP_CHECK_MSG|DP_REQUIRE_MSG"
-    r"|DP_CHECK_NEAR|DP_RECORD_FAIL|DP_STATE_ROUNDTRIP_TEST)\s*\("
+    r"|DP_CHECK_NEAR|DP_RECORD_FAIL|DP_STATE_ROUNDTRIP_TEST"
+    r"|DP_CONTROL|DP_REFUSAL)\s*\("
 )
 
 

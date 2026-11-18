@@ -1398,6 +1398,24 @@ add_test(NAME test_dp_test_end_pass COMMAND test_dp_test_end pass)
 set_tests_properties(test_dp_test_end_nothing test_dp_test_end_fail
                      PROPERTIES WILL_FAIL TRUE)
 
+# The claim scope of dp_test.h (DP_CLAIM / DP_CONTROL / DP_REFUSAL), one
+# process per behaviour for the reason above: the epilogue returns. The modes
+# that must fail are WILL_FAIL; src/doppler/tests/test_dp_claims.py reads the
+# records the passing ones write (DP_CLAIMS_OUT).
+add_executable(test_dp_claims native/tests/test_dp_claims.c)
+target_include_directories(test_dp_claims
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                           ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_claims PRIVATE -O2)
+foreach(_m pass unscoped helper)
+  add_test(NAME test_dp_claims_${_m} COMMAND test_dp_claims ${_m})
+endforeach()
+foreach(_m control_passes pair_refused not_refused empty_claim outside
+           duplicate)
+  add_test(NAME test_dp_claims_${_m} COMMAND test_dp_claims ${_m})
+  set_tests_properties(test_dp_claims_${_m} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 # native/tests/dp_ber_test.h is the error-rate measurement harness every
 # receiver test scores through -- the settling window, the Pfa-gated alignment,
 # inverse binomial sampling and the exact confidence interval. It is header-

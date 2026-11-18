@@ -113,6 +113,38 @@ returns, nothing can be appended after it.
 It also fails a test that asserted **nothing**. A body that is `#if 0`-ed out,
 or a loop that never ran, otherwise exits 0 and reads as passing forever.
 
+## Claims and their controls
+
+A test that cannot fail is a comment. A **claim** is one sentence the object
+promises; `DP_CLAIM ("id", "the sentence")` opens it, and every check until
+the next claim belongs to it. Each claim needs a **negative control**, the
+same assertion on a named wrong case, which must fail:
+
+```c
+DP_CLAIM ("riccati", "the steady-state covariance satisfies the Riccati equation");
+DP_CHECK (residual (P) <= 1e-13 * big);
+DP_CONTROL ("P with its first entry 0.1% off", residual (P_off) <= 1e-13 * big);
+
+DP_CLAIM ("refuses", "a negative sigma_a is refused");
+DP_REFUSAL (!params_ok (se, -sa), params_ok (se, sa), "sigma_a's sign made good");
+```
+
+`DP_CONTROL` passes when its expression is **false**; if the wrong case
+satisfies the assertion, the assertion cannot fail, and that is reported.
+`DP_REFUSAL (refused, made_good, "what was made good")` is a refusal's minimal
+pair: the bad call was refused *and* the same call with that one argument made
+good was accepted, so the refusal is for that argument and for nothing else.
+The scope is in `dp_test.h`; `test_dp_claims.c` tests it, one process per
+behaviour.
+
+The gate is `make claims-check` (in `make lint`): every claim has a control,
+and every test either opens claims or is on the shrink-only list
+`scripts/.claims-unadopted`, which a new test may not join. At the end each
+claim is appended as one JSON line to the file named by `DP_CLAIMS_OUT` when it
+is set, never to stdout; a validator reads a test's claims by running its binary
+with that variable set (`claim_records` in `src/doppler/tests/_validation_common.py`)
+and its control column reads what the test recorded.
+
 ## Comparisons and tolerances
 
 ```c

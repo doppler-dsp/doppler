@@ -1985,7 +1985,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 burst-pipeline-check uno-q-check uno-q-nats-check \
                 glibc-check glibc-gate glibc-image \
                 check-isotime-parity \
-                tests-ssot validation-report-check \
+                tests-ssot claims-check validation-report-check \
                 lint-alloc-helpers-baseline \
                 compile_commands.json \
                 install-docs-deps install-deps-ci install-docs-deps-ci \
@@ -2105,7 +2105,7 @@ include standard.mk
 # is `lint` refusing to report on a contributor's own change for a reason
 # that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
 # run natively and skip Docker entirely.
-lint: tests-ssot characterization-check validation-report-check changelog-check \
+lint: tests-ssot claims-check characterization-check validation-report-check changelog-check \
       workflow-syntax-check ci-aggregator-check python-versions-check \
       gates-extra-home-check \
       release-notes-size-check \
@@ -2127,6 +2127,12 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
 ASSERT_BASE ?= origin/main
 tests-ssot: ## Verify no C test re-defines dp_test.h's macros or loses assertions
 	@$(UV) run python scripts/check_tests_ssot.py --base $(ASSERT_BASE)
+
+# Every claim a C test opens (DP_CLAIM) has a negative control (DP_CONTROL or
+# DP_REFUSAL), and adoption only grows: a test not on the shrink-only list
+# scripts/.claims-unadopted must open claims (#847, layer 1).
+claims-check: ## Verify every C test claim has a negative control; adoption only grows
+	@$(UV) run python scripts/check_claims.py
 
 # A published benchmark set stamps doppler_meta.commit as its provenance, and
 # a reader must be able to check that commit out. A set measured on a release

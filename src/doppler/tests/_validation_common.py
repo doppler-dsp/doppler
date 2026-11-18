@@ -33,8 +33,11 @@ from __future__ import annotations
 
 import csv
 import difflib
+import json
+import os
 import re
 import subprocess
+import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -170,6 +173,60 @@ EXIT_STALE = 3
 #: without a wall of output when a generator changed shape. `n=0` context,
 #: so every line shown is a changed one.
 _DIFF_LINES = 40
+
+
+def claim_records(binary: Path, label: str, root: Path) -> dict[str, dict]:
+    """Run a C test binary and return the claims it recorded, by id.
+
+    ``native/tests/dp_test.h`` appends one JSON line per ``DP_CLAIM`` to the
+    file named by ``DP_CLAIMS_OUT`` when the test ends. This runs the object's
+    own test binary with that variable set to a temporary file and reads it
+    back, the way `harness_blocks` runs a harness: the records come from the
+    binary just run, so there is no ordering between make targets and no
+    stale file to check. A missing binary, a failing test, or one that
+    recorded no claim is a hard failure (a validator whose claims have no
+    control behind them would be reading nothing).
+
+    Parameters
+    ----------
+    binary : Path
+        The built C test executable (`doppler.tests._repo.exe`).
+    label : str
+        The object's name, for the error message.
+    root : Path
+        The repository root, so a message names a path a person can type.
+
+    Returns
+    -------
+    dict
+        Claim id to ``{"bin", "claim", "text", "checks", "controls"}``.
+    """
+    if not binary.exists():
+        raise SystemExit(
+            f"{label}: {binary.relative_to(root)} is not built -- run "
+            "`make build` first; its claims are what the report's control "
+            "column reads."
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "claims.jsonl"
+        env = dict(os.environ, DP_CLAIMS_OUT=str(out))
+        done = subprocess.run(
+            [str(binary)], capture_output=True, text=True, env=env, check=False
+        )
+        if done.returncode != 0:
+            raise SystemExit(
+                f"{label}: {binary.name} failed (exit {done.returncode}):\n"
+                f"{done.stdout}{done.stderr}"
+            )
+        lines = (
+            out.read_text(encoding="utf-8").splitlines()
+            if out.exists()
+            else []
+        )
+    recs = {r["claim"]: r for r in map(json.loads, lines)}
+    if not recs:
+        raise SystemExit(f"{label}: {binary.name} recorded no claim")
+    return recs
 
 
 def harness_blocks(
@@ -475,6 +532,7 @@ class Report:
     keys: dict[str, str] = field(default_factory=dict)
     limits: list[tuple[bool, str]] = field(default_factory=list)
     evidence: dict[int, tuple[str, str, str]] = field(default_factory=dict)
+    claims: dict[str, dict] = field(default_factory=dict)
     write: bool = True
     head: list[str] = field(default_factory=list)
 
@@ -607,6 +665,10 @@ class Report:
             return tag
         return f"{self.keys.get(m.group(1), '?')} (`{m.group(1)}`)"
 
+    def use_claims(self, records: dict[str, dict]) -> None:
+        """Take the records a C test wrote for its claims (`claim_records`)."""
+        self.claims = dict(records)
+
     def limit(
         self,
         ok: bool,
@@ -614,6 +676,7 @@ class Report:
         by: str = "",
         control: str = "",
         red: str = "",
+        claim_id: str = "",
     ) -> bool:
         """Record one envelope claim and whether it holds.
 
@@ -627,7 +690,33 @@ class Report:
         report gives one of them, section 4 renders all three as extra
         columns; a report that gives none renders the two-column table it
         always did.
+
+        ``claim_id`` joins the limit to a claim the object's C test opened
+        with ``DP_CLAIM`` (``native/tests/dp_test.h``): the control column
+        then READS what that test recorded for the id (its checks and its
+        controls, from `use_claims`) instead of describing one the report
+        computed, so a claim has one control and the report cannot disagree
+        with it. An id the C test never opened, or a claim it opened with no
+        control, is a hard failure here.
         """
+        if claim_id:
+            rec = self.claims.get(claim_id)
+            if rec is None:
+                raise SystemExit(
+                    f"limit {claim!r}: claim_id {claim_id!r} names no claim "
+                    "the object's C test opened (call use_claims with its "
+                    "records, or fix the id)"
+                )
+            if rec["controls"] < 1:
+                raise SystemExit(
+                    f"limit {claim!r}: the C test's claim {claim_id!r} has "
+                    "no control"
+                )
+            note = (
+                f"C test `{rec['bin']}`, claim `{claim_id}`: "
+                f"{rec['checks']} checks, {rec['controls']} controls"
+            )
+            control = f"{control}; {note}" if control else note
         self.limits.append((bool(ok), claim))
         if by or control or red:
             self.evidence[len(self.limits) - 1] = (by, control, red)

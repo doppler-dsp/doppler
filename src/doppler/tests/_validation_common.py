@@ -173,7 +173,10 @@ _DIFF_LINES = 40
 
 
 def harness_blocks(
-    harness: Path, label: str, root: Path
+    harness: Path,
+    label: str,
+    root: Path,
+    args: tuple[str, ...] = ("--emit",),
 ) -> dict[str, list[dict[str, float | str]]]:
     """Run a C measurement harness with ``--emit`` and parse its CSV blocks.
 
@@ -199,6 +202,9 @@ def harness_blocks(
         The object's name, for the error message.
     root : Path
         The repository root, so the message names a path a person can type.
+    args : tuple of str, optional
+        The harness arguments; ``--emit`` by default, ``--check --emit`` for
+        a report whose harness call is the regression subset ctest also makes.
 
     Returns
     -------
@@ -212,7 +218,7 @@ def harness_blocks(
             f"own; the C harness is where every number in it comes from."
         )
     out = subprocess.run(
-        [str(harness), "--emit"], capture_output=True, text=True, check=True
+        [str(harness), *args], capture_output=True, text=True, check=True
     ).stdout
 
     def _val(text: str) -> float | str:
@@ -451,6 +457,8 @@ class Report:
     limits : list of (ok, claim)
         Phase 3's envelope. Every one of these is asserted by a pytest
         case, so a False here fails CI rather than only reading badly.
+    evidence : dict of limit index to (checked by, control, break), optional
+        What `limit()` was given for the section 4 columns.
     write : bool
         False when the report is being built purely to check its limits,
         which suppresses every file the run would otherwise emit.
@@ -466,6 +474,7 @@ class Report:
     findings: list[tuple[str, str, str]] = field(default_factory=list)
     keys: dict[str, str] = field(default_factory=dict)
     limits: list[tuple[bool, str]] = field(default_factory=list)
+    evidence: dict[int, tuple[str, str, str]] = field(default_factory=dict)
     write: bool = True
     head: list[str] = field(default_factory=list)
 
@@ -598,9 +607,30 @@ class Report:
             return tag
         return f"{self.keys.get(m.group(1), '?')} (`{m.group(1)}`)"
 
-    def limit(self, ok: bool, claim: str) -> bool:
-        """Record one envelope claim and whether it holds."""
+    def limit(
+        self,
+        ok: bool,
+        claim: str,
+        by: str = "",
+        control: str = "",
+        red: str = "",
+    ) -> bool:
+        """Record one envelope claim and whether it holds.
+
+        ``by`` names the check that pins the claim; ``control`` names the
+        negative control: the same assertion evaluated on a named wrong
+        case, which the test requires to FAIL, so the assertion is known to
+        tell a right answer from a wrong one (a refusal's control is its
+        minimal pair, the refused call with its one argument made good,
+        which must pass); ``red`` is the one-line break of the source that
+        was run against the claim and what went red. When any limit of a
+        report gives one of them, section 4 renders all three as extra
+        columns; a report that gives none renders the two-column table it
+        always did.
+        """
         self.limits.append((bool(ok), claim))
+        if by or control or red:
+            self.evidence[len(self.limits) - 1] = (by, control, red)
         print(f"  [{'PASS' if ok else 'FAIL':^10}] {claim[:96]}")
         return bool(ok)
 
@@ -732,13 +762,32 @@ class Report:
         """
         if self.limits:
             self.md()
-            self.table(
-                ["verdict", "claim"],
-                [
-                    ["PASS" if ok else "**FAIL**", claim]
-                    for ok, claim in self.limits
-                ],
-            )
+            if self.evidence:
+                self.table(
+                    [
+                        "verdict",
+                        "claim",
+                        "checked by",
+                        "control (must fail)",
+                        "break that turns it red",
+                    ],
+                    [
+                        [
+                            "PASS" if ok else "**FAIL**",
+                            claim,
+                            *self.evidence.get(i, ("", "", "")),
+                        ]
+                        for i, (ok, claim) in enumerate(self.limits)
+                    ],
+                )
+            else:
+                self.table(
+                    ["verdict", "claim"],
+                    [
+                        ["PASS" if ok else "**FAIL**", claim]
+                        for ok, claim in self.limits
+                    ],
+                )
         gaps = self.open_findings
         # No trailing space when the list is empty: the end-of-line hook
         # would strip it and the next regeneration would put it back,

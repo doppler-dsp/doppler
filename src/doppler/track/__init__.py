@@ -24,6 +24,7 @@ from .track import (  # noqa: E402
     CarrierNda,
     Costas,
     Dll,
+    KalmanStateFilter,
     LoopFilter,
     MpskReceiver,
     MpskReceiverR,
@@ -44,4 +45,5 @@ __all__ = [
     "MpskReceiverR",
     "BpskReceiver",
     "StateFilter",
+    "KalmanStateFilter",
 ]

@@ -5,10 +5,13 @@
  * What this file claims, and what it does not. The standard's literal tables
  * (the RATE bits, the L-STF and L-LTF values and their scales, the
  * constellation labels where they differ from the library's, and the second
- * interleaver permutation) are not in the tree
- * (docs/design/wlan.md section 9), so every test that needs one runs on a
- * SYNTHETIC table built here and claims no conformance with any 802.11 text.
- * What it pins is what is derivable: the counts and lengths from the
+ * interleaver permutation) are dp_wlan_tables_standard(), and section 9 holds
+ * the RATE bits, both training sequences and the constellation encodings
+ * against their printed form (docs/design/wlan.md section 9), and the second
+ * permutation by its worked 16-QAM example and by bijectivity. The tests of
+ * the machinery run on a SYNTHETIC table built here, so what they pin does not
+ * depend on a transcription; they claim no conformance with any 802.11 text.
+ * What they pin is what is derivable: the counts and lengths from the
  * checked numbers, the field offsets of the layout, the chain's own
  * inverses, the CRC by its catalogue check value, the scrambler by its
  * recurrence, the BCC by its generators' impulse response, and the pilot

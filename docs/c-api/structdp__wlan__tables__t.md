@@ -8,7 +8,7 @@
 
 
 
-_What the standard supplies and this tree does not yet hold._ [More...](#detailed-description)
+_What the standard supplies: the Clause 17 literals._ [More...](#detailed-description)
 
 * `#include <wlan_core.h>`
 
@@ -92,7 +92,7 @@ _What the standard supplies and this tree does not yet hold._ [More...](#detaile
 ## Detailed Description
 
 
-Empty (NULL, 0) until transcribed from the text; see the file comment. Every pointer is borrowed and must outlive its use. 
+[**dp\_wlan\_tables\_standard()**](wlan__core_8h.md#function-dp_wlan_tables_standard) returns it filled, transcribed from the text (the file comment says which members the test holds against a printed form); [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) returns it with every member empty (NULL, 0), and a builder that needs an empty member refuses. See the file comment. Every pointer is borrowed and must outlive its use. 
 
 
     

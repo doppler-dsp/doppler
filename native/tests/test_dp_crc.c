@@ -269,6 +269,23 @@ main (void)
     DP_CHECK_MSG (!dp_crc_valid (&wxor), "an xorout wider than the width");
     DP_CHECK_MSG (dp_crc_valid (&w64), "width 64 with every bit set is legal");
     DP_CHECK_MSG (dp_crc_valid (&w1), "width 1 is legal");
+
+    /* The header says a polynomial of zero is allowed: it is the degenerate
+     * CRC that shifts its register out. Held by derivation: with no
+     * polynomial to XOR in, n bits leave the register as init << n (masked),
+     * so 0xA5 over four input bits is 0x50 whatever the bits are, and over
+     * eight or more it is 0. A control: the same model with a nonzero
+     * polynomial is NOT that (its register gets XORed into). */
+    const dp_crc_t z      = { 8u, 0u, 0xA5u, 0, 0u };
+    const dp_crc_t nz     = { 8u, 0x07u, 0xA5u, 0, 0u };
+    const uint8_t  b4a[4] = { 1, 0, 1, 1 }, b4b[4] = { 0, 0, 0, 0 };
+    uint8_t        b8[8] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+    DP_CHECK_MSG (dp_crc_valid (&z), "a polynomial of zero is allowed");
+    DP_CHECK (dp_crc_bits (&z, b4a, 4) == 0x50u);
+    DP_CHECK (dp_crc_bits (&z, b4b, 4) == 0x50u);
+    DP_CHECK (dp_crc_bits (&z, b8, 8) == 0u);
+    DP_CHECK_MSG (dp_crc_bits (&nz, b4a, 4) != 0x50u,
+                  "control: a nonzero polynomial is not the shift-out CRC");
   }
 
   DP_TEST_END ("test_dp_crc");

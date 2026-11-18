@@ -11,13 +11,15 @@ layout and the points it takes. It is a table of PPDU formats and a builder
 from a format and a frame body, so the rules about what goes in each field are
 written once, and a caller builds a frame without knowing them.
 
-**What is certified, and what is not.** Every number the design page
+**What is held, and what is not.** Every number the design page
 ([`docs/design/wlan.md`](../design/wlan.md)) marks checked against the text of
 IEEE Std 802.11-2024 is a constant in `wlan` or a literal in
-`dp_wlan_tables_standard()`: the RATE bits, the L-STF and L-LTF sequences,
-the constellation encodings and the second interleaver permutation, each
-pinned in the unit test against its printed form. The 5/6 code rate is
-Clause 19's and is not checked. Nothing here claims conformance with 802.11a,
+`dp_wlan_tables_standard()`. The unit test holds the RATE bits, both training
+sequences and the constellation encodings against their printed form; the
+second interleaver permutation by its worked 16-QAM example and by being a
+bijection; the puncture masks and the pilot polarity sequence are not held
+against a printed form. The 5/6 code rate is Clause 19's and is not
+checked. Nothing here claims conformance with 802.11a,
 g, n or ac until Annex I's stage-by-stage example passes.
 
 ## A rate

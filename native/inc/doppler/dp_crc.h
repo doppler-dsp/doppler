@@ -6,9 +6,10 @@
  * initial register, whether the final register is reflected, and a value
  * XORed into the result. Every named CRC is those five numbers. This header
  * holds the one loop that computes any of them and the named instances the
- * tree uses, so a frame's FCS (CRC-32), its SIG-field check (CRC-8) and the
- * burst frame's trailer (CRC-16-CCITT) are three rows of data and cannot
- * grow three copies of the arithmetic.
+ * tree uses, so a frame's FCS (CRC-32) and the burst frame's trailer
+ * (CRC-16-CCITT) are rows of data and cannot grow copies of the arithmetic.
+ * (The SIG fields' CRC-8 parameters are not a named row: they are the
+ * protocol's to state, see the last paragraph.)
  *
  * Header-only, for the reason `dp_crc16.h` was: no component grows a
  * link-line dependency for a ten-line kernel.
@@ -31,10 +32,8 @@
  * (the CRC RevEng catalogue, https://reveng.sourceforge.io/crc-catalogue/),
  * and `test_dp_crc.c` pins each to the catalogue's check value, the CRC of
  * the nine ASCII characters `123456789`. Those values define the named CRC.
- * Where the language runtime has the same CRC independently they were
- * confirmed against it (CRC-32/ISO-HDLC against zlib's crc32, CRC-16/XMODEM
- * and CRC-16/IBM-3740 against binascii.crc_hqx), and all of them against a
- * separate table-free Python implementation of the model.
+ * That is what the test holds: each named model's check value, nothing
+ * more.
  *
  * **A named instance is not a claim that a standard uses it.** Which model a
  * given protocol field takes, and in what bit order the value is

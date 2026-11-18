@@ -131,7 +131,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) _A non-HT rate, by the two columns of Table 17-4 that do not change with the clocking: a constellation and a code rate._     
 * **struct** [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) _A (rate, SIGNAL RATE bits) pair of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _._    
 * **struct** [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) _A non-HT rate, held with what follows from it._     
-* **struct** [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) _What the standard supplies and this tree does not yet hold._     
+* **struct** [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) _What the standard supplies: the Clause 17 literals._     
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md) _Bounds-checked write cursor over a caller-owned state blob._     
 * **struct** [**dsss\_br\_event\_t**](structdsss__br__event__t.md) _One completed burst's event, as_ `events()` _hands it back._    
 * **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) _Receiver-level payload that follows the state envelope: the routing flag, cached hit estimates, the grid (layout key) and the carrier-carry depth._     

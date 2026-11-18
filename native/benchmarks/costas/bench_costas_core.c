@@ -75,6 +75,35 @@ main (void)
     dp_costas_destroy (c);
   }
 
+  /* --- steps throughput at order 3: the same block through the
+     StateFilter (dp_costas_set_order), what the third order costs. --- */
+  {
+    dp_costas_state_t *c = dp_costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
+    if (dp_costas_set_order (c, 3, 0.05) != DP_OK)
+      return 1;
+    dp_costas_steps (c, rx, TSAMPS * 4, out, BENCH_N); /* warmup */
+
+    double times[ITERATIONS];
+    for (int r = 0; r < ITERATIONS; r++)
+      {
+        dp_costas_reset (c);
+        t0 = jm_bench_now_ns ();
+        dp_costas_steps (c, rx, BENCH_N, out, BENCH_N);
+        t1       = jm_bench_now_ns ();
+        times[r] = jm_bench_elapsed_sec (t0, t1);
+      }
+    if (dp_costas_get_order (c) != 3)
+      return 1; /* reset keeps the order: the row timed order 3 */
+    jm_bench_add_unit (&_bench, "steps[order=3]", times, ITERATIONS, BENCH_N,
+                       JM_BENCH_SAMPLE);
+    double sum = 0.0;
+    for (int r = 0; r < ITERATIONS; r++)
+      sum += times[r];
+    printf ("  steps o3 %8.1f MSa/s\n",
+            (double)BENCH_N / (sum / ITERATIONS) / 1e6);
+    dp_costas_destroy (c);
+  }
+
   /* --- acquisition time: samples to lock_metric > 0.9 --- */
   {
     dp_costas_state_t *c = dp_costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);

@@ -88,6 +88,19 @@ shape `Dll.configure_lock` uses (see
 `SYMSYNC_LOCK_STAT_VARIANCE` comment for the exact defaults and full
 derivation).
 
+**RateSync derives its verify counts.** RateSync's timing loop uses the
+same statistic and the same sizing, `avgs = 133` and a threshold of 0.311
+at a per-decision pfa of 1e-3 and pd of 0.9. Its counts come from one
+per-decision false-transition budget, `RATESYNC_LOCK_BUDGET` = 1e-6, through
+`dp_det_verify_count()`: it declares after `verify_count(1e-3, 1e-6)` = 2
+consecutive decisions above the threshold and drops after
+`verify_count(0.1, 1e-6)` = 6 below it. The rates are the sizing point's,
+Es/N0 10 dB at rolloff 0.35: at another Es/N0 the counts meet the budget
+only if the statistic's rates do, which the caller measures.
+`test_ratesync_core.c` recomputes both counts from the header's constants
+and holds a single passing decision short of a declare
+([#3133](https://github.com/doppler-dsp/doppler/issues/3133)).
+
 No standard C library function computes `erfcinv`. `symsync_core.c` carried a
 private Winitzki-initial-guess-plus-Newton-refinement implementation, kept
 local *pending a second consumer*; the carrier lock detector became that

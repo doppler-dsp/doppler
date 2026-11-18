@@ -627,6 +627,12 @@ rx_sync.rate                  # tracked samples/symbol -- the clock estimate
 rx_sync.locked                # verify-counted timing-lock decision
 ```
 
+`locked` is decided once per block of 133 symbols. It declares after two
+consecutive blocks clear the threshold and drops after six fall below it, so
+the earliest declaration is 266 symbols in; both counts derive from a
+per-decision false-transition budget of 1e-6, and
+`configure_lock_raw()` sets others.
+
 Judge lock by `lock_stat` / `locked` rather than by an error-vector magnitude:
 a single cycle slip during acquisition drags a windowed EVM by 20 dB while the
 eye is wide open. And check `clipped` at least once against real input — the

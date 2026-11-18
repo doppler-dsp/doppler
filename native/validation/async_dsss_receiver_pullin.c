@@ -1414,11 +1414,12 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       }
   }
   /* The loops' stress, against the design's baselines
-     (docs/design/async-dsss-receiver.md §4.8, "The two stresses"; the loop as
-     coded: one update a code period T, the loop filter's own ki and bn): the
-     ramp's lag 2 pi R T^2 / ki noise-free, the jitter sqrt((bn / rho)(1 + K /
-     (2 rho))) with rho the C/N0 at the antenna over T and K the window's
-     partials, and a hand-over step's peak 0.49 * 2 pi df T / (1.886 bn). */
+     (docs/design/async-dsss-receiver.md §4.8, "The carrier loop's bandwidth":
+     its two stresses; the loop as coded: one update a code period T, the loop
+     filter's own ki and bn): the ramp's lag 2 pi R T^2 / ki noise-free, the
+     jitter sqrt((bn / rho)(1 + K / (2 rho))) with rho the C/N0 at the antenna
+     over T and K the window's partials, and a hand-over step's peak 0.49 * 2
+     pi df T / (1.886 bn). */
   {
     const double T  = (double)SF / chip;
     const double bn = rx->car.lf.bn, ki = rx->car.lf.ki;

@@ -287,7 +287,7 @@ A fixed entry displaces data on its subcarrier in its phase (when the map has da
 0
 >>> o.points_remaining()      # six data subcarriers
 6
->>> o.add_fixed(0, 4294967295, 3, 1j)   # a pilot on a data subcarrier
+>>> o.add_fixed(0, 2**32 - 1, 3, 1j)   # a pilot on a data subcarrier
 >>> o.points_remaining()      # it displaces one
 5
 ```
@@ -341,7 +341,7 @@ OFDM symbol `n` of a run multiplies its fixed entries (never its data) by elemen
 >>> z = np.zeros(8, np.uint8)               # no data subcarriers at all
 >>> p = Ofdm(); p.add_class(8, z, cyclic_prefix=2)
 0
->>> p.add_fixed(0, 4294967295, 2, 1.0)      # one pilot
+>>> p.add_fixed(0, 2**32 - 1, 2, 1.0)      # one pilot, every phase
 >>> p.add_polarity(0, np.array([1, -1], np.complex64))
 >>> p.add_run(0, 2)
 0

@@ -69,7 +69,7 @@ params = [
 
 [[ofdm.methods]]
 name = "add_fixed"
-doc = "Append one fixed entry to a class: a pilot, a training value, a boosted pilot. `phase` is the pattern phase it belongs to, or 4294967295 for every phase. `k` is the subcarrier, from `-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its subcarrier in its phase, and is multiplied by the class's polarity element for the OFDM symbol."
+doc = "Append one fixed entry to a class: a pilot, a training value, a boosted pilot. `phase` is the pattern phase it belongs to, or 2**32 - 1 (`OFDM_ALL_PHASES` in C) for every phase. `k` is the subcarrier, from `-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its subcarrier in its phase, and is multiplied by the class's polarity element for the OFDM symbol."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -84,7 +84,7 @@ params = [
 
 [[ofdm.methods]]
 name = "add_run"
-doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (4294967295 keeps it); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
+doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (omit it, or give 4294967295 = 2**32 - 1, `OFDM_CP_DEFAULT` in C, to keep the class's; a named default is just-buildit/just-makeit#2679); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
 arg_type = "void"
 return_type = "int"
 error_negative = true

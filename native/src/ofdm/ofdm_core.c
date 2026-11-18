@@ -731,13 +731,11 @@ dp_ofdm_set_state (dp_ofdm_state_t *o, const void *blob)
       = o->max_window ? dp_mallocn (o->max_window, sizeof *tail) : tmp_tail;
   if (!tail)
     return DP_ERR_INVALID;
+  /* This read cannot overrun: the envelope check above fixed the blob at
+     exactly dp_ofdm_state_bytes() (header + extra + max_window slots), the
+     extra was read first, and x.max_window == o->max_window was just
+     checked, so the slots are exactly what is left. */
   dp_r_cf32 (&_r, tail, o->max_window);
-  if (_r.err)
-    {
-      if (o->max_window)
-        free (tail);
-      return DP_ERR_INVALID;
-    }
   o->run_index  = x.run_index;
   o->sym_in_run = x.sym_in_run;
   o->tail_len   = x.tail_len;

@@ -123,6 +123,13 @@ extern "C"
 
   size_t dp_ofdm_modulate_max_out(dp_ofdm_state_t *state, size_t n_in);
 
+  int64_t dp_ofdm_modulate_why(dp_ofdm_state_t *state, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out, const char **why);
+
+  /* The binding derives this name from dp_ofdm_modulate_why, and has no key
+     to name dp_ofdm_modulate_max_out instead: just-makeit#2680. Retire this
+     alias, and the plain function's pointer doc, when that key exists. */
+  size_t dp_ofdm_modulate_why_max_out(dp_ofdm_state_t *state, size_t n_in);
+
   size_t dp_ofdm_modulate(dp_ofdm_state_t *state, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out);
 
   size_t dp_ofdm_finish_max_out(dp_ofdm_state_t *state, size_t n);

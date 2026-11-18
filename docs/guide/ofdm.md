@@ -50,14 +50,18 @@ changing nothing. A layout that is not usable (no run, a window longer than an
 OFDM symbol of its class, two fixed entries on one subcarrier in one phase)
 is found out when it is checked, and `check` says which: it raises
 `ValueError` with a sentence (`the layout has no run`) and returns `None`
-when the layout is usable. `modulate` checks on first use, but it has no sentence
-to give: on an unusable layout it returns an **empty array**, and it returns
-the same empty array for a point count that ends inside an OFDM symbol or runs
-past the layout, leaving the modulator untouched in every case. So call
-`check()` after building a layout, and compare `modulate`'s size with
-`modulate_max_out` when it comes back empty. Adding to a checked layout
-re-opens it and keeps the position and the window tail, so a signal can be
-extended while it is rendered.
+when the layout is usable. `modulate` checks on first use and refuses the
+same way: it raises `ValueError` with the sentence for an unusable layout,
+for a point count that ends inside an OFDM symbol, and for one that runs past
+the layout, leaving the modulator untouched in every case. A call that
+renders nothing, because no points remain or because zero points were given
+where the next OFDM symbol needs some, returns an empty array and is not an
+error. A buffer too short is never the library's own refusal in Python: it
+sizes the output itself, and an `out=` shorter than `modulate_max_out` is
+rejected by the binding (`out has N elements, need >= M`) before the call.
+In C the same refusal is a negative return from `dp_ofdm_modulate_why()` with
+a sentence. Adding to a checked layout re-opens it and keeps the position and
+the window tail, so a signal can be extended while it is rendered.
 
 The same lifecycle from C, with the caller owning both buffers and the
 refusal's reason read from `dp_ofdm_check_why()`. It checks itself and exits

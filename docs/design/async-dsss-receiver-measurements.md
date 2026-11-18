@@ -316,6 +316,1169 @@ this section agreed, then declared in `objects/async_dsss_receiver.toml`,
 implemented, each knob pinned in C and proven by sabotage, bound, and
 §4.3's table measured again through the knobs.
 
+## 4, moved from the design page (2026-11-17)
+
+The runs, proposals and superseded numbers that stood on the design page's §4 until 2026-11-17, moved unchanged. Every 400 Hz/s figure is outside the use case (design page §1.8); nothing on the design page rests on one.
+
+### 4.2 The design page's results at the specification point (2026-11-15, scratch patches)
+
+Measured 2026-11-15 at main `f34f70027` with scratch patches, none in the
+tree, five seeds a cell, seven scenes at each of two carriers; the tables
+are on [#3090](https://github.com/doppler-dsp/doppler/issues/3090#issuecomment-6902451986),
+and the runs that lead here are in
+[the measurement record](async-dsss-receiver-measurements.md), §4.
+
+**Conditions.**
+
+- **The frame has no primary header.** Each period is §1.4's gap of 275
+    symbols, the 128 dotted bits and EB90, then a data field of 1 to 1,017
+    random octets and a CRC-16 over the data field alone: 5 octets short of
+    §1.4's transfer frame. This limits the result (§4.6).
+- **Stimulus:** 20 frames a run, the data clock 1 ppm fast, built with the
+    shipped `Frame` → the continuous DSSS source's `data=` → `Composer`
+    (its Doppler channel) → `RateConverter` to 11 MSa/s; the Doppler is
+    verified in every run, and Es/N0 is set at the source (§1.7).
+- **Scenes:** static at +1,500, −1,500 and 0 Hz; sweeps from one band edge
+    to the other at ±400 Hz/s; ramps from 0 Hz at ±400 Hz/s; each at 2.2
+    and 2.8 GHz, for 70 runs a cell.
+- **Receiver:** `AsyncDsssReceiver`, m 2, `segments` 4, `sps` 8,
+    `carrier_freq_hz` the carrier, `doppler_uncertainty` 1,500,
+    `doppler_rate` 400, `code_only_s` the gap over the symbol rate, and
+    `cn0_dbhz` 38.77, the floor. The carrier loop's `bn` is 0.04 and the
+    M-PSK loop's 0.010.
+- **Rows**, each the receiver as built with scratch switches:
+    - **A**: the search's Doppler is the hand-over, with no refine dwell;
+    - **A'**: A with the symbol-period aid off;
+    - **C**: A' with the carrier loop's error formed from one coherent sum
+        over the code-period window find_max_power picks
+        (`dll_core.c:1055-1068`), squared and halved, in place of the sum of
+        squared partials (`async_dsss_receiver_core.c:812-815`).
+- **Cells:** carried of 70 (a run carries when over 80% of its 500-symbol
+    windows match the data at either polarity) · loss against the BPSK
+    bound · flips (clean inversion onsets, plus frames inverted with no
+    clean onset). The slip counter reads 0 in every cell but one run
+    (§4.5).
+
+| Es/N0                              | A                    | A'                  | C                   |
+| ---------------------------------- | -------------------- | ------------------- | ------------------- |
+| 3 dB, 1 dB under the floor: margin | 44 · 1.8 dB · 108+22 | 43 · 2.1 dB · 99+25 | 69 · 1.2 dB · 31+1  |
+| **4 dB, the floor**                | 67 · 1.3 dB · 54+6   | 69 · 1.3 dB · 64+9  | **70 · 1.1 dB · 4** |
+| 5 dB                               | 70 · 1.1 dB · 12     | 70 · 1.2 dB · 12    | 70 · 1.0 dB · 0     |
+
+- **By carrier, at the floor:** A' carries 34 of 35 at 1.2 dB with 8 flips
+    at 2.2 GHz, and 35 of 35 at 1.5 dB with 56+9 at 2.8 GHz. C carries 35 of
+    35 at 1.1 dB at both, with 0 and 4 flips.
+- **Hand-over and first data:** the hand-over error is −0 ± 10 Hz, and
+    first data comes 0.07 s after arrival in every row that carries.
+
+**Flips by region.** Every polarity change of the output against the
+truth, from 16-symbol windows aligned to the truth by symbol count, all
+runs; a flip and its return are two changes:
+
+| row | Es/N0 | gap | dots | start sequence | data    |
+| --- | ----- | --- | ---- | -------------- | ------- |
+| A   | 3 dB  | 26  | 29   | 3              | 453     |
+| A   | 4 dB  | 27  | 3    | 0              | 136     |
+| A   | 5 dB  | 1   | 1    | 0              | 21      |
+| A'  | 3 dB  | 22  | 17   | 5              | 477     |
+| A'  | 4 dB  | 5   | 3    | 0              | **138** |
+| A'  | 5 dB  | 0   | 0    | 0              | 23      |
+| C   | 3 dB  | 0   | 14   | 0              | 65      |
+| C   | 4 dB  | 0   | 1    | 0              | **7**   |
+| C   | 5 dB  | 0   | 0    | 0              | 3       |
+
+**The carrier loop's SNR by region**, gap / dots / data, from the measured
+variance of its error and each detector's model slope, at `bn` 0.04. The
+model is a Monte Carlo of the detector over `K` partials at a random
+symbol-clock phase, the tone, dots and data modeled apart:
+
+| GHz | Es/N0 | A'                 | C                  | model, C           |
+| --- | ----- | ------------------ | ------------------ | ------------------ |
+| 2.2 | 4 dB  | 12.8 / 11.7 / 12.3 | 16.8 / 13.9 / 15.4 | 17.5 / 14.4 / 16.1 |
+| 2.8 | 4 dB  | 11.1 / 10.2 / 10.5 | 15.4 / 13.2 / 14.4 | 16.2 / 13.9 / 15.0 |
+| 2.2 | 3 dB  | 11.4 / 10.1 / 10.6 | 15.6 / 12.2 / 14.3 | –                  |
+| 2.8 | 3 dB  | 9.3 / 8.2 / 8.9    | 14.2 / 11.8 / 13.0 | –                  |
+
+**Controls.**
+
+- **A whole-multiple sample rate**, 10,997,988.93916541 Sa/s (3,500 times the
+    code-period rate at 2.2 GHz, 2,750 times at 2.8 GHz), on A', the
+    static scenes and the upward sweep: 40 of 40 at 1.3 dB with 64+2 flips
+    at the floor, as A'.
+- **Partials per block:** always exactly `segments`; 45,971 blocks of 4,
+    never 3 or 5.
+- **The M-PSK lock:** 0.97 to 1.00 in every region and row, but A' at
+    2.8 GHz and 3 dB, at 0.88 on the dots and the data.
+
+**What stays open, by the stage that owns it.** A finding is taken to the
+lowest stage that owns it and validated there on §1.4's stimulus; a stage's
+certification is not repeated. `MpskReceiver`, `CarrierNda`, `RateSync`,
+the correlator, `resamp` and `lockdet` have records in the
+[validation log](../dev/contributing/validation-log.md); four stages have
+none (§1.7).
+
+| stage                                    | finding                                                                                                                                                               | record                                                                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| test tools                               | the DSSS test captures add 3 dB less noise than their label                                                                                                           | [#689](https://github.com/doppler-dsp/doppler/issues/689)                                                                |
+| symbol timing                            | the loop is level-sensitive, and the receiver hands it 0.50 to 0.63 of its contracted level                                                                           | [#3079](https://github.com/doppler-dsp/doppler/issues/3079)                                                              |
+| matched filter and carrier               | `MpskReceiver` and `CarrierNda` run at settings their records do not cover                                                                                            | none                                                                                                                     |
+| the Doppler refine into the carrier loop | residuals of hundreds of hertz against a pull-in of 63 to 80 Hz                                                                                                       | [#3080](https://github.com/doppler-dsp/doppler/issues/3080), [#3090](https://github.com/doppler-dsp/doppler/issues/3090) |
+| search                                   | the dwell `K·D` is not bounded by the gap; the band edge is charged at the band's average loss, and one roll cannot tell which side of the fold a signal is on (§1.5) | [#3082](https://github.com/doppler-dsp/doppler/issues/3082)                                                              |
+| receiver                                 | the code-carrier coupling is not in any certification (§1.6)                                                                                                          | none                                                                                                                     |
+| receiver                                 | `steps_max_out()` is not a bound above one symbol a code period                                                                                                       | [#2469](https://github.com/doppler-dsp/doppler/issues/2469)                                                              |
+| receiver                                 | two symbol-lock detectors on one symbol stream                                                                                                                        | [#3077](https://github.com/doppler-dsp/doppler/issues/3077)                                                              |
+
+### 4.3 The design page's conclusions from them
+
+1. **The hand-over is the search's Doppler, with no refine dwell.** Its
+    error is −0 ± 10 Hz; the refine's dwell alone ages an estimate 0.12 s,
+    48 Hz at 400 Hz/s.
+1. **With that hand-over the carrier loop tracks from acquisition; nothing
+    is bypassed or steered.** A, the receiver as built but for the
+    hand-over, carries 67 and 70 of 70 at 4 and 5 dB; A', with the aid off,
+    69 and 70.
+1. **The remaining errors are half-cycle flips in the data, and they stop
+    near 14.5 dB of carrier-loop SNR.** At the floor 138 of A''s 146
+    polarity changes are in the data, where its loop SNR is 10.5 to
+    12.3 dB.
+1. **The code-period window lifts that SNR 3.1 to 3.9 dB on the data**,
+    and the changes at the floor fall from A''s 146 to C's 8.
+1. **Not causes:** the symbol-period aid (A against A'), the sample rate's
+    ratio to the code period (the whole-multiple control), the partial
+    count per block (always `segments`), and the timing detector (Gardner
+    and the DTTL tie, [PR #3087](https://github.com/doppler-dsp/doppler/pull/3087)).
+
+### 4.4 `refine` false against the refine, on a 400 Hz/s ramp (outside the use case)
+
+At 2.8 GHz on a +400 Hz/s ramp from −1,000 and −500 Hz, 30 draws from each
+start, both settings on the same draws (`validate_async_dsss_receiver_lock`,
+RAMP, the full sweep of `make validate-c`; its `--check` runs `refine`
+false alone, three draws a start, to the hand-over):
+
+|                          | `refine` true (as built)                   | `refine` false                            |
+| ------------------------ | ------------------------------------------ | ----------------------------------------- |
+| hand-over error, largest | 225.5 Hz; 47 of 60 past the bound          | 13.6 Hz; 0 of 60 past the bound           |
+| symbol lock at 0.5 s     | 42 of 60 [0.575, 0.801]                    | 52 of 60 [0.758, 0.931]                   |
+| symbol lock at 2.0 s     | 46 of 60 [0.646, 0.856]                    | 55 of 60 [0.819, 0.964]                   |
+| not locked at 2.0 s      | 4 on the emitter with code lock, 10 off it | 3 on the emitter with code lock, 2 off it |
+
+The bound is the header's: half a row plus `doppler_rate` times half the
+dwell, 21.3 Hz here; the validator asserts it on every `refine` false draw
+it runs, in the sweep and in `--check`, and the C test pins it on one (`_test_no_refine_hands_over_the_search_doppler`).
+The lock rates are printed, not asserted. Intervals are Wilson 95%.
+
+`refine` false is not a strict improvement draw by draw. Paired at 0.5 s,
+15 draws lock only with it and 5 only as built (sign test p about 0.04);
+those 5 are late, not wrong: each is locked on its emitter by 2.0 s. Its
+5 misses at 2.0 s are misses as built too. Three are on the emitter with
+code lock and no symbol lock yet. In two the carrier left the emitter
+after a hand-over inside the bound. Those misses are the open item, the
+carrier loop's margin (§4.5).
+
+### 4.4 The two carrier windows on the 400 Hz/s scene (outside the use case)
+
+At the 415.1-B-1 point, three emitters with known bits on one code, a pool
+of four at 11 MSa/s, both windows on the same draws, 30 draws a cell at
+4 dB and 40 at 7 dB (`validate_async_dsss_receiver_ber`, SPEC, the full
+sweep, 26 minutes on the dev box). "Slipped" is a receiver whose alignment
+to its emitter's bits at the end is not its alignment at the start; the
+loss is the Es/N0 the BPSK bound needs for the unslipped receivers' error
+rate, subtracted from the Es/N0 applied (95% intervals):
+
+| Es/N0, carrier | `partials` (as built): slipped, loss | `code_period`: slipped, loss   |
+| -------------- | ------------------------------------ | ------------------------------ |
+| 4 dB, 2.2 GHz  | 3 of 85; 0.91 dB [0.88, 0.94]        | 0 of 88; 0.78 dB [0.75, 0.81]  |
+| 4 dB, 2.8 GHz  | 31 of 89; 3.23 dB [3.20, 3.27]       | 2 of 89; 0.79 dB [0.76, 0.82]  |
+| 7 dB, 2.2 GHz  | 0 of 120; 0.86 dB [0.82, 0.90]       | 0 of 120; 0.84 dB [0.79, 0.88] |
+| 7 dB, 2.8 GHz  | 0 of 120; 0.74 dB [0.70, 0.78]       | 0 of 120; 0.71 dB [0.67, 0.75] |
+
+A slipped receiver errs on about half its symbols after the slip; over
+every receiver scored, slipped included, the 2.8 GHz floor read 7.9 dB as
+built and 1.4 dB with `code_period` (the same scene in a scratch harness
+on other draws). The unslipped subset still holds flips a receiver
+recovered from, so its loss moves with the code underneath, and the slip
+count is the steadier statistic. With the symbol-period aid off (a scratch
+build, for the record) `code_period` reads the same: 2 of 90 slipped at
+2.8 GHz, 0.78 dB.
+The floor's half-cycle flips (§4.5) are `partials`', and at 7 dB, where
+neither flips, the two windows agree. The pool's one front end (§4.6)
+costs the floor nothing with `code_period`: on the stream resampled to
+2,048 samples a period, 1 of 90 slipped at each carrier, 0.80 and 0.79 dB
+among the unslipped, against 7 and 32 of 90 with `partials`.
+
+Alternatives measured and not proposed (the carrier loop off, a steered
+correction, a derived M-PSK bandwidth) are in
+[the measurement record](async-dsss-receiver-measurements.md), §4.3.
+
+### 4.5 The hypotheses, as written 2026-11-16
+
+Each with what would confirm it or kill it.
+
+1. **C flips on the dots in a larger sample.** Its dots loop SNR is 13.2 to
+    13.9 dB at the floor, under 14.5, and it reads 1 dots change in 70
+    runs. Confirmed if, at §4.6's run count, its dots changes per symbol
+    exceed its data's; killed if they do not.
+1. **C's 4 flips at the floor are all at 2.8 GHz because its loop SNR is
+    lower there**: 15.4 / 14.4 dB in the gap and the data, against 16.8 /
+    15.4 at 2.2 GHz. Confirmed if flips across 2.2, 2.5 and 2.8 GHz follow
+    the loop SNR; killed if 2.2 GHz flips at the same rate at §4.6's count.
+1. **The symbol-period aid costs gap flips**: 27 with it on (A) against 5
+    with it off (A') at the floor. Confirmed if the split holds at §4.6's
+    count and the aid's steer is seen moving the code loop at each gap
+    flip; killed if the counts meet.
+1. **The slip counter reads an inverted stretch as slips.** One A' run at
+    3 dB reads 1,922 slips with every frame's lag unchanged and five
+    inversions. Confirmed if the counter, fed a clean stream with one
+    inverted stretch, counts slips; killed if it counts none, and the
+    1,922 are then real.
+1. **`segments` 8 slips symbols**
+    ([#3095](https://github.com/doppler-dsp/doppler/issues/3095)): 63 slips
+    in the scratch prototype, all on one seed, against 0 on the receiver as
+    built at 2.2 GHz on that seed. Confirmed if the receiver as built slips
+    at `segments` 8 across the scenes; killed if it does not, which puts
+    the slips in the prototype's patches.
+1. **The timing loop runs at 0.50 to 0.63 of its contracted level**
+    ([#3079](https://github.com/doppler-dsp/doppler/issues/3079)), at a cost
+    not measured at this point. Confirmed if setting the level lowers C's
+    1.1 dB loss at the floor; killed if the loss does not move.
+
+### 4.6 The next steps, as written 2026-11-16
+
+1. The owner rules the knob names (§1.7).
+1. Measure again through the knobs at the 4 dB floor, with:
+    - **an as-built baseline row at the 4 dB design.** §4.2 has none; its
+        as-built comparison is the record's runs at the 3 dB design;
+    - **§1.4's full transfer frame**, primary header included;
+    - **`reacquire` exercised**;
+    - **3,010 runs a row**, 215 seeds over the 7 scenes at 2 carriers.
+        Zero failures in n runs bound the failure rate under 3/n at 95%
+        confidence, so 3,000 bound it under 1e-3, Pd 0.999's complement.
+1. Settle §4.5's hypotheses at that count.
+
+**Speed.** The goals, at 11 MSa/s in on the portable build: the receiver
+at least five times real time on one thread in searching and in tracking
+(18 ns a sample or less), and the pool at least twice real time on all
+cores with nine receivers tracking and the search running (45.4 ns or
+less). No row measures either at this point (§9). In order:
+
+1. Benchmark rows at this point for the receiver and the pool, and a
+    profile by stage.
+1. A one-tile deep search fans its block across the workers
+    ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
+1. The pool resamples the capture once, and its search and receivers are
+    created at that rate, so each tracker works on $N$ samples a code
+    period (§5). **Measured, and not built: it costs the floor.** With the
+    trackers on the resampled stream (2.0 samples a chip, band-limited by
+    the resampler) in place of the capture's 3.4 and 2.7, the loss against
+    the bound at 4 dB goes from 1.07 to 3.39 dB at 2.8 GHz, and at 2.2 GHz
+    the receivers that change alignment within 4 s go from 3 of 88 to 7 of
+    90; at 7 dB the two match within 0.04 dB. A stream resampled outside
+    the pool gives the same counts to the error, so the cause is the rate
+    and the band limit, not the pool. The hypothesis is that it spends
+    carrier-loop margin the receiver does not have at the floor (§4.5), so
+    it is to be measured again once the carrier error is formed on the code
+    period (§4.4).
+1. The search's resampler, written so the compiler vectorizes it.
+1. Kernel changes, each adopted only on a measured gain of half or more.
+
+### 4.8 The bandwidth rule, proposed and not built
+
+**Proposed, not built.** The pre-despread carrier loop's bandwidth is a
+constant, `ASYNC_DSSS_RX_BN_CARRIER`: 0.04 of the code-period rate, 120 to
+160 Hz across the band. This section derives it instead from what create
+is told: the link's C/N0, its Doppler rate and the hand-over error the
+search delivers. It writes the loop's budget as stress, the standard's
+term: the loop as coded, the two stresses it carries and what the receiver
+does about each, the rule, and the pull-in the rule predicts, so that the
+re-take of the pull-in measurement has a prediction to check.
+
+The numbers come from a model of the loop alone. The library's Costas
+(`dp_costas_init()`, `costas_wipeoff()`, `costas_update()`) is driven as
+`adr_track_period()` drives it, on a data-free carrier, with no Dll and
+no demodulator. Every number below is measured on that loop model, which
+ships as the validator in the implementing PR. The three cases
+are 3.069 Mcps at 2,700 symbols a second, and 415.1-B-1 at 2.2 and 2.8 GHz
+at 3,000. At the 4 dB floor the per-period SNR, `ρ = C/N0·T`, is 3.54,
+3.80 and 2.75 dB.
+
+### 4.8 The loop noise-free at bn 0.04 and 400 Hz/s (outside the use case)
+
+Noise-free, at the as-built `bn` 0.04:
+
+|                                      | 3.069 Mcps | 2.2 GHz | 2.8 GHz |
+| ------------------------------------ | ---------- | ------- | ------- |
+| `Bn`, Hz                             | 120        | 126     | 160     |
+| lag at 400 Hz/s, `2πR·T²/ki`, rad    | 0.0518     | 0.0472  | 0.0291  |
+| lag measured, rad                    | 0.0518     | 0.0472  | 0.0291  |
+| ramp held, static `ki/(2π·T²)`, Hz/s | 7,727      | 8,477   | 13,732  |
+| ramp held, onset from lock, measured | 7,361      | 8,076   | 13,082  |
+| lock-in, no slip, `0.75·bn/T`, Hz    | 90         | 94      | 120     |
+| pull-in limit, `0.36·√bn / T`, Hz    | 216        | 226     | 288     |
+| blind alias, `1 / (2T)`, Hz          | 1,500      | 1,571   | 2,000   |
+
+- **Lag:** the continuous `2πR/ωn²` reads 5% low. The update's own
+    delay is the difference.
+- **Largest ramp held:** where the error saturates at 1 (θ = π/2), less
+    the 5% overshoot of a ramp that starts from lock. `ωn²/(4π)` is half
+    of it.
+- **Lock-in:** 0.70 to 0.78 of `bn/T` for every `bn` from 0.01 to 0.08,
+    measured at 3.069 Mcps. The loop is the same in update units at any
+    `T`, so the other two columns are scaled from it.
+- **Pull-in:** a sampled loop's limit; the beat locks into a limit cycle
+    past it. It goes as `√bn`: 3.6 `bn/T` at 0.01 and 1.3 at 0.08.
+- **The alias:** a residual of `1/(2T)` turns the carrier π a period,
+    which the squared window cannot see. It is a false lock as stable as
+    the true one.
+
+### 4.8 The two stresses, the rule and the hand-over, at 400 Hz/s (outside the use case)
+
+The loop carries two stresses on top of its jitter.
+
+- **Dynamic stress, from the Doppler ramp.** A steady phase error,
+    `θ_e = 2πR·T² / (ki·g)`. A second-order loop has no rate state, and
+    nothing seeds a rate, so the ramp is left for the loop to hold. At the
+    floor and 400 Hz/s that is 3.9 to 4.1° at the sized `bn`.
+- **Transient stress, from the hand-over.** The seed sets the NCO and the
+    integrator at the estimate (`seed()` in `costas_core.c`), so only the
+    estimate's error steps the loop. A step of `Δf` peaks at 0.49·`Δω/ωn`:
+    0.80 to 0.83° a hertz at the sized `bn`, linear to about 60 Hz. Past
+    the lock-in, 0.75 `bn/T` (84 to 87 Hz here), the peak passes the fold
+    and the loop slips while it pulls in.
+
+**The hand-over error also reaches the code loop.** Every period the
+receiver sets the code loop's rate aid from the carrier loop's frequency
+times `chip_rate / carrier_freq_hz`. While the carrier pulls in, the code
+NCO is off by the carrier's frequency error times that ratio. The code
+phase it accrues is the carrier phase the loop falls behind, in cycles,
+times the same ratio: 31/21,216 chip a cycle at 415.1-B-1.
+
+- **Noise-free:** a 200 Hz pull-in at 3.069 Mcps slips 29 half-cycles,
+    0.021 chip.
+- **At the floor:** a 150 Hz pull-in under the ramp takes about 0.5 s at
+    a mean error near half the step, about 37 cycles, 0.055 chip.
+
+Both are a tenth or less of the Dll's 0.5-chip early-late spacing, so the
+code loop holds through the carrier's pull-in.
+
+#### The rule
+
+Minimize the total phase error at the floor:
+
+`θ_rms² = (2πR·T² / (ki(bn)·g(ρ)))² + (bn/ρ)·(1 + 1/(2ρ))`
+
+`ki` is dp_loop_filter's own gain at `bn`, so no second formula exists.
+The rule has no fitted constant. Create already holds every input:
+`chip_rate` and `code_len` give `T`, `cn0_dbhz` gives `ρ`,
+`doppler_rate` gives `R`, and `carrier_window` gives `K`.
+
+Measured, the closed loop's rms, swept over `bn` 0.015 to 0.08 for 75 to
+100 s a point, against the rule:
+
+|                                     | 3.069 Mcps     | 2.2 GHz        | 2.8 GHz        |
+| ----------------------------------- | -------------- | -------------- | -------------- |
+| sized `bn` (`Bn`, Hz), 4 dB         | 0.0375 (112.5) | 0.0365 (114.7) | 0.0290 (116.0) |
+| rms at the optimum, rule / measured | 0.160 / 0.162  | 0.152 / 0.154  | 0.157 / 0.161  |
+| rms at 0.04, rule / measured        | 0.160 / 0.162  | 0.153 / 0.155  | 0.168 / 0.174  |
+| sized `Bn` at 7 / 10 dB, Hz         | 124.5 / 142.5  | 127.3 / 146.1  | 128.0 / 146.0  |
+
+The minimum is flat. At the use case the as-built loop is within 1% of it
+at 3.069 Mcps and 2.2 GHz, and 8% at 2.8 GHz. The rule moves the loop
+where the use case does not hold it: a higher stated C/N0 widens it, and
+`doppler_rate` 0 drives `bn` to zero. At that point the hand-over sets
+the bandwidth.
+
+Slips at 400 Hz/s, every slip counted in either direction, 300,000
+periods (75 to 100 s) a point:
+
+- **`code_period`:** none from `bn` 0.02 to 0.05 at any carrier.
+- **`partials` at 2.8 GHz:** 2 to 38 a run at every `bn` from 0.02 to
+    0.05.
+- **`partials` at 3.069 Mcps:** 8 and 18 at `bn` 0.04 and 0.05. At 0.02
+    and 0.03 the ramp's lag drags it out of lock for good.
+- **`partials` at 2.2 GHz:** 0 and 1 at `bn` 0.02 and 0.03, then 15 to
+    20 at 0.04 and 0.05.
+
+That is §4.4's SPEC split, here without data or a code loop. Its cause is
+the detector (`g` 0.55 to 0.65, and 19% more variance), and at the two
+lower-SNR floors no `bn` removes it.
+
+#### The tracking-threshold rule beside it
+
+The standard's tracking threshold holds 3σ of jitter plus the dynamic
+stress under a quarter of the detector's range: `3σ_j + θ_e ≤ X`.
+
+For this detector `X` follows from its S-curve, `e = sin(fold(θ))`:
+
+- **Range:** its stable zero is at 0 and its unstable one is the fold at
+    ±π/2, so its pull-in range is π.
+- **Quarter:** a quarter of π is 45°, the figure usually quoted for a
+    Costas loop.
+
+The bn sweep above puts this detector's slips against `3σ_j + θ_e`
+(measured σ and mean, 75 to 100 s a run):
+
+| `3σ_j + θ_e` | `code_period`, slips a minute | `partials`, slips a minute |
+| ------------ | ----------------------------- | -------------------------- |
+| under 31°    | 0 in every run                | 0 at 30.6° and under       |
+| 32 to 34°    | 0 to 0.6                      | 0.6 at 34.5 to 36.1°       |
+| 36 to 38°    | 1.6 to 6.6                    | 0.6 to 12.6 at 37 to 40°   |
+| 41 to 45°    | 15 to 32                      | 2.4 to 16 at 42 to 44°     |
+| 46 to 50°    | 47 to 134                     | 8 to 58 at 45 to 49°       |
+
+The rule's boundary is not where slips begin. They begin at 32 to 36°,
+and at 45° the loop slips 15 to 70 times a minute.
+
+Applied to the hand-over, it is too strict instead. At the sized `bn`,
+`3σ_j + θ_e` is 27.2 to 28.6°. A 45° limit leaves 16 to 18° for the
+step's peak, which allows a step of 20 to 22 Hz; a 32° limit allows 4 to
+6 Hz. The loop pulls in 50 Hz in every floor-and-ramp draw. The rule adds
+the transient's peak to a 3σ excursion of the jitter, and a peak that
+lasts some tens of milliseconds seldom meets one.
+
+So the page does not adopt the threshold rule. It adopts three rules,
+each set where its own failure is measured:
+
+- **Sizing:** minimum rms.
+- **Hand-over:** lock-in at `Bn/2` at the floor under the ramp.
+- **Ceiling:** the slip time against a stated requirement.
+
+It keeps the threshold rule's vocabulary: `θ_e` and the transient are the
+loop's stresses, and the sized loop's budget at the floor and 400 Hz/s is:
+
+|                                  | 3.069 Mcps | 2.2 GHz  | 2.8 GHz  |
+| -------------------------------- | ---------- | -------- | -------- |
+| `Bn`, Hz                         | 112.5      | 114.7    | 116.0    |
+| jitter σ_j, model                | 8.2°       | 7.8°     | 8.0°     |
+| dynamic stress θ_e, 400 Hz/s     | 4.1°       | 3.9°     | 4.1°     |
+| `3σ_j + θ_e`                     | 28.6°      | 27.2°    | 28.1°    |
+| margin to 45°                    | 16.4°      | 17.8°    | 16.9°    |
+| largest step that margin allows  | 20 Hz      | 22 Hz    | 21 Hz    |
+| lock-in, `0.75·bn/T`             | 84 Hz      | 86 Hz    | 87 Hz    |
+| pulled in, floor and ramp, 50 Hz | 40 of 40   | 40 of 40 | 40 of 40 |
+
+The dynamic stress is a seventh of the budget. The jitter and the
+hand-over are the rest.
+
+#### Lock-in against the hand-over
+
+The jitter-optimal loop is narrower than the as-built one, and under a
+ramp it pulls in less far. At the floor with 400 Hz/s moving the carrier
+away from the seed, 40 draws a cell, a pull-in of 150 Hz succeeds in 6,
+9 and 3 draws for the sized loop. The as-built loop succeeds in 15, 26
+and 37. Static, both pull in to 250 Hz in 39 or 40 of 40. A draw that
+fails walks to the blind alias and stays there.
+
+The hand-over error the search delivers:
+
+- **`refine` false:** half a Doppler row plus `doppler_rate` times half
+    the dwell. Create computes this bound already (21.3 Hz in §4.4's case);
+    the 415.1 runs measure 6 to 16 Hz.
+- **`refine` true:** create states no bound, but one follows from first
+    principles (below). At 3.069 Mcps, hand-overs past 200 to 250 Hz walk
+    to a false lock, which is the pull-in limit above.
+
+The refine (§4.7) folds the despread stream in `N` FFT blocks of 64
+samples at 12 kSa/s (5.33 ms each), averaged noncoherently, through two
+estimators: the data spectrum's template on the stream, and a tone's on its
+square, where the data drops out. `N` is 16 at 4 dB, 12 at 5, 8 at 6 and
+the floor of 7 from 7 dB up, a dwell `T_d` of 85 to 37 ms; the squared
+estimator starts after the refine `Dll`'s level start-up, one block in.
+The squared estimate is handed over when it is found, in 1,410 of 1,440
+draws over §4.7's grid; the data estimate otherwise.
+
+Its bound is the frequency Cramér-Rao bound for a tone,
+`σ_f² = 3 / (2π²·C/N0·T³)` over one block, divided by the blocks
+averaged. Squaring scales C/N0 by `ρ/(4ρ + 2)`, `ρ = (Es/N0)/4`, and the
+estimate of `2f` is halved, a factor 1/4 on the variance. A ramp adds
+`R·T_d/2`, 17 Hz at most at 400 Hz/s; the 415.1 runs below are static.
+
+| Es/N0 | `N`, squared | bound, 3σ | the receiver at 2.2 GHz, median / max | the receiver at 2.8 GHz, median / max |
+| ----- | ------------ | --------- | ------------------------------------- | ------------------------------------- |
+| 4 dB  | 15           | 12.0 Hz   | 9.1 / 32 Hz                           | 6.5 / 168 Hz                          |
+| 5 dB  | 11           | 11.9      | 6.9 / 163                             | 5.7 / 32                              |
+| 7 dB  | 6            | 11.8      | 4.0 / 129                             | 4.1 / 15                              |
+| 10 dB | 6            | 7.8       | 2.8 / 12                              | 2.8 / 12                              |
+
+The receiver columns are 80 draws a cell: 20 frame start phases by 4
+seeds (§4.7).
+
+**A finding about the refine:** the squared estimator's own errors stay
+under 41 Hz at every point, a median 1.5 to 3.4 times the bound's
+(0.67σ). Every larger hand-over error but one, from 43 to 168 Hz, is a
+draw the squared estimator gave up on and the data template decided: 30
+draws in 1,440, at 4 to 7 dB on 415.1. The tail is the data template's.
+
+With a stated hand-over bound `e_h`:
+
+`bn = max(bn_opt, 2·e_h·T)`
+
+`e_h ≤ Bn/2` is `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`'s own factor. The floor
+and ramp runs support it: every draw pulls in at 50 Hz, and 93 to 98% at
+75 Hz, against the sized loop's 56 to 58 Hz.
+
+For `refine` false, `e_h = 1/(2·D·T)` plus the ramp term, and the rule is
+`D ≥ 1/bn` read the other way, so the two cannot disagree.
+
+**The ceiling is a slip rate.** Create refuses a `bn` whose predicted
+mean time between slips falls under a stated requirement. No bandwidth
+then serves both the floor and the hand-over, and the search has to
+deliver a finer one.
+
+The prediction has no fitted constant. It is the first-order mean
+first-passage time for this detector:
+
+- **The loop:** a first-order loop with the same noise bandwidth, gain
+    `4·bn/g`.
+- **The drift:** the detector's own mean error `S(θ)` at `ρ` and `K`.
+- **The diffusion:** the error's own variance `V(θ)`.
+- **The ramp:** a tilt equal to the mean error its lag needs,
+    `2πR·T²/ki`.
+- **The time:** the Fokker-Planck mean first-passage time from the well
+    to ±3π/4 of it, which is where the counter counts a slip.
+
+For `K = 1`, `S` and `V` follow from the same phase density as `g`.
+
+Viterbi's closed form, `T_slip = π²·ρ'·I0(ρ')² / (2·Bn)`, does not
+predict these slips. It was tried with this detector's `ρ' = ρ_L/2`: a
+barrier of 1, not the plain PLL's 2, and `ρ_L = 1/σ²`. It predicts 10⁵ to
+10⁹ times too few. Its premise is small Gaussian noise on a sinusoidal
+error, and at a per-period SNR of 3 dB the normalized detector's error is
+neither.
+
+Counted against the first-passage prediction, every run with at least 20
+slips (300,000 periods, static and 400 Hz/s, `bn` 0.02 to 0.12):
+
+| window        | counted / predicted                                     | outliers                                                                                                                                   |
+| ------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `code_period` | 0.8 to 2.5 (e.g. 40 / 28, 120 / 137, 37 / 16, 160 / 67) | none                                                                                                                                       |
+| `partials`    | 0.4 to 3.0 (e.g. 162 / 160, 228 / 244, 844 / 941)       | 7× and 12× at 2.2 GHz, `bn` 0.04 and 0.06 under the ramp; 8× at 3.069 Mcps, `bn` 0.12; lock lost for good at 5 points (10⁴ to 10⁵ counted) |
+
+The first-order loop is optimistic: a second-order loop at ζ 0.707 slips
+up to 2.5 times as often in these runs. Below 20 slips a run the counts
+are too few to test, and the operating point (`code_period` at the sized
+`bn`) counts none, against 2·10⁻⁴ to 0.03 predicted. The prediction is
+therefore tested only where slips are common. It extrapolates to the
+operating point as the same model, not as a measured rate.
+
+The requirement, seconds between slips, is an open input: the caller's or
+the owner's to state. As an illustration only, at 400 Hz/s with
+`code_period` the ceiling and the largest hand-over it allows:
+
+| requirement | 3.069 Mcps      | 2.2 GHz          | 2.8 GHz         |
+| ----------- | --------------- | ---------------- | --------------- |
+| 10 min      | `Bn` 190, 95 Hz | `Bn` 222, 111 Hz | `Bn` 190, 95 Hz |
+| 1 h         | 163, 82         | 192, 96          | 162, 81         |
+| 1 day       | 125, 62         | 152, 76          | 123, 61         |
+
+**Missing inputs:**
+
+- **The slip requirement**, seconds between slips. Create has none to
+    refuse against.
+- **`refine` true's achieved hand-over error.** The bound above is 7 to
+    10 Hz at 3σ; the receiver measures maxima of 65 to 208 Hz. Sizing to
+    the bound would size for a refine the receiver does not have. Either
+    the refine is brought to its bound, or create sizes to a stated
+    achieved error.
+- **`partials` has no closed-form `g`.** The proposal sizes both windows
+    with the `K = 1` rule. The bare loop says no `bn` rescues `partials` at
+    the floor.
+- **`cn0_dbhz` defaults to 55 dB-Hz.** A receiver left at the default is
+    sized for that level, not for the floor.
+
+#### The refine's dwell: where averaging helps and where it hurts
+
+The refine's error is the hand-over stress. These numbers come from the
+receiver's data-template CarrierAcquisition, with its own arguments,
+driven alone on identical draws. That is a carrier `±75 Hz` from the seed,
+tone or BPSK at 4 samples a symbol, static or 400 Hz/s, with 2,000 draws a
+cell, measured at the hand-over instant. They are a scratch measurement of
+that estimator; the refine's squared one (§4.7) is the answer to the tails
+they show.
+
+**The instant.** The receiver starts tracking at the dwell's end
+(`samples_consumed_refine`, rounded up to a whole code period). It seeds
+the carrier with `seed + residual_hz`, and nothing extrapolates. The
+estimate describes the PSD averaged over the dwell, so under a ramp it is
+`R·N·T_b/2` behind at the hand-over. `T_b` is 64 samples at 12 kSa/s,
+5.33 ms, so that is 17 Hz at `N` 16.
+
+**The budget.** Averaging `N` picks of spread `σ_1` leaves
+`σ_1²/N + (R·N·T_b/2)²`, least at `N_opt³ = 2σ_1² / (R·T_b)²`. `σ_1` is
+the measured spread of one block's pick (the median absolute error over
+0.6745, 20,000 blocks).
+
+| Es/N0 | as built `N` (ms) | `σ_1`, tone | `N_opt` (ms) | best `N`, measured | `σ_1`, BPSK | `N_opt` | `σ_1`, tone, one-bin template | `N_opt` |
+| ----- | ----------------- | ----------- | ------------ | ------------------ | ----------- | ------- | ----------------------------- | ------- |
+| 4 dB  | 16 (85)           | 102 Hz      | 16.6 (89)    | 16                 | 509 Hz      | 48      | 18.0 Hz                       | 5.2     |
+| 5 dB  | 12 (64)           | 82          | 14.3 (76)    | 12                 | 436         | 44      | 16.0                          | 4.8     |
+| 7 dB  | 7 (37)            | 52          | 10.6 (57)    | 7 to 12, flat      | 329         | 36      | 12.7                          | 4.1     |
+| 10 dB | 7 (37)            | 27          | 6.9 (37)     | 7                  | 223         | 28      | 9.0                           | 3.3     |
+
+The "best `N`" column is the measured minimum of the as-built median error
+at 400 Hz/s on a tone. As built, the dwell sits on the optimum for a tone
+with the shipped template; it was sized for detection, not for this. On
+BPSK the optimum is past the as-built dwell at every level.
+
+**The search's own dwell**, which `refine` false hands over, has the same
+trade:
+
+- **Its error:** a uniform error over its Doppler row,
+    `1/(D·T)`, against the ramp's `R·D·T/2`.
+- **Its optimum:** `D_opt⁴ = 1/(3R²T⁴)`, which is 114, 119 and 152 epochs
+    at the three cases.
+- **What ships:** the depth's existing rate bound, `f_epoch/√(2R)`, gives
+    106, 111 and 141, 7% short of the optimum.
+
+**The tails.** They show in the per-block picks:
+
+- **The template is the cause on a tone.** CarrierAcquisition correlates
+    the PSD with the data spectrum's sinc², 3 kHz wide. On a tone, one
+    block's pick is a native bin (187.5 Hz) or more off in 11.6% of blocks
+    at 4 dB, 5.8% at 5 and 0.7% at 7. With a one-bin template the same
+    blocks are never a bin off, and their spread falls 3 to 6 times (the
+    table's last columns).
+- **Interpolation is not the cause.** Noise-free, the estimate is exact
+    to 0.01 Hz on a tone and on BPSK, so the parabolic fit carries no
+    bias.
+- **Data transitions are not the cause either.** A 64-sample block holds
+    16 symbols, so every block on data straddles transitions. The data's
+    own spectrum is the template's width, and one block's pick on BPSK is
+    a bin or more off in 42 to 69% of blocks.
+- **The give-up.** No detection at the dwell's end hands over the
+    unrefined seed. That happens on BPSK at 4 dB in 14% of draws at
+    `N` 7, and in none at the as-built `N` 16.
+
+**The combiners**, at the as-built `N`, 400 Hz/s; median / 95th
+percentile / maximum error, Hz:
+
+| Es/N0, `N` | input                  | PSD averaged (as built) | mean of picks     | median of picks | median, line removed |
+| ---------- | ---------------------- | ----------------------- | ----------------- | --------------- | -------------------- |
+| 4 dB, 16   | tone                   | 22 / 61 / 127           | 25 / 82 / 388     | 24 / 69 / 138   | 38 / 115 / 245       |
+| 7 dB, 7    | tone                   | 14 / 44 / 79            | 15 / 46 / 88      | 17 / 49 / 96    | 31 / 92 / 189        |
+| 10 dB, 7   | tone                   | 9 / 26 / 43             | 9 / 26 / 45       | 10 / 29 / 54    | 16 / 46 / 104        |
+| 4 dB, 16   | BPSK                   | 84 / 249 / 465          | 134 / 454 / 1,218 | 90 / 294 / 822  | 198 / 614 / 1,831    |
+| 7 dB, 7    | BPSK                   | 85 / 270 / 561          | 124 / 363 / 886   | 93 / 329 / 658  | 208 / 736 / 1,801    |
+| 10 dB, 7   | BPSK                   | 58 / 185 / 462          | 94 / 281 / 502    | 62 / 222 / 588  | 142 / 593 / 1,591    |
+| 4 dB, 16   | tone, one-bin template | 17 / 25 / 32            | 17 / 25 / 31      | 17 / 26 / 40    | 6.5 / 19 / 39        |
+| 4 dB, 32   | tone, one-bin template | 34 / 40 / 45            | 34 / 40 / 194     | 34 / 42 / 52    | 4.7 / 14 / 25        |
+| 10 dB, 32  | tone, one-bin template | 34 / 37 / 39            | 34 / 37 / 39      | 34 / 39 / 47    | 2.3 / 6.7 / 11       |
+
+The line removed is a Theil-Sen fit through the per-block picks (the
+median of the pairwise slopes), read at the hand-over instant. Its slope
+is a rate to hand over. The full grid, `N` 1 to 32 static and ramping,
+is in the loop model's outputs.
+
+**The expectation, written before the run:**
+
+- the PSD average and the mean of picks agree on a tone;
+- the median costs about 2 dB (1.25× the error);
+- the line fit costs about 2× at small `N`;
+- on outlier-prone input, averaging the PSD before the pick beats every
+    filter on picks;
+- under the ramp the line fit overtakes past `N_opt`.
+
+All held but two:
+
+- **The median's loss:** 1.1 to 1.2× on a tone, not 1.25.
+- **The give-up:** expected to worsen the as-built maximum at small `N`.
+    It improves it instead, because a give-up hands over a seed this
+    probe draws within ±75 Hz.
+
+**The answer.**
+
+- **Where averaging stops helping:** the dwell where the ramp's bias,
+    `R·N·T_b/2`, outgrows the averaging's gain. That is
+    `N_opt³ = 2σ_1²/(R·T_b)²`.
+- **For the data template, the shipped dwell already sits there:**
+    85 ms at 4 dB down to 37 ms at 10 dB on a tone at 400 Hz/s. On data
+    the optimum is longer than any dwell it uses.
+- **Which combiner:** averaging the PSD before the pick beats every
+    filter on picks, on every input measured. A median of per-block picks
+    bounds the tails a mean of picks shows (388 against 138 Hz at 4 dB),
+    but never beats the PSD average.
+- **Where the tails come from:** neither the averaging nor the lack of a
+    median. They come from correlating a tone against a 3 kHz
+    data-spectrum template. With a tone's template the per-block spread
+    falls 3 to 6 times and every wrong-bin pick goes. The ramp's bias
+    then dominates past `N` 4 to 5. There, only a line through the
+    per-block picks removes it, reaching 4.7 Hz at 4 dB and a rate
+    besides.
+- **What else counts:** whether the dwell holds data. The data template's
+    medians in the receiver (19 to 98 Hz, §4.7) sit between this tone row
+    and this BPSK row at the same `N`, as dwells sometimes inside and
+    sometimes past the data-free window give. The refine's squared
+    estimator (§4.7) is a tone's template on a stream with the data
+    removed, so a dwell over data is the tone row; its medians are 3 to
+    9 Hz at the static points.
+
+#### Removing a stress rather than budgeting for it
+
+Options, each with its cost; none is proposed here.
+
+- **Seed a rate.** This would remove `θ_e`, 4° here.
+    - The burst engine searches rate hypotheses and stamps the winner on
+        its hit (`doppler_rate_hz_s`). Its header says the winner is
+        reliable only well above the design point: 30% at it.
+    - The continuous search the receiver builds takes `doppler_rate` only
+        to bound its depth, and nothing hands a rate to the loops.
+    - A second-order loop has no state to seed. A rate would enter as a
+        feed-forward ramp on the NCO, and a rate error `δR` leaves
+        `2π·δR·T² / ki` behind.
+- **A third-order loop.** This would also remove `θ_e`, with no rate
+    estimate. Its costs:
+    - `dp_loop_filter` is second-order only, so it needs a new primitive.
+    - A third-order loop is only conditionally stable, and rings longer
+        on a step.
+    - It would buy 4° at 400 Hz/s.
+- **FLL-assisted pull-in.** This would shrink the transient stress.
+    - The header keeps the FLL off because the cross-product is too noisy
+        on data. That holds for a decision-directed cross product of raw
+        prompts. It does not hold for the phasor this loop is fed: one per
+        period from the squared, transition-free window. That phasor is
+        already free of data (`Re ≥ 0`, so the FLL's data wipe does
+        nothing), and its period-to-period angle is unambiguous to
+        `1/(4T)`.
+
+    - At the floor under the ramp, `code_period`, the sized loop with
+        `bn_fll` 0.002 pulls in where the bare loop fails:
+
+        | hand-over | 3.069 Mcps, bare | 3.069 Mcps, FLL | 2.2 GHz, FLL | 2.8 GHz, FLL |
+        | --------- | ---------------- | --------------- | ------------ | ------------ |
+        | 150 Hz    | 6 of 40          | 39 of 40        | 40 of 40     | 37 of 40     |
+        | 300 Hz    | 0 of 40          | 40 of 40        | 38 of 40     | 34 of 40     |
+        | 500 Hz    | 0 of 40          | 38 of 40        | –            | –            |
+
+        At 700 Hz, near `1/(4T)`, it fails (5 of 40).
+
+    - Its cost is jitter: rms up 5%, 5% and 13% at the three cases, with
+        no slips in 300,000 periods.
+
+    - The 0.002 was tried, not derived. At 0.005 the pull-in is already
+        worse (29 to 34 of 40), and 0.01 loses lock. Building it needs
+        `bn_fll` sized by the same kind of rule.
+
+    - It does little for `partials` (10 and 14 of 40 at 2.8 GHz).
+
+    - This is a bare-loop result. The receiver, with data and a code
+        loop, has not run it.
+- **A smaller hand-over error.** `refine` false hands over 6 to 16 Hz at
+    415.1, so the transient stress is 5 to 13°. Its costs:
+    - The deep search `D ≥ 1/bn` that §4.4 states.
+    - Its own lock-rate trade (§4.4).
+
+#### API and what moves
+
+- **Create:** computes `bn` from its own arguments, with no new argument.
+    A read-only `carrier_bn_hz` property reads it back.
+
+- **Function:** one public C function computes it, so a validator asks
+    rather than re-derives. It reuses `dp_loop_filter_wn()` and the
+    loop filter's gains body. `g(ρ)` sits beside the detector, in the
+    receiver.
+
+- **Constants:**
+
+    - `ASYNC_DSSS_RX_BN_CARRIER` goes; the frozen-carrier copy never
+        updates, so its `bn` does not matter.
+    - `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` takes `bn`.
+    - `ASYNC_DSSS_RX_NO_REFINE_MIN_BINS` becomes the per-receiver
+        `ceil(1/bn)`.
+
+- **Pins that move:**
+
+    - `test_async_dsss_receiver_core.c`'s `== 25` and its depth checks.
+    - `async_dsss_receiver_ber.c`'s 60 Hz hand-over gate.
+    - `validate.py`'s pull-in message, the pool test's depth comment and
+        the binding's docstring.
+    - §1.3 and §3.4 here, and every committed number from a receiver run:
+        the examples' prints and figures, the validators' recorded tables,
+        and the §4.2 and §4.4 rows. With `bn` computed, every receiver's
+        output changes.
+
+- **Gate:** the loop model becomes a validator. It asserts:
+
+    - the lag against `2πR·T²/ki`;
+    - the closed-form `g` against Monte Carlo;
+    - the rule's rms against the measured rms at the sized `bn`;
+    - the counted slips against the first-passage prediction, inside the
+        measured 0.8 to 2.5 for `code_period`;
+    - pull-in at `Bn/2` at the floor under the ramp.
+
+    Each is sabotaged red.
+
+#### The prediction the re-take checks
+
+The sized loop at the 4 dB floor, the carrier seeded `df` away, 40 draws
+a cell, 4 s each. Each cell gives the draws that pull in and stay in, and
+their median time to the last slip. In the ramp rows 400 Hz/s moves the
+carrier away from the seed.
+
+| `df`, Hz | 3.069, static | 3.069, ramp | 2.2, static | 2.2, ramp  | 2.8, static | 2.8, ramp  |
+| -------- | ------------- | ----------- | ----------- | ---------- | ----------- | ---------- |
+| 25       | 40, 0.00 s    | 40, 0.00 s  | 40, 0.00 s  | 40, 0.00 s | 40, 0.00 s  | 40, 0.00 s |
+| 50       | 40, 0.00      | 40, 0.01    | 40, 0.00    | 40, 0.00   | 40, 0.00    | 40, 0.01   |
+| 75       | 40, 0.03      | 39, 0.08    | 40, 0.03    | 38, 0.05   | 40, 0.04    | 37, 0.09   |
+| 100      | 40, 0.09      | 26, 0.22    | 40, 0.08    | 35, 0.14   | 40, 0.10    | 26, 0.26   |
+| 150      | 40, 0.25      | 6, 0.62     | 40, 0.21    | 9, 0.51    | 40, 0.25    | 3, 0.25    |
+| 200      | 40, 0.43      | 0           | 40, 0.42    | 0          | 40, 0.51    | 0          |
+| 250      | 39, 0.67      | 0           | 39, 0.65    | 0          | 39, 0.75    | 0          |
+
+Reading it against the receiver:
+
+- **Time:** the table is carrier pull-in. The receiver's symbol lock
+    adds its lock detector's verify time on top.
+- **Failures:** the loop alone ends near `±1/(2T)`. With data, the
+    receiver has also locked falsely at `±Rs/2` (1,350 Hz at 3.069 Mcps).
+- **Ramp sign:** a ramp toward the seed is easier, so the re-take runs
+    both signs.
+- **`partials`:** predicted to slip at the floor at any `bn`.
+- **Widening:** a `bn` widened by `2·e_h` moves toward the as-built
+    loop's pull-in.
+
+### 4.9 The order and the window on a constant 400 Hz/s ramp (outside the use case)
+
+**Measured on a dynamics outside the use case.** Every rate figure in this
+section was measured on a constant 400 Hz/s ramp. Under the use case's
+dynamics (§1.8) the receiver meets 11 Hz/s at most, and the order-2 lag
+there is 0.80°. What this section concludes is re-read on the use-case
+cells before anything rests on it.
+
+**Proposed, not built; for the owner's ruling.** The pre-despread carrier
+loop moves to a third-order filter, `StateFilter`
+([loop-filter.md](loop-filter.md) §10 to §15). Its window (§4.4,
+`carrier_window`) and its order are ruled here together, because each one
+changes what the other has to carry.
+
+**Where the figures come from.** Every figure below is printed by
+`validate_async_dsss_receiver_pullin --design` from the shipped exact
+functions (`dp_state_filter_loop_bandwidth`, `_loop_stable`,
+`_steady_error`, and the two filters' own gains). That holds except where
+a row is marked dev, which means a development run, not citable. The
+section lives on the integration branch until the validator lands.
+
+#### Why the order changes
+
+The second-order loop cannot hold both the ramp and the noise at the
+floor. Its steady error on a ramp of `R` Hz/s is `x/ki`, with
+`x = R·T²` (loop-filter.md §14), and `ki` falls as `bn²`:
+
+| `bn` | 2.2 GHz, order 2 | 2.8 GHz, order 2 | order 3 |
+| ---- | ---------------- | ---------------- | ------- |
+| 0.04 | 2.70°            | 1.67°            | 0       |
+| 0.01 | 41.56°           | 25.66°           | 0       |
+
+That is the lag at 400 Hz/s, noise-free (`dp_state_filter_steady_error`).
+Measured (dev runs, not citable):
+
+- At `bn` 0.01 the static cells work: 2.8 GHz `code_period` at 4 dB went
+    from 0 of 16 to 16 of 16.
+- Under the ramp, every 4 dB draw false-locked, and 2.2 GHz failed at
+    10 dB.
+
+So no single second-order `bn` serves both. Order 3 has no steady error
+on a ramp. Its acceleration error is `a/kr`, which a linear Doppler ramp
+does not excite except at its onset (a rate step: a transient, not a
+steady error).
+
+#### 1. Where the third order lives
+
+The carrier loop is a `dp_costas_state_t` held by value (`car`, plus
+`car_held` and `car_frozen`). Costas embeds a `dp_loop_filter_state_t`
+`lf` and steers its NCO from `lf.integ` and `lf.kp` inside
+`costas_update()`.
+
+**A. Costas holds both orders (recommended).** `dp_costas_state_t` gains
+a `dp_state_filter_state_t sf` beside `lf`, plus the active order.
+`costas_update()` steps the active filter and steers from its `integ` and
+`kp`. The FLL assist and the getters (`get_norm_freq`, `get_nco_freq`)
+read the active filter's `integ`. A switch carries `integ` across, as
+loop-filter.md §13 anticipates ("an embedder that holds both orders").
+
+- **Blobs:**
+    - `COSTAS` v3 to v4: it snapshots the struct whole, which grows by one
+        `StateFilter` (7 doubles) and the order word.
+    - Every blob that nests Costas changes size: `despreader`,
+        `dsss_receiver`, `async_dsss_receiver` (three Costas) and through it
+        `async_dsss_pool`. Each nests Costas as a child sub-blob, so it moves
+        by size, not by version (condition 3 below).
+    - The order and the filter's estimates are mutator values (#2022), so
+        they travel in the blob and are checked.
+- **Certification:**
+    - The order-2 path stays bit-identical. Proof: the existing
+        `test_costas_core.c` pins, `costas_pullin --check` and
+        `costas_jitter --check` unchanged, and a `bench-ab` row for
+        `costas_update` because the hot inline gains a branch (once an
+        update, not a sample).
+    - Order 3 needs pins of its own: zero steady error on a ramp; a switch
+        that keeps `integ` and seeds `rate`; the blob round trip at each
+        order; the refusal of a blob with an unknown order.
+    - Binding the setter in Python is a manifest change (`costas.toml`);
+        it can follow the C work.
+- **Reach:** every Costas user (despreader, DsssReceiver) can then use
+    order 3. Nothing changes for them unless they ask.
+
+**B. The receiver composes the order itself.** The receiver holds a
+`StateFilter` (and a held copy for the coast) beside its Costas, and
+steers the Costas NCO from it.
+
+- This needs `costas_update()` split into a discriminator and a steer, so
+    that no private copy of the steering exists. That split is a Costas
+    refactor that must be bit-identical anyway.
+- `COSTAS` does not move. The receiver's blob grows by two filters, and
+    the Costas `lf` it carries becomes dead state.
+- Every Costas getter the receiver uses (rate aid, reported Doppler,
+    `get_nco_freq`) would read the wrong filter unless it is re-plumbed.
+- Only the async receiver gets the order.
+
+**C. A new carrier object.** Rejected: it would be a second Costas.
+
+**A is the choice, on four conditions** (VA, 11-17), each met on the page
+before a header is edited.
+
+**1. Costas's change is its own spine pass and its own pull request,
+landed before the receiver's adoption.** Costas has no design page
+today, so that PR starts one. The order is a mutator's value (`dp_costas_set_order`), so it travels in
+the blob and is checked, per state-serialization.md's rule 2 (the Costas
+page, §3.3). Order 2 is the
+default, and bit-identical on every existing pin and bench row. Order
+3 is pinned and sabotaged on its own. `costas_pullin` and
+`costas_jitter` gain order 3 with the same assertions in `--check` and
+the sweep. The receiver's PR is then small.
+
+**2. What each Costas user pays.** The struct grows by 64 bytes: the 56
+of a `StateFilter`, plus the order word padded to 8.
+`costas_wipeoff()`, once a sample, does not change. `costas_update()`,
+once an update, gains one branch on the order.
+
+| user                | Costas held                         | per update              | bench rows that must tie (`bench-ab`) |
+| ------------------- | ----------------------------------- | ----------------------- | ------------------------------------- |
+| `Costas` itself     | 1                                   | one branch              | `costas`                              |
+| `Despreader`        | 1 (`car`)                           | one branch              | `despreader`                          |
+| `DsssReceiver`      | 1 (`car`)                           | one branch              | `dsss_receiver`                       |
+| `AsyncDsssReceiver` | 3 (`car`, `car_held`, `car_frozen`) | one branch (`car` only) | `async_dsss_receiver`                 |
+| `AsyncDsssPool`     | 3 per receiver, N + 1 receivers     | as the receiver         | `async_dsss_pool`                     |
+
+The burst chain (`burst_despreader`, `burst_demod`, `burst_capture`)
+holds its loop filters directly and embeds no Costas, so it pays
+nothing. If the order-2 rows do not tie, the alternative is two update
+functions, `costas_update()` unchanged and a `costas_update3()`, with
+the embedder choosing. The measurement decides.
+
+**3. Every blob that moves, before one is touched.**
+
+| blob                           | packs Costas                  | on main | on the stack (train) | moves with this work                |
+| ------------------------------ | ----------------------------- | ------- | -------------------- | ----------------------------------- |
+| `COSTAS` (`CSTS`)              | itself, whole struct          | v3      | v3                   | v3 to v4, in Costas's PR            |
+| `DESPREADER` (`DSPR`)          | child sub-blob (`DP_W_CHILD`) | v5      | v5                   | size only, no bump                  |
+| `DSSS_RECEIVER` (`DSRX`)       | child sub-blob                | v4      | v4                   | size only, no bump                  |
+| `ASYNC_DSSS_RECEIVER` (`ADRX`) | three child sub-blobs         | v17     | v19                  | size, and once if adoption adds one |
+| `ASYNC_DSSS_POOL` (`ADPL`)     | the receivers as children     | v7      | v8                   | size only, no bump                  |
+
+A composition sums `child_state_bytes`, so a leaf's migration
+propagates without a parent bump (state-serialization.md, the envelope
+section), and an old blob is refused by Costas's own envelope check.
+`COSTAS` is bumped once, in Costas's PR. The receiver bumps only if its
+adoption adds a field of its own (the narrow `bn`, an acquisition
+state), and then once, numbered after whatever main holds when it
+lands: v20 if the train's v19 is already there. Nothing is bumped twice
+for one landing.
+
+**4. Switching order on a live loop**, in Costas's terms, since Costas
+owns the switch:
+
+- **2 to 3:** the state filter's `integ` takes `lf.integ`, the
+    frequency estimate in radians per update.
+    - `rate` is zeroed, or seeded by the caller in Costas's units:
+        `2π·R·T²` radians per update per update for `R` Hz/s at an update
+        period `T`.
+    - The NCO's phase and frequency, the lock metric, the lock
+        detector and the FLL's previous prompt are untouched, so the NCO
+        frequency is continuous across the switch.
+- **3 to 2:** `lf.integ` takes the state filter's `integ`, and `rate`
+    is dropped.
+- **Pins:** the NCO frequency is identical on the update before and
+    after a switch; `integ` is equal across it; a seeded `rate` is held;
+    a switch then a switch back with `rate` zero is an order-2 loop with
+    the same `integ`.
+
+A costs one blob version in the object that owns the loop, and keeps one
+steering path. B moves fewer blobs but splits the loop across two
+objects, and the coast's `car_held = car` copy would have to learn about
+the second one.
+
+#### 2. The numbers
+
+**The cells.** `ρ = C/N0·T` at the antenna:
+
+| carrier, `T`      | 4 dB  | 10 dB |
+| ----------------- | ----- | ----- |
+| 2.2 GHz, 318.2 µs | 2.398 | 9.547 |
+| 2.8 GHz, 250.0 µs | 1.884 | 7.501 |
+
+**Where the receiver sits in StateFilter's rectangle.**
+
+- **Gain:** `K` is the detector's slope at the floor.
+    - `code_period`: 0.76 to 0.83 by §4.8's closed form; 0.72 to 0.76 by
+        the dev slope table.
+    - `partials`: 0.55 to 0.65 by §4.8's Monte Carlo; 0.58 by the slope
+        table.
+- **Delay:** `d` from the lag instrument (dev). The window's end lags the
+    update uniformly over 0 to 1 update. On about 70% of `code_period`
+    updates the look-back adds 0.25 to 0.75, so `d` lies in 0 to 1.75.
+- **Edges:** both are inside `K_MIN` 0.5 to `K_MAX` 2, and `d` is inside
+    `DELAY_MAX` 2.
+- **Lower gain edge:** order 3's `K_low` at `bn` 0.0025 to 0.04 is 0.245
+    to 0.265 over that delay range. That leaves 9.3 dB of downward margin
+    for `code_period` (0.74 / 0.254) and 7.2 dB for `partials`
+    (0.58 / 0.254) at `bn` 0.01 and `d` 1.75.
+- **Partials, K_MIN and the edge:** `partials` at 0.55 is 0.8 dB above
+    `K_MIN` 0.5. That is StateFilter's **stated floor**, the bottom of the
+    certified rectangle, not its stability edge. The edge is 0.245 to 0.265
+    here, 6.3 to 7.0 dB below 0.55. Below the certified floor the loop is
+    still stable, but it is outside what StateFilter claims. Slope at
+    hand-over (a frequency error, a decorrelated window) is not measured.
+    That is [#3123](https://github.com/doppler-dsp/doppler/issues/3123)'s
+    "lower edge under noise", and the reason the measurement logs it.
+
+**The loop's delivered bandwidth at the receiver's `(K, d)`**, as a
+fraction of the `bn` asked for:
+
+| order, `bn` | K 0.58, d 0 to 1.75 | K 0.76    | K 1       | K 2       |
+| ----------- | ------------------- | --------- | --------- | --------- |
+| 3, 0.01     | 0.87-0.90           | 0.90-0.94 | 1.00-1.05 | 1.56-1.69 |
+| 3, 0.04     | 0.85-1.00           | 0.89-1.05 | 1.00-1.20 | 1.63-2.26 |
+| 2, 0.01     |                     | 0.85-0.88 | 1.01-1.06 |           |
+
+**The bandwidth is the owner's rule, §1.3, as written** (ruled 11-17: "My
+rule as written, report squared-phase beside it"). `bn` is set so that
+`ρ − 10·log10(2·bn) = 20 dB` at the 4 dB floor, with `ρ` the per-update
+SNR there: `bn = ρ_floor / 200`, 0.0120 at 2.2 GHz and 0.0094 at 2.8 GHz.
+It is derived at create from `T` and the floor's `ρ`, not stored as a
+constant. The validator writes the rule once, `pi_bn_rule()`, and
+`--bn-carrier rule` tracks with it. The receiver's create gets one named
+function with the same body when it adopts.
+
+**What the loop is expected to read there, on the squared phase.** This
+is reported, not designed to. The model is `SNR = 1/(4σ²)` with the noise
+referred to phase through the detector's slope `g`:
+`σ² = (Bn(g, d)/(g²·ρ))·(1 + Kw/(2ρ))`.
+
+- At the two dev points (order 2, 2.8 GHz, 4 dB, `code_period`) it read
+    within 0.5 dB of the measurement: 7.35 to 7.68 against 7.6 at `bn`
+    0.04, and 13.78 to 13.86 against 14.3 at 0.01.
+- Without the `1/g²` it reads 2 to 3 dB high. That disagrees with §4.8's
+    loop-alone jitter, which matched the unreferred form to 6%. The table
+    shows measured against both.
+
+At the rule's `bn`, the 4 dB floor, delays 0 to 1.75:
+
+| loop on the squared phase   | 2.2 GHz `cp` | 2.2 GHz `parts` | 2.8 GHz `cp` | 2.8 GHz `parts` |
+| --------------------------- | ------------ | --------------- | ------------ | --------------- |
+| detector slope `g`          | 0.825        | 0.667           | 0.762        | 0.594           |
+| order 2, dB                 | 14.8 to 15.0 | 11.7 to 11.9    | 14.2 to 14.3 | 10.5 to 10.7    |
+| order 3, dB                 | 14.6 to 14.9 | 11.2 to 11.4    | 13.9 to 14.1 | 9.8 to 9.9      |
+| ramp lag, 400 Hz/s, order 2 | 29.0°        | 29.0°           | 28.9°        | 28.9°           |
+
+- **`g`** is a Monte Carlo of the receiver's own error on the shipped
+    `awgn`. The code-period values match §4.8's closed form (0.83, 0.76).
+- **Order 3** reads slightly lower than order 2 at the same `bn`: its
+    delivered bandwidth at `g` is a little wider.
+- **Lag:** order 2's lag at the rule's `bn` is about 29°, which is why
+    order 3 comes with the rule. Order 3 has none.
+- **Measured at the rule's `bn`, order 2** (dev, 11-17; the same seeds
+    as the 0.04 and 0.01 runs). `code_period` reads what the model says:
+    14.5 dB against 14.3 at 2.8 GHz, and 14.6 against 15.0 at 2.2 GHz.
+    For `partials` (`Kw = 4`) the model is **pessimistic**: 12.3 dB
+    measured against 10.7 at 2.8 GHz, and 12.8 against 11.9 at 2.2 GHz,
+    0.9 to 1.6 dB under.
+    - The model is not tuned to it. Its `Kw = 4` slope is a Monte Carlo of
+        equal-SNR partials, and the receiver's are not equal.
+    - Static cells work: 13 to 16 of 16 at 4 dB.
+    - Every 4 dB ramp cell false-locks, the order-2 lag the table above
+        predicts.
+    - At 10 dB, 2.8 GHz misses are the code-lock sizing, a separate fix,
+        at every bandwidth.
+
+Every figure here is printed by the validator:
+`validate_async_dsss_receiver_pullin --design`, the `# design` section.
+--emit prints the same section. Each figure is a shipped exact function at
+the measured slope and delays. The section asserts the page's stability
+claim on every row: the loop is stable at the detector's slope, and the
+slope clears order 3's lower gain edge. Its sabotage (a slope of 0.2) goes
+red on all 96 order-3 rows.
+
+#### 3. Acquisition
+
+The hand-over's error is 7 to 19 Hz (medians, dev). The tails pass 48 Hz,
+and the 27 data-template hand-overs are hundreds of hertz off. Order 3's
+pull-in with this discriminator is not known
+([#3123](https://github.com/doppler-dsp/doppler/issues/3123)). §4.8 had
+the order-2 loop at its sized `bn` holding a 100 Hz step under the ramp
+in only 26 of 40 draws.
+
+Three designs, all to be measured:
+
+- **(a) Acquire at order 2, wide, then switch to order 3, narrow.**
+    `integ` is carried. `rate` starts at zero or is seeded from the order-2
+    loop's `integ` slope over the acquisition. The order-2 pull-in is
+    known.
+- **(b) Order 3 from the first update, wide, then narrowed by
+    `dp_state_filter_configure`.** `configure` keeps `integ` and `rate`, so
+    the rate the wide loop learned carries across with no seeding question.
+    Its pull-in at the wide `bn` is the unknown.
+- **(c) Order 3 narrow from the first update.** Expected to fail: the
+    narrow `bn` is 0.001 to 0.012, against hand-over errors past 48 Hz. It
+    is measured only as the control.
+
+**When to narrow:** on the same event the coast uses, both flags up
+(`code_up && sym_up`, §4.4). A narrowing is a gain change with the
+estimates kept, so its transient is bounded by the error at that moment.
+
+#### 4. The window
+
+The owner agreed `code_period` is the mode for this use case (§1.5: a
+symbol is at least a code period at every 415.1 carrier). The default
+flips on results. The order sharpens the case for it:
+
+- The slope is higher (0.74 against 0.58).
+- `Kw = 1` takes less squaring loss than `Kw = 4`.
+- So `partials` needs a loop 2.6 times narrower for the same loop SNR
+    (0.0009 against 0.0023 at 2.8 GHz).
+- The window comparison (dev) had 0 false locks and 35 fold crossings for
+    `code_period`, against 4 and 1,337 for `partials`.
+
+The proposal is that order 3 and `code_period` are ruled together, with
+`partials` kept as the option it is.
+
+#### 5. Open, not built
+
+- **Updating the carrier loop on the code loop's epoch** instead of the
+    receiver's sample grid. That removes the delay that sweeps over 0 to 1
+    update (the lag instrument). It is not ruled.
+- **Coast and release reading the despreader's own flags** instead of the
+    symbol-lock statistic. Not ruled.
+- **The 2.8 GHz 10 dB code-lock sizing** (the look count from the
+    despread C/N0) is a separate fix and is kept out of this change.
+
+#### 6. The measurement that decides
+
+The pull-in validator, extended:
+
+- A `--loop-order 2|3` flag beside `--bn-carrier`, and the acquisition
+    design of §3 as a flag.
+- A `# design` section printing every figure above from the shipped
+    functions, so the page cites the tree.
+- Runs: the static and ramp cells at 4 and 10 dB, both carriers, both
+    windows, the same seeds as the order-2 runs.
+
+It reports the order-2 table's columns: works, false locks, loop SNR
+measured against design, fold crossings, lock changes, time to lock. It
+adds two: the slope at hand-over, and the lowest per-block slope seen,
+against `K_low`. The table decides the order, the window, the acquisition
+design and the `bn` convention.
+
+______________________________________________________________________
+
 ## 6 and 9. The pool's runs
 
 *The runs behind §6 and §9 of the design page. §6.1 to §9.2 predate the

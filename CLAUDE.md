@@ -10,6 +10,38 @@ See `~/.claude/skills/just-makeit.md` for the full jm reference.
 
 ______________________________________________________________________
 
+## The card — before you start, and before you say "ready"
+
+The lifecycle page opens with one card,
+[`docs/dev/contributing/adding-algorithms.md`](docs/dev/contributing/adding-algorithms.md#the-card):
+eight principles and the ten phases every object goes through. Its
+principles, copied from between the page's markers:
+
+<!-- spine-principles:start -->
+
+**The principles.** They are what the phases exist to keep true:
+
+1. **A claim names its evidence.** Every number says what prints it, and
+    every claim says what test, validator or benchmark holds it.
+1. **A test shows its failing case.** An assertion with no case it rejects
+    is a comment.
+1. **A page states what is.** The record of how it got there lives beside
+    it, not in it.
+1. **A constant is derived or measured.** Never fitted, ported or matched.
+1. **Test what the use case can produce.** Not what will never happen.
+1. **Reuse first.** Add new only when nothing existing fits.
+1. **It just works with the least input.** Every knob stays, behind that.
+1. **A deviation is declared.** Skipping a row is allowed; skipping it
+    silently is not.
+
+<!-- spine-principles:end -->
+
+Green CI is not "ready". Before handing work over, walk the card's ten rows
+for each object the branch touches and say which are present; a row left
+out is declared in the pull request, with its reason and an issue.
+
+______________________________________________________________________
+
 ## Architecture
 
 Moved here from `~/.claude/CLAUDE.md` on 2026-08-25: these are doppler's
@@ -99,7 +131,7 @@ runs `uv sync` first and pins the version.
 
 **That includes `.venv/bin/just-makeit apply`**, which reads like the pinned
 binary and is not the target. Every `Drive doppler with …` line in the dated
-adoption notes below — `uvx --from 'just-makeit==X'` in the older ones,
+adoption notes (`docs/dev/archive/jm-adoption-notes.md`) — `uvx --from 'just-makeit==X'` in the older ones,
 `.venv/bin/just-makeit` in the newer — records **which pin was current when
 that note was written**. None of them is an instruction about how to invoke
 jm; `make jm-apply` is, and it is the only spelling that survives a pin bump.
@@ -121,7 +153,7 @@ repo pinned 0.33.12, so it did not understand the `[codec.blue_keyword]` table
 (jm 0.33.9), derived a bogus `codec` component, and died on
 `No rule to make target 'bench_codec_core'`. The local benchmark path was
 unrunnable from then on, which is why `benchmarks/published` stalled at v0.35.0.
-(This is why the notes below are a record of pins, not a menu of commands.)
+(This is why the adoption notes are a record of pins, not a menu of commands.)
 
 ### Step 1 — declare the interface
 
@@ -284,8 +316,9 @@ ______________________________________________________________________
 
 ## CI gates — current state
 
-The adoption sections below are **dated notes**, kept as a record. Many of
-them say the jm drift gate is pinned in `ci.yml` + `perf-regression.yml`; that
+The jm adoption notes
+([`docs/dev/archive/jm-adoption-notes.md`](docs/dev/archive/jm-adoption-notes.md))
+are **dated notes**, kept as a record. Many of them say the jm drift gate is pinned in `ci.yml` + `perf-regression.yml`; that
 was true when each was written.
 
 **As of 2026-07-30 there is no `perf-regression.yml`.** It was removed

@@ -72,8 +72,14 @@ steps, in order, with the example that runs all of them:
     SIGNAL field and the Data field. It returns the samples written, or `0`,
     changing nothing, if any stage refuses.
 1. **Check it.** The example tests the length, that the L-STF repeats every
-    16 samples, that the L-LTF's two long symbols are alike and that the mean
-    power is one.
+    16 samples, that the L-LTF's two long symbols are alike, and the power of
+    each field: exactly one for the two training fields (the standard's
+    scale is 1/sqrt 52, one unit over the 52 occupied subcarriers) and, for
+    each SIGNAL or Data symbol, the energy of its own grid over 52, which
+    Parseval ties to the points it was built from. A Data symbol's power is
+    not one: a 16-QAM symbol's 48 points have a mean power of one only on
+    average over the constellation, and the cyclic prefix repeats only the
+    body's last 16 samples.
 
 ```c
 --8<-- "native/examples/wlan_ppdu_demo.c"

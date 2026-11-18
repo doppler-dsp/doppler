@@ -1,6 +1,4 @@
-# jm:generated bench_state_filter.py
-# jm regenerates this file on apply while the line above is here.
-# To make it yours, delete that line: jm then never writes it again.
+# Hand-owned: the create row is not one jm generates.
 """Benchmark for StateFilter.
 
 Run: pytest src/doppler/track/benchmarks/bench_state_filter.py --benchmark-only
@@ -21,6 +19,11 @@ def obj():
 
 def test_bench_step(benchmark, obj):
     benchmark(obj.step, 1.0)
+
+
+def test_bench_create(benchmark):
+    """Build and drop one filter: the gain solve, the binding, the free."""
+    benchmark(StateFilter, 0.01, 1.0)
 
 
 def test_bench_steps_64k(benchmark, obj):

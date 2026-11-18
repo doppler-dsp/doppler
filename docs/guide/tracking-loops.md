@@ -102,6 +102,58 @@ is the yes or no. Both are exact for an integer `delay`. The design page,
 the second-order loop's bandwidth is by the same expression. The C example
 is `native/examples/state_filter_demo.c`.
 
+## KalmanStateFilter — a loop sized from the signal
+
+`StateFilter` is sized from a bandwidth. If you know the detector's noise and
+how fast the carrier's rate can change, give those two figures instead and
+get the bandwidth that is optimal for them: `KalmanStateFilter` is the same
+third-order loop with its gains computed each update from a covariance
+recursion. It takes the rms detector error when the loop is locked
+(`sigma_e`) and the rms change of the rate per update (`sigma_a`), both in the
+loop's own units, or `bn` and `t` alone. Nothing in it knows a detector: a
+caller with a carrier-to-noise density and a jerk figure makes the two
+figures in one line, as an example and not an API:
+
+```python
+--8<-- "src/doppler/examples/state_filter_kalman_demo.py:figures"
+```
+
+Started at its steady state, the gains are constant: a third-order loop at
+the optimal gains for those figures. They are not `StateFilter`'s Butterworth
+gains; the two differ by 0.7% to 9% of `kr` between `bn*t` 0.01 and the bound
+(the design page, Part III, measures it), and `KalmanStateFilter` has its own
+bounds, `bn*t` from 1e-6 to 0.12. An initial frequency uncertainty `sigma_f0`,
+between `sigma_f` (the steady state's own deviation, a property) and 5 times
+it (less at `bn*t` above 0.04, where the allowed start falls to 1.2 at the
+bound), starts the covariance larger, so the gains rise for a while and the
+loop settles to a frequency step about 1.7 times as fast as the fixed-gain loop of
+the same final bandwidth:
+
+```python
+--8<-- "src/doppler/examples/state_filter_kalman_demo.py:start"
+```
+
+Both are runnable as they stand: `python -m doppler.examples.state_filter_kalman_demo`
+and, after `make build`, `./build/native/examples/state_filter_kalman_demo`.
+The C example does the same pull-in and shows the lifecycle a C caller
+manages: create from the figures, a start of four times `sigma_f`, the step
+response against the fixed-gain loop, a start far past the allowed one refused
+with `NULL`, `configure()` with every argument 0 ending the start early (the
+gains go to the steady state at once and the estimates carry), and destroy:
+
+```c
+--8<-- "native/examples/state_filter_kalman_demo.c"
+```
+
+A larger start is refused, because the gains it would produce along the way
+leave the region where the exact stability test covers every loop gain from
+0.5 to 2 and every detector delay up to two updates. `bandwidth(delay, gain)`
+and `stable(delay, gain)` answer for the gains in force now, as if they
+stopped changing; they are not a statement about the converging loop. The
+state round-trips through `get_state()` and `set_state()`, and the blob
+carries the covariance. The C type embeds the fixed-gain struct, so an
+embedder holds it by value (`native/inc/doppler/state_filter_kalman/`).
+
 ## Costas — carrier-tracking loop
 
 `Costas` is the first loop built on `LoopFilter`: a continuous BPSK

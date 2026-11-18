@@ -234,6 +234,22 @@ dp_gnu_compile_options(validate_state_filter_loop PRIVATE
 add_test(NAME validate_state_filter_loop
          COMMAND validate_state_filter_loop --check)
 
+# What the Kalman flavor of the third-order loop delivers: its steady-state
+# gains against the fixed-gain flavor's, its own stability edges and bound, the
+# plain covariance update against a wider reference, and what a larger start
+# does through a detector's slope and delay. --check is the regression subset;
+# the full sweep (and --csv DIR, for the report) is run on purpose.
+add_executable(validate_state_filter_kalman_loop
+               ${CMAKE_CURRENT_SOURCE_DIR}/state_filter_kalman_loop.c)
+target_include_directories(validate_state_filter_kalman_loop
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_state_filter_kalman_loop PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_state_filter_kalman_loop PRIVATE
+                        -O3 -funroll-loops -fno-fast-math -ffp-contract=off)
+add_test(NAME validate_state_filter_kalman_loop
+         COMMAND validate_state_filter_kalman_loop --check)
+
 # The end-to-end receiver run: a NAMED frame (native/tests/dp_frame_test.h)
 # through wfm_synth, through MpskReceiver, scored into ber + snr + frame_meter
 # so BER, EVM, M2M4 and FER come out of one record. It is the first FER

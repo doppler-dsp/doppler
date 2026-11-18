@@ -373,6 +373,7 @@ doc = 'The waveform. For `bits` attach the pattern with set_bits(), for `symbols
 name = "fs"
 type = "double"
 default = "1000000.0"
+doc = "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample."
 
 [[wfm_synth.init_params]]
 name = "freq"

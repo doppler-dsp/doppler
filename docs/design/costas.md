@@ -40,6 +40,9 @@ accumulating oscillator). The proportional term is applied as a phase step
 at the update, and the new frequency from the next update on, which over
 one update is the canonical oscillator's `c = integ + kp·e`. So
 `dp_state_filter_loop_bandwidth()` is Costas's bandwidth, at both orders,
+for the phase at the detector instant. A phase read after the update, past
+the `kp·e` step, has a smaller sum of squares, so a jitter figure states
+where it reads the phase.
 
 ## 2. What it owns
 
@@ -84,11 +87,11 @@ object, is the filter.
 ### 3.1 Shape: both filters held, one active
 
 `dp_costas_state_t` holds a `dp_state_filter_state_t sf` and `order`,
-which selects the active filter, at the end of the struct. Appended last,
-they leave every field the per-sample loop touches (`nco`, `tsamps`,
-`acc`, `acc_n`) at the offset it had before, so the order-2 loop's memory
-layout does not move. loop-filter.md §13 anticipates this embedder:
-acquire on one order, track on the other.
+which selects the active filter, at the end of the struct, after every
+field the per-sample loop touches (`nco`, `tsamps`, `acc`, `acc_n`), so
+the order-2 loop's memory layout is the one it has without them.
+loop-filter.md §13 anticipates this embedder: acquire on one order, track
+on the other.
 
 - **`costas_update()`** steps the active filter and steers from its
     `integ` and `kp`.
@@ -150,55 +153,63 @@ runs 0.03, stays at order 2. The header says why.
 
 ### 3.3 The blob
 
-`COSTAS` goes from v3 to v4, because the struct grows by `sf` and `order`.
-The order is a mutator's value, so it travels and is checked, not used as
-a reject key (state-serialization.md, "What goes in the blob", rule 2).
-`costas_state_ok()` adds three checks:
+`COSTAS` is v4, and its blob carries `sf` and `order`. The order is a mutator's
+value, so it travels and is checked, not used as a reject key
+(state-serialization.md, "What goes in the blob", rule 2). `costas_state_ok()`
+adds three checks:
 
 - the order is 2 or 3, or 0 in the all-zero Costas;
 - at order 3, `sf` runs at the retained `bn` and the FLL assist is off;
 - `sf` is either the all-zero filter (never selected) or one
     `dp_state_filter_state_ok()` accepts.
 
-**The parents grow and keep their versions.** state-serialization.md: "A
-composition embeds each child as a self-contained sub-blob — the child
-carries its own header, so it is independently validatable, and migrating
-a leaf (which changes its size) propagates automatically because the
-parent sums `child_state_bytes`." Its rule for a bump, "a blob that gains
-a field bumps the object's `*_STATE_VERSION`", is the child's, not the
-parent's. `test_despreader_core.c` pins it on one parent:
+**The parents keep their versions and are refused by size.**
+state-serialization.md: "A composition embeds each child as a self-contained
+sub-blob — the child carries its own header, so it is independently
+validatable, and migrating a leaf (which changes its size) propagates
+automatically because the parent sums `child_state_bytes`." Its rule for a
+bump, "a blob that gains a field bumps the object's `*_STATE_VERSION`", is the
+child's, not the parent's. `test_despreader_core.c` pins it on the despreader:
 
-- a despreader blob rebuilt exactly as it was before (Costas v3, 64 bytes
-    smaller, both headers so) is refused, with the despreader untouched;
-- the same blob with only the size changed, its Costas header left at v4,
-    is refused too, so the parent's size refuses it and not only the
-    child's version.
+- a despreader blob with a Costas v3 child, 64 bytes smaller, both headers
+    so, is refused, with the despreader untouched;
+- the same blob with only the size changed, its Costas header at v4, is
+    refused too, so the parent's size refuses it and not only the child's
+    version.
 
 ### 3.4 What each embedder pays
 
-- **Size:** the struct grows by 64 bytes, the 56 of `sf` plus the order
+- **Size:** `sf` and `order` are 64 bytes, the 56 of `sf` plus the order
     word padded to 8. The receiver holds three Costas, and the pool holds
     three per receiver.
-- **Time:** `costas_wipeoff()`, once a sample, does not change.
-    `costas_update()` gains one branch on `order`, once an update, against a
-    discriminator that already divides and takes an absolute value.
+- **Time:** `costas_wipeoff()`, once a sample, has no order in it.
+    `costas_update()` has one branch on `order`, once an update, beside a
+    discriminator that divides and takes an absolute value.
 
-### 3.5 Certification
+### 3.5 What is pinned
 
-**Order 2, unchanged.** Three things show it:
+Costas has no certification yet
+([#3138](https://github.com/doppler-dsp/doppler/issues/3138)); these are
+its C pins.
+
+**Order 2:**
 
 - every existing `test_costas_core.c` pin, and the embedders' C tests;
 - an **independent order-2 recurrence** in `test_costas_core.c` §10e,
     written from this page's §1 and not from `costas_update()`, which
     matches the library **to rounding**.
-    - **How it is held:** the reference's filter and steer run on the
-        library's own prompt each update, so the error is the same bits on
-        both sides. Each quantity is held to a bound derived from the run's
-        length `N`, not picked:
-        - `integ`: one contracted rounding an update, `N·2⁻⁵³·max|integ|`;
+    - **How it is held:** the library and its tests build with
+        `-ffast-math`, so a second translation unit may compute the float
+        error `e` differently by a few roundings. The reference's filter and
+        steer therefore run on the library's own prompt each update, and two
+        quantities are held to bounds derived from the run's length `N`,
+        not picked:
         - the NCO phase word: a count a sample, `N·(tsamps + 1)` counts;
         - the reference's own prompt: float accumulation,
             `2⁻²³·xmax·(tsamps + 2)`, plus `xmax` times the phase bound.
+    - The frequency estimate is not held: its bound would rest on the
+        few-roundings premise, which only an arm64 run checks, and it sees
+        only one of the two sabotages the phase and the prompts catch.
 
 Bit for bit is kept where both sides are the library, compared with
 itself: the 2 to 3 to 2 switch against staying at order 2, and the
@@ -236,9 +247,15 @@ rate seeded. Through it the mutator gate (`test_mutator_state.py`) shows
 `norm_rate` travels in the blob, and the matrix round-trips order 3 from
 Python.
 
-### 3.7 Not in this work
+### 3.7 Open
 
-- **Choosing the order automatically:** it is the embedder's.
-- **A Kalman flavor of the filter:** that is `StateFilter`'s (loop-filter.md
-    §13.1). Costas holds whichever `StateFilter` that work produces.
-- **The FLL assist at order 3:** refused until it is measured (§3.2).
+- **The order is the embedder's to choose** (§3.2); Costas does not switch
+    on its own.
+- **A Kalman flavor of the filter** is `StateFilter`'s (loop-filter.md
+    §13.1); Costas holds whichever `StateFilter` that produces.
+- **The FLL assist at order 3** is refused until it is measured
+    ([#3138](https://github.com/doppler-dsp/doppler/issues/3138)).
+- **How long order 3 takes to pull in** past the order-2 bound
+    ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
+- **A C example**
+    ([#3137](https://github.com/doppler-dsp/doppler/issues/3137)).

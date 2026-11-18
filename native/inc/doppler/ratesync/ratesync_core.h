@@ -170,7 +170,10 @@ extern "C"
 #define RATESYNC_LOCK_PD 0.9
 /** @brief The per-decision false-transition budget the default verify
  *  counts are derived from: n_up = dp_det_verify_count(RATESYNC_LOCK_PFA,
- *  budget), n_down = dp_det_verify_count(1 - RATESYNC_LOCK_PD, budget). */
+ *  budget), n_down = dp_det_verify_count(1 - RATESYNC_LOCK_PD, budget). 1e-6
+ *  is the library's convention for a detector's own default, not a new
+ *  number: the Dll's declare budget at its default pfa, the async receiver's
+ *  code-lock drop, and symsync's SYMSYNC_LOCK_BUDGET. */
 #define RATESYNC_LOCK_BUDGET 1e-6
 
   /**

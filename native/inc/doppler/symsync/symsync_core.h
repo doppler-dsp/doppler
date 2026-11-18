@@ -41,6 +41,14 @@ extern "C"
  *         zero (not tunable). */
 #define SYMSYNC_LOCK_EPS 1e-12
 
+/** @brief The per-decision false-transition budget the lock's verify counts
+ *  are derived from, at the (pfa, pd) dp_symsync_configure_lock() sizes the
+ *  threshold at: n_up = dp_det_verify_count(pfa, budget), n_down =
+ *  dp_det_verify_count(1 - pd, budget). 1e-6 is the library's convention for
+ *  a detector's own default: the Dll's declare budget at its default pfa,
+ *  and the async receiver's code-lock drop. */
+#define SYMSYNC_LOCK_BUDGET 1e-6
+
   /**
    * @brief Telemetry attachment: a borrowed context + this object's probe
    *        ids.  NULL ctx (the default) means detached — every probe site

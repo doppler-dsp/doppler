@@ -420,6 +420,37 @@ def test_a_refused_call_returns_empty_and_moves_nothing():
     assert o.points_remaining() == 6
 
 
+def test_check_leaves_nothing_a_later_call_or_a_blob_can_see():
+    """Sealing is derived state, recomputed on first use, so it is not state.
+
+    `check()` raises or returns None and seals the layout; every method that
+    needs the seal calls the check itself. If sealing changed what a later
+    call does, the flag would belong in the blob. It does not: a layout that
+    was checked first has the same blob, the same render and the same window
+    tail as one that never was, and a refused check changes nothing.
+    """
+    a, m = _small()
+    a.add_class(8, m, cyclic_prefix=2, window=2)
+    a.add_run(0, 3)
+    b, m = _small()
+    b.add_class(8, m, cyclic_prefix=2, window=2)
+    b.add_run(0, 3)
+    assert b.check() is None
+    assert a.get_state() == b.get_state()
+    pts = (np.arange(a.points_remaining()) + 1j).astype(np.complex64)
+    assert np.array_equal(a.modulate(pts), b.modulate(pts))
+    assert np.array_equal(a.finish(), b.finish())
+    assert a.get_state() == b.get_state()
+
+    c, m = _small()
+    c.add_class(8, m)  # no run: refused, twice, the same way
+    before = c.get_state()
+    for _ in range(2):
+        with pytest.raises(ValueError, match="no run"):
+            c.check()
+    assert c.get_state() == before
+
+
 def test_a_layout_extended_mid_stream_renders_as_if_built_whole():
     m = np.zeros(8, np.uint8)
     m[[1, 2, 3, 5, 6, 7]] = 1

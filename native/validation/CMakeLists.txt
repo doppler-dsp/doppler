@@ -18,7 +18,8 @@ dp_gnu_compile_options(validate_ber_despreader PRIVATE
 add_executable(validate_costas_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/costas_jitter.c)
 target_include_directories(validate_costas_jitter
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_costas_jitter PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 dp_gnu_compile_options(validate_costas_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_jitter

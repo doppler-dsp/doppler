@@ -41,7 +41,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 | struct | [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) <br>_A non-HT rate, by the two columns of Table 17-4 that do not change with the clocking: a constellation and a code rate._  |
 | struct | [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) <br>_A (rate, SIGNAL RATE bits) pair of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _._ |
 | struct | [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) <br>_A non-HT rate, held with what follows from it._  |
-| struct | [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) <br>_What the standard supplies and this tree does not yet hold._  |
+| struct | [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) <br>_What the standard supplies: the Clause 17 literals._  |
 
 
 ## Public Types
@@ -155,7 +155,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 
 
 
-Every number the design page marks checked against the standard's text is a constant here, or a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), which [**dp\_wlan\_tables\_standard()**](wlan__core_8h.md#function-dp_wlan_tables_standard) returns filled with the Clause 17 literals transcribed from the text and each pinned in the test against its printed form. [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) is the same struct with nothing in it: a builder that needs an empty entry refuses (returns 0 or -1) and changes nothing, and the machinery tests run on SYNTHETIC tables that claim no conformance. The tables are:
+Every number the design page marks checked against the standard's text is a constant here, or a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), which [**dp\_wlan\_tables\_standard()**](wlan__core_8h.md#function-dp_wlan_tables_standard) returns filled with the Clause 17 literals transcribed from the text. What the test holds against a printed form is the RATE bits, both training sequences and the constellation encodings; the second interleaver permutation is held by its worked 16-QAM example and by being a bijection, and the puncture masks and the pilot polarity are not held against a printed form. [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) is the same struct with nothing in it: a builder that needs an empty entry refuses (returns 0 or -1) and changes nothing, and the machinery tests run on SYNTHETIC tables that claim no conformance. The tables are:
 
 
 

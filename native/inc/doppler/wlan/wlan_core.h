@@ -16,8 +16,11 @@
  * Every number the design page marks checked against the standard's text
  * is a constant here, or a member of dp_wlan_tables_t, which
  * dp_wlan_tables_standard() returns filled with the Clause 17 literals
- * transcribed from the text and each pinned in the test against its printed
- * form. dp_wlan_tables_empty() is the same struct with nothing in it: a
+ * transcribed from the text. What the test holds against a printed form is
+ * the RATE bits, both training sequences and the constellation encodings; the
+ * second interleaver permutation is held by its worked 16-QAM example and by
+ * being a bijection, and the puncture masks and the pilot polarity are not
+ * held against a printed form. dp_wlan_tables_empty() is the same struct with nothing in it: a
  * builder that needs an empty entry refuses (returns 0 or -1) and changes
  * nothing, and the machinery tests run on SYNTHETIC tables that claim no
  * conformance. The tables are:
@@ -126,10 +129,13 @@ typedef struct
 typedef size_t (*dp_wlan_perm2_fn) (size_t i, size_t n_cbps, size_t n_bpsc);
 
 /**
- * @brief What the standard supplies and this tree does not yet hold.
+ * @brief What the standard supplies: the Clause 17 literals.
  *
- * Empty (NULL, 0) until transcribed from the text; see the file comment.
- * Every pointer is borrowed and must outlive its use.
+ * dp_wlan_tables_standard() returns it filled, transcribed from the text (the
+ * file comment says which members the test holds against a printed form);
+ * dp_wlan_tables_empty() returns it with every member empty (NULL, 0), and a
+ * builder that needs an empty member refuses. See the file comment. Every
+ * pointer is borrowed and must outlive its use.
  */
 typedef struct
 {

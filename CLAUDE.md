@@ -14,7 +14,7 @@ ______________________________________________________________________
 
 The lifecycle page opens with one card,
 [`docs/dev/contributing/adding-algorithms.md`](docs/dev/contributing/adding-algorithms.md#the-card):
-eight principles and the ten phases every object goes through. Its
+the principles and the phases every object goes through. Its
 principles, copied from between the page's markers:
 
 <!-- spine-principles:start -->
@@ -30,6 +30,9 @@ principles, copied from between the page's markers:
 1. **A constant is derived or measured.** Never fitted, ported or matched.
 1. **Test what the use case can produce.** Not what will never happen.
 1. **Reuse first.** Add new only when nothing existing fits.
+1. **Build the general object.** An application is a configuration of it:
+    the standard's numbers arrive as arguments or a table, never as the
+    object's shape. A one-off is the exception, and says why.
 1. **It just works with the least input.** Every knob stays, behind that.
 1. **A deviation is declared.** Skipping a row is allowed; skipping it
     silently is not.

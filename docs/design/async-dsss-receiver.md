@@ -1465,6 +1465,14 @@ existing `segments`, default 4
     establishes ([#3080](https://github.com/doppler-dsp/doppler/issues/3080),
     [#3079](https://github.com/doppler-dsp/doppler/issues/3079)). Until then
     every "ready" from the branch names them and shows nothing else is red.
+- **The code lock changes over the data at 10 dB**
+    ([#3134](https://github.com/doppler-dsp/doppler/issues/3134)): at 2.8
+    GHz, static, it changes after it is sustained on 11 of 60 draws as built
+    and 16 of 60 with the code-period window, the other flags never; its
+    look count is 3 there, and the same draw at 4 holds.
+    `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
+    does not change over the data once sustained" pins it on seed 5, both
+    windows, and is in the branch's known red set until the fix.
 - The stage-by-stage loss decomposition is not held at the 415.1 point: its
     harness retires with the 3.069 Mcps point and is rebuilt inside the floor
     brief ([#3156](https://github.com/doppler-dsp/doppler/issues/3156)).

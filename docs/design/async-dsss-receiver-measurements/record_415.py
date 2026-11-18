@@ -1442,6 +1442,16 @@ def acq_draw(row: dict[str, str], trans: Rows, secs: float) -> dict:
     if not up_at_end:
         down_spans.append((t_prev, secs))
     t_acq = last_change if up_at_end and ev else None
+    # The other three lock indicators (owner: no lock indicator toggles in
+    # the data once acquired; rows from before they were recorded have
+    # none of these columns and score on the two flags alone).
+    for k in ("car", "demod", "sync"):
+        if f"{k}_up_end" not in row:
+            continue
+        if row[f"{k}_up_end"] != "1":
+            t_acq = None
+        elif t_acq is not None and row[f"{k}_last_s"] != "nan":
+            t_acq = max(t_acq, float(row[f"{k}_last_s"]))
     off = float(row["frame_off"])
     frame_s = FRAME_SYM / SYM_RATE
     end = t_acq if t_acq is not None else secs
@@ -1515,6 +1525,15 @@ def acq(argv: list[str]) -> int:
             slw = sum(s["verdict"] == "slipped while locked" for s in sc)
             sl = slw + sum(s["verdict"] == "slipped" for s in sc)
             uns = sum(s["verdict"] == "end unsynced" for s in sc)
+            # Draws in which each lock indicator changed over the data, so
+            # one detector toggling everywhere reads as one detector.
+            flags = ("sym", "code", "car", "demod", "sync")
+            tog = " / ".join(
+                str(sum(int(r.get(f"{f}_tog", "0") or 0) > 0 for r in rows))
+                if f"{f}_tog" in rows[0]
+                else "-"
+                for f in flags
+            )
             never = sum(
                 s["verdict"] == "never acquired or still toggling" for s in sc
             )
@@ -1559,6 +1578,7 @@ def acq(argv: list[str]) -> int:
                     str(fl),
                     f"{sl} ({slw})",
                     str(uns),
+                    tog,
                     str(never),
                     (
                         f"{st.median(okf):.2f} / {q(okf, 0.9)} / {okf[-1]:.2f}"
@@ -1585,6 +1605,7 @@ def acq(argv: list[str]) -> int:
         "false locks",
         "slipped (while locked)",
         "end unsynced (#3131)",
+        "draws toggling: sym / code / car / demod / sync",
         "never acquired or still toggling",
         "acquisition, frames (median / 90th / worst)",
         "frames with a symbol out of lock (median / 90th / worst)",

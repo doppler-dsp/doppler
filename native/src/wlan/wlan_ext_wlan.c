@@ -87,9 +87,7 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
     {
       PyErr_SetString (PyExc_ValueError,
                        "constellation is not one of bpsk, qpsk, qam16, "
-                       "qam64, code_rate is not one of r12, r23, r34, r56, "
-                       "or the pair's data bits per OFDM symbol are not a "
-                       "whole number");
+                       "qam64, code_rate is not one of r12, r23, r34, r56");
       return -1;
     }
   return 0;
@@ -323,8 +321,7 @@ static PyTypeObject WlanObjType = {
     "not\n"
     "    one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, "
     "r34,\n"
-    "    r56, or the pair's data bits per OFDM symbol are not a whole "
-    "number``.\n"
+    "    r56``.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -131,7 +131,9 @@ dp_wlan_rate_ok (const dp_wlan_rate_t *r)
            || r->n_bpsc == 6)
       || !code_fraction (r->code, &num, &den))
     return 0;
-  return (WLAN_N_SD * r->n_bpsc * num) % den == 0;
+  /* the data bits per symbol, 48 * n_bpsc * num / den, are whole for every
+     such pair (the test checks all sixteen): nothing more to refuse */
+  return 1;
 }
 
 unsigned
@@ -536,7 +538,7 @@ dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t, size_t n_sym,
                 unsigned window)
 {
   if (!t || !t->stf || !t->ltf || t->scale_stf <= 0.0 || t->scale_ltf <= 0.0
-      || t->scale_data <= 0.0 || n_sym == 0 || n_sym > 65536 - 3)
+      || t->scale_data <= 0.0 || n_sym == 0 || n_sym > WLAN_N_SYM_MAX)
     return -1;
   uint8_t null_map[WLAN_N_FFT];
   uint8_t data_map[WLAN_N_FFT];

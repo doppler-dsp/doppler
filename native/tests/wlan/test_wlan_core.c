@@ -445,8 +445,7 @@ main (void)
       }
     DP_CHECK (dp_wlan_mpdu (WLAN_MAC_FCS, NULL, 0, f1, 20, m1, sizeof m1)
               == 24);
-    DP_CHECK (dp_crc_bytes (&model, m1, 24, 1)
-              == dp_crc_bytes (&model, m2, 24, 1));
+    DP_CHECK (dp_crc_bytes (&model, m1, 24) == dp_crc_bytes (&model, m2, 24));
 
     /* DATA mode is the header then the body then the FCS: the FCS mode of the
      * concatenation */

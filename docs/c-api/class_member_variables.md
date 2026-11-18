@@ -894,6 +894,7 @@
 * **row\_fwd** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **row\_inv** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **row\_ref\_spec** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
+* **refin** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **refout** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **rate\_aid** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rate\_i** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))

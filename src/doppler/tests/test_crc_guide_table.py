@@ -1,9 +1,11 @@
 """The CRC guide's table of named models is held to ``dp_crc.h``.
 
 ``docs/guide/crc.md`` lists the nine named catalogue instances with their
-parameters, ``refin`` and check value. The header is the source: the five
-numbers are in each macro, and ``refin`` and the check value are in the
-macro's own comment (the unit test pins the check values to the catalogue).
+parameters, ``refin`` and check value. The header is the source: the six
+numbers, ``refin`` among them, are fields of each macro, and the check
+value and the stated ``refin`` are in the macro's own comment (the unit test
+pins the check values to the catalogue, and this one holds the field to the
+comment).
 A value changed in one place and not the other fails here, so the listing
 cannot go stale the way a hand-kept copy does.
 
@@ -38,12 +40,22 @@ def header_models() -> dict[str, tuple]:
             for line in m.group(1).splitlines()
         )
         name = m.group(2)
+        fields = {
+            k.strip().lstrip("."): int(v.strip().rstrip("ulUL"), 0)
+            for k, v in (
+                kv.split("=")
+                for kv in m.group(3).replace("\\\n", " ").split(",")
+            )
+        }
         width, poly, init, refout, xorout = (
-            int(v.strip().rstrip("ulUL"), 0) for v in m.group(3).split(",")
+            fields[k] for k in ("width", "poly", "init", "refout", "xorout")
         )
         refin = re.search(r"`refin` (?:is )?(true|false)", doc)
         check = re.search(r"Check(?: value)? (0x[0-9A-Fa-f]+)", doc)
         assert refin and check, f"{name}: the comment must state refin, check"
+        assert bool(fields["refin"]) == (refin.group(1) == "true"), (
+            f"{name}: the .refin field disagrees with the comment"
+        )
         out[name] = (
             width,
             poly,

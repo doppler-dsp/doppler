@@ -1,2 +1,2 @@
 esn0_db,bursts,unsettled,unsettled_max,unsettled_inside,pullin_hz,slipped,symbols,errors,ber,ber_lo,ber_hi,conf,theory,loss_db,loss_lo_db,loss_hi_db,loss_max_db,evm_db,evm_ideal_db,m2m4_db,m2m4_agree_db,ok
-7.0,9.0,0.0,1.0,0.0,120.0,0.0,112730.0,202.0,0.001783,0.0014838,0.0021333,0.99,0.00077267,0.72,0.552,0.89,1.1,-6.709,-7.597,6.381,3.0,1.0
+7.0,9.0,0.0,1.0,0.0,120.0,0.0,113451.0,223.0,0.0019568,0.0016431,0.0023212,0.99,0.00077267,0.807,0.645,0.972,1.1,-6.686,-7.597,6.342,3.0,1.0

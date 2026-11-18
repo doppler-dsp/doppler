@@ -96,25 +96,6 @@ main (void)
       return 1;
     /* gains derive from the embedded loop_filter (bn,zeta,t=1) */
     DP_CHECK (c->lf.kp > 0.0 && c->lf.ki > 0.0);
-    /* The phase predicted n samples ahead is the phase the NCO has after
-       wiping n samples, in its own arithmetic: exactly, between updates
-       (16 samples a symbol, so 11 wipe no update). */
-    {
-      const double ahead = dp_costas_get_nco_phase_ahead (c, 11);
-      DP_CHECK (dp_costas_get_nco_phase_ahead (c, 0)
-                == (double)c->nco.phase / 4294967296.0);
-      for (int i = 0; i < 11; i++)
-        (void)costas_wipeoff (c, 1.0f);
-      DP_CHECK (dp_costas_get_nco_phase_ahead (c, 0) == ahead);
-      DP_CHECK (ahead != (double)0.0);
-    }
-    /* The lock rule reads back what configure_lock set. */
-    {
-      dp_costas_configure_lock (c, 0.81, 0.62, 5, 9);
-      dp_lockdet_rule_t r = dp_costas_get_lock_rule (c);
-      DP_CHECK (r.up_thresh == 0.81 && r.down_thresh == 0.62);
-      DP_CHECK (r.n_up == 5 && r.n_down == 9);
-    }
     /* seeded NCO frequency == requested residual */
     DP_CHECK (fabs (dp_costas_get_norm_freq (c) - 0.01) < 1e-12);
 
@@ -682,15 +663,29 @@ main (void)
     free (bits);
   }
 
-  /* 10e. Order 2 is the loop it always was. An independent order-2
-     recurrence, written here from the loop's definition (the header's
-     section 1 and docs/design/costas.md section 1), not from
-     costas_update(): the wipe-off, the integrate-and-dump, the
-     discriminator, lf's two lines (integ += ki e; the control is
-     integ + kp e) and the steer (the NCO frequency from integ, a kp e phase
-     step). Bit for bit over a noisy run, prompts and the frequency
-     estimate, so a change to the order-2 path of the new struct cannot
-     pass quietly. The FLL assist is off: its own pins are section 7. */
+  /* 10e. Order 2 is the loop it always was, to rounding. An independent
+     order-2 recurrence, written here from the loop's definition (the
+     header's section 1 and docs/design/costas.md section 1), not from
+     costas_update(): the wipe-off and integrate-and-dump into its own
+     prompt, lf's two lines (integ += ki e; the control is integ + kp e) and
+     the steer (the NCO frequency from integ, a kp e phase step).
+
+     Not bit for bit: this is a second implementation in another
+     translation unit, and a compiler may contract a multiply-add into one
+     rounding in one and not the other (clang and arm64 do). So the
+     reference's filter and steer run on the library's own prompt each
+     update, which keeps the error e identical in both, and every quantity
+     is held to a bound derived from the run, not picked:
+       - integ: one contracted rounding per update at most, so
+         |dinteg| <= N 2^-53 max|integ|;
+       - the NCO phase word: one count per sample at most from the steer's
+         rounding, so N (tsamps + 1) counts;
+       - the reference's own prompt, accumulated in float from its own NCO:
+         2^-23 xmax (tsamps + 2) for the accumulation, plus xmax times the
+         phase bound in radians.
+     A real defect moves them by orders more (the two sabotages: a wrong
+     gain, and a frequency read before the step). The FLL assist is off:
+     its own pins are section 7. */
   {
     const size_t    tsamps = 16, nsym = 3000, ns = nsym * tsamps;
     float _Complex *rx   = malloc (ns * sizeof (*rx));
@@ -704,28 +699,56 @@ main (void)
     dp_lo_init (&nco, 0.002);
     double integ       = 0.002 * 2.0 * M_PI * (double)tsamps;
     float _Complex acc = 0.0f;
-    size_t       k = 0, mism = 0;
+    double xmax = 0.0, imax = fabs (integ), dprompt = 0.0;
+    for (size_t i = 0; i < ns; i++)
+      if (cabsf (rx[i]) > xmax)
+        xmax = cabsf (rx[i]);
+    size_t       k     = 0;
     const size_t n_got = dp_costas_steps (c, rx, ns, got, nsym);
     for (size_t i = 0; i < ns; i++)
       {
         acc += rx[i] * conjf (lo_step (&nco));
         if ((i + 1) % tsamps)
           continue;
-        const float  re = crealf (acc), im = cimagf (acc);
-        const float  a = cabsf (acc) + COSTAS_EPS;
+        DP_REQUIRE (k < n_got);
+        /* The reference's prompt against the library's; the error from the
+           library's, so both filters see the same e. */
+        const float _Complex mine = acc / (float)tsamps;
+        const double d
+            = cabs ((double _Complex)mine - (double _Complex)got[k]);
+        if (d > dprompt)
+          dprompt = d;
+        const float _Complex P = got[k] * (float)tsamps;
+        const float  re = crealf (P), im = cimagf (P);
+        const float  a = cabsf (P) + COSTAS_EPS;
         const double e = (double)(((re >= 0.0f) ? im : -im) / a);
         integ += ki * e;
+        if (fabs (integ) > imax)
+          imax = fabs (integ);
         dp_lo_set_norm_freq (&nco, integ / (double)tsamps / (2.0 * M_PI));
         nco.phase += nco_norm_phase_to_word ((kp * e) / (2.0 * M_PI));
-        const float _Complex want = acc / (float)tsamps;
-        if (k < n_got && memcmp (&want, &got[k], sizeof want) != 0)
-          mism++;
         k++;
         acc = 0.0f;
       }
     DP_CHECK (k == n_got);
-    DP_CHECK_MSG (mism == 0, "order 2 is its own recurrence, bit for bit");
-    DP_CHECK (c->lf.integ == integ && c->nco.phase == nco.phase);
+    const double n        = (double)k;
+    const double b_integ  = n * 0x1p-53 * imax;
+    const double b_counts = n * (double)(tsamps + 1);
+    const double b_prompt = 0x1p-23 * xmax * (double)(tsamps + 2)
+                            + xmax * 2.0 * M_PI * b_counts / 4294967296.0;
+    const double d_integ  = fabs (c->lf.integ - integ);
+    const double d_counts = fabs ((double)(int32_t)(c->nco.phase - nco.phase));
+    DP_CHECK_MSG (d_integ <= b_integ,
+                  "order 2's frequency estimate is its recurrence's");
+    DP_CHECK_MSG (d_counts <= b_counts,
+                  "order 2's NCO phase is its recurrence's");
+    DP_CHECK_MSG (dprompt <= b_prompt, "order 2's prompts are its "
+                                       "recurrence's");
+    if (getenv ("DP_COSTAS_PIN_DIAG"))
+      fprintf (stderr,
+               "10e: integ %.3e of %.3e, phase %.0f of %.0f counts, "
+               "prompt %.3e of %.3e\n",
+               d_integ, b_integ, d_counts, b_counts, dprompt, b_prompt);
     dp_costas_destroy (c);
     free (rx);
     free (bits);

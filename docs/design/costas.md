@@ -211,17 +211,39 @@ The table is main's. The train this lands beside carries `ADRX` v19 and
 
 ### 3.5 Certification
 
-**Order 2, unchanged and held unchanged:**
+**Order 2, unchanged.** Three things show it:
 
 - every existing `test_costas_core.c` pin, and the embedders' C tests;
+- `validate_costas_pullin --check` and `validate_costas_jitter --check`,
+    whose order-2 rows are identical before and after this work (a one-time
+    comparison, in the commit message), and the bench rows above;
 - an **independent order-2 recurrence** in `test_costas_core.c` §10e,
-    written from this page's §1 and not from `costas_update()`, matches the
-    new struct bit for bit over a noisy ramp: every prompt, `lf.integ` and
-    the NCO phase. Sabotaged with a wrong gain and with a stale frequency, it
-    goes red both times. The second sabotage turned only one other check
-    red in the whole file.
-- `validate_costas_pullin --check` and `validate_costas_jitter --check`;
-- the bench rows above.
+    written from this page's §1 and not from `costas_update()`, which
+    matches the library **to rounding**.
+    - **Why not bit for bit:** it is a second implementation in another
+        translation unit, and a compiler may contract a multiply-add into
+        one rounding in one and not the other. clang and arm64 do, and gcc
+        does too once the reference's loop body differs. Bit for bit, it
+        failed on macOS, arm64, Windows clang-cl and the clang C job: the
+        closed reference loop drifted 14 phase counts and 1.5e-9 in
+        `integ` over 3,000 updates.
+    - **How it is held:** the reference's filter and steer run on the
+        library's own prompt each update, so the error is the same bits on
+        both sides. Each quantity is held to a bound derived from the run's
+        length `N`, not picked:
+        - `integ`: one contracted rounding an update, `N·2⁻⁵³·max|integ|`;
+        - the NCO phase word: a count a sample, `N·(tsamps + 1)` counts;
+        - the reference's own prompt: float accumulation,
+            `2⁻²³·xmax·(tsamps + 2)`, plus `xmax` times the phase bound.
+    - **Measured** under gcc and clang: 0 in `integ` and in the phase, and
+        prompts within 4.8e-7 of a 3.4e-4 bound.
+    - **The sabotages** fail it by orders: a wrong gain moves the phase
+        3.9e8 counts against 51,000, and a frequency read before the step
+        moves it 2.0e7 counts and the prompts 0.042 against 3.4e-4.
+
+Bit for bit is kept where both sides are the library, compared with
+itself: the 2 to 3 to 2 switch against staying at order 2, and the
+mid-stream blob split (§10b, §10d). Both pass under gcc and clang.
 
 **Order 3, pinned and sabotaged on its own** (§10a to §10d):
 

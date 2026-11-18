@@ -45,7 +45,7 @@ doppler.wlan stub=0 runtime=0
 # A symbol covered on no face is omitted; it has nothing to lose, and the module counts above own the burn-down. See
 # face_flags() for why those counts alone are blind to it.
 doppler.accumulator sr
-doppler.accumulator.AccCf64 sr
+doppler.accumulator.AccCf64 sre
 doppler.accumulator.AccCf64.__enter__ sr
 doppler.accumulator.AccCf64.__exit__ sr
 doppler.accumulator.AccCf64.add2d sr
@@ -62,7 +62,7 @@ doppler.accumulator.AccCf64.set_state sr
 doppler.accumulator.AccCf64.state_bytes sr
 doppler.accumulator.AccCf64.step sr
 doppler.accumulator.AccCf64.steps sr
-doppler.accumulator.AccF32 sr
+doppler.accumulator.AccF32 sre
 doppler.accumulator.AccF32.__enter__ sr
 doppler.accumulator.AccF32.__exit__ sr
 doppler.accumulator.AccF32.add2d sr
@@ -79,7 +79,7 @@ doppler.accumulator.AccF32.set_state sr
 doppler.accumulator.AccF32.state_bytes sr
 doppler.accumulator.AccF32.step sr
 doppler.accumulator.AccF32.steps sr
-doppler.accumulator.AccTrace sr
+doppler.accumulator.AccTrace sre
 doppler.accumulator.AccTrace.__enter__ sr
 doppler.accumulator.AccTrace.__exit__ sr
 doppler.accumulator.AccTrace.accumulate sr
@@ -95,7 +95,7 @@ doppler.accumulator.AccTrace.state_bytes sr
 doppler.accumulator.AccTrace.value sr
 doppler.accumulator.AccTrace.value_max_out sr
 doppler.acquire sr
-doppler.acquire.BurstCapture sr
+doppler.acquire.BurstCapture sre
 doppler.acquire.BurstCapture.__enter__ sr
 doppler.acquire.BurstCapture.__exit__ sr
 doppler.acquire.BurstCapture.burst_len sr
@@ -136,7 +136,7 @@ doppler.acquire.BurstCapture.set_state sr
 doppler.acquire.BurstCapture.state_bytes sr
 doppler.acquire.BurstCapture.straddle_loss sr
 doppler.acquire.BurstCapture.underpowered sr
-doppler.acquire.CarrierAcquisition sr
+doppler.acquire.CarrierAcquisition sre
 doppler.acquire.CarrierAcquisition.__enter__ sr
 doppler.acquire.CarrierAcquisition.__exit__ sr
 doppler.acquire.CarrierAcquisition.destroy sr
@@ -151,7 +151,7 @@ doppler.acquire.CarrierAcquisition.residual_hz sr
 doppler.acquire.CarrierAcquisition.set_state sr
 doppler.acquire.CarrierAcquisition.state_bytes sr
 doppler.acquire.CarrierAcquisition.steps sr
-doppler.acquire.PersistentBurstCapture sr
+doppler.acquire.PersistentBurstCapture sre
 doppler.acquire.PersistentBurstCapture.__enter__ sr
 doppler.acquire.PersistentBurstCapture.__exit__ sr
 doppler.acquire.PersistentBurstCapture.burst_len sr
@@ -194,7 +194,7 @@ doppler.acquire.PersistentBurstCapture.straddle_loss sr
 doppler.acquire.PersistentBurstCapture.underpowered sr
 doppler.acquire.bin_to_signed sr
 doppler.agc sr
-doppler.agc.AGC sr
+doppler.agc.AGC sre
 doppler.agc.AGC.__enter__ sr
 doppler.agc.AGC.__exit__ sr
 doppler.agc.AGC.alpha sr
@@ -214,7 +214,7 @@ doppler.agc.AGC.state_bytes sr
 doppler.agc.AGC.step sr
 doppler.agc.AGC.steps sr
 doppler.analyzer sr
-doppler.analyzer.Specan sr
+doppler.analyzer.Specan sre
 doppler.analyzer.Specan.__enter__ sr
 doppler.analyzer.Specan.__exit__ sr
 doppler.analyzer.Specan.beta sr
@@ -235,7 +235,7 @@ doppler.analyzer.Specan.set_state sr
 doppler.analyzer.Specan.span sr
 doppler.analyzer.Specan.state_bytes sr
 doppler.arith sr
-doppler.arith.AccQ15 sr
+doppler.arith.AccQ15 sre
 doppler.arith.AccQ15.__enter__ sr
 doppler.arith.AccQ15.__exit__ sr
 doppler.arith.AccQ15.destroy sr
@@ -250,7 +250,7 @@ doppler.arith.AccQ15.set_state sr
 doppler.arith.AccQ15.state_bytes sr
 doppler.arith.AccQ15.step sr
 doppler.arith.AccQ15.steps sr
-doppler.arith.AccQ8 sr
+doppler.arith.AccQ8 sre
 doppler.arith.AccQ8.__enter__ sr
 doppler.arith.AccQ8.__exit__ sr
 doppler.arith.AccQ8.destroy sr
@@ -338,7 +338,7 @@ doppler.ber.FrameMeter.sync_detected sr
 doppler.ber.FrameMeter.sync_miss sr
 doppler.ber.ber_evm_ideal_db sr
 doppler.buffer sr
-doppler.buffer.F32Buffer sr
+doppler.buffer.F32Buffer sre
 doppler.buffer.F32Buffer.__enter__ sr
 doppler.buffer.F32Buffer.__exit__ sr
 doppler.buffer.F32Buffer.available sr
@@ -354,7 +354,7 @@ doppler.buffer.F32Buffer.space sr
 doppler.buffer.F32Buffer.wait sr
 doppler.buffer.F32Buffer.write sr
 doppler.buffer.F32Buffer.write_some sr
-doppler.buffer.F64Buffer sr
+doppler.buffer.F64Buffer sre
 doppler.buffer.F64Buffer.__enter__ sr
 doppler.buffer.F64Buffer.__exit__ sr
 doppler.buffer.F64Buffer.available sr
@@ -370,7 +370,7 @@ doppler.buffer.F64Buffer.space sr
 doppler.buffer.F64Buffer.wait sr
 doppler.buffer.F64Buffer.write sr
 doppler.buffer.F64Buffer.write_some sr
-doppler.buffer.I16Buffer sr
+doppler.buffer.I16Buffer sre
 doppler.buffer.I16Buffer.__enter__ sr
 doppler.buffer.I16Buffer.__exit__ sr
 doppler.buffer.I16Buffer.available sr
@@ -389,7 +389,7 @@ doppler.buffer.I16Buffer.write_some sr
 doppler.ccsds sr
 doppler.ccsds.asm_bits sr
 doppler.coding sr
-doppler.coding.ConvEncoder sr
+doppler.coding.ConvEncoder sre
 doppler.coding.ConvEncoder.__enter__ sr
 doppler.coding.ConvEncoder.__exit__ sr
 doppler.coding.ConvEncoder.destroy sr
@@ -399,7 +399,7 @@ doppler.coding.ConvEncoder.get_state sr
 doppler.coding.ConvEncoder.reset sr
 doppler.coding.ConvEncoder.set_state sr
 doppler.coding.ConvEncoder.state_bytes sr
-doppler.coding.Deinterleaver sr
+doppler.coding.Deinterleaver sre
 doppler.coding.Deinterleaver.__enter__ sr
 doppler.coding.Deinterleaver.__exit__ sr
 doppler.coding.Deinterleaver.block_bits sr
@@ -414,7 +414,7 @@ doppler.coding.Deinterleaver.reset sr
 doppler.coding.Deinterleaver.rows sr
 doppler.coding.Deinterleaver.separation sr
 doppler.coding.Deinterleaver.unit_bits sr
-doppler.coding.Interleaver sr
+doppler.coding.Interleaver sre
 doppler.coding.Interleaver.__enter__ sr
 doppler.coding.Interleaver.__exit__ sr
 doppler.coding.Interleaver.block_bits sr
@@ -431,7 +431,7 @@ doppler.coding.Interleaver.reset sr
 doppler.coding.Interleaver.rows sr
 doppler.coding.Interleaver.separation sr
 doppler.coding.Interleaver.unit_bits sr
-doppler.coding.ReedSolomon sr
+doppler.coding.ReedSolomon sre
 doppler.coding.ReedSolomon.__enter__ sr
 doppler.coding.ReedSolomon.__exit__ sr
 doppler.coding.ReedSolomon.codeword_ok sr
@@ -447,7 +447,7 @@ doppler.coding.ReedSolomon.nroots sr
 doppler.coding.ReedSolomon.symbol_bits sr
 doppler.coding.ReedSolomon.syndromes sr
 doppler.coding.ReedSolomon.syndromes_max_out sr
-doppler.coding.Viterbi sr
+doppler.coding.Viterbi sre
 doppler.coding.Viterbi.__enter__ sr
 doppler.coding.Viterbi.__exit__ sr
 doppler.coding.Viterbi.decode sr
@@ -458,7 +458,7 @@ doppler.coding.Viterbi.reset sr
 doppler.coding.Viterbi.set_state sr
 doppler.coding.Viterbi.state_bytes sr
 doppler.correlation sr
-doppler.correlation.Correlator sr
+doppler.correlation.Correlator sre
 doppler.correlation.Correlator.__enter__ sr
 doppler.correlation.Correlator.__exit__ sr
 doppler.correlation.Correlator.bank_detect sr
@@ -677,7 +677,7 @@ doppler.cvt.hex_to_bin sr
 doppler.cvt.int_to_bin sr
 doppler.cvt.nrz_to_bin sr
 doppler.ddc sr
-doppler.ddc.DDC sr
+doppler.ddc.DDC sre
 doppler.ddc.DDC.__enter__ sr
 doppler.ddc.DDC.__exit__ sr
 doppler.ddc.DDC.clipped sr
@@ -695,7 +695,7 @@ doppler.ddc.DDC.rate sr
 doppler.ddc.DDC.reset sr
 doppler.ddc.DDC.set_state sr
 doppler.ddc.DDC.state_bytes sr
-doppler.ddc.Ddcr sr
+doppler.ddc.Ddcr sre
 doppler.ddc.Ddcr.__enter__ sr
 doppler.ddc.Ddcr.__exit__ sr
 doppler.ddc.Ddcr.clipped sr
@@ -714,7 +714,7 @@ doppler.ddc.Ddcr.rate sr
 doppler.ddc.Ddcr.reset sr
 doppler.ddc.Ddcr.set_state sr
 doppler.ddc.Ddcr.state_bytes sr
-doppler.ddc.MatchedDDC sr
+doppler.ddc.MatchedDDC sre
 doppler.ddc.MatchedDDC.__enter__ sr
 doppler.ddc.MatchedDDC.__exit__ sr
 doppler.ddc.MatchedDDC.clipped sr
@@ -732,7 +732,7 @@ doppler.ddc.MatchedDDC.rate sr
 doppler.ddc.MatchedDDC.reset sr
 doppler.ddc.MatchedDDC.set_state sr
 doppler.ddc.MatchedDDC.state_bytes sr
-doppler.ddc.MatchedDdcr sr
+doppler.ddc.MatchedDdcr sre
 doppler.ddc.MatchedDdcr.__enter__ sr
 doppler.ddc.MatchedDdcr.__exit__ sr
 doppler.ddc.MatchedDdcr.clipped sr
@@ -752,7 +752,7 @@ doppler.ddc.MatchedDdcr.reset sr
 doppler.ddc.MatchedDdcr.set_state sr
 doppler.ddc.MatchedDdcr.state_bytes sr
 doppler.delay sr
-doppler.delay.DelayCf64 sr
+doppler.delay.DelayCf64 sre
 doppler.delay.DelayCf64.__enter__ sr
 doppler.delay.DelayCf64.__exit__ sr
 doppler.delay.DelayCf64.capacity sr
@@ -786,7 +786,7 @@ doppler.detection.LockDet.state_bytes sr
 doppler.detection.LockDet.step sr
 doppler.detection.LockDet.steps sr
 doppler.detection.LockDet.up_thresh sr
-doppler.detection.SyncFinder sr
+doppler.detection.SyncFinder sre
 doppler.detection.SyncFinder.__enter__ sr
 doppler.detection.SyncFinder.__exit__ sr
 doppler.detection.SyncFinder.destroy sr
@@ -823,7 +823,7 @@ doppler.detection.det_verify_count sr
 doppler.detection.det_verify_delay sr
 doppler.detection.marcum_q sr
 doppler.dsss sr
-doppler.dsss.AsyncDsssPool sr
+doppler.dsss.AsyncDsssPool sre
 doppler.dsss.AsyncDsssPool.__enter__ sr
 doppler.dsss.AsyncDsssPool.__exit__ sr
 doppler.dsss.AsyncDsssPool.coherent_bins sr
@@ -844,7 +844,7 @@ doppler.dsss.AsyncDsssPool.status sr
 doppler.dsss.AsyncDsssPool.symbols sr
 doppler.dsss.AsyncDsssPool.symbols_max_out sr
 doppler.dsss.AsyncDsssPool.threads sr
-doppler.dsss.AsyncDsssReceiver sr
+doppler.dsss.AsyncDsssReceiver sre
 doppler.dsss.AsyncDsssReceiver.__enter__ sr
 doppler.dsss.AsyncDsssReceiver.__exit__ sr
 doppler.dsss.AsyncDsssReceiver.car_last_error sr
@@ -890,7 +890,7 @@ doppler.dsss.AsyncDsssReceiver.steps sr
 doppler.dsss.AsyncDsssReceiver.steps_max_out sr
 doppler.dsss.AsyncDsssReceiver.threads sr
 doppler.dsss.AsyncDsssReceiver.tracking sr
-doppler.dsss.BurstDemod sr
+doppler.dsss.BurstDemod sre
 doppler.dsss.BurstDemod.__enter__ sr
 doppler.dsss.BurstDemod.__exit__ sr
 doppler.dsss.BurstDemod.demod r
@@ -911,7 +911,7 @@ doppler.dsss.BurstDemod.set_preamble sr
 doppler.dsss.BurstDemod.set_prior sr
 doppler.dsss.BurstDemod.symbols sr
 doppler.dsss.BurstDemod.symbols_max_out sr
-doppler.dsss.BurstDespreader sr
+doppler.dsss.BurstDespreader sre
 doppler.dsss.BurstDespreader.__enter__ sr
 doppler.dsss.BurstDespreader.__exit__ sr
 doppler.dsss.BurstDespreader.bits r
@@ -932,7 +932,7 @@ doppler.dsss.BurstDespreader.stat_n sr
 doppler.dsss.BurstDespreader.state_bytes sr
 doppler.dsss.BurstDespreader.steps sr
 doppler.dsss.BurstDespreader.steps_max_out r
-doppler.dsss.Despreader sr
+doppler.dsss.Despreader sre
 doppler.dsss.Despreader.__enter__ sr
 doppler.dsss.Despreader.__exit__ sr
 doppler.dsss.Despreader.bit_phase sr
@@ -956,7 +956,7 @@ doppler.dsss.Despreader.set_telemetry sr
 doppler.dsss.Despreader.state_bytes sr
 doppler.dsss.Despreader.steps r
 doppler.dsss.Despreader.steps_max_out r
-doppler.dsss.DsssBurstReceiver sr
+doppler.dsss.DsssBurstReceiver sre
 doppler.dsss.DsssBurstReceiver.__enter__ sr
 doppler.dsss.DsssBurstReceiver.__exit__ sr
 doppler.dsss.DsssBurstReceiver.cn0_dbhz_est sr
@@ -986,7 +986,7 @@ doppler.dsss.DsssBurstReceiver.reset sr
 doppler.dsss.DsssBurstReceiver.retain_span sr
 doppler.dsss.DsssBurstReceiver.set_state sr
 doppler.dsss.DsssBurstReceiver.state_bytes sr
-doppler.dsss.DsssReceiver sr
+doppler.dsss.DsssReceiver sre
 doppler.dsss.DsssReceiver.__enter__ sr
 doppler.dsss.DsssReceiver.__exit__ sr
 doppler.dsss.DsssReceiver.chip_phase sr
@@ -1054,7 +1054,7 @@ doppler.dsss.ReceiverStatus.refused_hits sr
 doppler.dsss.ReceiverStatus.state sr
 doppler.dsss.ReceiverStatus.state_samples sr
 doppler.filter sr
-doppler.filter.FIR sr
+doppler.filter.FIR sre
 doppler.filter.FIR.__enter__ sr
 doppler.filter.FIR.__exit__ sr
 doppler.filter.FIR.destroy sr
@@ -1099,7 +1099,7 @@ doppler.impairment.DopplerChannel.reset sr
 doppler.impairment.DopplerChannel.set_state sr
 doppler.impairment.DopplerChannel.state_bytes sr
 doppler.interp sr
-doppler.interp.InterpolatedTable sr
+doppler.interp.InterpolatedTable sre
 doppler.interp.InterpolatedTable.__enter__ sr
 doppler.interp.InterpolatedTable.__exit__ sr
 doppler.interp.InterpolatedTable.destroy sr
@@ -1108,7 +1108,7 @@ doppler.interp.InterpolatedTable.execute_max_out sr
 doppler.interp.InterpolatedTable.n sr
 doppler.interp.InterpolatedTable.reset sr
 doppler.interrupt sr
-doppler.interrupt.Interrupt sr
+doppler.interrupt.Interrupt sre
 doppler.interrupt.Interrupt.__enter__ sr
 doppler.interrupt.Interrupt.__exit__ sr
 doppler.interrupt.Interrupt.destroy sr
@@ -1219,7 +1219,7 @@ doppler.mpsk.mpsk_diff_map sr
 doppler.mpsk.mpsk_map sr
 doppler.mpsk.mpsk_soft_demap sr
 doppler.resample sr
-doppler.resample.CIC sr
+doppler.resample.CIC sre
 doppler.resample.CIC.R sr
 doppler.resample.CIC.__enter__ sr
 doppler.resample.CIC.__exit__ sr
@@ -1244,7 +1244,7 @@ doppler.resample.Farrow.group_delay sr
 doppler.resample.Farrow.reset sr
 doppler.resample.Farrow.set_state sr
 doppler.resample.Farrow.state_bytes sr
-doppler.resample.HalfbandDecimator sr
+doppler.resample.HalfbandDecimator sre
 doppler.resample.HalfbandDecimator.__enter__ sr
 doppler.resample.HalfbandDecimator.__exit__ sr
 doppler.resample.HalfbandDecimator.destroy sr
@@ -1256,7 +1256,7 @@ doppler.resample.HalfbandDecimator.rate sr
 doppler.resample.HalfbandDecimator.reset sr
 doppler.resample.HalfbandDecimator.set_state sr
 doppler.resample.HalfbandDecimator.state_bytes sr
-doppler.resample.HalfbandDecimatorQ15 sr
+doppler.resample.HalfbandDecimatorQ15 sre
 doppler.resample.HalfbandDecimatorQ15.__enter__ sr
 doppler.resample.HalfbandDecimatorQ15.__exit__ sr
 doppler.resample.HalfbandDecimatorQ15.destroy sr
@@ -1287,7 +1287,7 @@ doppler.resample.MatchedRateConverter.reset sr
 doppler.resample.MatchedRateConverter.set_state sr
 doppler.resample.MatchedRateConverter.stages sr
 doppler.resample.MatchedRateConverter.state_bytes sr
-doppler.resample.RateConverter sr
+doppler.resample.RateConverter sre
 doppler.resample.RateConverter.__enter__ sr
 doppler.resample.RateConverter.__exit__ sr
 doppler.resample.RateConverter.bank_shape sr
@@ -1306,7 +1306,7 @@ doppler.resample.RateConverter.reset sr
 doppler.resample.RateConverter.set_state sr
 doppler.resample.RateConverter.stages sr
 doppler.resample.RateConverter.state_bytes sr
-doppler.resample.Resampler sr
+doppler.resample.Resampler sre
 doppler.resample.Resampler.__enter__ sr
 doppler.resample.Resampler.__exit__ sr
 doppler.resample.Resampler.consumed sr
@@ -1332,7 +1332,7 @@ doppler.snr sr
 doppler.snr.snr_data_aided_db sr
 doppler.snr.snr_m2m4_db sr
 doppler.source sr
-doppler.source.AWGN sr
+doppler.source.AWGN sre
 doppler.source.AWGN.__enter__ sr
 doppler.source.AWGN.__exit__ sr
 doppler.source.AWGN.amplitude sr
@@ -1344,7 +1344,7 @@ doppler.source.AWGN.reseed sr
 doppler.source.AWGN.reset sr
 doppler.source.AWGN.set_state sr
 doppler.source.AWGN.state_bytes sr
-doppler.source.LO sr
+doppler.source.LO sre
 doppler.source.LO.__enter__ sr
 doppler.source.LO.__exit__ sr
 doppler.source.LO.destroy sr
@@ -1359,7 +1359,7 @@ doppler.source.LO.steps sr
 doppler.source.LO.steps_ctrl sr
 doppler.source.LO.steps_ctrl_max_out sr
 doppler.source.LO.steps_max_out sr
-doppler.source.NCO sr
+doppler.source.NCO sre
 doppler.source.NCO.__enter__ sr
 doppler.source.NCO.__exit__ sr
 doppler.source.NCO.destroy sr
@@ -1381,7 +1381,7 @@ doppler.source.NCO.steps_u32_scaled_ctrl sr
 doppler.source.NCO.steps_u32_scaled_ctrl_max_out sr
 doppler.source.NCO.steps_u32_scaled_max_out sr
 doppler.spectral sr
-doppler.spectral.FFT sr
+doppler.spectral.FFT sre
 doppler.spectral.FFT.__enter__ sr
 doppler.spectral.FFT.__exit__ sr
 doppler.spectral.FFT.destroy sr
@@ -1395,7 +1395,7 @@ doppler.spectral.FFT.execute_inplace_cf64 sr
 doppler.spectral.FFT.execute_inplace_cf64_max_out sr
 doppler.spectral.FFT.n sr
 doppler.spectral.FFT.sign sr
-doppler.spectral.FFT2D sr
+doppler.spectral.FFT2D sre
 doppler.spectral.FFT2D.__enter__ sr
 doppler.spectral.FFT2D.__exit__ sr
 doppler.spectral.FFT2D.destroy sr
@@ -1410,7 +1410,7 @@ doppler.spectral.FFT2D.execute_inplace_cf64_max_out sr
 doppler.spectral.FFT2D.nx sr
 doppler.spectral.FFT2D.ny sr
 doppler.spectral.FFT2D.sign sr
-doppler.spectral.PSD sr
+doppler.spectral.PSD sre
 doppler.spectral.PSD.__enter__ sr
 doppler.spectral.PSD.__exit__ sr
 doppler.spectral.PSD.accumulate sr
@@ -1474,34 +1474,34 @@ doppler.spectral.magnitude_db_cf32 sr
 doppler.spectral.magnitude_db_cf64 sr
 doppler.spectral.obw_from_power sr
 doppler.spectral.power_to_db_f32 sr
-doppler.stream.Publisher s
+doppler.stream.Publisher se
 doppler.stream.Publisher.__exit__ s
 doppler.stream.Publisher.close sr
 doppler.stream.Publisher.drain sr
 doppler.stream.Publisher.flush sr
 doppler.stream.Publisher.send s
 doppler.stream.Publisher.send_eos sr
-doppler.stream.Pull s
+doppler.stream.Pull se
 doppler.stream.Pull.__exit__ s
 doppler.stream.Pull.ack s
 doppler.stream.Pull.close s
 doppler.stream.Pull.recv s
-doppler.stream.Push s
+doppler.stream.Push se
 doppler.stream.Push.__exit__ s
 doppler.stream.Push.close s
 doppler.stream.Push.delete_stream sr
 doppler.stream.Push.send s
-doppler.stream.Replier s
+doppler.stream.Replier se
 doppler.stream.Replier.__exit__ s
 doppler.stream.Replier.close s
 doppler.stream.Replier.recv s
 doppler.stream.Replier.send s
-doppler.stream.Requester s
+doppler.stream.Requester se
 doppler.stream.Requester.__exit__ s
 doppler.stream.Requester.close s
 doppler.stream.Requester.recv s
 doppler.stream.Requester.send s
-doppler.stream.Subscriber s
+doppler.stream.Subscriber se
 doppler.stream.Subscriber.__exit__ s
 doppler.stream.Subscriber.close s
 doppler.stream.Subscriber.reasm_stats sr
@@ -1510,7 +1510,7 @@ doppler.stream.format_name sr
 doppler.stream.get_timestamp_ns s
 doppler.stream.mean_power sr
 doppler.telemetry sr
-doppler.telemetry.Capture sr
+doppler.telemetry.Capture sre
 doppler.telemetry.Capture.__enter__ sr
 doppler.telemetry.Capture.__exit__ sr
 doppler.telemetry.Capture.block sr
@@ -1518,7 +1518,7 @@ doppler.telemetry.Capture.close sr
 doppler.telemetry.Capture.count sr
 doppler.telemetry.Capture.destroy sr
 doppler.telemetry.Capture.dropped sr
-doppler.telemetry.EventLog sr
+doppler.telemetry.EventLog sre
 doppler.telemetry.EventLog.__enter__ sr
 doppler.telemetry.EventLog.__exit__ sr
 doppler.telemetry.EventLog.append sr
@@ -1530,7 +1530,7 @@ doppler.telemetry.EventLog.field_str sr
 doppler.telemetry.EventLog.finalize sr
 doppler.telemetry.EventLog.set_dataset sr
 doppler.telemetry.EventLog.set_telemetry sr
-doppler.telemetry.MemoryCapture sr
+doppler.telemetry.MemoryCapture sre
 doppler.telemetry.MemoryCapture.__enter__ sr
 doppler.telemetry.MemoryCapture.__exit__ sr
 doppler.telemetry.MemoryCapture.block sr
@@ -1566,7 +1566,7 @@ doppler.telemetry.TelemetryStats.dropped sr
 doppler.telemetry.TelemetryStats.emitted sr
 doppler.telemetry.TelemetryStats.probes sr
 doppler.track sr
-doppler.track.BpskReceiver sr
+doppler.track.BpskReceiver sre
 doppler.track.BpskReceiver.__enter__ sr
 doppler.track.BpskReceiver.__exit__ sr
 doppler.track.BpskReceiver.agc_gain_db sr
@@ -1652,7 +1652,7 @@ doppler.track.Costas.set_telemetry sr
 doppler.track.Costas.state_bytes sr
 doppler.track.Costas.steps sr
 doppler.track.Costas.steps_max_out sr
-doppler.track.Dll sr
+doppler.track.Dll sre
 doppler.track.Dll.__enter__ sr
 doppler.track.Dll.__exit__ sr
 doppler.track.Dll.bn sr
@@ -1810,7 +1810,7 @@ doppler.util.sinc sr
 doppler.util.square_clip sr
 doppler.wfm sr
 doppler.wfm.Composer.close sr
-doppler.wfm.Frame sr
+doppler.wfm.Frame sre
 doppler.wfm.Frame.__enter__ sr
 doppler.wfm.Frame.__exit__ sr
 doppler.wfm.Frame.add_data sr
@@ -1847,7 +1847,7 @@ doppler.wfm.FrameCheck.passed sr
 doppler.wfm.FrameCheck.stages sr
 doppler.wfm.FrameCheck.symbols sr
 doppler.wfm.FrameCheck.units sr
-doppler.wfm.FrameDesc sr
+doppler.wfm.FrameDesc sre
 doppler.wfm.FrameDesc.__enter__ sr
 doppler.wfm.FrameDesc.__exit__ sr
 doppler.wfm.FrameDesc.add_data sr
@@ -1876,7 +1876,7 @@ doppler.wfm.FrameDesc.rx_symbols sr
 doppler.wfm.FrameDesc.rx_units sr
 doppler.wfm.FrameDesc.stage_bits sr
 doppler.wfm.FrameDesc.stage_first sr
-doppler.wfm.Gold sr
+doppler.wfm.Gold sre
 doppler.wfm.Gold.__enter__ sr
 doppler.wfm.Gold.__exit__ sr
 doppler.wfm.Gold.destroy sr
@@ -1886,7 +1886,7 @@ doppler.wfm.Gold.get_state sr
 doppler.wfm.Gold.reset sr
 doppler.wfm.Gold.set_state sr
 doppler.wfm.Gold.state_bytes sr
-doppler.wfm.PN sr
+doppler.wfm.PN sre
 doppler.wfm.PN.__enter__ sr
 doppler.wfm.PN.__exit__ sr
 doppler.wfm.PN.destroy sr
@@ -1899,7 +1899,7 @@ doppler.wfm.PN.state_bytes sr
 doppler.wfm.Plan.__exit__ s
 doppler.wfm.Plan.check_snr s
 doppler.wfm.Plan.close s
-doppler.wfm.Reader sr
+doppler.wfm.Reader sre
 doppler.wfm.Reader.__enter__ sr
 doppler.wfm.Reader.__exit__ sr
 doppler.wfm.Reader.annotations sr
@@ -1940,7 +1940,7 @@ doppler.wfm.StreamSink.close sr
 doppler.wfm.StreamSink.peak_dbfs s
 doppler.wfm.Synth.frame r
 doppler.wfm.Synth.prod sr
-doppler.wfm.Writer sr
+doppler.wfm.Writer sre
 doppler.wfm.Writer.__enter__ sr
 doppler.wfm.Writer.__exit__ sr
 doppler.wfm.Writer.annotate r
@@ -1959,3 +1959,6 @@ doppler.wfm.mls_poly sr
 doppler.wfm.qpsk_map sr
 doppler.wfm.wfm_awgn_amplitude sr
 doppler.wfm.wfm_ebno_to_snr_db sr
+doppler.resample.HalfbandDecimatorR2C e
+doppler.track.StateFilter e
+doppler.wlan.Wlan e

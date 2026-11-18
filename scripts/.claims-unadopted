@@ -106,7 +106,6 @@ native/tests/specan/test_specan_core.c
 native/tests/spectral/test_spectral_core.c
 native/tests/spectrogram/test_spectrogram_core.c
 native/tests/state_filter/test_state_filter_core.c
-native/tests/state_filter_kalman/test_state_filter_kalman_core.c
 native/tests/stream/test_stream_nats_core.c
 native/tests/symsync/test_symsync_core.c
 native/tests/syncword/test_syncword_core.c

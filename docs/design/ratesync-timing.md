@@ -195,7 +195,9 @@ is appealing:
     thousands of times its designed gain for exactly the interval that
     decides acquisition. Measured: that wound the integrator past pull-in and
     cost 7000–25000 symbols to recover across a 0.3-symbol-wide band of
-    initial offsets. With the lag gone the same band acquires in 133–266.
+    initial offsets. With the lag gone that band acquires like every other
+    offset, inside the first few lock decisions; RateSync's certification
+    report, §2.4, measures the declare at each offset.
 
 A separate and *earlier* mistake is worth keeping on the record because it is
 the more tempting one: normalising by `|on|²` **alone**. The on-time energy
@@ -320,8 +322,10 @@ ______________________________________________________________________
     were calibrated against symsync's own geometry by Monte Carlo. Re-exposing
     the formula for a different front end without repeating that validation
     would be asserting a calibration nobody measured, so `RateSync` ships
-    symsync's empirically validated operating point as the default
-    (`avgs = 133`, threshold 0.311, `n_up = 1`, `n_down = 8`) and exposes
+    symsync's empirically validated sizing as the default (`avgs = 133`,
+    threshold 0.311, at a per-decision pfa of 1e-3 and pd of 0.9) with verify
+    counts derived from a per-decision budget of 1e-6: it declares after
+    `n_up = 2` decisions and drops after `n_down = 6`. It exposes
     `dp_ratesync_configure_lock_raw()` for a caller that sizes its own. See
     [Timing Lock Detector](timing_lock_detector.md).
 - **A second timing mechanism.** The terminal stage's accumulator is the only

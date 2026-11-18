@@ -50,6 +50,10 @@ extern "C"
 
 #define RATESYNC_LOCK_EPS 1e-12
 
+#define RATESYNC_LOCK_PFA 1e-3
+#define RATESYNC_LOCK_PD 0.9
+#define RATESYNC_LOCK_BUDGET 1e-6
+
   typedef struct
   {
     dp_tlm_t *ctx;       
@@ -229,8 +233,9 @@ extern "C"
        thousands of times its designed gain for exactly the interval that
        decides acquisition. Measured, that wound the integrator past pull-in
        and cost 7000-25000 symbols to recover across a 0.3-symbol-wide band
-       of initial offsets; with the lag gone the same band acquires in
-       133-266. */
+       of initial offsets; with the lag gone that band acquires like every
+       other offset, inside the first few lock decisions (the validation
+       report's §2.4 measures the declare at each offset). */
     double e      = num * s->ted_scale;
     s->last_error = e;
 

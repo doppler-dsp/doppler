@@ -788,5 +788,80 @@ main (void)
     dp_state_filter_kalman_destroy (b);
   }
 
+  /* The refusal's sentence names the argument that failed, and is NULL
+   * exactly when create_args builds: each refusal beside its minimal pair
+   * (the same call with that one argument made good), then every
+   * combination of awkward values against the constructor itself. */
+  {
+    static const struct
+    {
+      double      e, a, t, f0, bn;
+      const char *names;
+    } refuse[] = {
+      { 0, 0, 1, 0, 0, "bn alone" },
+      { 1, 1e-3, 1, 0, 0.01, "not both" },
+      { 1, 1e-3, 0, 0, 0, "t must" },
+      { 0, 0, NAN, 0, 0.01, "t must" },
+      { 0, 0, 1, 0, -0.01, "bn must be finite and positive" },
+      { 0, 0, 1, 0, INFINITY, "bn must be finite and positive" },
+      { 0, 0, 1, 0, 0.5, "bn*t is outside" },
+      { 1, -1e-3, 1, 0, 0, "must both be > 0" },
+      { 0, 1e-3, 1, 0, 0, "must both be > 0" },
+      { 1, 1e-3, 1, -1.0, 0, "sigma_f0 must be 0" },
+      { 1, 1e-3, 1, 1e9, 0, "sigma_f0 must be 0" },
+      { 1, 1e-24, 1, 0, 0, "below the smallest" },
+      { 1, 1.0, 1, 0, 0, "above the largest" },
+    };
+    for (size_t i = 0; i < sizeof refuse / sizeof *refuse; i++)
+      {
+        const char *w = dp_state_filter_kalman_args_why (
+            refuse[i].e, refuse[i].a, refuse[i].t, refuse[i].f0, refuse[i].bn);
+        DP_CHECK (w != NULL && strstr (w, refuse[i].names) != NULL);
+        const char *why = "unset";
+        DP_CHECK (dp_state_filter_kalman_create_args_why (
+                      refuse[i].e, refuse[i].a, refuse[i].t, refuse[i].f0,
+                      refuse[i].bn, &why)
+                  == NULL);
+        DP_CHECK (why == w);
+      }
+    static const double good[][5]
+        = { { 1.0, 1e-3, 1.0, 0.0, 0.0 }, { 0.0, 0.0, 1.0, 0.0, 0.01 } };
+    for (size_t i = 0; i < sizeof good / sizeof *good; i++)
+      {
+        const char                     *why = "unset";
+        dp_state_filter_kalman_state_t *k
+            = dp_state_filter_kalman_create_args_why (good[i][0], good[i][1],
+                                                      good[i][2], good[i][3],
+                                                      good[i][4], &why);
+        DP_CHECK (k != NULL && why == NULL);
+        dp_state_filter_kalman_destroy (k);
+      }
+    DP_CHECK (dp_state_filter_kalman_create_args_why (0, 0, 1, 0, 0, NULL)
+              == NULL);
+
+    static const double es[]  = { -1.0, 0.0, 1.0, NAN };
+    static const double as[]  = { -1e-3, 0.0, 1e-3, 1e-1, 1e-9, NAN };
+    static const double ts[]  = { 0.0, 1.0, NAN };
+    static const double fs[]  = { 0.0, -1.0, 1e9 };
+    static const double bs[]  = { 0.0, 0.01, 0.5, -1.0 };
+    int                 agree = 1;
+    for (size_t ie = 0; ie < sizeof es / sizeof *es; ie++)
+      for (size_t ia = 0; ia < sizeof as / sizeof *as; ia++)
+        for (size_t it = 0; it < sizeof ts / sizeof *ts; it++)
+          for (size_t jf = 0; jf < sizeof fs / sizeof *fs; jf++)
+            for (size_t ib = 0; ib < sizeof bs / sizeof *bs; ib++)
+              {
+                const char *w = dp_state_filter_kalman_args_why (
+                    es[ie], as[ia], ts[it], fs[jf], bs[ib]);
+                dp_state_filter_kalman_state_t *k
+                    = dp_state_filter_kalman_create_args (
+                        es[ie], as[ia], ts[it], fs[jf], bs[ib]);
+                if ((w == NULL) != (k != NULL))
+                  agree = 0;
+                dp_state_filter_kalman_destroy (k);
+              }
+    DP_CHECK (agree);
+  }
+
   DP_TEST_END ("test_state_filter_kalman_core");
 }

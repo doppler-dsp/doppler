@@ -55,13 +55,16 @@ KalmanStateFilterObj_init (KalmanStateFilterObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddddd", kwlist, &sigma_e,
                                     &sigma_a, &t, &sigma_f0, &bn))
     return -1;
-  self->handle
-      = dp_state_filter_kalman_create_args (sigma_e, sigma_a, t, sigma_f0, bn);
+  const char *_why = NULL;
+  self->handle = dp_state_filter_kalman_create_args_why (sigma_e, sigma_a, t,
+                                                         sigma_f0, bn, &_why);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "give sigma_e and sigma_a (> 0), or bn alone, in "
-                       "range; see docs");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "give sigma_e and sigma_a, or bn alone, in range");
       return -1;
     }
   return 0;
@@ -219,7 +222,11 @@ KalmanStateFilterObj_configure (KalmanStateFilterObject *self, PyObject *args,
                                               t, sigma_f0, bn);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure refused: name sigma_e and sigma_a (and "
+                    "optionally sigma_f0), or bn alone, with t positive and "
+                    "finite and the result inside the domain; nothing "
+                    "changed",
                     (long long)_rc);
       return NULL;
     }
@@ -599,7 +606,10 @@ static PyMethodDef KalmanStateFilterObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``configure failed``, with the return code appended (gh-869).\n"
+    "    ``configure refused: name sigma_e and sigma_a (and optionally\n"
+    "    sigma_f0), or bn alone, with t positive and finite and the result\n"
+    "    inside the domain; nothing changed``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -803,8 +813,9 @@ static PyTypeObject KalmanStateFilterObjType = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If construction fails. The exception message is ``give sigma_e and\n"
-    "    sigma_a (> 0), or bn alone, in range; see docs``.\n"
+    "    If construction fails. The exception message is the reason the\n"
+    "    constructor gives, or ``give sigma_e and sigma_a, or bn alone, in\n"
+    "    range`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -821,8 +832,7 @@ static PyTypeObject KalmanStateFilterObjType = {
     ">>> KalmanStateFilter()                        # neither form\n"
     "Traceback (most recent call last):\n"
     "    ...\n"
-    "ValueError: give sigma_e and sigma_a (> 0), or bn alone, in range; see "
-    "docs\n",
+    "ValueError: give sigma_e and sigma_a, or bn alone\n",
   .tp_methods = KalmanStateFilterObj_methods,
   .tp_getset  = KalmanStateFilter_getset,
   .tp_new     = KalmanStateFilterObj_new,

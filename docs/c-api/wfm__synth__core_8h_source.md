@@ -169,6 +169,9 @@ wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
 }
 
 
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE float _Complex
 wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
 {
@@ -193,6 +196,7 @@ wfm_synth_bit_symbol(dp_wfm_synth_state_t *s)
     }
     return mpsk_constellation(g, 1 << s->bit_mod);
 }
+#endif /* !__cplusplus */
 
 JM_FORCEINLINE float
 wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
@@ -238,6 +242,9 @@ wfm_synth_cont_dsss_chip(dp_wfm_synth_state_t *s)
     return (code_bit ^ s->cur_data) ? -1.0f : 1.0f;
 }
 
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE float _Complex
 wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
 {
@@ -267,7 +274,11 @@ wfm_synth_next_symbol(dp_wfm_synth_state_t *s)
     uint8_t b = pn_step(s->pn);
     return (b ? -1.0f : 1.0f) + 0.0f * I;
 }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+/* C only: calls wfm_synth_next_symbol(), which is C only (dp_complex.h, "From
+   C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE void
 wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
 {
@@ -283,7 +294,11 @@ wfm_synth_shaper_prime(dp_wfm_synth_state_t *s)
     }
     s->primed = 1;
 }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+/* C only: calls wfm_synth_next_symbol(), which is C only (dp_complex.h, "From
+   C++"). A C++ caller uses dp_wfm_synth_steps(). */
 JM_FORCEINLINE void
 wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
                 float _Complex *syms)
@@ -295,6 +310,7 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
         syms[k] = wfm_synth_next_symbol(s);
     dp_resamp_interp_fill(s->shaper, syms, out, m);
 }
+#endif /* !__cplusplus */
 
 dp_wfm_synth_state_t *dp_wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr, double f_end);
 
@@ -339,6 +355,7 @@ void dp_wfm_synth_reseed_noise(dp_wfm_synth_state_t *state, uint32_t seed);
 void dp_wfm_synth_noise_steps(dp_wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
+#ifndef __cplusplus
 JM_FORCEINLINE JM_HOT float _Complex
 dp_wfm_synth_step(dp_wfm_synth_state_t *state)
 {
@@ -465,6 +482,12 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
         dp_awgn_generate(state->awgn, 1, &noise, 1);
     return sym * carrier + noise;
 }
+/* dp_wfm_synth_step() above is C only: the body uses the C99 complex
+   library and calls wfm_synth_shape(), which is C only (dp_complex.h,
+   "From C++"). A C++ caller uses dp_wfm_synth_steps(). A plain comment, and
+   here rather than above it, because its Doxygen is also the Python
+   docstring. */
+#endif /* !__cplusplus */
 
 void dp_wfm_synth_steps(
     dp_wfm_synth_state_t *state,

@@ -16,7 +16,14 @@
 #error "doppler requires C99 _Complex; on Windows build with clang-cl, not cl.exe"
 #endif
 
-#ifdef _WIN32
+#ifdef __cplusplus
+
+/* Types only: see "From C++" in the file comment. No header is included
+   here on purpose -- `<complex.h>` in C++ is `<complex>`, a template
+   library, and this file is reachable from inside a caller's own
+   `extern "C" { }` block, where templates are ill-formed. */
+
+#elif defined(_WIN32)
 
 #include <math.h>
 #include <complex.h> /* first, so it is never included after: see above */

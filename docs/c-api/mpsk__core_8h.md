@@ -664,7 +664,14 @@ Maps the Gray-coded label byte (0..M-1) to its complex point `exp(j*(2*pi*k/M + 
 
 **Returns:**
 
-Unit-amplitude constellation point. 
+Unit-amplitude constellation point.
+
+
+
+
+**Note:**
+
+C only, with [**mpsk\_slice()**](mpsk__core_8h.md#function-mpsk_slice): both bodies use the C99 complex library, which C++ does not have ([**dp\_complex.h**](dp__complex_8h.md), "From C++"). A C++ caller uses the array functions, mpsk\_map() and mpsk\_demap(). 
 
 
 
@@ -916,7 +923,14 @@ JM_FORCEINLINE float _Complex qam_constellation (
 
 **Returns:**
 
-The point; 0 for an unsupported `m`. 
+The point; 0 for an unsupported `m`.
+
+
+
+
+**Note:**
+
+C only, with [**qam\_slice()**](mpsk__core_8h.md#function-qam_slice): both bodies use the C99 complex library, which C++ does not have ([**dp\_complex.h**](dp__complex_8h.md), "From C++"). A C++ caller uses the array functions, [**dp\_qam\_map()**](mpsk__core_8h.md#function-dp_qam_map) and [**dp\_qam\_demap()**](mpsk__core_8h.md#function-dp_qam_demap). 
 
 
 

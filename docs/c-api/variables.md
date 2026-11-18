@@ -24,6 +24,7 @@
 ## d
 
 * **dp\_sample\_type\_t** ([**dp\_format.h**](dp__format_8h.md))
+* **dp\_pool\_t** ([**dp\_parallel.h**](dp__parallel_8h.md))
 * **dp\_cond\_t** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_mutex\_t** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_thread\_t** ([**dp\_thread.h**](dp__thread_8h.md))

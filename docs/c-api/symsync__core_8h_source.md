@@ -70,12 +70,16 @@ extern "C"
     symsync_tlm_t tlm; 
   } dp_symsync_state_t;
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE double
   gardner_ted (float _Complex mid, float _Complex diff)
   {
     return (double)(crealf (mid) * crealf (diff)
                     + cimagf (mid) * cimagf (diff));
   }
+#endif /* !__cplusplus */
 
   enum
   {
@@ -85,6 +89,9 @@ extern "C"
 
   double dp_symsync_ted_slope (int ted, int pulse, double beta, size_t span);
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE double
   dttl_ted (float _Complex mid, float _Complex y, float _Complex prev)
   {
@@ -94,7 +101,11 @@ extern "C"
                 - (cimagf (prev) >= 0.0f ? 1.0 : -1.0);
     return (double)crealf (mid) * si + (double)cimagf (mid) * sq;
   }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE JM_HOT int
   symsync_step_ted (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out,
                     int ted)
@@ -177,9 +188,13 @@ extern "C"
     s->prev_ontime = y;
     return emit;
   }
+#endif /* !__cplusplus */
 
   void dp_symsync_tlm_flush (const dp_symsync_state_t *s);
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_symsync_steps(). */
   JM_FORCEINLINE JM_HOT int
   symsync_step (dp_symsync_state_t *s, float _Complex x, float _Complex *y_out)
   {
@@ -188,6 +203,7 @@ extern "C"
       dp_symsync_tlm_flush (s);
     return r;
   }
+#endif /* !__cplusplus */
 
   void dp_symsync_init (dp_symsync_state_t *s, size_t sps, double bn, double zeta,
                      int order, int ted);

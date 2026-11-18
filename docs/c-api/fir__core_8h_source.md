@@ -34,6 +34,7 @@ extern "C"
     size_t num_taps;
   } dp_fir_state_t;
 
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT float _Complex
   fir_step (dp_fir_state_t *s, float _Complex x)
   {
@@ -56,6 +57,7 @@ extern "C"
       }
     return CMPLXF (re, im);
   }
+#endif /* !__cplusplus */
 
   dp_fir_state_t *dp_fir_create (const float _Complex *taps, size_t taps_len);
 

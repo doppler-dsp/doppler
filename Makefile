@@ -1067,6 +1067,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-all test-sweep test-stubs test-snippets \
                 test-rust bench-run-check bench-labels-pr-check \
                 abi-check link-check installed-headers-check \
+                cxx-headers-check \
                 exported-link-check symbol-prefix-check export-check \
                 vendored-collision-check \
                 test-asan test-ubsan test-tsan warnings-check \
@@ -1994,7 +1995,8 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 issues issues-check \
                 gates-extra-home-check \
                 doc-sections-check doc-symbols-check state-versions-check \
-                installed-headers-check exported-link-check symbol-prefix-check \
+                installed-headers-check cxx-headers-check \
+                exported-link-check symbol-prefix-check \
                 export-check public-symbols \
                 vendored-collision-check \
                 ci-image-refs-check \
@@ -2261,6 +2263,51 @@ installed-headers-check: build ## Verify installed headers declare only what the
 	    echo "installed-headers-check: no python3 — this gate has not run,"; \
 	    echo "  so it has not passed."; exit 1; }
 	@python3 scripts/check_installed_headers.py
+
+# A C++ program is a consumer like any other, and for a third of the tree
+# `#include "doppler/<x>_core.h"` was a compile error nothing reported: the
+# build is `LANGUAGES C` on purpose, so no C++ compiler ever read a header
+# (doppler#3108). Two halves, because parsing is not meaning:
+#
+#   1. every installed header parses as C++ under g++ AND clang++, bar the
+#      shrink-only list scripts/.cxx-headers-exempt and the private or
+#      Python-only headers of scripts/.cxx-headers-not-cxx, which the gate
+#      checks no consumer's include reaches;
+#   2. a C++ program that includes the headers bare, hands std::complex
+#      buffers over by pointer and passes one complex BY VALUE both ways,
+#      prints exactly what its C twin prints.
+#
+# The C++ compilers are driven directly, never through CMake: adding CXX to
+# the project would make every configure need one, to test a header.
+# CXX_HEADER_COMPILERS is overridable so a box with one compiler can still
+# run half 1 on purpose; CI names both, and a missing one fails, not skips.
+# Linux only in CI: on macOS `g++` is clang++, so the pair proves less.
+CXX_HEADER_COMPILERS ?= g++ clang++
+CXX_HEADER_STD       ?= c++11
+cxx-headers-check: build ## Verify installed headers parse as C++, and a C++ consumer matches its C twin
+	@command -v python3 >/dev/null 2>&1 || { \
+	    echo "cxx-headers-check: no python3 — this gate has not run,"; \
+	    echo "  so it has not passed."; exit 1; }
+	@python3 scripts/check_cxx_headers.py --std $(CXX_HEADER_STD) \
+	    $(foreach c,$(CXX_HEADER_COMPILERS),--cxx $(c))
+	@t=$$(mktemp -d); d=tests/install/cxx-consumer; rc=0; \
+	 cc $$d/main.c -Inative/inc -I$(BUILD_DIR)/native/inc \
+	     $(BUILD_DIR)/libdoppler.a -lm -lpthread -o "$$t/c" \
+	   && "$$t/c" > "$$t/c.out" || rc=1; \
+	 for c in $(CXX_HEADER_COMPILERS); do \
+	   [ $$rc -eq 0 ] || break; \
+	   $$c -std=$(CXX_HEADER_STD) -Wall -Wextra -Werror $$d/main.cpp \
+	       -Inative/inc -I$(BUILD_DIR)/native/inc \
+	       $(BUILD_DIR)/libdoppler.a -lm -lpthread -o "$$t/cxx" \
+	     && "$$t/cxx" > "$$t/cxx.out" \
+	     && [ -s "$$t/cxx.out" ] \
+	     && cmp "$$t/c.out" "$$t/cxx.out" \
+	     || { echo "cxx-headers-check: FAIL -- the C++ consumer built" \
+	               "with $$c does not match its C twin"; rc=1; }; \
+	 done; \
+	 [ $$rc -ne 0 ] || echo "cxx-headers-check: OK -- the C++ consumer" \
+	     "matches its C twin under $(CXX_HEADER_COMPILERS)."; \
+	 rm -rf "$$t"; exit $$rc
 
 # The TEXT of the exported doppler-targets.cmake, because nothing that builds
 # a consumer on the build machine can see the defect: an absolute library path

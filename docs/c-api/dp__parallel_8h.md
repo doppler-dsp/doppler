@@ -12,9 +12,9 @@ _A minimal bounded parallel-for over an index range, and a persistent pool with 
 
 * `#include "doppler/clib_common.h"`
 * `#include "doppler/dp_thread.h"`
-* `#include <stdatomic.h>`
 * `#include <stddef.h>`
 * `#include <stdlib.h>`
+* `#include <stdatomic.h>`
 
 
 
@@ -35,9 +35,14 @@ _A minimal bounded parallel-for over an index range, and a persistent pool with 
 | Type | Name |
 | ---: | :--- |
 | struct | [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) <br>_One parallel-for run: the range, the work, and the shared cursor._  |
-| struct | [**dp\_pool\_t**](structdp__pool__t.md) <br>_A persistent worker pool for repeated parallel-for runs._  |
+| struct | [**dp\_pool**](structdp__pool.md) <br>_dp\_pool\_t's fields; all internal._  |
 
 
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| typedef struct [**dp\_pool**](structdp__pool.md) | [**dp\_pool\_t**](#typedef-dp_pool_t)  <br>_A persistent worker pool for repeated parallel-for runs._  |
 
 
 
@@ -71,10 +76,10 @@ _A minimal bounded parallel-for over an index range, and a persistent pool with 
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_parallel\_for**](#function-dp_parallel_for) (size\_t n, void(\*)(size\_t, void \*) body, void \* ctx, int max\_threads) <br>_Run body(i, ctx) for every i in [0, n) across up to max\_threads workers._  |
-|  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**dp\_pool\_create**](#function-dp_pool_create) (int max\_threads) <br>_Create a pool of max\_threads workers (the caller counts as one)._  |
-|  void | [**dp\_pool\_destroy**](#function-dp_pool_destroy) ([**dp\_pool\_t**](structdp__pool__t.md) \* p) <br>_Stop and join the helpers, free the pool._  |
-|  void | [**dp\_pool\_run**](#function-dp_pool_run) ([**dp\_pool\_t**](structdp__pool__t.md) \* p, size\_t n, void(\*)(size\_t, void \*) body, void \* ctx) <br>_Run body(i, ctx) for every i in [0, n) across the pool's threads._  |
-|  int | [**dp\_pool\_threads**](#function-dp_pool_threads) (const [**dp\_pool\_t**](structdp__pool__t.md) \* p) <br>_Workers the pool runs work on, the caller included._  |
+|  [**dp\_pool\_t**](dp__parallel_8h.md#typedef-dp_pool_t) \* | [**dp\_pool\_create**](#function-dp_pool_create) (int max\_threads) <br>_Create a pool of max\_threads workers (the caller counts as one)._  |
+|  void | [**dp\_pool\_destroy**](#function-dp_pool_destroy) ([**dp\_pool\_t**](dp__parallel_8h.md#typedef-dp_pool_t) \* p) <br>_Stop and join the helpers, free the pool._  |
+|  void | [**dp\_pool\_run**](#function-dp_pool_run) ([**dp\_pool\_t**](dp__parallel_8h.md#typedef-dp_pool_t) \* p, size\_t n, void(\*)(size\_t, void \*) body, void \* ctx) <br>_Run body(i, ctx) for every i in [0, n) across the pool's threads._  |
+|  int | [**dp\_pool\_threads**](#function-dp_pool_threads) (const [**dp\_pool\_t**](dp__parallel_8h.md#typedef-dp_pool_t) \* p) <br>_Workers the pool runs work on, the caller included._  |
 
 
 
@@ -111,6 +116,29 @@ Portability: POSIX threads on the two supported platforms (linux, macos). Every 
 
 
     
+## Public Types Documentation
+
+
+
+
+### typedef dp\_pool\_t 
+
+_A persistent worker pool for repeated parallel-for runs._ 
+```C++
+typedef struct dp_pool dp_pool_t;
+```
+
+
+
+Create with dp\_pool\_create(), run with dp\_pool\_run(), free with dp\_pool\_destroy(). All fields are internal.
+
+
+From C++ the type is opaque and nothing else in this file is declared: the pool's run state is a C11 `atomic_size_t`, which C++ has only from C++23, and every function here is a `static inline` body. A component that carries a pool holds a `dp_pool_t *`, which means the same in both languages, so its own struct is laid out identically (doppler#3108). 
+
+
+        
+
+<hr>
 ## Public Functions Documentation
 
 

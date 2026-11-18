@@ -14,9 +14,13 @@
 
 #include "doppler/clib_common.h" /* dp_mallocn / dp_xmallocn / dp_xcalloc */
 #include "doppler/dp_thread.h"
-#include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
+
+typedef struct dp_pool dp_pool_t;
+
+#ifndef __cplusplus
+#include <stdatomic.h>
 
 typedef struct
 {
@@ -104,7 +108,7 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
  * call dp_pool_run() unconditionally. The pool is not reentrant: one run at
  * a time, from one thread. Every failure to create a helper leaves a smaller
  * pool (dp_pool_threads() says how big), never a broken one. */
-typedef struct
+struct dp_pool
 {
   dp_mutex_t mu;   
   dp_cond_t  wake; 
@@ -115,7 +119,7 @@ typedef struct
   unsigned long   gen;  
   int             busy; 
   dp_pf_shared_t  work; 
-} dp_pool_t;
+};
 
 DP_THREAD_FN (dp_pool_worker, arg)
 {
@@ -220,6 +224,8 @@ dp_pool_destroy (dp_pool_t *p)
   dp_mutex_destroy (&p->mu);
   free (p);
 }
+
+#endif /* !__cplusplus */
 
 #endif /* DP_PARALLEL_H */
 ```

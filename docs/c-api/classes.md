@@ -115,7 +115,7 @@
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)
 * [**dp\_pn\_state\_t**](structdp__pn__state__t.md)
-* [**dp\_pool\_t**](structdp__pool__t.md)
+* [**dp\_pool**](structdp__pool.md)
 * [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md)
 * [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md)
 * [**dp\_psd\_state\_t**](structdp__psd__state__t.md)

@@ -274,6 +274,9 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
     l->freq_ctrl = -dp_loop_filter_step (&l->car_lf, pe) * l->freq_scale;
   }
 
+#ifndef __cplusplus
+  /* C only: calls carrier_nda_disc(), which is C only (dp_complex.h, "From
+     C++"). A C++ caller uses dp_mpsk_receiver_steps(). */
   JM_FORCEINLINE JM_HOT void
   mpsk_rx_disc (mpsk_rx_loops_t *l, float _Complex z)
   {
@@ -292,8 +295,13 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
       l->lock_time = (int64_t)l->sym_count;
     mpsk_rx_steer (l, pe);
   }
+#endif /* !__cplusplus */
 
 
+#ifndef __cplusplus
+  /* C only: calls ratesync_loop_take_output() and mpsk_rx_disc(), which are C
+     only (dp_complex.h, "From C++"). A C++ caller uses
+     dp_mpsk_receiver_steps(). */
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float _Complex y, float _Complex *sym,
                        int ted)
@@ -354,7 +362,11 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
     *sym = y_rot;
     return 1;
   }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+  /* C only: calls mpsk_rx_take_output(), which is C only (dp_complex.h, "From
+     C++"). A C++ caller uses dp_mpsk_receiver_steps(). */
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_fold (mpsk_rx_loops_t *l, const float _Complex *ys, size_t n,
                 float _Complex *y_out, int ted)
@@ -364,6 +376,7 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
       emitted |= mpsk_rx_take_output (l, ys[oi], y_out, ted);
     return emitted;
   }
+#endif /* !__cplusplus */
 
   int dp_mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y,
                               uint8_t *bits);

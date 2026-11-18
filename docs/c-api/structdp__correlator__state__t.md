@@ -84,7 +84,7 @@ _Correlator state, every flavor._ [More...](#detailed-description)
 |  uint8\_t \* | [**peak\_mask**](#variable-peak_mask)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
 |  [**det\_peak\_t**](structdet__peak__t.md) \* | [**peaks**](#variable-peaks)  <br> |
-|  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
+|  [**dp\_pool\_t**](dp__parallel_8h.md#typedef-dp_pool_t) \* | [**pool**](#variable-pool)  <br> |
 |  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_cap**](#variable-ring_cap)  <br> |

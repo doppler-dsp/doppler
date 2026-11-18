@@ -116,6 +116,9 @@ extern "C"
   } dp_carrier_nda_state_t;
 
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_nda_steps(). */
   JM_FORCEINLINE void
   carrier_nda_disc (float _Complex z, int m, double *pe, double *lock)
   {
@@ -202,10 +205,14 @@ extern "C"
     *pe   = pe8;                      /* Im((z/|z|)^8) / 4 */
     *lock = ql * ql - 4.0f * qe * qe; /* Re((z/|z|)^8)     */
   }
+#endif /* !__cplusplus */
 
   void dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
                          double init_norm_freq, size_t sps, int n, int m);
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_nda_steps(). */
   JM_FORCEINLINE JM_HOT float _Complex
   carrier_nda_wipeoff (dp_carrier_nda_state_t *s, float _Complex x)
   {
@@ -214,7 +221,11 @@ extern "C"
      * carrier_nda_steer). The LO owns the phase accumulation and scaling. */
     return x * conjf (lo_step_ctrl (&s->nco, s->ctl_cyc));
   }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+  /* C only: the body uses the C99 complex library, which C++ does not have
+     (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_nda_steps(). */
   JM_FORCEINLINE JM_HOT int
   carrier_nda_arm_step (dp_carrier_nda_state_t *s, float _Complex d, double *pe,
                         double *lock)
@@ -227,6 +238,7 @@ extern "C"
     carrier_nda_disc (dp_boxcar_step (&s->arm, d), s->m, pe, lock);
     return 1;
   }
+#endif /* !__cplusplus */
 
   JM_FORCEINLINE JM_HOT void
   carrier_nda_steer (dp_carrier_nda_state_t *s, double pe)

@@ -576,6 +576,9 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
    * @param l        Loops.
    * @param z        The on-time strobe.
    */
+#ifndef __cplusplus
+  /* C only: calls carrier_nda_disc(), which is C only (dp_complex.h, "From
+     C++"). A C++ caller uses dp_mpsk_receiver_steps(). */
   JM_FORCEINLINE JM_HOT void
   mpsk_rx_disc (mpsk_rx_loops_t *l, float _Complex z)
   {
@@ -594,6 +597,7 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
       l->lock_time = (int64_t)l->sym_count;
     mpsk_rx_steer (l, pe);
   }
+#endif /* !__cplusplus */
 
 
   /**
@@ -610,6 +614,10 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
    *             a specialised (branch-free) instantiation.
    * @return 1 if this output was an on-time strobe, 0 otherwise.
    */
+#ifndef __cplusplus
+  /* C only: calls ratesync_loop_take_output() and mpsk_rx_disc(), which are C
+     only (dp_complex.h, "From C++"). A C++ caller uses
+     dp_mpsk_receiver_steps(). */
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float _Complex y, float _Complex *sym,
                        int ted)
@@ -670,6 +678,7 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
     *sym = y_rot;
     return 1;
   }
+#endif /* !__cplusplus */
 
   /**
    * @brief Fold one front end's burst of outputs into both loops.
@@ -689,6 +698,9 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
    *               for a specialised (branch-free) instantiation.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
+#ifndef __cplusplus
+  /* C only: calls mpsk_rx_take_output(), which is C only (dp_complex.h, "From
+     C++"). A C++ caller uses dp_mpsk_receiver_steps(). */
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_fold (mpsk_rx_loops_t *l, const float _Complex *ys, size_t n,
                 float _Complex *y_out, int ted)
@@ -698,6 +710,7 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
       emitted |= mpsk_rx_take_output (l, ys[oi], y_out, ted);
     return emitted;
   }
+#endif /* !__cplusplus */
 
   /** @brief Slice one recovered symbol to its log2(M) hard bits (LSB-first).
    *

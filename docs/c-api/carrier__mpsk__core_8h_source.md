@@ -49,12 +49,19 @@ void dp_carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
                        int m);
 
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_mpsk_steps(). */
 JM_FORCEINLINE JM_HOT float _Complex
 carrier_mpsk_wipeoff(dp_carrier_mpsk_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
+#endif /* !__cplusplus */
 
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_mpsk_steps(). */
 JM_FORCEINLINE JM_HOT void
 carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
 {
@@ -91,6 +98,7 @@ carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
     double inst = (double)crealf(d) / aP;
     s->lock_metric += CARRIER_MPSK_LOCK_ALPHA * (inst - s->lock_metric);
 }
+#endif /* !__cplusplus */
 
 dp_carrier_mpsk_state_t *dp_carrier_mpsk_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll, int m);
 

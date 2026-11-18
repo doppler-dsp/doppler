@@ -8,13 +8,11 @@
  * definition, for the Python binding and for any caller that reaches the
  * function through the library rather than the header.
  *
- * square_clip.c, next door, predates this and instead carries a hand-copied
- * second body. That works, but it means the function every C caller inlines
- * and the function the Python binding calls are two separate pieces of
- * source that must be kept in agreement by hand — and a divergence would be
- * silent, since the C tests exercise the inline and only Python would see
- * the stale copy. Do not extend that pattern; this file is the shape to
- * follow.
+ * Every function in util has one body, emitted this way. A hand-copied
+ * second body would make the function every C caller inlines and the
+ * function the Python binding calls two pieces of source kept in agreement
+ * by hand, and a divergence would be silent: the C tests exercise the inline
+ * and the binding calls the copy. This file is the shape to follow.
  */
 #include "doppler/util/util_core.h"
 

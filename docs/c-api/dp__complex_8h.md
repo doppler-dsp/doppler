@@ -102,10 +102,40 @@ Measured on clang 22 targeting `x86_64-pc-windows-msvc` with doppler's own flags
 
 **Note:**
 
-On Linux and macOS this is a pure passthrough  the same `<complex.h>` symbols, unchanged  so numerics cannot drift between platforms by way of this header. 
+On Linux and macOS this is a pure passthrough  the same `<complex.h>` symbols, unchanged  so numerics cannot drift between platforms by way of this header.
 
 
 
+
+
+
+### From C++
+
+
+
+A C++ translation unit gets the TYPES and nothing else. `float _Complex` and `double _Complex` are accepted by g++ and clang++ as the same builtin types the C compiler uses, so every prototype means in C++ exactly what it means in C, for a pointer and for a complex passed or returned by value alike. That is why the prototypes do not switch to `std::complex<T>` under `__cplusplus`: a class returned by value from a C function is not returned the way `float _Complex` is on every target (32-bit x86 and the Windows x64 convention differ), and [**dp\_square\_clip()**](util__core_8h.md#function-dp_square_clip) returns one.
+
+
+What C++ does not get is the C99 complex LIBRARY: `crealf`, `cimagf`, `conjf`, `cabsf`, `cexpf`, `CMPLXF` and `I`. `<complex.h>` in C++ is `<complex>`, which declares none of them, and the macros the Windows branch below defines (`I`, `complex`, `conj`) would rewrite a C++ program's own names. So under `__cplusplus` this header includes nothing and defines nothing, and a function a header DEFINES with that surface is C-only there:
+
+
+
+* a per-sample fast path (`fir_step`, `lo_step`) is not declared to C++ at all; call the object's block function instead;
+* a function that is part of an object's API and has an out-of-line copy in the library is declared to C++ as a prototype, and the call links that copy. Where the API function is header-only ([**dp\_cic\_decimate()**](cic__core_8h.md#function-dp_cic_decimate)), the library emits that copy from the same inline definition with an `extern` declaration, so there is still one body.
+
+
+
+
+`std::complex<T>` is layout-compatible with `T _Complex` (the C++ standard, clause complex.numbers), so a C++ caller hands its buffers over by pointer:
+
+
+
+
+
+That snippet is `tests/install/cxx-consumer/main.cpp`, which the gate below compiles, runs and compares with its C twin.
+
+
+`make cxx-headers-check` holds this: every installed header must parse as C++, bar the shrinking list in `scripts/.cxx-headers-exempt` and the private and Python-only headers in `scripts/.cxx-headers-not-cxx`, which no consumer includes. 
 
 
 

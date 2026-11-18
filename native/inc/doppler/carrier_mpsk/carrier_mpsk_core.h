@@ -116,11 +116,15 @@ void dp_carrier_mpsk_init(dp_carrier_mpsk_state_t *s, double bn, double zeta,
  * @param x  One input sample.
  * @return The de-rotated sample to feed the integrator.
  */
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_mpsk_steps(). */
 JM_FORCEINLINE JM_HOT float _Complex
 carrier_mpsk_wipeoff(dp_carrier_mpsk_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Per-symbol carrier update: decision discriminator -> loop -> NCO.
@@ -134,6 +138,9 @@ carrier_mpsk_wipeoff(dp_carrier_mpsk_state_t *s, float _Complex x)
  * @param s  Carrier loop state.  Must be non-NULL.
  * @param P  The dumped integrate-and-dump prompt for this symbol.
  */
+#ifndef __cplusplus
+/* C only: the body uses the C99 complex library, which C++ does not have
+   (dp_complex.h, "From C++"). A C++ caller uses dp_carrier_mpsk_steps(). */
 JM_FORCEINLINE JM_HOT void
 carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
 {
@@ -170,6 +177,7 @@ carrier_mpsk_update(dp_carrier_mpsk_state_t *s, float _Complex P)
     double inst = (double)crealf(d) / aP;
     s->lock_metric += CARRIER_MPSK_LOCK_ALPHA * (inst - s->lock_metric);
 }
+#endif /* !__cplusplus */
 
 /**
  * @brief Create an M-PSK carrier loop instance.

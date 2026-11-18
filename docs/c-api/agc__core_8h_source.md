@@ -77,12 +77,17 @@ extern "C"
     return ((double)e + log2m) * 0.30102999566398120; /* * log10(2)      */
   }
 
+#ifndef __cplusplus
+  /* C only, with dp_agc_step(): both bodies use the C99 complex library,
+     which C++ does not have (dp_complex.h, "From C++"). A C++ caller
+     uses dp_agc_steps(). */
   JM_FORCEINLINE double
   agc_power_ (float _Complex y)
   {
     double yr = (double)crealf (y), yi = (double)cimagf (y);
     return yr * yr + yi * yi;
   }
+#endif /* !__cplusplus */
 
   typedef struct
   {
@@ -113,6 +118,7 @@ void dp_agc_destroy(dp_agc_state_t *state);
 
 void dp_agc_reset(dp_agc_state_t *state);
 
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT float _Complex
   dp_agc_step (dp_agc_state_t *state, float _Complex x)
   {
@@ -164,6 +170,10 @@ void dp_agc_reset(dp_agc_state_t *state);
      * the detector above used the unclipped y, so the loop is unaffected. */
     return dp_square_clip (y, state->clip_lin);
   }
+  /* dp_agc_step() above is C only: see agc_power_(). A plain comment, and
+     here rather than above it, because its Doxygen is also the Python
+     docstring. */
+#endif /* !__cplusplus */
 
   void dp_agc_steps (dp_agc_state_t *state, const float _Complex *input,
                   float _Complex *output, size_t n);

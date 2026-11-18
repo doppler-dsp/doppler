@@ -653,7 +653,14 @@ Filters one sample and advances the delay line: returns `y = sum_k h[k] * x[n-k]
 
 **Returns:**
 
-The filtered output sample. 
+The filtered output sample.
+
+
+
+
+**Note:**
+
+C only: the body uses the C99 complex library, which C++ does not have ([**dp\_complex.h**](dp__complex_8h.md), "From C++"). A C++ caller uses [**dp\_fir\_execute()**](fir__core_8h.md#function-dp_fir_execute). 
 
 
 

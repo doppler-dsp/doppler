@@ -42,6 +42,7 @@ extern "C"
 
   void dp_lo_init (dp_lo_state_t *state, double norm_freq);
 
+#ifndef __cplusplus
   JM_FORCEINLINE JM_HOT float _Complex lo_step (dp_lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
@@ -68,6 +69,7 @@ extern "C"
     state->phase += state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return out;
   }
+#endif /* !__cplusplus */
 
   dp_lo_state_t *dp_lo_create (double norm_freq);
 

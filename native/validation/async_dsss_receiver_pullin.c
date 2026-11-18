@@ -586,6 +586,186 @@ pi_switch_design (double fc, pi_switch_t *sw)
   sw->w_s = 5.0 / sw->bn_track * sw->T;
 }
 
+/* The use case's dynamics (docs/design/async-dsss-receiver.md, "The
+   dynamics the receiver is specified for"; owner 11-17: LEO, Doppler
+   pre-compensated, the residual offset uniform in +/-PI_SPAN_HZ, its rate
+   a conservative envelope from an ephemeris error model). A LEO pass is a
+   circular orbit over a spherical Earth seen from a fixed point above a
+   PI_PASS_MASK_DEG elevation mask, Earth rotation ignored (its worst case
+   is the factor pi_pass_rotation()); the passes in scope are those whose
+   RAW peak rate is the specification's PI_PASS_RATE_SPEC, one a grid
+   altitude with its maximum elevation solved. Over them:
+     - timing: the along-track error, residual f(t) - f(t - dt) for every
+       dt up to the one whose residual reaches PI_SPAN_HZ, both branches;
+     - proportional: the cross-check, residual eps f(t) for every eps up to
+       PI_SPAN_HZ over the pass's visible peak offset.
+   R_env is pi_r_env() of the two maxima: the larger, times the rotation
+   factor, rounded up to the whole Hz/s. */
+#define PI_PASS_MASK_DEG 10.0
+#define PI_PASS_RATE_SPEC 400.0
+#define PI_PASS_RE_KM 6371.0
+#define PI_PASS_MU 398600.4418
+#define PI_PASS_C_KMS 299792.458
+#define PI_PASS_OMEGA_E 7.2921e-5
+#define PI_PASS_DT 0.02
+#define PI_PASS_TRIM 25
+#define PI_PASS_BINS 15 /* |offset| bins of PI_SPAN_HZ / PI_PASS_BINS Hz */
+
+/* One pass's residual-free curve: f, f' and f'' (Hz, Hz/s, Hz/s^2) on a
+   PI_PASS_DT grid above the mask, the range rate in closed form and every
+   end point a numerical derivative touches trimmed. Returns the point
+   count (0: the pass never clears the mask); *v the orbital speed, km/s. */
+static size_t
+pi_pass_curve (double h_km, double el_deg, double fc, double **f, double **f1,
+               double **f2, double *v)
+{
+  const double rs = PI_PASS_RE_KM + h_km,
+               w  = sqrt (PI_PASS_MU / (rs * rs * rs));
+  const double e = el_deg * M_PI / 180.0, em = PI_PASS_MASK_DEG * M_PI / 180.0;
+  const double g0 = acos (PI_PASS_RE_KM * cos (e) / rs) - e;
+  const double gm = acos (PI_PASS_RE_KM * cos (em) / rs) - em;
+  *v              = rs * w;
+  if (g0 >= gm)
+    return 0;
+  const double tmax = acos (cos (gm) / cos (g0)) / w;
+  const size_t n    = (size_t)(2.0 * tmax / PI_PASS_DT);
+  if (n < 4 * PI_PASS_TRIM)
+    return 0;
+  double *a = dp_xmallocn (n, sizeof *a), *b = dp_xmallocn (n, sizeof *b),
+         *c = dp_xmallocn (n, sizeof *c);
+  for (size_t i = 0; i < n; i++)
+    {
+      const double t  = -tmax + (double)i * PI_PASS_DT;
+      const double cg = cos (g0) * cos (w * t);
+      const double d  = sqrt (PI_PASS_RE_KM * PI_PASS_RE_KM + rs * rs
+                              - 2.0 * PI_PASS_RE_KM * rs * cg);
+      a[i]            = -fc / PI_PASS_C_KMS * PI_PASS_RE_KM * rs * cos (g0) * w
+                        * sin (w * t) / d;
+    }
+  for (size_t i = 1; i + 1 < n; i++)
+    b[i] = (a[i + 1] - a[i - 1]) / (2.0 * PI_PASS_DT);
+  for (size_t i = 2; i + 2 < n; i++)
+    c[i] = (b[i + 1] - b[i - 1]) / (2.0 * PI_PASS_DT);
+  const size_t m = n - 2 * PI_PASS_TRIM;
+  memmove (a, a + PI_PASS_TRIM, m * sizeof *a);
+  memmove (b, b + PI_PASS_TRIM, m * sizeof *b);
+  memmove (c, c + PI_PASS_TRIM, m * sizeof *c);
+  *f = a, *f1 = b, *f2 = c;
+  return m;
+}
+
+static double
+pi_pass_peak_rate (double h_km, double el_deg, double fc)
+{
+  double      *f, *f1, *f2, v, pk = 0.0;
+  const size_t n = pi_pass_curve (h_km, el_deg, fc, &f, &f1, &f2, &v);
+  for (size_t i = 0; i < n; i++)
+    pk = fmax (pk, fabs (f1[i]));
+  if (n)
+    free (f), free (f1), free (f2);
+  return pk;
+}
+
+/* The pass at altitude h whose raw peak rate is PI_PASS_RATE_SPEC: its
+   maximum elevation by bisection; NAN when even overhead stays under. */
+static double
+pi_pass_el (double h_km, double fc)
+{
+  if (pi_pass_peak_rate (h_km, 89.9, fc) < PI_PASS_RATE_SPEC)
+    return NAN;
+  double lo = PI_PASS_MASK_DEG + 0.5, hi = 89.9;
+  for (int i = 0; i < 30; i++)
+    {
+      const double m = 0.5 * (lo + hi);
+      if (pi_pass_peak_rate (h_km, m, fc) > PI_PASS_RATE_SPEC)
+        hi = m;
+      else
+        lo = m;
+    }
+  return lo;
+}
+
+typedef struct
+{
+  double step_km;
+  int    n_pass;
+  double env[PI_PASS_BINS]; /* timing: largest |rate| by |offset| bin */
+  double timing_max, prop_max, v_min, f2_max;
+} pi_pass_env_t;
+
+/* The envelope over every in-scope pass on a step_km altitude grid from
+   350 km, at both carriers. */
+static void
+pi_pass_envelope (double step_km, pi_pass_env_t *pe)
+{
+  memset (pe, 0, sizeof *pe);
+  pe->step_km                = step_km;
+  pe->v_min                  = INFINITY;
+  static const double fcs[2] = { 2.2e9, 2.8e9 };
+  for (int k = 0; k < 2; k++)
+    for (double h = 350.0; h <= 1200.0 + 1e-9; h += step_km)
+      {
+        const double el = pi_pass_el (h, fcs[k]);
+        if (isnan (el))
+          continue;
+        double      *f, *f1, *f2, v;
+        const size_t n = pi_pass_curve (h, el, fcs[k], &f, &f1, &f2, &v);
+        if (!n)
+          continue;
+        pe->n_pass++;
+        pe->v_min  = fmin (pe->v_min, v);
+        double fpk = 0.0, f1pk = 0.0;
+        for (size_t i = 0; i < n; i++)
+          {
+            fpk        = fmax (fpk, fabs (f[i]));
+            f1pk       = fmax (f1pk, fabs (f1[i]));
+            pe->f2_max = fmax (pe->f2_max, fabs (f2[i]));
+          }
+        /* timing: lag j samples, j stepping 0.05 s, until the residual
+           first passes the bound */
+        for (size_t j = 1; j < n; j += (size_t)(0.05 / PI_PASS_DT))
+          {
+            double rmax = 0.0;
+            for (size_t i = j; i < n; i++)
+              rmax = fmax (rmax, fabs (f[i] - f[i - j]));
+            if (rmax > PI_SPAN_HZ)
+              break;
+            for (size_t i = j; i < n; i++)
+              {
+                const double o  = fabs (f[i] - f[i - j]);
+                int          bi = (int)(o / (PI_SPAN_HZ / PI_PASS_BINS));
+                if (bi >= PI_PASS_BINS)
+                  bi = PI_PASS_BINS - 1;
+                pe->env[bi] = fmax (pe->env[bi], fabs (f1[i] - f1[i - j]));
+              }
+          }
+        /* proportional: the largest residual rate is eps_max f'_max */
+        pe->prop_max = fmax (pe->prop_max, PI_SPAN_HZ / fpk * f1pk);
+        free (f), free (f1), free (f2);
+      }
+  for (int i = 0; i < PI_PASS_BINS; i++)
+    pe->timing_max = fmax (pe->timing_max, pe->env[i]);
+}
+
+/* Earth rotation, ignored by the pass model: at most the equatorial
+   surface speed against the slowest in-scope orbit. */
+static double
+pi_pass_rotation (double v_min_kms)
+{
+  return 1.0 + PI_PASS_OMEGA_E * PI_PASS_RE_KM / v_min_kms;
+}
+
+/* R_env, the rate a pass draw holds, Hz/s: the larger of the two models'
+   maxima, times the rotation factor, rounded up to the whole Hz/s. */
+static double
+pi_r_env (double timing_max, double prop_max, double rotation)
+{
+  return ceil (fmax (timing_max, prop_max) * rotation);
+}
+
+/* --dynamics pass: R_env for this run (0 until main computes it). */
+static double pi_pass_r_env = 0.0;
+
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           uint32_t seed, double secs, unsigned spc, const capture_t *cp,
@@ -605,11 +785,16 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   uint32_t     st   = trial_rng (seed * 7919u + (uint32_t)(fc / 1e8)
                                  + (uint32_t)(esn0 * 10.0));
   memset (d, 0, sizeof *d);
-  d->fc        = fc;
-  d->esn0      = esn0;
-  d->cw        = cw;
-  d->rate      = rate_mag == 0.0 ? 0.0 : (seed & 1u ? 1.0 : -1.0) * rate_mag;
-  d->f0        = -PI_SPAN_HZ + 2.0 * PI_SPAN_HZ * uni (&st);
+  d->fc   = fc;
+  d->esn0 = esn0;
+  d->cw   = cw;
+  d->rate = rate_mag == 0.0 ? 0.0 : (seed & 1u ? 1.0 : -1.0) * rate_mag;
+  d->f0   = -PI_SPAN_HZ + 2.0 * PI_SPAN_HZ * uni (&st);
+  /* A pass draw keeps its offset inside +/-PI_SPAN_HZ for the whole run:
+     where a constant rate would carry it out, the sign is toward zero. */
+  if (pi_pass_r_env > 0.0 && rate_mag != 0.0
+      && fabs (d->f0) > PI_SPAN_HZ - rate_mag * secs)
+    d->rate = (d->f0 > 0.0 ? -1.0 : 1.0) * rate_mag;
   d->frame_off = (size_t)(1000.0 * uni (&st));
   if (d->frame_off > 999)
     d->frame_off = 999;
@@ -1651,6 +1836,28 @@ pi_k_low (int order, const double g[3], double delay)
 static void
 pi_design (const double fcs[2], const double esn0s[4])
 {
+  /* The use case's dynamics: the envelope on the 50 km grid and on the
+     halved one, how far the maxima move, and R_env. */
+  pi_pass_env_t pe[2];
+  pi_pass_envelope (50.0, &pe[0]);
+  pi_pass_envelope (25.0, &pe[1]);
+  printf ("# pass\nstep_km,passes,f2_raw_max_hz_s2,timing_max_hz_s,"
+          "prop_max_hz_s,rotation,r_env_hz_s");
+  for (int i = 0; i < PI_PASS_BINS; i++)
+    printf (",env_%.0f", (double)(i + 1) * PI_SPAN_HZ / PI_PASS_BINS);
+  printf ("\n");
+  for (int g = 0; g < 2; g++)
+    {
+      const double rot = pi_pass_rotation (pe[g].v_min);
+      printf ("%.0f,%d,%.3f,%.3f,%.3f,%.4f,%.0f", pe[g].step_km, pe[g].n_pass,
+              pe[g].f2_max, pe[g].timing_max, pe[g].prop_max, rot,
+              pi_r_env (pe[g].timing_max, pe[g].prop_max, rot));
+      for (int i = 0; i < PI_PASS_BINS; i++)
+        printf (",%.3f", pe[g].env[i]);
+      printf ("\n");
+    }
+  DP_CHECK_MSG (pe[0].n_pass > 0 && pe[0].timing_max > 0.0,
+                "the pass model has passes in scope");
   /* The order-3 switch, per carrier, as run_draw derives it
      (pi_switch_design). */
   printf ("# switch\nfc_ghz,T_us,rho_floor,slope,bn_track,ramp_x_rad_upd2,"

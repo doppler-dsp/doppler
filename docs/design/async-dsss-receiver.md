@@ -1440,6 +1440,24 @@ existing `segments`, default 4
     ([#3095](https://github.com/doppler-dsp/doppler/issues/3095)).
 - The timing loop's level
     ([#3079](https://github.com/doppler-dsp/doppler/issues/3079)).
+- **The integration branch's own floor tests fail under true noise**, since
+    the test captures take their noise from the shipped `awgn`
+    ([#689](https://github.com/doppler-dsp/doppler/issues/689)). Eight checks
+    are red: in `test_async_dsss_receiver_core`, `_test_awgn_esn0_floor`'s
+    `snr_at[4] > 10.0`, `_test_handover_under_clock_offset`'s "the carrier
+    locks and decodes on every seed at both operating points", and
+    `_test_ranks_and_exclusions_split_two_signals`'s `at0 == at1` and
+    `_chip_dist (r1->seed_chip_phase, pb, 1023.0) <= 1.0`; in
+    `test_async_dsss_pool_core`, `_test_zone_keeps_the_outcome`'s "a deep run
+    filled today's list", four times. They are the retired 3.069 Mcps point's
+    floor claims, neither loosened nor marked expected to fail: they retire
+    with that point, and their 415.1 successors are what the floor brief
+    establishes ([#3080](https://github.com/doppler-dsp/doppler/issues/3080),
+    [#3079](https://github.com/doppler-dsp/doppler/issues/3079)). Until then
+    every "ready" from the branch names them and shows nothing else is red.
+- The stage-by-stage loss decomposition is not held at the 415.1 point: its
+    harness retires with the 3.069 Mcps point and is rebuilt inside the floor
+    brief ([#3156](https://github.com/doppler-dsp/doppler/issues/3156)).
 
 ### 4.6 Next steps
 

@@ -126,22 +126,46 @@ See the [carrier loop stress gallery page](../gallery/costas.md) for the bare
 PLL stalling on a large residual while the FLL assist pulls it in.
 
 ```python
+import numpy as np
 from doppler.track import Costas
 from doppler.wfm import Synth
 
-rx = Synth(type="qpsk", sps=16, snr=20, freq=0.01).steps(4096)  # received IQ
+bpsk = Synth(type="bpsk", sps=16, snr=20).steps(16000)  # BPSK, no offset
+n = np.arange(len(bpsk))
+rx = (bpsk * np.exp(2j * np.pi * 0.01 * n)).astype(np.complex64)  # 0.01 off
 
-# bn_fll > 0 adds the FLL assist for large/fast-moving residuals
+# The bare PLL cannot pull in a residual this large; the FLL assist can.
+pll = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16)
+pll.steps(rx)
+assert not pll.locked
+
 c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.03)
 symbols = c.steps(rx)        # one complex prompt symbol per tsamps samples
 f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
-locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
+assert abs(f_est - 0.01) < 5e-4 and c.locked
 ```
 
 ### Order 3 — a carrier that ramps
 
 A Doppler ramp leaves the default loop a steady phase lag of `x/ki`, which
-grows as the loop narrows. `set_order(3, bn)` switches a live loop to a
+grows as the loop narrows.
+
+**When to switch.** For a carrier ramping at `r` cycles per sample² (`R / fs²` for `R` Hz/s), the ramp per update is `x = 2π·r·tsamps²` radians per
+update², and order 2's steady phase error is `x / ki`, with `ki` the loop
+filter's own gain at the loop's `bn` and `zeta`. Switch to order 3 when that
+error is more than the phase budget the link allows. It grows as `1/bn²`:
+
+````python
+import math
+from doppler.track import LoopFilter
+
+tsamps, r = 16, 2e-8                     # r: cycles/sample^2
+x = 2 * math.pi * r * tsamps**2          # the ramp per update, rad/update^2
+lag = {bn: math.degrees(x / LoopFilter(bn, 0.707, 1.0).ki)
+       for bn in (0.05, 0.01)}
+assert 0.2 < lag[0.05] < 0.25            # 0.22 degrees at bn 0.05
+assert 5.0 < lag[0.01] < 5.5             # 5.3 degrees at bn 0.01
+``` `set_order(3, bn)` switches a live loop to a
 [`StateFilter`](#statefilter-a-loop-filter-for-a-drifting-carrier), which
 also tracks the carrier's rate and holds a ramp with no steady lag. The
 frequency estimate carries across the switch. The rate starts at zero, or
@@ -152,30 +176,8 @@ carries the order. [Costas's design](../design/costas.md#3-the-second-loop-order
 has what a switch carries.
 
 ```python
-import numpy as np
-from doppler.track import Costas
-
-tsamps, nsym, ramp = 16, 6000, 2e-8         # ramp: cycles/sample^2
-n = np.arange(nsym * tsamps)
-bits = np.where(np.random.default_rng(1).random(nsym) < 0.5, -1.0, 1.0)
-rx = (np.repeat(bits, tsamps)
-      * np.exp(1j * 2 * np.pi * 0.5 * ramp * n**2)).astype(np.complex64)
-
-def mean_lag(order):
-    c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=tsamps)
-    if order == 3:
-        c.set_order(3, 0.05)                # keeps the frequency estimate
-    e = []
-    for s in range(nsym):
-        c.steps(rx[s * tsamps:(s + 1) * tsamps])
-        e.append(c.last_error)              # sin(phase error), per symbol
-    return c, float(np.mean(e[-2000:]))
-
-c2, lag2 = mean_lag(2)
-c3, lag3 = mean_lag(3)
-assert c3.order == 3 and lag2 > 1e-3      # order 2 lags the ramp...
-assert abs(lag3) < 0.02 * lag2            # ...order 3 holds it
-```
+--8<-- "src/doppler/examples/costas_demo.py:order3"
+````
 
 ## CarrierMpsk — M-PSK carrier-tracking loop
 

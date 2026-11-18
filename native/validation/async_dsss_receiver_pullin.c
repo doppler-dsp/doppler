@@ -158,6 +158,7 @@
 #include "dp_air_test.h"
 #include "dp_ber_test.h"
 #include "dp_dsss_test.h"
+#include "dp_s415_test.h"
 #include "dp_stats_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
@@ -166,15 +167,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PI_FS 11e6
-#define PI_SYM 3000.0
 #define PI_PUSH 4096u
 #define PI_SUSTAIN 200u /* blocks: 74 ms */
 #define PI_DRAWS 30u
 #define PI_DRAW_S 60.0
 #define PI_CHECK_S 20.0
-#define PI_SPAN_HZ 1500.0
-#define PI_RATE_HZ_S 400.0
 #define PI_MARGIN_DB 3.0
 #define PI_MAX_CELL 64u
 /* The excursion levels a change's second before is read against, deg of
@@ -385,8 +382,8 @@ pi_bn_rule (double rho_floor)
 static double
 pi_rho (double fc, double esn0)
 {
-  const double chip = fc * 31.0 / 21216.0, T = (double)SF / chip;
-  return pow (10.0, (esn0 + 10.0 * log10 (PI_SYM)) / 10.0) * T;
+  const double chip = dp_s415_chip_rate (fc), T = (double)SF / chip;
+  return pow (10.0, (dp_s415_cn0 (esn0)) / 10.0) * T;
 }
 /* The five lock rules each cell's flags were decided by (the same for
    every draw of a cell: the configuration sets them). */
@@ -477,7 +474,7 @@ pi_slope (double rho, int kw, uint64_t seed)
 /* The order-3 switch, derived (docs/design/async-dsss-receiver.md 4.9),
    once per carrier from what create knows: the update period T, the
    floor's per-update SNR, the detector's slope g there (pi_slope), the
-   rule's tracking bandwidth and the specified ramp R (PI_RATE_HZ_S, the
+   rule's tracking bandwidth and the specified ramp R (DP_S415_RATE_HZ_S, the
    receiver's doppler_rate). Rates and phases in the loop's own units:
    x = 2 pi R T^2 radians per update^2.
      - lag_e: the order-2 loop's steady error under the ramp at the
@@ -543,18 +540,18 @@ pi_sw_transient (double bn, const pi_switch_t *sw, double *settle_upd)
 static double
 pi_switch_window_s (double fc)
 {
-  const double T = (double)SF / (fc * 31.0 / 21216.0);
+  const double T = (double)SF / dp_s415_chip_rate (fc);
   return 5.0 / pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB)) * T;
 }
 
 static void
 pi_switch_design (double fc, pi_switch_t *sw)
 {
-  const double chip = fc * 31.0 / 21216.0;
+  const double chip = dp_s415_chip_rate (fc);
   sw->T             = (double)SF / chip;
   sw->rho           = pi_rho (fc, PI_FLOOR_ESN0_DB);
   sw->g             = pi_slope (sw->rho, 1, 5501u + (uint64_t)(fc / 1e8));
-  sw->x             = 2.0 * M_PI * PI_RATE_HZ_S * sw->T * sw->T;
+  sw->x             = 2.0 * M_PI * DP_S415_RATE_HZ_S * sw->T * sw->T;
   sw->bn_track      = pi_bn_rule (sw->rho);
   dp_loop_filter_state_t lf;
   dp_loop_filter_init (&lf, ASYNC_DSSS_RX_BN_CARRIER, 0.707, 1.0);
@@ -596,7 +593,7 @@ pi_switch_design (double fc, pi_switch_t *sw)
 
 /* The use case's dynamics (docs/design/async-dsss-receiver.md, "The
    dynamics the receiver is specified for"; owner 11-17: LEO, Doppler
-   pre-compensated, the residual offset uniform in +/-PI_SPAN_HZ, its rate
+   pre-compensated, the residual offset uniform in +/-DP_S415_SPAN_HZ, its rate
    a conservative envelope from an ephemeris error model). A LEO pass is a
    circular orbit over a spherical Earth seen from a fixed point above a
    PI_PASS_MASK_DEG elevation mask, Earth rotation ignored (its worst case
@@ -604,9 +601,9 @@ pi_switch_design (double fc, pi_switch_t *sw)
    RAW peak rate is the specification's PI_PASS_RATE_SPEC, one a grid
    altitude with its maximum elevation solved. Over them:
      - timing: the along-track error, residual f(t) - f(t - dt) for every
-       dt up to the one whose residual reaches PI_SPAN_HZ, both branches;
+       dt up to the one whose residual reaches DP_S415_SPAN_HZ, both branches;
      - proportional: the cross-check, residual eps f(t) for every eps up to
-       PI_SPAN_HZ over the pass's visible peak offset.
+       DP_S415_SPAN_HZ over the pass's visible peak offset.
    R_env is pi_r_env(): the timing envelope's maximum (the ephemeris error
    model, owner 11-17), times the rotation factor, rounded up to the whole
    Hz/s. The proportional model is its cross-check, printed with the pass
@@ -619,7 +616,8 @@ pi_switch_design (double fc, pi_switch_t *sw)
 #define PI_PASS_OMEGA_E 7.2921e-5
 #define PI_PASS_DT 0.02
 #define PI_PASS_TRIM 25
-#define PI_PASS_BINS 15 /* |offset| bins of PI_SPAN_HZ / PI_PASS_BINS Hz */
+#define PI_PASS_BINS                                                          \
+  15 /* |offset| bins of DP_S415_SPAN_HZ / PI_PASS_BINS Hz */
 
 /* One pass's residual-free curve: f, f' and f'' (Hz, Hz/s, Hz/s^2) on a
    PI_PASS_DT grid above the mask, the range rate in closed form and every
@@ -718,7 +716,7 @@ pi_pass_envelope (double step_km, pi_pass_env_t *pe)
   memset (pe, 0, sizeof *pe);
   pe->step_km                = step_km;
   pe->v_min                  = INFINITY;
-  static const double fcs[2] = { 2.2e9, 2.8e9 };
+  static const double fcs[2] = { DP_S415_FC_LO, DP_S415_FC_HI };
   for (int k = 0; k < 2; k++)
     for (double h = 350.0; h <= 1200.0 + 1e-9; h += step_km)
       {
@@ -745,12 +743,12 @@ pi_pass_envelope (double step_km, pi_pass_env_t *pe)
             double rmax = 0.0;
             for (size_t i = j; i < n; i++)
               rmax = fmax (rmax, fabs (f[i] - f[i - j]));
-            if (rmax > PI_SPAN_HZ)
+            if (rmax > DP_S415_SPAN_HZ)
               break;
             for (size_t i = j; i < n; i++)
               {
                 const double o  = fabs (f[i] - f[i - j]);
-                int          bi = (int)(o / (PI_SPAN_HZ / PI_PASS_BINS));
+                int          bi = (int)(o / (DP_S415_SPAN_HZ / PI_PASS_BINS));
                 if (bi >= PI_PASS_BINS)
                   bi = PI_PASS_BINS - 1;
                 pe->env[bi] = fmax (pe->env[bi], fabs (f1[i] - f1[i - j]));
@@ -760,13 +758,13 @@ pi_pass_envelope (double step_km, pi_pass_env_t *pe)
           }
         pe->raw_ppm_max[k] = fmax (pe->raw_ppm_max[k], fpk / fcs[k] * 1e6);
         /* proportional: the largest residual rate is eps_max f'_max */
-        if (PI_SPAN_HZ / fpk * f1pk > pe->prop_max)
+        if (DP_S415_SPAN_HZ / fpk * f1pk > pe->prop_max)
           {
-            pe->prop_max    = PI_SPAN_HZ / fpk * f1pk;
+            pe->prop_max    = DP_S415_SPAN_HZ / fpk * f1pk;
             pe->prop_h_km   = h;
             pe->prop_el_deg = el;
             pe->prop_fc     = fcs[k];
-            pe->prop_eps    = PI_SPAN_HZ / fpk;
+            pe->prop_eps    = DP_S415_SPAN_HZ / fpk;
           }
         free (f), free (f1), free (f2);
       }
@@ -793,7 +791,7 @@ pi_r_env (double timing_max, double rotation)
 /* --dynamics pass: R_env for this run (0 until main computes it). */
 static double pi_pass_r_env = 0.0;
 /* --dynamics: "pass" (the use case: static, and the constant R_env) or
-   "ramp" (the constant PI_RATE_HZ_S, outside the use case: owner 11-17,
+   "ramp" (the constant DP_S415_RATE_HZ_S, outside the use case: owner 11-17,
    "We don't want to test what will never happen"; a diagnostic only). */
 static int pi_dyn_pass = 0;
 
@@ -811,8 +809,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
     for (int v = 0; v < 2; v++)
       for (int q = 0; q < PQ_N; q++)
         dp_hist_init (&draw_hist[v][q], PQ[q].lo, PQ[q].hi, PQ[q].nb);
-  const double chip = fc * 31.0 / 21216.0;
-  const double cn0  = esn0 + 10.0 * log10 (PI_SYM);
+  const double chip = dp_s415_chip_rate (fc);
+  const double cn0  = dp_s415_cn0 (esn0);
   uint32_t     st   = trial_rng (seed * 7919u + (uint32_t)(fc / 1e8)
                                  + (uint32_t)(esn0 * 10.0));
   memset (d, 0, sizeof *d);
@@ -820,54 +818,42 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   d->esn0 = esn0;
   d->cw   = cw;
   d->rate = rate_mag == 0.0 ? 0.0 : (seed & 1u ? 1.0 : -1.0) * rate_mag;
-  d->f0   = -PI_SPAN_HZ + 2.0 * PI_SPAN_HZ * uni (&st);
-  /* A pass draw keeps its offset inside +/-PI_SPAN_HZ for the whole run:
+  d->f0   = -DP_S415_SPAN_HZ + 2.0 * DP_S415_SPAN_HZ * uni (&st);
+  /* A pass draw keeps its offset inside +/-DP_S415_SPAN_HZ for the whole run:
      where a constant rate would carry it out, the sign is toward zero. */
   if (pi_pass_r_env > 0.0 && rate_mag != 0.0
-      && fabs (d->f0) > PI_SPAN_HZ - rate_mag * secs)
+      && fabs (d->f0) > DP_S415_SPAN_HZ - rate_mag * secs)
     d->rate = (d->f0 > 0.0 ? -1.0 : 1.0) * rate_mag;
   d->frame_off = (size_t)(1000.0 * uni (&st));
   if (d->frame_off > 999)
     d->frame_off = 999;
 
   /* The payload: one bit a data symbol, more than the run can send. */
-  const size_t n_pay = (size_t)(secs * PI_SYM) + 2000;
+  const size_t n_pay = (size_t)(secs * DP_S415_SYM) + 2000;
   uint8_t     *pay   = dp_xmalloc (n_pay);
   for (size_t i = 0; i < n_pay; i++)
     pay[i] = (uint8_t)(uni (&st) < 0.5);
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = SF;
-  e.chip_rate        = chip;
-  e.sym_rate         = PI_SYM;
-  e.carrier_hz       = fc;
-  e.f0_hz            = d->f0;
-  e.rate_hz_s        = d->rate;
-  e.cn0_dbhz         = cn0;
-  e.code_only_sym    = 275;
-  e.frame_sym        = 1000;
-  e.frame_off        = d->frame_off;
-  e.seed             = 100u + seed;
-  e.bits             = pay;
-  e.n_bits           = n_pay;
-  e.spc              = spc;
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, fc, d->f0, d->rate, cn0, 0.0, 100u + seed);
+  e.frame_off = d->frame_off;
+  e.bits      = pay;
+  e.n_bits    = n_pay;
+  e.spc       = spc;
   dp_air_t air;
-  DP_REQUIRE (dp_air_init (&air, &e, 1, PI_FS, cn0, 8807u + seed, PI_PUSH));
+  DP_REQUIRE (
+      dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 8807u + seed, PI_PUSH));
 
-  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, SF, chip, PI_SYM, PI_FS, 2, cn0, 1e-3, 0.9, PI_SPAN_HZ, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / PI_SYM,
-      PI_RATE_HZ_S, true, cw);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, true, cw);
   DP_REQUIRE (rx != NULL);
 
-  const size_t   n_blk  = (size_t)(secs * PI_FS) / PI_PUSH;
+  const size_t   n_blk  = (size_t)(secs * DP_S415_FS) / PI_PUSH;
   uint8_t       *f_sym  = dp_xmalloc (n_blk);
   uint8_t       *f_cod  = dp_xmalloc (n_blk);
   uint8_t       *f_x[3] = { dp_xmalloc (n_blk), dp_xmalloc (n_blk),
                             dp_xmalloc (n_blk) }; /* car, demod, sync */
   uint8_t       *data   = dp_xmalloc (n_blk);
   float complex *x      = dp_xmalloc (PI_PUSH * sizeof *x);
-  const size_t   ocap   = (size_t)(secs * PI_SYM) + 4096;
+  const size_t   ocap   = (size_t)(secs * DP_S415_SYM) + 4096;
   float complex *syms   = dp_xmalloc (ocap * sizeof *syms);
   float complex *tmp    = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
@@ -914,10 +900,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   int          sw_phase = 0;
   double       sw_t0    = 0.0;
   double       s2_n = 0, s2_t = 0, s2_f = 0, s2_tt = 0, s2_tf = 0;
-  const size_t w_blk
-      = (size_t)ceil (pi_switch_window_s (fc) / ((double)PI_PUSH / PI_FS));
-  double *w_e = dp_xmallocn (w_blk + 1, sizeof *w_e);
-  size_t  w_n = 0;
+  const size_t w_blk = (size_t)ceil (pi_switch_window_s (fc)
+                                     / ((double)PI_PUSH / DP_S415_FS));
+  double      *w_e   = dp_xmallocn (w_blk + 1, sizeof *w_e);
+  size_t       w_n   = 0;
   if (pi_loop_order == 3 && pi_acq >= 'd')
     pi_switch_design (fc, &sw);
   if (!(cp && cp->path))
@@ -949,10 +935,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   int               id_car = -1, id_code = -1, id_hz = -1, id_data = -1;
   int               id_ecar = -1, id_ecod = -1, id_order = -1, id_rate = -1;
   dp_sample_clock_t clk;
-  const size_t      b_from
-      = cp && cp->path ? (size_t)(cp->from_s * PI_FS) / PI_PUSH : SIZE_MAX;
-  const size_t b_to
-      = cp && cp->path ? (size_t)(cp->to_s * PI_FS) / PI_PUSH : 0;
+  const size_t      b_from = cp && cp->path
+                                 ? (size_t)(cp->from_s * DP_S415_FS) / PI_PUSH
+                                 : SIZE_MAX;
+  const size_t      b_to
+      = cp && cp->path ? (size_t)(cp->to_s * DP_S415_FS) / PI_PUSH : 0;
   for (size_t b = 0; b < n_blk; b++)
     {
       if (b == b_from)
@@ -972,7 +959,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0 && id_data >= 0
                       && id_ecar >= 0 && id_ecod >= 0 && id_order >= 0
                       && id_rate >= 0);
-          dp_sample_clock_init (&clk, PI_FS, 0);
+          dp_sample_clock_init (&clk, DP_S415_FS, 0);
           cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
           DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
         }
@@ -985,7 +972,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           dp_tlm_emit (tlm, id_code, t.code_chips);
           dp_tlm_emit (tlm, id_hz, t.car_hz);
           dp_tlm_emit (tlm, id_data,
-                       (double)(t.symbol >= 0 && t.symbol % 1000 >= 275));
+                       (double)(t.symbol >= 0
+                                && t.symbol % DP_S415_FRAME_SYM
+                                       >= DP_S415_CODE_ONLY_SYM));
         }
       /* The loops' true errors at this call's first sample, read with the
          getters the receiver's rx.phase.car / rx.phase.code probes are
@@ -1005,7 +994,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           e_car[b] = (float)(ec - 0.5 * floor (ec / 0.5 + 0.5));
           const double ek
               = dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
-                - t.code_chips + 0.5 * chip / PI_FS;
+                - t.code_chips + 0.5 * chip / DP_S415_FS;
           e_cod[b] = (float)(ek - (double)SF * floor (ek / (double)SF + 0.5));
           if (isnan (d->ho_code_chip))
             d->ho_code_chip = e_cod[b];
@@ -1055,10 +1044,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
         }
       /* --acq a/b: at the stint's first lock, the receiver's own event
          (both flags up: had_lock), the loop goes to its tracking form. */
-      const double t_blk = (double)(b + 1) * PI_PUSH / PI_FS;
+      const double t_blk = (double)(b + 1) * PI_PUSH / DP_S415_FS;
       if (tracking && !narrowed)
         {
-          const double f = dp_costas_get_norm_freq (&rx->car) * PI_FS;
+          const double f = dp_costas_get_norm_freq (&rx->car) * DP_S415_FS;
           sl_n += 1.0, sl_t += t_blk, sl_f += f, sl_tt += t_blk * t_blk,
               sl_tf += t_blk * f;
         }
@@ -1077,9 +1066,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
               DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track)
                           == DP_OK);
               if (pi_seed_rate && !isnan (d->slope_hz_s))
-                DP_REQUIRE (dp_costas_set_norm_rate (
-                                &rx->car, d->slope_hz_s / (PI_FS * PI_FS))
-                            == DP_OK);
+                DP_REQUIRE (
+                    dp_costas_set_norm_rate (
+                        &rx->car, d->slope_hz_s / (DP_S415_FS * DP_S415_FS))
+                    == DP_OK);
             }
           else
             DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
@@ -1137,24 +1127,24 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
             {
               if (t_blk - sw_t0 >= sw.hold_s)
                 {
-                  d->rate_pre_narrow_hz_s
-                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+                  d->rate_pre_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
+                                            * DP_S415_FS * DP_S415_FS;
                   DP_REQUIRE (dp_costas_configure (&rx->car,
                                                    pi_acq == 'e' ? sw.bn_track
                                                                  : sw.bn_mid,
                                                    rx->car.zeta)
                               == DP_OK);
-                  d->rate_post_narrow_hz_s
-                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
-                  sw_t0    = t_blk;
-                  sw_phase = pi_acq == 'e' ? 3 : 2;
+                  d->rate_post_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
+                                             * DP_S415_FS * DP_S415_FS;
+                  sw_t0                    = t_blk;
+                  sw_phase                 = pi_acq == 'e' ? 3 : 2;
                   if (pi_acq == 'e')
                     d->t_narrow_s = t_blk;
                 }
             }
           else if (sw_phase == 2 && pi_acq == 'd')
             {
-              const double f = dp_costas_get_norm_freq (&rx->car) * PI_FS;
+              const double f = dp_costas_get_norm_freq (&rx->car) * DP_S415_FS;
               s2_n += 1.0, s2_t += t_blk, s2_f += f, s2_tt += t_blk * t_blk,
                   s2_tf += t_blk * f;
               if (t_blk - sw_t0 >= sw.w_s)
@@ -1167,9 +1157,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
                   DP_REQUIRE (dp_costas_set_order (&rx->car, 3, sw.bn_track)
                               == DP_OK);
                   if (pi_seed_rate && !isnan (d->slope_settled_hz_s))
-                    DP_REQUIRE (dp_costas_set_norm_rate (&rx->car,
-                                                         d->slope_settled_hz_s
-                                                             / (PI_FS * PI_FS))
+                    DP_REQUIRE (dp_costas_set_norm_rate (
+                                    &rx->car, d->slope_settled_hz_s
+                                                  / (DP_S415_FS * DP_S415_FS))
                                 == DP_OK);
                   d->t_switch_s = d->t_narrow_s = t_blk;
                   sw_phase                      = 3;
@@ -1179,15 +1169,15 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
             {
               if (t_blk - sw_t0 >= sw.hold_mid_s)
                 {
-                  d->rate_pre_narrow_hz_s
-                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+                  d->rate_pre_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
+                                            * DP_S415_FS * DP_S415_FS;
                   DP_REQUIRE (
                       dp_costas_configure (&rx->car, sw.bn_track, rx->car.zeta)
                       == DP_OK);
-                  d->rate_post_narrow_hz_s
-                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
-                  d->t_narrow_s = t_blk;
-                  sw_phase      = 3;
+                  d->rate_post_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
+                                             * DP_S415_FS * DP_S415_FS;
+                  d->t_narrow_s            = t_blk;
+                  sw_phase                 = 3;
                 }
             }
         }
@@ -1195,7 +1185,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
         {
           dp_tlm_emit (tlm, id_order, (double)dp_costas_get_order (&rx->car));
           dp_tlm_emit (tlm, id_rate,
-                       dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS);
+                       dp_costas_get_norm_rate (&rx->car) * DP_S415_FS
+                           * DP_S415_FS);
         }
       if (tracking && isnan (d->ho_err_hz))
         {
@@ -1203,7 +1194,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           d->ho_err_hz      = dp_async_dsss_receiver_get_doppler_hz (rx)
                               - dp_air_truth (&air, 0, at).car_hz;
           d->ho_src         = dp_async_dsss_receiver_get_handover_source (rx);
-          d->t_track_s      = (double)at / PI_FS;
+          d->t_track_s      = (double)at / DP_S415_FS;
           d->ho_age_s       = d->t_track_s - d->seed_t_s;
         }
       /* The first seed: the refine's chain is built at the seed's sample,
@@ -1215,8 +1206,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           const uint64_t       i0 = rx->samples_in - rx->state_samples;
           const dp_air_truth_t t  = dp_air_truth (&air, 0, i0);
           const double         ek
-              = rx->seed_chip_phase - t.code_chips + 0.5 * chip / PI_FS;
-          d->seed_t_s       = (double)i0 / PI_FS;
+              = rx->seed_chip_phase - t.code_chips + 0.5 * chip / DP_S415_FS;
+          d->seed_t_s       = (double)i0 / DP_S415_FS;
           d->seed_err_hz    = rx->seed_doppler_hz_est - t.car_hz;
           d->seed_code_chip = ek - (double)SF * floor (ek / (double)SF + 0.5);
         }
@@ -1245,7 +1236,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       /* A block is DATA when the truth puts its middle in a data symbol. */
       const long sym
           = dp_air_truth (&air, 0, b * PI_PUSH + PI_PUSH / 2).symbol;
-      data[b] = (uint8_t)(sym >= 0 && sym % 1000 >= 275);
+      data[b] = (uint8_t)(sym >= 0
+                          && sym % DP_S415_FRAME_SYM >= DP_S415_CODE_ONLY_SYM);
       if (!tracking)
         gen++;
       s_end[b] = tracking ? ns : SIZE_MAX;
@@ -1260,7 +1252,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           /* Settled: tracking, 1 s after the hand-over. */
           const int settled
               = tracking && !isnan (d->t_track_s)
-                && (double)b * PI_PUSH / PI_FS >= d->t_track_s + 1.0;
+                && (double)b * PI_PUSH / DP_S415_FS >= d->t_track_s + 1.0;
           const size_t nr = dp_tlm_read (itlm, 0, recs, rcap);
           DP_REQUIRE_MSG (dp_tlm_dropped (itlm) == 0,
                           "the instrument's ring drops nothing");
@@ -1373,7 +1365,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   /* Lock and its transitions, over the data. */
   const int64_t s_sym = dp_ber_lock_symbol (f_sym, n_blk, PI_SUSTAIN, 0.9);
   const int64_t s_cod = dp_ber_lock_symbol (f_cod, n_blk, PI_SUSTAIN, 0.9);
-  const double  blk_s = (double)PI_PUSH / PI_FS;
+  const double  blk_s = (double)PI_PUSH / DP_S415_FS;
   d->t_sym_s          = s_sym >= 0 ? (double)s_sym * blk_s : NAN;
   d->t_code_s         = s_cod >= 0 ? (double)s_cod * blk_s : NAN;
   int64_t first       = -1;
@@ -1445,7 +1437,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
     d->bn_car         = rx->car.lf.bn;
     d->loop_order     = pi_loop_order;
     d->acq            = pi_loop_order == 3 ? pi_acq : '-';
-    d->rate_end_hz_s  = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+    d->rate_end_hz_s
+        = dp_costas_get_norm_rate (&rx->car) * DP_S415_FS * DP_S415_FS;
     if (pi_loop_order == 3 && pi_acq == 'c')
       d->t_narrow_s = d->t_track_s; /* narrow from the entry into tracking */
     free (w_e);
@@ -1472,7 +1465,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           = win_frac (cross, e_car, e_cod, n_blk, w1, blk_s, d->t_track_s);
       /* The lock statistic's own memory, in whole blocks (at least one):
          whether the excursion sits AT the change, not a second before. */
-      d->lock_mem_s     = 1.0 / rx->lock_alpha / PI_SYM;
+      d->lock_mem_s     = 1.0 / rx->lock_alpha / DP_S415_SYM;
       const size_t wm   = (size_t)fmax (1.0, round (d->lock_mem_s / blk_s));
       uint8_t     *mark = dp_xmalloc (n_blk);
       for (size_t x = 0; x < 3; x++)
@@ -1639,7 +1632,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   d->end_stale_hz = dp_async_dsss_receiver_get_doppler_hz (rx)
                     - dp_air_truth (&air, 0, n_in).car_hz;
   d->false_lock   = rx->state == ASYNC_DSSS_RX_TRACKING
-                    && fabs (d->end_resid_hz) >= 0.25 * PI_SYM;
+                    && fabs (d->end_resid_hz) >= 0.25 * DP_S415_SYM;
 
   /* The error rate of the current track, against the payload as each
      symbol carried it. */
@@ -1653,7 +1646,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       long base = dp_air_truth (&air, 0, first_in).symbol - 60;
       if (base < 0)
         base = 0;
-      const size_t n_truth = (size_t)(secs * PI_SYM) + 1000;
+      const size_t n_truth = (size_t)(secs * DP_S415_SYM) + 1000;
       uint8_t     *truth   = dp_xmalloc (n_truth);
       for (size_t i = 0; i < n_truth; i++)
         {
@@ -1859,7 +1852,7 @@ print_cell (const draw_t *ds, size_t n)
       "%.2f], acquired %zu, false %zu; lock %.2f/%.2f/%.2f s; aligned "
       "%zu, slipped %zu, end unsynced %zu; SER %.2e [%.2e, %.2e] (%lu/%lu), "
       "loss %.2f dB\n",
-      ds[0].fc / 1e9, ds[0].esn0, ds[0].rate == 0.0 ? 0.0 : PI_RATE_HZ_S,
+      ds[0].fc / 1e9, ds[0].esn0, ds[0].rate == 0.0 ? 0.0 : DP_S415_RATE_HZ_S,
       ds[0].cw ? "code_period" : "partials", works, n, wl, wh, acq, fl,
       nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
       nt ? t[nt - 1] : NAN, al, slip, unsync, ci.p_hat, ci.lo, ci.hi, err, sc,
@@ -1939,7 +1932,7 @@ pi_design (const double fcs[2], const double esn0s[4])
           "prop_pass_eps,rotation,r_env_hz_s,o2_lag_at_r_env_deg,"
           "o2_lag_at_prop_max_deg,res_f2_max_hz_s2,o3_err_at_res_f2_deg");
   for (int i = 0; i < PI_PASS_BINS; i++)
-    printf (",env_%.0f", (double)(i + 1) * PI_SPAN_HZ / PI_PASS_BINS);
+    printf (",env_%.0f", (double)(i + 1) * DP_S415_SPAN_HZ / PI_PASS_BINS);
   printf ("\n");
   for (int g = 0; g < 2; g++)
     {
@@ -1949,7 +1942,7 @@ pi_design (const double fcs[2], const double esn0s[4])
       for (int f = 0; f < 2; f++)
         {
           dp_loop_filter_state_t lf;
-          const double           T = (double)SF / (fcs[f] * 31.0 / 21216.0);
+          const double           T = (double)SF / (dp_s415_chip_rate (fcs[f]));
           dp_loop_filter_init (
               &lf, pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)), 0.707, 1.0);
           lag_per = fmax (
@@ -1989,15 +1982,13 @@ pi_design (const double fcs[2], const double esn0s[4])
     for (int k = 0; k < 2; k++)
       {
         const double esn0 = k ? 10.0 : 4.0;
-        const double chip = fcs[f] * 31.0 / 21216.0;
-        const double cn0  = esn0 + 10.0 * log10 (PI_SYM);
+        const double chip = dp_s415_chip_rate (fcs[f]);
+        const double cn0  = dp_s415_cn0 (esn0);
         uint8_t      code[SF];
         for (size_t i = 0; i < SF; i++)
           code[i] = (uint8_t)(i & 1u);
-        dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-            code, SF, chip, PI_SYM, PI_FS, 2, cn0, 1e-3, 0.9, PI_SPAN_HZ, 4, 8,
-            0, 0.5, 4, 14.0, 64, 8, false, 100000, fcs[f], 0.0, false,
-            275.0 / PI_SYM, PI_RATE_HZ_S, true, 0);
+        dp_async_dsss_receiver_state_t *rx
+            = dp_s415_rx (code, fcs[f], cn0, true, 0);
         size_t nc = 0;
         if (!rx || dp_correlator_get_n_noncoh (rx->acq, &nc) != DP_OK)
           {
@@ -2042,9 +2033,10 @@ pi_design (const double fcs[2], const double esn0s[4])
     for (int e = 0; e < 4; e++)
       for (int cw = 0; cw < 2; cw++)
         {
-          const double chip = fcs[f] * 31.0 / 21216.0, T = (double)SF / chip;
-          const double rho = pi_rho (fcs[f], esn0s[e]);
-          const int    kw  = cw ? 1 : PI_PARTIALS; /* code_period: one */
+          const double chip = dp_s415_chip_rate (fcs[f]),
+                       T    = (double)SF / chip;
+          const double rho  = pi_rho (fcs[f], esn0s[e]);
+          const int    kw   = cw ? 1 : PI_PARTIALS; /* code_period: one */
           const double k
               = pi_slope (rho, kw, 4410u + (uint64_t)(f * 8 + e * 2 + cw));
           const double bns[2]
@@ -2088,8 +2080,9 @@ pi_design (const double fcs[2], const double esn0s[4])
                                    / (4.0 * bd * (1.0 + kw / (2.0 * rho)))),
                       pi_k_low (order, g, delays[di]),
                       360.0
-                          * dp_state_filter_steady_error (
-                              order, g[1], g[2], 2, PI_RATE_HZ_S * T * T));
+                          * dp_state_filter_steady_error (order, g[1], g[2], 2,
+                                                          DP_S415_RATE_HZ_S * T
+                                                              * T));
                 }
         }
 }
@@ -2170,12 +2163,12 @@ main (int argc, char **argv)
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
 
-  static const double fcs[2] = { 2.2e9, 2.8e9 };
+  static const double fcs[2] = { DP_S415_FC_LO, DP_S415_FC_HI };
   /* The sweep's four levels, and a fifth only --esn0 selects: 20 dB, a
      high-SNR cell where the code lock's statistic reads its signal term
      with the max-over-windows selection's noise bias negligible. */
   static const double esn0s[5] = { 4.0, 5.0, 7.0, 10.0, 20.0 };
-  double              rates[2] = { 0.0, PI_RATE_HZ_S };
+  double              rates[2] = { 0.0, DP_S415_RATE_HZ_S };
   /* --dynamics pass: the moving cell holds R_env, the use case's
      conservative residual rate, from the 50 km envelope. */
   if (pi_dyn_pass)
@@ -2329,11 +2322,11 @@ main (int argc, char **argv)
          built, the end's carrier is within the false-lock limit of the
          truth. The draw is sized so the hand-over's Doppler is past it. */
       draw_t rd;
-      DP_REQUIRE (run_draw (code, 2.8e9, 10.0, PI_RATE_HZ_S,
+      DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, DP_S415_RATE_HZ_S,
                             ASYNC_DSSS_RX_CARRIER_PARTIALS, 1, PI_RAMP_CHECK_S,
                             spc, NULL, NULL, &rd)
                   == 0);
-      const double lim = 0.25 * PI_SYM;
+      const double lim = 0.25 * DP_S415_SYM;
       printf ("  ramp: 2.8 GHz 10 dB +/-400 Hz/s partials, %.0f s: live "
               "carrier %.1f Hz off the truth; the hand-over's Doppler "
               "%.0f Hz off, %.2fx the %.0f Hz limit\n",

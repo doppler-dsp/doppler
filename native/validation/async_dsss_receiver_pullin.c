@@ -599,8 +599,10 @@ pi_switch_design (double fc, pi_switch_t *sw)
        dt up to the one whose residual reaches PI_SPAN_HZ, both branches;
      - proportional: the cross-check, residual eps f(t) for every eps up to
        PI_SPAN_HZ over the pass's visible peak offset.
-   R_env is pi_r_env() of the two maxima: the larger, times the rotation
-   factor, rounded up to the whole Hz/s. */
+   R_env is pi_r_env(): the timing envelope's maximum (the ephemeris error
+   model, owner 11-17), times the rotation factor, rounded up to the whole
+   Hz/s. The proportional model is its cross-check, printed with the pass
+   that drives it, and does not set it. */
 #define PI_PASS_MASK_DEG 10.0
 #define PI_PASS_RATE_SPEC 400.0
 #define PI_PASS_RE_KM 6371.0
@@ -671,9 +673,13 @@ pi_pass_peak_rate (double h_km, double el_deg, double fc)
 static double
 pi_pass_el (double h_km, double fc)
 {
-  if (pi_pass_peak_rate (h_km, 89.9, fc) < PI_PASS_RATE_SPEC)
-    return NAN;
+  /* In scope only where some pass at h has exactly that peak: not when
+     even overhead stays under it, nor when even the lowest pass above the
+     mask already exceeds it. */
   double lo = PI_PASS_MASK_DEG + 0.5, hi = 89.9;
+  if (pi_pass_peak_rate (h_km, hi, fc) < PI_PASS_RATE_SPEC
+      || pi_pass_peak_rate (h_km, lo, fc) > PI_PASS_RATE_SPEC)
+    return NAN;
   for (int i = 0; i < 30; i++)
     {
       const double m = 0.5 * (lo + hi);
@@ -691,6 +697,7 @@ typedef struct
   int    n_pass;
   double env[PI_PASS_BINS]; /* timing: largest |rate| by |offset| bin */
   double timing_max, prop_max, v_min, f2_max;
+  double prop_h_km, prop_el_deg, prop_fc, prop_eps; /* its driving pass */
 } pi_pass_env_t;
 
 /* The envelope over every in-scope pass on a step_km altitude grid from
@@ -740,7 +747,14 @@ pi_pass_envelope (double step_km, pi_pass_env_t *pe)
               }
           }
         /* proportional: the largest residual rate is eps_max f'_max */
-        pe->prop_max = fmax (pe->prop_max, PI_SPAN_HZ / fpk * f1pk);
+        if (PI_SPAN_HZ / fpk * f1pk > pe->prop_max)
+          {
+            pe->prop_max    = PI_SPAN_HZ / fpk * f1pk;
+            pe->prop_h_km   = h;
+            pe->prop_el_deg = el;
+            pe->prop_fc     = fcs[k];
+            pe->prop_eps    = PI_SPAN_HZ / fpk;
+          }
         free (f), free (f1), free (f2);
       }
   for (int i = 0; i < PI_PASS_BINS; i++)
@@ -755,16 +769,20 @@ pi_pass_rotation (double v_min_kms)
   return 1.0 + PI_PASS_OMEGA_E * PI_PASS_RE_KM / v_min_kms;
 }
 
-/* R_env, the rate a pass draw holds, Hz/s: the larger of the two models'
-   maxima, times the rotation factor, rounded up to the whole Hz/s. */
+/* R_env, the rate a pass draw holds, Hz/s: the timing envelope's maximum
+   times the rotation factor, rounded up to the whole Hz/s. */
 static double
-pi_r_env (double timing_max, double prop_max, double rotation)
+pi_r_env (double timing_max, double rotation)
 {
-  return ceil (fmax (timing_max, prop_max) * rotation);
+  return ceil (timing_max * rotation);
 }
 
 /* --dynamics pass: R_env for this run (0 until main computes it). */
 static double pi_pass_r_env = 0.0;
+/* --dynamics: "pass" (the use case: static, and the constant R_env) or
+   "ramp" (the constant PI_RATE_HZ_S, outside the use case: owner 11-17,
+   "We don't want to test what will never happen"; a diagnostic only). */
+static int pi_dyn_pass = 0;
 
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
@@ -1842,16 +1860,34 @@ pi_design (const double fcs[2], const double esn0s[4])
   pi_pass_envelope (50.0, &pe[0]);
   pi_pass_envelope (25.0, &pe[1]);
   printf ("# pass\nstep_km,passes,f2_raw_max_hz_s2,timing_max_hz_s,"
-          "prop_max_hz_s,rotation,r_env_hz_s");
+          "prop_max_hz_s,prop_pass_h_km,prop_pass_el_deg,prop_pass_fc_ghz,"
+          "prop_pass_eps,rotation,r_env_hz_s,o2_lag_at_r_env_deg,"
+          "o2_lag_at_prop_max_deg");
   for (int i = 0; i < PI_PASS_BINS; i++)
     printf (",env_%.0f", (double)(i + 1) * PI_SPAN_HZ / PI_PASS_BINS);
   printf ("\n");
   for (int g = 0; g < 2; g++)
     {
       const double rot = pi_pass_rotation (pe[g].v_min);
-      printf ("%.0f,%d,%.3f,%.3f,%.3f,%.4f,%.0f", pe[g].step_km, pe[g].n_pass,
-              pe[g].f2_max, pe[g].timing_max, pe[g].prop_max, rot,
-              pi_r_env (pe[g].timing_max, pe[g].prop_max, rot));
+      /* The order-2 lag at the rule's bn, the larger of the carriers'. */
+      double lag_per = 0.0;
+      for (int f = 0; f < 2; f++)
+        {
+          dp_loop_filter_state_t lf;
+          const double           T = (double)SF / (fcs[f] * 31.0 / 21216.0);
+          dp_loop_filter_init (
+              &lf, pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)), 0.707, 1.0);
+          lag_per = fmax (
+              lag_per,
+              360.0 * dp_state_filter_steady_error (2, lf.ki, 0.0, 2, T * T));
+        }
+      const double r_env = pi_r_env (pe[g].timing_max, rot);
+      printf ("%.0f,%d,%.3f,%.3f,%.3f,%.0f,%.1f,%.1f,%.4f,%.4f,%.0f,%.3f,"
+              "%.3f",
+              pe[g].step_km, pe[g].n_pass, pe[g].f2_max, pe[g].timing_max,
+              pe[g].prop_max, pe[g].prop_h_km, pe[g].prop_el_deg,
+              pe[g].prop_fc / 1e9, pe[g].prop_eps, rot, r_env, lag_per * r_env,
+              lag_per * pe[g].prop_max);
       for (int i = 0; i < PI_PASS_BINS; i++)
         printf (",%.3f", pe[g].env[i]);
       printf ("\n");
@@ -1984,6 +2020,13 @@ main (int argc, char **argv)
           pi_loop_order = atoi (argv[++i]);
           DP_REQUIRE (pi_loop_order == 2 || pi_loop_order == 3);
         }
+      else if (strcmp (argv[i], "--dynamics") == 0 && i + 1 < argc)
+        {
+          ++i;
+          DP_REQUIRE (strcmp (argv[i], "pass") == 0
+                      || strcmp (argv[i], "ramp") == 0);
+          pi_dyn_pass = strcmp (argv[i], "pass") == 0;
+        }
       else if (strcmp (argv[i], "--seed-rate") == 0)
         pi_seed_rate = 1;
       else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
@@ -2008,7 +2051,16 @@ main (int argc, char **argv)
 
   static const double fcs[2]   = { 2.2e9, 2.8e9 };
   static const double esn0s[4] = { 4.0, 5.0, 7.0, 10.0 };
-  static const double rates[2] = { 0.0, PI_RATE_HZ_S };
+  double              rates[2] = { 0.0, PI_RATE_HZ_S };
+  /* --dynamics pass: the moving cell holds R_env, the use case's
+     conservative residual rate, from the 50 km envelope. */
+  if (pi_dyn_pass)
+    {
+      pi_pass_env_t pe;
+      pi_pass_envelope (50.0, &pe);
+      pi_pass_r_env = pi_r_env (pe.timing_max, pi_pass_rotation (pe.v_min));
+      rates[1]      = pi_pass_r_env;
+    }
 
   /* One named draw with its telemetry: --telemetry DIR --draw
      FC_GHZ,ESN0,RATE,CW,SEED [--from S --to S]. The capture is the

@@ -1283,6 +1283,7 @@ dp_ofdm_add_polarity function
 dp_ofdm_add_run function
 dp_ofdm_add_subcarrier_gain function
 dp_ofdm_check function
+dp_ofdm_check_why function
 dp_ofdm_create function
 dp_ofdm_destroy function
 dp_ofdm_finish function

@@ -1460,6 +1460,7 @@
 * **dp\_ofdm\_add\_run** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_add\_subcarrier\_gain** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_check** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **dp\_ofdm\_check\_why** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_create** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_destroy** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_finish** ([**ofdm\_core.h**](ofdm__core_8h.md))

@@ -68,7 +68,8 @@ _A general OFDM modulator: constellation points and a layout in, baseband sample
 |  int | [**dp\_ofdm\_add\_polarity**](#function-dp_ofdm_add_polarity) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, uint32\_t class\_index, const float \_Complex \* polarity, size\_t polarity\_len) <br>_Give a class a polarity sequence._  |
 |  int | [**dp\_ofdm\_add\_run**](#function-dp_ofdm_add_run) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, uint32\_t class\_index, uint32\_t count, uint32\_t cyclic\_prefix, uint32\_t polarity\_offset, uint32\_t first\_phase) <br>_Append a run of OFDM symbols of one class and return its index._  |
 |  int | [**dp\_ofdm\_add\_subcarrier\_gain**](#function-dp_ofdm_add_subcarrier_gain) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, uint32\_t class\_index, const float \_Complex \* gain, size\_t gain\_len) <br>_Give a class a complex multiplier per subcarrier._  |
-|  int | [**dp\_ofdm\_check**](#function-dp_ofdm_check) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state) <br>_Check the whole layout and derive what the render uses._  |
+|  int | [**dp\_ofdm\_check**](#function-dp_ofdm_check) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state) <br>_The plain form of_ [_**dp\_ofdm\_check\_why()**_](ofdm__core_8h.md#function-dp_ofdm_check_why) _: 0 if the layout is usable, a negative value if not, with no sentence. What a C caller that does not print the reason calls._ |
+|  int | [**dp\_ofdm\_check\_why**](#function-dp_ofdm_check_why) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, const char \*\* why) <br>_Check the whole layout and derive what the render uses; say why when it is not usable. This is the binding's_ `check` _._ |
 |  [**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* | [**dp\_ofdm\_create**](#function-dp_ofdm_create) (void) <br>_Create an empty modulator (no classes, no runs)._  |
 |  void | [**dp\_ofdm\_destroy**](#function-dp_ofdm_destroy) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state) <br>_Destroy a modulator and release all memory._  |
 |  size\_t | [**dp\_ofdm\_finish**](#function-dp_ofdm_finish) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Return the window tail still held and clear it._  |
@@ -477,10 +478,45 @@ True
 
 ### function dp\_ofdm\_check 
 
-_Check the whole layout and derive what the render uses._ 
+_The plain form of_ [_**dp\_ofdm\_check\_why()**_](ofdm__core_8h.md#function-dp_ofdm_check_why) _: 0 if the layout is usable, a negative value if not, with no sentence. What a C caller that does not print the reason calls._
 ```C++
 int dp_ofdm_check (
     dp_ofdm_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` The modulator. 
+
+
+
+**Returns:**
+
+0 if the layout is usable, a negative value if not. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ofdm\_check\_why 
+
+_Check the whole layout and derive what the render uses; say why when it is not usable. This is the binding's_ `check` _._
+```C++
+int dp_ofdm_check_why (
+    dp_ofdm_state_t * state,
+    const char ** why
 ) 
 ```
 
@@ -495,6 +531,7 @@ Refuses a layout with no run, a window longer than an OFDM symbol of its class, 
 
 
 * `state` The modulator. 
+* `why` Where the refusal's sentence goes: a static string naming the condition that failed, or NULL when the layout is usable. May be NULL. 
 
 
 
@@ -511,12 +548,13 @@ Refuses a layout with no run, a window longer than an OFDM symbol of its class, 
 >>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1
 >>> o.add_class(8, m)
 0
->>> o.check() < 0            # no run yet
-True
+>>> o.check()                # no run yet
+Traceback (most recent call last):
+    ...
+ValueError: the layout has no run
 >>> o.add_run(0, 1)
 0
->>> o.check()
-0
+>>> o.check()                # usable: returns None
 ```
  
 

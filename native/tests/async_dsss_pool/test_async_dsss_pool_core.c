@@ -15,6 +15,7 @@
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_s415_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -1577,9 +1578,8 @@ _ghost_pool (const uint8_t *code)
    the C/N0 the search would report for that peak (A's times the sidelobe's
    level): the seed the search makes when noise lifts a sidelobe past its
    gate. Pushed until receiver 1 is released or `tmax_s` after the seed. */
-#define G415_FS 11e6
 #define G415_PUSH 4096u
-#define G415_FC 2.8e9
+#define G415_FC DP_S415_FC_HI
 typedef struct
 {
   dp_async_dsss_pool_state_t *p;
@@ -1608,11 +1608,8 @@ _autocorr (const uint8_t *code, size_t t)
 static dp_async_dsss_pool_state_t *
 _g415_pool (const uint8_t *code, double lost_s)
 {
-  const double chip = G415_FC * 31.0 / 21216.0;
-  return dp_async_dsss_pool_create (
-      code, 1023, 2, chip, 3000.0, G415_FS, 2, 4.0 + 10.0 * log10 (3000.0),
-      1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, G415_FC,
-      lost_s, false, 275.0 / 3000.0, 400.0, 1, true, 0);
+  return dp_s415_pool (code, G415_FC, 2, dp_s415_cn0 (DP_S415_FLOOR_DB),
+                       lost_s, 1, 0);
 }
 
 static int
@@ -1629,17 +1626,8 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
   /* A on the air at the 415.1 point (dp_air_test.h): the shipped synth,
      the front end's fixed-ratio converter, a Doppler channel 700 Hz off,
      and the shipped noise at A's own C/N0. */
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = 1023;
-  e.chip_rate        = G415_FC * 31.0 / 21216.0;
-  e.sym_rate         = 3000.0;
-  e.carrier_hz       = G415_FC;
-  e.f0_hz            = f0;
-  e.cn0_dbhz         = cn0;
-  e.code_only_sym    = 275;
-  e.frame_sym        = 1000;
-  e.seed             = 100u + seed;
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, G415_FC, f0, 0.0, cn0, 0.0, 100u + seed);
   /* Each push completes the pool's current group (group minus its carry),
      so the controller runs at the end of every push and a release is seen
      before any later period records into the rings: hist_clear is the only
@@ -1647,8 +1635,9 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
   const size_t    push = p->group;
   dp_air_t        air;
   float _Complex *ns = malloc (push * sizeof *ns);
-  DP_REQUIRE (ns != NULL
-              && dp_air_init (&air, &e, 1, G415_FS, cn0, 7919u + seed, push));
+  DP_REQUIRE (
+      ns != NULL
+      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, push));
   const double lattice = p->lattice_hz;
   size_t       pos     = 0;
   double       t_seed  = -1.0;
@@ -1663,7 +1652,7 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
       (void)dp_async_dsss_pool_push (p, ns, want);
       DP_REQUIRE (p->carry_len == 0);
       pos += want;
-      const double                       t  = (double)pos / G415_FS;
+      const double                       t  = (double)pos / DP_S415_FS;
       const async_dsss_receiver_status_t s0 = dp_async_dsss_pool_status (p, 0);
       const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
       if (t_seed < 0.0)
@@ -1752,7 +1741,7 @@ _test_ghost_is_released (void)
     /* Whichever end it came to, its flags say why: freed by the loss
        release only after both flags were down for the confirm span (0.5 s,
        in whole pushes), and otherwise still tracking. */
-    const double push_s = (double)p->group / G415_FS;
+    const double push_s = (double)p->group / DP_S415_FS;
     if (p->released_lost)
       DP_CHECK_MSG ((double)z.both_down * push_s >= 0.5 - push_s,
                     "freed by the loss release with both flags down");

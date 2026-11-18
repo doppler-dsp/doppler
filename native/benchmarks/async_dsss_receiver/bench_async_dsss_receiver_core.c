@@ -42,6 +42,7 @@
 #include "doppler/gold/gold_core.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_air_test.h"
+#include "dp_s415_test.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdint.h>
@@ -444,8 +445,6 @@ run_tracking (jm_bench_t *bench, const uint8_t *code)
  * no state change, as run_tracking(). */
 #define SPEC_MAX_LOCK_S 3.0
 #define SPEC_ITERS 10
-#define SPEC_CODE_ONLY_SYM 275u
-#define SPEC_FRAME_SYM 1000u
 
 typedef struct
 {
@@ -470,20 +469,12 @@ spec_src_free (spec_src_t *s)
 }
 
 static int
-spec_src_init (spec_src_t *s, const uint8_t *code, double chip, double sym,
-               double fc, double cn0, double fs_in, float amp, size_t block)
+spec_src_init (spec_src_t *s, const uint8_t *code, double fc, double cn0,
+               double fs_in, float amp, size_t block)
 {
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = 1023;
-  e.chip_rate        = chip;
-  e.sym_rate         = sym;
-  e.carrier_hz       = fc;
-  e.f0_hz            = -1000.0;
-  e.cn0_dbhz         = cn0 + (amp > 0.0f ? 20.0 * log10 ((double)amp) : 0.0);
-  e.code_only_sym    = SPEC_CODE_ONLY_SYM;
-  e.frame_sym        = SPEC_FRAME_SYM;
-  e.seed             = 100u;
+  dp_air_emitter_t e = dp_s415_emitter (
+      code, fc, -1000.0, 0.0,
+      cn0 + (amp > 0.0f ? 20.0 * log10 ((double)amp) : 0.0), 0.0, 100u);
   return dp_air_init (&s->air, &e, amp > 0.0f ? 1 : 0, fs_in, cn0, 7919u,
                       block);
 }
@@ -498,12 +489,9 @@ spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
    that fans its block across a worker pool would otherwise turn these
    rows into wall-time rows on a many-core box. */
 static dp_async_dsss_receiver_state_t *
-spec_rx (const uint8_t *code, double chip, double fc, double cn0)
+spec_rx (const uint8_t *code, double fc, double cn0)
 {
-  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, 1023, chip, 3000.0, 11e6, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / 3000.0, 400.0,
-      true, 0);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, true, 0);
   if (rx)
     (void)dp_async_dsss_receiver_set_threads (rx, 1);
   return rx;
@@ -520,10 +508,9 @@ spec_print (const char *name, double sec, size_t n, double fs_in)
 static int
 run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = 11e6, chip = pt->carrier_hz * 31.0 / 21216.0;
-  const double cn0 = 4.0 + 10.0 * log10 (3000.0);
-  dp_async_dsss_receiver_state_t *rx
-      = spec_rx (code, chip, pt->carrier_hz, cn0);
+  const double fs_in = DP_S415_FS, chip = dp_s415_chip_rate (pt->carrier_hz);
+  const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  dp_async_dsss_receiver_state_t *rx = spec_rx (code, pt->carrier_hz, cn0);
   if (!rx)
     return 1;
   const size_t    D     = dp_async_dsss_receiver_get_coherent_bins (rx);
@@ -532,8 +519,7 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
   float _Complex *out   = malloc (block * sizeof *out);
   spec_src_t      src;
   if (!x || !out
-      || !spec_src_init (&src, code, chip, 3000.0, pt->carrier_hz, cn0, fs_in,
-                         0.0f, block))
+      || !spec_src_init (&src, code, pt->carrier_hz, cn0, fs_in, 0.0f, block))
     {
       (void)fprintf (stderr,
                      "bench_async_dsss_receiver[spec search %s]: "
@@ -577,17 +563,15 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 static int
 run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = 11e6, chip = pt->carrier_hz * 31.0 / 21216.0;
-  const double cn0  = 4.0 + 10.0 * log10 (3000.0);
+  const double fs_in = DP_S415_FS, chip = dp_s415_chip_rate (pt->carrier_hz);
+  const double cn0  = dp_s415_cn0 (DP_S415_FLOOR_DB);
   const size_t maxb = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
-  dp_async_dsss_receiver_state_t *rx
-      = spec_rx (code, chip, pt->carrier_hz, cn0);
-  float _Complex *x   = malloc ((size_t)BLOCK * sizeof *x);
-  float _Complex *out = malloc ((size_t)BLOCK * sizeof *out);
-  spec_src_t      src;
+  dp_async_dsss_receiver_state_t *rx  = spec_rx (code, pt->carrier_hz, cn0);
+  float _Complex                 *x   = malloc ((size_t)BLOCK * sizeof *x);
+  float _Complex                 *out = malloc ((size_t)BLOCK * sizeof *out);
+  spec_src_t                      src;
   if (!rx || !x || !out
-      || !spec_src_init (&src, code, chip, 3000.0, pt->carrier_hz, cn0, fs_in,
-                         1.0f, BLOCK))
+      || !spec_src_init (&src, code, pt->carrier_hz, cn0, fs_in, 1.0f, BLOCK))
     {
       (void)fprintf (stderr,
                      "bench_async_dsss_receiver[spec track %s]: "
@@ -687,7 +671,8 @@ main (void)
     return 1;
   printf ("\n=== at the 415.1-B-1 specification point: 11 MSa/s in, "
           "3,000 sym/s, 4 dB Es/N0 ===\n");
-  static const spec_pt_t pts[] = { { "2.2GHz", 2.2e9 }, { "2.8GHz", 2.8e9 } };
+  static const spec_pt_t pts[]
+      = { { "2.2GHz", DP_S415_FC_LO }, { "2.8GHz", DP_S415_FC_HI } };
   /* The CCSDS default Gold code, as wfm.Gold() makes it. */
   static uint8_t   gold[1023];
   dp_gold_state_t *gs = dp_gold_create (934, 350, 567, 73, 10);

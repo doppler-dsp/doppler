@@ -56,14 +56,13 @@
 #include "doppler/async_dsss_pool/async_dsss_pool_private.h"
 #include "dp_air_test.h"
 #include "dp_dsss_test.h"
+#include "dp_s415_test.h"
 #include "dp_stats_test.h"
 #include "dp_test.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define GH_FS 11e6
-#define GH_SYM 3000.0
 #define GH_SIDE 167u
 #define GH_DRAWS 20u
 #define GH_FORCED_S 10.0
@@ -75,30 +74,16 @@
 static dp_async_dsss_pool_state_t *
 gh_pool (const uint8_t *code, double fc, size_t n, double lost_s)
 {
-  return dp_async_dsss_pool_create (code, 1023, n, fc * 31.0 / 21216.0, GH_SYM,
-                                    GH_FS, 2, 4.0 + 10.0 * log10 (GH_SYM),
-                                    1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4, 14.0,
-                                    64, 8, false, 100000, fc, lost_s, false,
-                                    275.0 / GH_SYM, 400.0, 1, true, 0);
+  return dp_s415_pool (code, fc, n, dp_s415_cn0 (DP_S415_FLOOR_DB), lost_s, 1,
+                       0);
 }
 
 static dp_air_emitter_t
 gh_emitter (const uint8_t *code, double fc, double f0, double cn0,
             double lag_chips, uint32_t seed)
 {
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = 1023;
-  e.chip_rate        = fc * 31.0 / 21216.0;
-  e.sym_rate         = GH_SYM;
-  e.carrier_hz       = fc;
-  e.f0_hz            = f0;
-  e.cn0_dbhz         = cn0;
-  e.code_only_sym    = 275;
-  e.frame_sym        = 1000;
-  e.lag_s            = lag_chips / e.chip_rate;
-  e.seed             = seed;
-  return e;
+  return dp_s415_emitter (code, fc, f0, 0.0, cn0,
+                          lag_chips / dp_s415_chip_rate (fc), seed);
 }
 
 static long
@@ -141,8 +126,8 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
       = gh_emitter (code, fc, f0, GH_PARENT_DBHZ, 0.0, 100u + seed);
   dp_air_t       air;
   float complex *x = dp_xmalloc (p->group * sizeof *x);
-  DP_REQUIRE (dp_air_init (&air, &e, 1, GH_FS, GH_PARENT_DBHZ, 7919u + seed,
-                           p->group));
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, GH_PARENT_DBHZ,
+                           7919u + seed, p->group));
   const double level  = 20.0 * log10 (63.0 / 1023.0);
   double       t_seed = -1.0, t = 0.0;
   long         n = 0, code_up = 0, sym_up = 0;
@@ -150,7 +135,7 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
-      t                                     = (double)air.n_out / GH_FS;
+      t                                     = (double)air.n_out / DP_S415_FS;
       const async_dsss_receiver_status_t s0 = dp_async_dsss_pool_status (p, 0);
       const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
       if (t_seed < 0.0)
@@ -203,15 +188,15 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
   };
   dp_air_t       air;
   float complex *x = dp_xmalloc (p->group * sizeof *x);
-  DP_REQUIRE (
-      dp_air_init (&air, em, 2, GH_FS, GH_A2_DBHZ, 7919u + seed, p->group));
+  DP_REQUIRE (dp_air_init (&air, em, 2, DP_S415_FS, GH_A2_DBHZ, 7919u + seed,
+                           p->group));
   double t_seed = -1.0, t = 0.0, t_full = -1.0;
   long   n = 0, code_up = 0;
   memset (o, 0, sizeof *o);
   for (;;)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
-      t                                     = (double)air.n_out / GH_FS;
+      t                                     = (double)air.n_out / DP_S415_FS;
       const async_dsss_receiver_status_t s0 = dp_async_dsss_pool_status (p, 0);
       const async_dsss_receiver_status_t s1 = dp_async_dsss_pool_status (p, 1);
       if (t_seed < 0.0)
@@ -226,7 +211,7 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
               DP_REQUIRE (
                   dp_async_dsss_receiver_seed (
                       p->rx[1],
-                      fmod (tb.code_chips - 0.5 * em[1].chip_rate / GH_FS
+                      fmod (tb.code_chips - 0.5 * em[1].chip_rate / DP_S415_FS
                                 + 1023.0,
                             1023.0),
                       tb.car_hz, b_dbhz)
@@ -278,13 +263,13 @@ gh_alone (const uint8_t *code, double fc, uint32_t seed, gh_alone_t *o,
                                    GH_PARENT_DBHZ, 0.0, 300u + seed);
   dp_air_t         air;
   float complex   *x = dp_xmalloc (p->group * sizeof *x);
-  DP_REQUIRE (dp_air_init (&air, &e, 1, GH_FS, GH_PARENT_DBHZ, 6007u + seed,
-                           p->group));
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, GH_PARENT_DBHZ,
+                           6007u + seed, p->group));
   int      in[4] = { 0 }, off[4] = { 0 };
   double   worst[4] = { 0 };
   uint64_t g0 = 0, l0 = 0, d0 = 0;
   memset (o, 0, sizeof *o);
-  while ((double)air.n_out / GH_FS < GH_ALONE_S)
+  while ((double)air.n_out / DP_S415_FS < GH_ALONE_S)
     {
       DP_REQUIRE (gh_push (p, &air, x) == 0);
       const dp_air_truth_t t = dp_air_truth (&air, 0, air.n_out);
@@ -369,7 +354,7 @@ main (int argc, char **argv)
     draws = 1;
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  static const double fcs[2]    = { 2.2e9, 2.8e9 };
+  static const double fcs[2]    = { DP_S415_FC_LO, DP_S415_FC_HI };
   static const double b_lvls[5] = { 38.8, 42.0, 44.0, 46.0, 50.0 };
 
   if (emit)

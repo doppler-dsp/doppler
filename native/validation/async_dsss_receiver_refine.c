@@ -61,17 +61,14 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "dp_air_test.h"
 #include "dp_dsss_test.h"
+#include "dp_s415_test.h"
 #include "dp_stats_test.h"
 #include "dp_test.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define RF_FS 11e6
-#define RF_SYM 3000.0
 #define RF_PUSH 4096u
-#define RF_SPAN_HZ 1500.0
-#define RF_RATE_HZ_S 400.0
 #define RF_DWELLS 2000u
 #define RF_CHECK_DWELLS 300u
 #define RF_OFFSETS 20u
@@ -81,10 +78,7 @@
 static dp_async_dsss_receiver_state_t *
 rf_rx (const uint8_t *code, double fc, double cn0)
 {
-  return dp_async_dsss_receiver_create (
-      code, SF, fc * 31.0 / 21216.0, RF_SYM, RF_FS, 2, cn0, 1e-3, 0.9,
-      RF_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 0.0, false,
-      275.0 / RF_SYM, RF_RATE_HZ_S, true, ASYNC_DSSS_RX_CARRIER_PARTIALS);
+  return dp_s415_rx (code, fc, cn0, true, ASYNC_DSSS_RX_CARRIER_PARTIALS);
 }
 
 /* Feed `rx` from `air` until it leaves refining; the samples fed, or 0 if
@@ -93,7 +87,7 @@ static uint64_t
 rf_until_decided (dp_async_dsss_receiver_state_t *rx, dp_air_t *air,
                   float complex *x, float complex *out, size_t ocap)
 {
-  const uint64_t max = (uint64_t)(RF_MAX_S * RF_FS);
+  const uint64_t max = (uint64_t)(RF_MAX_S * DP_S415_FS);
   uint64_t       fed = 0;
   while (rx->state == ASYNC_DSSS_RX_REFINING && fed < max)
     {
@@ -120,9 +114,9 @@ rate_row (const char *what, size_t k, size_t n, double design, int emit)
 static int
 noise_rows (const uint8_t *code, double fc, size_t n, int emit)
 {
-  const double cn0 = 4.0 + 10.0 * log10 (RF_SYM);
+  const double cn0 = dp_s415_cn0 (DP_S415_FLOOR_DB);
   dp_air_t     air;
-  DP_REQUIRE (dp_air_init (&air, NULL, 0, RF_FS, cn0, 4242u, RF_PUSH));
+  DP_REQUIRE (dp_air_init (&air, NULL, 0, DP_S415_FS, cn0, 4242u, RF_PUSH));
   dp_async_dsss_receiver_state_t *rx = rf_rx (code, fc, cn0);
   DP_REQUIRE (rx != NULL);
   const double   pfa  = rx->pfa;
@@ -137,8 +131,9 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
   for (size_t d = 0; d < n; d++)
     {
       dp_async_dsss_receiver_reset (rx);
-      const double ph  = 1023.0 * dp_uni (&st);
-      const double dop = -RF_SPAN_HZ + 2.0 * RF_SPAN_HZ * dp_uni (&st);
+      const double ph = 1023.0 * dp_uni (&st);
+      const double dop
+          = -DP_S415_SPAN_HZ + 2.0 * DP_S415_SPAN_HZ * dp_uni (&st);
       DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, dop, cn0) == DP_OK);
       const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
       stuck += fed == 0;
@@ -206,28 +201,19 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
               uint32_t s, size_t o, double off_frac, int silence_sq,
               double *err, int *src)
 {
-  const double                    chip = fc * 31.0 / 21216.0;
+  const double                    chip = dp_s415_chip_rate (fc);
   const size_t                    ocap = 1u << 14;
   float complex                  *x    = dp_xmalloc (RF_PUSH * sizeof *x);
   float complex                  *out  = dp_xmalloc (ocap * sizeof *out);
   dp_async_dsss_receiver_state_t *rx   = rf_rx (code, fc, cn0);
   DP_REQUIRE (rx != NULL);
   const double     off = rx->acq->search->doppler_res_hz * off_frac;
-  dp_air_emitter_t e   = { 0 };
-  e.code               = code;
-  e.code_len           = SF;
-  e.chip_rate          = chip;
-  e.sym_rate           = RF_SYM;
-  e.carrier_hz         = fc;
-  e.f0_hz              = -700.0 + 140.0 * (double)o;
-  e.rate_hz_s          = rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate);
-  e.cn0_dbhz           = cn0;
-  e.code_only_sym      = 275;
-  e.frame_sym          = 1000;
-  e.frame_off          = (size_t)(37u * (unsigned)o + 101u * s) % 1000u;
-  e.seed               = 100u + s;
+  dp_air_emitter_t e   = dp_s415_emitter (
+      code, fc, -700.0 + 140.0 * (double)o,
+      rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate), cn0, 0.0, 100u + s);
+  e.frame_off = (size_t)(37u * (unsigned)o + 101u * s) % DP_S415_FRAME_SYM;
   dp_air_t air;
-  DP_REQUIRE (dp_air_init (&air, &e, 1, RF_FS, cn0,
+  DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, cn0,
                            9001u + 31u * s + (uint32_t)o, RF_PUSH));
   /* A block of signal first, so the refine starts mid-run; the seed's
      code phase is the scene's next sample's, as the receiver's code NCO
@@ -235,7 +221,8 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
   DP_REQUIRE (dp_air_next (&air, x, RF_PUSH));
   const uint64_t       at0 = air.n_out;
   const dp_air_truth_t t0  = dp_air_truth (&air, 0, at0);
-  const double ph = fmod (t0.code_chips - 0.5 * chip / RF_FS + 1023.0, 1023.0);
+  const double         ph
+      = fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + 1023.0, 1023.0);
   DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, t0.car_hz + off, cn0)
               == DP_OK);
   if (silence_sq)
@@ -263,7 +250,7 @@ static int
 handover_rows (const uint8_t *code, double fc, double esn0, double rate,
                size_t seeds, int emit)
 {
-  const double cn0 = esn0 + 10.0 * log10 (RF_SYM);
+  const double cn0 = dp_s415_cn0 (esn0);
   const size_t n   = RF_OFFSETS * seeds;
   double      *eb  = dp_xmalloc (n * sizeof *eb);
   double      *ed  = dp_xmalloc (n * sizeof *ed);
@@ -325,9 +312,9 @@ main (int argc, char **argv)
   DP_REQUIRE (dwells >= 1);
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
-  static const double fcs[2]   = { 2.2e9, 2.8e9 };
+  static const double fcs[2]   = { DP_S415_FC_LO, DP_S415_FC_HI };
   static const double esn0s[2] = { 4.0, 7.0 };
-  static const double rates[2] = { 0.0, RF_RATE_HZ_S };
+  static const double rates[2] = { 0.0, DP_S415_RATE_HZ_S };
   if (!emit)
     printf ("refine: 415.1-B-1, 11 MSa/s, 3000 sym/s; refine_sequential "
             "false (one test an estimator); C/N0 at the antenna\n");

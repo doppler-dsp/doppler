@@ -154,6 +154,7 @@
 #include "dp_air_test.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_s415_test.h"
 #include "dp_stats_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
@@ -985,7 +986,6 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
 /* --check: the asserted arm alone, each draw to its hand-over. */
 #define RAMP_CHECK_TRIALS 3u
 #define RAMP_ON_HZ 50.0
-#define RAMP_FS 11e6
 #define RAMP_CHUNK 16384u
 
 typedef struct
@@ -1002,34 +1002,21 @@ static int
 run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
           int to_handover, double *bound_hz, ramp_t *r)
 {
-  const double fc = 2.8e9, chip = fc * 31.0 / 21216.0, sym = 3000.0;
-  const double cn0                   = 4.0 + 10.0 * log10 (sym);
-  const double rate                  = 400.0;
-  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, SF, chip, sym, RAMP_FS, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
-      14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, refine,
-      0);
+  const double fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
+  const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const double rate                  = DP_S415_RATE_HZ_S;
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, refine, 0);
   /* The emitter on the air (native/tests/dp_air_test.h): the shipped synth
      with its window, the front end's converter, a Doppler channel on the
      ramp, the shipped noise; the truth is the channel's own offset. */
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = SF;
-  e.chip_rate        = chip;
-  e.sym_rate         = sym;
-  e.carrier_hz       = fc;
-  e.f0_hz            = f0;
-  e.rate_hz_s        = rate;
-  e.cn0_dbhz         = cn0;
-  e.code_only_sym    = 275;
-  e.frame_sym        = 1000;
-  e.seed             = 100u + seed;
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, fc, f0, rate, cn0, 0.0, 100u + seed);
   dp_air_t        air;
   float _Complex *x   = malloc (RAMP_CHUNK * sizeof *x);
   float _Complex *out = malloc (RAMP_CHUNK * sizeof *out);
   DP_REQUIRE (
       rx && x && out
-      && dp_air_init (&air, &e, 1, RAMP_FS, cn0, 7919u + seed, RAMP_CHUNK));
+      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
   DP_REQUIRE (D == 140);
   /* The header's bound for refine false: half a row, and the half-dwell
@@ -1039,7 +1026,7 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   *r                = (ramp_t){ .ho_err_hz = NAN };
   size_t fed        = 0;
   int    early_done = 0;
-  while (fed < (size_t)(RAMP_S * RAMP_FS)
+  while (fed < (size_t)(RAMP_S * DP_S415_FS)
          && !(to_handover && !isnan (r->ho_err_hz)))
     {
       DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
@@ -1050,7 +1037,7 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
             = dp_async_dsss_receiver_get_doppler_hz (rx)
               - dp_air_truth (&air, 0, rx->samples_in - rx->state_samples)
                     .car_hz;
-      if (!early_done && fed >= (size_t)(RAMP_S_EARLY * RAMP_FS))
+      if (!early_done && fed >= (size_t)(RAMP_S_EARLY * DP_S415_FS))
         {
           early_done    = 1;
           r->lock_early = dp_async_dsss_receiver_get_tracking (rx)

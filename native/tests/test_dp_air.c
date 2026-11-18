@@ -15,14 +15,20 @@
  *      real, near-full correlation, and the same one chip off gives
  *      almost none -- at the 415.1 rate (2.69 samples a chip) on a ramp;
  *   4. the drawn frame start is honored: every symbol the truth places in
- *      the code-only window carries one sign, and the data symbols both.
+ *      the code-only window carries one sign, and the data symbols both;
+ *   0. dp_s415_test.h states the point the design page tabulates
+ *      (async-dsss-receiver.md §1): its chip and epoch rates at both band
+ *      ends and its floor's C/N0 reproduce the table's derived rows to the
+ *      table's own rounding.
  *
  * Sabotage (each red): the converter's delay left out of the truth, the
  * frame-start chips left out, the carrier's sign flipped, the emitter's
- * level not scaled to its C/N0.
+ * level not scaled to its C/N0; for 0, the chip rate at 31/(221 x 69),
+ * which the control below also shows failing.
  */
 #include "dp_air_test.h"
 #include "dp_dsss_test.h" /* dp_dsss_gold_1023 */
+#include "dp_s415_test.h"
 #include "dp_test.h"
 #include <stdio.h>
 
@@ -30,8 +36,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define FS 11.0e6
-#define SYM 3000.0
+#define FS DP_S415_FS
+#define SYM DP_S415_SYM
 
 static double
 mean_power (const float _Complex *x, size_t n)
@@ -59,24 +65,36 @@ in_band (double b)
   return s * (2.0 * b) / (double)n;
 }
 
+/* The point's derived rows against async-dsss-receiver.md §1's table, each
+   to half the table's last digit: chip rate 3.2146 to 4.0913 Mcps, epoch
+   rate 3,142.3 to 3,999.3 Hz, the floor's C/N0 38.8 dB-Hz. `chip_at` is
+   the chip rate under test, so the control can hand in another. */
+static int
+s415_matches_table (double (*chip_at) (double), double floor_cn0)
+{
+  const double lo = chip_at (DP_S415_FC_LO), hi = chip_at (DP_S415_FC_HI);
+  return fabs (lo / 1e6 - 3.2146) <= 0.5e-4
+         && fabs (hi / 1e6 - 4.0913) <= 0.5e-4
+         && fabs (lo / DP_S415_SF - 3142.3) <= 0.05
+         && fabs (hi / DP_S415_SF - 3999.3) <= 0.05
+         && fabs (floor_cn0 - 38.8) <= 0.05;
+}
+
+/* The certification's retired point, 3.069 Mcps whatever the carrier: the
+   control. */
+static double
+chip_3069 (double fc)
+{
+  (void)fc;
+  return 3.069e6;
+}
+
 static dp_air_emitter_t
 emitter (const uint8_t *code, double fc, double f0, double rate, double cn0,
          size_t frame_off, uint32_t seed)
 {
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = 1023;
-  e.chip_rate        = fc * 31.0 / 21216.0;
-  e.sym_rate         = SYM;
-  e.carrier_hz       = fc;
-  e.f0_hz            = f0;
-  e.rate_hz_s        = rate;
-  e.cn0_dbhz         = cn0;
-  e.code_only_sym    = 275;
-  e.frame_sym        = 1000;
+  dp_air_emitter_t e = dp_s415_emitter (code, fc, f0, rate, cn0, 0.0, seed);
   e.frame_off        = frame_off;
-  e.lag_s            = 0.0;
-  e.seed             = seed;
   return e;
 }
 
@@ -88,6 +106,15 @@ main (void)
   const size_t    n = 1u << 20;
   float _Complex *x = malloc (n * sizeof *x);
   DP_REQUIRE (x != NULL);
+
+  /* 0. The point the header states is the one the design page tabulates;
+     the retired 3.069 Mcps point fails the same predicate. */
+  DP_CHECK_MSG (
+      s415_matches_table (dp_s415_chip_rate, dp_s415_cn0 (DP_S415_FLOOR_DB)),
+      "dp_s415_test.h reproduces the design table's derived rows");
+  DP_CHECK_MSG (
+      !s415_matches_table (chip_3069, dp_s415_cn0 (DP_S415_FLOOR_DB)),
+      "control: the retired 3.069 Mcps point does not");
 
   /* 1. Noise at the reference: 70.41 dB-Hz over 11 MSa/s is 0 dB a
      sample, so its power is 1.0 over both rails. */
@@ -106,7 +133,7 @@ main (void)
      decimated to fs. Two 10 dB apart are 10 dB apart. */
   for (int c = 0; c < 2; c++)
     {
-      const double     fc = c ? 2.8e9 : 2.2e9;
+      const double     fc = c ? DP_S415_FC_HI : DP_S415_FC_LO;
       dp_air_emitter_t e  = emitter (code, fc, 0.0, 0.0, 50.0, 0, 3u);
       dp_air_t         a;
       DP_REQUIRE (dp_air_init (&a, &e, 1, FS, NAN, 0u, n));
@@ -139,14 +166,16 @@ main (void)
      default 4 samples a chip and at 2 (the interpolating front end). */
   for (unsigned spc = 4; spc >= 2; spc -= 2)
     {
-      dp_air_emitter_t e = emitter (code, 2.8e9, 700.0, 400.0, 50.0, 618, 7u);
-      e.spc              = spc;
+      dp_air_emitter_t e
+          = emitter (code, DP_S415_FC_HI, 700.0, 400.0, 50.0, 618, 7u);
+      e.spc = spc;
       dp_air_t a;
       DP_REQUIRE (dp_air_init (&a, &e, 1, FS, NAN, 0u, n));
       DP_REQUIRE (dp_air_next (&a, x, n));
       const double spp     = FS / e.chip_rate * 1023.0; /* samples a period */
       size_t       periods = 0, real_ok = 0, full = 0, off_low = 0;
-      long sym_sign[1000] = { 0 }; /* per frame position: +1/-1 seen, 0 none */
+      long         sym_sign[DP_S415_FRAME_SYM]
+          = { 0 }; /* per frame position: +1/-1 seen, 0 none */
       size_t window_mixed = 0, data_pos = 0, data_neg = 0, balanced = 0;
       for (size_t p0 = 2000; p0 + (size_t)spp + 4 < n; p0 += (size_t)spp)
         {
@@ -186,9 +215,9 @@ main (void)
           real_ok += fabs (cimag (on)) < 0.1 * fabs (creal (on));
           balanced += cabs (on) > cabs (early) && cabs (on) > cabs (late)
                       && fabs (cabs (early) - cabs (late)) < 0.1 * cabs (on);
-          const long pos  = sym0 % 1000;
+          const long pos  = sym0 % DP_S415_FRAME_SYM;
           const long sign = creal (on) > 0.0 ? 1 : -1;
-          if (pos < 275)
+          if (pos < DP_S415_CODE_ONLY_SYM)
             {
               if (sym_sign[pos] && sym_sign[pos] != sign)
                 window_mixed++;
@@ -230,7 +259,7 @@ main (void)
       double mean_at[2] = { 0.0, 0.0 };
       for (unsigned spc = 4; spc >= 2; spc -= 2)
         {
-          const double     fc = fci ? 2.8e9 : 2.2e9;
+          const double     fc = fci ? DP_S415_FC_HI : DP_S415_FC_LO;
           dp_air_emitter_t e  = emitter (code, fc, 0.0, 0.0, 50.0, 300, 7u);
           e.spc               = spc;
           dp_air_t a;
@@ -292,9 +321,10 @@ main (void)
     DP_REQUIRE (bits != NULL);
     for (size_t i = 0; i < nb; i++)
       bits[i] = (uint8_t)(dp_xs32 (&st) & 1u);
-    dp_air_emitter_t e = emitter (code, 2.2e9, -300.0, 0.0, 50.0, 940, 7u);
-    e.bits             = bits;
-    e.n_bits           = nb;
+    dp_air_emitter_t e
+        = emitter (code, DP_S415_FC_LO, -300.0, 0.0, 50.0, 940, 7u);
+    e.bits   = bits;
+    e.n_bits = nb;
     dp_air_t a;
     DP_REQUIRE (dp_air_init (&a, &e, 1, FS, NAN, 0u, n));
     DP_REQUIRE (dp_air_next (&a, x, n));
@@ -323,7 +353,7 @@ main (void)
           continue;
         const int b = dp_air_symbol_bit (&a, 0, sym0);
         DP_REQUIRE (b >= 0);
-        window += sym0 % 1000 < 275;
+        window += sym0 % DP_S415_FRAME_SYM < DP_S415_CODE_ONLY_SYM;
         /* bit 0 -> +1 under the despread above */
         if ((creal (on) > 0.0) == (b == 0))
           agree++;

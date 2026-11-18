@@ -43,6 +43,7 @@
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_s415_test.h"
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
@@ -5863,43 +5864,29 @@ _test_no_refine_needs_a_deep_search (void)
  *
  * Sabotage: a seed() that refines whatever the knob says -> both rows red
  * (it reads refining, and hands over the refine's estimate). */
-#define RAMP_FS 11e6
 #define RAMP_CHUNK 16384u
 static int
 _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
                 int *never_refining)
 {
-  const double     fc = 2.8e9, chip = fc * 31.0 / 21216.0, sym = 3000.0;
-  const double     cn0  = 4.0 + 10.0 * log10 (sym);
-  const double     rate = 400.0;
+  const double     fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
+  const double     cn0  = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const double     rate = DP_S415_RATE_HZ_S;
   uint8_t          code[1023];
   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
   DP_REQUIRE (g && dp_gold_generate (g, 1023, code, 1023) == 1023);
   dp_gold_destroy (g);
-  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
-      code, 1023, chip, sym, RAMP_FS, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000, fc, 0.0, false, 275.0 / sym, rate, false,
-      0);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, false, 0);
   /* The emitter on the air (dp_air_test.h): the shipped synth with its
      window, the front end's converter, a Doppler channel on the ramp. */
-  dp_air_emitter_t e = { 0 };
-  e.code             = code;
-  e.code_len         = 1023;
-  e.chip_rate        = chip;
-  e.sym_rate         = sym;
-  e.carrier_hz       = fc;
-  e.f0_hz            = f0;
-  e.rate_hz_s        = rate;
-  e.cn0_dbhz         = cn0;
-  e.code_only_sym    = 275;
-  e.frame_sym        = 1000;
-  e.seed             = 100u + seed;
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, fc, f0, rate, cn0, 0.0, 100u + seed);
   dp_air_t        air;
   float _Complex *x   = malloc (RAMP_CHUNK * sizeof *x);
   float _Complex *out = malloc (RAMP_CHUNK * sizeof *out);
   DP_REQUIRE (
       rx && x && out
-      && dp_air_init (&air, &e, 1, RAMP_FS, cn0, 7919u + seed, RAMP_CHUNK));
+      && dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 7919u + seed, RAMP_CHUNK));
   const size_t D = rx->acq->search->coherent_bins;
   DP_REQUIRE (D == 140);
   /* Half a row, and the half-dwell age at the rate bound. */
@@ -5907,7 +5894,7 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
                     + rate * 0.5 * (double)D * 1023.0 / chip;
   *never_refining = 1;
   *err_hz         = NAN;
-  for (size_t fed = 0; fed < (size_t)(0.5 * RAMP_FS) && isnan (*err_hz);)
+  for (size_t fed = 0; fed < (size_t)(0.5 * DP_S415_FS) && isnan (*err_hz);)
     {
       DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
       (void)dp_async_dsss_receiver_steps (rx, x, RAMP_CHUNK, out, RAMP_CHUNK);

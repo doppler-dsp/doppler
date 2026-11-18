@@ -68,6 +68,7 @@
 #include "dp_air_test.h"
 #include "dp_ber_test.h"
 #include "dp_dsss_test.h"
+#include "dp_s415_test.h"
 #include "dp_test.h"
 #include <limits.h>
 #include <math.h>
@@ -331,8 +332,6 @@ run_burst (const uint8_t *code, double esn0_db, uint32_t seed, dp_ber_t *acc,
  * chip stimulus: the interpolating front end, which keeps 0.9993 of the
  * chip power and, despread, 0.945 of the correlation at 2.8 GHz, where
  * the default keeps 0.913 (0.30 dB less; test_dp_air.c). */
-#define SPEC_FS 11e6
-#define SPEC_SYM 3000.0
 #define SPEC_K 3
 #define SPEC_NRX 4
 #define SPEC_PUSH 4096u
@@ -362,10 +361,10 @@ static int
 spec_draw (const uint8_t *code, double fc, double esn0, int window,
            uint32_t seed, double secs, spec_t *out)
 {
-  const double chip   = fc * 31.0 / 21216.0;
-  const double cn0    = esn0 + 10.0 * log10 (SPEC_SYM);
-  const size_t n_in   = (size_t)(secs * SPEC_FS);
-  const size_t n_bits = (size_t)(secs * SPEC_SYM) + 400;
+  const double chip   = dp_s415_chip_rate (fc);
+  const double cn0    = dp_s415_cn0 (esn0);
+  const size_t n_in   = (size_t)(secs * DP_S415_FS);
+  const size_t n_bits = (size_t)(secs * DP_S415_SYM) + 400;
   uint8_t     *pay[SPEC_K], *bits[SPEC_K];
   uint32_t     st = trial_rng (seed);
   /* The emitters on the air (native/tests/dp_air_test.h): each the
@@ -379,25 +378,15 @@ spec_draw (const uint8_t *code, double fc, double esn0, int window,
       pay[k] = dp_xmalloc (n_bits);
       for (size_t i = 0; i < n_bits; i++)
         pay[k][i] = (uint8_t)(dp_uni (&st) < 0.5);
-      e[k]               = (dp_air_emitter_t){ 0 };
-      e[k].code          = code;
-      e[k].code_len      = SF;
-      e[k].chip_rate     = chip;
-      e[k].sym_rate      = SPEC_SYM;
-      e[k].carrier_hz    = fc;
-      e[k].f0_hz         = spec_dop[k];
-      e[k].cn0_dbhz      = cn0;
-      e[k].code_only_sym = 275;
-      e[k].frame_sym     = 1000;
-      e[k].lag_s         = spec_lag_chips[k] / chip;
-      e[k].seed          = 100u + seed;
-      e[k].bits          = pay[k];
-      e[k].n_bits        = n_bits;
-      e[k].spc           = spec_spc;
+      e[k]        = dp_s415_emitter (code, fc, spec_dop[k], 0.0, cn0,
+                                     spec_lag_chips[k] / chip, 100u + seed);
+      e[k].bits   = pay[k];
+      e[k].n_bits = n_bits;
+      e[k].spc    = spec_spc;
     }
   dp_air_t air;
   DP_REQUIRE (
-      dp_air_init (&air, e, SPEC_K, SPEC_FS, cn0, 7919u + seed, SPEC_PUSH));
+      dp_air_init (&air, e, SPEC_K, DP_S415_FS, cn0, 7919u + seed, SPEC_PUSH));
   for (int k = 0; k < SPEC_K; k++)
     {
       bits[k] = dp_xmalloc (n_bits);
@@ -407,13 +396,11 @@ spec_draw (const uint8_t *code, double fc, double esn0, int window,
           bits[k][i]  = (uint8_t)(b > 0);
         }
     }
-  dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
-      code, SF, SPEC_NRX, chip, SPEC_SYM, SPEC_FS, 2, cn0, 1e-3, 0.9, 1500.0,
-      4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 2.0, false,
-      275.0 / SPEC_SYM, 400.0, 0, true, window);
+  dp_async_dsss_pool_state_t *p
+      = dp_s415_pool (code, fc, SPEC_NRX, cn0, 2.0, 0, window);
   DP_REQUIRE (p);
   float complex *x    = dp_xmalloc (SPEC_PUSH * sizeof *x);
-  const size_t   ocap = (size_t)(secs * SPEC_SYM) + 4096;
+  const size_t   ocap = (size_t)(secs * DP_S415_SYM) + 4096;
   float complex *tmp  = dp_xmalloc (ocap * sizeof *tmp);
   float complex *syms[SPEC_NRX];
   size_t         ns[SPEC_NRX], first_in[SPEC_NRX];
@@ -522,7 +509,7 @@ spec_loss (double esn0, unsigned long e, unsigned long n)
 static int
 spec_rows (const uint8_t *code, int check, int emit)
 {
-  static const double fcs[2]   = { 2.2e9, 2.8e9 };
+  static const double fcs[2]   = { DP_S415_FC_LO, DP_S415_FC_HI };
   static const double esn0s[2] = { 4.0, 7.0 };
   static const char  *wname[2] = { "partials", "code_period" };
   if (emit)

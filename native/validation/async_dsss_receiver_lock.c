@@ -123,6 +123,7 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/clib_common.h"
+#include "doppler/detection/detection_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
@@ -860,6 +861,173 @@ ramp_rows (const uint8_t *code, int check, int emit)
   return 0;
 }
 
+/* ── CODE LOCK: the statistic's moments against the detection model ─────
+ *
+ * #3134. The receiver sizes its code lock's look count from det's model:
+ * a per-look power SNR of amp^2 x look, amp = dp_det_cn0_to_snr(C/N0, the
+ * tracking rate), look the samples a look integrates -- read here off the
+ * receiver's own fields, as adr_build_track_chain() reads them. The Dll
+ * forms R = sqrt(2 sum |P|^2 / E|O|^2) over n_looks looks, and publishes
+ * one look's two terms an epoch (".prompt_amp", ".offset_pwr"). Their
+ * moments give the look SNR the statistic actually sees, E|P|^2 / E|O|^2 -
+ * 1, and its loss against the model's.
+ *
+ * Decisions are read off ".lock" (it changes once a decision); a miss is
+ * R below the drop threshold, a drop is ".locked" falling. The drops
+ * independence predicts are decisions x miss^n_down; #3134 found them at
+ * about 1.5 x that, the decisions sharing the CFAR reference.
+ *
+ * Window: from CL_SETTLE_S after code lock first declares to the draw's
+ * end, while tracking. Printed and emitted, not asserted: it is the
+ * evidence #3134's derivation is checked against, not a claim. */
+#define CL_SETTLE_S 1.0
+#define CL_DRAWS 5u
+#define CL_S 20.0
+#define CL_CHECK_S 5.0
+
+typedef struct
+{
+  double fc, esn0;
+  size_t n_looks, look, n_down, epochs, decisions, misses, drops;
+  double thresh_down, p2, o2, snr_meas, snr_model, loss_db;
+} code_lock_t;
+
+static int
+run_code_lock (const uint8_t *code, double fc, double esn0, uint32_t seed,
+               double secs, code_lock_t *out)
+{
+  memset (out, 0, sizeof *out);
+  out->fc          = fc;
+  out->esn0        = esn0;
+  uint32_t     st  = trial_rng (seed + 200000u);
+  const double cn0 = dp_s415_cn0 (esn0);
+  const double f0  = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
+  const size_t fr
+      = (size_t)(dp_uni (&st) * (double)DP_S415_FRAME_SYM) % DP_S415_FRAME_SYM;
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, fc, f0, 0.0, cn0, 0.0, seed + 200000u);
+  e.frame_off = fr;
+  dp_air_t air;
+  DP_REQUIRE (
+      dp_air_init (&air, &e, 1, DP_S415_FS, cn0, seed * 7919u + 3u, PUSH));
+  dp_async_dsss_receiver_state_t *rx  = lk_rx (code, fc, cn0);
+  dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
+  DP_REQUIRE (rx != NULL && tlm != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
+              == DP_OK);
+  const int id_lock = dp_tlm_probe_id (tlm, "rx.code.lock");
+  const int id_lkd  = dp_tlm_probe_id (tlm, "rx.code.locked");
+  const int id_p    = dp_tlm_probe_id (tlm, "rx.code.prompt_amp");
+  const int id_o    = dp_tlm_probe_id (tlm, "rx.code.offset_pwr");
+  DP_REQUIRE (id_lock >= 0 && id_lkd >= 0 && id_p >= 0 && id_o >= 0);
+
+  size_t cap             = dp_async_dsss_receiver_steps_max_out (rx);
+  cap                    = cap ? cap : PUSH;
+  float complex *x       = dp_xmalloc (PUSH * sizeof *x);
+  float complex *syms    = dp_xmalloc (cap * sizeof *syms);
+  dp_tlm_rec_t  *recs    = dp_xmalloc (4096 * sizeof *recs);
+  const size_t   n_blk   = (size_t)(secs * DP_S415_FS / PUSH);
+  double         t_first = -1.0, last_r = NAN;
+  int            last_locked = -1;
+  double         sp2 = 0.0, so2 = 0.0;
+  size_t         np = 0, no = 0;
+  for (size_t b = 0; b < n_blk; b++)
+    {
+      DP_REQUIRE (dp_air_next (&air, x, PUSH));
+      dp_tlm_set_now (tlm, (uint64_t)(b * PUSH));
+      (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
+      const double t      = (double)(b + 1) * PUSH / DP_S415_FS;
+      const int    trk    = rx->state == ASYNC_DSSS_RX_TRACKING;
+      const int    locked = trk && dp_async_dsss_receiver_get_code_locked (rx);
+      if (t_first < 0.0 && locked)
+        t_first = t;
+      const int in_win = trk && t_first >= 0.0 && t >= t_first + CL_SETTLE_S;
+      size_t    n;
+      while ((n = dp_tlm_read (tlm, 4096, recs, 4096)) > 0)
+        for (size_t i = 0; in_win && i < n; i++)
+          {
+            const int    pr = (int)recs[i].probe;
+            const double v  = (double)recs[i].value;
+            if (pr == id_p)
+              sp2 += v * v, np++;
+            else if (pr == id_o)
+              so2 += v, no++;
+            else if (pr == id_lock && v != last_r)
+              {
+                out->decisions++;
+                out->misses += v < rx->dll->lock.down_thresh;
+                last_r = v;
+              }
+            else if (pr == id_lkd)
+              {
+                if (last_locked == 1 && v < 0.5)
+                  out->drops++;
+                last_locked = v >= 0.5;
+              }
+          }
+    }
+  out->n_looks     = rx->dll->n_looks;
+  out->n_down      = rx->dll->lock.n_down;
+  out->thresh_down = rx->dll->lock.down_thresh;
+  const size_t win = dp_dll_get_symbol_window (rx->dll);
+  out->look        = (win ? win : 1) * (rx->tsamps / rx->segments);
+  out->epochs      = np;
+  out->p2          = np ? sp2 / (double)np : NAN;
+  out->o2          = no ? so2 / (double)no : NAN;
+  out->snr_meas    = out->p2 / out->o2 - 1.0;
+  const double amp = dp_det_cn0_to_snr (cn0, rx->chip_rate * (double)rx->spc);
+  out->snr_model   = amp * amp * (double)out->look;
+  out->loss_db     = 10.0 * log10 (out->snr_model / out->snr_meas);
+  (void)dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1);
+  dp_tlm_destroy (tlm);
+  free (recs);
+  free (syms);
+  free (x);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_air_free (&air);
+  return 0;
+}
+
+static int
+code_lock_rows (const uint8_t *code, int check, int emit)
+{
+  if (emit)
+    printf ("# code_lock\nfc_ghz,esn0_db,seed,n_looks,look,n_down,"
+            "thresh_down,epochs,p2,o2,snr_look_meas,snr_look_model,loss_db,"
+            "decisions,misses,miss_rate,drops,drops_indep\n");
+  else
+    printf ("code lock: the statistic's terms against det's model, from "
+            "%.0f s after it declares (#3134; printed, not asserted)\n",
+            CL_SETTLE_S);
+  for (size_t f = check ? N_FC - 1 : 0; f < N_FC; f++)
+    for (size_t e = 0; e < (check ? 1u : N_ESN0); e++)
+      for (uint32_t s = 1; s <= (check ? 1u : CL_DRAWS); s++)
+        {
+          code_lock_t c;
+          DP_REQUIRE (run_code_lock (code, fcs[f], esn0s[e], s,
+                                     check ? CL_CHECK_S : CL_S, &c)
+                      == 0);
+          const double mr = c.decisions ? (double)c.misses / c.decisions : NAN;
+          const double indep
+              = (double)c.decisions * pow (mr, (double)c.n_down);
+          if (emit)
+            printf ("%.1f,%.1f,%u,%zu,%zu,%zu,%.4f,%zu,%.6g,%.6g,%.5f,%.5f,"
+                    "%.3f,%zu,%zu,%.5f,%zu,%.3f\n",
+                    c.fc / 1e9, c.esn0, s, c.n_looks, c.look, c.n_down,
+                    c.thresh_down, c.epochs, c.p2, c.o2, c.snr_meas,
+                    c.snr_model, c.loss_db, c.decisions, c.misses, mr, c.drops,
+                    indep);
+          else
+            printf ("  %.1f GHz %4.1f dB seed %u: n %zu, look %zu, SNR_look "
+                    "%.3f measured vs %.3f modelled, loss %.2f dB; %zu "
+                    "decisions, miss %.4f, %zu drops (%.2f if "
+                    "independent)\n",
+                    c.fc / 1e9, c.esn0, s, c.n_looks, c.look, c.snr_meas,
+                    c.snr_model, c.loss_db, c.decisions, mr, c.drops, indep);
+        }
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -923,6 +1091,7 @@ main (int argc, char **argv)
       }
 
   DP_REQUIRE (ramp_rows (code, check, emit) == 0);
+  DP_REQUIRE (code_lock_rows (code, check, emit) == 0);
 
   if (emit)
     DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock");

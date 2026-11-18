@@ -155,6 +155,7 @@ qam_axis_gray (unsigned r, int b)
   return g;
 }
 
+#ifndef __cplusplus
 JM_FORCEINLINE float _Complex
 qam_constellation (unsigned g, int m)
 {
@@ -201,6 +202,7 @@ qam_slice (float _Complex y, int m, float _Complex *ahat)
   *ahat = (float)pt[0] + (float)pt[1] * I;
   return lab[0] | (lab[1] << b);
 }
+#endif /* !__cplusplus */
 
 void dp_qam_map(const uint16_t *sym, size_t sym_len, float _Complex *out, int m);
 

@@ -54,11 +54,15 @@
  * of DRAW_S each (`--draws`, `--secs`, `--shard i/n` split it across
  * processes for the record's run; `make validate-c` runs it whole).
  *
- * What is asserted, the same in the sweep and in --check. In every cell
- * of the receiver as built (the partials carrier window), 415.1-B-1
+ * What is asserted. In every cell, at both carrier windows, 415.1-B-1
  * §7.4.1's acquisition requirement: PN lock -- the receiver's code lock --
- * within PI_ACQ_S of arrival at probability PI_ACQ_P, not refuted by the
- * cell's Wilson 95% interval (check_acq() says why not demonstrated). And
+ * within PI_ACQ_S of arrival at probability PI_ACQ_P. The sweep
+ * DEMONSTRATES it: the cell's Wilson 95% lower limit at or above PI_ACQ_P,
+ * over PI_DRAWS draws; a cell that cannot is a gap for the record, with
+ * its issue. --check, one draw a cell, can only fail to refute it (the
+ * upper limit there), and says it is a regression check that cannot
+ * demonstrate the claim; so does a sharded run, whose cells are partial.
+ * And, the same in the sweep and in --check,
  * where the contract claims a working link -- 10 dB, static, the receiver as
  * built (the partials carrier window) -- every draw works, aligns and does not
  * slip, and its error rate's 95% upper limit is under the bound's 3 dB lower
@@ -172,7 +176,11 @@
 
 #define PI_PUSH 4096u
 #define PI_SUSTAIN 200u /* blocks: 74 ms */
-#define PI_DRAWS 30u
+/* Draws a cell in the sweep: 60, the count the floor brief's paired-seed
+   run makes, and the least at which 415.1-B-1 §7.4.1 can be DEMONSTRATED
+   with one miss allowed -- 59 of 60 reads a Wilson 95% lower limit of
+   0.911, 58 of 60 reads 0.886 (check_acq()). */
+#define PI_DRAWS 60u
 #define PI_DRAW_S 60.0
 #define PI_CHECK_S 20.0
 #define PI_MARGIN_DB 3.0
@@ -1828,7 +1836,6 @@ static void
 print_cell (const draw_t *ds, size_t n)
 {
   size_t        works = 0, acq = 0, fl = 0, al = 0, slip = 0, unsync = 0;
-  size_t        pn  = 0; /* PN lock within PI_ACQ_S (§7.4.1) */
   unsigned long err = 0, sc = 0;
   double        t[PI_DRAWS * 4];
   size_t        nt = 0;
@@ -1836,7 +1843,6 @@ print_cell (const draw_t *ds, size_t n)
     {
       works += (size_t)ds[i].works;
       acq += !isnan (ds[i].t_sym_s) && !isnan (ds[i].t_code_s);
-      pn += !isnan (ds[i].t_code_s) && ds[i].t_code_s <= PI_ACQ_S;
       fl += (size_t)ds[i].false_lock;
       al += (size_t)ds[i].aligned;
       slip += (size_t)(ds[i].aligned && ds[i].slipped);
@@ -1867,35 +1873,46 @@ print_cell (const draw_t *ds, size_t n)
       nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
       nt ? t[nt - 1] : NAN, al, slip, unsync, ci.p_hat, ci.lo, ci.hi, err, sc,
       loss);
-  double pl, ph;
-  dp_wilson ((double)pn, (double)n, &pl, &ph);
-  printf ("    415.1-B-1 §7.4.1: PN lock within %.0f s %zu/%zu [%.2f, %.2f] "
-          "against %.2f: %s\n",
-          PI_ACQ_S, pn, n, pl, ph, PI_ACQ_P,
-          pl >= PI_ACQ_P   ? "demonstrated"
-          : ph >= PI_ACQ_P ? "not refuted"
-                           : "REFUTED");
 }
 
-/* 415.1-B-1 §7.4.1 on the receiver as built (the partials carrier window),
-   in every cell: at every Es/N0 the use case covers, static and on the
-   ramp. Asserted as NOT REFUTED at 95% -- the Wilson interval's upper limit
-   at or above PI_ACQ_P -- because demonstrating it, the lower limit there,
-   takes at least 35 draws without a miss (30 of 30 reads 0.886), more than
-   a cell runs; the print says which of the two a cell reaches. */
+/* 415.1-B-1 §7.4.1 in every cell, at both carrier windows: the owner
+   ruled the code-period window the only one, so the requirement is held
+   on the window that ships as well as on the one being retired, until the
+   parameter goes. Its form depends on what the cell's draws can say:
+     demonstrate  the whole sweep (PI_DRAWS draws): the Wilson 95% LOWER
+                  limit at or above PI_ACQ_P -- the claim shown;
+     regression   --check (one draw) or a shard (part of a cell): the
+                  UPPER limit at or above PI_ACQ_P -- not refuted, which a
+                  receiver acquiring half the time also passes most runs,
+                  so the line says it cannot demonstrate the claim.
+   A cell that cannot demonstrate it fails the sweep: it is a gap, recorded
+   with its issue, never relabeled "not refuted". */
 static void
-check_acq (const draw_t *ds, size_t n)
+check_acq (const draw_t *ds, size_t n, int demonstrate, int emit)
 {
-  if (ds[0].cw != ASYNC_DSSS_RX_CARRIER_PARTIALS)
-    return;
   size_t pn = 0;
   for (size_t i = 0; i < n; i++)
     pn += !isnan (ds[i].t_code_s) && ds[i].t_code_s <= PI_ACQ_S;
   double pl, ph;
   dp_wilson ((double)pn, (double)n, &pl, &ph);
-  DP_CHECK_MSG (ph >= PI_ACQ_P,
-                "415.1-B-1 §7.4.1: PN lock within 20 s at probability 0.9 is "
-                "not refuted at 95%");
+  if (!emit)
+    printf (
+        "    415.1-B-1 §7.4.1: PN lock within %.0f s %zu/%zu [%.3f, "
+        "%.3f] against %.2f: %s\n",
+        PI_ACQ_S, pn, n, pl, ph, PI_ACQ_P,
+        demonstrate
+            ? (pl >= PI_ACQ_P ? "DEMONSTRATED" : "NOT DEMONSTRATED (a gap)")
+            : (ph >= PI_ACQ_P ? "not refuted (a regression check: "
+                                "this run cannot demonstrate the claim)"
+                              : "REFUTED"));
+  if (demonstrate)
+    DP_CHECK_MSG (pl >= PI_ACQ_P,
+                  "415.1-B-1 §7.4.1: PN lock within 20 s at probability 0.9 "
+                  "is demonstrated (Wilson 95% lower limit)");
+  else
+    DP_CHECK_MSG (ph >= PI_ACQ_P,
+                  "415.1-B-1 §7.4.1: PN lock within 20 s at probability 0.9 "
+                  "is not refuted (a regression check)");
 }
 
 /* The contract's cells: 10 dB, static, the receiver as built (the
@@ -2353,7 +2370,8 @@ main (int argc, char **argv)
             if (!emit)
               print_cell (ds, n);
             check_cell (ds, n);
-            check_acq (ds, n);
+            check_acq (ds, n, !check && shards == 1 && draws >= PI_DRAWS,
+                       emit);
           }
   free (ds);
   if (check)

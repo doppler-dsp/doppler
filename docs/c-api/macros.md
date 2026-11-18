@@ -449,6 +449,7 @@
 * **STATE\_FILTER\_KALMAN\_START\_MAX** ([**state\_filter\_kalman\_core.h**](state__filter__kalman__core_8h.md))
 * **STATE\_FILTER\_KALMAN\_STATE\_MAGIC** ([**state\_filter\_kalman\_core.h**](state__filter__kalman__core_8h.md))
 * **STATE\_FILTER\_KALMAN\_STATE\_VERSION** ([**state\_filter\_kalman\_core.h**](state__filter__kalman__core_8h.md))
+* **SYMSYNC\_LOCK\_BUDGET** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_LOCK\_EPS** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_MAGIC** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_VERSION** ([**symsync\_core.h**](symsync__core_8h.md))

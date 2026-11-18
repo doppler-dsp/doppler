@@ -86,6 +86,7 @@ from doppler.track import (
     CarrierNda,
     Costas,
     Dll,
+    KalmanStateFilter,
     LoopFilter,
     MpskReceiver,
     MpskReceiverR,
@@ -570,6 +571,13 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # travel, so a split that drops the rate shows in the second half.
     "StateFilter": (
         lambda: StateFilter(0.01, 1.0),
+        lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
+    ),
+    # The Kalman flavor: the covariance and the gains in force travel with
+    # both accumulators, so a split during the high-gain start (a restored
+    # covariance that is wrong shows in the second half's gains) is exact.
+    "KalmanStateFilter": (
+        lambda: KalmanStateFilter(sigma_e=1.0, sigma_a=2e-3),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
     ),
     # Lock detector — a real metric stream wobbling across the hysteresis

@@ -113,6 +113,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)     
 * **struct** [**dp\_specan\_state\_t**](structdp__specan__state__t.md) _Specan state. Allocate with_ [_**dp\_specan\_create()**_](specan__core_8h.md#function-dp_specan_create) _._    
 * **struct** [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) _Spectrogram state. Allocate with_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _._    
+* **struct** [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) _A third-order loop whose gains come from a covariance recursion._     
 * **struct** [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) _Third-order tracking-loop filter state (embeddable by value)._     
 * **struct** [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) _Common 16-byte envelope at the head of every state blob._     
 * **struct** [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) _SymbolSync state._     

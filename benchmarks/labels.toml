@@ -1536,6 +1536,52 @@ definition = "dp_state_filter_bandwidth at a detector delay of two updates: the 
 domain = "call"
 count = 1
 
+["c:state_filter_kalman::step"]
+name = "Kalman state filter, one update at a time"
+unit = "sample"
+definition = "One update of the Kalman flavor of the third-order loop filter: the loop's three lines, the covariance recursion and the gain refresh, called once per input error; throughput counts input errors."
+samples = 1
+
+["c:state_filter_kalman::steps"]
+name = "Kalman state filter, 65,536-error blocks"
+unit = "sample"
+definition = "The block path of the Kalman flavor of the third-order loop filter fed 65,536 loop errors per round; throughput counts input errors."
+samples = 1
+
+["c:state_filter_kalman::configure"]
+name = "Kalman state filter retune, from C"
+unit = "call"
+definition = "Retuning the Kalman flavor for a new bn and t: the bisection on the noise ratio around the doubling solve of the steady state, paid once per retune."
+domain = "call"
+count = 1
+
+["c:state_filter_kalman::create_start_1e2"]
+name = "Kalman state filter create with a high-gain start, bn*t 0.01"
+unit = "call"
+definition = "Creating the Kalman flavor with a start of 3 times the steady state's frequency deviation at bn*t 0.01: the constructor walks the covariance trajectory (800 updates, sampled) against the stability rectangle. Paid once per object, and per configure with a start above 1."
+domain = "call"
+count = 1
+
+["c:state_filter_kalman::create_start_1e4"]
+name = "Kalman state filter create with a high-gain start, bn*t 1e-4"
+unit = "call"
+definition = "The same at bn*t 1e-4: a walk of 80,000 updates, sampled. The cost scales as 1/(bn*t)."
+domain = "call"
+count = 1
+
+["py:state_filter_kalman::test_bench_step"]
+name = "Kalman state filter update, from Python"
+unit = "call"
+definition = "One KalmanStateFilter.step call from Python: the filter update, the covariance recursion and the call across the binding, one input error per call."
+domain = "call"
+count = 1
+
+["py:state_filter_kalman::test_bench_steps_64k"]
+name = "Kalman state filter, 65,536-error blocks, from Python"
+unit = "sample"
+definition = "KalmanStateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
+samples = 1
+
 ["py:state_filter::test_bench_step"]
 name = "Third-order state filter update, from Python"
 unit = "call"

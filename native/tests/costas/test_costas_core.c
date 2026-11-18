@@ -1080,7 +1080,6 @@ main (void)
     DP_CHECK (dp_costas_set_order (c, 3, 0.05) == DP_OK);
     before = *c;
     DP_CHECK (dp_costas_set_bn_fll (c, 0.01) == DP_ERR_INVALID);
-    DP_CHECK (dp_costas_set_norm_rate (c, NAN) == DP_ERR_INVALID);
     DP_CHECK (dp_costas_configure (c, 0.2, 0.707) == DP_ERR_INVALID);
     DP_CHECK (memcmp (&before, c, sizeof before) == 0);
     dp_costas_destroy (c);

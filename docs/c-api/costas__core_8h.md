@@ -80,8 +80,8 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  int | [**dp\_costas\_get\_locked**](#function-dp_costas_get_locked) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Current carrier lock decision (1 = locked, 0 = not), from the verify-counted detector on the lock-metric EMA (see dp\_costas\_configure\_lock)._  |
 |  double | [**dp\_costas\_get\_nco\_freq**](#function-dp_costas_get_nco_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Effective NCO frequency command (loop-filter output = integrator + proportional), cycles/sample. Mean rides a ramp with no lag, unlike the integrator-only get\_norm\_freq._  |
 |  double | [**dp\_costas\_get\_norm\_freq**](#function-dp_costas_get_norm_freq) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Tracked carrier frequency: the NCO frequency register._  |
-|  double | [**dp\_costas\_get\_norm\_rate**](#function-dp_costas_get_norm_rate) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br> |
-|  int | [**dp\_costas\_get\_order**](#function-dp_costas_get_order) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br> |
+|  double | [**dp\_costas\_get\_norm\_rate**](#function-dp_costas_get_norm_rate) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_The carrier's rate the third-order filter holds, in cycles per sample per sample (_ `R / fs^2` _for_`R` _Hz/s at a sample rate_`fs` _)._ |
+|  int | [**dp\_costas\_get\_order**](#function-dp_costas_get_order) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_The active loop filter's order: 2 (the PI loop) or 3 (StateFilter), as_ [_**dp\_costas\_set\_order()**_](costas__core_8h.md#function-dp_costas_set_order) _selected it._ |
 |  void | [**dp\_costas\_get\_state**](#function-dp_costas_get_state) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
 |  void | [**dp\_costas\_init**](#function-dp_costas_init) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll) <br>_Initialise a Costas loop in place (no allocation)._  |
 |  void | [**dp\_costas\_reset**](#function-dp_costas_reset) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
@@ -135,7 +135,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 ## Detailed Description
 
 
-A continuous BPSK carrier-recovery loop: per sample it de-rotates the input with the integer-phase `lo` NCO (carrier wipe-off); every `tsamps` samples it dumps the coherent integrate-and-dump accumulator, runs a decision-directed Costas phase discriminator, filters the error through an embedded 2nd-order [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md), and steers the NCO frequency + phase. It tracks a small _residual_ carrier offset (the bulk Doppler is removed upstream by FFT acquisition); the steering NCO is `lo`, so the phase is bounded and exactly reproducible (no double-accumulator drift).
+A continuous BPSK carrier-recovery loop: per sample it de-rotates the input with the integer-phase `lo` NCO (carrier wipe-off); every `tsamps` samples it dumps the coherent integrate-and-dump accumulator, runs a decision-directed Costas phase discriminator, filters the error through the active loop filter  the embedded 2nd-order [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) every loop starts on, or, after [**dp\_costas\_set\_order()**](costas__core_8h.md#function-dp_costas_set_order), the 3rd-order StateFilter, which also tracks the carrier's rate and holds a frequency ramp with no steady phase error  and steers the NCO frequency + phase. It tracks a small _residual_ carrier offset (the bulk Doppler is removed upstream by FFT acquisition); the steering NCO is `lo`, so the phase is bounded and exactly reproducible (no double-accumulator drift).
 
 
 The block API (dp\_costas\_steps) is the Python face; the JM\_FORCEINLINE [**costas\_wipeoff()**](costas__core_8h.md#function-costas_wipeoff)/costas\_update() are the C composition API a despreader / tracking channel inlines into its own sample loop.
@@ -266,13 +266,13 @@ Re-derives the PI coefficients from the loop bandwidth and damping and installs 
 >>> (round(c.bn, 3), round(c.norm_freq, 3))  # new gains, est kept
 (0.02, 0.01)
 ```
- 
+ At order 3 both filters are retuned and both keep their estimates (frequency, and the third-order filter's rate); zeta reaches only the second-order filter, which has the damping argument.
 
 
 
 **Returns:**
 
-`DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok); a refusal changes nothing, so the bandwidth the getter reports is always the one the loop runs (doppler#2112). 
+`DP_OK`, or `DP_ERR_INVALID` for a (bn, zeta) outside [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or at order 3 a bn outside [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) at `t = 1` (bn up to 0.12); a refusal changes nothing, so the bandwidth the getter reports is always the one the loop runs (doppler#2112). 
 
 
 
@@ -621,7 +621,7 @@ double dp_costas_get_norm_freq (
 
 
 
-Holds the loop filter's integrator (the frequency memory); it excludes the proportional term, so on a frequency ramp it lags by the Type-II ramp error (see [**dp\_costas\_get\_nco\_freq()**](costas__core_8h.md#function-dp_costas_get_nco_freq)).
+Holds the active loop filter's integrator (the frequency memory); it excludes the proportional term. At order 2 it lags a frequency ramp by the Type-II ramp error (see [**dp\_costas\_get\_nco\_freq()**](costas__core_8h.md#function-dp_costas_get_nco_freq)); at order 3, which holds the rate, it does not.
 
 
 
@@ -649,6 +649,7 @@ Frequency in cycles/sample; the seed frequency before the first symbol is dumped
 
 ### function dp\_costas\_get\_norm\_rate 
 
+_The carrier's rate the third-order filter holds, in cycles per sample per sample (_ `R / fs^2` _for_`R` _Hz/s at a sample rate_`fs` _)._
 ```C++
 double dp_costas_get_norm_rate (
     const dp_costas_state_t * state
@@ -668,7 +669,7 @@ double dp_costas_get_norm_rate (
 
 **Returns:**
 
-The third-order filter's carrier rate, cycles/sample^2; 0 at order 2. 
+The rate, cycles/sample^2; 0 at order 2, which holds none. 
 
 
 
@@ -682,6 +683,7 @@ The third-order filter's carrier rate, cycles/sample^2; 0 at order 2.
 
 ### function dp\_costas\_get\_order 
 
+_The active loop filter's order: 2 (the PI loop) or 3 (StateFilter), as_ [_**dp\_costas\_set\_order()**_](costas__core_8h.md#function-dp_costas_set_order) _selected it._
 ```C++
 int dp_costas_get_order (
     const dp_costas_state_t * state
@@ -701,7 +703,7 @@ int dp_costas_get_order (
 
 **Returns:**
 
-The active loop filter's order, 2 or 3. 
+2 or 3. 
 
 
 
@@ -796,7 +798,7 @@ void dp_costas_reset (
 
 
 
-Drops the lock and rewinds the NCO, loop integrator and integrate-and-dump accumulators to the create-time seed frequency, while retaining the configured loop bandwidth, damping and lock-detector thresholds. Reprocess the same input after a reset and the output is bit-identical.
+Drops the lock and rewinds the NCO, loop integrator and integrate-and-dump accumulators to the create-time seed frequency, while retaining the configured loop bandwidth, damping, lock-detector thresholds and loop order. At order 3 the rate is zeroed as well. Reprocess the same input after a reset and the output is bit-identical.
 
 
 
@@ -859,7 +861,7 @@ int dp_costas_set_bn (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if (val, zeta) fails [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) (nothing changes). 
+DP\_OK, or DP\_ERR\_INVALID if (val, zeta) fails [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok), or at order 3 val fails [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) at `t = 1` (bn up to 0.12); nothing changes. 
 
 
 
@@ -891,17 +893,17 @@ A value outside [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#f
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL. Refused too when `val` &gt; 0 at order 3: a first-order frequency pull into a loop that holds a rate is a different loop from the one StateFilter's stability range was derived for, and it has not been measured (docs/design/costas.md section 3.2).
 * `val` FLL bandwidth, normalized to the symbol rate (0 = off). 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when `val` is refused.
+DP\_OK, or DP\_ERR\_INVALID when `val` is refused: outside [**dp\_loop\_filter\_fll\_bn\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_fll_bn_ok), or positive at order 3. 
 
 
-Refused too when `val` &gt; 0 at order 3: a first-order frequency pull into a loop that holds a rate is a different loop from the one StateFilter's stability range was derived for, and it has not been measured (docs/design/costas.md section 3.2). 
+
 
 
         
@@ -922,7 +924,7 @@ void dp_costas_set_norm_freq (
 
 
 
-Not a gentle nudge: it resets the loop filter, re-initializes the NCO (phase included) at `val`, clears the integrate-and-dump accumulator, the lock metric and the lock decision, and makes `val` the frequency a later [**dp\_costas\_reset()**](costas__core_8h.md#function-dp_costas_reset) returns to.
+Not a gentle nudge: it resets the loop filter, re-initializes the NCO (phase included) at `val`, clears the integrate-and-dump accumulator, the lock metric and the lock decision, and makes `val` the frequency a later [**dp\_costas\_reset()**](costas__core_8h.md#function-dp_costas_reset) returns to. It keeps the loop order; at order 3 it zeroes the rate.
 
 
 
@@ -931,7 +933,7 @@ Not a gentle nudge: it resets the loop filter, re-initializes the NCO (phase inc
 
 
 * `state` Must be non-NULL. 
-* `val` New carrier frequency, cycles/sample. 
+* `val` New carrier frequency, cycles/sample. Taken as given, as every frequency is: a NaN gives a NaN loop, not a refusal. 
 
 
 
@@ -963,13 +965,13 @@ int dp_costas_set_norm_rate (
 
 
 * `state` Must be non-NULL. 
-* `val` Carrier rate, cycles/sample^2; finite. 
+* `val` Carrier rate, cycles/sample^2, taken as given, as set\_norm\_freq takes a frequency. 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID with nothing changed at order 2 (that loop holds no rate) or for a non-finite `val`. 
+DP\_OK, or DP\_ERR\_INVALID with nothing changed at order 2 (that loop holds no rate). 
 
 
 
@@ -1012,7 +1014,7 @@ Costas never chooses the order; the embedder does.
 
 * `state` Must be non-NULL. 
 * `order` 2 or 3. 
-* `bn` Loop noise bandwidth per update: in [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at the retained zeta, and at order 3 also in [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) at `t = 1`. 
+* `bn` Loop noise bandwidth per update: in [**dp\_loop\_filter\_params\_ok()**](loop__filter__core_8h.md#function-dp_loop_filter_params_ok) at the retained zeta, and at order 3 also in [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) at `t = 1`, which bounds it at 0.12. 
 
 
 

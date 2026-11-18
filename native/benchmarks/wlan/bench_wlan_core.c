@@ -3,8 +3,9 @@
  * Two rows, both over a PSDU a real frame size: the minimal MAC's FCS over a
  * 1500-octet body, and the Data field's chain up to the interleaver (the
  * SERVICE, tail and pad assembly, the scrambler, and the punctured BCC) for
- * 100 octets at 16-QAM rate 3/4. The interleaver, the mapper and the layout
- * need the standard's tables and are measured with the characterization.
+ * 100 octets at 16-QAM rate 3/4. The interleaver, the mapper, the layout and
+ * the PPDU need the standard's tables and have NO row yet: nothing measures
+ * them (#3147).
  *
  *   make bench BENCH_ARGS="--c-only wlan"
  */

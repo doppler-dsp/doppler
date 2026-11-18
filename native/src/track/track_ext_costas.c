@@ -444,7 +444,10 @@ CostasObj_set_order (CostasObject *self, PyObject *args, PyObject *kwds)
   int _rc = dp_costas_set_order (self->handle, order, bn);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_order failed",
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "Costas.set_order: order must be 2 or 3, bn >= 0 and "
+                    "finite (at most 0.12 at order 3), and bn_fll must be 0 "
+                    "for order 3",
                     (long long)_rc);
       return NULL;
     }
@@ -697,8 +700,8 @@ Costas_setprop_norm_rate (CostasObject *self, PyObject *value,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "Costas: norm_rate needs order 3 (set_order) and a "
-                    "finite value",
+                    "Costas: norm_rate is held only at order 3 (set_order(3, "
+                    "bn) first)",
                     (long long)_rc);
       return -1;
     }
@@ -746,14 +749,17 @@ static PyGetSetDef Costas_getset[] = {
     NULL },
   { "norm_rate", (getter)Costas_getprop_norm_rate,
     (setter)Costas_setprop_norm_rate,
-    "Norm rate.\n"
+    "The carrier's rate the third-order filter holds, in cycles per sample "
+    "per sample (R / fs**2 for R Hz/s at sample rate fs); 0 at order 2. "
+    "Writable at order 3 only: it seeds the rate, as norm_freq seeds the "
+    "frequency.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    On assignment, if ``dp_costas_set_norm_rate`` refuses the value by\n"
-    "    returning non-zero. The exception message is ``Costas: norm_rate\n"
-    "    needs order 3 (set_order) and a finite value``, with the return\n"
+    "    returning non-zero. The exception message is ``Costas: norm_rate is\n"
+    "    held only at order 3 (set_order(3, bn) first)``, with the return\n"
     "    code appended.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -936,6 +942,10 @@ static PyMethodDef CostasObj_methods[] = {
     "re-tune — narrow the bandwidth once pulled in for lower phase jitter,\n"
     "or widen it to chase a faster-moving residual.\n"
     "\n"
+    "At order 3 both filters are retuned and both keep their estimates\n"
+    "(frequency, and the third-order filter's rate); zeta reaches only the\n"
+    "second-order filter, which has the damping argument.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "bn : float\n"
@@ -1011,8 +1021,9 @@ static PyMethodDef CostasObj_methods[] = {
     "Costas starts on) or order 3 (StateFilter, which also tracks the "
     "carrier's rate), at loop bandwidth bn. The frequency estimate carries "
     "across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises "
-    "ValueError, changing nothing, for another order, a bn outside the "
-    "order's domain, or order 3 while bn_fll > 0.\n"
+    "ValueError, changing nothing, for an order other than 2 or 3, a bn "
+    "outside the loop's domain (bn >= 0 and finite at either order, and at "
+    "most 0.12 at order 3), or order 3 while bn_fll > 0.\n"
     "\n"
     "What carries across (docs/design/costas.md section 3.2):\n"
     "\n"
@@ -1035,13 +1046,15 @@ static PyMethodDef CostasObj_methods[] = {
     "bn : float\n"
     "    Loop noise bandwidth per update: in dp_loop_filter_params_ok() at\n"
     "    the retained zeta, and at order 3 also in\n"
-    "    dp_state_filter_params_ok() at `t = 1`.\n"
+    "    dp_state_filter_params_ok() at `t = 1`, which bounds it at 0.12.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_order failed``, with the return code appended (gh-869).\n"
+    "    ``Costas.set_order: order must be 2 or 3, bn >= 0 and finite (at\n"
+    "    most 0.12 at order 3), and bn_fll must be 0 for order 3``, with the\n"
+    "    return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1059,13 +1072,14 @@ static PyMethodDef CostasObj_methods[] = {
   { "reset", (PyCFunction)CostasObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Re-seed the loop to the create-time frequency/phase; preserve config.\n"
+    "Re-seed the loop to the create-time frequency/phase, keeping the "
+    "configuration and the loop order; at order 3 the rate is zeroed.\n"
     "\n"
     "Drops the lock and rewinds the NCO, loop integrator and\n"
     "integrate-and-dump accumulators to the create-time seed frequency,\n"
-    "while retaining the configured loop bandwidth, damping and\n"
-    "lock-detector thresholds. Reprocess the same input after a reset and\n"
-    "the output is bit-identical.\n"
+    "while retaining the configured loop bandwidth, damping, lock-detector\n"
+    "thresholds and loop order. At order 3 the rate is zeroed as well.\n"
+    "Reprocess the same input after a reset and the output is bit-identical.\n"
     "\n"
     "Examples\n"
     "--------\n"

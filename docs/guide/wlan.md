@@ -73,8 +73,8 @@ steps, in order, with the example that runs all of them:
     changing nothing, if any stage refuses.
 1. **Check it.** The example tests the length, that the L-STF repeats every
     16 samples, that the L-LTF's two long symbols are alike, and the power of
-    each field: exactly one for the two training fields (the standard's
-    scale is 1/sqrt 52, one unit over the 52 occupied subcarriers) and, for
+    each field: exactly one for the two training fields (the library's scale
+    is 1/sqrt 52, one unit over the 52 occupied subcarriers) and, for
     each SIGNAL or Data symbol, the energy of its own grid over 52, which
     Parseval ties to the points it was built from. A Data symbol's power is
     not one: a 16-QAM symbol's 48 points have a mean power of one only on
@@ -82,7 +82,11 @@ steps, in order, with the example that runs all of them:
     body's last 16 samples. The Data symbols are compared with the library's
     own points, so that check holds the renderer to the mapper and not the
     mapper to the standard (that waits on Annex I's example, #3148); the
-    training fields' exact one is the standard's own scale.
+    training fields' exact one holds the library to its own scale. An Annex I
+    comparison found the stages up to the constellation points exact and the
+    time-domain samples scaled differently (an unnormalized IDFT, about 8.87
+    times the library's), so no claim of conformance is made for the sample
+    amplitudes: #3148 tracks it.
 
 ```c
 --8<-- "native/examples/wlan_ppdu_demo.c"

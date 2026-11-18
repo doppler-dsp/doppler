@@ -23,9 +23,12 @@
  * this code: the PPDU is 160 + 160 + 80 + 80 * N_SYM samples; the L-STF is
  * ten repetitions of one 16-sample pattern; the L-LTF's two long symbols are
  * identical, preceded by the double guard interval; and the power of each
- * field is what the standard's scale (1/sqrt 52) makes it: exactly one for
- * the two training fields, and for each SIGNAL or Data symbol the energy of
- * its own grid over 52, which Parseval ties to the points it was built from.
+ * field is what this library's scale (1/sqrt 52, #3148) makes it: exactly one
+ * for the two training fields, and for each SIGNAL or Data symbol the energy
+ * of its own grid over 52, which Parseval ties to the points it was built
+ * from. None of that is a claim about the standard's printed sample values:
+ * an Annex I comparison found the time-domain stage scaled differently
+ * (#3148), and it is open.
  *
  * Build and run:
  *   make build
@@ -103,7 +106,7 @@ main (void)
 
   /* 5c. Power, field by field, each against what it must be.
    *
-   * The training fields are deterministic, and the standard's scale
+   * The training fields are deterministic, and this library's scale
    * (1/sqrt 52, one unit for the 52 occupied subcarriers) makes their mean
    * power exactly one. A SIGNAL or Data OFDM symbol is not constant: its 64
    * body samples have, by Parseval, a mean power equal to the grid's energy
@@ -120,7 +123,10 @@ main (void)
    * the pilots, the transform and the scale) to the mapper by Parseval; it
    * does not tie the mapper to the standard, which waits on Annex I's
    * stage-by-stage example (#3148). The two training fields reading exactly
-   * one is an external fact, the standard's scale. */
+   * one holds the library to its own scale and nothing more: an Annex I
+   * comparison reconstructs the printed samples from an unnormalized IDFT,
+   * about 64/sqrt(52) = 8.87 times ours, and which convention is right for a
+   * claim of conformance is unresolved (#3148). */
   double p_stf = 0, p_ltf = 0;
   for (size_t i = 0; i < 160; i++)
     {

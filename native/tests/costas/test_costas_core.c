@@ -674,10 +674,13 @@ main (void)
      translation unit, and a compiler may contract a multiply-add into one
      rounding in one and not the other (clang and arm64 do). So the
      reference's filter and steer run on the library's own prompt each
-     update, which keeps the error e identical in both, and every quantity
-     is held to a bound derived from the run, not picked:
-       - integ: one contracted rounding per update at most, so
-         |dinteg| <= N 2^-53 max|integ|;
+     update, which keeps the two errors e within a few float roundings of
+     each other: under -ffast-math each translation unit may compute e's
+     cabsf and divide differently (arm64 does). So the frequency estimate
+     itself is not held: its bound would rest on that premise, which no x86
+     run can check, and it sees only one of the two sabotages, which the
+     phase and the prompts catch by more. Each remaining quantity is held to
+     a bound derived from the run, not picked:
        - the NCO phase word: one count per sample at most from the steer's
          rounding, so N (tsamps + 1) counts;
        - the reference's own prompt, accumulated in float from its own NCO:
@@ -699,7 +702,7 @@ main (void)
     dp_lo_init (&nco, 0.002);
     double integ       = 0.002 * 2.0 * M_PI * (double)tsamps;
     float _Complex acc = 0.0f;
-    double xmax = 0.0, imax = fabs (integ), dprompt = 0.0;
+    double xmax = 0.0, dprompt = 0.0;
     for (size_t i = 0; i < ns; i++)
       if (cabsf (rx[i]) > xmax)
         xmax = cabsf (rx[i]);
@@ -723,8 +726,6 @@ main (void)
         const float  a = cabsf (P) + COSTAS_EPS;
         const double e = (double)(((re >= 0.0f) ? im : -im) / a);
         integ += ki * e;
-        if (fabs (integ) > imax)
-          imax = fabs (integ);
         dp_lo_set_norm_freq (&nco, integ / (double)tsamps / (2.0 * M_PI));
         nco.phase += nco_norm_phase_to_word ((kp * e) / (2.0 * M_PI));
         k++;
@@ -732,23 +733,19 @@ main (void)
       }
     DP_CHECK (k == n_got);
     const double n        = (double)k;
-    const double b_integ  = n * 0x1p-53 * imax;
     const double b_counts = n * (double)(tsamps + 1);
     const double b_prompt = 0x1p-23 * xmax * (double)(tsamps + 2)
                             + xmax * 2.0 * M_PI * b_counts / 4294967296.0;
-    const double d_integ  = fabs (c->lf.integ - integ);
     const double d_counts = fabs ((double)(int32_t)(c->nco.phase - nco.phase));
-    DP_CHECK_MSG (d_integ <= b_integ,
-                  "order 2's frequency estimate is its recurrence's");
     DP_CHECK_MSG (d_counts <= b_counts,
                   "order 2's NCO phase is its recurrence's");
     DP_CHECK_MSG (dprompt <= b_prompt, "order 2's prompts are its "
                                        "recurrence's");
-    if (getenv ("DP_COSTAS_PIN_DIAG"))
-      fprintf (stderr,
-               "10e: integ %.3e of %.3e, phase %.0f of %.0f counts, "
-               "prompt %.3e of %.3e\n",
-               d_integ, b_integ, d_counts, b_counts, dprompt, b_prompt);
+    if (d_counts > b_counts || dprompt > b_prompt
+        || getenv ("DP_COSTAS_PIN_DIAG"))
+      DP_TEST_ERR ("10e: phase %.0f of %.0f counts, "
+                   "prompt %.3e of %.3e\n",
+                   d_counts, b_counts, dprompt, b_prompt);
     dp_costas_destroy (c);
     free (rx);
     free (bits);

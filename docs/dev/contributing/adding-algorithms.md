@@ -61,11 +61,30 @@ One screen. Everything below it on this page is the reference behind a row.
 
 <!-- spine-card:end -->
 
-**Declaring a deviation.** A pull request that leaves a row out says which
-row, for which object and why, with the issue that owns it, in its
-description. Nothing yet builds this table from a branch or refuses a row
-left out in silence:
-[gh-3140](https://github.com/doppler-dsp/doppler/issues/3140).
+**The card, per object.** `make spine-check` prints this table for each
+object the branch touches, every row present, missing, skipped or not
+applicable, with the file or the gate that says so; `SPINE_FLAGS=--all`
+prints every object. It runs on `make lint`, CI appends it to the job
+summary, and an author pastes it at the top of a pull request body. The
+rows are read from the table above, and each is answered by the gate that
+owns it. The same target holds the copy of the principles in `CLAUDE.md`
+to this page; `make format` rewrites that copy.
+
+**Declaring a deviation.** A branch that leaves a row out says so in a
+commit message, one line a row:
+
+```text
+Spine-skip: <phase> <object>: <reason> (#<issue>)
+```
+
+`<phase>` is the row's name or number; the reason and the issue that owns
+the work are mandatory, and a line that does not parse fails. The same
+commit adds the gap to `scripts/.spine-gaps`
+(`<object> <phase>/<item>: <reason> (#<issue>)`), which is what holds it
+once the branch has merged. That list holds every gap in the tree and only
+shrinks: a line with no `Spine-skip` behind it is refused, and so is a
+line whose gap has closed. A row left out in silence fails
+`make spine-check`.
 
 CI runs the merge-guarding set; the per-phase targets above are how you
 find out sooner. (`make gates` reproduces that set locally, and is only for

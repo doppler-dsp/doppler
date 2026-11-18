@@ -165,21 +165,31 @@ def example_names(root: Path) -> dict[str, set[str]]:
     for p in sorted((root / EXAMPLES).glob("*.py")):
         if p.name.startswith("_"):
             continue  # a helper (_extra.py), not a script
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except SyntaxError:
-            out[p.name] = set()
-            continue
-        names: set[str] = set()
-        for n in ast.walk(tree):
-            if isinstance(n, ast.Name):
-                names.add(n.id)
-            elif isinstance(n, ast.Attribute):
-                names.add(n.attr)
-            elif isinstance(n, ast.alias):
-                names.add(n.name.rsplit(".", 1)[-1])
-        out[p.name] = names
+        out[p.name] = names_used(p)
     return out
+
+
+def names_used(path: Path) -> set[str]:
+    """Every identifier a Python file's code uses; empty if it cannot parse.
+
+    A name, an attribute or an import, read from the syntax tree, so a
+    class named in a comment or a docstring is not a use. It is what "this
+    script uses the class" means for an example here and for a benchmark
+    in ``check_spine.py``.
+    """
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return set()
+    names: set[str] = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name):
+            names.add(n.id)
+        elif isinstance(n, ast.Attribute):
+            names.add(n.attr)
+        elif isinstance(n, ast.alias):
+            names.add(n.name.rsplit(".", 1)[-1])
+    return names
 
 
 def parse_entries(text: str) -> list[tuple[str, str, str]]:

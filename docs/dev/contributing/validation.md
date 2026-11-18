@@ -95,6 +95,65 @@ carries its own precondition: steer the same rate off-exact and require
 `mu` to move. Same shape as `reset` — a reset test proves nothing if the
 state was already zero when it ran.
 
+### Three layers that prove a pin
+
+"Sabotaged, and it went red" written in a commit message or a PR body is a
+record that somebody did it once. It cannot be re-run, it does not say
+which assertion fired, and it goes stale with the next edit. A pin is
+proven by three things a reader can run or read, each derived from the tree
+and none kept as a list.
+
+**1. A negative control, in the test.** Beside each assertion, the same
+assertion is evaluated on a named wrong case and required to fail. The
+wrong case is the nearest thing to the right one that the claim excludes:
+
+| the claim                                 | its control                                                  |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| a loop follows a ramp within a stated lag | a loop that does not step: the same bound must be violated   |
+| a lock declares on signal                 | noise alone at the same settings: it must not declare        |
+| a call refuses a bad argument             | the same call with that one argument made good: it must pass |
+| a forged blob is refused                  | the same blob with that one field restored: it must restore  |
+| two paths agree                           | one path given a known wrong input: they must disagree       |
+
+The control is what turns the two failure modes above into something the
+test itself reports. A tolerance wider than the whole effect, a threshold
+under the no-signal mean, and a refusal that fires for a different argument
+all pass their assertion and fail their control. It runs on every push,
+costs one more call, and needs nothing but `DP_CHECK` on the negated
+condition. A minimal pair is the rule for refusals: one argument differs
+between the refused call and the accepted one, so the refusal is that
+argument's.
+
+**2. Refusal-branch coverage, from the coverage run.** A control proves an
+assertion can fail. It does not prove that the clause it names is the one
+that decided: a forge refused by an earlier clause passes its test and
+leaves the later clause untested, and a clause no input reaches cannot be
+tested at all. Every branch that returns a refusal must be the deciding
+branch of at least one test, and the coverage job's branch data already
+says which are. A refusing branch no test takes is either a missing forge
+or dead code, and the answer to dead code is to delete it.
+
+**3. Derived mutants, at certification.** The first two layers work from
+the test's side. The last works from the library's: change a line (zero a
+gain, flip a comparison, skip an update) and require a test to go red. The
+mutants are generated from the source by a tool, never written by hand, so
+there is no list to keep. It is a one-time run in the sense of
+[the spine's rule on sweeps](adding-algorithms.md#no-full-validation-or-characterization-in-ci):
+taken when the object is certified and again when it is refreshed, with the
+kill count and the commit in the report. A mutant that survives is killed
+by a new test or listed in the report as equivalent, with the reason.
+
+**What exists.** Layer 1 is a practice with no gate: nothing refuses a
+claim that has no control, and the report's claim table is written by hand.
+Layers 2 and 3 are not built.
+[gh-847](https://github.com/doppler-dsp/doppler/issues/847) carries all
+three: a claim scope in `dp_test.h` whose run emits one line a claim with
+its checks and controls, from which the claim table is generated and a
+claim with no control is refused; a reading of the coverage job's branch
+data for refusing branches; and the mutation run, on an existing tool if
+one fits this build. Until then the control is written by the author and
+checked in review, and the report's claim table names each claim's control.
+
 ## Step 3 — the validation folder
 
 Each certified object owns a folder beside its **module's** tests — the
@@ -267,7 +326,10 @@ sweep. To regenerate one object without the C half, run
 
 - [ ] Enumerate the header's claims; map each onto the C test
 
-- [ ] Write C tests for the uncovered ones; sabotage each and watch it fail
+- [ ] Write C tests for the uncovered ones, each with its negative control
+    in the test; sabotage each and watch it fail
+
+- [ ] Check every refusing branch is the deciding branch of a test
 
 - [ ] Create `src/doppler/<module>/tests/validation/<object>/` with
     `validate.py` and an `__init__.py`

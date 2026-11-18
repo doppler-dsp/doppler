@@ -37,6 +37,9 @@ One screen. Everything below it on this page is the reference behind a row.
 1. **A constant is derived or measured.** Never fitted, ported or matched.
 1. **Test what the use case can produce.** Not what will never happen.
 1. **Reuse first.** Add new only when nothing existing fits.
+1. **Build the general object.** An application is a configuration of it:
+    the standard's numbers arrive as arguments or a table, never as the
+    object's shape. A one-off is the exception, and says why.
 1. **It just works with the least input.** Every knob stays, behind that.
 1. **A deviation is declared.** Skipping a row is allowed; skipping it
     silently is not.
@@ -160,7 +163,14 @@ why, which the user story in phase 9 draws on but never replaces.
     it is not committed; see [Repository Map](repository-map.md) for why the
     algorithm lands in C exactly once;
 - **a sketch of the implementation plan** — the object's shape, its state,
-    and which existing primitive it composes rather than re-implements.
+    and which existing primitive it composes rather than re-implements;
+- **the general object, and the application as its configuration** — name
+    the widest thing this is an instance of (a modulator, a correlator, a
+    loop filter) and build that. The application's numbers (a standard's
+    lengths, rates, polynomials, tables) are what a caller passes or a
+    preset supplies, so the next application is a new configuration and
+    not a new object. Where a one-off is the right call, the page says
+    what the general form would cost and why it is not built.
 
 **This phase has no gate**, and a design doc is enforced by review alone —
 which is precisely why it goes first: it is the cheapest place to be wrong.

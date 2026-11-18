@@ -18,6 +18,56 @@ belongs on the page this one links to — a second copy of a procedure is the
 thing that goes quietly out of date, and this page exists to make the map
 readable, not to become a sixteenth copy of the territory.
 
+<a id="the-lifecycle-at-a-glance"></a>
+
+## The card
+
+One screen. Everything below it on this page is the reference behind a row.
+
+<!-- spine-card:start -->
+
+**The principles.** They are what the phases exist to keep true:
+
+1. **A claim names its evidence.** Every number says what prints it, and
+    every claim says what test, validator or benchmark holds it.
+1. **A test shows its failing case.** An assertion with no case it rejects
+    is a comment.
+1. **A page states what is.** The record of how it got there lives beside
+    it, not in it.
+1. **A constant is derived or measured.** Never fitted, ported or matched.
+1. **Test what the use case can produce.** Not what will never happen.
+1. **Reuse first.** Add new only when nothing existing fits.
+1. **It just works with the least input.** Every knob stays, behind that.
+1. **A deviation is declared.** Skipping a row is allowed; skipping it
+    silently is not.
+
+**The phases.** In this order, for every object:
+
+| #   | phase          | produces                                                   | the how lives in                                                                                                           | proven by                                                               |
+| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                                                                  | review only                                                             |
+| 2   | **Declare**    | `objects/<obj>.toml`, its `modules/<mod>.toml` entry       | [Adding a Module](adding-a-module.md)                                                                                      | `make drift-check`                                                      |
+| 3   | **Implement**  | `native/inc/doppler/<obj>/<obj>_core.h` + `_core.c`        | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)                                             | `ctest`                                                                 |
+| 4   | **Pin**        | `native/tests/<obj>/test_<obj>_core.c`                     | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
+| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md)                                           | `make drift-check`, `make test-stubs`                                   |
+| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
+| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
+| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                                                                         | `make validate-check`, `test_validation_limits.py`                      |
+| 9   | **User story** | API entry, guide section, examples, gallery, benchmarks    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make user-docs-check`, `make test-stubs`, `make test-examples-c`       |
+| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                                                                   | `make changelog-check`, `make issue-link-check`                         |
+
+<!-- spine-card:end -->
+
+**Declaring a deviation.** A pull request that leaves a row out says which
+row, for which object and why, with the issue that owns it, in its
+description. Nothing yet builds this table from a branch or refuses a row
+left out in silence:
+[gh-3140](https://github.com/doppler-dsp/doppler/issues/3140).
+
+CI runs the merge-guarding set; the per-phase targets above are how you
+find out sooner. (`make gates` reproduces that set locally, and is only for
+debugging a CI red: [How We Work](../workflow.md#2-prove-it-locally-then-push).)
+
 ______________________________________________________________________
 
 !!! warning "Use the existing, proven tools"
@@ -128,27 +178,6 @@ anything: a reader has to replay it to find out what is true today.
 
 It is not, however, the *only* ungated phase — phase 4's sabotage is the
 other, and that one is a gap rather than a design.
-
-______________________________________________________________________
-
-## The lifecycle at a glance
-
-| #   | phase          | produces                                                   | the how lives in                                                                                                           | proven by                                                               |
-| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                                                                  | review only                                                             |
-| 2   | **Declare**    | `objects/<obj>.toml`, its `modules/<mod>.toml` entry       | [Adding a Module](adding-a-module.md)                                                                                      | `make drift-check`                                                      |
-| 3   | **Implement**  | `native/inc/doppler/<obj>/<obj>_core.h` + `_core.c`        | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)                                             | `ctest`                                                                 |
-| 4   | **Pin**        | `native/tests/<obj>/test_<obj>_core.c`                     | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
-| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md)                                           | `make drift-check`, `make test-stubs`                                   |
-| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
-| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
-| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                                                                         | `make validate-check`, `test_validation_limits.py`                      |
-| 9   | **User story** | API entry, guide section, examples, gallery, benchmarks    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make user-docs-check`, `make test-stubs`, `make test-examples-c`       |
-| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                                                                   | `make changelog-check`, `make issue-link-check`                         |
-
-CI runs the merge-guarding set; the per-phase targets above are how you
-find out sooner. (`make gates` reproduces that set locally, and is only for
-debugging a CI red: [How We Work](../workflow.md#2-prove-it-locally-then-push).)
 
 ______________________________________________________________________
 

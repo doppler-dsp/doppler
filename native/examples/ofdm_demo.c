@@ -89,7 +89,8 @@ main (void)
   ok &= (dp_ofdm_add_run (o, 0u, N_SYM, OFDM_CP_DEFAULT, 0u, 0u) == 0);
 
   /* 3. An unusable layout says why. A second modulator with a class and no
-     run is refused with a sentence, where modulate would return a bare 0. */
+     run is refused with a sentence, by check and by modulate_why alike;
+     plain modulate would return a bare 0. */
   {
     const char      *why   = NULL;
     dp_ofdm_state_t *empty = dp_ofdm_create ();
@@ -98,8 +99,10 @@ main (void)
     printf ("--- 3. a layout with no run: check = %d (%s)\n", bad,
             why ? why : "no reason");
     ok &= (bad < 0 && why != NULL);
-    cf pts1[1] = { 0 }, out1[1];
-    ok &= (dp_ofdm_modulate (empty, pts1, 0u, out1, 0u) == 0);
+    cf          pts1[1] = { 0 }, out1[1];
+    const char *why2    = NULL;
+    ok &= (dp_ofdm_modulate_why (empty, pts1, 0u, out1, 0u, &why2) < 0
+           && why2 == why);
     dp_ofdm_destroy (empty);
   }
 
@@ -132,6 +135,23 @@ main (void)
   printf ("--- 5. modulate wrote %zu samples, finish %zu\n", got, fin);
   ok &= (got == n_out && fin == WINDOW);
   ok &= (dp_ofdm_points_remaining (o) == 0);
+
+  /* modulate_why tells a refusal from a render of nothing: at the end of the
+     layout, no points is a valid 0 that leaves *why as it was set; one point
+     more than the layout has is refused, with the reason. */
+  {
+    const char   *kept = "untouched", *reason = NULL;
+    const int64_t nothing
+        = dp_ofdm_modulate_why (o, points, 0u, out, 0u, &kept);
+    const int64_t refused
+        = dp_ofdm_modulate_why (o, points, 1u, out, n_out, &reason);
+    printf ("--- 5b. no points at the end: %lld, why %s; one point too many: "
+            "%lld (%s)\n",
+            (long long)nothing, kept, (long long)refused,
+            reason ? reason : "no reason");
+    ok &= (nothing == 0 && strcmp (kept, "untouched") == 0);
+    ok &= (refused < 0 && reason != NULL);
+  }
 
   /* Invert it: each body's forward transform is the grid. */
   int    grid_ok = 1;

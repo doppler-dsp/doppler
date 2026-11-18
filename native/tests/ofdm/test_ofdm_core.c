@@ -246,9 +246,13 @@ main (void)
     DP_CHECK (dp_ofdm_check_why (o, &why) < 0);
     DP_CHECK_MSG (why && strstr (why, "no run"), "no run: says so");
     DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
-    DP_CHECK (dp_ofdm_check_why (o, &why) == 0 && why == NULL);
-    DP_CHECK_MSG (dp_ofdm_check_why (o, &why) == 0 && why == NULL,
-                  "a sealed layout checks again with no sentence");
+    why = "unset";
+    DP_CHECK_MSG (dp_ofdm_check_why (o, &why) == 0 && why
+                      && strcmp (why, "unset") == 0,
+                  "a usable layout leaves *why as the caller set it");
+    DP_CHECK_MSG (dp_ofdm_check_why (o, &why) == 0 && why
+                      && strcmp (why, "unset") == 0,
+                  "a sealed layout checks again and still leaves it");
     DP_CHECK (dp_ofdm_check_why (o, NULL) == 0);
     dp_ofdm_destroy (o);
 
@@ -534,12 +538,86 @@ main (void)
     DP_CHECK (dp_ofdm_modulate (o, pts, 0, out, 64) == 0);
     DP_CHECK_MSG (dp_ofdm_modulate (o, pts, 5, out, 64) == 0,
                   "points past the end of the layout");
+    /* The _why form names each refusal, and tells a refusal (negative, a
+       sentence) from a valid render of nothing (0, *why left as set). */
+    {
+      const char *why = "unset";
+      DP_CHECK_MSG (dp_ofdm_modulate_why (o, pts, 0, out, 64, &why) == 0 && why
+                        && strcmp (why, "unset") == 0,
+                    "no points at the end of the layout is not a refusal");
+      DP_CHECK (dp_ofdm_modulate_why (o, pts, 5, out, 64, &why) < 0);
+      DP_CHECK_MSG (why && strstr (why, "more points than the layout"),
+                    "points past the end say so");
+      dp_ofdm_reset (o);
+      why = "unset";
+      DP_CHECK_MSG (dp_ofdm_modulate_why (o, pts, 0, out, 64, &why) == 0 && why
+                        && strcmp (why, "unset") == 0,
+                    "zero points mid-layout is a valid 0, not a refusal");
+      DP_CHECK (dp_ofdm_modulate_why (o, pts, 3, out, 64, &why) < 0);
+      DP_CHECK_MSG (why && strstr (why, "inside an OFDM symbol"),
+                    "points ending inside a symbol say so");
+      DP_CHECK (dp_ofdm_modulate_why (o, pts, 27, out, 55, &why) < 0);
+      DP_CHECK_MSG (why && strstr (why, "shorter"), "a short buffer says so");
+      DP_CHECK_MSG (dp_ofdm_modulate_why (o, pts, 27, out, 64, NULL) == 56,
+                    "a NULL why is allowed, and a good call writes");
+      why = "unset";
+      DP_CHECK_MSG (dp_ofdm_modulate_why (o, pts, 0, out, 64, &why) == 0 && why
+                        && strcmp (why, "unset") == 0,
+                    "a success leaves *why as the caller set it");
+      /* an unusable layout is refused with the sentence check gives */
+      dp_ofdm_state_t *bare = dp_ofdm_create ();
+      const char      *want = NULL;
+      DP_REQUIRE (dp_ofdm_check_why (bare, &want) < 0 && want);
+      why = NULL;
+      DP_CHECK (dp_ofdm_modulate_why (bare, pts, 0, out, 64, &why) < 0);
+      DP_CHECK_MSG (why == want,
+                    "an unusable layout gets check's own sentence");
+      dp_ofdm_destroy (bare);
+    }
     dp_ofdm_reset (o);
     DP_CHECK_MSG (dp_ofdm_points_remaining (o) == 27, "reset");
     DP_CHECK (dp_ofdm_modulate (o, pts, 27, out, 64) == 56);
     DP_CHECK_MSG (bit_equal (out, ref, 56),
                   "a reset render equals the first, bit for bit");
     dp_ofdm_destroy (o);
+  }
+
+  /* ── 6b. a refusal leaves the output and the held window tail alone ────
+   * A WINDOWED layout, one symbol rendered so a tail is held, the output
+   * poisoned; every refusal must leave both the output and the blob (which
+   * carries the tail and the position) byte for byte as they were. */
+  {
+    dp_ofdm_state_t *w = make_layout (2u, 1.0);
+    cf               pts[40], out[64], poison[64];
+    fill_points (pts, 40);
+    DP_REQUIRE (dp_ofdm_modulate (w, pts, NEED[0], out, 64) == SYMLEN[0]);
+    const size_t   nb = dp_ofdm_state_bytes (w);
+    unsigned char *b0 = malloc (nb), *b1 = malloc (nb);
+    DP_REQUIRE (b0 && b1);
+    dp_ofdm_get_state (w, b0);
+    memset (poison, 0xA5, sizeof poison);
+    const size_t before = dp_ofdm_points_remaining (w);
+    const size_t n[3]   = { NEED[1] - 1u, 40u, NEED[1] };
+    const size_t cap[3] = { 64u, 64u, SYMLEN[1] - 1u };
+    const char  *tag[3] = { "ends inside a symbol", "runs past the layout",
+                            "a buffer one short" };
+    for (int r = 0; r < 3; r++)
+      {
+        memcpy (out, poison, sizeof out);
+        DP_CHECK_MSG (dp_ofdm_modulate_why (w, pts, n[r], out, cap[r], NULL)
+                          < 0,
+                      tag[r]);
+        DP_CHECK_MSG (memcmp (out, poison, sizeof out) == 0,
+                      "a refusal writes nothing to out");
+        dp_ofdm_get_state (w, b1);
+        DP_CHECK_MSG (memcmp (b0, b1, nb) == 0,
+                      "a refusal leaves the position and the window tail");
+        DP_CHECK_MSG (dp_ofdm_points_remaining (w) == before,
+                      "a refusal does not move the layout");
+      }
+    free (b0);
+    free (b1);
+    dp_ofdm_destroy (w);
   }
 
   /* A reset forgets the held window tail along with the position. */

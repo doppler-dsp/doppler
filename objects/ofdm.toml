@@ -100,7 +100,7 @@ params = [
 
 [[ofdm.methods]]
 name = "check"
-doc = "Check the whole layout and return 0 if it is usable; raise ValueError, with a sentence naming the condition, if not (no run, a window longer than an OFDM symbol of its class, two fixed entries on one subcarrier in one phase, or memory or a transform plan that could not be built). `modulate` checks on first use and returns an empty array for a layout that fails, without a reason; call this first to learn it before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
+doc = "Check the whole layout and return 0 if it is usable; raise ValueError, with a sentence naming the condition, if not (no run, a window longer than an OFDM symbol of its class, two fixed entries on one subcarrier in one phase, or memory or a transform plan that could not be built). `modulate` checks on first use and raises `ValueError`, with the same sentence, for a layout that fails; call this first to learn it before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
 arg_type = "void"
 return_type = "int"
 fn = "dp_ofdm_check_why"
@@ -117,11 +117,21 @@ return_type = "size_t"
 
 [[ofdm.methods]]
 name = "modulate"
-doc = "Render OFDM symbols from constellation points, in layout order, and return the samples. Each OFDM symbol takes its data count from the points: its data subcarriers less those a fixed entry displaces in its pattern phase. Rendering stops when the next OFDM symbol needs more points than remain; OFDM symbols that need none (training fields) render. A point count that ends inside an OFDM symbol is refused, the modulator untouched, and returns an empty array. The window tail of the last OFDM symbol is held for the next call; `finish` returns it."
+doc = "Render OFDM symbols from constellation points, in layout order, and return the samples. Each OFDM symbol takes its data count from the points: its data subcarriers less those a fixed entry displaces in its pattern phase. Rendering stops when the next OFDM symbol needs more points than remain; OFDM symbols that need none (training fields) render. A refused call (an unusable layout, a point count that ends inside an OFDM symbol or runs past the layout, a buffer too short) raises `ValueError` saying which, the modulator untouched. The window tail of the last OFDM symbol is held for the next call; `finish` returns it."
 arg_type = "float _Complex"
 return_type = "float _Complex"
+# The capacity function is derived from this name, dp_ofdm_modulate_why_max_out,
+# an alias: no key names another (just-makeit#2680).
+fn = "dp_ofdm_modulate_why"
 variable_output = true
 pass_capacity = true
+# 0 samples is a valid answer (no points at the end of the layout), so the
+# refusal is the negative count, and the sentence comes from the kernel.
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "modulate refused"
 
 [[ofdm.methods]]
 name = "finish"

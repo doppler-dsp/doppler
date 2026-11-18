@@ -166,8 +166,8 @@ costas_state_ok (const dp_costas_state_t *s)
   const int order_ok
       = s->_pad_order == 0
         && ((s->order == 0 && !seeded && sf_zero) || s->order == 2
-            || (s->order == 3 && !sf_zero && s->sf.bn == s->bn
-                && s->sf.t == 1.0 && s->bn_fll == 0.0));
+            || (s->order == 3 && s->sf.bn == s->bn && s->sf.t == 1.0
+                && s->bn_fll == 0.0));
   return lf_ok && s->bn == s->lf.bn && s->zeta == s->lf.zeta
          && dp_loop_filter_fll_bn_ok (s->bn_fll) && s->k_fll == 4.0 * s->bn_fll
          && dp_lockdet_state_ok (&s->lock) && sf_ok && order_ok;
@@ -386,7 +386,7 @@ dp_costas_get_order (const dp_costas_state_t *state)
 int
 dp_costas_set_norm_rate (dp_costas_state_t *state, double val)
 {
-  if (state->order != 3 || !isfinite (val))
+  if (state->order != 3)
     return DP_ERR_INVALID;
   const double ts = (double)state->tsamps;
   state->sf.rate  = 2.0 * M_PI * val * ts * ts;

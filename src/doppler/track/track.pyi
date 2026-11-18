@@ -698,8 +698,9 @@ class KalmanStateFilter:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``give sigma_e and
-        sigma_a (> 0), or bn alone, in range; see docs``.
+        If construction fails. The exception message is the reason the
+        constructor gives, or ``give sigma_e and sigma_a, or bn alone, in
+        range`` when it gives none.
 
     Examples
     --------
@@ -715,7 +716,7 @@ class KalmanStateFilter:
     >>> KalmanStateFilter()                        # neither form
     Traceback (most recent call last):
         ...
-    ValueError: give sigma_e and sigma_a (> 0), or bn alone, in range; see docs
+    ValueError: give sigma_e and sigma_a, or bn alone
 
     """
 
@@ -861,7 +862,10 @@ class KalmanStateFilter:
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``configure failed``, with the return code appended (gh-869).
+            ``configure refused: name sigma_e and sigma_a (and optionally
+            sigma_f0), or bn alone, with t positive and finite and the result
+            inside the domain; nothing changed``, with the return code appended
+            (gh-869).
 
         Examples
         --------

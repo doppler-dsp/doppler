@@ -62,10 +62,12 @@ _The Kalman flavor of the third-order tracking loop: the gains come from a covar
 
 | Type | Name |
 | ---: | :--- |
+|  const char \* | [**dp\_state\_filter\_kalman\_args\_why**](#function-dp_state_filter_kalman_args_why) (double sigma\_e, double sigma\_a, double t, double sigma\_f0, double bn) <br>_The reason the arguments of_ [_**dp\_state\_filter\_kalman\_create\_args()**_](state__filter__kalman__core_8h.md#function-dp_state_filter_kalman_create_args) _are refused, naming the argument, or NULL when they are accepted._ |
 |  double | [**dp\_state\_filter\_kalman\_bandwidth**](#function-dp_state_filter_kalman_bandwidth) (const [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* k, double delay, double gain) <br>_The exact bandwidth of the loop at the gains in force now: the base's_ [_**dp\_state\_filter\_bandwidth()**_](state__filter__core_8h.md#function-dp_state_filter_bandwidth) _on_`&k->base` _._ |
 |  int | [**dp\_state\_filter\_kalman\_configure**](#function-dp_state_filter_kalman_configure) ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* k, double sigma\_e, double sigma\_a, double t, double sigma\_f0, double bn) <br>_Change the figures, or to a bandwidth alone, keeping the estimates._  |
 |  [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* | [**dp\_state\_filter\_kalman\_create**](#function-dp_state_filter_kalman_create) (double sigma\_e, double sigma\_a, double t, double sigma\_f0) <br>_Create from the caller's figures._  |
-|  [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* | [**dp\_state\_filter\_kalman\_create\_args**](#function-dp_state_filter_kalman_create_args) (double sigma\_e, double sigma\_a, double t, double sigma\_f0, double bn) <br>_Create from the figures or from_ `bn` _alone._ |
+|  [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* | [**dp\_state\_filter\_kalman\_create\_args**](#function-dp_state_filter_kalman_create_args) (double sigma\_e, double sigma\_a, double t, double sigma\_f0, double bn) <br>_Create from the figures or from_ `bn` _alone. The binding calls_[_**dp\_state\_filter\_kalman\_create\_args\_why()**_](state__filter__kalman__core_8h.md#function-dp_state_filter_kalman_create_args_why) _, which also says why._ |
+|  [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* | [**dp\_state\_filter\_kalman\_create\_args\_why**](#function-dp_state_filter_kalman_create_args_why) (double sigma\_e, double sigma\_a, double t, double sigma\_f0, double bn, const char \*\* why) <br>_Create from the figures or from_ `bn` _alone: the one constructor the Python class_`KalmanStateFilter` _calls._ |
 |  [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* | [**dp\_state\_filter\_kalman\_create\_bn**](#function-dp_state_filter_kalman_create_bn) (double bn, double t) <br>_Create the automatic case._  |
 |  [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* | [**dp\_state\_filter\_kalman\_create\_qr**](#function-dp_state_filter_kalman_create_qr) (double q, double r, double t, double start) <br>_Create a Kalman filter, validating its arguments._  |
 |  void | [**dp\_state\_filter\_kalman\_destroy**](#function-dp_state_filter_kalman_destroy) ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) \* k) <br>_Destroy a Kalman filter._  |
@@ -145,6 +147,51 @@ double control = dp_state_filter_kalman_step (&k, 0.1);
     
 ## Public Functions Documentation
 
+
+
+
+### function dp\_state\_filter\_kalman\_args\_why 
+
+_The reason the arguments of_ [_**dp\_state\_filter\_kalman\_create\_args()**_](state__filter__kalman__core_8h.md#function-dp_state_filter_kalman_create_args) _are refused, naming the argument, or NULL when they are accepted._
+```C++
+const char * dp_state_filter_kalman_args_why (
+    double sigma_e,
+    double sigma_a,
+    double t,
+    double sigma_f0,
+    double bn
+) 
+```
+
+
+
+The conditions are those of the two constructors it dispatches to, in the order they are checked: the form (figures or `bn`, not both, not neither), `t`, then the figures' own conditions (each positive, a steady state, a bandwidth inside the domain, a `sigma_f0` that is a legal start) or `bn`'s. The strings are static and carry no numbers, so they do not drift with the domain's limits.
+
+
+
+
+**Parameters:**
+
+
+* `sigma_e` RMS detector error when locked (the figures form). 
+* `sigma_a` RMS change of the rate per update (the figures form). 
+* `t` Update period in samples. 
+* `sigma_f0` Frequency uncertainty (the figures form), 0 for none. 
+* `bn` Bandwidth alone (the automatic form). 
+
+
+
+**Returns:**
+
+A static sentence, or NULL if the arguments are accepted. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -297,7 +344,7 @@ Heap-allocated filter, or NULL outside [**dp\_state\_filter\_kalman\_params\_ok(
 
 ### function dp\_state\_filter\_kalman\_create\_args 
 
-_Create from the figures or from_ `bn` _alone._
+_Create from the figures or from_ `bn` _alone. The binding calls_[_**dp\_state\_filter\_kalman\_create\_args\_why()**_](state__filter__kalman__core_8h.md#function-dp_state_filter_kalman_create_args_why) _, which also says why._
 ```C++
 dp_state_filter_kalman_state_t * dp_state_filter_kalman_create_args (
     double sigma_e,
@@ -325,7 +372,51 @@ The figures form is `sigma_e` and `sigma_a` both &gt; 0 with `bn` 0; the automat
 
 **Returns:**
 
-Heap-allocated filter, or NULL outside either form's domain.
+Heap-allocated filter, or NULL outside either form's domain. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_state\_filter\_kalman\_create\_args\_why 
+
+_Create from the figures or from_ `bn` _alone: the one constructor the Python class_`KalmanStateFilter` _calls._
+```C++
+dp_state_filter_kalman_state_t * dp_state_filter_kalman_create_args_why (
+    double sigma_e,
+    double sigma_a,
+    double t,
+    double sigma_f0,
+    double bn,
+    const char ** why
+) 
+```
+
+
+
+The figures form is `sigma_e` and `sigma_a` both &gt; 0 with `bn` 0; the automatic form is `bn` &gt; 0 with `sigma_e`, `sigma_a` and `sigma_f0` all 0. Both or neither is refused. 
+
+**Parameters:**
+
+
+* `sigma_e` RMS detector error when locked (figures form). 
+* `sigma_a` RMS change of the rate per update (figures form). 
+* `t` Update period in samples. 
+* `sigma_f0` Initial frequency uncertainty (figures form), 0 for the steady state. 
+* `bn` Noise bandwidth in cycles per sample (automatic form). 
+* `why` Where the refusal's sentence goes, naming the argument it refused ([**dp\_state\_filter\_kalman\_args\_why()**](state__filter__kalman__core_8h.md#function-dp_state_filter_kalman_args_why)); set to NULL when the filter is built. May be NULL. 
+
+
+
+**Returns:**
+
+Heap-allocated filter, or NULL (with `why` set) outside either form's domain.
 
 
 
@@ -342,7 +433,7 @@ True
 >>> KalmanStateFilter()                        # neither form
 Traceback (most recent call last):
     ...
-ValueError: give sigma_e and sigma_a (> 0), or bn alone, in range; see docs
+ValueError: give sigma_e and sigma_a, or bn alone
 ```
  
 

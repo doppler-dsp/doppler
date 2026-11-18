@@ -143,6 +143,15 @@ dp_state_filter_kalman_state_t *
 dp_state_filter_kalman_create_args (double sigma_e, double sigma_a, double t,
                                     double sigma_f0, double bn);
 
+const char *dp_state_filter_kalman_args_why (double sigma_e, double sigma_a,
+                                             double t, double sigma_f0,
+                                             double bn);
+
+dp_state_filter_kalman_state_t *
+dp_state_filter_kalman_create_args_why (double sigma_e, double sigma_a,
+                                        double t, double sigma_f0, double bn,
+                                        const char **why);
+
 double
 dp_state_filter_kalman_sigma_f (const dp_state_filter_kalman_state_t *k);
 

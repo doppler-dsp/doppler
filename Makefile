@@ -2004,6 +2004,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
                 gallery-scripts-check user-docs-check surface-check bench-commits-check \
+                spine-check \
                 nats-vendor-fresh-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
@@ -2116,6 +2117,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check user-docs-check \
+      spine-check \
       surface-check bench-commits-check validate-spellings-check \
       drift-check doxygen-check
 
@@ -2697,6 +2699,31 @@ surface-check: ## Python surface: every package declares __all__; the unrendered
 user-docs-check: ## Verify every class has API, guide and example, and every example a gallery decision
 	@$(UV) run python scripts/check_user_docs.py --base $(USER_DOCS_BASE) \
 	     $(USER_DOCS_FLAGS) $(GALLERY_SCRIPTS)
+
+# The lifecycle card (docs/dev/contributing/adding-algorithms.md) as a
+# table: for each object the branch touches, which of the card's phases are
+# present, missing, or skipped with a declared reason (#3140). Each row is
+# answered by the gate that owns it, and the phases are read from the card,
+# so the two cannot disagree. A gap fails unless scripts/.spine-gaps holds
+# it; that list only shrinks, and a new line needs a `Spine-skip:` trailer
+# in one of the branch's commits.
+#
+# BASE is the base issue-link-check and changelog-check measure against
+# (CHANGELOG_BASE, which CI sets to the pull request's base SHA), because
+# the Land row is those two gates' verdicts and all three must read one
+# branch. SPINE_FLAGS=--all prints every object. In CI the tables are also
+# appended to the job summary: GITHUB_STEP_SUMMARY is set there and nowhere
+# else.
+#
+# CLAUDE.md's copy of the card's principles is held to the page too, and
+# `make format` rewrites it (docs-relink runs `check_spine.py --fix`). The
+# markers are mandatory: a CLAUDE.md without them fails.
+BASE ?= $(CHANGELOG_BASE)
+SPINE_FLAGS ?=
+spine-check: ## Show each touched object's lifecycle phases; fail on an undeclared gap (BASE=<ref>)
+	@$(UV) run python scripts/check_spine.py --base $(BASE) $(SPINE_FLAGS) \
+	     $(if $(GITHUB_STEP_SUMMARY),--summary "$(GITHUB_STEP_SUMMARY)") \
+	     $(GALLERY_SCRIPTS)
 
 gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
 	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)
@@ -3819,6 +3846,7 @@ docs-relink: ## Regenerate every generated doc region
 	$(UV) run python scripts/gen_doc_versions.py --write
 	$(UV) run python scripts/gen_jm_pin.py --write
 	$(UV) run python scripts/gen_changelog_links.py --write
+	$(UV) run python scripts/check_spine.py --fix
 
 # The pre-push half of docs-relink: the regions a source edit can drift
 # without touching the generated file. The hook dispatches HERE rather than

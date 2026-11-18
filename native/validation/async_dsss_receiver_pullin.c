@@ -232,7 +232,7 @@ typedef struct
   double end_stale_hz; /* the hand-over's Doppler against the end's
                           truth: what end_resid_hz would read if it
                           took get_doppler_hz() (the --check margin) */
-  int           false_lock, aligned, slipped, works, data_ended;
+  int           false_lock, aligned, slipped, end_unsynced, works, data_ended;
   unsigned long errors, scored;
   double        evm_db, m2m4_db;
   /* The carrier loop's stress against the truth (degrees of carrier
@@ -1644,9 +1644,16 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
               dp_ber_sync_t end
                   = dp_ber_sync (syms, ns, truth, n_truth, &mk_end, 2,
                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
-              d->aligned        = 1;
-              d->slipped        = !end.ok || end.lag != sy.lag
-                                  || cos (end.phase - sy.phase) < 0.0;
+              d->aligned = 1;
+              /* A slip is a different alignment at the end; an end the
+                 sync could not place is its own verdict (end_unsynced),
+                 not a slip: dp_ber_sync has refused a clean, aligned end
+                 at 20 dB (the error count from the start's alignment was
+                 0 of 26,022). */
+              d->end_unsynced = !end.ok;
+              d->slipped
+                  = end.ok
+                    && (end.lag != sy.lag || cos (end.phase - sy.phase) < 0.0);
               const long   lo_e = (long)(mk.t0 + mk.n) - sy.lag;
               const size_t lo   = (lo_e > 0 && (size_t)lo_e > settle)
                                       ? (size_t)lo_e
@@ -1718,7 +1725,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   "frame_off,ho_err_hz,ho_src,seed_err_hz,seed_code_chip,seed_t_s,"           \
   "ho_code_chip,ho_age_s,t_track_s,t_sym_s,t_code_s,sym_tog,"                 \
   "sym_tog1_s,code_tog,code_tog1_s,end_resid_hz,false_lock,"                  \
-  "aligned,slipped,errors,scored,evm_db,m2m4_db,works,car_mean_deg,"          \
+  "aligned,slipped,end_unsynced,errors,scored,evm_db,m2m4_db,works,car_mean_" \
+  "deg,"                                                                      \
   "car_sd_deg,code_mean_chip,code_sd_chip,car_slips,ho_slips,cross_win_frac," \
   "exc30_win_frac,exc45_win_frac,exc60_win_frac,lock_mem_s,"                  \
   "exc30_mem_frac,exc45_mem_frac,exc60_mem_frac,coast_mem_frac,"              \
@@ -1735,7 +1743,7 @@ emit_row (const draw_t *d, uint32_t seed)
   printf (
       "%.1f,%.1f,%.0f,%s,%u,%.1f,%zu,%.2f,%d,%.2f,%.4f,%.4f,%.4f,%.4f,%."
       "4f,%.4f,%.4f,%zu,%.4f,"
-      "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
+      "%zu,%.4f,%.1f,%d,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
@@ -1745,15 +1753,15 @@ emit_row (const draw_t *d, uint32_t seed)
       d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
       d->t_track_s, d->t_sym_s, d->t_code_s, d->sym_tog, d->sym_tog1_s,
       d->code_tog, d->code_tog1_s, d->end_resid_hz, d->false_lock, d->aligned,
-      d->slipped, d->errors, d->scored, d->evm_db, d->m2m4_db, d->works,
-      d->car_mean_deg, d->car_sd_deg, d->code_mean_chip, d->code_sd_chip,
-      d->car_slips, d->ho_slips, d->cross_win_frac, d->exc_win_frac[0],
-      d->exc_win_frac[1], d->exc_win_frac[2], d->lock_mem_s,
-      d->exc_mem_frac[0], d->exc_mem_frac[1], d->exc_mem_frac[2],
-      d->coast_mem_frac, d->off_code_frac, d->ho_peak_deg, d->steady_peak_deg,
-      d->base_lag_deg, d->base_sd_deg, d->base_ho_deg, d->base_row_hz,
-      d->base_half_sample_chip, d->base_unamb_hz, d->base_pullin_hz,
-      d->base_half_spacing_chip, d->bn_car,
+      d->slipped, d->end_unsynced, d->errors, d->scored, d->evm_db, d->m2m4_db,
+      d->works, d->car_mean_deg, d->car_sd_deg, d->code_mean_chip,
+      d->code_sd_chip, d->car_slips, d->ho_slips, d->cross_win_frac,
+      d->exc_win_frac[0], d->exc_win_frac[1], d->exc_win_frac[2],
+      d->lock_mem_s, d->exc_mem_frac[0], d->exc_mem_frac[1],
+      d->exc_mem_frac[2], d->coast_mem_frac, d->off_code_frac, d->ho_peak_deg,
+      d->steady_peak_deg, d->base_lag_deg, d->base_sd_deg, d->base_ho_deg,
+      d->base_row_hz, d->base_half_sample_chip, d->base_unamb_hz,
+      d->base_pullin_hz, d->base_half_spacing_chip, d->bn_car,
       d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
       d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
       d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
@@ -1770,7 +1778,7 @@ cmp_dbl (const void *a, const void *b)
 static void
 print_cell (const draw_t *ds, size_t n)
 {
-  size_t        works = 0, acq = 0, fl = 0, al = 0, slip = 0;
+  size_t        works = 0, acq = 0, fl = 0, al = 0, slip = 0, unsync = 0;
   unsigned long err = 0, sc = 0;
   double        t[PI_DRAWS * 4];
   size_t        nt = 0;
@@ -1781,6 +1789,7 @@ print_cell (const draw_t *ds, size_t n)
       fl += (size_t)ds[i].false_lock;
       al += (size_t)ds[i].aligned;
       slip += (size_t)(ds[i].aligned && ds[i].slipped);
+      unsync += (size_t)(ds[i].aligned && ds[i].end_unsynced);
       if (ds[i].aligned && !ds[i].slipped)
         {
           err += ds[i].errors;
@@ -1797,14 +1806,16 @@ print_cell (const draw_t *ds, size_t n)
       = sc && err
             ? ds[0].esn0 - dp_ber_esn0_db_for_ser (2, (double)err / (double)sc)
             : NAN;
-  printf ("  %.1f GHz %4.1f dB %+4.0f Hz/s %-11s works %2zu/%zu [%.2f, "
-          "%.2f], acquired %zu, false %zu; lock %.2f/%.2f/%.2f s; aligned "
-          "%zu, slipped %zu; SER %.2e [%.2e, %.2e] (%lu/%lu), loss %.2f dB\n",
-          ds[0].fc / 1e9, ds[0].esn0, ds[0].rate == 0.0 ? 0.0 : PI_RATE_HZ_S,
-          ds[0].cw ? "code_period" : "partials", works, n, wl, wh, acq, fl,
-          nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
-          nt ? t[nt - 1] : NAN, al, slip, ci.p_hat, ci.lo, ci.hi, err, sc,
-          loss);
+  printf (
+      "  %.1f GHz %4.1f dB %+4.0f Hz/s %-11s works %2zu/%zu [%.2f, "
+      "%.2f], acquired %zu, false %zu; lock %.2f/%.2f/%.2f s; aligned "
+      "%zu, slipped %zu, end unsynced %zu; SER %.2e [%.2e, %.2e] (%lu/%lu), "
+      "loss %.2f dB\n",
+      ds[0].fc / 1e9, ds[0].esn0, ds[0].rate == 0.0 ? 0.0 : PI_RATE_HZ_S,
+      ds[0].cw ? "code_period" : "partials", works, n, wl, wh, acq, fl,
+      nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
+      nt ? t[nt - 1] : NAN, al, slip, unsync, ci.p_hat, ci.lo, ci.hi, err, sc,
+      loss);
 }
 
 /* The contract's cells: 10 dB, static, the receiver as built (the
@@ -1820,16 +1831,27 @@ check_cell (const draw_t *ds, size_t n)
   for (size_t i = 0; i < n; i++)
     {
       DP_CHECK_MSG (ds[i].works, "at 10 dB static every draw's link works");
-      DP_CHECK_MSG (ds[i].aligned && !ds[i].slipped,
-                    "and aligns without a slip");
+      DP_CHECK_MSG (ds[i].aligned, "and aligns at the start");
+      DP_CHECK_MSG (!ds[i].slipped, "and holds that alignment to the end");
+      DP_CHECK_MSG (!ds[i].end_unsynced, "and the meter syncs at the end");
       err += ds[i].errors;
       sc += ds[i].scored;
     }
   const dp_ber_ci_t ci = dp_ber_ci (err, sc, 0.95);
-  DP_CHECK_MSG (sc > 0
-                    && ci.hi < dp_ber_theory_ser (
-                           2, pow (10.0, (ds[0].esn0 - PI_MARGIN_DB) / 10.0)),
-                "its error rate is under the bound's PI_MARGIN_DB lower");
+  /* The claim is resolvable only where the symbols scored can put the
+     interval under the bound at all: with no errors the 95% upper end is
+     about 3 / sc, so the claim needs sc > 3 / bound. At 10 dB that is
+     about 3,900 symbols; at 20 dB the bound is 6.8e-24 and no run is long
+     enough, so the line says so and asserts nothing. */
+  const double bound
+      = dp_ber_theory_ser (2, pow (10.0, (ds[0].esn0 - PI_MARGIN_DB) / 10.0));
+  if (sc > 0 && 3.0 / (double)sc >= bound)
+    printf ("  %.1f GHz %4.1f dB: the error-rate claim needs %.2e symbols "
+            "to resolve its bound (%.2e), %lu scored: not asserted\n",
+            ds[0].fc / 1e9, ds[0].esn0, 3.0 / bound, bound, sc);
+  else
+    DP_CHECK_MSG (sc > 0 && ci.hi < bound,
+                  "its error rate is under the bound's PI_MARGIN_DB lower");
 }
 
 /* Order 3's lower gain edge at a delay: the least stable loop gain, by
@@ -2100,8 +2122,11 @@ main (int argc, char **argv)
   uint8_t code[SF];
   dp_dsss_gold_1023 (code);
 
-  static const double fcs[2]   = { 2.2e9, 2.8e9 };
-  static const double esn0s[4] = { 4.0, 5.0, 7.0, 10.0 };
+  static const double fcs[2] = { 2.2e9, 2.8e9 };
+  /* The sweep's four levels, and a fifth only --esn0 selects: 20 dB, a
+     high-SNR cell where the code lock's statistic reads its signal term
+     with the max-over-windows selection's noise bias negligible. */
+  static const double esn0s[5] = { 4.0, 5.0, 7.0, 10.0, 20.0 };
   double              rates[2] = { 0.0, PI_RATE_HZ_S };
   /* --dynamics pass: the moving cell holds R_env, the use case's
      conservative residual rate, from the 50 km envelope. */
@@ -2112,6 +2137,26 @@ main (int argc, char **argv)
       pi_pass_r_env = pi_r_env (pe.timing_max, pi_pass_rotation (pe.v_min));
       rates[1]      = pi_pass_r_env;
     }
+  /* A slice flag that names no cell is refused: a run that measured
+     nothing must not exit as if it had. */
+  {
+    int ok_fc = isnan (only_fc), ok_es = isnan (only_es),
+        ok_r = isnan (only_rate);
+    for (size_t k = 0; k < 2; k++)
+      ok_fc |= fabs (fcs[k] - only_fc) <= 1e6;
+    for (size_t k = 0; k < 5; k++)
+      ok_es |= fabs (esn0s[k] - only_es) <= 1e-9;
+    for (size_t k = 0; k < 2; k++)
+      ok_r |= fabs (rates[k] - only_rate) <= 1e-9;
+    if (!ok_fc || !ok_es || !ok_r)
+      {
+        DP_TEST_ERR ("validate_async_dsss_receiver_pullin: --fc/--esn0/"
+                     "--rate names no cell (fc 2.2 or 2.8; esn0 4, 5, 7, "
+                     "10 or 20; rate 0 or %g)\n",
+                     rates[1]);
+        return 2;
+      }
+  }
 
   /* One named draw with its telemetry: --telemetry DIR --draw
      FC_GHZ,ESN0,RATE,CW,SEED [--from S --to S]. The capture is the
@@ -2189,7 +2234,7 @@ main (int argc, char **argv)
             draws, secs);
   draw_t *ds = dp_xmalloc (draws * sizeof *ds);
   for (size_t f = check ? 1 : 0; f < 2; f++)
-    for (size_t e = check ? 3 : 0; e < 4; e++)
+    for (size_t e = check ? 3 : 0; e < (isnan (only_es) ? 4u : 5u); e++)
       for (size_t r = 0; r < (check ? 1u : 2u); r++)
         for (int cw = 0; cw < 2; cw++)
           {

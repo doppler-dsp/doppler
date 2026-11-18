@@ -81,12 +81,14 @@ in `Q⁻¹` form, where `SYMSYNC_LOCK_STAT_VARIANCE` is passed straight through
 as the variance it is. The derived values are unchanged, pinned at
 `avgs = 133` / `threshold = 0.311` in `test_symsync_core.c`, and the
 equivalence of the two conventions is pinned in `test_detection_core.c`. The
-shared chain is documented in [Lock Detection](lock-detect.md). No down-threshold or verify-count
-derivation is implied by the source formula, so those default to the same
-shape `Dll.configure_lock` uses (see
-[`native/src/symsync/symsync_core.c`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/native/src/symsync/symsync_core.c)'s
-`SYMSYNC_LOCK_STAT_VARIANCE` comment for the exact defaults and full
-derivation).
+shared chain is documented in [Lock Detection](lock-detect.md). No
+down-threshold is implied by the source formula, so the drop threshold equals
+the declare threshold (no level hysteresis). The verify counts are derived
+from the same `(pfa, pd)` the threshold is sized at and one per-decision
+false-transition budget, `SYMSYNC_LOCK_BUDGET` = 1e-6:
+`n_up = dp_det_verify_count(pfa, budget)` and
+`n_down = dp_det_verify_count(1 - pd, budget)`, 2 and 6 at the defaults
+([#3133](https://github.com/doppler-dsp/doppler/issues/3133)).
 
 **RateSync derives its verify counts.** RateSync's timing loop uses the
 same statistic and the same sizing, `avgs = 133` and a threshold of 0.311
@@ -142,9 +144,17 @@ assert ss.locked is False  # no signal yet
 # ss.locked / ss.lock_stat report the verify-counted decision and the
 # last block-averaged lock_signal.
 
-# The raw escape hatch for direct control of avgs/thresholds/verify counts:
+# The raw escape hatch, for a caller that sizes its own detector. Here the
+# counts come from a looser budget, 1e-4 per decision, instead of the
+# default 1e-6: still derived, never typed.
+from doppler.detection import det_verify_count
+
 ss.configure_lock_raw(
-    avgs=200, up_thresh=0.3, down_thresh=0.25, n_up=1, n_down=8
+    avgs=133,
+    up_thresh=0.311,
+    down_thresh=0.311,
+    n_up=det_verify_count(1e-3, 1e-4),  # 2
+    n_down=det_verify_count(0.1, 1e-4),  # 4
 )
 ```
 

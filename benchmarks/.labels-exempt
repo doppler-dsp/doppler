@@ -530,7 +530,6 @@ py:conv_enc::test_bench_constraint_length[9]
 py:conv_enc::test_bench_encode[65536]
 py:conv_enc::test_bench_encode[8192]
 py:corr::test_bench_execute_64k
-py:costas::test_bench_steps_64k
 py:ddc::test_bench_execute_64k
 py:ddcr::test_bench_execute_64k
 py:delay::test_bench_push

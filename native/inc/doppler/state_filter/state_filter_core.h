@@ -162,7 +162,9 @@ int dp_state_filter_params_ok (double bn, double t);
  * @c integ or @c rate, so it doubles as a reconfigure that preserves lock.
  * Arguments are NOT validated here, on purpose, as in
  * dp_loop_filter_init(): the embedder checks dp_state_filter_params_ok()
- * first. An argument outside it gives gains the loop is not stable with.
+ * first. An argument outside it gives gains no stability claim is made for
+ * (past STATE_FILTER_BNT_MAX the corner of the rectangle goes unstable, but
+ * only well past it: the exact bound is about 0.1248).
  *
  * @param state  Must be non-NULL.
  * @param bn     Loop noise bandwidth, normalized cycles/sample.
@@ -277,8 +279,8 @@ void dp_state_filter_reset (dp_state_filter_state_t *state);
  * At an integer @p delay the delay is a real transport delay and the answer
  * is exact. Between integers the model is linear interpolation of the
  * detector's error between the two nearest updates, which low-passes the
- * detector and so reads more stable than a pure fractional delay; the
- * stability claim is for integer delays. A detector that averages over a
+ * detector, a different model from a pure fractional delay, whose stability
+ * this function does not state; the stability claim is for integer delays. A detector that averages over a
  * window is a third model the caller owns.
  *
  * The test is whether the sum `P = sum_k A^k b b^T (A^T)^k` converges (below),

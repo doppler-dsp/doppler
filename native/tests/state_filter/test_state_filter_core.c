@@ -21,7 +21,9 @@
  *   5. steps() == repeated step(), including aliasing
  *   6. The exact function: closed forms, simulation at delays 0, 1, 2 and an
  *      interpolated fraction, a Jury oracle on random gains, order 2 through
- *      the shipped loop filter
+ *      a local copy of the second-order recurrence (the shipped
+ *      dp_loop_filter_step is held against the same function by
+ *      native/validation/state_filter_loop.c under ctest)
  *   7. The stability rectangle: the bound derived from the exact function
  *      rather than restated, the grid, one stable interval in K, the lower
  *      edge against the analytic one
@@ -576,7 +578,8 @@ main (void)
           double exact = dp_state_filter_loop_bandwidth (2, lf.kp, lf.ki, 0.0,
                                                          0.0, 1.0);
           DP_CHECK_NEAR (exact / bn2_closed (lf.kp, lf.ki) - 1.0, 0.0, 1e-7);
-          /* The same loop through the SHIPPED filter's own step. */
+          /* The same loop through the local second-order step (lf_step is
+           * ref2_step, a deliberate copy; see ref2_t above). */
           double tail;
           double sim = bn_parseval (lf_step, &lf, 0.0, 1.0,
                                     (size_t)(1500.0 / bn) + 4000, &tail);
@@ -627,11 +630,15 @@ main (void)
     /* (c) Delays and gains against simulation of the real step: integer
      * delays are real transport delays; the fraction is the interpolation
      * model of the header. */
-    static const double     delays[] = { 0.0, 1.0, 2.0, 0.5, 1.25, 3.0 };
-    static const double     gains[]  = { 1.0, 0.7, 1.6 };
+    static const double delays[] = { 0.0, 1.0, 2.0, 0.5, 1.25, 3.0 };
+    /* 0.1 is under the lower gain edge (about 0.25 of nominal) and 60 is
+     * over the upper one at every delay here, so the grid holds unstable
+     * loops too: without them a `stable` that always said 1 would pass. */
+    static const double     gains[] = { 1.0, 0.7, 1.6, 0.1, 60.0 };
     dp_state_filter_state_t s;
+    size_t                  decided = 0, decided_unstable = 0;
     for (size_t di = 0; di < sizeof delays / sizeof *delays; di++)
-      for (size_t gi = 0; gi < 3; gi++)
+      for (size_t gi = 0; gi < sizeof gains / sizeof *gains; gi++)
         {
           fresh (&s, 0.03, 1.0);
           const double model
@@ -640,7 +647,14 @@ main (void)
               = dp_state_filter_stable (&s, delays[di], gains[gi]);
           const int sim = sim_stable (sf_step, &s, delays[di], gains[gi]);
           fresh (&s, 0.03, 1.0);
+          /* a simulation that cannot decide (sim == 0) says nothing, so
+           * the cases it DID decide are counted below */
           DP_CHECK (stable == (sim > 0) || sim == 0);
+          if (sim != 0)
+            {
+              decided++;
+              decided_unstable += sim < 0;
+            }
           if (stable)
             {
               double tail;
@@ -652,6 +666,14 @@ main (void)
           else
             DP_CHECK (isnan (model));
         }
+    printf (
+        "  delays x gains: %zu of 30 decided by the simulation, %zu of them "
+        "unstable\n",
+        decided, decided_unstable);
+    /* every cell is decided, and the two out-of-range gains are unstable at
+     * every one of the six delays (measured: 30 and 12) */
+    DP_CHECK (decided == 30);
+    DP_CHECK (decided_unstable == 12);
     /* A delay lengthens the loop and widens its bandwidth, in the order
      * of the delay (this loop at bn*t = 0.03). */
     fresh (&s, 0.03, 1.0);
@@ -932,6 +954,33 @@ main (void)
         DP_CHECK (dp_state_filter_set_state (c, blob) == DP_ERR_INVALID);
         DP_CHECK (memcmp (&keep, c, sizeof keep) == 0);
       }
+    /* The gain tolerance of dp_state_filter_state_ok (1e-9 relative, header):
+     * the forged-gain test above perturbs by 1e-3, which a tolerance of 1e-4
+     * also refuses. Here each gain is moved by 1e-10 (accepted) and by 1e-8
+     * (refused), a decade either side of the tolerance, so a tolerance of
+     * 1e-4 or of 1e-12 fails one of the two. */
+    {
+      dp_state_filter_state_t g;
+      memset (&g, 0, sizeof g);
+      dp_state_filter_init (&g, 0.02, 1.0);
+      DP_CHECK (dp_state_filter_state_ok (&g));
+      for (int f = 0; f < 3; f++)
+        for (int sgn = -1; sgn <= 1; sgn += 2)
+          {
+            dp_state_filter_state_t inside = g, outside = g;
+            double                 *pn = f == 0   ? &inside.kp
+                                         : f == 1 ? &inside.ki
+                                                  : &inside.kr;
+            double                 *pf = f == 0   ? &outside.kp
+                                         : f == 1 ? &outside.ki
+                                                  : &outside.kr;
+            *pn *= 1.0 + sgn * 1e-10;
+            *pf *= 1.0 + sgn * 1e-8;
+            DP_CHECK (dp_state_filter_state_ok (&inside));
+            DP_CHECK (!dp_state_filter_state_ok (&outside));
+          }
+    }
+
     /* bn outside the domain, with gains consistent with nothing. */
     dp_state_filter_get_state (a, blob);
     double bad = 5.0;
@@ -943,6 +992,20 @@ main (void)
       dp_state_filter_state_t wide;
       memset (&wide, 0, sizeof wide);
       dp_state_filter_init (&wide, 0.3, 1.0); /* bn*t = 0.3 > the bound */
+      /* the header's claim about unvalidated init: far past the bound the
+       * corner (K_MAX, DELAY_MAX) is unstable, and just past the constant
+       * (0.121, under the exact bound 0.1248) it is still stable, which is
+       * why the header makes no claim there */
+      DP_CHECK (!dp_state_filter_stable (&wide, STATE_FILTER_DELAY_MAX,
+                                         STATE_FILTER_K_MAX));
+      {
+        dp_state_filter_state_t just;
+        memset (&just, 0, sizeof just);
+        dp_state_filter_init (&just, 0.121, 1.0);
+        DP_CHECK (!dp_state_filter_params_ok (just.bn, just.t));
+        DP_CHECK (dp_state_filter_stable (&just, STATE_FILTER_DELAY_MAX,
+                                          STATE_FILTER_K_MAX));
+      }
       DP_CHECK (!dp_state_filter_params_ok (wide.bn, wide.t));
       void *wblob = malloc (dp_state_filter_state_bytes (&wide));
       dp_state_filter_get_state (&wide, wblob);

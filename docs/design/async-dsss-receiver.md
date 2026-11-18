@@ -569,6 +569,121 @@ Not ruled by the owner, and not decided here:
 
 ______________________________________________________________________
 
+### 1.8 The dynamics the receiver is specified for
+
+**The geometry.** The emitter is on a LEO satellite in a circular orbit,
+and the receiver is a fixed point on a spherical Earth with a 10°
+elevation mask. Earth rotation is left out, and its worst case is a factor
+below.
+
+**What 400 Hz/s is.** The specification's 400 Hz/s is the RAW pass's peak
+Doppler rate. It fixes which passes are in scope; it is not a rate the
+receiver meets.
+
+- **Which passes:** a pass is in scope where its raw peak rate is exactly
+    400 Hz/s. On a 50 km altitude grid from 350 km, with the maximum
+    elevation solved at each altitude, that is 25 passes across the two
+    carriers.
+    - Examples: 550 km at 31° (2.2 GHz) or 22° (2.8 GHz); 800 km at 60°
+        or 41°.
+    - An altitude where even the lowest pass above the mask exceeds
+        400 Hz/s, or even an overhead pass stays under it, has no pass in
+        scope.
+- **Raw figures:** on these passes the raw rate of change of rate peaks at
+    2.70 Hz/s².
+
+**Pre-compensation.** The link is steered from an ephemeris, and the
+receiver sees what the steering leaves. The specification bounds that
+residual offset at ±1,500 Hz.
+
+**The ephemeris error model: an along-track timing error.** The pass
+arrives `dt` early or late against the prediction.
+
+- **Residual:** `f(t) − f(t − dt)`, about `f'(t)·dt`; its rate is about
+    `f''(t)·dt`.
+- **The range of `dt`:** up to the value that makes the residual reach
+    1,500 Hz, 3.74 s on these passes.
+
+**The envelope.** The largest |residual rate| at each |residual offset|,
+over the 25 passes, every `dt` up to that bound, and both branches of the
+pass:
+
+| \|offset\|, Hz | 0-100 | 200-300 | 400-500 | 600-700 | 800-900 | 1000-1100 | 1200-1300 | 1400-1500 |
+| -------------- | ----- | ------- | ------- | ------- | ------- | --------- | --------- | --------- |
+| envelope, Hz/s | 1.20  | 3.59    | 5.99    | 8.13    | 9.63    | 10.10     | 9.71      | 6.69      |
+
+- **Maximum:** 10.10 Hz/s, at |offset| about 1,050 Hz.
+- **Small near zero offset:** under a timing error, zero residual offset is
+    where the curve's slope is crossed, not where its rate peaks.
+- **Sampled, not continuous:** the envelope is the maximum over a sampled
+    grid. Halving the grid to 25 km (50 passes) moves the maximum to
+    10.13 Hz/s, and the validator prints both.
+
+**The cross-check: a proportional residual.** The steering removes all but
+a fraction `ε` of the curve, so the residual is `ε·f(t)` and its rate is
+largest at zero residual offset.
+
+- **What `ε` means:** `ε = 1,500 Hz` over the pass's visible peak offset.
+    That is a 3 to 6% error in the satellite's velocity.
+- **Largest value:** 18.7 Hz/s on the 50 km grid, driven by the 400 km,
+    13.0° pass at 2.8 GHz (`ε = 0.047`). On the 25 km grid it is 24.3 Hz/s,
+    from 375 km at 11.6°.
+- **It does not converge:** it grows toward the altitude where the
+    400 Hz/s pass grazes the mask, where the visible arc and its peak
+    offset are smallest.
+- **Its role:** it is reported as the bound's cross-check and does not set
+    it.
+
+**What a draw is (conservative).**
+
+- **Offset at arrival:** uniform in ±1,500 Hz.
+- **Rate:** held constant over the 60 s draw at `R_env = 11 Hz/s`, sign
+    drawn.
+- **The conservatism, in one line:** `R_env` is the timing envelope's
+    maximum over every offset (10.10 Hz/s), times the one effect the model
+    leaves out, Earth rotation at its worst,
+    `1 + ω_E·R_e / v_orbit = 1 + 0.465/7.33 = 1.063` (10.74), rounded up to
+    the whole Hz/s. Against the envelope at a given offset, that is 1.1×
+    at 1,050 Hz and about 9× near zero.
+- **In bounds:** a constant 11 Hz/s moves the offset 660 Hz over 60 s.
+    When `|f0| > 1,500 − 660 = 840 Hz`, the rate's sign is drawn toward
+    zero, so the offset never leaves ±1,500 Hz.
+- **Static draws:** a fixed offset at zero rate is the limit of a pass far
+    from closest approach.
+- **Not a use-case cell:** a constant rate at the specification's 400 Hz/s
+    sweeps 6 to 24 kHz over a draw, far outside the span. It is a
+    diagnostic only, never scored as the use case (owner, 11-17: "We don't
+    want to test what will never happen").
+
+**What the loops meet** at the owner's rule (§1.3; `bn = ρ_floor/200`,
+0.0120 at 2.2 GHz and 0.0094 at 2.8 GHz):
+
+|                                                  | at R_env (11 Hz/s)                                  | at the cross-check's largest           |
+| ------------------------------------------------ | --------------------------------------------------- | -------------------------------------- |
+| order-2 lag                                      | 0.80°                                               | 1.35° (18.7 Hz/s) to 1.76° (24.3 Hz/s) |
+| order-3 steady error                             | 0.0011° under the largest residual f'' (0.28 Hz/s²) |                                        |
+| hand-over error from drift over the refine dwell | 11 Hz/s × 0.045 s, 0.5 Hz                           |                                        |
+
+The hand-over figure compares with 7 to 8 Hz static.
+
+The numbers on this section come from
+`validate_async_dsss_receiver_pullin --design`, the `# pass` section, and
+`--dynamics pass` draws them.
+
+**Open for the owner: the carrier-to-code rate aid.** Today the receiver
+adds the carrier loop's frequency, scaled by `chip_rate / carrier_freq_hz`,
+to the code NCO's rate. That is right when the carrier offset is Doppler,
+since the code is dilated by the same motion. Pre-compensated, the
+residual is a steering error, and each answer changes what the code loop
+is asked to carry, and with it the code-lock sizing:
+
+- **If the steering also compensates the code clock,** the residual is a
+    carrier-only error. The aid puts it into the code, where it is not, and
+    should be off.
+- **If the steering touches only the carrier,** the code still carries the
+    full raw Doppler, about ±25 to 35 ppm. The aid cannot see that from a
+    ±1,500 Hz residual.
+
 ## 2. Acquisition
 
 ### 2.1 Two searches, one engine
@@ -2222,6 +2337,12 @@ Reading it against the receiver:
     loop's pull-in.
 
 ### 4.9 The carrier loop's order and its window, ruled together
+
+**Measured on a dynamics outside the use case.** Every rate figure in this
+section was measured on a constant 400 Hz/s ramp. Under the use case's
+dynamics (§1.8) the receiver meets 11 Hz/s at most, and the order-2 lag
+there is 0.80°. What this section concludes is re-read on the use-case
+cells before anything rests on it.
 
 **Proposed, not built; for the owner's ruling.** The pre-despread carrier
 loop moves to a third-order filter, `StateFilter`

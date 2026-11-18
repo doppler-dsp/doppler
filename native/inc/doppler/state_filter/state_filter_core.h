@@ -199,7 +199,8 @@ void dp_state_filter_init (dp_state_filter_state_t *state, double bn,
 int dp_state_filter_state_ok (const dp_state_filter_state_t *s);
 
 /**
- * @brief Create a state filter, validating its arguments.
+ * @brief Create a state filter, validating its arguments. The binding calls
+ *        dp_state_filter_create_why(), which also says why it refused.
  *
  * @param bn  Loop noise bandwidth, normalized cycles/sample; >= 0
  *            (default 0.01). `bn = 0` is a deliberately frozen loop.
@@ -207,20 +208,6 @@ int dp_state_filter_state_ok (const dp_state_filter_state_t *s);
  * @return Heap-allocated state, or NULL if `(bn, t)` is outside
  *         dp_state_filter_params_ok() or on allocation failure.
  * @note Caller must call dp_state_filter_destroy() when done.
- *
- * @code
- * >>> from doppler.track import StateFilter
- * >>> sf = StateFilter(bn=0.01, t=1.0)
- * >>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t
- * (0.023622, 0.000279)
- * >>> sf.integ, sf.rate                  # both estimates start at zero
- * (0.0, 0.0)
- * >>> StateFilter(bn=0.5)                # bn*t past the stability bound
- * Traceback (most recent call last):
- *     ...
- * ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
- *
- * @endcode
  */
 dp_state_filter_state_t *dp_state_filter_create (double bn, double t);
 
@@ -240,14 +227,32 @@ dp_state_filter_state_t *dp_state_filter_create (double bn, double t);
 const char *dp_state_filter_params_why (double bn, double t);
 
 /**
- * @brief dp_state_filter_create() that says why it refused, for the binding.
+ * @brief Create a state filter, validating its arguments: the one
+ *        constructor the Python class `StateFilter` calls.
  *
- * @param bn   Loop noise bandwidth.
- * @param t    Update period in samples.
- * @param why  Receives dp_state_filter_params_why()'s sentence when NULL is
- *             returned for a domain refusal; may be NULL.
+ * @param bn   Loop noise bandwidth, normalized cycles/sample; >= 0
+ *             (default 0.01). `bn = 0` is a deliberately frozen loop.
+ * @param t    Update period in samples; > 0 (default 1.0).
+ * @param why  Where the refusal's sentence goes, naming the argument it
+ *             refused (dp_state_filter_params_why()); set to NULL when the
+ *             filter is built. May be NULL.
  * @return Heap-allocated state, or NULL (with @p why set) outside the
- *         domain.
+ *         domain or on allocation failure.
+ * @note Caller must call dp_state_filter_destroy() when done.
+ *
+ * @code
+ * >>> from doppler.track import StateFilter
+ * >>> sf = StateFilter(bn=0.01, t=1.0)
+ * >>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t
+ * (0.023622, 0.000279)
+ * >>> sf.integ, sf.rate                  # both estimates start at zero
+ * (0.0, 0.0)
+ * >>> StateFilter(bn=0.5)                # bn*t past the stability bound
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
+ *
+ * @endcode
  */
 dp_state_filter_state_t *dp_state_filter_create_why (double bn, double t,
                                                      const char **why);

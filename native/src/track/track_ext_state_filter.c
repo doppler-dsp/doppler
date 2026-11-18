@@ -56,9 +56,7 @@ StateFilterObj_init (StateFilterObject *self, PyObject *args, PyObject *kwds)
       else
         PyErr_SetString (PyExc_ValueError,
                          "bn must be >= 0 and t > 0, both finite, with "
-                         "bn*t no larger than the bound the third-order "
-                         "loop is stable to (docs/design/loop-filter.md "
-                         "section 12)");
+                         "bn*t inside the domain");
       return -1;
     }
   return 0;
@@ -764,14 +762,18 @@ static PyTypeObject StateFilterObjType = {
   .tp_dealloc                             = (destructor)StateFilterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "dp_state_filter_create() that says why it refused, for the binding.\n"
+  = "Create a state filter, validating its arguments: the one constructor "
+    "the\n"
+    "Python class `StateFilter` calls.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "bn : float, default 0.01\n"
-    "    Loop noise bandwidth.\n"
+    "    Loop noise bandwidth, normalized cycles/sample; >= 0 (default "
+    "0.01).\n"
+    "    `bn = 0` is a deliberately frozen loop.\n"
     "t : float, default 1.0\n"
-    "    Update period in samples.\n"
+    "    Update period in samples; > 0 (default 1.0).\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -779,15 +781,21 @@ static PyTypeObject StateFilterObjType = {
     "    If construction fails. The exception message is the reason the\n"
     "    constructor gives, or ``bn must be >= 0 and t > 0, both finite, "
     "with\n"
-    "    bn*t no larger than the bound the third-order loop is stable to\n"
-    "    (docs/design/loop-filter.md section 12)`` when it gives none.\n"
+    "    bn*t inside the domain`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
-    "Create with defaults:\n"
-    "\n"
     ">>> from doppler.track import StateFilter\n"
-    ">>> obj = StateFilter()\n",
+    ">>> sf = StateFilter(bn=0.01, t=1.0)\n"
+    ">>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t\n"
+    "(0.023622, 0.000279)\n"
+    ">>> sf.integ, sf.rate                  # both estimates start at zero\n"
+    "(0.0, 0.0)\n"
+    ">>> StateFilter(bn=0.5)                # bn*t past the stability bound\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: bn*t is above the largest the filter accepts, the bound the "
+    "third-order loop is stable to\n",
   .tp_methods = StateFilterObj_methods,
   .tp_getset  = StateFilter_getset,
   .tp_new     = StateFilterObj_new,

@@ -198,6 +198,10 @@ static const double PI_EXC_DEG[3] = { 30.0, 45.0, 60.0 };
    is past the false-lock limit (a quarter of the symbol rate, 750 Hz) at
    400 Hz/s with margin, so the test can tell the live carrier from it. */
 #define PI_RAMP_CHECK_S 3.0
+/* The #3134 pin (--check): the seed whose code lock changes earliest in
+   the 60-draw slice, and a draw that covers that change. */
+#define PI_CL_SEED 5u
+#define PI_CL_CHECK_S 2.0
 
 typedef struct
 {
@@ -236,6 +240,7 @@ typedef struct
                                                          last narrowing */
   double slope_settled_hz_s; /* d: the slope over the settled window */
   int    seed_rate;          /* --seed-rate */
+  size_t code_nl;            /* the code lock's look count it ran with */
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
@@ -367,6 +372,9 @@ static double    pi_cell_key[PI_CELLS][4];
    period) the draws track with, in place of the built
    ASYNC_DSSS_RX_BN_CARRIER; NAN: as built. */
 static double pi_bn_car = NAN;
+/* The code lock's look count forced on each entry into tracking, for the
+   #3134 control (0: as built, dp_det_n_noncoh()'s sizing). */
+static size_t pi_code_nl = 0;
 /* --bn-carrier rule: the bandwidth comes from pi_bn_rule() per carrier. */
 static int pi_bn_rule_on = 0;
 /* --loop-order: the carrier loop's order (2: the built loop). */
@@ -1057,6 +1065,18 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           else if (!isnan (pi_bn_car) || pi_bn_rule_on)
             DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
                         == DP_OK);
+          /* The #3134 control: the code lock at another look count, through
+             the Dll's own configure (which re-sizes its threshold for that
+             count), keeping the drop count the receiver chose. */
+          if (pi_code_nl)
+            {
+              const uint32_t down = rx->dll->lock.n_down;
+              DP_REQUIRE (
+                  dp_dll_configure_lock (rx->dll, 1e-3, pi_code_nl, 0.0)
+                  == DP_OK);
+              (void)dp_dll_set_lock_verify (rx->dll, rx->dll->lock.n_up, down);
+            }
+          d->code_nl = rx->dll->n_looks;
         }
       /* --acq a/b: at the stint's first lock, the receiver's own event
          (both flags up: had_lock), the loop goes to its tracking form. */
@@ -2395,6 +2415,41 @@ main (int argc, char **argv)
                     "the hand-over's");
       DP_CHECK_MSG (!rd.false_lock, "the live carrier holds a 400 Hz/s ramp "
                                     "at 10 dB");
+
+      /* #3134, pinned where it moves first: the 60-draw slice at 2.8 GHz,
+         10 dB, static has the code lock change over the data, after it is
+         sustained, on 11 of 60 draws as built and 16 of 60 with the
+         code-period window -- the code lock alone, the other flags never.
+         Seed 5 changes earliest, 0.84 s in on both windows, so a
+         PI_CL_CHECK_S draw shows it. It is RED until #3134's fix: it is in
+         the known red set by name. Its control runs the same seed with the
+         look count forced to 4 (the receiver sizes 3 here) and holds: the
+         count, not anything else in the draw, is the cause. */
+      for (int cw = 0; cw < 2; cw++)
+        {
+          draw_t cd, cc;
+          pi_code_nl = 0;
+          DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, cw, PI_CL_SEED,
+                                PI_CL_CHECK_S, spc, NULL, NULL, &cd)
+                      == 0);
+          pi_code_nl = 4;
+          DP_REQUIRE (run_draw (code, DP_S415_FC_HI, 10.0, 0.0, cw, PI_CL_SEED,
+                                PI_CL_CHECK_S, spc, NULL, NULL, &cc)
+                      == 0);
+          pi_code_nl = 0;
+          printf ("  code lock, 2.8 GHz 10 dB static %s seed %u: as built "
+                  "(n = %zu) changes %zu times over the data; at n = %zu, "
+                  "%zu (#3134)\n",
+                  cw ? "code_period" : "partials", PI_CL_SEED, cd.code_nl,
+                  cd.code_tog, cc.code_nl, cc.code_tog);
+          DP_CHECK_MSG (!isnan (cd.t_code_s) && cd.code_tog == 0,
+                        "#3134: the code lock does not change over the data "
+                        "once sustained");
+          DP_CHECK_MSG (cc.code_nl == 4 && !isnan (cc.t_code_s)
+                            && cc.code_tog == 0,
+                        "control: at 4 looks the same draw's code lock "
+                        "holds");
+        }
     }
   if (emit)
     pi_design (fcs, esn0s);

@@ -398,23 +398,28 @@ def test_check_names_two_fixed_entries_on_one_subcarrier():
     ok.check()
 
 
-def test_modulate_on_an_unusable_layout_is_empty_and_check_says_why():
+def test_modulate_on_an_unusable_layout_raises_the_same_sentence_check_does():
     o, m = _small()
     o.add_class(8, m)  # no run
-    assert o.modulate(np.ones(6, np.complex64)).size == 0
+    with pytest.raises(ValueError, match="no run"):
+        o.modulate(np.ones(6, np.complex64))
     with pytest.raises(ValueError, match="no run"):
         o.check()
 
 
-def test_a_refused_call_returns_empty_and_moves_nothing():
+def test_a_refused_call_raises_its_reason_and_moves_nothing():
     o = Ofdm()
     m = np.zeros(8, np.uint8)
     m[[1, 2, 3, 5, 6, 7]] = 1
     o.add_class(8, m, cyclic_prefix=2)
     o.add_run(0, 3)
     assert o.points_remaining() == 18
-    assert o.modulate(np.ones(5, np.complex64)).size == 0  # inside a symbol
-    assert o.modulate(np.ones(24, np.complex64)).size == 0  # past the end
+    with pytest.raises(ValueError, match="inside an OFDM symbol"):
+        o.modulate(np.ones(5, np.complex64))
+    with pytest.raises(ValueError, match="more points than the layout"):
+        o.modulate(np.ones(24, np.complex64))
+    with pytest.raises(ValueError, match="need >="):
+        o.modulate(np.ones(12, np.complex64), out=np.empty(3, np.complex64))
     assert o.points_remaining() == 18
     assert o.modulate(np.ones(12, np.complex64)).size == 20
     assert o.points_remaining() == 6

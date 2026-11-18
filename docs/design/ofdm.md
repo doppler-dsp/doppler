@@ -307,9 +307,11 @@ concern ([wlan](wlan.md), "The faces"), as `frame` is for `FrameDesc`.
 Standard builders (a layout from a preset) are free functions that fill an
 `Ofdm`; they live with the standard.
 
-A refused build call raises `ValueError`, and a `modulate` whose point count
-ends inside an OFDM symbol, or runs past the layout, returns an empty array
-and leaves the modulator as it was.
+A refused build call raises `ValueError`, and so does a `modulate` whose point
+count ends inside an OFDM symbol or runs past the layout, or whose layout is
+unusable, with a sentence saying which; the modulator is left as it was.
+Rendering nothing, with no points where none are needed, is an empty array
+and not a refusal.
 
 ### The window
 

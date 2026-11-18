@@ -311,13 +311,21 @@ def _make_dsss_cont_engine() -> Any:
 
 
 def _make_ofdm() -> Any:
-    """A layout of 400 OFDM symbols, 6 data subcarriers each, windowed."""
+    """A layout of 600 OFDM symbols, 4 data subcarriers each, windowed.
+
+    Four, not six: a `modulate` whose point count ends inside an OFDM symbol
+    is refused (it raises), so the mutator-state probe, which offers lengths
+    4, 8, 16 and 64, needs a symbol size those lengths are whole multiples
+    of. 600 symbols keep the 2400 points the six-point layout held. At six
+    every offered length was refused, and the gate read the
+    refusals as inert calls (an empty array before the refusal raised).
+    """
     o = Ofdm()
     m = np.zeros(8, np.uint8)
-    m[[1, 2, 3, 5, 6, 7]] = 1
+    m[[1, 2, 5, 6]] = 1
     c = o.add_class(8, m, cyclic_prefix=2, window=2)
     o.add_polarity(c, np.array([1, -1, 1j], np.complex64))
-    o.add_run(c, 400)
+    o.add_run(c, 600)
     # Two more classes, not yet run: what the layout builders' probes extend
     # (a gain is accepted at its class's own length, so two lengths).
     o.add_class(4, np.ones(4, np.uint8), n_phase=16)
@@ -326,7 +334,7 @@ def _make_ofdm() -> Any:
 
 
 def _ofdm_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[np.complex64]:
-    n = (seg.size // 6) * 6
+    n = (seg.size // 4) * 4
     return np.array(o.modulate(seg[:n]))
 
 

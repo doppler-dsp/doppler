@@ -1468,6 +1468,8 @@
 * **dp\_ofdm\_get\_state** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_modulate** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_modulate\_max\_out** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **dp\_ofdm\_modulate\_why** ([**ofdm\_core.h**](ofdm__core_8h.md))
+* **dp\_ofdm\_modulate\_why\_max\_out** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_points\_remaining** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_reset** ([**ofdm\_core.h**](ofdm__core_8h.md))
 * **dp\_ofdm\_set\_state** ([**ofdm\_core.h**](ofdm__core_8h.md))

@@ -286,8 +286,6 @@ dp_ofdm_check_why (dp_ofdm_state_t *o, const char **why)
      `goto out` below sets it first, and the one left standing at `out` is
      the allocation (or transform plan) that could not be built. */
   const char *w = "memory or a transform plan could not be built";
-  if (why)
-    *why = NULL;
   if (!o)
     {
       if (why)
@@ -462,10 +460,13 @@ advance (const dp_ofdm_state_t *o, uint32_t *ri, uint32_t *si)
     }
 }
 
-/* Samples a call with n_in points writes, or 0 for a refusal (it ends inside
-   an OFDM symbol, or runs past the layout). *n_syms is the OFDM symbols. */
+/* Samples a call with n_in points writes. A refusal (it ends inside an OFDM
+   symbol, or runs past the layout) returns 0 and sets *why, which is left as
+   the caller set it otherwise: 0 samples is also a valid answer, for no
+   points at the end of the layout, or when the next symbol needs some.
+   *n_syms is the OFDM symbols. */
 static size_t
-walk (const dp_ofdm_state_t *o, size_t n_in, size_t *n_syms)
+walk (const dp_ofdm_state_t *o, size_t n_in, size_t *n_syms, const char **why)
 {
   uint32_t ri = o->run_index, si = o->sym_in_run;
   size_t   left = n_in, total = 0, syms = 0;
@@ -475,7 +476,13 @@ walk (const dp_ofdm_state_t *o, size_t n_in, size_t *n_syms)
       if (need > left)
         {
           if (left > 0)
-            return 0;
+            {
+              if (why)
+                *why = "the points end inside an OFDM symbol: pass a "
+                       "count that ends where one does (see "
+                       "points_remaining and modulate_max_out)";
+              return 0;
+            }
           break;
         }
       left -= need;
@@ -484,7 +491,11 @@ walk (const dp_ofdm_state_t *o, size_t n_in, size_t *n_syms)
       advance (o, &ri, &si);
     }
   if (left > 0)
-    return 0;
+    {
+      if (why)
+        *why = "more points than the layout has left";
+      return 0;
+    }
   if (n_syms)
     *n_syms = syms;
   return total;
@@ -510,7 +521,13 @@ dp_ofdm_modulate_max_out (dp_ofdm_state_t *o, size_t n_in)
 {
   if (!o || dp_ofdm_check (o) != 0)
     return 0;
-  return walk (o, n_in, NULL);
+  return walk (o, n_in, NULL, NULL);
+}
+
+size_t
+dp_ofdm_modulate_why_max_out (dp_ofdm_state_t *o, size_t n_in)
+{
+  return dp_ofdm_modulate_max_out (o, n_in);
 }
 
 /* ── one OFDM symbol ────────────────────────────────────────────────────── */
@@ -572,15 +589,34 @@ render_symbol (dp_ofdm_state_t *o, uint32_t ri, uint32_t si,
   return used;
 }
 
-size_t
-dp_ofdm_modulate (dp_ofdm_state_t *o, const float _Complex *in, size_t n_in,
-                  float _Complex *out, size_t max_out)
+int64_t
+dp_ofdm_modulate_why (dp_ofdm_state_t *o, const float _Complex *in,
+                      size_t n_in, float _Complex *out, size_t max_out,
+                      const char **why)
 {
-  if (!o || dp_ofdm_check (o) != 0)
-    return 0;
+  const char *w = NULL; /* set only by a refusal; *why is written only then */
+  if (dp_ofdm_check_why (o, &w) != 0)
+    {
+      if (why)
+        *why = w;
+      return -1;
+    }
   size_t       n_syms = 0;
-  const size_t total  = walk (o, n_in, &n_syms);
-  if (total == 0 || max_out < total)
+  const size_t total  = walk (o, n_in, &n_syms, &w);
+  if (w)
+    {
+      if (why)
+        *why = w;
+      return -1;
+    }
+  if (max_out < total)
+    {
+      if (why)
+        *why = "the output buffer is shorter than the samples this call "
+               "writes (see modulate_max_out)";
+      return -1;
+    }
+  if (total == 0)
     return 0;
 
   size_t pi = 0, po = 0;
@@ -590,7 +626,15 @@ dp_ofdm_modulate (dp_ofdm_state_t *o, const float _Complex *in, size_t n_in,
       po += run_sym_len (o, &o->runs[o->run_index]);
       advance (o, &o->run_index, &o->sym_in_run);
     }
-  return po;
+  return (int64_t)po;
+}
+
+size_t
+dp_ofdm_modulate (dp_ofdm_state_t *o, const float _Complex *in, size_t n_in,
+                  float _Complex *out, size_t max_out)
+{
+  const int64_t n = dp_ofdm_modulate_why (o, in, n_in, out, max_out, NULL);
+  return n < 0 ? 0 : (size_t)n;
 }
 
 size_t

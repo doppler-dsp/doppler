@@ -470,7 +470,7 @@ OfdmObj_modulate_max_out (OfdmObject *self, PyObject *args)
       return NULL;
     }
   return PyLong_FromSize_t (
-      dp_ofdm_modulate_max_out (self->handle, (size_t)n_in));
+      dp_ofdm_modulate_why_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -525,7 +525,7 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_ofdm_modulate_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_ofdm_modulate_why_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -542,10 +542,22 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t n_out = dp_ofdm_modulate (
+      const char *_why = NULL;
+      int64_t     _rc  = dp_ofdm_modulate_why (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
+          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap, &_why);
       Py_DECREF (in_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "modulate refused",
+                          (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -579,7 +591,7 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_ofdm_modulate_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_ofdm_modulate_why_max_out (self->handle, (size_t)n);
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -605,10 +617,22 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t n_out = dp_ofdm_modulate (
+  const char *_why = NULL;
+  int64_t     _rc  = dp_ofdm_modulate_why (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0, _cap);
+      _d0, _cap, &_why);
   Py_DECREF (in_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "modulate refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -1196,9 +1220,9 @@ static PyMethodDef OfdmObj_methods[] = {
     "with a sentence naming the condition, if not (no run, a window longer "
     "than an OFDM symbol of its class, two fixed entries on one subcarrier in "
     "one phase, or memory or a transform plan that could not be built). "
-    "`modulate` checks on first use and returns an empty array for a layout "
-    "that fails, without a reason; call this first to learn it before any "
-    "points exist. Adding a class, fixed entry or run to a checked layout "
+    "`modulate` checks on first use and raises `ValueError`, with the same "
+    "sentence, for a layout that fails; call this first to learn it before "
+    "any points exist. Adding a class, fixed entry or run to a checked layout "
     "re-opens it, keeping the position and the held window tail, so a signal "
     "can be extended while it is rendered; the next `modulate` checks the "
     "longer layout.\n"
@@ -1265,9 +1289,11 @@ static PyMethodDef OfdmObj_methods[] = {
     "points: its data subcarriers less those a fixed entry displaces in its "
     "pattern phase. Rendering stops when the next OFDM symbol needs more "
     "points than remain; OFDM symbols that need none (training fields) "
-    "render. A point count that ends inside an OFDM symbol is refused, the "
-    "modulator untouched, and returns an empty array. The window tail of the "
-    "last OFDM symbol is held for the next call; `finish` returns it.\n"
+    "render. A refused call (an unusable layout, a point count that ends "
+    "inside an OFDM symbol or runs past the layout, a buffer too short) "
+    "raises `ValueError` saying which, the modulator untouched. The window "
+    "tail of the last OFDM symbol is held for the next call; `finish` returns "
+    "it.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1279,8 +1305,18 @@ static PyMethodDef OfdmObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Samples written, or 0 if the call is refused, in which case out and\n"
-    "    the modulator are untouched.\n"
+    "    Samples written, which may be 0: no points at the end of the\n"
+    "    layout, or zero points mid-layout when the next OFDM symbol needs\n"
+    "    some. A refused call changes nothing and reports it by face: C\n"
+    "    returns a negative value and sets why; the Python binding raises\n"
+    "    ValueError with that sentence.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``modulate refused``, with the\n"
+    "    return code appended (gh-869), when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1298,16 +1334,23 @@ static PyMethodDef OfdmObj_methods[] = {
     ">>> x.size\n"
     "20\n"
     ">>> o.points_remaining()\n"
-    "6\n" },
+    "6\n"
+    ">>> o.modulate(np.ones(5, np.complex64))        # inside a symbol\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the points end inside an OFDM symbol: pass a count that ends "
+    "where one does (see points_remaining and modulate_max_out)\n" },
   { "modulate_max_out", (PyCFunction)OfdmObj_modulate_max_out, METH_VARARGS,
     "modulate_max_out(n_in) -> int\n"
     "\n"
-    "Samples dp_ofdm_modulate() writes for n_in points.\n"
+    "Samples a render of n_in points writes.\n"
     "\n"
     "Simulates the render from the current position: OFDM symbols are taken\n"
-    "in layout order until the next one needs more points than remain. Zero\n"
-    "if n_in ends inside an OFDM symbol or runs past the layout (the call is\n"
-    "refused), and for a layout that does not seal.\n"
+    "in layout order until the next one needs more points than remain. The\n"
+    "result is zero if n_in ends inside an OFDM symbol or runs past the\n"
+    "layout (that call is refused), for a layout that does not seal, and for\n"
+    "no points when the next OFDM symbol needs some. Use it to size the\n"
+    "output before the call.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1317,7 +1360,22 @@ static PyMethodDef OfdmObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Samples that call will write.\n" },
+    "    Samples that call will write.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.ofdm import Ofdm\n"
+    ">>> o = Ofdm()\n"
+    ">>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1\n"
+    ">>> o.add_class(8, m, cyclic_prefix=2)\n"
+    "0\n"
+    ">>> o.add_run(0, 3)\n"
+    "0\n"
+    ">>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples\n"
+    "20\n"
+    ">>> o.modulate_max_out(5)    # ends inside a symbol\n"
+    "0\n" },
   { "finish", (PyCFunction)(void *)OfdmObj_finish,
     METH_VARARGS | METH_KEYWORDS,
     "finish(count=..., out=None) -> ndarray\n"

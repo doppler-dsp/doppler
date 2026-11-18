@@ -1291,6 +1291,8 @@ dp_ofdm_finish_max_out function
 dp_ofdm_get_state function
 dp_ofdm_modulate function
 dp_ofdm_modulate_max_out function
+dp_ofdm_modulate_why function
+dp_ofdm_modulate_why_max_out function
 dp_ofdm_points_remaining function
 dp_ofdm_reset function
 dp_ofdm_set_state function

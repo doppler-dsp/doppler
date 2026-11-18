@@ -334,8 +334,8 @@ class Ofdm:
         ValueError, with a sentence naming the condition, if not (no run, a
         window longer than an OFDM symbol of its class, two fixed entries on
         one subcarrier in one phase, or memory or a transform plan that could
-        not be built). `modulate` checks on first use and returns an empty
-        array for a layout that fails, without a reason; call this first to
+        not be built). `modulate` checks on first use and raises `ValueError`,
+        with the same sentence, for a layout that fails; call this first to
         learn it before any points exist. Adding a class, fixed entry or run to
         a checked layout re-opens it, keeping the position and the held window
         tail, so a signal can be extended while it is rendered; the next
@@ -408,9 +408,11 @@ class Ofdm:
         points: its data subcarriers less those a fixed entry displaces in its
         pattern phase. Rendering stops when the next OFDM symbol needs more
         points than remain; OFDM symbols that need none (training fields)
-        render. A point count that ends inside an OFDM symbol is refused, the
-        modulator untouched, and returns an empty array. The window tail of the
-        last OFDM symbol is held for the next call; `finish` returns it.
+        render. A refused call (an unusable layout, a point count that ends
+        inside an OFDM symbol or runs past the layout, a buffer too short)
+        raises `ValueError` saying which, the modulator untouched. The window
+        tail of the last OFDM symbol is held for the next call; `finish`
+        returns it.
 
         Parameters
         ----------
@@ -422,8 +424,18 @@ class Ofdm:
         Returns
         -------
         NDArray[np.complex64]
-            Samples written, or 0 if the call is refused, in which case out and
-            the modulator are untouched.
+            Samples written, which may be 0: no points at the end of the
+            layout, or zero points mid-layout when the next OFDM symbol needs
+            some. A refused call changes nothing and reports it by face: C
+            returns a negative value and sets why; the Python binding raises
+            ValueError with that sentence.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``modulate refused``, with the
+            return code appended (gh-869), when it gives none.
 
         Examples
         --------
@@ -442,16 +454,22 @@ class Ofdm:
         20
         >>> o.points_remaining()
         6
+        >>> o.modulate(np.ones(5, np.complex64))        # inside a symbol
+        Traceback (most recent call last):
+            ...
+        ValueError: the points end inside an OFDM symbol: pass a count that ends where one does (see points_remaining and modulate_max_out)
 
         """
 
     def modulate_max_out(self, n_in: int, /) -> int:
-        """Samples dp_ofdm_modulate() writes for n_in points.
+        """Samples a render of n_in points writes.
 
         Simulates the render from the current position: OFDM symbols are taken
-        in layout order until the next one needs more points than remain. Zero
-        if n_in ends inside an OFDM symbol or runs past the layout (the call is
-        refused), and for a layout that does not seal.
+        in layout order until the next one needs more points than remain. The
+        result is zero if n_in ends inside an OFDM symbol or runs past the
+        layout (that call is refused), for a layout that does not seal, and for
+        no points when the next OFDM symbol needs some. Use it to size the
+        output before the call.
 
         Parameters
         ----------
@@ -462,6 +480,22 @@ class Ofdm:
         -------
         int
             Samples that call will write.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ofdm import Ofdm
+        >>> o = Ofdm()
+        >>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1
+        >>> o.add_class(8, m, cyclic_prefix=2)
+        0
+        >>> o.add_run(0, 3)
+        0
+        >>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples
+        20
+        >>> o.modulate_max_out(5)    # ends inside a symbol
+        0
+
         """
 
     def finish(

@@ -105,6 +105,13 @@
  *      to BN (dp_costas_configure: frequency and rate kept);
  *   c  order 3 at BN from the entry into tracking (the default; the
  *      control).
+ * Each row records when design a or b switched (t_switch_s), the slope of
+ * the order-2 loop's frequency over the stint up to then (slope_hz_s, a
+ * least-squares fit over the blocks, Hz/s) and the rate the third-order
+ * filter holds at the end (rate_end_hz_s). `--seed-rate` (design a) seeds
+ * the rate at the switch from that slope (dp_costas_set_norm_rate); without
+ * it the rate starts at 0. A capture carries car.order and car.rate_hz_s
+ * once a block.
  *
  * `--design` prints only the `# design` section, which --emit also prints:
  * per carrier, level, window and order, the loop the rule and the run's
@@ -119,7 +126,8 @@
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
- *             [--bn-carrier BN|rule] [--loop-order 2|3 [--acq a|b|c]]
+ *             [--bn-carrier BN|rule] [--loop-order 2|3 [--acq a|b|c]
+ *              [--seed-rate]]
  *             [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--telemetry DIR --draw FC,ESN0,RATE,CW,SEED [--from S]
@@ -193,6 +201,11 @@ typedef struct
   double bn_car;     /* the carrier loop's bandwidth the draw tracked with */
   int    loop_order; /* the carrier loop's order the draw tracked with */
   char   acq;        /* --acq at order 3, '-' at order 2 */
+  double t_switch_s; /* design a/b: when the loop went to its tracking
+                        form, s into the run (NAN: never) */
+  double slope_hz_s; /* the order-2 loop's frequency slope up to then */
+  double rate_end_hz_s;      /* the order-3 rate at the end, Hz/s */
+  int    seed_rate;          /* --seed-rate */
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
@@ -323,6 +336,9 @@ static int pi_loop_order = 2;
 /* --acq: how an order-3 loop is reached ('a', 'b' or 'c'; see the file
    comment). */
 static char pi_acq = 'c';
+/* --seed-rate: design a seeds the order-3 rate at the switch from the
+   order-2 loop's frequency slope over the acquisition. */
+static int pi_seed_rate = 0;
 
 /* The owner's loop rule, docs/design/async-dsss-receiver.md §1.3: a loop
    SNR of PI_LOOP_SNR_DB at the floor, in the rule's convention
@@ -468,6 +484,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   float complex *tmp   = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
   d->ho_err_hz   = NAN;
+  d->t_switch_s  = NAN;
+  d->slope_hz_s  = NAN;
   d->t_track_s   = NAN;
   d->seed_err_hz = d->seed_code_chip = d->seed_t_s = NAN;
   d->ho_code_chip = d->ho_age_s = NAN;
@@ -496,6 +514,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   uint64_t      at_v[PQ_N], at_t[PQ_N];
   int           was_tracking = 0;
   int           narrowed     = 0; /* --acq a/b: this stint's lock seen */
+  /* The order-2 loop's frequency over the stint up to the switch, for a
+     least-squares slope: n, sums of t, f, t^2, t f. */
+  double sl_n = 0, sl_t = 0, sl_f = 0, sl_tt = 0, sl_tf = 0;
   if (!(cp && cp->path))
     {
       itlm = dp_tlm_create (1u << 16);
@@ -523,7 +544,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   dp_tlm_t         *tlm    = NULL;
   dp_tlm_capture_t *cap    = NULL;
   int               id_car = -1, id_code = -1, id_hz = -1, id_data = -1;
-  int               id_ecar = -1, id_ecod = -1;
+  int               id_ecar = -1, id_ecod = -1, id_order = -1, id_rate = -1;
   dp_sample_clock_t clk;
   const size_t      b_from
       = cp && cp->path ? (size_t)(cp->from_s * PI_FS) / PI_PUSH : SIZE_MAX;
@@ -537,14 +558,17 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           DP_REQUIRE (tlm != NULL);
           DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
                       == DP_OK);
-          id_car  = dp_tlm_probe (tlm, "truth.car", 1);
-          id_code = dp_tlm_probe (tlm, "truth.code", 1);
-          id_hz   = dp_tlm_probe (tlm, "truth.hz", 1);
-          id_data = dp_tlm_probe (tlm, "truth.data", 1);
-          id_ecar = dp_tlm_probe (tlm, "err.car_deg", 1);
-          id_ecod = dp_tlm_probe (tlm, "err.code_chip", 1);
+          id_car   = dp_tlm_probe (tlm, "truth.car", 1);
+          id_code  = dp_tlm_probe (tlm, "truth.code", 1);
+          id_hz    = dp_tlm_probe (tlm, "truth.hz", 1);
+          id_data  = dp_tlm_probe (tlm, "truth.data", 1);
+          id_ecar  = dp_tlm_probe (tlm, "err.car_deg", 1);
+          id_ecod  = dp_tlm_probe (tlm, "err.code_chip", 1);
+          id_order = dp_tlm_probe (tlm, "car.order", 1);
+          id_rate  = dp_tlm_probe (tlm, "car.rate_hz_s", 1);
           DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0 && id_data >= 0
-                      && id_ecar >= 0 && id_ecod >= 0);
+                      && id_ecar >= 0 && id_ecod >= 0 && id_order >= 0
+                      && id_rate >= 0);
           dp_sample_clock_init (&clk, PI_FS, 0);
           cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
           DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
@@ -606,6 +630,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       if (tracking && !was_tracking)
         {
           narrowed = 0;
+          sl_n = sl_t = sl_f = sl_tt = sl_tf = 0.0;
           if (pi_loop_order == 3)
             {
               /* Through Costas's own switch: the frequency the hand-over
@@ -625,15 +650,40 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
         }
       /* --acq a/b: at the stint's first lock, the receiver's own event
          (both flags up: had_lock), the loop goes to its tracking form. */
+      const double t_blk = (double)(b + 1) * PI_PUSH / PI_FS;
+      if (tracking && !narrowed)
+        {
+          const double f = dp_costas_get_norm_freq (&rx->car) * PI_FS;
+          sl_n += 1.0, sl_t += t_blk, sl_f += f, sl_tt += t_blk * t_blk,
+              sl_tf += t_blk * f;
+        }
       if (tracking && pi_loop_order == 3 && !narrowed && rx->had_lock
           && pi_acq != 'c')
         {
-          narrowed = 1;
+          narrowed         = 1;
+          d->t_switch_s    = t_blk;
+          const double den = sl_n * sl_tt - sl_t * sl_t;
+          d->slope_hz_s    = sl_n >= 2.0 && den > 0.0
+                                 ? (sl_n * sl_tf - sl_t * sl_f) / den
+                                 : NAN;
           if (pi_acq == 'a')
-            DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track) == DP_OK);
+            {
+              DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track)
+                          == DP_OK);
+              if (pi_seed_rate && !isnan (d->slope_hz_s))
+                DP_REQUIRE (dp_costas_set_norm_rate (
+                                &rx->car, d->slope_hz_s / (PI_FS * PI_FS))
+                            == DP_OK);
+            }
           else
             DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
                         == DP_OK);
+        }
+      if (tlm)
+        {
+          dp_tlm_emit (tlm, id_order, (double)dp_costas_get_order (&rx->car));
+          dp_tlm_emit (tlm, id_rate,
+                       dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS);
         }
       if (tracking && isnan (d->ho_err_hz))
         {
@@ -852,11 +902,13 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
     d->base_unamb_hz = 1.0 / (4.0 * T);
     /* The shipped pull-in, scaled to the bandwidth the loop ran at (it is
        proportional to bn: ASYNC_DSSS_RX_CARRIER_PULLIN_HZ's own form). */
-    d->base_pullin_hz         = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (chip, SF)
-                                * rx->car.lf.bn / ASYNC_DSSS_RX_BN_CARRIER;
-    d->bn_car                 = rx->car.lf.bn;
-    d->loop_order             = pi_loop_order;
-    d->acq                    = pi_loop_order == 3 ? pi_acq : '-';
+    d->base_pullin_hz = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (chip, SF)
+                        * rx->car.lf.bn / ASYNC_DSSS_RX_BN_CARRIER;
+    d->bn_car         = rx->car.lf.bn;
+    d->loop_order     = pi_loop_order;
+    d->acq            = pi_loop_order == 3 ? pi_acq : '-';
+    d->rate_end_hz_s  = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+    d->seed_rate      = pi_seed_rate;
     d->base_half_spacing_chip = 0.5 * rx->dll->spacing;
     double sc = 0.0, sc2 = 0.0, sk = 0.0, sk2 = 0.0, pk = 0.0, spk = 0.0;
     size_t n_off = 0, n_all = 0;
@@ -1168,7 +1220,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   "off_code_frac,"                                                            \
   "ho_peak_deg,steady_peak_deg,base_lag_deg,base_sd_deg,base_ho_deg,"         \
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
-  "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq\n"
+  "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
+  "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1179,7 +1232,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
-      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c\n",
+      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d\n",
       d->fc / 1e9, d->esn0, d->rate, d->cw ? "code_period" : "partials", seed,
       d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->seed_err_hz,
       d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
@@ -1195,7 +1248,8 @@ emit_row (const draw_t *d, uint32_t seed)
       d->base_half_sample_chip, d->base_unamb_hz, d->base_pullin_hz,
       d->base_half_spacing_chip, d->bn_car,
       d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
-      d->loop_order, d->acq);
+      d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
+      d->seed_rate);
 }
 
 static int
@@ -1437,6 +1491,8 @@ main (int argc, char **argv)
           pi_loop_order = atoi (argv[++i]);
           DP_REQUIRE (pi_loop_order == 2 || pi_loop_order == 3);
         }
+      else if (strcmp (argv[i], "--seed-rate") == 0)
+        pi_seed_rate = 1;
       else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
         {
           pi_acq = argv[++i][0];
@@ -1485,7 +1541,8 @@ main (int argc, char **argv)
       if (pi_loop_order == 3)
         {
           const size_t l = strlen (bn_tag);
-          (void)snprintf (bn_tag + l, sizeof bn_tag - l, "_o3%c", pi_acq);
+          (void)snprintf (bn_tag + l, sizeof bn_tag - l, "_o3%c%s", pi_acq,
+                          pi_seed_rate ? "s" : "");
         }
       (void)snprintf (stem, sizeof stem,
                       "pullin_%.1fGHz_%.0fdB_%.0fHzs_%s_s%u%s%s", g, es, rt,

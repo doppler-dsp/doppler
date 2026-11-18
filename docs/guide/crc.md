@@ -11,17 +11,18 @@ use it (the 802.11 FCS in [`wlan`](wlan.md) is CRC-32/ISO-HDLC over the MPDU's
 octets), and a caller with a field that carries a CRC states the model and
 calls the same function.
 
-A CRC model is five numbers in `dp_crc_t`: the register `width` in bits, the
+A CRC model is six numbers in `dp_crc_t`: the register `width` in bits, the
 generator polynomial `poly` (normal form, without the top term), the initial
-register `init`, whether the final register is bit-reversed (`refout`), and a
-value XORed into the result (`xorout`). The catalogue adds a sixth, `refin`,
-whether each input octet's bits are presented least significant first, and
-that one is **not in the struct**: it belongs to how you present the input.
+register `init`, whether the final register is bit-reversed (`refout`), a
+value XORed into the result (`xorout`), and the catalogue's `refin`, whether
+each input octet's bits are presented least significant first.
 
-**Two entry points, one loop.** `dp_crc_bytes(&model, octets, n, refin)`
-takes octets and the catalogue's `refin`; `dp_crc_bits(&model, bits, n)` takes
-the library's unpacked streams, one bit per byte, shifted in first bit first.
-`dp_crc_bytes` presents each octet's bits to the same step as `dp_crc_bits`.
+**Two entry points, one loop.** `dp_crc_bytes(&model, octets, n)` takes
+octets and presents each one's bits in the order the model's `refin` asks for;
+`dp_crc_bits(&model, bits, n)` takes the library's unpacked streams, one bit
+per byte, shifted in first bit first, and never reads `refin`: a stream
+already in bit order has nothing left to reflect, so the order is whatever
+the caller built.
 
 ## Named models
 
@@ -45,18 +46,20 @@ one place and not the other fails the build. **A named instance is not a
 claim that a standard uses it.** Which model a protocol field takes, and in
 what bit order the value is transmitted, are facts in that protocol's text.
 
-## The one thing to get right: `refin`
+## The one thing to get right: `refin` is part of the model
 
-A named instance does not carry its `refin`. You pass it to `dp_crc_bytes` by
-hand, and the column above is where to read it. A wrong value gives a wrong
-CRC and no error: CRC-32/ISO-HDLC over `123456789` is `0xCBF43926` with
-`refin = 1` and `0x1898913F` with `refin = 0`. Every named instance has
-`refin` equal to `refout`, so the table's two columns agree; a catalogue model
-with them different is possible and the struct plus the argument can express
-it.
+The named instances carry their `refin`, so `dp_crc_bytes(&model, ...)` is
+right without a second argument. Change it and you have a different CRC, with
+no error: CRC-32/ISO-HDLC over `123456789` is `0xCBF43926` with `refin = 1`
+and `0x1898913F` with `refin = 0`. The struct holds a catalogue model whose
+`refin` and `refout` differ (CRC-12/UMTS is one); every named instance here
+has them equal.
+
+Write a model of your own with **designated initializers** (`.width = 8u, ...`), never by position: `refin` is the struct's last field, so a literal
+written before it existed still compiles, and means `refin = 0`.
 
 The C example computes all nine from the octets and from the bit stream,
-shows the wrong-`refin` result, and exits non-zero if a value is not the
+shows what flipping `refin` does, and exits non-zero if a value is not the
 catalogue's:
 
 ```c

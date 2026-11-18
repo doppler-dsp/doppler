@@ -349,7 +349,7 @@ dp_wlan_mpdu (dp_wlan_mac_t mode, const uint8_t *header, size_t header_len,
   if (mode != WLAN_MAC_NONE)
     {
       const dp_crc_t model = DP_CRC_32_ISO_HDLC;
-      const uint64_t fcs   = dp_crc_bytes (&model, out, off, 1);
+      const uint64_t fcs   = dp_crc_bytes (&model, out, off);
       for (int i = 0; i < 4; i++) /* least significant octet first */
         out[off + (size_t)i] = (uint8_t)(fcs >> (8 * i));
     }

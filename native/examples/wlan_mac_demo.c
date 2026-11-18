@@ -66,12 +66,12 @@ main (void)
 
   /* 3. Any frame with its FCS appended has the same CRC. */
   const dp_crc_t model = DP_CRC_32_ISO_HDLC;
-  const uint64_t a     = dp_crc_bytes (&model, psdu, n, 1);
+  const uint64_t a     = dp_crc_bytes (&model, psdu, n);
   uint8_t        other[128];
   for (int i = 0; i < 100; i++)
     body[i] = (uint8_t)(i * 11 + 9);
   dp_wlan_mpdu (WLAN_MAC_DATA, header, 24, body, 100, other, sizeof other);
-  const uint64_t b = dp_crc_bytes (&model, other, 128, 1);
+  const uint64_t b = dp_crc_bytes (&model, other, 128);
   printf ("--- 3. The CRC over a whole frame ---\n    %08llX and %08llX: ",
           (unsigned long long)a, (unsigned long long)b);
   printf ("%s\n\n", a == b ? "equal, whatever the frame" : "DIFFERENT");

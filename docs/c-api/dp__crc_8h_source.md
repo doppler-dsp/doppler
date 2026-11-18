@@ -26,21 +26,36 @@ typedef struct
   uint64_t init;   
   int      refout; 
   uint64_t xorout; 
+  int      refin;  
 } dp_crc_t;
 
-#define DP_CRC_32_ISO_HDLC                                                     \
-  ((dp_crc_t){ 32u, 0x04C11DB7u, 0xFFFFFFFFu, 1, 0xFFFFFFFFu })
-#define DP_CRC_32_BZIP2                                                        \
-  ((dp_crc_t){ 32u, 0x04C11DB7u, 0xFFFFFFFFu, 0, 0xFFFFFFFFu })
-#define DP_CRC_32C                                                             \
-  ((dp_crc_t){ 32u, 0x1EDC6F41u, 0xFFFFFFFFu, 1, 0xFFFFFFFFu })
-#define DP_CRC_16_IBM_3740 ((dp_crc_t){ 16u, 0x1021u, 0xFFFFu, 0, 0u })
-#define DP_CRC_16_XMODEM ((dp_crc_t){ 16u, 0x1021u, 0u, 0, 0u })
-#define DP_CRC_16_KERMIT ((dp_crc_t){ 16u, 0x1021u, 0u, 1, 0u })
-#define DP_CRC_8_SMBUS ((dp_crc_t){ 8u, 0x07u, 0u, 0, 0u })
-#define DP_CRC_8_ROHC ((dp_crc_t){ 8u, 0x07u, 0xFFu, 1, 0u })
-#define DP_CRC_64_ECMA_182                                                     \
-  ((dp_crc_t){ 64u, 0x42F0E1EBA9EA3693ull, 0u, 0, 0u })
+#define DP_CRC_32_ISO_HDLC \
+  ((dp_crc_t){ .width = 32u, .poly = 0x04C11DB7u, .init = 0xFFFFFFFFu, \
+               .refout = 1, .xorout = 0xFFFFFFFFu, .refin = 1 })
+#define DP_CRC_32_BZIP2 \
+  ((dp_crc_t){ .width = 32u, .poly = 0x04C11DB7u, .init = 0xFFFFFFFFu, \
+               .refout = 0, .xorout = 0xFFFFFFFFu, .refin = 0 })
+#define DP_CRC_32C \
+  ((dp_crc_t){ .width = 32u, .poly = 0x1EDC6F41u, .init = 0xFFFFFFFFu, \
+               .refout = 1, .xorout = 0xFFFFFFFFu, .refin = 1 })
+#define DP_CRC_16_IBM_3740 \
+  ((dp_crc_t){ .width = 16u, .poly = 0x1021u, .init = 0xFFFFu, \
+               .refout = 0, .xorout = 0u, .refin = 0 })
+#define DP_CRC_16_XMODEM \
+  ((dp_crc_t){ .width = 16u, .poly = 0x1021u, .init = 0u, \
+               .refout = 0, .xorout = 0u, .refin = 0 })
+#define DP_CRC_16_KERMIT \
+  ((dp_crc_t){ .width = 16u, .poly = 0x1021u, .init = 0u, \
+               .refout = 1, .xorout = 0u, .refin = 1 })
+#define DP_CRC_8_SMBUS \
+  ((dp_crc_t){ .width = 8u, .poly = 0x07u, .init = 0u, \
+               .refout = 0, .xorout = 0u, .refin = 0 })
+#define DP_CRC_8_ROHC \
+  ((dp_crc_t){ .width = 8u, .poly = 0x07u, .init = 0xFFu, \
+               .refout = 1, .xorout = 0u, .refin = 1 })
+#define DP_CRC_64_ECMA_182 \
+  ((dp_crc_t){ .width = 64u, .poly = 0x42F0E1EBA9EA3693ull, .init = 0u, \
+               .refout = 0, .xorout = 0u, .refin = 0 })
 
 /* The register's mask: `width` low bits set. */
 static inline uint64_t
@@ -94,13 +109,14 @@ dp_crc_bits (const dp_crc_t *p, const uint8_t *bits, size_t n)
 }
 
 static inline uint64_t
-dp_crc_bytes (const dp_crc_t *p, const uint8_t *bytes, size_t n, int refin)
+dp_crc_bytes (const dp_crc_t *p, const uint8_t *bytes, size_t n)
 {
   uint64_t reg = p->init;
   for (size_t i = 0; i < n; i++)
     for (unsigned k = 0; k < 8u; k++)
-      reg = dp_crc_step (
-          p, reg, refin ? (bytes[i] >> k) & 1u : (bytes[i] >> (7u - k)) & 1u);
+      reg = dp_crc_step (p, reg,
+                         p->refin ? (bytes[i] >> k) & 1u
+                                  : (bytes[i] >> (7u - k)) & 1u);
   return dp_crc_finish (p, reg);
 }
 

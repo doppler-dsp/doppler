@@ -92,7 +92,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  size\_t | [**dp\_wlan\_ppdu**](#function-dp_wlan_ppdu) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, unsigned window, float \_Complex \* out, size\_t cap) <br>_Render a PPDU to samples._  |
 |  size\_t | [**dp\_wlan\_ppdu\_len**](#function-dp_wlan_ppdu_len) (size\_t n\_sym, unsigned window) <br>_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`160 + 160 + 80 + 80 * n_sym` _, plus the_`window` _samples of the last symbol's window tail._ |
 |  size\_t | [**dp\_wlan\_rate\_n\_sym**](#function-dp_wlan_rate_n_sym) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs:_ `ceil((16 + 8 * psdu_len + 6) / N_DBPS)` _._ |
-|  int | [**dp\_wlan\_rate\_ok**](#function-dp_wlan_rate_ok) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a data-bit count per OFDM symbol that is whole._ |
+|  int | [**dp\_wlan\_rate\_ok**](#function-dp_wlan_rate_ok) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a code rate of the four. The data bits per OFDM symbol are whole for every such pair (the test shows it)._ |
 |  void | [**dp\_wlan\_reset**](#function-dp_wlan_reset) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state) <br>_Reset a rate holder: nothing to reset, the rate is configuration._  |
 |  size\_t | [**dp\_wlan\_scrambler\_sequence**](#function-dp_wlan_scrambler_sequence) (uint8\_t state, size\_t n, uint8\_t \* out) <br>_The scrambling sequence from a register state._  |
 |  uint8\_t | [**dp\_wlan\_scrambler\_state\_from\_sequence**](#function-dp_wlan_scrambler_state_from_sequence) (uint8\_t seq7) <br>_The register state that produces a scrambling sequence whose first seven bits, read as an integer with the first bit most significant, are_ `seq7` _(Annex I writes the example's start this way: 54)._ |
@@ -135,6 +135,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 | define  | [**WLAN\_N\_FFT**](wlan__core_8h.md#define-wlan_n_fft)  `64u`<br>_Transform length at 20 MHz (Table 17-5)._  |
 | define  | [**WLAN\_N\_SD**](wlan__core_8h.md#define-wlan_n_sd)  `48u`<br>_Data subcarriers per OFDM symbol (Table 17-5)._  |
 | define  | [**WLAN\_N\_SP**](wlan__core_8h.md#define-wlan_n_sp)  `4u`<br>_Pilot subcarriers per OFDM symbol (Table 17-5)._  |
+| define  | [**WLAN\_N\_SYM\_MAX**](wlan__core_8h.md#define-wlan_n_sym_max)  `1366u`<br>_The most Data OFDM symbols a PPDU can have: the largest PSDU at the slowest rate (BPSK 1/2, 24 data bits per symbol),_ `ceil ((16 + 8 * 4095 + 6) / 24)` _._ |
 | define  | [**WLAN\_PILOT\_K**](wlan__core_8h.md#define-wlan_pilot_k)  `{ -21, -7, 7, 21 }`<br>_The pilot subcarrier indices (17.3.5.9)._  |
 | define  | [**WLAN\_PILOT\_V**](wlan__core_8h.md#define-wlan_pilot_v)  `{ 1.0, 1.0, 1.0, -1.0 }`<br>_The pilot values before the polarity element (17.3.5.10)._  |
 | define  | [**WLAN\_POLARITY\_LEN**](wlan__core_8h.md#define-wlan_polarity_len)  `127u`<br>_Length of the pilot polarity sequence._  |
@@ -155,7 +156,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 
 
 
-Every number the design page marks checked against the standard's text is a constant here, or a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), which [**dp\_wlan\_tables\_standard()**](wlan__core_8h.md#function-dp_wlan_tables_standard) returns filled with the Clause 17 literals transcribed from the text. What the test holds against a printed form is the RATE bits, both training sequences and the constellation encodings; the second interleaver permutation is held by its worked 16-QAM example and by being a bijection, and the puncture masks and the pilot polarity are not held against a printed form. [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) is the same struct with nothing in it: a builder that needs an empty entry refuses (returns 0 or -1) and changes nothing, and the machinery tests run on SYNTHETIC tables that claim no conformance. The tables are:
+Every number the design page marks checked against the standard's text is a constant here, or a member of [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md), which [**dp\_wlan\_tables\_standard()**](wlan__core_8h.md#function-dp_wlan_tables_standard) returns filled with the Clause 17 literals transcribed from the text. What the test holds against a printed form is the RATE bits, both training sequences, the constellation encodings and the 2/3 and 3/4 puncture masks (Figure 17-9's sent bits). The second interleaver permutation is held by its worked 16-QAM example and by a re-derivation of Eq. (17-16), (17-17) written in the test for every index of all four Clause 17 pairs: that is the equation as posted on #3109, not a printed table. The pilot polarity is not held against a printed form, nor is the 5/6 mask (Clause 19). [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) is the same struct with nothing in it: a builder that needs an empty entry refuses (returns 0 or -1) and changes nothing, and the machinery tests run on SYNTHETIC tables that claim no conformance. The tables are:
 
 
 
@@ -307,7 +308,7 @@ dp_wlan_state_t * dp_wlan_create (
 
 **Returns:**
 
-Heap-allocated state, or NULL if either index is outside its range or the pair's data bits per OFDM symbol are not a whole number. 
+Heap-allocated state, or NULL if either index is outside its range (every pair of the four constellations and four code rates is built). 
 
 
 
@@ -513,14 +514,14 @@ int dp_wlan_layout (
 
 * `o` A fresh modulator from [**dp\_ofdm\_create()**](ofdm__core_8h.md#function-dp_ofdm_create). 
 * `t` The tables (L-STF and L-LTF values and the scales). 
-* `n_sym` Data OFDM symbols. 
+* `n_sym` Data OFDM symbols, 1 to WLAN\_N\_SYM\_MAX. 
 * `window` Window length in samples at each symbol boundary, 0 for none. 
 
 
 
 **Returns:**
 
-0 and a checked layout, or -1 if a table is empty, `n_sym` is 0, or the modulator refuses a call. 
+0 and a checked layout, or -1 if a table is empty, `n_sym` is 0 or above WLAN\_N\_SYM\_MAX, or the modulator refuses a call. 
 
 
 
@@ -952,7 +953,7 @@ The symbol count, or 0 for an invalid rate or length.
 
 ### function dp\_wlan\_rate\_ok 
 
-_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a data-bit count per OFDM symbol that is whole._
+_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a code rate of the four. The data bits per OFDM symbol are whole for every such pair (the test shows it)._
 ```C++
 int dp_wlan_rate_ok (
     const dp_wlan_rate_t * r
@@ -1252,6 +1253,20 @@ _Data subcarriers per OFDM symbol (Table 17-5)._
 _Pilot subcarriers per OFDM symbol (Table 17-5)._ 
 ```C++
 #define WLAN_N_SP `4u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_N\_SYM\_MAX 
+
+_The most Data OFDM symbols a PPDU can have: the largest PSDU at the slowest rate (BPSK 1/2, 24 data bits per symbol),_ `ceil ((16 + 8 * 4095 + 6) / 24)` _._
+```C++
+#define WLAN_N_SYM_MAX `1366u`
 ```
 
 

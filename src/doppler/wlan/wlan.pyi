@@ -22,7 +22,7 @@ class Wlan:
     ValueError
         If construction fails. The exception message is ``constellation is not
         one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34,
-        r56, or the pair's data bits per OFDM symbol are not a whole number``.
+        r56``.
 
     Examples
     --------

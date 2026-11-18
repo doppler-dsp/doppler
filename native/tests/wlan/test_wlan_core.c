@@ -6,9 +6,10 @@
  * (the RATE bits, the L-STF and L-LTF values and their scales, the
  * constellation labels where they differ from the library's, and the second
  * interleaver permutation) are dp_wlan_tables_standard(), and section 9 holds
- * the RATE bits, both training sequences and the constellation encodings
- * against their printed form (docs/design/wlan.md section 9), and the second
- * permutation by its worked 16-QAM example and by bijectivity. The tests of
+ * the RATE bits, both training sequences, the constellation encodings and the
+ * 2/3 and 3/4 puncture masks against their printed form (docs/design/wlan.md
+ * section 9), and the second permutation by its worked 16-QAM example and by a
+ * re-derivation of the printed equation. The tests of
  * the machinery run on a SYNTHETIC table built here, so what they pin does not
  * depend on a transcription; they claim no conformance with any 802.11 text.
  * What they pin is what is derivable: the counts and lengths from the
@@ -27,6 +28,7 @@
  *   7. The points, and the refusals that change nothing
  *   8. The PPDU: lengths, periodicity, prefixes, pilots, the data tones
  */
+#include "doppler/dp_interleave.h"
 #include "doppler/mpsk/mpsk_core.h"
 #include "doppler/pn/pn_core.h"
 #include "doppler/wlan/wlan_core.h"
@@ -38,6 +40,36 @@
 #include <string.h>
 
 #define TWOPI 6.283185307179586
+
+/* Eq. (17-16) and (17-17) as posted on #3109, written here with no code of
+ * the library's: the second interleaver permutation,
+ *   s = max (N_BPSC / 2, 1)
+ *   j = s * floor (i / s) + (i + N_CBPS - floor (16 i / N_CBPS)) mod s.
+ * A RE-DERIVATION from the printed equation, not a printed table: a misread
+ * equation would be shared with the table under test. `flip` is the control,
+ * the same formula with the sign of the floor term reversed (the slip an
+ * audit named), which must disagree with the table somewhere. */
+static size_t
+ref_perm2 (size_t i, size_t n_cbps, size_t n_bpsc, int flip)
+{
+  const size_t s = n_bpsc / 2 > 1 ? n_bpsc / 2 : 1;
+  const size_t f = 16 * i / n_cbps;
+  const size_t t = flip ? i + n_cbps + f : i + n_cbps - f;
+  return s * (i / s) + t % s;
+}
+
+/* Figure 17-9 as posted on #3109: the bits SENT from each period of the
+ * encoder's outputs A0 B0 A1 B1 (A2 B2), as printed ("A0" is the first
+ * encoder's output for source bit 0). The mask a builder carries has bit
+ * 2 * i + (B ? 1 : 0) set for each one sent. */
+static uint32_t
+mask_from_sent (const char *const *sent, size_t n)
+{
+  uint32_t m = 0;
+  for (size_t q = 0; q < n; q++)
+    m |= 1u << (2u * (unsigned)(sent[q][1] - '0') + (sent[q][0] == 'B'));
+  return m;
+}
 
 /* ── Synthetic tables: NOT the standard's ────────────────────────────── */
 
@@ -149,6 +181,46 @@ main (void)
     DP_CHECK (!dp_wlan_rate_ok (NULL));
     DP_CHECK (dp_wlan_n_cbps (&bad1) == 0 && dp_wlan_n_dbps (&bad2) == 0);
 
+    /* The old refusal "data bits per symbol not a whole number" cannot fire:
+     * 48 * n_bpsc * num / den is whole for all sixteen (constellation, code
+     * rate) pairs, so every one is built. The fractions are typed here, and
+     * the divisibility is the test's own arithmetic. */
+    {
+      static const unsigned frac[4][2]
+          = { { 1, 2 }, { 2, 3 }, { 3, 4 }, { 5, 6 } };
+      static const unsigned nb[4] = { 1, 2, 4, 6 };
+      for (int c = 0; c < 4; c++)
+        for (int b = 0; b < 4; b++)
+          {
+            const dp_wlan_rate_t r = { nb[b], (dp_wlan_code_t)c };
+            DP_CHECK ((48u * nb[b] * frac[c][0]) % frac[c][1] == 0);
+            DP_CHECK (dp_wlan_rate_ok (&r));
+            DP_CHECK (dp_wlan_n_dbps (&r) * frac[c][1]
+                      == dp_wlan_n_cbps (&r) * frac[c][0]);
+          }
+      /* control: the same remainder test does fail for a code rate that
+       * would not divide (a 1/5 code on 48 BPSK carriers is 9.6 bits) */
+      DP_CHECK ((48u * 1u * 1u) % 5u != 0);
+    }
+
+    /* WLAN_N_SYM_MAX is the largest PSDU at the slowest rate:
+     * ceil ((16 + 8 * 4095 + 6) / 24) = 1366, and the layout takes it and
+     * refuses one more. */
+    {
+      const dp_wlan_rate_t slow = { 1, WLAN_CODE_1_2 };
+      DP_CHECK (dp_wlan_rate_n_sym (&slow, WLAN_PSDU_MAX) == WLAN_N_SYM_MAX);
+      DP_CHECK (WLAN_N_SYM_MAX == (16u + 8u * 4095u + 6u + 23u) / 24u);
+      dp_ofdm_state_t *lo = dp_ofdm_create (), *hi = dp_ofdm_create ();
+      DP_CHECK (
+          dp_wlan_layout (lo, dp_wlan_tables_standard (), WLAN_N_SYM_MAX, 0)
+          == 0);
+      DP_CHECK (dp_wlan_layout (hi, dp_wlan_tables_standard (),
+                                WLAN_N_SYM_MAX + 1, 0)
+                == -1);
+      dp_ofdm_destroy (lo);
+      dp_ofdm_destroy (hi);
+    }
+
     /* 100 octets at 16-QAM 3/4: (16 + 800 + 6) / 144 = 5.7 -> 6 symbols */
     const dp_wlan_rate_t r36 = { 4, WLAN_CODE_3_4 };
     DP_CHECK (dp_wlan_rate_n_sym (&r36, 100) == 6);
@@ -237,6 +309,21 @@ main (void)
         DP_CHECK (ok && m == n);
       }
     DP_CHECK (dp_wlan_encode (WLAN_CODE_1_2, bits, 120, out, 10) == 0);
+
+    /* The masks against Figure 17-9 as printed (posted on #3109): r = 2/3
+     * sends A0 B0 A1 of A0 B0 A1 B1; r = 3/4 sends A0 B0 A1 B2 of A0 B0 A1
+     * B1 A2 B2. 5/6 is Clause 19's and is not held. */
+    static const char *const sent23[]  = { "A0", "B0", "A1" };
+    static const char *const sent34[]  = { "A0", "B0", "A1", "B2" };
+    static const char *const wrong34[] = { "A0", "B0", "A1", "B1" };
+    conv_code_t              c23, c34;
+    DP_CHECK (dp_wlan_bcc (WLAN_CODE_2_3, &c23) == 1);
+    DP_CHECK (dp_wlan_bcc (WLAN_CODE_3_4, &c34) == 1);
+    DP_CHECK (c23.punct_period == 2 && c34.punct_period == 3);
+    DP_CHECK (c23.punct_mask == mask_from_sent (sent23, 3));
+    DP_CHECK (c34.punct_mask == mask_from_sent (sent34, 4));
+    /* CONTROL: a pattern that is not the printed one is not the mask */
+    DP_CHECK (c34.punct_mask != mask_from_sent (wrong34, 4));
   }
 
   /* 3 ── The scrambler ──────────────────────────────────────────────────── */
@@ -757,9 +844,26 @@ main (void)
         free (seen);
       }
     {
-      const size_t k = 17, i1 = (192 / 16) * (k % 16) + k / 16;
+      /* the library's own first permutation (not arithmetic written here),
+       * then the table's second */
+      const size_t i1 = dp_interleave_index (17, 192 / 16, 16);
       DP_CHECK (i1 == 13);
       DP_CHECK (T->perm2 (i1, 192, 4) == 12);
+    }
+    /* The table against Eq. (17-16), (17-17) re-derived above, for EVERY
+     * index of all four Clause 17 pairs (so 64-QAM's s = 3, where bijectivity
+     * cannot tell a sign slip from the equation). */
+    for (int p = 0; p < 4; p++)
+      for (size_t i = 0; i < pairs[p][0]; i++)
+        DP_CHECK (T->perm2 (i, pairs[p][0], pairs[p][1])
+                  == ref_perm2 (i, pairs[p][0], pairs[p][1], 0));
+    /* CONTROL: the sign-flipped formula disagrees with the table at 64-QAM
+     * (it cannot at s = 1 or 2, where -x and x are the same mod s) */
+    {
+      size_t differ = 0;
+      for (size_t i = 0; i < 288; i++)
+        differ += T->perm2 (i, 288, 6) != ref_perm2 (i, 288, 6, 1);
+      DP_CHECK (differ > 0);
     }
 
     /* Figure 17-10, Tables 17-14 to 17-18: the bit encodings as the

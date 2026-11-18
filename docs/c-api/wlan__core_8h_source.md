@@ -39,6 +39,7 @@ extern "C"
 #define WLAN_SERVICE_BITS 16u
 #define WLAN_TAIL_BITS 6u
 #define WLAN_PSDU_MAX 4095u
+#define WLAN_N_SYM_MAX 1366u
 #define WLAN_PILOT_K { -21, -7, 7, 21 }
 #define WLAN_PILOT_V { 1.0, 1.0, 1.0, -1.0 }
 #define WLAN_POLARITY_LEN 127u

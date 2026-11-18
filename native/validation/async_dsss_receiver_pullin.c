@@ -1689,8 +1689,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
             }
         }
     }
+  /* Works: both flags sustained and never changed over the data, not a
+     false lock, and the data good: a slip, or an end the meter could not
+     sync (#3131), fails it whatever the flags say. */
   d->works = s_sym >= 0 && s_cod >= 0 && d->sym_tog == 0 && d->code_tog == 0
-             && !d->false_lock;
+             && !d->false_lock && !d->slipped && !d->end_unsynced;
   d->data_ended = dp_air_data_ended (&air);
 
   if (itlm)

@@ -1384,6 +1384,222 @@ def shape(argv: list[str]) -> int:
     return 0
 
 
+#: The transfer frame: 1,000 symbols at 3,000 symbols a second, the first
+#: 275 of them the code-only window (the emitter's own scene numbers).
+FRAME_SYM = 1000
+SYM_RATE = 3000.0
+
+
+def acq_draw(row: dict[str, str], trans: Rows, secs: float) -> dict:
+    """One draw scored the owner's way (11-17): acquisition ends at the
+    last lock change before the link stays up.
+
+    The flags are the receiver's symbol and code locks, both down until
+    their first lock: the row's ``t_sym_s`` and ``t_code_s`` (NaN: never).
+    The transition section holds only the changes after a flag's first
+    lock, so the two together are the whole history. ``t_acq_s`` is the
+    last change of either after which both are up to the end of the draw,
+    or None when that never
+    happens (never acquired, or still toggling at the end). ``frames_out``
+    counts the transfer frames, from the signal's arrival at t = 0 to
+    ``t_acq_s``, holding any instant with either flag down; frames start
+    at ``(1000 k - frame_off) / 3000`` s.
+
+    >>> r = {
+    ...     "false_lock": "0",
+    ...     "frame_off": "0",
+    ...     "works": "0",
+    ...     "t_code_s": "0.10",
+    ...     "t_sym_s": "0.20",
+    ... }
+    >>> tr = [
+    ...     {"flag": "sym", "up": "0", "t_s": "0.30"},
+    ...     {"flag": "sym", "up": "1", "t_s": "0.70"},
+    ... ]
+    >>> s = acq_draw(r, tr, 60.0)
+    >>> s["t_acq_s"], s["frames_out"], s["verdict"]
+    (0.7, 3, 'works after acquisition')
+    """
+    first = [
+        (float(row[k]), f, True)
+        for k, f in (("t_sym_s", "sym"), ("t_code_s", "code"))
+        if row.get(k, "nan") != "nan"
+    ]
+    ev = sorted(
+        first + [(float(x["t_s"]), x["flag"], x["up"] == "1") for x in trans]
+    )
+    state = {"sym": False, "code": False}
+    down_spans: list[tuple[float, float]] = []
+    t_prev, both_prev = 0.0, False
+    last_change = 0.0
+    for t_s, flag, up in ev:
+        if not both_prev:
+            down_spans.append((t_prev, t_s))
+        state[flag] = up
+        last_change = t_s
+        t_prev, both_prev = t_s, all(state.values())
+    up_at_end = both_prev
+    if not up_at_end:
+        down_spans.append((t_prev, secs))
+    t_acq = last_change if up_at_end and ev else None
+    off = float(row["frame_off"])
+    frame_s = FRAME_SYM / SYM_RATE
+    end = t_acq if t_acq is not None else secs
+    frames = set()
+    for a, b in down_spans:
+        if b <= a or a >= end:
+            continue
+        k0 = int((a * SYM_RATE + off) // FRAME_SYM)
+        k1 = int(((min(b, end) - 1e-12) * SYM_RATE + off) // FRAME_SYM)
+        frames.update(range(k0, k1 + 1))
+    if row["false_lock"] != "0":
+        verdict = "false lock"
+    elif t_acq is None:
+        verdict = "never acquired or still toggling"
+    elif row["works"] == "1":
+        verdict = "works (strict)"
+    else:
+        verdict = "works after acquisition"
+    return {
+        "t_acq_s": t_acq,
+        "acq_frames": None if t_acq is None else t_acq / frame_s,
+        "frames_out": len(frames),
+        "held_s": None if t_acq is None else secs - t_acq,
+        "verdict": verdict,
+    }
+
+
+def acq(argv: list[str]) -> int:
+    """Cells scored the owner's way, DIR... OUT.md [--secs S]: per cell
+    the strict count beside works after acquisition, false locks, never
+    acquired or still toggling, the acquisition time in frames and the
+    frames with any symbol out of lock (median, 90th percentile, worst,
+    and the sorted list), and the shortest stretch held. No allowance:
+    the distribution is printed for the owner to judge."""
+    import statistics as st
+
+    secs = 60.0
+    if "--secs" in argv:
+        i = argv.index("--secs")
+        secs = float(argv[i + 1])
+        argv = argv[:i] + argv[i + 2 :]
+    out = Path(argv[-1])
+    body = []
+    for a in argv[:-1]:
+        data, by = bn_cells(Path(a))
+        for c, rows in sorted(by.items()):
+            sc = []
+            for r in rows:
+                tr = [
+                    x
+                    for x in data["transition"]
+                    if cell_of(x) == c
+                    and x["seed"] == r["seed"]
+                    and x["flag"] in ("sym", "code")
+                ]
+                sc.append(acq_draw(r, tr, secs))
+            n = len(sc)
+            strict = sum(s["verdict"] == "works (strict)" for s in sc)
+            after = sum(
+                s["verdict"] in ("works (strict)", "works after acquisition")
+                for s in sc
+            )
+            fl = sum(s["verdict"] == "false lock" for s in sc)
+            never = sum(
+                s["verdict"] == "never acquired or still toggling" for s in sc
+            )
+            okf = sorted(
+                s["acq_frames"]
+                for s in sc
+                if s["verdict"]
+                in ("works (strict)", "works after acquisition")
+            )
+            fo = sorted(
+                s["frames_out"]
+                for s in sc
+                if s["verdict"]
+                in ("works (strict)", "works after acquisition")
+            )
+            held = [
+                s["held_s"]
+                for s in sc
+                if s["verdict"]
+                in ("works (strict)", "works after acquisition")
+            ]
+
+            def q(v: list[float], f: float) -> str:
+                if not v:
+                    return "-"
+                return f"{v[min(len(v) - 1, int(f * len(v)))]:.2f}"
+
+            r0 = rows[0]
+            label = f"{c[0]} {c[1]} dB {c[2]} Hz/s {c[3]}"
+            design = (
+                f"o3{r0.get('acq', '-')}"
+                + ("s" if r0.get("seed_rate") == "1" else "")
+                if r0.get("loop_order") == "3"
+                else "o2"
+            )
+            body.append(
+                [
+                    label,
+                    f"{float(r0['bn_car']):g} {design}",
+                    f"{strict}/{n}",
+                    f"{after}/{n}",
+                    str(fl),
+                    str(never),
+                    (
+                        f"{st.median(okf):.2f} / {q(okf, 0.9)} / {okf[-1]:.2f}"
+                        if okf
+                        else "-"
+                    ),
+                    (
+                        f"{st.median(fo):g} / {q(fo, 0.9)} / {fo[-1]}"
+                        if fo
+                        else "-"
+                    ),
+                    f"{min(held):.1f}" if held else "-",
+                    " ".join(f"{v:.1f}" for v in okf),
+                ]
+            )
+    sys.path.insert(0, str(DATA.parent))
+    from _record_blocks import table
+
+    head = (
+        "cell",
+        "bn, design",
+        "works (strict)",
+        "works after acquisition",
+        "false locks",
+        "never acquired or still toggling",
+        "acquisition, frames (median / 90th / worst)",
+        "frames with a symbol out of lock (median / 90th / worst)",
+        "shortest stretch held, s",
+        "acquisition, frames, every working draw",
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "Scored the owner's way (11-17): acquisition ends at the last lock "
+        "change before both flags stay up to the end of the draw "
+        f"({secs:g} s). A transfer frame is 1,000 symbols, 333 ms. False "
+        "locks and draws still toggling at the end fail under both "
+        "scores. No allowance is applied.\n\n"
+        + table(head, body)
+        + "\n"
+        + sizing_note(
+            sorted(
+                {
+                    cell_of(r)
+                    for d in argv[:-1]
+                    for r in bn_cells(Path(d))[0]["pullin"]
+                }
+            )
+        ),
+        encoding="utf-8",
+    )
+    return 0
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "shape":
         sys.exit(shape(sys.argv[2:]))
@@ -1391,6 +1607,8 @@ if __name__ == "__main__":
         sys.exit(lag(sys.argv[2:]))
     if len(sys.argv) > 1 and sys.argv[1] == "bn":
         sys.exit(bn(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "acq":
+        sys.exit(acq(sys.argv[2:]))
     if len(sys.argv) > 1 and sys.argv[1] == "handover":
         sys.exit(handover(sys.argv[2:]))
     if len(sys.argv) > 1 and sys.argv[1] == "windows":

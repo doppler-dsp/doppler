@@ -836,6 +836,10 @@ class Costas:
         re-tune — narrow the bandwidth once pulled in for lower phase jitter,
         or widen it to chase a faster-moving residual.
 
+        At order 3 both filters are retuned and both keep their estimates
+        (frequency, and the third-order filter's rate); zeta reaches only the
+        second-order filter, which has the damping argument.
+
         Parameters
         ----------
         bn : float
@@ -916,8 +920,9 @@ class Costas:
         every Costas starts on) or order 3 (StateFilter, which also tracks the
         carrier's rate), at loop bandwidth bn. The frequency estimate carries
         across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises
-        ValueError, changing nothing, for another order, a bn outside the
-        order's domain, or order 3 while bn_fll > 0.
+        ValueError, changing nothing, for an order other than 2 or 3, a bn
+        outside the loop's domain (bn >= 0 and finite at either order, and at
+        most 0.12 at order 3), or order 3 while bn_fll > 0.
 
         What carries across (docs/design/costas.md section 3.2):
 
@@ -940,13 +945,15 @@ class Costas:
         bn : float
             Loop noise bandwidth per update: in dp_loop_filter_params_ok() at
             the retained zeta, and at order 3 also in
-            dp_state_filter_params_ok() at `t = 1`.
+            dp_state_filter_params_ok() at `t = 1`, which bounds it at 0.12.
 
         Raises
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``set_order failed``, with the return code appended (gh-869).
+            ``Costas.set_order: order must be 2 or 3, bn >= 0 and finite (at
+            most 0.12 at order 3), and bn_fll must be 0 for order 3``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -965,14 +972,14 @@ class Costas:
         """
 
     def reset(self) -> None:
-        """Re-seed the loop to the create-time frequency/phase; preserve
-        config.
+        """Re-seed the loop to the create-time frequency/phase, keeping the
+        configuration and the loop order; at order 3 the rate is zeroed.
 
         Drops the lock and rewinds the NCO, loop integrator and
         integrate-and-dump accumulators to the create-time seed frequency,
-        while retaining the configured loop bandwidth, damping and
-        lock-detector thresholds. Reprocess the same input after a reset and
-        the output is bit-identical.
+        while retaining the configured loop bandwidth, damping, lock-detector
+        thresholds and loop order. At order 3 the rate is zeroed as well.
+        Reprocess the same input after a reset and the output is bit-identical.
 
         Examples
         --------
@@ -1109,14 +1116,17 @@ class Costas:
 
     @property
     def norm_rate(self) -> float:
-        """Norm rate.
+        """The carrier's rate the third-order filter holds, in cycles per
+        sample per sample (R / fs**2 for R Hz/s at sample rate fs); 0 at order
+        2. Writable at order 3 only: it seeds the rate, as norm_freq seeds the
+        frequency.
 
         Raises
         ------
         ValueError
             On assignment, if ``dp_costas_set_norm_rate`` refuses the value by
-            returning non-zero. The exception message is ``Costas: norm_rate
-            needs order 3 (set_order) and a finite value``, with the return
+            returning non-zero. The exception message is ``Costas: norm_rate is
+            held only at order 3 (set_order(3, bn) first)``, with the return
             code appended.
         """
     @norm_rate.setter

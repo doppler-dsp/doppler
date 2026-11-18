@@ -41,6 +41,8 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
 |  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
+|  int32\_t | [**id\_opwr**](#variable-id_opwr)  <br> |
+|  int32\_t | [**id\_pamp**](#variable-id_pamp)  <br> |
 |  int32\_t | [**id\_rate**](#variable-id_rate)  <br> |
 
 
@@ -171,6 +173,41 @@ int32_t dll_tlm_t::id_nco;
 
 
 "&lt;prefix&gt;.nco" — the code NCO's command, the complete loop-filter output (integrator, proportional term and aid) as chips per chip; a held loop's held command 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_opwr 
+
+```C++
+int32_t dll_tlm_t::id_opwr;
+```
+
+
+
+"&lt;prefix&gt;.offset\_pwr" — its offset tap's \|O\|^2, the noise reference's input 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_pamp 
+
+```C++
+int32_t dll_tlm_t::id_pamp;
+```
+
+
+
+"&lt;prefix&gt;.prompt\_amp" — the last look's \|P\| 
 
 
         

@@ -1610,6 +1610,9 @@ def test_a_parameterless_inert_call_reads_even_returning_nothing() -> None:
         def get_state(self):
             return bytes([self.n])
 
+        def set_state(self, blob):
+            self.n = blob[0]
+
     class Moves(Quiet):
         def validate(self):
             self.n += 1
@@ -1635,6 +1638,19 @@ def test_a_parameterless_inert_call_reads_even_returning_nothing() -> None:
         may_read=True,
     )
     assert off.name == "UNPROBED", "without the rule it is unprobed"
+    # The negative control: the same shape, parameterless, but the call MOVES
+    # the blob and a readback. The rule must not excuse it.
+    moves, _ = _judge(
+        mut,
+        Moves,
+        lambda o, n: None,
+        calls,
+        valued=False,
+        may_read=True,
+        no_value=True,
+    )
+    assert moves.name != "READS", "a parameterless call that moves state"
+    assert moves.name == "TRAVELS", "judged as any mutator: its value travels"
 
 
 def test_an_empty_candidate_list_is_unprobed_by_other_means() -> None:

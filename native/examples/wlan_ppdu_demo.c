@@ -22,9 +22,10 @@
  * What is checked here, each in the language of the standard rather than of
  * this code: the PPDU is 160 + 160 + 80 + 80 * N_SYM samples; the L-STF is
  * ten repetitions of one 16-sample pattern; the L-LTF's two long symbols are
- * identical, preceded by the double guard interval; and the mean power over
- * the whole PPDU is one, because the standard's scale gives every field unit
- * average power.
+ * identical, preceded by the double guard interval; and the power of each
+ * field is what the standard's scale (1/sqrt 52) makes it: exactly one for
+ * the two training fields, and for each SIGNAL or Data symbol the energy of
+ * its own grid over 52, which Parseval ties to the points it was built from.
  *
  * Build and run:
  *   make build
@@ -38,6 +39,13 @@
 #include <string.h>
 
 typedef float _Complex cf;
+
+/* |x|^2 */
+static double
+pw (cf x)
+{
+  return (double)crealf (x) * crealf (x) + (double)cimagf (x) * cimagf (x);
+}
 
 int
 main (void)
@@ -93,14 +101,65 @@ main (void)
   printf ("    L-LTF's two long symbols alike: worst difference %.1e\n", ltf);
   ok &= (ltf < 1e-5);
 
-  /* 5c. Mean power over the whole PPDU: one. */
-  double power = 0;
-  for (size_t i = 0; i < n; i++)
-    power += (double)crealf (ppdu[i]) * crealf (ppdu[i])
-             + (double)cimagf (ppdu[i]) * cimagf (ppdu[i]);
-  power /= (double)n;
-  printf ("    mean power %.3f (the standard's scale gives one)\n", power);
-  ok &= (fabs (power - 1.0) < 0.1);
+  /* 5c. Power, field by field, each against what it must be.
+   *
+   * The training fields are deterministic, and the standard's scale
+   * (1/sqrt 52, one unit for the 52 occupied subcarriers) makes their mean
+   * power exactly one. A SIGNAL or Data OFDM symbol is not constant: its 64
+   * body samples have, by Parseval, a mean power equal to the grid's energy
+   * over 52, that is (the sum of |point|^2 over its 48 data points, plus 4
+   * for the four unit pilots) / 52, so each is held to THAT, computed from
+   * the points dp_wlan_points() returns for the same PSDU, with no tolerance
+   * for chance. (The 80-sample symbol's power differs from its body's by the
+   * cyclic prefix, which repeats only the body's last 16 samples; and a
+   * 16-QAM payload's mean |point|^2 is one only on average over the
+   * constellation, 8 symbols of it are not.) */
+  double p_stf = 0, p_ltf = 0;
+  for (size_t i = 0; i < 160; i++)
+    {
+      p_stf += pw (ppdu[i]);
+      p_ltf += pw (ppdu[160 + i]);
+    }
+  p_stf /= 160.0;
+  p_ltf /= 160.0;
+  printf ("    mean power: L-STF %.6f, L-LTF %.6f (both exactly 1)\n", p_stf,
+          p_ltf);
+  ok &= (fabs (p_stf - 1.0) < 1e-6 && fabs (p_ltf - 1.0) < 1e-6);
+
+  cf *pts = malloc ((48 + 48 * n_sym) * sizeof *pts);
+  if (!pts)
+    return 1;
+  ok &= (dp_wlan_points (tables, &rate, psdu, len, 93, pts, 48 + 48 * n_sym)
+         == 48 + 48 * n_sym);
+  double worst = 0, data_got = 0, data_want = 0;
+  for (size_t s = 0; s < 1 + n_sym; s++) /* SIGNAL, then the Data symbols */
+    {
+      double grid = 4.0, body = 0;
+      for (size_t k = 0; k < 48; k++)
+        grid += pw (pts[48 * s + k]);
+      for (size_t i = 0; i < 64; i++)
+        body += pw (ppdu[320 + 80 * s + 16 + i]);
+      body /= 64.0;
+      grid /= 52.0;
+      worst = fmax (worst, fabs (body - grid));
+      if (s == 0)
+        printf ("    SIGNAL body %.6f (BPSK and four pilots: exactly 1)\n",
+                body);
+      else
+        {
+          data_got += body;
+          data_want += grid;
+        }
+    }
+  printf ("    Data bodies: mean power %.4f, from the points %.4f (a "
+          "16-QAM payload of %zu symbols; the constellation's own mean is "
+          "1)\n",
+          data_got / (double)n_sym, data_want / (double)n_sym, n_sym);
+  printf ("    every body against its grid's energy: worst difference "
+          "%.1e\n",
+          worst);
+  ok &= (worst < 1e-5);
+  free (pts);
 
   /* A refusal changes nothing and returns 0: a scrambler state of 0 is not
      one the register can hold. */

@@ -697,7 +697,8 @@ typedef struct
   int    n_pass;
   double env[PI_PASS_BINS]; /* timing: largest |rate| by |offset| bin */
   double timing_max, prop_max, v_min, f2_max;
-  double res_f2_max; /* timing: the largest |residual rate'|, Hz/s^2 */
+  double res_f2_max;     /* timing: the largest |residual rate'|, Hz/s^2 */
+  double raw_ppm_max[2]; /* the raw |offset| / carrier, ppm, per carrier */
   double prop_h_km, prop_el_deg, prop_fc, prop_eps; /* its driving pass */
 } pi_pass_env_t;
 
@@ -749,6 +750,7 @@ pi_pass_envelope (double step_km, pi_pass_env_t *pe)
                     = fmax (pe->res_f2_max, fabs (f2[i] - f2[i - j]));
               }
           }
+        pe->raw_ppm_max[k] = fmax (pe->raw_ppm_max[k], fpk / fcs[k] * 1e6);
         /* proportional: the largest residual rate is eps_max f'_max */
         if (PI_SPAN_HZ / fpk * f1pk > pe->prop_max)
           {
@@ -1904,6 +1906,45 @@ pi_design (const double fcs[2], const double esn0s[4])
     }
   DP_CHECK_MSG (pe[0].n_pass > 0 && pe[0].timing_max > 0.0,
                 "the pass model has passes in scope");
+
+  /* Carrier-only pre-compensation (owner 11-17: "Assume it only corrects
+     carrier - worst-case"): the code clock keeps the raw pass's Doppler.
+     The search's coherent block and its stacked dwell, read from the
+     receiver as the cells build it, and the code drift over each at the
+     raw peak, chips. */
+  printf ("# search\nfc_ghz,esn0_db,coherent_bins,n_noncoh,block_ms,"
+          "dwell_ms,raw_ppm_max,code_doppler_chips_s,drift_block_chips,"
+          "drift_dwell_chips\n");
+  for (int f = 0; f < 2; f++)
+    for (int k = 0; k < 2; k++)
+      {
+        const double esn0 = k ? 10.0 : 4.0;
+        const double chip = fcs[f] * 31.0 / 21216.0;
+        const double cn0  = esn0 + 10.0 * log10 (PI_SYM);
+        uint8_t      code[SF];
+        for (size_t i = 0; i < SF; i++)
+          code[i] = (uint8_t)(i & 1u);
+        dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+            code, SF, chip, PI_SYM, PI_FS, 2, cn0, 1e-3, 0.9, PI_SPAN_HZ, 4, 8,
+            0, 0.5, 4, 14.0, 64, 8, false, 100000, fcs[f], 0.0, false,
+            275.0 / PI_SYM, PI_RATE_HZ_S, true, 0);
+        size_t nc = 0;
+        if (!rx || dp_correlator_get_n_noncoh (rx->acq, &nc) != DP_OK)
+          {
+            DP_CHECK_MSG (0, "the search's dwell is readable");
+            dp_async_dsss_receiver_destroy (rx);
+            continue;
+          }
+        const size_t db    = dp_async_dsss_receiver_get_coherent_bins (rx);
+        const double per   = (double)SF / chip;
+        const double ppm   = pe[0].raw_ppm_max[f];
+        const double cdopp = chip * ppm * 1e-6;
+        printf ("%.1f,%.0f,%zu,%zu,%.2f,%.2f,%.3f,%.2f,%.3f,%.3f\n",
+                fcs[f] / 1e9, esn0, db, nc, 1e3 * (double)db * per,
+                1e3 * (double)(db * nc) * per, ppm, cdopp,
+                cdopp * (double)db * per, cdopp * (double)(db * nc) * per);
+        dp_async_dsss_receiver_destroy (rx);
+      }
   /* The order-3 switch, per carrier, as run_draw derives it
      (pi_switch_design). */
   printf ("# switch\nfc_ghz,T_us,rho_floor,slope,bn_track,ramp_x_rad_upd2,"

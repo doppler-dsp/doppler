@@ -16,7 +16,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Wlan"
 create_error = "ValueError"
-create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, or the pair's data bits per OFDM symbol are not a whole number"
+create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56"
 depends_on = [
     { name = "ofdm", link = true },
     { name = "conv", link = true },

@@ -15,9 +15,11 @@ written once, and a caller builds a frame without knowing them.
 ([`docs/design/wlan.md`](../design/wlan.md)) marks checked against the text of
 IEEE Std 802.11-2024 is a constant in `wlan` or a literal in
 `dp_wlan_tables_standard()`. The unit test holds the RATE bits, both training
-sequences and the constellation encodings against their printed form; the
-second interleaver permutation by its worked 16-QAM example and by being a
-bijection; the puncture masks and the pilot polarity sequence are not held
+sequences, the constellation encodings and the 2/3 and 3/4 puncture masks
+against their printed form. The second interleaver permutation is held by its
+worked 16-QAM example and by a re-derivation of Eq. (17-16) and (17-17) for
+every index of all four pairs, which is the printed equation implemented a
+second time, not a printed table. The pilot polarity sequence is not held
 against a printed form. The 5/6 code rate is Clause 19's and is not
 checked. Nothing here claims conformance with 802.11a,
 g, n or ac until Annex I's stage-by-stage example passes.

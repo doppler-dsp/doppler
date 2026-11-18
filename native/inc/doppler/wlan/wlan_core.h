@@ -17,10 +17,13 @@
  * is a constant here, or a member of dp_wlan_tables_t, which
  * dp_wlan_tables_standard() returns filled with the Clause 17 literals
  * transcribed from the text. What the test holds against a printed form is
- * the RATE bits, both training sequences and the constellation encodings; the
- * second interleaver permutation is held by its worked 16-QAM example and by
- * being a bijection, and the puncture masks and the pilot polarity are not
- * held against a printed form. dp_wlan_tables_empty() is the same struct with nothing in it: a
+ * the RATE bits, both training sequences, the constellation encodings and the
+ * 2/3 and 3/4 puncture masks (Figure 17-9's sent bits). The second
+ * interleaver permutation is held by its worked 16-QAM example and by a
+ * re-derivation of Eq. (17-16), (17-17) written in the test for every index
+ * of all four Clause 17 pairs: that is the equation as posted on #3109, not a
+ * printed table. The pilot polarity is not held against a printed form, nor
+ * is the 5/6 mask (Clause 19). dp_wlan_tables_empty() is the same struct with nothing in it: a
  * builder that needs an empty entry refuses (returns 0 or -1) and changes
  * nothing, and the machinery tests run on SYNTHETIC tables that claim no
  * conformance. The tables are:
@@ -85,6 +88,10 @@ extern "C"
 #define WLAN_TAIL_BITS 6u
 /** @brief The largest PSDU, in octets (LENGTH is 12 bits; 17.3.4.3). */
 #define WLAN_PSDU_MAX 4095u
+/** @brief The most Data OFDM symbols a PPDU can have: the largest PSDU at the
+ *         slowest rate (BPSK 1/2, 24 data bits per symbol),
+ *         `ceil ((16 + 8 * 4095 + 6) / 24)`. */
+#define WLAN_N_SYM_MAX 1366u
 /** @brief The pilot subcarrier indices (17.3.5.9). */
 #define WLAN_PILOT_K { -21, -7, 7, 21 }
 /** @brief The pilot values before the polarity element (17.3.5.10). */
@@ -194,7 +201,7 @@ typedef struct
  * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
  * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
  * @return Heap-allocated state, or NULL if either index is outside its range
- *         or the pair's data bits per OFDM symbol are not a whole number.
+ *         (every pair of the four constellations and four code rates is built).
  * @note Caller must call dp_wlan_destroy() when done.
  *
  * @code
@@ -236,7 +243,8 @@ void dp_wlan_reset (dp_wlan_state_t *state);
 
 /**
  * @brief Whether @p r is a rate this component builds: `n_bpsc` in
- *        {1, 2, 4, 6} and a data-bit count per OFDM symbol that is whole.
+ *        {1, 2, 4, 6} and a code rate of the four. The data bits per OFDM
+ *        symbol are whole for every such pair (the test shows it).
  * @param r  The rate.
  * @return 1 if it is, 0 if not.
  */
@@ -478,10 +486,10 @@ size_t dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
  *
  * @param o       A fresh modulator from dp_ofdm_create().
  * @param t       The tables (L-STF and L-LTF values and the scales).
- * @param n_sym   Data OFDM symbols.
+ * @param n_sym   Data OFDM symbols, 1 to WLAN_N_SYM_MAX.
  * @param window  Window length in samples at each symbol boundary, 0 for none.
- * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0,
- *         or the modulator refuses a call.
+ * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0
+ *         or above WLAN_N_SYM_MAX, or the modulator refuses a call.
  * @note On -1 @p o may already hold some of the classes: it is not to be
  *       used again, only destroyed. dp_wlan_ppdu() builds into its own
  *       modulator and destroys it, so it is unaffected.

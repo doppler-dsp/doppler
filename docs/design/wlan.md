@@ -678,11 +678,13 @@ under test and never a second implementation in the tree. The modulator's
 own proofs are on [its page](ofdm.md) and need no standard. What follows
 holds a preset to a standard, and the tables are
 transcribed from the text (section 9); the unit test holds the RATE bits,
-both training sequences and the constellation encodings against their printed
-form, and the second permutation by its worked 16-QAM example and by being a
-bijection. Not held to the text: Annex I's stage-by-stage example, which waits
-for its fixture ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)),
-the puncture masks and the pilot polarity sequence. Where the tests pin only what is derivable (a layout's structure, the lengths, the
+both training sequences, the constellation encodings and the 2/3 and 3/4
+puncture masks against their printed form, and the second permutation by its
+worked 16-QAM example and by a re-derivation of the printed equation (for
+every index of all four pairs). Not held to the text: Annex I's
+stage-by-stage example, which waits for its fixture
+([#3148](https://github.com/doppler-dsp/doppler/issues/3148)), and the pilot
+polarity sequence. Where the tests pin only what is derivable (a layout's structure, the lengths, the
 round trip of the coding chain's own inverses), claiming no conformance.
 
 1. **Annex I, stage by stage, when the text is read.** Annex I encodes one
@@ -845,9 +847,10 @@ drift.
 ### Open
 
 1. **Annex I, stage by stage.** The Clause 17 tables are transcribed
-    (section 9); the unit test holds the RATE bits, the training sequences and
-    the constellation encodings against their printed form and the second
-    permutation by one worked point and bijectivity. What is
+    (section 9); the unit test holds the RATE bits, the training sequences, the
+    constellation encodings and the 2/3 and 3/4 puncture masks against their
+    printed form and the second permutation by a worked point and a
+    re-derivation of the equation. What is
     open is Annex I's own stage-by-stage example (section 7's first proof),
     which no test holds yet ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)),
     and the rows section 9 marks unchecked (the MAC frame format, the mask

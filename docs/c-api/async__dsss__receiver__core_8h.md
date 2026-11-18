@@ -1777,7 +1777,7 @@ Feed blocks of about a code period, as the examples do, and these read as a time
 
 
 Each loop reports under the prefix, at its own update rate:
-* "&lt;prefix&gt;.car"  the chip-domain carrier loop ([**dp\_costas\_set\_telemetry()**](costas__core_8h.md#function-dp_costas_set_telemetry): ".lock", ".e", ".freq", ".locked", ".nco"), once per carrier update: once a code period, except while it coasts, when loop 1 is held;
+* "&lt;prefix&gt;.car"  the chip-domain carrier loop ([**dp\_costas\_set\_telemetry()**](costas__core_8h.md#function-dp_costas_set_telemetry): ".lock", ".e", ".freq", ".locked", ".nco", ".freq\_rate", ".order"), once per carrier update: once a code period, except while it coasts, when loop 1 is held;
 * "&lt;prefix&gt;.code"  the code loop ([**dp\_dll\_set\_telemetry()**](dll__core_8h.md#function-dp_dll_set_telemetry): ".e", ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
 * "&lt;prefix&gt;.demod"  the symbol-domain demodulator ([**dp\_mpsk\_receiver\_set\_telemetry()**](mpsk__receiver__core_8h.md#function-dp_mpsk_receiver_set_telemetry): its lock, its carrier and timing loops, the symbols, its AGC), once per recovered symbol (the AGC's pair once per gain update);
 * "&lt;prefix&gt;.acq"  the acquisition engine ([**dp\_correlator\_set\_telemetry()**](correlator__core_8h.md#function-dp_correlator_set_telemetry)), once per decided dwell;
@@ -1822,7 +1822,7 @@ DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for some probe's name 
 >>> tlm = Telemetry(1 << 12)
 >>> rx.set_telemetry(tlm, "rx")
 >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
 >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
 ...                                                    "rx.r")))
 ['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']

@@ -91,7 +91,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  int | [**dp\_costas\_set\_norm\_rate**](#function-dp_costas_set_norm_rate) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, double val) <br>_Seed the third-order filter's carrier rate, as_ [_**dp\_costas\_set\_norm\_freq()**_](costas__core_8h.md#function-dp_costas_set_norm_freq) _seeds the frequency._ |
 |  int | [**dp\_costas\_set\_order**](#function-dp_costas_set_order) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, int order, double bn) <br>_Select the active loop filter on a live loop: order 2 (the PI loop every Costas starts on) or order 3 (StateFilter, which also tracks the carrier's rate), at loop bandwidth_ `bn` _._ |
 |  int | [**dp\_costas\_set\_state**](#function-dp_costas_set_state) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, const void \* blob) <br>_Restore a state written by_ [_**dp\_costas\_get\_state()**_](costas__core_8h.md#function-dp_costas_get_state) _._ |
-|  int | [**dp\_costas\_set\_telemetry**](#function-dp_costas_set_telemetry) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers five probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the NCO's frequency register, which holds the loop filter's integrator: the loop's frequency memory, cycles/sample), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see dp\_costas\_configure\_lock) and "&lt;prefix&gt;.nco" (the complete loop-filter output, the integrator plus the proportional term, cycles/sample —_ [_**dp\_costas\_get\_nco\_freq()**_](costas__core_8h.md#function-dp_costas_get_nco_freq) _; its mean rides a frequency ramp with no lag, where ".freq" lags by the loop's ramp error). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
+|  int | [**dp\_costas\_set\_telemetry**](#function-dp_costas_set_telemetry) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers seven probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the NCO's frequency register, which holds the loop filter's integrator: the loop's frequency memory, cycles/sample), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see dp\_costas\_configure\_lock) and "&lt;prefix&gt;.nco" (the complete loop-filter output, the integrator plus the proportional term, cycles/sample —_ [_**dp\_costas\_get\_nco\_freq()**_](costas__core_8h.md#function-dp_costas_get_nco_freq) _; its mean rides a frequency ramp with no lag, where ".freq" lags by the loop's ramp error), "&lt;prefix&gt;.freq\_rate" (the norm\_rate property: the third-order filter's rate, cycles/sample^2 —_[_**dp\_costas\_get\_norm\_rate()**_](costas__core_8h.md#function-dp_costas_get_norm_rate) _; a loop's complete output includes every integrator) and "&lt;prefix&gt;.order" (the order property, 2 or 3, so a capture shows when a switch happened). Both are registered and emitted at either order, ".freq\_rate" reading exactly 0 at order 2, which holds no rate: the order can change on a live, attached loop (_[_**dp\_costas\_set\_order()**_](costas__core_8h.md#function-dp_costas_set_order) _), so a probe present only at order 3 would make the probe table depend on when the attach happened. Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_costas\_state\_bytes**](#function-dp_costas_state_bytes) (const [**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  size\_t | [**dp\_costas\_steps**](#function-dp_costas_steps) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the carrier NCO, integrate-and-dump each symbol, and emit one decision-directed Costas prompt per symbol._  |
 |  size\_t | [**dp\_costas\_steps\_max\_out**](#function-dp_costas_steps_max_out) ([**dp\_costas\_state\_t**](structdp__costas__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_costas\_steps()**_](costas__core_8h.md#function-dp_costas_steps) _: always 0._ |
@@ -1087,7 +1087,7 @@ DP\_OK, or DP\_ERR\_INVALID on a magic, version, endian or size mismatch or a pa
 
 ### function dp\_costas\_set\_telemetry 
 
-_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers five probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the NCO's frequency register, which holds the loop filter's integrator: the loop's frequency memory, cycles/sample), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see dp\_costas\_configure\_lock) and "&lt;prefix&gt;.nco" (the complete loop-filter output, the integrator plus the proportional term, cycles/sample —_ [_**dp\_costas\_get\_nco\_freq()**_](costas__core_8h.md#function-dp_costas_get_nco_freq) _; its mean rides a frequency ramp with no lag, where ".freq" lags by the loop's ramp error). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
+_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers seven probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the NCO's frequency register, which holds the loop filter's integrator: the loop's frequency memory, cycles/sample), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see dp\_costas\_configure\_lock) and "&lt;prefix&gt;.nco" (the complete loop-filter output, the integrator plus the proportional term, cycles/sample —_ [_**dp\_costas\_get\_nco\_freq()**_](costas__core_8h.md#function-dp_costas_get_nco_freq) _; its mean rides a frequency ramp with no lag, where ".freq" lags by the loop's ramp error), "&lt;prefix&gt;.freq\_rate" (the norm\_rate property: the third-order filter's rate, cycles/sample^2 —_[_**dp\_costas\_get\_norm\_rate()**_](costas__core_8h.md#function-dp_costas_get_norm_rate) _; a loop's complete output includes every integrator) and "&lt;prefix&gt;.order" (the order property, 2 or 3, so a capture shows when a switch happened). Both are registered and emitted at either order, ".freq\_rate" reading exactly 0 at order 2, which holds no rate: the order can change on a live, attached loop (_[_**dp\_costas\_set\_order()**_](costas__core_8h.md#function-dp_costas_set_order) _), so a probe present only at order 3 would make the probe table depend on when the attach happened. Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int dp_costas_set_telemetry (
     dp_costas_state_t * state,
@@ -1106,14 +1106,14 @@ int dp_costas_set_telemetry (
 
 * `state` Must be non-NULL. 
 * `tlm` Telemetry context to attach, or NULL to detach. 
-* `prefix` Probe-name prefix, e.g. "car" or "ch0.car". 
+* `prefix` Probe-name prefix, e.g. "car" or "ch0.car"; at most 21 characters, since "&lt;prefix&gt;.freq\_rate" must fit the 31-character probe name. 
 * `decim` Emit every decim-th symbol; &gt;= 1. 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all five probes (the attach fails whole; the object stays detached). 
+DP\_OK, or DP\_ERR\_INVALID when the prefix is longer than that or the probe table cannot take all seven probes (the attach fails whole; the object stays detached). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Costas
@@ -1122,11 +1122,11 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all five probes (th
 >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
 >>> c.set_telemetry(tlm, "car")
 >>> sorted(tlm.probe_names)
-['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']
+['car.e', 'car.freq', 'car.freq_rate', 'car.lock', 'car.locked', 'car.nco', 'car.order']
 >>> x = np.ones(64 * 100, dtype=np.complex64)
 >>> _ = c.steps(x)
->>> recs = tlm.read()   # five records per dumped symbol
->>> len(recs) == 5 * 100
+>>> recs = tlm.read()   # seven records per dumped symbol
+>>> len(recs) == 7 * 100
 True
 ```
  
@@ -1287,7 +1287,7 @@ void dp_costas_tlm_flush (
 
 
 
-Out-of-line on purpose: the emit machinery must not inline into a per-sample hot loop (inlined ring-write expansions bloat the loop body and an extern call site forces per-iteration state reloads — both measured ~20% slower detached on other loops). Callers gate on `s->tlm.ctx` and call this once per dumped symbol. Records "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA), "&lt;prefix&gt;.e" (the last PLL discriminator — the loop stress) and "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample). A composing tracking channel (the DSSS despreader) calls this from its own per-epoch update.
+Out-of-line on purpose: the emit machinery must not inline into a per-sample hot loop (inlined ring-write expansions bloat the loop body and an extern call site forces per-iteration state reloads — both measured ~20% slower detached on other loops). Callers gate on `s->tlm.ctx` and call this once per dumped symbol. Records the seven probes [**dp\_costas\_set\_telemetry()**](costas__core_8h.md#function-dp_costas_set_telemetry) registers, in its order. A composing tracking channel (the DSSS despreader) calls this from its own per-epoch update.
 
 
 

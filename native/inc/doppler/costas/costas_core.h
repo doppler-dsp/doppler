@@ -73,6 +73,12 @@ typedef struct {
     int32_t id_nco;    /**< "<prefix>.nco" — the complete loop-filter
                             output, integrator plus proportional term
                             (dp_costas_get_nco_freq()), cycles/sample */
+    int32_t id_freq_rate; /**< "<prefix>.freq_rate" — publishes the
+                            norm_rate property (dp_costas_get_norm_rate()):
+                            the third-order filter's rate, cycles/sample^2;
+                            0 at order 2 */
+    int32_t id_order;  /**< "<prefix>.order" — publishes the order property
+                            (dp_costas_get_order()), 2 or 3 */
 } costas_tlm_t;
 
 /**
@@ -296,10 +302,8 @@ void dp_costas_reset(dp_costas_state_t *state);
  * per-sample hot loop (inlined ring-write expansions bloat the loop body
  * and an extern call site forces per-iteration state reloads — both
  * measured ~20% slower detached on other loops). Callers gate on
- * `s->tlm.ctx` and call this once per dumped symbol. Records
- * "<prefix>.lock" (the |Re P|/|P| lock-metric EMA), "<prefix>.e" (the
- * last PLL discriminator — the loop stress) and "<prefix>.freq" (the
- * tracked NCO frequency, cycles/sample). A composing tracking channel
+ * `s->tlm.ctx` and call this once per dumped symbol. Records the seven
+ * probes dp_costas_set_telemetry() registers, in its order. A composing tracking channel
  * (the DSSS despreader) calls this from its own per-epoch update.
  *
  * @param s  State with a non-NULL tlm.ctx (caller-checked).
@@ -647,7 +651,7 @@ int dp_costas_get_locked(const dp_costas_state_t *state);
 /**
  * @brief Attach (or detach) a telemetry context and register the carrier
  * loop's probes on it.
- * Registers five probes, emitted once per dumped symbol and further
+ * Registers seven probes, emitted once per dumped symbol and further
  * thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 =
  * phase-locked), "<prefix>.e" (the PLL discriminator output — the loop
  * stress), "<prefix>.freq" (the NCO's frequency register, which holds the
@@ -656,16 +660,28 @@ int dp_costas_get_locked(const dp_costas_state_t *state);
  * dp_costas_configure_lock) and "<prefix>.nco" (the complete loop-filter
  * output, the integrator plus the proportional term, cycles/sample —
  * dp_costas_get_nco_freq(); its mean rides a frequency ramp with no lag,
- * where ".freq" lags by the loop's ramp error). Passing NULL detaches.  Setup path, never hot:
+ * where ".freq" lags by the loop's ramp error), "<prefix>.freq_rate" (the
+ * norm_rate property: the third-order filter's rate, cycles/sample^2 —
+ * dp_costas_get_norm_rate(); a loop's complete output includes every
+ * integrator) and "<prefix>.order" (the order property, 2 or 3, so a
+ * capture shows when a switch happened). Both are registered and emitted
+ * at either order, ".freq_rate" reading exactly 0 at order 2, which holds
+ * no rate: the order can change on a live, attached loop
+ * (dp_costas_set_order()), so a probe present only at order 3 would make
+ * the probe table depend on when the attach happened. Passing NULL
+ * detaches.  Setup path, never hot:
  * call before the producer thread starts stepping; the context is
  * borrowed and must outlive the attachment (SPSC rules in
  * dp_tlm/dp_tlm_core.h).
  * @param state  Must be non-NULL.
  * @param tlm    Telemetry context to attach, or NULL to detach.
- * @param prefix Probe-name prefix, e.g. "car" or "ch0.car".
+ * @param prefix Probe-name prefix, e.g. "car" or "ch0.car"; at most 21
+ *               characters, since "<prefix>.freq_rate" must fit the
+ *               31-character probe name.
  * @param decim  Emit every decim-th symbol; >= 1.
- * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         five probes (the attach fails whole; the object stays
+ * @return DP_OK, or DP_ERR_INVALID when the prefix is longer than that or
+ *         the probe table cannot take all
+ *         seven probes (the attach fails whole; the object stays
  *         detached).
  * @code
  * >>> import numpy as np
@@ -675,11 +691,11 @@ int dp_costas_get_locked(const dp_costas_state_t *state);
  * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
  * >>> c.set_telemetry(tlm, "car")
  * >>> sorted(tlm.probe_names)
- * ['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']
+ * ['car.e', 'car.freq', 'car.freq_rate', 'car.lock', 'car.locked', 'car.nco', 'car.order']
  * >>> x = np.ones(64 * 100, dtype=np.complex64)
  * >>> _ = c.steps(x)
- * >>> recs = tlm.read()   # five records per dumped symbol
- * >>> len(recs) == 5 * 100
+ * >>> recs = tlm.read()   # seven records per dumped symbol
+ * >>> len(recs) == 7 * 100
  * True
  *
  * @endcode

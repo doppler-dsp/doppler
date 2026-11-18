@@ -23,9 +23,12 @@
  *
  * Usage:  costas_jitter [--check]
  */
+#include "dp_test.h"
+
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/state_filter/state_filter_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,7 +54,7 @@ phi_rad (uint32_t p)
  * function exactly; read here it is 1% under at bn 0.005 and 7% under at
  * 0.04 (docs/design/costas.md section 1). */
 static double
-noise_gain (double kp, double ki, double kr)
+noise_gain_at (double kp, double ki, double kr, int at_detector)
 {
   double phi = 0, freq = 0, rate = 0, g = 0;
   for (int k = 0; k < 400000; k++)
@@ -59,12 +62,21 @@ noise_gain (double kp, double ki, double kr)
       phi += freq;
       double n = (k == 0) ? 1.0 : 0.0;
       double e = -phi + n;
+      if (at_detector) /* the phase the error is formed from */
+        g += phi * phi;
       phi += kp * e;
       rate += kr * e;
       freq += rate + ki * e;
-      g += phi * phi;
+      if (!at_detector) /* the phase phase_var() reads */
+        g += phi * phi;
     }
   return g;
+}
+
+static double
+noise_gain (double kp, double ki, double kr)
+{
+  return noise_gain_at (kp, ki, kr, 0);
 }
 
 /* The order the closed-loop runs take (docs/design/costas.md section 3). */
@@ -145,8 +157,35 @@ main (int argc, char **argv)
   dp_awgn_state_t *g     = dp_awgn_create (7, 1.0f);
   float           *nb    = malloc ((size_t)2 * NB * sizeof (float));
   long             N     = check ? 1500000 : 4000000;
-  int              fail  = 0;
 
+  /* The noise gain against the library's exact bandwidth
+     (dp_state_filter_loop_bandwidth(), docs/design/costas.md section 1).
+     Read at the detector instant, the phase the error is formed from, the
+     impulse response's sum of squares IS 2 Bn: asserted to 1e-9, the solve's
+     stated accuracy (1e-10) with the 400,000-term sum's truncation far
+     below it. Read after the update, past the kp e step, where phase_var()
+     reads it, the sum is smaller, and by how much is printed. */
+  printf ("Noise gain against 2 Bn (dp_state_filter_loop_bandwidth)\n");
+  for (int o = 2; o <= 3; o++)
+    for (double bn = 0.005; bn <= 0.041; bn *= 2)
+      {
+        dp_costas_state_t s;
+        g_order = o;
+        init_loop (&s, bn);
+        const double kp = o == 3 ? s.sf.kp : s.lf.kp,
+                     ki = o == 3 ? s.sf.ki : s.lf.ki,
+                     kr = o == 3 ? s.sf.kr : 0.0;
+        const double bw2
+            = 2.0 * dp_state_filter_loop_bandwidth (o, kp, ki, kr, 0.0, 1.0);
+        const double det = noise_gain_at (kp, ki, kr, 1) / bw2;
+        const double aft = noise_gain_at (kp, ki, kr, 0) / bw2;
+        printf ("  order %d bn %.3f: at the detector %.12f, after the step "
+                "%.4f of 2 Bn\n",
+                o, bn, det, aft);
+        DP_CHECK_MSG (fabs (det - 1.0) < 1e-9,
+                      "the noise gain at the detector instant is 2 Bn");
+        DP_CHECK_MSG (aft < 1.0, "read after the step, the sum is smaller");
+      }
   double r_all[2] = { 0.0, 0.0 };
   for (g_order = 2; g_order <= 3; g_order++)
     {
@@ -196,27 +235,33 @@ main (int argc, char **argv)
       double hi  = phase_var (pow (10, 2.0), 0.02, g, nb, N); /* 20 dB */
       printf ("  threshold: sig_phi^2(0 dB)=%.2e  >> (20 dB)=%.2e  (x%.0f)\n",
               thr, hi, thr / hi);
+      const double dv0 = disc_var (1.0, g, nb, check ? 400000 : 1000000);
+      const double r0  = thr / (gain * dv0);
+      printf ("  at 0 dB the jitter is %.0fx the linear prediction G "
+              "sig_disc^2\n",
+              r0);
 
       /* The same assertions in the sweep and in --check (#1566), at each
-         order. */
-      if (r_hi < 1.0 || r_hi > 1.45) /* analytic-gain match, stable factor */
-        fail = 1;
-      if (!mono) /* jitter ~ proportional to bn */
-        fail = 1;
-      if (thr / hi < 20.0) /* clear tracking threshold */
-        fail = 1;
+         order.
+         - The jitter is G sig_disc^2, G this order's own noise gain, to
+           within 10% at 12 dB and above (measured 1.06 at order 2, 1.07 at
+           order 3): the precision a caller sizing jitter from G may rely
+           on. The estimator's own error over this run is about 0.5%
+           (roughly 1e6 samples over a correlation of 1/(4 Bn)), so 10% is
+           the claim's precision, not the noise's.
+         - Lost lock at 0 dB: the jitter is more than 10x the linear
+           prediction. A linear loop reads near 1 at every SNR (1.2 at
+           8 dB), so this cannot be met by a loop that kept tracking, where
+           a ratio of the 0 and 20 dB jitter could (x100 is linear). */
+      DP_CHECK_MSG (fabs (r_hi - 1.0) < 0.10,
+                    "the jitter is G sig_disc^2 within 10% at 12 dB and up");
+      DP_CHECK_MSG (mono, "the jitter doubles when bn doubles");
+      DP_CHECK_MSG (r0 > 10.0,
+                    "at 0 dB the loop has lost lock: >10x linear jitter");
       r_all[g_order - 2] = r_hi;
     }
   free (nb);
   dp_awgn_destroy (g);
-  if (fail)
-    {
-      fprintf (stderr, "Costas jitter deviates from loop theory — FAIL\n");
-      return 1;
-    }
-  if (check)
-    printf ("PASS: phase jitter ~ G*sigma_disc^2 (factor %.2f at order 2, "
-            "%.2f at order 3), prop. to bn, with a tracking threshold\n",
-            r_all[0], r_all[1]);
-  return 0;
+  printf ("factor %.3f at order 2, %.3f at order 3\n", r_all[0], r_all[1]);
+  DP_TEST_END ("validate_costas_jitter");
 }

@@ -2586,6 +2586,12 @@ _test_seeded_blob_round_trip (void)
   /* The shared harness: every byte written, b re-serializes as a, the
      envelope reject (dp_state_test.h). */
   DP_STATE_ROUNDTRIP_TEST (dp_async_dsss_receiver, ra, rb);
+  /* Its three Costas children grew by their third-order filter, its own
+     version did not move, and a blob one child's growth smaller is refused
+     by its size (docs/design/costas.md 3.3). */
+  DP_STATE_SHRUNK_TEST (
+      dp_async_dsss_receiver, rb,
+      (sizeof (dp_state_filter_state_t) + 2 * sizeof (int32_t)));
 
   size_t cb   = dp_async_dsss_receiver_state_bytes (ra);
   void  *blob = malloc (cb);

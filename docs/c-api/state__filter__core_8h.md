@@ -63,12 +63,14 @@ _A filter over an explicit state vector (the frequency estimate and its rate): t
 |  double | [**dp\_state\_filter\_bandwidth**](#function-dp_state_filter_bandwidth) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double delay, double gain) <br>_This filter's exact delivered noise bandwidth at a detector delay and loop gain._  |
 |  int | [**dp\_state\_filter\_configure**](#function-dp_state_filter_configure) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Retune the gains for a new_ `(bn, t)` _without disturbing the frequency and rate estimates._ |
 |  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create**](#function-dp_state_filter_create) (double bn, double t) <br>_Create a state filter, validating its arguments._  |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create\_why**](#function-dp_state_filter_create_why) (double bn, double t, const char \*\* why) <br>[_**dp\_state\_filter\_create()**_](state__filter__core_8h.md#function-dp_state_filter_create) _that says why it refused, for the binding._ |
 |  void | [**dp\_state\_filter\_destroy**](#function-dp_state_filter_destroy) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state) <br>_Destroy a state filter and release all memory._  |
 |  void | [**dp\_state\_filter\_get\_state**](#function-dp_state_filter_get_state) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, void \* blob) <br>_Serialize the filter into_ `blob:` _gains, estimates, bn and t._ |
 |  void | [**dp\_state\_filter\_init**](#function-dp_state_filter_init) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Initialise a filter in place (no allocation)._  |
 |  double | [**dp\_state\_filter\_loop\_bandwidth**](#function-dp_state_filter_loop_bandwidth) (int order, double kp, double ki, double kr, double delay, double gain) <br>_The exact delivered noise bandwidth of that loop, in cycles per update:_ `Bn = (1/2) * sum h[n]^2` _of its impulse response. The phase is the oscillator's at the detector instant, the phase the error is formed from; the phase just after the proportional step of the same update has a smaller sum of squares (design page section 11.1, which gives the ratio)._ |
 |  int | [**dp\_state\_filter\_loop\_stable**](#function-dp_state_filter_loop_stable) (int order, double kp, double ki, double kr, double delay, double gain) <br>_Whether a loop of this order with these gains is stable._  |
 |  int | [**dp\_state\_filter\_params\_ok**](#function-dp_state_filter_params_ok) (double bn, double t) <br>_The domain the loop is defined on:_ `bn >= 0` _,_`t > 0` _, both finite, and_`bn*t` _zero or between STATE\_FILTER\_BNT\_MIN and STATE\_FILTER\_BNT\_MAX._ |
+|  const char \* | [**dp\_state\_filter\_params\_why**](#function-dp_state_filter_params_why) (double bn, double t) <br>_The reason (_ `bn` _,_`t` _) is outside the domain, naming the argument, or NULL when it is inside._ |
 |  void | [**dp\_state\_filter\_reset**](#function-dp_state_filter_reset) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state) <br>_Zero the frequency and rate estimates, keeping the gains._  |
 |  int | [**dp\_state\_filter\_set\_state**](#function-dp_state_filter_set_state) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the blob is refused. The envelope is checked, the flavor word must be 0, and the payload is decoded into a temporary and accepted only when_ [_**dp\_state\_filter\_state\_ok()**_](state__filter__core_8h.md#function-dp_state_filter_state_ok) _accepts it. The estimates are not checked: a NaN in them is garbage in. A refused blob leaves_`state` _unchanged._ |
 |  bool | [**dp\_state\_filter\_stable**](#function-dp_state_filter_stable) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double delay, double gain) <br>_Whether this filter is stable at a detector delay and loop gain._  |
@@ -312,9 +314,47 @@ Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#fu
 >>> StateFilter(bn=0.5)                # bn*t past the stability bound
 Traceback (most recent call last):
     ...
-ValueError: bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)
+ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_state\_filter\_create\_why 
+
+[_**dp\_state\_filter\_create()**_](state__filter__core_8h.md#function-dp_state_filter_create) _that says why it refused, for the binding._
+```C++
+dp_state_filter_state_t * dp_state_filter_create_why (
+    double bn,
+    double t,
+    const char ** why
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth. 
+* `t` Update period in samples. 
+* `why` Receives [**dp\_state\_filter\_params\_why()**](state__filter__core_8h.md#function-dp_state_filter_params_why)'s sentence when NULL is returned for a domain refusal; may be NULL. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL (with `why` set) outside the domain. 
+
+
+
 
 
         
@@ -550,6 +590,45 @@ The ONE predicate; [**dp\_state\_filter\_create()**](state__filter__core_8h.md#f
 **Returns:**
 
 1 inside the domain, 0 outside it (a NaN is outside). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_state\_filter\_params\_why 
+
+_The reason (_ `bn` _,_`t` _) is outside the domain, naming the argument, or NULL when it is inside._
+```C++
+const char * dp_state_filter_params_why (
+    double bn,
+    double t
+) 
+```
+
+
+
+The same predicate as [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok), with a sentence for the first condition that fails: `t` not positive and finite, `bn` NaN, `bn` negative, `bn` infinite, or `bn*t` under the floor or over the bound. The strings are static.
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth. 
+* `t` Update period in samples. 
+
+
+
+**Returns:**
+
+A static sentence, or NULL if the pair is inside the domain. 
 
 
 

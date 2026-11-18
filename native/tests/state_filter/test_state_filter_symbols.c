@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_state_filter[] = {
-    (jm_any_fn)dp_state_filter_create,
+    (jm_any_fn)dp_state_filter_create_why,
     (jm_any_fn)dp_state_filter_destroy,
     (jm_any_fn)dp_state_filter_configure,
     (jm_any_fn)dp_state_filter_reset,

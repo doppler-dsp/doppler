@@ -314,35 +314,29 @@ class LoopFilter:
 
 @final
 class StateFilter:
-    """Create a state filter, validating its arguments.
+    """dp_state_filter_create() that says why it refused, for the binding.
 
     Parameters
     ----------
     bn : float, default 0.01
-        Loop noise bandwidth, normalized cycles/sample; >= 0 (default 0.01).
-        `bn = 0` is a deliberately frozen loop.
+        Loop noise bandwidth.
     t : float, default 1.0
-        Update period in samples; > 0 (default 1.0).
+        Update period in samples.
 
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``bn must be >= 0 and t
-        > 0, both finite, with bn*t no larger than the bound the third-order
-        loop is stable to (docs/design/loop-filter.md section 12)``.
+        If construction fails. The exception message is the reason the
+        constructor gives, or ``bn must be >= 0 and t > 0, both finite, with
+        bn*t no larger than the bound the third-order loop is stable to
+        (docs/design/loop-filter.md section 12)`` when it gives none.
 
     Examples
     --------
+    Create with defaults:
+
     >>> from doppler.track import StateFilter
-    >>> sf = StateFilter(bn=0.01, t=1.0)
-    >>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t
-    (0.023622, 0.000279)
-    >>> sf.integ, sf.rate                  # both estimates start at zero
-    (0.0, 0.0)
-    >>> StateFilter(bn=0.5)                # bn*t past the stability bound
-    Traceback (most recent call last):
-        ...
-    ValueError: bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)
+    >>> obj = StateFilter()
 
     """
 
@@ -428,7 +422,9 @@ class StateFilter:
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``configure failed``, with the return code appended (gh-869).
+            ``configure refused (bn, t): t must be positive and finite, bn
+            finite and >= 0, and bn*t inside the domain; nothing changed``,
+            with the return code appended (gh-869).
 
         Examples
         --------

@@ -1261,5 +1261,54 @@ main (void)
         !dp_state_filter_loop_stable (3, 1e100, 1e100, 1e100, 4.0, 1e100));
   }
 
+  /* 12 ── The reason a refusal gives names the argument ──────────────────
+   * dp_state_filter_params_why is the predicate with a sentence: NULL exactly
+   * when dp_state_filter_params_ok accepts, and otherwise a sentence that
+   * names the argument that failed. Each refusal has its minimal pair (the
+   * same call with that one argument made good), which gives no reason. */
+  {
+    static const struct
+    {
+      double      bn, t;
+      const char *names; /* what the sentence must mention */
+    } refuse[] = {
+      { 0.01, 0.0, "t must" },
+      { 0.01, -1.0, "t must" },
+      { 0.01, INFINITY, "t must" },
+      { 0.01, NAN, "t must" },
+      { NAN, 1.0, "bn must not be NaN" },
+      { INFINITY, 1.0, "bn must be finite" },
+      { -0.01, 1.0, "bn must be >= 0" },
+      { 1e-31, 1.0, "bn*t is below" },
+      { STATE_FILTER_BNT_MAX * 1.01, 1.0, "bn*t is above" },
+    };
+    for (size_t i = 0; i < sizeof refuse / sizeof *refuse; i++)
+      {
+        const char *w = dp_state_filter_params_why (refuse[i].bn, refuse[i].t);
+        DP_CHECK (w != NULL && strstr (w, refuse[i].names) != NULL);
+        DP_CHECK (!dp_state_filter_params_ok (refuse[i].bn, refuse[i].t));
+        const char *why = "unset";
+        DP_CHECK (dp_state_filter_create_why (refuse[i].bn, refuse[i].t, &why)
+                  == NULL);
+        DP_CHECK (why == w);
+      }
+    /* the minimal pairs: each argument made good, the pair is accepted and
+     * has no reason, and create_why builds and sets why to NULL */
+    static const double good[][2]
+        = { { 0.01, 1.0 }, { 0.0, 1.0 }, { STATE_FILTER_BNT_MAX, 1.0 } };
+    for (size_t i = 0; i < sizeof good / sizeof *good; i++)
+      {
+        DP_CHECK (dp_state_filter_params_why (good[i][0], good[i][1]) == NULL);
+        DP_CHECK (dp_state_filter_params_ok (good[i][0], good[i][1]));
+        const char              *why = "unset";
+        dp_state_filter_state_t *ok
+            = dp_state_filter_create_why (good[i][0], good[i][1], &why);
+        DP_CHECK (ok != NULL && why == NULL);
+        dp_state_filter_destroy (ok);
+      }
+    /* and a NULL why is allowed */
+    DP_CHECK (dp_state_filter_create_why (0.01, 0.0, NULL) == NULL);
+  }
+
   DP_TEST_END ("test_state_filter_core");
 }

@@ -1501,9 +1501,94 @@ _test_block_correlate_is_the_per_sample_path (void)
   return 0;
 }
 
+/* ---------------------------------------------------------------- *
+ * The replica against rectangular chips: rho = 1 - p/4, kappa = 1 - p/3
+ *
+ * dll_replica_word() holds the code at two points a chip, a quarter and
+ * three quarters in, and interpolates linearly between them, so each chip
+ * boundary where the code changes sign is a ramp half a chip wide: a
+ * trapezoid, not the transmitted rectangle. Over chip phases spread
+ * uniformly (any sample rate not locked to the chip rate), with p the
+ * fraction of the code's boundaries that change sign, cyclically:
+ *
+ *   rho   = mean(replica * chip) = 1 - p/4    the signal term
+ *   kappa = mean(replica^2)      = 1 - p/3    the noise term
+ *
+ * and the code-lock statistic, and every correlation through this
+ * replica, gives up rho^2/kappa (#3134). The sweep here is M = 256
+ * midpoints a chip, on edges every quarter chip: replica * chip is linear
+ * between them, so rho is exact; replica^2 is quadratic on the ramps
+ * (slope 4 a chip), so kappa reads low by p * 2/(3 M^2) = 1e-5 at most,
+ * a tenth of the tolerance.
+ *
+ * The all-zero code is the control: no boundary changes sign, so the
+ * replica IS the rectangle and both read 1. A replica that became
+ * rectangular would pass it and fail the other two.
+ * ---------------------------------------------------------------- */
+static int
+replica_terms_follow_transitions (void)
+{
+  enum
+  {
+    M = 256 /* phases a chip */
+  };
+  uint8_t code[1023];
+  struct
+  {
+    const char *name;
+    size_t      sf;
+  } c[3] = { { "all zero (p = 0)", 31 },
+             { "alternating (p = 1)", 64 },
+             { "1023 random chips", 1023 } };
+  for (int k = 0; k < 3; k++)
+    {
+      const size_t sf = c[k].sf;
+      for (size_t i = 0; i < sf; i++)
+        code[i] = k == 0 ? 0u : k == 1 ? (uint8_t)(i & 1u) : 0u;
+      if (k == 2)
+        make_code (code, sf, 3134u);
+      size_t flips = 0;
+      for (size_t i = 0; i < sf; i++)
+        flips += code[i] != code[(i + 1) % sf];
+      const double    p = (double)flips / (double)sf;
+      dp_dll_state_t *d
+          = dp_dll_create (code, sf, 2, 0.0, 0.01, 0.707, 0.5, 1);
+      DP_CHECK (d != NULL);
+      if (!d)
+        return 1;
+      /* A phase word w reads the grid whose point 0 is a quarter chip in
+         (dll_tap_base() moves a tap there), so w is chip position
+         x = w sf / 2^32 + 1/4, and the transmitted chip is code[floor x]. */
+      double       rho = 0.0, kap = 0.0;
+      const size_t n = (size_t)M * sf;
+      for (size_t j = 0; j < n; j++)
+        {
+          const double   x = ((double)j + 0.5) / (double)M; /* chips */
+          const uint32_t w
+              = (uint32_t)llround ((x - 0.25) / (double)sf * 4294967296.0);
+          const double r  = dll_replica_word (d, w);
+          const size_t ci = (size_t)floor (x) % sf;
+          rho += r * dll_chip_sign (code[ci]);
+          kap += r * r;
+        }
+      rho /= (double)n;
+      kap /= (double)n;
+      printf ("  replica, %s: p %.4f, rho %.5f (1 - p/4 = %.5f), "
+              "kappa %.5f (1 - p/3 = %.5f)\n",
+              c[k].name, p, rho, 1.0 - p / 4.0, kap, 1.0 - p / 3.0);
+      DP_CHECK_NEAR (rho, 1.0 - p / 4.0, 1e-4);
+      DP_CHECK_NEAR (kap, 1.0 - p / 3.0, 1e-4);
+      if (k == 2)
+        DP_CHECK (p > 0.4 && p < 0.6); /* a code, not a corner */
+      dp_dll_destroy (d);
+    }
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK (replica_terms_follow_transitions () == 0);
   DP_CHECK (_test_window_sum_is_the_look_back () == 0);
   DP_CHECK (_test_block_correlate_is_the_per_sample_path () == 0);
 

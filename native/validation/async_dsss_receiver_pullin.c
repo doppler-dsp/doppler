@@ -104,7 +104,20 @@
  *   b  enter at order 3 at the built bandwidth; at the first lock narrow
  *      to BN (dp_costas_configure: frequency and rate kept);
  *   c  order 3 at BN from the entry into tracking (the default; the
- *      control).
+ *      control);
+ *   d  as a, but the switch waits until the order-2 loop has settled under
+ *      the ramp (its error's mean over 5 / BN updates within 3 sigma /
+ *      sqrt(n) of the design lag x / ki), then the integrator's slope over
+ *      the next 5 / BN updates (slope_settled_hz_s; the seed with
+ *      --seed-rate);
+ *   e  at the first lock, order 3 at the derived wide bandwidth, held the
+ *      derived time, then narrowed to BN in one configure;
+ *   f  as e, narrowed in two steps (the geometric mean, held 5 / bn_mid
+ *      updates, then BN).
+ * The wide bandwidth and the holds are pi_switch_design()'s, printed in the
+ * `# switch` section. t_narrow_s is when the narrow order-3 loop is in
+ * place; rate_pre/post_narrow_hz_s the rate either side of the last
+ * narrowing (configure keeps it).
  * Each row records when design a or b switched (t_switch_s), the slope of
  * the order-2 loop's frequency over the stint up to then (slope_hz_s, a
  * least-squares fit over the blocks, Hz/s) and the rate the third-order
@@ -126,7 +139,7 @@
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
- *             [--bn-carrier BN|rule] [--loop-order 2|3 [--acq a|b|c]
+ *             [--bn-carrier BN|rule] [--loop-order 2|3 [--acq a..f]
  *              [--seed-rate]]
  *             [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
@@ -204,7 +217,11 @@ typedef struct
   double t_switch_s; /* design a/b: when the loop went to its tracking
                         form, s into the run (NAN: never) */
   double slope_hz_s; /* the order-2 loop's frequency slope up to then */
-  double rate_end_hz_s;      /* the order-3 rate at the end, Hz/s */
+  double rate_end_hz_s; /* the order-3 rate at the end, Hz/s */
+  double t_narrow_s;    /* the narrow order-3 loop in place, s (NAN: never) */
+  double rate_pre_narrow_hz_s, rate_post_narrow_hz_s; /* e/f: across the
+                                                         last narrowing */
+  double slope_settled_hz_s; /* d: the slope over the settled window */
   int    seed_rate;          /* --seed-rate */
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
@@ -416,6 +433,159 @@ win_frac (const uint8_t *ind, const float *e_car, const float *e_cod,
 }
 
 /* One draw: the receiver on `secs` of the scene. */
+/* The detector's mean slope at per-update SNR rho with kw partials: the
+   error the receiver forms (adr_track_period: each partial squared, the
+   squares summed, half the angle, its sine), on a carrier at +/-PI_SLOPE_D
+   rad, the noise the shipped awgn at rho/kw a partial. Common noise for
+   both signs, so the difference is the slope and not two noise draws. */
+#define PI_SLOPE_N 200000
+#define PI_SLOPE_D 0.05
+static double
+pi_slope (double rho, int kw, uint64_t seed)
+{
+  const float amp = dp_awgn_amplitude_for_snr (
+      (float)(10.0 * log10 (rho / (double)kw)), 1.0f);
+  dp_awgn_state_t *g = dp_awgn_create (seed, amp);
+  DP_REQUIRE (g != NULL);
+  const float _Complex sp = cexpf (I * (float)PI_SLOPE_D), sm = conjf (sp);
+  float _Complex n[4];
+  double acc = 0.0;
+  for (int i = 0; i < PI_SLOPE_N; i++)
+    {
+      DP_REQUIRE (dp_awgn_generate (g, (size_t)kw, n, 4) == (size_t)kw);
+      float _Complex qp = 0.0f, qm = 0.0f;
+      for (int k = 0; k < kw; k++)
+        {
+          const float _Complex a = sp + n[k], b = sm + n[k];
+          qp += a * a, qm += b * b;
+        }
+      acc += sin (0.5 * atan2 (cimagf (qp), crealf (qp)))
+             - sin (0.5 * atan2 (cimagf (qm), crealf (qm)));
+    }
+  dp_awgn_destroy (g);
+  return acc / ((double)PI_SLOPE_N * 2.0 * PI_SLOPE_D);
+}
+
+/* The order-3 switch, derived (docs/design/async-dsss-receiver.md 4.9),
+   once per carrier from what create knows: the update period T, the
+   floor's per-update SNR, the detector's slope g there (pi_slope), the
+   rule's tracking bandwidth and the specified ramp R (PI_RATE_HZ_S, the
+   receiver's doppler_rate). Rates and phases in the loop's own units:
+   x = 2 pi R T^2 radians per update^2.
+     - lag_e: the order-2 loop's steady error under the ramp at the
+       bandwidth it runs at until the switch (the built
+       ASYNC_DSSS_RX_BN_CARRIER), x / ki, in the detector's units (what
+       design d's settled test holds its mean to), and psi0 the phase it
+       means, asin(lag_e / g): where order 3 starts at a switch.
+     - The switch transient: the shipped StateFilter step in the canonical
+       loop (an accumulating oscillator, a detector e = g sin(psi) one
+       update late), started locked in frequency, rate 0, at psi0, the
+       input frequency ramping x an update. Its peak |psi|, and the
+       updates until the rate is within 10% of x and |psi| under
+       PI_SW_SETTLE_DEG for good.
+     - bn_wide: the narrowest bandwidth from the tracking one up to
+       STATE_FILTER_BNT_MAX whose peak stays under PI_SW_PEAK_FRAC of the
+       fold (90 degrees on the carrier phase), and hold the time it needs
+       there before narrowing; bn_mid the geometric mean for the two-step
+       narrowing, held 5 / bn_mid updates (the house settling figure). */
+#define PI_SW_PEAK_FRAC 0.25
+#define PI_SW_SETTLE_DEG 11.25
+#define PI_SW_DELAY 1
+typedef struct
+{
+  double T, rho, g, x, bn_track, ki2, lag_e, psi0;
+  double peak_track_deg, settle_track_s; /* design a's transient */
+  double bn_wide, peak_wide_deg, sd_wide_deg, hold_s;
+  double bn_mid, hold_mid_s;
+  double w_s; /* design d: 5 / bn_track updates, s */
+} pi_switch_t;
+
+static double
+pi_sw_transient (double bn, const pi_switch_t *sw, double *settle_upd)
+{
+  dp_state_filter_state_t sf;
+  dp_state_filter_init (&sf, bn, 1.0);
+  const size_t n_max = (size_t)(200.0 / bn) + 1000;
+  double       hist[PI_SW_DELAY + 1], psi = sw->psi0, peak = fabs (psi);
+  size_t       last_bad = 0;
+  for (int i = 0; i <= PI_SW_DELAY; i++)
+    hist[i] = psi;
+  for (size_t n = 0; n < n_max; n++)
+    {
+      const double e = sw->g * sin (hist[PI_SW_DELAY]);
+      const double c = dp_state_filter_step (&sf, e);
+      psi += sw->x * (double)n - c;
+      for (int i = PI_SW_DELAY; i > 0; i--)
+        hist[i] = hist[i - 1];
+      hist[0] = psi;
+      if (fabs (psi) > peak)
+        peak = fabs (psi);
+      if (fabs (sf.rate - sw->x) > 0.1 * fabs (sw->x)
+          || fabs (psi) * 180.0 / M_PI > PI_SW_SETTLE_DEG)
+        last_bad = n + 1;
+      if (fabs (psi) > M_PI)
+        break; /* past the fold: not a transient */
+    }
+  *settle_upd = (double)last_bad;
+  return peak * 180.0 / M_PI;
+}
+
+/* Design d's window, 5 / BN updates at the rule's bandwidth, in seconds:
+   the house settling figure, without the rest of pi_switch_design(). */
+static double
+pi_switch_window_s (double fc)
+{
+  const double T = (double)SF / (fc * 31.0 / 21216.0);
+  return 5.0 / pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB)) * T;
+}
+
+static void
+pi_switch_design (double fc, pi_switch_t *sw)
+{
+  const double chip = fc * 31.0 / 21216.0;
+  sw->T             = (double)SF / chip;
+  sw->rho           = pi_rho (fc, PI_FLOOR_ESN0_DB);
+  sw->g             = pi_slope (sw->rho, 1, 5501u + (uint64_t)(fc / 1e8));
+  sw->x             = 2.0 * M_PI * PI_RATE_HZ_S * sw->T * sw->T;
+  sw->bn_track      = pi_bn_rule (sw->rho);
+  dp_loop_filter_state_t lf;
+  dp_loop_filter_init (&lf, ASYNC_DSSS_RX_BN_CARRIER, 0.707, 1.0);
+  sw->ki2   = lf.ki;
+  sw->lag_e = sw->x / lf.ki;
+  sw->psi0  = asin (fmin (1.0, sw->lag_e / sw->g));
+  double s;
+  sw->peak_track_deg = pi_sw_transient (sw->bn_track, sw, &s);
+  sw->settle_track_s = s * sw->T;
+  sw->bn_wide = NAN, sw->peak_wide_deg = NAN, sw->hold_s = NAN;
+  for (int i = 0; i <= 400; i++)
+    {
+      const double bn = sw->bn_track
+                        * pow (STATE_FILTER_BNT_MAX / sw->bn_track, i / 400.0);
+      const double pk = pi_sw_transient (bn, sw, &s);
+      if (pk <= PI_SW_PEAK_FRAC * 90.0)
+        {
+          sw->bn_wide = bn, sw->peak_wide_deg = pk, sw->hold_s = s * sw->T;
+          break;
+        }
+    }
+  /* The jitter there: the squared-phase model of the # design rows
+     (noise referred to phase through g; code period, Kw = 1). */
+  sw->sd_wide_deg = NAN;
+  if (!isnan (sw->bn_wide))
+    {
+      dp_state_filter_state_t sf;
+      dp_state_filter_init (&sf, sw->bn_wide, 1.0);
+      const double bd = dp_state_filter_loop_bandwidth (
+          3, sf.kp, sf.ki, sf.kr, (double)PI_SW_DELAY, sw->g);
+      sw->sd_wide_deg = 180.0 / M_PI
+                        * sqrt (bd / (sw->g * sw->g * sw->rho)
+                                * (1.0 + 1.0 / (2.0 * sw->rho)));
+      sw->bn_mid      = sqrt (sw->bn_wide * sw->bn_track);
+      sw->hold_mid_s  = 5.0 / sw->bn_mid * sw->T;
+    }
+  sw->w_s = 5.0 / sw->bn_track * sw->T;
+}
+
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           uint32_t seed, double secs, unsigned spc, const capture_t *cp,
@@ -483,10 +653,13 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   float complex *syms  = dp_xmalloc (ocap * sizeof *syms);
   float complex *tmp   = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
-  d->ho_err_hz   = NAN;
-  d->t_switch_s  = NAN;
-  d->slope_hz_s  = NAN;
-  d->t_track_s   = NAN;
+  d->ho_err_hz            = NAN;
+  d->t_switch_s           = NAN;
+  d->slope_hz_s           = NAN;
+  d->t_narrow_s           = NAN;
+  d->rate_pre_narrow_hz_s = d->rate_post_narrow_hz_s = NAN;
+  d->slope_settled_hz_s                              = NAN;
+  d->t_track_s                                       = NAN;
   d->seed_err_hz = d->seed_code_chip = d->seed_t_s = NAN;
   d->ho_code_chip = d->ho_age_s = NAN;
   /* The instrument: the receiver's own probes on every draw that is not a
@@ -517,6 +690,18 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   /* The order-2 loop's frequency over the stint up to the switch, for a
      least-squares slope: n, sums of t, f, t^2, t f. */
   double sl_n = 0, sl_t = 0, sl_f = 0, sl_tt = 0, sl_tf = 0;
+  /* Designs d/e/f: the switch's derived parameters, the stint's phase
+     (0 before the first lock), when it began, and d's window of errors. */
+  pi_switch_t  sw;
+  int          sw_phase = 0;
+  double       sw_t0    = 0.0;
+  double       s2_n = 0, s2_t = 0, s2_f = 0, s2_tt = 0, s2_tf = 0;
+  const size_t w_blk
+      = (size_t)ceil (pi_switch_window_s (fc) / ((double)PI_PUSH / PI_FS));
+  double *w_e = dp_xmallocn (w_blk + 1, sizeof *w_e);
+  size_t  w_n = 0;
+  if (pi_loop_order == 3 && pi_acq >= 'd')
+    pi_switch_design (fc, &sw);
   if (!(cp && cp->path))
     {
       itlm = dp_tlm_create (1u << 16);
@@ -630,6 +815,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       if (tracking && !was_tracking)
         {
           narrowed = 0;
+          sw_phase = 0;
+          w_n      = 0;
           sl_n = sl_t = sl_f = sl_tt = sl_tf = 0.0;
           if (pi_loop_order == 3)
             {
@@ -658,10 +845,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
               sl_tf += t_blk * f;
         }
       if (tracking && pi_loop_order == 3 && !narrowed && rx->had_lock
-          && pi_acq != 'c')
+          && (pi_acq == 'a' || pi_acq == 'b'))
         {
           narrowed         = 1;
           d->t_switch_s    = t_blk;
+          d->t_narrow_s    = t_blk;
           const double den = sl_n * sl_tt - sl_t * sl_t;
           d->slope_hz_s    = sl_n >= 2.0 && den > 0.0
                                  ? (sl_n * sl_tf - sl_t * sl_f) / den
@@ -678,6 +866,112 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           else
             DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
                         == DP_OK);
+        }
+      if (tracking && pi_loop_order == 3 && pi_acq >= 'd' && sw_phase < 3)
+        {
+          if (sw_phase == 0 && rx->had_lock)
+            {
+              /* The stint's first lock: the pull-in slope is recorded for
+                 every design, as design a records it. */
+              const double den = sl_n * sl_tt - sl_t * sl_t;
+              d->slope_hz_s    = sl_n >= 2.0 && den > 0.0
+                                     ? (sl_n * sl_tf - sl_t * sl_f) / den
+                                     : NAN;
+              sw_t0            = t_blk;
+              sw_phase         = 1;
+              if (pi_acq != 'd')
+                {
+                  DP_REQUIRE (dp_costas_set_order (&rx->car, 3, sw.bn_wide)
+                              == DP_OK);
+                  d->t_switch_s = t_blk;
+                }
+            }
+          else if (sw_phase == 1 && pi_acq == 'd')
+            {
+              /* Settled: the order-2 error's mean over the last 5 / BN
+                 updates holds at the design lag. */
+              if (w_n < w_blk)
+                w_e[w_n++] = dp_costas_get_last_error (&rx->car);
+              else
+                {
+                  memmove (w_e, w_e + 1, (w_blk - 1) * sizeof *w_e);
+                  w_e[w_blk - 1] = dp_costas_get_last_error (&rx->car);
+                }
+              if (w_n == w_blk)
+                {
+                  double m = 0.0, v = 0.0;
+                  for (size_t i = 0; i < w_blk; i++)
+                    m += w_e[i];
+                  m /= (double)w_blk;
+                  for (size_t i = 0; i < w_blk; i++)
+                    v += (w_e[i] - m) * (w_e[i] - m);
+                  const double se
+                      = sqrt (v / (double)(w_blk - 1)) / sqrt ((double)w_blk);
+                  if (fabs (fabs (m) - sw.lag_e) <= 3.0 * se)
+                    {
+                      sw_phase = 2;
+                      sw_t0    = t_blk;
+                      s2_n = s2_t = s2_f = s2_tt = s2_tf = 0.0;
+                    }
+                }
+            }
+          else if (sw_phase == 1)
+            {
+              if (t_blk - sw_t0 >= sw.hold_s)
+                {
+                  d->rate_pre_narrow_hz_s
+                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+                  DP_REQUIRE (dp_costas_configure (&rx->car,
+                                                   pi_acq == 'e' ? sw.bn_track
+                                                                 : sw.bn_mid,
+                                                   rx->car.zeta)
+                              == DP_OK);
+                  d->rate_post_narrow_hz_s
+                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+                  sw_t0    = t_blk;
+                  sw_phase = pi_acq == 'e' ? 3 : 2;
+                  if (pi_acq == 'e')
+                    d->t_narrow_s = t_blk;
+                }
+            }
+          else if (sw_phase == 2 && pi_acq == 'd')
+            {
+              const double f = dp_costas_get_norm_freq (&rx->car) * PI_FS;
+              s2_n += 1.0, s2_t += t_blk, s2_f += f, s2_tt += t_blk * t_blk,
+                  s2_tf += t_blk * f;
+              if (t_blk - sw_t0 >= sw.w_s)
+                {
+                  const double den = s2_n * s2_tt - s2_t * s2_t;
+                  d->slope_settled_hz_s
+                      = s2_n >= 2.0 && den > 0.0
+                            ? (s2_n * s2_tf - s2_t * s2_f) / den
+                            : NAN;
+                  DP_REQUIRE (dp_costas_set_order (&rx->car, 3, sw.bn_track)
+                              == DP_OK);
+                  if (pi_seed_rate && !isnan (d->slope_settled_hz_s))
+                    DP_REQUIRE (dp_costas_set_norm_rate (&rx->car,
+                                                         d->slope_settled_hz_s
+                                                             / (PI_FS * PI_FS))
+                                == DP_OK);
+                  d->t_switch_s = d->t_narrow_s = t_blk;
+                  sw_phase                      = 3;
+                }
+            }
+          else if (sw_phase == 2)
+            {
+              if (t_blk - sw_t0 >= sw.hold_mid_s)
+                {
+                  d->rate_pre_narrow_hz_s
+                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+                  DP_REQUIRE (
+                      dp_costas_configure (&rx->car, sw.bn_track, rx->car.zeta)
+                      == DP_OK);
+                  d->rate_post_narrow_hz_s
+                      = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
+                  d->t_narrow_s = t_blk;
+                  sw_phase      = 3;
+                }
+            }
         }
       if (tlm)
         {
@@ -908,7 +1202,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
     d->loop_order     = pi_loop_order;
     d->acq            = pi_loop_order == 3 ? pi_acq : '-';
     d->rate_end_hz_s  = dp_costas_get_norm_rate (&rx->car) * PI_FS * PI_FS;
-    d->seed_rate      = pi_seed_rate;
+    if (pi_loop_order == 3 && pi_acq == 'c')
+      d->t_narrow_s = d->t_track_s; /* narrow from the entry into tracking */
+    free (w_e);
+    d->seed_rate              = pi_seed_rate;
     d->base_half_spacing_chip = 0.5 * rx->dll->spacing;
     double sc = 0.0, sc2 = 0.0, sk = 0.0, sk2 = 0.0, pk = 0.0, spk = 0.0;
     size_t n_off = 0, n_all = 0;
@@ -1221,7 +1518,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   "ho_peak_deg,steady_peak_deg,base_lag_deg,base_sd_deg,base_ho_deg,"         \
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
   "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
-  "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate\n"
+  "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate,t_narrow_s,"                 \
+  "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1232,7 +1530,8 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%.4f,%.1f,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
-      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d\n",
+      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
+      "%.2f,%.2f\n",
       d->fc / 1e9, d->esn0, d->rate, d->cw ? "code_period" : "partials", seed,
       d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->seed_err_hz,
       d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
@@ -1249,7 +1548,8 @@ emit_row (const draw_t *d, uint32_t seed)
       d->base_half_spacing_chip, d->bn_car,
       d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
       d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
-      d->seed_rate);
+      d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
+      d->rate_post_narrow_hz_s, d->slope_settled_hz_s);
 }
 
 static int
@@ -1324,39 +1624,6 @@ check_cell (const draw_t *ds, size_t n)
                 "its error rate is under the bound's PI_MARGIN_DB lower");
 }
 
-/* The detector's mean slope at per-update SNR rho with kw partials: the
-   error the receiver forms (adr_track_period: each partial squared, the
-   squares summed, half the angle, its sine), on a carrier at +/-PI_SLOPE_D
-   rad, the noise the shipped awgn at rho/kw a partial. Common noise for
-   both signs, so the difference is the slope and not two noise draws. */
-#define PI_SLOPE_N 200000
-#define PI_SLOPE_D 0.05
-static double
-pi_slope (double rho, int kw, uint64_t seed)
-{
-  const float amp = dp_awgn_amplitude_for_snr (
-      (float)(10.0 * log10 (rho / (double)kw)), 1.0f);
-  dp_awgn_state_t *g = dp_awgn_create (seed, amp);
-  DP_REQUIRE (g != NULL);
-  const float _Complex sp = cexpf (I * (float)PI_SLOPE_D), sm = conjf (sp);
-  float _Complex n[4];
-  double acc = 0.0;
-  for (int i = 0; i < PI_SLOPE_N; i++)
-    {
-      DP_REQUIRE (dp_awgn_generate (g, (size_t)kw, n, 4) == (size_t)kw);
-      float _Complex qp = 0.0f, qm = 0.0f;
-      for (int k = 0; k < kw; k++)
-        {
-          const float _Complex a = sp + n[k], b = sm + n[k];
-          qp += a * a, qm += b * b;
-        }
-      acc += sin (0.5 * atan2 (cimagf (qp), crealf (qp)))
-             - sin (0.5 * atan2 (cimagf (qm), crealf (qm)));
-    }
-  dp_awgn_destroy (g);
-  return acc / ((double)PI_SLOPE_N * 2.0 * PI_SLOPE_D);
-}
-
 /* Order 3's lower gain edge at a delay: the least stable loop gain, by
    bisection on dp_state_filter_loop_stable(). Order 2 has none (0). */
 static double
@@ -1384,6 +1651,25 @@ pi_k_low (int order, const double g[3], double delay)
 static void
 pi_design (const double fcs[2], const double esn0s[4])
 {
+  /* The order-3 switch, per carrier, as run_draw derives it
+     (pi_switch_design). */
+  printf ("# switch\nfc_ghz,T_us,rho_floor,slope,bn_track,ramp_x_rad_upd2,"
+          "lag_e,psi0_deg,peak_at_track_deg,settle_at_track_s,bn_wide,"
+          "peak_at_wide_deg,sd_at_wide_deg,hold_wide_s,bn_mid,hold_mid_s,"
+          "settle_window_s\n");
+  for (int f = 0; f < 2; f++)
+    {
+      pi_switch_t sw;
+      pi_switch_design (fcs[f], &sw);
+      printf ("%.1f,%.2f,%.4f,%.4f,%.5f,%.4e,%.4f,%.2f,%.2f,%.4f,%.5f,%.2f,"
+              "%.2f,%.4f,%.5f,%.4f,%.4f\n",
+              fcs[f] / 1e9, sw.T * 1e6, sw.rho, sw.g, sw.bn_track, sw.x,
+              sw.lag_e, sw.psi0 * 180.0 / M_PI, sw.peak_track_deg,
+              sw.settle_track_s, sw.bn_wide, sw.peak_wide_deg, sw.sd_wide_deg,
+              sw.hold_s, sw.bn_mid, sw.hold_mid_s, sw.w_s);
+      DP_CHECK_MSG (!isnan (sw.bn_wide),
+                    "a wide order-3 bandwidth holds the switch transient");
+    }
   static const double delays[3] = { 0.0, 1.0, 1.75 };
   printf ("# design\nfc_ghz,esn0_db,carrier_window,order,bn_source,bn,"
           "T_us,rho,kw,slope,delay,bn_delivered,lsnr_rule_db,lsnr_sq_db,"
@@ -1496,7 +1782,7 @@ main (int argc, char **argv)
       else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
         {
           pi_acq = argv[++i][0];
-          DP_REQUIRE (pi_acq == 'a' || pi_acq == 'b' || pi_acq == 'c');
+          DP_REQUIRE (pi_acq >= 'a' && pi_acq <= 'f');
         }
       else if (strcmp (argv[i], "--design") == 0)
         design = 1;

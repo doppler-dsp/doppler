@@ -392,7 +392,7 @@ void dp_state_filter_init (
 
 
 
-Computes the gains for `bn` and `t` and stores both. Does **not** touch `integ` or `rate`, so it doubles as a reconfigure that preserves lock. Arguments are NOT validated here, on purpose, as in [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): the embedder checks [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) first. An argument outside it gives gains the loop is not stable with.
+Computes the gains for `bn` and `t` and stores both. Does **not** touch `integ` or `rate`, so it doubles as a reconfigure that preserves lock. Arguments are NOT validated here, on purpose, as in [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): the embedder checks [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) first. An argument outside it gives gains no stability claim is made for (past STATE\_FILTER\_BNT\_MAX the corner of the rectangle goes unstable, but only well past it: the exact bound is about 0.1248).
 
 
 
@@ -479,7 +479,7 @@ int dp_state_filter_loop_stable (
 The exact test on the characteristic polynomial of the discrete loop of docs/design/loop-filter.md section 11.1: a unit detector, the filter, an oscillator that accumulates the control, a detector delay of `delay` updates, and a loop gain of `gain` times nominal. The one function for both orders: `order` 2 is [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md)'s recurrence (`kr` is ignored), `order` 3 this object's.
 
 
-At an integer `delay` the delay is a real transport delay and the answer is exact. Between integers the model is linear interpolation of the detector's error between the two nearest updates, which low-passes the detector and so reads more stable than a pure fractional delay; the stability claim is for integer delays. A detector that averages over a window is a third model the caller owns.
+At an integer `delay` the delay is a real transport delay and the answer is exact. Between integers the model is linear interpolation of the detector's error between the two nearest updates, which low-passes the detector, a different model from a pure fractional delay, whose stability this function does not state; the stability claim is for integer delays. A detector that averages over a window is a third model the caller owns.
 
 
 The test is whether the sum `P = sum_k A^k b b^T (A^T)^k` converges (below), which is stability only when the loop's state is driven (the pair (A, b) is controllable): `P` is then the solution of the loop's Lyapunov equation, and it exists exactly when every pole is inside the unit circle. Where the state is not driven, the answer is 0: a gain at zero leaves a state undriven or marginal, so the frozen loop (`bn = 0`, every gain zero), an order-3 loop with `kr = 0` and an order-2 loop with `ki = 0` (a pole-zero cancellation at `z = 1`) all read as not stable, and [**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth) is NaN for them.

@@ -77,20 +77,34 @@ def test_a_larger_start_raises_the_gains_then_they_return():
     assert f.kr == pytest.approx(kr, rel=1e-6)
 
 
-def test_both_or_neither_is_refused_at_create():
-    with pytest.raises(ValueError):
-        KalmanStateFilter()
-    with pytest.raises(ValueError):
-        KalmanStateFilter(sigma_e=1.0, sigma_a=1e-3, bn=0.01)
-    with pytest.raises(ValueError):
-        KalmanStateFilter(bn=0.5)  # bn*t beyond the flavor's bound
+@pytest.mark.parametrize(
+    "kw, names",
+    [
+        ({}, "bn alone"),
+        ({"sigma_e": 1.0, "sigma_a": 1e-3, "bn": 0.01}, "not both"),
+        ({"bn": 0.5}, r"bn\*t is outside"),  # beyond the flavor's bound
+        ({"bn": -0.01}, "bn must be finite and positive"),
+        ({"bn": 0.01, "t": 0.0}, "t must be a positive"),
+        ({"sigma_e": 1.0, "sigma_a": -1e-3}, "must both be > 0"),
+        ({"sigma_e": 1.0, "sigma_a": 1e-24}, "below the smallest"),
+        ({"sigma_e": 1.0, "sigma_a": 1.0}, "above the largest"),
+        ({"sigma_e": 1.0, "sigma_a": 1e-3, "sigma_f0": 1e9}, "sigma_f0 must"),
+    ],
+)
+def test_a_refusal_names_the_argument_at_create(kw, names):
+    """Each refusal says which argument failed, not the whole domain."""
+    with pytest.raises(ValueError, match=names):
+        KalmanStateFilter(**kw)
+    # the minimal pair: the form that is right builds
+    KalmanStateFilter(bn=0.01)
+    KalmanStateFilter(sigma_e=1.0, sigma_a=1e-3)
 
 
 def test_configure_names_only_what_changes():
     f = KalmanStateFilter(sigma_e=1.0, sigma_a=1e-3)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="configure refused"):
         f.configure(sigma_e=1.0, sigma_a=1e-3, bn=0.01)  # mixing the forms
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="configure refused"):
         f.configure(bn=0.5)
     g = (f.kp, f.ki, f.kr)
     f.configure(sigma_a=2e-3)  # only the rate-walk figure changes

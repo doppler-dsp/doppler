@@ -14,10 +14,12 @@ no_state = "true"
 no_step = "false"
 class_name = "KalmanStateFilter"
 serializable = "true"
-create_fn = "dp_state_filter_kalman_create_args"
+create_fn = "dp_state_filter_kalman_create_args_why"
+# the sentence names the argument that failed (dp_state_filter_kalman_args_why)
+create_why = true
 doc = "The third-order loop filter whose gains come from a Kalman covariance recursion instead of being held: the loop of `StateFilter`, sized from the signal. Give the rms detector error when the loop is locked (`sigma_e`) and the rms change of the rate per update (`sigma_a`), in the loop's own units, or a bandwidth alone (`bn`); the steady-state bandwidth follows from their ratio. An optional initial frequency uncertainty (`sigma_f0`) gives a high-gain start that settles a frequency step about 1.7 times as fast, within a cap the constructor enforces. `step` and `steps` take loop errors and return control values; `kp`, `ki`, `kr` are the gains in force now."
 create_error = "ValueError"
-create_error_message = "give sigma_e and sigma_a (> 0), or bn alone, in range; see docs"
+create_error_message = "give sigma_e and sigma_a, or bn alone, in range"
 depends_on = [{ name = "state_filter", link = true }]
 fragment = "generated"
 
@@ -57,6 +59,8 @@ doc = "Change the figures (or `bn` alone), keeping the frequency and rate estima
 arg_type = "void"
 return_type = "int"
 status_return = true
+error = "ValueError"
+error_message = "configure refused: name sigma_e and sigma_a (and optionally sigma_f0), or bn alone, with t positive and finite and the result inside the domain; nothing changed"
 params = [{ name = "sigma_e", type = "double", default = "0.0" }, { name = "sigma_a", type = "double", default = "0.0" }, { name = "t", type = "double", default = "0.0" }, { name = "sigma_f0", type = "double", default = "0.0" }, { name = "bn", type = "double", default = "0.0" }]
 
 [[state_filter_kalman.methods]]

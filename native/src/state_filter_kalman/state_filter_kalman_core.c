@@ -598,6 +598,60 @@ args_form (double sigma_e, double sigma_a, double sigma_f0, double bn)
   return figures ? 1 : 2;
 }
 
+const char *
+dp_state_filter_kalman_args_why (double sigma_e, double sigma_a, double t,
+                                 double sigma_f0, double bn)
+{
+  const int form = args_form (sigma_e, sigma_a, sigma_f0, bn);
+  if (form == 0)
+    return (bn != 0.0) ? "give sigma_e and sigma_a, or bn alone, not both"
+                       : "give sigma_e and sigma_a, or bn alone";
+  if (!(t > 0.0) || !isfinite (t))
+    return "t must be a positive, finite update period";
+  if (form == 2)
+    {
+      if (!isfinite (bn) || bn < 0.0)
+        return "bn must be finite and positive";
+      if (!dp_state_filter_kalman_params_ok_bn (bn, t))
+        return "bn*t is outside the range the filter accepts";
+      return NULL;
+    }
+  if (!(sigma_e > 0.0 && sigma_a > 0.0))
+    return "sigma_e and sigma_a must both be > 0";
+  double p[6], g[3];
+  if (!dp_state_filter_kalman_steady (sigma_a * sigma_a, sigma_e * sigma_e, p,
+                                      g))
+    return "sigma_e and sigma_a must be finite figures with a steady state";
+  const double b = kalman_bandwidth (sigma_a * sigma_a, sigma_e * sigma_e);
+  if (!(b >= STATE_FILTER_KALMAN_BNT_MIN))
+    return "the bandwidth sigma_e and sigma_a give is below the smallest "
+           "the filter accepts";
+  if (!(b <= STATE_FILTER_KALMAN_BNT_MAX))
+    return "the bandwidth sigma_e and sigma_a give is above the largest "
+           "the filter accepts";
+  if (dp_state_filter_kalman_start_for (sigma_e, sigma_a, sigma_f0) <= 0.0)
+    return "sigma_f0 must be 0, or from the steady state's frequency "
+           "deviation up to a bounded multiple of it";
+  if (!dp_state_filter_kalman_params_ok (sigma_e, sigma_a, t, sigma_f0))
+    return "sigma_f0 is a start whose gains leave the stability region "
+           "before they settle";
+  return NULL;
+}
+
+dp_state_filter_kalman_state_t *
+dp_state_filter_kalman_create_args_why (double sigma_e, double sigma_a,
+                                        double t, double sigma_f0, double bn,
+                                        const char **why)
+{
+  const char *w
+      = dp_state_filter_kalman_args_why (sigma_e, sigma_a, t, sigma_f0, bn);
+  if (why)
+    *why = w;
+  return w ? NULL
+           : dp_state_filter_kalman_create_args (sigma_e, sigma_a, t, sigma_f0,
+                                                 bn);
+}
+
 dp_state_filter_kalman_state_t *
 dp_state_filter_kalman_create_args (double sigma_e, double sigma_a, double t,
                                     double sigma_f0, double bn)

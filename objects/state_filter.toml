@@ -13,7 +13,7 @@ create_error = "ValueError"
 create_fn = "dp_state_filter_create_why"
 # the sentence names the argument that failed (dp_state_filter_params_why)
 create_why = true
-create_error_message = "bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)"
+create_error_message = "bn must be >= 0 and t > 0, both finite, with bn*t inside the domain"
 fragment = "generated"
 
 [[state_filter.init_params]]

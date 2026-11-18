@@ -314,29 +314,36 @@ class LoopFilter:
 
 @final
 class StateFilter:
-    """dp_state_filter_create() that says why it refused, for the binding.
+    """Create a state filter, validating its arguments: the one constructor the
+    Python class `StateFilter` calls.
 
     Parameters
     ----------
     bn : float, default 0.01
-        Loop noise bandwidth.
+        Loop noise bandwidth, normalized cycles/sample; >= 0 (default 0.01).
+        `bn = 0` is a deliberately frozen loop.
     t : float, default 1.0
-        Update period in samples.
+        Update period in samples; > 0 (default 1.0).
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is the reason the
         constructor gives, or ``bn must be >= 0 and t > 0, both finite, with
-        bn*t no larger than the bound the third-order loop is stable to
-        (docs/design/loop-filter.md section 12)`` when it gives none.
+        bn*t inside the domain`` when it gives none.
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.track import StateFilter
-    >>> obj = StateFilter()
+    >>> sf = StateFilter(bn=0.01, t=1.0)
+    >>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t
+    (0.023622, 0.000279)
+    >>> sf.integ, sf.rate                  # both estimates start at zero
+    (0.0, 0.0)
+    >>> StateFilter(bn=0.5)                # bn*t past the stability bound
+    Traceback (most recent call last):
+        ...
+    ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
 
     """
 

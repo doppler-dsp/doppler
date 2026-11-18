@@ -62,8 +62,8 @@ _A filter over an explicit state vector (the frequency estimate and its rate): t
 | ---: | :--- |
 |  double | [**dp\_state\_filter\_bandwidth**](#function-dp_state_filter_bandwidth) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double delay, double gain) <br>_This filter's exact delivered noise bandwidth at a detector delay and loop gain._  |
 |  int | [**dp\_state\_filter\_configure**](#function-dp_state_filter_configure) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Retune the gains for a new_ `(bn, t)` _without disturbing the frequency and rate estimates._ |
-|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create**](#function-dp_state_filter_create) (double bn, double t) <br>_Create a state filter, validating its arguments._  |
-|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create\_why**](#function-dp_state_filter_create_why) (double bn, double t, const char \*\* why) <br>[_**dp\_state\_filter\_create()**_](state__filter__core_8h.md#function-dp_state_filter_create) _that says why it refused, for the binding._ |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create**](#function-dp_state_filter_create) (double bn, double t) <br>_Create a state filter, validating its arguments. The binding calls_ [_**dp\_state\_filter\_create\_why()**_](state__filter__core_8h.md#function-dp_state_filter_create_why) _, which also says why it refused._ |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create\_why**](#function-dp_state_filter_create_why) (double bn, double t, const char \*\* why) <br>_Create a state filter, validating its arguments: the one constructor the Python class_ `StateFilter` _calls._ |
 |  void | [**dp\_state\_filter\_destroy**](#function-dp_state_filter_destroy) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state) <br>_Destroy a state filter and release all memory._  |
 |  void | [**dp\_state\_filter\_get\_state**](#function-dp_state_filter_get_state) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, void \* blob) <br>_Serialize the filter into_ `blob:` _gains, estimates, bn and t._ |
 |  void | [**dp\_state\_filter\_init**](#function-dp_state_filter_init) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Initialise a filter in place (no allocation)._  |
@@ -271,7 +271,7 @@ True
 
 ### function dp\_state\_filter\_create 
 
-_Create a state filter, validating its arguments._ 
+_Create a state filter, validating its arguments. The binding calls_ [_**dp\_state\_filter\_create\_why()**_](state__filter__core_8h.md#function-dp_state_filter_create_why) _, which also says why it refused._
 ```C++
 dp_state_filter_state_t * dp_state_filter_create (
     double bn,
@@ -300,6 +300,51 @@ Heap-allocated state, or NULL if `(bn, t)` is outside [**dp\_state\_filter\_para
 
 **Note:**
 
+Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#function-dp_state_filter_destroy) when done. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_state\_filter\_create\_why 
+
+_Create a state filter, validating its arguments: the one constructor the Python class_ `StateFilter` _calls._
+```C++
+dp_state_filter_state_t * dp_state_filter_create_why (
+    double bn,
+    double t,
+    const char ** why
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth, normalized cycles/sample; &gt;= 0 (default 0.01). `bn = 0` is a deliberately frozen loop. 
+* `t` Update period in samples; &gt; 0 (default 1.0). 
+* `why` Where the refusal's sentence goes, naming the argument it refused ([**dp\_state\_filter\_params\_why()**](state__filter__core_8h.md#function-dp_state_filter_params_why)); set to NULL when the filter is built. May be NULL. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL (with `why` set) outside the domain or on allocation failure. 
+
+
+
+
+**Note:**
+
 Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#function-dp_state_filter_destroy) when done.
 
 
@@ -317,44 +362,6 @@ Traceback (most recent call last):
 ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
 ```
  
-
-
-        
-
-<hr>
-
-
-
-### function dp\_state\_filter\_create\_why 
-
-[_**dp\_state\_filter\_create()**_](state__filter__core_8h.md#function-dp_state_filter_create) _that says why it refused, for the binding._
-```C++
-dp_state_filter_state_t * dp_state_filter_create_why (
-    double bn,
-    double t,
-    const char ** why
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `bn` Loop noise bandwidth. 
-* `t` Update period in samples. 
-* `why` Receives [**dp\_state\_filter\_params\_why()**](state__filter__core_8h.md#function-dp_state_filter_params_why)'s sentence when NULL is returned for a domain refusal; may be NULL. 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL (with `why` set) outside the domain. 
-
-
-
 
 
         

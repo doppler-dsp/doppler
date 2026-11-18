@@ -1598,9 +1598,11 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * (that look's offset (noise) tap power |O|^2, the noise reference's
  * input, of which R's denominator E|O|^2 is the running mean). Both are in
  * the units the statistic is formed in -- the look's normalized
- * correlation -- so R = sqrt(2 sum |P|^2 / E|O|^2) over n_looks looks
- * reads off them; one look an epoch, the epoch's last.  Passing NULL
- * detaches.
+ * correlation. They are ONE look's terms -- the epoch's last look -- not
+ * the epoch's sum: with segments > 1 an epoch holds several looks, and R
+ * sums |P|^2 over n_looks of them, so R = sqrt(2 sum |P|^2 / E|O|^2) is
+ * rebuilt from these only as their moments (n_looks E|P|^2 over E|O|^2),
+ * never from one epoch's pair.  Passing NULL detaches.
  * Setup path, never hot: call before the producer thread starts
  * stepping; the context is borrowed and must outlive the attachment
  * (SPSC rules in dp_tlm/dp_tlm_core.h).

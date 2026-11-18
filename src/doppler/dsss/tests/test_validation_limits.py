@@ -50,12 +50,16 @@ OBJECTS = {
 }
 
 
-#: A report whose envelope is being rebuilt asserts fewer limits for a
-#: while. The async receiver's certification moves to the 415.1 point one
-#: harness at a time, each retiring its old-point limits as it moves
-#: (docs/design/async-dsss-receiver.md); its floor is the count the move has
-#: reached, set by the commit that changes it. Every other report: 15.
-ENVELOPE_FLOOR = {"AsyncDsssReceiver": 5}
+#: A report whose envelope is being rebuilt, and the EXACT number of
+#: limits it asserts while it is. The async receiver's certification moves
+#: to the 415.1 point one harness at a time, each retiring its old-point
+#: limits as it moves (docs/design/async-dsss-receiver.md). Its count is
+#: pinned, not floored: a lower bound set to the current count accepts 5,
+#: then 3, then 0. Each successor commit (ber, near_far, the floor brief's
+#: limits) sets its new count here in the same commit. At release the
+#: report returns to the shared floor or justifies its count, an open
+#: finding on the design page. Every other report: at least 15.
+ENVELOPE_EXACT = {"AsyncDsssReceiver": 5}
 
 
 @pytest.fixture(
@@ -88,8 +92,13 @@ def test_the_envelope_is_not_empty(report):
     empty list, which is exactly the failure this module exists to end.
     """
     title = report.lines[0].removeprefix("# ").split(" — ")[0]
-    floor = ENVELOPE_FLOOR.get(title, 15)
-    assert len(report.limits) >= floor, (title, len(report.limits))
+    if title in ENVELOPE_EXACT:
+        assert len(report.limits) == ENVELOPE_EXACT[title], (
+            title,
+            len(report.limits),
+        )
+    else:
+        assert len(report.limits) >= 15, (title, len(report.limits))
     assert report.findings, "a report with no findings has not been reviewed"
 
 

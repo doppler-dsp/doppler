@@ -1473,6 +1473,10 @@ existing `segments`, default 4
     `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
     does not change over the data once sustained" pins it on seed 5, both
     windows, and is in the branch's known red set until the fix.
+- **The certification report asserts 5 limits while it moves to the
+    415.1 point**, pinned exactly in `test_validation_limits.py`
+    (`ENVELOPE_EXACT`), and each harness's move sets its new count. Before
+    release it returns to the shared floor of 15 or justifies its count.
 - The stage-by-stage loss decomposition is not held at the 415.1 point: its
     harness retires with the 3.069 Mcps point and is rebuilt inside the floor
     brief ([#3156](https://github.com/doppler-dsp/doppler/issues/3156)).

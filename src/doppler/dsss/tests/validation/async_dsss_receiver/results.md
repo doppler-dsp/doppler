@@ -147,4 +147,4 @@ The 3.069 Mcps point's arrival, EVM, dropout and false-lock limits retired with 
 
 - **5 findings**, 3 of them gaps or confirmed defects: F1, F2, F3
 - **5/5 limits** hold
-- Raw run: `data/dropout.csv` and `data/ramp.csv` (the lock harness), `data/ber.csv`, `data/burst.csv` and `data/spec.csv` (the error-rate harness) -- the two harnesses' `--check --emit` blocks; `data/sweep.txt`, `data/ber_sweep.txt` and `data/loss_sweep.txt` -- the three harnesses' full sweeps
+- Raw run: `data/dropout.csv`, `data/ramp.csv`, `data/code_lock.csv` and `data/code_lock_terms.csv` (the lock harness; the last two are the code lock's statistic against the detection model and its signal and noise terms, #3134), `data/ber.csv`, `data/burst.csv` and `data/spec.csv` (the error-rate harness) -- the two harnesses' `--check --emit` blocks; `data/sweep.txt`, `data/ber_sweep.txt` and `data/loss_sweep.txt` -- the three harnesses' full sweeps

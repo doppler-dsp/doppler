@@ -3055,6 +3055,26 @@ class AsyncDsssReceiver:
           (dp_carrier_acq_set_telemetry(): ".stat", ".thr", ".hz", ".n",
           ".ready"), once per tested block while refining. ".ref_sq.hz" is the
           squared tone's frequency, twice the residual.
+        - "<prefix>.state", "<prefix>.handover_hz", "<prefix>.refused",
+          "<prefix>.ho_src", "<prefix>.cn0", "<prefix>.phase.car" and
+          "<prefix>.phase.code" -- the lifecycle (an async_dsss_rx_state_t),
+          the Doppler the chain was built from (Hz), the refused hits, the
+          hand-over's source (ASYNC_DSSS_RX_HO_*), the seed's C/N0 (dB-Hz) and
+          the loops' NCO phases (cycles, chips) at the call's first sample,
+          once per steps() call;
+        - "<prefix>.had_lock", "<prefix>.coast" and "<prefix>.hold" -- the loop
+          control the receiver decides once a code period from the code and
+          symbol flags, each 0 or 1: whether both have been up together since
+          the seed (from then on the loops coast rather than run free), whether
+          this period coasts (both down: the carrier restored to its hold point
+          and frozen, the code loop dead-reckoning -- one decision drives both
+          loops), and whether this period re-marked the hold point (both up);
+          once per code period while tracking;
+        - "<prefix>.release" -- the release clock: how long both flags have
+          been down (the symbol flag alone with reacquire), as a fraction of
+          the confirm interval, so the receiver is released once it passes 1; 0
+          while a flag is up and when there is no release rule. Once per
+          steps() call.
 
         The carrier and code loops report their filters two ways: ".car.freq"
         and ".code.rate" (and the demodulator's ".demod.car.freq") are the

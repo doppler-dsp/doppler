@@ -5,8 +5,8 @@ with ``--emit`` prints four sections a run is kept as:
 
 - ``pullin``: one row a draw -- the hand-over, the lock times, the flags'
   changes over the data, the error rate, and the loops' stress against
-  the truth beside the design's baselines (design §4.8, "The two
-  stresses");
+  the truth beside the design's baselines
+  (docs/design/async-dsss-receiver.md §4.8, "The two stresses");
 - ``hist``: per cell, the bin counts of every decision's statistic (lock
   statistics on data blocks; each search and refine test over its
   threshold) and of the loops' errors, computed in C over the cell's
@@ -75,7 +75,8 @@ TESTS = ("acq.stat/gate", "ref.stat/thr", "ref_sq.stat/thr")
 #: Per cell, the share of settled tracking blocks off the emitter's code
 #: (the rows' own ``off_code_frac``), stated on every figure of the cell.
 OFF_SHARE: dict[Cell, str] = {}
-#: The carrier detector's fold, degrees of carrier phase (design §4.8).
+#: The carrier detector's fold, degrees of carrier phase
+#: (docs/design/async-dsss-receiver.md §4.8).
 FOLD_DEG = 90.0
 #: The excursion levels short of the fold a change's second before is read
 #: against (the validator's PI_EXC_DEG; its rows' ``exc<N>_win_frac``).

@@ -259,7 +259,7 @@
 * **dl** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))
 * **data\_rep** ([**dp\_header\_t**](structdp__header__t.md))
 * **down\_thresh** ([**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md), [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md))
-* **done** ([**dp\_pool\_t**](structdp__pool__t.md))
+* **done** ([**dp\_pool**](structdp__pool.md))
 * **drate** ([**dp\_ppe\_state\_t**](structdp__ppe__state__t.md))
 * **dbbuf** ([**dp\_psd\_state\_t**](structdp__psd__state__t.md))
 * **ddc** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))

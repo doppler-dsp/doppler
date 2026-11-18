@@ -775,5 +775,98 @@ main (void)
     dp_ofdm_destroy (q);
   }
 
+  /* ── Refusals that had no test, and what a partial finish does ──────────
+   * Each is a branch of ofdm_core.c that the suite above never took (read
+   * from gcov, not guessed). Each refusal has its minimal pair: the same call
+   * with its one argument made good succeeds. The allocation failures are not
+   * here: nothing in the suite can make an allocation fail. */
+  {
+    /* the sentinels the docs and the Python surface name as 2**32 - 1 */
+    DP_CHECK (OFDM_ALL_PHASES == 4294967295u
+              && OFDM_CP_DEFAULT == 4294967295u);
+
+    /* NULL is refused everywhere it could be passed */
+    dp_ofdm_destroy (NULL);
+    DP_CHECK (dp_ofdm_check (NULL) == -1);
+    DP_CHECK (dp_ofdm_modulate_max_out (NULL, 4u) == 0);
+    cf one[8];
+    DP_CHECK (dp_ofdm_modulate (NULL, one, 1u, one, 8u) == 0);
+    DP_CHECK (dp_ofdm_finish_max_out (NULL, 4u) == 0);
+    DP_CHECK (dp_ofdm_finish (NULL, 4u, one, 8u) == 0);
+
+    /* add_polarity: each argument refused, then the good call */
+    dp_ofdm_state_t *o = dp_ofdm_create ();
+    DP_REQUIRE (o != NULL);
+    DP_REQUIRE (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, 1u) == 0);
+    const cf pol[2] = { 1.0f, -1.0f };
+    DP_CHECK (dp_ofdm_add_polarity (NULL, 0u, pol, 2u) < 0);
+    DP_CHECK (dp_ofdm_add_polarity (o, 1u, pol, 2u) < 0);
+    DP_CHECK (dp_ofdm_add_polarity (o, 0u, NULL, 2u) < 0);
+    DP_CHECK (dp_ofdm_add_polarity (o, 0u, pol, 2u) == 0);
+
+    /* a layout with a class and no run fails its check: modulate and its
+     * capacity return nothing, and with a run the same calls work */
+    cf pts[8], out[64];
+    fill_points (pts, 8);
+    DP_CHECK (dp_ofdm_check (o) < 0);
+    DP_CHECK (dp_ofdm_modulate_max_out (o, 6u) == 0);
+    DP_CHECK (dp_ofdm_modulate (o, pts, 6u, out, 64u) == 0);
+    /* set_state has no position to restore into either */
+    uint8_t any[256] = { 0 };
+    DP_CHECK (dp_ofdm_set_state (o, any) == DP_ERR_INVALID);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_CHECK (dp_ofdm_check (o) == 0);
+    DP_CHECK (dp_ofdm_modulate_max_out (o, 6u) > 0);
+    DP_CHECK (dp_ofdm_modulate (o, pts, 6u, out, 64u) > 0);
+    dp_ofdm_destroy (o);
+
+    /* A partial finish: the held tail is two samples. Asked for one, finish
+     * returns one and CLEARS the rest (documented: "return ... and clear
+     * it"), so a second call has nothing. Capped by max_out the same way. */
+    dp_ofdm_state_t *f = make_layout (2u, 1.0);
+    cf               x[27], y[64], t[4];
+    fill_points (x, 27);
+    DP_REQUIRE (dp_ofdm_modulate (f, x, 27, y, 64) > 0);
+    DP_REQUIRE (dp_ofdm_finish_max_out (f, 99u) == 2u);
+    DP_CHECK (dp_ofdm_finish_max_out (f, 1u) == 1u);
+    DP_CHECK (dp_ofdm_finish (f, 1u, t, 4u) == 1u);
+    DP_CHECK (dp_ofdm_finish (f, 99u, t, 4u) == 0u);
+    dp_ofdm_state_t *g = make_layout (2u, 1.0);
+    DP_REQUIRE (dp_ofdm_modulate (g, x, 27, y, 64) > 0);
+    DP_CHECK (dp_ofdm_finish (g, 99u, t, 1u) == 1u);
+    DP_CHECK (dp_ofdm_finish (g, 99u, t, 4u) == 0u);
+    dp_ofdm_destroy (f);
+    dp_ofdm_destroy (g);
+
+    /* set_state at the END of the layout (the position equal to the run
+     * count): a symbol count there, and a held tail that is not the last
+     * class's window, are refused; the unmodified blob is accepted. Offsets
+     * as above (header 16; run 24, symbol 28, tail 32). */
+    dp_ofdm_state_t *e = make_layout (2u, 1.0);
+    DP_REQUIRE (dp_ofdm_modulate (e, x, 27, y, 64) > 0);
+    const size_t nb   = dp_ofdm_state_bytes (e);
+    uint8_t     *blob = malloc (nb), *bad = malloc (nb);
+    DP_REQUIRE (blob != NULL && bad != NULL);
+    dp_ofdm_get_state (e, blob);
+    dp_ofdm_state_t *d = make_layout (2u, 1.0);
+    uint32_t         v;
+    memcpy (bad, blob, nb);
+    v = 1;
+    memcpy (bad + 28, &v, 4);
+    DP_CHECK_MSG (dp_ofdm_set_state (d, bad) == DP_ERR_INVALID,
+                  "a symbol count at the end of the layout");
+    memcpy (bad, blob, nb);
+    v = 1;
+    memcpy (bad + 32, &v, 4);
+    DP_CHECK_MSG (dp_ofdm_set_state (d, bad) == DP_ERR_INVALID,
+                  "a held tail that is not the last class's window");
+    DP_CHECK_MSG (dp_ofdm_set_state (d, blob) == DP_OK,
+                  "and the unmodified end-of-layout blob is accepted");
+    free (blob);
+    free (bad);
+    dp_ofdm_destroy (e);
+    dp_ofdm_destroy (d);
+  }
+
   DP_TEST_END ("test_ofdm_core");
 }

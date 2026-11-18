@@ -17,6 +17,7 @@
 #include "doppler/dsss_receiver/dsss_receiver_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -225,6 +226,12 @@ _test_acquire_and_decode (void)
   DP_CHECK (ber < 0.05);
 
   /* ── state-serialization round trip, while tracking ─────────────────── */
+  /* Its Costas child grew by its third-order filter, its own version did
+     not move, and a blob one child's growth smaller is refused by its size
+     (docs/design/costas.md 3.3). */
+  DP_STATE_SHRUNK_TEST (
+      dp_dsss_receiver, rx,
+      (sizeof (dp_state_filter_state_t) + 2 * sizeof (int32_t)));
   size_t cb   = dp_dsss_receiver_state_bytes (rx);
   void  *blob = malloc (cb);
   dp_dsss_receiver_get_state (rx, blob);

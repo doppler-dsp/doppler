@@ -41,12 +41,24 @@ from types import SimpleNamespace
 import numpy as np
 
 from doppler.tests._repo import build_dir, exe, repo_root
-from doppler.tests._validation_common import Report, cli, harness_blocks
+from doppler.tests._validation_common import (
+    Report,
+    claim_records,
+    cli,
+    harness_blocks,
+)
 from doppler.track import KalmanStateFilter, StateFilter
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = repo_root(__file__)
+# The object's own C test: its claims, with the controls it recorded, are what
+# the report's control column reads for the limits it shares with the test.
+CTEST = exe(
+    build_dir(__file__)
+    / "native/src/state_filter_kalman/test_state_filter_kalman_core"
+)
+
 HARNESS = exe(
     build_dir(__file__) / "native/validation/validate_state_filter_kalman_loop"
 )
@@ -814,6 +826,7 @@ def limits(d: SimpleNamespace) -> None:
         control="the minimal pair: a start at the ceiling, same figures, is "
         "accepted",
         red="ceiling check removed → this row; floor check removed → this row",
+        claim_id="sigma_f",
     )
     R.limit(
         all(
@@ -831,6 +844,7 @@ def limits(d: SimpleNamespace) -> None:
         "→ this row, the harness check and the C test; a walk of 0.5/(bn*t) "
         "instead of 8 → this row and the harness check, and the C test stays "
         "green",
+        claim_id="start_rule",
     )
     R.limit(
         all(c["accepted_cap"] > 3.0 for c in d.caps if c["bnt"] <= 0.06),
@@ -973,6 +987,7 @@ def limits(d: SimpleNamespace) -> None:
 def build(write: bool = True) -> Report:
     global R
     R = Report(write=write)
+    R.use_claims(claim_records(CTEST, "state_filter_kalman", repo_root()))
     R.md("# KalmanStateFilter — validation report")
     R.md()
     section_object()

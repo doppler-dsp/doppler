@@ -1,0 +1,3 @@
+# Claims whose controls the source text cannot see (made in a helper):
+# `<file>:<claim id>  # reason`. Empty is the goal; scripts/check_claims.py
+# refuses an entry that no longer needs it and one with no reason.

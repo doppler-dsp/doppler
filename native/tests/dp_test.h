@@ -98,6 +98,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Failure and check counters. `dp_test_checks_` exists so the epilogue can
  * report how much was actually asserted: a test that runs to completion
@@ -253,6 +254,223 @@ static int dp_test_checks_ = 0;
     }                                                                         \
   while (0)
 
+/* ── Claims, and the controls that prove an assertion can fail ───────────
+ *
+ * A test that cannot fail is a comment. The three tests the audit found
+ * passing without testing (a tolerance twice the whole excursion, a threshold
+ * under the statistic's no-signal mean, a reject refused for a reason other
+ * than the one named) all passed because no case existed on which the same
+ * assertion must FAIL. This is the scope that asks for one (#847, layer 1).
+ *
+ * A CLAIM is one sentence the object promises. DP_CLAIM opens it; every
+ * DP_CHECK until the next DP_CLAIM (or the epilogue) belongs to it, including
+ * those made in a helper the claim's code calls. A claim must hold at least
+ * one CHECK and, to satisfy the gate (scripts/check_claims.py), at least one
+ * CONTROL:
+ *
+ *   DP_CONTROL ("a loop that does not step", expr)
+ *       `expr` is THE SAME ASSERTION evaluated on a named wrong case, and it
+ *       must be FALSE. The control passes iff `expr` is false; if the wrong
+ *       case satisfies the assertion, the assertion cannot fail, and that is
+ *       reported as the failure it is.
+ *
+ *   DP_REFUSAL (refused, made_good, "the argument made good")
+ *       The minimal pair, as one statement so a refusal test cannot be written
+ *       without it: `refused` is true when the call with the bad argument was
+ *       refused (a check); `made_good` is true when the SAME call with that
+ *       one argument made good was accepted (the control). Without the pair a
+ *       reject test passes for any reason at all.
+ *
+ * What no macro can know is that the control's expression is really the same
+ * assertion as the check's. That is review's job, and the mutants of layer 3
+ * are what catch a control that is decorative.
+ *
+ * The records. At the epilogue each claim is appended, one JSON line, to the
+ * file named by the environment variable DP_CLAIMS_OUT, if it is set:
+ *
+ *   {"bin":"test_x_core","claim":"id","text":"...","checks":4,"controls":2}
+ *
+ * stdout is never written (a data-mode binary's stdout is data). The
+ * epilogue fails a test whose claim holds no check, a control outside any
+ * claim, a repeated claim id, or more claims than DP_CLAIMS_MAX; a claim with
+ * no control is NOT a failure of the binary, because the exemption lives in
+ * scripts/.claims-no-control and not in compiled code. A test that opens no
+ * claim behaves exactly as before. */
+#ifndef DP_CLAIMS_MAX
+#define DP_CLAIMS_MAX 128
+#endif
+
+typedef struct
+{
+  const char *id;
+  const char *text;
+  int         checks;   /* DP_CHECKs inside the claim, controls excluded */
+  int         controls; /* DP_CONTROLs and DP_REFUSAL pairs              */
+  int         start;    /* dp_test_checks_ when the claim opened         */
+} dp_claim_rec_t;
+
+typedef struct
+{
+  dp_claim_rec_t rec[DP_CLAIMS_MAX];
+  int            n;    /* claims opened                          */
+  int            open; /* index of the open claim, or -1         */
+} dp_claims_t;
+
+/* One state per translation unit (one per test executable). A function-local
+ * static, so a binary that never opens a claim gets no unused-variable
+ * warning from this header, as a file-scope static would give it. */
+static inline dp_claims_t *
+dp_claims_ (void)
+{
+  static dp_claims_t st = { .n = 0, .open = -1 };
+  return &st;
+}
+
+/* Close the open claim: its checks are what the shared counter gained while
+ * it was open, less the controls (which also count, so the zero-assertion
+ * floor sees them). A claim that checked nothing is a failure here. */
+static inline void
+dp_claim_close_ (void)
+{
+  dp_claims_t *c = dp_claims_ ();
+  if (c->open < 0)
+    return;
+  dp_claim_rec_t *r = &c->rec[c->open];
+  r->checks         = dp_test_checks_ - r->start - r->controls;
+  if (r->checks <= 0)
+    {
+      DP_TEST_ERR ("FAIL: claim '%s' holds no check\n", r->id);
+      dp_test_fails_++;
+    }
+  c->open = -1;
+}
+
+static inline void
+dp_claim_open_ (const char *id, const char *text)
+{
+  dp_claims_t *c = dp_claims_ ();
+  dp_claim_close_ ();
+  for (int i = 0; i < c->n; i++)
+    if (strcmp (c->rec[i].id, id) == 0)
+      {
+        DP_TEST_ERR ("FAIL: claim id '%s' is used twice\n", id);
+        dp_test_fails_++;
+        break;
+      }
+  if (c->n >= DP_CLAIMS_MAX)
+    {
+      DP_TEST_ERR ("FAIL: more than %d claims in one test binary\n",
+                   DP_CLAIMS_MAX);
+      dp_test_fails_++;
+      return;
+    }
+  dp_claim_rec_t *r = &c->rec[c->n];
+  r->id             = id;
+  r->text           = text;
+  r->checks         = 0;
+  r->controls       = 0;
+  r->start          = dp_test_checks_;
+  c->open           = c->n++;
+}
+
+/* A control or a pair, counted to the open claim; outside one it is a
+ * failure, because a control that guards nothing is noise. */
+static inline int
+dp_claim_control_ (const char *what)
+{
+  dp_claims_t *c = dp_claims_ ();
+  dp_test_checks_++;
+  if (c->open < 0)
+    {
+      DP_TEST_ERR ("FAIL: control '%s' is outside any claim\n", what);
+      dp_test_fails_++;
+      return 0;
+    }
+  c->rec[c->open].controls++;
+  return 1;
+}
+
+/** Open a claim. @param id a short stable identifier, unique in the binary
+ *  and the join key to a report row; @param text the sentence promised. */
+#define DP_CLAIM(id, text) dp_claim_open_ ((id), (text))
+
+/** The same assertion on a named wrong case: `expr` must be FALSE. */
+#define DP_CONTROL(what, expr)                                                \
+  do                                                                          \
+    {                                                                         \
+      if (dp_claim_control_ (what) && (expr))                                 \
+        {                                                                     \
+          DP_TEST_ERR (                                                       \
+              "FAIL %s:%d  control '%s' passed: the assertion cannot "        \
+              "fail on it\n",                                                 \
+              __FILE__, __LINE__, (what));                                    \
+          dp_test_fails_++;                                                   \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
+/** A refusal and its minimal pair: `refused` must be true (the bad call was
+ *  refused) and `made_good` must be true (the same call with the one argument
+ *  made good was accepted). */
+#define DP_REFUSAL(refused, made_good, what)                                  \
+  do                                                                          \
+    {                                                                         \
+      DP_CHECK_MSG ((refused), "a refusal that was not refused: " what);      \
+      if (dp_claim_control_ (what) && !(made_good))                           \
+        {                                                                     \
+          DP_TEST_ERR ("FAIL %s:%d  the pair '%s' was refused too: the "      \
+                       "refusal's reason is not the argument named\n",        \
+                       __FILE__, __LINE__, (what));                           \
+          dp_test_fails_++;                                                   \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
+/* The epilogue's share: close the open claim and append the records. A JSON
+ * string is written with its quotes and backslashes escaped; nothing else in
+ * a claim's text is control characters. */
+static inline void
+dp_claim_json_ (FILE *f, const char *s)
+{
+  fputc ('"', f);
+  for (; *s; s++)
+    {
+      if (*s == '"' || *s == '\\')
+        fputc ('\\', f);
+      fputc (*s, f);
+    }
+  fputc ('"', f);
+}
+
+static inline void
+dp_claims_end_ (const char *bin)
+{
+  dp_claims_t *c = dp_claims_ ();
+  dp_claim_close_ ();
+  const char *path = getenv ("DP_CLAIMS_OUT");
+  if (!path || !*path || c->n == 0)
+    return;
+  FILE *f = fopen (path, "a");
+  if (!f)
+    {
+      DP_TEST_ERR ("FAIL: cannot append the claim records to %s\n", path);
+      dp_test_fails_++;
+      return;
+    }
+  for (int i = 0; i < c->n; i++)
+    {
+      const dp_claim_rec_t *r = &c->rec[i];
+      fputs ("{\"bin\":", f);
+      dp_claim_json_ (f, bin);
+      fputs (",\"claim\":", f);
+      dp_claim_json_ (f, r->id);
+      fputs (",\"text\":", f);
+      dp_claim_json_ (f, r->text);
+      fprintf (f, ",\"checks\":%d,\"controls\":%d}\n", r->checks, r->controls);
+    }
+  fclose (f);
+}
+
 /**
  * The last statement of main(): report and return.
  *
@@ -267,6 +485,7 @@ static int dp_test_checks_ = 0;
 #define DP_TEST_END(name)                                                     \
   do                                                                          \
     {                                                                         \
+      dp_claims_end_ (name);                                                  \
       if (dp_test_checks_ == 0)                                               \
         {                                                                     \
           DP_TEST_ERR ("%s ASSERTED NOTHING — no check ran\n", (name));       \
@@ -297,6 +516,7 @@ static int dp_test_checks_ = 0;
 #define DP_TEST_EMIT_END(name)                                                \
   do                                                                          \
     {                                                                         \
+      dp_claims_end_ (name);                                                  \
       if (dp_test_fails_)                                                     \
         {                                                                     \
           DP_TEST_ERR ("%s FAILED (%d)\n", (name), dp_test_fails_);           \

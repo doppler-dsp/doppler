@@ -53,6 +53,39 @@ the CRC over a whole frame is one constant. The C example shows it:
 --8<-- "native/examples/wlan_mac_demo.c"
 ```
 
-The layout and the constellation points reach Python with the wfmgen `ofdm`
-type; from C they are `dp_wlan_points()`, `dp_wlan_layout()` and
-`dp_wlan_ppdu()`, which take the tables the standard supplies.
+## The PPDU
+
+A whole frame, from a PSDU to samples, is one call, `dp_wlan_ppdu()`. The
+steps, in order, with the example that runs all of them:
+
+1. **Wrap the body** as a PSDU (`dp_wlan_mpdu()`, above), or bring one.
+1. **Choose the rate** (`dp_wlan_rate_t`: bits per subcarrier and a code
+    rate) and ask `dp_wlan_rate_n_sym()` how many Data OFDM symbols the PSDU
+    fills.
+1. **Size the buffer.** `dp_wlan_ppdu_len(n_sym, window)` is the whole PPDU in
+    samples, `160 + 160 + 80 + 80 * n_sym` plus the window's tail; the caller
+    allocates it, and a buffer one sample short is a refusal, not a
+    truncation.
+1. **Render.** `dp_wlan_ppdu(tables, &rate, psdu, len, state, window, out,  cap)` runs the SERVICE, tail and pad assembly, the scrambler (`state` is
+    its register, 1 to 127), the punctured BCC, the interleaver, the mapper,
+    the pilots and the OFDM modulator, and writes the L-STF, the L-LTF, the
+    SIGNAL field and the Data field. It returns the samples written, or `0`,
+    changing nothing, if any stage refuses.
+1. **Check it.** The example tests the length, that the L-STF repeats every
+    16 samples, that the L-LTF's two long symbols are alike and that the mean
+    power is one.
+
+```c
+--8<-- "native/examples/wlan_ppdu_demo.c"
+```
+
+The stages are public if a caller wants one of them: `dp_wlan_points()` is the
+constellation points of a PPDU in layout order (the SIGNAL field's 48, then
+the Data field's), and `dp_wlan_layout()` builds the matching OFDM layout in a
+modulator, which is what the wfmgen `ofdm` waveform type uses. All of them
+take the tables the standard supplies, `dp_wlan_tables_standard()`.
+
+**What it costs.** A 1000-octet PSDU at the largest rate pair, 64-QAM rate
+3/4 (54 Mb/s, 38 Data symbols), is timed stage by stage in
+`native/benchmarks/wlan/` (the values are taken at each release's benchmark
+set): the interleaver, the mapper, the points, the layout and the whole PPDU.

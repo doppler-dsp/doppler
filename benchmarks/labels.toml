@@ -1524,6 +1524,41 @@ definition = "Assembling the Data field of a 100-octet PSDU (SERVICE, octets, ta
 domain = "call"
 count = 1
 
+["c:wlan::interleave[octets=1000,64qam,r34]"]
+name = "802.11 interleaver, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "The first and second interleaver permutations over the coded bits of one frame, one OFDM symbol at a time. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::map[octets=1000,64qam,r34]"]
+name = "802.11 mapper, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "The constellation mapper over the interleaved bits of one frame: groups of six bits to 64-QAM points (the standard's relabeling included). One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::points[octets=1000,64qam,r34]"]
+name = "802.11 points, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "The points of one PPDU's layout, end to end from the PSDU: the SERVICE, tail and pad assembly, the scrambler, the punctured BCC, the interleaver and the mapper, with the SIGNAL field's 48. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::layout[octets=1000,64qam,r34]"]
+name = "802.11 layout, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "Building the PPDU's OFDM layout in a fresh modulator and destroying it: the four classes, the pilots with the polarity, the runs, and the check. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::ppdu[octets=1000,64qam,r34]"]
+name = "802.11 PPDU, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "dp_wlan_ppdu: the whole PPDU from the PSDU to samples (L-STF, L-LTF, SIGNAL and the Data field): the points, the layout and the OFDM modulator. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
 ["py:wlan::test_bench_create"]
 name = "802.11 rate holder setup, from Python"
 unit = "call"

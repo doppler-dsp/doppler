@@ -377,7 +377,7 @@ main (void)
     dp_costas_destroy (n);
   }
 
-  /* telemetry attach — four records per dumped symbol; blobs stay
+  /* telemetry attach — seven records per dumped symbol; blobs stay
    * attachment-independent and a live attachment survives set_state. */
   {
     enum
@@ -387,7 +387,7 @@ main (void)
       L  = TS * NS
     };
     float _Complex rx[L], out[NS];
-    dp_tlm_rec_t recs[512];
+    dp_tlm_rec_t recs[1024];
     /* A carrier 1e-3 cycles a sample off: the loop pulls it in, so its
        discriminator (and the proportional term ".nco" carries) moves. */
     for (int i = 0; i < L; i++)
@@ -403,23 +403,30 @@ main (void)
     DP_CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.locked") == c->tlm.id_locked);
     DP_CHECK (dp_tlm_probe_id (tlm, "car.nco") == c->tlm.id_nco);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.freq_rate") == c->tlm.id_freq_rate);
+    DP_CHECK (dp_tlm_probe_id (tlm, "car.order") == c->tlm.id_order);
+    /* The registry is exactly the header's list: seven probes, no more. */
+    DP_CHECK (dp_tlm_probe_count (tlm) == 7);
 
     size_t k = dp_costas_steps (c, rx, L, out, NS);
     DP_CHECK (k == NS);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (n_rec == 5 * NS); /* lock, e, freq, locked, nco per symbol */
-    /* The last records mirror the tracked state (flush order:
-     * lock, e, freq, locked, nco). */
-    DP_CHECK (recs[n_rec - 3].value == (float)c->nco.norm_freq);
-    DP_CHECK (recs[n_rec - 2].value == (float)dp_costas_get_locked (c));
-    DP_CHECK (recs[n_rec - 1].value == (float)dp_costas_get_nco_freq (c));
+    /* lock, e, freq, locked, nco, freq_rate, order per symbol */
+    DP_CHECK (n_rec == 7 * NS);
+    /* The last records mirror the tracked state, in flush order; order 2
+     * holds no rate. */
+    DP_CHECK (recs[n_rec - 5].value == (float)c->nco.norm_freq);
+    DP_CHECK (recs[n_rec - 4].value == (float)dp_costas_get_locked (c));
+    DP_CHECK (recs[n_rec - 3].value == (float)dp_costas_get_nco_freq (c));
+    DP_CHECK (recs[n_rec - 2].value == 0.0f);
+    DP_CHECK (recs[n_rec - 1].value == 2.0f);
     /* Every symbol: ".nco" is the whole filter output, ".freq" (the
      * integrator) plus the proportional term on that symbol's ".e" --
      * kp*e radians a symbol, kp*e / (2 pi tsamps) cycles a sample. The
      * largest term is checked too, so a ".nco" that reported ".freq"
      * cannot pass on symbols whose error happened to be zero. */
     double worst = 0.0, biggest = 0.0;
-    for (size_t j = 0; j + 4 < n_rec; j += 5)
+    for (size_t j = 0; j + 6 < n_rec; j += 7)
       {
         const double prop
             = c->lf.kp * recs[j + 1].value / (2.0 * M_PI * (double)TS);
@@ -434,6 +441,30 @@ main (void)
       DP_TEST_ERR ("  car.nco - (car.freq + kp*e): worst %.3g, largest "
                    "term %.3g\n",
                    worst, biggest);
+
+    /* At order 3 ".freq_rate" is the rate integrator and ".order" reads 3,
+       every symbol: a ramp moves the rate, so a probe that reported 0 or
+       the raw per-update state cannot pass. */
+    {
+      DP_CHECK (dp_costas_set_order (c, 3, 0.05) == DP_OK);
+      float _Complex ramp[L];
+      for (int i = 0; i < L; i++)
+        {
+          const double ph
+              = 2.0 * M_PI
+                * (1e-3 * (double)i + 0.5 * 2e-8 * (double)i * (double)i);
+          ramp[i] = CMPLXF ((float)cos (ph), (float)sin (ph));
+        }
+      (void)dp_tlm_read (tlm, 1024, recs, 1024);
+      DP_CHECK (dp_costas_steps (c, ramp, L, out, NS) == NS);
+      n_rec = dp_tlm_read (tlm, 1024, recs, 1024);
+      DP_CHECK (n_rec == 7 * NS);
+      DP_CHECK (recs[n_rec - 2].value == (float)dp_costas_get_norm_rate (c));
+      DP_CHECK (recs[n_rec - 1].value == 3.0f);
+      DP_CHECK_MSG (fabs (dp_costas_get_norm_rate (c)) > 1e-9,
+                    "the ramp moved the order-3 rate the probe reports");
+      DP_CHECK (dp_costas_set_order (c, 2, 0.05) == DP_OK);
+    }
 
     /* Blobs zero the attachment (deterministic) and set_state into an
      * attached instance preserves that instance's live attachment. */
@@ -473,22 +504,22 @@ main (void)
 
   {
     /* An overlong prefix is refused with nothing registered, and the
-     * longest prefix that fits (24 bytes: "<prefix>.locked" is 31) attaches
-     * all five probes. */
+     * longest prefix that fits (21 bytes: "<prefix>.freq_rate" is 31)
+     * attaches all seven probes. */
     dp_tlm_t          *tlm = dp_tlm_create (256);
     dp_costas_state_t *c   = dp_costas_create (0.05, 0.707, 0.01, 16, 0.0);
     DP_CHECK (tlm != NULL && c != NULL);
     if (tlm && c)
       {
-        char over[26], fit[25];
-        memset (over, 'c', 25);
-        over[25] = '\0';
-        memset (fit, 'c', 24);
-        fit[24] = '\0';
+        char over[23], fit[22];
+        memset (over, 'c', 22);
+        over[22] = '\0';
+        memset (fit, 'c', 21);
+        fit[21] = '\0';
         DP_CHECK (dp_costas_set_telemetry (c, tlm, over, 1) == DP_ERR_INVALID);
         DP_CHECK (c->tlm.ctx == NULL && dp_tlm_probe_count (tlm) == 0);
         DP_CHECK (dp_costas_set_telemetry (c, tlm, fit, 1) == DP_OK);
-        DP_CHECK (dp_tlm_probe_count (tlm) == 5 && c->tlm.ctx == tlm);
+        DP_CHECK (dp_tlm_probe_count (tlm) == 7 && c->tlm.ctx == tlm);
         DP_CHECK (dp_costas_set_telemetry (c, tlm, "car", 1) == DP_OK);
       }
     dp_costas_destroy (c);

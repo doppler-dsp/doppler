@@ -39,9 +39,11 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
 |  int32\_t | [**id\_e**](#variable-id_e)  <br> |
 |  int32\_t | [**id\_freq**](#variable-id_freq)  <br> |
+|  int32\_t | [**id\_freq\_rate**](#variable-id_freq_rate)  <br> |
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
 |  int32\_t | [**id\_nco**](#variable-id_nco)  <br> |
+|  int32\_t | [**id\_order**](#variable-id_order)  <br> |
 
 
 
@@ -144,6 +146,23 @@ int32_t costas_tlm_t::id_freq;
 
 
 
+### variable id\_freq\_rate 
+
+```C++
+int32_t costas_tlm_t::id_freq_rate;
+```
+
+
+
+"&lt;prefix&gt;.freq\_rate" — publishes the norm\_rate property ([**dp\_costas\_get\_norm\_rate()**](costas__core_8h.md#function-dp_costas_get_norm_rate)): the third-order filter's rate, cycles/sample^2; 0 at order 2 
+
+
+        
+
+<hr>
+
+
+
 ### variable id\_lock 
 
 ```C++
@@ -189,6 +208,23 @@ int32_t costas_tlm_t::id_nco;
 
 
 "&lt;prefix&gt;.nco" — the complete loop-filter output, integrator plus proportional term ([**dp\_costas\_get\_nco\_freq()**](costas__core_8h.md#function-dp_costas_get_nco_freq)), cycles/sample 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_order 
+
+```C++
+int32_t costas_tlm_t::id_order;
+```
+
+
+
+"&lt;prefix&gt;.order" — publishes the order property ([**dp\_costas\_get\_order()**](costas__core_8h.md#function-dp_costas_get_order)), 2 or 3 
 
 
         

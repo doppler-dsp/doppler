@@ -777,7 +777,7 @@ class Costas:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context and register the carrier
-        loop's probes on it. Registers five probes, emitted once per dumped
+        loop's probes on it. Registers seven probes, emitted once per dumped
         symbol and further thinned by decim: "<prefix>.lock" (the |Re P|/|P|
         lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator
         output — the loop stress), "<prefix>.freq" (the NCO's frequency
@@ -787,16 +787,25 @@ class Costas:
         (the complete loop-filter output, the integrator plus the proportional
         term, cycles/sample — dp_costas_get_nco_freq(); its mean rides a
         frequency ramp with no lag, where ".freq" lags by the loop's ramp
-        error). Passing NULL detaches. Setup path, never hot: call before the
-        producer thread starts stepping; the context is borrowed and must
-        outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
+        error), "<prefix>.freq_rate" (the norm_rate property: the third-order
+        filter's rate, cycles/sample^2 — dp_costas_get_norm_rate(); a loop's
+        complete output includes every integrator) and "<prefix>.order" (the
+        order property, 2 or 3, so a capture shows when a switch happened).
+        Both are registered and emitted at either order, ".freq_rate" reading
+        exactly 0 at order 2, which holds no rate: the order can change on a
+        live, attached loop (dp_costas_set_order()), so a probe present only at
+        order 3 would make the probe table depend on when the attach happened.
+        Passing NULL detaches. Setup path, never hot: call before the producer
+        thread starts stepping; the context is borrowed and must outlive the
+        attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
         prefix : str
-            Probe-name prefix, e.g. "car" or "ch0.car".
+            Probe-name prefix, e.g. "car" or "ch0.car"; at most 21 characters,
+            since "<prefix>.freq_rate" must fit the 31-character probe name.
         decim : int
             Emit every decim-th symbol; >= 1.
 
@@ -815,11 +824,11 @@ class Costas:
         >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
         >>> c.set_telemetry(tlm, "car")
         >>> sorted(tlm.probe_names)
-        ['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']
+        ['car.e', 'car.freq', 'car.freq_rate', 'car.lock', 'car.locked', 'car.nco', 'car.order']
         >>> x = np.ones(64 * 100, dtype=np.complex64)
         >>> _ = c.steps(x)
-        >>> recs = tlm.read()   # five records per dumped symbol
-        >>> len(recs) == 5 * 100
+        >>> recs = tlm.read()   # seven records per dumped symbol
+        >>> len(recs) == 7 * 100
         True
 
         """

@@ -697,6 +697,7 @@ typedef struct
   int    n_pass;
   double env[PI_PASS_BINS]; /* timing: largest |rate| by |offset| bin */
   double timing_max, prop_max, v_min, f2_max;
+  double res_f2_max; /* timing: the largest |residual rate'|, Hz/s^2 */
   double prop_h_km, prop_el_deg, prop_fc, prop_eps; /* its driving pass */
 } pi_pass_env_t;
 
@@ -744,6 +745,8 @@ pi_pass_envelope (double step_km, pi_pass_env_t *pe)
                 if (bi >= PI_PASS_BINS)
                   bi = PI_PASS_BINS - 1;
                 pe->env[bi] = fmax (pe->env[bi], fabs (f1[i] - f1[i - j]));
+                pe->res_f2_max
+                    = fmax (pe->res_f2_max, fabs (f2[i] - f2[i - j]));
               }
           }
         /* proportional: the largest residual rate is eps_max f'_max */
@@ -1862,7 +1865,7 @@ pi_design (const double fcs[2], const double esn0s[4])
   printf ("# pass\nstep_km,passes,f2_raw_max_hz_s2,timing_max_hz_s,"
           "prop_max_hz_s,prop_pass_h_km,prop_pass_el_deg,prop_pass_fc_ghz,"
           "prop_pass_eps,rotation,r_env_hz_s,o2_lag_at_r_env_deg,"
-          "o2_lag_at_prop_max_deg");
+          "o2_lag_at_prop_max_deg,res_f2_max_hz_s2,o3_err_at_res_f2_deg");
   for (int i = 0; i < PI_PASS_BINS; i++)
     printf (",env_%.0f", (double)(i + 1) * PI_SPAN_HZ / PI_PASS_BINS);
   printf ("\n");
@@ -1870,7 +1873,7 @@ pi_design (const double fcs[2], const double esn0s[4])
     {
       const double rot = pi_pass_rotation (pe[g].v_min);
       /* The order-2 lag at the rule's bn, the larger of the carriers'. */
-      double lag_per = 0.0;
+      double lag_per = 0.0, o3_per = 0.0;
       for (int f = 0; f < 2; f++)
         {
           dp_loop_filter_state_t lf;
@@ -1880,14 +1883,21 @@ pi_design (const double fcs[2], const double esn0s[4])
           lag_per = fmax (
               lag_per,
               360.0 * dp_state_filter_steady_error (2, lf.ki, 0.0, 2, T * T));
+          dp_state_filter_state_t sf;
+          dp_state_filter_init (
+              &sf, pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)), 1.0);
+          o3_per = fmax (o3_per, 360.0
+                                     * dp_state_filter_steady_error (
+                                         3, sf.ki, sf.kr, 3, T * T * T));
         }
       const double r_env = pi_r_env (pe[g].timing_max, rot);
       printf ("%.0f,%d,%.3f,%.3f,%.3f,%.0f,%.1f,%.1f,%.4f,%.4f,%.0f,%.3f,"
-              "%.3f",
+              "%.3f,%.3f,%.5f",
               pe[g].step_km, pe[g].n_pass, pe[g].f2_max, pe[g].timing_max,
               pe[g].prop_max, pe[g].prop_h_km, pe[g].prop_el_deg,
               pe[g].prop_fc / 1e9, pe[g].prop_eps, rot, r_env, lag_per * r_env,
-              lag_per * pe[g].prop_max);
+              lag_per * pe[g].prop_max, pe[g].res_f2_max,
+              o3_per * pe[g].res_f2_max);
       for (int i = 0; i < PI_PASS_BINS; i++)
         printf (",%.3f", pe[g].env[i]);
       printf ("\n");

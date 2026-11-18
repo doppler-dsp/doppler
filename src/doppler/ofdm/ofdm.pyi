@@ -329,12 +329,14 @@ class Ofdm:
 
         """
 
-    def check(self) -> int:
-        """Check the whole layout and return 0 if it is usable, or a negative
-        value if not (no run, a window longer than an OFDM symbol, two fixed
-        entries on one subcarrier in one phase). `modulate` checks on first use
-        and returns an empty array for a layout that fails; call this to find
-        out why before any points exist. Adding a class, fixed entry or run to
+    def check(self) -> None:
+        """Check the whole layout and return 0 if it is usable; raise
+        ValueError, with a sentence naming the condition, if not (no run, a
+        window longer than an OFDM symbol of its class, two fixed entries on
+        one subcarrier in one phase, or memory or a transform plan that could
+        not be built). `modulate` checks on first use and returns an empty
+        array for a layout that fails, without a reason; call this first to
+        learn it before any points exist. Adding a class, fixed entry or run to
         a checked layout re-opens it, keeping the position and the held window
         tail, so a signal can be extended while it is rendered; the next
         `modulate` checks the longer layout.
@@ -344,10 +346,12 @@ class Ofdm:
         what the render uses (the data count per phase, the window weights, one
         inverse transform per distinct length). Idempotent once it has passed.
 
-        Returns
-        -------
-        int
-            0 if the layout is usable, a negative value if not.
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            the reason the C call gives, or ``the layout is not usable``, with
+            the return code appended (gh-869), when it gives none.
 
         Examples
         --------
@@ -357,12 +361,13 @@ class Ofdm:
         >>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1
         >>> o.add_class(8, m)
         0
-        >>> o.check() < 0            # no run yet
-        True
+        >>> o.check()                # no run yet
+        Traceback (most recent call last):
+            ...
+        ValueError: the layout has no run
         >>> o.add_run(0, 1)
         0
-        >>> o.check()
-        0
+        >>> o.check()                # usable: returns None
 
         """
 

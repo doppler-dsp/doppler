@@ -404,7 +404,8 @@ extern "C"
   int dp_ofdm_add_run(dp_ofdm_state_t *state, uint32_t class_index, uint32_t count, uint32_t cyclic_prefix, uint32_t polarity_offset, uint32_t first_phase);
 
   /**
-   * @brief Check the whole layout and derive what the render uses.
+   * @brief Check the whole layout and derive what the render uses; say why
+   *        when it is not usable. This is the binding's `check`.
    *
    * Refuses a layout with no run, a window longer than an OFDM symbol of its
    * class, or two fixed entries on one subcarrier in one phase. Derives what
@@ -412,6 +413,9 @@ extern "C"
    * inverse transform per distinct length). Idempotent once it has passed.
    *
    * @param state  The modulator.
+   * @param why    Where the refusal's sentence goes: a static string naming
+   *               the condition that failed, or NULL when the layout is
+   *               usable. May be NULL.
    * @return 0 if the layout is usable, a negative value if not.
    *
    * @code
@@ -421,13 +425,24 @@ extern "C"
    * >>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1
    * >>> o.add_class(8, m)
    * 0
-   * >>> o.check() < 0            # no run yet
-   * True
+   * >>> o.check()                # no run yet
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: the layout has no run
    * >>> o.add_run(0, 1)
    * 0
-   * >>> o.check()
-   * 0
+   * >>> o.check()                # usable: returns None
    * @endcode
+   */
+  int dp_ofdm_check_why(dp_ofdm_state_t *state, const char **why);
+
+  /**
+   * @brief The plain form of dp_ofdm_check_why(): 0 if the layout is usable,
+   *        a negative value if not, with no sentence. What a C caller that
+   *        does not print the reason calls.
+   *
+   * @param state  The modulator.
+   * @return 0 if the layout is usable, a negative value if not.
    */
   int dp_ofdm_check(dp_ofdm_state_t *state);
 

@@ -1442,6 +1442,41 @@ definition = "Constructing one Ofdm with an empty layout: the cost of building t
 domain = "call"
 count = 1
 
+["py:ofdm::test_bench_modulate[64-0]"]
+name = "OFDM modulate, n_fft 64, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 64, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[64-2]"]
+name = "OFDM modulate, n_fft 64 with a 2-sample window, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 64, 2-sample window, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[256-0]"]
+name = "OFDM modulate, n_fft 256, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 256, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[1024-0]"]
+name = "OFDM modulate, n_fft 1024, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 1024, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[4096-0]"]
+name = "OFDM modulate, n_fft 4096, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 4096, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
 ["c:ofdm::modulate[n_fft=64]"]
 name = "OFDM modulate, n_fft 64"
 unit = "symbol"

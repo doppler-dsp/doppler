@@ -355,11 +355,55 @@ def test_builders_refuse_with_value_error():
         o.add_fixed(c, 0, 4, 1.0)
     with pytest.raises(ValueError):
         o.add_run(c + 1, 1)
-    assert o.check() < 0  # no run
+    with pytest.raises(ValueError, match="no run"):
+        o.check()
     o.add_run(c, 1)
-    assert o.check() == 0
+    o.check()  # the minimal pair: a run, and it is usable
     assert o.add_run(c, 1) == 1  # a checked layout is re-opened, not refused
-    assert o.check() == 0
+    o.check()
+
+
+def _small():
+    m = np.zeros(8, np.uint8)
+    m[[1, 2, 3, 5, 6, 7]] = 1
+    o = Ofdm()
+    return o, m
+
+
+def test_check_names_a_window_longer_than_the_symbol():
+    o, m = _small()
+    c = o.add_class(8, m, useful=4, cyclic_prefix=2, window=6)
+    o.add_run(c, 1, cyclic_prefix=0)  # a 4-sample symbol under a 6 window
+    with pytest.raises(ValueError, match="window is longer"):
+        o.check()
+    ok, m = _small()  # the pair: the same run on an 8-sample body
+    c = ok.add_class(8, m, useful=8, cyclic_prefix=2, window=6)
+    ok.add_run(c, 1, cyclic_prefix=0)
+    ok.check()
+
+
+def test_check_names_two_fixed_entries_on_one_subcarrier():
+    o, m = _small()
+    c = o.add_class(8, m, n_phase=2)
+    o.add_fixed(c, 0xFFFFFFFF, 2, 1.0)
+    o.add_fixed(c, 1, 2, 1.0)
+    o.add_run(c, 1)
+    with pytest.raises(ValueError, match="one subcarrier"):
+        o.check()
+    ok, m = _small()  # the pair: the second entry on another subcarrier
+    c = ok.add_class(8, m, n_phase=2)
+    ok.add_fixed(c, 0xFFFFFFFF, 2, 1.0)
+    ok.add_fixed(c, 1, 3, 1.0)
+    ok.add_run(c, 1)
+    ok.check()
+
+
+def test_modulate_on_an_unusable_layout_is_empty_and_check_says_why():
+    o, m = _small()
+    o.add_class(8, m)  # no run
+    assert o.modulate(np.ones(6, np.complex64)).size == 0
+    with pytest.raises(ValueError, match="no run"):
+        o.check()
 
 
 def test_a_refused_call_returns_empty_and_moves_nothing():

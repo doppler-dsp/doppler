@@ -233,6 +233,50 @@ main (void)
     dp_ofdm_destroy (o);
   }
 
+  /* ── 1b. check says why ────────────────────────────────────────────────
+   * dp_ofdm_check_why returns what dp_ofdm_check does and names the
+   * condition that failed; each refusal beside its minimal pair (the same
+   * layout with that one thing made right), which gives no sentence. */
+  {
+    const char      *why = "unset";
+    dp_ofdm_state_t *o   = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_CHECK (dp_ofdm_check_why (o, &why) < 0);
+    DP_CHECK_MSG (why && strstr (why, "no run"), "no run: says so");
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_CHECK (dp_ofdm_check_why (o, &why) == 0 && why == NULL);
+    DP_CHECK_MSG (dp_ofdm_check_why (o, &why) == 0 && why == NULL,
+                  "a sealed layout checks again with no sentence");
+    DP_CHECK (dp_ofdm_check_why (o, NULL) == 0);
+    dp_ofdm_destroy (o);
+
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 4u, 2u, 6u, 1.0, NULL, 0u, 1u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, 0u, 0u, 0u) == 0);
+    DP_CHECK (dp_ofdm_check_why (o, &why) < 0);
+    DP_CHECK_MSG (why && strstr (why, "window"), "a long window: says so");
+    dp_ofdm_destroy (o);
+
+    o = dp_ofdm_create ();
+    DP_REQUIRE (
+        add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, NULL, 0u, 2u, NULL, 0u)
+        == 0);
+    DP_REQUIRE (dp_ofdm_add_fixed (o, 0u, OFDM_ALL_PHASES, 2, 1.0) == 0);
+    DP_REQUIRE (dp_ofdm_add_fixed (o, 0u, 1u, 2, 1.0) == 0);
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_CHECK (dp_ofdm_check_why (o, &why) < 0);
+    DP_CHECK_MSG (why && strstr (why, "one subcarrier"),
+                  "two fixed entries on one subcarrier: says so");
+    dp_ofdm_destroy (o);
+
+    why = "unset";
+    DP_CHECK (dp_ofdm_check_why (NULL, &why) == -1 && why != NULL);
+  }
+
   /* ── 2. the grid, by inverting the primitive ───────────────────────────*/
   {
     const double     scale = 0.5;

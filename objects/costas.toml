@@ -53,9 +53,10 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
-# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" / "<prefix>.locked"
-# (the last is the verify-counted lockdet decision, 0/1), emitted once per
-# dumped symbol. None detaches; the int status binds -> None with
+# the seven probes dp_costas_set_telemetry() lists -- "<prefix>.lock",
+# ".e", ".freq", ".locked" (the verify-counted lockdet decision, 0/1),
+# ".nco", ".freq_rate" (the norm_rate property) and ".order" (the order
+# property) -- emitted once per dumped symbol. None detaches; the int status binds -> None with
 # ValueError on failure.
 [[costas.methods]]
 name = "set_telemetry"

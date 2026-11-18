@@ -799,7 +799,8 @@ typedef enum
    * Each loop reports under the prefix, at its own update rate:
    * - "<prefix>.car" -- the chip-domain carrier loop
    *   (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
-   *   ".nco"), once per carrier update: once a code period, except while it
+   *   ".nco", ".freq_rate", ".order"), once per carrier update: once a code
+   *   period, except while it
    *   coasts, when loop 1 is held;
    * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
    *   ".rate", ".lock", ".locked", ".nco"), once per discriminator update;
@@ -859,7 +860,7 @@ typedef enum
    * >>> tlm = Telemetry(1 << 12)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.c"))
-   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.rate']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
    * ...                                                    "rx.r")))
    * ['rx.handover_hz', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']

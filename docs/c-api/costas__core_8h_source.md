@@ -36,6 +36,8 @@ typedef struct {
     int32_t id_freq;   
     int32_t id_locked; 
     int32_t id_nco;    
+    int32_t id_freq_rate; 
+    int32_t id_order;  
 } costas_tlm_t;
 
 typedef struct {

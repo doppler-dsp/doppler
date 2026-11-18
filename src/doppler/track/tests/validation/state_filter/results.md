@@ -40,6 +40,10 @@ The header's claims, and where each is certified:
 | one exact function, both orders | C §6; §2.2 |
 | steady errors by order | C §8; §2.4 |
 | the state blob and its flavor key | C §9; §2.6 |
+| the restore check: the gains must be the ones `bn` and `t` give, to 1e-9, and the pad word must be 0 | C §9 (forged payloads, the tolerance held a decade either side), §3b (the gains against a long double solve) |
+| the interpolated fractional delay is a defined model | C §6 (simulation at 0.5 and 1.25) |
+| the exact test is right off the design manifold (a Kalman filter's gains while its covariance converges) | C §10 |
+| the decision rule, at loops built at a known radius either side of 1 | C §11 |
 
 ## 2. Characterisation
 
@@ -167,28 +171,30 @@ The phase error to a frequency step of one cycle per update, next to the second-
 
 Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/track/tests/test_validation_limits.py`.
 
+*Checked by* names the check; *control* is the same assertion evaluated on a named wrong case, which this report requires to FAIL (a refusal's control is its minimal pair: the same call with the offending argument made good must succeed). *Break* is a one-line break of the source run against the claim: not run for this report yet, so the column says so. The numeric tolerances are derived where a derivation exists (rounding of a sum of `n` terms, `4 * eps * sqrt(n)`, or of the ramp's phase accumulator) and the rest say they are a pin.
 
-| verdict | claim |
-|---|---|
-| PASS | the delivered bandwidth at zero delay is `bn*t` to 2.1e-14 across bn*t 0.002 to 0.12 |
-| PASS | the exact `bandwidth(delay, gain)` agrees with simulation at integer delays 0 to 2 and gains 1.0 and 0.7 to 4.1e-15 |
-| PASS | a longer detector delay delivers a wider bandwidth, at every bn*t measured |
-| PASS | at the bound bn*t = 0.12 the loop is stable over the advertised rectangle (gain 0.5 to 2.0, delay 0 to 2): 0 unstable grid points |
-| PASS | the stable gains at every measured (bn*t, delay) form one interval (at most 2 changes of stability along K) |
-| PASS | the lower gain edge at the bound is 0.310, under K_MIN = 0.5 (4.1 dB of margin) |
-| PASS | the bound is tight: the upper edge at the worst delay is 2.084, within 5% of K_MAX = 2.0 |
-| PASS | the second-order ramp error is r/ki to 2.3e-11 |
-| PASS | the third-order loop nulls the ramp: 0.0e+00 against 1.4e-04 |
-| PASS | create refuses a negative bn, t = 0, a NaN, an infinite t, a bn*t past the bound and one below the floor |
-| PASS | a mid-stream split resumes bit for bit |
-| PASS | steps() equals repeated step() |
-| PASS | configure retunes the gains and keeps both estimates |
-| PASS | reset zeroes both estimates |
-| PASS | the writable integ and rate seed the loop |
-| PASS | the third-order step response is slower than the second-order's at the same bn, at every bn*t measured (the price of the rate state) |
-| PASS | a blob with a flavor word other than 0 is refused |
-| PASS | the sum of squares of the phase at the detector instant is `2*Bn` to 1.9e-14 for the third-order loop |
-| PASS | the phase just after the proportional step has a sum of squares below `2*Bn` by a factor between 1.009 and 1.076 at bn*t 0.005 to 0.04, both orders |
+
+| verdict | claim | checked by | control (must fail) | break that turns it red |
+|---|---|---|---|---|
+| PASS | the delivered bandwidth at zero delay is `bn*t` to 2.1e-14 across bn*t 0.002 to 0.12, inside the rounding bound 6.4e-13 of a sum of up to 520000 terms | validator §2.1, Parseval through the binding; C §3 | the same check at a detector delay of one update (5.8e-02, far over the bound) | not run |
+| PASS | the exact `bandwidth(delay, gain)` agrees with simulation at integer delays 0 to 2 and gains 1.0 and 0.7 to 4.1e-15, inside the rounding bound 2.2e-13 of a sum of 60000 terms | validator §2.2; C §6 | the exact function at delay 1 against the simulation at delay 0 (8.1e-02) | not run |
+| PASS | a longer detector delay delivers a wider bandwidth, at every bn*t measured | validator §2.2 | the same comparison with the delays reversed is false | not run |
+| PASS | at the bound bn*t = 0.12 the loop is stable over the advertised rectangle (gain 0.5 to 2.0, delay 0 to 2): 0 unstable grid points | validator §2.3 (41 delays by 15 gains); C §7 | the same grid at gains 5 to 10 times nominal has 15 unstable points | not run |
+| PASS | the stable gains at every measured (bn*t, delay) form one interval (at most 2 changes of stability along K) | validator §2.3, a log sweep of K | none: the set is an interval at every point measured, so no wrong case is available in this family | not run |
+| PASS | the lower gain edge at the bound is 0.310, under K_MIN = 0.5 (4.1 dB of margin) | validator §2.3; C §7 asserts it at every delay to 2 | the same assertion with the floor at 0.25 (the shape's own lower edge) is false | not run |
+| PASS | pin: the bound is tight: the upper edge at the worst delay is 2.084, within 5% of K_MAX = 2.0 (the exact bound is 0.1248 and the constant 0.12; 5% is a pin set above the measured 4.2%) | validator §2.3; C §7 derives the bound by bisection | at bn*t 0.06 the upper edge is 4.25, not within 5% | not run |
+| PASS | the second-order ramp error is r/ki to 2.3e-11, inside the rounding 9.8e-10 of the ramp's phase accumulator | validator §2.4; C §8 | r/ki of a loop at twice the bandwidth is 2.9e+00 off | not run |
+| PASS | the third-order loop nulls the ramp: 0.0e+00 against 1.4e-04 for the second order, inside the accumulator's rounding | validator §2.4; C §8 | the second-order loop's error on the same ramp is not null | not run |
+| PASS | create refuses a negative bn, t = 0, a NaN, an infinite t, a bn*t past the bound and one below the floor | validator §2.6; C §1 | the minimal pair: `StateFilter(bn=0.02, t=1.0)` is built | not run |
+| PASS | a mid-stream split resumes bit for bit | validator §2.6; C §9 | resuming from a state whose frequency estimate was moved is not the uninterrupted run | not run |
+| PASS | steps() equals repeated step() | validator §2.6; C §5 | a one-sample-shifted input is not what steps() computed | not run |
+| PASS | configure retunes the gains and keeps both estimates | validator §2.6; C §4 | after reset() the estimates no longer equal the held ones | not run |
+| PASS | reset zeroes both estimates | validator §2.6; C §4 | before reset() the estimates are not zero | not run |
+| PASS | the writable integ and rate seed the loop | validator §2.6 | seeding zeros does not move the loop | not run |
+| PASS | the third-order step response is slower than the second-order's at the same bn, at every bn*t measured (the price of the rate state) | validator §2.5 | the reverse comparison is false at every bn*t | not run |
+| PASS | a blob with a flavor word other than 0 is refused | validator §2.6; C §9 | the minimal pair: the unmodified blob is accepted | not run |
+| PASS | the sum of squares of the phase at the detector instant is `2*Bn` to 1.9e-14 for the third-order loop, inside the rounding bound 2.2e-13 of a sum of 60000 terms | validator §2.7 | the phase just after the proportional step is 8.9e-03 off `2*Bn` | not run |
+| PASS | pin: the phase just after the proportional step has a sum of squares below `2*Bn` by a factor between 1.009 and 1.076 at bn*t 0.005 to 0.04, both orders (1.15 allowed: a pin set from the measurement) | validator §2.7 | the detector-instant ratio (1.000) is not in the open interval above 1 | not run |
 
 
 ## 5. Summary

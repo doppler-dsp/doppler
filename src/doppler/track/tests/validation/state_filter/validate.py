@@ -66,6 +66,16 @@ def parseval(sf: StateFilter, delay: int = 0, gain: float = 1.0, n=60000):
     return 0.5 * total
 
 
+EPS = float(np.finfo(float).eps)
+
+
+def rounding_bound(n_terms: int) -> float:
+    """Four times the random-walk rounding bound of a sum of ``n_terms``
+    terms, ``4 * eps * sqrt(n)``: what a relative check of a Parseval sum can
+    be asked for before the claim is about the arithmetic and not the loop."""
+    return 4.0 * EPS * float(np.sqrt(n_terms))
+
+
 def gain_edges(sf: StateFilter, delay: float) -> tuple[float, float]:
     """The stable interval [K_low, K_high] of the loop gain, by bisection on
     the exact test the binding exposes."""
@@ -190,6 +200,26 @@ def section_object() -> None:
             ["one exact function, both orders", "C §6; §2.2"],
             ["steady errors by order", "C §8; §2.4"],
             ["the state blob and its flavor key", "C §9; §2.6"],
+            [
+                "the restore check: the gains must be the ones `bn` and `t` "
+                "give, to 1e-9, and the pad word must be 0",
+                "C §9 (forged payloads, the tolerance held a decade either "
+                "side), §3b (the gains against a long double solve)",
+            ],
+            [
+                "the interpolated fractional delay is a defined model",
+                "C §6 (simulation at 0.5 and 1.25)",
+            ],
+            [
+                "the exact test is right off the design manifold (a Kalman "
+                "filter's gains while its covariance converges)",
+                "C §10",
+            ],
+            [
+                "the decision rule, at loops built at a known radius either "
+                "side of 1",
+                "C §11",
+            ],
         ],
     )
 
@@ -209,8 +239,11 @@ def characterise() -> SimpleNamespace:
     R.md("### 2.1 The bandwidth asked for is the one delivered (C §3)")
     R.md()
     rows, d.bw0_max_rel = [], 0.0
+    d.bw0_n_max = 0
     for bnt in BNTS:
-        got = parseval(StateFilter(bn=bnt), 0, n=int(1000 / bnt) + 20000)
+        n_terms = int(1000 / bnt) + 20000
+        d.bw0_n_max = max(d.bw0_n_max, n_terms)
+        got = parseval(StateFilter(bn=bnt), 0, n=n_terms)
         rel = got / bnt - 1.0
         d.bw0_max_rel = max(d.bw0_max_rel, abs(rel))
         rows.append([bnt, got, rel])
@@ -227,6 +260,11 @@ def characterise() -> SimpleNamespace:
         [[f"{a:g}", f"{b:.9g}", f"{c:+.1e}"] for a, b, c in rows],
     )
     _csv(DATA / "bandwidth.csv", "bnt,bn_parseval,rel", rows)
+    # control: the same check on a detector delay of one update (a different
+    # loop, wider than bn*t) is far outside the rounding bound
+    d.bw0_control = abs(
+        parseval(StateFilter(bn=0.02), 1, n=40000) / 0.02 - 1.0
+    )
 
     # 2.2 delay and gain ---------------------------------------------
     R.md("### 2.2 What a detector delay and a loop gain do (C §6)")
@@ -253,6 +291,16 @@ def characterise() -> SimpleNamespace:
             [f"{a}", f"{b:g}", f"{c:.7g}", f"{m:.7g}", f"{r:+.1e}"]
             for a, b, c, m, r in rows
         ],
+    )
+    # control: the exact function at delay 1 against the simulation at delay 0
+    d.exact_control = abs(
+        parseval(StateFilter(bn=0.03), 0)
+        / StateFilter(bn=0.03).bandwidth(delay=1.0)
+        - 1.0
+    )
+    d.delay_widens_control = all(
+        StateFilter(bn=b).bandwidth() > StateFilter(bn=b).bandwidth(delay=1.0)
+        for b in BNTS
     )
     d.delay_widens = all(
         StateFilter(bn=b).bandwidth(delay=2.0)
@@ -321,6 +369,14 @@ def characterise() -> SimpleNamespace:
         gain_edges(edge, float(dl))[0] for dl in np.linspace(0, DELAY_MAX, 9)
     )
     d.k_low_margin_db = 20 * np.log10(K_MIN / d.k_low_bound)
+    # controls: gains 5 to 10 times nominal are NOT inside the rectangle, so
+    # the same unstable count is positive there; and the upper edge at a
+    # narrower loop (0.06) is not within 5% of K_MAX
+    d.rect_control = sum(
+        not edge.stable(DELAY_MAX, float(g))
+        for g in np.geomspace(5.0, 10.0, 15)
+    )
+    d.tight_control = gain_edges(StateFilter(bn=0.06), DELAY_MAX)[1]
     # a loop wider than the bound cannot be created, so tightness is read at
     # the bound: the upper edge at the worst delay sits within 5% of K_MAX
     d.k_high_corner = gain_edges(edge, DELAY_MAX)[1]
@@ -348,6 +404,14 @@ def characterise() -> SimpleNamespace:
     e2 = close_ramp(second, r)
     e3 = close_ramp(StateFilter(bn=bn), r)
     d.ramp = (r, bn, e2, r / second.ki, e3)
+    # the ramp's phase accumulator reaches r * n^2 / 2 and carries eps of it:
+    # the error being read is a difference of two numbers that large
+    n_ramp = 40000
+    d.ramp_abs = 4.0 * EPS * (r * n_ramp * n_ramp / 2.0)
+    d.ramp_round = d.ramp_abs / (r / second.ki)  # relative to the error read
+    d.ramp_control = abs(
+        e2 / (r / LoopFilter(bn=0.04, zeta=0.707, t=1.0).ki) - 1.0
+    )
     R.md(
         f"A ramp of {r:g} cycles per update per update into both loops at "
         f"`bn = {bn}`, an ideal detector, after 40000 updates:"
@@ -424,6 +488,8 @@ def characterise() -> SimpleNamespace:
         except ValueError:
             refused.append(True)
     d.refusals = refused
+    # the minimal pair: the same call with the offending argument made good
+    d.refusal_pair = bool(StateFilter(bn=0.02, t=1.0).bn == 0.02)
     x = np.sin(0.05 * np.arange(300)) * 0.1
     whole = StateFilter(bn=0.03)
     want = whole.steps(x)
@@ -432,6 +498,12 @@ def characterise() -> SimpleNamespace:
     b = StateFilter(bn=0.03)
     b.set_state(a.get_state())
     d.split_exact = bool(np.array_equal(b.steps(x[120:]), want[120:]))
+    # control: the same resume from a state whose frequency estimate was
+    # moved does not equal the uninterrupted run
+    moved = StateFilter(bn=0.03)
+    moved.set_state(a.get_state())
+    moved.integ = moved.integ + 1e-3
+    d.split_control = not np.array_equal(moved.steps(x[120:]), want[120:])
     bad = bytearray(a.get_state())
     bad[len(bad) - (8 + 7 * 8)] = 1  # the flavor word
     try:
@@ -439,9 +511,20 @@ def characterise() -> SimpleNamespace:
         d.flavor_rejected = False
     except ValueError:
         d.flavor_rejected = True
+    # the minimal pair: the unmodified blob is accepted
+    d.flavor_pair = True
+    try:
+        b.set_state(a.get_state())
+    except ValueError:
+        d.flavor_pair = False
     one = StateFilter(bn=0.03)
     d.steps_equal = bool(
         np.allclose([one.step(e) for e in x], want, rtol=1e-12, atol=1e-15)
+    )
+    # control: a one-sample-shifted input is not what steps() computed
+    shifted = StateFilter(bn=0.03)
+    d.steps_control = not np.allclose(
+        [shifted.step(e) for e in np.roll(x, 1)], want, rtol=1e-12, atol=1e-15
     )
     held = StateFilter(bn=0.03)
     held.steps(x[:50])
@@ -450,13 +533,20 @@ def characterise() -> SimpleNamespace:
     d.configure_keeps = bool(
         (held.integ, held.rate) == (integ, rate) and held.kp > kp
     )
+    d.reset_before = bool((held.integ, held.rate) != (0.0, 0.0))
+    d.configure_after_reset = bool((held.integ, held.rate) == (integ, rate))
     held.reset()
     d.reset_zeroes = bool((held.integ, held.rate) == (0.0, 0.0))
+    d.configure_control = bool((held.integ, held.rate) == (integ, rate))
     seeded = StateFilter(bn=0.02)
     seeded.integ, seeded.rate = 0.5, -0.01
     fresh = StateFilter(bn=0.02)
     d.seed_moves = bool(seeded.step(0.2) != fresh.step(0.2))
+    unseeded = StateFilter(bn=0.02)
+    unseeded.integ, unseeded.rate = 0.0, 0.0
+    d.seed_control = bool(unseeded.step(0.2) != StateFilter(bn=0.02).step(0.2))
     d.slower = all(s3 > s2 for _, s3, _, s2 in d.trans.values())
+    d.slower_control = all(s2 > s3 for _, s3, _, s2 in d.trans.values())
     R.md(
         f"`StateFilter(...)` refuses a negative `bn`, `t = 0`, a NaN, an "
         f"infinite `t`, a `bn*t` past the bound and a `bn*t` below the floor "
@@ -586,84 +676,189 @@ def limits(d: SimpleNamespace) -> None:
         "`src/doppler/track/tests/test_validation_limits.py`."
     )
     R.md()
+    R.md(
+        "*Checked by* names the check; *control* is the same assertion "
+        "evaluated on a named wrong case, which this report requires to "
+        "FAIL (a refusal's control is its minimal pair: the same call with "
+        "the offending argument made good must succeed). *Break* is a "
+        "one-line break of the source run against the claim: not run for "
+        "this report yet, so the column says so. The numeric tolerances are "
+        "derived where a derivation exists (rounding of a sum of `n` terms, "
+        "`4 * eps * sqrt(n)`, or of the ramp's phase accumulator) and the "
+        "rest say they are a pin."
+    )
+    R.md()
+    bw_tol = rounding_bound(d.bw0_n_max)
+    sim_tol = rounding_bound(60000)
+    _r, _bn, e2, pred, e3 = d.ramp
+    ratio_ctl = min(d.tap_ratios) - 1.0
+    NR = "not run"
     R.limit(
-        d.bw0_max_rel < 1e-6,
+        d.bw0_max_rel < bw_tol and d.bw0_control > bw_tol,
         f"the delivered bandwidth at zero delay is `bn*t` to "
-        f"{d.bw0_max_rel:.1e} across bn*t 0.002 to 0.12",
+        f"{d.bw0_max_rel:.1e} across bn*t 0.002 to 0.12, inside the "
+        f"rounding bound {bw_tol:.1e} of a sum of up to {d.bw0_n_max} terms",
+        by="validator §2.1, Parseval through the binding; C §3",
+        control=f"the same check at a detector delay of one update "
+        f"({d.bw0_control:.1e}, far over the bound)",
+        red=NR,
     )
     R.limit(
-        d.exact_max_rel < 1e-6,
+        d.exact_max_rel < sim_tol and d.exact_control > sim_tol,
         f"the exact `bandwidth(delay, gain)` agrees with simulation at "
         f"integer delays 0 to 2 and gains 1.0 and 0.7 to "
-        f"{d.exact_max_rel:.1e}",
+        f"{d.exact_max_rel:.1e}, inside the rounding bound {sim_tol:.1e} of "
+        f"a sum of 60000 terms",
+        by="validator §2.2; C §6",
+        control=f"the exact function at delay 1 against the simulation at "
+        f"delay 0 ({d.exact_control:.1e})",
+        red=NR,
     )
     R.limit(
-        d.delay_widens,
+        d.delay_widens and not d.delay_widens_control,
         "a longer detector delay delivers a wider bandwidth, at every bn*t "
         "measured",
+        by="validator §2.2",
+        control="the same comparison with the delays reversed is false",
+        red=NR,
     )
     R.limit(
-        d.rect_unstable == 0,
+        d.rect_unstable == 0 and d.rect_control > 0,
         f"at the bound bn*t = {BNT_MAX} the loop is stable over the "
         f"advertised rectangle (gain {K_MIN} to {K_MAX}, delay 0 to "
         f"{DELAY_MAX:g}): {d.rect_unstable} unstable grid points",
+        by="validator §2.3 (41 delays by 15 gains); C §7",
+        control=f"the same grid at gains 5 to 10 times nominal has "
+        f"{d.rect_control} unstable points",
+        red=NR,
     )
     R.limit(
         d.changes_max <= 2,
         "the stable gains at every measured (bn*t, delay) form one interval "
         f"(at most {d.changes_max} changes of stability along K)",
+        by="validator §2.3, a log sweep of K",
+        control="none: the set is an interval at every point measured, so "
+        "no wrong case is available in this family",
+        red=NR,
     )
     R.limit(
-        d.k_low_bound < K_MIN,
+        d.k_low_bound < K_MIN and not d.k_low_bound < 0.25,
         f"the lower gain edge at the bound is {d.k_low_bound:.3f}, under "
         f"K_MIN = {K_MIN} ({d.k_low_margin_db:.1f} dB of margin)",
+        by="validator §2.3; C §7 asserts it at every delay to 2",
+        control="the same assertion with the floor at 0.25 (the shape's own "
+        "lower edge) is false",
+        red=NR,
     )
     R.limit(
-        d.bound_tight,
-        f"the bound is tight: the upper edge at the worst delay is "
-        f"{d.k_high_corner:.3f}, within 5% of K_MAX = {K_MAX}",
+        d.bound_tight and not (K_MAX <= d.tight_control < 1.05 * K_MAX),
+        f"pin: the bound is tight: the upper edge at the worst delay is "
+        f"{d.k_high_corner:.3f}, within 5% of K_MAX = {K_MAX} (the exact "
+        f"bound is 0.1248 and the constant 0.12; 5% is a pin set above the "
+        f"measured 4.2%)",
+        by="validator §2.3; C §7 derives the bound by bisection",
+        control=f"at bn*t 0.06 the upper edge is {d.tight_control:.2f}, not "
+        f"within 5%",
+        red=NR,
     )
-    _r, _bn, e2, pred, e3 = d.ramp
     R.limit(
-        abs(e2 / pred - 1.0) < 1e-4,
-        f"the second-order ramp error is r/ki to {abs(e2 / pred - 1):.1e}",
+        abs(e2 / pred - 1.0) < d.ramp_round and d.ramp_control > d.ramp_round,
+        f"the second-order ramp error is r/ki to {abs(e2 / pred - 1):.1e}, "
+        f"inside the rounding {d.ramp_round:.1e} of the ramp's phase "
+        f"accumulator",
+        by="validator §2.4; C §8",
+        control=f"r/ki of a loop at twice the bandwidth is "
+        f"{d.ramp_control:.1e} off",
+        red=NR,
     )
     R.limit(
-        abs(e3) < 1e-6 * abs(e2),
+        abs(e3) < d.ramp_abs and abs(e2) > 100 * abs(e3),
         f"the third-order loop nulls the ramp: {abs(e3):.1e} against "
-        f"{abs(e2):.1e}",
+        f"{abs(e2):.1e} for the second order, inside the accumulator's "
+        f"rounding",
+        by="validator §2.4; C §8",
+        control="the second-order loop's error on the same ramp is not null",
+        red=NR,
     )
     R.limit(
-        all(d.refusals),
+        all(d.refusals) and d.refusal_pair,
         "create refuses a negative bn, t = 0, a NaN, an infinite t, a bn*t "
         "past the bound and one below the floor",
+        by="validator §2.6; C §1",
+        control="the minimal pair: `StateFilter(bn=0.02, t=1.0)` is built",
+        red=NR,
     )
-    R.limit(d.split_exact, "a mid-stream split resumes bit for bit")
-    R.limit(d.steps_equal, "steps() equals repeated step()")
     R.limit(
-        d.configure_keeps,
+        d.split_exact and d.split_control,
+        "a mid-stream split resumes bit for bit",
+        by="validator §2.6; C §9",
+        control="resuming from a state whose frequency estimate was moved "
+        "is not the uninterrupted run",
+        red=NR,
+    )
+    R.limit(
+        d.steps_equal and d.steps_control,
+        "steps() equals repeated step()",
+        by="validator §2.6; C §5",
+        control="a one-sample-shifted input is not what steps() computed",
+        red=NR,
+    )
+    R.limit(
+        d.configure_keeps and d.configure_control is False,
         "configure retunes the gains and keeps both estimates",
+        by="validator §2.6; C §4",
+        control="after reset() the estimates no longer equal the held ones",
+        red=NR,
     )
-    R.limit(d.reset_zeroes, "reset zeroes both estimates")
-    R.limit(d.seed_moves, "the writable integ and rate seed the loop")
     R.limit(
-        d.slower,
+        d.reset_zeroes and d.reset_before,
+        "reset zeroes both estimates",
+        by="validator §2.6; C §4",
+        control="before reset() the estimates are not zero",
+        red=NR,
+    )
+    R.limit(
+        d.seed_moves and not d.seed_control,
+        "the writable integ and rate seed the loop",
+        by="validator §2.6",
+        control="seeding zeros does not move the loop",
+        red=NR,
+    )
+    R.limit(
+        d.slower and not d.slower_control,
         "the third-order step response is slower than the second-order's "
         "at the same bn, at every bn*t measured (the price of the rate state)",
+        by="validator §2.5",
+        control="the reverse comparison is false at every bn*t",
+        red=NR,
     )
     R.limit(
-        d.flavor_rejected, "a blob with a flavor word other than 0 is refused"
+        d.flavor_rejected and d.flavor_pair,
+        "a blob with a flavor word other than 0 is refused",
+        by="validator §2.6; C §9",
+        control="the minimal pair: the unmodified blob is accepted",
+        red=NR,
     )
     R.limit(
-        d.tap3_det < 1e-5,
+        d.tap3_det < sim_tol and ratio_ctl > sim_tol,
         f"the sum of squares of the phase at the detector instant is "
-        f"`2*Bn` to {d.tap3_det:.1e} for the third-order loop",
+        f"`2*Bn` to {d.tap3_det:.1e} for the third-order loop, inside the "
+        f"rounding bound {sim_tol:.1e} of a sum of 60000 terms",
+        by="validator §2.7",
+        control=f"the phase just after the proportional step is "
+        f"{ratio_ctl:.1e} off `2*Bn`",
+        red=NR,
     )
     R.limit(
         all(1.0 < r < 1.15 for r in d.tap_ratios),
-        "the phase just after the proportional step has a sum of squares "
-        f"below `2*Bn` by a factor between {min(d.tap_ratios):.3f} and "
-        f"{max(d.tap_ratios):.3f} at bn*t 0.005 to 0.04, both orders",
+        "pin: the phase just after the proportional step has a sum of "
+        f"squares below `2*Bn` by a factor between {min(d.tap_ratios):.3f} "
+        f"and {max(d.tap_ratios):.3f} at bn*t 0.005 to 0.04, both orders "
+        "(1.15 allowed: a pin set from the measurement)",
+        by="validator §2.7",
+        control="the detector-instant ratio (1.000) is not in the open "
+        "interval above 1",
+        red=NR,
     )
 
 

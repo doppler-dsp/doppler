@@ -113,7 +113,14 @@ main (void)
    * for chance. (The 80-sample symbol's power differs from its body's by the
    * cyclic prefix, which repeats only the body's last 16 samples; and a
    * 16-QAM payload's mean |point|^2 is one only on average over the
-   * constellation, 8 symbols of it are not.) */
+   * constellation, 8 symbols of it are not.)
+   *
+   * What this holds, and what it does not: the Data bodies are compared with
+   * the library's OWN points, so that check ties the renderer (the layout,
+   * the pilots, the transform and the scale) to the mapper by Parseval; it
+   * does not tie the mapper to the standard, which waits on Annex I's
+   * stage-by-stage example (#3148). The two training fields reading exactly
+   * one is an external fact, the standard's scale. */
   double p_stf = 0, p_ltf = 0;
   for (size_t i = 0; i < 160; i++)
     {

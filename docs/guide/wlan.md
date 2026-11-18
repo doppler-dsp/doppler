@@ -79,7 +79,10 @@ steps, in order, with the example that runs all of them:
     Parseval ties to the points it was built from. A Data symbol's power is
     not one: a 16-QAM symbol's 48 points have a mean power of one only on
     average over the constellation, and the cyclic prefix repeats only the
-    body's last 16 samples.
+    body's last 16 samples. The Data symbols are compared with the library's
+    own points, so that check holds the renderer to the mapper and not the
+    mapper to the standard (that waits on Annex I's example, #3148); the
+    training fields' exact one is the standard's own scale.
 
 ```c
 --8<-- "native/examples/wlan_ppdu_demo.c"

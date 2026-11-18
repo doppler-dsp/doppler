@@ -18,6 +18,8 @@
  * src/doppler/track/tests/validation/ratesync/results.md.
  */
 
+#include "doppler/detection/detection_core.h"
+#include "doppler/lockdet/lockdet_core.h"
 #include "doppler/ratesync/ratesync_core.h"
 #include "dp_test.h"
 
@@ -1407,6 +1409,61 @@ test_amplitude_law (void)
     }
 }
 
+/* ── §21 — the lock's time hysteresis (#3133) ──
+   The default verify counts are the ones
+   dp_det_verify_count() gives at the sizing rates and the per-decision
+   budget the header states, and a declare takes n_up consecutive passing
+   decisions, so a single one never declares. Negative control: a detector
+   left at the n_up of 1 it had declares on a single pass and fails the same
+   predicate. */
+static int
+declares_on_single_pass (dp_lockdet_state_t *lk)
+{
+  /* pass, fail, pass, fail, ...: never two passing decisions in a row */
+  for (int i = 0; i < 64; i++)
+    {
+      (void)dp_lockdet_step (lk, (i & 1) ? 0.0 : 1.0);
+      if (lk->locked)
+        return 1;
+    }
+  return 0;
+}
+
+static void
+test_lock_time_hysteresis (void)
+{
+  dp_ratesync_state_t *s
+      = dp_ratesync_create (8.0, RATESYNC_PULSE_IANDD, 0.35, 8, 4, 32, 0.01,
+                            0.707, RATESYNC_TED_GARDNER);
+  DP_CHECK (s != NULL);
+  if (!s)
+    return;
+  const dp_lockdet_state_t *lk = &s->loop.lock;
+  const uint32_t up   = (uint32_t)dp_det_verify_count (RATESYNC_LOCK_PFA,
+                                                       RATESYNC_LOCK_BUDGET);
+  const uint32_t down = (uint32_t)dp_det_verify_count (1.0 - RATESYNC_LOCK_PD,
+                                                       RATESYNC_LOCK_BUDGET);
+  DP_CHECK_MSG (lk->n_up == up && lk->n_down == down,
+                "the verify counts are the budget's");
+  DP_CHECK_MSG (lk->n_up > 1, "a declare needs more than one decision");
+  /* The rule as built: a single passing decision never declares, and two in
+     a row do. */
+  dp_lockdet_state_t d = *lk;
+  dp_lockdet_reset (&d);
+  DP_CHECK_MSG (!declares_on_single_pass (&d),
+                "a single passing decision never declares");
+  dp_lockdet_reset (&d);
+  for (uint32_t i = 0; i < d.n_up; i++)
+    (void)dp_lockdet_step (&d, 1.0);
+  DP_CHECK_MSG (d.locked, "n_up passing decisions in a row declare");
+  /* Negative control: the old default, n_up 1. */
+  dp_lockdet_state_t old;
+  dp_lockdet_init (&old, lk->up_thresh, lk->down_thresh, 1u, lk->n_down);
+  DP_CHECK_MSG (declares_on_single_pass (&old),
+                "control: n_up 1 declares on a single passing decision");
+  dp_ratesync_destroy (s);
+}
+
 int
 main (void)
 {
@@ -1431,6 +1488,7 @@ main (void)
   test_max_out ();
   test_sps_equals_m_boundary ();
   test_amplitude_law ();
+  test_lock_time_hysteresis ();
 
   DP_TEST_END ("test_ratesync_core");
 }

@@ -20,21 +20,31 @@
  *
  * lock_signal here is the SAME statistic symsync block-averages --
  * 2*(|on|^2 - |mid|^2)/(|on|^2 + |mid|^2), formed from an on-time strobe and a
- * transition-gate strobe half a symbol earlier -- so symsync's empirically
- * validated operating point transfers directly: avgs = 133, threshold = 0.311
- * (its (pfa=1e-3, pd=0.9) sizing at rolloff 0.35 / esno_min 10 dB), n_up = 1,
- * n_down = 8.
+ * transition-gate strobe half a symbol earlier -- so symsync's sizing carries
+ * over: avgs = 133 and a threshold of 0.311, its (pfa = 1e-3, pd = 0.9)
+ * sizing per decision at rolloff 0.35 / esno_min 10 dB.
+ *
+ * The verify counts are derived from one per-decision false-transition
+ * budget, RATESYNC_LOCK_BUDGET (the library's convention: an absolute
+ * probability per decision, the value the Dll's declare and the async
+ * receiver's code-lock drop use), through dp_det_verify_count():
+ *   n_up   = verify_count(pfa,    budget) = verify_count(1e-3, 1e-6) = 2;
+ *   n_down = verify_count(1 - pd, budget) = verify_count(0.1,  1e-6) = 6.
+ * They are literals here so RateSync links nothing for them;
+ * test_ratesync_core.c recomputes both and fails on any drift. The rates
+ * are the sizing point's: whether the counts meet the budget at another
+ * Es/N0 is the caller's to measure, and a caller that knows its budget sets
+ * its own through dp_ratesync_configure_lock_raw().
  *
  * The (pfa, pd) SIZING entry point (dp_symsync_configure_lock) is deliberately
  * NOT mirrored: its constants were calibrated against symsync's own geometry
  * by Monte Carlo, and re-exposing the formula for a different front end
  * without repeating that validation would be asserting a calibration nobody
- * measured. dp_ratesync_configure_lock_raw() exposes every knob for a caller
- * that sizes its own. */
+ * measured. */
 #define RATESYNC_LOCK_DEFAULT_AVGS 133u
 #define RATESYNC_LOCK_DEFAULT_THRESH 0.311
-#define RATESYNC_LOCK_DEFAULT_N_UP 1u
-#define RATESYNC_LOCK_DEFAULT_N_DOWN 8u
+#define RATESYNC_LOCK_DEFAULT_N_UP 2u
+#define RATESYNC_LOCK_DEFAULT_N_DOWN 6u
 
 /* ------------------------------------------------------------------
  * The timing loop on its own — no cascade, no filter.

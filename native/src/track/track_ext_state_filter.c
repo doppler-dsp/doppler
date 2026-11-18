@@ -438,7 +438,10 @@ static PyGetSetDef StateFilter_getset[]
           "frequency estimate, control units per update.\n", NULL },
         { "rate", (getter)StateFilter_getprop_rate,
           (setter)StateFilter_setprop_rate,
-          "its slope, control units per update per update.\n", NULL },
+          "slope of the frequency estimate: control units per update per "
+          "update (a Doppler rate R in Hz/s at an update period T in seconds "
+          "is R * T^2 cycles per update per update).\n",
+          NULL },
         { "bn", (getter)StateFilter_getprop_bn, NULL,
           "loop noise bandwidth, normalized cycles/sample.\n", NULL },
         { "t", (getter)StateFilter_getprop_t, NULL,

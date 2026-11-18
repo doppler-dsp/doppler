@@ -195,16 +195,33 @@ Validation](validation.md) owns this rule and its two failure modes
 (consistency tests that are blind to a shared defect; reject tests that pass
 vacuously).
 
-**Nothing executes this, and you have to supply the discipline.** `ctest`
-proves a test passes; no gate proves it can fail. The rule is stated on this
-page, in [Object Validation](validation.md) step 2, and again in
-[Measuring a Receiver](measuring-a-receiver.md) — and enforced on none of
-them, which is the shape `validation.md` opens by warning about. The cost is
-measurable: six tests in an already-certified object were later found to pass
+**A pin is proven in three layers, and a count in a PR body is none of
+them.** Each answers a different way a test passes without testing, and
+[Object Validation](validation.md#three-layers-that-prove-a-pin) owns the
+how:
+
+| layer                       | proves                                                  | runs                             |
+| --------------------------- | ------------------------------------------------------- | -------------------------------- |
+| a **negative control**      | the assertion can fail: it is red on a named wrong case | in the test, every push          |
+| **refusal-branch coverage** | every refusing branch decides at least one test         | read from the coverage job's run |
+| **derived mutants**         | a changed line of the library turns a test red          | on purpose, at certification     |
+
+The first is written with the test, in the same file, and is part of the
+claim: an assertion with no case it rejects is a comment. The other two are
+read from a run, never from a list somebody keeps.
+
+**The control is yours to write today; nothing yet refuses a claim without
+one.** `ctest` proves a test passes, and no gate proves it can fail: the
+gates for all three layers are
+[gh-847](https://github.com/doppler-dsp/doppler/issues/847). The cost of
+their absence is measured. Six tests in an already-certified object passed
 against a receiver whose carrier discriminator did nothing at all
-([gh-843](https://github.com/doppler-dsp/doppler/issues/843)). Until a gate
-exists, treat the sabotage as part of writing the test, not as a review step
-somebody else performs.
+([gh-843](https://github.com/doppler-dsp/doppler/issues/843)). An audit on
+2026-11-17 found a ramp test whose tolerance was twice the whole excursion,
+a lock threshold below the statistic's no-signal mean, three reject tests
+refused for a reason other than the one they named, and a forged blob that
+never reached the clause it was written for, in objects whose pull requests
+reported their pins as sabotaged.
 
 **A guard can pass because it never ran.** The blob test for
 `rate_hypotheses` (the count is a reject key) was first written as "if the two

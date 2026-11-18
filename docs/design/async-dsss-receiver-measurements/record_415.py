@@ -6,7 +6,8 @@ with ``--emit`` prints four sections a run is kept as:
 - ``pullin``: one row a draw -- the hand-over, the lock times, the flags'
   changes over the data, the error rate, and the loops' stress against
   the truth beside the design's baselines
-  (docs/design/async-dsss-receiver.md §4.8, "The two stresses");
+  (docs/design/async-dsss-receiver.md §4.8, "The carrier loop's
+  bandwidth": its two stresses);
 - ``hist``: per cell, the bin counts of every decision's statistic (lock
   statistics on data blocks; each search and refine test over its
   threshold) and of the loops' errors, computed in C over the cell's

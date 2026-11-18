@@ -227,6 +227,14 @@ typedef struct
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
   size_t sym_tog, code_tog;
+  /* The other three lock indicators the receiver exposes (owner: no lock
+     indicator toggles in the data once acquired; it names no subset):
+     the carrier loop's (Costas), the demodulator's carrier lock and its
+     timing sync's. Each: changes over the data after its own sustained
+     lock, its last change (NAN: none) and whether it is up at the end. */
+  size_t car_tog, dem_tog, syn_tog;
+  double car_last_s, dem_last_s, syn_last_s;
+  int    car_up_end, dem_up_end, syn_up_end;
   double sym_tog1_s, code_tog1_s; /* NAN: none */
   double end_resid_hz;
   double end_stale_hz; /* the hand-over's Doppler against the end's
@@ -852,14 +860,16 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       PI_RATE_HZ_S, true, cw);
   DP_REQUIRE (rx != NULL);
 
-  const size_t   n_blk = (size_t)(secs * PI_FS) / PI_PUSH;
-  uint8_t       *f_sym = dp_xmalloc (n_blk);
-  uint8_t       *f_cod = dp_xmalloc (n_blk);
-  uint8_t       *data  = dp_xmalloc (n_blk);
-  float complex *x     = dp_xmalloc (PI_PUSH * sizeof *x);
-  const size_t   ocap  = (size_t)(secs * PI_SYM) + 4096;
-  float complex *syms  = dp_xmalloc (ocap * sizeof *syms);
-  float complex *tmp   = dp_xmalloc (ocap * sizeof *tmp);
+  const size_t   n_blk  = (size_t)(secs * PI_FS) / PI_PUSH;
+  uint8_t       *f_sym  = dp_xmalloc (n_blk);
+  uint8_t       *f_cod  = dp_xmalloc (n_blk);
+  uint8_t       *f_x[3] = { dp_xmalloc (n_blk), dp_xmalloc (n_blk),
+                            dp_xmalloc (n_blk) }; /* car, demod, sync */
+  uint8_t       *data   = dp_xmalloc (n_blk);
+  float complex *x      = dp_xmalloc (PI_PUSH * sizeof *x);
+  const size_t   ocap   = (size_t)(secs * PI_SYM) + 4096;
+  float complex *syms   = dp_xmalloc (ocap * sizeof *syms);
+  float complex *tmp    = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
   d->ho_err_hz            = NAN;
   d->t_switch_s           = NAN;
@@ -1228,6 +1238,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       f_sym[b] = (uint8_t)(tracking && dp_async_dsss_receiver_get_locked (rx));
       f_cod[b]
           = (uint8_t)(tracking && dp_async_dsss_receiver_get_code_locked (rx));
+      f_x[0][b] = (uint8_t)(tracking && rx->car.lock.locked);
+      f_x[1][b] = (uint8_t)(tracking && rx->rx && rx->rx->l.car_lock.locked);
+      f_x[2][b]
+          = (uint8_t)(tracking && rx->rx && rx->rx->l.timing.lock.locked);
       /* A block is DATA when the truth puts its middle in a data symbol. */
       const long sym
           = dp_air_truth (&air, 0, b * PI_PUSH + PI_PUSH / 2).symbol;
@@ -1378,6 +1392,27 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
       if (first >= 0)
         d->code_tog1_s = (double)first * blk_s;
     }
+  {
+    size_t *tog[3]  = { &d->car_tog, &d->dem_tog, &d->syn_tog };
+    double *last[3] = { &d->car_last_s, &d->dem_last_s, &d->syn_last_s };
+    int    *up[3]   = { &d->car_up_end, &d->dem_up_end, &d->syn_up_end };
+    for (int k = 0; k < 3; k++)
+      {
+        const int64_t s  = dp_ber_lock_symbol (f_x[k], n_blk, PI_SUSTAIN, 0.9);
+        int64_t       f1 = -1;
+        *tog[k]  = s >= 0 ? dp_ber_lock_transitions (f_x[k], data, n_blk,
+                                                     (size_t)s, &f1)
+                          : 0;
+        *last[k] = NAN;
+        for (size_t b = n_blk; b-- > 1;)
+          if (f_x[k][b] != f_x[k][b - 1])
+            {
+              *last[k] = (double)b * blk_s;
+              break;
+            }
+        *up[k] = n_blk ? f_x[k][n_blk - 1] : 0;
+      }
+  }
   /* The loops' stress, against the design's baselines (design §4.8, "The
      two stresses"; the loop as coded: one update a code period T, the
      loop filter's own ki and bn): the ramp's lag 2 pi R T^2 / ki
@@ -1693,7 +1728,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
      false lock, and the data good: a slip, or an end the meter could not
      sync (#3131), fails it whatever the flags say. */
   d->works = s_sym >= 0 && s_cod >= 0 && d->sym_tog == 0 && d->code_tog == 0
-             && !d->false_lock && !d->slipped && !d->end_unsynced;
+             && !d->false_lock && !d->slipped && !d->end_unsynced
+             && d->car_tog == 0 && d->dem_tog == 0 && d->syn_tog == 0
+             && d->car_up_end && d->dem_up_end && d->syn_up_end;
   d->data_ended = dp_air_data_ended (&air);
 
   if (itlm)
@@ -1712,6 +1749,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   free (coast);
   free (f_sym);
   free (f_cod);
+  for (int k = 0; k < 3; k++)
+    free (f_x[k]);
   free (data);
   free (x);
   free (syms);
@@ -1727,7 +1766,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   "# pullin\nfc_ghz,esn0_db,rate_hz_s,carrier_window,seed,f0_hz,"             \
   "frame_off,ho_err_hz,ho_src,seed_err_hz,seed_code_chip,seed_t_s,"           \
   "ho_code_chip,ho_age_s,t_track_s,t_sym_s,t_code_s,sym_tog,"                 \
-  "sym_tog1_s,code_tog,code_tog1_s,end_resid_hz,false_lock,"                  \
+  "sym_tog1_s,code_tog,code_tog1_s,car_tog,demod_tog,sync_tog,car_last_s,"    \
+  "demod_last_s,sync_last_s,car_up_end,demod_up_end,sync_up_end,"             \
+  "end_resid_hz,false_lock,"                                                  \
   "aligned,slipped,end_unsynced,errors,scored,evm_db,m2m4_db,works,car_mean_" \
   "deg,"                                                                      \
   "car_sd_deg,code_mean_chip,code_sd_chip,car_slips,ho_slips,cross_win_frac," \
@@ -1746,7 +1787,8 @@ emit_row (const draw_t *d, uint32_t seed)
   printf (
       "%.1f,%.1f,%.0f,%s,%u,%.1f,%zu,%.2f,%d,%.2f,%.4f,%.4f,%.4f,%.4f,%."
       "4f,%.4f,%.4f,%zu,%.4f,"
-      "%zu,%.4f,%.1f,%d,%d,%d,%d,%lu,%lu,%.3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
+      "%zu,%.4f,%zu,%zu,%zu,%.4f,%.4f,%.4f,%d,%d,%d,%.1f,%d,%d,%d,%d,%lu,%lu,%"
+      ".3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
@@ -1755,7 +1797,9 @@ emit_row (const draw_t *d, uint32_t seed)
       d->f0, d->frame_off, d->ho_err_hz, d->ho_src, d->seed_err_hz,
       d->seed_code_chip, d->seed_t_s, d->ho_code_chip, d->ho_age_s,
       d->t_track_s, d->t_sym_s, d->t_code_s, d->sym_tog, d->sym_tog1_s,
-      d->code_tog, d->code_tog1_s, d->end_resid_hz, d->false_lock, d->aligned,
+      d->code_tog, d->code_tog1_s, d->car_tog, d->dem_tog, d->syn_tog,
+      d->car_last_s, d->dem_last_s, d->syn_last_s, d->car_up_end,
+      d->dem_up_end, d->syn_up_end, d->end_resid_hz, d->false_lock, d->aligned,
       d->slipped, d->end_unsynced, d->errors, d->scored, d->evm_db, d->m2m4_db,
       d->works, d->car_mean_deg, d->car_sd_deg, d->code_mean_chip,
       d->code_sd_chip, d->car_slips, d->ho_slips, d->cross_win_frac,

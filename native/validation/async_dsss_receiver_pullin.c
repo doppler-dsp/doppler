@@ -54,17 +54,20 @@
  * of DRAW_S each (`--draws`, `--secs`, `--shard i/n` split it across
  * processes for the record's run; `make validate-c` runs it whole).
  *
- * What is asserted, the same in the sweep and in --check: where the
- * contract claims a working link -- 10 dB, static, the receiver as built
- * (the partials carrier window) -- every draw works,
- * aligns and does not slip, and its error rate's 95% upper limit is under
- * the bound's 3 dB lower (a margin, not a derived limit). The 4 and 5 dB
- * cells, the use case's own floor, are printed with their intervals and
- * not claimed: they do not meet the zero-transition criterion today; nor
- * is the code-period window at 10 dB, whose code lock changes over the data
- * on some draws (2.8 GHz, seed 1: twice, from 12.7 s). The
- * payload outlasts every run. --check: 2.8 GHz (2.69 samples a chip), 10
- * dB, static, both carrier windows, one 20 s draw each.
+ * What is asserted, the same in the sweep and in --check. In every cell
+ * of the receiver as built (the partials carrier window), 415.1-B-1
+ * §7.4.1's acquisition requirement: PN lock -- the receiver's code lock --
+ * within PI_ACQ_S of arrival at probability PI_ACQ_P, not refuted by the
+ * cell's Wilson 95% interval (check_acq() says why not demonstrated). And
+ * where the contract claims a working link -- 10 dB, static, the receiver as
+ * built (the partials carrier window) -- every draw works, aligns and does not
+ * slip, and its error rate's 95% upper limit is under the bound's 3 dB lower
+ * (a margin, not a derived limit). The 4 and 5 dB cells, the use case's own
+ * floor, are printed with their intervals and not claimed: they do not meet
+ * the zero-transition criterion today; nor is the code-period window at 10 dB,
+ * whose code lock changes over the data on some draws (2.8 GHz, seed 1: twice,
+ * from 12.7 s). The payload outlasts every run. --check: 2.8 GHz (2.69 samples
+ * a chip), 10 dB, static, both carrier windows, one 20 s draw each.
  *
  * Telemetry: `--telemetry DIR --draw FC_GHZ,ESN0,RATE,CW,SEED [--from S
  * --to S]` runs that one draw (its row as the sweep prints it) and captures
@@ -173,6 +176,11 @@
 #define PI_DRAW_S 60.0
 #define PI_CHECK_S 20.0
 #define PI_MARGIN_DB 3.0
+/* 415.1-B-1 §7.4.1, the acquisition requirement: short-code PN lock (the
+   receiver's code lock, get_code_locked()) with probability at least
+   PI_ACQ_P within PI_ACQ_S of arrival, the signal within +/-1,500 Hz. */
+#define PI_ACQ_S 20.0
+#define PI_ACQ_P 0.9
 #define PI_MAX_CELL 64u
 /* The excursion levels a change's second before is read against, deg of
    carrier phase: short of the fold, where a fast excursion already costs
@@ -1820,6 +1828,7 @@ static void
 print_cell (const draw_t *ds, size_t n)
 {
   size_t        works = 0, acq = 0, fl = 0, al = 0, slip = 0, unsync = 0;
+  size_t        pn  = 0; /* PN lock within PI_ACQ_S (§7.4.1) */
   unsigned long err = 0, sc = 0;
   double        t[PI_DRAWS * 4];
   size_t        nt = 0;
@@ -1827,6 +1836,7 @@ print_cell (const draw_t *ds, size_t n)
     {
       works += (size_t)ds[i].works;
       acq += !isnan (ds[i].t_sym_s) && !isnan (ds[i].t_code_s);
+      pn += !isnan (ds[i].t_code_s) && ds[i].t_code_s <= PI_ACQ_S;
       fl += (size_t)ds[i].false_lock;
       al += (size_t)ds[i].aligned;
       slip += (size_t)(ds[i].aligned && ds[i].slipped);
@@ -1857,6 +1867,35 @@ print_cell (const draw_t *ds, size_t n)
       nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
       nt ? t[nt - 1] : NAN, al, slip, unsync, ci.p_hat, ci.lo, ci.hi, err, sc,
       loss);
+  double pl, ph;
+  dp_wilson ((double)pn, (double)n, &pl, &ph);
+  printf ("    415.1-B-1 §7.4.1: PN lock within %.0f s %zu/%zu [%.2f, %.2f] "
+          "against %.2f: %s\n",
+          PI_ACQ_S, pn, n, pl, ph, PI_ACQ_P,
+          pl >= PI_ACQ_P   ? "demonstrated"
+          : ph >= PI_ACQ_P ? "not refuted"
+                           : "REFUTED");
+}
+
+/* 415.1-B-1 §7.4.1 on the receiver as built (the partials carrier window),
+   in every cell: at every Es/N0 the use case covers, static and on the
+   ramp. Asserted as NOT REFUTED at 95% -- the Wilson interval's upper limit
+   at or above PI_ACQ_P -- because demonstrating it, the lower limit there,
+   takes at least 35 draws without a miss (30 of 30 reads 0.886), more than
+   a cell runs; the print says which of the two a cell reaches. */
+static void
+check_acq (const draw_t *ds, size_t n)
+{
+  if (ds[0].cw != ASYNC_DSSS_RX_CARRIER_PARTIALS)
+    return;
+  size_t pn = 0;
+  for (size_t i = 0; i < n; i++)
+    pn += !isnan (ds[i].t_code_s) && ds[i].t_code_s <= PI_ACQ_S;
+  double pl, ph;
+  dp_wilson ((double)pn, (double)n, &pl, &ph);
+  DP_CHECK_MSG (ph >= PI_ACQ_P,
+                "415.1-B-1 §7.4.1: PN lock within 20 s at probability 0.9 is "
+                "not refuted at 95%");
 }
 
 /* The contract's cells: 10 dB, static, the receiver as built (the
@@ -2314,6 +2353,7 @@ main (int argc, char **argv)
             if (!emit)
               print_cell (ds, n);
             check_cell (ds, n);
+            check_acq (ds, n);
           }
   free (ds);
   if (check)

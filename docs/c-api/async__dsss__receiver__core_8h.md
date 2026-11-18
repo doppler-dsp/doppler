@@ -829,7 +829,7 @@ int dp_async_dsss_receiver_get_code_locked (
 
 
 
-
+This is the flag 415.1-B-1 §7.4.1's "short-code PN lock" names: its acquisition requirement, PN lock with probability at least 0.9 within 20 s of the signal's arrival, anywhere in +/-1,500 Hz of best lock, is read on it (validate\_async\_dsss\_receiver\_pullin, whose cells assert the requirement is not refuted at 95%). 
 
 **Parameters:**
 

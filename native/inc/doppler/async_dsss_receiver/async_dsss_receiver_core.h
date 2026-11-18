@@ -1821,6 +1821,12 @@ typedef enum
   /** @brief Binary code-lock flag from the live tracking Dll's own
    * verify-counted (pfa-tuned) lock detector — the fundamental DSSS "am I
    * despreading" lock, de-chattered by up/down hysteresis.
+   *
+   * This is the flag 415.1-B-1 §7.4.1's "short-code PN lock" names: its
+   * acquisition requirement, PN lock with probability at least 0.9 within
+   * 20 s of the signal's arrival, anywhere in +/-1,500 Hz of best lock, is
+   * read on it (validate_async_dsss_receiver_pullin, whose cells assert the
+   * requirement is not refuted at 95%).
    * @param state  Must be non-NULL.
    * @return 1 while code lock is declared, else 0. */
   int dp_async_dsss_receiver_get_code_locked (

@@ -69,7 +69,14 @@ not the gap, and not the coupling of code to carrier (§1.6). The C test
 that pins its 5 dB floor, `_test_awgn_esn0_floor`, adds 3 dB less noise
 than its label ([#689](https://github.com/doppler-dsp/doppler/issues/689));
 at a true 5 dB the receiver does not decode random data
-([#3080](https://github.com/doppler-dsp/doppler/issues/3080)).
+([#3080](https://github.com/doppler-dsp/doppler/issues/3080)). The certification is moving to this
+point harness by harness, each retiring the old point's limits as it moves:
+the dropout runs here, and 415.1-B-1 §7.4.1's acquisition requirement is
+asserted on the pull-in validator's cells; the error rate follows, and the
+loss decomposition is rebuilt inside the floor brief
+([#3156](https://github.com/doppler-dsp/doppler/issues/3156)). A claim whose
+requirement the owner has not set is printed, not asserted
+([#3157](https://github.com/doppler-dsp/doppler/issues/3157)).
 
 ### 1.1 The signals
 
@@ -326,7 +333,10 @@ Not ruled by the owner, and not decided here:
     derating for its band, or the link's, the receiver derating for its
     own ([#3134](https://github.com/doppler-dsp/doppler/issues/3134)).
 1. **What must hold at the floor**: the allowed loss against the BPSK bound,
-    and how soon after arrival the receiver must be decoding.
+    and how soon after arrival the receiver must be decoding. With the
+    dropout time and the lock budget, these are the figures the
+    certification's unasserted rows wait on
+    ([#3157](https://github.com/doppler-dsp/doppler/issues/3157)).
 1. **Whether the link resolves half-cycle flips** (differential coding, or
     a phase-resolving word) or the carrier loop must not flip
     ([#3090](https://github.com/doppler-dsp/doppler/issues/3090)). The

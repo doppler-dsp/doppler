@@ -479,7 +479,7 @@ int dp_state_filter_loop_stable (
 The exact test on the characteristic polynomial of the discrete loop of docs/design/loop-filter.md section 11.1: a unit detector, the filter, an oscillator that accumulates the control, a detector delay of `delay` updates, and a loop gain of `gain` times nominal. The one function for both orders: `order` 2 is [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md)'s recurrence (`kr` is ignored), `order` 3 this object's.
 
 
-At an integer `delay` the delay is a real transport delay and the answer is exact. Between integers the model is linear interpolation of the detector's error between the two nearest updates, which low-passes the detector, a different model from a pure fractional delay, whose stability this function does not state; the stability claim is for integer delays. A detector that averages over a window is a third model the caller owns.
+At an integer `delay` the delay is a real transport delay and the answer is exact. Between integers the model is linear interpolation of the detector's error between the two nearest updates, which low-passes the detector, a different model from a pure fractional delay, whose stability this function does not state; the rectangle's claim is exact at integer delays and holds under this model between them. A detector that averages over a window is a third model the caller owns.
 
 
 The test is whether the sum `P = sum_k A^k b b^T (A^T)^k` converges (below), which is stability only when the loop's state is driven (the pair (A, b) is controllable): `P` is then the solution of the loop's Lyapunov equation, and it exists exactly when every pole is inside the unit circle. Where the state is not driven, the answer is 0: a gain at zero leaves a state undriven or marginal, so the frozen loop (`bn = 0`, every gain zero), an order-3 loop with `kr = 0` and an order-2 loop with `ki = 0` (a pole-zero cancellation at `z = 1`) all read as not stable, and [**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth) is NaN for them.
@@ -736,6 +736,9 @@ int dp_state_filter_state_ok (
 For restoring a serialized filter, whose gains are taken verbatim: the filter must be inside [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) at its own `bn` and `t`, and its gains must match the ones [**dp\_state\_filter\_init()**](state__filter__core_8h.md#function-dp_state_filter_init) writes there to a relative tolerance of 1e-9. `integ` and `rate` are not checked.
 
 
+The 1e-9 is an allowance between platforms, and what is known of the spread is this: the test holds the gains within 1e-12 of a long double solve of the same closed form on every platform whose long double is wider than double (x86-64 Linux, 80-bit; arm64 Linux, 128-bit), so two such platforms agree within 2e-12 and the tolerance is 500 times that. macOS and Windows have no wider reference and are not covered by the number; the tolerance is to be tightened to a stated multiple once they have one.
+
+
 
 
 **Parameters:**
@@ -985,7 +988,7 @@ _The stability rectangle the automatic case is good for._
 
 
 
-The loop is stable at every loop gain from STATE\_FILTER\_K\_MIN to STATE\_FILTER\_K\_MAX times nominal and every detector delay from 0 to STATE\_FILTER\_DELAY\_MAX updates, for `bn*t` up to STATE\_FILTER\_BNT\_MAX. `K_MIN` is the floor the automatic case covers for a detector whose slope falls with signal-to-noise ratio: a requirement, with no measured source of that slope on main yet (the async receiver's pull-in validator will print one, #3135); `DELAY_MAX` covers the delay a detector that updates on a sample grid sweeps through. The bound is the largest `bn*t` for which the exact stability test passes at the upper corner (`K_MAX`, `DELAY_MAX`), rounded down; the C test derives it from [**dp\_state\_filter\_loop\_stable()**](state__filter__core_8h.md#function-dp_state_filter_loop_stable) rather than restating it.
+The loop is stable at every loop gain from STATE\_FILTER\_K\_MIN to STATE\_FILTER\_K\_MAX times nominal and every detector delay from 0 to STATE\_FILTER\_DELAY\_MAX updates (exactly at an integer delay; between integers under the interpolation model of [**dp\_state\_filter\_loop\_stable()**](state__filter__core_8h.md#function-dp_state_filter_loop_stable)), for `bn*t` up to STATE\_FILTER\_BNT\_MAX. `K_MIN` is the floor the automatic case covers for a detector whose slope falls with signal-to-noise ratio: a requirement, with no measured source of that slope on main yet (the async receiver's pull-in validator will print one, #3135); `DELAY_MAX` covers the delay a detector that updates on a sample grid sweeps through. The bound is the largest `bn*t` for which the exact stability test passes at the upper corner (`K_MAX`, `DELAY_MAX`), rounded down; the C test derives it from [**dp\_state\_filter\_loop\_stable()**](state__filter__core_8h.md#function-dp_state_filter_loop_stable) rather than restating it.
 
 
 What `K_MIN` constrains is the claim, not the predicate: the lower gain edge is set by the shape (about `1/(A*B)` of nominal, a little higher with delay), so no `bn*t` bound can move it, and the predicate bounds `bn*t` from the upper corner alone. The C test asserts that the measured lower edge at the bound, at every delay up to `DELAY_MAX`, is below `K_MIN`, and prints the margin. At the bound that edge is 0.236 of nominal at a delay of zero and 0.310 at `DELAY_MAX`, 4.1 dB under `K_MIN`. 

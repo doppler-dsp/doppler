@@ -533,12 +533,22 @@ main (void)
     printf ("  gains vs a long double solve: worst relative difference %.2e "
             "(long double is %d bits), the restore tolerance is 1e-9\n",
             worst_gain, LDBL_MANT_DIG);
-    /* the gains match a long double solve to rounding (measured 1.6e-15 on
-     * x86-64, where long double is 64 bits; where it is no wider than double
-     * this is the same arithmetic written twice and reads about 0): the
-     * restore tolerance of 1e-9 sits N = 1e-9 / worst times above it, and
-     * CI's other platforms print their own spread above */
-    DP_CHECK (worst_gain < 1e-12);
+    /* The gains match a long double solve to 1e-12 (measured 1.6e-15 on
+     * x86-64, where long double is 64 bits). Where long double is wider than
+     * double (x86-64 Linux 80-bit, arm64 Linux 128-bit) a pass is a bound on
+     * that platform's gains against a wider reference, so two such platforms
+     * agree within 2e-12 and the restore tolerance of 1e-9 is 500 times that.
+     * Where it is not (macOS, Windows) the reference is the same arithmetic
+     * written twice and this says nothing about the platform's spread. The
+     * message names the width so a red leg says which case it was. */
+    {
+      char msg[128];
+      snprintf (msg, sizeof msg,
+                "gains within 1e-12 of a long double solve (long double is "
+                "%d bits, double is %d)",
+                LDBL_MANT_DIG, DBL_MANT_DIG);
+      DP_CHECK_MSG (worst_gain < 1e-12, msg);
+    }
     DP_CHECK (n_cells == 1203);
     DP_CHECK (worst_exact < 1e-9);      /* the exact function, down to 1e-6 */
     DP_CHECK (min_pos > 0.5 * 1.0001);  /* not at the lower end */

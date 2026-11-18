@@ -108,7 +108,8 @@ main (void)
   }
 
   /* stable() and bandwidth(): the exact loop test (the doubling sum over the
-   * balanced state matrix), at a delay of two updates and a loop gain of 1.3.
+   * balanced state matrix), at a delay of two updates and a loop gain of 1.000
+   * to 1.031 (varied per call so the compiler cannot hoist it).
    * Not the hot path, but the Kalman flavor's start rule calls stable() along
    * a trajectory and its bandwidth bisection calls bandwidth() a hundred
    * times, so they are numbers. */

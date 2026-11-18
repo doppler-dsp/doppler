@@ -86,8 +86,9 @@ extern "C"
  *
  * The loop is stable at every loop gain from STATE_FILTER_K_MIN to
  * STATE_FILTER_K_MAX times nominal and every detector delay from
- * 0 to STATE_FILTER_DELAY_MAX updates, for `bn*t` up to
- * STATE_FILTER_BNT_MAX. `K_MIN` is the floor the automatic case covers for
+ * 0 to STATE_FILTER_DELAY_MAX updates (exactly at an integer delay; between
+ * integers under the interpolation model of dp_state_filter_loop_stable()),
+ * for `bn*t` up to STATE_FILTER_BNT_MAX. `K_MIN` is the floor the automatic case covers for
  * a detector whose slope falls with signal-to-noise ratio: a requirement, with
  * no measured source of that slope on main yet (the async receiver's pull-in
  * validator will print one, #3135); `DELAY_MAX` covers the delay a
@@ -134,7 +135,10 @@ typedef struct
   double ki;    /**< frequency-path gain (from bn, t).                  */
   double kr;    /**< rate-path gain (from bn, t).                       */
   double integ; /**< frequency estimate, control units per update.      */
-  double rate;  /**< its slope, control units per update per update.    */
+  double rate;  /**< slope of the frequency estimate: control units per
+                     update per update (a Doppler rate R in Hz/s at an update
+                     period T in seconds is R * T^2 cycles per update per
+                     update).                                             */
   double bn;    /**< loop noise bandwidth, normalized cycles/sample.    */
   double t;     /**< update period in samples.                          */
 } dp_state_filter_state_t;
@@ -180,6 +184,14 @@ void dp_state_filter_init (dp_state_filter_state_t *state, double bn,
  * filter must be inside dp_state_filter_params_ok() at its own @c bn and
  * @c t, and its gains must match the ones dp_state_filter_init() writes there
  * to a relative tolerance of 1e-9. @c integ and @c rate are not checked.
+ *
+ * The 1e-9 is an allowance between platforms, and what is known of the
+ * spread is this: the test holds the gains within 1e-12 of a long double
+ * solve of the same closed form on every platform whose long double is wider
+ * than double (x86-64 Linux, 80-bit; arm64 Linux, 128-bit), so two such
+ * platforms agree within 2e-12 and the tolerance is 500 times that. macOS
+ * and Windows have no wider reference and are not covered by the number; the
+ * tolerance is to be tightened to a stated multiple once they have one.
  *
  * @param s  The stored filter.
  * @return 1 if it is one a live filter could hold, 0 otherwise.
@@ -280,8 +292,9 @@ void dp_state_filter_reset (dp_state_filter_state_t *state);
  * is exact. Between integers the model is linear interpolation of the
  * detector's error between the two nearest updates, which low-passes the
  * detector, a different model from a pure fractional delay, whose stability
- * this function does not state; the stability claim is for integer delays. A detector that averages over a
- * window is a third model the caller owns.
+ * this function does not state; the rectangle's claim is exact at integer
+ * delays and holds under this model between them. A detector that averages
+ * over a window is a third model the caller owns.
  *
  * The test is whether the sum `P = sum_k A^k b b^T (A^T)^k` converges (below),
  * which is stability only when the loop's state is driven (the pair (A, b) is

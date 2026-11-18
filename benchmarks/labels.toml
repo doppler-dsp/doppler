@@ -1515,6 +1515,13 @@ unit = "sample"
 definition = "The block path of the third-order loop filter fed 65,536 loop errors per round; throughput counts input errors."
 samples = 1
 
+["c:state_filter::create"]
+name = "Third-order state filter construction, from C"
+unit = "call"
+definition = "dp_state_filter_create then destroy, bn varied per call: the same bisection as a retune plus the allocation and the free, paid once per filter built."
+domain = "call"
+count = 1
+
 ["c:state_filter::configure"]
 name = "Third-order state filter retune, from C"
 unit = "call"
@@ -1586,6 +1593,13 @@ samples = 1
 name = "Third-order state filter update, from Python"
 unit = "call"
 definition = "One StateFilter.step call from Python: the filter update plus the call across the binding, one input error per call."
+domain = "call"
+count = 1
+
+["py:state_filter::test_bench_create"]
+name = "Third-order state filter construction, from Python"
+unit = "call"
+definition = "StateFilter(0.01, 1.0) built and dropped from Python: the gain solve plus the binding and the free."
 domain = "call"
 count = 1
 

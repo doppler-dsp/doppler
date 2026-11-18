@@ -376,6 +376,35 @@ dp_state_filter_state_ok (const dp_state_filter_state_t *s)
          && fabs (s->kr - kr) <= 1e-9 * fabs (kr) + DBL_MIN;
 }
 
+const char *
+dp_state_filter_params_why (double bn, double t)
+{
+  if (!(t > 0.0) || !isfinite (t))
+    return "t must be a positive, finite update period";
+  if (isnan (bn))
+    return "bn must not be NaN";
+  if (isinf (bn))
+    return "bn must be finite";
+  if (bn < 0.0)
+    return "bn must be >= 0";
+  const double B = bn * t;
+  if (B != 0.0 && B < STATE_FILTER_BNT_MIN)
+    return "bn*t is below the smallest the filter accepts";
+  if (B > STATE_FILTER_BNT_MAX)
+    return "bn*t is above the largest the filter accepts, the bound the "
+           "third-order loop is stable to";
+  return NULL;
+}
+
+dp_state_filter_state_t *
+dp_state_filter_create_why (double bn, double t, const char **why)
+{
+  const char *w = dp_state_filter_params_why (bn, t);
+  if (why)
+    *why = w;
+  return w ? NULL : dp_state_filter_create (bn, t);
+}
+
 dp_state_filter_state_t *
 dp_state_filter_create (double bn, double t)
 {

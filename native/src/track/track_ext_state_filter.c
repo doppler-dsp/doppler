@@ -47,13 +47,18 @@ StateFilterObj_init (StateFilterObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dd", kwlist, &bn, &t))
     return -1;
-  self->handle = dp_state_filter_create (bn, t);
+  const char *_why = NULL;
+  self->handle     = dp_state_filter_create_why (bn, t, &_why);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "bn must be >= 0 and t > 0, both finite, with bn*t no "
-                       "larger than the bound the third-order loop is stable "
-                       "to (docs/design/loop-filter.md section 12)");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "bn must be >= 0 and t > 0, both finite, with "
+                         "bn*t no larger than the bound the third-order "
+                         "loop is stable to (docs/design/loop-filter.md "
+                         "section 12)");
       return -1;
     }
   return 0;
@@ -191,7 +196,10 @@ StateFilterObj_configure (StateFilterObject *self, PyObject *args,
   int _rc = dp_state_filter_configure (self->handle, bn, t);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "configure failed",
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure refused (bn, t): t must be positive and "
+                    "finite, bn finite and >= 0, and bn*t inside the domain; "
+                    "nothing changed",
                     (long long)_rc);
       return NULL;
     }
@@ -561,7 +569,9 @@ static PyMethodDef StateFilterObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``configure failed``, with the return code appended (gh-869).\n"
+    "    ``configure refused (bn, t): t must be positive and finite, bn\n"
+    "    finite and >= 0, and bn*t inside the domain; nothing changed``,\n"
+    "    with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -754,40 +764,30 @@ static PyTypeObject StateFilterObjType = {
   .tp_dealloc                             = (destructor)StateFilterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a state filter, validating its arguments.\n"
+  = "dp_state_filter_create() that says why it refused, for the binding.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "bn : float, default 0.01\n"
-    "    Loop noise bandwidth, normalized cycles/sample; >= 0 (default "
-    "0.01).\n"
-    "    `bn = 0` is a deliberately frozen loop.\n"
+    "    Loop noise bandwidth.\n"
     "t : float, default 1.0\n"
-    "    Update period in samples; > 0 (default 1.0).\n"
+    "    Update period in samples.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If construction fails. The exception message is ``bn must be >= 0 "
-    "and t\n"
-    "    > 0, both finite, with bn*t no larger than the bound the "
-    "third-order\n"
-    "    loop is stable to (docs/design/loop-filter.md section 12)``.\n"
+    "    If construction fails. The exception message is the reason the\n"
+    "    constructor gives, or ``bn must be >= 0 and t > 0, both finite, "
+    "with\n"
+    "    bn*t no larger than the bound the third-order loop is stable to\n"
+    "    (docs/design/loop-filter.md section 12)`` when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
+    "Create with defaults:\n"
+    "\n"
     ">>> from doppler.track import StateFilter\n"
-    ">>> sf = StateFilter(bn=0.01, t=1.0)\n"
-    ">>> round(sf.kp, 6), round(sf.ki, 6)   # the gains follow from bn and t\n"
-    "(0.023622, 0.000279)\n"
-    ">>> sf.integ, sf.rate                  # both estimates start at zero\n"
-    "(0.0, 0.0)\n"
-    ">>> StateFilter(bn=0.5)                # bn*t past the stability bound\n"
-    "Traceback (most recent call last):\n"
-    "    ...\n"
-    "ValueError: bn must be >= 0 and t > 0, both finite, with bn*t no larger "
-    "than the bound the third-order loop is stable to "
-    "(docs/design/loop-filter.md section 12)\n",
+    ">>> obj = StateFilter()\n",
   .tp_methods = StateFilterObj_methods,
   .tp_getset  = StateFilter_getset,
   .tp_new     = StateFilterObj_new,

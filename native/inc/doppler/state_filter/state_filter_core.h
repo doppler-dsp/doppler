@@ -218,11 +218,39 @@ int dp_state_filter_state_ok (const dp_state_filter_state_t *s);
  * >>> StateFilter(bn=0.5)                # bn*t past the stability bound
  * Traceback (most recent call last):
  *     ...
- * ValueError: bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)
+ * ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
  *
  * @endcode
  */
 dp_state_filter_state_t *dp_state_filter_create (double bn, double t);
+
+/**
+ * @brief The reason (@p bn, @p t) is outside the domain, naming the argument,
+ *        or NULL when it is inside.
+ *
+ * The same predicate as dp_state_filter_params_ok(), with a sentence for the
+ * first condition that fails: `t` not positive and finite, `bn` NaN, `bn`
+ * negative, `bn` infinite, or `bn*t` under the floor or over the bound. The
+ * strings are static.
+ *
+ * @param bn  Loop noise bandwidth.
+ * @param t   Update period in samples.
+ * @return A static sentence, or NULL if the pair is inside the domain.
+ */
+const char *dp_state_filter_params_why (double bn, double t);
+
+/**
+ * @brief dp_state_filter_create() that says why it refused, for the binding.
+ *
+ * @param bn   Loop noise bandwidth.
+ * @param t    Update period in samples.
+ * @param why  Receives dp_state_filter_params_why()'s sentence when NULL is
+ *             returned for a domain refusal; may be NULL.
+ * @return Heap-allocated state, or NULL (with @p why set) outside the
+ *         domain.
+ */
+dp_state_filter_state_t *dp_state_filter_create_why (double bn, double t,
+                                                     const char **why);
 
 /**
  * @brief Destroy a state filter and release all memory.

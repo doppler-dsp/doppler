@@ -30,7 +30,7 @@ const jm_any_fn jm_bound_symbols_state_filter_kalman[] = {
     (jm_any_fn)dp_state_filter_kalman_get_state,
     (jm_any_fn)dp_state_filter_kalman_set_state,
     (jm_any_fn)dp_state_filter_kalman_configure,
-    (jm_any_fn)dp_state_filter_kalman_create_args,
+    (jm_any_fn)dp_state_filter_kalman_create_args_why,
     (jm_any_fn)dp_state_filter_kalman_sigma_f,
     (jm_any_fn)dp_state_filter_kalman_bandwidth,
     (jm_any_fn)dp_state_filter_kalman_stable,

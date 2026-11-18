@@ -485,7 +485,8 @@ dp_state_filter_kalman_state_t *dp_state_filter_kalman_create_bn (double bn,
 #define STATE_FILTER_KALMAN_STATE_VERSION 1u
 
 /**
- * @brief Create from the figures or from `bn` alone.
+ * @brief Create from the figures or from `bn` alone. The binding calls
+ *        dp_state_filter_kalman_create_args_why(), which also says why.
  *
  * The figures form is @p sigma_e and @p sigma_a both > 0 with @p bn 0; the
  * automatic form is @p bn > 0 with @p sigma_e, @p sigma_a and @p sigma_f0
@@ -497,6 +498,51 @@ dp_state_filter_kalman_state_t *dp_state_filter_kalman_create_bn (double bn,
  *                  steady state.
  * @param bn        Noise bandwidth in cycles per sample (automatic form).
  * @return Heap-allocated filter, or NULL outside either form's domain.
+ */
+dp_state_filter_kalman_state_t *
+dp_state_filter_kalman_create_args (double sigma_e, double sigma_a, double t,
+                                    double sigma_f0, double bn);
+
+/**
+ * @brief The reason the arguments of dp_state_filter_kalman_create_args()
+ *        are refused, naming the argument, or NULL when they are accepted.
+ *
+ * The conditions are those of the two constructors it dispatches to, in the
+ * order they are checked: the form (figures or `bn`, not both, not neither),
+ * `t`, then the figures' own conditions (each positive, a steady state, a
+ * bandwidth inside the domain, a `sigma_f0` that is a legal start) or `bn`'s.
+ * The strings are static and carry no numbers, so they do not drift with the
+ * domain's limits.
+ *
+ * @param sigma_e   RMS detector error when locked (the figures form).
+ * @param sigma_a   RMS change of the rate per update (the figures form).
+ * @param t         Update period in samples.
+ * @param sigma_f0  Frequency uncertainty (the figures form), 0 for none.
+ * @param bn        Bandwidth alone (the automatic form).
+ * @return A static sentence, or NULL if the arguments are accepted.
+ */
+const char *dp_state_filter_kalman_args_why (double sigma_e, double sigma_a,
+                                             double t, double sigma_f0,
+                                             double bn);
+
+/**
+ * @brief Create from the figures or from `bn` alone: the one constructor the
+ *        Python class `KalmanStateFilter` calls.
+ *
+ * The figures form is @p sigma_e and @p sigma_a both > 0 with @p bn 0; the
+ * automatic form is @p bn > 0 with @p sigma_e, @p sigma_a and @p sigma_f0
+ * all 0. Both or neither is refused.
+ * @param sigma_e   RMS detector error when locked (figures form).
+ * @param sigma_a   RMS change of the rate per update (figures form).
+ * @param t         Update period in samples.
+ * @param sigma_f0  Initial frequency uncertainty (figures form), 0 for the
+ *                  steady state.
+ * @param bn        Noise bandwidth in cycles per sample (automatic form).
+ * @param why       Where the refusal's sentence goes, naming the argument it
+ *                  refused (dp_state_filter_kalman_args_why()); set to NULL
+ *                  when the filter is built. May be NULL.
+ * @return Heap-allocated filter, or NULL (with @p why set) outside either
+ *         form's domain.
  *
  * @code
  * >>> from doppler.track import KalmanStateFilter
@@ -511,13 +557,14 @@ dp_state_filter_kalman_state_t *dp_state_filter_kalman_create_bn (double bn,
  * >>> KalmanStateFilter()                        # neither form
  * Traceback (most recent call last):
  *     ...
- * ValueError: give sigma_e and sigma_a (> 0), or bn alone, in range; see docs
+ * ValueError: give sigma_e and sigma_a, or bn alone
  *
  * @endcode
  */
 dp_state_filter_kalman_state_t *
-dp_state_filter_kalman_create_args (double sigma_e, double sigma_a, double t,
-                                    double sigma_f0, double bn);
+dp_state_filter_kalman_create_args_why (double sigma_e, double sigma_a,
+                                        double t, double sigma_f0, double bn,
+                                        const char **why);
 
 /**
  * @brief The steady state's frequency deviation for this filter's figures,

@@ -200,7 +200,26 @@ main (void)
     double             f, lk;
     int                be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
-    DP_CHECK (fabs (f - final_f0) < 1e-3); /* follows the moving carrier */
+    /* Follows the moving carrier, two-sided. The loop holds the steady
+       phase error e = x/ki (x = 2 pi ramp tsamps^2 rad/update^2), and its
+       frequency estimate, the integrator alone, trails the carrier by the
+       proportional term's share, kp e rad/update, kp x / (ki 2 pi tsamps)
+       cycles/sample (about 1e-6 here, against a final offset of 4.8e-4).
+       The integrator also holds an update's AVERAGE frequency, which trails
+       the carrier's frequency at the last sample by half an update of ramp,
+       ramp tsamps / 2 (0.04 of the lag here). With both in the prediction,
+       what remains is measured at 0.4% of the lag (settling, and sin e
+       against e at 6.8e-4 rad); the tolerance, a tenth of the lag, is 25
+       times that, and a loop parked at 0, or one that stopped following,
+       misses by orders. */
+    const double x   = 2.0 * M_PI * ramp * (double)(tsamps * tsamps);
+    const double lag = c->lf.kp * x / (c->lf.ki * 2.0 * M_PI * (double)tsamps);
+    const double half = ramp * (double)tsamps / 2.0;
+    DP_CHECK_MSG (fabs (f - (final_f0 - half - lag)) < 0.1 * lag,
+                  "order 2 follows a ramp, trailing by its predicted lag");
+    /* Negative control: the same predicate on a loop parked at 0 fails. */
+    DP_CHECK_MSG (!(fabs (0.0 - (final_f0 - half - lag)) < 0.1 * lag),
+                  "control: a loop parked at 0 fails the ramp predicate");
     DP_CHECK (lk > 0.85);
     DP_CHECK (be == 0);
     dp_costas_destroy (c);
@@ -636,7 +655,7 @@ main (void)
     make_signal (rx, bits, nsym, tsamps, 0.0, ramp, 0.0f, 4242u);
     /* the ramp per update, radians/update^2 (the loop's own units) */
     const double x         = 2.0 * M_PI * ramp * (double)(tsamps * tsamps);
-    double       mean_e[2] = { 0.0, 0.0 }, expect2 = 0.0;
+    double       mean_e[2] = { 0.0, 0.0 }, expect2 = 0.0, learned = 0.0;
     for (int o = 0; o < 2; o++)
       {
         dp_costas_state_t *c = dp_costas_create (bn, 0.707, 0.0, tsamps, 0.0);
@@ -652,8 +671,55 @@ main (void)
             if (s >= nsym - tail)
               mean_e[o] += dp_costas_get_last_error (c) / (double)tail;
           }
+        if (o == 1)
+          learned = dp_costas_get_norm_rate (c);
         dp_costas_destroy (c);
       }
+    /* A loop seeded with the ramp's rate (and the carrier's starting
+       frequency, 0) holds it from the first update: its error over the
+       first updates, where an unseeded loop is still learning the rate. */
+    double       seeded_e = 0.0, seeded_rate = 0.0, unseeded_e = 0.0;
+    const size_t head = 200;
+    for (int sd = 0; sd < 2; sd++)
+      {
+        dp_costas_state_t *c = dp_costas_create (bn, 0.707, 0.0, tsamps, 0.0);
+        DP_REQUIRE (c != NULL);
+        DP_REQUIRE (dp_costas_set_order (c, 3, bn) == DP_OK);
+        if (sd)
+          DP_REQUIRE (dp_costas_set_norm_rate (c, ramp) == DP_OK);
+        double peak = 0.0;
+        for (size_t s = 0; s < head; s++)
+          {
+            DP_REQUIRE (dp_costas_steps (c, rx + s * tsamps, tsamps, &sym, 1)
+                        == 1);
+            peak = fmax (peak, fabs (dp_costas_get_last_error (c)));
+          }
+        if (sd)
+          seeded_e = peak, seeded_rate = dp_costas_get_norm_rate (c);
+        else
+          unseeded_e = peak;
+        dp_costas_destroy (c);
+      }
+    /* norm_rate's units, two-sided against a known ramp: a scaling wrong
+       in both the setter and the getter (a factor 2 pi, tsamps or
+       tsamps^2) misses by orders, where set-then-get cannot see it. The
+       learned rate converges noise-free to within 1.5e-5 of the ramp, the
+       held seed to within 1e-6; 1e-3 sits orders under any units error. */
+    DP_CHECK_MSG (fabs (learned / ramp - 1.0) < 1e-3,
+                  "order 3 learns the ramp's rate, in cycles/sample^2");
+    /* Negative control: the rate in the filter's own per-update units (a
+       missing 2 pi tsamps^2) fails the same predicate. */
+    DP_CHECK_MSG (
+        !(fabs (learned * 2.0 * M_PI * (double)(tsamps * tsamps) / ramp - 1.0)
+          < 1e-3),
+        "control: the rate in per-update units fails the units predicate");
+    DP_CHECK_MSG (fabs (seeded_rate / ramp - 1.0) < 1e-3,
+                  "a rate seeded at the ramp's is held");
+    /* Seeded, the loop meets the ramp with no learning transient: its
+       peak error over the first updates is a tenth of the unseeded loop's
+       or less (measured 1.0e-4 against 4.2e-3 rad). */
+    DP_CHECK_MSG (seeded_e < 0.1 * unseeded_e,
+                  "a seeded rate removes the ramp's learning transient");
     /* e = sin(phase error) in this discriminator; the error is mrad. */
     DP_CHECK_MSG (fabs (mean_e[0] / sin (expect2) - 1.0) < 0.05,
                   "order 2 lags a ramp by x/ki");
@@ -752,6 +818,101 @@ main (void)
     free (got);
   }
 
+  /* 10g. Order 3 is the loop docs/design/costas.md section 1 defines, to
+     rounding: 10e's construction for the third-order filter. An independent
+     order-3 recurrence, written here: its three gains are NOT the library's
+     sf but the ones whose exact noise bandwidth is bn, found by bisecting the
+     gain scale th (kp = b th, ki = a th^2, kr = th^3, the shape the header
+     names) on dp_state_filter_loop_bandwidth(), the general Lyapunov route,
+     where the library's gains come from its closed form sf_bn3; and the
+     filter's three lines (rate += kr e; integ += rate + ki e; the steer from
+     integ, a kp e phase step). As in 10e, the reference runs on the
+     library's own prompt each update, and the NCO phase word and its own
+     prompts are held to the same bounds from the run's length; a wrong kp,
+     ki or kr moves the phase by orders. The stimulus is a 1e-4 cycles/sample
+     frequency step from the seed, with a ramp, so all three paths act. */
+  {
+    const size_t    tsamps = 16, nsym = 3000, ns = nsym * tsamps;
+    const double    bn = 0.03, f_seed = 0.002;
+    float _Complex *rx   = malloc (ns * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
+    float _Complex *got  = malloc (nsym * sizeof (*got));
+    make_signal (rx, bits, nsym, tsamps, f_seed + 1e-4, 4e-9, 0.7f, 6063u);
+    dp_costas_state_t *c = dp_costas_create (bn, 0.707, f_seed, tsamps, 0.0);
+    DP_REQUIRE (c != NULL && rx && bits && got);
+    DP_REQUIRE (dp_costas_set_order (c, 3, bn) == DP_OK);
+    /* The reference's gains: the scale whose loop has noise bandwidth bn. */
+    const double sa = STATE_FILTER_SHAPE_A, sb = STATE_FILTER_SHAPE_B;
+    double       lo = 0.0, hi = 0.5;
+    for (int it = 0; it < 200; it++)
+      {
+        const double th = 0.5 * (lo + hi);
+        const double bw = dp_state_filter_loop_bandwidth (
+            3, sb * th, sa * th * th, th * th * th, 0.0, 1.0);
+        if (isfinite (bw) && bw < bn)
+          lo = th;
+        else
+          hi = th;
+      }
+    const double th = 0.5 * (lo + hi);
+    const double kp = sb * th, ki = sa * th * th, kr = th * th * th;
+    DP_CHECK_MSG (fabs (kp / c->sf.kp - 1.0) < 1e-9
+                      && fabs (ki / c->sf.ki - 1.0) < 1e-9
+                      && fabs (kr / c->sf.kr - 1.0) < 1e-9,
+                  "order 3's gains are the ones whose bandwidth is bn");
+    dp_lo_state_t nco;
+    dp_lo_init (&nco, f_seed);
+    double integ = f_seed * 2.0 * M_PI * (double)tsamps, rate = 0.0;
+    float _Complex acc = 0.0f;
+    double xmax = 0.0, dprompt = 0.0;
+    for (size_t i = 0; i < ns; i++)
+      if (cabsf (rx[i]) > xmax)
+        xmax = cabsf (rx[i]);
+    size_t       k     = 0;
+    const size_t n_got = dp_costas_steps (c, rx, ns, got, nsym);
+    for (size_t i = 0; i < ns; i++)
+      {
+        acc += rx[i] * conjf (lo_step (&nco));
+        if ((i + 1) % tsamps)
+          continue;
+        DP_REQUIRE (k < n_got);
+        const float _Complex mine = acc / (float)tsamps;
+        const double d
+            = cabs ((double _Complex)mine - (double _Complex)got[k]);
+        if (d > dprompt)
+          dprompt = d;
+        const float _Complex P = got[k] * (float)tsamps;
+        const float  re = crealf (P), im = cimagf (P);
+        const float  a = cabsf (P) + COSTAS_EPS;
+        const double e = (double)(((re >= 0.0f) ? im : -im) / a);
+        rate += kr * e;
+        integ += rate + ki * e;
+        dp_lo_set_norm_freq (&nco, integ / (double)tsamps / (2.0 * M_PI));
+        nco.phase += nco_norm_phase_to_word ((kp * e) / (2.0 * M_PI));
+        k++;
+        acc = 0.0f;
+      }
+    DP_CHECK (k == n_got);
+    const double n        = (double)k;
+    const double b_counts = n * (double)(tsamps + 1);
+    const double b_prompt = 0x1p-23 * xmax * (double)(tsamps + 2)
+                            + xmax * 2.0 * M_PI * b_counts / 4294967296.0;
+    const double d_counts = fabs ((double)(int32_t)(c->nco.phase - nco.phase));
+    DP_CHECK_MSG (d_counts <= b_counts,
+                  "order 3's NCO phase is its recurrence's");
+    DP_CHECK_MSG (dprompt <= b_prompt, "order 3's prompts are its "
+                                       "recurrence's");
+    if (d_counts > b_counts || dprompt > b_prompt
+        || getenv ("DP_COSTAS_PIN_DIAG"))
+      DP_TEST_ERR ("10g: phase %.0f of %.0f counts, "
+                   "prompt %.3e of %.3e\n",
+                   d_counts, b_counts, dprompt, b_prompt);
+    dp_costas_destroy (c);
+    free (rx);
+    free (bits);
+    free (got);
+  }
+
   /* 10b. The switch: what carries, what does not move. */
   {
     const size_t    tsamps = 16, nsym = 3000;
@@ -808,6 +969,96 @@ main (void)
     free (bits);
     free (out);
     free (ref);
+  }
+
+  /* 10f. The entry points at order 3 (docs/design/costas.md 3.1, 3.2). */
+  {
+    const size_t    tsamps = 16, nsym = 600;
+    const double    ramp = 2e-8, bn = 0.05, f_seed = 3e-4;
+    float _Complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
+    float _Complex sym;
+    DP_REQUIRE (rx && bits);
+    make_signal (rx, bits, nsym, tsamps, f_seed, ramp, 0.0f, 515u);
+    dp_costas_state_t *c = dp_costas_create (bn, 0.707, f_seed, tsamps, 0.0);
+    DP_REQUIRE (c && dp_costas_set_order (c, 3, bn) == DP_OK);
+    DP_REQUIRE (dp_costas_steps (c, rx, nsym * tsamps, &sym, 1) >= 1);
+    DP_REQUIRE (c->sf.rate != 0.0 && dp_costas_get_norm_freq (c) != f_seed);
+
+    /* get_nco_freq reads the ACTIVE filter's kp: at order 3 the third-order
+       gain, which differs from the retained order-2 one. */
+    DP_REQUIRE (c->sf.kp != c->lf.kp && c->last_error != 0.0);
+    DP_CHECK (dp_costas_get_nco_freq (c)
+              == c->nco.norm_freq
+                     + c->sf.kp * c->last_error
+                           / (2.0 * M_PI * (double)tsamps));
+    /* Negative control: the order-2 gain's command is not what it returns. */
+    DP_CHECK (dp_costas_get_nco_freq (c)
+              != c->nco.norm_freq
+                     + c->lf.kp * c->last_error
+                           / (2.0 * M_PI * (double)tsamps));
+
+    /* set_order 3 to 3: a retune that keeps both estimates. */
+    {
+      const double integ = c->sf.integ, rate = c->sf.rate;
+      DP_CHECK (dp_costas_set_order (c, 3, 0.04) == DP_OK);
+      DP_CHECK (dp_costas_get_order (c) == 3 && c->sf.bn == 0.04
+                && dp_costas_get_bn (c) == 0.04);
+      DP_CHECK (c->sf.integ == integ && c->sf.rate == rate);
+    }
+    /* configure at order 3: both filters retuned, estimates kept. */
+    {
+      const double integ = c->sf.integ, rate = c->sf.rate;
+      DP_CHECK (dp_costas_configure (c, 0.03, 0.8) == DP_OK);
+      DP_CHECK (c->sf.bn == 0.03 && c->lf.bn == 0.03 && c->lf.zeta == 0.8);
+      DP_CHECK (c->sf.integ == integ && c->sf.rate == rate);
+      DP_CHECK (dp_costas_get_order (c) == 3);
+    }
+    /* reset at order 3: keeps the order, rewinds the frequency estimate to
+       the create-time seed, zeroes the rate. */
+    dp_costas_reset (c);
+    DP_CHECK (dp_costas_get_order (c) == 3 && c->sf.rate == 0.0);
+    DP_CHECK (dp_costas_get_norm_freq (c) == f_seed);
+    DP_CHECK (c->sf.integ == f_seed * 2.0 * M_PI * (double)tsamps);
+    /* set_norm_freq at order 3: the same, at a new seed. */
+    DP_REQUIRE (dp_costas_steps (c, rx, 200 * tsamps, &sym, 1) >= 1);
+    DP_REQUIRE (c->sf.rate != 0.0);
+    dp_costas_set_norm_freq (c, -2e-4);
+    DP_CHECK (dp_costas_get_order (c) == 3 && c->sf.rate == 0.0);
+    DP_CHECK (dp_costas_get_norm_freq (c) == -2e-4);
+    dp_costas_destroy (c);
+
+    /* A switch in the middle of an integrate-and-dump: the dump in progress
+       and the NCO are untouched, so the next prompt is the one a loop that
+       never switched emits; the switch acts from the update after. */
+    dp_costas_state_t *a = dp_costas_create (bn, 0.707, f_seed, tsamps, 0.0);
+    dp_costas_state_t *b = dp_costas_create (bn, 0.707, f_seed, tsamps, 0.0);
+    DP_REQUIRE (a && b);
+    /* Each call's output buffer holds the max_out it passes: 50 whole
+       symbols before the switch into 64 slots, then one prompt each. */
+    enum
+    {
+      HEAD = 50
+    };
+    float _Complex oa[64], ob[64], pa, pb;
+    const size_t mid = HEAD * tsamps + tsamps / 2;
+    DP_CHECK (dp_costas_steps (a, rx, mid, oa, 64) == HEAD);
+    DP_CHECK (dp_costas_steps (b, rx, mid, ob, 64) == HEAD);
+    DP_CHECK (memcmp (oa, ob, HEAD * sizeof oa[0]) == 0); /* twins so far */
+    DP_REQUIRE (a->acc_n == tsamps / 2);
+    const float _Complex acc = a->acc;
+    DP_CHECK (dp_costas_set_order (a, 3, bn) == DP_OK);
+    DP_CHECK (a->acc == acc && a->acc_n == tsamps / 2);
+    DP_CHECK (a->nco.phase == b->nco.phase
+              && a->nco.phase_inc == b->nco.phase_inc);
+    DP_CHECK (dp_costas_steps (a, rx + mid, tsamps / 2, &pa, 1) == 1);
+    DP_CHECK (dp_costas_steps (b, rx + mid, tsamps / 2, &pb, 1) == 1);
+    DP_CHECK_MSG (memcmp (&pa, &pb, sizeof pa) == 0,
+                  "a mid-dump switch leaves the dump in progress alone");
+    dp_costas_destroy (a);
+    dp_costas_destroy (b);
+    free (rx);
+    free (bits);
   }
 
   /* 10c. Refusals change nothing. */
@@ -876,6 +1127,48 @@ main (void)
     DP_STATE_FORGE_TEST (
         dp_costas, a, COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION,
         H + offsetof (dp_costas_state_t, bn_fll), fll, sizeof fll);
+    /* Every branch of costas_state_ok, each a finite wrong blob: order 0
+       on a seeded loop (only the all-zero Costas is order 0); order 3 with
+       the all-zero filter (a selected filter was initialised); a filter
+       not at one update (t != 1); the pad after the order not zero. */
+    {
+      const int                            zero_order = 0, one = 1;
+      const double                         t2 = 2.0;
+      static const dp_state_filter_state_t zsf;
+      DP_STATE_FORGE_TEST (dp_costas, a, COSTAS_STATE_MAGIC,
+                           COSTAS_STATE_VERSION,
+                           H + offsetof (dp_costas_state_t, order),
+                           &zero_order, sizeof zero_order);
+      DP_STATE_FORGE_TEST (
+          dp_costas, a, COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION,
+          H + offsetof (dp_costas_state_t, sf), &zsf, sizeof zsf);
+      /* a filter valid on its own at t = 2 (gains, bn consistent), so only
+         Costas's one-update rule refuses it */
+      {
+        dp_state_filter_state_t sf2;
+        dp_state_filter_init (&sf2, a->bn, t2);
+        DP_REQUIRE (dp_state_filter_state_ok (&sf2) && sf2.bn == a->bn);
+        DP_STATE_FORGE_TEST (
+            dp_costas, a, COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION,
+            H + offsetof (dp_costas_state_t, sf), &sf2, sizeof sf2);
+      }
+      DP_STATE_FORGE_TEST (
+          dp_costas, a, COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION,
+          H + offsetof (dp_costas_state_t, _pad_order), &one, sizeof one);
+      /* At order 2 the inactive filter is the all-zero one or a valid
+         one: a filter whose bn its gains do not match is neither. */
+      dp_costas_state_t *o2 = dp_costas_create (0.04, 0.707, 0.0, 16, 0.0);
+      DP_REQUIRE (o2 != NULL);
+      const double bad_bn = 0.07;
+      DP_REQUIRE (dp_costas_set_order (o2, 3, 0.04) == DP_OK);
+      DP_REQUIRE (dp_costas_set_order (o2, 2, 0.04) == DP_OK);
+      DP_STATE_FORGE_TEST (dp_costas, o2, COSTAS_STATE_MAGIC,
+                           COSTAS_STATE_VERSION,
+                           H + offsetof (dp_costas_state_t, sf)
+                               + offsetof (dp_state_filter_state_t, bn),
+                           &bad_bn, sizeof bad_bn);
+      dp_costas_destroy (o2);
+    }
     dp_costas_destroy (a);
     dp_costas_destroy (b);
     free (rx);

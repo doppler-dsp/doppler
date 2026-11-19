@@ -40,6 +40,7 @@ _A non-HT rate, held with what follows from it._ [More...](#detailed-description
 |  uint32\_t | [**n\_bpsc**](#variable-n_bpsc)  <br> |
 |  uint32\_t | [**n\_cbps**](#variable-n_cbps)  <br> |
 |  uint32\_t | [**n\_dbps**](#variable-n_dbps)  <br> |
+|  uint32\_t | [**rate\_mbps**](#variable-rate_mbps)  <br> |
 
 
 
@@ -160,6 +161,23 @@ uint32_t dp_wlan_state_t::n_dbps;
 
 data bits per OFDM symbol 
  
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_mbps 
+
+```C++
+uint32_t dp_wlan_state_t::rate_mbps;
+```
+
+
+
+data rate at 20 MHz, Mb/s; 0 = no Table 17-6 row 
 
 
         

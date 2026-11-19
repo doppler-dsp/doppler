@@ -255,14 +255,119 @@ main (void)
     DP_CHECK (dp_wlan_ppdu_len (6, 0) == 160 + 160 + 80 + 480);
     DP_CHECK (dp_wlan_ppdu_len (6, 2) == 160 + 160 + 80 + 480 + 2);
 
+    /* The data rate, Table 17-6's first column. The expected values are
+     * typed from the printed table; the arithmetic N_DBPS / 4 (the 4 us
+     * symbol) is a second, independent statement that must agree. */
+    {
+      static const struct
+      {
+        unsigned       bpsc;
+        dp_wlan_code_t code;
+        unsigned       mbps;
+      } printed[] = {
+        { 1, WLAN_CODE_1_2, 6 },  { 1, WLAN_CODE_3_4, 9 },
+        { 2, WLAN_CODE_1_2, 12 }, { 2, WLAN_CODE_3_4, 18 },
+        { 4, WLAN_CODE_1_2, 24 }, { 4, WLAN_CODE_3_4, 36 },
+        { 6, WLAN_CODE_2_3, 48 }, { 6, WLAN_CODE_3_4, 54 },
+      };
+      const dp_wlan_tables_t *std = dp_wlan_tables_standard ();
+      unsigned                seen[8];
+      for (size_t i = 0; i < 8; i++)
+        {
+          const dp_wlan_rate_t r = { printed[i].bpsc, printed[i].code };
+          unsigned             m = 777;
+          DP_CHECK (dp_wlan_mbps (std, &r, &m) == 1);
+          DP_CHECK (m == printed[i].mbps);
+          DP_CHECK (m * 4u == dp_wlan_n_dbps (&r));
+          seen[i] = m;
+          /* the inverse returns the pair */
+          dp_wlan_rate_t back = { 0, 0 };
+          DP_CHECK (dp_wlan_rate_from_mbps (std, m, &back) == 1);
+          DP_CHECK (back.n_bpsc == r.n_bpsc && back.code == r.code);
+        }
+      for (size_t i = 0; i < 8; i++) /* eight rates, eight distinct values */
+        for (size_t j = i + 1; j < 8; j++)
+          DP_CHECK (seen[i] != seen[j]);
+
+      /* all sixteen pairs: exactly eight have a row, the rest refuse and
+       * leave the output as the caller set it */
+      static const unsigned nb[4] = { 1, 2, 4, 6 };
+      int                   rows  = 0;
+      for (int c = 0; c < 4; c++)
+        for (int b = 0; b < 4; b++)
+          {
+            const dp_wlan_rate_t r  = { nb[b], (dp_wlan_code_t)c };
+            unsigned             m  = 777;
+            const int            ok = dp_wlan_mbps (std, &r, &m);
+            rows += ok;
+            DP_CHECK (ok ? m != 777 : m == 777);
+          }
+      DP_CHECK (rows == 8);
+
+      /* refusals: a rate with no row, zero, and the neighbours of each
+       * printed value; the pair is left as set */
+      static const unsigned none[] = { 0, 1, 5, 7, 8, 10, 35, 37, 55, 1000 };
+      for (size_t i = 0; i < sizeof none / sizeof *none; i++)
+        {
+          dp_wlan_rate_t r = { 99, 99 };
+          DP_CHECK (dp_wlan_rate_from_mbps (std, none[i], &r) == 0);
+          DP_CHECK (r.n_bpsc == 99 && r.code == 99);
+        }
+
+      /* an empty table, a table with no rates given (the synthetic one),
+       * NULL arguments */
+      const dp_wlan_tables_t syn = synth_tables ();
+      const dp_wlan_rate_t   r36 = { 4, WLAN_CODE_3_4 };
+      unsigned               m   = 777;
+      dp_wlan_rate_t         rr  = { 99, 99 };
+      DP_CHECK (dp_wlan_mbps (dp_wlan_tables_empty (), &r36, &m) == 0);
+      DP_CHECK (dp_wlan_mbps (&syn, &r36, &m) == 0);
+      DP_CHECK (dp_wlan_mbps (NULL, &r36, &m) == 0);
+      DP_CHECK (dp_wlan_mbps (std, NULL, &m) == 0);
+      DP_CHECK (dp_wlan_mbps (std, &r36, NULL) == 0);
+      DP_CHECK (m == 777);
+      DP_CHECK (dp_wlan_rate_from_mbps (dp_wlan_tables_empty (), 36, &rr)
+                == 0);
+      DP_CHECK (dp_wlan_rate_from_mbps (&syn, 36, &rr) == 0);
+      /* 0 is "not given" in a row, never a rate that matches it */
+      DP_CHECK (dp_wlan_rate_from_mbps (&syn, 0, &rr) == 0);
+      DP_CHECK (dp_wlan_rate_from_mbps (NULL, 36, &rr) == 0);
+      DP_CHECK (dp_wlan_rate_from_mbps (std, 36, NULL) == 0);
+      DP_CHECK (rr.n_bpsc == 99 && rr.code == 99);
+
+      /* negative control: the cross-check against N_DBPS / 4 is red for a
+       * table whose 36 Mb/s row says 37 */
+      dp_wlan_signal_rate_t wrong[8];
+      memcpy (wrong, std->signal_rates, sizeof wrong);
+      wrong[5].mbps        = 37;
+      dp_wlan_tables_t bad = *std;
+      bad.signal_rates     = wrong;
+      int agrees           = 1;
+      for (size_t i = 0; i < 8; i++)
+        {
+          unsigned got = 0;
+          if (!dp_wlan_mbps (&bad, &wrong[i].rate, &got)
+              || got * 4u != dp_wlan_n_dbps (&wrong[i].rate))
+            agrees = 0;
+        }
+      DP_CHECK (agrees == 0);
+    }
+
     /* the object */
     dp_wlan_state_t *w = dp_wlan_create (2, 2);
     DP_REQUIRE (w != NULL);
     DP_CHECK (w->n_bpsc == 4 && w->n_cbps == 192 && w->n_dbps == 144);
+    DP_CHECK (w->rate_mbps == 36);
     DP_CHECK (dp_wlan_n_sym (w, 100) == 6);
     dp_wlan_reset (w);
     dp_wlan_destroy (w);
     dp_wlan_destroy (NULL);
+    {
+      dp_wlan_state_t *x = dp_wlan_create (0, 1); /* BPSK 2/3: no row */
+      DP_REQUIRE (x != NULL);
+      DP_CHECK (x->rate_mbps == 0);
+      dp_wlan_destroy (x);
+    }
     DP_CHECK (dp_wlan_create (-1, 0) == NULL);
     DP_CHECK (dp_wlan_create (4, 0) == NULL);
     DP_CHECK (dp_wlan_create (0, 4) == NULL);

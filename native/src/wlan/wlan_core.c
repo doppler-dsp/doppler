@@ -37,14 +37,14 @@ static const float _Complex LTF[53]
 
 /* Table 17-6: R1..R4, R1 the most significant bit of the integer. */
 static const dp_wlan_signal_rate_t SIGNAL_RATES[8] = {
-  { { 1u, WLAN_CODE_1_2 }, 13u }, /* 6 Mb/s,  1101 */
-  { { 1u, WLAN_CODE_3_4 }, 15u }, /* 9 Mb/s,  1111 */
-  { { 2u, WLAN_CODE_1_2 }, 5u },  /* 12 Mb/s, 0101 */
-  { { 2u, WLAN_CODE_3_4 }, 7u },  /* 18 Mb/s, 0111 */
-  { { 4u, WLAN_CODE_1_2 }, 9u },  /* 24 Mb/s, 1001 */
-  { { 4u, WLAN_CODE_3_4 }, 11u }, /* 36 Mb/s, 1011 */
-  { { 6u, WLAN_CODE_2_3 }, 1u },  /* 48 Mb/s, 0001 */
-  { { 6u, WLAN_CODE_3_4 }, 3u },  /* 54 Mb/s, 0011 */
+  { { 1u, WLAN_CODE_1_2 }, 13u, 6u },  /* 6 Mb/s, 1101 */
+  { { 1u, WLAN_CODE_3_4 }, 15u, 9u },  /* 9 Mb/s, 1111 */
+  { { 2u, WLAN_CODE_1_2 }, 5u, 12u },  /* 12 Mb/s, 0101 */
+  { { 2u, WLAN_CODE_3_4 }, 7u, 18u },  /* 18 Mb/s, 0111 */
+  { { 4u, WLAN_CODE_1_2 }, 9u, 24u },  /* 24 Mb/s, 1001 */
+  { { 4u, WLAN_CODE_3_4 }, 11u, 36u }, /* 36 Mb/s, 1011 */
+  { { 6u, WLAN_CODE_2_3 }, 1u, 48u },  /* 48 Mb/s, 0001 */
+  { { 6u, WLAN_CODE_3_4 }, 3u, 54u },  /* 54 Mb/s, 0011 */
 };
 
 /* Eq. (17-16), (17-17): j = s*floor(i/s) + (i + N_CBPS - floor(16 i /
@@ -138,6 +138,38 @@ dp_wlan_rate_ok (const dp_wlan_rate_t *r)
   return 1;
 }
 
+int
+dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
+              unsigned *mbps)
+{
+  if (!t || !r || !mbps || !t->signal_rates)
+    return 0;
+  for (size_t i = 0; i < t->n_signal_rates; i++)
+    if (t->signal_rates[i].mbps != 0
+        && t->signal_rates[i].rate.n_bpsc == r->n_bpsc
+        && t->signal_rates[i].rate.code == r->code)
+      {
+        *mbps = t->signal_rates[i].mbps;
+        return 1;
+      }
+  return 0;
+}
+
+int
+dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
+                        dp_wlan_rate_t *r)
+{
+  if (!t || !r || !t->signal_rates || mbps == 0)
+    return 0;
+  for (size_t i = 0; i < t->n_signal_rates; i++)
+    if (t->signal_rates[i].mbps == mbps)
+      {
+        *r = t->signal_rates[i].rate;
+        return 1;
+      }
+  return 0;
+}
+
 unsigned
 dp_wlan_n_cbps (const dp_wlan_rate_t *r)
 {
@@ -209,6 +241,9 @@ dp_wlan_create (int constellation, int code_rate)
   s->code            = (uint32_t)code_rate;
   s->n_cbps          = dp_wlan_n_cbps (&r);
   s->n_dbps          = dp_wlan_n_dbps (&r);
+  unsigned mbps      = 0;
+  s->rate_mbps
+      = dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps) ? mbps : 0u;
   return s;
 }
 

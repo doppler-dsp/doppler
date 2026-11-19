@@ -129,7 +129,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._ 
 * **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) _Synth state: one streaming waveform source._ 
 * **struct** [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) _A non-HT rate, by the two columns of Table 17-4 that do not change with the clocking: a constellation and a code rate._ 
-* **struct** [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) _A (rate, SIGNAL RATE bits) pair of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _._
+* **struct** [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) _A row of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _: Table 17-6 as printed, the data rate and the SIGNAL RATE bits of one pair._
 * **struct** [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) _A non-HT rate, held with what follows from it._ 
 * **struct** [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) _What the standard supplies: the Clause 17 literals._ 
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md) _Bounds-checked write cursor over a caller-owned state blob._ 

@@ -71,3 +71,35 @@ def test_reset_context_manager_and_destroy():
     w.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         w.n_sym(10)
+
+
+# The data rate at 20 MHz, Table 17-6's first column: the pair is
+# (constellation, code_rate) and the value is what the table prints.
+_TABLE_17_6 = {
+    ("bpsk", "r12"): 6,
+    ("bpsk", "r34"): 9,
+    ("qpsk", "r12"): 12,
+    ("qpsk", "r34"): 18,
+    ("qam16", "r12"): 24,
+    ("qam16", "r34"): 36,
+    ("qam64", "r23"): 48,
+    ("qam64", "r34"): 54,
+}
+
+
+@pytest.mark.parametrize("constellation", ["bpsk", "qpsk", "qam16", "qam64"])
+@pytest.mark.parametrize("code_rate", ["r12", "r23", "r34", "r56"])
+def test_rate_mbps_is_the_printed_rate_or_zero(constellation, code_rate):
+    """Eight of the sixteen pairs have a Table 17-6 row; the rest read 0."""
+    w = Wlan(constellation=constellation, code_rate=code_rate)
+    want = _TABLE_17_6.get((constellation, code_rate), 0)
+    assert w.rate_mbps == want
+    if want:
+        assert w.rate_mbps * 4 == w.n_dbps  # the 4 us symbol, independently
+
+
+def test_rate_mbps_has_eight_distinct_rows():
+    got = {
+        Wlan(constellation=c, code_rate=r).rate_mbps for c, r in _TABLE_17_6
+    }
+    assert got == {6, 9, 12, 18, 24, 36, 48, 54}

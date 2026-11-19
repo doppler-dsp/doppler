@@ -85,6 +85,21 @@ target_include_directories(test_wfm_synth_data PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_synth_data COMMAND test_wfm_synth_data)
 
+# The frame renderer: a WFM_SYNTH_FRAMES synth plays finished frames of samples
+# drawn from a frame callback (dp_wfm_synth_attach_frames). Linked as the data test
+# is, because the synth's noise add lives with the composer's DSP.
+add_executable(test_wfm_synth_frames
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_frames.c)
+target_link_libraries(test_wfm_synth_frames PRIVATE
+    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    ccsds_tm_core conv_core rs_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
+    ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_synth_frames PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_wfm_synth_frames COMMAND test_wfm_synth_frames)
+
 add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn

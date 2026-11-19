@@ -451,14 +451,14 @@ class _SynthEngine:
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
         WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp,
-        6=bits, 7=symbols, 8=dsss. Use this to inspect which synthesis path is
-        active at runtime.
+        6=bits, 7=symbols, 8=dsss, 9=frames. Use this to inspect which
+        synthesis path is active at runtime.
 
         Returns
         -------
         int
-            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS), the
-            create-time `type` unless overridden.
+            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_FRAMES),
+            the create-time `type` unless overridden.
 
         Examples
         --------
@@ -482,7 +482,9 @@ class _SynthEngine:
         Parameters
         ----------
         val : int
-            New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+            New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_FRAMES); a synth
+            neither enters nor leaves WFM_SYNTH_FRAMES by this call, which has
+            its buffers and renderer installed or not.
 
         Raises
         ------

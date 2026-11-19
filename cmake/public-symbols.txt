@@ -1861,10 +1861,13 @@ dp_wfm_stream_sink_send_eos function
 dp_wfm_stream_sink_set_gain function
 dp_wfm_stream_sink_track_clipping function
 dp_wfm_synth_attach_data function
+dp_wfm_synth_attach_frames function
+dp_wfm_synth_attach_frames_state function
 dp_wfm_synth_create function
 dp_wfm_synth_data_ended function
 dp_wfm_synth_data_source function
 dp_wfm_synth_destroy function
+dp_wfm_synth_frames_refused function
 dp_wfm_synth_get_cur_im function
 dp_wfm_synth_get_cur_re function
 dp_wfm_synth_get_nsps function
@@ -2015,6 +2018,7 @@ wfm_synth_bit_next function
 wfm_synth_bit_symbol function
 wfm_synth_bps function
 wfm_synth_cont_dsss_chip function
+wfm_synth_frame_ahead function
 wfm_synth_mls_poly function
 wfm_synth_next_symbol function
 wfm_synth_shape function

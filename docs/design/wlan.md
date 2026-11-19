@@ -524,6 +524,108 @@ every other key is today's. The caller's octets are the existing payload
 data source, `data_len` bits per PPDU and one PPDU per frame, as a DSSS burst
 is one burst per frame; `mac` says what they are (section 3).
 
+### The preset, `--wlan N`
+
+`ofdm` takes general fields: `constellation`, `code_rate`, `scrambler_init`,
+`window`, `mac`, `mac_header`, `bandwidth` (section 5). `wlan` is a second
+spelling of the first two. It is not a type and not a second code path:
+
+```text
+--wlan 36    is    --constellation qam16 --code_rate 3/4
+```
+
+The standard's numbers arrive as a table. `dp_wlan_tables_standard()` already
+holds the eight (rate, RATE bits) rows of Table 17-6; `wlan` reads the
+table's first column, the data rate in Mb/s, which Table 17-6 prints beside
+the RATE bits. The synth does not know 802.11.
+
+#### The field
+
+`wlan` is an integer, `json_when = { type = "ofdm" }`, declared once in
+`modules/wfm_compose.toml` like every other source field. wfmgen has no
+preset mechanism; every option is a field, so this is one more. The bridge
+expands it at attach through `dp_wlan_rate_from_mbps`. One spelling per
+source: a source that gives `wlan` and also `constellation` or `code_rate` is
+refused, so the JSON writer's output has one reading.
+
+`wlan` is the 20 MHz data rate. A source with `wlan` and a `bandwidth` other
+than 20 MHz is refused: at 10 and 5 MHz the same pair carries half and a
+quarter of the rate, and a flag that says 36 must not produce an 18 Mb/s
+signal. A 10 or 5 MHz source is written with `constellation`, `code_rate` and
+`bandwidth`.
+
+#### The per-rate numbers
+
+`dp_wlan_signal_rate_t` gains a `mbps` member, the rate as Table 17-6 prints
+it. Two lookups over the table, with one convention (1 on success, 0 on a
+refusal, as `dp_wlan_bcc` and `dp_wlan_rate_ok` return):
+
+| function                              | what                                                    |
+| ------------------------------------- | ------------------------------------------------------- |
+| `dp_wlan_mbps(t, r, *mbps)`           | the printed rate of a pair; 0 for a pair with no row    |
+| `dp_wlan_rate_from_mbps(t, mbps, *r)` | the pair of a printed rate; 0, `*r` unchanged, for none |
+
+Both refuse an empty table. The 4 in `n_dbps / 4` is not in any function
+body: it is the 4 us symbol, and a test holds the transcribed column against
+`n_dbps / 4` for all eight rows, so the table and the arithmetic are two
+independent statements that must agree. The eight values are distinct (6, 9,
+12, 18, 24, 36, 48, 54), checked in the same test.
+
+On the faces:
+
+| capability            | C                        | Python                 | CLI        |
+| --------------------- | ------------------------ | ---------------------- | ---------- |
+| a pair's rate in Mb/s | `dp_wlan_mbps`           | `Wlan.rate_mbps`       |            |
+| a rate's pair         | `dp_wlan_rate_from_mbps` | none; just-makeit#2683 | `--wlan N` |
+
+`Wlan.rate_mbps` is the 20 MHz rate and the docstring says so, as
+`Wlan.airtime` already does; the object holds no clocking. It is 0 for a pair
+Table 17-6 has no row for (BPSK 2/3, 64-QAM 1/2, any 5/6). Python has no
+lookup from a rate to a pair: none; just-makeit#2683.
+
+#### Refusals, and the test for each
+
+Each refusal is tested on every face it can be reached from, and a test fails
+if the refusal does not trip. The C validator is
+`dp_wfm_source_to_synth_error`; the others are the JSON scene, the CLI and the
+Python keyword.
+
+| refusal                                       | C   | JSON | CLI | Python |
+| --------------------------------------------- | --- | ---- | --- | ------ |
+| `wlan` not one of the eight, naming the eight | x   | x    | x   | x      |
+| `wlan` with `constellation` or `code_rate`    | x   | x    | x   | x      |
+| `wlan` with a `bandwidth` other than 20 MHz   | x   | x    | x   | x      |
+| `wlan` on a type other than `ofdm`            | x   | x    | x   | x      |
+
+At the object, `dp_wlan_mbps` and `dp_wlan_rate_from_mbps` each have a test
+for the empty table, an unknown pair, an unknown rate, and `*r` unchanged on
+refusal, with the output poisoned first.
+
+#### What is proved
+
+For each of the eight N, a source with `wlan = N` renders output
+byte-identical to the source spelled with its `constellation` and
+`code_rate`, same seed. That holds the expansion, not the content.
+
+The content of a PPDU is held in this tree by `test_wlan_core.c` section 10b,
+which runs the 36 Mb/s PPDU (16-QAM, 3/4) only, against the Annex I scaling.
+The other seven rates are held by the per-stage unit tests (the RATE bits, the
+puncture masks, the permutation, the constellation encodings) and by no
+whole-PPDU check; the downstream comparison recorded on #3148 is outside
+this repository.
+
+#### The 36 Mb/s PPDU
+
+The line below is proposed, not yet a parsable option, so it is a `text`
+fence; it becomes an `sh` fence when the field exists. The header is 24
+octets: Frame Control, Duration, three addresses, Sequence Control.
+
+```text
+wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
+    --mac-header 08020000ffffffffffff0200000000010200000000020000 \
+    --data pn:800:15 --data-len 800 -o ppdu.cf32
+```
+
 ### Es/N0 for an `ofdm` source
 
 **Proposed, for the owner's confirmation.** The owner's definition: Es/N0 is
@@ -820,8 +922,10 @@ drift.
     confused with wfmgen's `Plan`: `--ofdm-layout FILE`, a scene key
     `"layout"`, a source field `layout`. OFDM is generally available as a
     library object ([ofdm](ofdm.md)); this page's type is one caller of it.
-1. **One type, `ofdm`, with a `standard` discriminator**, as `dsss` has
-    `symbol_rate`, rather than a `wlan` type beside it.
+1. **One type, `ofdm`, with a `standard` discriminator** naming a letter
+    (`802.11a`), as `dsss` has `symbol_rate`, rather than a `wlan` type beside
+    it. A PPDU's rate is `wlan N`, the 20 MHz data rate, or `constellation`
+    and `code_rate` (section 5, "The preset").
 1. **Both an object and a type.** The modulator, the QAM map, the CRC and
     the `wlan` builders are certified as objects first; the `ofdm` type is
     the composition.
@@ -830,7 +934,8 @@ drift.
 1. **LDPC has its own design page**, ahead of HE and after VHT.
 1. **A non-HT rate is spelled by the two columns of Table 17-4 that do not
     change with clocking**: a constellation and `code_rate`. Mb/s names a
-    different pair at 10 MHz than at 20 MHz.
+    different pair at 10 MHz than at 20 MHz, so `wlan N`, which names it by
+    Mb/s, is the 20 MHz rate and is refused at any other bandwidth.
 1. **The scrambler's initial state is drawn per PPDU** from the source's
     `seed` through the composer's draw hash, so it is reproducible and read
     back, with `scrambler_init` to fix it (the Annex I test fixes it). The

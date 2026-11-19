@@ -887,8 +887,9 @@ ramp_rows (const uint8_t *code, int check, int emit)
  *   signal  E|P|^2 without noise, the look's coherent power, against
  *           (L rho)^2 with L = look / N_p partials (the Dll normalises
  *           each partial by its N_p samples, seg_norm): rho, the
- *           correlation of the received chips with the Dll's rectangular
- *           replica, is what the column reads;
+ *           correlation of the received chips with the Dll's replica
+ *           (dll_replica_word(), interpolated between a quarter and three
+ *           quarters of each chip), is what the column reads;
  *   noise   E|O|^2 with noise less E|O|^2 without (the offset tap's
  *           signal sidelobe), against white noise's look sigma^2 / N_p^2,
  *           sigma^2 = fs / (C/N0) a complex sample for a unit-power
@@ -901,18 +902,23 @@ ramp_rows (const uint8_t *code, int check, int emit)
 #define CL_DRAWS 5u
 #define CL_S 20.0
 #define CL_CHECK_S 5.0
+#define CL_NOISE_S                                                            \
+  300.0 /* noise alone: ~4e4 decisions at the slowest cell                    \
+         */
 
 typedef struct
 {
   double fc, esn0;
   int    cw;
   size_t n_looks, look, n_down, epochs, decisions, misses, drops;
+  size_t switches, h, nhyp, n_err;
+  double cerr, cerr2; /* the code error's sum and sum of squares, chips */
   double thresh_down, p2, o2, snr_meas, snr_model, loss_db, seg_norm;
 } code_lock_t;
 
 static int
 run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
-               uint32_t seed, double secs, code_lock_t *out)
+               int pin, uint32_t seed, double secs, code_lock_t *out)
 {
   memset (out, 0, sizeof *out);
   out->fc          = fc;
@@ -940,20 +946,38 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
   const int id_o    = dp_tlm_probe_id (tlm, "rx.code.offset_pwr");
   DP_REQUIRE (id_lock >= 0 && id_lkd >= 0 && id_p >= 0 && id_o >= 0);
 
-  size_t cap             = dp_async_dsss_receiver_steps_max_out (rx);
-  cap                    = cap ? cap : PUSH;
-  float complex *x       = dp_xmalloc (PUSH * sizeof *x);
-  float complex *syms    = dp_xmalloc (cap * sizeof *syms);
-  dp_tlm_rec_t  *recs    = dp_xmalloc (4096 * sizeof *recs);
-  const size_t   n_blk   = (size_t)(secs * DP_S415_FS / PUSH);
-  double         t_first = -1.0, last_r = NAN;
-  int            last_locked = -1;
-  double         sp2 = 0.0, so2 = 0.0;
-  size_t         np = 0, no = 0;
+  size_t cap              = dp_async_dsss_receiver_steps_max_out (rx);
+  cap                     = cap ? cap : PUSH;
+  float complex  *x       = dp_xmalloc (PUSH * sizeof *x);
+  float complex  *syms    = dp_xmalloc (cap * sizeof *syms);
+  dp_tlm_rec_t   *recs    = dp_xmalloc (4096 * sizeof *recs);
+  const size_t    n_blk   = (size_t)(secs * DP_S415_FS / PUSH);
+  double          t_first = -1.0, last_r = NAN;
+  int             last_locked = -1;
+  double          sp2 = 0.0, so2 = 0.0;
+  size_t          np = 0, no = 0, last_h = SIZE_MAX;
+  dp_dll_state_t *pinned = NULL;
+  int             was_in = 0;
   for (size_t b = 0; b < n_blk; b++)
     {
       DP_REQUIRE (dp_air_next (&air, x, PUSH));
       dp_tlm_set_now (tlm, (uint64_t)(b * PUSH));
+      /* The code loop's true error at this block's first sample, read as
+         async_dsss_receiver_pullin.c reads it: the code NCO's phase ahead
+         of the carried samples, against the chip, with the half-sample
+         dwell-start convention. Its spread over the window is the loop's
+         jitter, which a hypothesis switch would reach through the steer
+         aid_look() makes on the winner's window. */
+      if (was_in)
+        {
+          const dp_air_truth_t tr = dp_air_truth (&air, 0, (uint64_t)b * PUSH);
+          double ek = dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
+                      - tr.code_chips + 0.5 * rx->chip_rate / DP_S415_FS;
+          ek -= (double)DP_S415_SF * floor (ek / (double)DP_S415_SF + 0.5);
+          out->cerr += ek;
+          out->cerr2 += ek * ek;
+          out->n_err++;
+        }
       (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
       const double t      = (double)(b + 1) * PUSH / DP_S415_FS;
       const int    trk    = rx->state == ASYNC_DSSS_RX_TRACKING;
@@ -961,7 +985,29 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
       if (t_first < 0.0 && locked)
         t_first = t;
       const int in_win = trk && t_first >= 0.0 && t >= t_first + CL_SETTLE_S;
-      size_t    n;
+      /* The symbol-aided look's timing hypothesis: counted, or held. A run
+         with pin = h + 1 holds hypothesis h from the window's opening by
+         raising its power EMA past any window's, every block, so the
+         argmax in aid_look() cannot leave it (the EMA decays toward real
+         powers a block at a time, never far). Every run of a draw is the
+         same run until the window opens, so h names the same timing in
+         each. */
+      if (in_win && rx->dll->aid_nhyp)
+        {
+          out->nhyp = rx->dll->aid_nhyp;
+          if (pin && !pinned && (size_t)(pin - 1) < out->nhyp)
+            pinned = rx->dll, out->h = (size_t)(pin - 1);
+          if (pinned == rx->dll)
+            {
+              rx->dll->aid_best          = out->h;
+              rx->dll->aid_power[out->h] = 1e300;
+            }
+          if (last_h != SIZE_MAX && rx->dll->aid_best != last_h)
+            out->switches++;
+          last_h = rx->dll->aid_best;
+        }
+      was_in = in_win;
+      size_t n;
       while ((n = dp_tlm_read (tlm, 4096, recs, 4096)) > 0)
         for (size_t i = 0; in_win && i < n; i++)
           {
@@ -1008,6 +1054,123 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
   return 0;
 }
 
+/* The code loop's jitter over a run's window, chips: the spread of
+   run_code_lock()'s per-block code error about its mean. */
+static double
+code_jitter (const code_lock_t *r)
+{
+  if (r->n_err < 2)
+    return NAN;
+  const double m = r->cerr / (double)r->n_err;
+  return sqrt (fmax (r->cerr2 / (double)r->n_err - m * m, 0.0));
+}
+
+/* The code-lock statistic on noise alone, through the look that ships.
+ *
+ * det sizes the declare threshold for ONE look window a decision:
+ * det_threshold_noncoherent(1e-3, n_looks), a per-decision false-alarm
+ * rate of 1e-3 (dp_dll_configure_lock()). The symbol-aided look is the
+ * window of whichever timing hypothesis has the most power, and on noise
+ * that choice is the noise's. This puts the receiver's own Dll on noise
+ * and counts the decisions whose R crosses the declare threshold:
+ *   - the receiver locks on the clean scene and settles, so its Dll has
+ *     the shipped geometry, look count and thresholds;
+ *   - from then on the Dll is fed complex white noise directly
+ *     (dp_dll_steps(); with no signal there is no carrier to wipe), and
+ *     the first CL_NOISE_SETTLE_S lets the noise reference E|O|^2 forget
+ *     the signal;
+ *   - each new R is a decision (the statistic repeats between them).
+ * With pin = h + 1 the hypothesis is held at h, the look det models: that
+ * run is the control, and it should read 1e-3. */
+#define CL_NOISE_SETTLE_S 0.5
+
+static int
+run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
+                uint32_t seed, double secs, size_t *decisions, size_t *hits,
+                double *up, size_t *n_looks)
+{
+  const double     cn0 = dp_s415_cn0 (esn0);
+  uint32_t         st  = trial_rng (seed + 300000u);
+  const double     f0  = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
+  dp_air_emitter_t e
+      = dp_s415_emitter (code, fc, f0, 0.0, cn0, 0.0, seed + 300000u);
+  dp_air_t air;
+  DP_REQUIRE (
+      dp_air_init (&air, &e, 1, DP_S415_FS, NAN, seed * 7919u + 5u, PUSH));
+  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true, 0);
+  dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
+  DP_REQUIRE (rx != NULL && tlm != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
+              == DP_OK);
+  const int id_lock = dp_tlm_probe_id (tlm, "rx.code.lock");
+  DP_REQUIRE (id_lock >= 0);
+  size_t cap             = dp_async_dsss_receiver_steps_max_out (rx);
+  cap                    = cap ? cap : PUSH;
+  float complex *x       = dp_xmalloc (PUSH * sizeof *x);
+  float complex *syms    = dp_xmalloc (cap * sizeof *syms);
+  dp_tlm_rec_t  *recs    = dp_xmalloc (4096 * sizeof *recs);
+  double         t_first = -1.0;
+  /* Lock on the clean scene, then settle. */
+  for (size_t b = 0;; b++)
+    {
+      DP_REQUIRE (b < (size_t)(30.0 * DP_S415_FS / PUSH));
+      DP_REQUIRE (dp_air_next (&air, x, PUSH));
+      (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
+      while (dp_tlm_read (tlm, 4096, recs, 4096) > 0)
+        ;
+      const double t = (double)(b + 1) * PUSH / DP_S415_FS;
+      if (rx->state == ASYNC_DSSS_RX_TRACKING
+          && dp_async_dsss_receiver_get_code_locked (rx))
+        {
+          if (t_first < 0.0)
+            t_first = t;
+          else if (t >= t_first + CL_SETTLE_S)
+            break;
+        }
+    }
+  dp_dll_state_t *d = rx->dll;
+  DP_REQUIRE (d->aid_nhyp > 0 && (size_t)pin <= d->aid_nhyp);
+  *up        = d->lock.up_thresh;
+  *n_looks   = d->n_looks;
+  *decisions = *hits    = 0;
+  dp_awgn_state_t *g    = lk_noise (seed + 300000u, cn0);
+  size_t           dcap = dp_dll_steps_max_out (d);
+  dcap                  = dcap ? dcap : PUSH;
+  float complex *dout   = dp_xmalloc (dcap * sizeof *dout);
+  const size_t   n0     = (size_t)(CL_NOISE_SETTLE_S * DP_S415_FS / PUSH);
+  const size_t   n1     = n0 + (size_t)(secs * DP_S415_FS / PUSH);
+  double         last   = NAN;
+  for (size_t k = 0; k < n1; k++)
+    {
+      if (pin)
+        {
+          d->aid_best               = (size_t)(pin - 1);
+          d->aid_power[d->aid_best] = 1e300;
+        }
+      dp_awgn_generate (g, PUSH, x, PUSH);
+      (void)dp_dll_steps (d, x, PUSH, dout, dcap);
+      size_t n;
+      while ((n = dp_tlm_read (tlm, 4096, recs, 4096)) > 0)
+        for (size_t i = 0; k >= n0 && i < n; i++)
+          if ((int)recs[i].probe == id_lock && recs[i].value != last)
+            {
+              last = recs[i].value;
+              (*decisions)++;
+              *hits += last > *up;
+            }
+    }
+  (void)dp_async_dsss_receiver_set_telemetry (rx, NULL, NULL, 1);
+  dp_tlm_destroy (tlm);
+  dp_awgn_destroy (g);
+  free (dout);
+  free (recs);
+  free (syms);
+  free (x);
+  dp_async_dsss_receiver_destroy (rx);
+  dp_air_free (&air);
+  return 0;
+}
+
 static int
 code_lock_rows (const uint8_t *code, int check, int emit)
 {
@@ -1039,10 +1202,10 @@ code_lock_rows (const uint8_t *code, int check, int emit)
             code_lock_t  c, q;
             const double secs = check ? CL_CHECK_S : CL_S;
             DP_REQUIRE (
-                run_code_lock (code, fcs[f], esn0s[e], cw, 1, s, secs, &c)
+                run_code_lock (code, fcs[f], esn0s[e], cw, 1, 0, s, secs, &c)
                 == 0);
             DP_REQUIRE (
-                run_code_lock (code, fcs[f], esn0s[e], cw, 0, s, secs, &q)
+                run_code_lock (code, fcs[f], esn0s[e], cw, 0, 0, s, secs, &q)
                 == 0);
             DP_REQUIRE (nr < CL_MAX);
             rows[nr].n   = c;
@@ -1100,6 +1263,100 @@ code_lock_rows (const uint8_t *code, int check, int emit)
                 -20.0 * log10 (rho), 10.0 * log10 (no / npred),
                 10.0 * log10 (np / npred), q->o2);
     }
+  /* The two sections below are the sweep's alone: a held run a hypothesis
+     and 300 s of noise a cell are findings, not a regression point, and
+     --check is what every push runs. */
+  if (check)
+    {
+      free (rows);
+      return 0;
+    }
+  /* The 4 dB cells lose less than their two terms predict (#3134), and
+     the free look's timing hypothesis switches between neighbours many
+     times a second. If the noise choosing which window is the look is the
+     cause, holding the true hypothesis reads the terms' prediction. The
+     true one is found, not assumed: each partials draw runs once a
+     hypothesis, held from the window's opening, and the one whose look
+     carries the most prompt power over the whole run is the timing. A
+     choice among a handful of 20 s averages is not a per-look selection. */
+  if (emit)
+    printf ("# code_lock_pinned\nfc_ghz,esn0_db,seed,hypotheses,h_best,"
+            "switches_free,snr_look_free,snr_look_pinned,snr_look_terms,"
+            "loss_free_db,loss_pinned_db,loss_terms_db,drops_pinned,"
+            "code_jitter_free_chip,code_jitter_pinned_chip\n");
+  else
+    printf ("code lock, timing hypothesis held: free, the best held one, "
+            "and the terms' prediction\n");
+  for (size_t r = 0; r < nr; r++)
+    {
+      const code_lock_t *c = &rows[r].n, *q = &rows[r].c;
+      if (c->cw != 0 || !c->nhyp)
+        continue;
+      code_lock_t  best = { 0 };
+      const double secs = check ? CL_CHECK_S : CL_S;
+      for (size_t h = 0; h < c->nhyp; h++)
+        {
+          code_lock_t k;
+          DP_REQUIRE (run_code_lock (code, c->fc, c->esn0, 0, 1, (int)h + 1,
+                                     rows[r].s, secs, &k)
+                      == 0);
+          DP_REQUIRE (k.h == h && k.switches == 0);
+          if (!emit && check)
+            printf ("    h %zu: SNR_look %.3f, p2 %.4g\n", h, k.snr_meas,
+                    k.p2);
+          if (h == 0 || k.p2 > best.p2)
+            best = k;
+        }
+      /* The terms' prediction: the clean draw's prompt power over the noisy
+         draw's offset noise (its sidelobe removed), the look SNR the
+         statistic would read with neither term biased. */
+      const double terms = q->p2 / (c->o2 - q->o2);
+      /* The code loop's jitter: the error's spread about its mean, so the
+         dwell convention's constant offset does not enter. */
+      const double jf = code_jitter (c), jp = code_jitter (&best);
+      if (emit)
+        printf ("%.1f,%.1f,%u,%zu,%zu,%zu,%.5f,%.5f,%.5f,%.3f,%.3f,%.3f,"
+                "%zu,%.5f,%.5f\n",
+                c->fc / 1e9, c->esn0, rows[r].s, c->nhyp, best.h, c->switches,
+                c->snr_meas, best.snr_meas, terms, c->loss_db, best.loss_db,
+                10.0 * log10 (c->snr_model / terms), best.drops, jf, jp);
+      else
+        printf ("  %.1f GHz %4.1f dB seed %u: free %.3f (%zu switches), "
+                "held h %zu of %zu %.3f, terms %.3f; loss %.2f / %.2f / "
+                "%.2f dB; code jitter %.4f / %.4f chip\n",
+                c->fc / 1e9, c->esn0, rows[r].s, c->snr_meas, c->switches,
+                best.h, c->nhyp, best.snr_meas, terms, c->loss_db,
+                best.loss_db, 10.0 * log10 (c->snr_model / terms), jf, jp);
+    }
+  /* Noise alone: the free look's false declares against det's 1e-3, with
+     the held look as the control, once a cell (n_looks is the cell's). */
+  if (emit)
+    printf ("# code_lock_noise\nfc_ghz,esn0_db,look,n_looks,up_thresh,"
+            "pfa_model,decisions,hits,pfa_measured\n");
+  else
+    printf ("code lock on noise alone: decisions over the declare "
+            "threshold, free and held, against det's 1e-3\n");
+  for (size_t f = check ? N_FC - 1 : 0; f < N_FC; f++)
+    for (size_t e = 0; e < (check ? 1u : N_ESN0); e++)
+      for (int pin = 0; pin < 2; pin++)
+        {
+          size_t dec, hits, nl;
+          double up;
+          DP_REQUIRE (run_noise_lock (code, fcs[f], esn0s[e], pin, 1u,
+                                      check ? CL_CHECK_S : CL_NOISE_S, &dec,
+                                      &hits, &up, &nl)
+                      == 0);
+          const double rate = dec ? (double)hits / (double)dec : NAN;
+          if (emit)
+            printf ("%.1f,%.1f,%s,%zu,%.4f,%.0e,%zu,%zu,%.3e\n", fcs[f] / 1e9,
+                    esn0s[e], pin ? "held" : "free", nl, up, 1e-3, dec, hits,
+                    rate);
+          else
+            printf ("  %.1f GHz %4.1f dB %s: n %zu, threshold %.3f, %zu of "
+                    "%zu decisions over (%.2e; det 1e-3)\n",
+                    fcs[f] / 1e9, esn0s[e], pin ? "held" : "free", nl, up,
+                    hits, dec, rate);
+        }
   free (rows);
   return 0;
 }

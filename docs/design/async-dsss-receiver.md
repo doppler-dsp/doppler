@@ -1144,6 +1144,25 @@ and the period's wrap is the word's own overflow (`dll_replica_word()`,
 summed with the nominal rate and the rate aid, and **sampled and held** into
 the NCO's increment, never kicked into its phase.
 
+**The interpolated replica costs a correlation loss wherever the samples
+fall between its grid points.** Each chip boundary where the code changes
+sign becomes a ramp half a chip wide, so the replica is a trapezoid. Over
+chip phases spread uniformly, its correlation with the transmitted chips
+is ρ = 1 − p/4 and its energy is κ = 1 − p/3, where p is the code's
+fraction of sign-changing boundaries. Every correlation through it, the
+prompt's and the lock statistic's alike, gives up ρ²/κ: 0.39 dB for the
+415.1 Gold code (p = 544/1023). `native/tests/dll/test_dll_core.c`,
+`replica_terms_follow_transitions`, holds both terms on the replica
+itself, and the lock harness's `# code_lock_terms` reads them at the
+receiver (#3134). The certification's stage-by-stage loss table
+(`async_dsss_receiver_loss.c`) shows the Dll adding +0.02 dB over an ideal
+despread. That table is at the old 3.069 Mcps point, which ran exactly 2
+samples per chip: there every sample lands on one of the replica's own
+grid points, where the trapezoid equals the chip, so ρ = κ = 1 and nothing
+is lost. At 415.1 (2.69 and 3.42 samples per chip) the samples sweep every
+chip phase, and the loss is ρ²/κ. No committed error-rate measurement at
+415.1 contains it yet.
+
 **The loop can be held** (`dp_dll_set_coast()`). On entry the filter
 returns to the last `dp_dll_hold_here()`, the point the caller marked while
 the loop was on its signal, and the NCO runs at that filter's integrator

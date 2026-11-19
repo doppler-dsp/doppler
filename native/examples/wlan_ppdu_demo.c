@@ -26,9 +26,9 @@
  * field is what this library's scale (1/sqrt 52, #3148) makes it: exactly one
  * for the two training fields, and for each SIGNAL or Data symbol the energy
  * of its own grid over 52, which Parseval ties to the points it was built
- * from. None of that is a claim about the standard's printed sample values:
- * an Annex I comparison found the time-domain stage scaled differently
- * (#3148), and it is open.
+ * from. The scale is the library's convention (unit mean power over the 52
+ * occupied subcarriers, #3148); Annex I's printed samples are the same math
+ * with the transform's own 1/64, so they equal ours times sqrt(52)/64.
  *
  * Build and run:
  *   make build
@@ -121,12 +121,12 @@ main (void)
    * What this holds, and what it does not: the Data bodies are compared with
    * the library's OWN points, so that check ties the renderer (the layout,
    * the pilots, the transform and the scale) to the mapper by Parseval; it
-   * does not tie the mapper to the standard, which waits on Annex I's
-   * stage-by-stage example (#3148). The two training fields reading exactly
-   * one holds the library to its own scale and nothing more: an Annex I
-   * comparison reconstructs the printed samples from an unnormalized IDFT,
-   * about 64/sqrt(52) = 8.87 times ours, and which convention is right for a
-   * claim of conformance is unresolved (#3148). */
+   * does not tie the mapper to the standard: no test in this tree does, and
+   * the Annex I.1 stage-by-stage comparison was run downstream (#3148). The
+   * two training fields reading exactly one holds the library to its own
+   * convention, unit power, and nothing more: Annex I's printed samples equal
+   * ours times sqrt(52)/64, which the unit tests hold with a table whose three
+   * scales are 1/64. */
   double p_stf = 0, p_ltf = 0;
   for (size_t i = 0; i < 160; i++)
     {

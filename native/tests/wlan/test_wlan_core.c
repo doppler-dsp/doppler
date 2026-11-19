@@ -314,25 +314,19 @@ main (void)
           DP_CHECK (r.n_bpsc == 99 && r.code == 99);
         }
 
-      /* an empty table, a table with no rates given (the synthetic one),
-       * NULL arguments */
+      /* an empty table, and a table with no rates given (the synthetic one) */
       const dp_wlan_tables_t syn = synth_tables ();
       const dp_wlan_rate_t   r36 = { 4, WLAN_CODE_3_4 };
       unsigned               m   = 777;
       dp_wlan_rate_t         rr  = { 99, 99 };
       DP_CHECK (dp_wlan_mbps (dp_wlan_tables_empty (), &r36, &m) == 0);
       DP_CHECK (dp_wlan_mbps (&syn, &r36, &m) == 0);
-      DP_CHECK (dp_wlan_mbps (NULL, &r36, &m) == 0);
-      DP_CHECK (dp_wlan_mbps (std, NULL, &m) == 0);
-      DP_CHECK (dp_wlan_mbps (std, &r36, NULL) == 0);
       DP_CHECK (m == 777);
       DP_CHECK (dp_wlan_rate_from_mbps (dp_wlan_tables_empty (), 36, &rr)
                 == 0);
       DP_CHECK (dp_wlan_rate_from_mbps (&syn, 36, &rr) == 0);
       /* 0 is "not given" in a row, never a rate that matches it */
       DP_CHECK (dp_wlan_rate_from_mbps (&syn, 0, &rr) == 0);
-      DP_CHECK (dp_wlan_rate_from_mbps (NULL, 36, &rr) == 0);
-      DP_CHECK (dp_wlan_rate_from_mbps (std, 36, NULL) == 0);
       DP_CHECK (rr.n_bpsc == 99 && rr.code == 99);
 
       /* negative control: the cross-check against N_DBPS / 4 is red for a

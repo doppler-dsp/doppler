@@ -96,9 +96,8 @@ class Wlan:
     @property
     def rate_mbps(self) -> int:
         """The data rate at 20 MHz in Mb/s, as Table 17-6 prints it: 6, 9, 12,
-        18, 24, 36, 48 or 54, and 0 for a pair the table has no row for (BPSK
-        2/3, 64-QAM 1/2, any 5/6). The object holds no clocking: at 10 and 5
-        MHz the same pair carries half and a quarter of it.
+        18, 24, 36, 48 or 54, and 0 for the eight pairs the table does not
+        list.
         """
 
     def destroy(self) -> None:

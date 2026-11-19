@@ -83,7 +83,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  size\_t | [**dp\_wlan\_interleave**](#function-dp_wlan_interleave) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned n\_bpsc, const uint8\_t \* in, size\_t n, uint8\_t \* out) <br>_Interleave a coded field, one OFDM symbol of_ `n_cbps` _at a time: the first permutation (_`N_CBPS/16` _rows by 16 columns), then the tables' second permutation._ |
 |  int | [**dp\_wlan\_layout**](#function-dp_wlan_layout) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* o, const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, size\_t n\_sym, unsigned window) <br>_Build a PPDU's layout into an OFDM modulator: four classes (L-STF, L-LTF, SIGNAL, Data), the pilots as fixed entries with the pilot polarity, and four runs._  |
 |  size\_t | [**dp\_wlan\_map**](#function-dp_wlan_map) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned n\_bpsc, const uint8\_t \* bits, size\_t n, float \_Complex \* out) <br>_Map interleaved bits to constellation points: groups of_ `n_bpsc` _bits, through the library's maps (or the tables' relabeling)._ |
-|  int | [**dp\_wlan\_mbps**](#function-dp_wlan_mbps) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, unsigned \* mbps) <br>_The data rate of a pair at 20 MHz, in Mb/s, as Table 17-6 prints it._  |
+|  int | [**dp\_wlan\_mbps**](#function-dp_wlan_mbps) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, unsigned \* mbps) <br>_The data rate of a pair at 20 MHz, in Mb/s: the table's printed column._  |
 |  size\_t | [**dp\_wlan\_mpdu**](#function-dp_wlan_mpdu) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, const uint8\_t \* header, size\_t header\_len, const uint8\_t \* body, size\_t body\_len, uint8\_t \* out, size\_t out\_cap) <br>_Wrap the caller's octets as one MPDU._  |
 |  size\_t | [**dp\_wlan\_mpdu\_len**](#function-dp_wlan_mpdu_len) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, size\_t header\_len, size\_t body\_len) <br>_The PSDU length a MAC wrap produces._  |
 |  unsigned | [**dp\_wlan\_n\_cbps**](#function-dp_wlan_n_cbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Coded bits per OFDM symbol,_ `48 * n_bpsc` _._ |
@@ -586,7 +586,7 @@ Points written, or 0 for an invalid `n_bpsc` or a partial group.
 
 ### function dp\_wlan\_mbps 
 
-_The data rate of a pair at 20 MHz, in Mb/s, as Table 17-6 prints it._ 
+_The data rate of a pair at 20 MHz, in Mb/s: the table's printed column._ 
 ```C++
 int dp_wlan_mbps (
     const dp_wlan_tables_t * t,
@@ -597,20 +597,20 @@ int dp_wlan_mbps (
 
 
 
-The 4 us symbol is in no function body: the number is the table's own column, and the unit test holds it against `N_DBPS / 4` for every row. 
+Table 17-6 lists eight of the sixteen pairs; the rate is read from its first column, and the unit test holds that column against `N_DBPS / 4` for every row. 
 
 **Parameters:**
 
 
-* `t` The tables; one that gives no rate refuses. 
+* `t` The tables. 
 * `r` The pair. 
-* `mbps` The rate; written only on success. Must be non-NULL. 
+* `mbps` The rate; written only on success. 
 
 
 
 **Returns:**
 
-1 on success, 0 if `r` has no row (BPSK 2/3, 64-QAM 1/2 and every 5/6 have none) or the table gives no rate. `mbps` is then unchanged. 
+1 on success, 0 if the table does not list `r` (or gives no rates, as [**dp\_wlan\_tables\_empty()**](wlan__core_8h.md#function-dp_wlan_tables_empty) does). `mbps` is then unchanged. 
 
 
 
@@ -973,27 +973,18 @@ int dp_wlan_rate_from_mbps (
 **Parameters:**
 
 
-* `t` The tables; one that gives no rate refuses. 
+* `t` The tables. 
 * `mbps` The rate: 6, 9, 12, 18, 24, 36, 48 or 54 in the standard's table. 
-* `r` The pair; written only on success. Must be non-NULL. 
+* `r` The pair; written only on success. 
 
 
 
 **Returns:**
 
-1 on success, 0 for a rate with no row. `r` is then unchanged.
+1 on success, 0 if the table lists no such rate. `r` is then unchanged. 
 
 
 
-```C++
-dp_wlan_rate_t r;
-unsigned       mbps;
-if (dp_wlan_rate_from_mbps (dp_wlan_tables_standard (), 36u, &r)
-    && dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps))
-  printf ("%u bits per subcarrier, code %d, %u Mb/s\n", r.n_bpsc,
-          (int)r.code, mbps); // 4 bits per subcarrier, code 2, 36 Mb/s
-```
- 
 
 
         

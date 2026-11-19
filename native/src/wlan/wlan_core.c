@@ -142,8 +142,6 @@ int
 dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
               unsigned *mbps)
 {
-  if (!t || !r || !mbps || !t->signal_rates)
-    return 0;
   for (size_t i = 0; i < t->n_signal_rates; i++)
     if (t->signal_rates[i].mbps != 0
         && t->signal_rates[i].rate.n_bpsc == r->n_bpsc
@@ -159,7 +157,7 @@ int
 dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
                         dp_wlan_rate_t *r)
 {
-  if (!t || !r || !t->signal_rates || mbps == 0)
+  if (mbps == 0)
     return 0;
   for (size_t i = 0; i < t->n_signal_rates; i++)
     if (t->signal_rates[i].mbps == mbps)

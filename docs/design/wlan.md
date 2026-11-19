@@ -312,9 +312,10 @@ neighbors needed. `dsss`, the most recent, provides:
 ### The enum
 
 `ofdm` is the tenth name: index 9 in `[[enum]] wfm_type`
-(`just-makeit.toml:128`), in `TYPE_NAMES` with `N_TYPES` raised to 10
-(`wfm_names.h:24-29`), and `WFM_SYNTH_OFDM = 9` beside `WFM_SYNTH_DSSS = 8`
-(`wfm_synth_core.h:45`). List order is the C value, so the name is appended,
+(`just-makeit.toml`), in `TYPE_NAMES` with `N_TYPES` raised to 10
+(`wfm_names.h`), and the C constant `WFM_SYNTH_FRAMES = 9` beside
+`WFM_SYNTH_DSSS = 8` (`wfm_synth_core.h`): the constant is named for what the
+branch is, and the `ofdm` face type selects it. List order is the C value, so the name is appended,
 never inserted. `scripts/check_wfm_enum_tables.py`, run as
 `make lint-wfm-enum-tables`, holds the three to one another: each name
 table has one C home and equals its manifest `values` in order, every table
@@ -325,23 +326,23 @@ added in one place and not the others turns it red.
 ### What `dsss` does, which `ofdm` cannot copy
 
 The synth does not render a DSSS burst. The bridge assembles it:
-`dp_wfm_source_attach_dsss` (`wfm_synth_bridge.c:901`) builds the chips from
+`dp_wfm_source_attach_dsss` builds the chips from
 the frame description and hands them to `dp_wfm_synth_set_dsss_chips`
-(`wfm_synth_core.c:367`), which stores them as the synth's `bits` pattern.
+, which stores them as the synth's `bits` pattern.
 From there a burst is played by the bit cursor and shaped by the same
 `sps` and `pulse` machinery as any bit pattern. With a data source, one
 burst is one frame pulled on demand:
 
-- `dp_wfm_synth_set_refill` (`wfm_synth_core.c:272`) installs a callback of
+- `dp_wfm_synth_set_refill` installs a callback of
     type `wfm_synth_refill_fn` (`wfm_synth_core.h:164`), `(user, bits, n)`.
     At the frame boundary the synth calls it to write the next frame's `n`
     bits into `bits` in place. **The frame length never changes**, and a
-    refill is accepted only by a `bits` or `dsss` synth (`:279-283`).
-- The bridge's callback is `data_pull_refill` (`wfm_synth_bridge.c:771`);
-    `pull_park` (`:875`) parks the cursor at the end of a placeholder frame,
+    refill is accepted only by a `bits` or `dsss` synth.
+- The bridge's callback is `data_pull_refill`;
+    `pull_park` parks the cursor at the end of a placeholder frame,
     so nothing is drawn until the first bit is due. A composer can build a
     source only to validate it without reading a byte of the data source.
-- `dp_wfm_synth_set_symbols` (`wfm_synth_core.c:455`) is the only call that
+- `dp_wfm_synth_set_symbols` is the only call that
     hands the synth a buffer of complex values. It copies them once and the
     synth cycles through them by `sym_read_idx`. It has no refill.
 
@@ -352,30 +353,29 @@ no `sps` and no pulse shaper between them.
 
 ### What `ofdm` provides, from that
 
-- A `WFM_SYNTH_OFDM` branch whose input is the existing refill: one PSDU
-    frame of `data_len` bits per pull, by the same `pull_new` and `pull_park`
-    as a `bits` frame, so the data source (`data`, `data_from_file`, `fill`),
-    its pacing and its state blob are reused unchanged.
-- At each frame boundary the synth renders the PPDU's samples from the
-    frame bits into a `cf32` buffer it owns, through the `wlan` builder and
-    the modulator, and reads the buffer out through a sample cursor until it
-    is spent. The PPDU length is a function of the configuration and
-    `data_len`, so the buffer is sized once, at attach.
-- **No shaper.** The rendered samples are the signal. The branch writes
-    them where the shaper path writes its output and then takes the same
-    tail: `wfm_mix_carrier` for a carrier, `wfm_synth_add_noise` for noise
-    (`wfm_synth_core.c:846-851`). The common tail therefore applies
-    unchanged, and `sps`, `pulse` and every `rrc_*` field are refused for
+- `WFM_SYNTH_FRAMES` (the `ofdm` type) is a synth type with a frame callback installed
+    (section 5, "The frame callback"). Its input is the
+    existing bit refill: one PSDU frame of `data_len` bits per pull, by the
+    same `pull_new` and `pull_park` as a `bits` frame, so the data source
+    (`data`, `data_from_file`, `fill`), its pacing and its state blob are
+    reused unchanged. The synth renders nothing itself: at each wrap it hands
+    the frame's bits to the callback, which the bridge installs and which
+    builds the PPDU through the `wlan` builder and the modulator. The PPDU
+    length is a function of the configuration and `data_len`, so the frame
+    buffer is sized once, at attach.
+- **No shaper.** The rendered samples are the signal. The type plays them as
+    they are and then takes the same tail: `wfm_mix_carrier` for a carrier, `wfm_synth_add_noise` for
+    noise. The common tail therefore applies unchanged, and `sps`, `pulse` and every `rrc_*` field are refused for
     `ofdm`.
 - **A data source is a frame to the bridge, and `ofdm` is not a framable
-    type.** `dp_wfm_source_has_frame` (`wfm_synth_bridge.c:99`) is true for a
-    source with `data`, and `dp_wfm_framing_flags_error` (`:87`) then refuses
-    any type outside `type_can_frame` (`:667`: `bits`, `bpsk`, `qpsk`, `pn`)
-    with `WHY_CANNOT_FRAME`. `dsss` has an explicit carve-out at `:89`. An
+    type.** `dp_wfm_source_has_frame` is true for a
+    source with `data`, and `dp_wfm_framing_flags_error` then refuses
+    any type outside `type_can_frame` (`bits`, `bpsk`, `qpsk`, `pn`)
+    with `WHY_CANNOT_FRAME`. `dsss` has an explicit carve-out. An
     `ofdm` source with a `data` PSDU would be refused as it stands, so
     `ofdm` needs the same carve-out, in `dp_wfm_framing_flags_error` and in
     `dp_wfm_source_frame_error`, and an attach path. The reuse to try first
-    is a description of one `data:LEN` field, which `pull_new` (`:827`)
+    is a description of one `data:LEN` field, which `pull_new`
     already accepts, so the PSDU rides the existing pull; the type's PR
     checks that before writing a second one. A frame description, `--sync`,
     `--crc` and `--acq-code` stay refused for `ofdm`: the PSDU is the
@@ -384,14 +384,16 @@ no `sps` and no pulse shaper between them.
 ### State
 
 What the blob carries today, from `dp_wfm_synth_get_state`
-(`wfm_synth_core.c:602`): `wtype`, the symbol and bit cursors, the
-continuous-DSSS chip and symbol counters, `data_ended`, a presence byte for
-each child, the children's own blobs, and, when a refill is attached, the
-frame in play (`n_bits` bytes, `:636-647`) followed by the data source's own
-blob. `dp_wfm_synth_set_state` (`:647`) decodes every field into a local and
-checks it before the first write, and a child or refill that refuses leaves
-the synth as it was. The layout is version 6 (`wfm_synth_core.h:1468`); the
-frame-in-play and the source position have travelled since version 3.
+:   `wtype`, the symbol and bit cursors, the
+    continuous-DSSS chip and symbol counters, `data_ended`, a presence byte for
+    each child, the children's own blobs, and, when a refill is attached, the
+    frame in play (`n_bits` bytes) followed by the data source's own
+    blob. `dp_wfm_synth_set_state` decodes every field into a local and
+    checks it before the first write; a refusal before its commit leaves the
+    synth as it was, and a child that refuses after the commit leaves the
+    synth's own fields restored (#2104). The layout is the current
+    `WFM_SYNTH_STATE_VERSION`, 6; the frame-in-play and the source position
+    have travelled since version 3.
 
 For `ofdm` that is almost all of it already:
 
@@ -405,14 +407,13 @@ For `ofdm` that is almost all of it already:
     function of the seed and a PPDU counter, and the counter travels. A draw
     from a running generator the blob does not hold would re-render a
     different PPDU for the same frame bits.
-- **The sample cursor** is new, and is checked at `set_state` against the
+- **The sample cursor** is the synth's `sym_read_idx`, and is checked at `set_state` against the
     rendered length, as `sym_pos` is checked by `dp_wfm_synth_sym_pos_ok`
-    (`:316`) before the kernel indexes a buffer with it.
+    before the kernel indexes a buffer with it.
 - **Derived values are recomputed and checked, never trusted.** The
     continuous-DSSS symbol edge `next_edge` is not in the blob: `set_state`
     recomputes it from the chip and symbol counters and refuses a blob whose
-    counters disagree (`dp_wfm_synth_clock_ok`, `:331`, installed at
-    `:696-728`). The rendered buffer and its length are `ofdm`'s derived
+    counters disagree (`dp_wfm_synth_clock_ok`). The rendered buffer and its length are `ofdm`'s derived
     values and follow the same rule.
 - **Reject keys**: the preset, the bandwidth, the constellation and code
     rate, and the window length are compared at `set_state`, because each
@@ -434,7 +435,7 @@ saying why.
 
 Fields proposed on a source, all refused for any other type, in the one
 validator every face asks (`dp_wfm_source_to_synth_error`,
-`wfm_synth_bridge.c:339`, which calls `dp_wfm_scene_error`):
+`wfm_synth_bridge.c`, which calls `dp_wfm_scene_error`):
 
 | field            | meaning                                                                                            |
 | ---------------- | -------------------------------------------------------------------------------------------------- |
@@ -625,6 +626,243 @@ wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
     --mac-header 08020000ffffffffffff0200000000010200000000020000 \
     --data pn:800:15 --data-len 800 -o ppdu.cf32
 ```
+
+### The frame callback
+
+`WFM_SYNTH_FRAMES` is a synth type that plays one finished frame of samples at a
+time, drawn lazily from a frame callback that turns a frame of bits into
+samples. It is the sample-domain sibling of the bit refill and of the symbols
+source, and the synth knows no standard: a frame is bits in, samples out. The
+face type is named `ofdm` because that is what a user types and selects it;
+the constant and the branch are generic, and the header says so.
+
+**Why a type of its own, not the symbols source.** `WFM_SYNTH_SYMBOLS` cycles
+its buffer: the cursor wraps modulo `n_symbols` in four places
+(`wfm_synth_next_symbol`, `dp_wfm_synth_step`, and the two loops of
+`dp_wfm_synth_steps`), so the cursor reaching the end of a frame is never
+observable there. Making the cursor stop, drawing the next frame lazily and
+calling the bit refill when its pacing says so (as `wfm_synth_bit_ahead` does
+for bits since #1718) would change those four sites for every symbols synth,
+and would then need the rules the shaper makes necessary: refuse `sps != 1`, an
+attached shaper or FIR, `set_rrc` and `set_nsps` after the install, widen
+`set_refill` (which refuses a symbols synth) and say what `set_symbols` does on
+a synth with a callback. A type of its own needs none of those: its branch has
+no shaper to refuse (`set_rrc` is already a no-op for a type that is not
+pn, bpsk, qpsk, bits, symbols or dsss), `set_symbols` is already a no-op for
+every type but symbols, and `SYMBOLS` keeps its wrap and its tests as they are.
+It reuses the synth's own fields, `symbols` (the frame in play, `n_out`
+samples), `sym_read_idx` (the cursor), `bits` (the frame's bits) and the bit
+refill with its source triplet.
+
+How the sources differ, in the header and here:
+
+| source                        | the caller hands the synth                        | the synth then                             |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------ |
+| `set_refill` (bits)           | a callback that writes the next frame's bits      | maps them and shapes them                  |
+| `set_symbols`                 | one fixed buffer of complex symbols               | plays it cycled, shaped or as it is        |
+| `attach_frames` (type `ofdm`) | a callback that renders a frame's bits to samples | plays each frame once, then draws the next |
+
+```text
+typedef int (*wfm_synth_frame_fn) (void *user, uint64_t frame,
+                                   const uint8_t *bits, size_t n_bits,
+                                   float _Complex *out, size_t n_out);
+int dp_wfm_synth_attach_frames (state, wfm_synth_frame_fn fn, void *user,
+                             void (*free_user) (void *),
+                             size_t n_bits, size_t n_out);
+```
+
+**The cursor and the helper.** In this type the cursor STOPS at `n_out`; it
+never wraps. One helper, `wfm_synth_frame_ahead`, the sibling of
+`wfm_synth_bit_ahead`, is the only place it moves, and each of the three sites
+that read samples (the block path, the single step and `next_symbol`) calls
+it. When the cursor is at `n_out` the helper draws the next frame lazily, when
+its first sample is due: it asks the bit refill for the frame's `n_bits` bits
+(a refill that reports the end latches `data_ended`), then calls
+`fn (user, frame, bits, n_bits, out, n_out)`. A non-zero return is a refusal and
+latches `data_ended` and `refused`, and the output is silence after, as it is
+after a refill's end; `dp_wfm_synth_frames_refused` says the end was a
+refusal. There is no second stopping behavior. The cursor's range is
+`0 .. n_out`, and `set_state` checks `<= n_out` for this type and `< n_symbols`
+for the others.
+
+**`frame` is the index of the frame being rendered**, from 0: the callback
+receives 0 for the first frame it renders. The blob holds the COUNT rendered:
+0 means no frame is in play, and `set_state` does not re-render then; a count
+`k > 0` means frame `k - 1` is in play, and `set_state` renders it with
+`frame = k - 1`. The cursor starts at `n_out` (no frame drawn), and a freshly
+created synth draws on its first sample.
+
+**Install order.** The type is created, then `attach_frames` allocates `bits`
+(`n_bits` bytes) and `symbols` (`n_out` samples), then `set_refill` installs
+the bit source, then `set_refill_state` its triplet. `set_refill`'s predicate
+widens by one clause, as it did for dsss: it accepts an `ofdm` synth that has
+its frames installed, and its `@return` says so. `bit_idx` is not used by this
+type: the frame's bits are drawn whole, `n_bits` at a time, and never played
+bit by bit.
+
+**Detaching.** `attach_frames (NULL, ...)` detaches the callback and keeps the
+frame in play, as `set_refill (NULL, ...)` detaches a source and keeps the
+pattern: with no callback the frame plays out and the data ends, the same end
+as a pattern with no refill. `set_symbols` on this type returns 0 and does
+nothing, as it does for every type but symbols.
+
+**What the blob carries**, and the version. The layout rises from 6 to 7
+(`WFM_SYNTH_STATE_VERSION`). Written always: `frame` (`u64`, the count
+rendered) and `refused` (`u8`), plus a presence byte for the callback, as
+`pres[5]` is for the bit refill, and the callback's triplet sub-blob if it has
+one. The frame in play's bits and the bit source's own sub-blob already travel.
+The samples do not. The Python state matrix and any recorded blob size move
+with the version.
+
+**Resume.** `set_state` re-renders the frame in play from the blob's bits and
+`frame`, and the result is bit-exact for the same build on the same machine
+and FFT dispatch, which is what the state tests assert. The order is:
+
+1. decode every field into a local and check it, as today (#2142);
+1. read ahead past the children's sub-blobs to the frame's bits (each child's
+    size is this instance's `state_bytes`), render the frame in play into a
+    scratch buffer, and refuse if the callback refuses or the allocation fails,
+    before any write;
+1. restore the bit source's triplet; if it refuses, nothing has been written;
+1. commit the fields, the bits and the scratch buffer swapped in, none of which
+    can fail;
+1. restore the other children, as now. A child that refuses here leaves the
+    synth's own fields restored, which is #2104 and unchanged: a refusal before
+    step 4 leaves the synth as it was, and one after it does not.
+
+`set_state` holds two frames of memory transiently (the frame in play and the
+scratch). There is no re-render before the first frame or after `data_ended`
+has latched.
+
+**Reject keys.** The callback is a pure function of its configuration, the
+bits and `frame`; it carries no running state. A blob restored into a source
+with a different seed, window, gap, `M` or rate would re-render a different PPDU
+with no refusal, so the bridge's 802.11 callback uses the existing optional
+triplet (`wfm_synth_refill_state_t`, attached by
+`dp_wfm_synth_attach_frames_state`) to carry its configuration and to refuse a
+mismatch. A test restores into a source differing in each key and checks each is
+refused.
+
+**Contracts the header carries.**
+
+- **Level.** The carrier (`LO`) and the noise (`AWGN`) are applied after the
+    frame, so unit mean power over the PPDU's samples is the callback's contract,
+    as the 802.11 convention makes it
+    ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)).
+- **Frames play back to back**, with no overlap-add across frames. An idle gap
+    between PPDUs is part of the frame's length: the bridge appends zero samples
+    to the rendered PPDU, a field of the source (`gap`, in samples at `fs`,
+    default 0). Unit mean power is over the PPDU's samples and excludes the gap's
+    zeros, so the noise is set against the PPDU and the gap is noise only. A test
+    renders the same source with `gap = 0` and `gap > 0` and checks the noise
+    variance is the same.
+- **`reset()`** rewinds the cursor to the start of the frame in play
+    (`sym_read_idx = 0`), which replays the last frame rendered; it does not
+    rewind `frame` or the data source, as a bit refill's reset does not rewind a
+    source it has consumed. `refused` survives it, as `data_ended` survives it
+    with a refill attached. A reset synth and a fresh one therefore differ.
+- **`user`** is owned by the synth when `free_user` is given, which it calls on
+    detach or destroy, as `set_refill` does.
+- **The frame's length** `n_out` is fixed at install. A PPDU's length is a
+    function of the configuration and the PSDU's length, never of its bits. `n_out`
+    includes `gap`, and a frame is at most `2^24` samples (128 MB of `cf32`): a
+    larger `n_out` is refused at install naming the limit and both parts.
+
+`WFM_SYNTH_FRAMES` therefore has nothing in it that is OFDM or 802.11: the bridge
+installs the 802.11 callback, and another standard's frame would use the same
+type.
+
+### Oversampling: `fs = M x bandwidth`
+
+A PPDU is rendered at the bandwidth clock by default. A segment whose `fs` is
+`M` times the bandwidth, for an integer `M >= 1`, is rendered by a larger
+transform, which is zero-padding the grid before the inverse transform, not a
+resampler. `Ofdm` already takes `n_fft`, `useful` and `cyclic_prefix` per
+class, so the oversampled PPDU is another layout:
+
+- `n_fft = 64 M`; every length is `M` times its 20 MHz value: the L-STF's
+    `useful` (`160 M`), the L-LTF's body (`128 M`) and prefix (`32 M`), each
+    symbol's body (`64 M`) and prefix (`16 M`), and so `dp_wlan_ppdu_len`;
+- what does not change: the subcarrier indices (`k` from -26 to 26), the pilot
+    subcarriers (`WLAN_PILOT_K`) and their values, the scale and the pilot
+    polarity;
+- the scale does not change. `Ofdm`'s transform is unnormalized,
+    `x[m] = scale * sum_k grid[k] exp(+2j pi k m / n_fft)`, so at `m = M n` the
+    exponent is `2 pi k n / 64`: `x_M[M n] = x_1[n]` for the same `scale`, and the
+    unit-power convention holds at every `M` because the same waveform is
+    sampled finer.
+
+The C functions take `oversample` (`M`) beside the `window`: `dp_wlan_layout (o, t, n_sym, window, m)`, `dp_wlan_ppdu_len (n_sym, window, m)`, `dp_wlan_ppdu (..., window, m, out, cap)`. In wfmgen there is no flag: `M = fs / bandwidth`,
+and a quotient that is not an integer is refused naming why. `M = 1` is
+bit-identical to the output before the argument, pinned against two PPDUs
+committed from the commit before it.
+
+**Which `M`.** `M` is 1 to 128 (`WLAN_OVERSAMPLE_MAX`), so `n_fft` is at most
+8192\. The limit is chosen from a use, not from `OFDM_N_FFT_MAX`: a 20 MHz PPDU
+in a generator running at 2.56 GS/s is `M = 128`, and no 802.11 generator
+needs a faster clock. At `M = 128` the longest PPDU (4095 octets at 6 Mb/s,
+1366 symbols) is 14,039,040 samples, under the synth's `2^24` frame limit
+(16,777,216), so the frame limit never refuses a PPDU in range. The transform
+takes any length, so `M = 3, 5, 11` are accepted; the test builds the layout at
+`M = 1, 2, 3, 5, 11, 16, 128` and refuses `0` and `129`.
+
+**The decimation check, predicted before any run.** The oversampled PPDU with
+`window = 0`, decimated by taking every `M`-th sample, equals the `M = 1` PPDU
+with `window = 0`: one equation on a finer grid. The difference is float32
+rounding in two transforms, and the statistic is the relative `l2` error over
+the compared samples. The tolerance is set by the error the check must
+catch: a layout error (a length, a prefix, a scale, a grid offset) moves
+samples by `O(1)`, and the controls are at least `1e-2`. The tolerance only
+has to sit above the rounding, and its source is the accuracy the FFT's own
+test pins: `test_fft_core.c` accepts the library's float32 transform against a
+double reference to `5e-4` absolute in each of the real and imaginary parts,
+on inputs of unit scale. A complex sample therefore differs by at most
+`sqrt 2 x 5e-4`; two transforms are compared, so `2 sqrt 2 x 5e-4 = 1.41e-3`
+per sample at unit rms, which bounds the relative `l2` error; the tolerance is
+`1.5e-3`. It is asserted at every `M` tested, `2, 3, 5, 11, 16` and `128`,
+powers of two or not, and the committed-bytes cross-build check of `M = 1`
+uses the same tolerance and source. The expected size of the rounding is far
+smaller, a small multiple of `u log2 N` with `u = 2^-24` (Higham, *Accuracy and
+Stability of Numerical Algorithms*, the FFT section), about `1e-6`; that is an
+expectation and is not asserted.
+
+**With a window.** The raised cosine is
+`rise[j] = sin^2 (pi (j + 1/2) / (2 w))` for `w` samples. The two PPDUs compared
+are `M`-times with `window = M w` and `M = 1` with `window = w`: the same
+transition time. At a decimated sample `i` the fine index is `M i`, so the fine
+weight is `sin^2 (pi (i + 1/(2M)) / (2 w))` against the coarse
+`sin^2 (pi (i + 1/2) / (2 w))`: the same function, sampled `(M - 1) / (2 M)` of
+a coarse sample apart, which is `(M - 1) / 2` fine samples. The two are not
+equal inside a transition. The rise
+and the earlier symbol's continuation both lie on the `w` samples after a
+boundary (`ofdm_core.h`: the later symbol's first `w` samples are weighted by
+`rise`, the earlier symbol is continued past its end by `w` samples weighted
+by `fall`, and the two overlap-add): nothing before the boundary changes. The
+equality is therefore asserted outside the `w` samples after each boundary,
+counted on the `M = 1` grid: the start of the L-STF (the first symbol rises
+from silence), of the L-LTF, of SIGNAL and of each Data symbol.
+
+**The spectrum.** At `M = 1` the discontinuity between symbols falls inside
+the band. At `M > 1` the 52 occupied subcarriers lie between `-26 / (64 M)` and
+`+26 / (64 M)` of `fs`, and outside them is only the spectrum of the symbol
+boundaries: each OFDM symbol is a burst of finite length, so its subcarriers
+carry sin(x)/x sidelobes falling as 1/f, and a window replaces the burst's edge
+with a raised-cosine one, whose sidelobes fall faster. The unit test shows the
+power at four out-of-band frequencies is lower with a window than without. The
+802.11 transmit spectral mask bounds the signal, and no preset claims the mask
+is met.
+
+**`window` at fs.** `window` is in samples at the output rate `fs`, not at the
+bandwidth clock. Every C function here counts output samples
+(`dp_wlan_ppdu_len` adds `window` samples, and `Ofdm`'s window is a number of
+output samples per class), so there is one unit throughout and nothing is
+converted. The transition time for a given `window` therefore shortens as `fs`
+rises: `window = 2` is 100 ns at `fs = 20 MHz` and 12.5 ns at 160 MHz. The
+standard's 100 ns transition (17.3.2.5) is `2 M` samples at `fs`. The help
+text for `window` on an `ofdm` source says samples at `fs`.
+
+**What the allocation is.** The layout's maps are heap arrays of `n_fft`
+bytes, not stack arrays.
 
 ### Es/N0 for an `ofdm` source
 
@@ -947,6 +1185,13 @@ drift.
     whole PSDU. Nothing beyond it.
 1. **A parametric CRC** serves the FCS and the SIG fields, with
     `dp_crc16_ccitt` as one of its instances.
+1. **The synth plays a frame callback and knows no standard.** One frame of bits in, one frame of symbols out, a pure function
+    of the configuration, the bits and the frame index; the bridge installs the
+    802.11 callback (section 5, "The frame callback").
+1. **A segment's `fs` is `M` times the bandwidth, rendered by a larger
+    transform**, not resampled: `n_fft = 64 M`, the same subcarriers, every
+    length scaled by `M`, `M` from 1 to 128, `M = 1` bit-identical to the PPDU
+    without it (section 5, "Oversampling").
 1. **No MIMO.** Out of scope, not deferred (goal 7).
 
 ### Open

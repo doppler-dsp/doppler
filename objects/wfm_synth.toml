@@ -71,6 +71,12 @@ if (state->shaper) {
     }
     if (++state->sym_pos >= state->nsps)
         state->sym_pos = 0;
+} else if (state->wtype == WFM_SYNTH_FRAMES) {
+    /* A finished frame, played as it is: the helper draws the next one when
+     * the cursor reaches the end, and silence follows the data's end. */
+    sym = wfm_synth_frame_ahead(state)
+              ? state->symbols[state->sym_read_idx++]
+              : (0.0f + 0.0f * I);
 } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
     if (state->sym_pos == 0) {
         if (state->wtype == WFM_SYNTH_QPSK) {

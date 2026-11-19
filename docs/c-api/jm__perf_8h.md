@@ -92,10 +92,27 @@
 | define  | [**JM\_HOT\_IMPL**](jm__perf_8h.md#define-jm_hot_impl)  <br> |
 | define  | [**JM\_LIKELY**](jm__perf_8h.md#define-jm_likely) (x) `[**JM\_LIKELY\_IMPL**](jm__perf_8h.md#define-jm_likely_impl)(x)`<br> |
 | define  | [**JM\_LIKELY\_IMPL**](jm__perf_8h.md#define-jm_likely_impl) (x) `(x)`<br> |
+| define  | [**JM\_PP\_IS\_ZERO**](jm__perf_8h.md#define-jm_pp_is_zero) (x) `[**JM\_PP\_IS\_ZERO\_SEL**](jm__perf_8h.md#define-jm_pp_is_zero_sel)([**JM\_PP\_SECOND**](jm__perf_8h.md#define-jm_pp_second)([**JM\_PP\_PAREN\_PROBE\_**](jm__perf_8h.md#define-jm_pp_paren_probe_) x, 0), x)`<br> |
+| define  | [**JM\_PP\_IS\_ZERO\_PAREN\_0**](jm__perf_8h.md#define-jm_pp_is_zero_paren_0) (x) `[**JM\_PP\_IS\_ZERO\_TOKEN\_**](jm__perf_8h.md#define-jm_pp_is_zero_token_)(x)`<br> |
+| define  | [**JM\_PP\_IS\_ZERO\_PAREN\_1**](jm__perf_8h.md#define-jm_pp_is_zero_paren_1) (x) `0`<br> |
+| define  | [**JM\_PP\_IS\_ZERO\_SEL**](jm__perf_8h.md#define-jm_pp_is_zero_sel) (paren, x) `[**JM\_PP\_IS\_ZERO\_SEL\_**](jm__perf_8h.md#define-jm_pp_is_zero_sel_)(paren, x)`<br> |
+| define  | [**JM\_PP\_IS\_ZERO\_SEL\_**](jm__perf_8h.md#define-jm_pp_is_zero_sel_) (paren, x) `JM\_PP\_IS\_ZERO\_PAREN\_##paren(x)`<br> |
+| define  | [**JM\_PP\_IS\_ZERO\_TOKEN\_**](jm__perf_8h.md#define-jm_pp_is_zero_token_) (x) `[**JM\_PP\_SECOND**](jm__perf_8h.md#define-jm_pp_second)(JM\_PP\_ZERO\_PROBE\_##x, 0)`<br> |
+| define  | [**JM\_PP\_PAREN\_PROBE\_**](jm__perf_8h.md#define-jm_pp_paren_probe_) (...) `~, 1`<br> |
+| define  | [**JM\_PP\_SECOND**](jm__perf_8h.md#define-jm_pp_second) (...) `[**JM\_PP\_SECOND\_**](jm__perf_8h.md#define-jm_pp_second_)(\_\_VA\_ARGS\_\_, )`<br> |
+| define  | [**JM\_PP\_SECOND\_**](jm__perf_8h.md#define-jm_pp_second_) (a, b, ...) `b`<br> |
+| define  | [**JM\_PP\_ZERO\_PROBE\_0**](jm__perf_8h.md#define-jm_pp_zero_probe_0)  `~, 1`<br> |
 | define  | [**JM\_PREFETCH**](jm__perf_8h.md#define-jm_prefetch) (ptr, rw, loc) `[**JM\_PREFETCH\_IMPL**](jm__perf_8h.md#define-jm_prefetch_impl)(ptr, rw, loc)`<br> |
 | define  | [**JM\_PREFETCH\_IMPL**](jm__perf_8h.md#define-jm_prefetch_impl) (p, rw, loc) <br> |
 | define  | [**JM\_RESTRICT**](jm__perf_8h.md#define-jm_restrict)  `[**JM\_RESTRICT\_IMPL**](jm__perf_8h.md#define-jm_restrict_impl)`<br> |
 | define  | [**JM\_RESTRICT\_IMPL**](jm__perf_8h.md#define-jm_restrict_impl)  `restrict`<br> |
+| define  | [**JM\_STEPS\_HISTORY**](jm__perf_8h.md#define-jm_steps_history) (dir, LENGTH) `[**JM\_STEPS\_HISTORY\_SEL**](jm__perf_8h.md#define-jm_steps_history_sel)(dir, [**JM\_PP\_IS\_ZERO**](jm__perf_8h.md#define-jm_pp_is_zero)(LENGTH), LENGTH)`<br> |
+| define  | [**JM\_STEPS\_HISTORY\_IN\_0**](jm__perf_8h.md#define-jm_steps_history_in_0) (LENGTH) `/* multi line expression */`<br> |
+| define  | [**JM\_STEPS\_HISTORY\_IN\_1**](jm__perf_8h.md#define-jm_steps_history_in_1) (LENGTH) <br> |
+| define  | [**JM\_STEPS\_HISTORY\_OUT\_0**](jm__perf_8h.md#define-jm_steps_history_out_0) (LENGTH) `/* multi line expression */`<br> |
+| define  | [**JM\_STEPS\_HISTORY\_OUT\_1**](jm__perf_8h.md#define-jm_steps_history_out_1) (LENGTH) <br> |
+| define  | [**JM\_STEPS\_HISTORY\_SEL**](jm__perf_8h.md#define-jm_steps_history_sel) (dir, zero, LENGTH) `[**JM\_STEPS\_HISTORY\_SEL\_**](jm__perf_8h.md#define-jm_steps_history_sel_)(dir, zero, LENGTH)`<br> |
+| define  | [**JM\_STEPS\_HISTORY\_SEL\_**](jm__perf_8h.md#define-jm_steps_history_sel_) (dir, zero, LENGTH) `JM\_STEPS\_HISTORY\_##dir##zero(LENGTH)`<br> |
 | define  | [**JM\_STEPS\_SIMD\_IMPL**](jm__perf_8h.md#define-jm_steps_simd_impl) (fn, st, samp, LENGTH, BATCH, CHUNK, CARGS) `/\* scalar: no batching \*/`<br> |
 | define  | [**JM\_UNLIKELY**](jm__perf_8h.md#define-jm_unlikely) (x) `[**JM\_UNLIKELY\_IMPL**](jm__perf_8h.md#define-jm_unlikely_impl)(x)`<br> |
 | define  | [**JM\_UNLIKELY\_IMPL**](jm__perf_8h.md#define-jm_unlikely_impl) (x) `(x)`<br> |
@@ -316,6 +333,158 @@ All macros expand to safe no-ops on unknown compilers. Include freely; zero runt
 
 
 
+### define JM\_PP\_IS\_ZERO 
+
+```C++
+#define JM_PP_IS_ZERO (
+    x
+) `JM_PP_IS_ZERO_SEL ( JM_PP_SECOND ( JM_PP_PAREN_PROBE_ x, 0), x)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_IS\_ZERO\_PAREN\_0 
+
+```C++
+#define JM_PP_IS_ZERO_PAREN_0 (
+    x
+) `JM_PP_IS_ZERO_TOKEN_ (x)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_IS\_ZERO\_PAREN\_1 
+
+```C++
+#define JM_PP_IS_ZERO_PAREN_1 (
+    x
+) `0`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_IS\_ZERO\_SEL 
+
+```C++
+#define JM_PP_IS_ZERO_SEL (
+    paren,
+    x
+) `JM_PP_IS_ZERO_SEL_ (paren, x)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_IS\_ZERO\_SEL\_ 
+
+```C++
+#define JM_PP_IS_ZERO_SEL_ (
+    paren,
+    x
+) `JM_PP_IS_ZERO_PAREN_##paren(x)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_IS\_ZERO\_TOKEN\_ 
+
+```C++
+#define JM_PP_IS_ZERO_TOKEN_ (
+    x
+) `JM_PP_SECOND (JM_PP_ZERO_PROBE_##x, 0)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_PAREN\_PROBE\_ 
+
+```C++
+#define JM_PP_PAREN_PROBE_ (
+    ...
+) `~, 1`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_SECOND 
+
+```C++
+#define JM_PP_SECOND (
+    ...
+) `JM_PP_SECOND_ (__VA_ARGS__, )`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_SECOND\_ 
+
+```C++
+#define JM_PP_SECOND_ (
+    a,
+    b,
+    ...
+) `b`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_PP\_ZERO\_PROBE\_0 
+
+```C++
+#define JM_PP_ZERO_PROBE_0 `~, 1`
+```
+
+
+
+
+<hr>
+
+
+
 ### define JM\_PREFETCH 
 
 ```C++
@@ -367,6 +536,116 @@ All macros expand to safe no-ops on unknown compilers. Include freely; zero runt
 
 ```C++
 #define JM_RESTRICT_IMPL `restrict`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY 
+
+```C++
+#define JM_STEPS_HISTORY (
+    dir,
+    LENGTH
+) `JM_STEPS_HISTORY_SEL (dir, JM_PP_IS_ZERO (LENGTH), LENGTH)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY\_IN\_0 
+
+```C++
+#define JM_STEPS_HISTORY_IN_0 (
+    LENGTH
+) `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY\_IN\_1 
+
+```C++
+#define JM_STEPS_HISTORY_IN_1 (
+    LENGTH
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY\_OUT\_0 
+
+```C++
+#define JM_STEPS_HISTORY_OUT_0 (
+    LENGTH
+) `/* multi line expression */`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY\_OUT\_1 
+
+```C++
+#define JM_STEPS_HISTORY_OUT_1 (
+    LENGTH
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY\_SEL 
+
+```C++
+#define JM_STEPS_HISTORY_SEL (
+    dir,
+    zero,
+    LENGTH
+) `JM_STEPS_HISTORY_SEL_ (dir, zero, LENGTH)`
+```
+
+
+
+
+<hr>
+
+
+
+### define JM\_STEPS\_HISTORY\_SEL\_ 
+
+```C++
+#define JM_STEPS_HISTORY_SEL_ (
+    dir,
+    zero,
+    LENGTH
+) `JM_STEPS_HISTORY_##dir##zero(LENGTH)`
 ```
 
 

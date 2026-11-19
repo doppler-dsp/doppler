@@ -124,8 +124,11 @@ ______________________________________________________________________
     larger transform rather than a resampler; `M = 1` is the PPDU as before, bit for
     bit ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
 
-- **`Wlan.ppdu()`: a whole 802.11 PPDU in Python.** `Wlan(constellation, code_rate, window=0,   oversample=1)` holds the window and the oversampling, and `ppdu(psdu, scrambler_state)`
-    returns the `complex64` samples, held to the C output for the 36 Mb/s PPDU
+- **`Wlan.ppdu()`: a whole 802.11 PPDU in Python.**
+    `Wlan(constellation, code_rate, window=0, oversample=1)` holds the
+    raised-cosine window (in samples at the output rate) and the
+    oversampling, and `ppdu(psdu, scrambler_state)` returns the `complex64`
+    samples, held to the C output for the 36 Mb/s PPDU
     ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
 
 - **`wlan`: the data rate of a rate pair, from Table 17-6.** `Wlan.rate_mbps`

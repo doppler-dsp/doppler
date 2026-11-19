@@ -156,7 +156,55 @@ typedef float64x2_t JM_VEC_F64;
 #define JM_HSUM_F64(v)           vaddvq_f64(v)
 
 /* ════════════════════════════════════════════════════════════════════════
- * Tier 4 — Scalar  (1 lane; compiler auto-vectorisation still applies)
+ * Tier 4 — SSE2  (4 float / 2 double lanes; the x86-64 baseline, so a
+ * portable x86-64 build with neither AVX2 nor FMA still runs four float
+ * lanes rather than one. SSE has no fused multiply-add: JM_FMA is a
+ * multiply then an add, rounded twice, so a result can differ from the
+ * AVX2 tier's in the last place. The horizontal sums use SSE2 shuffles.)
+ * ════════════════════════════════════════════════════════════════════════ */
+#elif defined(__SSE2__) || defined(_M_X64) || \
+      (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
+
+#define JM_SIMD_WIDTH_F32    4
+#define JM_SIMD_WIDTH_F64    2
+#define JM_SIMD_WIDTH        JM_SIMD_WIDTH_F32
+
+typedef __m128  JM_VEC_F32;
+typedef __m128d JM_VEC_F64;
+
+#define JM_ZERO_F32()            _mm_setzero_ps()
+#define JM_ZERO_F64()            _mm_setzero_pd()
+#define JM_SPLAT_F32(x)          _mm_set1_ps(x)
+#define JM_SPLAT_F64(x)          _mm_set1_pd(x)
+#define JM_LOAD_F32(p)           _mm_loadu_ps(p)
+#define JM_LOAD_F64(p)           _mm_loadu_pd(p)
+#define JM_STORE_F32(p, v)       _mm_storeu_ps(p, v)
+#define JM_STORE_F64(p, v)       _mm_storeu_pd(p, v)
+#define JM_ADD_F32(a, b)         _mm_add_ps(a, b)
+#define JM_ADD_F64(a, b)         _mm_add_pd(a, b)
+#define JM_MUL_F32(a, b)         _mm_mul_ps(a, b)
+#define JM_MUL_F64(a, b)         _mm_mul_pd(a, b)
+/* Not fused: SSE has no FMA. */
+#define JM_FMA_F32(acc, a, b)    ((acc) = _mm_add_ps(acc, _mm_mul_ps(a, b)))
+#define JM_FMA_F64(acc, a, b)    ((acc) = _mm_add_pd(acc, _mm_mul_pd(a, b)))
+#define JM_MAC_F32(acc, ptr, s)  JM_FMA_F32(acc, JM_LOAD_F32(ptr), JM_SPLAT_F32(s))
+#define JM_MAC_F64(acc, ptr, s)  JM_FMA_F64(acc, JM_LOAD_F64(ptr), JM_SPLAT_F64(s))
+
+static inline float jm_hsum128_f32(__m128 v) {
+    __m128 sh = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 s  = _mm_add_ps(v, sh);   /* (0+1, 1+0, 2+3, 3+2) */
+    sh        = _mm_movehl_ps(sh, s); /* (2+3, 3+2, ...)      */
+    s         = _mm_add_ss(s, sh);   /* (0+1) + (2+3)        */
+    return _mm_cvtss_f32(s);
+}
+static inline double jm_hsum128_f64(__m128d v) {
+    return _mm_cvtsd_f64(_mm_add_sd(v, _mm_unpackhi_pd(v, v)));
+}
+#define JM_HSUM_F32(v)           jm_hsum128_f32(v)
+#define JM_HSUM_F64(v)           jm_hsum128_f64(v)
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Tier 5 — Scalar  (1 lane; compiler auto-vectorisation still applies)
  * ════════════════════════════════════════════════════════════════════════ */
 #else
 
@@ -188,18 +236,50 @@ typedef double JM_VEC_F64;
 
 #endif /* SIMD tier */
 
-/* ── Dot product: SIMD-vectorised + scalar tail ───────────────────────── */
+/* ── Dot product: four accumulators, one-vector loop, scalar tail ──────
+ *
+ * Why four accumulators: with one, every multiply-add waits for the
+ * previous one's add to finish, so a long dot product runs at the FMA (or,
+ * on SSE2, the add) LATENCY -- about four cycles a vector -- while the core
+ * can start one or two a cycle. Four independent chains keep that many in
+ * flight; they are combined once, pairwise, after the main loop (gh-2656:
+ * at n = 4096, about four times faster on NEON and three on SSE2/AVX2).
+ *
+ * The order of work:
+ *   1. n >= 4 * width: the four-accumulator loop, four vectors an
+ *      iteration, then acc = (acc + acc1) + (acc2 + acc3).
+ *   2. The one-vector loop over what is left: fewer than four vectors, or
+ *      all of n when n < 4 * width. A short dot runs only this, the old
+ *      single-accumulator code, so it pays nothing for the wide loop.
+ *   3. The scalar tail, fewer than one vector.
+ *
+ * Step 1 associates the sum differently, so a result can differ from the
+ * single-accumulator one in the last place. The scalar tier (width 1) runs
+ * the same code: four scalar chains, then the one-element loop, and an
+ * empty tail. */
 
 static inline float jm_dot_f32(
         const float  * JM_RESTRICT a,
         const float  * JM_RESTRICT b, int n)
 {
+    const int w = JM_SIMD_WIDTH_F32;
     JM_VEC_F32 acc = JM_ZERO_F32();
     int i = 0;
-#if JM_SIMD_WIDTH_F32 > 1
-    for (; i <= n - JM_SIMD_WIDTH_F32; i += JM_SIMD_WIDTH_F32)
+    if (n >= 4 * w) {
+        JM_VEC_F32 acc1 = JM_ZERO_F32();
+        JM_VEC_F32 acc2 = JM_ZERO_F32();
+        JM_VEC_F32 acc3 = JM_ZERO_F32();
+        for (; i <= n - 4 * w; i += 4 * w) {
+            const float *x = a + i, *y = b + i;
+            JM_FMA_F32(acc,  JM_LOAD_F32(x),         JM_LOAD_F32(y));
+            JM_FMA_F32(acc1, JM_LOAD_F32(x + w),     JM_LOAD_F32(y + w));
+            JM_FMA_F32(acc2, JM_LOAD_F32(x + 2 * w), JM_LOAD_F32(y + 2 * w));
+            JM_FMA_F32(acc3, JM_LOAD_F32(x + 3 * w), JM_LOAD_F32(y + 3 * w));
+        }
+        acc = JM_ADD_F32(JM_ADD_F32(acc, acc1), JM_ADD_F32(acc2, acc3));
+    }
+    for (; i <= n - w; i += w)
         JM_FMA_F32(acc, JM_LOAD_F32(a + i), JM_LOAD_F32(b + i));
-#endif
     float s = JM_HSUM_F32(acc);
     for (; i < n; i++) s += a[i] * b[i];
     return s;
@@ -209,12 +289,24 @@ static inline double jm_dot_f64(
         const double * JM_RESTRICT a,
         const double * JM_RESTRICT b, int n)
 {
+    const int w = JM_SIMD_WIDTH_F64;
     JM_VEC_F64 acc = JM_ZERO_F64();
     int i = 0;
-#if JM_SIMD_WIDTH_F64 > 1
-    for (; i <= n - JM_SIMD_WIDTH_F64; i += JM_SIMD_WIDTH_F64)
+    if (n >= 4 * w) {
+        JM_VEC_F64 acc1 = JM_ZERO_F64();
+        JM_VEC_F64 acc2 = JM_ZERO_F64();
+        JM_VEC_F64 acc3 = JM_ZERO_F64();
+        for (; i <= n - 4 * w; i += 4 * w) {
+            const double *x = a + i, *y = b + i;
+            JM_FMA_F64(acc,  JM_LOAD_F64(x),         JM_LOAD_F64(y));
+            JM_FMA_F64(acc1, JM_LOAD_F64(x + w),     JM_LOAD_F64(y + w));
+            JM_FMA_F64(acc2, JM_LOAD_F64(x + 2 * w), JM_LOAD_F64(y + 2 * w));
+            JM_FMA_F64(acc3, JM_LOAD_F64(x + 3 * w), JM_LOAD_F64(y + 3 * w));
+        }
+        acc = JM_ADD_F64(JM_ADD_F64(acc, acc1), JM_ADD_F64(acc2, acc3));
+    }
+    for (; i <= n - w; i += w)
         JM_FMA_F64(acc, JM_LOAD_F64(a + i), JM_LOAD_F64(b + i));
-#endif
     double s = JM_HSUM_F64(acc);
     for (; i < n; i++) s += a[i] * b[i];
     return s;

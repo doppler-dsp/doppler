@@ -34,7 +34,11 @@ says what follows from it:
 --8<-- "src/doppler/examples/wlan_rates_demo.py:rates"
 ```
 
-`n_bpsc` is bits per subcarrier, `n_cbps` the coded bits and `n_dbps` the data
+`rate_mbps` is the data rate at 20 MHz as Table 17-6 prints it (6, 9, 12,
+18, 24, 36, 48 or 54; 0 for a pair the table has no row for), and `n_dbps / 4`
+says the same, a 4 us symbol; at 10 and 5 MHz the pair carries half and a
+quarter of it. In C, `dp_wlan_mbps()` and `dp_wlan_rate_from_mbps()` read the
+table both ways. `n_bpsc` is bits per subcarrier, `n_cbps` the coded bits and `n_dbps` the data
 bits in one OFDM symbol, and `n_sym(psdu_len)` the symbols a PSDU of that many
 octets fills: its bits, with the 16-bit SERVICE field and six tail bits, padded
 to a whole number of symbols. The airtime at 20 MHz is a 20 us preamble and

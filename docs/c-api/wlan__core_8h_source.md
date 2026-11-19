@@ -62,6 +62,7 @@ typedef struct
 {
   dp_wlan_rate_t rate; 
   uint8_t        bits; 
+  uint8_t        mbps; 
 } dp_wlan_signal_rate_t;
 
 typedef size_t (*dp_wlan_perm2_fn) (size_t i, size_t n_cbps, size_t n_bpsc);
@@ -96,6 +97,7 @@ typedef struct
   uint32_t code;   
   uint32_t n_cbps; 
   uint32_t n_dbps; 
+  uint32_t rate_mbps; 
 } dp_wlan_state_t;
 
 dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate);
@@ -111,6 +113,12 @@ int dp_wlan_rate_ok (const dp_wlan_rate_t *r);
 unsigned dp_wlan_n_cbps (const dp_wlan_rate_t *r);
 
 unsigned dp_wlan_n_dbps (const dp_wlan_rate_t *r);
+
+int dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
+                  unsigned *mbps);
+
+int dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
+                            dp_wlan_rate_t *r);
 
 size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 

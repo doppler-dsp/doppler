@@ -176,6 +176,16 @@ Wlan_getprop_n_dbps (WlanObject *self, void *Py_UNUSED (closure))
     }
   return PyLong_FromUnsignedLong ((unsigned long)self->handle->n_dbps);
 }
+static PyObject *
+Wlan_getprop_rate_mbps (WlanObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong ((unsigned long)self->handle->rate_mbps);
+}
 
 static PyGetSetDef Wlan_getset[]
     = { { "n_bpsc", (getter)Wlan_getprop_n_bpsc, NULL,
@@ -184,6 +194,12 @@ static PyGetSetDef Wlan_getset[]
           "Coded bits per OFDM symbol, 48 times `n_bpsc`.\n", NULL },
         { "n_dbps", (getter)Wlan_getprop_n_dbps, NULL,
           "Data bits per OFDM symbol: `n_cbps` times the code rate.\n", NULL },
+        { "rate_mbps", (getter)Wlan_getprop_rate_mbps, NULL,
+          "The data rate at 20 MHz in Mb/s, as Table 17-6 prints it: 6, 9, "
+          "12, 18, 24, 36, 48 or 54, and 0 for a pair the table has no row "
+          "for (BPSK 2/3, 64-QAM 1/2, any 5/6). The object holds no clocking: "
+          "at 10 and 5 MHz the same pair carries half and a quarter of it.\n",
+          NULL },
         { NULL, NULL, NULL, NULL, NULL } };
 
 static PyObject *

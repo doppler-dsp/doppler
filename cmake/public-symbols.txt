@@ -1929,6 +1929,7 @@ dp_wlan_encode function
 dp_wlan_interleave function
 dp_wlan_layout function
 dp_wlan_map function
+dp_wlan_mbps function
 dp_wlan_mpdu function
 dp_wlan_mpdu_len function
 dp_wlan_n_cbps function
@@ -1937,6 +1938,7 @@ dp_wlan_n_sym function
 dp_wlan_points function
 dp_wlan_ppdu function
 dp_wlan_ppdu_len function
+dp_wlan_rate_from_mbps function
 dp_wlan_rate_n_sym function
 dp_wlan_rate_ok function
 dp_wlan_reset function

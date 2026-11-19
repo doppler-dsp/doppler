@@ -125,11 +125,14 @@ typedef struct
   dp_wlan_code_t code;   /**< the BCC rate */
 } dp_wlan_rate_t;
 
-/** @brief A (rate, SIGNAL RATE bits) pair of dp_wlan_tables_t. */
+/** @brief A row of dp_wlan_tables_t: Table 17-6 as printed, the data rate
+ *         and the SIGNAL RATE bits of one pair. */
 typedef struct
 {
   dp_wlan_rate_t rate; /**< the rate this entry names              */
   uint8_t        bits; /**< the four RATE bits, as an integer 0..15 */
+  uint8_t        mbps; /**< the data rate at 20 MHz in Mb/s, Table 17-6's
+                            first column; 0 = not given (synthetic tables) */
 } dp_wlan_signal_rate_t;
 
 /** @brief The second interleaver permutation: input index @p i to output. */
@@ -198,6 +201,7 @@ typedef struct
   uint32_t code;   /**< the dp_wlan_code_t, as an integer         */
   uint32_t n_cbps; /**< coded bits per OFDM symbol, 48 * n_bpsc   */
   uint32_t n_dbps; /**< data bits per OFDM symbol                 */
+  uint32_t rate_mbps; /**< data rate at 20 MHz, Mb/s; 0 = no Table 17-6 row */
 } dp_wlan_state_t;
 
 /**
@@ -268,6 +272,43 @@ unsigned dp_wlan_n_cbps (const dp_wlan_rate_t *r);
  * @return `N_DBPS`, or 0 for an invalid rate.
  */
 unsigned dp_wlan_n_dbps (const dp_wlan_rate_t *r);
+
+/**
+ * @brief The data rate of a pair at 20 MHz, in Mb/s, as Table 17-6 prints
+ *        it.
+ *
+ * The 4 us symbol is in no function body: the number is the table's own
+ * column, and the unit test holds it against `N_DBPS / 4` for every row.
+ * @param t          The tables; one that gives no rate refuses.
+ * @param r          The pair.
+ * @param[out] mbps  The rate; written only on success. Must be non-NULL.
+ * @return 1 on success, 0 if @p r has no row (BPSK 2/3, 64-QAM 1/2 and every
+ *         5/6 have none) or the table gives no rate. @p mbps is then
+ *         unchanged.
+ */
+int dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
+                  unsigned *mbps);
+
+/**
+ * @brief The pair of a data rate at 20 MHz, from Table 17-6: the inverse of
+ *        dp_wlan_mbps().
+ * @param t       The tables; one that gives no rate refuses.
+ * @param mbps    The rate: 6, 9, 12, 18, 24, 36, 48 or 54 in the standard's
+ *                table.
+ * @param[out] r  The pair; written only on success. Must be non-NULL.
+ * @return 1 on success, 0 for a rate with no row. @p r is then unchanged.
+ *
+ * @code
+ * dp_wlan_rate_t r;
+ * unsigned       mbps;
+ * if (dp_wlan_rate_from_mbps (dp_wlan_tables_standard (), 36u, &r)
+ *     && dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps))
+ *   printf ("%u bits per subcarrier, code %d, %u Mb/s\n", r.n_bpsc,
+ *           (int)r.code, mbps); // 4 bits per subcarrier, code 2, 36 Mb/s
+ * @endcode
+ */
+int dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
+                            dp_wlan_rate_t *r);
 
 /**
  * @brief The Data OFDM symbols a PSDU needs:

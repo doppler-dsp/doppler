@@ -1578,9 +1578,203 @@ replica_terms_follow_transitions (void)
   return 0;
 }
 
+/* ---------------------------------------------------------------- *
+ * The epoch look: once an epoch, the look-back's winning window
+ *
+ * dp_dll_set_epoch_look() makes the lock detector look at the window the
+ * per-epoch look-back picks for the steer. Held here, on a clean async
+ * signal whose symbol (1.3 epochs) puts a data transition in most epochs:
+ *   - every look's |P| is the chosen window's, |win_p| over seg_norm;
+ *   - at least one look came from a shifted window whose power differs
+ *     from the natural epoch's (the control: a look on the natural window
+ *     would read differently there);
+ *   - at most one look an epoch (lock_nz against the epochs seen);
+ *   - the setter's refusals, and that turning it on clears the detector.
+ * ---------------------------------------------------------------- */
+static int
+epoch_look_is_the_winning_window (void)
+{
+  enum
+  {
+    SFC = 31,
+    SPS = 4,
+    TE  = SFC * SPS,
+    N   = 400 * TE
+  };
+  uint8_t code[SFC];
+  make_code (code, SFC, 3134u);
+  dp_dll_state_t *d = dp_dll_create (code, SFC, SPS, 0.0, 0.002, 0.707, 0.5, 4);
+  dp_dll_state_t *one
+      = dp_dll_create (code, SFC, SPS, 0.0, 0.002, 0.707, 0.5, 1);
+  DP_REQUIRE (d && one);
+  DP_CHECK (dp_dll_set_epoch_look (d, 2) == DP_ERR_INVALID);
+  DP_CHECK (dp_dll_set_epoch_look (one, 1) == DP_ERR_INVALID);
+  DP_CHECK (dp_dll_set_epoch_look (d, 1) == DP_OK);
+  DP_CHECK (d->lock_nz == 0 && d->look_epoch == 1);
+  float _Complex *rx = malloc (N * sizeof *rx);
+  DP_REQUIRE (rx != NULL);
+  make_async_signal (rx, N, code, SFC, SPS, 0.0, 1.3 * TE, 17.0, 0.0, 7u,
+                     0u);
+  float _Complex o[64];
+  size_t   looks = 0, shifted = 0, mismatch = 0, overlap = 0;
+  uint64_t nz = 0, last_end = 0;
+  for (size_t n = 0; n < N; n += 16)
+    {
+      (void)dp_dll_steps (d, rx + n, 16, o, 64);
+      if ((uint64_t)d->lock_nz != nz)
+        {
+          nz = d->lock_nz;
+          looks++;
+          const double want = cabsf (d->win_p) / d->seg_norm;
+          mismatch += fabs (d->look_prompt_amp - want) > 1e-6 * want;
+          shifted += cabsf (d->win_p) > 1.001f * cabsf (d->sums[3]);
+          /* The look's window, [ep_last_end - 4, ep_last_end), starts at
+             or after the last look's end. */
+          overlap += d->ep_last_end - 4 < last_end;
+          last_end = d->ep_last_end;
+        }
+    }
+  /* Epochs closed, from the partials the look has counted. */
+  const size_t epochs = (size_t)(d->ep_part / d->segments);
+  printf ("  epoch look: %zu looks over %zu epochs, %zu from a shifted "
+          "window, %zu off the winner, %zu overlapping\n",
+          looks, epochs, shifted, mismatch, overlap);
+  DP_CHECK_MSG (mismatch == 0, "every epoch look is the winning window's");
+  DP_CHECK_MSG (shifted > 0, "control: some winners are shifted windows, "
+                             "stronger than the natural epoch");
+  DP_CHECK_MSG (looks > 0 && looks <= epochs,
+                "at most one look an epoch");
+  DP_CHECK_MSG (overlap == 0, "no two looks share a partial");
+  free (rx);
+  dp_dll_destroy (d);
+  dp_dll_destroy (one);
+  return 0;
+}
+
+/* ---------------------------------------------------------------- *
+ * The symbol-aided look chooses its window on windows that ended before it
+ *
+ * aid_look() folds into the hypotheses' power EMAs only the windows that
+ * ended L partials ago, then reads the best: no partial of the window
+ * looked at is in any window the choice saw (#3134). From one state on
+ * noise, at the first partial of a window ending at partial i whose look
+ * would not overlap the last one:
+ *   - the same run again with ALL of that window's partials scaled by 20;
+ *   - the property: through partial i the choice and the look decision
+ *     are the plain run's;
+ *   - the control: L partials later, once those windows are folded, a
+ *     hypothesis's power EMA in the scaled run is several times the plain
+ *     run's -- the choice reads the scaled windows then, not before.
+ * ---------------------------------------------------------------- */
+static int
+aid_choice_does_not_see_its_window (void)
+{
+  enum
+  {
+    SFC  = 31,
+    WARM = 4000, /* partials of noise before the probe */
+    MAXS = 4096  /* samples recorded for the probe     */
+  };
+  uint8_t code[SFC];
+  make_code (code, SFC, 3134u);
+  dp_dll_state_t *a = dp_dll_create (code, SFC, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  dp_dll_state_t *b = dp_dll_create (code, SFC, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_REQUIRE (a && b);
+  DP_CHECK (dp_dll_set_symbol_period (a, 5.3) == DP_OK);
+  DP_CHECK (dp_dll_set_symbol_period (b, 5.3) == DP_OK);
+  DP_CHECK (a->aid_nhyp == 6 && a->aid_len == 4);
+  const uint64_t L  = a->aid_len;
+  uint32_t       st = 3134u;
+  float _Complex o[8];
+  while (a->aid_count < WARM)
+    {
+      float _Complex x = dp_cgauss (&st);
+      (void)dp_dll_steps (a, &x, 1, o, 8);
+    }
+  float _Complex *xs   = malloc (MAXS * sizeof *xs);
+  size_t         *pidx = malloc (MAXS * sizeof *pidx); /* sample -> partial */
+  DP_REQUIRE (xs && pidx);
+  const size_t nb    = dp_dll_state_bytes (a);
+  int          found = 0;
+  for (int tries = 0; tries < 400 && !found; tries++)
+    {
+      /* The state at the first partial of a candidate window. */
+      unsigned char *blob = malloc (nb);
+      DP_REQUIRE (blob != NULL);
+      dp_dll_get_state (a, blob);
+      const uint64_t start = a->aid_count, i = start + L - 1;
+      const uint64_t last  = a->aid_last_end;
+      size_t         n     = 0;
+      /* Plain: through partial i + L, recording each sample's partial. */
+      while (a->aid_count <= i + L && n < MAXS)
+        {
+          xs[n]   = dp_cgauss (&st);
+          pidx[n] = (size_t)a->aid_count;
+          (void)dp_dll_steps (a, &xs[n], 1, o, 8);
+          n++;
+          if (a->aid_count == i + 1 && pidx[n - 1] == i)
+            break;
+        }
+      DP_REQUIRE (a->aid_count == i + 1);
+      const size_t   best_i = a->aid_best;
+      const uint64_t end_i  = a->aid_last_end;
+      size_t         n_i    = n;
+      while (a->aid_count <= i + L && n < MAXS)
+        {
+          xs[n]   = dp_cgauss (&st);
+          pidx[n] = (size_t)a->aid_count;
+          (void)dp_dll_steps (a, &xs[n], 1, o, 8);
+          n++;
+        }
+      double pw_a[16] = { 0 };
+      for (size_t h = 0; h < a->aid_nhyp && h < 16; h++)
+        pw_a[h] = a->aid_power[h];
+      /* A window that is not looked at and does not overlap the last look:
+         the case where a choice that saw it would look at it. */
+      if (end_i == last && start >= last)
+        {
+          DP_CHECK (dp_dll_set_state (b, blob) == DP_OK);
+          for (size_t k = 0; k < n; k++)
+            {
+              float _Complex x
+                  = (k < n_i && pidx[k] >= start) ? 20.0f * xs[k] : xs[k];
+              (void)dp_dll_steps (b, &x, 1, o, 8);
+              if (k + 1 == n_i)
+                {
+                  DP_CHECK_MSG (b->aid_best == best_i
+                                    && b->aid_last_end == end_i,
+                                "through the window's last partial the "
+                                "choice and the look are the plain run's");
+                }
+            }
+          double gain = 0.0;
+          for (size_t h = 0; h < b->aid_nhyp && h < 16; h++)
+            if (pw_a[h] > 0.0 && b->aid_power[h] / pw_a[h] > gain)
+              gain = b->aid_power[h] / pw_a[h];
+          printf ("  aid choice: window %llu..%llu, best %zu through it in "
+                  "both runs; once folded, a hypothesis's power is %.1fx "
+                  "the plain run's\n",
+                  (unsigned long long)start, (unsigned long long)i, best_i,
+                  gain);
+          DP_CHECK_MSG (gain > 4.0, "control: once folded, the scaled "
+                                    "windows are in the choice's EMAs");
+          found = 1;
+        }
+      free (blob);
+    }
+  DP_CHECK (found);
+  free (pidx);
+  free (xs);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK (aid_choice_does_not_see_its_window () == 0);
+  DP_CHECK (epoch_look_is_the_winning_window () == 0);
   DP_CHECK (replica_terms_follow_transitions () == 0);
   DP_CHECK (_test_window_sum_is_the_look_back () == 0);
   DP_CHECK (_test_block_correlate_is_the_per_sample_path () == 0);

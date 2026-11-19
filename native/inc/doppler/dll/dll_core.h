@@ -297,7 +297,11 @@ typedef struct {
      *    and the code discriminator's windows -- coherent over most of a
      *    symbol instead of a quarter-epoch partial, and the loop steers
      *    once per symbol on them (the filter re-timed to that interval,
-     *    `inv_upd`). See dp_dll_set_symbol_period(). Rings are heap-owned,
+     *    `inv_upd`). The best is read on the windows before the current
+     *    partial's, then the current windows update their EMAs: a look's
+     *    window is chosen before its own newest partial counts, so the
+     *    look's statistic is independent of the choice. See
+     *    dp_dll_set_symbol_period(). Rings are heap-owned,
      *    sized at set time, packed field-wise in the state blob like the
      *    chunk buffers. */
     double  sym_period;      /**< data-symbol period, partials (0 = off).   */
@@ -312,6 +316,17 @@ typedef struct {
                                   best hypothesis flips between overlapping
                                   neighbours on noise, #1264).           */
     double  aid_alpha;       /**< EMA over symbols of each window's power.  */
+    /* ── the epoch look (dp_dll_set_epoch_look()): with the aid off, the
+     *    lock detector looks once an epoch at the look-back's winning
+     *    one-epoch window instead of once a partial. */
+    int            look_epoch; /**< 1: the epoch look is on.               */
+    float _Complex epoch_o;    /**< the offset tap summed over this epoch's
+                                    partials: the epoch look's noise term. */
+    uint64_t       ep_part;    /**< partials closed since the look was set. */
+    uint64_t       ep_last_end; /**< one past the last epoch look's last
+                                     partial: a winner reaching back into
+                                     it is not a look, so no two looks
+                                     share noise (as aid_last_end). */
     float _Complex *aid_ring_p; /**< last `aid_ring` partial prompts.        */
     float _Complex *aid_ring_o; /**< last `aid_ring` offset (noise) partials.*/
     float _Complex *aid_ring_e; /**< last `aid_ring` early partials.         */
@@ -1054,7 +1069,11 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  * external timing -- so it costs nothing at cold start and follows a
  * slowly drifting symbol clock by itself. `L` is capped at four epochs of
  * partials so a long symbol (a low data rate) does not ask for coherence
- * across more carrier than the wipe-off holds.
+ * across more carrier than the wipe-off holds. The winning hypothesis is
+ * read on the windows before each partial's, so a look's window never
+ * elects itself on its own noise, and the look is the one window
+ * det_threshold_noncoherent() sizes the threshold for
+ * (`test_dll_core.c`, `aid_choice_does_not_see_its_window`).
  *
  * @param state               DLL state. Must be non-NULL.
  * @param partials_per_symbol Data-symbol period in emitted partials,
@@ -1090,6 +1109,52 @@ int dp_dll_set_symbol_period(dp_dll_state_t *state, double partials_per_symbol);
  * @return Window length L in partials, or 0 with the aid off.
  */
 size_t dp_dll_get_symbol_window(const dp_dll_state_t *state);
+
+/**
+ * @brief Look once an epoch, at the look-back's winning one-epoch window.
+ *
+ * With the symbol aid off (no period set), the lock detector otherwise
+ * looks once a partial. On, it looks once an epoch at the window the
+ * per-epoch look-back already picks for the steer: the most prompt power
+ * among the epoch's `segments` one-epoch windows, each shifted by whole
+ * partials into the previous epoch, so one of them is free of the epoch's
+ * data transition whenever a symbol is at least a code period. Its prompt
+ * is that window's coherent sum; its noise term is the offset tap summed
+ * over the epoch's own partials, the same length and no selection on it.
+ * A winner that reaches back into the last look's partials is not a look
+ * (no two looks share noise). With a symbol period set, the aid's look
+ * takes precedence; the setting is kept and applies when the period is 0.
+ *
+ * The look is the best of `segments` windows, so its false-alarm rate is
+ * at most `segments` times one window's (the union bound): size the
+ * detector with dp_dll_configure_lock() at `pfa / segments` over one
+ * epoch's samples to hold `pfa` per decision.
+ *
+ * Turning it on or off clears the detector's running statistic and
+ * reference (the looks change scale); its configuration stays.
+ *
+ * @param state DLL state. Must be non-NULL.
+ * @param on    1 for the epoch look, 0 for the per-partial look.
+ * @return DP_OK; DP_ERR_INVALID when `on` is not 0 or 1, or when
+ *         `segments` is 1 (one look an epoch is already the full-epoch
+ *         look there).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> code = (np.arange(63) * 7 % 2).astype(np.uint8)
+ * >>> d = Dll(code, sps=2, segments=4)
+ * >>> d.set_epoch_look(1)            # one look an epoch, the winner's
+ * >>> d.symbol_window                # the symbol aid stays off
+ * 0
+ * >>> try:
+ * ...     Dll(code, sps=2, segments=1).set_epoch_look(1)
+ * ... except ValueError:
+ * ...     print("refused")
+ * refused
+ *
+ * @endcode
+ */
+int dp_dll_set_epoch_look(dp_dll_state_t *state, int on);
 
 /**
  * @brief Set the lock detector's verify counts, keeping its thresholds.
@@ -1525,7 +1590,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 18u /* v18: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 19u /* v19: the epoch look, look_epoch/epoch_o/ep_part/ep_last_end (#3134); v18: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

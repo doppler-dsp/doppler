@@ -480,6 +480,33 @@ DllObj_set_symbol_period (DllObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+DllObj_set_epoch_look (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "on", NULL };
+  int          on        = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &on))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_dll_set_epoch_look (self->handle, on);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_epoch_look failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 DllObj_set_lock_verify (DllObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -1304,7 +1331,11 @@ static PyMethodDef DllObj_methods[] = {
     "no external timing -- so it costs nothing at cold start and follows a\n"
     "slowly drifting symbol clock by itself. `L` is capped at four epochs of\n"
     "partials so a long symbol (a low data rate) does not ask for coherence\n"
-    "across more carrier than the wipe-off holds.\n"
+    "across more carrier than the wipe-off holds. The winning hypothesis is\n"
+    "read on the windows before each partial's, so a look's window never\n"
+    "elects itself on its own noise, and the look is the one window\n"
+    "det_threshold_noncoherent() sizes the threshold for (`test_dll_core.c`,\n"
+    "`aid_choice_does_not_see_its_window`; #3134).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1332,6 +1363,69 @@ static PyMethodDef DllObj_methods[] = {
     ">>> d.set_symbol_period(0.0)       # back to per-partial looks\n"
     ">>> d.symbol_window\n"
     "0\n" },
+  { "set_epoch_look", (PyCFunction)(void *)DllObj_set_epoch_look,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_epoch_look(on) -> None\n"
+    "\n"
+    "With the symbol aid off, look once an epoch at the per-epoch look-back's "
+    "winning one-epoch window (the most prompt power among the epoch's "
+    "segments one-epoch windows, shifted by whole partials into the previous "
+    "epoch) instead of once a partial. The look's prompt is that window's "
+    "coherent sum and its noise term the offset tap over the epoch's own "
+    "partials; a winner reaching back into the last look's partials is not a "
+    "look. The look is the best of segments windows, so its false-alarm rate "
+    "is at most segments times one window's (the union bound): size n_looks "
+    "with detection.det_n_noncoh over one epoch's samples at pfa / segments, "
+    "and configure_lock at that pfa. A symbol period, when set, takes "
+    "precedence. Turning it on or off clears the detector's running "
+    "statistic. Raises ValueError when on is not 0 or 1, or when segments is "
+    "1.\n"
+    "\n"
+    "With the symbol aid off (no period set), the lock detector otherwise\n"
+    "looks once a partial. On, it looks once an epoch at the window the\n"
+    "per-epoch look-back already picks for the steer: the most prompt power\n"
+    "among the epoch's `segments` one-epoch windows, each shifted by whole\n"
+    "partials into the previous epoch, so one of them is free of the epoch's\n"
+    "data transition whenever a symbol is at least a code period. Its prompt\n"
+    "is that window's coherent sum; its noise term is the offset tap summed\n"
+    "over the epoch's own partials, the same length and no selection on it.\n"
+    "A winner that reaches back into the last look's partials is not a look\n"
+    "(no two looks share noise). With a symbol period set, the aid's look\n"
+    "takes precedence; the setting is kept and applies when the period is 0.\n"
+    "\n"
+    "The look is the best of `segments` windows, so its false-alarm rate is\n"
+    "at most `segments` times one window's (the union bound): size the\n"
+    "detector with dp_dll_configure_lock() at `pfa / segments` over one\n"
+    "epoch's samples to hold `pfa` per decision.\n"
+    "\n"
+    "Turning it on or off clears the detector's running statistic and\n"
+    "reference (the looks change scale); its configuration stays.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "on : int\n"
+    "    1 for the epoch look, 0 for the per-partial look.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_epoch_look failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> code = (np.arange(63) * 7 % 2).astype(np.uint8)\n"
+    ">>> d = Dll(code, sps=2, segments=4)\n"
+    ">>> d.set_epoch_look(1)            # one look an epoch, the winner's\n"
+    ">>> d.symbol_window                # the symbol aid stays off\n"
+    "0\n"
+    ">>> try:\n"
+    "...     Dll(code, sps=2, segments=1).set_epoch_look(1)\n"
+    "... except ValueError:\n"
+    "...     print(\"refused\")\n"
+    "refused\n" },
   { "set_lock_verify", (PyCFunction)(void *)DllObj_set_lock_verify,
     METH_VARARGS | METH_KEYWORDS,
     "set_lock_verify(n_up, n_down) -> None\n"

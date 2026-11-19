@@ -34,6 +34,7 @@ const jm_any_fn jm_bound_symbols_dll[] = {
     (jm_any_fn)dp_dll_set_rate_aid,
     (jm_any_fn)dp_dll_set_symbol_period,
     (jm_any_fn)dp_dll_get_symbol_window,
+    (jm_any_fn)dp_dll_set_epoch_look,
     (jm_any_fn)dp_dll_set_lock_verify,
     (jm_any_fn)dp_dll_get_code_phase,
     (jm_any_fn)dp_dll_set_code_phase,

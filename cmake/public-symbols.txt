@@ -791,6 +791,7 @@ dp_dll_reset function
 dp_dll_set_bn function
 dp_dll_set_coast function
 dp_dll_set_code_phase function
+dp_dll_set_epoch_look function
 dp_dll_set_lock_verify function
 dp_dll_set_rate_aid function
 dp_dll_set_state function

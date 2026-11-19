@@ -29,6 +29,8 @@
 
 #include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dll/dll_core.h"
 #include "dp_air_test.h"
 #include <math.h>
 #include <stdbool.h>
@@ -81,6 +83,133 @@ dp_s415_rx (const uint8_t *code, double fc, double cn0, bool refine,
       cn0, 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
       100000, fc, 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
       DP_S415_RATE_HZ_S, refine, window);
+}
+
+/** The fixed-epoch comparison (#3134, the owner's question whether the
+ *  code loop's integration is the code epoch alone): the receiver with its
+ *  tracking Dll's symbol-timing aid OFF, so the lock detector looks once a
+ *  partial and the loop steers on the per-epoch look-back.
+ *
+ *  The receiver turns the aid on when it builds its tracking Dll, at each
+ *  hand-over, and sizes the lock detector for the aided window there
+ *  (native/src/async_dsss_receiver/async_dsss_receiver_core.c:312-336).
+ *  Called after every push, this turns the aid off on a Dll it has not
+ *  seen and sizes the detector for a one-partial look by that same rule --
+ *  det_n_noncoh at Pd 0.99, Pfa 1e-3 over the look's samples at the design
+ *  C/N0, the drop count from 0.01 at a 1e-6 budget.
+ *
+ *  It is a SECOND COPY of that derivation, for this comparison only, and
+ *  it does not stay: if the owner rules for the fixed-epoch look, the
+ *  receiver sizes it itself and this goes in that commit; if the aid
+ *  stays, this and the harnesses' `--unaided` go once the comparison is
+ *  recorded. `seen` starts NULL.
+ *
+ *  Modes: 1 the aid off (one look a partial); 2 the Dll's epoch look; 3
+ *  the aid kept, its window one epoch long (below). With mode 2, the Dll's
+ *  epoch look instead (dp_dll_set_epoch_look()):
+ *  one look an epoch at the look-back's winning one-epoch window, sized by
+ *  the union bound its header states -- the best of `segments` windows
+ *  false-alarms at most `segments` times one window's rate, so each look
+ *  is sized at Pfa / segments over one epoch's samples. */
+/** The placement bound of an epoch-long window placed by the symbol aid
+ *  (#3134): the amplitude a window of @p K partials keeps on average when
+ *  the symbol is @p P partials and the aid rounds each boundary to the
+ *  partial grid. With slack `s = P - K` and the window's start `u` partials
+ *  after the true boundary, the edge partial carries a wrong-sign fraction
+ *  `x = -u` (u < 0), 0 (0 <= u <= s) or `u - s` (u > s); with a transition
+ *  the amplitude is `1 - 2 x / K`. A transition is on half the boundaries
+ *  (random data; the frame's code-only symbols are not counted on). Over
+ *  the symbols `u` sweeps a unit interval centred at `c`, set by the true
+ *  boundary's phase; the hypotheses' integer shifts let the choice take
+ *  the best of `c - 1`, `c`, `c + 1`; the bound averages that over `c`.
+ *  Midpoint quadrature, 400 x 400 points (the integrand is piecewise
+ *  quadratic). `s >= 1` leaves a clean placement for every boundary: 1. */
+static inline double
+dp_s415_placement_amp (double P, size_t K)
+{
+  const double sl = P - (double)K;
+  if (sl >= 1.0)
+    return 1.0;
+  enum
+  {
+    NQ = 400
+  };
+  double sum = 0.0;
+  for (int j = 0; j < NQ; j++)
+    {
+      const double c0   = -0.5 + (j + 0.5) / NQ;
+      double       best = 0.0;
+      for (int k = -1; k <= 1; k++)
+        {
+          double pw = 0.0;
+          for (int q = 0; q < NQ; q++)
+            {
+              const double u = c0 + k - 0.5 + (q + 0.5) / NQ;
+              double       x = u < 0.0 ? -u : u <= sl ? 0.0 : u - sl;
+              x                = x > 1.0 ? 1.0 : x;
+              const double am  = 1.0 - 2.0 * x / (double)K;
+              pw += am * am;
+            }
+          pw = 0.5 + 0.5 * pw / NQ;
+          best = pw > best ? pw : best;
+        }
+      sum += best;
+    }
+  return sqrt (sum / NQ);
+}
+
+static inline void
+dp_s415_look (dp_async_dsss_receiver_state_t *rx, dp_dll_state_t **seen,
+              int mode)
+{
+  if (!rx->dll || rx->dll == *seen)
+    return;
+  *seen = rx->dll;
+  const double amp
+      = dp_det_cn0_to_snr (rx->cn0_dbhz, rx->chip_rate * (double)rx->spc);
+  size_t look = rx->tsamps / rx->segments;
+  double pfa = 1e-3, a = amp;
+  if (mode == 3)
+    {
+      /* Mode 3, the symbol-aided look one epoch long: the aid's hypotheses
+         place the window, the choice is made on earlier windows (the Dll's
+         order), and the window is the epoch's K partials. Sized by det's
+         single-window model over one epoch's samples, with the replica's
+         correlation loss (1 - p/4)^2 / (1 - p/3) taken off the amplitude
+         BY HAND for this comparison (the create commit holds it). */
+      const double P = rx->dll->sym_period;
+      if (!(P > 0.0))
+        abort (); /* mode 3 needs the aid the receiver built */
+      (void)dp_dll_set_symbol_period (rx->dll, P); /* clears the detector */
+      if (2 * (rx->segments + rx->dll->aid_nhyp) + 2 > rx->dll->aid_ring)
+        abort (); /* the ring holds a window of K partials */
+      rx->dll->aid_len = rx->segments;
+      size_t flips     = 0;
+      for (size_t i = 0; i < rx->code_len; i++)
+        flips += rx->code[i] != rx->code[(i + 1) % rx->code_len];
+      const double p = (double)flips / (double)rx->code_len;
+      a = amp * (1.0 - p / 4.0) / sqrt (1.0 - p / 3.0)
+          * dp_s415_placement_amp (P, rx->segments);
+      look           = rx->tsamps;
+    }
+  else
+    {
+      (void)dp_dll_set_symbol_period (rx->dll, 0.0);
+      if (mode == 2)
+        {
+          (void)dp_dll_set_epoch_look (rx->dll, 1);
+          look = rx->tsamps;
+          pfa  = 1e-3 / (double)rx->segments;
+        }
+    }
+  const int nl = dp_det_n_noncoh (a, (int)look, 0.99, pfa, 4000);
+  if (nl >= 1)
+    {
+      (void)dp_dll_configure_lock (rx->dll, pfa, (size_t)nl, 0.0);
+      (void)dp_dll_set_lock_verify (
+          rx->dll, rx->dll->lock.n_up,
+          (uint32_t)dp_det_verify_count (0.01, 1e-6));
+    }
 }
 
 /** A pool of @p n receivers at the point, as dp_s415_rx() builds each, with

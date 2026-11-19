@@ -126,6 +126,10 @@ seed (dp_dll_state_t *s)
   s->aid_count    = 0;
   s->aid_last_end = 0;
   s->aid_best     = 0;
+  /* The epoch look keeps its setting and forgets what it has counted. */
+  s->epoch_o     = 0.0f;
+  s->ep_part     = 0;
+  s->ep_last_end = 0;
   if (s->aid_ring_p)
     {
       memset (s->aid_ring_p, 0, s->aid_ring * sizeof (*s->aid_ring_p));
@@ -200,11 +204,16 @@ aid_window_starts (const dp_dll_state_t *s, size_t h, uint64_t start)
  * window is both the look the lock detector sees and the discriminator's
  * window: the loop steers once per symbol on the coherent E/P/L sums over
  * it -- longer than the per-epoch look-back's window, and never across a
- * data transition. Two passes: the EMAs and the argmax over every
- * hypothesis first, then one look and one steer for the winner, so a
- * change of winner on this very partial fires one update, not two (two
- * hypotheses end a window on the same partial whenever P is not an
- * integer). */
+ * data transition.
+ *
+ * The best is chosen on windows that ended before the current window
+ * starts: at partial i the EMAs take the windows that ended at partial
+ * i - L (still in the ring), and the winner is read after that. So no
+ * partial of the window looked at is in any window the choice saw, and the
+ * look's statistic is independent of the choice; the choice lags the
+ * newest windows by one window, L partials. One look and one steer for the
+ * winner, so a change of winner fires one update, not two (two hypotheses
+ * end a window on the same partial whenever P is not an integer). */
 static void
 aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
           float _Complex early, float _Complex late)
@@ -218,20 +227,29 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
   if (i + 1 < s->aid_len)
     return;
   const uint64_t start = i + 1 - s->aid_len;
-  for (size_t h = 0; h < s->aid_nhyp; h++)
+  /* The windows that ended at partial i - L: the ring holds 2 (L + Q) + 2
+     partials, so they are still in it. Their EMAs move now; none of their
+     partials is in the window ending here. */
+  if (i + 1 >= 2 * (uint64_t)s->aid_len)
     {
-      if (!aid_window_starts (s, h, start))
-        continue;
-      float _Complex sp = 0.0f;
-      for (uint64_t k = start; k <= i; k++)
-        sp += s->aid_ring_p[k & mask];
-      double pw = (double)crealf (sp) * (double)crealf (sp)
-                  + (double)cimagf (sp) * (double)cimagf (sp);
-      s->aid_power[h] += s->aid_alpha * (pw - s->aid_power[h]);
-      if (s->aid_power[h] > s->aid_power[s->aid_best])
-        s->aid_best = h;
+      const uint64_t fend   = i - s->aid_len;
+      const uint64_t fstart = fend + 1 - s->aid_len;
+      for (size_t h = 0; h < s->aid_nhyp; h++)
+        {
+          if (!aid_window_starts (s, h, fstart))
+            continue;
+          float _Complex sp = 0.0f;
+          for (uint64_t k = fstart; k <= fend; k++)
+            sp += s->aid_ring_p[k & mask];
+          double pw = (double)crealf (sp) * (double)crealf (sp)
+                      + (double)cimagf (sp) * (double)cimagf (sp);
+          s->aid_power[h] += s->aid_alpha * (pw - s->aid_power[h]);
+          if (s->aid_power[h] > s->aid_power[s->aid_best])
+            s->aid_best = h;
+        }
     }
-  if (!aid_window_starts (s, s->aid_best, start))
+  const size_t pick = s->aid_best; /* chosen on windows ended before start */
+  if (!aid_window_starts (s, pick, start))
     return;
   /* One look per window of noise: on a signal the best hypothesis holds
      and its windows are a symbol apart, but on noise it flips between
@@ -758,6 +776,11 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
           || t.aid_len >= t.aid_ring || t.aid_best >= t.aid_nhyp
           || t.aid_last_end > t.aid_count))
     return DP_ERR_INVALID;
+  /* The epoch look: a flag set_epoch_look would take, and its last look's
+     end no later than the partials it has counted. */
+  if (!(t.look_epoch == 0 || (t.look_epoch == 1 && t.segments > 1))
+      || t.ep_last_end > t.ep_part)
+    return DP_ERR_INVALID;
   /* The retained config a live instance can only hold after create (or a
      retune) accepted it: the spacing places the early and late taps, and
      dll_taps_refresh turns it into a phase word, and a NaN has none
@@ -1161,6 +1184,13 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
             aid_look (state, part, noise,
                       state->acc_e / (float)state->seg_norm,
                       state->acc_l / (float)state->seg_norm);
+          else if (state->look_epoch)
+            {
+              /* The epoch look: the noise term over this epoch's own
+                 partials; the look itself at the boundary below. */
+              state->epoch_o += state->acc_o;
+              state->ep_part++;
+            }
           else
             lock_look (state, part, noise);
           state->chunk_p[state->seg_idx] = state->acc_p;
@@ -1226,6 +1256,22 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
                       }
                   }
               state->win_p = best_sum;
+              /* The epoch look (dp_dll_set_epoch_look()): the winner's
+                 coherent prompt and the epoch's offset sum, both over the
+                 partials' samples as a partial look's are. The window is
+                 partials [ep_part - w - best_widx, ep_part - best_widx). */
+              if (state->sym_period <= 0.0 && state->look_epoch)
+                {
+                  const uint64_t end   = state->ep_part - best_widx;
+                  const uint64_t start = end >= w ? end - w : 0;
+                  if (end >= w && start >= state->ep_last_end)
+                    {
+                      state->ep_last_end = end;
+                      lock_look (state, best_sum / (float)state->seg_norm,
+                                 state->epoch_o / (float)state->seg_norm);
+                    }
+                  state->epoch_o = 0.0f;
+                }
               /* Step 5 (Python: `get_window(early, last_early,
                  window_index)`/`get_window(late, ...)`, then
                  `early_power`/`late_power`): reconstruct E/L over the
@@ -1553,6 +1599,21 @@ dp_dll_set_symbol_period (dp_dll_state_t *state, double partials_per_symbol)
      buffers were touched. */
   return set_update_period (state,
                             partials_per_symbol / (double)state->segments);
+}
+
+int
+dp_dll_set_epoch_look (dp_dll_state_t *state, int on)
+{
+  if (!(on == 0 || on == 1) || (on && state->segments <= 1))
+    return DP_ERR_INVALID;
+  state->look_epoch  = on;
+  state->epoch_o     = 0.0f;
+  state->ep_part     = 0;
+  state->ep_last_end = 0;
+  /* The looks change scale, so the detector's running statistic and
+     reference restart; its configuration stays. */
+  lock_clear (state);
+  return DP_OK;
 }
 
 size_t

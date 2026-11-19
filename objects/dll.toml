@@ -115,6 +115,14 @@ status_return = true
 params = [{ name = "partials_per_symbol", type = "double" }]
 
 [[dll.methods]]
+name = "set_epoch_look"
+doc = "With the symbol aid off, look once an epoch at the per-epoch look-back's winning one-epoch window (the most prompt power among the epoch's segments one-epoch windows, shifted by whole partials into the previous epoch) instead of once a partial. The look's prompt is that window's coherent sum and its noise term the offset tap over the epoch's own partials; a winner reaching back into the last look's partials is not a look. The look is the best of segments windows, so its false-alarm rate is at most segments times one window's (the union bound): size n_looks with detection.det_n_noncoh over one epoch's samples at pfa / segments, and configure_lock at that pfa. A symbol period, when set, takes precedence. Turning it on or off clears the detector's running statistic. Raises ValueError when on is not 0 or 1, or when segments is 1."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "on", type = "int" }]
+
+[[dll.methods]]
 name = "set_lock_verify"
 doc = "Set the lock detector's verify counts, keeping its thresholds and noise reference: n_up consecutive above-threshold decisions to declare, n_down consecutive below-threshold decisions to drop. configure_lock derives n_up from pfa and fixes n_down at 2; a caller that sized n_looks for a target Pd knows the per-decision miss probability 1 - pd, and detection.det_verify_count(1 - pd, budget) is the drop count that holds the false-drop rate under a budget (3 for pd = 0.99 at 1e-6 per decision). The running verify counter and the flag restart. Raises ValueError when either count is 0."
 arg_type = "void"

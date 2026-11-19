@@ -902,6 +902,9 @@ ramp_rows (const uint8_t *code, int check, int emit)
 #define CL_DRAWS 5u
 #define CL_S 20.0
 #define CL_CHECK_S 5.0
+/* `--unaided`: the code-lock sections alone, with the tracking Dll's
+   symbol aid off (dp_s415_look()), for the fixed-epoch comparison. */
+static int cl_unaided = 0;
 #define CL_NOISE_S                                                            \
   300.0 /* noise alone: ~4e4 decisions at the slowest cell                    \
          */
@@ -912,9 +915,62 @@ typedef struct
   int    cw;
   size_t n_looks, look, n_down, epochs, decisions, misses, drops;
   size_t switches, h, nhyp, n_err;
+  size_t lb_epochs, lb_switches; /* the steer's look-back, in the window */
+  double hyp_settle_s; /* tracking start -> the aid's choice first held 1 s */
   double cerr, cerr2; /* the code error's sum and sum of squares, chips */
   double thresh_down, p2, o2, snr_meas, snr_model, loss_db, seg_norm;
 } code_lock_t;
+
+/* The steer's per-epoch look-back (dll_core.c, the epoch boundary's
+   find_max_power()): the winner among the epoch's K one-epoch windows,
+   shifted by whole partials into the previous epoch, is a local of the
+   Dll. It is read back here from what the state keeps: at a boundary the
+   Dll has this epoch's running sums and its chosen sum win_p, and the
+   previous boundary's saved tails (copied here before they were
+   overwritten) give each shifted candidate, so the winner is the
+   candidate equal to win_p. Counted: epochs, and epochs whose winner
+   differs from the last epoch's. */
+#define CL_LB_STEP 1024u /* under one epoch at 11 MSa/s (2,750+ samples) */
+typedef struct
+{
+  const dp_dll_state_t *dll;
+  float _Complex        tot, tail[16];
+  int                   have, last;
+} lookback_t;
+
+static void
+lookback_pick (const dp_dll_state_t *d, lookback_t *lb, code_lock_t *out)
+{
+  if (!d || d->segments < 2 || d->segments > 16)
+    return;
+  const size_t w = d->segments;
+  if (lb->dll != d)
+    {
+      memset (lb, 0, sizeof *lb);
+      lb->dll  = d;
+      lb->last = -1;
+    }
+  const float _Complex tot = d->sums[w - 1];
+  if (lb->have && tot == lb->tot)
+    return; /* no epoch closed in this step */
+  int pick = -1;
+  if (lb->have && d->win_p == tot)
+    pick = 0;
+  else if (lb->have)
+    for (size_t k = 0; k + 1 < w && pick < 0; k++)
+      if (d->sums[k] + lb->tail[w - 2 - k] == d->win_p)
+        pick = (int)(w - 1 - k);
+  if (pick >= 0)
+    {
+      out->lb_epochs++;
+      out->lb_switches += lb->last >= 0 && pick != lb->last;
+      lb->last = pick;
+    }
+  lb->tot = tot;
+  for (size_t k = 0; k + 1 < w; k++)
+    lb->tail[k] = d->last_backward_p[k];
+  lb->have = 1;
+}
 
 static int
 run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
@@ -956,7 +1012,11 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
   int             last_locked = -1;
   double          sp2 = 0.0, so2 = 0.0;
   size_t          np = 0, no = 0, last_h = SIZE_MAX;
-  dp_dll_state_t *pinned = NULL;
+  dp_dll_state_t *pinned = NULL, *unaided_seen = NULL;
+  double          t_trk0 = -1.0, t_hchg = -1.0;
+  size_t          h_last = SIZE_MAX;
+  out->hyp_settle_s      = NAN;
+  lookback_t      lb     = { 0 };
   int             was_in = 0;
   for (size_t b = 0; b < n_blk; b++)
     {
@@ -978,9 +1038,31 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
           out->cerr2 += ek * ek;
           out->n_err++;
         }
-      (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
+      if (!cl_unaided)
+        (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
+      else
+        /* Aid off: in steps short enough that at most one epoch closes in
+           each, so the steer's look-back pick can be read after it. */
+        for (size_t off = 0; off < PUSH; off += CL_LB_STEP)
+          {
+            (void)dp_async_dsss_receiver_steps (rx, x + off, CL_LB_STEP, syms,
+                                                cap);
+            dp_s415_look (rx, &unaided_seen, cl_unaided);
+            if (was_in)
+              lookback_pick (rx->dll, &lb, out);
+          }
       const double t      = (double)(b + 1) * PUSH / DP_S415_FS;
       const int    trk    = rx->state == ASYNC_DSSS_RX_TRACKING;
+      /* The aid's choice after hand-over: when it first holds for 1 s. */
+      if (trk && rx->dll && rx->dll->aid_nhyp && isnan (out->hyp_settle_s))
+        {
+          if (t_trk0 < 0.0)
+            t_trk0 = t, t_hchg = t;
+          if (rx->dll->aid_best != h_last)
+            h_last = rx->dll->aid_best, t_hchg = t;
+          else if (t - t_hchg >= 1.0)
+            out->hyp_settle_s = t_hchg - t_trk0;
+        }
       const int    locked = trk && dp_async_dsss_receiver_get_code_locked (rx);
       if (t_first < 0.0 && locked)
         t_first = t;
@@ -1035,8 +1117,11 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
   out->n_down      = rx->dll->lock.n_down;
   out->thresh_down = rx->dll->lock.down_thresh;
   out->seg_norm    = rx->dll->seg_norm;
+  /* The look's samples: the aided window, one partial with the aid off,
+     or one epoch with the epoch look (--epoch-look). */
   const size_t win = dp_dll_get_symbol_window (rx->dll);
-  out->look        = (win ? win : 1) * (rx->tsamps / rx->segments);
+  out->look        = cl_unaided == 2 ? rx->tsamps
+                                     : (win ? win : 1) * (rx->tsamps / rx->segments);
   out->epochs      = np;
   out->p2          = np ? sp2 / (double)np : NAN;
   out->o2          = no ? so2 / (double)no : NAN;
@@ -1109,13 +1194,16 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
   float complex *x       = dp_xmalloc (PUSH * sizeof *x);
   float complex *syms    = dp_xmalloc (cap * sizeof *syms);
   dp_tlm_rec_t  *recs    = dp_xmalloc (4096 * sizeof *recs);
-  double         t_first = -1.0;
+  double          t_first      = -1.0;
+  dp_dll_state_t *unaided_seen = NULL;
   /* Lock on the clean scene, then settle. */
   for (size_t b = 0;; b++)
     {
       DP_REQUIRE (b < (size_t)(30.0 * DP_S415_FS / PUSH));
       DP_REQUIRE (dp_air_next (&air, x, PUSH));
       (void)dp_async_dsss_receiver_steps (rx, x, PUSH, syms, cap);
+      if (cl_unaided)
+        dp_s415_look (rx, &unaided_seen, cl_unaided);
       while (dp_tlm_read (tlm, 4096, recs, 4096) > 0)
         ;
       const double t = (double)(b + 1) * PUSH / DP_S415_FS;
@@ -1129,7 +1217,7 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
         }
     }
   dp_dll_state_t *d = rx->dll;
-  DP_REQUIRE (d->aid_nhyp > 0 && (size_t)pin <= d->aid_nhyp);
+  DP_REQUIRE (pin == 0 || (size_t)pin <= d->aid_nhyp);
   *up        = d->lock.up_thresh;
   *n_looks   = d->n_looks;
   *decisions = *hits    = 0;
@@ -1263,13 +1351,46 @@ code_lock_rows (const uint8_t *code, int check, int emit)
                 -20.0 * log10 (rho), 10.0 * log10 (no / npred),
                 10.0 * log10 (np / npred), q->o2);
     }
+  /* Aid off: the steer's look-back pick, how often it changes. */
+  if (cl_unaided)
+    {
+      if (emit)
+        printf ("# code_lock_lookback\nfc_ghz,esn0_db,window,seed,epochs,"
+                "switches,switch_frac,switches_per_s,hyp_switches,"
+                "hyp_settle_s\n");
+      else
+        printf ("code lock, aid off: the steer's look-back winner among the "
+                "epoch's one-epoch windows, how often it changes\n");
+      for (size_t r = 0; r < nr; r++)
+        {
+          const code_lock_t *c  = &rows[r].n;
+          const double       te = (double)DP_S415_SF / dp_s415_chip_rate (c->fc);
+          const double       fr
+              = c->lb_epochs ? (double)c->lb_switches / c->lb_epochs : NAN;
+          if (emit)
+            printf ("%.1f,%.1f,%s,%u,%zu,%zu,%.4f,%.1f,%zu,%.3f\n",
+                    c->fc / 1e9, c->esn0, wname[c->cw], rows[r].s,
+                    c->lb_epochs, c->lb_switches, fr, fr / te, c->switches,
+                    c->hyp_settle_s);
+          else
+            printf ("  %.1f GHz %4.1f dB %-11s seed %u: %zu of %zu epochs "
+                    "change winner (%.3f, %.0f a second)\n",
+                    c->fc / 1e9, c->esn0, wname[c->cw], rows[r].s,
+                    c->lb_switches, c->lb_epochs, fr, fr / te);
+        }
+    }
   /* The two sections below are the sweep's alone: a held run a hypothesis
      and 300 s of noise a cell are findings, not a regression point, and
      --check is what every push runs. */
-  if (check)
+  if (check || cl_unaided)
     {
-      free (rows);
-      return 0;
+      /* A comparison run (--unaided, --epoch-look, --aid-epoch) skips the
+         per-hypothesis pinning; its noise section follows below. */
+      if (check)
+        {
+          free (rows);
+          return 0;
+        }
     }
   /* The 4 dB cells lose less than their two terms predict (#3134), and
      the free look's timing hypothesis switches between neighbours many
@@ -1290,7 +1411,7 @@ code_lock_rows (const uint8_t *code, int check, int emit)
   for (size_t r = 0; r < nr; r++)
     {
       const code_lock_t *c = &rows[r].n, *q = &rows[r].c;
-      if (c->cw != 0 || !c->nhyp)
+      if (c->cw != 0 || !c->nhyp || cl_unaided)
         continue;
       code_lock_t  best = { 0 };
       const double secs = check ? CL_CHECK_S : CL_S;
@@ -1338,7 +1459,9 @@ code_lock_rows (const uint8_t *code, int check, int emit)
             "threshold, free and held, against det's 1e-3\n");
   for (size_t f = check ? N_FC - 1 : 0; f < N_FC; f++)
     for (size_t e = 0; e < (check ? 1u : N_ESN0); e++)
-      for (int pin = 0; pin < 2; pin++)
+      /* The held control needs the aid's hypotheses: none with it off. */
+      for (int pin = 0; pin < (cl_unaided == 1 || cl_unaided == 2 ? 1 : 2);
+           pin++)
         {
           size_t dec, hits, nl;
           double up;
@@ -1370,6 +1493,12 @@ main (int argc, char **argv)
     {
       check |= strcmp (argv[i], "--check") == 0;
       emit |= strcmp (argv[i], "--emit") == 0;
+      if (strcmp (argv[i], "--unaided") == 0)
+        cl_unaided = 1;
+      if (strcmp (argv[i], "--epoch-look") == 0)
+        cl_unaided = 2; /* the aid off, the Dll's epoch look on */
+      if (strcmp (argv[i], "--aid-epoch") == 0)
+        cl_unaided = 3; /* the aid kept, its window one epoch */
       if (strcmp (argv[i], "--telemetry") == 0 && i + 1 < argc)
         tlm_dir = argv[++i];
     }
@@ -1387,6 +1516,16 @@ main (int argc, char **argv)
       if (emit)
         DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock --telemetry");
       DP_TEST_END ("validate_async_dsss_receiver_lock --telemetry");
+    }
+
+  if (cl_unaided)
+    {
+      /* The comparison's sections alone: the code lock, its terms and the
+         noise (the pinned section has no hypothesis to hold). */
+      DP_REQUIRE (code_lock_rows (code, check, emit) == 0);
+      if (emit)
+        DP_TEST_EMIT_END ("validate_async_dsss_receiver_lock --unaided");
+      DP_TEST_END ("validate_async_dsss_receiver_lock --unaided");
     }
 
   const size_t want  = check ? 1 : SWEEP_TRIALS;

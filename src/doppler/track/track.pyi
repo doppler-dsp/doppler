@@ -1623,7 +1623,11 @@ class Dll:
         no external timing -- so it costs nothing at cold start and follows a
         slowly drifting symbol clock by itself. `L` is capped at four epochs of
         partials so a long symbol (a low data rate) does not ask for coherence
-        across more carrier than the wipe-off holds.
+        across more carrier than the wipe-off holds. The winning hypothesis is
+        read on the windows before each partial's, so a look's window never
+        elects itself on its own noise, and the look is the one window
+        det_threshold_noncoherent() sizes the threshold for (`test_dll_core.c`,
+        `aid_choice_does_not_see_its_window`; #3134).
 
         Parameters
         ----------
@@ -1650,6 +1654,69 @@ class Dll:
         >>> d.set_symbol_period(0.0)       # back to per-partial looks
         >>> d.symbol_window
         0
+
+        """
+
+    def set_epoch_look(self, on: int) -> None:
+        """With the symbol aid off, look once an epoch at the per-epoch
+        look-back's winning one-epoch window (the most prompt power among the
+        epoch's segments one-epoch windows, shifted by whole partials into the
+        previous epoch) instead of once a partial. The look's prompt is that
+        window's coherent sum and its noise term the offset tap over the
+        epoch's own partials; a winner reaching back into the last look's
+        partials is not a look. The look is the best of segments windows, so
+        its false-alarm rate is at most segments times one window's (the union
+        bound): size n_looks with detection.det_n_noncoh over one epoch's
+        samples at pfa / segments, and configure_lock at that pfa. A symbol
+        period, when set, takes precedence. Turning it on or off clears the
+        detector's running statistic. Raises ValueError when on is not 0 or 1,
+        or when segments is 1.
+
+        With the symbol aid off (no period set), the lock detector otherwise
+        looks once a partial. On, it looks once an epoch at the window the
+        per-epoch look-back already picks for the steer: the most prompt power
+        among the epoch's `segments` one-epoch windows, each shifted by whole
+        partials into the previous epoch, so one of them is free of the epoch's
+        data transition whenever a symbol is at least a code period. Its prompt
+        is that window's coherent sum; its noise term is the offset tap summed
+        over the epoch's own partials, the same length and no selection on it.
+        A winner that reaches back into the last look's partials is not a look
+        (no two looks share noise). With a symbol period set, the aid's look
+        takes precedence; the setting is kept and applies when the period is 0.
+
+        The look is the best of `segments` windows, so its false-alarm rate is
+        at most `segments` times one window's (the union bound): size the
+        detector with dp_dll_configure_lock() at `pfa / segments` over one
+        epoch's samples to hold `pfa` per decision.
+
+        Turning it on or off clears the detector's running statistic and
+        reference (the looks change scale); its configuration stays.
+
+        Parameters
+        ----------
+        on : int
+            1 for the epoch look, 0 for the per-partial look.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_epoch_look failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> code = (np.arange(63) * 7 % 2).astype(np.uint8)
+        >>> d = Dll(code, sps=2, segments=4)
+        >>> d.set_epoch_look(1)            # one look an epoch, the winner's
+        >>> d.symbol_window                # the symbol aid stays off
+        0
+        >>> try:
+        ...     Dll(code, sps=2, segments=1).set_epoch_look(1)
+        ... except ValueError:
+        ...     print("refused")
+        refused
 
         """
 

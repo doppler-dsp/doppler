@@ -4327,3 +4327,47 @@ the trials the fix counts as not settled.
     of watch instead of 240), and none comes back, as before.
 
 ______________________________________________________________________
+
+### 12.30 What was measured (2026-11-18) — the carrier window at the 415.1 floor, ruling 5's evidence
+
+The owner's ruling 5 makes the `code_period` carrier window the receiver's
+one mode. This is the measurement behind it, recorded once here; the
+certification's error-rate rows run `code_period` alone from now on.
+
+**The run.** `validate_async_dsss_receiver_ber --emit`, the spec rows: the
+415.1 scene with three emitters (−900, +100 and +1,100 Hz, 0, 300 and 600
+chips apart) into a pool of four receivers at 11 MSa/s, both windows on the
+same draws, 4 s a draw; 30 draws at 4 dB and 40 at 7 dB. Built at integ
+`d2e66eea9` plus the error-rate harness's move to 415.1, on swiftgo-ai9465,
+before the spec rows dropped the `partials` window. "Clean" is over the
+receivers that did not slip.
+
+| carrier | Es/N0 | window | held | slipped | clean SER | clean loss |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2.2 GHz | 4 dB | `partials` | 89 of 90 | 6 of 89 | 2.39e-2 | 1.08 dB |
+| 2.2 GHz | 4 dB | `code_period` | 88 of 90 | 3 of 88 | 2.24e-2 | 0.97 dB |
+| 2.2 GHz | 7 dB | `partials` | 120 of 120 | 0 | 2.28e-3 | 0.96 dB |
+| 2.2 GHz | 7 dB | `code_period` | 120 of 120 | 0 | 2.26e-3 | 0.95 dB |
+| 2.8 GHz | 4 dB | `partials` | 89 of 90 | **41 of 89** | 9.82e-2 | 4.79 dB |
+| 2.8 GHz | 4 dB | `code_period` | 90 of 90 | **10 of 90** | 2.53e-2 | 1.19 dB |
+| 2.8 GHz | 7 dB | `partials` | 120 of 120 | 0 | 2.44e-3 | 1.02 dB |
+| 2.8 GHz | 7 dB | `code_period` | 120 of 120 | 0 | 2.36e-3 | 0.99 dB |
+
+At 7 dB the windows read alike. At the 4 dB floor the `partials` window
+slips four times as often at 2.8 GHz, and its unslipped receivers still
+lose 4.8 dB. The `code_period` window is the better mode at the floor, and
+it does not slip-free either: 10 of 90 at 2.8 GHz and 3 of 88 at 2.2 GHz
+are the floor's open slip finding, classified in the error-rate report.
+
+### 12.31 What was measured (2026-11-18) — an epoch look's ρ is a conditional average, not a placement cost
+
+In the fixed-epoch comparison (#3134), the Dll's epoch look (the per-epoch look-back's winning window, `dp_dll_set_epoch_look()`) read ρ 0.8635 at 2.2 GHz on its clean draws. Against the replica's own 0.8671 that looks like a 0.04 dB placement cost. **It is not one, and is not to be cited as one.** The look is skipped whenever the winner reaches back into the last look's partials (the non-overlap rule, so no two looks share noise). In the Dll's C test that is 110 of 400 epochs. The skipped epochs are the ones where the transition forced the window back, so the terms section's ρ, the mean of the looks' |P|, averages only the better-placed epochs.
+
+The placement cost itself, derived for a window of K = 4 partials over a symbol of P = 4.19 partials (slack 0.19 of a partial), with transitions on half the boundaries:
+
+| placement | ρ derived | measured |
+| --- | --- | --- |
+| best of K per epoch, every epoch | 0.833 (0.35 dB) | 0.8635, conditional, see above |
+| the symbol aid's hypotheses, window K | 0.818 (0.50 dB), the bound `dp_s415_placement_amp()` sizes with | 0.842 to 0.847 |
+
+At 2.8 GHz (P = 5.33, slack 1.33 ≥ 1) a clean placement exists for every boundary, and both read the replica's ρ. The aid's measured ρ sits 0.010 to 0.015 above its bound. Two candidates for the gap are not demonstrated: the trapezoid replica's reading of a transition inside a partial, and the frame's code-only symbols (about 36% of boundaries carry a transition in this stimulus, against the 50% the bound assumes). The bound errs on the side of more loss, so a detector sized from it is not undersized.

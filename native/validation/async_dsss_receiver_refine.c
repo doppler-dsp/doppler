@@ -78,7 +78,7 @@
 static dp_async_dsss_receiver_state_t *
 rf_rx (const uint8_t *code, double fc, double cn0)
 {
-  return dp_s415_rx (code, fc, cn0, true, ASYNC_DSSS_RX_CARRIER_PARTIALS);
+  return dp_s415_rx (code, fc, cn0, true);
 }
 
 /* Feed `rx` from `air` until it leaves refining; the samples fed, or 0 if

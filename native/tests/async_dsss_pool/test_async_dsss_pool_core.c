@@ -53,7 +53,7 @@ _pool_span (const uint8_t *code, size_t n, double lost_confirm_s, int threads,
   return dp_async_dsss_pool_create (
       code, 1023, n, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
       1e-3, 0.9, span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
-      lost_confirm_s, false, 0.0, 0.0, threads, true, 0);
+      lost_confirm_s, false, 0.0, 0.0, threads, true);
 }
 
 static dp_async_dsss_pool_state_t *
@@ -120,7 +120,7 @@ _test_create_domain (void)
   DP_CHECK (dp_async_dsss_pool_create (
                 NULL, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2,
                 47.0, 1e-3, 0.9, 500.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
-                100000, 0.0, 0.0, false, 0.0, 0.0, 1, true, 0)
+                100000, 0.0, 0.0, false, 0.0, 0.0, 1, true)
             == NULL);
   dp_async_dsss_pool_state_t *p
       = _pool (code, ASYNC_DSSS_POOL_MAX_RECEIVERS, 0.0, 0);
@@ -132,7 +132,7 @@ _test_create_domain (void)
   p = dp_async_dsss_pool_create (
       code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 60.0,
       1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-      false, 0.0, 0.0, 0, true, 0);
+      false, 0.0, 0.0, 0, true);
   DP_REQUIRE (p != NULL && p->rx[0]->acq->search->window_bins > 1);
   for (size_t i = 0; i < p->n_receivers; i++)
     DP_CHECK (dp_async_dsss_receiver_get_threads (p->rx[i]) == 1);
@@ -172,7 +172,7 @@ _test_create_domain (void)
       dp_async_dsss_pool_state_t *q = dp_async_dsss_pool_create (
           code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 60.0,
           1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0,
-          0.0, false, 0.0, 0.0, 2, true, 0);
+          0.0, false, 0.0, 0.0, 2, true);
       DP_REQUIRE (q != NULL);
       DP_REQUIRE (dp_async_dsss_pool_set_state (q, blob) == DP_OK);
       DP_CHECK (dp_async_dsss_receiver_get_threads (q->search) == 2);
@@ -271,11 +271,10 @@ _test_fractional_period_phase (double ratio)
   const double                fs = POOL_FS * ratio;
   dp_async_dsss_pool_state_t *p  = dp_async_dsss_pool_create (
       code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1, true,
-      0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1, true);
   dp_async_dsss_receiver_state_t *q = dp_async_dsss_receiver_create (
       code, 1023, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true, 0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
   DP_REQUIRE (p && q);
   (void)dp_async_dsss_receiver_set_search_only (q, 2);
   const size_t blk   = (size_t)ceil (1023.0 * POOL_SPC * ratio);
@@ -427,10 +426,10 @@ _zone_run (const uint8_t *code, double ratio, double span, int deep,
   const double co = deep ? 450.0 / POOL_RS : 0.0, dr = deep ? 500.0 : 0.0;
   dp_async_dsss_pool_state_t *pn = dp_async_dsss_pool_create (
       code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, span, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1, true, 0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1, true);
   dp_async_dsss_pool_state_t *po = dp_async_dsss_pool_create (
       code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, span, 4, 8, 0,
-      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1, true, 0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, co, dr, 1, true);
   DP_REQUIRE (pn && po);
   DP_REQUIRE (_zone_today (po) == 0);
   const size_t blk  = (size_t)ceil (1023.0 * POOL_SPC * ratio);
@@ -555,7 +554,7 @@ _test_zone_lists_the_weaker (void)
       r[k] = dp_async_dsss_receiver_create (
           code, 1023, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9, 5000.0, 4,
           8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false,
-          450.0 / POOL_RS, 500.0, true, 0);
+          450.0 / POOL_RS, 500.0, true);
       DP_REQUIRE (r[k] != NULL);
       (void)dp_async_dsss_receiver_set_search_only (r[k], 4);
     }
@@ -660,7 +659,7 @@ _pair_first_two (const uint8_t *code, size_t b_pre, double half_df,
       r[k] = dp_async_dsss_receiver_create (
           code, 1023, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9,
           half_df + 5e3, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, fc, 0.0,
-          false, 450.0 / POOL_RS, 500.0, true, 0);
+          false, 450.0 / POOL_RS, 500.0, true);
       DP_REQUIRE (r[k] != NULL);
       (void)dp_async_dsss_receiver_set_search_only (r[k], 2);
     }
@@ -868,8 +867,7 @@ _test_zone_seeds_no_ghost (void)
         dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
             code, 1023, 3, POOL_CR, POOL_RS, POOL_FS, 2, 47.0, 1e-3, 0.9,
             5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-            false, deep ? 450.0 / POOL_RS : 0.0, deep ? 500.0 : 0.0, 1, true,
-            0);
+            false, deep ? 450.0 / POOL_RS : 0.0, deep ? 500.0 : 0.0, 1, true);
         DP_REQUIRE (p != NULL);
         const size_t blk    = 1023 * POOL_SPC;
         int          others = 0;
@@ -1076,7 +1074,7 @@ _test_lost_is_released (void)
   dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
       CODE7, 7, 1, 1.0e6, sym_rate, 4.0 * 1.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4,
       8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, confirm_s, false, 0.0,
-      0.0, 1, true, 0);
+      0.0, 1, true);
   DP_REQUIRE (p != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_seed (p->rx[0], 0.0, 0.0, cn0) == DP_OK);
   const size_t te = sf * spc;
@@ -1562,7 +1560,7 @@ _ghost_pool (const uint8_t *code)
   return dp_async_dsss_pool_create (
       code, 1023, 2, POOL_CR, POOL_RS, POOL_CR * (double)POOL_SPC, 2, 47.0,
       1e-3, 0.9, 5000.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
-      false, 0.0, 0.0, 1, true, 0);
+      false, 0.0, 0.0, 1, true);
 }
 
 /* The ghost scenes at the 415.1-B-1 point (async-dsss-receiver.md §8): 11
@@ -1609,7 +1607,7 @@ static dp_async_dsss_pool_state_t *
 _g415_pool (const uint8_t *code, double lost_s)
 {
   return dp_s415_pool (code, G415_FC, 2, dp_s415_cn0 (DP_S415_FLOOR_DB),
-                       lost_s, 1, 0);
+                       lost_s, 1);
 }
 
 static int
@@ -1977,7 +1975,7 @@ _test_refine_passes_through (void)
         dp_async_dsss_pool_state_t *p = dp_async_dsss_pool_create (
             CODE7, 7, 3, 1.0e6, 35714.29, 3.0e6, 2, 58.0, 1e-2, 0.9, 500.0, 4,
             8, 0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false,
-            windows[w], 0.0, 1, refine, 0);
+            windows[w], 0.0, 1, refine);
         const int deep = windows[w] > 0.0;
         DP_CHECK ((p != NULL) == (refine || deep));
         if (!p)

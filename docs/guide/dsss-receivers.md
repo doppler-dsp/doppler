@@ -262,14 +262,11 @@ least 25 code periods deep: set `code_only_s` (and `doppler_rate`) so
 takes the same flag for all its receivers. The name is a placeholder
 ([async-dsss-receiver](../design/async-dsss-receiver.md) §4.4).
 
-**`carrier_window`** decides what the carrier loop ahead of the code loop
-measures its error over, once a code period. `"partials"`, the default,
-squares each of the period's partials and sums the squares.
-`"code_period"` squares one coherent sum over the code-period window the
-code loop's look-back picks, the window a data transition does not split.
-It needs a symbol of at least a code period, or the receiver refuses to
-build. The pool takes the same setting for all its receivers. The name is
-a placeholder (§4.4).
+The carrier loop ahead of the code loop measures its error, once a code
+period, over one coherent sum: the code-period window the code loop's
+look-back picks, the window a data transition does not split. So a symbol
+must be at least a code period, or the receiver refuses to build
+([async-dsss-receiver](../design/async-dsss-receiver.md) §4.4).
 
 ## `AsyncDsssPool` — N receivers, one search
 

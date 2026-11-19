@@ -276,10 +276,10 @@ Two things follow, from the code's formulas:
 **Above one symbol a code period**, a symbol rate over the epoch rate
 (3,142 to 3,999 sym/s across the band), no code-period window is free of a
 transition, and the code loop's symbol-scale look shrinks toward one
-partial. `create()` accepts such a rate (the chain asks only that the
-symbol rate not exceed the chip rate), `steps_max_out()` is not a bound
+partial. `steps_max_out()` would not be a bound
 there ([#2469](https://github.com/doppler-dsp/doppler/issues/2469)), and
-the `code_period` carrier window of §4.4 is refused or warned there.
+`create()` refuses it, because the carrier loop's code-period window (§4.4)
+needs a symbol of at least a code period.
 
 ### 1.6 Code and carrier are coherent; the data is not
 
@@ -1418,13 +1418,23 @@ only divides it into partials. With no data the despread signal is a
 tone, so the gap holds the loop on any window; the data is where the
 window matters.
 
-Both knobs are built; their names are placeholders (§1.7). Every default is the receiver as built, so a caller
-who sets none gets the as-built behavior bit for bit.
+The carrier loop forms its error, once a code period, from one coherent
+sum: the prompt over the code-period window the Dll's look-back picks
+(find_max_power's winner, `dp_dll_get_window_sum()`), squared and halved.
+The look-back picks that window every period, whether or not the
+symbol-period aid steers the code loop. It holds only while a symbol is at
+least a code period (`symbol_rate · code_len ≤ chip_rate`), so a window
+free of transitions exists. The specification's case is one (§1.5), and
+create refuses a shorter symbol. `K` is the existing `segments`, default 4
+([#3095](https://github.com/doppler-dsp/doppler/issues/3095) on 8). The
+owner's ruling 5 makes this the one mode. The measurement it rests on, the
+partials window against this one at the 4 dB floor, is
+[the record](async-dsss-receiver-measurements.md), §12.30.
 
-| knob (constructor) | type | default, as built                                                   | the other     | what it switches                                                                                                                                                 |
-| ------------------ | ---- | ------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `refine`           | bool | true                                                                | false         | false: the search's Doppler is the hand-over and the refine's dwell is not spent (tracking starts at the seed's sample); the `refine_*` settings are then unused |
-| `carrier_window`   | enum | `partials`: each partial squared, the squares summed over the block | `code_period` | the carrier loop's error from one coherent sum over the code-period window find_max_power picks, squared and halved                                              |
+`refine` is a constructor knob (bool, default true); its name is a
+placeholder (§1.7). False skips the refine: the search's Doppler is the
+hand-over, the refine's dwell is not spent, tracking starts at the seed's
+sample, and the `refine_*` settings are unused.
 
 `refine` false skips the refining state: a seed builds the tracking chain
 at the seed's own sample, from its code phase and Doppler, and the
@@ -1438,20 +1448,6 @@ the pull-in `bn · chip_rate / (2 · code_len)`, so the rule is `D ≥ 1 / bn`,
 (`ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`). Create refuses `refine` false below
 it, and `set_state()` refuses a blob in the refining state, a state such a
 receiver cannot reach.
-
-`carrier_window` `code_period` forms the carrier loop's error, once a code
-period, from one coherent sum: the prompt over the code-period window the
-Dll's look-back picks (find_max_power's winner, `dp_dll_get_window_sum()`),
-squared and halved, in place of each partial squared. The look-back picks
-that window every period, the symbol-period aid on or off, and the knob
-changes nothing the aid does. It holds only while a symbol is at least a
-code period (`symbol_rate · code_len ≤ chip_rate`), so a window free of
-transitions exists; the specification's case is (§1.5), and create refuses
-`code_period` outside it. The pool passes it to every receiver. The owner
-rules `code_period` the mode for this use case; the default stays
-`partials` until the use-case cells score it. `K` is the
-existing `segments`, default 4
-([#3095](https://github.com/doppler-dsp/doppler/issues/3095) on 8).
 
 ### 4.5 Open findings
 
@@ -1624,9 +1620,8 @@ minimum-rms rule sized at 400 Hz/s, is [the record](async-dsss-receiver-measurem
 
 - **Update:** once a code period, `T = code_len / chip_rate`: 333.3, 318.2
     and 250.0 µs.
-- **Detector:** `K` partial sums, each squared and the squares summed.
-    `carrier_window` `partials` has `K = segments`, and `code_period` has
-    `K = 1` on a transition-free window. The error is
+- **Detector:** one coherent sum over the code-period window, `K = 1`
+    on a transition-free window, squared. The error is
     `e = sin(½·arg Σ)`, unit slope at high SNR. It has a period of π and
     folds at ±π/2.
 - **Filter:** dp_loop_filter at `t = 1`, `ωn·T = 8ζ·bn / (4ζ² + 1)`

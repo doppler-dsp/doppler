@@ -551,7 +551,7 @@ add_test(NAME validate_async_dsss_receiver_pullin
 # the probes it reads cannot rot; `--check` removes the passing capture.
 add_test(NAME validate_async_dsss_receiver_pullin_telemetry
          COMMAND validate_async_dsss_receiver_pullin --telemetry
-                 ${CMAKE_CURRENT_BINARY_DIR} --draw 2.8,10,0,0,1 --secs 2
+                 ${CMAKE_CURRENT_BINARY_DIR} --draw 2.8,10,0,1 --secs 2
                  --from 1 --to 1.2 --check)
 
 # The pool's ghosts at the 415.1-B-1 point: a forced sidelobe ghost at k

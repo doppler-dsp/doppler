@@ -41,10 +41,9 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 static dp_async_dsss_receiver_state_t *
 make_rx (void)
 {
-  return dp_async_dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, 4.0 * 1.0e6,
-                                        2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0,
-                                        0.5, 4, 14.0, 32, 8, false, 100000,
-                                        0.0, 0.0, false, 0.0, 0.0, true, 0);
+  return dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4.0 * 1.0e6, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8,
+      0, 0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
 }
 
 static void

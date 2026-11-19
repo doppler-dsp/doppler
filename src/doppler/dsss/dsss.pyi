@@ -2444,8 +2444,6 @@ class AsyncDsssReceiver:
         configured outside it (a one-epoch search, D = 1, among them) is
         refused, and a blob in the refining state is refused by set_state().
         The name is a placeholder (async-dsss-receiver.md §4.4).
-    carrier_window : Literal["partials", "code_period"], default "partials"
-        One of ``"partials"``, ``"code_period"``.
 
     Raises
     ------
@@ -2460,8 +2458,7 @@ class AsyncDsssReceiver:
         partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576;
         and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a
         finite doppler_uncertainty >= 0; refine false needs a search at least
-        25 code periods deep; carrier_window code_period needs a symbol of at
-        least a code period)``.
+        25 code periods deep; a symbol of at least a code period)``.
 
     Examples
     --------
@@ -2521,7 +2518,6 @@ class AsyncDsssReceiver:
         code_only_s: float = 0.0,
         doppler_rate: float = 0.0,
         refine: bool = True,
-        carrier_window: Literal["partials", "code_period"] = "partials",
     ) -> None: ...
     def steps(
         self,
@@ -3636,8 +3632,6 @@ class AsyncDsssPool:
         The receivers' own refine: false hands a seed straight to tracking, and
         is refused, as the receiver refuses it, when the search's depth is
         under 25 (dp_async_dsss_receiver_create()). Default true.
-    carrier_window : Literal["partials", "code_period"], default "partials"
-        One of ``"partials"``, ``"code_period"``.
 
     Raises
     ------
@@ -3651,8 +3645,8 @@ class AsyncDsssPool:
         one input sample with reacquire), refine_samples_per_symbol >= 1,
         refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite
         cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
-        refine false needs a search at least 25 code periods deep;
-        carrier_window code_period needs a symbol of at least a code period)``.
+        refine false needs a search at least 25 code periods deep; a symbol of
+        at least a code period)``.
 
     Examples
     --------
@@ -3701,7 +3695,6 @@ class AsyncDsssPool:
         doppler_rate: float = 0.0,
         threads: int = 0,
         refine: bool = True,
-        carrier_window: Literal["partials", "code_period"] = "partials",
     ) -> None: ...
     def push(self, x: npt.NDArray[np.complex64]) -> int:
         """Step every receiver on one block, running the controller at every

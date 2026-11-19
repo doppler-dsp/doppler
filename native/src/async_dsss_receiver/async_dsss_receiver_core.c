@@ -835,27 +835,19 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
   return x_len;
 }
 
-/* One carrier-wiped code period through dll -> ONE costas_update() call per
- * period, driven by a NON-DATA-AIDED (squaring) carrier discriminator over
- * that period's emitted coherent-I&D partials. A code period spans ~0.9 data
- * symbols at the specification's async ratio, so a data transition lands
- * inside nearly (docs/design/async-dsss-receiver.md) every period; the earlier
- * decision-directed combine (sign-align each partial by its own real part,
- * then sum) was corrupted by exactly those transitions -- direct measurement
- * showed a +/-57deg discriminator that averaged to zero, so the loop never
- * tracked and the whole carrier burden silently fell to the post-despread
- * MpskReceiver loop (which then held the Type-II ramp phase error). Squaring
- * removes the +/-1 BPSK data with NO per-partial sign decision (dll_out[i]^2 =
- * A^2 exp(j2phi) regardless of the data bit); a partial straddling a
- * transition merely loses amplitude, not phase. This is the SAME
- * non-data-aided principle the downstream MpskReceiver carrier loop already
- * uses, applied PRE-despread on the transition-free windows so despreading
- * stays coherent (no residual carrier rotating within the correlation) -- the
- * "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track. The
- * dll_out partials are the actual despread symbol stream this object also
- * hands to RateConverter/mpsk_ receiver, so this squaring lives here in the
- * consumer, not in dll_core.c. Writes emitted partials into dll_out (capacity
- * max_out); returns count. */
+/* One carrier-wiped code period through the Dll -> ONE costas_update() per
+ * period, driven by a NON-DATA-AIDED (squaring) discriminator on the
+ * period's code-period window (the coherent sum the look-back picked,
+ * dp_dll_get_window_sum()). A data transition lands inside nearly every
+ * period, and a decision-directed combine was corrupted by exactly those
+ * transitions (a +/-57deg discriminator that averaged to zero, so the
+ * whole carrier burden fell to the post-despread MpskReceiver loop);
+ * squaring a transition-free window removes the data with no sign
+ * decision. It runs PRE-despread, so despreading stays coherent: the
+ * "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track.
+ * The Dll's emitted partials are the despread symbol stream this object
+ * hands to RateConverter/MpskReceiver; they go to dll_out (capacity
+ * max_out), and the count is returned. */
 static size_t
 adr_track_period (dp_async_dsss_receiver_state_t *s,
                   const float _Complex *period, float _Complex *dll_out,
@@ -911,41 +903,22 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
       = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
   if (n_out > 0 && !car_coast)
     {
-      /* NON-DATA-AIDED carrier discriminator on the despread coherent-I&D
-       * windows. Each emitted partial is dll_out[i] = A * d * exp(j*phi),
-       * d = +/-1 BPSK data, phi = residual carrier phase. Squaring removes
-       * the data (d^2 = 1) with NO per-partial sign DECISION -- the failure
-       * mode of the old decision-directed sum, which at the specification's
-       * async ratio
-       * (~0.9 symbols/code period) straddles a data transition almost every
-       * period, giving a garbage +/-57deg discriminator that averages to
-       * zero so the loop never tracks. The dp_dll_steps() windows are short
-       * (dp_dll_lookback_segments oversampling, the same transition-free I&D
-       * the refine PSDMF consumes): a window entirely within one symbol
-       * squares cleanly; one straddling a transition merely loses amplitude,
-       * not phase -- exactly why NDA is transition-robust where the sign-wipe
-       * is not. Sum the squares and halve the angle for the carrier phase (mod
-       * pi, the harmless BPSK sign ambiguity). Feed it to the existing Costas
-       * loop via a unit phasor (Re = cos(phi) >= 0, so its own data- wipe
-       * never flips it, and its discriminator reads sin(phi)). This is the
-       * same NDA principle the downstream MpskReceiver carrier loop uses,
-       * applied PRE-despread so despreading stays coherent (no residual
-       * carrier rotating within the correlation) instead of leaving the whole
-       * carrier burden to the post-despread loop. */
-      /* The error's window (create()'s carrier_window): each partial
-         squared and the squares summed, or the one coherent sum over the
-         code-period window the look-back picked this period, squared. */
-      float _Complex sq = 0.0f;
-      if (s->carrier_window == ASYNC_DSSS_RX_CARRIER_CODE_PERIOD)
-        {
-          const float _Complex w = dp_dll_get_window_sum (s->dll);
-          sq                     = w * w;
-        }
-      else
-        for (size_t i = 0; i < n_out; i++)
-          sq += dll_out[i] * dll_out[i];
-      double phi       = 0.5 * atan2 (cimag (sq), creal (sq));
-      float _Complex P = (float)cos (phi) + (float)sin (phi) * I;
+      /* NON-DATA-AIDED carrier discriminator over the code period: the
+         one coherent sum over the code-period window the Dll's look-back
+         picked this period (dp_dll_get_window_sum()), a transition-free
+         window whenever a symbol is at least a code period, which create()
+         requires. Squaring removes the BPSK data (d^2 = 1) with no sign
+         decision; half the squared sum's angle is the carrier phase (mod
+         pi, the harmless BPSK ambiguity). It reaches the Costas loop as a
+         unit phasor (Re = cos(phi) >= 0, so its own data wipe never flips
+         it, and its discriminator reads sin(phi)): the NDA principle the
+         downstream MpskReceiver carrier loop uses, applied PRE-despread so
+         despreading stays coherent instead of leaving the whole carrier
+         burden to the post-despread loop. */
+      const float _Complex w  = dp_dll_get_window_sum (s->dll);
+      const float _Complex sq = w * w;
+      double phi              = 0.5 * atan2 (cimag (sq), creal (sq));
+      float _Complex P        = (float)cos (phi) + (float)sin (phi) * I;
       costas_update (&s->car, P);
       /* costas_update() emits nothing: the composing caller flushes
          the loop's probes once per update (costas_core.h). */
@@ -1295,7 +1268,7 @@ dp_async_dsss_receiver_create (
     double refine_design_margin_db, size_t refine_n_fft,
     size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
     double carrier_freq_hz, double lost_confirm_s, bool reacquire,
-    double code_only_s, double doppler_rate, bool refine, int carrier_window)
+    double code_only_s, double doppler_rate, bool refine)
 {
   /* symbol_rate becomes the carrier estimator's sample rate, which PSD
      refuses unless finite: refused here, at create, because that estimator
@@ -1338,12 +1311,10 @@ dp_async_dsss_receiver_create (
      refused here, at create (doppler#2103). */
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0))
     return NULL;
-  /* The code-period window holds only while a symbol is at least a code
-     period: then some window of one period is free of transitions, which
-     the look-back finds (dp_dll_get_window_sum()). */
-  if (carrier_window != ASYNC_DSSS_RX_CARRIER_PARTIALS
-      && !(carrier_window == ASYNC_DSSS_RX_CARRIER_CODE_PERIOD
-           && symbol_rate * (double)code_len <= chip_rate))
+  /* The carrier error's code-period window holds only while a symbol is at
+     least a code period: then some window of one period is free of
+     transitions, which the look-back finds (dp_dll_get_window_sum()). */
+  if (!(symbol_rate * (double)code_len <= chip_rate))
     return NULL;
   /* The code-only window in whole epochs, design async-dsss-receiver.md §2.3:
      floor(W * chip_rate / sf) - 1 epochs fit at ANY chip phase, and under
@@ -1496,7 +1467,6 @@ dp_async_dsss_receiver_create (
   obj->lost_confirm_s       = lost_confirm_s;
   obj->reacquire            = reacquire;
   obj->refine               = refine;
-  obj->carrier_window       = carrier_window;
   obj->lost_confirm_samples = lost_confirm_samples;
   obj->code_only_s          = code_only_s;
   obj->doppler_rate         = doppler_rate;

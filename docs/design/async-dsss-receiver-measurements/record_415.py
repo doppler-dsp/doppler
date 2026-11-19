@@ -27,14 +27,12 @@ and the run's own baseline columns.
 
 Usage (development, until the record run is taken)::
 
-    python record_415.py shape DIR OUT FC ESN0 RATE CW
-    python record_415.py windows DIR OUT FC ESN0 RATE
+    python record_415.py shape DIR OUT FC ESN0 RATE
     python record_415.py handover DIR OUT
     python record_415.py bn DIR [DIR ...] OUT.md
 
 ``DIR`` holds the shard outputs ``s*.csv`` of one slice of the sweep;
-``OUT`` receives the cell's figures and its attribution table; ``windows``
-draws one cell under both carrier windows on shared axes.
+``OUT`` receives the cell's figures and its attribution table.
 """
 
 from __future__ import annotations
@@ -56,7 +54,7 @@ VALIDATOR = (
 )
 
 #: A cell: carrier GHz, Es/N0 dB, ramp magnitude Hz/s, carrier window.
-Cell = tuple[str, str, str, str]
+Cell = tuple[str, str, str]
 #: A run's sections, by name, each its rows.
 Data = dict[str, list[dict[str, str]]]
 #: One section's rows.
@@ -120,7 +118,6 @@ def merge_shards(texts: list[str]) -> dict[str, list[dict[str, str]]]:
                     "fc_ghz",
                     "esn0_db",
                     "rate_hz_s",
-                    "carrier_window",
                     "draws",
                     "quantity",
                     "lo",
@@ -142,20 +139,19 @@ def cell_of(r: dict[str, str]) -> Cell:
         f"{float(r['fc_ghz']):.1f}",
         f"{float(r['esn0_db']):.1f}",
         f"{abs(float(r['rate_hz_s'])):.0f}",
-        r["carrier_window"],
     )
 
 
 def cell_label(cell: Cell, n: int, false: int = 0) -> str:
     """What every figure states: its cell, its draws (and the false locks
     left out of it), the front end."""
-    fc, es, rate, cw = cell
+    fc, es, rate = cell
     dyn = "static" if float(rate) == 0 else f"+/-{rate} Hz/s"
     fl = f" ({false} false lock(s) apart)" if false else ""
     if OFF_SHARE.get(cell):
         fl += f"; {OFF_SHARE[cell]} of tracking off the emitter's code, apart"
     return (
-        f"{fc} GHz, {es} dB Es/N0, {dyn}, {cw} window; {n} draws{fl}; "
+        f"{fc} GHz, {es} dB Es/N0, {dyn}; {n} draws{fl}; "
         "front end spc 4, C/N0 at the antenna"
     )
 
@@ -507,7 +503,7 @@ def trace(
     the code-only windows shaded. ``held``: the first change of symbol lock
     with no fold crossing in the second before -- the pre-despread loop
     held, so the change is the demodulator's or its statistic's."""
-    fc, es, rate, cw = cell
+    fc, es, rate = cell
     order = sorted(
         (
             t
@@ -526,7 +522,6 @@ def trace(
     first = (held_ones if held else order)[:1] or order[:1]
     seed = int(first[0]["seed"]) if first else 1
     t0 = float(first[0]["t_s"]) if first else 17.0
-    cwn = 1 if cw == "code_period" else 0
     cap_dir = ROOT / "build/pullin-captures"
     cap_dir.mkdir(parents=True, exist_ok=True)
     frm, to = max(t0 - 3.0, 0.0), t0 + 1.0
@@ -536,7 +531,7 @@ def trace(
             "--telemetry",
             str(cap_dir),
             "--draw",
-            f"{fc},{es},{rate},{cwn},{seed}",
+            f"{fc},{es},{rate},{seed}",
             "--from",
             f"{frm}",
             "--to",
@@ -552,7 +547,7 @@ def trace(
         raise SystemExit("the capture run failed")
     stem = (
         f"pullin_{float(fc):.1f}GHz_{float(es):.0f}dB_{float(rate):.0f}Hzs_"
-        f"{cw}_s{seed}" + (f"_bn{bn:g}" if bn is not None else "")
+        f"s{seed}" + (f"_bn{bn:g}" if bn is not None else "")
     )
     tlm = cap_dir / f"{stem}.tlm"
     rules = {
@@ -627,199 +622,6 @@ def trace(
     if plot_capture.main(args):
         raise SystemExit("the plot failed")
     return png
-
-
-#: The two carrier windows, each its color on a comparison figure.
-WINDOWS = (("partials", "C0"), ("code_period", "C1"))
-
-
-def fig_windows(
-    data: Data, cells: list[Cell], rows: dict[Cell, Rows], out: Path
-) -> None:
-    """One cell under both carrier windows on shared axes: the carrier's
-    true error against each window's own design lines (``base_lag_deg``,
-    ``base_sd_deg``) and the fold, the carrier and symbol lock statistics
-    against their rules, and the demodulator's carrier detector. Each is
-    the fraction of the window's on-emitter blocks, so draws that lose
-    blocks to a false lock do not shrink a curve; the counts are in the
-    legend."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, axes = plt.subplots(1, 4, figsize=(17, 3.8))
-    color = dict(WINDOWS)
-    for cell in cells:
-        cw, c = cell[3], color[cell[3]]
-        rs = rows[cell]
-        nfl = sum(r["false_lock"] != "0" for r in rs)
-        ok = [r for r in rs if r["false_lock"] == "0"]
-        cross = sum(
-            int(r["car_slips"]) for r in ok if r["t_sym_s"] != "nan"
-        )  # in a link that locked: fold_cell()
-        lag = float(ok[0]["base_lag_deg"])
-        sd = float(ok[0]["base_sd_deg"])
-        for ax, q in zip(
-            axes, ("car.err_deg", "car.lock", "sym.lock", "demod.car.e")
-        ):
-            edges, counts, under, over = hist_of(data, cell, q)
-            tot = sum(counts) + under + over
-            lab = f"{cw}: {tot} blocks"
-            if q == "car.err_deg":
-                lab += f", {cross} fold crossings, {nfl} false lock(s)"
-            elif q in dict(LOCK_STATS):
-                down = float(
-                    rule_of(data, cell, dict(LOCK_STATS)[q])["down_thresh"]
-                )
-                below = sum(
-                    k for k, lo in zip(counts, edges) if lo + 1e-12 < down
-                ) + (under if edges[0] < down else 0)
-                lab += f", {below / tot:.1%} under down"
-            ax.stairs(
-                [k / tot for k in counts], edges, color=c, lw=1.2, label=lab
-            )
-            if q == "car.err_deg":
-                for x, ls, txt in (
-                    (sd, ":", f"{cw} design sd {sd:.1f}"),
-                    (-sd, ":", None),
-                    (lag, "--", f"design |lag| {lag:.2f}"),
-                    (-lag, "--", None),
-                ):
-                    ax.axvline(x, color=c, ls=ls, lw=0.8, label=txt)
-    axes[0].axvline(FOLD_DEG, color="C3", lw=0.8, label="fold")
-    axes[0].axvline(-FOLD_DEG, color="C3", lw=0.8)
-    axes[0].set_title("carrier error x sign(ramp), deg", fontsize=8)
-    for ax, (q, name) in zip(
-        axes[1:3], (("car.lock", "car"), ("sym.lock", "sym"))
-    ):
-        r = rule_of(data, cells[0], name)
-        up, down = float(r["up_thresh"]), float(r["down_thresh"])
-        ax.axvline(up, color="C2", ls="--", lw=1, label=f"up {up:g}")
-        ax.axvline(down, color="C3", ls=":", lw=1, label=f"down {down:g}")
-        ax.set_title(f"{q} against its rule (data blocks)", fontsize=8)
-    axes[3].set_title(
-        "demod.car.e: Im((z/|z|)^2), bounded by 1 (no truth)", fontsize=8
-    )
-    for ax in axes:
-        ax.set_yscale("log")
-        ax.set_ylabel("fraction of blocks", fontsize=7)
-        ax.legend(fontsize=6)
-        ax.tick_params(labelsize=7)
-    fc, es, rate, _ = cells[0]
-    n = len(rows[cells[0]])
-    fig.suptitle(
-        f"Carrier window, partials beside code_period -- {fc} GHz, {es} dB "
-        f"Es/N0, +/-{rate} Hz/s; {n} draws each (same seeds); false locks "
-        "and blocks off the emitter's code apart; front end spc 4, C/N0 at "
-        "the antenna",
-        fontsize=9,
-    )
-    fig.tight_layout()
-    fig.savefig(out, dpi=110)
-    plt.close(fig)
-
-
-def windows(argv: list[str]) -> int:
-    """One cell under both carrier windows, from a development run's
-    shards: the side-by-side figure, the two attribution tables, and
-    every change of the code-lock flag with the code loop's error."""
-    d, out = Path(argv[0]), Path(argv[1])
-    fc, es, rate = argv[2:5]
-    data = merge_shards(
-        [p.read_text(encoding="utf-8") for p in sorted(d.glob("s*.csv"))]
-    )
-    key = (f"{float(fc):.1f}", f"{float(es):.1f}", f"{abs(float(rate)):.0f}")
-    cells = [(*key, cw) for cw, _ in WINDOWS]
-    rows = {c: [r for r in data["pullin"] if cell_of(r) == c] for c in cells}
-    out.mkdir(parents=True, exist_ok=True)
-    fig_windows(data, cells, rows, out / "windows.png")
-    sys.path.insert(0, str(DATA.parent))
-    from _record_blocks import table
-
-    summary = []
-    for c in cells:
-        rs = rows[c]
-        ok = [r for r in rs if r["false_lock"] == "0"]
-        summary.append(
-            [
-                c[3],
-                str(len(rs)),
-                str(len(rs) - len(ok)),
-                str(sum(r["works"] == "1" for r in rs)),
-                fold_cell(ok),
-                str(sum(int(r["sym_tog"]) for r in ok)),
-                str(sum(int(r["code_tog"]) for r in ok)),
-                f"{float(ok[0]['base_sd_deg']):.1f}",
-                baseline(ok),
-            ]
-        )
-    text = [
-        "Carrier window, partials beside code_period: "
-        + cell_label(cells[0], len(rows[cells[0]])).replace(
-            ", partials window;", ", each window;"
-        )
-        + " (same seeds).\n",
-        table(
-            (
-                "window",
-                "draws",
-                "false locks",
-                "works",
-                "fold crossings (not false locks)",
-                "symbol-lock changes",
-                "code-lock changes",
-                "design sd, deg",
-                "settled blocks with a crossing in the second before",
-            ),
-            summary,
-        ),
-    ]
-    for c in cells:
-        text += [
-            f"\n## {c[3]}: changes after sustained lock\n",
-            baselines([r for r in rows[c] if r["false_lock"] == "0"]) + "\n",
-            table(ATTR_HEAD, attribution(data["transition"], c)),
-        ]
-    code = [
-        [
-            t["carrier_window"],
-            t["seed"],
-            "up" if t["up"] == "1" else "down",
-            t["t_s"],
-            f"{float(t['stat']):.2f}",
-            t["down_thresh"],
-            t["code_max_chip"],
-            t["car_max_deg"],
-            t["car_slips"],
-            "off the emitter"
-            if t["false_lock"] != "0" or t["on_code"] != "1"
-            else "on",
-        ]
-        for c in cells
-        for t in data["transition"]
-        if cell_of(t) == c and t["flag"] == "code"
-    ]
-    text += [
-        "\n## Every code-lock change\n",
-        table(
-            (
-                "window",
-                "seed",
-                "change",
-                "t, s",
-                "code.lock",
-                "rule (up = down)",
-                "largest code error, 1 s before, chip",
-                "largest carrier error, 1 s before, deg",
-                "fold crossings, 1 s before",
-                "draw",
-            ),
-            code,
-        ),
-    ]
-    (out / "windows.md").write_text("\n".join(text) + "\n", encoding="utf-8")
-    return 0
 
 
 HEADER = (
@@ -977,33 +779,17 @@ def fig_handover(rows: Rows, cell: Cell, out: Path) -> None:
 def handover(argv: list[str]) -> int:
     """Every cell's acquisition-to-hand-over set, from a development run's
     shards: per cell a figure, and one table of median / 90th percentile /
-    worst. The search and the refine run before the carrier window is
-    used, so a draw's two windows hand over identically; that is checked,
-    and the code-period rows are drawn."""
+    worst."""
     d, out = Path(argv[0]), Path(argv[1])
     data = merge_shards(
         [p.read_text(encoding="utf-8") for p in sorted(d.glob("s*.csv"))]
     )
-    keys = ("seed_err_hz", "seed_code_chip", "ho_err_hz", "ho_code_chip")
-    by: dict[tuple[str, str, str, str], dict[str, str]] = {}
-    for r in data["pullin"]:
-        k = (r["fc_ghz"], r["esn0_db"], r["rate_hz_s"], r["seed"])
-        v = {x: r[x] for x in (*keys, "ho_src", "ho_age_s")}
-        if k in by and by[k] != v:
-            raise SystemExit(f"the two windows hand over apart at {k}")
-        by[k] = v
     out.mkdir(parents=True, exist_ok=True)
-    cells = sorted(
-        {
-            cell_of(r)
-            for r in data["pullin"]
-            if r["carrier_window"] == "code_period"
-        }
-    )
+    cells = sorted({cell_of(r) for r in data["pullin"]})
     tab = []
     for c in cells:
         rows = [r for r in data["pullin"] if cell_of(r) == c]
-        fc, es, rate, _ = c
+        fc, es, rate = c
         fig_handover(rows, c, out / f"handover_{fc}GHz_{es}dB_{rate}Hzs.png")
 
         every = rows
@@ -1197,8 +983,8 @@ def bn(argv: list[str]) -> int:
     for c in cells:
         for data, by in runs:
             if c in by:
-                fc, es, _, cw = c
-                body.append([f"{fc} {es} dB {cw}", *bn_row(data, c, by[c])])
+                fc, es, _ = c
+                body.append([f"{fc} {es} dB", *bn_row(data, c, by[c])])
     head = (
         "cell",
         "bn",
@@ -1241,9 +1027,9 @@ def sizing_note(cells: list[Cell]) -> str:
     """The label every table with a 2.8 GHz 10 dB cell carries until the
     code-lock sizing fix lands: those misses are that, not the carrier.
 
-    >>> sizing_note([("2.8", "10.0", "0", "code_period")])[:12]
+    >>> sizing_note([("2.8", "10.0", "0")])[:12]
     '\\n2.8 GHz 10 '
-    >>> sizing_note([("2.2", "10.0", "0", "partials")])
+    >>> sizing_note([("2.2", "10.0", "0")])
     ''
     """
     if not any(c[0] == "2.8" and float(c[1]) == 10.0 for c in cells):
@@ -1257,7 +1043,7 @@ def sizing_note(cells: list[Cell]) -> str:
 
 
 def lag(argv: list[str]) -> int:
-    """Per cell and window, the carrier error window's end against the
+    """Per cell, the carrier error window's end against the
     update that uses it (the run's ``lag.epoch_T`` bins, code periods)
     and the share of updates whose code-period window was the natural
     one (``win_natural_frac``): DIR [DIR ...] OUT.json, the bins kept so
@@ -1307,12 +1093,12 @@ def lag(argv: list[str]) -> int:
             [k / r["updates"] for k in r["counts"]],
             r["edges"],
             lw=0.8,
-            label=f"{c[0]} GHz {c[1]} dB {c[3]} bn {r['bn']:g}: "
+            label=f"{c[0]} GHz {c[1]} dB bn {r['bn']:g}: "
             f"{r['updates']} updates, natural {r['natural_share']:.0%}",
         )
     ax.set_xlabel(
         "the Dll epoch's end before the carrier update, code periods "
-        "(code period window: plus the chunks the look-back borrowed)",
+        "(plus the chunks the look-back borrowed)",
         fontsize=7,
     )
     ax.set_ylabel("fraction of updates", fontsize=7)
@@ -1332,12 +1118,11 @@ def lag(argv: list[str]) -> int:
 def shape(argv: list[str]) -> int:
     """One cell's full set, from a development run's shards."""
     d, out = Path(argv[0]), Path(argv[1])
-    fc, es, rate, cw = argv[2:6]
+    fc, es, rate = argv[2:5]
     cell = (
         f"{float(fc):.1f}",
         f"{float(es):.1f}",
         f"{abs(float(rate)):.0f}",
-        cw,
     )
     data = merge_shards(
         [p.read_text(encoding="utf-8") for p in sorted(d.glob("s*.csv"))]
@@ -1379,7 +1164,7 @@ def shape(argv: list[str]) -> int:
         cell,
         data["transition"],
         out,
-        held=cw == "code_period",
+        held=True,
         bn=None if abs(ran - built) < 1e-12 else ran,
     )
     print(json.dumps({"draws": len(rows), "changes": len(data["transition"])}))
@@ -1564,7 +1349,7 @@ def acq(argv: list[str]) -> int:
                 return f"{v[min(len(v) - 1, int(f * len(v)))]:.2f}"
 
             r0 = rows[0]
-            label = f"{c[0]} {c[1]} dB {c[2]} Hz/s {c[3]}"
+            label = f"{c[0]} {c[1]} dB {c[2]} Hz/s"
             design = (
                 f"o3{r0.get('acq', '-')}"
                 + ("s" if r0.get("seed_rate") == "1" else "")
@@ -1649,6 +1434,4 @@ if __name__ == "__main__":
         sys.exit(acq(sys.argv[2:]))
     if len(sys.argv) > 1 and sys.argv[1] == "handover":
         sys.exit(handover(sys.argv[2:]))
-    if len(sys.argv) > 1 and sys.argv[1] == "windows":
-        sys.exit(windows(sys.argv[2:]))
     sys.exit(__doc__)

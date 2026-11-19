@@ -194,11 +194,6 @@ def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray]:
       Doppler moves while it does.
     - ``lost_confirm_s`` with ``reacquire``: a track whose symbol lock stays
       down that long is released, and the receiver searches again.
-    - ``carrier_window="code_period"``: the carrier loop forms its error over
-      one coherent code-period window instead of each partial. It holds
-      because a symbol, 333 us, is at least a code period, 250 to 318 us
-      across the band, so some window of one period is free of data
-      transitions.
 
     Everything else is the receiver's default.
 
@@ -222,7 +217,6 @@ def receive(regime: tuple, seed: int) -> tuple[np.ndarray, np.ndarray]:
         reacquire=True,
         code_only_s=CODE_ONLY_SYM / SYM_RATE,
         doppler_rate=DOPPLER_RATE_HZ_S,
-        carrier_window="code_period",
     )
     cap = Stimulus(regime, seed)
     rows, symbols = [], []

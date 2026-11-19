@@ -81,12 +81,18 @@ steps, in order, with the example that runs all of them:
     average over the constellation, and the cyclic prefix repeats only the
     body's last 16 samples. The Data symbols are compared with the library's
     own points, so that check holds the renderer to the mapper and not the
-    mapper to the standard (that waits on Annex I's example, #3148); the
-    training fields' exact one holds the library to its own scale. An Annex I
-    comparison found the stages up to the constellation points exact and the
-    time-domain samples scaled differently (an unnormalized IDFT, about 8.87
-    times the library's), so no claim of conformance is made for the sample
-    amplitudes: #3148 tracks it.
+    mapper to the standard (no test in this tree does; see the downstream
+    comparison below, #3148); the
+    training fields' exact one holds the library to its own scale, unit mean
+    power over the 52 occupied subcarriers. That is the library's convention,
+    not the standard's: Annex I's printed time-domain samples are the same math
+    with the transform's own 1/64, so they equal the library's times
+    sqrt(52)/64. The unit tests hold that factor, not a printed value: a table
+    whose three scales are 1/64 renders the Annex's scaling. The chain was also
+    compared downstream, outside this repository, against the Annex I.1
+    worked example with that factor applied, time-domain stage included
+    (recorded on #3148); no test in this tree runs it. The pilot polarity
+    sequence is still not held in this tree.
 
 ```c
 --8<-- "native/examples/wlan_ppdu_demo.c"

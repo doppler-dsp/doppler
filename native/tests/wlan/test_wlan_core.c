@@ -153,6 +153,23 @@ close_c (float _Complex a, float _Complex b, double tol)
   return cabsf (a - b) <= tol;
 }
 
+/* Worst |a[i] - gain * b[i]| over [first, first + len), relative to the
+   largest |a| in that range. */
+static double
+worst_rel (const float _Complex *a, const float _Complex *b, double gain,
+           size_t first, size_t len)
+{
+  double worst = 0, peak = 0;
+  for (size_t i = first; i < first + len; i++)
+    {
+      const double _Complex d
+          = (double _Complex)a[i] - gain * (double _Complex)b[i];
+      worst = fmax (worst, cabs (d));
+      peak  = fmax (peak, cabs ((double _Complex)a[i]));
+    }
+  return worst / peak;
+}
+
 int
 main (void)
 {
@@ -819,7 +836,8 @@ main (void)
         DP_CHECK (cimagf (T->ltf[i]) == 0.0f);
       }
     DP_CHECK (T->stf[26] == 0.0f && T->ltf[26] == 0.0f); /* DC */
-    /* One scale for every field: 52 occupied tones of unit power. */
+    /* One scale for every field, this library's convention (unit mean power
+       over the 52 occupied tones, #3148); not the standard's printed 1/64. */
     DP_CHECK (T->scale_stf == T->scale_ltf && T->scale_ltf == T->scale_data);
     DP_CHECK (fabs (T->scale_data - 1.0 / sqrt (52.0)) < 1e-15);
 
@@ -912,10 +930,13 @@ main (void)
   }
 
   /* ── 10. Each field's average power is 1 ─────────────────────────────────
-   * The scale 1/sqrt(52) is a claim: every field leaves the modulator at unit
-   * average power over its useful samples (design page, goal 5). Pinned here
-   * so a change to the modulator's transform normalization cannot move it
-   * silently. No window, so the fields do not overlap. */
+   * This library's convention, the owner's ruling on #3148: every field leaves
+   * the modulator at unit average power over its useful samples, whose scale
+   * is 1/sqrt(52) (design page, goal 5). It is a convention, not the
+   * standard's: Annex I prints the same math with the transform's own 1/64
+   * (section 10b). Pinned here so a change to the modulator's transform
+   * normalization cannot move it silently. No window, so the fields do not
+   * overlap. */
   {
     const dp_wlan_tables_t *T = dp_wlan_tables_standard ();
     static uint8_t          psdu[1000];
@@ -969,6 +990,57 @@ main (void)
                   < 0.03); /* 1000 octets: the QAM mean is statistical */
         free (x);
       }
+  }
+
+  /* ── 10b. The scale is a configuration, and one gain covers every field ──
+   * Annex I's printed time-domain samples are the unnormalized inverse
+   * transform with the 1/64 convention; the library's are that transform times
+   * 1/sqrt(52), so the printed samples equal the library's times
+   * sqrt(52)/64. Held without any printed value: the same PPDU rendered with
+   * a table whose three scales are 1/64 equals the standard-table render
+   * times sqrt(52)/64, field by field. The control: a table with ONE scale
+   * left at 1/sqrt(52) fails exactly that field, so the check can fail. */
+  {
+    const dp_wlan_tables_t *T   = dp_wlan_tables_standard ();
+    dp_wlan_tables_t        t64 = *T, one_off = *T;
+    t64.scale_stf = t64.scale_ltf = t64.scale_data = 1.0 / 64.0;
+    one_off.scale_stf = one_off.scale_data = 1.0 / 64.0; /* ltf stays */
+    static uint8_t psdu[200];
+    uint32_t       seed = 777;
+    for (int i = 0; i < 200; i++)
+      psdu[i] = (uint8_t)dp_xs32 (&seed);
+    const dp_wlan_rate_t rate  = { 4, WLAN_CODE_3_4 };
+    const size_t         n_sym = dp_wlan_rate_n_sym (&rate, 200);
+    const size_t         n     = 400 + 80 * n_sym;
+    float _Complex      *std   = malloc (n * sizeof *std);
+    float _Complex      *ann   = malloc (n * sizeof *ann);
+    float _Complex      *off   = malloc (n * sizeof *off);
+    DP_REQUIRE (std && ann && off);
+    DP_CHECK (dp_wlan_ppdu (T, &rate, psdu, 200, 93, 0, std, n) == n);
+    DP_CHECK (dp_wlan_ppdu (&t64, &rate, psdu, 200, 93, 0, ann, n) == n);
+    DP_CHECK (dp_wlan_ppdu (&one_off, &rate, psdu, 200, 93, 0, off, n) == n);
+    const double g = sqrt (52.0) / 64.0;
+    const struct
+    {
+      const char *name;
+      size_t      first, len;
+    } fld[4] = { { "L-STF", 0, 160 },
+                 { "L-LTF", 160, 160 },
+                 { "SIGNAL", 320, 80 },
+                 { "Data", 400, 80 * n_sym } };
+    for (int k = 0; k < 4; k++)
+      {
+        DP_CHECK_MSG (worst_rel (ann, std, g, fld[k].first, fld[k].len) < 1e-5,
+                      fld[k].name);
+        /* the control: only the L-LTF's scale differs, and only it fails */
+        const int differs
+            = worst_rel (off, std, g, fld[k].first, fld[k].len) > 1e-3;
+        DP_CHECK_MSG (differs == (k == 1),
+                      "a table with one scale changed fails that field alone");
+      }
+    free (std);
+    free (ann);
+    free (off);
   }
 
   /* ── 11. The scrambler seed is a linear map of the prefix ───────────────

@@ -752,9 +752,9 @@ has latched: with the data ended no frame is in play.
 
 **Reject keys.** The callback is a pure function of its configuration, the
 bits and `frame`; it carries no running state, and its triplet's bytes are
-its configuration, compared whole with the live renderer's. A blob restored into a source
-with a different seed, window, gap, `M` or rate would re-render a different PPDU
-with no refusal, so the bridge's 802.11 callback uses the existing optional
+its configuration, compared whole with the live renderer's. A blob restored
+into a source with a different seed, window, gap, `M` or rate would re-render a
+different PPDU with no refusal, so the bridge's 802.11 callback uses the existing optional
 triplet (`wfm_synth_refill_state_t`, attached by
 `dp_wfm_synth_attach_frames_state`) to carry its configuration and to refuse a
 mismatch. The frame length and the bit count are keys the synth writes itself.

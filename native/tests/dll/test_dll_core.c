@@ -1578,9 +1578,107 @@ replica_terms_follow_transitions (void)
   return 0;
 }
 
+/* ---------------------------------------------------------------- *
+ * The symbol-aided look chooses its window before that window counts
+ *
+ * aid_look() reads the best hypothesis on the windows before the current
+ * partial's, then lets this partial's windows update their power EMAs.
+ * Chosen after the update, a window's own noise could elect it in the
+ * moment it was looked at; on noise the look then crossed det's threshold
+ * 1.7 to 2.6 times as often as configured (#3134).
+ *
+ * The newest partial of a window is in no earlier window, so it is the
+ * one part of the look the choice must not see. From one state on noise:
+ *   - a partial i where no look is due (the best's window does not end
+ *     there) and whose window would not overlap the last look;
+ *   - the same run again with ONLY partial i's samples scaled by 20.
+ * The control: the scaled window wins the argmax after its update, so an
+ * after-update choice -- the old order -- looks at it. The property: no
+ * look is taken at i all the same.
+ * ---------------------------------------------------------------- */
+static int
+aid_choice_does_not_see_its_window (void)
+{
+  enum
+  {
+    SFC  = 31,
+    WARM = 4000 /* partials of noise before the probe */
+  };
+  uint8_t code[SFC];
+  make_code (code, SFC, 3134u);
+  dp_dll_state_t *a = dp_dll_create (code, SFC, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  dp_dll_state_t *b = dp_dll_create (code, SFC, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  DP_CHECK (a && b);
+  if (!a || !b)
+    return 1;
+  DP_CHECK (dp_dll_set_symbol_period (a, 5.3) == DP_OK);
+  DP_CHECK (dp_dll_set_symbol_period (b, 5.3) == DP_OK);
+  DP_CHECK (a->aid_nhyp == 6 && a->aid_len == 4);
+  uint32_t       st = 3134u;
+  float _Complex o[8];
+  /* One sample at a time, so a partial's last sample is known: the one
+     after which aid_count moves. */
+  while (a->aid_count < WARM)
+    {
+      float _Complex x = dp_cgauss (&st);
+      (void)dp_dll_steps (a, &x, 1, o, 8);
+    }
+  int found = 0;
+  for (int tries = 0; tries < 400 && !found; tries++)
+    {
+      /* The state at a partial boundary, and the next partial's samples. */
+      const size_t   nb   = dp_dll_state_bytes (a);
+      unsigned char *blob = malloc (nb);
+      DP_REQUIRE (blob != NULL);
+      dp_dll_get_state (a, blob);
+      const uint64_t i    = a->aid_count; /* the partial about to close */
+      const uint64_t last = a->aid_last_end;
+      const size_t   pick = a->aid_best;
+      float _Complex xs[64];
+      size_t         n = 0;
+      while (a->aid_count == i && n < 64)
+        {
+          xs[n] = dp_cgauss (&st);
+          (void)dp_dll_steps (a, &xs[n], 1, o, 8);
+          n++;
+        }
+      DP_CHECK (a->aid_count == i + 1);
+      const uint64_t start = i + 1 - a->aid_len;
+      if (a->aid_last_end == last && start >= last)
+        {
+          /* No look at i in the plain run: replay with i's samples
+             scaled. */
+          DP_CHECK (dp_dll_set_state (b, blob) == DP_OK);
+          for (size_t k = 0; k < n; k++)
+            {
+              float _Complex x = 20.0f * xs[k];
+              (void)dp_dll_steps (b, &x, 1, o, 8);
+            }
+          DP_CHECK (b->aid_count == i + 1);
+          printf ("  aid choice: partial %llu, best %zu before, %zu after "
+                  "the scaled window's update; look taken %s\n",
+                  (unsigned long long)i, pick, b->aid_best,
+                  b->aid_last_end == last ? "no" : "yes");
+          DP_CHECK_MSG (b->aid_best != pick,
+                        "control: the scaled window wins the argmax after "
+                        "its update (what an after-update choice reads)");
+          DP_CHECK_MSG (b->aid_last_end == last,
+                        "the look's window is chosen before its own newest "
+                        "partial counts: no look at i");
+          found = 1;
+        }
+      free (blob);
+    }
+  DP_CHECK (found);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  return 0;
+}
+
 int
 main (void)
 {
+  DP_CHECK (aid_choice_does_not_see_its_window () == 0);
   DP_CHECK (replica_terms_follow_transitions () == 0);
   DP_CHECK (_test_window_sum_is_the_look_back () == 0);
   DP_CHECK (_test_block_correlate_is_the_per_sample_path () == 0);

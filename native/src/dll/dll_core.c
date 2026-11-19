@@ -200,11 +200,15 @@ aid_window_starts (const dp_dll_state_t *s, size_t h, uint64_t start)
  * window is both the look the lock detector sees and the discriminator's
  * window: the loop steers once per symbol on the coherent E/P/L sums over
  * it -- longer than the per-epoch look-back's window, and never across a
- * data transition. Two passes: the EMAs and the argmax over every
- * hypothesis first, then one look and one steer for the winner, so a
- * change of winner on this very partial fires one update, not two (two
- * hypotheses end a window on the same partial whenever P is not an
- * integer). */
+ * data transition.
+ *
+ * The best is chosen on the windows before this partial's: the winner is
+ * read first, then this partial's windows update their EMAs and the
+ * argmax moves for the next partial. The newest partial of the window
+ * looked at is in no window the choice saw, which keeps the look's
+ * statistic independent of the choice. One look and one steer for the
+ * winner, so a change of winner fires one update, not two (two hypotheses
+ * end a window on the same partial whenever P is not an integer). */
 static void
 aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
           float _Complex early, float _Complex late)
@@ -218,6 +222,7 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
   if (i + 1 < s->aid_len)
     return;
   const uint64_t start = i + 1 - s->aid_len;
+  const size_t   pick  = s->aid_best; /* chosen on the earlier windows */
   for (size_t h = 0; h < s->aid_nhyp; h++)
     {
       if (!aid_window_starts (s, h, start))
@@ -231,7 +236,7 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
       if (s->aid_power[h] > s->aid_power[s->aid_best])
         s->aid_best = h;
     }
-  if (!aid_window_starts (s, s->aid_best, start))
+  if (!aid_window_starts (s, pick, start))
     return;
   /* One look per window of noise: on a signal the best hypothesis holds
      and its windows are a symbol apart, but on noise it flips between

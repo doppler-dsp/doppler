@@ -1623,7 +1623,11 @@ class Dll:
         no external timing -- so it costs nothing at cold start and follows a
         slowly drifting symbol clock by itself. `L` is capped at four epochs of
         partials so a long symbol (a low data rate) does not ask for coherence
-        across more carrier than the wipe-off holds.
+        across more carrier than the wipe-off holds. The winning hypothesis is
+        read on the windows before each partial's, so a look's window never
+        elects itself on its own noise, and the look is the one window
+        det_threshold_noncoherent() sizes the threshold for (`test_dll_core.c`,
+        `aid_choice_does_not_see_its_window`; #3134).
 
         Parameters
         ----------

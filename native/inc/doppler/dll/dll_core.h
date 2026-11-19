@@ -297,7 +297,11 @@ typedef struct {
      *    and the code discriminator's windows -- coherent over most of a
      *    symbol instead of a quarter-epoch partial, and the loop steers
      *    once per symbol on them (the filter re-timed to that interval,
-     *    `inv_upd`). See dp_dll_set_symbol_period(). Rings are heap-owned,
+     *    `inv_upd`). The best is read on the windows before the current
+     *    partial's, then the current windows update their EMAs: a look's
+     *    window is chosen before its own newest partial counts, so the
+     *    look's statistic is independent of the choice. See
+     *    dp_dll_set_symbol_period(). Rings are heap-owned,
      *    sized at set time, packed field-wise in the state blob like the
      *    chunk buffers. */
     double  sym_period;      /**< data-symbol period, partials (0 = off).   */
@@ -1054,7 +1058,11 @@ void dp_dll_hold_here(dp_dll_state_t *state);
  * external timing -- so it costs nothing at cold start and follows a
  * slowly drifting symbol clock by itself. `L` is capped at four epochs of
  * partials so a long symbol (a low data rate) does not ask for coherence
- * across more carrier than the wipe-off holds.
+ * across more carrier than the wipe-off holds. The winning hypothesis is
+ * read on the windows before each partial's, so a look's window never
+ * elects itself on its own noise, and the look is the one window
+ * det_threshold_noncoherent() sizes the threshold for
+ * (`test_dll_core.c`, `aid_choice_does_not_see_its_window`).
  *
  * @param state               DLL state. Must be non-NULL.
  * @param partials_per_symbol Data-symbol period in emitted partials,

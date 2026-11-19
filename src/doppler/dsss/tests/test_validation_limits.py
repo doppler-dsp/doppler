@@ -59,7 +59,7 @@ OBJECTS = {
 #: limits) sets its new count here in the same commit. At release the
 #: report returns to the shared floor or justifies its count, an open
 #: finding on the design page. Every other report: at least 15.
-ENVELOPE_EXACT = {"AsyncDsssReceiver": 5}
+ENVELOPE_EXACT = {"AsyncDsssReceiver": 4}
 
 
 @pytest.fixture(

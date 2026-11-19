@@ -213,7 +213,7 @@ expect_frame (uint64_t f, uint32_t key, float _Complex *out)
   uint8_t bits[N_BITS];
   for (size_t k = 0; k < N_BITS; k++)
     bits[k] = src_bit (f * N_BITS + k);
-  rend_t r = { key, -1, 0, { 0 } };
+  rend_t r = { .key = key, .refuse_at = -1 };
   render (&r, f, bits, N_BITS, out, N_OUT);
 }
 
@@ -245,8 +245,8 @@ free_flag (void *u)
 static int
 test_plays_frames_lazily (void)
 {
-  rend_t                r   = { 7, -1, 0, { 0 } };
-  bit_src_t             src = { 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[350];
 
@@ -275,8 +275,8 @@ test_plays_frames_lazily (void)
 static int
 test_step_and_steps_agree_and_chunks_do_not_matter (void)
 {
-  rend_t                r1 = { 7, -1, 0, { 0 } }, r2 = r1, r3 = r1;
-  bit_src_t             a = { 0, 0, 0 }, b = a, c = a;
+  rend_t                r1 = { .key = 7, .refuse_at = -1 }, r2 = r1, r3 = r1;
+  bit_src_t             a = { .counter = 0 }, b = a, c = a;
   dp_wfm_synth_state_t *s1 = make_synth (&r1, &a), *s2 = make_synth (&r2, &b),
                        *s3 = make_synth (&r3, &c);
   float _Complex big[450], one[450], chunked[450];
@@ -304,8 +304,8 @@ test_step_and_steps_agree_and_chunks_do_not_matter (void)
 static int
 test_the_data_ends_with_the_source (void)
 {
-  rend_t                r   = { 7, -1, 0, { 0 } };
-  bit_src_t             src = { 0, 0, 3 }; /* ends after three frames */
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .end_after = 3 }; /* ends after three frames */
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[400];
   dp_wfm_synth_steps (s, x, 400);
@@ -323,9 +323,9 @@ test_the_data_ends_with_the_source (void)
 static int
 test_a_refusing_renderer_ends_the_data_and_says_so (void)
 {
-  rend_t                r   = { 7, 2, 0, { 0 } }; /* refuses the third frame */
-  bit_src_t             src = { 0, 0, 0 };
-  dp_wfm_synth_state_t *s   = make_synth (&r, &src);
+  rend_t    r   = { .key = 7, .refuse_at = 2 }; /* refuses the third frame */
+  bit_src_t src = { .counter = 0 };
+  dp_wfm_synth_state_t *s = make_synth (&r, &src);
   float _Complex x[350];
   dp_wfm_synth_steps (s, x, 350);
   DP_CHECK (frames_equal (x, 0, 2, 7)); /* the first two are intact */
@@ -348,8 +348,8 @@ test_a_refusing_renderer_ends_the_data_and_says_so (void)
 static int
 split_resumes_end (size_t n_before, size_t n_after, uint64_t end_after)
 {
-  rend_t                ra = { 7, -1, 0, { 0 }, 0 }, rb = ra;
-  bit_src_t             sa = { 0, 0, end_after, 0 }, sb = sa;
+  rend_t                ra = { .key = 7, .refuse_at = -1 }, rb = ra;
+  bit_src_t             sa = { .end_after = end_after }, sb = sa;
   dp_wfm_synth_state_t *a = make_synth (&ra, &sa);
   dp_wfm_synth_state_t *b = make_synth (&rb, &sb);
   float _Complex       *x = malloc ((n_before + n_after) * sizeof *x);
@@ -406,8 +406,8 @@ test_a_split_resumes_bit_exactly (void)
 static int
 test_the_state_round_trip_and_rejects (void)
 {
-  rend_t                ra = { 7, -1, 0, { 0 } }, rb = ra;
-  bit_src_t             sa = { 0, 0, 0 }, sb = sa;
+  rend_t                ra = { .key = 7, .refuse_at = -1 }, rb = ra;
+  bit_src_t             sa = { .counter = 0 }, sb = sa;
   dp_wfm_synth_state_t *a = make_synth (&ra, &sa);
   dp_wfm_synth_state_t *b = make_synth (&rb, &sb);
   float _Complex x[250];
@@ -421,8 +421,8 @@ test_the_state_round_trip_and_rejects (void)
 static int
 test_a_blob_restored_into_another_configuration_is_refused (void)
 {
-  rend_t                ra = { 7, -1, 0, { 0 } };
-  bit_src_t             sa = { 0, 0, 0 };
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
   dp_wfm_synth_state_t *a  = make_synth (&ra, &sa);
   float _Complex x[250];
   dp_wfm_synth_steps (a, x, 250);
@@ -433,8 +433,8 @@ test_a_blob_restored_into_another_configuration_is_refused (void)
 
   /* a source whose renderer's configuration key differs refuses the blob and
      is left as it was */
-  rend_t                rb = { 8, -1, 0, { 0 } };
-  bit_src_t             sb = { 0, 0, 0 };
+  rend_t                rb = { .key = 8, .refuse_at = -1 };
+  bit_src_t             sb = { .counter = 0 };
   dp_wfm_synth_state_t *b  = make_synth (&rb, &sb);
   float _Complex y[10];
   dp_wfm_synth_steps (b, y, 10);
@@ -447,8 +447,8 @@ test_a_blob_restored_into_another_configuration_is_refused (void)
   dp_wfm_synth_get_state (b, after);
   DP_CHECK (memcmp (keep, after, before) == 0);
   /* control: the same blob into the same configuration is accepted */
-  rend_t                rc = { 7, -1, 0, { 0 } };
-  bit_src_t             sc = { 0, 0, 0 };
+  rend_t                rc = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sc = { .counter = 0 };
   dp_wfm_synth_state_t *c  = make_synth (&rc, &sc);
   DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_OK);
 
@@ -472,8 +472,8 @@ test_a_blob_restores_only_into_the_same_frame_geometry (void)
   /* the samples are not in the blob, so the geometry is: a blob from a frame
      of 100 samples into one of 101 (or from 16 bits into 17) would otherwise
      re-render a different frame with no refusal */
-  rend_t                ra = { 7, -1, 0, { 0 } };
-  bit_src_t             sa = { 0, 0, 0 };
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
   dp_wfm_synth_state_t *a  = make_synth (&ra, &sa);
   float _Complex x[250];
   dp_wfm_synth_steps (a, x, 250);
@@ -492,8 +492,8 @@ test_a_blob_restores_only_into_the_same_frame_geometry (void)
               { N_BITS - 1, N_OUT, 0 } };
   for (size_t i = 0; i < sizeof geo / sizeof *geo; i++)
     {
-      rend_t                rb = { 7, -1, 0, { 0 } };
-      bit_src_t             sb = { 0, 0, 0 };
+      rend_t                rb = { .key = 7, .refuse_at = -1 };
+      bit_src_t             sb = { .counter = 0 };
       dp_wfm_synth_state_t *b
           = make_synth_n (&rb, &sb, geo[i].n_bits, geo[i].n_out);
       float _Complex y[10];
@@ -525,8 +525,8 @@ test_a_forged_cursor_is_refused (void)
      rendered: build it from a fresh synth's blob (cursor at n_out, no frame
      in play) by moving the cursor into the frame. The cursor is the u64 after
      wtype, sym_pos, cur_re and cur_im, bit_idx. */
-  rend_t                r    = { 7, -1, 0, { 0 } };
-  bit_src_t             src  = { 0, 0, 0 };
+  rend_t                r    = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src  = { .counter = 0 };
   dp_wfm_synth_state_t *s    = make_synth (&r, &src);
   const size_t          n    = dp_wfm_synth_state_bytes (s);
   uint8_t              *blob = malloc (n);
@@ -556,8 +556,8 @@ test_a_forged_cursor_is_refused (void)
 static int
 test_the_type_neither_enters_nor_leaves_frames_by_a_setter (void)
 {
-  rend_t                r   = { 7, -1, 0, { 0 } };
-  bit_src_t             src = { 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   DP_CHECK (dp_wfm_synth_set_wtype (s, WFM_SYNTH_BITS) == DP_ERR_INVALID);
   DP_CHECK (dp_wfm_synth_set_wtype (s, WFM_SYNTH_TONE) == DP_ERR_INVALID);
@@ -575,8 +575,8 @@ test_the_type_neither_enters_nor_leaves_frames_by_a_setter (void)
 static int
 test_a_shaper_and_the_symbols_setter_are_no_ops (void)
 {
-  rend_t                r       = { 7, -1, 0, { 0 } };
-  bit_src_t             src     = { 0, 0, 0 };
+  rend_t                r       = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src     = { .counter = 0 };
   dp_wfm_synth_state_t *s       = make_synth (&r, &src);
   const float           taps[3] = { 0.25f, 0.5f, 0.25f };
   DP_CHECK (dp_wfm_synth_set_rrc (s, taps, 3) == 0);
@@ -595,8 +595,8 @@ test_a_shaper_and_the_symbols_setter_are_no_ops (void)
 static int
 test_install_refusals_and_order (void)
 {
-  rend_t    r   = { 7, -1, 0, { 0 } };
-  bit_src_t src = { 0, 0, 0 };
+  rend_t    r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t src = { .counter = 0 };
   /* not a frames synth */
   dp_wfm_synth_state_t *bits = dp_wfm_synth_create (
       WFM_SYNTH_BITS, 1e6, 0.0, 200.0, 0, 1, 1, 7, 0, 0, 0.0);
@@ -630,8 +630,8 @@ test_install_refusals_and_order (void)
 static int
 test_detach_keeps_the_frame_in_play_and_free_user_runs (void)
 {
-  rend_t                r   = { 7, -1, 0, { 0 } };
-  bit_src_t             src = { 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
                                                  200.0, 0, 1, 1, 7, 0, 0, 0.0);
   freed                   = 0;
@@ -667,8 +667,8 @@ test_detach_keeps_the_frame_in_play_and_free_user_runs (void)
 static int
 test_reset_replays_the_frame_in_play (void)
 {
-  rend_t                r   = { 7, -1, 0, { 0 } };
-  bit_src_t             src = { 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[250], y[100];
   dp_wfm_synth_steps (s, x, 250); /* inside frame 2 */
@@ -682,8 +682,8 @@ test_reset_replays_the_frame_in_play (void)
   DP_CHECK (src.draws == 3 && r.calls == 3);
   /* a fresh synth, reset before any frame, draws frame 0 on its first sample
    */
-  rend_t                r2   = { 7, -1, 0, { 0 } };
-  bit_src_t             src2 = { 0, 0, 0 };
+  rend_t                r2   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src2 = { .counter = 0 };
   dp_wfm_synth_state_t *f    = make_synth (&r2, &src2);
   dp_wfm_synth_reset (f);
   dp_wfm_synth_steps (f, y, 100);
@@ -710,8 +710,8 @@ test_a_synth_never_reaches_a_state_its_own_blob_refuses (void)
 {
   /* (a) the renderer detached mid-frame: the blob would carry a frame no
      renderer can re-render, so the synth says it cannot serialize */
-  rend_t                r   = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             src = { 0, 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[100];
   dp_wfm_synth_steps (s, x, 40);
@@ -723,8 +723,8 @@ test_a_synth_never_reaches_a_state_its_own_blob_refuses (void)
 
   /* control: at a frame boundary nothing is in play, so the detached synth
      serializes and its blob restores */
-  rend_t    r2   = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t src2 = { 0, 0, 0, 0 };
+  rend_t    r2   = { .key = 7, .refuse_at = -1 };
+  bit_src_t src2 = { .counter = 0 };
   s              = make_synth (&r2, &src2);
   dp_wfm_synth_steps (s, x, 100);
   DP_CHECK (dp_wfm_synth_attach_frames (s, NULL, NULL, NULL, 0, 0) == 0);
@@ -738,8 +738,8 @@ test_a_synth_never_reaches_a_state_its_own_blob_refuses (void)
   dp_wfm_synth_destroy (s);
 
   /* (b) the bit source detached mid-frame */
-  rend_t    r3   = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t src3 = { 0, 0, 0, 0 };
+  rend_t    r3   = { .key = 7, .refuse_at = -1 };
+  bit_src_t src3 = { .counter = 0 };
   s              = make_synth (&r3, &src3);
   dp_wfm_synth_steps (s, x, 40);
   DP_CHECK (dp_wfm_synth_set_refill (s, NULL, NULL, NULL) == 0);
@@ -754,8 +754,8 @@ test_refused_says_why_data_ended_and_goes_with_it (void)
   /* the renderer refuses frame 0, then the bit source is detached: data_ended
      is cleared, so the flag that says why it was set is cleared too, and the
      synth's blob is one it accepts */
-  rend_t                r   = { 7, 0, 0, { 0 }, 0 };
-  bit_src_t             src = { 0, 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = 0 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[1];
   dp_wfm_synth_steps (s, x, 1);
@@ -777,8 +777,8 @@ test_reset_after_the_end_replays_nothing (void)
 {
   /* a renderer that refused its third frame: the buffer holds frame 1 and the
      bits frame 2's. After reset the synth is silent, and its blob restores */
-  rend_t                r   = { 7, 2, 0, { 0 }, 0 };
-  bit_src_t             src = { 0, 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = 2 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[350], y[120];
   dp_wfm_synth_steps (s, x, 350);
@@ -797,8 +797,8 @@ test_reset_after_the_end_replays_nothing (void)
   /* the layout offsets the forging tests use are what this blob holds */
   DP_REQUIRE (blob[BLOB_OFF (OFF_DATA_ENDED)] == 1
               && blob[BLOB_OFF (OFF_REFUSED)] == 1);
-  rend_t                r2   = { 7, 2, 0, { 0 }, 0 };
-  bit_src_t             src2 = { 0, 0, 0, 0 };
+  rend_t                r2   = { .key = 7, .refuse_at = 2 };
+  bit_src_t             src2 = { .counter = 0 };
   dp_wfm_synth_state_t *t    = make_synth (&r2, &src2);
   DP_CHECK (dp_wfm_synth_set_state (t, blob) == DP_OK);
   /* a blob with the data ended and a frame in play is not one the synth makes
@@ -819,8 +819,8 @@ test_a_clobbered_child_is_refused_before_the_source_moves (void)
   /* with noise the synth has an AWGN child; its envelope is clobbered in the
      blob. The restore must be refused with nothing written: the bit source,
      which commits in the restore, is checked first */
-  rend_t                ra = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             sa = { 0, 0, 0, 0 };
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
   dp_wfm_synth_state_t *a
       = make_synth_cfg (&ra, &sa, N_BITS, N_OUT, 0.0, 10.0, 1);
   float _Complex x[250];
@@ -837,8 +837,8 @@ test_a_clobbered_child_is_refused_before_the_source_moves (void)
   DP_REQUIRE (n > tail + awgn);
   blob[n - tail - awgn] ^= 0xFF; /* the first byte of the child's magic */
 
-  rend_t                rb = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             sb = { 0, 0, 0, 0 };
+  rend_t                rb = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sb = { .counter = 0 };
   dp_wfm_synth_state_t *b
       = make_synth_cfg (&rb, &sb, N_BITS, N_OUT, 0.0, 10.0, 1);
   float _Complex y[10];
@@ -864,7 +864,7 @@ test_the_bit_count_is_a_key_when_no_source_carries_the_bits (void)
 {
   /* with no bit source attached the frame in play's bits are not in the blob,
      so a blob from 16 bits into 17 is told apart by the key alone */
-  rend_t                ra = { 7, -1, 0, { 0 }, 0 }, rb = ra, rc = ra;
+  rend_t                ra = { .key = 7, .refuse_at = -1 }, rb = ra, rc = ra;
   dp_wfm_synth_state_t *a = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
                                                  200.0, 0, 1, 1, 7, 0, 0, 0.0);
   dp_wfm_synth_state_t *b = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
@@ -895,8 +895,8 @@ test_the_bit_count_is_a_key_when_no_source_carries_the_bits (void)
 static int
 test_the_renderer_is_given_bits_of_zero_and_one (void)
 {
-  rend_t                r   = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             src = { 0, 0, 0, 1 }; /* writes 2 and 0xFF */
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .dirty = 1 }; /* writes 2 and 0xFF */
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[250];
   dp_wfm_synth_steps (s, x, 250);
@@ -910,8 +910,8 @@ test_the_renderer_is_given_bits_of_zero_and_one (void)
   dp_wfm_synth_get_state (s, blob);
   const size_t bits_at     = n - rend_bytes (NULL) - src_bytes (NULL) - N_BITS;
   blob[bits_at + 3]        = 2;
-  rend_t                r2 = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             src2 = { 0, 0, 0, 0 };
+  rend_t                r2 = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src2 = { .counter = 0 };
   dp_wfm_synth_state_t *t    = make_synth (&r2, &src2);
   DP_CHECK (dp_wfm_synth_set_state (t, blob) == DP_ERR_INVALID);
   blob[bits_at + 3] = 1; /* control: a clean byte there is accepted */
@@ -927,8 +927,8 @@ test_the_carrier_and_the_noise_are_applied_after_the_frame (void)
 {
   /* a carrier: each sample is the frame's times a unit phasor that advances by
      freq / fs of a turn per sample; step() and steps() agree */
-  rend_t                r1 = { 7, -1, 0, { 0 }, 0 }, r2 = r1, r3 = r1;
-  bit_src_t             s1 = { 0, 0, 0, 0 }, s2 = s1, s3 = s1;
+  rend_t                r1 = { .key = 7, .refuse_at = -1 }, r2 = r1, r3 = r1;
+  bit_src_t             s1 = { .counter = 0 }, s2 = s1, s3 = s1;
   dp_wfm_synth_state_t *c
       = make_synth_cfg (&r1, &s1, N_BITS, N_OUT, 1e5, 200.0, 0);
   dp_wfm_synth_state_t *cs
@@ -959,8 +959,8 @@ test_the_carrier_and_the_noise_are_applied_after_the_frame (void)
 
   /* noise: the same seed and level on a constant-one tone gives the same AWGN
      stream, so the frames synth's output is the frame plus that noise */
-  rend_t                r4 = { 7, -1, 0, { 0 }, 0 }, r5 = r4, r6 = r4;
-  bit_src_t             s4 = { 0, 0, 0, 0 }, s5 = s4, s6 = s4;
+  rend_t                r4 = { .key = 7, .refuse_at = -1 }, r5 = r4, r6 = r4;
+  bit_src_t             s4 = { .counter = 0 }, s5 = s4, s6 = s4;
   dp_wfm_synth_state_t *n_blk
       = make_synth_cfg (&r4, &s4, N_BITS, N_OUT, 0.0, 10.0, 1);
   dp_wfm_synth_state_t *n_one
@@ -994,8 +994,8 @@ test_the_carrier_and_the_noise_are_applied_after_the_frame (void)
 static int
 test_attaching_over_an_attached_renderer_starts_over (void)
 {
-  rend_t                r   = { 7, 1, 0, { 0 }, 0 };
-  bit_src_t             src = { 0, 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = 1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
                                                  200.0, 0, 1, 1, 7, 0, 0, 0.0);
   freed                   = 0;
@@ -1006,7 +1006,7 @@ test_attaching_over_an_attached_renderer_starts_over (void)
   float _Complex x[250];
   dp_wfm_synth_steps (s, x, 250); /* frame 1 refused: ended and refused */
   DP_REQUIRE (dp_wfm_synth_frames_refused (s));
-  rend_t r2 = { 9, -1, 0, { 0 }, 0 };
+  rend_t r2 = { .key = 9, .refuse_at = -1 };
   DP_CHECK (dp_wfm_synth_attach_frames (s, render, &r2, NULL, N_BITS, N_OUT)
             == 0);
   DP_CHECK (freed == 1); /* the old user pointer was freed */
@@ -1020,8 +1020,8 @@ test_attaching_over_an_attached_renderer_starts_over (void)
 static int
 test_forged_blobs_the_synth_never_writes_are_refused (void)
 {
-  rend_t                r   = { 7, 0, 0, { 0 }, 0 }; /* refuses frame 0 */
-  bit_src_t             src = { 0, 0, 0, 0 };
+  rend_t                r = { .key = 7, .refuse_at = 0 }; /* refuses frame 0 */
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   float _Complex x[2];
   dp_wfm_synth_steps (s, x, 2);
@@ -1031,8 +1031,8 @@ test_forged_blobs_the_synth_never_writes_are_refused (void)
   dp_wfm_synth_get_state (s, blob);
   DP_REQUIRE (blob[BLOB_OFF (OFF_DATA_ENDED)] == 1
               && blob[BLOB_OFF (OFF_REFUSED)] == 1);
-  rend_t                r2   = { 7, 0, 0, { 0 }, 0 };
-  bit_src_t             src2 = { 0, 0, 0, 0 };
+  rend_t                r2   = { .key = 7, .refuse_at = 0 };
+  bit_src_t             src2 = { .counter = 0 };
   dp_wfm_synth_state_t *t    = make_synth (&r2, &src2);
   DP_CHECK (dp_wfm_synth_set_state (t, blob) == DP_OK); /* control */
   blob[BLOB_OFF (OFF_REFUSED)] = 2; /* a flag that is neither 0 nor 1 */
@@ -1087,8 +1087,8 @@ test_a_renderer_triplet_that_refuses_to_serialize_is_reported (void)
       = { no_bytes, rend_get, rend_set, own_reason };
   static const wfm_synth_refill_state_t refuses_quietly
       = { no_bytes, rend_get, rend_set, NULL };
-  rend_t                r   = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             src = { 0, 0, 0, 0 };
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
   dp_wfm_synth_state_t *s   = make_synth (&r, &src);
   DP_CHECK (dp_wfm_synth_attach_frames_state (s, &refuses) == 0);
   DP_CHECK (
@@ -1111,8 +1111,8 @@ test_a_restore_never_writes_the_renderer (void)
      and its set_state is never called, so no restore, accepted or refused,
      can leave the renderer changed: before, its set_state ran first and a
      later refusal (here, a clobbered bit-source sub-blob) came after it. */
-  rend_t                ra = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             sa = { 0, 0, 0, 0 };
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
   dp_wfm_synth_state_t *a  = make_synth (&ra, &sa);
   float _Complex x[250];
   dp_wfm_synth_steps (a, x, 250);
@@ -1125,13 +1125,13 @@ test_a_restore_never_writes_the_renderer (void)
   bad[n - rend_bytes (NULL) - src_bytes (NULL)] ^= 0xFF;
 
   rend_set_calls           = 0;
-  rend_t                rb = { 7, -1, 0, { 0 }, 0 };
-  bit_src_t             sb = { 0, 0, 0, 0 };
+  rend_t                rb = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sb = { .counter = 0 };
   dp_wfm_synth_state_t *b  = make_synth (&rb, &sb);
   DP_CHECK (dp_wfm_synth_set_state (b, bad) == DP_ERR_INVALID);
   DP_CHECK (dp_wfm_synth_set_state (b, blob) == DP_OK);
-  rend_t                rc = { 8, -1, 0, { 0 }, 0 }; /* another key */
-  bit_src_t             sc = { 0, 0, 0, 0 };
+  rend_t                rc = { .key = 8, .refuse_at = -1 }; /* another key */
+  bit_src_t             sc = { .counter = 0 };
   dp_wfm_synth_state_t *c  = make_synth (&rc, &sc);
   DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_ERR_INVALID);
   DP_CHECK (rend_set_calls == 0);

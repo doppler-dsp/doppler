@@ -88,6 +88,26 @@
  * 0.500 sample) and -0.148 at 2.2 (3.42, 0.505). The code error is
  * therefore rx.phase.code - truth.code + 0.5 chip_rate / fs.
  *
+ * Four more capture probes make a slip readable, each from what the
+ * harness already holds:
+ *   - err.car_unwrapped: err.car_deg's carrier error before the half-cycle
+ *     fold, unwrapped block to block from the hand-over (degrees), so a pi
+ *     slip is a 180-degree step;
+ *   - rx.code.hyp: the code loop's chosen look -- the symbol aid's
+ *     hypothesis (dp_dll_state_t::aid_best) once a block;
+ *   - err.sym_lag: the symbols' lag against the payload, re-detected with
+ *     dp_ber_sync() every PI_LV_RESYNC symbols near the newest, less the
+ *     lag found at PI_LV_START symbols (0 aligned, +-1 a symbol slip);
+ *   - err.count: the running count of symbol errors against the payload
+ *     from that first alignment (dp_ber_score() on each block's new
+ *     symbols), so a slip shows as the slope changing;
+ *   - err.demod_car_deg: the carrier error the demodulator decides on --
+ *     the pre-despread loop's error (err.car_deg's, before its fold) less
+ *     the demodulator's LO phase (dp_lo_get_phase() of its matched front
+ *     end, which multiplies its input by the LO), folded to BPSK's half
+ *     cycle, once a block. The LO's phase is read at the block's start, so
+ *     it lags the samples it mixes by the cascade's own delay.
+ *
  * `--spc N` renders the scene at N samples a chip (2: the front end
  * interpolates, and the held chips' images pass its transition band) for
  * the comparison with the default 4. `--bn-carrier BN` tracks with the
@@ -819,6 +839,74 @@ static double pi_pass_r_env = 0.0;
    "We don't want to test what will never happen"; a diagnostic only). */
 static int pi_dyn_pass = 0;
 
+/* The capture's err.sym_lag and err.count, live: once PI_LV_START symbols
+   are out, the symbols are aligned against the payload with dp_ber_sync()
+   on a marker placed after them (dp_ber_marker_place(), as the scoring
+   below does); from then each block's new symbols are scored with
+   dp_ber_score() and the running count emitted, and every PI_LV_RESYNC
+   symbols the alignment is re-detected near the newest and its lag, less
+   the first's, emitted. The truth is built once, from the emitter's own
+   bits from about the first symbol out, as the scoring's is. */
+#define PI_LV_START 9000u  /* 3 s of symbols: past settling at the floor */
+#define PI_LV_RESYNC 1500u /* half a second */
+static void
+pi_live_align (const dp_air_t *air, size_t first_in, double secs,
+               const float complex *syms, size_t ns, uint8_t **truth,
+               size_t *n_truth, int *ok, dp_ber_marker_t *mk,
+               dp_ber_sync_t *sy, dp_ber_t *acc, size_t *scored, size_t *next,
+               dp_tlm_t *tlm, int id_lag, int id_cnt)
+{
+  const size_t guard = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
+  if (!*truth)
+    {
+      long base = dp_air_truth (air, 0, first_in).symbol - 60;
+      if (base < 0)
+        base = 0;
+      *n_truth = (size_t)(secs * DP_S415_SYM) + 1000;
+      *truth   = dp_xmalloc (*n_truth);
+      for (size_t i = 0; i < *n_truth; i++)
+        (*truth)[i]
+            = (uint8_t)(dp_air_symbol_bit (air, 0, base + (long)i) > 0);
+    }
+  if (!*ok)
+    {
+      if (ns < PI_LV_START + 2 * guard)
+        return;
+      const size_t at
+          = dp_ber_marker_place (*truth, *n_truth, 2, PI_LV_START, 0,
+                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
+      mk->t0 = at == SIZE_MAX ? *n_truth : at;
+      *sy    = dp_ber_sync (syms, ns, *truth, *n_truth, mk, 2, DP_BER_LAG_SPAN,
+                            DP_BER_SYNC_PFA);
+      if (!sy->ok)
+        return;
+      *ok          = 1;
+      const long e = (long)(mk->t0 + mk->n) - sy->lag;
+      *scored      = e > 0 ? (size_t)e : 0;
+      *next        = ns + PI_LV_RESYNC;
+      dp_tlm_emit (tlm, id_lag, 0.0);
+    }
+  if (ns > *scored)
+    {
+      dp_ber_score (acc, syms, *scored, ns, *truth, *n_truth, mk, sy);
+      *scored = ns;
+      dp_tlm_emit (tlm, id_cnt, (double)acc->errors);
+    }
+  if (ns >= *next)
+    {
+      *next             = ns + PI_LV_RESYNC;
+      dp_ber_marker_t m = *mk;
+      const size_t    at
+          = dp_ber_marker_place (*truth, *n_truth, 2, ns - guard, 0,
+                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
+      m.t0                   = at == SIZE_MAX ? *n_truth : at;
+      const dp_ber_sync_t s2 = dp_ber_sync (syms, ns, *truth, *n_truth, &m, 2,
+                                            DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
+      if (s2.ok)
+        dp_tlm_emit (tlm, id_lag, (double)(s2.lag - sy->lag));
+    }
+}
+
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           uint32_t seed, double secs, unsigned spc, const capture_t *cp,
@@ -958,6 +1046,17 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   dp_tlm_capture_t *cap    = NULL;
   int               id_car = -1, id_code = -1, id_hz = -1, id_data = -1;
   int               id_ecar = -1, id_ecod = -1, id_order = -1, id_rate = -1;
+  int               id_ecu = -1, id_hyp = -1, id_lag = -1, id_cnt = -1;
+  int               id_edc = -1;
+  double            ecu = 0.0, ec_prev = NAN; /* err.car_unwrapped, cycles */
+  /* err.sym_lag / err.count: the live alignment against the payload. */
+  uint8_t        *lv_truth = NULL;
+  size_t          lv_n = 0, lv_scored = 0, lv_next = 0;
+  int             lv_ok = 0;
+  dp_ber_marker_t lv_mk = { NULL, DP_BER_SYNC_SYMS, 0, 0, 0 };
+  dp_ber_sync_t   lv_sy = { 0 };
+  dp_ber_t        lv_acc;
+  dp_ber_init (&lv_acc, 2, ULONG_MAX);
   dp_sample_clock_t clk;
   const size_t      b_from = cp && cp->path
                                  ? (size_t)(cp->from_s * DP_S415_FS) / PI_PUSH
@@ -980,9 +1079,15 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
           id_ecod  = dp_tlm_probe (tlm, "err.code_chip", 1);
           id_order = dp_tlm_probe (tlm, "car.order", 1);
           id_rate  = dp_tlm_probe (tlm, "car.rate_hz_s", 1);
+          id_ecu   = dp_tlm_probe (tlm, "err.car_unwrapped", 1);
+          id_hyp   = dp_tlm_probe (tlm, "rx.code.hyp", 1);
+          id_lag   = dp_tlm_probe (tlm, "err.sym_lag", 1);
+          id_cnt   = dp_tlm_probe (tlm, "err.count", 1);
+          id_edc   = dp_tlm_probe (tlm, "err.demod_car_deg", 1);
           DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0 && id_data >= 0
                       && id_ecar >= 0 && id_ecod >= 0 && id_order >= 0
-                      && id_rate >= 0);
+                      && id_rate >= 0 && id_ecu >= 0 && id_hyp >= 0
+                      && id_lag >= 0 && id_cnt >= 0 && id_edc >= 0);
           dp_sample_clock_init (&clk, DP_S415_FS, 0);
           cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
           DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
@@ -1024,8 +1129,33 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
             d->ho_code_chip = e_cod[b];
           if (tlm)
             {
+              /* Unwrapped: each block's step folded to half a cycle the
+                 other way, so the sum is continuous and a pi slip stays. */
+              if (!isnan (ec_prev))
+                {
+                  double dd = ec - ec_prev;
+                  dd -= floor (dd + 0.5);
+                  ecu += dd;
+                }
+              else
+                ecu = ec - floor (ec + 0.5);
+              ec_prev = ec;
               dp_tlm_emit (tlm, id_ecar, 360.0 * e_car[b]);
               dp_tlm_emit (tlm, id_ecod, e_cod[b]);
+              dp_tlm_emit (tlm, id_ecu, 360.0 * ecu);
+              if (rx->dll && rx->dll->aid_nhyp)
+                dp_tlm_emit (tlm, id_hyp, (double)rx->dll->aid_best);
+              if (rx->rx && !rx->rx->real && rx->rx->fe.c)
+                {
+                  /* The residual the demodulator sees is truth - NCO =
+                     -ec; its LO multiplies it by exp(j 2 pi lo), so what
+                     is left at its decisions is lo - ec, cycles. */
+                  const double lo = (double)dp_lo_get_phase (rx->rx->fe.c->lo)
+                                    / 4294967296.0;
+                  double       ed = lo - ec;
+                  ed -= 0.5 * floor (ed / 0.5 + 0.5);
+                  dp_tlm_emit (tlm, id_edc, 360.0 * ed);
+                }
             }
         }
       DP_REQUIRE (dp_air_next (&air, x, PI_PUSH));
@@ -1260,6 +1390,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
             {
               memcpy (syms + ns, tmp, got * sizeof *tmp);
               ns += got;
+              if (tlm && first_in != SIZE_MAX)
+                pi_live_align (&air, first_in, secs, syms, ns, &lv_truth,
+                               &lv_n, &lv_ok, &lv_mk, &lv_sy, &lv_acc,
+                               &lv_scored, &lv_next, tlm, id_lag, id_cnt);
             }
         }
       f_sym[b] = (uint8_t)(tracking && dp_async_dsss_receiver_get_locked (rx));
@@ -1787,6 +1921,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag, int cw,
   free (tmp);
   free (pay);
   dp_air_free (&air);
+  free (lv_truth);
+  dp_ber_free (&lv_acc);
   dp_async_dsss_receiver_destroy (rx);
   return 0;
 }

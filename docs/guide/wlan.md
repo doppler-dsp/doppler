@@ -110,6 +110,26 @@ in the unit test). `window` counts samples at the output rate, so the
 standard's 100 ns transition is `2 * M`. Outside the 52 subcarriers the
 spectrum is only the symbol boundaries' skirts, which a longer window lowers.
 
+In Python the same PPDU is one call on `Wlan`, which holds the rate, the
+window and the oversampling as configuration and takes the PSDU and the
+scrambler's initial state:
+
+```python
+import numpy as np
+from doppler.wlan import Wlan
+
+w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s at 20 MHz
+x = w.ppdu(np.arange(100, dtype=np.uint8), 93)
+assert x.shape == (160 + 160 + 80 + 80 * w.n_sym(100),)
+x2 = Wlan(constellation="qam16", code_rate="r34", oversample=2).ppdu(
+    np.arange(100, dtype=np.uint8), 93
+)
+assert x2.shape == (2 * x.shape[0],)  # the same PPDU, twice as finely
+```
+
+A PSDU outside 1 to 4095 octets, a scrambler state outside 1 to 127, or an
+`out=` buffer that is too short raises `ValueError` saying which.
+
 The stages are public if a caller wants one of them: `dp_wlan_points()` is the
 constellation points of a PPDU in layout order (the SIGNAL field's 48, then
 the Data field's), and `dp_wlan_layout()` builds the matching OFDM layout in a

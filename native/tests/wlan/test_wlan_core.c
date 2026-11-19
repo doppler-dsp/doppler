@@ -554,7 +554,7 @@ main (void)
     }
 
     /* the object */
-    dp_wlan_state_t *w = dp_wlan_create (2, 2);
+    dp_wlan_state_t *w = dp_wlan_create (2, 2, 0, 1);
     DP_REQUIRE (w != NULL);
     DP_CHECK (w->n_bpsc == 4 && w->n_cbps == 192 && w->n_dbps == 144);
     DP_CHECK (w->rate_mbps == 36);
@@ -563,19 +563,19 @@ main (void)
     dp_wlan_destroy (w);
     dp_wlan_destroy (NULL);
     {
-      dp_wlan_state_t *x = dp_wlan_create (0, 1); /* BPSK 2/3: no row */
+      dp_wlan_state_t *x = dp_wlan_create (0, 1, 0, 1); /* BPSK 2/3: no row */
       DP_REQUIRE (x != NULL);
       DP_CHECK (x->rate_mbps == 0);
       dp_wlan_destroy (x);
     }
-    DP_CHECK (dp_wlan_create (-1, 0) == NULL);
-    DP_CHECK (dp_wlan_create (4, 0) == NULL);
-    DP_CHECK (dp_wlan_create (0, 4) == NULL);
+    DP_CHECK (dp_wlan_create (-1, 0, 0, 1) == NULL);
+    DP_CHECK (dp_wlan_create (4, 0, 0, 1) == NULL);
+    DP_CHECK (dp_wlan_create (0, 4, 0, 1) == NULL);
     /* every constellation at every rate that gives whole bits: all do here */
     for (int m = 0; m < 4; m++)
       for (int c = 0; c < 4; c++)
         {
-          dp_wlan_state_t *x = dp_wlan_create (m, c);
+          dp_wlan_state_t *x = dp_wlan_create (m, c, 0, 1);
           DP_CHECK (x != NULL);
           dp_wlan_destroy (x);
         }
@@ -1487,6 +1487,99 @@ main (void)
       DP_CHECK (oob[0] > 0.0);
       DP_CHECK (oob[1] < oob[0]);
     }
+  }
+
+  /* ── 10d. The object renders a PPDU: window and oversample are its
+   * configuration, ppdu_why() is dp_wlan_ppdu() with a reason ───────────── */
+  {
+    /* the constructor's ranges: window 0 to 80 M, M 1 to 128 */
+    static const struct
+    {
+      uint32_t window, m;
+      int      ok;
+    } cr[]
+        = { { 0, 1, 1 },       { 80, 1, 1 },     { 81, 1, 0 },  { 160, 2, 1 },
+            { 161, 2, 0 },     { 0, 0, 0 },      { 0, 128, 1 }, { 0, 129, 0 },
+            { 10240, 128, 1 }, { 10241, 128, 0 } };
+    for (size_t i = 0; i < sizeof cr / sizeof *cr; i++)
+      {
+        dp_wlan_state_t *x = dp_wlan_create (2, 2, cr[i].window, cr[i].m);
+        DP_CHECK ((x != NULL) == cr[i].ok);
+        if (x)
+          {
+            DP_CHECK (x->window == cr[i].window && x->oversample == cr[i].m);
+            dp_wlan_destroy (x);
+          }
+      }
+    /* the largest window the constructor accepts is one the modulator takes:
+     * 80 M samples at each boundary */
+    {
+      const dp_wlan_rate_t r36 = { 4, WLAN_CODE_3_4 };
+      size_t               n;
+      float _Complex      *x = render_ppdu (&r36, 100, 93, 80, 1, &n);
+      DP_CHECK (x != NULL);
+      free (x);
+      x = render_ppdu (&r36, 100, 93, 160, 2, &n);
+      DP_CHECK (x != NULL);
+      free (x);
+    }
+
+    uint8_t psdu[100];
+    for (size_t i = 0; i < 100; i++)
+      psdu[i] = (uint8_t)(i * 37 + 11);
+    for (uint32_t m = 1; m <= 2; m++)
+      {
+        dp_wlan_state_t *w = dp_wlan_create (2, 2, 4 * m, m);
+        DP_REQUIRE (w != NULL);
+        const dp_wlan_rate_t r   = { 4, WLAN_CODE_3_4 };
+        const size_t         cap = dp_wlan_ppdu_why_max_out (w, 100);
+        DP_CHECK (cap == dp_wlan_ppdu_len (6, 4 * m, m));
+        float _Complex *a = malloc (cap * sizeof *a);
+        float _Complex *b = malloc (cap * sizeof *b);
+        DP_REQUIRE (a != NULL && b != NULL);
+        const char *why = "untouched";
+        DP_CHECK (dp_wlan_ppdu_why (w, psdu, 100, 93, a, cap, &why)
+                  == (int64_t)cap);
+        DP_CHECK (strcmp (why, "untouched") == 0); /* set only on refusal */
+        DP_CHECK (dp_wlan_ppdu (dp_wlan_tables_standard (), &r, psdu, 100, 93,
+                                4 * m, m, b, cap)
+                  == cap);
+        DP_CHECK (memcmp (a, b, cap * sizeof *a) == 0);
+        /* refusals: -1, a sentence, the output untouched */
+        static const struct
+        {
+          size_t      n_psdu;
+          uint32_t    st;
+          size_t      room;
+          const char *why;
+        } refuse[] = {
+          { 0, 93, 0, "the PSDU is 1 to 4095 octets" },
+          { 4096, 93, 0, "the PSDU is 1 to 4095 octets" },
+          { 100, 0, 0, "the scrambler state is 1 to 127" },
+          { 100, 128, 0, "the scrambler state is 1 to 127" },
+          { 100, 93, 1, "the output buffer is shorter than the PPDU" },
+        };
+        for (size_t i = 0; i < sizeof refuse / sizeof *refuse; i++)
+          {
+            for (size_t k = 0; k < cap; k++)
+              a[k] = 123.0f;
+            why               = NULL;
+            const size_t room = refuse[i].room ? cap - 1 : cap;
+            DP_CHECK (dp_wlan_ppdu_why (w, psdu, refuse[i].n_psdu,
+                                        refuse[i].st, a, room, &why)
+                      == -1);
+            DP_CHECK (why != NULL && strcmp (why, refuse[i].why) == 0);
+            int untouched = 1;
+            for (size_t k = 0; k < cap; k++)
+              untouched &= (crealf (a[k]) == 123.0f);
+            DP_CHECK (untouched);
+          }
+        DP_CHECK (dp_wlan_ppdu_why_max_out (w, 0) == 0);
+        DP_CHECK (dp_wlan_ppdu_why_max_out (w, 4096) == 0);
+        free (a);
+        free (b);
+        dp_wlan_destroy (w);
+      }
   }
 
   /* ── 10b. The scale is a configuration, and one gain covers every field ──

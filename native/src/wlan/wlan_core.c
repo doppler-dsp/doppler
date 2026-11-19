@@ -231,10 +231,13 @@ dp_wlan_bcc (dp_wlan_code_t code, conv_code_t *c)
 /* ── The object ──────────────────────────────────────────────────────── */
 
 dp_wlan_state_t *
-dp_wlan_create (int constellation, int code_rate)
+dp_wlan_create (int constellation, int code_rate, uint32_t window,
+                uint32_t oversample)
 {
   static const unsigned bpsc[4] = { 1, 2, 4, 6 };
-  if (constellation < 0 || constellation > 3 || code_rate < 0 || code_rate > 3)
+  if (constellation < 0 || constellation > 3 || code_rate < 0 || code_rate > 3
+      || oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX
+      || window > WLAN_SYM_LEN * oversample)
     return NULL;
   const dp_wlan_rate_t r = { bpsc[constellation], (dp_wlan_code_t)code_rate };
   if (!dp_wlan_rate_ok (&r))
@@ -244,6 +247,8 @@ dp_wlan_create (int constellation, int code_rate)
   s->code            = (uint32_t)code_rate;
   s->n_cbps          = dp_wlan_n_cbps (&r);
   s->n_dbps          = dp_wlan_n_dbps (&r);
+  s->window          = window;
+  s->oversample      = oversample;
   unsigned mbps      = 0;
   s->rate_mbps
       = dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps) ? mbps : 0u;
@@ -267,6 +272,42 @@ dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len)
 {
   const dp_wlan_rate_t r = { state->n_bpsc, (dp_wlan_code_t)state->code };
   return dp_wlan_rate_n_sym (&r, psdu_len);
+}
+
+size_t
+dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in)
+{
+  const size_t n_sym = dp_wlan_n_sym (state, n_in);
+  return n_sym ? dp_wlan_ppdu_len (n_sym, state->window, state->oversample)
+               : 0;
+}
+
+int64_t
+dp_wlan_ppdu_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
+                  uint32_t scrambler_state, float _Complex *out,
+                  size_t max_out, const char **why)
+{
+  const char  *sentence = NULL;
+  const size_t n        = dp_wlan_ppdu_why_max_out (state, n_in);
+  if (n == 0)
+    sentence = "the PSDU is 1 to 4095 octets";
+  else if (scrambler_state < 1 || scrambler_state > 127)
+    sentence = "the scrambler state is 1 to 127";
+  else if (max_out < n)
+    sentence = "the output buffer is shorter than the PPDU";
+  if (!sentence)
+    {
+      const dp_wlan_rate_t r = { state->n_bpsc, (dp_wlan_code_t)state->code };
+      if (dp_wlan_ppdu (dp_wlan_tables_standard (), &r, in, n_in,
+                        (uint8_t)scrambler_state, state->window,
+                        state->oversample, out, max_out)
+          == n)
+        return (int64_t)n;
+      sentence = "a stage of the PPDU refused";
+    }
+  if (why)
+    *why = sentence;
+  return -1;
 }
 
 /* ── The scrambler ───────────────────────────────────────────────────── */

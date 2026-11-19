@@ -99,9 +99,12 @@ typedef struct
   uint32_t n_cbps; 
   uint32_t n_dbps; 
   uint32_t rate_mbps; 
+  uint32_t window;     
+  uint32_t oversample; 
 } dp_wlan_state_t;
 
-dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate);
+dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
+                                 uint32_t window, uint32_t oversample);
 
 void dp_wlan_destroy (dp_wlan_state_t *state);
 
@@ -124,6 +127,10 @@ int dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
 size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 
 size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
+
+size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+int64_t dp_wlan_ppdu_why(dp_wlan_state_t *state, const uint8_t *in, size_t n_in, uint32_t scrambler_state, float _Complex *out, size_t max_out, const char **why);
 
 size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window,
                          unsigned oversample);

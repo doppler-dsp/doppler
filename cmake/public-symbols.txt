@@ -1938,6 +1938,8 @@ dp_wlan_n_sym function
 dp_wlan_points function
 dp_wlan_ppdu function
 dp_wlan_ppdu_len function
+dp_wlan_ppdu_why function
+dp_wlan_ppdu_why_max_out function
 dp_wlan_rate_from_mbps function
 dp_wlan_rate_n_sym function
 dp_wlan_rate_ok function

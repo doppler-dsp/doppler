@@ -4327,3 +4327,18 @@ the trials the fix counts as not settled.
     of watch instead of 240), and none comes back, as before.
 
 ______________________________________________________________________
+
+### 12.30 What was measured (2026-11-19) — the carrier window at the 415.1 floor, ruling 5's evidence
+
+The owner's ruling 5 makes the `code_period` carrier window the receiver's one mode. This is the measurement behind it, recorded once; the certification's error-rate rows run `code_period` alone.
+
+**Producer:** `validate_async_dsss_receiver_ber --window-comparison --emit`, the error-rate harness as committed in the commit that adds this section. Its block is `src/doppler/dsss/tests/validation/async_dsss_receiver/data/window_comparison.txt`. The run uses the spec rows' pool: the 415.1 scene with three emitters (−900, +100 and +1,100 Hz, 0, 300 and 600 chips apart) into a pool of four receivers at 11 MSa/s, both windows on the same draws, 30 draws of 4 s at Es/N0 4 dB. "Clean" is over the receivers that did not slip.
+
+| carrier | window        | held     | slipped      | clean SER | clean loss |
+| ------- | ------------- | -------- | ------------ | --------- | ---------- |
+| 2.2 GHz | `partials`    | 89 of 90 | 6 of 89      | 2.39e-2   | 1.08 dB    |
+| 2.2 GHz | `code_period` | 89 of 90 | 3 of 88      | 2.24e-2   | 0.97 dB    |
+| 2.8 GHz | `partials`    | 90 of 90 | **41 of 89** | 9.82e-2   | 4.79 dB    |
+| 2.8 GHz | `code_period` | 90 of 90 | **10 of 90** | 2.53e-2   | 1.19 dB    |
+
+At the 4 dB floor the `partials` window slips four times as often at 2.8 GHz, and its unslipped receivers still lose 4.8 dB. The `code_period` window is the better mode at the floor, but it is not slip-free either: 10 of 90 at 2.8 GHz and 3 of 88 at 2.2 GHz are the floor's open slip finding.

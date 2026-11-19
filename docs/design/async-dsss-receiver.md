@@ -1492,7 +1492,7 @@ existing `segments`, default 4
     `validate_async_dsss_receiver_pullin --check`'s "#3134: the code lock
     does not change over the data once sustained" pins it on seed 5, both
     windows, and is in the branch's known red set until the fix.
-- **The certification report asserts 5 limits while it moves to the
+- **The certification report asserts 4 limits while it moves to the
     415.1 point**, pinned exactly in `test_validation_limits.py`
     (`ENVELOPE_EXACT`), and each harness's move sets its new count. Before
     release it returns to the shared floor of 15 or justifies its count.

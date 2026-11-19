@@ -118,3 +118,6 @@ CMakeUserPresets.json
 # untracked here. Unignored, a `make lint` run from the main checkout (as
 # `make train` does) lints every one of them as if it were this tree.
 .claude/worktrees/
+
+# clangd's index of the tree (an editor tool cache, never committed)
+.cache/

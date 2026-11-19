@@ -503,6 +503,7 @@
 * **WLAN\_N\_SD** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_N\_SP** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_N\_SYM\_MAX** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_OVERSAMPLE\_MAX** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_PILOT\_K** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_PILOT\_V** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_POLARITY\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))

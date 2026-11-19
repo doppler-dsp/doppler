@@ -194,10 +194,15 @@ dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len)
 }
 
 size_t
-dp_wlan_ppdu_len (size_t n_sym, unsigned window)
+dp_wlan_ppdu_len (size_t n_sym, unsigned window, unsigned oversample)
 {
-  return WLAN_STF_LEN + WLAN_LTF_LEN + WLAN_SYM_LEN
-         + (size_t)WLAN_SYM_LEN * n_sym + window;
+  if (n_sym < 1 || n_sym > WLAN_N_SYM_MAX || oversample < 1
+      || oversample > WLAN_OVERSAMPLE_MAX)
+    return 0;
+  return (size_t)oversample
+             * (WLAN_STF_LEN + WLAN_LTF_LEN + WLAN_SYM_LEN
+                + (size_t)WLAN_SYM_LEN * n_sym)
+         + window;
 }
 
 /* The puncture patterns, Figure 17-9: bit i*n+j transmits output j of input
@@ -570,31 +575,36 @@ dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
 
 int
 dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t, size_t n_sym,
-                unsigned window)
+                unsigned window, unsigned oversample)
 {
   if (!t || !t->stf || !t->ltf || t->scale_stf <= 0.0 || t->scale_ltf <= 0.0
-      || t->scale_data <= 0.0 || n_sym == 0 || n_sym > WLAN_N_SYM_MAX)
+      || t->scale_data <= 0.0 || n_sym == 0 || n_sym > WLAN_N_SYM_MAX
+      || oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX)
     return -1;
-  uint8_t null_map[WLAN_N_FFT];
-  uint8_t data_map[WLAN_N_FFT];
-  memset (null_map, 0, sizeof null_map);
-  memset (data_map, 0, sizeof data_map);
-  static const int32_t pk[4] = WLAN_PILOT_K;
+  const uint32_t       m        = oversample;
+  const uint32_t       n_fft    = WLAN_N_FFT * m;
+  uint8_t             *null_map = dp_xcalloc (n_fft, 1);
+  uint8_t             *data_map = dp_xcalloc (n_fft, 1);
+  static const int32_t pk[4]    = WLAN_PILOT_K;
   /* every subcarrier but DC may carry data; the four pilots, added below as
    * fixed entries, displace data on their subcarriers, leaving 48 */
   for (int32_t k = -26; k <= 26; k++)
     if (k != 0)
-      data_map[(size_t)(k + (int32_t)WLAN_N_FFT / 2)] = 1;
-  /* L-STF: ten short periods read as 160 samples of the 64-point transform,
-   * no prefix; L-LTF: 128 samples (two long periods) behind a 32-sample
-   * prefix; SIGNAL and Data share one class so the pilot polarity runs on. */
-  const int stf = dp_ofdm_add_class (o, WLAN_N_FFT, null_map, WLAN_N_FFT,
-                                     WLAN_STF_LEN, 0, window, t->scale_stf, 1);
-  const int ltf = dp_ofdm_add_class (o, WLAN_N_FFT, null_map, WLAN_N_FFT, 128,
-                                     32, window, t->scale_ltf, 1);
-  const int sym
-      = dp_ofdm_add_class (o, WLAN_N_FFT, data_map, WLAN_N_FFT, WLAN_N_FFT,
-                           WLAN_GI, window, t->scale_data, 1);
+      data_map[(size_t)(k + (int32_t)n_fft / 2)] = 1;
+  /* L-STF: ten short periods read as 160 * M samples of the 64 * M-point
+   * transform, no prefix; L-LTF: 128 * M samples (two long periods) behind a
+   * 32 * M-sample prefix; SIGNAL and Data share one class so the pilot
+   * polarity runs on. Every length is M times its 20 MHz value, and the
+   * scale is unchanged: the transform is unnormalized, so the same waveform
+   * is sampled M times as finely. */
+  const int stf = dp_ofdm_add_class (
+      o, n_fft, null_map, n_fft, WLAN_STF_LEN * m, 0, window, t->scale_stf, 1);
+  const int ltf = dp_ofdm_add_class (o, n_fft, null_map, n_fft, 128 * m,
+                                     32 * m, window, t->scale_ltf, 1);
+  const int sym = dp_ofdm_add_class (o, n_fft, data_map, n_fft, n_fft,
+                                     WLAN_GI * m, window, t->scale_data, 1);
+  free (null_map);
+  free (data_map);
   if (stf < 0 || ltf < 0 || sym < 0)
     return -1;
   for (int32_t k = -26; k <= 26; k++)
@@ -634,13 +644,13 @@ dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t, size_t n_sym,
 size_t
 dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
               const uint8_t *psdu, size_t len, uint8_t state, unsigned window,
-              float _Complex *out, size_t cap)
+              unsigned oversample, float _Complex *out, size_t cap)
 {
   const size_t n_sym = dp_wlan_rate_n_sym (r, len);
   if (n_sym == 0)
     return 0;
-  const size_t n_samples = dp_wlan_ppdu_len (n_sym, window);
-  if (cap < n_samples)
+  const size_t n_samples = dp_wlan_ppdu_len (n_sym, window, oversample);
+  if (n_samples == 0 || cap < n_samples)
     return 0;
   const size_t    n_pts = WLAN_N_SD + (size_t)WLAN_N_SD * n_sym;
   float _Complex *pts   = dp_xmallocn (n_pts, sizeof *pts);
@@ -648,7 +658,7 @@ dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
   if (dp_wlan_points (t, r, psdu, len, state, pts, n_pts) == n_pts)
     {
       dp_ofdm_state_t *o = dp_ofdm_create ();
-      if (dp_wlan_layout (o, t, n_sym, window) == 0)
+      if (dp_wlan_layout (o, t, n_sym, window, oversample) == 0)
         {
           const size_t a = dp_ofdm_modulate (o, pts, n_pts, out, n_samples);
           const size_t b

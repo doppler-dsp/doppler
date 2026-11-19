@@ -12,6 +12,8 @@
  *                              field, from the PSDU, the rate, the scrambler
  *                              register state and the standard's tables
  *   5. check what came out     the length, the fields' structure, the power
+ *   6. oversample              the same PPDU at 2x the rate, by a larger
+ *                              transform, held to the 20 MHz one
  *
  * dp_wlan_ppdu() does everything between a PSDU and its samples: the SERVICE,
  * tail and pad assembly, the scrambler, the punctured BCC, the interleaver,
@@ -71,7 +73,7 @@ main (void)
   const dp_wlan_tables_t *tables = dp_wlan_tables_standard ();
   const dp_wlan_rate_t    rate   = { 4, WLAN_CODE_3_4 };
   const size_t            n_sym  = dp_wlan_rate_n_sym (&rate, len);
-  const size_t            n      = dp_wlan_ppdu_len (n_sym, 0u);
+  const size_t            n      = dp_wlan_ppdu_len (n_sym, 0u, 1u);
   printf (
       "--- 1-3. a %zu-octet PSDU at 16-QAM rate 3/4: %zu Data OFDM symbols, "
       "%zu samples\n",
@@ -83,7 +85,8 @@ main (void)
 
   /* 4. The render. The scrambler register starts at 93 (any of 1..127; the
      standard's example uses 1011101b). Zero window: no transition shaping. */
-  const size_t got = dp_wlan_ppdu (tables, &rate, psdu, len, 93, 0u, ppdu, n);
+  const size_t got
+      = dp_wlan_ppdu (tables, &rate, psdu, len, 93, 0u, 1u, ppdu, n);
   printf ("--- 4. dp_wlan_ppdu wrote %zu samples\n", got);
   ok &= (got == n);
 
@@ -177,10 +180,36 @@ main (void)
   /* A refusal changes nothing and returns 0: a scrambler state of 0 is not
      one the register can hold. */
   cf spare[1] = { 0 };
-  ok &= (dp_wlan_ppdu (tables, &rate, psdu, len, 0, 0u, spare, 1) == 0);
-  ok &= (dp_wlan_ppdu (tables, &rate, psdu, len, 93, 0u, ppdu, n - 1) == 0);
+  ok &= (dp_wlan_ppdu (tables, &rate, psdu, len, 0, 0u, 1u, spare, 1) == 0);
+  ok &= (dp_wlan_ppdu (tables, &rate, psdu, len, 93, 0u, 1u, ppdu, n - 1)
+         == 0);
   printf ("    a zero scrambler state, and a buffer one sample short, are "
           "refused with 0\n");
+
+  /* 6. The same PPDU at twice the rate, 40 MHz: a transform twice as long,
+     the same subcarriers, not a resampler. Every second sample is the 20 MHz
+     PPDU's, to float rounding: the relative l2 error is held to 1.5e-3, the
+     tolerance and statistic of the unit test (test_wlan_core.c, WLAN_FFT_TOL:
+     the FFT's own 5e-4 per component, for the two transforms compared). */
+  const size_t n2 = dp_wlan_ppdu_len (n_sym, 0u, 2u);
+  cf          *p2 = malloc (n2 * sizeof *p2);
+  if (!p2)
+    return 1;
+  ok &= (dp_wlan_ppdu (tables, &rate, psdu, len, 93, 0u, 2u, p2, n2) == n2);
+  double num = 0, den = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double d = cabs ((double _Complex)p2[2 * i] - ppdu[i]);
+      num += d * d;
+      den += pw (ppdu[i]);
+    }
+  const double dec = sqrt (num / den);
+  printf (
+      "--- 6. at 2x oversampling: %zu samples, every second one the 20 MHz "
+      "PPDU's, relative l2 difference %.1e\n",
+      n2, dec);
+  ok &= (n2 == 2 * n && dec < 1.5e-3);
+  free (p2);
 
   free (ppdu);
   printf ("\nwlan_ppdu_demo: %s\n", ok ? "OK" : "FAILED");

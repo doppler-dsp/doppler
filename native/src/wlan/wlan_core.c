@@ -73,7 +73,9 @@ static const uint16_t RELABEL_QAM64[64]
 
 /* Every field is scaled to unit average power: its 52 occupied tones carry
  * 52 units (the L-STF's sqrt(13/6) is what makes 12 tones carry 52), so one
- * factor, 1/sqrt(52), serves the PPDU (design page, goal 5). */
+ * factor, 1/sqrt(52), serves the PPDU (design page, goal 5). That is this
+ * library's convention (#3148); Annex I's printed samples are the same math
+ * with 1/64, i.e. these times sqrt(52)/64. */
 static const dp_wlan_tables_t STANDARD_TABLES = {
   .stf            = STF,
   .ltf            = LTF,

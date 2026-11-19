@@ -73,6 +73,11 @@ typedef struct
   double scale_stf;  
   double scale_ltf;  
   double scale_data; 
+  /* The standard tables set all three to 1/sqrt(52): unit mean power over
+     the 52 occupied subcarriers, this library's convention (#3148). Annex I
+     prints the same math with the inverse transform's own 1/64, so its
+     time-domain samples equal this library's times sqrt(52)/64; a table whose
+     three scales are 1/64 renders them. One gain covers every field. */
   const dp_wlan_signal_rate_t *signal_rates; 
   size_t                       n_signal_rates; 
   dp_wlan_perm2_fn perm2; 

@@ -34,6 +34,7 @@
 #include "doppler/wlan/wlan_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
+#include "wlan_ppdu_m1_oracle.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -170,6 +171,211 @@ worst_rel (const float _Complex *a, const float _Complex *b, double gain,
   return worst / peak;
 }
 
+/* Render a PPDU of 'len' octets psdu[i] = i * 37 + 11 at the given rate,
+ * window and oversampling; returns the samples (caller frees) and their
+ * count in *n, or NULL. */
+static float _Complex *
+render_ppdu (const dp_wlan_rate_t *r, size_t len, uint8_t state,
+             unsigned window, unsigned m, size_t *n)
+{
+  uint8_t psdu[128];
+  for (size_t i = 0; i < len; i++)
+    psdu[i] = (uint8_t)(i * 37 + 11);
+  const size_t n_sym = dp_wlan_rate_n_sym (r, len);
+  *n                 = dp_wlan_ppdu_len (n_sym, window, m);
+  float _Complex *x  = malloc (*n * sizeof *x);
+  if (!x)
+    return NULL;
+  if (dp_wlan_ppdu (dp_wlan_tables_standard (), r, psdu, len, state, window, m,
+                    x, *n)
+      != *n)
+    {
+      free (x);
+      return NULL;
+    }
+  return x;
+}
+
+/* The relative l2 error of x against an oracle of interleaved real and
+ * imaginary parts given as IEEE-754 bit patterns. */
+static double
+oracle_l2 (const float _Complex *x, size_t n, const uint32_t *oracle)
+{
+  double num = 0, den = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      float re, im;
+      memcpy (&re, &oracle[2 * i], 4);
+      memcpy (&im, &oracle[2 * i + 1], 4);
+      const double dr = (double)crealf (x[i]) - re;
+      const double di = (double)cimagf (x[i]) - im;
+      num += dr * dr + di * di;
+      den += (double)re * re + (double)im * im;
+    }
+  return sqrt (num / den);
+}
+
+/* The tolerance of every decimation and cross-build comparison below, set by
+ * the error those checks must catch. A layout error (a length, a prefix, a
+ * scale, a grid offset) moves samples by O(1): the controls below are at least
+ * 1e-2. The tolerance only has to sit above float32 rounding, and its source
+ * is the accuracy the FFT's own test pins: test_fft_core.c accepts the
+ * library's float32 transform against a double reference to TOL32 = 5e-4
+ * ABSOLUTE in each of the real and imaginary parts, on inputs of unit scale.
+ * A complex sample therefore differs by at most sqrt (2) * 5e-4; the two
+ * PPDUs compared come from two transforms, so 2 * sqrt (2) * 5e-4 = 1.41e-3
+ * per sample at unit rms, and a relative l2 (a root mean of per-sample
+ * squares) cannot exceed it: 1.5e-3. The expected size of the rounding is far
+ * smaller, a small multiple of u log2 N with u = 2^-24 (Higham, Accuracy and
+ * Stability of Numerical Algorithms, the FFT section), about 1e-6; that is an
+ * expectation, not what is asserted. */
+#define WLAN_FFT_TOL 1.5e-3
+
+/* Mean power of x[first .. first + len). */
+static double
+mean_power (const float _Complex *x, size_t first, size_t len)
+{
+  double p = 0;
+  for (size_t i = 0; i < len; i++)
+    p += (double)(crealf (x[first + i]) * crealf (x[first + i])
+                  + cimagf (x[first + i]) * cimagf (x[first + i]));
+  return p / (double)len;
+}
+
+/* The relative l2 error of the decimated PPDU against the M = 1 one:
+ * sqrt (sum |x[M i] - y[i]|^2 / sum |y[i]|^2) over i < n_cmp, skipping the
+ * samples i in [b, b + w) of each boundary b in bounds. */
+static double
+decimation_error (const float _Complex *xm, unsigned m,
+                  const float _Complex *y, size_t n_cmp, const size_t *bounds,
+                  size_t n_bounds, size_t w)
+{
+  double num = 0, den = 0;
+  for (size_t i = 0; i < n_cmp; i++)
+    {
+      int skip = 0;
+      for (size_t k = 0; k < n_bounds; k++)
+        if (i >= bounds[k] && i < bounds[k] + w)
+          skip = 1;
+      if (skip)
+        continue;
+      const double d = cabs ((double _Complex)xm[(size_t)m * i] - y[i]);
+      num += d * d;
+      den += (double)(crealf (y[i]) * crealf (y[i])
+                      + cimagf (y[i]) * cimagf (y[i]));
+    }
+  return sqrt (num / den);
+}
+
+/* ── The layout as it was before dp_wlan_layout took an oversample argument ──
+ * A copy of the 20 MHz construction (64-point transform, literal lengths; it
+ * equals c86bfb247's dp_wlan_layout), kept so the M = 1 output of the new code
+ * is compared with the old construction in the SAME build, bit for bit: a
+ * committed float is bound to the compiler and the FFT dispatch that wrote it,
+ * an in-build oracle is not. This copy is a second layout in the test, and the
+ * first commit of the next PR in the stack removes it: the proof is in the
+ * history and in that PR's CI, and no copy stays on main to be mirrored. */
+static int
+pre_oversample_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
+                       size_t n_sym, unsigned window)
+{
+  if (!t || !t->stf || !t->ltf || t->scale_stf <= 0.0 || t->scale_ltf <= 0.0
+      || t->scale_data <= 0.0 || n_sym == 0 || n_sym > WLAN_N_SYM_MAX)
+    return -1;
+  uint8_t null_map[WLAN_N_FFT];
+  uint8_t data_map[WLAN_N_FFT];
+  memset (null_map, 0, sizeof null_map);
+  memset (data_map, 0, sizeof data_map);
+  static const int32_t pk[4] = WLAN_PILOT_K;
+  /* every subcarrier but DC may carry data; the four pilots, added below as
+   * fixed entries, displace data on their subcarriers, leaving 48 */
+  for (int32_t k = -26; k <= 26; k++)
+    if (k != 0)
+      data_map[(size_t)(k + (int32_t)WLAN_N_FFT / 2)] = 1;
+  /* L-STF: ten short periods read as 160 samples of the 64-point transform,
+   * no prefix; L-LTF: 128 samples (two long periods) behind a 32-sample
+   * prefix; SIGNAL and Data share one class so the pilot polarity runs on. */
+  const int stf = dp_ofdm_add_class (o, WLAN_N_FFT, null_map, WLAN_N_FFT,
+                                     WLAN_STF_LEN, 0, window, t->scale_stf, 1);
+  const int ltf = dp_ofdm_add_class (o, WLAN_N_FFT, null_map, WLAN_N_FFT, 128,
+                                     32, window, t->scale_ltf, 1);
+  const int sym
+      = dp_ofdm_add_class (o, WLAN_N_FFT, data_map, WLAN_N_FFT, WLAN_N_FFT,
+                           WLAN_GI, window, t->scale_data, 1);
+  if (stf < 0 || ltf < 0 || sym < 0)
+    return -1;
+  for (int32_t k = -26; k <= 26; k++)
+    {
+      const float _Complex vs = t->stf[k + 26], vl = t->ltf[k + 26];
+      if (vs != 0.0f
+          && dp_ofdm_add_fixed (o, (uint32_t)stf, OFDM_ALL_PHASES, k, vs) != 0)
+        return -1;
+      if (vl != 0.0f
+          && dp_ofdm_add_fixed (o, (uint32_t)ltf, OFDM_ALL_PHASES, k, vl) != 0)
+        return -1;
+    }
+  static const double pv[4] = WLAN_PILOT_V;
+  for (int i = 0; i < 4; i++)
+    if (dp_ofdm_add_fixed (o, (uint32_t)sym, OFDM_ALL_PHASES, pk[i], pv[i])
+        != 0)
+      return -1;
+  /* the pilot polarity: the scrambler's sequence from the all-ones state,
+   * with 0 read as +1 and 1 as -1 */
+  uint8_t seq[WLAN_POLARITY_LEN];
+  float _Complex pol[WLAN_POLARITY_LEN];
+  dp_wlan_scrambler_sequence (127, WLAN_POLARITY_LEN, seq);
+  for (size_t i = 0; i < WLAN_POLARITY_LEN; i++)
+    pol[i] = seq[i] ? -1.0f : 1.0f;
+  if (dp_ofdm_add_polarity (o, (uint32_t)sym, pol, WLAN_POLARITY_LEN) != 0)
+    return -1;
+  if (dp_ofdm_add_run (o, (uint32_t)stf, 1, OFDM_CP_DEFAULT, 0, 0) < 0
+      || dp_ofdm_add_run (o, (uint32_t)ltf, 1, OFDM_CP_DEFAULT, 0, 0) < 0
+      || dp_ofdm_add_run (o, (uint32_t)sym, 1, OFDM_CP_DEFAULT, 0, 0) < 0
+      || dp_ofdm_add_run (o, (uint32_t)sym, (uint32_t)n_sym, OFDM_CP_DEFAULT,
+                          1, 0)
+             < 0)
+    return -1;
+  return dp_ofdm_check (o);
+}
+
+/* A fixture that cannot be built stops the test (DP_REQUIRE returns int). */
+#define NEED(c)                                                               \
+  do                                                                          \
+    {                                                                         \
+      if (!(c))                                                               \
+        {                                                                     \
+          DP_TEST_ERR ("FAIL fixture: %s\n", #c);                             \
+          exit (1);                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
+/* A PPDU through pre_oversample_layout(), as dp_wlan_ppdu() built it. */
+static float _Complex *
+render_pre (const dp_wlan_rate_t *r, size_t len, uint8_t state,
+            unsigned window, size_t *n)
+{
+  uint8_t psdu[128];
+  for (size_t i = 0; i < len; i++)
+    psdu[i] = (uint8_t)(i * 37 + 11);
+  const dp_wlan_tables_t *t     = dp_wlan_tables_standard ();
+  const size_t            n_sym = dp_wlan_rate_n_sym (r, len);
+  const size_t            n_pts = WLAN_N_SD + (size_t)WLAN_N_SD * n_sym;
+  *n                            = 160 + 160 + 80 + 80 * n_sym + window;
+  float _Complex *pts           = malloc (n_pts * sizeof *pts);
+  float _Complex *x             = malloc (*n * sizeof *x);
+  NEED (pts != NULL && x != NULL);
+  NEED (dp_wlan_points (t, r, psdu, len, state, pts, n_pts) == n_pts);
+  dp_ofdm_state_t *o = dp_ofdm_create ();
+  NEED (pre_oversample_layout (o, t, n_sym, window) == 0);
+  const size_t a = dp_ofdm_modulate (o, pts, n_pts, x, *n);
+  NEED (a > 0);
+  NEED (a + dp_ofdm_finish (o, o->tail_len, x + a, *n - a) == *n);
+  dp_ofdm_destroy (o);
+  free (pts);
+  return x;
+}
+
 int
 main (void)
 {
@@ -229,10 +435,10 @@ main (void)
       DP_CHECK (WLAN_N_SYM_MAX == (16u + 8u * 4095u + 6u + 23u) / 24u);
       dp_ofdm_state_t *lo = dp_ofdm_create (), *hi = dp_ofdm_create ();
       DP_CHECK (
-          dp_wlan_layout (lo, dp_wlan_tables_standard (), WLAN_N_SYM_MAX, 0)
+          dp_wlan_layout (lo, dp_wlan_tables_standard (), WLAN_N_SYM_MAX, 0, 1)
           == 0);
       DP_CHECK (dp_wlan_layout (hi, dp_wlan_tables_standard (),
-                                WLAN_N_SYM_MAX + 1, 0)
+                                WLAN_N_SYM_MAX + 1, 0, 1)
                 == -1);
       dp_ofdm_destroy (lo);
       dp_ofdm_destroy (hi);
@@ -252,8 +458,8 @@ main (void)
         DP_CHECK (n * 144 >= 22 + 8 * len);
         DP_CHECK ((n - 1) * 144 < 22 + 8 * len);
       }
-    DP_CHECK (dp_wlan_ppdu_len (6, 0) == 160 + 160 + 80 + 480);
-    DP_CHECK (dp_wlan_ppdu_len (6, 2) == 160 + 160 + 80 + 480 + 2);
+    DP_CHECK (dp_wlan_ppdu_len (6, 0, 1) == 160 + 160 + 80 + 480);
+    DP_CHECK (dp_wlan_ppdu_len (6, 2, 1) == 160 + 160 + 80 + 480 + 2);
 
     /* The data rate, Table 17-6's first column. The expected values are
      * typed from the printed table; the arithmetic N_DBPS / 4 (the 4 us
@@ -785,13 +991,13 @@ main (void)
     DP_CHECK (dp_wlan_points (dp_wlan_tables_empty (), &r, psdu, 100, 93,
                               poison, 600)
               == 0);
-    DP_CHECK (dp_wlan_ppdu (dp_wlan_tables_empty (), &r, psdu, 100, 93, 0,
+    DP_CHECK (dp_wlan_ppdu (dp_wlan_tables_empty (), &r, psdu, 100, 93, 0, 1,
                             poison, 600)
               == 0);
     for (int i = 0; i < 48; i++)
       DP_CHECK (poison[i] == 7.0f + 7.0f * I);
     dp_ofdm_state_t *o = dp_ofdm_create ();
-    DP_CHECK (dp_wlan_layout (o, dp_wlan_tables_empty (), 6, 0) == -1);
+    DP_CHECK (dp_wlan_layout (o, dp_wlan_tables_empty (), 6, 0, 1) == -1);
     dp_ofdm_destroy (o);
   }
 
@@ -803,12 +1009,12 @@ main (void)
     for (int i = 0; i < 100; i++)
       psdu[i] = (uint8_t)(i * 41 + 7);
     const size_t    n_sym = dp_wlan_rate_n_sym (&r, 100); /* 6 */
-    const size_t    n     = dp_wlan_ppdu_len (n_sym, 0);
+    const size_t    n     = dp_wlan_ppdu_len (n_sym, 0, 1);
     float _Complex *x     = malloc (n * sizeof *x);
     DP_REQUIRE (x != NULL);
-    DP_CHECK (dp_wlan_ppdu (&t, &r, psdu, 100, 93, 0, x, n) == n);
+    DP_CHECK (dp_wlan_ppdu (&t, &r, psdu, 100, 93, 0, 1, x, n) == n);
     DP_CHECK (n == 160 + 160 + 80 + 480);
-    DP_CHECK (dp_wlan_ppdu (&t, &r, psdu, 100, 93, 0, x, n - 1) == 0);
+    DP_CHECK (dp_wlan_ppdu (&t, &r, psdu, 100, 93, 0, 1, x, n - 1) == 0);
 
     /* L-STF: tones at multiples of four give a period of 16 samples */
     for (size_t i = 0; i + 16 < 160; i++)
@@ -872,7 +1078,7 @@ main (void)
     /* a window adds its tail and leaves the interior alone */
     float _Complex *xw = malloc ((n + 4) * sizeof *xw);
     DP_REQUIRE (xw != NULL);
-    DP_CHECK (dp_wlan_ppdu (&t, &r, psdu, 100, 93, 4, xw, n + 4) == n + 4);
+    DP_CHECK (dp_wlan_ppdu (&t, &r, psdu, 100, 93, 4, 1, xw, n + 4) == n + 4);
     for (size_t i = 200; i < n - 200; i++)
       if (i % 80 > 8 && i % 80 < 72)
         DP_CHECK (close_c (xw[i], x[i], 1e-4));
@@ -1051,7 +1257,8 @@ main (void)
         const size_t    n     = 400 + 80 * n_sym;
         float _Complex *x     = malloc (n * sizeof *x);
         DP_REQUIRE (x != NULL);
-        DP_CHECK (dp_wlan_ppdu (T, &rates[ri], psdu, 1000, 93, 0, x, n) == n);
+        DP_CHECK (dp_wlan_ppdu (T, &rates[ri], psdu, 1000, 93, 0, 1, x, n)
+                  == n);
         /* L-STF: 160 samples, no prefix; L-LTF: 128 useful after a 32
          * prefix; SIGNAL and Data: 64 useful after a 16 prefix. */
         const struct
@@ -1090,6 +1297,198 @@ main (void)
       }
   }
 
+  /* ── 10c. Oversampling: fs = M x 20 MHz by a larger transform ─────────── */
+  {
+    const dp_wlan_rate_t r36 = { 4, WLAN_CODE_3_4 }, r6 = { 1, WLAN_CODE_1_2 };
+    size_t               n1;
+
+    /* M = 1 is bit-identical to the construction before the argument
+     * existed, compared in this build against the test's own copy of it
+     * (pre_oversample_layout): the same compiler and FFT dispatch rendered
+     * both. */
+    {
+      float _Complex *a = render_ppdu (&r36, 100, 93, 4, 1, &n1);
+      float _Complex *p = render_pre (&r36, 100, 93, 4, &n1);
+      DP_REQUIRE (a != NULL && n1 == 884);
+      DP_CHECK (memcmp (a, p, n1 * sizeof *a) == 0);
+      /* control: one bit of one sample is a difference the check sees */
+      a[7] = nextafterf (crealf (a[7]), 1e9f) + I * cimagf (a[7]);
+      DP_CHECK (memcmp (a, p, n1 * sizeof *a) != 0);
+      free (a);
+      free (p);
+      a = render_ppdu (&r6, 10, 5, 0, 1, &n1);
+      p = render_pre (&r6, 10, 5, 0, &n1);
+      DP_REQUIRE (a != NULL && n1 == 800);
+      DP_CHECK (memcmp (a, p, n1 * sizeof *a) == 0);
+      free (a);
+      free (p);
+    }
+    /* And to the committed bytes of wlan_ppdu_m1_oracle.h, produced by gcc at
+     * c25c061d5, to WLAN_FFT_TOL: a different compiler's rounding is not
+     * bit-equal (the clang build differs), and the same tolerance and source
+     * as the decimation checks apply. */
+    {
+      float _Complex *a = render_ppdu (&r36, 100, 93, 4, 1, &n1);
+      DP_REQUIRE (a != NULL);
+      DP_CHECK (oracle_l2 (a, n1, ORACLE_36_W4) < WLAN_FFT_TOL);
+      free (a);
+      a = render_ppdu (&r6, 10, 5, 0, 1, &n1);
+      DP_REQUIRE (a != NULL);
+      DP_CHECK (oracle_l2 (a, n1, ORACLE_6_W0) < WLAN_FFT_TOL);
+      /* control: a 5% change of 100 samples (l2 1.8e-2) is seen */
+      for (size_t i = 100; i < 200; i++)
+        a[i] *= 1.05f;
+      DP_CHECK (oracle_l2 (a, n1, ORACLE_6_W0) > WLAN_FFT_TOL);
+      free (a);
+    }
+
+    /* lengths are M times the 20 MHz value, the window is not scaled */
+    DP_CHECK (dp_wlan_ppdu_len (6, 0, 4) == 4 * (160 + 160 + 80 + 480));
+    DP_CHECK (dp_wlan_ppdu_len (6, 3, 4) == 4 * (160 + 160 + 80 + 480) + 3);
+    /* the range: 1 to 128, and nothing is built outside it */
+    DP_CHECK (dp_wlan_ppdu_len (6, 0, 0) == 0);
+    /* and n_sym has dp_wlan_layout's range, 1 to WLAN_N_SYM_MAX */
+    DP_CHECK (dp_wlan_ppdu_len (0, 0, 1) == 0);
+    DP_CHECK (dp_wlan_ppdu_len (WLAN_N_SYM_MAX, 0, 1) > 0);
+    DP_CHECK (dp_wlan_ppdu_len (WLAN_N_SYM_MAX + 1, 0, 1) == 0);
+    DP_CHECK (dp_wlan_ppdu_len (6, 0, WLAN_OVERSAMPLE_MAX) > 0);
+    DP_CHECK (dp_wlan_ppdu_len (6, 0, WLAN_OVERSAMPLE_MAX + 1) == 0);
+    {
+      dp_ofdm_state_t *o0 = dp_ofdm_create (), *o1 = dp_ofdm_create ();
+      DP_CHECK (dp_wlan_layout (o0, dp_wlan_tables_standard (), 6, 0, 0)
+                == -1);
+      DP_CHECK (dp_wlan_layout (o1, dp_wlan_tables_standard (), 6, 0,
+                                WLAN_OVERSAMPLE_MAX + 1)
+                == -1);
+      dp_ofdm_destroy (o0);
+      dp_ofdm_destroy (o1);
+      uint8_t psdu[10] = { 0 };
+      float _Complex poison[16];
+      for (int i = 0; i < 16; i++)
+        poison[i] = 123.0f;
+      DP_CHECK (dp_wlan_ppdu (dp_wlan_tables_standard (), &r6, psdu, 10, 5, 0,
+                              0, poison, 16)
+                == 0);
+      DP_CHECK (dp_wlan_ppdu (dp_wlan_tables_standard (), &r6, psdu, 10, 5, 0,
+                              WLAN_OVERSAMPLE_MAX + 1, poison, 16)
+                == 0);
+      for (int i = 0; i < 16; i++)
+        DP_CHECK (crealf (poison[i]) == 123.0f);
+    }
+
+    /* The check, predicted from the arithmetic: with window 0 the M-times
+     * PPDU decimated by M equals the M = 1 PPDU, because it is one equation
+     * on a finer grid; the difference is float32 rounding in two transforms,
+     * and WLAN_FFT_TOL (above) is asserted at every M tested, powers of two or
+     * not. The controls are O(1). */
+    static const unsigned ms[] = { 2, 3, 5, 11, 16, 128 };
+    for (size_t k = 0; k < sizeof ms / sizeof *ms; k++)
+      {
+        const unsigned m = ms[k];
+        /* the largest M on the short PPDU, the others on the 36 Mb/s one */
+        const dp_wlan_rate_t *r   = m == 128 ? &r6 : &r36;
+        const size_t          len = m == 128 ? 10 : 100;
+        size_t                n_m;
+        float _Complex       *y  = render_ppdu (r, len, 93, 0, 1, &n1);
+        float _Complex       *xm = render_ppdu (r, len, 93, 0, m, &n_m);
+        DP_REQUIRE (y != NULL && xm != NULL);
+        DP_CHECK (n_m == (size_t)m * n1);
+        DP_CHECK (decimation_error (xm, m, y, n1, NULL, 0, 0) < WLAN_FFT_TOL);
+        /* control: a shift of the fine grid by half a coarse sample is far
+         * over it */
+        DP_CHECK (decimation_error (xm + m / 2, m, y, n1 - 1, NULL, 0, 0)
+                  > 1e-2);
+        free (y);
+        free (xm);
+      }
+
+    /* With a window the two PPDUs compared are M x with window M w and
+     * M = 1 with window w. Inside a transition they differ (the raised
+     * cosine is sampled at (M j + 1/2) / (2 M w) against (j + 1/2) / (2 w),
+     * times pi: a grid offset of (M - 1) / 2 fine samples), so
+     * the equality is asserted outside the w samples that rise from each
+     * boundary, counted on the M = 1 grid: the start of the L-STF, the
+     * L-LTF, SIGNAL and each of the six Data symbols. */
+    {
+      const unsigned      w = 4, m = 4;
+      static const size_t bounds[9]
+          = { 0, 160, 320, 400, 480, 560, 640, 720, 800 };
+      size_t          n_m;
+      float _Complex *y  = render_ppdu (&r36, 100, 93, w, 1, &n1);
+      float _Complex *xm = render_ppdu (&r36, 100, 93, m * w, m, &n_m);
+      DP_REQUIRE (y != NULL && xm != NULL && n1 == 884);
+      DP_CHECK (n_m == (size_t)m * 880 + m * w);
+      DP_CHECK (decimation_error (xm, m, y, 880, bounds, 9, w) < WLAN_FFT_TOL);
+      /* controls: without skipping the transitions the two differ, and so
+       * they do when the skip is one sample short of the transition, so the
+       * excluded span is tight */
+      DP_CHECK (decimation_error (xm, m, y, 880, NULL, 0, 0) > 1e-2);
+      DP_CHECK (decimation_error (xm, m, y, 880, bounds, 9, w - 1)
+                > WLAN_FFT_TOL);
+      free (y);
+      free (xm);
+    }
+
+    /* The convention holds at every M tested: the L-STF and the L-LTF's long
+     * symbols and the SIGNAL body have mean power one, and the first Data
+     * symbol's body has the power it has at M = 1 (the same waveform). */
+    {
+      float _Complex *y = render_ppdu (&r36, 100, 93, 0, 1, &n1);
+      DP_REQUIRE (y != NULL);
+      const double p_data1 = mean_power (y, (400 + 16), 64);
+      free (y);
+      for (size_t k = 0; k < sizeof ms / sizeof *ms; k++)
+        {
+          const unsigned  m = ms[k];
+          size_t          n_m;
+          float _Complex *xm = render_ppdu (&r36, 100, 93, 0, m, &n_m);
+          DP_REQUIRE (xm != NULL);
+          DP_CHECK (fabs (mean_power (xm, 0, 160 * m) - 1.0) < 1e-4);
+          DP_CHECK (fabs (mean_power (xm, 192 * m, 128 * m) - 1.0) < 1e-4);
+          DP_CHECK (fabs (mean_power (xm, (320 + 16) * m, 64 * m) - 1.0)
+                    < 1e-4);
+          DP_CHECK (
+              fabs (mean_power (xm, (400 + 16) * m, 64 * m) / p_data1 - 1.0)
+              < 1e-4);
+          free (xm);
+        }
+    }
+
+    /* The spectrum of an oversampled PPDU: the 52 occupied subcarriers lie
+     * within +-26/(64 M) of fs (0.1016 at M = 4), and outside them only the
+     * symbol boundaries' skirts remain. A window shortens them: the power
+     * at four out-of-band frequencies is lower with a window than without,
+     * and without one it is not zero. */
+    {
+      const unsigned      m        = 4;
+      static const double f_oob[4] = { 0.15, 0.2, 0.3, 0.4 };
+      double              oob[2];
+      for (int wi = 0; wi < 2; wi++)
+        {
+          size_t          n_m;
+          float _Complex *xm
+              = render_ppdu (&r36, 100, 93, wi ? m * 4 : 0, m, &n_m);
+          DP_REQUIRE (xm != NULL);
+          double acc = 0;
+          for (int q = 0; q < 4; q++)
+            {
+              double re = 0, im = 0;
+              for (size_t i = 0; i < n_m; i++)
+                {
+                  const double ph = -2.0 * M_PI * f_oob[q] * (double)i;
+                  re += crealf (xm[i]) * cos (ph) - cimagf (xm[i]) * sin (ph);
+                  im += crealf (xm[i]) * sin (ph) + cimagf (xm[i]) * cos (ph);
+                }
+              acc += (re * re + im * im) / (double)n_m;
+            }
+          oob[wi] = acc;
+          free (xm);
+        }
+      DP_CHECK (oob[0] > 0.0);
+      DP_CHECK (oob[1] < oob[0]);
+    }
+  }
+
   /* ── 10b. The scale is a configuration, and one gain covers every field ──
    * Annex I's printed time-domain samples are the unnormalized inverse
    * transform with the 1/64 convention; the library's are that transform times
@@ -1114,9 +1513,10 @@ main (void)
     float _Complex      *ann   = malloc (n * sizeof *ann);
     float _Complex      *off   = malloc (n * sizeof *off);
     DP_REQUIRE (std && ann && off);
-    DP_CHECK (dp_wlan_ppdu (T, &rate, psdu, 200, 93, 0, std, n) == n);
-    DP_CHECK (dp_wlan_ppdu (&t64, &rate, psdu, 200, 93, 0, ann, n) == n);
-    DP_CHECK (dp_wlan_ppdu (&one_off, &rate, psdu, 200, 93, 0, off, n) == n);
+    DP_CHECK (dp_wlan_ppdu (T, &rate, psdu, 200, 93, 0, 1, std, n) == n);
+    DP_CHECK (dp_wlan_ppdu (&t64, &rate, psdu, 200, 93, 0, 1, ann, n) == n);
+    DP_CHECK (dp_wlan_ppdu (&one_off, &rate, psdu, 200, 93, 0, 1, off, n)
+              == n);
     const double g = sqrt (52.0) / 64.0;
     const struct
     {

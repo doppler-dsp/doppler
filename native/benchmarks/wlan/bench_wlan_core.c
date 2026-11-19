@@ -93,7 +93,7 @@ main (void)
     const size_t n_bits = n_sym * dp_wlan_n_dbps (&big);
     const size_t n_cod  = n_sym * cbps;
     const size_t n_pts  = 48 + 48 * n_sym;
-    const size_t n_smp  = dp_wlan_ppdu_len (n_sym, 0u);
+    const size_t n_smp  = dp_wlan_ppdu_len (n_sym, 0u, 1u);
     uint8_t     *bits = malloc (n_bits), *coded = malloc (n_cod),
             *inter       = malloc (n_cod);
     float _Complex *pts  = malloc (n_pts * sizeof *pts),
@@ -127,14 +127,14 @@ main (void)
         for (int k = 0; k < HEAVY; k++)
           {
             dp_ofdm_state_t *o = dp_ofdm_create ();
-            sink += (size_t)dp_wlan_layout (o, tab, n_sym, 0u) + 1u;
+            sink += (size_t)dp_wlan_layout (o, tab, n_sym, 0u, 1u) + 1u;
             dp_ofdm_destroy (o);
           }
         t_lay[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
 
         t0 = jm_bench_now_ns ();
         for (int k = 0; k < HEAVY; k++)
-          sink += dp_wlan_ppdu (tab, &big, big_psdu, OCTETS, 93, 0u, ppdu,
+          sink += dp_wlan_ppdu (tab, &big, big_psdu, OCTETS, 93, 0u, 1u, ppdu,
                                 n_smp);
         t_ppdu[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
       }

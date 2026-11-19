@@ -65,11 +65,11 @@ steps, in order, with the example that runs all of them:
 1. **Choose the rate** (`dp_wlan_rate_t`: bits per subcarrier and a code
     rate) and ask `dp_wlan_rate_n_sym()` how many Data OFDM symbols the PSDU
     fills.
-1. **Size the buffer.** `dp_wlan_ppdu_len(n_sym, window)` is the whole PPDU in
-    samples, `160 + 160 + 80 + 80 * n_sym` plus the window's tail; the caller
+1. **Size the buffer.** `dp_wlan_ppdu_len(n_sym, window, oversample)` is the whole PPDU in
+    samples, `oversample * (160 + 160 + 80 + 80 * n_sym)` plus the window's tail; the caller
     allocates it, and a buffer one sample short is a refusal, not a
     truncation.
-1. **Render.** `dp_wlan_ppdu(tables, &rate, psdu, len, state, window, out,  cap)` runs the SERVICE, tail and pad assembly, the scrambler (`state` is
+1. **Render.** `dp_wlan_ppdu(tables, &rate, psdu, len, state, window, oversample, out, cap)` runs the SERVICE, tail and pad assembly, the scrambler (`state` is
     its register, 1 to 127), the punctured BCC, the interleaver, the mapper,
     the pilots and the OFDM modulator, and writes the L-STF, the L-LTF, the
     SIGNAL field and the Data field. It returns the samples written, or `0`,
@@ -100,6 +100,15 @@ steps, in order, with the example that runs all of them:
 ```c
 --8<-- "native/examples/wlan_ppdu_demo.c"
 ```
+
+**Oversampling.** `oversample` is `M`, the output rate over the 20 MHz clock,
+1 to 128: the PPDU is rendered by a transform `M` times longer, the same 52
+subcarriers with the rest of the grid zero, not resampled. `M = 1` is the PPDU
+above, bit for bit, and the signal at `M` is the same waveform sampled `M`
+times as finely (`x_M[M n] = x_1[n]` for the same scale, held to a tolerance
+in the unit test). `window` counts samples at the output rate, so the
+standard's 100 ns transition is `2 * M`. Outside the 52 subcarriers the
+spectrum is only the symbol boundaries' skirts, which a longer window lowers.
 
 The stages are public if a caller wants one of them: `dp_wlan_points()` is the
 constellation points of a PPDU in layout order (the SIGNAL field's 48, then

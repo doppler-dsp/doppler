@@ -33,6 +33,7 @@ extern "C"
 #define WLAN_N_SP 4u
 #define WLAN_GI 16u
 #define WLAN_SYM_LEN 80u
+#define WLAN_OVERSAMPLE_MAX 128u
 #define WLAN_STF_LEN 160u
 #define WLAN_LTF_LEN 160u
 #define WLAN_SIG_BITS 24u
@@ -124,7 +125,8 @@ size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 
 size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
-size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window);
+size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window,
+                         unsigned oversample);
 
 int dp_wlan_bcc (dp_wlan_code_t code, conv_code_t *c);
 
@@ -174,11 +176,12 @@ size_t dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
 /* ── The layout and the PPDU ─────────────────────────────────────────────── */
 
 int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
-                    size_t n_sym, unsigned window);
+                    size_t n_sym, unsigned window, unsigned oversample);
 
 size_t dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
                      const uint8_t *psdu, size_t len, uint8_t state,
-                     unsigned window, float _Complex *out, size_t cap);
+                     unsigned window, unsigned oversample, float _Complex *out,
+                     size_t cap);
 
 #ifdef __cplusplus
 }

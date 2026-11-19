@@ -76,6 +76,9 @@ extern "C"
 #define WLAN_GI 16u
 /** @brief An OFDM symbol with its guard interval, in samples. */
 #define WLAN_SYM_LEN 80u
+/** @brief The largest oversampling factor: a 20 MHz PPDU in a generator
+ *         running at 2.56 GS/s, so a transform of at most 8192 points. */
+#define WLAN_OVERSAMPLE_MAX 128u
 /** @brief The L-STF, in samples (8 us at 20 MHz). */
 #define WLAN_STF_LEN 160u
 /** @brief The L-LTF, in samples (8 us at 20 MHz). */
@@ -333,13 +336,17 @@ size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
 /**
  * @brief The samples a PPDU of @p n_sym Data symbols occupies:
- *        `160 + 160 + 80 + 80 * n_sym`, plus the @p window samples of the last
- *        symbol's window tail.
- * @param n_sym   Data OFDM symbols.
- * @param window  Window length in samples, 0 for none.
- * @return Samples.
+ *        `M * (160 + 160 + 80 + 80 * n_sym)`, plus the @p window samples of the
+ *        last symbol's window tail, with `M` the oversampling factor.
+ * @param n_sym       Data OFDM symbols, 1 to WLAN_N_SYM_MAX.
+ * @param window      Window length in samples at the output rate, 0 for none.
+ * @param oversample  `M`: the output rate over the 20 MHz clock, 1 to
+ *                    WLAN_OVERSAMPLE_MAX (128).
+ * @return Samples, or 0 if @p n_sym or @p oversample is outside its range
+ *         (the ranges dp_wlan_layout() accepts).
  */
-size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window);
+size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window,
+                         unsigned oversample);
 
 /**
  * @brief The BCC at a code rate: K = 7, generators 133 and 171 octal, with
@@ -525,15 +532,25 @@ size_t dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
  * @param o       A fresh modulator from dp_ofdm_create().
  * @param t       The tables (L-STF and L-LTF values and the scales).
  * @param n_sym   Data OFDM symbols, 1 to WLAN_N_SYM_MAX.
- * @param window  Window length in samples at each symbol boundary, 0 for none.
+ * @param window  Window length in samples at each symbol boundary, at the
+ *                output rate, 0 for none.
+ * @param oversample  `M`, 1 to WLAN_OVERSAMPLE_MAX. The transform is `64 M`
+ *                long, the subcarriers are the same, and every length (the
+ *                L-STF, the L-LTF, the guard interval, the body) is `M` times
+ *                its 20 MHz value: zero-padding the grid before the inverse
+ *                transform, not a resampler. The transform is unnormalized
+ *                and the scale is not changed, so `x_M[M n] = x_1[n]` and the
+ *                unit-power convention holds at every `M`. `M = 1` is the
+ *                20 MHz layout.
  * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0
- *         or above WLAN_N_SYM_MAX, or the modulator refuses a call.
+ *         or above WLAN_N_SYM_MAX, @p oversample is outside
+ *         1..WLAN_OVERSAMPLE_MAX, or the modulator refuses a call.
  * @note On -1 @p o may already hold some of the classes: it is not to be
  *       used again, only destroyed. dp_wlan_ppdu() builds into its own
  *       modulator and destroys it, so it is unaffected.
  */
 int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
-                    size_t n_sym, unsigned window);
+                    size_t n_sym, unsigned window, unsigned oversample);
 
 /**
  * @brief Render a PPDU to samples.
@@ -542,14 +559,16 @@ int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
  * @param psdu      PSDU octets.
  * @param len       Their count.
  * @param state     The scrambler register state, 1..127.
- * @param window    Window length in samples, 0 for none.
+ * @param window    Window length in samples at the output rate, 0 for none.
+ * @param oversample  `M`, 1 to WLAN_OVERSAMPLE_MAX (see dp_wlan_layout()).
  * @param[out] out  Receives dp_wlan_ppdu_len() samples.
  * @param cap       Capacity of @p out, in samples.
  * @return Samples written, or 0 if any stage refuses (changing nothing).
  */
 size_t dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
                      const uint8_t *psdu, size_t len, uint8_t state,
-                     unsigned window, float _Complex *out, size_t cap);
+                     unsigned window, unsigned oversample, float _Complex *out,
+                     size_t cap);
 
 #ifdef __cplusplus
 }

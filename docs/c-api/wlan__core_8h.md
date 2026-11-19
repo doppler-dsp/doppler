@@ -81,7 +81,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  void | [**dp\_wlan\_destroy**](#function-dp_wlan_destroy) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state) <br>_Destroy a rate holder._  |
 |  size\_t | [**dp\_wlan\_encode**](#function-dp_wlan_encode) ([**dp\_wlan\_code\_t**](wlan__core_8h.md#enum-dp_wlan_code_t) code, const uint8\_t \* in, size\_t n, uint8\_t \* out, size\_t cap) <br>_The BCC over a field's bits, punctured to the rate: the encoder starts at zero and runs the whole field._  |
 |  size\_t | [**dp\_wlan\_interleave**](#function-dp_wlan_interleave) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned n\_bpsc, const uint8\_t \* in, size\_t n, uint8\_t \* out) <br>_Interleave a coded field, one OFDM symbol of_ `n_cbps` _at a time: the first permutation (_`N_CBPS/16` _rows by 16 columns), then the tables' second permutation._ |
-|  int | [**dp\_wlan\_layout**](#function-dp_wlan_layout) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* o, const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, size\_t n\_sym, unsigned window) <br>_Build a PPDU's layout into an OFDM modulator: four classes (L-STF, L-LTF, SIGNAL, Data), the pilots as fixed entries with the pilot polarity, and four runs._  |
+|  int | [**dp\_wlan\_layout**](#function-dp_wlan_layout) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* o, const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, size\_t n\_sym, unsigned window, unsigned oversample) <br>_Build a PPDU's layout into an OFDM modulator: four classes (L-STF, L-LTF, SIGNAL, Data), the pilots as fixed entries with the pilot polarity, and four runs._  |
 |  size\_t | [**dp\_wlan\_map**](#function-dp_wlan_map) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned n\_bpsc, const uint8\_t \* bits, size\_t n, float \_Complex \* out) <br>_Map interleaved bits to constellation points: groups of_ `n_bpsc` _bits, through the library's maps (or the tables' relabeling)._ |
 |  int | [**dp\_wlan\_mbps**](#function-dp_wlan_mbps) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, unsigned \* mbps) <br>_The data rate of a pair at 20 MHz, in Mb/s: the table's printed column._  |
 |  size\_t | [**dp\_wlan\_mpdu**](#function-dp_wlan_mpdu) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, const uint8\_t \* header, size\_t header\_len, const uint8\_t \* body, size\_t body\_len, uint8\_t \* out, size\_t out\_cap) <br>_Wrap the caller's octets as one MPDU._  |
@@ -90,8 +90,8 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  unsigned | [**dp\_wlan\_n\_dbps**](#function-dp_wlan_n_dbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Data bits per OFDM symbol,_ `N_CBPS * code rate` _._ |
 |  size\_t | [**dp\_wlan\_n\_sym**](#function-dp_wlan_n_sym) (const [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._ |
 |  size\_t | [**dp\_wlan\_points**](#function-dp_wlan_points) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, float \_Complex \* out, size\_t cap) <br>_The constellation points a PPDU's layout takes, in layout order: the SIGNAL field's 48, then the Data field's_ `48 * n_sym` _._ |
-|  size\_t | [**dp\_wlan\_ppdu**](#function-dp_wlan_ppdu) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, unsigned window, float \_Complex \* out, size\_t cap) <br>_Render a PPDU to samples._  |
-|  size\_t | [**dp\_wlan\_ppdu\_len**](#function-dp_wlan_ppdu_len) (size\_t n\_sym, unsigned window) <br>_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`160 + 160 + 80 + 80 * n_sym` _, plus the_`window` _samples of the last symbol's window tail._ |
+|  size\_t | [**dp\_wlan\_ppdu**](#function-dp_wlan_ppdu) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, unsigned window, unsigned oversample, float \_Complex \* out, size\_t cap) <br>_Render a PPDU to samples._  |
+|  size\_t | [**dp\_wlan\_ppdu\_len**](#function-dp_wlan_ppdu_len) (size\_t n\_sym, unsigned window, unsigned oversample) <br>_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`M * (160 + 160 + 80 + 80 * n_sym)` _, plus the_`window` _samples of the last symbol's window tail, with_`M` _the oversampling factor._ |
 |  int | [**dp\_wlan\_rate\_from\_mbps**](#function-dp_wlan_rate_from_mbps) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned mbps, [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_The pair of a data rate at 20 MHz, from Table 17-6: the inverse of_ [_**dp\_wlan\_mbps()**_](wlan__core_8h.md#function-dp_wlan_mbps) _._ |
 |  size\_t | [**dp\_wlan\_rate\_n\_sym**](#function-dp_wlan_rate_n_sym) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs:_ `ceil((16 + 8 * psdu_len + 6) / N_DBPS)` _._ |
 |  int | [**dp\_wlan\_rate\_ok**](#function-dp_wlan_rate_ok) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a code rate of the four. The data bits per OFDM symbol are whole for every such pair (the test shows it)._ |
@@ -138,6 +138,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 | define  | [**WLAN\_N\_SD**](wlan__core_8h.md#define-wlan_n_sd)  `48u`<br>_Data subcarriers per OFDM symbol (Table 17-5)._  |
 | define  | [**WLAN\_N\_SP**](wlan__core_8h.md#define-wlan_n_sp)  `4u`<br>_Pilot subcarriers per OFDM symbol (Table 17-5)._  |
 | define  | [**WLAN\_N\_SYM\_MAX**](wlan__core_8h.md#define-wlan_n_sym_max)  `1366u`<br>_The most Data OFDM symbols a PPDU can have: the largest PSDU at the slowest rate (BPSK 1/2, 24 data bits per symbol),_ `ceil ((16 + 8 * 4095 + 6) / 24)` _._ |
+| define  | [**WLAN\_OVERSAMPLE\_MAX**](wlan__core_8h.md#define-wlan_oversample_max)  `128u`<br>_The largest oversampling factor: a 20 MHz PPDU in a generator running at 2.56 GS/s, so a transform of at most 8192 points._  |
 | define  | [**WLAN\_PILOT\_K**](wlan__core_8h.md#define-wlan_pilot_k)  `{ -21, -7, 7, 21 }`<br>_The pilot subcarrier indices (17.3.5.9)._  |
 | define  | [**WLAN\_PILOT\_V**](wlan__core_8h.md#define-wlan_pilot_v)  `{ 1.0, 1.0, 1.0, -1.0 }`<br>_The pilot values before the polarity element (17.3.5.10)._  |
 | define  | [**WLAN\_POLARITY\_LEN**](wlan__core_8h.md#define-wlan_polarity_len)  `127u`<br>_Length of the pilot polarity sequence._  |
@@ -503,7 +504,8 @@ int dp_wlan_layout (
     dp_ofdm_state_t * o,
     const dp_wlan_tables_t * t,
     size_t n_sym,
-    unsigned window
+    unsigned window,
+    unsigned oversample
 ) 
 ```
 
@@ -517,13 +519,14 @@ int dp_wlan_layout (
 * `o` A fresh modulator from [**dp\_ofdm\_create()**](ofdm__core_8h.md#function-dp_ofdm_create). 
 * `t` The tables (L-STF and L-LTF values and the scales). 
 * `n_sym` Data OFDM symbols, 1 to WLAN\_N\_SYM\_MAX. 
-* `window` Window length in samples at each symbol boundary, 0 for none. 
+* `window` Window length in samples at each symbol boundary, at the output rate, 0 for none. 
+* `oversample` `M`, 1 to WLAN\_OVERSAMPLE\_MAX. The transform is `64 M` long, the subcarriers are the same, and every length (the L-STF, the L-LTF, the guard interval, the body) is `M` times its 20 MHz value: zero-padding the grid before the inverse transform, not a resampler. The transform is unnormalized and the scale is not changed, so `x_M[M n] = x_1[n]` and the unit-power convention holds at every `M`. `M = 1` is the 20 MHz layout. 
 
 
 
 **Returns:**
 
-0 and a checked layout, or -1 if a table is empty, `n_sym` is 0 or above WLAN\_N\_SYM\_MAX, or the modulator refuses a call. 
+0 and a checked layout, or -1 if a table is empty, `n_sym` is 0 or above WLAN\_N\_SYM\_MAX, `oversample` is outside 1..WLAN\_OVERSAMPLE\_MAX, or the modulator refuses a call. 
 
 
 
@@ -882,6 +885,7 @@ size_t dp_wlan_ppdu (
     size_t len,
     uint8_t state,
     unsigned window,
+    unsigned oversample,
     float _Complex * out,
     size_t cap
 ) 
@@ -899,7 +903,8 @@ size_t dp_wlan_ppdu (
 * `psdu` PSDU octets. 
 * `len` Their count. 
 * `state` The scrambler register state, 1..127. 
-* `window` Window length in samples, 0 for none. 
+* `window` Window length in samples at the output rate, 0 for none. 
+* `oversample` `M`, 1 to WLAN\_OVERSAMPLE\_MAX (see [**dp\_wlan\_layout()**](wlan__core_8h.md#function-dp_wlan_layout)). 
 * `out` Receives [**dp\_wlan\_ppdu\_len()**](wlan__core_8h.md#function-dp_wlan_ppdu_len) samples. 
 * `cap` Capacity of `out`, in samples. 
 
@@ -921,11 +926,12 @@ Samples written, or 0 if any stage refuses (changing nothing).
 
 ### function dp\_wlan\_ppdu\_len 
 
-_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`160 + 160 + 80 + 80 * n_sym` _, plus the_`window` _samples of the last symbol's window tail._
+_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`M * (160 + 160 + 80 + 80 * n_sym)` _, plus the_`window` _samples of the last symbol's window tail, with_`M` _the oversampling factor._
 ```C++
 size_t dp_wlan_ppdu_len (
     size_t n_sym,
-    unsigned window
+    unsigned window,
+    unsigned oversample
 ) 
 ```
 
@@ -936,14 +942,15 @@ size_t dp_wlan_ppdu_len (
 **Parameters:**
 
 
-* `n_sym` Data OFDM symbols. 
-* `window` Window length in samples, 0 for none. 
+* `n_sym` Data OFDM symbols, 1 to WLAN\_N\_SYM\_MAX. 
+* `window` Window length in samples at the output rate, 0 for none. 
+* `oversample` `M`: the output rate over the 20 MHz clock, 1 to WLAN\_OVERSAMPLE\_MAX (128). 
 
 
 
 **Returns:**
 
-Samples. 
+Samples, or 0 if `n_sym` or `oversample` is outside its range (the ranges [**dp\_wlan\_layout()**](wlan__core_8h.md#function-dp_wlan_layout) accepts). 
 
 
 
@@ -1345,6 +1352,20 @@ _Pilot subcarriers per OFDM symbol (Table 17-5)._
 _The most Data OFDM symbols a PPDU can have: the largest PSDU at the slowest rate (BPSK 1/2, 24 data bits per symbol),_ `ceil ((16 + 8 * 4095 + 6) / 24)` _._
 ```C++
 #define WLAN_N_SYM_MAX `1366u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_OVERSAMPLE\_MAX 
+
+_The largest oversampling factor: a 20 MHz PPDU in a generator running at 2.56 GS/s, so a transform of at most 8192 points._ 
+```C++
+#define WLAN_OVERSAMPLE_MAX `128u`
 ```
 
 

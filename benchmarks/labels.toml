@@ -1655,9 +1655,9 @@ count = 1
 
 ["py:state_filter_kalman::test_bench_steps_64k"]
 name = "Kalman state filter, 65,536-error blocks, from Python"
-unit = "sample"
+unit = "call"
 definition = "KalmanStateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
-samples = 1
+samples = 65536
 
 ["py:state_filter::test_bench_step"]
 name = "Third-order state filter update, from Python"
@@ -1675,9 +1675,9 @@ count = 1
 
 ["py:state_filter::test_bench_steps_64k"]
 name = "Third-order state filter, 65,536-error blocks, from Python"
-unit = "sample"
+unit = "call"
 definition = "StateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
-samples = 1
+samples = 65536
 
 ["py:costas::test_bench_steps_64k"]
 name = "Costas carrier loop, from Python"

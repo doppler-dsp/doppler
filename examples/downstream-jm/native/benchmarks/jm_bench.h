@@ -135,7 +135,7 @@ typedef struct {
  * may record any number of rows. It was a fixed array of 32, and
  * jm_bench_add returned without a word once it was full: a 39-row benchmark
  * printed all 39 rows, exited 0 and wrote a JSON holding 32. `= {0}` is
- * still the whole initialisation -- NULL, 0, 0 is an empty bench. */
+ * still the whole initialization -- NULL, 0, 0 is an empty bench. */
 typedef struct {
     jm_bench_entry_t *entries; /* `count` rows, room for `cap` */
     int count;
@@ -335,7 +335,16 @@ jm_bench_write_json(jm_bench_t *b, const char *component)
 {
     char fname[256];
     snprintf(fname, sizeof(fname), "bench_%s_core.json", component);
-    FILE *fp = fopen(fname, "w");
+    /* gh-2294: the UCRT deprecates fopen and localtime in favor of their
+     * _s forms, a warning on by default under clang-cl; -Werror made it an
+     * error, and every Windows bench built that way failed. */
+    FILE *fp = NULL;
+#if defined(_WIN32)
+    if (fopen_s(&fp, fname, "w") != 0)
+        fp = NULL;
+#else
+    fp = fopen(fname, "w");
+#endif
     if (!fp) {
         fprintf(stderr, "jm_bench: cannot open %s\n", fname);
         jm_bench_free(b);
@@ -372,7 +381,13 @@ jm_bench_write_json(jm_bench_t *b, const char *component)
     time_t now = time(NULL);
     char ts[32] = "1970-01-01T00:00:00.000000";
     {
+#if defined(_WIN32)
+        struct tm tm_buf;
+        struct tm *tm_info =
+            localtime_s(&tm_buf, &now) == 0 ? &tm_buf : NULL;
+#else
         struct tm *tm_info = localtime(&now);
+#endif
         if (tm_info)
             strftime(ts, sizeof(ts),
                      "%Y-%m-%dT%H:%M:%S.000000", tm_info);

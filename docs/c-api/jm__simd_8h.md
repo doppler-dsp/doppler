@@ -386,7 +386,7 @@ static inline double jm_dot_f64 (
 [**jm\_simd.h**](jm__simd_8h.md) — width-portable SIMD operation macros.
 
 
-Selects the widest available instruction set at compile time: AVX-512F -&gt; 16 float / 8 double lanes (JM\_SIMD\_WIDTH\_F32 = 16) AVX2+FMA -&gt; 8 float / 4 double lanes (JM\_SIMD\_WIDTH\_F32 = 8) NEON -&gt; 4 float / 2 double lanes (JM\_SIMD\_WIDTH\_F32 = 4) (aarch64) Scalar -&gt; 1 lane (auto-vectorisation still applies)
+Selects the widest available instruction set at compile time: AVX-512F -&gt; 16 float / 8 double lanes (JM\_SIMD\_WIDTH\_F32 = 16) AVX2+FMA -&gt; 8 float / 4 double lanes (JM\_SIMD\_WIDTH\_F32 = 8) NEON -&gt; 4 float / 2 double lanes (JM\_SIMD\_WIDTH\_F32 = 4) (aarch64) SSE2 -&gt; 4 float / 2 double lanes (JM\_SIMD\_WIDTH\_F32 = 4) (x86; no FMA, so a MAC is a multiply then an add) Scalar -&gt; 1 lane (auto-vectorisation still applies)
 
 
 Typical usage (FIR inner loop):

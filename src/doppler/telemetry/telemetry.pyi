@@ -42,7 +42,9 @@ class TelemetryStats(tuple[int, int, int, int]):
         """Registered probes."""
 
 STYPE: tuple[str, ...]
+"""Names of the stype values, indexed by value."""
 ENDIAN: tuple[str, ...]
+"""Names of the endian values, indexed by value."""
 
 @final
 class Telemetry:

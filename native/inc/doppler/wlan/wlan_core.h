@@ -274,17 +274,17 @@ unsigned dp_wlan_n_cbps (const dp_wlan_rate_t *r);
 unsigned dp_wlan_n_dbps (const dp_wlan_rate_t *r);
 
 /**
- * @brief The data rate of a pair at 20 MHz, in Mb/s, as Table 17-6 prints
- *        it.
+ * @brief The data rate of a pair at 20 MHz, in Mb/s: the table's printed
+ *        column.
  *
- * The 4 us symbol is in no function body: the number is the table's own
- * column, and the unit test holds it against `N_DBPS / 4` for every row.
- * @param t          The tables; one that gives no rate refuses.
+ * Table 17-6 lists eight of the sixteen pairs; the rate is read from its
+ * first column, and the unit test holds that column against `N_DBPS / 4` for
+ * every row.
+ * @param t          The tables.
  * @param r          The pair.
- * @param[out] mbps  The rate; written only on success. Must be non-NULL.
- * @return 1 on success, 0 if @p r has no row (BPSK 2/3, 64-QAM 1/2 and every
- *         5/6 have none) or the table gives no rate. @p mbps is then
- *         unchanged.
+ * @param[out] mbps  The rate; written only on success.
+ * @return 1 on success, 0 if the table does not list @p r (or gives no
+ *         rates, as dp_wlan_tables_empty() does). @p mbps is then unchanged.
  */
 int dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
                   unsigned *mbps);
@@ -292,20 +292,12 @@ int dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
 /**
  * @brief The pair of a data rate at 20 MHz, from Table 17-6: the inverse of
  *        dp_wlan_mbps().
- * @param t       The tables; one that gives no rate refuses.
+ * @param t       The tables.
  * @param mbps    The rate: 6, 9, 12, 18, 24, 36, 48 or 54 in the standard's
  *                table.
- * @param[out] r  The pair; written only on success. Must be non-NULL.
- * @return 1 on success, 0 for a rate with no row. @p r is then unchanged.
- *
- * @code
- * dp_wlan_rate_t r;
- * unsigned       mbps;
- * if (dp_wlan_rate_from_mbps (dp_wlan_tables_standard (), 36u, &r)
- *     && dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps))
- *   printf ("%u bits per subcarrier, code %d, %u Mb/s\n", r.n_bpsc,
- *           (int)r.code, mbps); // 4 bits per subcarrier, code 2, 36 Mb/s
- * @endcode
+ * @param[out] r  The pair; written only on success.
+ * @return 1 on success, 0 if the table lists no such rate. @p r is then
+ *         unchanged.
  */
 int dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
                             dp_wlan_rate_t *r);

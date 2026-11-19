@@ -205,15 +205,23 @@ typedef struct
   uint32_t n_cbps; /**< coded bits per OFDM symbol, 48 * n_bpsc   */
   uint32_t n_dbps; /**< data bits per OFDM symbol                 */
   uint32_t rate_mbps; /**< data rate at 20 MHz, Mb/s; 0 = no Table 17-6 row */
+  uint32_t window;     /**< window length in samples at the output rate  */
+  uint32_t oversample; /**< M: the output rate over the 20 MHz clock     */
 } dp_wlan_state_t;
 
 /**
  * @brief Create a rate holder, by the index of the constellation and of the
- *        code rate.
+ *        code rate, with the window and the oversampling its PPDUs use.
  * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
  * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
- * @return Heap-allocated state, or NULL if either index is outside its range
- *         (every pair of the four constellations and four code rates is built).
+ * @param window         Window length in samples at the output rate, 0 to
+ *                       80 * @p oversample (an OFDM symbol is 80 * M samples
+ *                       and a transition cannot be longer than one).
+ * @param oversample     `M`, 1 to WLAN_OVERSAMPLE_MAX: the output rate over
+ *                       the 20 MHz clock (see dp_wlan_layout()).
+ * @return Heap-allocated state, or NULL if an index, @p window or
+ *         @p oversample is outside its range (every pair of the four
+ *         constellations and four code rates is built).
  * @note Caller must call dp_wlan_destroy() when done.
  *
  * @code
@@ -228,7 +236,8 @@ typedef struct
  *
  * @endcode
  */
-dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate);
+dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
+                                 uint32_t window, uint32_t oversample);
 
 /**
  * @brief Destroy a rate holder.
@@ -333,6 +342,55 @@ size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
  * @endcode
  */
 size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
+
+/**
+ * @brief The samples a PPDU of @p n_in PSDU octets occupies at this object's
+ *        rate, window and oversampling: the capacity dp_wlan_ppdu_why() needs,
+ *        exactly.
+ * @param state  A rate holder from dp_wlan_create().
+ * @param n_in   PSDU octets, 1 to WLAN_PSDU_MAX.
+ * @return Samples, or 0 for a length outside that range.
+ */
+size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+/**
+ * @brief Render a PSDU to a whole PPDU: L-STF, L-LTF, SIGNAL and Data, at the
+ *        rate, window and oversampling this object holds.
+ *
+ * The standard's tables are the library's (dp_wlan_tables_standard()); the PSDU
+ * is the caller's octets as given, FCS included. The result is the
+ * dp_wlan_ppdu() output for the same arguments, with the refusal's reason.
+ *
+ * @param state              A rate holder from dp_wlan_create().
+ * @param in
+ * @param n_in
+ * @param scrambler_state    The scrambler register's initial state, 1 to 127.
+ * @param[out] out           Receives dp_wlan_ppdu_why_max_out() samples.
+ * @param max_out            Capacity of @p out, in samples.
+ * @param[out] why           On a refusal only, a static sentence saying why;
+ *                           left as the caller set it on success. May be NULL.
+ * @return The samples written, or -1 if the PSDU length or the scrambler state
+ *         is out of range, @p max_out is short, or a stage refuses; @p out is
+ *         then untouched.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s
+ * >>> psdu = np.arange(100, dtype=np.uint8)
+ * >>> x = w.ppdu(psdu, 93)
+ * >>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6 samples
+ * (dtype('complex64'), (880,))
+ * >>> Wlan(constellation="qam16", code_rate="r34", oversample=2).ppdu(psdu, 93).shape
+ * (1760,)
+ * >>> w.ppdu(psdu, 0)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: the scrambler state is 1 to 127
+ *
+ * @endcode
+ */
+int64_t dp_wlan_ppdu_why(dp_wlan_state_t *state, const uint8_t *in, size_t n_in, uint32_t scrambler_state, float _Complex *out, size_t max_out, const char **why);
 
 /**
  * @brief The samples a PPDU of @p n_sym Data symbols occupies:

@@ -2023,6 +2023,8 @@
 * **dp\_wlan\_points** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_ppdu** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_ppdu\_len** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_ppdu\_why** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_ppdu\_why\_max\_out** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_rate\_from\_mbps** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_rate\_n\_sym** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_rate\_ok** ([**wlan\_core.h**](wlan__core_8h.md))

@@ -23,9 +23,8 @@ says when the symbols are the signal's. With `reacquire` armed, a hand-off
 whose carrier never comes up to symbol lock is released once `lost_confirm_s`
 has passed, and the receiver searches again by itself.
 
-The receiver forms its carrier error over the code-period window,
-`carrier_window="code_period"`: one coherent sum over the code period the
-code loop's look-back picks, rather than each partial on its own. It holds
+The receiver forms its carrier error over the code-period window: one
+coherent sum over the code period the code loop's look-back picks. It holds
 because a symbol, 333 µs, is at least a code period, 250 to 318 µs across
 the band, so some window of one period is free of data transitions. The
 design is in [the async DSSS receiver design](../design/async-dsss-receiver.md).
@@ -93,7 +92,7 @@ gives for the Es/N0 over one symbol's samples.
 
 The receiver takes the link's rates and C/N0, the one-sided Doppler
 uncertainty, the RF carrier, the data-free window and the Doppler rate, the
-release rule with `reacquire`, and the code-period carrier window. Everything
+release rule with `reacquire`. Everything
 else is its default. After each push the script reads `status()` and
 `lifecycle`.
 

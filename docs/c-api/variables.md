@@ -6,7 +6,6 @@
 ## a
 
 * **acc\_trace\_mode\_t** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
-* **async\_dsss\_rx\_carrier\_window\_t** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_rx\_state\_t** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 
 

@@ -74,8 +74,7 @@
 static dp_async_dsss_pool_state_t *
 gh_pool (const uint8_t *code, double fc, size_t n, double lost_s)
 {
-  return dp_s415_pool (code, fc, n, dp_s415_cn0 (DP_S415_FLOOR_DB), lost_s, 1,
-                       0);
+  return dp_s415_pool (code, fc, n, dp_s415_cn0 (DP_S415_FLOOR_DB), lost_s, 1);
 }
 
 static dp_air_emitter_t

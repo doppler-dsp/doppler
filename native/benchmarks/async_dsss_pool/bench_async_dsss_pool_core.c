@@ -333,7 +333,7 @@ bench_on_air (jm_bench_t *bench, const uint8_t *code, const air_pt_t *pt,
           pt->span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
           pt->carrier_hz, 2.0, false,
           w->deep ? pt->code_only_s : CODE_LEN / chip, pt->rate_hz_s,
-          w->threads, true, 0);
+          w->threads, true);
       /* One push: block_periods code periods at 11 MSa/s, or the pool's
          own dwell. */
       const size_t periods = pt->block_periods ? pt->block_periods
@@ -490,7 +490,7 @@ main (void)
           code, CODE_LEN, rows[k].n_rx, chip, sym, chip * (double)spc, 2, cn0,
           1e-3, 0.9, rows[k].span_hz, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
           100000, rows[k].carrier_hz, 2.0, false, CODE_ONLY_S, DOPPLER_RATE,
-          rows[k].threads, true, 0);
+          rows[k].threads, true);
       rc[k] = dp_RateConverter_create (fs / fs_in, 0);
       if (!p[k] || !rc[k])
         {

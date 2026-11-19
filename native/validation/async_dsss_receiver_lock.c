@@ -15,7 +15,7 @@
  * Operating point: the 415.1-B-1 point, dp_s415_test.h -- the Gold code at
  * F_fwd x 31/(221 x 96) chips a second, 3,000 sym/s, 11 MSa/s, the
  * 275-in-1,000 code-only window -- at both ends of the band. The receiver
- * is the point's, as built (the refine on, the partials carrier window),
+ * is the point's, as built (the refine on),
  * its design C/N0 the true one. Es/N0 10 dB and the 4 dB floor.
  *
  * Stimulus: the point's emitter on the scene (dp_air_test.h) -- the shipped
@@ -237,7 +237,7 @@ bits_for (double samples)
 static dp_async_dsss_receiver_state_t *
 lk_rx (const uint8_t *code, double fc, double cn0)
 {
-  return dp_s415_rx (code, fc, cn0, true, ASYNC_DSSS_RX_CARRIER_PARTIALS);
+  return dp_s415_rx (code, fc, cn0, true);
 }
 
 typedef struct
@@ -725,7 +725,7 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   const double fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
   const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
   const double rate                  = DP_S415_RATE_HZ_S;
-  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, refine, 0);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, refine);
   /* The emitter on the air (native/tests/dp_air_test.h): the shipped synth
      with its window, the front end's converter, a Doppler channel on the
      ramp, the shipped noise; the truth is the channel's own offset. */
@@ -895,7 +895,7 @@ ramp_rows (const uint8_t *code, int check, int emit)
  *           sigma^2 = fs / (C/N0) a complex sample for a unit-power
  *           emitter (dp_air_init()'s own sizing);
  * and the prompt's noise, E|P|^2 with noise less E|P|^2 without, beside
- * the offset tap's. Both carrier windows, since the code-period one ships.
+ * the offset tap's.
  * The receiver needs nothing scaled for this: it wipes the carrier with a
  * unit phasor and hands one period of input straight to the Dll. */
 #define CL_SETTLE_S 1.0
@@ -909,7 +909,6 @@ ramp_rows (const uint8_t *code, int check, int emit)
 typedef struct
 {
   double fc, esn0;
-  int    cw;
   size_t n_looks, look, n_down, epochs, decisions, misses, drops;
   size_t switches, h, nhyp, n_err;
   double cerr, cerr2; /* the code error's sum and sum of squares, chips */
@@ -917,13 +916,12 @@ typedef struct
 } code_lock_t;
 
 static int
-run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
-               int pin, uint32_t seed, double secs, code_lock_t *out)
+run_code_lock (const uint8_t *code, double fc, double esn0, int noisy, int pin,
+               uint32_t seed, double secs, code_lock_t *out)
 {
   memset (out, 0, sizeof *out);
   out->fc          = fc;
   out->esn0        = esn0;
-  out->cw          = cw;
   uint32_t     st  = trial_rng (seed + 200000u);
   const double cn0 = dp_s415_cn0 (esn0);
   const double f0  = (2.0 * dp_uni (&st) - 1.0) * DP_S415_SPAN_HZ;
@@ -935,7 +933,7 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int cw, int noisy,
   dp_air_t air;
   DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, noisy ? cn0 : NAN,
                            seed * 7919u + 3u, PUSH));
-  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true, cw);
+  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true);
   dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
   DP_REQUIRE (rx != NULL && tlm != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
@@ -1097,7 +1095,7 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
   dp_air_t air;
   DP_REQUIRE (
       dp_air_init (&air, &e, 1, DP_S415_FS, NAN, seed * 7919u + 5u, PUSH));
-  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true, 0);
+  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true);
   dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
   DP_REQUIRE (rx != NULL && tlm != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
@@ -1174,7 +1172,6 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
 static int
 code_lock_rows (const uint8_t *code, int check, int emit)
 {
-  static const char *wname[2] = { "partials", "code_period" };
   /* The terms, one row a draw, kept for their own block after this one. */
   enum
   {
@@ -1187,7 +1184,7 @@ code_lock_rows (const uint8_t *code, int check, int emit)
   }     *rows = dp_xmalloc (CL_MAX * sizeof *rows);
   size_t nr   = 0;
   if (emit)
-    printf ("# code_lock\nfc_ghz,esn0_db,window,seed,n_looks,look,n_down,"
+    printf ("# code_lock\nfc_ghz,esn0_db,seed,n_looks,look,n_down,"
             "thresh_down,epochs,p2,o2,snr_look_meas,snr_look_model,loss_db,"
             "decisions,misses,miss_rate,drops,drops_indep\n");
   else
@@ -1196,43 +1193,38 @@ code_lock_rows (const uint8_t *code, int check, int emit)
             CL_SETTLE_S);
   for (size_t f = check ? N_FC - 1 : 0; f < N_FC; f++)
     for (size_t e = 0; e < (check ? 1u : N_ESN0); e++)
-      for (int cw = 0; cw < 2; cw++)
-        for (uint32_t s = 1; s <= (check ? 1u : CL_DRAWS); s++)
-          {
-            code_lock_t  c, q;
-            const double secs = check ? CL_CHECK_S : CL_S;
-            DP_REQUIRE (
-                run_code_lock (code, fcs[f], esn0s[e], cw, 1, 0, s, secs, &c)
-                == 0);
-            DP_REQUIRE (
-                run_code_lock (code, fcs[f], esn0s[e], cw, 0, 0, s, secs, &q)
-                == 0);
-            DP_REQUIRE (nr < CL_MAX);
-            rows[nr].n   = c;
-            rows[nr].c   = q;
-            rows[nr++].s = s;
-            const double mr
-                = c.decisions ? (double)c.misses / c.decisions : NAN;
-            const double indep
-                = (double)c.decisions * pow (mr, (double)c.n_down);
-            if (emit)
-              printf ("%.1f,%.1f,%s,%u,%zu,%zu,%zu,%.4f,%zu,%.6g,%.6g,%.5f,"
-                      "%.5f,%.3f,%zu,%zu,%.5f,%zu,%.3f\n",
-                      c.fc / 1e9, c.esn0, wname[cw], s, c.n_looks, c.look,
-                      c.n_down, c.thresh_down, c.epochs, c.p2, c.o2,
-                      c.snr_meas, c.snr_model, c.loss_db, c.decisions,
-                      c.misses, mr, c.drops, indep);
-            else
-              printf ("  %.1f GHz %4.1f dB %-11s seed %u: n %zu, look %zu, "
-                      "SNR_look %.3f measured vs %.3f modelled, loss %.2f "
-                      "dB; %zu decisions, miss %.4f, %zu drops (%.2f if "
-                      "independent)\n",
-                      c.fc / 1e9, c.esn0, wname[cw], s, c.n_looks, c.look,
-                      c.snr_meas, c.snr_model, c.loss_db, c.decisions, mr,
-                      c.drops, indep);
-          }
+      for (uint32_t s = 1; s <= (check ? 1u : CL_DRAWS); s++)
+        {
+          code_lock_t  c, q;
+          const double secs = check ? CL_CHECK_S : CL_S;
+          DP_REQUIRE (run_code_lock (code, fcs[f], esn0s[e], 1, 0, s, secs, &c)
+                      == 0);
+          DP_REQUIRE (run_code_lock (code, fcs[f], esn0s[e], 0, 0, s, secs, &q)
+                      == 0);
+          DP_REQUIRE (nr < CL_MAX);
+          rows[nr].n      = c;
+          rows[nr].c      = q;
+          rows[nr++].s    = s;
+          const double mr = c.decisions ? (double)c.misses / c.decisions : NAN;
+          const double indep
+              = (double)c.decisions * pow (mr, (double)c.n_down);
+          if (emit)
+            printf ("%.1f,%.1f,%u,%zu,%zu,%zu,%.4f,%zu,%.6g,%.6g,%.5f,"
+                    "%.5f,%.3f,%zu,%zu,%.5f,%zu,%.3f\n",
+                    c.fc / 1e9, c.esn0, s, c.n_looks, c.look, c.n_down,
+                    c.thresh_down, c.epochs, c.p2, c.o2, c.snr_meas,
+                    c.snr_model, c.loss_db, c.decisions, c.misses, mr, c.drops,
+                    indep);
+          else
+            printf ("  %.1f GHz %4.1f dB seed %u: n %zu, look %zu, "
+                    "SNR_look %.3f measured vs %.3f modelled, loss %.2f "
+                    "dB; %zu decisions, miss %.4f, %zu drops (%.2f if "
+                    "independent)\n",
+                    c.fc / 1e9, c.esn0, s, c.n_looks, c.look, c.snr_meas,
+                    c.snr_model, c.loss_db, c.decisions, mr, c.drops, indep);
+        }
   if (emit)
-    printf ("# code_lock_terms\nfc_ghz,esn0_db,window,seed,partials,"
+    printf ("# code_lock_terms\nfc_ghz,esn0_db,seed,partials,"
             "signal_p2,rho,signal_db,sidelobe_o2,noise_o2,noise_p2,"
             "noise_pred,noise_o2_db,noise_p2_db\n");
   else
@@ -1250,18 +1242,17 @@ code_lock_rows (const uint8_t *code, int check, int emit)
       const double no = c->o2 - q->o2;
       const double np = c->p2 - q->p2;
       if (emit)
-        printf ("%.1f,%.1f,%s,%u,%.4f,%.6g,%.5f,%.3f,%.6g,%.6g,%.6g,%.6g,"
+        printf ("%.1f,%.1f,%u,%.4f,%.6g,%.5f,%.3f,%.6g,%.6g,%.6g,%.6g,"
                 "%.3f,%.3f\n",
-                c->fc / 1e9, c->esn0, wname[c->cw], rows[r].s, L, q->p2, rho,
+                c->fc / 1e9, c->esn0, rows[r].s, L, q->p2, rho,
                 -20.0 * log10 (rho), q->o2, no, np, npred,
                 10.0 * log10 (no / npred), 10.0 * log10 (np / npred));
       else
-        printf ("  %.1f GHz %4.1f dB %-11s seed %u: rho %.4f (signal %.2f dB "
+        printf ("  %.1f GHz %4.1f dB seed %u: rho %.4f (signal %.2f dB "
                 "down); noise %+.2f dB (offset) %+.2f dB (prompt) against "
                 "white; sidelobe %.4g\n",
-                c->fc / 1e9, c->esn0, wname[c->cw], rows[r].s, rho,
-                -20.0 * log10 (rho), 10.0 * log10 (no / npred),
-                10.0 * log10 (np / npred), q->o2);
+                c->fc / 1e9, c->esn0, rows[r].s, rho, -20.0 * log10 (rho),
+                10.0 * log10 (no / npred), 10.0 * log10 (np / npred), q->o2);
     }
   /* The two sections below are the sweep's alone: a held run a hypothesis
      and 300 s of noise a cell are findings, not a regression point, and
@@ -1290,14 +1281,14 @@ code_lock_rows (const uint8_t *code, int check, int emit)
   for (size_t r = 0; r < nr; r++)
     {
       const code_lock_t *c = &rows[r].n, *q = &rows[r].c;
-      if (c->cw != 0 || !c->nhyp)
+      if (!c->nhyp)
         continue;
       code_lock_t  best = { 0 };
       const double secs = check ? CL_CHECK_S : CL_S;
       for (size_t h = 0; h < c->nhyp; h++)
         {
           code_lock_t k;
-          DP_REQUIRE (run_code_lock (code, c->fc, c->esn0, 0, 1, (int)h + 1,
+          DP_REQUIRE (run_code_lock (code, c->fc, c->esn0, 1, (int)h + 1,
                                      rows[r].s, secs, &k)
                       == 0);
           DP_REQUIRE (k.h == h && k.switches == 0);

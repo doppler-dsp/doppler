@@ -57,8 +57,6 @@
  *                                               a carrier and Es/N0, and `#
  * burst`, one row a burst
  *   ... --spec-only                             the 415.1 pool rows alone
- *   ... --window-comparison                     the pool rows at 4 dB, both
- *                                               carrier windows paired
  *   ... --spc N                                 the 415.1 scene at N samples
  *                                               a chip (default 4; 2 is the
  *                                               interpolating front end)
@@ -186,7 +184,7 @@ align_at (const float complex *rx, size_t n, const uint8_t *truth,
    (native/tests/dp_air_test.h -- the shipped synth sending the harness's
    own i.i.d. bits in the 275-in-1,000 frame, the front end's converter to
    11 MSa/s, a Doppler channel at the carrier, the shipped noise), the
-   point's receiver (dp_s415_rx(), the partials window); render, receive,
+   point's receiver (dp_s415_rx()); render, receive,
    settle, align, check the end's alignment, and score into `acc`. `last`
    keeps the alignment of a scored burst for dp_ber_report(). */
 static int
@@ -219,12 +217,7 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   uint8_t     *bits  = dp_xmalloc (n_sym);
   for (size_t i = 0; i < n_sym; i++)
     bits[i] = (uint8_t)(dp_air_symbol_bit (&air, 0, (long)i) > 0);
-  /* The code-period carrier window, the receiver's one mode (the owner's
-     ruling 5): the partials window slipped 41 of 89 receivers at 2.8 GHz,
-     4 dB, where this one slipped 10 of 90 (the design measurements
-     companion records the comparison). */
-  dp_async_dsss_receiver_state_t *rx
-      = dp_s415_rx (code, fc, cn0, true, ASYNC_DSSS_RX_CARRIER_CODE_PERIOD);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, true);
   DP_REQUIRE (rx != NULL);
 
   const size_t   ocap = (size_t)(BURST_S * DP_S415_SYM) + 64 + OUT_CAP;
@@ -359,9 +352,7 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
  * bits with dp_ber_test.h: settled, aligned by a detected marker, and
  * checked for a changed alignment at the end ("slipped": a carrier
  * half-cycle or a symbol it never recovered). The clean tally is the
- * unslipped receivers'. The receiver runs its code-period carrier window,
- * its one mode (the owner's ruling 5); the partials window's paired rows,
- * which justified it, are in the design measurements companion.
+ * unslipped receivers'.
  *
  * The sweep: 2.2 and 2.8 GHz, 4 dB (SPEC_TRIALS_FLOOR draws) and 7 dB
  * (SPEC_TRIALS_HI), SPEC_S each, printed. --check: one draw at 2.8 GHz,
@@ -403,8 +394,8 @@ typedef struct
 /* One draw: the pool on SPEC_S of the scene at `fc`, every holding
    receiver scored into `out`. */
 static int
-spec_draw (const uint8_t *code, double fc, double esn0, int window,
-           uint32_t seed, double secs, spec_t *out)
+spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
+           double secs, spec_t *out)
 {
   const double chip   = dp_s415_chip_rate (fc);
   const double cn0    = dp_s415_cn0 (esn0);
@@ -442,7 +433,7 @@ spec_draw (const uint8_t *code, double fc, double esn0, int window,
         }
     }
   dp_async_dsss_pool_state_t *p
-      = dp_s415_pool (code, fc, SPEC_NRX, cn0, 2.0, 0, window);
+      = dp_s415_pool (code, fc, SPEC_NRX, cn0, 2.0, 0);
   DP_REQUIRE (p);
   float complex *x    = dp_xmalloc (SPEC_PUSH * sizeof *x);
   const size_t   ocap = (size_t)(secs * DP_S415_SYM) + 4096;
@@ -550,24 +541,14 @@ spec_loss (double esn0, unsigned long e, unsigned long n)
   return n ? esn0 - dp_ber_esn0_db_for_ser (2, (double)e / (double)n) : NAN;
 }
 
-/* `--window-comparison`: the spec rows at the 4 dB floor with BOTH carrier
-   windows on the same draws, partials and code period -- the measurement
-   the owner's ruling 5 (code period, the one mode) rests on, produced by
-   this harness while the receiver still has both windows. Its block is
-   committed beside the sweeps (data/window_comparison.txt) and the design
-   measurements companion cites it. */
-static int spec_compare = 0;
-
-/* The rows: each carrier and Es/N0, the code-period window (with
-   --window-comparison, the 4 dB floor with both windows). */
+/* The rows: each carrier and Es/N0. */
 static int
 spec_rows (const uint8_t *code, int check, int emit)
 {
   static const double fcs[2]   = { DP_S415_FC_LO, DP_S415_FC_HI };
   static const double esn0s[2] = { 4.0, 7.0 };
-  static const char  *wname[2] = { "partials", "code_period" };
   if (emit)
-    printf ("# spec\nfc_ghz,esn0_db,window,draws,held,scored,unaligned,"
+    printf ("# spec\nfc_ghz,esn0_db,draws,held,scored,unaligned,"
             "slipped,clean_errors,clean_symbols,clean_ser,clean_ser_lo,"
             "clean_ser_hi,clean_loss_db,all_errors,all_symbols,all_ser\n");
   else
@@ -576,56 +557,49 @@ spec_rows (const uint8_t *code, int check, int emit)
             "end keeps 0.917 of the chip power at 2.8 GHz, 0.946 at 2.2)\n",
             check ? "2.8 GHz, 7 dB, one draw" : "4 and 7 dB");
   for (int f = check ? 1 : 0; f < 2; f++)
-    for (int e = check ? 1 : 0; e < (spec_compare ? 1 : 2); e++)
-      /* The code-period window alone: the receiver's one mode (ruling 5).
-         With --window-comparison, both, paired on the same draws. */
-      for (int w = spec_compare ? ASYNC_DSSS_RX_CARRIER_PARTIALS
-                                : ASYNC_DSSS_RX_CARRIER_CODE_PERIOD;
-           w <= ASYNC_DSSS_RX_CARRIER_CODE_PERIOD; w++)
-        {
-          const int draws = check            ? 1
-                            : esn0s[e] < 5.0 ? SPEC_TRIALS_FLOOR
-                                             : SPEC_TRIALS_HI;
-          spec_t    t     = { 0 };
-          dp_ber_init (&t.all, 2, ULONG_MAX);
-          dp_ber_init (&t.clean, 2, ULONG_MAX);
-          for (int d = 1; d <= draws; d++)
-            DP_REQUIRE (spec_draw (code, fcs[f], esn0s[e], w, (uint32_t)d,
-                                   check ? SPEC_CHECK_S : SPEC_S, &t)
-                        == 0);
-          const dp_ber_ci_t ci
-              = dp_ber_ci (t.clean.errors, t.clean.symbols, 0.95);
-          const double loss
-              = spec_loss (esn0s[e], t.clean.errors, t.clean.symbols);
-          if (emit)
-            printf ("%.1f,%.1f,%s,%d,%zu,%zu,%zu,%zu,%lu,%lu,%.4e,%.4e,%.4e,"
-                    "%.3f,%lu,%lu,%.4e\n",
-                    fcs[f] / 1e9, esn0s[e], wname[w], draws, t.held, t.scored,
-                    t.unaligned, t.slipped, t.clean.errors, t.clean.symbols,
-                    t.clean.symbols ? (double)t.clean.errors / t.clean.symbols
-                                    : NAN,
-                    ci.lo, ci.hi, loss, t.all.errors, t.all.symbols,
-                    t.all.symbols ? (double)t.all.errors / t.all.symbols
-                                  : NAN);
-          else
-            printf ("  %.1f GHz %.0f dB %-11s held %zu/%d, slipped %zu of "
-                    "%zu, clean loss %.2f dB [%.2f, %.2f] (%lu / %lu), all "
-                    "%.2f dB\n",
-                    fcs[f] / 1e9, esn0s[e], wname[w], t.held, SPEC_K * draws,
-                    t.slipped, t.scored, loss,
-                    esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.lo),
-                    esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.hi),
-                    t.clean.errors, t.clean.symbols,
-                    spec_loss (esn0s[e], t.all.errors, t.all.symbols));
-          if (check)
-            {
-              DP_CHECK_MSG (t.held == SPEC_K && t.scored == SPEC_K,
-                            "at 7 dB every emitter is held and aligned");
-              DP_CHECK_MSG (t.slipped == 0, "at 7 dB no receiver slips");
-            }
-          dp_ber_free (&t.all);
-          dp_ber_free (&t.clean);
-        }
+    for (int e = check ? 1 : 0; e < 2; e++)
+      {
+        const int draws = check            ? 1
+                          : esn0s[e] < 5.0 ? SPEC_TRIALS_FLOOR
+                                           : SPEC_TRIALS_HI;
+        spec_t    t     = { 0 };
+        dp_ber_init (&t.all, 2, ULONG_MAX);
+        dp_ber_init (&t.clean, 2, ULONG_MAX);
+        for (int d = 1; d <= draws; d++)
+          DP_REQUIRE (spec_draw (code, fcs[f], esn0s[e], (uint32_t)d,
+                                 check ? SPEC_CHECK_S : SPEC_S, &t)
+                      == 0);
+        const dp_ber_ci_t ci
+            = dp_ber_ci (t.clean.errors, t.clean.symbols, 0.95);
+        const double loss
+            = spec_loss (esn0s[e], t.clean.errors, t.clean.symbols);
+        if (emit)
+          printf ("%.1f,%.1f,%d,%zu,%zu,%zu,%zu,%lu,%lu,%.4e,%.4e,%.4e,"
+                  "%.3f,%lu,%lu,%.4e\n",
+                  fcs[f] / 1e9, esn0s[e], draws, t.held, t.scored, t.unaligned,
+                  t.slipped, t.clean.errors, t.clean.symbols,
+                  t.clean.symbols ? (double)t.clean.errors / t.clean.symbols
+                                  : NAN,
+                  ci.lo, ci.hi, loss, t.all.errors, t.all.symbols,
+                  t.all.symbols ? (double)t.all.errors / t.all.symbols : NAN);
+        else
+          printf ("  %.1f GHz %.0f dB held %zu/%d, slipped %zu of "
+                  "%zu, clean loss %.2f dB [%.2f, %.2f] (%lu / %lu), all "
+                  "%.2f dB\n",
+                  fcs[f] / 1e9, esn0s[e], t.held, SPEC_K * draws, t.slipped,
+                  t.scored, loss, esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.lo),
+                  esn0s[e] - dp_ber_esn0_db_for_ser (2, ci.hi), t.clean.errors,
+                  t.clean.symbols,
+                  spec_loss (esn0s[e], t.all.errors, t.all.symbols));
+        if (check)
+          {
+            DP_CHECK_MSG (t.held == SPEC_K && t.scored == SPEC_K,
+                          "at 7 dB every emitter is held and aligned");
+            DP_CHECK_MSG (t.slipped == 0, "at 7 dB no receiver slips");
+          }
+        dp_ber_free (&t.all);
+        dp_ber_free (&t.clean);
+      }
   return 0;
 }
 
@@ -638,7 +612,6 @@ main (int argc, char **argv)
       check |= strcmp (argv[i], "--check") == 0;
       emit |= strcmp (argv[i], "--emit") == 0;
       spec_only |= strcmp (argv[i], "--spec-only") == 0;
-      spec_compare |= strcmp (argv[i], "--window-comparison") == 0;
       if (strcmp (argv[i], "--spc") == 0 && i + 1 < argc)
         spec_spc = (unsigned)strtoul (argv[++i], NULL, 10);
     }
@@ -646,7 +619,7 @@ main (int argc, char **argv)
   dp_dsss_gold_1023 (code);
   /* `--spec-only`: the 415.1 pool rows alone, for a comparison of the
      scene's front end that the other sections do not use. */
-  if (spec_only || spec_compare)
+  if (spec_only)
     {
       DP_REQUIRE (spec_rows (code, check, emit) == 0);
       if (emit)

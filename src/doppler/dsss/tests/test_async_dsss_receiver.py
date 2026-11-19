@@ -239,35 +239,20 @@ def test_refine_false_needs_a_deep_search():
     )
 
 
-def test_carrier_window_names_and_domain():
-    # carrier_window is a named choice; code_period needs a symbol of at
-    # least a code period, refused otherwise, in the receiver and the pool.
+def test_symbol_of_at_least_a_code_period():
+    # The carrier loop forms its error on the code-period window, which is
+    # free of data transitions only while a symbol spans a code period: a
+    # shorter symbol is refused, in the receiver and the pool.
     code = np.asarray(Gold().generate(SF)).astype(np.uint8)
     kw = {"chip_rate": CHIP_RATE, "sample_rate": FS}
-    AsyncDsssReceiver(
-        code, symbol_rate=SYM_RATE, carrier_window="partials", **kw
-    )
-    AsyncDsssReceiver(
-        code, symbol_rate=SYM_RATE, carrier_window="code_period", **kw
-    )
-    AsyncDsssPool(
-        code,
-        n_receivers=2,
-        threads=1,
-        symbol_rate=SYM_RATE,
-        carrier_window="code_period",
-        **kw,
-    )
+    AsyncDsssReceiver(code, symbol_rate=SYM_RATE, **kw)
+    AsyncDsssPool(code, n_receivers=2, threads=1, symbol_rate=SYM_RATE, **kw)
     short = 2.0 * CHIP_RATE / SF  # two symbols a code period
-    msg = "carrier_window code_period needs a symbol of at least a code"
+    msg = "a symbol of at least a code period"
     with pytest.raises(ValueError, match=msg):
-        AsyncDsssReceiver(
-            code, symbol_rate=short, carrier_window="code_period", **kw
-        )
-    with pytest.raises(ValueError):
-        AsyncDsssReceiver(
-            code, symbol_rate=SYM_RATE, carrier_window="nonsense", **kw
-        )
+        AsyncDsssReceiver(code, symbol_rate=short, **kw)
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssPool(code, n_receivers=2, threads=1, symbol_rate=short, **kw)
 
 
 def test_lifecycle_walks_every_state():

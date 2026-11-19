@@ -59,7 +59,7 @@ dp_async_dsss_pool_create (
     size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
     size_t refine_max_n_blocks, double carrier_freq_hz, double lost_confirm_s,
     bool reacquire, double code_only_s, double doppler_rate, int threads,
-    bool refine, int carrier_window)
+    bool refine)
 {
   if (n_receivers == 0 || n_receivers > ASYNC_DSSS_POOL_MAX_RECEIVERS
       || threads < 0)
@@ -79,8 +79,7 @@ dp_async_dsss_pool_create (
           refine_max_error_db, refine_samples_per_symbol,
           refine_design_margin_db, refine_n_fft, refine_zero_pad,
           refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-          lost_confirm_s, reacquire, code_only_s, doppler_rate, refine,
-          carrier_window);
+          lost_confirm_s, reacquire, code_only_s, doppler_rate, refine);
       if (!s->rx[i])
         {
           dp_async_dsss_pool_destroy (s);
@@ -102,7 +101,7 @@ dp_async_dsss_pool_create (
       refine_max_error_db, refine_samples_per_symbol, refine_design_margin_db,
       refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
       carrier_freq_hz, lost_confirm_s, reacquire, code_only_s, doppler_rate,
-      refine, carrier_window);
+      refine);
   if (!s->search)
     {
       dp_async_dsss_pool_destroy (s);

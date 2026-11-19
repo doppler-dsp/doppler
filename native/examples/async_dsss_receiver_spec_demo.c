@@ -341,19 +341,17 @@ run_draw (const uint8_t *code, const uint8_t *payload, const struct regime *r,
   const double code_only_s             = CODE_ONLY_SYM / SYM_RATE;
   const double doppler_rate            = DOPPLER_RATE_HZ_S;
   const bool   refine                  = true;
-  /* The carrier loop's error over one coherent code-period window, not each
-     partial. It holds because a symbol, 333 us, is at least a code period,
-     250 to 318 us across the band, so some window of one period is free of
-     data transitions. */
-  const int carrier_window = ASYNC_DSSS_RX_CARRIER_CODE_PERIOD;
-
+  /* The carrier loop forms its error over one coherent code-period window.
+     It can because a symbol, 333 us, is at least a code period, 250 to
+     318 us across the band, so some window of one period is free of data
+     transitions; create() refuses a shorter symbol. */
   dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
       code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
       pd, doppler_uncertainty, segments, sps, differential,
       refine_max_error_db, refine_samples_per_sym, refine_design_margin_db,
       refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
       carrier_freq_hz, lost_confirm_s, reacquire, code_only_s, doppler_rate,
-      refine, carrier_window);
+      refine);
   CHECK (rx != NULL, "the receiver opens");
 
   /* The caller's buffers: one push in, one push of symbols out, and the

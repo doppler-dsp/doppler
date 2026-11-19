@@ -106,6 +106,13 @@ typedef struct
 dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
                                  uint32_t window, uint32_t oversample);
 
+const char *dp_wlan_params_why (int constellation, int code_rate,
+                                uint32_t window, uint32_t oversample);
+
+dp_wlan_state_t *dp_wlan_create_why (int constellation, int code_rate,
+                                     uint32_t window, uint32_t oversample,
+                                     const char **why);
+
 void dp_wlan_destroy (dp_wlan_state_t *state);
 
 void dp_wlan_reset (dp_wlan_state_t *state);

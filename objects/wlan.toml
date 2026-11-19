@@ -16,6 +16,9 @@ no_state = "true"
 no_step = "true"
 class_name = "Wlan"
 create_error = "ValueError"
+create_fn = "dp_wlan_create_why"
+# the sentence names the argument that failed (dp_wlan_params_why)
+create_why = true
 create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 to 80 * oversample, or oversample is not 1 to 128"
 depends_on = [
     { name = "ofdm", link = true },
@@ -42,7 +45,7 @@ doc = "The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is 5/6."
 name = "window"
 type = "uint32_t"
 default = "0"
-doc = "The window length in samples at the OUTPUT rate, 0 to 80 times `oversample`: the cross-fade at each OFDM symbol boundary of the PPDUs `ppdu` renders. The standard's 100 ns transition is `2 * oversample` samples."
+doc = "The window length in samples at the OUTPUT rate, 0 to 80 times `oversample`: the cross-fade at each OFDM symbol boundary of the PPDUs `ppdu` renders. The standard's 100 ns transition is `2 * oversample` samples; above the `16 * oversample` guard interval the cross-fade reaches into the symbol body."
 
 [[wlan.init_params]]
 name = "oversample"

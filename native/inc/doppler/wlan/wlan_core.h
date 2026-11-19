@@ -215,13 +215,47 @@ typedef struct
  * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
  * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
  * @param window         Window length in samples at the output rate, 0 to
- *                       80 * @p oversample (an OFDM symbol is 80 * M samples
- *                       and a transition cannot be longer than one).
+ *                       80 * @p oversample: the modulator takes no run whose
+ *                       window is longer than an OFDM symbol of its class, and
+ *                       the shortest is the SIGNAL and Data symbol of 80 * M
+ *                       samples. Above the 16 * M guard interval the cross-fade
+ *                       reaches into the symbol body; the standard's own
+ *                       transition is 2 * M.
  * @param oversample     `M`, 1 to WLAN_OVERSAMPLE_MAX: the output rate over
  *                       the 20 MHz clock (see dp_wlan_layout()).
  * @return Heap-allocated state, or NULL if an index, @p window or
  *         @p oversample is outside its range (every pair of the four
  *         constellations and four code rates is built).
+ * @note Caller must call dp_wlan_destroy() when done.
+ */
+dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
+                                 uint32_t window, uint32_t oversample);
+
+/**
+ * @brief Why dp_wlan_create() would refuse these arguments, or NULL if it
+ *        would not: the first argument that fails, by name.
+ *
+ * The oversampling is checked before the window, because the window's limit
+ * depends on it.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ * @param window         Window length in samples at the output rate.
+ * @param oversample     `M`.
+ * @return A static sentence naming the argument and its range, or NULL.
+ */
+const char *dp_wlan_params_why (int constellation, int code_rate,
+                                uint32_t window, uint32_t oversample);
+
+/**
+ * @brief dp_wlan_create(), and the reason when it refuses. The binding calls
+ *        this one.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ * @param window         Window length in samples at the output rate.
+ * @param oversample     `M`.
+ * @param[out] why       On a refusal only, dp_wlan_params_why()'s sentence;
+ *                       left as the caller set it on success. May be NULL.
+ * @return The state, or NULL with @p why set.
  * @note Caller must call dp_wlan_destroy() when done.
  *
  * @code
@@ -236,8 +270,9 @@ typedef struct
  *
  * @endcode
  */
-dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
-                                 uint32_t window, uint32_t oversample);
+dp_wlan_state_t *dp_wlan_create_why (int constellation, int code_rate,
+                                     uint32_t window, uint32_t oversample,
+                                     const char **why);
 
 /**
  * @brief Destroy a rate holder.
@@ -349,7 +384,9 @@ size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
  *        exactly.
  * @param state  A rate holder from dp_wlan_create().
  * @param n_in   PSDU octets, 1 to WLAN_PSDU_MAX.
- * @return Samples, or 0 for a length outside that range.
+ * @return Samples, or 0 for a length outside that range or for a rate with no
+ *         SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the
+ *         others cannot be sent, and `rate_mbps` is 0 for them).
  */
 size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
 
@@ -362,16 +399,17 @@ size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
  * dp_wlan_ppdu() output for the same arguments, with the refusal's reason.
  *
  * @param state              A rate holder from dp_wlan_create().
- * @param in
- * @param n_in
+ * @param in                 The PSDU octets.
+ * @param n_in               Their count, 1 to WLAN_PSDU_MAX.
  * @param scrambler_state    The scrambler register's initial state, 1 to 127.
  * @param[out] out           Receives dp_wlan_ppdu_why_max_out() samples.
  * @param max_out            Capacity of @p out, in samples.
  * @param[out] why           On a refusal only, a static sentence saying why;
  *                           left as the caller set it on success. May be NULL.
- * @return The samples written, or -1 if the PSDU length or the scrambler state
- *         is out of range, @p max_out is short, or a stage refuses; @p out is
- *         then untouched.
+ * @return The samples written, or -1 if the rate has no SIGNAL RATE bits, the
+ *         PSDU length or the scrambler state is out of range, or @p max_out is
+ *         short; @p out is then untouched. On the Python face a short `out=`
+ *         is refused before the other arguments are, by the binding.
  *
  * @code
  * >>> import numpy as np
@@ -381,7 +419,8 @@ size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
  * >>> x = w.ppdu(psdu, 93)
  * >>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6 samples
  * (dtype('complex64'), (880,))
- * >>> Wlan(constellation="qam16", code_rate="r34", oversample=2).ppdu(psdu, 93).shape
+ * >>> w2 = Wlan(constellation="qam16", code_rate="r34", oversample=2)
+ * >>> w2.ppdu(psdu, 93).shape
  * (1760,)
  * >>> w.ppdu(psdu, 0)
  * Traceback (most recent call last):

@@ -1524,6 +1524,84 @@ main (void)
       free (x);
     }
 
+    /* each refusal names the argument that failed, and the predicate and the
+       constructor agree; a row has one argument bad, the others good */
+    {
+      static const struct
+      {
+        int         c, r;
+        uint32_t    w, m;
+        const char *why;
+      } why[] = {
+        { 4, 0, 0, 1, "constellation must be 0 to 3" },
+        { -1, 0, 0, 1, "constellation must be 0 to 3" },
+        { 0, 4, 0, 1, "code_rate must be 0 to 3" },
+        { 0, 0, 0, 0, "oversample must be 1 to 128" },
+        { 0, 0, 0, 129, "oversample must be 1 to 128" },
+        { 0, 0, 81, 1, "window must be 0 to 80 * oversample" },
+        { 0, 0, 161, 2, "window must be 0 to 80 * oversample" },
+        { 0, 0, 20000, 129, "oversample must be 1 to 128" }, /* both bad */
+      };
+      for (size_t i = 0; i < sizeof why / sizeof *why; i++)
+        {
+          const char *p
+              = dp_wlan_params_why (why[i].c, why[i].r, why[i].w, why[i].m);
+          DP_CHECK (p != NULL && strcmp (p, why[i].why) == 0);
+          const char *got = NULL;
+          DP_CHECK (
+              dp_wlan_create_why (why[i].c, why[i].r, why[i].w, why[i].m, &got)
+              == NULL);
+          DP_CHECK (got != NULL && strcmp (got, why[i].why) == 0);
+        }
+      /* the minimal pairs: accepted, no reason, and why left as it was */
+      const char      *sentinel = "untouched";
+      const char      *got      = sentinel;
+      dp_wlan_state_t *ok       = dp_wlan_create_why (0, 0, 80, 1, &got);
+      DP_CHECK (ok != NULL && got == sentinel);
+      DP_CHECK (dp_wlan_params_why (0, 0, 80, 1) == NULL);
+      dp_wlan_destroy (ok);
+    }
+
+    /* a pair with no SIGNAL RATE bits cannot be sent: capacity 0 and the rate
+       is named, whatever else is wrong */
+    {
+      dp_wlan_state_t *x = dp_wlan_create (0, 1, 0, 1); /* BPSK 2/3 */
+      DP_REQUIRE (x != NULL && x->rate_mbps == 0);
+      DP_CHECK (dp_wlan_ppdu_why_max_out (x, 100) == 0);
+      uint8_t octets[4]     = { 0 };
+      float _Complex out[1] = { 0 };
+      const char *why       = NULL;
+      DP_CHECK (dp_wlan_ppdu_why (x, octets, 4, 93, out, 1, &why) == -1);
+      DP_CHECK (why != NULL && strstr (why, "no SIGNAL RATE bits") != NULL);
+      why = NULL;
+      DP_CHECK (dp_wlan_ppdu_why (x, octets, 4, 0, out, 1, &why) == -1);
+      DP_CHECK (why != NULL && strstr (why, "no SIGNAL RATE bits") != NULL);
+      dp_wlan_destroy (x);
+    }
+
+    /* the PSDU length edges at M = 1: 1 octet, and 4095 at 6 Mb/s, which is
+       WLAN_N_SYM_MAX symbols, the layout's largest PPDU */
+    {
+      dp_wlan_state_t *x = dp_wlan_create (0, 0, 0, 1); /* BPSK 1/2 */
+      DP_REQUIRE (x != NULL);
+      static const size_t edges[] = { 1, 4095 };
+      for (size_t i = 0; i < 2; i++)
+        {
+          const size_t    n_sym = dp_wlan_n_sym (x, edges[i]);
+          const size_t    cap   = dp_wlan_ppdu_why_max_out (x, edges[i]);
+          uint8_t        *oct   = calloc (edges[i], 1);
+          float _Complex *out   = malloc (cap * sizeof *out);
+          DP_REQUIRE (oct && out);
+          DP_CHECK (n_sym == (i ? WLAN_N_SYM_MAX : 2)); /* 30 bits over 24 */
+          DP_CHECK (cap == 160 + 160 + 80 + 80 * n_sym);
+          DP_CHECK (dp_wlan_ppdu_why (x, oct, edges[i], 93, out, cap, NULL)
+                    == (int64_t)cap);
+          free (oct);
+          free (out);
+        }
+      dp_wlan_destroy (x);
+    }
+
     uint8_t psdu[100];
     for (size_t i = 0; i < 100; i++)
       psdu[i] = (uint8_t)(i * 37 + 11);

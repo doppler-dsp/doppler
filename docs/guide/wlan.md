@@ -107,7 +107,9 @@ subcarriers with the rest of the grid zero, not resampled. `M = 1` is the PPDU
 above, bit for bit, and the signal at `M` is the same waveform sampled `M`
 times as finely (`x_M[M n] = x_1[n]` for the same scale, held to a tolerance
 in the unit test). `window` counts samples at the output rate, so the
-standard's 100 ns transition is `2 * M`. Outside the 52 subcarriers the
+standard's 100 ns transition is `2 * M`; it may be at most `80 * M` (an OFDM
+symbol, the modulator's limit), and above the `16 * M` guard interval the
+cross-fade reaches into the symbol body. Outside the 52 subcarriers the
 spectrum is only the symbol boundaries' skirts, which a longer window lowers.
 
 In Python the same PPDU is one call on `Wlan`, which holds the rate, the

@@ -23,7 +23,7 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_wlan[] = {
-    (jm_any_fn)dp_wlan_create,
+    (jm_any_fn)dp_wlan_create_why,
     (jm_any_fn)dp_wlan_destroy,
     (jm_any_fn)dp_wlan_reset,
     (jm_any_fn)dp_wlan_n_sym,

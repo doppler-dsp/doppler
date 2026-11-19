@@ -1923,6 +1923,7 @@ dp_wfm_writer_track_clipping function
 dp_wfm_writer_write function
 dp_wlan_bcc function
 dp_wlan_create function
+dp_wlan_create_why function
 dp_wlan_data_bits function
 dp_wlan_destroy function
 dp_wlan_encode function
@@ -1935,6 +1936,7 @@ dp_wlan_mpdu_len function
 dp_wlan_n_cbps function
 dp_wlan_n_dbps function
 dp_wlan_n_sym function
+dp_wlan_params_why function
 dp_wlan_points function
 dp_wlan_ppdu function
 dp_wlan_ppdu_len function

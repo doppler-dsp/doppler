@@ -230,14 +230,27 @@ dp_wlan_bcc (dp_wlan_code_t code, conv_code_t *c)
 
 /* ── The object ──────────────────────────────────────────────────────── */
 
+const char *
+dp_wlan_params_why (int constellation, int code_rate, uint32_t window,
+                    uint32_t oversample)
+{
+  if (constellation < 0 || constellation > 3)
+    return "constellation must be 0 to 3";
+  if (code_rate < 0 || code_rate > 3)
+    return "code_rate must be 0 to 3";
+  if (oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX)
+    return "oversample must be 1 to 128";
+  if (window > WLAN_SYM_LEN * oversample)
+    return "window must be 0 to 80 * oversample";
+  return NULL;
+}
+
 dp_wlan_state_t *
 dp_wlan_create (int constellation, int code_rate, uint32_t window,
                 uint32_t oversample)
 {
   static const unsigned bpsc[4] = { 1, 2, 4, 6 };
-  if (constellation < 0 || constellation > 3 || code_rate < 0 || code_rate > 3
-      || oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX
-      || window > WLAN_SYM_LEN * oversample)
+  if (dp_wlan_params_why (constellation, code_rate, window, oversample))
     return NULL;
   const dp_wlan_rate_t r = { bpsc[constellation], (dp_wlan_code_t)code_rate };
   if (!dp_wlan_rate_ok (&r))
@@ -253,6 +266,18 @@ dp_wlan_create (int constellation, int code_rate, uint32_t window,
   s->rate_mbps
       = dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps) ? mbps : 0u;
   return s;
+}
+
+dp_wlan_state_t *
+dp_wlan_create_why (int constellation, int code_rate, uint32_t window,
+                    uint32_t oversample, const char **why)
+{
+  const char *w
+      = dp_wlan_params_why (constellation, code_rate, window, oversample);
+  if (w && why)
+    *why = w;
+  return w ? NULL
+           : dp_wlan_create (constellation, code_rate, window, oversample);
 }
 
 void
@@ -278,8 +303,9 @@ size_t
 dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in)
 {
   const size_t n_sym = dp_wlan_n_sym (state, n_in);
-  return n_sym ? dp_wlan_ppdu_len (n_sym, state->window, state->oversample)
-               : 0;
+  return n_sym && state->rate_mbps
+             ? dp_wlan_ppdu_len (n_sym, state->window, state->oversample)
+             : 0;
 }
 
 int64_t
@@ -287,27 +313,29 @@ dp_wlan_ppdu_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
                   uint32_t scrambler_state, float _Complex *out,
                   size_t max_out, const char **why)
 {
-  const char  *sentence = NULL;
   const size_t n        = dp_wlan_ppdu_why_max_out (state, n_in);
-  if (n == 0)
+  const char  *sentence = NULL;
+  if (state->rate_mbps == 0)
+    sentence = "this rate has no SIGNAL RATE bits (Table 17-6 lists eight of "
+               "the sixteen pairs)";
+  else if (n == 0)
     sentence = "the PSDU is 1 to 4095 octets";
   else if (scrambler_state < 1 || scrambler_state > 127)
     sentence = "the scrambler state is 1 to 127";
   else if (max_out < n)
     sentence = "the output buffer is shorter than the PPDU";
-  if (!sentence)
+  if (sentence)
     {
-      const dp_wlan_rate_t r = { state->n_bpsc, (dp_wlan_code_t)state->code };
-      if (dp_wlan_ppdu (dp_wlan_tables_standard (), &r, in, n_in,
-                        (uint8_t)scrambler_state, state->window,
-                        state->oversample, out, max_out)
-          == n)
-        return (int64_t)n;
-      sentence = "a stage of the PPDU refused";
+      if (why)
+        *why = sentence;
+      return -1;
     }
-  if (why)
-    *why = sentence;
-  return -1;
+  /* every refusal dp_wlan_ppdu() could make is tested above (a row, a length,
+     a state, a capacity, with the standard tables), so it renders n samples */
+  const dp_wlan_rate_t r = { state->n_bpsc, (dp_wlan_code_t)state->code };
+  return (int64_t)dp_wlan_ppdu (dp_wlan_tables_standard (), &r, in, n_in,
+                                (uint8_t)scrambler_state, state->window,
+                                state->oversample, out, max_out);
 }
 
 /* ── The scrambler ───────────────────────────────────────────────────── */

@@ -103,15 +103,20 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
           (long long)oversample_raw, (long long)0, (long long)UINT32_MAX);
       return -1;
     }
-  uint32_t oversample = (uint32_t)oversample_raw;
-  self->handle = dp_wlan_create (constellation, code_rate, window, oversample);
+  uint32_t    oversample = (uint32_t)oversample_raw;
+  const char *_why       = NULL;
+  self->handle = dp_wlan_create_why (constellation, code_rate, window,
+                                     oversample, &_why);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "constellation is not one of bpsk, qpsk, qam16, "
-                       "qam64, code_rate is not one of r12, r23, r34, r56, "
-                       "window is not 0 to 80 * oversample, or oversample is "
-                       "not 1 to 128");
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_SetString (PyExc_ValueError,
+                         "constellation is not one of bpsk, qpsk, qam16, "
+                         "qam64, code_rate is not one of r12, r23, r34, "
+                         "r56, window is not 0 to 80 * oversample, or "
+                         "oversample is not 1 to 128");
       return -1;
     }
   return 0;
@@ -519,7 +524,7 @@ static PyMethodDef WlanObj_methods[] = {
     "Parameters\n"
     "----------\n"
     "x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
-    "    Input.\n"
+    "    The PSDU octets.\n"
     "scrambler_state : int\n"
     "    The scrambler register's initial state, 1 to 127.\n"
     "out : npt.NDArray[np.complex64] | None\n"
@@ -528,9 +533,10 @@ static PyMethodDef WlanObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    The samples written, or -1 if the PSDU length or the scrambler\n"
-    "    state is out of range, max_out is short, or a stage refuses; out is\n"
-    "    then untouched.\n"
+    "    The samples written, or -1 if the rate has no SIGNAL RATE bits, the\n"
+    "    PSDU length or the scrambler state is out of range, or max_out is\n"
+    "    short; out is then untouched. On the Python face a short `out=` is\n"
+    "    refused before the other arguments are, by the binding.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -548,8 +554,8 @@ static PyMethodDef WlanObj_methods[] = {
     ">>> x = w.ppdu(psdu, 93)\n"
     ">>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6 samples\n"
     "(dtype('complex64'), (880,))\n"
-    ">>> Wlan(constellation=\"qam16\", code_rate=\"r34\", "
-    "oversample=2).ppdu(psdu, 93).shape\n"
+    ">>> w2 = Wlan(constellation=\"qam16\", code_rate=\"r34\", oversample=2)\n"
+    ">>> w2.ppdu(psdu, 93).shape\n"
     "(1760,)\n"
     ">>> w.ppdu(psdu, 0)\n"
     "Traceback (most recent call last):\n"
@@ -570,7 +576,9 @@ static PyMethodDef WlanObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Samples, or 0 for a length outside that range.\n" },
+    "    Samples, or 0 for a length outside that range or for a rate with no\n"
+    "    SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the\n"
+    "    others cannot be sent, and `rate_mbps` is 0 for them).\n" },
   { "n_sym", (PyCFunction)(void *)WlanObj_n_sym, METH_VARARGS | METH_KEYWORDS,
     "n_sym(psdu_len) -> int\n"
     "\n"
@@ -640,8 +648,9 @@ static PyTypeObject WlanObjType = {
   .tp_dealloc                             = (destructor)WlanObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a rate holder, by the index of the constellation and of the code\n"
-    "rate, with the window and the oversampling its PPDUs use.\n"
+  = "dp_wlan_create(), and the reason when it refuses. The binding calls "
+    "this\n"
+    "one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -662,7 +671,8 @@ static PyTypeObject WlanObjType = {
     "PPDUs\n"
     "    `ppdu` renders. The standard's 100 ns transition is `2 * "
     "oversample`\n"
-    "    samples.\n"
+    "    samples; above the `16 * oversample` guard interval the cross-fade\n"
+    "    reaches into the symbol body.\n"
     "oversample : int, default 1\n"
     "    `M`, 1 to 128: the output rate over the 20 MHz clock. The PPDU is\n"
     "    rendered by a transform `M` times longer, the same subcarriers, not\n"
@@ -671,12 +681,13 @@ static PyTypeObject WlanObjType = {
     "Raises\n"
     "------\n"
     "ValueError\n"
-    "    If construction fails. The exception message is ``constellation is "
-    "not\n"
-    "    one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, "
-    "r34,\n"
-    "    r56, window is not 0 to 80 * oversample, or oversample is not 1 to\n"
-    "    128``.\n"
+    "    If construction fails. The exception message is the reason the\n"
+    "    constructor gives, or ``constellation is not one of bpsk, qpsk, "
+    "qam16,\n"
+    "    qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 "
+    "to\n"
+    "    80 * oversample, or oversample is not 1 to 128`` when it gives "
+    "none.\n"
     "\n"
     "Examples\n"
     "--------\n"

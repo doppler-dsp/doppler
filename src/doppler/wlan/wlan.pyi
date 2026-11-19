@@ -7,8 +7,8 @@ from numpy.typing import NDArray
 
 @final
 class Wlan:
-    """Create a rate holder, by the index of the constellation and of the code
-    rate, with the window and the oversampling its PPDUs use.
+    """dp_wlan_create(), and the reason when it refuses. The binding calls this
+    one.
 
     Parameters
     ----------
@@ -24,7 +24,8 @@ class Wlan:
         The window length in samples at the OUTPUT rate, 0 to 80 times
         `oversample`: the cross-fade at each OFDM symbol boundary of the PPDUs
         `ppdu` renders. The standard's 100 ns transition is `2 * oversample`
-        samples.
+        samples; above the `16 * oversample` guard interval the cross-fade
+        reaches into the symbol body.
     oversample : int, default 1
         `M`, 1 to 128: the output rate over the 20 MHz clock. The PPDU is
         rendered by a transform `M` times longer, the same subcarriers, not
@@ -33,10 +34,10 @@ class Wlan:
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``constellation is not
-        one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34,
-        r56, window is not 0 to 80 * oversample, or oversample is not 1 to
-        128``.
+        If construction fails. The exception message is the reason the
+        constructor gives, or ``constellation is not one of bpsk, qpsk, qam16,
+        qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 to
+        80 * oversample, or oversample is not 1 to 128`` when it gives none.
 
     Examples
     --------
@@ -89,7 +90,7 @@ class Wlan:
         Parameters
         ----------
         x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
-            Input.
+            The PSDU octets.
         scrambler_state : int
             The scrambler register's initial state, 1 to 127.
         out : npt.NDArray[np.complex64] | None
@@ -98,9 +99,10 @@ class Wlan:
         Returns
         -------
         NDArray[np.complex64]
-            The samples written, or -1 if the PSDU length or the scrambler
-            state is out of range, max_out is short, or a stage refuses; out is
-            then untouched.
+            The samples written, or -1 if the rate has no SIGNAL RATE bits, the
+            PSDU length or the scrambler state is out of range, or max_out is
+            short; out is then untouched. On the Python face a short `out=` is
+            refused before the other arguments are, by the binding.
 
         Raises
         ------
@@ -118,7 +120,8 @@ class Wlan:
         >>> x = w.ppdu(psdu, 93)
         >>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6 samples
         (dtype('complex64'), (880,))
-        >>> Wlan(constellation="qam16", code_rate="r34", oversample=2).ppdu(psdu, 93).shape
+        >>> w2 = Wlan(constellation="qam16", code_rate="r34", oversample=2)
+        >>> w2.ppdu(psdu, 93).shape
         (1760,)
         >>> w.ppdu(psdu, 0)
         Traceback (most recent call last):
@@ -140,7 +143,9 @@ class Wlan:
         Returns
         -------
         int
-            Samples, or 0 for a length outside that range.
+            Samples, or 0 for a length outside that range or for a rate with no
+            SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the
+            others cannot be sent, and `rate_mbps` is 0 for them).
         """
 
     def n_sym(self, psdu_len: int) -> int:

@@ -107,14 +107,18 @@ def test_rate_mbps_has_eight_distinct_rows():
 
 # ── Wlan.ppdu: a whole PPDU from the object ────────────────────────────────
 
-import pathlib  # noqa: E402
 import re  # noqa: E402
 
 import numpy as np  # noqa: E402
 
+from doppler.tests._repo import repo_root  # noqa: E402
+
 # The relative l2 tolerance the C test uses for every cross-build and
-# decimation comparison (test_wlan_core.c, WLAN_FFT_TOL): the FFT test's own
-# 5e-4 per component, composed for the two transforms compared.
+# decimation comparison (test_wlan_core.c, WLAN_FFT_TOL). Its source is
+# test_fft_core.c's TOL32 = 5e-4, absolute in each of the real and imaginary
+# parts on unit-scale inputs: a complex sample differs by at most
+# sqrt(2) * 5e-4 = 7.1e-4; two transforms are compared, so 2 * 7.1e-4 =
+# 1.41e-3 per sample at unit rms, which bounds the relative l2 error: 1.5e-3.
 _TOL = 1.5e-3
 
 
@@ -125,10 +129,10 @@ def _psdu(n: int = 100) -> np.ndarray:
 def _oracle(name: str) -> np.ndarray:
     """The committed PPDU of wlan_ppdu_m1_oracle.h, which the C test holds
     dp_wlan_ppdu() to, as complex64."""
-    path = (
-        pathlib.Path(__file__).resolve().parents[4]
-        / "native/tests/wlan/wlan_ppdu_m1_oracle.h"
-    )
+    # the oracle lives in the source tree, so this needs a checkout; the root
+    # is found by walking up, which is right from the coverage harness's copy
+    # of the package under build-cov/ as well (doppler.tests._repo)
+    path = repo_root() / "native/tests/wlan/wlan_ppdu_m1_oracle.h"
     text = path.read_text(encoding="utf-8")
     body = re.search(name + r"\[\d+\] = \{(.*?)\};", text, re.S).group(1)
     words = np.array(
@@ -179,13 +183,20 @@ def test_window_and_oversample_read_back():
 
 
 @pytest.mark.parametrize(
-    ("window", "oversample"),
-    [(81, 1), (161, 2), (0, 0), (0, 129), (10241, 128)],
+    ("window", "oversample", "argument"),
+    [
+        (81, 1, "window"),  # oversample good, window bad
+        (161, 2, "window"),
+        (10241, 128, "window"),
+        (0, 0, "oversample"),  # window good, oversample bad
+        (0, 129, "oversample"),
+        (20000, 129, "oversample"),  # both bad: oversample is named first
+    ],
 )
-def test_constructor_refuses_a_window_or_oversample_out_of_range(
-    window, oversample
+def test_constructor_refusal_names_the_argument_that_failed(
+    window, oversample, argument
 ):
-    with pytest.raises(ValueError, match="oversample"):
+    with pytest.raises(ValueError, match=f"^{argument} must be"):
         Wlan(window=window, oversample=oversample)
 
 
@@ -218,3 +229,36 @@ def test_ppdu_refuses_a_short_output_buffer_and_leaves_it():
     with pytest.raises(ValueError, match="need >= 880"):
         w.ppdu(_psdu(), 93, out=out)
     assert np.all(out == 123)
+
+
+def test_a_pair_with_no_table_row_cannot_be_sent_and_says_so():
+    """BPSK 2/3 is one of the eight pairs Table 17-6 does not list."""
+    w = Wlan(constellation="bpsk", code_rate="r23")
+    assert w.rate_mbps == 0
+    assert w.ppdu_max_out(100) == 0
+    with pytest.raises(ValueError, match="no SIGNAL RATE bits"):
+        w.ppdu(_psdu(), 93)
+    # the rate is named first, whatever else is wrong
+    with pytest.raises(ValueError, match="no SIGNAL RATE bits"):
+        w.ppdu(_psdu(), 0)
+
+
+@pytest.mark.parametrize("n_psdu", [1, 4095])
+def test_ppdu_takes_the_psdu_length_edges(n_psdu):
+    """4095 octets at 6 Mb/s is the layout's largest PPDU."""
+    w = Wlan(constellation="bpsk", code_rate="r12")
+    x = w.ppdu(_psdu(n_psdu), 93)
+    assert x.shape == (w.ppdu_max_out(n_psdu),)
+    assert x.shape == (160 + 160 + 80 + 80 * w.n_sym(n_psdu),)
+
+
+@pytest.mark.parametrize("oversample", [1, 2])
+@pytest.mark.parametrize("n_psdu", [1, 100, 1500])
+def test_ppdu_max_out_is_the_length_ppdu_returns(n_psdu, oversample):
+    w = Wlan(
+        constellation="qam16",
+        code_rate="r34",
+        window=3,
+        oversample=oversample,
+    )
+    assert w.ppdu_max_out(n_psdu) == w.ppdu(_psdu(n_psdu), 93).shape[0]

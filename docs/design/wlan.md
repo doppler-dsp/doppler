@@ -316,7 +316,9 @@ neighbors needed. `dsss`, the most recent, provides:
 (`wfm_names.h`), and the C constant `WFM_SYNTH_FRAMES = 9` beside
 `WFM_SYNTH_DSSS = 8` (`wfm_synth_core.h`): the constant is named for what the
 branch is, and the `ofdm` face type selects it. List order is the C value, so the name is appended,
-never inserted. `scripts/check_wfm_enum_tables.py`, run as
+never inserted. At the head that adds the synth, `N_TYPES` is 9 and only the C
+constant exists: the name, the manifest entry and the faces arrive with the
+bridge. `scripts/check_wfm_enum_tables.py`, run as
 `make lint-wfm-enum-tables`, holds the three to one another: each name
 table has one C home and equals its manifest `values` in order, every table
 carries an `SSOT:` annotation, the `count=` macro equals the table length,
@@ -383,19 +385,20 @@ no `sps` and no pulse shaper between them.
 
 ### State
 
-What the blob carries today, from `dp_wfm_synth_get_state`
+What the blob carries, from `dp_wfm_synth_get_state`
 :   `wtype`, the symbol and bit cursors, the
-    continuous-DSSS chip and symbol counters, `data_ended`, a presence byte for
-    each child, the children's own blobs, and, when a refill is attached, the
-    frame in play (`n_bits` bytes) followed by the data source's own
-    blob. `dp_wfm_synth_set_state` decodes every field into a local and
+    continuous-DSSS chip and symbol counters, `data_ended`, for a frames synth
+    the count of frames rendered, the `refused` flag and the frame's length and
+    bit count, a presence byte for each child and for the renderer's triplet,
+    the children's own blobs, and, when a refill is attached, the frame in play
+    (`n_bits` bytes) followed by the data source's own blob and then the
+    renderer's. `dp_wfm_synth_set_state` decodes every field into a local and
     checks it before the first write; a refusal before its commit leaves the
     synth as it was, and a child that refuses after the commit leaves the
-    synth's own fields restored (#2104). The layout is the current
-    `WFM_SYNTH_STATE_VERSION`, 6; the frame-in-play and the source position
-    have travelled since version 3.
+    synth's own fields restored (#2104). The layout is
+    `WFM_SYNTH_STATE_VERSION`, 7.
 
-For `ofdm` that is almost all of it already:
+For the `ofdm` type:
 
 - **The frame in play and the source position** travel as they do for a
     `bits` frame. The rendered samples do not travel. `set_state` re-renders
@@ -419,9 +422,9 @@ For `ofdm` that is almost all of it already:
     rate, and the window length are compared at `set_state`, because each
     sizes the PPDU or changes what the cursor means. The type itself
     already is one: `wtype` is in the blob and `wfm_synth_runnable` checks it.
-- **The version rises to 7.** `make state-versions-check` fails a layout
-    that reuses a version the project has shipped, so the bump is a gate and
-    not a convention.
+- **The version is 7.** `make state-versions-check` fails a layout that reuses
+    a version the project has shipped, so the bump is a gate and not a
+    convention.
 
 The modulator's own state, and the layout as its reject key, are on
 [its page](ofdm.md). `wlan` is stateless: a pure function of its
@@ -673,11 +676,13 @@ int dp_wfm_synth_attach_frames (state, wfm_synth_frame_fn fn, void *user,
 
 **The cursor and the helper.** In this type the cursor STOPS at `n_out`; it
 never wraps. One helper, `wfm_synth_frame_ahead`, the sibling of
-`wfm_synth_bit_ahead`, is the only place it moves, and each of the three sites
-that read samples (the block path, the single step and `next_symbol`) calls
-it. When the cursor is at `n_out` the helper draws the next frame lazily, when
+`wfm_synth_bit_ahead`, is the only place it moves, and both sites that read
+samples (the block path and the single step) call it; `next_symbol` serves only
+the shaped path, which this type has none of. When the cursor is at `n_out` the helper draws the next frame lazily, when
 its first sample is due: it asks the bit refill for the frame's `n_bits` bits
-(a refill that reports the end latches `data_ended`), then calls
+(a refill that reports its end, or no refill or no renderer, latches
+`data_ended`), normalises each byte to 0 or 1 (the renderer is promised bits,
+and the bits path normalises on read), then calls
 `fn (user, frame, bits, n_bits, out, n_out)`. A non-zero return is a refusal and
 latches `data_ended` and `refused`, and the output is silence after, as it is
 after a refill's end; `dp_wfm_synth_frames_refused` says the end was a
@@ -706,42 +711,61 @@ pattern: with no callback the frame plays out and the data ends, the same end
 as a pattern with no refill. `set_symbols` on this type returns 0 and does
 nothing, as it does for every type but symbols.
 
-**What the blob carries**, and the version. The layout rises from 6 to 7
+**What the blob carries**, and the version. The layout is version 7
 (`WFM_SYNTH_STATE_VERSION`). Written always: `frame` (`u64`, the count
-rendered) and `refused` (`u8`), plus a presence byte for the callback, as
-`pres[5]` is for the bit refill, and the callback's triplet sub-blob if it has
-one. The frame in play's bits and the bit source's own sub-blob already travel.
-The samples do not. The Python state matrix and any recorded blob size move
-with the version.
+rendered), `refused` (`u8`), the frame's bit count and length (`u64` each, 0
+for a type that is not frames), and a presence byte for the renderer's triplet,
+as `pres[5]` is for the bit refill, with the triplet's sub-blob if it has one.
+The frame in play's bits and the bit source's own sub-blob travel as they do
+for a bit refill. The samples do not. The Python state matrix and any recorded
+blob size move with the version. The synth refuses to serialize (state
+refusal) while a frame is in play and the renderer or the bit source is
+detached, because a restore could not re-render it.
 
 **Resume.** `set_state` re-renders the frame in play from the blob's bits and
 `frame`, and the result is bit-exact for the same build on the same machine
 and FFT dispatch, which is what the state tests assert. The order is:
 
-1. decode every field into a local and check it, as today (#2142);
-1. read ahead past the children's sub-blobs to the frame's bits (each child's
-    size is this instance's `state_bytes`), render the frame in play into a
-    scratch buffer, and refuse if the callback refuses or the allocation fails,
-    before any write;
+1. decode every field into a local and check it, as today (#2142), including
+    the cursor against the frame length, the frame length and bit count against
+    this synth's, `refused` against `data_ended`, and that a frame is in play
+    only when the data has not ended;
+1. read ahead past the children's sub-blobs, checking each child's envelope,
+    and the bit source's against the live objects' own, the renderer's
+    sub-blob against the live renderer's `get_state` byte for byte, and the
+    frame's bits (each byte 0 or 1), before any write; each child's size is this
+    instance's `state_bytes`. The renderer's `set_state` is never called, so
+    nothing of the renderer is written at any step;
+1. render the frame in play into a scratch buffer, and refuse if the callback
+    refuses or the allocation fails;
 1. restore the bit source's triplet; if it refuses, nothing has been written;
 1. commit the fields, the bits and the scratch buffer swapped in, none of which
     can fail;
-1. restore the other children, as now. A child that refuses here leaves the
-    synth's own fields restored, which is #2104 and unchanged: a refusal before
-    step 4 leaves the synth as it was, and one after it does not.
+1. restore the other children, as now. A child that refuses here, after its
+    envelope was checked in step 2, leaves the synth's own fields restored,
+    which is #2104 and unchanged: a refusal before step 5 leaves the synth as it
+    was, and one after it does not.
 
 `set_state` holds two frames of memory transiently (the frame in play and the
 scratch). There is no re-render before the first frame or after `data_ended`
-has latched.
+has latched: with the data ended no frame is in play.
 
 **Reject keys.** The callback is a pure function of its configuration, the
-bits and `frame`; it carries no running state. A blob restored into a source
+bits and `frame`; it carries no running state, and its triplet's bytes are
+its configuration, compared whole with the live renderer's. A blob restored into a source
 with a different seed, window, gap, `M` or rate would re-render a different PPDU
 with no refusal, so the bridge's 802.11 callback uses the existing optional
 triplet (`wfm_synth_refill_state_t`, attached by
 `dp_wfm_synth_attach_frames_state`) to carry its configuration and to refuse a
-mismatch. A test restores into a source differing in each key and checks each is
+mismatch. The frame length and the bit count are keys the synth writes itself.
+A test restores into a source differing in each key and checks each is
 refused.
+
+`attach_frames` and `attach_frames_state` are C-only installers that the
+mutator-state gate does not read (their names are not `set_`). What pins them
+instead is that their values travel or are keys: the frame length and bit count
+are in the blob and checked, the renderer's configuration is its triplet, and
+the function pointer is a handle that a restore leaves as it is.
 
 **Contracts the header carries.**
 
@@ -757,16 +781,20 @@ refused.
     renders the same source with `gap = 0` and `gap > 0` and checks the noise
     variance is the same.
 - **`reset()`** rewinds the cursor to the start of the frame in play
-    (`sym_read_idx = 0`), which replays the last frame rendered; it does not
-    rewind `frame` or the data source, as a bit refill's reset does not rewind a
-    source it has consumed. `refused` survives it, as `data_ended` survives it
-    with a refill attached. A reset synth and a fresh one therefore differ.
+    (`sym_read_idx = 0`), which replays the last frame rendered, and does
+    nothing once the data has ended (no frame is in play); it does not rewind
+    `frame` or the data source, as a bit refill's reset does not rewind a source
+    it has consumed. `refused` goes with `data_ended`: it survives a reset that
+    leaves `data_ended` latched, and is cleared wherever `data_ended` is, by
+    attaching or detaching a bit source. A reset synth and a fresh one therefore
+    differ.
 - **`user`** is owned by the synth when `free_user` is given, which it calls on
     detach or destroy, as `set_refill` does.
 - **The frame's length** `n_out` is fixed at install. A PPDU's length is a
     function of the configuration and the PSDU's length, never of its bits. `n_out`
     includes `gap`, and a frame is at most `2^24` samples (128 MB of `cf32`): a
-    larger `n_out` is refused at install naming the limit and both parts.
+    larger `n_out` makes `attach_frames` return -1. The bridge, which knows the
+    parts, refuses the source naming the limit, the PPDU and the gap.
 
 `WFM_SYNTH_FRAMES` therefore has nothing in it that is OFDM or 802.11: the bridge
 installs the 802.11 callback, and another standard's frame would use the same

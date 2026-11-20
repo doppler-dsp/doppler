@@ -1316,6 +1316,63 @@ drift.
     for a default caller, and the bridge's reject key (the window) compares
     counts, never the sentinel.
 
+    **What jm renders for the sentinel** (scaffolded on the pinned
+    0.133.0, `objects/wlan.toml`'s `window` as `uint32_t`):
+
+    | declared                           | the stub's signature                      | the docstring                      | the C                  |
+    | ---------------------------------- | ----------------------------------------- | ---------------------------------- | ---------------------- |
+    | `default = "4294967295"`           | `window: int = 4294967295`                | `window : int, default 4294967295` | passes the number      |
+    | `default = "WLAN_WINDOW_STANDARD"` | refused: "not a valid `uint32_t` literal" |                                    |                        |
+    | `optional = true`                  | \`window: int                             | None = None\`                      | `window : int or None` |
+
+    The third row is the least input on the face a user reads and is not
+    usable: jm's `optional` on a scalar changes the signature and not the
+    parse (the array case it was written for owns a second `create_fn`).
+    The number is usable and ugly. So the PR ships the first row, and the
+    docstring's first sentence says what the default means (the standard's
+    100 ns transition, `2 * oversample` samples), so the reader of the
+    signature is told before they meet 4294967295. The upstream ask is filed
+    in just-makeit: a scalar init param whose `optional` default is a
+    declared value (`none_value`), parsed from `None`, rendered as
+    `int | None = None`. When it lands the declaration moves to it and the
+    face changes with no C change (the workaround retires per instance).
+
+    **wfmgen** (the half that follows #3184). `wfm_source_t.window` is a
+    `size_t` whose default is no longer 0: the generated defaults function
+    (`gen_wfm_defaults.py`, from the manifest row) sets it to the sentinel,
+    so a source built by the faces starts "unset", and a C caller that
+    zero-initializes a source gets `0`, the explicit rectangular choice, the
+    old behavior, by its own spelling. Unset is told from 0 by value, in one
+    place:
+
+    | face                                  | unset                               | explicit rectangular |
+    | ------------------------------------- | ----------------------------------- | -------------------- |
+    | struct                                | the sentinel (the manifest default) | `0`                  |
+    | CLI                                   | `--window` omitted                  | `--window 0`         |
+    | scene JSON                            | no `window` key                     | `"window": 0`        |
+    | Python `Segment`, `Synth`, `Composer` | `window` omitted                    | `window=0`           |
+
+    The source's window is resolved once, where the faces already hand a
+    source to the one validator (`dp_wfm_source_error`): the next call,
+    `dp_wfm_source_resolve`, replaces the sentinel with `2 * M` from the
+    source's own `fs` and `bandwidth`. So a scene written by `Composer`
+    (and the SigMF annotation `wfmgen:window`) holds the resolved count,
+    never the absence: `json_omit = "default"` compares the count to the
+    sentinel default, so it is written. A scene read back renders the same
+    samples under any later default, which the absence would not. No new
+    manifest key is needed. A scene a user wrote without `window` is read as
+    unset and resolved at load, so it takes the default at load time, and
+    its round trip then carries the count.
+
+    **The free functions** take counts and refuse the sentinel. `dp_wlan_layout`
+    and `dp_wlan_ppdu` already refuse a window above `80 * M`, and the
+    sentinel is above it, so they need no new code; `dp_wlan_ppdu_len` is a
+    pure sum and the caller resolves first. The one rule, stated in the
+    header: the sentinel is a spelling of the constructor and of the wfmgen
+    source; everything below takes a count in samples at the output rate.
+    `dp_wlan_window_resolve` is public so a C caller who wants the default
+    for a free-function call asks the same function the constructor does.
+
     What a caller who passed nothing sees: the PPDU's symbol boundaries are
     cross-faded over `2 * M` samples, and the PPDU is `2 * M` samples longer
     than before (`dp_wlan_ppdu_len` adds `window`). At `M = 1` that is 2
@@ -1323,7 +1380,10 @@ drift.
     passes `window = 0`. This changes rendered output for default callers,
     so the changelog entry goes under `changed`, and every test that pins
     `M = 1` bit-identity against a committed PPDU states `window = 0`
-    explicitly.
+    explicitly. The margin the new default buys is quoted, not re-measured
+    here: the transmit mask passes every point by at least 7.9 dB at
+    `M = 4` (finding `default_window_fails_mask` in `src/doppler/wlan/tests/validation/wlan/results.md`),
+    against the unwindowed default's failure at 30 MHz.
 
 ## 11. The work, in order
 

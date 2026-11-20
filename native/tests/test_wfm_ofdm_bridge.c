@@ -15,6 +15,7 @@
 
 #include <complex.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -674,6 +675,66 @@ test_each_key_decides_a_restore_alone (void)
   return 0;
 }
 
+/* The one-sample step plays what the block path does, sample for sample. */
+static int
+test_step_is_steps (void)
+{
+  wfm_source_t          s    = source ();
+  const size_t          n    = 400;
+  cf                   *want = render (&s, 20e6, n);
+  dp_wfm_synth_state_t *syn  = dp_wfm_source_to_synth (&s, 20e6);
+  DP_REQUIRE (want && syn);
+  for (size_t i = 0; i < n; i++)
+    DP_CHECK (dp_wfm_synth_step (syn) == want[i]);
+  free (want);
+  dp_wfm_synth_destroy (syn);
+  return 0;
+}
+
+/* A C caller that skips the validator and hands a refused source to the
+   attach gets -1, and a synth it can destroy. */
+static int
+test_the_attach_refuses_what_the_validator_refuses (void)
+{
+  wfm_source_t s            = source ();
+  s.wlan                    = 7;
+  dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+      WFM_SYNTH_FRAMES, 20e6, 0.0, 100.0, 0, 1u, 1, 0, 0, 0, 0.0);
+  DP_REQUIRE (syn != NULL);
+  DP_CHECK (dp_wfm_source_attach_ofdm (syn, &s, 20e6, 1u) == -1);
+  /* another type is no work at all */
+  s.type = WFM_SYNTH_TONE;
+  DP_CHECK (dp_wfm_source_attach_ofdm (syn, &s, 20e6, 1u) == 0);
+  dp_wfm_synth_destroy (syn);
+  return 0;
+}
+
+/* A data file that is there at validation and gone at build refuses the
+   build, on the standalone bridge and the composer's own, rather than
+   playing silence. */
+static int
+test_a_data_file_gone_between_validation_and_build (void)
+{
+  static const char path[] = "wfm_ofdm_bridge_data.bin";
+  FILE             *f      = fopen (path, "wb");
+  DP_REQUIRE (f != NULL);
+  DP_REQUIRE (fwrite (octets, 1, 100, f) == 100);
+  fclose (f);
+  wfm_source_t s   = source ();
+  s.data           = (wfm_seq_t){ 0 };
+  s.data_from_file = path;
+  s.data_len       = 800;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+  dp_wfm_synth_state_t *ok = dp_wfm_source_to_synth (&s, 20e6);
+  DP_CHECK (ok != NULL);
+  dp_wfm_synth_destroy (ok);
+  remove (path);
+  DP_CHECK (dp_wfm_source_to_synth (&s, 20e6) == NULL);
+  DP_CHECK (dp_wfm_compose_build_synth (&s, 20e6, 0, 0.0, 100.0, 0.0, 0, 0, 0)
+            == NULL);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -686,6 +747,9 @@ main (void)
   rc |= test_the_gap_carries_noise_at_the_noise_variance ();
   rc |= test_a_resume_mid_ppdu_continues ();
   rc |= test_each_key_decides_a_restore_alone ();
+  rc |= test_step_is_steps ();
+  rc |= test_the_attach_refuses_what_the_validator_refuses ();
+  rc |= test_a_data_file_gone_between_validation_and_build ();
   if (rc)
     return 1;
   DP_TEST_END ("wfm_ofdm_bridge");

@@ -641,10 +641,13 @@ size_t dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
  *                20 MHz layout.
  * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0
  *         or above WLAN_N_SYM_MAX, @p oversample is outside
- *         1..WLAN_OVERSAMPLE_MAX, or the modulator refuses a call.
- * @note On -1 @p o may already hold some of the classes: it is not to be
- *       used again, only destroyed. dp_wlan_ppdu() builds into its own
- *       modulator and destroys it, so it is unaffected.
+ *         1..WLAN_OVERSAMPLE_MAX, @p window is above 80 * @p oversample,
+ *         or the modulator refuses a call.
+ * @note A refusal by the arguments (@p t NULL or a table empty, @p n_sym,
+ *       @p oversample or @p window out of range) leaves @p o untouched. A
+ *       refusal by the modulator may leave classes in it, and then it is
+ *       not to be used again, only destroyed. dp_wlan_ppdu() builds into its
+ *       own modulator and destroys it, so it is unaffected.
  */
 int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
                     size_t n_sym, unsigned window, unsigned oversample);

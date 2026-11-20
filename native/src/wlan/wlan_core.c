@@ -230,6 +230,16 @@ dp_wlan_bcc (dp_wlan_code_t code, conv_code_t *c)
 
 /* ── The object ──────────────────────────────────────────────────────── */
 
+/* The window ceiling, declared once: the modulator takes no window longer
+   than an OFDM symbol of its class, and the shortest is the SIGNAL and Data
+   symbol of 80 * M samples. dp_wlan_params_why() and dp_wlan_layout() both
+   ask it. */
+static int
+wlan_window_ok (uint32_t window, uint32_t oversample)
+{
+  return window <= WLAN_SYM_LEN * oversample;
+}
+
 const char *
 dp_wlan_params_why (int constellation, int code_rate, uint32_t window,
                     uint32_t oversample)
@@ -240,7 +250,7 @@ dp_wlan_params_why (int constellation, int code_rate, uint32_t window,
     return "code_rate must be 0 to 3";
   if (oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX)
     return "oversample must be 1 to 128";
-  if (window > WLAN_SYM_LEN * oversample)
+  if (!wlan_window_ok (window, oversample))
     return "window must be 0 to 80 * oversample";
   return NULL;
 }
@@ -253,16 +263,14 @@ dp_wlan_create (int constellation, int code_rate, uint32_t window,
   if (dp_wlan_params_why (constellation, code_rate, window, oversample))
     return NULL;
   const dp_wlan_rate_t r = { bpsc[constellation], (dp_wlan_code_t)code_rate };
-  if (!dp_wlan_rate_ok (&r))
-    return NULL;
-  dp_wlan_state_t *s = dp_xcalloc (1, sizeof *s);
-  s->n_bpsc          = r.n_bpsc;
-  s->code            = (uint32_t)code_rate;
-  s->n_cbps          = dp_wlan_n_cbps (&r);
-  s->n_dbps          = dp_wlan_n_dbps (&r);
-  s->window          = window;
-  s->oversample      = oversample;
-  unsigned mbps      = 0;
+  dp_wlan_state_t     *s = dp_xcalloc (1, sizeof *s);
+  s->n_bpsc              = r.n_bpsc;
+  s->code                = (uint32_t)code_rate;
+  s->n_cbps              = dp_wlan_n_cbps (&r);
+  s->n_dbps              = dp_wlan_n_dbps (&r);
+  s->window              = window;
+  s->oversample          = oversample;
+  unsigned mbps          = 0;
   s->rate_mbps
       = dp_wlan_mbps (dp_wlan_tables_standard (), &r, &mbps) ? mbps : 0u;
   return s;
@@ -648,7 +656,8 @@ dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t, size_t n_sym,
 {
   if (!t || !t->stf || !t->ltf || t->scale_stf <= 0.0 || t->scale_ltf <= 0.0
       || t->scale_data <= 0.0 || n_sym == 0 || n_sym > WLAN_N_SYM_MAX
-      || oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX)
+      || oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX
+      || !wlan_window_ok (window, oversample))
     return -1;
   const uint32_t       m        = oversample;
   const uint32_t       n_fft    = WLAN_N_FFT * m;

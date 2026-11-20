@@ -19,6 +19,7 @@
  * src/doppler/ofdm/tests/. No standard is named here and none is claimed.
  */
 #include "doppler/ofdm/ofdm_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 
@@ -988,6 +989,349 @@ main (void)
     free (bad);
     dp_ofdm_destroy (e);
     dp_ofdm_destroy (d);
+  }
+
+  /* ── 11. The header's claims the sections above left unasserted ─────────
+   * From the certification's claim inventory (tests/validation/ofdm). Each
+   * claim beside its control: the nearest case the claim excludes, which must
+   * fail the same assertion. */
+
+  /* A subcarrier gain multiplies a fixed entry as well as data ("the whole
+   * grid, data and fixed entries alike"). Gain 3 on k = 2, a fixed 1.0 there:
+   * the grid reads 3. Control: gain 1 on k = 2 reads 1. */
+  {
+    cf g3[8], g1[8];
+    for (int i = 0; i < 8; i++)
+      g3[i] = g1[i] = 1.0f;
+    g3[2 + 4]        = 3.0f;
+    double    got[2] = { 0, 0 };
+    const cf *gs[2]  = { g3, g1 };
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *o = dp_ofdm_create ();
+        MUST (add_cls (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, gs[pass], 8u, 1u,
+                       NULL, 0u)
+              == 0);
+        MUST (dp_ofdm_add_fixed (o, 0u, OFDM_ALL_PHASES, 2, 1.0) == 0);
+        MUST (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+        cf pts[5], out[8];
+        fill_points (pts, 5);
+        MUST (dp_ofdm_modulate (o, pts, 5, out, 8) == 8);
+        got[pass] = creal (coef (out, 8u, 2));
+        dp_ofdm_destroy (o);
+      }
+    DP_CHECK_MSG (fabs (got[0] - 3.0) < 4e-6,
+                  "a gain multiplies the fixed entry on its subcarrier");
+    DP_CHECK_MSG (fabs (got[1] - 3.0) > 1.0, "control: gain 1 does not");
+  }
+
+  /* Every builder re-opens a sealed layout, not only add_fixed and add_run,
+   * and the position and the held tail survive: a render continued through
+   * add_class, add_subcarrier_gain and add_polarity equals the layout built
+   * whole. Gain 1 and polarity 1 on a class with no fixed entry leave its
+   * samples bit for bit. Control: a refused add leaves the layout sealed. */
+  {
+    const cf         ones[8] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+    dp_ofdm_state_t *g = dp_ofdm_create (), *w = dp_ofdm_create ();
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *x = pass ? w : g;
+        MUST (
+            add_cls (x, 8u, MAP8, 8u, 0u, 2u, 3u, 1.0, NULL, 0u, 1u, NULL, 0u)
+            == 0);
+        MUST (dp_ofdm_add_run (x, 0u, 3u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+      }
+    MUST (add_cls (w, 8u, MAP8, 8u, 0u, 2u, 3u, 1.0, ones, 8u, 1u, ones, 1u)
+          == 1);
+    MUST (dp_ofdm_add_run (w, 1u, 2u, OFDM_CP_DEFAULT, 0u, 0u) == 1);
+    cf pts[30], whole[64], p1[64], p2[64];
+    fill_points (pts, 30);
+    MUST (dp_ofdm_modulate (w, pts, 30, whole, 64) == 50);
+    MUST (dp_ofdm_modulate (g, pts, 18, p1, 64) == 30);
+    DP_REQUIRE (g->sealed);
+    DP_CHECK_MSG (dp_ofdm_add_class (g, 8u, MAP8, 8u, 0u, 2u, 3u, 1.0, 1u) == 1
+                      && !g->sealed,
+                  "add_class re-opens a sealed layout");
+    DP_REQUIRE (dp_ofdm_check (g) == 0 && g->sealed);
+    DP_CHECK_MSG (dp_ofdm_add_subcarrier_gain (g, 1u, ones, 7u) < 0
+                      && g->sealed,
+                  "control: a refused gain leaves it sealed");
+    DP_CHECK_MSG (dp_ofdm_add_subcarrier_gain (g, 1u, ones, 8u) == 0
+                      && !g->sealed,
+                  "add_subcarrier_gain re-opens it");
+    DP_REQUIRE (dp_ofdm_check (g) == 0 && g->sealed);
+    DP_CHECK_MSG (dp_ofdm_add_polarity (g, 1u, ones, 0u) < 0 && g->sealed,
+                  "control: a refused polarity leaves it sealed");
+    DP_CHECK_MSG (dp_ofdm_add_polarity (g, 1u, ones, 1u) == 0 && !g->sealed,
+                  "add_polarity re-opens it");
+    MUST (dp_ofdm_add_run (g, 1u, 2u, OFDM_CP_DEFAULT, 0u, 0u) == 1);
+    DP_CHECK (dp_ofdm_points_remaining (g) == 12);
+    MUST (dp_ofdm_modulate (g, pts + 18, 12, p2, 64) == 20);
+    DP_CHECK_MSG (bit_equal (p1, whole, 30) && bit_equal (p2, whole + 30, 20),
+                  "the position and the tail survive each re-open");
+    dp_ofdm_destroy (g);
+    dp_ofdm_destroy (w);
+  }
+
+  /* reset on a layout that has never sealed leaves it as it was. Control:
+   * the same layout, once a run is added, seals. */
+  {
+    dp_ofdm_state_t *o = dp_ofdm_create ();
+    DP_REQUIRE (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, 1u) == 0);
+    DP_REQUIRE (dp_ofdm_check (o) < 0);
+    dp_ofdm_reset (o);
+    DP_CHECK_MSG (o->n_cls == 1 && o->n_runs == 0 && !o->sealed,
+                  "reset leaves an unsealed layout as it was");
+    DP_REQUIRE (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    DP_CHECK (dp_ofdm_check (o) == 0);
+    dp_ofdm_destroy (o);
+  }
+
+  /* state_bytes is a function of the layout alone: before a render, inside
+   * it and at its end. Control: the same layout with a window one longer
+   * differs by exactly one tail slot. */
+  {
+    dp_ofdm_state_t *o = make_layout (3u, 1.0);
+    cf               pts[27], out[64];
+    fill_points (pts, 27);
+    const size_t nb0 = dp_ofdm_state_bytes (o);
+    MUST (dp_ofdm_modulate (o, pts, 9, out, 64) == 20);
+    const size_t nb1 = dp_ofdm_state_bytes (o);
+    MUST (dp_ofdm_modulate (o, pts + 9, 18, out, 64) == 36);
+    const size_t nb2 = dp_ofdm_state_bytes (o);
+    DP_CHECK_MSG (nb0 == nb1 && nb1 == nb2,
+                  "the blob size does not move as the render advances");
+    dp_ofdm_state_t *o4 = make_layout (4u, 1.0);
+    DP_CHECK_MSG (dp_ofdm_state_bytes (o4) == nb0 + sizeof (cf),
+                  "control: one more window sample is one more slot");
+    dp_ofdm_destroy (o);
+    dp_ofdm_destroy (o4);
+  }
+
+  /* The size limits, each edge beside its neighbor. */
+  {
+    static uint8_t big[OFDM_N_FFT_MAX + 1u];
+    memset (big, 1, sizeof big);
+    const uint8_t    map2[2] = { 0, 1 };
+    dp_ofdm_state_t *o       = dp_ofdm_create ();
+    DP_CHECK_MSG (dp_ofdm_add_class (o, 2u, map2, 2u, 0u, 0u, 0u, 1.0, 1u)
+                      == 0,
+                  "a two-point transform is the smallest class");
+    DP_CHECK_MSG (dp_ofdm_add_class (o, OFDM_N_FFT_MAX, big, OFDM_N_FFT_MAX,
+                                     0u, 0u, 0u, 1.0, 1u)
+                      == 1,
+                  "n_fft = OFDM_N_FFT_MAX is accepted");
+    DP_CHECK_MSG (dp_ofdm_add_class (o, OFDM_N_FFT_MAX + 1u, big,
+                                     OFDM_N_FFT_MAX + 1u, 0u, 0u, 0u, 1.0, 1u)
+                      < 0,
+                  "and one more is refused");
+    DP_CHECK_MSG (
+        dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, OFDM_N_PHASE_MAX)
+            == 2,
+        "n_phase = OFDM_N_PHASE_MAX is accepted");
+    DP_CHECK_MSG (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0,
+                                     OFDM_N_PHASE_MAX + 1u)
+                      < 0,
+                  "and one more is refused");
+    /* cp = useful and window = the symbol length are accepted; one more of
+     * each is refused (section 1 holds the refusals) */
+    DP_CHECK_MSG (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 8u, 0u, 1.0, 1u)
+                      == 3,
+                  "a prefix of the whole body is accepted");
+    DP_CHECK_MSG (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 8u, 1.0, 1u)
+                      == 4,
+                  "a window of the whole symbol is accepted");
+    DP_CHECK (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 8u, 16u, 1.0, 1u) == 5);
+    DP_CHECK (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 8u, 17u, 1.0, 1u) < 0);
+    dp_ofdm_destroy (o);
+
+    /* OFDM_COUNT_MAX: runs, fixed entries, classes and the polarity length */
+    o = dp_ofdm_create ();
+    DP_REQUIRE (dp_ofdm_add_class (o, 2u, map2, 2u, 0u, 0u, 0u, 1.0, 1u) == 0);
+    int ok = 1;
+    for (uint32_t i = 0; i < OFDM_COUNT_MAX && ok; i++)
+      ok = dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == (int)i;
+    DP_CHECK_MSG (ok, "OFDM_COUNT_MAX runs are accepted");
+    DP_CHECK_MSG (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) < 0,
+                  "and one more is refused");
+    ok = 1;
+    for (uint32_t i = 0; i < OFDM_COUNT_MAX && ok; i++)
+      ok = dp_ofdm_add_fixed (o, 0u, 0u, 0, 1.0) == 0;
+    DP_CHECK_MSG (ok, "OFDM_COUNT_MAX fixed entries are accepted");
+    DP_CHECK_MSG (dp_ofdm_add_fixed (o, 0u, 0u, 0, 1.0) < 0,
+                  "and one more is refused");
+    ok = 1;
+    for (uint32_t i = 1; i < OFDM_COUNT_MAX && ok; i++)
+      ok = dp_ofdm_add_class (o, 2u, map2, 2u, 0u, 0u, 0u, 1.0, 1u) == (int)i;
+    DP_CHECK_MSG (ok, "OFDM_COUNT_MAX classes are accepted");
+    DP_CHECK_MSG (dp_ofdm_add_class (o, 2u, map2, 2u, 0u, 0u, 0u, 1.0, 1u) < 0,
+                  "and one more is refused");
+    cf *pol = calloc (OFDM_COUNT_MAX + 1u, sizeof *pol);
+    DP_REQUIRE (pol != NULL);
+    DP_CHECK_MSG (dp_ofdm_add_polarity (o, 1u, pol, OFDM_COUNT_MAX + 1u) < 0,
+                  "a polarity sequence one longer than the cap is refused");
+    DP_CHECK_MSG (dp_ofdm_add_polarity (o, 1u, pol, OFDM_COUNT_MAX) == 0,
+                  "and one of the cap is accepted");
+    free (pol);
+    dp_ofdm_destroy (o);
+  }
+
+  /* A fixed entry on a subcarrier the map nulls is placed there: a training
+   * field. Control: the same layout without the entry reads 0 there. */
+  {
+    const uint8_t none8[8] = { 0 };
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *o = dp_ofdm_create ();
+        MUST (dp_ofdm_add_class (o, 8u, none8, 8u, 0u, 0u, 0u, 1.0, 1u) == 0);
+        if (pass == 0)
+          MUST (dp_ofdm_add_fixed (o, 0u, 0u, 1, 1.0) == 0);
+        MUST (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+        cf       out[8];
+        const cf none_pts[1] = { 0 };
+        MUST (dp_ofdm_modulate (o, none_pts, 0, out, 8) == 8);
+        for (int k = -4; k < 4; k++)
+          {
+            const double want = (pass == 0 && k == 1) ? 1.0 : 0.0;
+            DP_CHECK_MSG (close_c (coef (out, 8u, k), want, 2e-6),
+                          pass ? "control: nothing without the entry"
+                               : "a fixed entry on a null subcarrier");
+          }
+        dp_ofdm_destroy (o);
+      }
+  }
+
+  /* check derives one inverse transform per distinct n_fft. Control: three
+   * distinct lengths give three. */
+  {
+    const uint8_t map4[4] = { 0, 0, 0, 1 };
+    const uint8_t map16[16]
+        = { 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1 };
+    for (int pass = 0; pass < 2; pass++)
+      {
+        dp_ofdm_state_t *o = dp_ofdm_create ();
+        MUST (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 0u, 0u, 1.0, 1u) == 0);
+        MUST (dp_ofdm_add_class (o, 4u, map4, 4u, 0u, 0u, 0u, 1.0, 1u) == 1);
+        if (pass == 0)
+          MUST (dp_ofdm_add_class (o, 8u, MAP8, 8u, 0u, 2u, 0u, 1.0, 1u) == 2);
+        else
+          MUST (dp_ofdm_add_class (o, 16u, map16, 16u, 0u, 0u, 0u, 1.0, 1u)
+                == 2);
+        MUST (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+        MUST (dp_ofdm_check (o) == 0);
+        DP_CHECK_MSG (o->n_plans == (pass ? 3u : 2u),
+                      pass ? "control: three lengths, three transforms"
+                           : "two classes of one length share a transform");
+        dp_ofdm_destroy (o);
+      }
+  }
+
+  /* modulate_max_out is 0 past the layout and for no points where the next
+   * symbol needs some. Control: the first symbol's 5 points give 10. */
+  {
+    dp_ofdm_state_t *o = make_layout (0u, 1.0);
+    DP_CHECK_MSG (dp_ofdm_modulate_max_out (o, 28) == 0,
+                  "one point past the layout");
+    DP_CHECK_MSG (dp_ofdm_modulate_max_out (o, 0) == 0,
+                  "no points when the first symbol needs five");
+    DP_CHECK_MSG (dp_ofdm_modulate_max_out (o, 5) == 10, "control: five");
+    DP_CHECK (dp_ofdm_modulate_max_out (o, 27) == 56);
+    dp_ofdm_destroy (o);
+  }
+
+  /* Before anything is rendered there is no tail to finish. Control: after
+   * one symbol of a window-2 layout there are two samples. */
+  {
+    dp_ofdm_state_t *o = make_layout (2u, 1.0);
+    cf               pts[5], out[16], t[4];
+    fill_points (pts, 5);
+    DP_CHECK_MSG (dp_ofdm_finish_max_out (o, 99u) == 0
+                      && dp_ofdm_finish (o, 99u, t, 4u) == 0,
+                  "no tail before the first render");
+    MUST (dp_ofdm_modulate (o, pts, 5, out, 16) == 10);
+    DP_CHECK_MSG (dp_ofdm_finish_max_out (o, 99u) == 2,
+                  "control: a tail after one symbol");
+    dp_ofdm_destroy (o);
+  }
+
+  /* The float32 render of a 64-point OFDM symbol, against the double
+   * precision sum of the header's formula, within the error bound DERIVED
+   * for the transform that runs (not measured, not fitted).
+   *
+   * Which transform: a 64-point cf32 plan takes pffft's native-float path
+   * (pocketfft.c:127-129, 335-347; the size gate pffft_cf32_ok, :71), three
+   * radix-4 passes: cffti1_ps (N/SIMD_SZ = 16) decomposes as 4 x 4
+   * (pffft.c:1137, ntryh {5,3,4,2}), and the cross-lane stage is the third
+   * (pffft.c:1260-1267); a scalar build (SIMD_SZ = 1) decomposes 64 as
+   * 4 x 4 x 4 directly. A radix-4 pass is one twiddle multiply per element
+   * and then two add levels whose only multipliers are +-1 and +-j, which
+   * are exact, so it costs at most two radix-2 levels' error and Higham's
+   * radix-2 bound over log2 N = 6 levels covers it (Accuracy and Stability of
+   * Numerical Algorithms, 2nd ed., Theorem 24.2):
+   *   ||y^ - y|| / ||y|| <= L eta / (1 - L eta),
+   *   eta = mu + gamma_4 (sqrt 2 + mu),  gamma_4 = 4u / (1 - 4u),
+   * with mu the twiddles' error. Both twiddle tables are cosf/sinf of an
+   * angle formed in float with three roundings (pffft.c:1141, 1157, 1161 and
+   * :1264; the division by a power of two is exact), so the angle is off by
+   * at most 3u of 2 pi, and cosf / sinf add u/2 per component: mu <=
+   * 3u * 2 pi + (sqrt 2 / 2) u < 20u (twiddles accurate to u would give
+   * 2.4e-6, but these are formed in float, not rounded from double). The
+   * scale multiply adds one rounding, u. With u = 2^-24 that is 9.2e-6; the
+   * expectation is about u sqrt(log2 N), 1.5e-7, and the bound is what is
+   * asserted. The bound is derived from those lines: if the 64-point plan
+   * leaves pffft (pocketfft.c:71's gate) or the twiddle formation changes,
+   * re-derive it rather than move the number. Only
+   * N = 64 is asserted: the bound is for a power-of-two transform, and a
+   * length such as 704 runs another algorithm (a sweep finding,
+   * native/validation/ofdm_fft_error.c). Control: one grid value moved by
+   * 1e-3 is 1.25e-4 relative (one bin of 64 unit-power bins), over it. */
+  {
+    const double u     = ldexp (1.0, -24);
+    const double mu    = 20.0 * u;
+    const double g4    = 4.0 * u / (1.0 - 4.0 * u);
+    const double eta   = mu + g4 * (sqrt (2.0) + mu);
+    const double tol64 = 6.0 * eta / (1.0 - 6.0 * eta) + u;
+
+    uint8_t map64[64];
+    memset (map64, 1, sizeof map64);
+    cf       pts[64];
+    uint32_t st = 2026u;
+    for (int i = 0; i < 64; i++)
+      {
+        const uint32_t r = dp_xs32 (&st);
+        pts[i] = (float)sqrt (0.5)
+                 * ((r & 1u ? 1.0f : -1.0f) + (r & 2u ? 1.0f : -1.0f) * I);
+      }
+    dp_ofdm_state_t *o = dp_ofdm_create ();
+    MUST (dp_ofdm_add_class (o, 64u, map64, 64u, 0u, 0u, 0u, 0.125, 1u) == 0);
+    MUST (dp_ofdm_add_run (o, 0u, 1u, OFDM_CP_DEFAULT, 0u, 0u) == 0);
+    cf out[64];
+    MUST (dp_ofdm_modulate (o, pts, 64, out, 64) == 64);
+    dp_ofdm_destroy (o);
+
+    double err[2] = { 0, 0 };
+    for (int pass = 0; pass < 2; pass++)
+      {
+        double num = 0, den = 0;
+        for (int m = 0; m < 64; m++)
+          {
+            double _Complex y = 0;
+            for (int k = -32; k < 32; k++)
+              {
+                double _Complex v = (double _Complex)pts[k + 32];
+                if (pass && k == 5)
+                  v += 1e-3;
+                y += v * cexp (I * TWO_PI * (double)k * (double)m / 64.0);
+              }
+            y *= 0.125;
+            num += pow (cabs ((double _Complex)out[m] - y), 2.0);
+            den += pow (cabs (y), 2.0);
+          }
+        err[pass] = sqrt (num / den);
+      }
+    DP_CHECK_MSG (err[0] <= tol64,
+                  "a 64-point render is within the derived float32 bound");
+    DP_CHECK_MSG (err[1] > tol64, "control: a 1e-3 grid error is not");
   }
 
   DP_TEST_END ("test_ofdm_core");

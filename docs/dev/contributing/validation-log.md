@@ -105,7 +105,7 @@ listed the moment its folder exists. There is no list here to update.
 | [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md)                       | `wfm`         | 20/20  | 4        | 2 — F2, F3                 |
 | [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                         | `wfm`         | 22/22  | 10       | 2 — F5, F9                 |
 | [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                       | `wfm`         | 16/16  | 5        | none                       |
-| [Wlan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wlan/tests/validation/wlan/results.md)                              | `wlan`        | 5/5    | 7        | 2 — F4, F7                 |
+| [Wlan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wlan/tests/validation/wlan/results.md)                              | `wlan`        | 5/5    | 7        | 1 — F7                     |
 | [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md)                           | `— (C only)`  | 12/12  | 5        | 1 — F2                     |
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                   | `— (C only)`  | 10/10  | 3        | none                       |
 | [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md)                    | `— (C only)`  | 19/19  | 6        | none                       |

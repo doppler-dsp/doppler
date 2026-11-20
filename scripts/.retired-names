@@ -129,3 +129,5 @@ doppler/burst_acq/burst_acq_core\.h	doppler/correlator/correlator_core.h (#2752 
 # its history.
 from doppler\.resample import[^\n]*\bHalfbandDecimatorDp\b	from doppler.resample import HalfbandDecimator (#3002)
 \bHalfbandDecimatorDp\(	HalfbandDecimator(...) -- the same CF32 core; cast taps to float32 (#3002)
+dp_ofdm_modulate_why_max_out	dp_ofdm_modulate_max_out
+dp_wlan_ppdu_why_max_out	dp_wlan_ppdu_max_out

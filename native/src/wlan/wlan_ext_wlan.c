@@ -150,8 +150,7 @@ WlanObj_ppdu_max_out (WlanObject *self, PyObject *args)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (
-      dp_wlan_ppdu_why_max_out (self->handle, (size_t)n_in));
+  return PyLong_FromSize_t (dp_wlan_ppdu_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -217,7 +216,7 @@ WlanObj_ppdu (WlanObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_wlan_ppdu_why_max_out (self->handle, x_len);
+      size_t _omax    = dp_wlan_ppdu_max_out (self->handle, x_len);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -282,7 +281,7 @@ WlanObj_ppdu (WlanObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t _need = x_len;
-  size_t _cap  = dp_wlan_ppdu_why_max_out (self->handle, x_len);
+  size_t _cap  = dp_wlan_ppdu_max_out (self->handle, x_len);
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)
@@ -528,7 +527,7 @@ static PyMethodDef WlanObj_methods[] = {
     "scrambler_state : int\n"
     "    The scrambler register's initial state, 1 to 127.\n"
     "out : npt.NDArray[np.complex64] | None\n"
-    "    Receives dp_wlan_ppdu_why_max_out() samples.\n"
+    "    Receives dp_wlan_ppdu_max_out() samples.\n"
     "\n"
     "Returns\n"
     "-------\n"

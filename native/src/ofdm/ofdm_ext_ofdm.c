@@ -470,7 +470,7 @@ OfdmObj_modulate_max_out (OfdmObject *self, PyObject *args)
       return NULL;
     }
   return PyLong_FromSize_t (
-      dp_ofdm_modulate_why_max_out (self->handle, (size_t)n_in));
+      dp_ofdm_modulate_max_out (self->handle, (size_t)n_in));
 }
 
 static PyObject *
@@ -525,7 +525,7 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t _omax    = dp_ofdm_modulate_why_max_out (self->handle, (size_t)n);
+      size_t _omax    = dp_ofdm_modulate_max_out (self->handle, (size_t)n);
       size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
@@ -591,7 +591,7 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = dp_ofdm_modulate_why_max_out (self->handle, (size_t)n);
+  size_t _cap  = dp_ofdm_modulate_max_out (self->handle, (size_t)n);
   (void)_need;
   size_t _adim_need = (size_t)(_cap);
   if (_adim_need > (size_t)NPY_MAX_INTP)

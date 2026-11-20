@@ -86,9 +86,9 @@ def _binding_power() -> list[tuple[int, float]]:
     psdu = np.arange(100, dtype=np.uint8)
     out = []
     for m in (1, 4):
-        x = Wlan(constellation="qam16", code_rate="r34", oversample=m).ppdu(
-            psdu, 93
-        )
+        x = Wlan(
+            constellation="qam16", code_rate="r34", window=0, oversample=m
+        ).ppdu(psdu, 93)
         ltf = x[192 * m : 320 * m].astype(np.complex128)
         out.append((m, float(np.mean(np.abs(ltf) ** 2))))
     return out
@@ -199,7 +199,8 @@ def characterise(live, sweep, power) -> None:
     R.md()
     R.md(
         "The mask is -20 / -28 / -40 dBr at 11 / 20 / 30 MHz. Unwindowed "
-        "fails the 30 MHz point at both M, and Wlan's default window is 0 "
+        "fails the 30 MHz point at both M, which is the property of asking "
+        "for window 0; Wlan's default is the standard's 2 M "
         f"({R.ref('default_window_fails_mask')}). The in-band peak-to-mean "
         "reads above the 1.25 dB derived for this estimator "
         f"({R.ref('mask_peak_reference_biased')})."
@@ -310,13 +311,16 @@ def review() -> None:
     )
     R.find(
         "default_window_fails_mask",
-        "CONFIRMED",
-        "With its default window of 0, an oversampled PPDU fails the "
-        "transmit mask's 30 MHz point by 4.6 dB at M = 4 and 3.1 dB at "
-        "M = 8 (§2.2), while the standard's 2 M transition passes every "
-        "point with 7.9 dB to spare. At the default M = 1 the mask beyond "
-        "10 MHz is not representable at all. The default and its spelling "
-        "are the owner's: #3190.",
+        "FIXED",
+        "`Wlan` rendered with no window by default, and an oversampled "
+        "PPDU then failed the transmit mask's 30 MHz point by 4.6 dB at "
+        "M = 4 and 3.1 dB at M = 8 (§2.2). The default is now the "
+        "standard's 2 M transition, which passes every point with 7.9 dB "
+        "to spare; `window=0`, by asking, still fails by those margins, as "
+        "a stated property of the rectangular choice. At M = 1 the mask "
+        "beyond 10 MHz is not representable at all. The wfmgen `ofdm` "
+        "source takes the same default when the type lands, so #3190 stays "
+        "open for that half.",
     )
     R.find(
         "mask_peak_reference_biased",
@@ -490,10 +494,11 @@ def build(write: bool = True) -> Report:
             "Re-run to regenerate."
         ),
         takeaways=[
-            "**The default window fails the transmit mask** when the PPDU "
-            "is oversampled: -35.4 dBr at 30 MHz against -40 at M = 4; the "
-            "standard's 2 M transition passes every point by 7.9 dB or more "
-            f"({R.ref('default_window_fails_mask')}, #3190).",
+            "**`Wlan`'s default window is the standard's 2 M and passes the "
+            "transmit mask** by 7.9 dB or more; `window=0`, by asking, reads "
+            "-35.4 dBr at 30 MHz against -40 at M = 4 "
+            f"({R.ref('default_window_fails_mask')}, #3190 for the wfmgen "
+            "half).",
             "**A window is free up to the 16 M guard interval** for a "
             "receiver taking the last 64 M samples, exactly; past it the "
             "error grows to -25 dB near 24 M, and an early receiver pays "

@@ -30,10 +30,10 @@ from doppler.wlan import Wlan
 
 FS = 20e6
 #: A fixed 100-octet payload, as the 800 bits of a PN Field (the CLI's
-#: ``--data pn:800:15``), and the octets those bits are, first bit least
-#: significant (the order the PHY sends them in).
+#: ``--data pn:800:15``), and the octets those bits are, first bit most
+#: significant (the order a data file's bytes and a hex Field unpack in).
 BITS = field_bits("pn:800:15")
-OCTETS = np.packbits(BITS.reshape(-1, 8)[:, ::-1], axis=1).ravel()
+OCTETS = np.packbits(BITS).ravel()
 
 _OK = {
     "type": "ofdm",

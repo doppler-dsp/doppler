@@ -20,12 +20,12 @@ class Wlan:
         The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is
         5/6.
         One of ``"r12"``, ``"r23"``, ``"r34"``, ``"r56"``.
-    window : int, default 0
-        The window length in samples at the OUTPUT rate, 0 to 80 times
-        `oversample`: the cross-fade at each OFDM symbol boundary of the PPDUs
-        `ppdu` renders. The standard's 100 ns transition is `2 * oversample`
-        samples; above the `16 * oversample` guard interval the cross-fade
-        reaches into the symbol body.
+    window : int, default 4294967295
+        The default is the standard's 100 ns transition, `2 * oversample`
+        samples; 0 is no window. Otherwise the window length in samples at the
+        OUTPUT rate, 0 to 80 times `oversample`: the cross-fade at each OFDM
+        symbol boundary of the PPDUs `ppdu` renders. Above the `16 *
+        oversample` guard interval the cross-fade reaches into the symbol body.
     oversample : int, default 1
         `M`, 1 to 128: the output rate over the 20 MHz clock. The PPDU is
         rendered by a transform `M` times longer, the same subcarriers, not
@@ -56,7 +56,7 @@ class Wlan:
         self,
         constellation: Literal["bpsk", "qpsk", "qam16", "qam64"] = "qam16",
         code_rate: Literal["r12", "r23", "r34", "r56"] = "r12",
-        window: int = 0,
+        window: int = 4294967295,
         oversample: int = 1,
     ) -> None: ...
     def reset(self) -> None:
@@ -118,11 +118,11 @@ class Wlan:
         >>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s
         >>> psdu = np.arange(100, dtype=np.uint8)
         >>> x = w.ppdu(psdu, 93)
-        >>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6 samples
-        (dtype('complex64'), (880,))
+        >>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6, plus the 2-sample window
+        (dtype('complex64'), (882,))
         >>> w2 = Wlan(constellation="qam16", code_rate="r34", oversample=2)
-        >>> w2.ppdu(psdu, 93).shape
-        (1760,)
+        >>> w2.ppdu(psdu, 93).shape  # twice as fine, and a 4-sample window
+        (1764,)
         >>> w.ppdu(psdu, 0)
         Traceback (most recent call last):
             ...

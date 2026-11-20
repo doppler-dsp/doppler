@@ -106,6 +106,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  size\_t | [**dp\_wlan\_signal\_bits**](#function-dp_wlan_signal_bits) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t length, uint8\_t \* out) <br>_The SIGNAL field's 24 bits: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit over the first 17, and six zero tail bits (Figure 17-5, 17.3.4.1)._  |
 |  const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* | [**dp\_wlan\_tables\_empty**](#function-dp_wlan_tables_empty) (void) <br>_The tables with nothing in them._  |
 |  const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* | [**dp\_wlan\_tables\_standard**](#function-dp_wlan_tables_standard) (void) <br>_The tables of IEEE Std 802.11-2024 Clause 17, transcribed from the text: the RATE bits (Table 17-6), the L-STF and L-LTF sequences (Eq. 17-6, 17-8), one scale for every field, the constellation bit encodings (Figure 17-10, Tables 17-14 to 17-18, as relabels of the library's maps) and the second interleaver permutation (Eq. 17-16, 17-17)._  |
+|  uint32\_t | [**dp\_wlan\_window\_resolve**](#function-dp_wlan_window_resolve) (uint32\_t window, uint32\_t oversample) <br>_The window, in samples at the output rate, that a caller's_ `window` _argument means at this oversampling._ |
 
 
 
@@ -153,6 +154,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 | define  | [**WLAN\_STF\_LEN**](wlan__core_8h.md#define-wlan_stf_len)  `160u`<br>_The L-STF, in samples (8 us at 20 MHz)._  |
 | define  | [**WLAN\_SYM\_LEN**](wlan__core_8h.md#define-wlan_sym_len)  `80u`<br>_An OFDM symbol with its guard interval, in samples._  |
 | define  | [**WLAN\_TAIL\_BITS**](wlan__core_8h.md#define-wlan_tail_bits)  `6u`<br>_Tail bits that return the BCC encoder to zero._  |
+| define  | [**WLAN\_WINDOW\_STANDARD**](wlan__core_8h.md#define-wlan_window_standard)  `UINT32\_MAX`<br>_The window argument that means "the standard's 100 ns transition":_ [_**dp\_wlan\_window\_resolve()**_](wlan__core_8h.md#function-dp_wlan_window_resolve) _turns it into_`2 * M` _samples. A spelling of_[_**dp\_wlan\_create()**_](wlan__core_8h.md#function-dp_wlan_create) _only; every function below it takes a count of samples at the output rate, and refuses this value as out of range (it is above_`80 * M` _)._`0` _is the explicit rectangular choice._ |
 
 ## Detailed Description
 
@@ -313,7 +315,7 @@ dp_wlan_state_t * dp_wlan_create (
 
 * `constellation` 0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM. 
 * `code_rate` 0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6. 
-* `window` Window length in samples at the output rate, 0 to 80 \* `oversample:` the modulator takes no run whose window is longer than an OFDM symbol of its class, and the shortest is the SIGNAL and Data symbol of 80 \* M samples. Above the 16 \* M guard interval the cross-fade reaches into the symbol body; the standard's own transition is 2 \* M. 
+* `window` Window length in samples at the output rate, or WLAN\_WINDOW\_STANDARD for the standard's 100 ns transition (`2 * M` samples, see [**dp\_wlan\_window\_resolve()**](wlan__core_8h.md#function-dp_wlan_window_resolve)); 0 is no window. A count is 0 to 80 \* `oversample:` the modulator takes no run whose window is longer than an OFDM symbol of its class, and the shortest is the SIGNAL and Data symbol of 80 \* M samples. Above the 16 \* M guard interval the cross-fade reaches into the symbol body; the standard's own transition is 2 \* M. 
 * `oversample` `M`, 1 to WLAN\_OVERSAMPLE\_MAX: the output rate over the 20 MHz clock (see [**dp\_wlan\_layout()**](wlan__core_8h.md#function-dp_wlan_layout)). 
 
 
@@ -1079,7 +1081,7 @@ size_t dp_wlan_ppdu_len (
 
 
 * `n_sym` Data OFDM symbols, 1 to WLAN\_N\_SYM\_MAX. 
-* `window` Window length in samples at the output rate, 0 for none. 
+* `window` Window length in samples at the output rate, 0 for none. A count: WLAN\_WINDOW\_STANDARD is resolved by the caller ([**dp\_wlan\_window\_resolve()**](wlan__core_8h.md#function-dp_wlan_window_resolve)), not here. 
 * `oversample` `M`: the output rate over the 20 MHz clock, 1 to WLAN\_OVERSAMPLE\_MAX (128). 
 
 
@@ -1181,11 +1183,11 @@ The samples written, or -1 if the rate has no SIGNAL RATE bits, the PSDU length 
 >>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s
 >>> psdu = np.arange(100, dtype=np.uint8)
 >>> x = w.ppdu(psdu, 93)
->>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6 samples
-(dtype('complex64'), (880,))
+>>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6, plus the 2-sample window
+(dtype('complex64'), (882,))
 >>> w2 = Wlan(constellation="qam16", code_rate="r34", oversample=2)
->>> w2.ppdu(psdu, 93).shape
-(1760,)
+>>> w2.ppdu(psdu, 93).shape  # twice as fine, and a 4-sample window
+(1764,)
 >>> w.ppdu(psdu, 0)
 Traceback (most recent call last):
     ...
@@ -1509,6 +1511,50 @@ A pointer to a static, filled [**dp\_wlan\_tables\_t**](structdp__wlan__tables__
         
 
 <hr>
+
+
+
+### function dp\_wlan\_window\_resolve 
+
+_The window, in samples at the output rate, that a caller's_ `window` _argument means at this oversampling._
+```C++
+uint32_t dp_wlan_window_resolve (
+    uint32_t window,
+    uint32_t oversample
+) 
+```
+
+
+
+WLAN\_WINDOW\_STANDARD gives `2 * oversample`, the standard's 100 ns transition (17.3.2.5); any other value is returned unchanged, so 0 stays the explicit rectangular choice. The one place the default is defined: [**dp\_wlan\_create()**](wlan__core_8h.md#function-dp_wlan_create) and the wfmgen source call it, and a caller who wants the default for a call that takes a count ([**dp\_wlan\_layout()**](wlan__core_8h.md#function-dp_wlan_layout), [**dp\_wlan\_ppdu()**](wlan__core_8h.md#function-dp_wlan_ppdu)) asks it too. It does not range-check: [**dp\_wlan\_params\_why()**](wlan__core_8h.md#function-dp_wlan_params_why) does, on the resolved count. 
+
+**Parameters:**
+
+
+* `window` A count, or WLAN\_WINDOW\_STANDARD. 
+* `oversample` `M`. 
+
+
+
+**Returns:**
+
+The count.
+
+
+
+```C++
+>>> from doppler.wlan import Wlan
+>>> Wlan(oversample=4).window   # the default: 100 ns at 80 MHz
+8
+>>> Wlan(window=0, oversample=4).window   # rectangular, by asking
+0
+```
+ 
+
+
+        
+
+<hr>
 ## Macro Definition Documentation
 
 
@@ -1730,6 +1776,20 @@ _An OFDM symbol with its guard interval, in samples._
 _Tail bits that return the BCC encoder to zero._ 
 ```C++
 #define WLAN_TAIL_BITS `6u`
+```
+
+
+
+
+<hr>
+
+
+
+### define WLAN\_WINDOW\_STANDARD 
+
+_The window argument that means "the standard's 100 ns transition":_ [_**dp\_wlan\_window\_resolve()**_](wlan__core_8h.md#function-dp_wlan_window_resolve) _turns it into_`2 * M` _samples. A spelling of_[_**dp\_wlan\_create()**_](wlan__core_8h.md#function-dp_wlan_create) _only; every function below it takes a count of samples at the output rate, and refuses this value as out of range (it is above_`80 * M` _)._`0` _is the explicit rectangular choice._
+```C++
+#define WLAN_WINDOW_STANDARD `UINT32_MAX`
 ```
 
 

@@ -189,8 +189,8 @@ def review() -> None:
         "`dp_ofdm_add_class` refused a NaN `scale`, which its header did not "
         "say. Under the library's rule a NaN parameter is garbage in "
         "(#2103), and the scale reaches only the samples and the layout "
-        "hash: no size, index or abort. The guard is removed; no test pinned "
-        "it.",
+        "hash: no size, index or abort. Nothing refuses it, and no test "
+        "pins a refusal.",
     )
     R.find(
         "inventory_bound_corrected",
@@ -327,8 +327,7 @@ def build(write: bool = True) -> Report:
             "the transform's code, not fitted. Re-run to regenerate."
         ),
         takeaways=[
-            "**Every header claim is pinned in C beside a control**, 13 of "
-            f"them added by this certification "
+            "**Every header claim is pinned in C beside a control** "
             f"({R.ref('ofdm_inventory_pins_added')}).",
             "**A float32 render sits about 1e-7 to 2.3e-7 from the exact "
             "sum at every power of two to 65536**, at least 39 times under a "
@@ -336,7 +335,7 @@ def build(write: bool = True) -> Report:
             "**The error follows the transform's path, not the length** "
             f"({R.ref('ofdm_error_tracks_the_path')}): lengths outside "
             "pffft's 5-smooth set are rendered in double and read under u.",
-            "**A NaN scale is no longer refused**: NaN in, NaN samples out "
+            "**A NaN scale is not refused**: NaN in, NaN samples out "
             f"({R.ref('ofdm_nan_scale_guard_removed')}).",
         ],
     )

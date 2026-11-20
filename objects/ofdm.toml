@@ -120,9 +120,9 @@ name = "modulate"
 doc = "Render OFDM symbols from constellation points, in layout order, and return the samples. Each OFDM symbol takes its data count from the points: its data subcarriers less those a fixed entry displaces in its pattern phase. Rendering stops when the next OFDM symbol needs more points than remain; OFDM symbols that need none (training fields) render. A refused call (an unusable layout, a point count that ends inside an OFDM symbol or runs past the layout, a buffer too short) raises `ValueError` saying which, the modulator untouched. The window tail of the last OFDM symbol is held for the next call; `finish` returns it."
 arg_type = "float _Complex"
 return_type = "float _Complex"
-# The capacity function is derived from this name, dp_ofdm_modulate_why_max_out,
-# an alias: no key names another (just-makeit#2680).
 fn = "dp_ofdm_modulate_why"
+# the capacity function the binding calls, by name (just-makeit#2680)
+max_out_fn = "dp_ofdm_modulate_max_out"
 variable_output = true
 pass_capacity = true
 # 0 samples is a valid answer (no points at the end of the layout), so the

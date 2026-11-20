@@ -76,9 +76,8 @@ _A general OFDM modulator: constellation points and a layout in, baseband sample
 |  size\_t | [**dp\_ofdm\_finish\_max\_out**](#function-dp_ofdm_finish_max_out) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, size\_t n) <br>_Capacity_ [_**dp\_ofdm\_finish()**_](ofdm__core_8h.md#function-dp_ofdm_finish) _needs for_`n` _samples._ |
 |  void | [**dp\_ofdm\_get\_state**](#function-dp_ofdm_get_state) (const [**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, void \* blob) <br>_Write the state into_ `blob` _._ |
 |  size\_t | [**dp\_ofdm\_modulate**](#function-dp_ofdm_modulate) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_The plain form of_ [_**dp\_ofdm\_modulate\_why()**_](ofdm__core_8h.md#function-dp_ofdm_modulate_why) _._ |
-|  size\_t | [**dp\_ofdm\_modulate\_max\_out**](#function-dp_ofdm_modulate_max_out) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, size\_t n\_in) <br>_The plain form of_ [_**dp\_ofdm\_modulate\_why\_max\_out()**_](ofdm__core_8h.md#function-dp_ofdm_modulate_why_max_out) _._ |
+|  size\_t | [**dp\_ofdm\_modulate\_max\_out**](#function-dp_ofdm_modulate_max_out) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, size\_t n\_in) <br>_Samples a render of_ `n_in` _points writes._ |
 |  int64\_t | [**dp\_ofdm\_modulate\_why**](#function-dp_ofdm_modulate_why) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out, const char \*\* why) <br>_Render OFDM symbols from constellation points, or say why not._  |
-|  size\_t | [**dp\_ofdm\_modulate\_why\_max\_out**](#function-dp_ofdm_modulate_why_max_out) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, size\_t n\_in) <br>_Samples a render of_ `n_in` _points writes._ |
 |  size\_t | [**dp\_ofdm\_points\_remaining**](#function-dp_ofdm_points_remaining) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state) <br>_Constellation points the rest of the layout consumes._  |
 |  void | [**dp\_ofdm\_reset**](#function-dp_ofdm_reset) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state) <br>_Return to the first OFDM symbol, keeping the layout._  |
 |  int | [**dp\_ofdm\_set\_state**](#function-dp_ofdm_set_state) ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md) \* state, const void \* blob) <br>_Restore the state; nonzero rejects_ `blob` _._ |
@@ -799,7 +798,7 @@ Samples written, or 0 if the call is refused or writes none; a caller who must t
 
 ### function dp\_ofdm\_modulate\_max\_out 
 
-_The plain form of_ [_**dp\_ofdm\_modulate\_why\_max\_out()**_](ofdm__core_8h.md#function-dp_ofdm_modulate_why_max_out) _._
+_Samples a render of_ `n_in` _points writes._
 ```C++
 size_t dp_ofdm_modulate_max_out (
     dp_ofdm_state_t * state,
@@ -807,6 +806,9 @@ size_t dp_ofdm_modulate_max_out (
 ) 
 ```
 
+
+
+Simulates the render from the current position: OFDM symbols are taken in layout order until the next one needs more points than remain. The result is zero if `n_in` ends inside an OFDM symbol or runs past the layout (that call is refused), for a layout that does not seal, and for no points when the next OFDM symbol needs some. Use it to size the output before the call.
 
 
 
@@ -821,10 +823,25 @@ size_t dp_ofdm_modulate_max_out (
 
 **Returns:**
 
-Samples a call with `n_in` points writes, 0 if it is refused. 
+Samples that call will write.
 
 
 
+```C++
+>>> import numpy as np
+>>> from doppler.ofdm import Ofdm
+>>> o = Ofdm()
+>>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1
+>>> o.add_class(8, m, cyclic_prefix=2)
+0
+>>> o.add_run(0, 3)
+0
+>>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples
+20
+>>> o.modulate_max_out(5)    # ends inside a symbol
+0
+```
+ 
 
 
         
@@ -889,60 +906,6 @@ Samples written, which may be 0: no points at the end of the layout, or zero poi
 Traceback (most recent call last):
     ...
 ValueError: the points end inside an OFDM symbol: pass a count that ends where one does (see points_remaining and modulate_max_out)
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function dp\_ofdm\_modulate\_why\_max\_out 
-
-_Samples a render of_ `n_in` _points writes._
-```C++
-size_t dp_ofdm_modulate_why_max_out (
-    dp_ofdm_state_t * state,
-    size_t n_in
-) 
-```
-
-
-
-Simulates the render from the current position: OFDM symbols are taken in layout order until the next one needs more points than remain. The result is zero if `n_in` ends inside an OFDM symbol or runs past the layout (that call is refused), for a layout that does not seal, and for no points when the next OFDM symbol needs some. Use it to size the output before the call.
-
-
-
-
-**Parameters:**
-
-
-* `state` The modulator. 
-* `n_in` Constellation points. 
-
-
-
-**Returns:**
-
-Samples that call will write.
-
-
-
-```C++
->>> import numpy as np
->>> from doppler.ofdm import Ofdm
->>> o = Ofdm()
->>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1
->>> o.add_class(8, m, cyclic_prefix=2)
-0
->>> o.add_run(0, 3)
-0
->>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples
-20
->>> o.modulate_max_out(5)    # ends inside a symbol
-0
 ```
  
 

@@ -59,6 +59,8 @@ doc = "Render a PSDU to a whole PPDU (L-STF, L-LTF, SIGNAL, Data) at this rate, 
 arg_type = "uint8_t"
 return_type = "float _Complex"
 fn = "dp_wlan_ppdu_why"
+# the capacity function the binding calls, by name (just-makeit#2680)
+max_out_fn = "dp_wlan_ppdu_max_out"
 variable_output = true
 pass_capacity = true
 count_type = "int64_t"

@@ -400,7 +400,7 @@ size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
  *         SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the
  *         others cannot be sent, and `rate_mbps` is 0 for them).
  */
-size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
+size_t dp_wlan_ppdu_max_out (const dp_wlan_state_t *state, size_t n_in);
 
 /**
  * @brief Render a PSDU to a whole PPDU: L-STF, L-LTF, SIGNAL and Data, at the
@@ -414,7 +414,7 @@ size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
  * @param in                 The PSDU octets.
  * @param n_in               Their count, 1 to WLAN_PSDU_MAX.
  * @param scrambler_state    The scrambler register's initial state, 1 to 127.
- * @param[out] out           Receives dp_wlan_ppdu_why_max_out() samples.
+ * @param[out] out           Receives dp_wlan_ppdu_max_out() samples.
  * @param max_out            Capacity of @p out, in samples.
  * @param[out] why           On a refusal only, a static sentence saying why;
  *                           left as the caller set it on success. May be NULL.

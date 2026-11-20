@@ -315,7 +315,7 @@ dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len)
 }
 
 size_t
-dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in)
+dp_wlan_ppdu_max_out (const dp_wlan_state_t *state, size_t n_in)
 {
   const size_t n_sym = dp_wlan_n_sym (state, n_in);
   return n_sym && state->rate_mbps
@@ -328,7 +328,7 @@ dp_wlan_ppdu_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
                   uint32_t scrambler_state, float _Complex *out,
                   size_t max_out, const char **why)
 {
-  const size_t n        = dp_wlan_ppdu_why_max_out (state, n_in);
+  const size_t n        = dp_wlan_ppdu_max_out (state, n_in);
   const char  *sentence = NULL;
   if (state->rate_mbps == 0)
     sentence = "this rate has no SIGNAL RATE bits (Table 17-6 lists eight of "

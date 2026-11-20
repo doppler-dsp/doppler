@@ -524,12 +524,6 @@ dp_ofdm_modulate_max_out (dp_ofdm_state_t *o, size_t n_in)
   return walk (o, n_in, NULL, NULL);
 }
 
-size_t
-dp_ofdm_modulate_why_max_out (dp_ofdm_state_t *o, size_t n_in)
-{
-  return dp_ofdm_modulate_max_out (o, n_in);
-}
-
 /* ── one OFDM symbol ────────────────────────────────────────────────────── */
 
 /* Render the symbol at (ri, si) into out, consuming its points, and leave the

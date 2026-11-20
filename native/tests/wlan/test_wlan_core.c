@@ -1601,7 +1601,7 @@ main (void)
     {
       dp_wlan_state_t *x = dp_wlan_create (0, 1, 0, 1); /* BPSK 2/3 */
       DP_REQUIRE (x != NULL && x->rate_mbps == 0);
-      DP_CHECK (dp_wlan_ppdu_why_max_out (x, 100) == 0);
+      DP_CHECK (dp_wlan_ppdu_max_out (x, 100) == 0);
       uint8_t octets[4]     = { 0 };
       float _Complex out[1] = { 0 };
       const char *why       = NULL;
@@ -1622,7 +1622,7 @@ main (void)
       for (size_t i = 0; i < 2; i++)
         {
           const size_t    n_sym = dp_wlan_n_sym (x, edges[i]);
-          const size_t    cap   = dp_wlan_ppdu_why_max_out (x, edges[i]);
+          const size_t    cap   = dp_wlan_ppdu_max_out (x, edges[i]);
           uint8_t        *oct   = calloc (edges[i], 1);
           float _Complex *out   = malloc (cap * sizeof *out);
           DP_REQUIRE (oct && out);
@@ -1644,7 +1644,7 @@ main (void)
         dp_wlan_state_t *w = dp_wlan_create (2, 2, 4 * m, m);
         DP_REQUIRE (w != NULL);
         const dp_wlan_rate_t r   = { 4, WLAN_CODE_3_4 };
-        const size_t         cap = dp_wlan_ppdu_why_max_out (w, 100);
+        const size_t         cap = dp_wlan_ppdu_max_out (w, 100);
         DP_CHECK (cap == dp_wlan_ppdu_len (6, 4 * m, m));
         float _Complex *a = malloc (cap * sizeof *a);
         float _Complex *b = malloc (cap * sizeof *b);
@@ -1686,8 +1686,8 @@ main (void)
               untouched &= (crealf (a[k]) == 123.0f);
             DP_CHECK (untouched);
           }
-        DP_CHECK (dp_wlan_ppdu_why_max_out (w, 0) == 0);
-        DP_CHECK (dp_wlan_ppdu_why_max_out (w, 4096) == 0);
+        DP_CHECK (dp_wlan_ppdu_max_out (w, 0) == 0);
+        DP_CHECK (dp_wlan_ppdu_max_out (w, 4096) == 0);
         free (a);
         free (b);
         dp_wlan_destroy (w);

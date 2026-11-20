@@ -94,7 +94,7 @@ class Wlan:
         scrambler_state : int
             The scrambler register's initial state, 1 to 127.
         out : npt.NDArray[np.complex64] | None
-            Receives dp_wlan_ppdu_why_max_out() samples.
+            Receives dp_wlan_ppdu_max_out() samples.
 
         Returns
         -------

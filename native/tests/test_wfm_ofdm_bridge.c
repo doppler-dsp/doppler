@@ -7,6 +7,7 @@
 #include "doppler/wfm/wfm_compose.h"
 #include "doppler/wfm/wfm_defaults.h"
 #include "doppler/wfm/wfm_frame.h"
+#include "doppler/wfm/wfm_names.h"
 #include "doppler/wfm_compose/wfm_compose_bridge.h"
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "doppler/wlan/wlan_core.h"
@@ -50,40 +51,6 @@ source (void)
   return s;
 }
 
-static int
-test_renders_the_ppdu_wlan_builds (void)
-{
-  wfm_source_t s   = source ();
-  const char  *why = dp_wfm_source_to_synth_error (&s, 20e6);
-  if (why)
-    DP_TEST_ERR ("refused: %s", why);
-  DP_REQUIRE (why == NULL);
-  dp_wfm_synth_state_t *syn = dp_wfm_source_to_synth (&s, 20e6);
-  DP_REQUIRE (syn != NULL);
-  const dp_wlan_rate_t rate  = { 4u, WLAN_CODE_3_4 };
-  const size_t         n_sym = dp_wlan_rate_n_sym (&rate, 100);
-  const size_t         n     = dp_wlan_ppdu_len (n_sym, 0u, 1u);
-  cf                  *got   = malloc (n * sizeof *got);
-  cf                  *want  = malloc (n * sizeof *want);
-  DP_REQUIRE (got && want);
-  dp_wfm_synth_steps (syn, got, n);
-  DP_REQUIRE (dp_wlan_ppdu (dp_wlan_tables_standard (), &rate, octets, 100, 93,
-                            0u, 1u, want, n)
-              == n);
-  double num = 0, den = 0;
-  for (size_t i = 0; i < n; i++)
-    {
-      num += cabs ((double _Complex)got[i] - want[i])
-             * cabs ((double _Complex)got[i] - want[i]);
-      den += cabs (want[i]) * cabs (want[i]);
-    }
-  DP_CHECK (den > 0.0 && sqrt (num / den) < 1e-6);
-  free (got);
-  free (want);
-  dp_wfm_synth_destroy (syn);
-  return 0;
-}
-
 /* Render `n` samples of a source at fs. */
 static cf *
 render (const wfm_source_t *s, double fs, size_t n)
@@ -96,6 +63,121 @@ render (const wfm_source_t *s, double fs, size_t n)
     dp_wfm_synth_steps (syn, x, n);
   dp_wfm_synth_destroy (syn);
   return x;
+}
+
+/* Relative l2 distance of two renders, and the energy that makes it mean
+   something (a silent render would give 0 against 0). */
+static double
+rel_l2 (const cf *a, const cf *b, size_t n, double *energy)
+{
+  double num = 0, den = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double d = cabs ((double _Complex)a[i] - b[i]);
+      num += d * d;
+      den += cabs (b[i]) * cabs (b[i]);
+    }
+  *energy = den;
+  return den > 0.0 ? sqrt (num / den) : 1.0;
+}
+
+/* The PPDU wlan builds from the same bits, by the test's own calls: the
+   octets, their FCS if `mac` asks for it, the rate pair, M and the window.
+   n_oct octets of `octets`. */
+static cf *
+reference (const dp_wlan_rate_t *rate, dp_wlan_mac_t mac, size_t n_oct,
+           unsigned scr, unsigned window, unsigned m, size_t *len)
+{
+  uint8_t psdu[WLAN_PSDU_MAX];
+  size_t  n = dp_wlan_mpdu (mac, NULL, 0, octets, n_oct, psdu, sizeof psdu);
+  if (!n)
+    return NULL;
+  *len  = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (rate, n), window, m);
+  cf *x = malloc (*len * sizeof *x);
+  if (x
+      && dp_wlan_ppdu (dp_wlan_tables_standard (), rate, psdu, n, scr, window,
+                       m, x, *len)
+             != *len)
+    {
+      free (x);
+      return NULL;
+    }
+  return x;
+}
+
+/* The render is the PPDU wlan builds from the same octets. */
+static int
+check_render (const wfm_source_t *s, double fs, const dp_wlan_rate_t *rate,
+              dp_wlan_mac_t mac, unsigned window, unsigned m)
+{
+  size_t len = 0;
+  cf *want = reference (rate, mac, s->data_len / 8u, s->scrambler_init, window,
+                        m, &len);
+  cf *got  = want ? render (s, fs, len) : NULL;
+  DP_REQUIRE (want && got);
+  double e;
+  DP_CHECK (rel_l2 (got, want, len, &e) < 1e-6 && e > 0.0);
+  free (got);
+  free (want);
+  return 0;
+}
+
+static int
+test_renders_the_ppdu_wlan_builds (void)
+{
+  const dp_wlan_rate_t r36 = { 4u, WLAN_CODE_3_4 };
+  wfm_source_t         s   = source ();
+  const char          *why = dp_wfm_source_to_synth_error (&s, 20e6);
+  if (why)
+    DP_TEST_ERR ("refused: %s", why);
+  DP_REQUIRE (why == NULL);
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
+  /* the FCS: the source's bits are the MPDU's body, and the PHY appends the
+     FCS, so the same bits render the PPDU of body + FCS, which is not the
+     PPDU of the body alone */
+  s.mac = WLAN_MAC_FCS;
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_FCS, 0u, 1u) == 0);
+  /* M = 2 and a window, against wlan at M = 2 */
+  s.mac    = WLAN_MAC_NONE;
+  s.window = 4;
+  DP_CHECK (check_render (&s, 40e6, &r36, WLAN_MAC_NONE, 4u, 2u) == 0);
+  /* 5 MHz: bandwidth 5e6 at fs 20e6 is M = 4, the pair named, not the rate */
+  s.window        = 0;
+  s.wlan          = 0;
+  s.bandwidth     = 5e6;
+  s.constellation = 2;
+  s.code_rate     = WLAN_CODE_3_4;
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 0u, 4u) == 0);
+  /* 10 MHz at its own clock is M = 1: the 20 MHz samples */
+  s.bandwidth = 10e6;
+  DP_CHECK (check_render (&s, 10e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
+  return 0;
+}
+
+/* The names are held to the values they index: reordering a table in
+   wfm_names.h turns this red, which no compiler would. */
+static int
+test_each_name_is_its_value (void)
+{
+  DP_CHECK (strcmp (OFDM_CODE_RATE_NAMES[WLAN_CODE_1_2], "1/2") == 0);
+  DP_CHECK (strcmp (OFDM_CODE_RATE_NAMES[WLAN_CODE_2_3], "2/3") == 0);
+  DP_CHECK (strcmp (OFDM_CODE_RATE_NAMES[WLAN_CODE_3_4], "3/4") == 0);
+  DP_CHECK (strcmp (OFDM_CODE_RATE_NAMES[WLAN_CODE_5_6], "5/6") == 0);
+  DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_NONE], "none") == 0);
+  DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_FCS], "fcs") == 0);
+  DP_CHECK (strcmp (OFDM_MAC_NAMES[WLAN_MAC_DATA], "data") == 0);
+  static const char *const c[4] = { "bpsk", "qpsk", "qam16", "qam64" };
+  static const unsigned    b[4] = { 1, 2, 4, 6 };
+  for (int k = 0; k < 4; k++)
+    {
+      DP_CHECK (strcmp (OFDM_CONSTELLATION_NAMES[k], c[k]) == 0);
+      DP_CHECK (dp_wlan_n_bpsc (k) == b[k]);
+    }
+  /* the table offers only what wlan builds */
+  DP_CHECK (sizeof OFDM_CONSTELLATION_NAMES / sizeof *OFDM_CONSTELLATION_NAMES
+            == 4);
+  DP_CHECK (dp_wlan_n_bpsc (4) == 0 && dp_wlan_n_bpsc (-1) == 0);
+  return 0;
 }
 
 /* wlan N is a spelling, not a second code path: for each of the eight
@@ -113,16 +195,15 @@ test_wlan_n_is_its_pair_for_all_eight (void)
       a.wlan         = (int)rates[i];
       dp_wlan_rate_t pair;
       DP_REQUIRE (dp_wlan_rate_from_mbps (t, rates[i], &pair));
-      wfm_source_t b  = source ();
-      b.wlan          = 0;
-      b.constellation = pair.n_bpsc == 1u   ? 0
-                        : pair.n_bpsc == 2u ? 1
-                        : pair.n_bpsc == 4u ? 2
-                                            : 3;
-      b.code_rate     = (int)pair.code;
-      const size_t n  = 600; /* the SIGNAL and Data symbols are in it */
-      cf          *x  = render (&a, 20e6, n);
-      cf          *y  = render (&b, 20e6, n);
+      wfm_source_t b = source ();
+      b.wlan         = 0;
+      for (int k = 0; k < 4; k++)
+        if (dp_wlan_n_bpsc (k) == pair.n_bpsc)
+          b.constellation = k;
+      b.code_rate    = (int)pair.code;
+      const size_t n = 600; /* the SIGNAL and Data symbols are in it */
+      cf          *x = render (&a, 20e6, n);
+      cf          *y = render (&b, 20e6, n);
       DP_REQUIRE (x && y);
       DP_CHECK (memcmp (x, y, n * sizeof *x) == 0);
       /* control: a different rate is not the same bytes */
@@ -142,13 +223,18 @@ typedef struct
 {
   const char *name;
   void (*edit) (wfm_source_t *);
-  const char *names; /* the sentence says this */
+  const char *phrase; /* the sentence's own words for the field */
 } refusal_t;
 
 static void
 r_wlan7 (wfm_source_t *s)
 {
   s->wlan = 7;
+}
+static void
+r_wlanneg (wfm_source_t *s)
+{
+  s->wlan = -36;
 }
 static void
 r_both (wfm_source_t *s)
@@ -161,9 +247,16 @@ r_bw (wfm_source_t *s)
   s->bandwidth = 10e6;
 }
 static void
-r_type (wfm_source_t *s)
+r_bwneg (wfm_source_t *s)
 {
-  s->type = WFM_SYNTH_BPSK;
+  s->wlan      = 0;
+  s->bandwidth = -20e6;
+}
+static void
+r_bwodd (wfm_source_t *s)
+{
+  s->wlan      = 0;
+  s->bandwidth = 15e6;
 }
 static void
 r_esno (wfm_source_t *s)
@@ -178,7 +271,12 @@ r_ebno (wfm_source_t *s)
 static void
 r_macdata (wfm_source_t *s)
 {
-  s->mac = 2;
+  s->mac = WLAN_MAC_DATA;
+}
+static void
+r_macbad (wfm_source_t *s)
+{
+  s->mac = 7;
 }
 static void
 r_len (wfm_source_t *s)
@@ -191,9 +289,9 @@ r_scr (wfm_source_t *s)
   s->scrambler_init = 128;
 }
 static void
-r_win (wfm_source_t *s)
+r_scrneg (wfm_source_t *s)
 {
-  s->window = 81;
+  s->scrambler_init = -1;
 }
 static void
 r_sps (wfm_source_t *s)
@@ -201,51 +299,178 @@ r_sps (wfm_source_t *s)
   s->sps = 4;
 }
 static void
+r_pulse (wfm_source_t *s)
+{
+  s->pulse = 1;
+}
+static void
 r_nodata (wfm_source_t *s)
 {
   s->data = (wfm_seq_t){ 0 };
+}
+static void
+r_qam256 (wfm_source_t *s)
+{
+  s->wlan          = 0;
+  s->constellation = 4;
+}
+static void
+r_rate4 (wfm_source_t *s)
+{
+  s->wlan      = 0;
+  s->code_rate = 4;
+}
+static void
+r_norow (wfm_source_t *s)
+{
+  s->wlan          = 0; /* qam16 1/2 is 24 Mb/s; bpsk 2/3 has no row */
+  s->constellation = 0;
+  s->code_rate     = WLAN_CODE_2_3;
+}
+static void
+r_psdubig (wfm_source_t *s)
+{
+  s->data_len = 8u * 4096u;
+}
+static void
+r_psdufcs (wfm_source_t *s)
+{
+  s->mac      = WLAN_MAC_FCS; /* 4092 + 4 = 4096 octets */
+  s->data_len = 8u * 4092u;
+}
+static void
+r_win (wfm_source_t *s)
+{
+  s->window = 81;
+}
+static void
+r_winwrap (wfm_source_t *s)
+{
+  s->window = (size_t)4294967300ull;
+}
+static void
+r_gapwrap (wfm_source_t *s)
+{
+  s->gap = (size_t)-1 - 800u;
+}
+static void
+r_gapcap (wfm_source_t *s)
+{
+  s->gap = WFM_SYNTH_FRAME_MAX;
 }
 
 static int
 test_each_refusal_names_its_field (void)
 {
   static const refusal_t t[] = {
-    { "wlan not one of the eight", r_wlan7, "wlan" },
-    { "wlan with constellation", r_both, "wlan" },
-    { "wlan with another bandwidth", r_bw, "bandwidth" },
-    { "wlan on another type", r_type, "wlan" },
-    { "esno", r_esno, "snr_mode" },
-    { "ebno", r_ebno, "snr_mode" },
-    { "mac data without a header", r_macdata, "mac" },
-    { "data_len not whole octets", r_len, "octets" },
-    { "scrambler_init above 127", r_scr, "scrambler_init" },
-    { "window beyond 80 M", r_win, "window" },
-    { "sps on a finished waveform", r_sps, "sps" },
-    { "no data source", r_nodata, "data" },
+    { "wlan not one of the eight", r_wlan7, "wlan is the 20 MHz data rate" },
+    { "wlan negative", r_wlanneg, "wlan is the 20 MHz data rate" },
+    { "wlan with constellation", r_both, "wlan is a spelling" },
+    { "wlan with another bandwidth", r_bw, "wlan is the data rate at 20 MHz" },
+    { "bandwidth negative", r_bwneg, "bandwidth is 20e6" },
+    { "bandwidth not an 802.11 one", r_bwodd, "bandwidth is 20e6" },
+    { "esno", r_esno, "snr_mode ebno and esno" },
+    { "ebno", r_ebno, "snr_mode ebno and esno" },
+    { "mac data without a header", r_macdata, "mac data needs a mac_header" },
+    { "mac outside its three", r_macbad, "mac is one of" },
+    { "data_len not whole octets", r_len, "data_len must be a multiple of 8" },
+    { "scrambler_init above 127", r_scr, "scrambler_init is the 7-bit" },
+    { "scrambler_init negative", r_scrneg, "scrambler_init is the 7-bit" },
+    { "sps on a finished waveform", r_sps, "ofdm renders finished samples" },
+    { "pulse on a finished waveform", r_pulse, "ofdm renders finished" },
+    { "no data source", r_nodata, "an ofdm source sends a data source" },
+    { "an index past 64-QAM", r_qam256, "constellation is one of" },
+    { "a code_rate index past 5/6", r_rate4, "code_rate is one of" },
+    { "a pair with no SIGNAL RATE", r_norow, "no SIGNAL RATE bits" },
+    { "a PSDU of 4096 octets", r_psdubig, "PSDU is 1 to 4095" },
+    { "a PSDU of 4096 octets with its FCS", r_psdufcs, "PSDU is 1 to 4095" },
+    { "window beyond 80 M", r_win, "window is 0 to 80 times" },
+    { "window past 2^32", r_winwrap, "window is 0 to 80 times" },
+    { "gap that wraps the sum", r_gapwrap, "at most 2^24 samples" },
+    { "gap one past the cap", r_gapcap, "at most 2^24 samples" },
   };
   for (size_t k = 0; k < sizeof t / sizeof *t; k++)
     {
       wfm_source_t s = source ();
       t[k].edit (&s);
-      if (s.type != WFM_SYNTH_FRAMES)
-        s.wlan = 36; /* the field a type that is not ofdm must refuse */
       const char *why = dp_wfm_source_to_synth_error (&s, 20e6);
-      if (!why || !strstr (why, t[k].names))
+      if (!why || !strstr (why, t[k].phrase))
         DP_TEST_ERR ("%s: got \"%s\"", t[k].name, why ? why : "(accepted)");
-      DP_CHECK (why && strstr (why, t[k].names));
-      /* the bridge refuses what the validator refuses */
+      DP_CHECK (why && strstr (why, t[k].phrase));
+      /* the bridge refuses what the validator refuses, and a refused
+         geometry allocates nothing (the wrapped gap would have) */
       DP_CHECK (dp_wfm_source_to_synth (&s, 20e6) == NULL);
     }
-  /* a bandwidth that fs is not an integer multiple of */
+  /* a bandwidth that fs is not an integer multiple of, and one that is more
+     than 128 times it */
   wfm_source_t s  = source ();
   s.wlan          = 0;
   s.constellation = 1;
   const char *why = dp_wfm_source_to_synth_error (&s, 30e6);
-  DP_CHECK (why && strstr (why, "multiple"));
-  /* controls: the source the table edits is itself accepted, at M = 1, 2 */
+  DP_CHECK (why && strstr (why, "fs must be an integer multiple"));
+  why = dp_wfm_source_to_synth_error (&s, 20e6 * 129.0);
+  DP_CHECK (why && strstr (why, "at most 128"));
+  /* the cap's edge is accepted: the gap that makes the frame exactly 2^24
+     samples (decided by the validator, without allocating 128 MB) */
+  s                        = source ();
+  const dp_wlan_rate_t r36 = { 4u, WLAN_CODE_3_4 };
+  const size_t         ppdu
+      = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (&r36, 100), 0u, 1u);
+  s.gap = WFM_SYNTH_FRAME_MAX - ppdu;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+  s.gap++;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) != NULL);
+  /* the fields of an ofdm source on another type, each by itself */
+  for (int k = 0; k < 6; k++)
+    {
+      s      = source ();
+      s.type = WFM_SYNTH_BPSK;
+      s.wlan = 0;
+      s.data = (wfm_seq_t){ 0 };
+      switch (k)
+        {
+        case 0:
+          s.constellation = 1;
+          break;
+        case 1:
+          s.code_rate = 1;
+          break;
+        case 2:
+          s.scrambler_init = 5;
+          break;
+        case 3:
+          s.window = 2;
+          break;
+        case 4:
+          s.mac = WLAN_MAC_FCS;
+          break;
+        default:
+          s.gap = 3;
+          break;
+        }
+      why = dp_wfm_source_to_synth_error (&s, 20e6);
+      DP_CHECK (why && strstr (why, "are fields of an ofdm source"));
+    }
+  s      = source ();
+  s.type = WFM_SYNTH_BPSK;
+  s.data = (wfm_seq_t){ 0 };
+  why    = dp_wfm_source_to_synth_error (&s, 20e6);
+  DP_CHECK (why && strstr (why, "wlan is the 802.11 data rate of an ofdm"));
+  s.wlan      = 0;
+  s.bandwidth = 10e6;
+  why         = dp_wfm_source_to_synth_error (&s, 20e6);
+  DP_CHECK (why && strstr (why, "are fields of an ofdm source"));
+  /* controls: the source the table edits is itself accepted, at M = 1 and 2,
+     and a C source that skipped the defaults (zero bandwidth) is the 20 MHz */
   s = source ();
   DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
   DP_CHECK (dp_wfm_source_to_synth_error (&s, 40e6) == NULL);
+  s.bandwidth = 0.0;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+  /* a NaN bandwidth is garbage in: it takes the default and reaches no size
+     or index (a wrong value is not an allocation) */
+  s.bandwidth = NAN;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
   return 0;
 }
 
@@ -255,10 +480,8 @@ test_each_refusal_names_its_field (void)
 static int
 test_the_gap_carries_noise_at_the_noise_variance (void)
 {
-  wfm_source_t s    = source ();
-  s.gap             = 20000;
-  const size_t ppdu = 160 + 160 + 80 + 80 * 8; /* 36 Mb/s, 104 octets */
-  (void)ppdu;
+  wfm_source_t s            = source ();
+  s.gap                     = 20000;
   const dp_wlan_rate_t rate = { 4u, WLAN_CODE_3_4 };
   const size_t         len
       = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (&rate, 100), 0u, 1u);
@@ -281,10 +504,9 @@ test_the_gap_carries_noise_at_the_noise_variance (void)
   return 0;
 }
 
-/* A resume mid-PPDU, in the second frame, continues byte for byte; a blob of
-   another configuration is refused. */
+/* A resume mid-PPDU, in the second frame, continues byte for byte. */
 static int
-test_a_resume_mid_ppdu_continues_and_a_key_is_refused (void)
+test_a_resume_mid_ppdu_continues (void)
 {
   wfm_source_t s   = source ();
   s.scrambler_init = 0; /* drawn per PPDU, so the draw's frame index travels */
@@ -306,31 +528,149 @@ test_a_resume_mid_ppdu_continues_and_a_key_is_refused (void)
   DP_REQUIRE (got);
   dp_wfm_synth_steps (b, got, n - cut);
   DP_CHECK (memcmp (got, want + cut, (n - cut) * sizeof *got) == 0);
-  /* control: the second PPDU is not the first (the scrambler was drawn anew)
-   */
+  /* control: the second PPDU is not the first (the scrambler was drawn anew,
+     from the frame index) */
   DP_CHECK (memcmp (want, want + 880, 880 * sizeof *want) != 0);
-  /* each configuration key: a different rate, window, seed, gap and mac */
-  wfm_source_t o[5];
-  for (int k = 0; k < 5; k++)
-    o[k] = s;
-  o[0].wlan   = 24;
-  o[1].window = 4;
-  o[2].seed   = 6;
-  o[3].gap    = 8;
-  o[4].mac    = 1;
-  for (int k = 0; k < 5; k++)
-    {
-      dp_wfm_synth_state_t *c = dp_wfm_source_to_synth (&o[k], 20e6);
-      DP_REQUIRE (c);
-      DP_CHECK (dp_wfm_synth_state_bytes (c) != 0);
-      DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_ERR_INVALID);
-      dp_wfm_synth_destroy (c);
-    }
   free (want);
   free (got);
   free (blob);
   dp_wfm_synth_destroy (a);
   dp_wfm_synth_destroy (b);
+  return 0;
+}
+
+/* Each key the renderer's triplet writes decides a restore on its own: the
+   synth's geometry check (n_bits, n_out) must NOT be what refuses, so each
+   row changes one key and keeps n_out. A short PSDU (10 octets) is one Data
+   symbol at every rate from 18 Mb/s, so the rate, the constellation and the
+   mac fit one n_out; a window and an M change the PPDU's length, which the
+   gap pays back. The gap itself is not a key: it is n_out less the PPDU's
+   length, so it cannot differ at an equal n_out and an equal rate, window,
+   M, mac and bit count; those keys and the synth's own hold it. */
+typedef struct
+{
+  const char *key;
+  void (*edit) (wfm_source_t *, size_t pad); /* pad: the gap to add back */
+} key_row_t;
+
+static size_t
+ppdu_samples (const wfm_source_t *s, unsigned m)
+{
+  const dp_wlan_rate_t r
+      = { dp_wlan_n_bpsc (s->constellation), (dp_wlan_code_t)s->code_rate };
+  const size_t n_oct = s->data_len / 8u + (s->mac == WLAN_MAC_FCS ? 4u : 0u);
+  return dp_wlan_ppdu_len (dp_wlan_rate_n_sym (&r, n_oct), (unsigned)s->window,
+                           m);
+}
+
+static void
+k_rate (wfm_source_t *s, size_t p)
+{
+  (void)p;
+  s->code_rate = WLAN_CODE_2_3;
+}
+static void
+k_cons (wfm_source_t *s, size_t p)
+{
+  (void)p;
+  s->constellation = 2;
+}
+static void
+k_scr (wfm_source_t *s, size_t p)
+{
+  (void)p;
+  s->scrambler_init = 94;
+}
+static void
+k_seed (wfm_source_t *s, size_t p)
+{
+  (void)p;
+  s->seed = 9;
+}
+static void
+k_win (wfm_source_t *s, size_t p)
+{
+  s->window = 4;
+  s->gap -= p;
+}
+/* 14 octets against 10: one Data symbol either way, so the same n_out */
+static void
+k_mac (wfm_source_t *s, size_t p)
+{
+  (void)p;
+  s->mac = WLAN_MAC_FCS;
+}
+
+static int
+test_each_key_decides_a_restore_alone (void)
+{
+  /* 10 octets of data, 64-QAM 3/4 (54 Mb/s) as the base, scrambler 93,
+     window 0, gap 100, M = 2 (fs 40 MHz, bandwidth 20 MHz) */
+  uint8_t lit[160];
+  for (size_t k = 0; k < 160; k++)
+    lit[k] = bits_lit[k];
+  wfm_source_t base  = source ();
+  base.wlan          = 0;
+  base.constellation = 3;
+  base.code_rate     = WLAN_CODE_3_4;
+  base.data = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 160, .bits = lit };
+  base.data_len              = 80;
+  base.gap                   = 100;
+  base.window                = 0;
+  const size_t n_base        = ppdu_samples (&base, 2) + base.gap;
+  wfm_source_t w4            = base;
+  w4.window                  = 4;
+  const size_t           pad = ppdu_samples (&w4, 2) - ppdu_samples (&base, 2);
+  static const key_row_t rows[] = {
+    { "code_rate", k_rate },     { "constellation", k_cons },
+    { "scrambler_init", k_scr }, { "seed", k_seed },
+    { "window", k_win },         { "mac", k_mac },
+  };
+  base.seed               = 5;
+  dp_wfm_synth_state_t *a = dp_wfm_source_to_synth (&base, 40e6);
+  DP_REQUIRE (a);
+  cf *skip = malloc (50 * sizeof *skip);
+  DP_REQUIRE (skip);
+  dp_wfm_synth_steps (a, skip, 50);
+  free (skip);
+  const size_t nb   = dp_wfm_synth_state_bytes (a);
+  uint8_t     *blob = malloc (nb);
+  DP_REQUIRE (blob);
+  dp_wfm_synth_get_state (a, blob);
+  /* control: the same configuration accepts its own blob */
+  dp_wfm_synth_state_t *same = dp_wfm_source_to_synth (&base, 40e6);
+  DP_REQUIRE (same && dp_wfm_synth_set_state (same, blob) == DP_OK);
+  dp_wfm_synth_destroy (same);
+  for (size_t k = 0; k < sizeof rows / sizeof *rows; k++)
+    {
+      wfm_source_t o = base;
+      rows[k].edit (&o, pad);
+      /* the row differs in its key only: the frame's geometry is the same,
+         so the synth's own n_bits / n_out keys do not refuse it */
+      if (ppdu_samples (&o, 2) + o.gap != n_base)
+        DP_TEST_ERR ("%s: n_out moved", rows[k].key);
+      DP_CHECK (ppdu_samples (&o, 2) + o.gap == n_base);
+      DP_CHECK (o.data_len == base.data_len);
+      dp_wfm_synth_state_t *c = dp_wfm_source_to_synth (&o, 40e6);
+      if (!c)
+        DP_TEST_ERR ("%s: not built", rows[k].key);
+      DP_REQUIRE (c);
+      if (dp_wfm_synth_set_state (c, blob) != DP_ERR_INVALID)
+        DP_TEST_ERR ("%s: blob accepted", rows[k].key);
+      DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_ERR_INVALID);
+      dp_wfm_synth_destroy (c);
+    }
+  /* the oversampling, at the same n_out: M = 1 with the gap that pays back
+     the PPDU's extra length at M = 2 */
+  wfm_source_t m1 = base;
+  m1.gap = base.gap + ppdu_samples (&base, 2) - ppdu_samples (&base, 1);
+  DP_CHECK (ppdu_samples (&m1, 1) + m1.gap == n_base);
+  dp_wfm_synth_state_t *c = dp_wfm_source_to_synth (&m1, 20e6);
+  DP_REQUIRE (c);
+  DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_ERR_INVALID);
+  dp_wfm_synth_destroy (c);
+  free (blob);
+  dp_wfm_synth_destroy (a);
   return 0;
 }
 
@@ -340,10 +680,12 @@ main (void)
   make_data ();
   int rc = 0;
   rc |= test_renders_the_ppdu_wlan_builds ();
+  rc |= test_each_name_is_its_value ();
   rc |= test_wlan_n_is_its_pair_for_all_eight ();
   rc |= test_each_refusal_names_its_field ();
   rc |= test_the_gap_carries_noise_at_the_noise_variance ();
-  rc |= test_a_resume_mid_ppdu_continues_and_a_key_is_refused ();
+  rc |= test_a_resume_mid_ppdu_continues ();
+  rc |= test_each_key_decides_a_restore_alone ();
   if (rc)
     return 1;
   DP_TEST_END ("wfm_ofdm_bridge");

@@ -241,7 +241,7 @@ static const char *const _enum_wfm_pulse[] = {
 };
 
 static const char *const _enum_ofdm_constellation[] = {
-  "bpsk", "qpsk", "qam16", "qam64", "qam256", "qam1024", NULL,
+  "bpsk", "qpsk", "qam16", "qam64", NULL,
 };
 
 static const char *const _enum_ofdm_code_rate[] = {
@@ -1560,10 +1560,10 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     int _i = _enum_index (_enum_ofdm_constellation, constellation);
     if (_i < 0)
       {
-        PyErr_Format (PyExc_ValueError,
-                      "invalid constellation '%s' (choices: bpsk, qpsk, "
-                      "qam16, qam64, qam256, qam1024)",
-                      constellation);
+        PyErr_Format (
+            PyExc_ValueError,
+            "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)",
+            constellation);
         return -1;
       }
     self->src.constellation = _i;
@@ -2623,12 +2623,12 @@ Synth_get_constellation (SynthObject *self, void *closure)
 {
   (void)closure;
   long _v = (long)(self->src.constellation);
-  if (_v < 0 || _v >= 6)
+  if (_v < 0 || _v >= 4)
     {
       PyErr_Format (
           PyExc_ValueError,
           "constellation holds out-of-range ofdm_constellation value %ld"
-          " (valid: 0..5)",
+          " (valid: 0..3)",
           _v);
       return NULL;
     }
@@ -2644,10 +2644,9 @@ Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
   int _i = _enum_index (_enum_ofdm_constellation, s);
   if (_i < 0)
     {
-      PyErr_Format (PyExc_ValueError,
-                    "invalid constellation '%s' (choices: bpsk, qpsk, qam16, "
-                    "qam64, qam256, qam1024)",
-                    s);
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)", s);
       return -1;
     }
   self->src.constellation = _i;
@@ -3074,15 +3073,15 @@ static PyGetSetDef Synth_getset[] = {
   { "wlan", (getter)Synth_get_wlan, (setter)Synth_set_wlan,
     "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
     "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
-    "(--wlan 36 is --constellation qam16 --code_rate 3/4). 0 = not given. "
+    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
     "Refused beside constellation or code_rate, with a bandwidth other than "
     "20 MHz, and on any other type.\n",
     NULL },
   { "constellation", (getter)Synth_get_constellation,
     (setter)Synth_set_constellation,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
-    "qam64, qam256, qam1024; the pair with code_rate must be a row of the "
-    "standard's rate table.\n",
+    "qam64; the pair with code_rate must be a row of the standard's rate "
+    "table.\n",
     NULL },
   { "code_rate", (getter)Synth_get_code_rate, (setter)Synth_set_code_rate,
     "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
@@ -3742,7 +3741,7 @@ static PyTypeObject SynthType = {
       "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
       "6, 9,\n"
       "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
-      "    code_rate (--wlan 36 is --constellation qam16 --code_rate 3/4). 0 "
+      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
       "= not\n"
       "    given. Refused beside constellation or code_rate, with a "
       "bandwidth\n"
@@ -3750,12 +3749,10 @@ static PyTypeObject SynthType = {
       "constellation : str, default ``\"bpsk\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
-      "    qam64, qam256, qam1024; the pair with code_rate must be a row of "
-      "the\n"
-      "    standard's rate table.\n"
-      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
-      "``\"qam256\"``,\n"
-      "    ``\"qam1024\"``.\n"
+      "    qam64; the pair with code_rate must be a row of the standard's "
+      "rate\n"
+      "    table.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
       "code_rate : str, default ``\"1/2\"``\n"
       "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
       "5/6.\n"
@@ -5774,14 +5771,14 @@ static PyGetSetDef Segment_getset[] = {
   { "wlan", (getter)Segment_flat_wlan, NULL,
     "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
     "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
-    "(--wlan 36 is --constellation qam16 --code_rate 3/4). 0 = not given. "
+    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
     "Refused beside constellation or code_rate, with a bandwidth other than "
     "20 MHz, and on any other type.\n",
     NULL },
   { "constellation", (getter)Segment_flat_constellation, NULL,
     "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
-    "qam64, qam256, qam1024; the pair with code_rate must be a row of the "
-    "standard's rate table.\n",
+    "qam64; the pair with code_rate must be a row of the standard's rate "
+    "table.\n",
     NULL },
   { "code_rate", (getter)Segment_flat_code_rate, NULL,
     "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
@@ -6170,7 +6167,7 @@ static PyTypeObject SegmentType = {
       "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
       "6, 9,\n"
       "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
-      "    code_rate (--wlan 36 is --constellation qam16 --code_rate 3/4). 0 "
+      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
       "= not\n"
       "    given. Refused beside constellation or code_rate, with a "
       "bandwidth\n"
@@ -6178,12 +6175,10 @@ static PyTypeObject SegmentType = {
       "constellation : str, default ``\"bpsk\"``\n"
       "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
       "qam16,\n"
-      "    qam64, qam256, qam1024; the pair with code_rate must be a row of "
-      "the\n"
-      "    standard's rate table.\n"
-      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``, "
-      "``\"qam256\"``,\n"
-      "    ``\"qam1024\"``.\n"
+      "    qam64; the pair with code_rate must be a row of the standard's "
+      "rate\n"
+      "    table.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
       "code_rate : str, default ``\"1/2\"``\n"
       "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
       "5/6.\n"

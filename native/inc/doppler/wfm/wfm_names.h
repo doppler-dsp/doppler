@@ -72,13 +72,15 @@ static const char *const STAGE_KIND_NAMES[]
 /** Entries in STAGE_KIND_NAMES. */
 #define N_STAGE_KINDS 5
 
-/* The `ofdm` source type's choices. No `cenum=`: the index is the table
-   position, and the bridge maps it (the constellation to bits per
-   subcarrier) or holds it against dp_wlan_code_rate_t / dp_wlan_mac_mode_t
-   with a _Static_assert where wlan_core.h is in scope.
+/* The `ofdm` source type's choices. No `cenum=`: wlan_core.h is not in
+   scope here, so the index is the table position, and what ties each to its
+   C value is checked where wlan is in scope: _Static_asserts in
+   wfm_synth_bridge.c hold dp_wlan_code_t and dp_wlan_mac_t to 0, 1, 2 (3),
+   and test_wfm_ofdm_bridge.c holds each NAME to its enumerator and the
+   constellation names to dp_wlan_n_bpsc. A reorder here fails that test.
    SSOT: enum=ofdm_constellation */
 static const char *const OFDM_CONSTELLATION_NAMES[]
-    = { "bpsk", "qpsk", "qam16", "qam64", "qam256", "qam1024" };
+    = { "bpsk", "qpsk", "qam16", "qam64" };
 
 /* SSOT: enum=ofdm_code_rate */
 static const char *const OFDM_CODE_RATE_NAMES[]

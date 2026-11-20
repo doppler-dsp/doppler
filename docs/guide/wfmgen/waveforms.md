@@ -1053,12 +1053,17 @@ run re-renders the same PPDU.
 
 `--fs` is a multiple of `--bandwidth` (20 MHz unless given, 10 or 5 for the
 half- and quarter-clocked channels). The multiple is done by a larger
-transform, not a resampler, so every second sample of the 40 MHz PPDU is the
-20 MHz one. `--window N` is the transition window in samples at the output
+transform, not a resampler, so with `--window 0` every second sample of the
+40 MHz PPDU is the 20 MHz one, to float rounding (a window blends the
+neighbours of each symbol boundary, so it is not). `--window N` is the transition window in samples at the output
 rate, at most 80 times the multiple, and `--gap N` is `N` idle samples after
 each PPDU. A source with `--snr` puts its noise in the gap too, at the
 variance the PPDU carries, so a gap is a silent stretch of the channel and
-not a hole in it:
+not a hole in it. The default `--window 0` is no transition shaping at all:
+measured on an oversampled PPDU it sits 4.6 dB over the 802.11 transmit mask
+at 30 MHz, and a window of 2 `M` samples (4 here) passes it
+([#3190](https://github.com/doppler-dsp/doppler/issues/3190)), so a source
+meant to meet the mask gives `--window`:
 
 ```sh
 wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --window 4 --gap 400 \

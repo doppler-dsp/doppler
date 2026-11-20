@@ -432,12 +432,12 @@ typedef struct {
     int wlan; /**< For type=ofdm: the 802.11a/g data rate in Mb/s at
                             20 MHz, one of 6, 9, 12, 18, 24, 36, 48, 54: a
                             second spelling of constellation and code_rate
-                            (--wlan 36 is --constellation qam16 --code_rate
+                            (--wlan 36 is --constellation qam16 --code-rate
                             3/4). 0 = not given. Refused beside constellation
                             or code_rate, with a bandwidth other than 20 MHz,
                             and on any other type. */
     int constellation; /**< For type=ofdm: the subcarrier constellation, one of
-                            bpsk, qpsk, qam16, qam64, qam256, qam1024; the pair
+                            bpsk, qpsk, qam16, qam64; the pair
                             with code_rate must be a row of the standard's rate
                             table. */
     int code_rate; /**< For type=ofdm: the convolutional code rate, one of

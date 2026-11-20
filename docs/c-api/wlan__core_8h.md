@@ -87,6 +87,7 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  int | [**dp\_wlan\_mbps**](#function-dp_wlan_mbps) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, unsigned \* mbps) <br>_The data rate of a pair at 20 MHz, in Mb/s: the table's printed column._  |
 |  size\_t | [**dp\_wlan\_mpdu**](#function-dp_wlan_mpdu) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, const uint8\_t \* header, size\_t header\_len, const uint8\_t \* body, size\_t body\_len, uint8\_t \* out, size\_t out\_cap) <br>_Wrap the caller's octets as one MPDU._  |
 |  size\_t | [**dp\_wlan\_mpdu\_len**](#function-dp_wlan_mpdu_len) ([**dp\_wlan\_mac\_t**](wlan__core_8h.md#enum-dp_wlan_mac_t) mode, size\_t header\_len, size\_t body\_len) <br>_The PSDU length a MAC wrap produces._  |
+|  unsigned | [**dp\_wlan\_n\_bpsc**](#function-dp_wlan_n_bpsc) (int constellation) <br>_Bits per subcarrier of a constellation index: the one map from the index_ [_**dp\_wlan\_create()**_](wlan__core_8h.md#function-dp_wlan_create) _takes to the_`n_bpsc` _of a rate pair._ |
 |  unsigned | [**dp\_wlan\_n\_cbps**](#function-dp_wlan_n_cbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Coded bits per OFDM symbol,_ `48 * n_bpsc` _._ |
 |  unsigned | [**dp\_wlan\_n\_dbps**](#function-dp_wlan_n_dbps) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Data bits per OFDM symbol,_ `N_CBPS * code rate` _._ |
 |  size\_t | [**dp\_wlan\_n\_sym**](#function-dp_wlan_n_sym) (const [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs at the rate this object holds:_ `ceil((16 + 8 * psdu_len + 6) / n_dbps)` _._ |
@@ -761,6 +762,44 @@ Octets, or 0 if the result is 0 or above WLAN\_PSDU\_MAX.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wlan\_n\_bpsc 
+
+_Bits per subcarrier of a constellation index: the one map from the index_ [_**dp\_wlan\_create()**_](wlan__core_8h.md#function-dp_wlan_create) _takes to the_`n_bpsc` _of a rate pair._
+```C++
+unsigned dp_wlan_n_bpsc (
+    int constellation
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `constellation` 0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM. 
+
+
+
+**Returns:**
+
+1, 2, 4 or 6, or 0 for an index outside 0 to 3.
+
+
+
+```C++
+unsigned n = dp_wlan_n_bpsc (2);   // 16-QAM: 4 bits per subcarrier
+```
+ 
 
 
         

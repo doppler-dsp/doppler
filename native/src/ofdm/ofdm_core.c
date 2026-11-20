@@ -134,7 +134,7 @@ dp_ofdm_add_class (dp_ofdm_state_t *o, uint32_t n_fft,
 {
   if (!o || n_fft < 2 || n_fft > OFDM_N_FFT_MAX || subcarrier_map_len != n_fft
       || !subcarrier_map || n_phase == 0 || n_phase > OFDM_N_PHASE_MAX
-      || o->n_cls >= OFDM_COUNT_MAX || !(scale == scale) /* NaN */)
+      || o->n_cls >= OFDM_COUNT_MAX)
     return -1;
   const uint32_t u = useful ? useful : n_fft;
   if (cyclic_prefix > u || window > cyclic_prefix + u)

@@ -1274,7 +1274,14 @@ main (void)
                              + cimagf (x[f[k].first + m])
                                    * cimagf (x[f[k].first + m]));
             pw /= (double)f[k].len;
-            DP_CHECK (fabs (pw - 1.0) < 1e-4); /* training and SIGNAL: exact */
+            /* training and SIGNAL: exact in real arithmetic over whole
+             * periods, so only float rounding remains. A sample's relative
+             * error is at most the transform's bound (test_ofdm_core.c,
+             * section 11: 9.2e-6 at 64 points), which moves a mean power by
+             * at most twice that, 1.8e-5; 1e-4 sits above it. The error it
+             * must catch is a field at another scale: the Annex I 1/64 reads
+             * 52 / 64^2 = 0.0127. */
+            DP_CHECK (fabs (pw - 1.0) < 1e-4);
           }
         /* Data: BPSK and QPSK points all have unit power, so each symbol is
          * exact; 16- and 64-QAM average to 1 over symbols, not per symbol. */
@@ -1291,8 +1298,26 @@ main (void)
             if (rates[ri].n_bpsc <= 2)
               DP_CHECK (fabs (pw - 1.0) < 1e-4);
           }
-        DP_CHECK (fabs (total / (double)n_sym - 1.0)
-                  < 0.03); /* 1000 octets: the QAM mean is statistical */
+        /* The QAM mean is statistical, so its tolerance is derived from
+         * the rate's own symbol count. A symbol's body power is
+         * (sum of 48 |d|^2 + 4 pilots) / 52, the points independent
+         * (scrambled, coded, interleaved) with E|d|^2 = 1, so its variance
+         * is 48 Var|d|^2 / 52^2. Var|d|^2 is 0.32 for 16-QAM ({2, 10, 18}/10
+         * with weights 1/4, 1/2, 1/4) and 2 * 336 / 42^2 for 64-QAM
+         * (E a^2 = 21, Var a^2 = 336 on {1, 3, 5, 7}). The mean over n_sym
+         * symbols is held to 4 sigma: a false failure under a reseed is
+         * 6e-5. The error it must catch is a field at another scale, the
+         * Annex I 1/64, which reads 52 / 64^2 = 0.0127, against which the
+         * tolerance (0.040 at 36 Mb/s, 0.053 at 54) is far too small. */
+        if (rates[ri].n_bpsc >= 4)
+          {
+            const double var_d
+                = rates[ri].n_bpsc == 4 ? 0.32 : 2.0 * 336.0 / (42.0 * 42.0);
+            const double sigma
+                = sqrt (48.0 * var_d / (52.0 * 52.0) / (double)n_sym);
+            DP_CHECK (fabs (total / (double)n_sym - 1.0) < 4.0 * sigma);
+            DP_CHECK (fabs (52.0 / 4096.0 - 1.0) > 4.0 * sigma);
+          }
         free (x);
       }
   }
@@ -1710,6 +1735,100 @@ main (void)
     free (std);
     free (ann);
     free (off);
+  }
+
+  /* ── 10e. The window reaches a symbol body only above the guard interval ─
+   * The header (dp_wlan_create): "Above the 16 * M guard interval the
+   * cross-fade reaches into the symbol body." The modulator weights only a
+   * symbol's first `window` samples (ofdm_core.h, "The window"), and a
+   * receiver's transform takes the last 64 M samples of each SIGNAL and Data
+   * symbol, so at window <= 16 M every body is bit for bit the unwindowed
+   * one. At M = 2 the minimal pair is 32 against 33: at 33 the first body
+   * sample of each symbol moves and the other 127 do not. */
+  {
+    const dp_wlan_rate_t r36 = { 4, WLAN_CODE_3_4 };
+    const unsigned       m   = 2;
+    const size_t         mz  = m;
+    size_t               n0, n32, n33;
+    float _Complex      *x0  = render_ppdu (&r36, 100, 93, 0, m, &n0);
+    float _Complex      *x32 = render_ppdu (&r36, 100, 93, 16 * m, m, &n32);
+    float _Complex *x33 = render_ppdu (&r36, 100, 93, 16 * m + 1, m, &n33);
+    DP_REQUIRE (x0 && x32 && x33);
+    const size_t n_sym  = dp_wlan_rate_n_sym (&r36, 100);
+    int          same32 = 1, first33 = 1, rest33 = 1;
+    for (size_t s = 0; s < 1 + n_sym; s++)
+      {
+        const size_t body = mz * (320 + 80 * s + 16);
+        same32 &= memcmp (x0 + body, x32 + body, 64 * mz * sizeof *x0) == 0;
+        first33 &= x0[body] != x33[body];
+        rest33 &= memcmp (x0 + body + 1, x33 + body + 1,
+                          (64 * mz - 1) * sizeof *x0)
+                  == 0;
+      }
+    DP_CHECK_MSG (same32, "a window of 16 M leaves every body bit for bit");
+    DP_CHECK_MSG (first33, "at 16 M + 1 each body's first sample moves");
+    DP_CHECK_MSG (rest33, "and only the first");
+    free (x0);
+    free (x32);
+    free (x33);
+  }
+
+  /* ── 10f. A layout refused by its arguments leaves the modulator untouched
+   * dp_wlan_layout's @note: every argument is decided before the first add
+   * to `o`, so a refusal by one leaves no class, no run and no seal, and the
+   * same object then takes a valid layout exactly as a fresh one does. One
+   * row per argument, the others good; the control is the good call itself.
+   * The window row is the one the modulator would otherwise refuse after
+   * adding the L-STF and L-LTF classes (80 M < window <= 160 M). */
+  {
+    const dp_wlan_tables_t *std = dp_wlan_tables_standard ();
+    static const struct
+    {
+      const char *what;
+      int         null_tables;
+      size_t      n_sym;
+      unsigned    window, m;
+    } bad[] = {
+      { "n_sym 0", 0, 0, 0, 1 },
+      { "n_sym WLAN_N_SYM_MAX + 1", 0, WLAN_N_SYM_MAX + 1, 0, 1 },
+      { "oversample 0", 0, 1, 0, 0 },
+      { "oversample WLAN_OVERSAMPLE_MAX + 1", 0, 1, 0,
+        WLAN_OVERSAMPLE_MAX + 1 },
+      { "window 80 M + 1", 0, 1, 81, 1 },
+      { "NULL tables", 1, 1, 0, 1 },
+    };
+    dp_ofdm_state_t *fresh = dp_ofdm_create ();
+    NEED (dp_wlan_layout (fresh, std, 1, 0, 1) == 0);
+    const size_t    n_pts = dp_ofdm_points_remaining (fresh);
+    const size_t    n_out = dp_ofdm_modulate_max_out (fresh, n_pts);
+    float _Complex *pts   = malloc (n_pts * sizeof *pts);
+    float _Complex *want  = malloc (n_out * sizeof *want);
+    float _Complex *got   = malloc (n_out * sizeof *got);
+    NEED (pts && want && got && n_out > 0);
+    for (size_t i = 0; i < n_pts; i++)
+      pts[i] = (i & 1) ? 1.0f : -1.0f;
+    NEED (dp_ofdm_modulate (fresh, pts, n_pts, want, n_out) == n_out);
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+      {
+        dp_ofdm_state_t *o = dp_ofdm_create ();
+        DP_CHECK_MSG (dp_wlan_layout (o, bad[i].null_tables ? NULL : std,
+                                      bad[i].n_sym, bad[i].window, bad[i].m)
+                          == -1,
+                      bad[i].what);
+        DP_CHECK_MSG (o->n_cls == 0 && o->n_runs == 0 && !o->sealed,
+                      "an argument refusal leaves the modulator untouched");
+        DP_CHECK_MSG (dp_wlan_layout (o, std, 1, 0, 1) == 0
+                          && dp_ofdm_points_remaining (o) == n_pts
+                          && dp_ofdm_modulate (o, pts, n_pts, got, n_out)
+                                 == n_out
+                          && memcmp (got, want, n_out * sizeof *got) == 0,
+                      "and then takes a valid layout as a fresh one does");
+        dp_ofdm_destroy (o);
+      }
+    free (pts);
+    free (want);
+    free (got);
+    dp_ofdm_destroy (fresh);
   }
 
   /* ── 11. The scrambler seed is a linear map of the prefix ───────────────

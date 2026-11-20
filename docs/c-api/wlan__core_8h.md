@@ -583,14 +583,14 @@ int dp_wlan_layout (
 
 **Returns:**
 
-0 and a checked layout, or -1 if a table is empty, `n_sym` is 0 or above WLAN\_N\_SYM\_MAX, `oversample` is outside 1..WLAN\_OVERSAMPLE\_MAX, or the modulator refuses a call. 
+0 and a checked layout, or -1 if a table is empty, `n_sym` is 0 or above WLAN\_N\_SYM\_MAX, `oversample` is outside 1..WLAN\_OVERSAMPLE\_MAX, `window` is above 80 \* `oversample`, or the modulator refuses a call. 
 
 
 
 
 **Note:**
 
-On -1 `o` may already hold some of the classes: it is not to be used again, only destroyed. [**dp\_wlan\_ppdu()**](wlan__core_8h.md#function-dp_wlan_ppdu) builds into its own modulator and destroys it, so it is unaffected. 
+A refusal by the arguments (`t` NULL or a table empty, `n_sym`, `oversample` or `window` out of range) leaves `o` untouched. A refusal by the modulator may leave classes in it, and then it is not to be used again, only destroyed. [**dp\_wlan\_ppdu()**](wlan__core_8h.md#function-dp_wlan_ppdu) builds into its own modulator and destroys it, so it is unaffected. 
 
 
 

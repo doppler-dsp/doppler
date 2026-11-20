@@ -817,7 +817,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  rate, filled with noise at the source's noise variance.\n" \
   "                  (default 0)\n" \
   "  --bandwidth HZ  For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6\n" \
-  "                  for 802.11a/g/p/j. (default 20e6)\n" \
+  "                  for 802.11a/g/p/j; 0 is 20e6, the default. (default 20e6)\n" \
   "  --mac-header FIELD\n" \
   "                  For type=ofdm with mac=data: the MAC header, 24 or 30 octets\n" \
   "                  (a data frame's header).\n"

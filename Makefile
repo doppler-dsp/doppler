@@ -277,7 +277,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals size-mul named-args acq-pfa-split \
                finding-citations test-all-ci changelog-fragments dup-include \
-               windows-macro-names
+               windows-macro-names source-fields
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -667,6 +667,12 @@ LINT_doc-claims = python3 scripts/check_doc_claims.py
 # pin the indices, and to the no-second-home rule.
 # Design: docs/design/waveform-enum-ssot.md
 LINT_wfm-enum-tables = $(UV) run python scripts/check_wfm_enum_tables.py
+
+# Every owned Field of wfm_source_t (a wfm_seq_t member) is mentioned at each
+# of the four hand-written sites that own a source's arrays, so a new one
+# cannot be missed in a fourth file (mac_header was missed by the Plan).
+# Why not one shared list: the sites own different subsets on purpose.
+LINT_source-fields = $(UV) run python scripts/check_source_owned_fields.py
 
 # A CI step may not throw away the exit code it just produced. The default
 # Actions shell is `bash -e`, where a PIPELINE reports the last command's

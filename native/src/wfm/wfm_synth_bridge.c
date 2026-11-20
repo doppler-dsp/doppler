@@ -1176,12 +1176,7 @@ static void
 wfofdm_pack (const uint8_t *bits, size_t n_oct, uint8_t *out)
 {
   for (size_t k = 0; k < n_oct; k++)
-    {
-      uint8_t b = 0;
-      for (unsigned j = 0; j < 8u; j++)
-        b = (uint8_t)(b | (bits[8u * k + j] << (7u - j)));
-      out[k] = b;
-    }
+    out[k] = (uint8_t)dp_bin_to_int (bits + 8u * k, 8u, DP_BITORDER_BIG);
 }
 
 typedef struct
@@ -1468,6 +1463,12 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
                            double fs, uint32_t seed)
 {
   if (src->type != WFM_SYNTH_FRAMES)
+    return 0;
+  /* No data source: nothing to render, as set_bits is a no-op without a
+     pattern. The Plan's noise-only copy of a noisy source is such a source
+     (its data is the composer's, dropped), and it only draws the noise. A
+     source with data must pass the validator, which refuses none. */
+  if (!has_data (src))
     return 0;
   wfofdm_geom_t g;
   if (ofdm_source_error (src) || wfofdm_geom (src, fs, &g))

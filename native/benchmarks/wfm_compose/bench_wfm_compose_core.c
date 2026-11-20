@@ -57,17 +57,17 @@ static void
 bench_ofdm (jm_bench_t *bench, const char *name, int wlan, double fs,
             float _Complex *out)
 {
-  static double           t[ITERATIONS];
-  wfm_source_t            src = { .type           = WFM_SYNTH_FRAMES,
-                                  .snr            = 100.0,
-                                  .sps            = 1,
-                                  .wlan           = wlan,
-                                  .scrambler_init = 93,
-                                  .data           = { .kind     = WFM_SEQ_PN,
-                                                      .len      = 800u * 80000u,
-                                                      .reg_bits = 15,
-                                                      .seed_a   = 1 },
-                                  .data_len       = 800 };
+  static double t[ITERATIONS];
+  wfm_source_t  src = {
+    .type           = WFM_SYNTH_FRAMES,
+    .snr            = 100.0,
+    .sps            = 1,
+    .wlan           = wlan,
+    .scrambler_init = 93,
+    .data
+    = { .kind = WFM_SEQ_PN, .len = 800u * 80000u, .reg_bits = 15, .seed = 1 },
+    .data_len = 800
+  };
   wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = fs };
   dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 1);
   if (!c)

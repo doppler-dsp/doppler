@@ -853,8 +853,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  for 802.11a/g/p/j. (default 20e6)\n" \
   "  --mac-header FIELD\n" \
   "                  For type=ofdm with mac=data: the MAC header, 24 or 30 octets\n" \
-  "                  (a data frame's header), as a Field of whole octets, each\n" \
-  "                  unpacked most significant bit first (a hex Field 0x0802...\n"
+  "                  (a data frame's header).\n"
 
 /** The keys each object of a scene takes, generated from the schema's
    `properties` (docs/schema/wfmgen.schema.json). The reader refuses any

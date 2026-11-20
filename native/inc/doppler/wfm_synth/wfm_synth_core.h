@@ -423,15 +423,22 @@ wfm_synth_frame_ahead(dp_wfm_synth_state_t *s)
         return 1;
     if (s->data_ended)
         return 0;
-    if (!s->frames || !s->refill
-        || s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
+    if (!s->frames || !s->refill) {
         s->data_ended = 1;
         return 0;
     }
-    /* the renderer is promised bits of 0 or 1; a source may write any byte
-       (the bits path normalises on read, wfm_synth_bit_symbol) */
+    const int ended = s->refill(s->refill_user, s->bits, s->n_bits) != 0;
+    /* The synth's bits are 0 or 1 always: the renderer is promised them, and
+       the blob carries them, whose restore refuses any other byte. A source
+       may write any byte (the bits path normalises on read,
+       wfm_synth_bit_symbol), and may write some before it reports its end,
+       so they are normalised whatever the refill returns. */
     for (size_t k = 0; k < s->n_bits; k++)
         s->bits[k] = s->bits[k] ? 1u : 0u;
+    if (ended) {
+        s->data_ended = 1;
+        return 0;
+    }
     if (s->frames(s->frames_user, s->frames_done, s->bits, s->n_bits,
                   s->symbols, s->n_symbols) != 0) {
         s->data_ended = 1;
@@ -933,14 +940,20 @@ int dp_wfm_synth_set_refill_state(dp_wfm_synth_state_t *state,
  * count do not match this synth. The renderer's sub-blob, if it has a triplet,
  * must equal the live renderer's get_state byte for byte; its set_state is not
  * called. Bit-exact for the same build, machine and
- * FFT dispatch. dp_wfm_synth_reset() rewinds the cursor to the start of the
- * frame in play and rewinds neither the frame count nor the data source; once
- * the data has ended there is no frame in play to replay, and `refused` stays
- * with `data_ended`: both are cleared together when a bit source is attached or
- * detached.
+ * FFT dispatch. A refusal leaves the bit source and the frame as they were:
+ * the carrier and noise children restore before the bit source moves, so a
+ * child that refuses can leave only the children before it restored (#2104).
+ * dp_wfm_synth_reset() rewinds the cursor to the start of the frame in play,
+ * the cursor below @p n_out as set_state defines it, and rewinds neither the
+ * frame count nor the data source. With no frame in play (none drawn yet, the
+ * frame spent at @p n_out, a refusal or the end of the data) it replays
+ * nothing, and a frames synth has no pattern, so reset never clears
+ * `data_ended`; `refused` stays with it: both are cleared together when a bit
+ * source is attached or detached.
  *
- * The renderer is given bits of 0 and 1 only: the synth normalises the source's
- * bytes after each draw. With a frame in play and no renderer or no bit source
+ * The renderer is given bits of 0 and 1 only, and the synth's bits are 0 or 1
+ * always: the synth normalises the source's bytes after each draw, including
+ * one that reports the end. With a frame in play and no renderer or no bit source
  * attached the synth cannot serialize (dp_wfm_synth_state_refusal()), because a
  * restore could not re-render the frame.
  *
@@ -1200,6 +1213,8 @@ void dp_wfm_synth_destroy(dp_wfm_synth_state_t *state);
  * span) is kept.  With a refill attached the data-ended latch is NOT
  * cleared and the rewound cursor replays the frame in the buffer (the
  * last one pulled), since a pulled source cannot rewind what it consumed.
+ * A frames synth replays only a frame in play and never clears the latch
+ * (dp_wfm_synth_attach_frames()).
  *
  * @param state  Must be non-NULL.
  * @code

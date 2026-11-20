@@ -1266,25 +1266,64 @@ drift.
     and the rows section 9 marks unchecked (the MAC frame format, the mask
     and accuracy limits). Until the Annex I proof runs no preset is
     certified.
+
 1. **What anchors HT, VHT and HE.** Unknown 3 in section 8: no printed
     waveform exists for them.
+
 1. **Confirm the Es/N0 definition.** Section 5 proposes MER on the data
     subcarriers after equalization, from ETSI TR 101 290 V1.4.1, and `auto`
     as Es/N0. The owner confirms before the wfmgen type; the modulator does
     not need it.
+
 1. **The name of the constellation field.** Recommended: a new
     `constellation` field and `[[enum]] constellation`, appended, not qam
     values added to `modulation`, whose enum `bitmod` is bound to a C enum, a
     name table and the `bits` type (section 5). The cost is two spellings
     for a mapping: `modulation` on `bits`, `constellation` on `ofdm`.
+
 1. **The spellings.** Recommended: the standard's own, `1/2`, `2/3`, `3/4`,
     `5/6` and `802.11a`; section 5 says what is checked first.
+
 1. **The form of the MAC header in the first slice.** Recommended: raw
     octets (`mac_header`) only. The field form (Frame Control, Duration/ID,
     three addresses, Sequence Control) needs a six-octet address spelling no
     source field has, and is sugar over the same 24 octets, so it can follow
     the first slice without moving anything. The alternative declares both
     at once.
+
+1. **The default window** ([#3190](https://github.com/doppler-dsp/doppler/issues/3190)).
+    The owner ruled that a caller who gives no window gets the standard's
+    100 ns transition, `2 * M` samples at `fs`, and that `window = 0` stays
+    the explicit rectangular choice. The default must scale with `M`, while
+    `window` is a count of samples at `fs`, so one integer cannot be both
+    "a count" and "the standard's". Three spellings:
+
+    |                   | A. Sentinel                                                                                 | B. Transition time                                                                                                                      | C. Face default                                                   |
+    | ----------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+    | The spelling      | `window` takes `WLAN_WINDOW_STANDARD` (`UINT32_MAX`), resolved to `2 * M` in one C function | a new argument, `transition_ns`, beside `window`; `window` stays a count                                                                | each face fills the default itself; C `create` takes only a count |
+    | C `create`        | same signature; callers passing a count are unchanged; the sentinel is the new value        | a fifth argument, so every C caller changes                                                                                             | unchanged: a C caller passes what they mean                       |
+    | Python `Wlan`     | `window=None`; `None` is the sentinel                                                       | `window=0`, `transition_ns=100.0` as two defaults                                                                                       | `window=None`, resolved in Python                                 |
+    | wfmgen `window`   | unset field is the sentinel; `--window` unset renders the standard                          | two flags that can conflict                                                                                                             | the CLI, the JSON scene and `Synth` each resolve it               |
+    | Who owns the rule | one C function, so one sentence for all faces                                               | C, plus a rounding rule for times that are not whole samples (`2 * M` is exact only for 100 ns) and a conflict rule when both are given | three places that can drift; a gate would have to hold all three  |
+    | Cost              | the manifest and the stubs carry a sentinel; the doc says "unset"                           | two knobs for one quantity                                                                                                              | the same default written three times                              |
+
+    **Pick: A.** One C function, `dp_wlan_window_resolve (window, M)`,
+    returns `2 * M` for the sentinel and the count otherwise; the C
+    constructor and the bridge's geometry both call it, and the range check
+    (`0` to `80 * M`) runs on the resolved value. Every face passes "unset"
+    through, so the default is defined once and the refusal words do not
+    change. The state holds the resolved count, so `Wlan.window` reads `2 * M`
+    for a default caller, and the bridge's reject key (the window) compares
+    counts, never the sentinel.
+
+    What a caller who passed nothing sees: the PPDU's symbol boundaries are
+    cross-faded over `2 * M` samples, and the PPDU is `2 * M` samples longer
+    than before (`dp_wlan_ppdu_len` adds `window`). At `M = 1` that is 2
+    samples, 100 ns, the standard's. A caller who wants the old output
+    passes `window = 0`. This changes rendered output for default callers,
+    so the changelog entry goes under `changed`, and every test that pins
+    `M = 1` bit-identity against a committed PPDU states `window = 0`
+    explicitly.
 
 ## 11. The work, in order
 

@@ -1153,8 +1153,10 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
    docs/design/wlan.md, section 5. The 802.11 numbers arrive from
    wlan_core.h's tables; nothing of the standard is written here. */
 
-/* One 802.11 octet is eight bits of the frame, the first bit its least
-   significant: the order the PHY sends them in. */
+/* One octet is eight bits of the frame, the first bit its MOST significant:
+   the order every byte-to-bit unpacking here uses (a data file's bytes, a
+   hex Field), so a file of PSDU octets, or `--data 0x08...`, is those octets.
+   The PHY's own least-significant-first order on the air is wlan's. */
 
 /* The names tables (wfm_names.h) are indexed by these values: the order is
    the contract, held here for the two C enums and in test_wfm_ofdm_bridge.c
@@ -1362,7 +1364,7 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
     {
       uint8_t b = 0;
       for (unsigned j = 0; j < 8u; j++)
-        b = (uint8_t)(b | (bits[8u * k + j] << j));
+        b = (uint8_t)(b | (bits[8u * k + j] << (7u - j)));
       body[k] = b;
     }
   const size_t len = dp_wlan_mpdu ((dp_wlan_mac_t)r->mac, NULL, 0, body, n_oct,

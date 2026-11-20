@@ -1098,6 +1098,16 @@ wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
 is refused without it, with a header that is not 24 or 30 octets, or whose
 Field does not build.
 
+From Python the same source is keywords (`mac_header` and `data` take bit
+arrays). The example below, `src/doppler/examples/wfmgen_ofdm_demo.py` (its C
+twin is `native/examples/wfmgen_ofdm_demo.c`), builds two PPDUs from one body
+and holds them to `Wlan.ppdu` of the same octets, the FCS computed with
+`zlib`:
+
+```python
+--8<-- "src/doppler/examples/wfmgen_ofdm_demo.py:ofdm"
+```
+
 ## Coded frames — `--frame FILE`
 
 A **coded** frame is a description, and `--frame FILE` is how `wfmgen` takes

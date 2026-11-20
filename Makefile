@@ -1967,6 +1967,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
+                release-runners-check \
                 ci-aggregator-check python-versions-check \
                 jm-pin \
                 issue-link-check bootstrap-cmd-check \
@@ -2107,7 +2108,8 @@ include standard.mk
 # that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
 # run natively and skip Docker entirely.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      workflow-syntax-check ci-aggregator-check python-versions-check \
+      workflow-syntax-check release-runners-check ci-aggregator-check \
+      python-versions-check \
       gates-extra-home-check \
       release-notes-size-check \
       issue-link-check bootstrap-cmd-check deps-budget-check \
@@ -2211,6 +2213,12 @@ bench-coverage-check: ## Verify every tested component has a benchmark that runs
 # COMMENT closed the container's script early and the rest ran on the runner.
 workflow-syntax-check: ## Verify every workflow `run:` block is valid shell
 	@$(UV) run python scripts/check_workflow_syntax.py
+
+# release.yml pins every runner image. v0.84.0's x86_64 py3.9 PyPI smoke ran
+# on `ubuntu-latest`, which had rolled to 26.04, and setup-python has no 3.9
+# there (#3188). ci.yml stays on -latest on purpose, as the early warning.
+release-runners-check: ## Verify release.yml names no floating (-latest) runner
+	@$(UV) run python scripts/check_release_runners.py
 
 # protect-main requires ONE status check, `CI passed`, so ci.yml's `ci-passed`
 # `needs` list is the whole merge gate: a job left out of it can fail on every

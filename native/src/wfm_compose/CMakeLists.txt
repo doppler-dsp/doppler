@@ -6,6 +6,10 @@ if(BUILD_PYTHON)
 Python3_add_library(wfm_compose MODULE WITH_SOABI wfm_compose_ext.c)
 target_link_libraries(wfm_compose PRIVATE
     dp_interrupt_guard_core
+    wlan_core
+    ofdm_core
+    fft_core
+    mpsk_core
     doppler_channel_core
     wfm_compose_core
     wfm_dsp_core

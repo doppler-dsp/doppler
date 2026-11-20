@@ -31,7 +31,8 @@
     .modulation = 1 /* bitmod: bpsk */, \
     .rrc_beta = 0.35, \
     .rrc_span = 8, \
-    .acq_reps = 1 \
+    .acq_reps = 1, \
+    .bandwidth = 20e6 \
   }
 
 /** Non-zero defaults for a wfm_segment_t, as a braced designated

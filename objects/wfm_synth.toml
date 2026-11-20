@@ -372,9 +372,9 @@ opaque = true
 
 [[wfm_synth.init_params]]
 name = "type"
-type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits,symbols,dsss"
+type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits,symbols,dsss,ofdm"
 default = "tone"
-doc = 'The waveform. For `bits` attach the pattern with set_bits(), for `symbols` the complex stream with set_symbols(), and for `dsss` the burst with set_dsss_chips(), after construction.'
+doc = 'The waveform. For `bits` attach the pattern with set_bits(), for `symbols` the complex stream with set_symbols(), for `dsss` the burst with set_dsss_chips(), and for `ofdm` the frame renderer with attach_frames() (C only), each after construction.'
 [[wfm_synth.init_params]]
 name = "fs"
 type = "double"

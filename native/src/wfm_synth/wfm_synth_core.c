@@ -313,10 +313,6 @@ dp_wfm_synth_set_refill_state (dp_wfm_synth_state_t           *state,
   return 0;
 }
 
-/* The most samples one frame may occupy: 2^24 (128 MB of cf32). A frame is
-   allocated whole, at install and again, transiently, by set_state. */
-#define WFM_SYNTH_FRAME_MAX ((size_t)1 << 24)
-
 int
 dp_wfm_synth_attach_frames (dp_wfm_synth_state_t *state, wfm_synth_frame_fn fn,
                             void  *user, void (*free_user) (void *),

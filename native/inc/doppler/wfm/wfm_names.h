@@ -24,9 +24,9 @@
 /* SSOT: enum=wfm_type, count=N_TYPES */
 static const char *const TYPE_NAMES[]
     = { "tone",  "noise", "pn",      "bpsk", "qpsk",
-        "chirp", "bits",  "symbols", "dsss" };
+        "chirp", "bits",  "symbols", "dsss",   "ofdm" };
 /** Entries in TYPE_NAMES. */
-#define N_TYPES 9
+#define N_TYPES 10
 
 /* SSOT: enum=snr_mode, cenum=doppler/wfm/wfm_compose.h:wfm_snr_mode_t */
 static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
@@ -71,6 +71,21 @@ static const char *const STAGE_KIND_NAMES[]
     = { "crc16", "rs", "randomise", "conv", "interleave" };
 /** Entries in STAGE_KIND_NAMES. */
 #define N_STAGE_KINDS 5
+
+/* The `ofdm` source type's choices. No `cenum=`: the index is the table
+   position, and the bridge maps it (the constellation to bits per
+   subcarrier) or holds it against dp_wlan_code_rate_t / dp_wlan_mac_mode_t
+   with a _Static_assert where wlan_core.h is in scope.
+   SSOT: enum=ofdm_constellation */
+static const char *const OFDM_CONSTELLATION_NAMES[]
+    = { "bpsk", "qpsk", "qam16", "qam64", "qam256", "qam1024" };
+
+/* SSOT: enum=ofdm_code_rate */
+static const char *const OFDM_CODE_RATE_NAMES[]
+    = { "1/2", "2/3", "3/4", "5/6" };
+
+/* SSOT: enum=ofdm_mac */
+static const char *const OFDM_MAC_NAMES[] = { "none", "fcs", "data" };
 
 /* SSOT: enum=wfm_pulse */
 static const char *const PULSE_NAMES[] = { "rect", "rrc" };

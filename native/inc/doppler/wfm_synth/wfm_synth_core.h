@@ -193,6 +193,10 @@ typedef struct {
     const char *(*refusal)(const void *user);
 } wfm_synth_refill_state_t;
 
+/** The most samples one frame may occupy: 2^24 (128 MB of cf32). A frame is
+ *  allocated whole, at install and again, transiently, by set_state. */
+#define WFM_SYNTH_FRAME_MAX ((size_t)1 << 24)
+
 /**
  * @brief Renders one frame: a frame's bits in, the frame's samples out.
  *

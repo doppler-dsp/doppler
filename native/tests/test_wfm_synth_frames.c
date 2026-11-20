@@ -37,6 +37,7 @@ typedef struct
   uint64_t end_after; /* the source ends once this many frames were drawn; 0
                          never */
   int dirty;          /* a one is written as 2 or 0xFF, not 1 */
+  int refuse_set;     /* its set_state refuses even a well-formed blob */
 } bit_src_t;
 
 #define SRC_MAGIC DP_FOURCC ('T', 'S', 'R', 'C')
@@ -84,6 +85,8 @@ src_set (void *u, const void *blob)
 {
   bit_src_t *s = u;
   DP_SET_OPEN (SRC_MAGIC, 1u, src_bytes (u));
+  if (s->refuse_set)
+    return DP_ERR_INVALID;
   const uint64_t counter = dp_r_u64 (&_r);
   const uint64_t draws   = dp_r_u64 (&_r);
   if (_r.err)
@@ -1147,6 +1150,101 @@ test_a_restore_never_writes_the_renderer (void)
   return 0;
 }
 
+/* The restore's edges: each a use a caller reaches, and each leaves the
+   synth it was refused by exactly as it was. */
+static int
+test_the_restore_edges (void)
+{
+  /* an installed renderer is what attach_frames_state needs */
+  dp_wfm_synth_state_t *bare = dp_wfm_synth_create (
+      WFM_SYNTH_FRAMES, 1e6, 0.0, 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (bare != NULL);
+  DP_CHECK (dp_wfm_synth_attach_frames_state (bare, &REND_OPS) == -1);
+  /* a frame of more bits than the cap (2^24) is refused, as one of more
+     samples is, and leaves the synth with no renderer */
+  DP_CHECK (dp_wfm_synth_attach_frames (bare, render, NULL, NULL,
+                                        ((size_t)1 << 24) + 1u, 4)
+            == -1);
+  DP_CHECK (dp_wfm_synth_attach_frames (bare, render, NULL, NULL, 8,
+                                        ((size_t)1 << 24) + 1u)
+            == -1);
+  DP_CHECK (dp_wfm_synth_attach_frames_state (bare, &REND_OPS) == -1);
+
+  /* a blob with a frame in play, taken mid frame 1 (two frames drawn) */
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
+  dp_wfm_synth_state_t *a  = make_synth (&ra, &sa);
+  float _Complex x[N_OUT + 10];
+  dp_wfm_synth_steps (a, x, N_OUT + 10);
+  const size_t nb   = dp_wfm_synth_state_bytes (a);
+  uint8_t     *blob = malloc (nb), *after = malloc (nb);
+  DP_REQUIRE (blob && after);
+  dp_wfm_synth_get_state (a, blob);
+
+  /* into a synth with no renderer installed: refused, nothing written */
+  DP_CHECK (dp_wfm_synth_set_state (bare, blob) == DP_ERR_INVALID);
+  dp_wfm_synth_destroy (bare);
+
+  /* a renderer that refuses the frame the restore re-renders (index 1) */
+  rend_t                rb = { .key = 7, .refuse_at = 1 };
+  bit_src_t             sb = { .counter = 0 };
+  dp_wfm_synth_state_t *b  = make_synth (&rb, &sb);
+  dp_wfm_synth_get_state (b, after);
+  DP_CHECK (dp_wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
+  uint8_t *still = malloc (nb);
+  DP_REQUIRE (still);
+  dp_wfm_synth_get_state (b, still);
+  DP_CHECK (memcmp (after, still, nb) == 0);
+  /* control: the renderer that does not refuse restores the same blob */
+  rend_t                rc = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sc = { .counter = 0 };
+  dp_wfm_synth_state_t *c  = make_synth (&rc, &sc);
+  DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_OK);
+
+  /* a bit source whose set_state refuses a well-formed blob, after the
+     frame re-rendered: the synth is as it was */
+  rend_t                rd = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sd = { .counter = 0, .refuse_set = 1 };
+  dp_wfm_synth_state_t *d  = make_synth (&rd, &sd);
+  dp_wfm_synth_get_state (d, after);
+  DP_CHECK (dp_wfm_synth_set_state (d, blob) == DP_ERR_INVALID);
+  dp_wfm_synth_get_state (d, still);
+  DP_CHECK (memcmp (after, still, nb) == 0);
+
+  /* a carrier is a child whose envelope the restore reads: it round trips,
+     and a blob taken without one is refused by a synth that has one */
+  rend_t                re = { .key = 7, .refuse_at = -1 };
+  bit_src_t             se = { .counter = 0 };
+  dp_wfm_synth_state_t *e
+      = make_synth_cfg (&re, &se, N_BITS, N_OUT, 0.1, 200.0, 0);
+  float _Complex y[N_OUT + 10], y2[40], y3[40];
+  dp_wfm_synth_steps (e, y, N_OUT + 10);
+  const size_t ne    = dp_wfm_synth_state_bytes (e);
+  uint8_t     *eblob = malloc (ne);
+  DP_REQUIRE (eblob);
+  dp_wfm_synth_get_state (e, eblob);
+  dp_wfm_synth_steps (e, y2, 40);
+  rend_t                rf = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sf = { .counter = 0 };
+  dp_wfm_synth_state_t *f
+      = make_synth_cfg (&rf, &sf, N_BITS, N_OUT, 0.1, 200.0, 0);
+  DP_CHECK (dp_wfm_synth_set_state (f, eblob) == DP_OK);
+  dp_wfm_synth_steps (f, y3, 40);
+  DP_CHECK (memcmp (y2, y3, sizeof y2) == 0);
+  DP_CHECK (dp_wfm_synth_set_state (f, blob) == DP_ERR_INVALID);
+  free (eblob);
+  free (blob);
+  free (after);
+  free (still);
+  dp_wfm_synth_destroy (a);
+  dp_wfm_synth_destroy (b);
+  dp_wfm_synth_destroy (c);
+  dp_wfm_synth_destroy (d);
+  dp_wfm_synth_destroy (e);
+  dp_wfm_synth_destroy (f);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1176,6 +1274,7 @@ main (void)
   rc |= test_forged_blobs_the_synth_never_writes_are_refused ();
   rc |= test_a_renderer_triplet_that_refuses_to_serialize_is_reported ();
   rc |= test_a_restore_never_writes_the_renderer ();
+  rc |= test_the_restore_edges ();
   if (rc)
     return 1;
   DP_TEST_END ("wfm_synth_frames");

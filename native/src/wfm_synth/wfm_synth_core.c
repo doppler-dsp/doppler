@@ -331,16 +331,13 @@ dp_wfm_synth_attach_frames (dp_wfm_synth_state_t *state, wfm_synth_frame_fn fn,
       state->frames_state = NULL;
       return 0;
     }
-  if (n_bits == 0 || n_out == 0 || n_out > WFM_SYNTH_FRAME_MAX)
+  if (n_bits == 0 || n_bits > WFM_SYNTH_FRAME_MAX || n_out == 0
+      || n_out > WFM_SYNTH_FRAME_MAX)
     return -1;
-  uint8_t        *bits = calloc (n_bits, 1);
-  float _Complex *syms = calloc (n_out, sizeof *syms);
-  if (!bits || !syms)
-    {
-      free (bits);
-      free (syms);
-      return -1;
-    }
+  /* Both are at most 2^24 (the cap above), allocated by the library's own
+     helper, which aborts on exhaustion as every allocation here does. */
+  uint8_t        *bits = dp_xcalloc (n_bits, 1);
+  float _Complex *syms = dp_xcalloc (n_out, sizeof *syms);
   if (state->frames_free)
     state->frames_free (state->frames_user);
   free (state->bits);
@@ -884,16 +881,12 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     {
       dp_reader_t a   = _r;
       int         bad = 0;
-      if (s->fir)
-        ENV_CHILD (dp_fir, s->fir);
-      if (s->shaper)
-        ENV_CHILD (dp_resamp, s->shaper);
+      /* A frames synth has the carrier and the noise and no shaper, pulse
+         filter or PN register (those types are not this one's). */
       if (s->lo)
         ENV_CHILD (dp_lo, s->lo);
       if (s->awgn)
         ENV_CHILD (dp_awgn, s->awgn);
-      if (s->pn)
-        ENV_CHILD (dp_pn, s->pn);
       const void *rsub = NULL, *csub = NULL;
       if (s->refill)
         {
@@ -928,8 +921,8 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
         return DP_ERR_INVALID;
       if (sym_read_idx < s->n_symbols)
         {
-          if (!s->frames || !fbits)
-            return DP_ERR_INVALID;
+          /* a frame in play with this synth's renderer and bit source: the
+             presence bytes and state_refusal's rule have decided both */
           scratch = dp_mallocn (s->n_symbols, sizeof *scratch);
           if (!scratch
               || s->frames (s->frames_user, frames_done - 1u, fbits, s->n_bits,

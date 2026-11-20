@@ -221,3 +221,31 @@ def test_one_source_on_every_face(tmp_path):
     )
     assert p.returncode == 0, p.stderr
     np.testing.assert_array_equal(np.fromfile(out, np.complex64), got)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [["--sync", "1011"], ["--crc", "crc16"], ["--acq-code", "0x9"]],
+    ids=["sync", "crc", "acq-code"],
+)
+def test_the_frame_flags_are_refused_for_ofdm(flags, tmp_path):
+    """The PHY builds its own fields: a preamble, a sync word or a CRC from
+    flags would frame a waveform that carries no bit stream."""
+    p, _ = _cli(
+        [
+            "--type",
+            "ofdm",
+            "--fs",
+            "20e6",
+            "--wlan",
+            "36",
+            "--data",
+            "pn:800:15",
+            "--data-len",
+            "800",
+            *flags,
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 2, p.stderr
+    assert "ofdm renders finished samples" in p.stderr, p.stderr

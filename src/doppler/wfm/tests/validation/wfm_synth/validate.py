@@ -1181,14 +1181,18 @@ def review(d: Data) -> None:
     )
     R.find(
         "frames_type_not_on_synth_engine",
-        "C-ONLY",
+        "BY DESIGN",
         "**`WFM_SYNTH_FRAMES`, the enum's tenth type, is not on "
-        "`_SynthEngine`.** It plays only with a frame renderer installed, "
-        "which the bridge does for an ofdm source and the raw engine "
-        "cannot, so this report's per-type sweeps (§2.1 to §2.9) cover "
-        "the nine the binding accepts. The tenth is certified in C "
-        "(`test_wfm_synth_frames.c`, with its state, refusals and resume) "
-        "and measured through the ofdm source (§2.10).",
+        "`_SynthEngine`, and the public faces cover it.** The type plays "
+        "only with a frame renderer installed, which the bridge does for "
+        "an ofdm source and the raw engine cannot; `_SynthEngine` is "
+        "private (not in `doppler.wfm.__all__`), and this report measures "
+        "through it, so its per-type sweeps (§2.1 to §2.9) cover the nine "
+        'it accepts. The public `Synth` and `Composer` take `type="ofdm"`, '
+        "and `src/doppler/wfm/tests/test_ofdm_source.py` holds what they "
+        "render to `Wlan.ppdu` on every face (Synth, Composer, the CLI). "
+        "The type itself is certified in C (`test_wfm_synth_frames.c`: its "
+        "state, refusals and resume) and its noise measured in §2.10.",
     )
 
 

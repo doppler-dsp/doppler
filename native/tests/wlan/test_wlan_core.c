@@ -577,8 +577,17 @@ main (void)
         {
           dp_wlan_state_t *x = dp_wlan_create (m, c, 0, 1);
           DP_CHECK (x != NULL);
+          /* the state holds the bits per subcarrier dp_wlan_n_bpsc names */
+          DP_CHECK (x && x->n_bpsc == dp_wlan_n_bpsc (m));
           dp_wlan_destroy (x);
         }
+    /* dp_wlan_n_bpsc: the four constellations' bits per subcarrier, all
+       distinct (so an index mapped to a neighbour's value is caught), and
+       0 for an index outside 0 to 3, which no constellation has */
+    DP_CHECK (dp_wlan_n_bpsc (0) == 1 && dp_wlan_n_bpsc (1) == 2
+              && dp_wlan_n_bpsc (2) == 4 && dp_wlan_n_bpsc (3) == 6);
+    DP_CHECK (dp_wlan_n_bpsc (-1) == 0 && dp_wlan_n_bpsc (4) == 0
+              && dp_wlan_n_bpsc (1 << 20) == 0);
   }
 
   /* 2 ── The BCC ────────────────────────────────────────────────────────── */

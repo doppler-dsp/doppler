@@ -605,21 +605,21 @@ dp_wfm_synth_reset (dp_wfm_synth_state_t *state)
   state->bit_idx = 0; /* rewind the bit pattern */
   /* A pattern with no refill is the whole of the data, so rewinding it
      un-ends it; a pulled source cannot rewind what it has consumed. */
-  if (!state->refill)
+  const int frames = state->wtype == WFM_SYNTH_FRAMES;
+  if (!state->refill && !frames)
     {
       state->data_ended = 0;
       state->refused    = 0;
     }
-  state->sym_read_idx = 0; /* rewind the complex-symbol stream */
-  /* A frames synth replays the frame in play, and has none before the first
-     draw; frames_done and the data source are not rewound (a source cannot
-     rewind what it has consumed). Once the data has ended there is nothing to
-     replay: the buffer holds a frame the data ended after, and the flag
-     survives with data_ended, which a refill attached keeps latched. */
-  if (state->wtype == WFM_SYNTH_FRAMES)
-    state->sym_read_idx
-        = (state->frames_done && !state->data_ended) ? 0 : state->n_symbols;
-  state->chirp_ph = 0.0; /* rewind the sweep; span/slope stay locked */
+  /* A frames synth has no pattern: it replays the frame in play, which is
+     what set_state calls one too, the cursor below n_symbols. A spent frame
+     (the cursor at n_symbols), none drawn yet, a refusal or the end of the
+     data leave nothing in play, so the cursor stays and nothing replays;
+     frames_done, the data source and the end flags are not rewound (a source
+     cannot rewind what it has consumed). */
+  if (!frames || state->sym_read_idx < state->n_symbols)
+    state->sym_read_idx = 0; /* rewind the complex-symbol stream */
+  state->chirp_ph = 0.0;     /* rewind the sweep; span/slope stay locked */
   state->chirp_n  = 0;
   state->chip_n   = 0; /* rewind the continuous-DSSS chip/symbol clocks */
   state->sym_idx  = 0;
@@ -801,7 +801,9 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
      end is what dp_wfm_synth_set_dsss_window refuses, and the child-presence
      bytes read only blob bytes and config. Children restore after this
      commit, so a child that refuses leaves these fields restored; that is
-     #2104. */
+     #2104. A frames synth restores its children BEFORE the commit and its
+     bit source after them (below), because the source's move cannot be
+     undone and must follow the last thing that can refuse. */
   /* The type is a mutator's value (set_wtype), so it travels (#2095). It is
      checked with set_wtype's own predicate against the shaper this target
      holds (the child set is checked below, and must match). */
@@ -939,6 +941,34 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
               return DP_ERR_INVALID;
             }
         }
+      /* The children restore next, and the bit source after them: a child's
+         set_state checks more than its envelope (the AWGN refuses an all-zero
+         generator or a bad amplitude), so it can still refuse here, and the
+         source's position is the one thing a refusal cannot put back (it is
+         outside the synth: a counter, a file, a user's data). So nothing
+         irreversible moves before the last thing that can refuse. A child
+         that refuses leaves the children before it restored (#2104) and the
+         source, the frame and the synth's own fields as they were. A frames
+         synth has only these two children (no shaper, filter or PN). */
+      dp_reader_t c = _r;
+      if (s->lo)
+        {
+          const void *cr = dp_r_reserve (&c, dp_lo_state_bytes (s->lo));
+          if (!cr || dp_lo_set_state (s->lo, cr) != DP_OK)
+            {
+              free (scratch);
+              return DP_ERR_INVALID;
+            }
+        }
+      if (s->awgn)
+        {
+          const void *cr = dp_r_reserve (&c, dp_awgn_state_bytes (s->awgn));
+          if (!cr || dp_awgn_set_state (s->awgn, cr) != DP_OK)
+            {
+              free (scratch);
+              return DP_ERR_INVALID;
+            }
+        }
       if (s->refill
           && s->refill_state->set_state (s->refill_user, rsub) != DP_OK)
         {
@@ -979,9 +1009,9 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     DP_R_CHILD (&_r, dp_fir, s->fir);
   if (s->shaper)
     DP_R_CHILD (&_r, dp_resamp, s->shaper);
-  if (s->lo)
+  if (s->lo && !fr) /* a frames synth restored its two above */
     DP_R_CHILD (&_r, dp_lo, s->lo);
-  if (s->awgn)
+  if (s->awgn && !fr)
     DP_R_CHILD (&_r, dp_awgn, s->awgn);
   if (s->pn)
     DP_R_CHILD (&_r, dp_pn, s->pn);

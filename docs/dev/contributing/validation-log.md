@@ -67,7 +67,7 @@ listed the moment its folder exists. There is no list here to update.
 
 <!-- validation-log:start -->
 
-**38 objects certified** — 25 of the 89 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**40 objects certified** — 27 of the 89 `objects/*.toml` jm fragments, plus 13 with no object manifest at all (`buffer`, `ccsds_tm`, `conv`, `detection`, `ema`, `framer`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                  | module        | limits | findings | still open                 |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ | -------- | -------------------------- |
@@ -84,6 +84,7 @@ listed the moment its folder exists. There is no list here to update.
 | [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md)  | `dsss`        | 27/27  | 10       | none                       |
 | [PolynomialPhaseEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/ppe/results.md)           | `dsss`        | 15/15  | 5        | none                       |
 | [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md)               | `mpsk`        | 24/24  | 5        | 1 — F3                     |
+| [Ofdm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/ofdm/tests/validation/ofdm/results.md)                              | `ofdm`        | 3/3    | 4        | none                       |
 | [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)                      | `resample`    | 14/14  | 9        | none                       |
 | [LO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/lo/results.md)                                | `source`      | 26/26  | 9        | none                       |
 | [NCO](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/tests/validation/nco/results.md)                              | `source`      | 18/18  | 9        | none                       |
@@ -104,6 +105,7 @@ listed the moment its folder exists. There is no list here to update.
 | [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md)                       | `wfm`         | 20/20  | 4        | 2 — F2, F3                 |
 | [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                         | `wfm`         | 21/21  | 6        | 1 — F5                     |
 | [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                       | `wfm`         | 16/16  | 5        | none                       |
+| [Wlan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wlan/tests/validation/wlan/results.md)                              | `wlan`        | 5/5    | 7        | 2 — F4, F7                 |
 | [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md)                           | `— (C only)`  | 12/12  | 5        | 1 — F2                     |
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                   | `— (C only)`  | 10/10  | 3        | none                       |
 | [The ring's framer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/framer/results.md)                    | `— (C only)`  | 19/19  | 6        | none                       |

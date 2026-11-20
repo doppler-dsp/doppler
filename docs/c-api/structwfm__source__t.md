@@ -67,6 +67,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**level\_hi**](#variable-level_hi)  <br> |
 |  int | [**lfsr**](#variable-lfsr)  <br> |
 |  int | [**mac**](#variable-mac)  <br> |
+|  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**mac\_header**](#variable-mac_header)  <br> |
 |  int | [**modulation**](#variable-modulation)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
@@ -668,6 +669,23 @@ int wfm_source_t::mac;
 
 
 For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac\_header) and a body, with the FCS appended. 
+
+
+        
+
+<hr>
+
+
+
+### variable mac\_header 
+
+```C++
+wfm_seq_t wfm_source_t::mac_header;
+```
+
+
+
+For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data frame's header), as a Field of whole octets, each unpacked most significant bit first (a hex Field 0x0802... is the octets it spells). The PHY appends the frame's octets (the data source) and the FCS. Refused with mac none or fcs, and without it for mac data. 
 
 
         

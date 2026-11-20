@@ -1167,6 +1167,23 @@ _Static_assert (WLAN_CODE_1_2 == 0 && WLAN_CODE_2_3 == 1 && WLAN_CODE_3_4 == 2
 _Static_assert (WLAN_MAC_NONE == 0 && WLAN_MAC_FCS == 1 && WLAN_MAC_DATA == 2,
                 "OFDM_MAC_NAMES is indexed by dp_wlan_mac_t");
 
+/* A data frame's longest header: 24 octets, or 30 with the fourth address. */
+#define WFOFDM_HDR_MAX 30u
+
+/* The octets of `n_oct * 8` bits, the first bit of each eight the most
+   significant. */
+static void
+wfofdm_pack (const uint8_t *bits, size_t n_oct, uint8_t *out)
+{
+  for (size_t k = 0; k < n_oct; k++)
+    {
+      uint8_t b = 0;
+      for (unsigned j = 0; j < 8u; j++)
+        b = (uint8_t)(b | (bits[8u * k + j] << (7u - j)));
+      out[k] = b;
+    }
+}
+
 typedef struct
 {
   int      constellation; /* wlan's index: 0 BPSK ... 3 64-QAM */
@@ -1236,11 +1253,11 @@ ofdm_source_error (const wfm_source_t *src)
         return "wlan is the 802.11 data rate of an ofdm source: give type "
                "ofdm, or drop wlan";
       if (src->constellation || src->code_rate || src->scrambler_init
-          || src->window || src->mac || src->gap
+          || src->window || src->mac || src->gap || src->mac_header.len
           || (src->bandwidth != 0.0 && src->bandwidth != 20e6))
-        return "constellation, code_rate, scrambler_init, window, mac, gap "
-               "and bandwidth are fields of an ofdm source: give type ofdm, "
-               "or drop them";
+        return "constellation, code_rate, scrambler_init, window, mac, "
+               "mac_header, gap and bandwidth are fields of an ofdm source: "
+               "give type ofdm, or drop them";
       return NULL;
     }
   if (src->wlan && (src->constellation || src->code_rate))
@@ -1272,9 +1289,26 @@ ofdm_source_error (const wfm_source_t *src)
   if (src->mac != WLAN_MAC_NONE && src->mac != WLAN_MAC_FCS
       && src->mac != WLAN_MAC_DATA)
     return "mac is one of none, fcs or data";
-  if (src->mac == WLAN_MAC_DATA)
-    return "mac data needs a mac_header, which this release does not take: "
-           "use mac none or fcs";
+  if (src->mac_header.kind == WFM_SEQ_DATA && src->mac_header.len)
+    return "data:LEN has no bits of its own: it is the frame's field that "
+           "--data fills, not a mac_header";
+  if (src->mac != WLAN_MAC_DATA && src->mac_header.len)
+    return "mac_header is the MAC header of mac data: give mac data, or "
+           "drop the mac_header";
+  if (src->mac == WLAN_MAC_DATA && !src->mac_header.len)
+    return "mac data needs a mac_header: its octets, 24 or 30, as a Field "
+           "(a hex Field 0x0802... is the octets it spells)";
+  if (src->mac_header.len % 8u)
+    return "mac_header is whole octets: its bits must be a multiple of 8";
+  if (src->mac == WLAN_MAC_DATA && src->mac_header.len != 8u * 24u
+      && src->mac_header.len != 8u * 30u)
+    return "mac_header is a data frame's header: 24 octets, or 30 with the "
+           "fourth address";
+  uint8_t hbits[8u * WFOFDM_HDR_MAX];
+  if (src->mac_header.len
+      && dp_wfm_seq_bits (&src->mac_header, hbits, src->mac_header.len)
+             != src->mac_header.len)
+    return "mac_header is a Field that does not build: check its generator";
   if (src->snr_mode == 2 || src->snr_mode == 3)
     return "snr_mode ebno and esno are refused for ofdm: its noise is "
            "referred to the signal power in the full band (auto or fs)";
@@ -1289,7 +1323,8 @@ ofdm_source_error (const wfm_source_t *src)
   const size_t bits = common_data_len (src);
   if (bits == 0 || bits % 8u)
     return "an ofdm frame is whole octets: data_len must be a multiple of 8";
-  if (!dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, 0, bits / 8u))
+  if (!dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, src->mac_header.len / 8u,
+                         bits / 8u))
     return "an ofdm frame's PSDU is 1 to 4095 octets, the FCS included: "
            "data_len is out of range";
   return NULL;
@@ -1317,7 +1352,8 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
     return "window is 0 to 80 times fs over bandwidth samples: the "
            "shortest OFDM symbol";
   g->n_bits   = common_data_len (src);
-  g->psdu_len = dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, 0, g->n_bits / 8u);
+  g->psdu_len = dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac,
+                                  src->mac_header.len / 8u, g->n_bits / 8u);
   const dp_wlan_rate_t pair = wfofdm_rate (c, r);
   g->n_sym                  = dp_wlan_rate_n_sym (&pair, g->psdu_len);
   /* A PSDU of 1 to 4095 octets is 1 to WLAN_N_SYM_MAX Data symbols at the
@@ -1348,6 +1384,8 @@ typedef struct
   uint32_t         scrambler_init; /* 0: drawn per PPDU from seed and frame */
   uint64_t         seed, gap;
   uint32_t         constellation, code_rate, window, oversample;
+  uint32_t         hdr_len;             /* octets, 0 unless mac data */
+  uint8_t          hdr[WFOFDM_HDR_MAX]; /* the MAC header's octets */
   size_t           n_bits, n_out, ppdu_len;
 } wfofdm_render_t;
 
@@ -1360,15 +1398,9 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
   uint8_t          body[WLAN_PSDU_MAX];
   /* The synth calls with the n_bits and n_out fixed at attach. */
   const size_t n_oct = n_bits / 8u;
-  for (size_t k = 0; k < n_oct; k++)
-    {
-      uint8_t b = 0;
-      for (unsigned j = 0; j < 8u; j++)
-        b = (uint8_t)(b | (bits[8u * k + j] << (7u - j)));
-      body[k] = b;
-    }
-  const size_t len = dp_wlan_mpdu ((dp_wlan_mac_t)r->mac, NULL, 0, body, n_oct,
-                                   psdu, sizeof psdu);
+  wfofdm_pack (bits, n_oct, body);
+  const size_t len = dp_wlan_mpdu ((dp_wlan_mac_t)r->mac, r->hdr, r->hdr_len,
+                                   body, n_oct, psdu, sizeof psdu);
   uint32_t     scr = r->scrambler_init;
   if (!scr)
     {
@@ -1400,7 +1432,8 @@ wfofdm_free (void *u)
    alone by test_wfm_ofdm_bridge.c, at an equal n_out. */
 #define WFOF_STATE_MAGIC DP_FOURCC ('W', 'F', 'O', 'F')
 #define WFOF_STATE_VERSION 1u
-#define WFOF_STATE_BYTES (sizeof (dp_state_hdr_t) + 6u * 4u + 8u)
+#define WFOF_STATE_BYTES                                                      \
+  (sizeof (dp_state_hdr_t) + 7u * 4u + 8u + WFOFDM_HDR_MAX)
 
 static size_t
 wfofdm_state_bytes (const void *u)
@@ -1420,7 +1453,9 @@ wfofdm_get_state (const void *u, void *blob)
   dp_w_u32 (&_w, r->oversample);
   dp_w_u32 (&_w, (uint32_t)r->mac);
   dp_w_u32 (&_w, r->scrambler_init);
+  dp_w_u32 (&_w, r->hdr_len);
   dp_w_u64 (&_w, r->seed);
+  dp_w_bytes (&_w, r->hdr, WFOFDM_HDR_MAX);
 }
 
 /* The synth compares get_state's bytes and never calls a renderer's
@@ -1443,6 +1478,15 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   r->w   = dp_wlan_create (g.constellation, g.code_rate, (uint32_t)src->window,
                            g.oversample);
   r->mac = src->mac;
+  r->hdr_len = (uint32_t)(src->mac_header.len / 8u);
+  if (r->hdr_len)
+    {
+      /* a Field of any kind (literal, PN, Gold, dotted) becomes its bits;
+         ofdm_source_error has built it once, so it builds */
+      uint8_t hbits[8u * WFOFDM_HDR_MAX];
+      (void)dp_wfm_seq_bits (&src->mac_header, hbits, src->mac_header.len);
+      wfofdm_pack (hbits, r->hdr_len, r->hdr);
+    }
   r->scrambler_init = (uint32_t)src->scrambler_init;
   r->seed           = seed;
   r->gap            = src->gap;

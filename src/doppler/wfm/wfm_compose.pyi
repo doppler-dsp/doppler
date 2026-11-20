@@ -266,6 +266,12 @@ class Synth:
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
         802.11a/g/p/j. The segment's fs must be an integer multiple of it; the
         multiple is the oversampling M, done by a larger transform.
+    mac_header : bytes | None, default None
+        For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
+        frame's header), as a Field of whole octets, each unpacked most
+        significant bit first (a hex Field 0x0802... is the octets it spells).
+        The PHY appends the frame's octets (the data source) and the FCS.
+        Refused with mac none or fcs, and without it for mac data.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -318,6 +324,7 @@ class Synth:
         mac: str = ...,
         gap: int = ...,
         bandwidth: float = ...,
+        mac_header: bytes | None = ...,
         fs: float = ...,
     ) -> None: ...
     type: str
@@ -367,6 +374,7 @@ class Synth:
     mac: str
     gap: int
     bandwidth: float
+    mac_header: bytes | None
     fs: float
     def steps(self, n: int, /) -> NDArray[np.complex64]:
         """Generate the next *n* samples of this source on its own.
@@ -724,6 +732,12 @@ class Segment:
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
         802.11a/g/p/j. The segment's fs must be an integer multiple of it; the
         multiple is the oversampling M, done by a larger transform.
+    mac_header : bytes | None, default None
+        For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
+        frame's header), as a Field of whole octets, each unpacked most
+        significant bit first (a hex Field 0x0802... is the octets it spells).
+        The PHY appends the frame's octets (the data source) and the FCS.
+        Refused with mac none or fcs, and without it for mac data.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -807,6 +821,7 @@ class Segment:
     mac: str
     gap: int
     bandwidth: float
+    mac_header: bytes | None
     def __init__(
         self,
         type: str = ...,
@@ -853,6 +868,7 @@ class Segment:
         mac: str = ...,
         gap: int = ...,
         bandwidth: float = ...,
+        mac_header: bytes | None = ...,
         fs: float = ...,
         num_samples: int | tuple[int, int] = ...,
         off_samples: int | tuple[int, int] = ...,

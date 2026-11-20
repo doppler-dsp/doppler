@@ -319,6 +319,7 @@ Synth_dealloc (SynthObject *self)
   free ((void *)self->src.retired_bits.bits);
   free ((void *)self->src.data.bits);
   free ((void *)self->src.fill.bits);
+  free ((void *)self->src.mac_header.bits);
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
   jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
@@ -893,6 +894,35 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
 }
 
 static int
+Synth_replace_mac_header (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t    = self->src;
+  _t.mac_header.bits = NULL;
+  _t.mac_header.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.mac_header.bits,
+                                               &_t.mac_header.len, value))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.mac_header.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.mac_header.bits);
+  self->src.mac_header.bits = _t.mac_header.bits;
+  self->src.mac_header.len  = _t.mac_header.len;
+  return 1;
+}
+
+static int
 Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]              = { "type",
@@ -939,6 +969,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                                "mac",
                                                "gap",
                                                "bandwidth",
+                                               "mac_header",
                                                "fs",
                                                NULL };
   const char        *type                  = "tone";
@@ -993,6 +1024,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject          *gap_obj               = NULL;
   unsigned long long gap_raw               = 0;
   double             bandwidth             = 20e6;
+  PyObject          *mac_header            = NULL;
   double             fs                    = 1e6;
   PyObject          *_kw                   = kwds;
   int                _kw_owned             = 0;
@@ -1081,7 +1113,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsLiiOsOiOOOOdsssdiOOOOOOdiOOOOOOOissiOsOdd", kwlist,
+          args, _kw, "|sOOsLiiOsOiOOOOdsssdiOOOOOOdiOOOOOOOissiOsOdOd", kwlist,
           &type, &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length,
           &pn_poly_obj, &lfsr, &level, &background, &f_end, &span_obj,
           &doppler, &doppler_rate, &carrier_hz, &doppler_lifetime, &modulation,
@@ -1089,7 +1121,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
           &data_code, &sync, &crc, &symbol_rate, &dsss_code_only, &frame,
           &bits, &data, &data_len_obj, &fill, &code_only_symbols_obj,
           &frame_symbols_obj, &wlan, &constellation, &code_rate,
-          &scrambler_init, &window_obj, &mac, &gap_obj, &bandwidth, &fs))
+          &scrambler_init, &window_obj, &mac, &gap_obj, &bandwidth,
+          &mac_header, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -1633,6 +1666,8 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   size_t gap          = (size_t)gap_raw;
   self->src.gap       = gap;
   self->src.bandwidth = bandwidth;
+  if (!Synth_replace_mac_header (self, mac_header))
+    return -1;
   return 0;
 }
 
@@ -2815,6 +2850,21 @@ Synth_set_bandwidth (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_get_mac_header (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.mac_header.bits && self->src.mac_header.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.mac_header.bits,
+                                      (Py_ssize_t)self->src.mac_header.len);
+  Py_RETURN_NONE;
+}
+static int
+Synth_set_mac_header (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  return Synth_replace_mac_header (self, value) ? 0 : -1;
+}
+static PyObject *
 Synth_get_fs (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -3110,6 +3160,13 @@ static PyGetSetDef Synth_getset[] = {
     "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
     "802.11a/g/p/j. The segment's fs must be an integer multiple of it; the "
     "multiple is the oversampling M, done by a larger transform.\n",
+    NULL },
+  { "mac_header", (getter)Synth_get_mac_header, (setter)Synth_set_mac_header,
+    "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
+    "frame's header), as a Field of whole octets, each unpacked most "
+    "significant bit first (a hex Field 0x0802... is the octets it spells). "
+    "The PHY appends the frame's octets (the data source) and the FCS. "
+    "Refused with mac none or fcs, and without it for mac data.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -3784,6 +3841,14 @@ static PyTypeObject SynthType = {
       "    802.11a/g/p/j. The segment's fs must be an integer multiple of it; "
       "the\n"
       "    multiple is the oversampling M, done by a larger transform.\n"
+      "mac_header : bytes | None, default None\n"
+      "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
+      "data\n"
+      "    frame's header), as a Field of whole octets, each unpacked most\n"
+      "    significant bit first (a hex Field 0x0802... is the octets it "
+      "spells).\n"
+      "    The PHY appends the frame's octets (the data source) and the FCS.\n"
+      "    Refused with mac none or fcs, and without it for mac data.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"
@@ -5473,6 +5538,19 @@ Segment_flat_bandwidth (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
                                  "bandwidth");
 }
+static PyObject *
+Segment_flat_mac_header (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "mac_header is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "mac_header");
+}
 
 static PyObject *
 Segment_add (SegmentObject *self, PyObject *args)
@@ -5806,6 +5884,13 @@ static PyGetSetDef Segment_getset[] = {
     "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
     "802.11a/g/p/j. The segment's fs must be an integer multiple of it; the "
     "multiple is the oversampling M, done by a larger transform.\n",
+    NULL },
+  { "mac_header", (getter)Segment_flat_mac_header, NULL,
+    "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
+    "frame's header), as a Field of whole octets, each unpacked most "
+    "significant bit first (a hex Field 0x0802... is the octets it spells). "
+    "The PHY appends the frame's octets (the data source) and the FCS. "
+    "Refused with mac none or fcs, and without it for mac data.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -6210,6 +6295,14 @@ static PyTypeObject SegmentType = {
       "    802.11a/g/p/j. The segment's fs must be an integer multiple of it; "
       "the\n"
       "    multiple is the oversampling M, done by a larger transform.\n"
+      "mac_header : bytes | None, default None\n"
+      "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
+      "data\n"
+      "    frame's header), as a Field of whole octets, each unpacked most\n"
+      "    significant bit first (a hex Field 0x0802... is the octets it "
+      "spells).\n"
+      "    The PHY appends the frame's octets (the data source) and the FCS.\n"
+      "    Refused with mac none or fcs, and without it for mac data.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"
@@ -6534,6 +6627,19 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             {
               syn->src.fill.bits = NULL;
               syn->src.fill.len  = 0;
+            }
+          if (syn->src.mac_header.bits && syn->src.mac_header.len)
+            {
+              uint8_t *copy = (uint8_t *)malloc (syn->src.mac_header.len);
+              if (copy)
+                memcpy (copy, syn->src.mac_header.bits,
+                        syn->src.mac_header.len);
+              syn->src.mac_header.bits = copy;
+            }
+          else
+            {
+              syn->src.mac_header.bits = NULL;
+              syn->src.mac_header.len  = 0;
             }
           {
             wfm_frame_desc_t *_a0 = (wfm_frame_desc_t *)syn->src.frame;
@@ -7298,6 +7404,7 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "mac",
                                                   "gap",
                                                   "bandwidth",
+                                                  "mac_header",
                                                   NULL };
 
 static PyObject *

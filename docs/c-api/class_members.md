@@ -614,6 +614,7 @@
 * **m\_out** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **margin** ([**node\_sync\_t**](structnode__sync__t.md))
 * **mac** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **mac\_header** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **modulation** ([**wfm\_source\_t**](structwfm__source__t.md))
 
 

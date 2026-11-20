@@ -148,6 +148,7 @@ typedef struct {
     int mac; 
     size_t gap; 
     double bandwidth; 
+    wfm_seq_t mac_header; 
 } wfm_source_t;
 
 typedef struct {

@@ -26,6 +26,10 @@ typedef float _Complex cf;
    bridge packs back into these octets. */
 static uint8_t bits_lit[1600]; /* the 800 bits twice: two frames */
 static uint8_t octets[100];
+/* a 30-octet MAC header (its first 24 are the 24-octet header's) and its
+   bits, the first bit of each eight the most significant */
+static uint8_t hdr_oct[30];
+static uint8_t hdr_bits[240];
 
 static void
 make_data (void)
@@ -36,6 +40,12 @@ make_data (void)
       for (unsigned j = 0; j < 8u; j++)
         bits_lit[8u * k + j] = bits_lit[800u + 8u * k + j]
             = (octets[k] >> (7u - j)) & 1u;
+    }
+  for (size_t k = 0; k < 30; k++)
+    {
+      hdr_oct[k] = (uint8_t)(0x08u + k * 11u);
+      for (unsigned j = 0; j < 8u; j++)
+        hdr_bits[8u * k + j] = (hdr_oct[k] >> (7u - j)) & 1u;
     }
 }
 
@@ -88,10 +98,12 @@ rel_l2 (const cf *a, const cf *b, size_t n, double *energy)
    n_oct octets of `octets`. */
 static cf *
 reference (const dp_wlan_rate_t *rate, dp_wlan_mac_t mac, size_t n_oct,
-           unsigned scr, unsigned window, unsigned m, size_t *len)
+           size_t hdr_len, unsigned scr, unsigned window, unsigned m,
+           size_t *len)
 {
   uint8_t psdu[WLAN_PSDU_MAX];
-  size_t  n = dp_wlan_mpdu (mac, NULL, 0, octets, n_oct, psdu, sizeof psdu);
+  size_t  n
+      = dp_wlan_mpdu (mac, hdr_oct, hdr_len, octets, n_oct, psdu, sizeof psdu);
   if (!n)
     return NULL;
   *len  = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (rate, n), window, m);
@@ -112,10 +124,10 @@ static int
 check_render (const wfm_source_t *s, double fs, const dp_wlan_rate_t *rate,
               dp_wlan_mac_t mac, unsigned window, unsigned m)
 {
-  size_t len = 0;
-  cf *want = reference (rate, mac, s->data_len / 8u, s->scrambler_init, window,
-                        m, &len);
-  cf *got  = want ? render (s, fs, len) : NULL;
+  size_t len  = 0;
+  cf    *want = reference (rate, mac, s->data_len / 8u, s->mac_header.len / 8u,
+                           s->scrambler_init, window, m, &len);
+  cf    *got  = want ? render (s, fs, len) : NULL;
   DP_REQUIRE (want && got);
   double e;
   DP_CHECK (rel_l2 (got, want, len, &e) < 1e-6 && e > 0.0);
@@ -153,6 +165,54 @@ test_renders_the_ppdu_wlan_builds (void)
   /* 10 MHz at its own clock is M = 1: the 20 MHz samples */
   s.bandwidth = 10e6;
   DP_CHECK (check_render (&s, 10e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
+  return 0;
+}
+
+/* mac data: the PSDU is the header, the frame's octets and the FCS, with a
+   24-octet header, a 30-octet one, and a header that is a generated Field. */
+static int
+test_mac_data_renders_header_body_and_fcs (void)
+{
+  const dp_wlan_rate_t r36 = { 4u, WLAN_CODE_3_4 };
+  wfm_source_t         s   = source ();
+  s.mac                    = WLAN_MAC_DATA;
+  s.mac_header             = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                          .len  = 8u * 24u,
+                                          .bits = hdr_bits };
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_DATA, 0u, 1u) == 0);
+  s.mac_header.len = 8u * 30u;
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_DATA, 0u, 1u) == 0);
+  /* control: the header is in the PSDU (the Data field, from sample 400),
+     so another header is another PPDU */
+  wfm_source_t o = s;
+  uint8_t      flip[240];
+  memcpy (flip, hdr_bits, sizeof flip);
+  flip[0] ^= 1u;
+  o.mac_header.bits = flip;
+  cf *x             = render (&s, 20e6, 700);
+  cf *y             = render (&o, 20e6, 700);
+  DP_REQUIRE (x && y);
+  DP_CHECK (memcmp (x, y, 700 * sizeof *x) != 0);
+  free (x);
+  free (y);
+  /* a generated Field (a PN sequence) is its bits, packed the same way */
+  wfm_source_t g = source ();
+  g.mac          = WLAN_MAC_DATA;
+  g.mac_header   = (wfm_seq_t){
+    .kind = WFM_SEQ_PN, .len = 8u * 24u, .reg_bits = 15, .seed_a = 1
+  };
+  DP_CHECK (dp_wfm_source_to_synth_error (&g, 20e6) == NULL);
+  uint8_t gb[240];
+  DP_REQUIRE (dp_wfm_seq_bits (&g.mac_header, gb, 8u * 24u) == 8u * 24u);
+  for (size_t k = 0; k < 24; k++)
+    {
+      uint8_t b = 0;
+      for (unsigned j = 0; j < 8u; j++)
+        b = (uint8_t)(b | (gb[8u * k + j] << (7u - j)));
+      hdr_oct[k] = b;
+    }
+  DP_CHECK (check_render (&g, 20e6, &r36, WLAN_MAC_DATA, 0u, 1u) == 0);
   return 0;
 }
 
@@ -276,6 +336,48 @@ r_macdata (wfm_source_t *s)
   s->mac = WLAN_MAC_DATA;
 }
 static void
+set_hdr (wfm_source_t *s, size_t bits)
+{
+  s->mac_header
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = bits, .bits = hdr_bits };
+}
+static void
+r_hdrshort (wfm_source_t *s)
+{
+  s->mac = WLAN_MAC_DATA;
+  set_hdr (s, 8u * 20u);
+}
+static void
+r_hdrodd (wfm_source_t *s)
+{
+  s->mac = WLAN_MAC_DATA;
+  set_hdr (s, 197u);
+}
+static void
+r_hdrnone (wfm_source_t *s)
+{
+  set_hdr (s, 8u * 24u);
+}
+static void
+r_hdrfcs (wfm_source_t *s)
+{
+  s->mac = WLAN_MAC_FCS;
+  set_hdr (s, 8u * 24u);
+}
+static void
+r_hdrdata (wfm_source_t *s)
+{
+  s->mac        = WLAN_MAC_DATA;
+  s->mac_header = (wfm_seq_t){ .kind = WFM_SEQ_DATA, .len = 8u * 24u };
+}
+static void
+r_hdrpn (wfm_source_t *s)
+{
+  s->mac = WLAN_MAC_DATA;
+  s->mac_header
+      = (wfm_seq_t){ .kind = WFM_SEQ_PN, .len = 8u * 24u, .reg_bits = 99 };
+}
+static void
 r_macbad (wfm_source_t *s)
 {
   s->mac = 7;
@@ -374,6 +476,12 @@ test_each_refusal_names_its_field (void)
     { "esno", r_esno, "snr_mode ebno and esno" },
     { "ebno", r_ebno, "snr_mode ebno and esno" },
     { "mac data without a header", r_macdata, "mac data needs a mac_header" },
+    { "a 20-octet header", r_hdrshort, "mac_header is a data frame's header" },
+    { "a header of 197 bits", r_hdrodd, "mac_header is whole octets" },
+    { "a header with mac none", r_hdrnone, "mac_header is the MAC header" },
+    { "a header with mac fcs", r_hdrfcs, "mac_header is the MAC header" },
+    { "a header that is data:LEN", r_hdrdata, "data:LEN has no bits" },
+    { "a header Field that does not build", r_hdrpn, "does not build" },
     { "mac outside its three", r_macbad, "mac is one of" },
     { "data_len not whole octets", r_len, "data_len must be a multiple of 8" },
     { "scrambler_init above 127", r_scr, "scrambler_init is the 7-bit" },
@@ -423,7 +531,7 @@ test_each_refusal_names_its_field (void)
   s.gap++;
   DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) != NULL);
   /* the fields of an ofdm source on another type, each by itself */
-  for (int k = 0; k < 6; k++)
+  for (int k = 0; k < 7; k++)
     {
       s      = source ();
       s.type = WFM_SYNTH_BPSK;
@@ -445,6 +553,9 @@ test_each_refusal_names_its_field (void)
           break;
         case 4:
           s.mac = WLAN_MAC_FCS;
+          break;
+        case 6:
+          set_hdr (&s, 8u * 24u);
           break;
         default:
           s.gap = 3;
@@ -740,18 +851,63 @@ test_a_data_file_gone_between_validation_and_build (void)
   return 0;
 }
 
+/* The MAC header is a key of its own: the same n_out and the same rate, the
+   header differing in one bit, refuses the other's blob (the header is in the
+   PSDU, so a restore into another header would re-render another PPDU). */
+static int
+test_the_mac_header_is_a_key (void)
+{
+  uint8_t lit[160], hb2[240];
+  for (size_t k = 0; k < 160; k++)
+    lit[k] = bits_lit[k];
+  memcpy (hb2, hdr_bits, sizeof hb2);
+  hb2[7] ^= 1u; /* the last bit of the first octet */
+  wfm_source_t a  = source ();
+  a.wlan          = 0;
+  a.constellation = 3;
+  a.code_rate     = WLAN_CODE_3_4;
+  a.data     = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .len = 160, .bits = lit };
+  a.data_len = 80;
+  a.mac      = WLAN_MAC_DATA;
+  a.mac_header            = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL,
+                                         .len  = 8u * 24u,
+                                         .bits = hdr_bits };
+  wfm_source_t b          = a;
+  b.mac_header.bits       = hb2;
+  dp_wfm_synth_state_t *x = dp_wfm_source_to_synth (&a, 20e6);
+  dp_wfm_synth_state_t *y = dp_wfm_source_to_synth (&b, 20e6);
+  dp_wfm_synth_state_t *z = dp_wfm_source_to_synth (&a, 20e6);
+  DP_REQUIRE (x && y && z);
+  cf skip[30];
+  dp_wfm_synth_steps (x, skip, 30);
+  const size_t nb   = dp_wfm_synth_state_bytes (x);
+  uint8_t     *blob = malloc (nb);
+  DP_REQUIRE (nb != 0 && blob);
+  dp_wfm_synth_get_state (x, blob);
+  DP_CHECK (dp_wfm_synth_state_bytes (y) == nb);
+  DP_CHECK (dp_wfm_synth_set_state (z, blob) == DP_OK); /* the control */
+  DP_CHECK (dp_wfm_synth_set_state (y, blob) == DP_ERR_INVALID);
+  free (blob);
+  dp_wfm_synth_destroy (x);
+  dp_wfm_synth_destroy (y);
+  dp_wfm_synth_destroy (z);
+  return 0;
+}
+
 int
 main (void)
 {
   make_data ();
   int rc = 0;
   rc |= test_renders_the_ppdu_wlan_builds ();
+  rc |= test_mac_data_renders_header_body_and_fcs ();
   rc |= test_each_name_is_its_value ();
   rc |= test_wlan_n_is_its_pair_for_all_eight ();
   rc |= test_each_refusal_names_its_field ();
   rc |= test_the_gap_carries_noise_at_the_noise_variance ();
   rc |= test_a_resume_mid_ppdu_continues ();
   rc |= test_each_key_decides_a_restore_alone ();
+  rc |= test_the_mac_header_is_a_key ();
   rc |= test_step_is_steps ();
   rc |= test_the_attach_refuses_what_the_validator_refuses ();
   rc |= test_a_data_file_gone_between_validation_and_build ();

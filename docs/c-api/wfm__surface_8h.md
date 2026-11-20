@@ -191,6 +191,7 @@ enum wfm__surface_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
     WFM_SURFACE_source_mac,
     WFM_SURFACE_source_gap,
     WFM_SURFACE_source_bandwidth,
+    WFM_SURFACE_source_mac_header,
     WFM_SURFACE_segment_fs,
     WFM_SURFACE_segment_num_samples,
     WFM_SURFACE_segment_off_samples,

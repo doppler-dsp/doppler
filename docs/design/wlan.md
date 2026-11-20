@@ -418,9 +418,12 @@ For the `ofdm` type:
     recomputes it from the chip and symbol counters and refuses a blob whose
     counters disagree (`dp_wfm_synth_clock_ok`). The rendered buffer and its length are `ofdm`'s derived
     values and follow the same rule.
-- **Reject keys**: the preset, the bandwidth, the constellation and code
-    rate, and the window length are compared at `set_state`, because each
-    sizes the PPDU or changes what the cursor means. The type itself
+- **Reject keys**: the constellation, the code rate, the window, the
+    oversampling `M`, the `mac` mode, `scrambler_init` and the seed are the
+    renderer's, compared at `set_state` whole; the frame's bit count and
+    length are the synth's own. The `gap` is not a key: it is the length less
+    the PPDU's, which those fix. Each is proved alone, at an equal length, in
+    `test_wfm_ofdm_bridge.c`. The type itself
     already is one: `wtype` is in the blob and `wfm_synth_runnable` checks it.
 - **The version is 7.** `make state-versions-check` fails a layout that reuses
     a version the project has shipped, so the bump is a gate and not a
@@ -497,17 +500,32 @@ before any C.
 - an `ofdm` source whose `bandwidth` is not one the preset's clocking allows,
     whose `fs` is not an integer multiple of `bandwidth`, or whose
     `constellation` and `code_rate` are not a pair of Table 17-4;
-- `sps`, `pulse`, `rrc_beta`, `rrc_span`, `symbols`, `symbol_rate`, the DSSS
-    codes, a frame description, `--sync`, `--crc` and `--acq-code`, which
-    describe a symbol-rate stream or a frame the PHY builds itself;
+- `sps` above 1, `pulse`, `symbols`, `symbol_rate`, the DSSS codes, a frame
+    description, `--sync`, `--crc` and `--acq-code`, which describe a
+    symbol-rate stream or a frame the PHY builds itself. `rrc_beta` and
+    `rrc_span` are read only with `pulse = rrc`, which is refused, so they
+    need no refusal of their own. `modulation`, `pn_length`, `pn_poly`
+    and `lfsr` are another type's parameters and are ignored, as every
+    existing type ignores the parameters of the types it is not
+    (`dp_wfm_source_error` asks `pn_poly` only of `pn`, `bpsk` and `qpsk`);
+    the refusals above are the fields that would silently change what an
+    OFDM waveform means;
 - a `data_len` that is not a whole number of octets, or outside the PSDU
     length the preset allows;
-- `snr_mode = ebno`, until section 5's Es/N0 note settles per coded or
-    per information bit;
-- a scrambler initial state of zero;
-- `mac = data` without a `mac_header`, a `mac_header` in any other mode, a
-    `mac = fcs` or `data` source whose octets are too few to hold a header, and
-    a PSDU longer than the PHY's LENGTH field can describe.
+- `snr_mode = ebno` and `esno` (owner ruling: `auto` and `fs` mean signal
+    power over noise in the full band);
+- a `scrambler_init` above 127. Zero is not refused: it draws the initial
+    state per PPDU from `seed` and the frame index;
+- a `mac` outside `none`, `fcs` and `data`; `mac = data` without a
+    `mac_header` (until `mac_header` lands, `data` is refused whole), a
+    `mac_header` in any other mode, and a `mac = data` source whose octets
+    are too few to hold its header. `mac = fcs` takes one octet or more;
+- a `window` above 80 times `fs / bandwidth`, a negative `bandwidth`, a
+    `constellation` or `code_rate` index no face offers (a C or Python
+    source can give one), and a frame, its `gap` included, over 2^24 samples,
+    each range-checked before it is narrowed or summed;
+- a PSDU longer than the PHY's LENGTH field can describe (4095 octets, the
+    FCS included).
 
 ```text
 {
@@ -753,7 +771,7 @@ has latched: with the data ended no frame is in play.
 **Reject keys.** The callback is a pure function of its configuration, the
 bits and `frame`; it carries no running state, and its triplet's bytes are
 its configuration, compared whole with the live renderer's. A blob restored
-into a source with a different seed, window, gap, `M` or rate would re-render a
+into a source with a different seed, window, `M` or rate would re-render a
 different PPDU with no refusal, so the bridge's 802.11 callback uses the existing optional
 triplet (`wfm_synth_refill_state_t`, attached by
 `dp_wfm_synth_attach_frames_state`) to carry its configuration and to refuse a

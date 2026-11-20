@@ -818,12 +818,12 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "  --wlan N        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one\n" \
   "                  of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n" \
   "                  constellation and code_rate (--wlan 36 is --constellation\n" \
-  "                  qam16 --code_rate 3/4). (default 0)\n" \
+  "                  qam16 --code-rate 3/4). (default 0)\n" \
   "  --constellation C\n" \
   "                  For type=ofdm: the subcarrier constellation, one of bpsk,\n" \
-  "                  qpsk, qam16, qam64, qam256, qam1024; the pair with code_rate\n" \
-  "                  must be a row of the standard's rate table. One of: bpsk |\n" \
-  "                  qpsk | qam16 | qam64 | qam256 | qam1024. (default bpsk)\n" \
+  "                  qpsk, qam16, qam64; the pair with code_rate must be a row of\n" \
+  "                  the standard's rate table. One of: bpsk | qpsk | qam16 |\n" \
+  "                  qam64. (default bpsk)\n" \
   "  --code-rate R   For type=ofdm: the convolutional code rate, one of 1/2, 2/3,\n" \
   "                  3/4, 5/6. One of: 1/2 | 2/3 | 3/4 | 5/6. (default 1/2)\n" \
   "  --scrambler-init S\n" \

@@ -2023,6 +2023,7 @@
 * **dp\_wlan\_mbps** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_mpdu** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_mpdu\_len** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_n\_bpsc** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_n\_cbps** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_n\_dbps** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_n\_sym** ([**wlan\_core.h**](wlan__core_8h.md))

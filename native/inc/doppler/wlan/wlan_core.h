@@ -232,6 +232,18 @@ dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
                                  uint32_t window, uint32_t oversample);
 
 /**
+ * @brief Bits per subcarrier of a constellation index: the one map from the
+ *        index dp_wlan_create() takes to the `n_bpsc` of a rate pair.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
+ * @return 1, 2, 4 or 6, or 0 for an index outside 0 to 3.
+ *
+ * @code
+ * unsigned n = dp_wlan_n_bpsc (2);   // 16-QAM: 4 bits per subcarrier
+ * @endcode
+ */
+unsigned dp_wlan_n_bpsc (int constellation);
+
+/**
  * @brief Why dp_wlan_create() would refuse these arguments, or NULL if it
  *        would not: the first argument that fails, by name.
  *

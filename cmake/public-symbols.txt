@@ -1956,6 +1956,7 @@ dp_wlan_scrambler_state_from_sequence function
 dp_wlan_signal_bits function
 dp_wlan_tables_empty function
 dp_wlan_tables_standard function
+dp_wlan_window_resolve function
 dp_write_blue_header function
 dttl_ted function
 farrow_eval function

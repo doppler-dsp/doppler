@@ -107,7 +107,8 @@ subcarriers with the rest of the grid zero, not resampled. `M = 1` is the PPDU
 above, bit for bit, and the signal at `M` is the same waveform sampled `M`
 times as finely (`x_M[M n] = x_1[n]` for the same scale, held to a tolerance
 in the unit test). `window` counts samples at the output rate, so the
-standard's 100 ns transition is `2 * M`; it may be at most `80 * M` (an OFDM
+standard's 100 ns transition is `2 * M`, which is what a caller who gives no
+window gets (`window = 0` is no window); it may be at most `80 * M` (an OFDM
 symbol, the modulator's limit), and above the `16 * M` guard interval the
 cross-fade reaches into the symbol body. Outside the 52 subcarriers the
 spectrum is only the symbol boundaries' skirts, which a longer window lowers.
@@ -122,11 +123,13 @@ from doppler.wlan import Wlan
 
 w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s at 20 MHz
 x = w.ppdu(np.arange(100, dtype=np.uint8), 93)
-assert x.shape == (160 + 160 + 80 + 80 * w.n_sym(100),)
-x2 = Wlan(constellation="qam16", code_rate="r34", oversample=2).ppdu(
-    np.arange(100, dtype=np.uint8), 93
-)
-assert x2.shape == (2 * x.shape[0],)  # the same PPDU, twice as finely
+# no window given: the standard's 100 ns transition, 2 samples at 20 MHz
+assert w.window == 2
+assert x.shape == (160 + 160 + 80 + 80 * w.n_sym(100) + w.window,)
+w2 = Wlan(constellation="qam16", code_rate="r34", oversample=2)
+x2 = w2.ppdu(np.arange(100, dtype=np.uint8), 93)
+assert w2.window == 4  # still 100 ns, at twice the rate
+assert x2.shape == (2 * (x.shape[0] - w.window) + w2.window,)  # twice as fine
 ```
 
 A PSDU outside 1 to 4095 octets, a scrambler state outside 1 to 127, or an

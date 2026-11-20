@@ -782,3 +782,16 @@ target_include_directories(validate_wlan_tx_quality
 target_link_libraries(validate_wlan_tx_quality PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 add_test(NAME validate_wlan_tx_quality
          COMMAND validate_wlan_tx_quality --check)
+
+# The noise of a wfmgen ofdm source against its contract: variance
+# 10^(-snr/10) referred to the full band, in the PPDU and the gap, read by the
+# measure module's time_stats. ctest runs the --check cell (M = 2, 10 dB);
+# src/doppler/wfm/tests/validation/wfm_synth/ renders the sweep.
+add_executable(validate_wfm_synth_ofdm_noise
+               ${CMAKE_CURRENT_SOURCE_DIR}/wfm_synth_ofdm_noise.c)
+target_include_directories(validate_wfm_synth_ofdm_noise
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_wfm_synth_ofdm_noise PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+add_test(NAME validate_wfm_synth_ofdm_noise
+         COMMAND validate_wfm_synth_ofdm_noise --check)

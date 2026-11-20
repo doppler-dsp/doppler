@@ -7,6 +7,10 @@ Python3_add_library(wfm_plan MODULE WITH_SOABI wfm_plan_ext.c)
 target_link_libraries(wfm_plan PRIVATE
     doppler_channel_core
     wfm_compose_core
+    wlan_core
+    ofdm_core
+    fft_core
+    mpsk_core
     wfm_dsp_core
     wfm_frame_core
     cvt_core

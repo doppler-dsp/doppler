@@ -157,6 +157,7 @@ _Synth component API._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**WFM\_DSSS\_ENDED**](wfm__synth__core_8h.md#define-wfm_dsss_ended)  `2u`<br> |
+| define  | [**WFM\_SYNTH\_FRAME\_MAX**](wfm__synth__core_8h.md#define-wfm_synth_frame_max)  `((size\_t)1 &lt;&lt; 24)`<br> |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `7u`<br> |
@@ -2260,6 +2261,23 @@ double eb_db = wfm_synth_snr_over_fs (2, wfm_synth_bps (WFM_SYNTH_QPSK),
 
 
 `cur_data` once a continuous stream's data has ended: not a bit, so the chips are silent from then on, and it is a byte of the serialized state like the bit it replaces. 
+
+
+        
+
+<hr>
+
+
+
+### define WFM\_SYNTH\_FRAME\_MAX 
+
+```C++
+#define WFM_SYNTH_FRAME_MAX `((size_t)1 << 24)`
+```
+
+
+
+The most samples one frame may occupy: 2^24 (128 MB of cf32). A frame is allocated whole, at install and again, transiently, by set\_state. 
 
 
         

@@ -93,6 +93,8 @@ typedef struct {
     const char *(*refusal)(const void *user);
 } wfm_synth_refill_state_t;
 
+#define WFM_SYNTH_FRAME_MAX ((size_t)1 << 24)
+
 typedef int (*wfm_synth_frame_fn)(void *user, uint64_t frame,
                                   const uint8_t *bits, size_t n_bits,
                                   float _Complex *out, size_t n_out);

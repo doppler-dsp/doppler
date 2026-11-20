@@ -234,6 +234,12 @@ dp_wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
       dp_wfm_synth_destroy (syn);
       return NULL;
     }
+  /* An ofdm source's PPDU renderer and its data pull (no-op otherwise). */
+  if (dp_wfm_source_attach_ofdm (syn, src, fs, seed) != 0)
+    {
+      dp_wfm_synth_destroy (syn);
+      return NULL;
+    }
   /* RRC pulse shaping (same dp_wfm_rrc_taps() the standalone face uses;
    * set_rrc scales for unit TX power and no-ops for non-modulated types). */
   if (src->pulse && src->sps > 0 && src->rrc_span > 0)
@@ -787,6 +793,8 @@ dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
         if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
             && !(dp_wfm_source_dsss_cps (src, segs[i].fs) >= 1.0))
           return dp_wfm_why_dsss_cont_rate;
+        if ((why = dp_wfm_ofdm_fs_error (src, segs[i].fs)) != NULL)
+          return why;
         if (!dp_wfm_source_data_is_stream (src))
           continue;
         /* A stream has no end to repeat and its bytes are gone once read,

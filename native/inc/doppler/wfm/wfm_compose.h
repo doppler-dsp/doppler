@@ -429,6 +429,37 @@ typedef struct {
                             code_only_symbols, or both 0 for no window. The
                             frame runs on the stream's own symbol clock, so
                             its edges land at any chip phase. */
+    int wlan; /**< For type=ofdm: the 802.11a/g data rate in Mb/s at
+                            20 MHz, one of 6, 9, 12, 18, 24, 36, 48, 54: a
+                            second spelling of constellation and code_rate
+                            (--wlan 36 is --constellation qam16 --code_rate
+                            3/4). 0 = not given. Refused beside constellation
+                            or code_rate, with a bandwidth other than 20 MHz,
+                            and on any other type. */
+    int constellation; /**< For type=ofdm: the subcarrier constellation, one of
+                            bpsk, qpsk, qam16, qam64, qam256, qam1024; the pair
+                            with code_rate must be a row of the standard's rate
+                            table. */
+    int code_rate; /**< For type=ofdm: the convolutional code rate, one of
+                            1/2, 2/3, 3/4, 5/6. */
+    int scrambler_init; /**< For type=ofdm: the 7-bit initial state of the data
+                            scrambler, 1 to 127. 0 draws a fresh state for each
+                            PPDU from seed, so a run is reproducible and a
+                            resume re-renders the same PPDU. */
+    size_t window; /**< For type=ofdm: the transition window in samples at
+                            the output rate, 0 for none, at most 80 times fs
+                            over bandwidth (the shortest OFDM symbol). */
+    int mac; /**< For type=ofdm: how the caller's octets become the
+                            PSDU. none: as given. fcs: an MPDU without its FCS,
+                            which the PHY appends. data: a header (mac_header)
+                            and a body, with the FCS appended. */
+    size_t gap; /**< For type=ofdm: idle samples after each PPDU, at the
+                            output rate, filled with noise at the source's
+                            noise variance. */
+    double bandwidth; /**< For type=ofdm: the channel bandwidth in Hz, 20e6,
+                            10e6 or 5e6 for 802.11a/g/p/j. The segment's fs
+                            must be an integer multiple of it; the multiple is
+                            the oversampling M, done by a larger transform. */
 } wfm_source_t;
 
 /**
@@ -938,6 +969,55 @@ extern const char dp_wfm_why_retired_crc[];
  * @endcode
  */
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The rules of an `ofdm` source that need the segment's sample rate:
+ *        `fs` is an integer multiple of `bandwidth` (the oversampling `M`,
+ *        done by a larger transform), `window` is within 80 `M` samples, and
+ *        a frame with its `gap` is at most 2^24 samples. Asked by
+ *        dp_wfm_scene_error(), so every face says the same sentence.
+ *
+ * @param src  The source; any other type, or one that fails its rate-free
+ *             rules (dp_wfm_source_error()), answers NULL.
+ * @param fs   The segment's sample rate (Hz).
+ * @return A static sentence, or NULL.
+ *
+ * @code
+ * wfm_source_t s = { .type = WFM_SYNTH_FRAMES, .sps = 1, .bandwidth = 20e6 };
+ * dp_wfm_ofdm_fs_error (&s, 30e6);   // not an integer multiple, or NULL
+ * @endcode
+ */
+const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
+
+/**
+ * @brief Install an `ofdm` source's frame renderer and its data pull on a
+ *        synth created with type WFM_SYNTH_FRAMES: the PPDU of each frame of
+ *        the data source, built through `wlan` from the source's constellation
+ *        and code rate (or `wlan`), `window`, `mac`, `gap` and the oversampling
+ *        `fs / bandwidth`. A no-op for any other type.
+ *
+ * Called by every face's build, as dp_wfm_source_attach_dsss() is, so the
+ * standalone and the composed source cannot drift. The renderer's
+ * configuration, @p seed included, is the state triplet's reject keys.
+ *
+ * @param syn   The synth.
+ * @param src   The source; it must pass dp_wfm_source_error() and
+ *              dp_wfm_ofdm_fs_error().
+ * @param fs    The segment's sample rate (Hz).
+ * @param seed  The seed the scrambler's per-PPDU draw uses when
+ *              `scrambler_init` is 0 (the composer's epoch-advanced seed).
+ * @return 0 on success or for another type, -1 if a refused source reached
+ *         here or a build failed.
+ *
+ * @code
+ * dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+ *     WFM_SYNTH_FRAMES, 20e6, 0.0, 100.0, 0, 1u, 1, 0, 0, 0, 0.0);
+ * // dp_wfm_source_attach_ofdm (syn, &src, 20e6, 1u) installs the renderer
+ * @endcode
+ */
+int dp_wfm_source_attach_ofdm(dp_wfm_synth_state_t *syn,
+                              const wfm_source_t *src, double fs,
+                              uint32_t seed);
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.

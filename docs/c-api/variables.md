@@ -115,6 +115,13 @@
 * **MODE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
+## o
+
+* **OFDM\_CODE\_RATE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+* **OFDM\_CONSTELLATION\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+* **OFDM\_MAC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+
+
 ## p
 
 * **pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04** ([**pn\_core.h**](pn__core_8h.md))

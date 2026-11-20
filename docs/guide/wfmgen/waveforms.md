@@ -1023,6 +1023,57 @@ sweeps one.
 
 ______________________________________________________________________
 
+## OFDM — 802.11a/g PPDUs
+
+`--type ofdm` sends one PHY frame (a PPDU) per frame of a
+[data source](#data-a-payload-drawn-frame-by-frame): the L-STF, the L-LTF, the
+SIGNAL field and the Data field, built through the [`wlan`](../wlan.md)
+object from the frame's octets. `--data-len` is the PSDU in bits, a whole
+number of octets, and the first bit of each eight is the octet's least
+significant, the order the PHY sends them. A source ends when its data does,
+as every data source does.
+
+The rate is one number, the 20 MHz data rate in Mb/s of Table 17-6: 6, 9, 12,
+18, 24, 36, 48 or 54. It is a second spelling of `--constellation` and
+`--code-rate`, and the two give the same bytes:
+
+```sh
+wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac fcs \
+       --data pn:800:15 --data-len 800 -o rate.cf32
+wfmgen --type ofdm --fs 20e6 --constellation qam16 --code-rate 3/4 \
+       --scrambler-init 93 --mac fcs --data pn:800:15 --data-len 800 \
+       -o pair.cf32
+cmp rate.cf32 pair.cf32
+```
+
+`--mac fcs` treats the octets as an MPDU without its FCS and appends it. With
+`--scrambler-init 0` (the default) each PPDU draws its scrambler's initial
+state from `--seed` and its index, so a run is reproducible and a resumed
+run re-renders the same PPDU.
+
+`--fs` is a multiple of `--bandwidth` (20 MHz unless given, 10 or 5 for the
+half- and quarter-clocked channels). The multiple is done by a larger
+transform, not a resampler, so every second sample of the 40 MHz PPDU is the
+20 MHz one. `--window N` is the transition window in samples at the output
+rate, at most 80 times the multiple, and `--gap N` is `N` idle samples after
+each PPDU. A source with `--snr` puts its noise in the gap too, at the
+variance the PPDU carries, so a gap is a silent stretch of the channel and
+not a hole in it:
+
+```sh
+wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --window 4 --gap 400 \
+       --snr 20 --seed 7 --data pn:3200:15 --data-len 1600 -o oversampled.cf32
+```
+
+The noise reference is the signal power over the noise power in the full
+band, so `--snr-mode auto` and `fs` mean the same, and `esno` and `ebno` are
+refused: they ask for a symbol rate this waveform does not have. So are
+`--sps`, `--pulse` and the other options of a symbol-rate stream, and a
+frame description: the PHY builds its own fields. `--wlan` is refused beside
+`--constellation` or `--code-rate`, beside a bandwidth other than 20 MHz,
+and on any other type. `--mac data`, which takes a MAC header, is not yet
+available.
+
 ## Coded frames — `--frame FILE`
 
 A **coded** frame is a description, and `--frame FILE` is how `wfmgen` takes

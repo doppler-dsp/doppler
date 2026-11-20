@@ -95,8 +95,8 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  size\_t | [**dp\_wlan\_points**](#function-dp_wlan_points) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, float \_Complex \* out, size\_t cap) <br>_The constellation points a PPDU's layout takes, in layout order: the SIGNAL field's 48, then the Data field's_ `48 * n_sym` _._ |
 |  size\_t | [**dp\_wlan\_ppdu**](#function-dp_wlan_ppdu) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, const uint8\_t \* psdu, size\_t len, uint8\_t state, unsigned window, unsigned oversample, float \_Complex \* out, size\_t cap) <br>_Render a PPDU to samples._  |
 |  size\_t | [**dp\_wlan\_ppdu\_len**](#function-dp_wlan_ppdu_len) (size\_t n\_sym, unsigned window, unsigned oversample) <br>_The samples a PPDU of_ `n_sym` _Data symbols occupies:_`M * (160 + 160 + 80 + 80 * n_sym)` _, plus the_`window` _samples of the last symbol's window tail, with_`M` _the oversampling factor._ |
+|  size\_t | [**dp\_wlan\_ppdu\_max\_out**](#function-dp_wlan_ppdu_max_out) (const [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t n\_in) <br>_The samples a PPDU of_ `n_in` _PSDU octets occupies at this object's rate, window and oversampling: the capacity_[_**dp\_wlan\_ppdu\_why()**_](wlan__core_8h.md#function-dp_wlan_ppdu_why) _needs, exactly._ |
 |  int64\_t | [**dp\_wlan\_ppdu\_why**](#function-dp_wlan_ppdu_why) ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, const uint8\_t \* in, size\_t n\_in, uint32\_t scrambler\_state, float \_Complex \* out, size\_t max\_out, const char \*\* why) <br>_Render a PSDU to a whole PPDU: L-STF, L-LTF, SIGNAL and Data, at the rate, window and oversampling this object holds._  |
-|  size\_t | [**dp\_wlan\_ppdu\_why\_max\_out**](#function-dp_wlan_ppdu_why_max_out) (const [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) \* state, size\_t n\_in) <br>_The samples a PPDU of_ `n_in` _PSDU octets occupies at this object's rate, window and oversampling: the capacity_[_**dp\_wlan\_ppdu\_why()**_](wlan__core_8h.md#function-dp_wlan_ppdu_why) _needs, exactly._ |
 |  int | [**dp\_wlan\_rate\_from\_mbps**](#function-dp_wlan_rate_from_mbps) (const [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) \* t, unsigned mbps, [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_The pair of a data rate at 20 MHz, from Table 17-6: the inverse of_ [_**dp\_wlan\_mbps()**_](wlan__core_8h.md#function-dp_wlan_mbps) _._ |
 |  size\_t | [**dp\_wlan\_rate\_n\_sym**](#function-dp_wlan_rate_n_sym) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r, size\_t psdu\_len) <br>_The Data OFDM symbols a PSDU needs:_ `ceil((16 + 8 * psdu_len + 6) / N_DBPS)` _._ |
 |  int | [**dp\_wlan\_rate\_ok**](#function-dp_wlan_rate_ok) (const [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) \* r) <br>_Whether_ `r` _is a rate this component builds:_`n_bpsc` _in {1, 2, 4, 6} and a code rate of the four. The data bits per OFDM symbol are whole for every such pair (the test shows it)._ |
@@ -1098,6 +1098,42 @@ Samples, or 0 if `n_sym` or `oversample` is outside its range (the ranges [**dp\
 
 
 
+### function dp\_wlan\_ppdu\_max\_out 
+
+_The samples a PPDU of_ `n_in` _PSDU octets occupies at this object's rate, window and oversampling: the capacity_[_**dp\_wlan\_ppdu\_why()**_](wlan__core_8h.md#function-dp_wlan_ppdu_why) _needs, exactly._
+```C++
+size_t dp_wlan_ppdu_max_out (
+    const dp_wlan_state_t * state,
+    size_t n_in
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` A rate holder from [**dp\_wlan\_create()**](wlan__core_8h.md#function-dp_wlan_create). 
+* `n_in` PSDU octets, 1 to WLAN\_PSDU\_MAX. 
+
+
+
+**Returns:**
+
+Samples, or 0 for a length outside that range or for a rate with no SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the others cannot be sent, and `rate_mbps` is 0 for them). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wlan\_ppdu\_why 
 
 _Render a PSDU to a whole PPDU: L-STF, L-LTF, SIGNAL and Data, at the rate, window and oversampling this object holds._ 
@@ -1127,7 +1163,7 @@ The standard's tables are the library's ([**dp\_wlan\_tables\_standard()**](wlan
 * `in` The PSDU octets. 
 * `n_in` Their count, 1 to WLAN\_PSDU\_MAX. 
 * `scrambler_state` The scrambler register's initial state, 1 to 127. 
-* `out` Receives [**dp\_wlan\_ppdu\_why\_max\_out()**](wlan__core_8h.md#function-dp_wlan_ppdu_why_max_out) samples. 
+* `out` Receives [**dp\_wlan\_ppdu\_max\_out()**](wlan__core_8h.md#function-dp_wlan_ppdu_max_out) samples. 
 * `max_out` Capacity of `out`, in samples. 
 * `why` On a refusal only, a static sentence saying why; left as the caller set it on success. May be NULL. 
 
@@ -1156,42 +1192,6 @@ Traceback (most recent call last):
 ValueError: the scrambler state is 1 to 127
 ```
  
-
-
-        
-
-<hr>
-
-
-
-### function dp\_wlan\_ppdu\_why\_max\_out 
-
-_The samples a PPDU of_ `n_in` _PSDU octets occupies at this object's rate, window and oversampling: the capacity_[_**dp\_wlan\_ppdu\_why()**_](wlan__core_8h.md#function-dp_wlan_ppdu_why) _needs, exactly._
-```C++
-size_t dp_wlan_ppdu_why_max_out (
-    const dp_wlan_state_t * state,
-    size_t n_in
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `state` A rate holder from [**dp\_wlan\_create()**](wlan__core_8h.md#function-dp_wlan_create). 
-* `n_in` PSDU octets, 1 to WLAN\_PSDU\_MAX. 
-
-
-
-**Returns:**
-
-Samples, or 0 for a length outside that range or for a rate with no SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the others cannot be sent, and `rate_mbps` is 0 for them). 
-
-
-
 
 
         

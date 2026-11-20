@@ -921,8 +921,14 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
         return DP_ERR_INVALID;
       if (sym_read_idx < s->n_symbols)
         {
-          /* a frame in play with this synth's renderer and bit source: the
-             presence bytes and state_refusal's rule have decided both */
+          /* The frame in play is re-rendered from the blob's bits, so both
+             the renderer and the bit source's bits must exist HERE: a
+             synth whose renderer was detached (attach_frames with NULL)
+             matches every presence byte of a blob taken without a renderer
+             triplet, and a hand-edited blob can put the cursor mid frame
+             with no bits. */
+          if (!s->frames || !fbits)
+            return DP_ERR_INVALID;
           scratch = dp_mallocn (s->n_symbols, sizeof *scratch);
           if (!scratch
               || s->frames (s->frames_user, frames_done - 1u, fbits, s->n_bits,

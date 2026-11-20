@@ -264,8 +264,9 @@ class Synth:
         with noise at the source's noise variance.
     bandwidth : float, default 20e6
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
-        802.11a/g/p/j. The segment's fs must be an integer multiple of it; the
-        multiple is the oversampling M, done by a larger transform.
+        802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
+        integer multiple of it, at most 128 times it; the multiple is the
+        oversampling M, done by a larger transform.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
         frame's header). A Field of whole octets on the command line and in a
@@ -733,8 +734,9 @@ class Segment:
         with noise at the source's noise variance.
     bandwidth : float, default 20e6
         For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
-        802.11a/g/p/j. The segment's fs must be an integer multiple of it; the
-        multiple is the oversampling M, done by a larger transform.
+        802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
+        integer multiple of it, at most 128 times it; the multiple is the
+        oversampling M, done by a larger transform.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
         frame's header). A Field of whole octets on the command line and in a

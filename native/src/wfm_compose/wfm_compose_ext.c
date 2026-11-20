@@ -3163,10 +3163,13 @@ static PyGetSetDef Synth_getset[] = {
     NULL },
   { "mac_header", (getter)Synth_get_mac_header, (setter)Synth_set_mac_header,
     "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
-    "frame's header), as a Field of whole octets, each unpacked most "
-    "significant bit first (a hex Field 0x0802... is the octets it spells). "
-    "The PHY appends the frame's octets (the data source) and the FCS. "
-    "Refused with mac none or fcs, and without it for mac data.\n",
+    "frame's header). A Field of whole octets on the command line and in a "
+    "scene, where a hex Field such as 0x08020000 is the octets it spells; a "
+    "bit array in Python, 8 bits per octet, each octet's first bit the most "
+    "significant (bytes.fromhex is not accepted: "
+    "np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY "
+    "appends the frame's octets (the data source) and the FCS. Refused with "
+    "mac none or fcs, and without it for mac data.\n",
     NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
@@ -3844,11 +3847,18 @@ static PyTypeObject SynthType = {
       "mac_header : bytes | None, default None\n"
       "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
       "data\n"
-      "    frame's header), as a Field of whole octets, each unpacked most\n"
-      "    significant bit first (a hex Field 0x0802... is the octets it "
-      "spells).\n"
-      "    The PHY appends the frame's octets (the data source) and the FCS.\n"
-      "    Refused with mac none or fcs, and without it for mac data.\n"
+      "    frame's header). A Field of whole octets on the command line and "
+      "in a\n"
+      "    scene, where a hex Field such as 0x08020000 is the octets it "
+      "spells; a\n"
+      "    bit array in Python, 8 bits per octet, each octet's first bit the "
+      "most\n"
+      "    significant (bytes.fromhex is not accepted:\n"
+      "    np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). "
+      "The PHY\n"
+      "    appends the frame's octets (the data source) and the FCS. Refused "
+      "with\n"
+      "    mac none or fcs, and without it for mac data.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"
@@ -5887,10 +5897,13 @@ static PyGetSetDef Segment_getset[] = {
     NULL },
   { "mac_header", (getter)Segment_flat_mac_header, NULL,
     "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
-    "frame's header), as a Field of whole octets, each unpacked most "
-    "significant bit first (a hex Field 0x0802... is the octets it spells). "
-    "The PHY appends the frame's octets (the data source) and the FCS. "
-    "Refused with mac none or fcs, and without it for mac data.\n",
+    "frame's header). A Field of whole octets on the command line and in a "
+    "scene, where a hex Field such as 0x08020000 is the octets it spells; a "
+    "bit array in Python, 8 bits per octet, each octet's first bit the most "
+    "significant (bytes.fromhex is not accepted: "
+    "np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY "
+    "appends the frame's octets (the data source) and the FCS. Refused with "
+    "mac none or fcs, and without it for mac data.\n",
     NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -6298,11 +6311,18 @@ static PyTypeObject SegmentType = {
       "mac_header : bytes | None, default None\n"
       "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
       "data\n"
-      "    frame's header), as a Field of whole octets, each unpacked most\n"
-      "    significant bit first (a hex Field 0x0802... is the octets it "
-      "spells).\n"
-      "    The PHY appends the frame's octets (the data source) and the FCS.\n"
-      "    Refused with mac none or fcs, and without it for mac data.\n"
+      "    frame's header). A Field of whole octets on the command line and "
+      "in a\n"
+      "    scene, where a hex Field such as 0x08020000 is the octets it "
+      "spells; a\n"
+      "    bit array in Python, 8 bits per octet, each octet's first bit the "
+      "most\n"
+      "    significant (bytes.fromhex is not accepted:\n"
+      "    np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). "
+      "The PHY\n"
+      "    appends the frame's octets (the data source) and the FCS. Refused "
+      "with\n"
+      "    mac none or fcs, and without it for mac data.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"

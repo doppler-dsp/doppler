@@ -268,10 +268,13 @@ class Synth:
         multiple is the oversampling M, done by a larger transform.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
-        frame's header), as a Field of whole octets, each unpacked most
-        significant bit first (a hex Field 0x0802... is the octets it spells).
-        The PHY appends the frame's octets (the data source) and the FCS.
-        Refused with mac none or fcs, and without it for mac data.
+        frame's header). A Field of whole octets on the command line and in a
+        scene, where a hex Field such as 0x08020000 is the octets it spells; a
+        bit array in Python, 8 bits per octet, each octet's first bit the most
+        significant (bytes.fromhex is not accepted:
+        np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
+        appends the frame's octets (the data source) and the FCS. Refused with
+        mac none or fcs, and without it for mac data.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -734,10 +737,13 @@ class Segment:
         multiple is the oversampling M, done by a larger transform.
     mac_header : bytes | None, default None
         For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
-        frame's header), as a Field of whole octets, each unpacked most
-        significant bit first (a hex Field 0x0802... is the octets it spells).
-        The PHY appends the frame's octets (the data source) and the FCS.
-        Refused with mac none or fcs, and without it for mac data.
+        frame's header). A Field of whole octets on the command line and in a
+        scene, where a hex Field such as 0x08020000 is the octets it spells; a
+        bit array in Python, 8 bits per octet, each octet's first bit the most
+        significant (bytes.fromhex is not accepted:
+        np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
+        appends the frame's octets (the data source) and the FCS. Refused with
+        mac none or fcs, and without it for mac data.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);

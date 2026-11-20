@@ -318,9 +318,8 @@ def review() -> None:
         "standard's 2 M transition, which passes every point with 7.9 dB "
         "to spare; `window=0`, by asking, still fails by those margins, as "
         "a stated property of the rectangular choice. At M = 1 the mask "
-        "beyond 10 MHz is not representable at all. The wfmgen `ofdm` "
-        "source takes the same default when the type lands, so #3190 stays "
-        "open for that half.",
+        "beyond 10 MHz is not representable at all. wfmgen's ofdm source "
+        "still defaults to 0 (#3190).",
     )
     R.find(
         "mask_peak_reference_biased",

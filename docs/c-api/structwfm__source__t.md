@@ -39,8 +39,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  int | [**background**](#variable-background)  <br> |
+|  double | [**bandwidth**](#variable-bandwidth)  <br> |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
 |  size\_t | [**code\_only\_symbols**](#variable-code_only_symbols)  <br> |
+|  int | [**code\_rate**](#variable-code_rate)  <br> |
+|  int | [**constellation**](#variable-constellation)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data**](#variable-data)  <br> |
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**data\_code**](#variable-data_code)  <br> |
 |  const char \* | [**data\_from\_file**](#variable-data_from_file)  <br> |
@@ -59,9 +62,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  size\_t | [**frame\_symbols**](#variable-frame_symbols)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
 |  double | [**freq\_hi**](#variable-freq_hi)  <br> |
+|  size\_t | [**gap**](#variable-gap)  <br> |
 |  double | [**level**](#variable-level)  <br> |
 |  double | [**level\_hi**](#variable-level_hi)  <br> |
 |  int | [**lfsr**](#variable-lfsr)  <br> |
+|  int | [**mac**](#variable-mac)  <br> |
 |  int | [**modulation**](#variable-modulation)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
@@ -73,6 +78,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  [**wfm\_seq\_t**](structwfm__seq__t.md) | [**retired\_sync**](#variable-retired_sync)  <br> |
 |  double | [**rrc\_beta**](#variable-rrc_beta)  <br> |
 |  int | [**rrc\_span**](#variable-rrc_span)  <br> |
+|  int | [**scrambler\_init**](#variable-scrambler_init)  <br> |
 |  uint32\_t | [**seed**](#variable-seed)  <br> |
 |  double | [**snr**](#variable-snr)  <br> |
 |  double | [**snr\_hi**](#variable-snr_hi)  <br> |
@@ -82,6 +88,8 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
 |  int | [**type**](#variable-type)  <br> |
+|  size\_t | [**window**](#variable-window)  <br> |
+|  int | [**wlan**](#variable-wlan)  <br> |
 
 
 
@@ -192,6 +200,23 @@ Mark this source as part of the static background field (0/1). Plan.prepare() fo
 
 
 
+### variable bandwidth 
+
+```C++
+double wfm_source_t::bandwidth;
+```
+
+
+
+For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j. The segment's fs must be an integer multiple of it; the multiple is the oversampling M, done by a larger transform. 
+
+
+        
+
+<hr>
+
+
+
 ### variable carrier\_hz 
 
 ```C++
@@ -218,6 +243,40 @@ size_t wfm_source_t::code_only_symbols;
 
 
 Continuous dsss: pure-code symbols opening each frame of frame\_symbols symbols. The data pauses through them and runs on across frames, so a searcher can integrate coherently over the window; once a payload ends, no window is sent. At most frame\_symbols, and fewer when a data source is set; 0 with frame\_symbols 0 = no window. 
+
+
+        
+
+<hr>
+
+
+
+### variable code\_rate 
+
+```C++
+int wfm_source_t::code_rate;
+```
+
+
+
+For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6. 
+
+
+        
+
+<hr>
+
+
+
+### variable constellation 
+
+```C++
+int wfm_source_t::constellation;
+```
+
+
+
+For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, qam64, qam256, qam1024; the pair with code\_rate must be a row of the standard's rate table. 
 
 
         
@@ -532,6 +591,23 @@ upper bound when WFM\_RANGE\_FREQ is set
 
 
 
+### variable gap 
+
+```C++
+size_t wfm_source_t::gap;
+```
+
+
+
+For type=ofdm: idle samples after each PPDU, at the output rate, filled with noise at the source's noise variance. 
+
+
+        
+
+<hr>
+
+
+
 ### variable level 
 
 ```C++
@@ -575,6 +651,23 @@ int wfm_source_t::lfsr;
 
 
 PN LFSR realisation. Both give the same period; fibonacci's chips are galois's in reverse order. 
+
+
+        
+
+<hr>
+
+
+
+### variable mac 
+
+```C++
+int wfm_source_t::mac;
+```
+
+
+
+For type=ofdm: how the caller's octets become the PSDU. none: as given. fcs: an MPDU without its FCS, which the PHY appends. data: a header (mac\_header) and a body, with the FCS appended. 
 
 
         
@@ -770,6 +863,23 @@ RRC filter support in symbols when pulse=rrc, ONE-SIDED: the filter has 2\*rrc\_
 
 
 
+### variable scrambler\_init 
+
+```C++
+int wfm_source_t::scrambler_init;
+```
+
+
+
+For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. 0 draws a fresh state for each PPDU from seed, so a run is reproducible and a resume re-renders the same PPDU. 
+
+
+        
+
+<hr>
+
+
+
 ### variable seed 
 
 ```C++
@@ -915,6 +1025,40 @@ int wfm_source_t::type;
 
 
 Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: a caller's bit pattern, with selectable modulation. symbols: a caller's complex constellation stream. dsss: spread spectrum  a two-code burst (repeated preamble + data-code-spread frame) by default, or a continuous asynchronous stream when symbol\_rate is set. 
+
+
+        
+
+<hr>
+
+
+
+### variable window 
+
+```C++
+size_t wfm_source_t::window;
+```
+
+
+
+For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). 
+
+
+        
+
+<hr>
+
+
+
+### variable wlan 
+
+```C++
+int wfm_source_t::wlan;
+```
+
+
+
+For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of constellation and code\_rate (wlan 36 is constellation qam16 code\_rate 3/4). 0 = not given. Refused beside constellation or code\_rate, with a bandwidth other than 20 MHz, and on any other type. 
 
 
         

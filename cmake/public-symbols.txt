@@ -1757,6 +1757,7 @@ dp_wfm_kw_decode function
 dp_wfm_kw_elem_size function
 dp_wfm_kw_encode function
 dp_wfm_kw_entry_size function
+dp_wfm_ofdm_fs_error function
 dp_wfm_parse_u64 function
 dp_wfm_plan_anchor_seed function
 dp_wfm_plan_at function
@@ -1831,6 +1832,7 @@ dp_wfm_sigmf_meta_json_ex function
 dp_wfm_snr_over_fs function
 dp_wfm_source_attach_dsss function
 dp_wfm_source_attach_frame function
+dp_wfm_source_attach_ofdm function
 dp_wfm_source_bits_refuse_text function
 dp_wfm_source_common_frame function
 dp_wfm_source_crc_refuse_text function

@@ -83,13 +83,15 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
     type = 7;
   else if (strcmp (type_str, "dsss") == 0)
     type = 8;
+  else if (strcmp (type_str, "ofdm") == 0)
+    type = 9;
   else
     {
-      PyErr_Format (
-          PyExc_ValueError,
-          "type must be one of \"tone\", \"noise\", \"pn\", \"bpsk\", "
-          "\"qpsk\", \"chirp\", \"bits\", \"symbols\", \"dsss\", got '%s'",
-          type_str);
+      PyErr_Format (PyExc_ValueError,
+                    "type must be one of \"tone\", \"noise\", \"pn\", "
+                    "\"bpsk\", \"qpsk\", \"chirp\", \"bits\", \"symbols\", "
+                    "\"dsss\", \"ofdm\", got '%s'",
+                    type_str);
       return -1;
     }
   int snr_mode = 0;
@@ -1283,13 +1285,16 @@ static PyTypeObject _SynthEngineType = {
     "Parameters\n"
     "----------\n"
     "type : Literal[\"tone\", \"noise\", \"pn\", \"bpsk\", \"qpsk\", "
-    "\"chirp\", \"bits\", \"symbols\", \"dsss\"], default \"tone\"\n"
+    "\"chirp\", \"bits\", \"symbols\", \"dsss\", \"ofdm\"], default \"tone\"\n"
     "    The waveform. For `bits` attach the pattern with set_bits(), for\n"
-    "    `symbols` the complex stream with set_symbols(), and for `dsss` the\n"
-    "    burst with set_dsss_chips(), after construction.\n"
+    "    `symbols` the complex stream with set_symbols(), for `dsss` the "
+    "burst\n"
+    "    with set_dsss_chips(), and for `ofdm` the frame renderer with\n"
+    "    attach_frames() (C only), each after construction.\n"
     "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
     "``\"qpsk\"``,\n"
-    "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
+    "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``, "
+    "``\"ofdm\"``.\n"
     "fs : float, default 1000000.0\n"
     "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
     "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.\n"

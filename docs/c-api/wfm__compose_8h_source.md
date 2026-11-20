@@ -140,6 +140,14 @@ typedef struct {
     wfm_data_stats_t data_sent; 
     size_t code_only_symbols; 
     size_t frame_symbols; 
+    int wlan; 
+    int constellation; 
+    int code_rate; 
+    int scrambler_init; 
+    size_t window; 
+    int mac; 
+    size_t gap; 
+    double bandwidth; 
 } wfm_source_t;
 
 typedef struct {
@@ -228,6 +236,12 @@ extern const char dp_wfm_why_retired_sync[];
 extern const char dp_wfm_why_retired_crc[];
 
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
+
+const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
+
+int dp_wfm_source_attach_ofdm(dp_wfm_synth_state_t *syn,
+                              const wfm_source_t *src, double fs,
+                              uint32_t seed);
 
 int dp_wfm_source_attach_frame(dp_wfm_synth_state_t *syn, const wfm_source_t *src);
 

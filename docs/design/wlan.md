@@ -758,13 +758,21 @@ and FFT dispatch, which is what the state tests assert. The order is:
     nothing of the renderer is written at any step;
 1. render the frame in play into a scratch buffer, and refuse if the callback
     refuses or the allocation fails;
-1. restore the bit source's triplet; if it refuses, nothing has been written;
+1. restore the children, the carrier and the noise. A child's `set_state`
+    checks more than the envelope step 2 did (the AWGN refuses an all-zero
+    generator or a bad amplitude), so one can still refuse here, and the
+    children before it stay restored, which is #2104;
+1. restore the bit source's triplet. Its position is outside the synth (a
+    counter, a file, a caller's data) and no refusal can put it back, so it
+    moves only after the last child that can refuse;
 1. commit the fields, the bits and the scratch buffer swapped in, none of which
-    can fail;
-1. restore the other children, as now. A child that refuses here, after its
-    envelope was checked in step 2, leaves the synth's own fields restored,
-    which is #2104 and unchanged: a refusal before step 5 leaves the synth as it
-    was, and one after it does not.
+    can fail.
+
+A refusal at any step therefore leaves the bit source, the frame and the
+synth's own fields as they were; at step 4 or 5 the children before the one
+that refused are restored (#2104). The other types restore their children
+after the commit and their refill last, which is the same rule: nothing that
+cannot be undone moves before the last thing that can refuse.
 
 `set_state` holds two frames of memory transiently (the frame in play and the
 scratch). There is no re-render before the first frame or after `data_ended`
@@ -801,12 +809,16 @@ the function pointer is a handle that a restore leaves as it is.
     renders the same source with `gap = 0` and `gap > 0` and checks the noise
     variance is the same.
 - **`reset()`** rewinds the cursor to the start of the frame in play
-    (`sym_read_idx = 0`), which replays the last frame rendered, and does
-    nothing once the data has ended (no frame is in play); it does not rewind
-    `frame` or the data source, as a bit refill's reset does not rewind a source
-    it has consumed. `refused` goes with `data_ended`: it survives a reset that
-    leaves `data_ended` latched, and is cleared wherever `data_ended` is, by
-    attaching or detaching a bit source. A reset synth and a fresh one therefore
+    (`sym_read_idx = 0`), which replays the last frame rendered. A frame is in
+    play when the cursor is below `n_out`, the definition `set_state` uses, so
+    a reset with none in play (none drawn yet, the frame spent at `n_out`, a
+    refusal, the data ended) leaves the cursor and replays nothing. It does
+    not rewind `frame` or the data source, as a bit refill's reset does not
+    rewind a source it has consumed, and it never clears `data_ended`: the
+    bits types' rule that a pattern with no refill is the whole of the data
+    un-ends on a reset does not apply, since a frames synth has no pattern.
+    `refused` goes with `data_ended`: it survives every reset, and is cleared
+    wherever `data_ended` is, by attaching or detaching a bit source. A reset synth and a fresh one therefore
     differ.
 - **`user`** is owned by the synth when `free_user` is given, which it calls on
     detach or destroy, as `set_refill` does.

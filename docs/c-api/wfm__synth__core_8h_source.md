@@ -195,15 +195,22 @@ wfm_synth_frame_ahead(dp_wfm_synth_state_t *s)
         return 1;
     if (s->data_ended)
         return 0;
-    if (!s->frames || !s->refill
-        || s->refill(s->refill_user, s->bits, s->n_bits) != 0) {
+    if (!s->frames || !s->refill) {
         s->data_ended = 1;
         return 0;
     }
-    /* the renderer is promised bits of 0 or 1; a source may write any byte
-       (the bits path normalises on read, wfm_synth_bit_symbol) */
+    const int ended = s->refill(s->refill_user, s->bits, s->n_bits) != 0;
+    /* The synth's bits are 0 or 1 always: the renderer is promised them, and
+       the blob carries them, whose restore refuses any other byte. A source
+       may write any byte (the bits path normalises on read,
+       wfm_synth_bit_symbol), and may write some before it reports its end,
+       so they are normalised whatever the refill returns. */
     for (size_t k = 0; k < s->n_bits; k++)
         s->bits[k] = s->bits[k] ? 1u : 0u;
+    if (ended) {
+        s->data_ended = 1;
+        return 0;
+    }
     if (s->frames(s->frames_user, s->frames_done, s->bits, s->n_bits,
                   s->symbols, s->n_symbols) != 0) {
         s->data_ended = 1;

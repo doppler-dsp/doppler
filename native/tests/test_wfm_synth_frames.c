@@ -38,6 +38,7 @@ typedef struct
                          never */
   int dirty;          /* a one is written as 2 or 0xFF, not 1 */
   int refuse_set;     /* its set_state refuses even a well-formed blob */
+  int dirty_end;      /* at its end it writes 0xFF bytes, then reports it */
 } bit_src_t;
 
 #define SRC_MAGIC DP_FOURCC ('T', 'S', 'R', 'C')
@@ -53,7 +54,11 @@ src_refill (void *u, uint8_t *bits, size_t n)
 {
   bit_src_t *s = u;
   if (s->end_after && s->draws >= s->end_after)
-    return 1;
+    {
+      if (s->dirty_end)
+        memset (bits, 0xFF, n);
+      return 1;
+    }
   for (size_t k = 0; k < n; k++)
     {
       const uint8_t b = src_bit (s->counter + k);
@@ -863,6 +868,134 @@ test_a_clobbered_child_is_refused_before_the_source_moves (void)
 }
 
 static int
+test_a_child_that_refuses_its_payload_leaves_the_source_and_the_frame (void)
+{
+  /* the AWGN child's envelope is intact and its generator state zeroed, which
+     dp_awgn_set_state refuses only after its envelope check: the refusal
+     comes when the restore is already writing. The bit source and the frame
+     must be as they were; only the children before the AWGN may have moved
+     (#2104) */
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
+  dp_wfm_synth_state_t *a
+      = make_synth_cfg (&ra, &sa, N_BITS, N_OUT, 0.0, 10.0, 1);
+  float _Complex x[250];
+  dp_wfm_synth_steps (a, x, 250);
+  DP_REQUIRE (a->awgn != NULL);
+  const size_t n    = dp_wfm_synth_state_bytes (a);
+  uint8_t     *blob = malloc (n);
+  DP_REQUIRE (n > 0 && blob != NULL);
+  dp_wfm_synth_get_state (a, blob);
+  const size_t tail = N_BITS + src_bytes (NULL) + rend_bytes (NULL);
+  const size_t awgn = dp_awgn_state_bytes (a->awgn);
+  DP_REQUIRE (n > tail + awgn);
+  uint8_t *gen = blob + (n - tail - awgn) + sizeof (dp_state_hdr_t);
+  memset (gen, 0, 4 * sizeof (uint64_t)); /* the generator's 32 bytes */
+
+  /* the target: 10 samples into its frame 0, so a frame is in play */
+  rend_t                rb = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sb = { .counter = 0 };
+  dp_wfm_synth_state_t *b
+      = make_synth_cfg (&rb, &sb, N_BITS, N_OUT, 0.0, 10.0, 1);
+  float _Complex y[10];
+  dp_wfm_synth_steps (b, y, 10);
+  const bit_src_t src_before = sb;
+  float _Complex frame[N_OUT];
+  uint8_t bits[N_BITS];
+  memcpy (frame, b->symbols, sizeof frame);
+  memcpy (bits, b->bits, sizeof bits);
+  const size_t   cursor = b->sym_read_idx;
+  const uint64_t done   = b->frames_done;
+
+  /* control: the same blob, unclobbered, restores and moves the source */
+  dp_wfm_synth_get_state (a, blob);
+  rend_t                rc = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sc = { .counter = 0 };
+  dp_wfm_synth_state_t *c
+      = make_synth_cfg (&rc, &sc, N_BITS, N_OUT, 0.0, 10.0, 1);
+  DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_OK);
+  DP_CHECK (sc.counter == sa.counter && sc.counter != src_before.counter);
+  memset (gen, 0, 4 * sizeof (uint64_t));
+
+  DP_CHECK (dp_wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
+  DP_CHECK (sb.counter == src_before.counter && sb.draws == src_before.draws);
+  DP_CHECK (memcmp (b->symbols, frame, sizeof frame) == 0);
+  DP_CHECK (memcmp (b->bits, bits, sizeof bits) == 0);
+  DP_CHECK (b->sym_read_idx == cursor && b->frames_done == done);
+  free (blob);
+  dp_wfm_synth_destroy (a);
+  dp_wfm_synth_destroy (b);
+  dp_wfm_synth_destroy (c);
+  return 0;
+}
+
+static int
+test_reset_with_no_frame_in_play_replays_nothing (void)
+{
+  float _Complex x[N_OUT], y[N_OUT], want[N_OUT];
+  /* (a) a frame spent to its last sample: the cursor is at n_out, nothing is
+     in play (set_state's definition), so reset leaves it and the next sample
+     draws frame 1; frame 0 does not play twice */
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0 };
+  dp_wfm_synth_state_t *s   = make_synth (&r, &src);
+  dp_wfm_synth_steps (s, x, N_OUT);
+  dp_wfm_synth_reset (s);
+  dp_wfm_synth_steps (s, y, N_OUT);
+  expect_frame (1, 7, want);
+  DP_CHECK (memcmp (y, want, sizeof want) == 0);
+  DP_CHECK (src.draws == 2 && r.calls == 2);
+  dp_wfm_synth_destroy (s);
+
+  /* (b) the renderer refuses frame 1 and the bit source is then detached:
+     the buffer holds frame 0, spent, and the synth ends at its next draw.
+     Reset must not un-end it: a frames synth has no pattern to replay */
+  rend_t    r2   = { .key = 7, .refuse_at = 1 };
+  bit_src_t src2 = { .counter = 0 };
+  s              = make_synth (&r2, &src2);
+  dp_wfm_synth_steps (s, x, N_OUT + 1);
+  DP_REQUIRE (dp_wfm_synth_frames_refused (s));
+  DP_CHECK (dp_wfm_synth_set_refill (s, NULL, NULL, NULL) == 0);
+  dp_wfm_synth_steps (s, x, 1);
+  DP_CHECK (dp_wfm_synth_data_ended (s));
+  dp_wfm_synth_reset (s);
+  DP_CHECK (dp_wfm_synth_data_ended (s));
+  dp_wfm_synth_steps (s, y, N_OUT);
+  int silent = 1;
+  for (size_t i = 0; i < N_OUT; i++)
+    silent &= (y[i] == 0.0f);
+  DP_CHECK (silent);
+  DP_CHECK (!dp_wfm_synth_frames_refused (s));
+  dp_wfm_synth_destroy (s);
+  return 0;
+}
+
+static int
+test_a_source_that_writes_then_ends_leaves_bits_of_zero_and_one (void)
+{
+  /* the source writes 0xFF bytes and then reports its end: the synth's bits
+     are 0 or 1 anyway, so its own blob restores */
+  rend_t                r   = { .key = 7, .refuse_at = -1 };
+  bit_src_t             src = { .counter = 0, .end_after = 1, .dirty_end = 1 };
+  dp_wfm_synth_state_t *s   = make_synth (&r, &src);
+  float _Complex x[N_OUT + 1];
+  dp_wfm_synth_steps (s, x, N_OUT + 1);
+  DP_REQUIRE (dp_wfm_synth_data_ended (s) && src.draws == 1);
+  uint8_t worst = 0;
+  for (size_t k = 0; k < N_BITS; k++)
+    worst = s->bits[k] > worst ? s->bits[k] : worst;
+  DP_CHECK (worst <= 1);
+  const size_t n    = dp_wfm_synth_state_bytes (s);
+  void        *blob = malloc (n);
+  DP_REQUIRE (n > 0 && blob != NULL);
+  dp_wfm_synth_get_state (s, blob);
+  DP_CHECK (dp_wfm_synth_set_state (s, blob) == DP_OK);
+  free (blob);
+  dp_wfm_synth_destroy (s);
+  return 0;
+}
+
+static int
 test_the_bit_count_is_a_key_when_no_source_carries_the_bits (void)
 {
   /* with no bit source attached the frame in play's bits are not in the blob,
@@ -1062,6 +1195,10 @@ test_forged_blobs_the_synth_never_writes_are_refused (void)
   memcpy (bb + BLOB_OFF (OFF_FRAMES_DONE), &one, sizeof one);
   DP_CHECK (dp_wfm_synth_set_state (bits, bb) == DP_ERR_INVALID);
   memset (bb + BLOB_OFF (OFF_FRAMES_DONE), 0, sizeof one);
+  /* with the data ended, so only the not-a-frames-synth rule refuses the
+     flag (a refusal with the data not ended is refused by another) */
+  bb[BLOB_OFF (OFF_DATA_ENDED)] = 1;
+  DP_CHECK (dp_wfm_synth_set_state (bits, bb) == DP_OK); /* control */
   bb[BLOB_OFF (OFF_REFUSED)] = 1;
   DP_CHECK (dp_wfm_synth_set_state (bits, bb) == DP_ERR_INVALID);
   free (bb);
@@ -1373,6 +1510,9 @@ main (void)
   rc |= test_refused_says_why_data_ended_and_goes_with_it ();
   rc |= test_reset_after_the_end_replays_nothing ();
   rc |= test_a_clobbered_child_is_refused_before_the_source_moves ();
+  rc |= test_a_child_that_refuses_its_payload_leaves_the_source_and_the_frame ();
+  rc |= test_reset_with_no_frame_in_play_replays_nothing ();
+  rc |= test_a_source_that_writes_then_ends_leaves_bits_of_zero_and_one ();
   rc |= test_the_bit_count_is_a_key_when_no_source_carries_the_bits ();
   rc |= test_the_renderer_is_given_bits_of_zero_and_one ();
   rc |= test_the_carrier_and_the_noise_are_applied_after_the_frame ();

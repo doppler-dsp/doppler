@@ -267,6 +267,27 @@ def cases() -> list[tuple[str, list[str]]]:
             ],
         ),
         (
+            "ofdm_mac_data",
+            [
+                "--type",
+                "ofdm",
+                "--fs",
+                "20e6",
+                "--wlan",
+                "36",
+                "--scrambler-init",
+                "93",
+                "--mac",
+                "data",
+                "--mac-header",
+                "0x08020000ffffffffffff0200000000010200000000020000",
+                "--data",
+                "pn:800:15",
+                "--data-len",
+                "800",
+            ],
+        ),
+        (
             "ofdm_pair",
             [
                 "--type",

@@ -103,6 +103,7 @@ enum
   WFM_SURFACE_source_mac,
   WFM_SURFACE_source_gap,
   WFM_SURFACE_source_bandwidth,
+  WFM_SURFACE_source_mac_header,
   WFM_SURFACE_segment_fs,
   WFM_SURFACE_segment_num_samples,
   WFM_SURFACE_segment_off_samples,
@@ -543,6 +544,17 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .when_row = WFM_SURFACE_source_type,
     .when_value = 9,
   },
+  [WFM_SURFACE_source_mac_header] = {
+    .name = "mac_header",
+    .cli = "--mac-header",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, mac_header),
+    .json = "mac_header",
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
   [WFM_SURFACE_segment_fs] = {
     .name = "fs",
     .cli = "--fs",
@@ -805,7 +817,11 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  rate, filled with noise at the source's noise variance.\n" \
   "                  (default 0)\n" \
   "  --bandwidth HZ  For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6\n" \
-  "                  for 802.11a/g/p/j. (default 20e6)\n"
+  "                  for 802.11a/g/p/j. (default 20e6)\n" \
+  "  --mac-header FIELD\n" \
+  "                  For type=ofdm with mac=data: the MAC header, 24 or 30 octets\n" \
+  "                  (a data frame's header), as a Field of whole octets, each\n" \
+  "                  unpacked most significant bit first (a hex Field 0x0802...\n"
 
 typedef enum
 {
@@ -858,6 +874,7 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "level",
   "lfsr",
   "mac",
+  "mac_header",
   "modulation",
   "num_samples",
   "off_samples",
@@ -918,6 +935,7 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "level",
   "lfsr",
   "mac",
+  "mac_header",
   "modulation",
   "pn_length",
   "pn_poly",

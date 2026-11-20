@@ -1080,8 +1080,23 @@ refused: they ask for a symbol rate this waveform does not have. So are
 `--sps`, `--pulse` and the other options of a symbol-rate stream, and a
 frame description: the PHY builds its own fields. `--wlan` is refused beside
 `--constellation` or `--code-rate`, beside a bandwidth other than 20 MHz,
-and on any other type. `--mac data`, which takes a MAC header, is not yet
-available.
+and on any other type.
+
+`--mac data` takes the header from `--mac-header`, a [Field](fields.md) of
+whole octets (24, or 30 with the fourth address; a hex Field `0x0802...` is
+the octets it spells), and sends the PPDU of the header, the frame's octets
+and the FCS. The 36 Mb/s PPDU of a 100-octet body behind a 24-octet header
+(Frame Control, Duration, three addresses, Sequence Control):
+
+```sh
+wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
+       --mac-header 0x08020000ffffffffffff0200000000010200000000020000 \
+       --data pn:800:15 --data-len 800 -o macdata.cf32
+```
+
+`--mac-header` is refused with `--mac none` or `--mac fcs`, and `--mac data`
+is refused without it, with a header that is not 24 or 30 octets, or whose
+Field does not build.
 
 ## Coded frames — `--frame FILE`
 

@@ -88,6 +88,8 @@ VALUE = {
     "window": "4",
     "gap": "40",
     "bandwidth": "10e6",
+    # 24 octets: a data frame's header (only mac data takes it, and needs it)
+    "mac_header": "0x" + "08020000ffffffffffff0200000000010200000000020000",
 }
 
 #: What an ofdm row needs beside its own: a sample rate that is a multiple of
@@ -105,6 +107,7 @@ EXTRA = {
     "mac": _OFDM,
     "gap": _OFDM,
     "bandwidth": _OFDM,
+    "mac_header": [*_OFDM, "--mac", "data"],
     "modulation": ["--type", "bits", "--data", "1011"],
     "symbol_rate": ["--data-code", "1011"],
     # A payload is written for a source that carries one; a preamble or a
@@ -174,6 +177,7 @@ NO_COUNT = {
     "mac",
     "gap",
     "bandwidth",
+    "mac_header",
 }
 
 #: Rows this test cannot drive, each with the reason.

@@ -517,9 +517,12 @@ before any C.
 - a `scrambler_init` above 127. Zero is not refused: it draws the initial
     state per PPDU from `seed` and the frame index;
 - a `mac` outside `none`, `fcs` and `data`; `mac = data` without a
-    `mac_header` (until `mac_header` lands, `data` is refused whole), a
-    `mac_header` in any other mode, and a `mac = data` source whose octets
-    are too few to hold its header. `mac = fcs` takes one octet or more;
+    `mac_header`, a `mac_header` in any other mode, a `mac_header` that is
+    not whole octets, not 24 or 30 octets, a `data:LEN` or a Field that does
+    not build. `mac = fcs` takes one octet or more. The header is a Field
+    (a `wfm_seq_t`, as `data_code` is: reuse of its copy, free and JSON
+    handling), its octets unpacked most significant bit first like every
+    byte-to-bit unpacking here;
 - a `window` above 80 times `fs / bandwidth`, a negative `bandwidth`, a
     `constellation` or `code_rate` index no face offers (a C or Python
     source can give one), and a frame, its `gap` included, over 2^24 samples,
@@ -638,13 +641,12 @@ this repository.
 
 #### The 36 Mb/s PPDU
 
-The line below is proposed, not yet a parsable option, so it is a `text`
-fence; it becomes an `sh` fence when the field exists. The header is 24
-octets: Frame Control, Duration, three addresses, Sequence Control.
+The header is 24 octets: Frame Control, Duration, three addresses, Sequence
+Control. The line runs under `make test-snippets`.
 
-```text
+```sh
 wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
-    --mac-header 08020000ffffffffffff0200000000010200000000020000 \
+    --mac-header 0x08020000ffffffffffff0200000000010200000000020000 \
     --data pn:800:15 --data-len 800 -o ppdu.cf32
 ```
 

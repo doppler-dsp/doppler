@@ -89,6 +89,7 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
         free (srcs[k].symbols);
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
+        free ((void *)srcs[k].mac_header.bits);
         free ((void *)srcs[k].data.bits);
         free ((void *)srcs[k].fill.bits);
         free ((void *)srcs[k].data_from_file);

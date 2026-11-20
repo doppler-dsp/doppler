@@ -1245,6 +1245,112 @@ test_the_restore_edges (void)
   return 0;
 }
 
+/* The restore re-renders the frame in play, so it needs the renderer and the
+   bits in hand. Two blobs reach that point without them, and each is
+   refused rather than handed a NULL. */
+static int
+test_a_restore_without_the_renderer_or_the_bits (void)
+{
+  /* A: a renderer with no triplet, stepped mid frame, its blob taken. B: the
+     same installs, then the renderer detached before any step: its cursor
+     sits at the frame's end, so it can serialize, and every presence byte
+     matches A's. */
+  rend_t                ra = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sa = { .counter = 0 };
+  dp_wfm_synth_state_t *a = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
+                                                 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (a != NULL);
+  DP_REQUIRE (dp_wfm_synth_attach_frames (a, render, &ra, NULL, N_BITS, N_OUT)
+              == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill (a, src_refill, &sa, NULL) == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill_state (a, &SRC_OPS) == 0);
+  float _Complex x[N_OUT / 2];
+  dp_wfm_synth_steps (a, x, N_OUT / 2);
+  const size_t nb   = dp_wfm_synth_state_bytes (a);
+  uint8_t     *blob = malloc (nb);
+  DP_REQUIRE (nb != 0 && blob);
+  dp_wfm_synth_get_state (a, blob);
+
+  rend_t                rb = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sb = { .counter = 0 };
+  dp_wfm_synth_state_t *b = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
+                                                 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (b != NULL);
+  DP_REQUIRE (dp_wfm_synth_attach_frames (b, render, &rb, NULL, N_BITS, N_OUT)
+              == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill (b, src_refill, &sb, NULL) == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill_state (b, &SRC_OPS) == 0);
+  DP_REQUIRE (dp_wfm_synth_attach_frames (b, NULL, NULL, NULL, 0, 0) == 0);
+  DP_CHECK (dp_wfm_synth_state_refusal (b) == NULL);
+  DP_CHECK (dp_wfm_synth_state_bytes (b) == nb);
+  uint8_t *before = malloc (nb), *after = malloc (nb);
+  DP_REQUIRE (before && after);
+  dp_wfm_synth_get_state (b, before);
+  DP_CHECK (dp_wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
+  dp_wfm_synth_get_state (b, after);
+  DP_CHECK (memcmp (before, after, nb) == 0);
+  /* control: a synth with the renderer attached takes A's blob */
+  rend_t                rc = { .key = 7, .refuse_at = -1 };
+  bit_src_t             sc = { .counter = 0 };
+  dp_wfm_synth_state_t *c = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
+                                                 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (dp_wfm_synth_attach_frames (c, render, &rc, NULL, N_BITS, N_OUT)
+              == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill (c, src_refill, &sc, NULL) == 0);
+  DP_REQUIRE (dp_wfm_synth_set_refill_state (c, &SRC_OPS) == 0);
+  DP_CHECK (dp_wfm_synth_set_state (c, blob) == DP_OK);
+
+  /* a hand-edited blob: an end-of-frame blob of a synth with a renderer and
+     no refill, its cursor and frame count edited to put a frame in play,
+     whose presence byte for the bit source is 0 */
+  rend_t                rd = { .key = 7, .refuse_at = -1 };
+  dp_wfm_synth_state_t *d = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
+                                                 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (d != NULL);
+  DP_REQUIRE (dp_wfm_synth_attach_frames (d, render, &rd, NULL, N_BITS, N_OUT)
+              == 0);
+  const size_t nd    = dp_wfm_synth_state_bytes (d);
+  uint8_t     *dblob = malloc (nd);
+  DP_REQUIRE (nd != 0 && dblob);
+  dp_wfm_synth_get_state (d, dblob);
+  /* the honest blob has the cursor at N_OUT and no frame drawn: put it mid
+     frame with one frame rendered. The fields sit at fixed offsets after the
+     header (get_state's order: wtype, sym_pos, cur_re, cur_im, bit_idx,
+     sym_read_idx, ...); each is read back first, so a layout change fails
+     here and not by editing the wrong bytes. */
+  const size_t cursor_at = sizeof (dp_state_hdr_t) + 24u;
+  const size_t drawn_at  = sizeof (dp_state_hdr_t) + 83u;
+  uint64_t     v;
+  memcpy (&v, dblob + cursor_at, 8);
+  DP_CHECK (v == N_OUT);
+  memcpy (&v, dblob + drawn_at, 8);
+  DP_CHECK (v == 0);
+  const uint64_t mid = N_OUT / 2, one = 1;
+  memcpy (dblob + cursor_at, &mid, 8);
+  memcpy (dblob + drawn_at, &one, 8);
+  rend_t                re = { .key = 7, .refuse_at = -1 };
+  dp_wfm_synth_state_t *e = dp_wfm_synth_create (WFM_SYNTH_FRAMES, 1e6, 0.0,
+                                                 200.0, 0, 1, 1, 7, 0, 0, 0.0);
+  DP_REQUIRE (e != NULL);
+  DP_REQUIRE (dp_wfm_synth_attach_frames (e, render, &re, NULL, N_BITS, N_OUT)
+              == 0);
+  /* no bits in the blob (no bit source), a frame in play: refused, and the
+     renderer was not called with none */
+  DP_CHECK (dp_wfm_synth_set_state (e, dblob) == DP_ERR_INVALID);
+  DP_CHECK (re.calls == 0);
+  dp_wfm_synth_destroy (e);
+  free (dblob);
+  free (blob);
+  free (before);
+  free (after);
+  dp_wfm_synth_destroy (a);
+  dp_wfm_synth_destroy (b);
+  dp_wfm_synth_destroy (c);
+  dp_wfm_synth_destroy (d);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1275,6 +1381,7 @@ main (void)
   rc |= test_a_renderer_triplet_that_refuses_to_serialize_is_reported ();
   rc |= test_a_restore_never_writes_the_renderer ();
   rc |= test_the_restore_edges ();
+  rc |= test_a_restore_without_the_renderer_or_the_bits ();
   if (rc)
     return 1;
   DP_TEST_END ("wfm_synth_frames");

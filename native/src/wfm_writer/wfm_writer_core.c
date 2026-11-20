@@ -1104,8 +1104,13 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
           }
         else
           {
-            bw = (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
-                                                  : 0.0;
+            /* An ofdm source occupies its channel, not fs / sps: the
+               bandwidth field (0 is the 20 MHz default of a C source that
+               skipped the defaults). */
+            bw = src->type == WFM_SYNTH_FRAMES
+                     ? (src->bandwidth > 0.0 ? src->bandwidth : 20e6)
+                 : (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
+                                                    : 0.0;
             center = fc + d->freq;
             cJSON_AddNumberToObject (a, "core:freq_lower_edge",
                                      center - bw / 2.0);
@@ -1149,6 +1154,32 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
                 cJSON_AddNumberToObject (a, "wfmgen:frame_symbols",
                                          (double)src->frame_symbols);
               }
+          }
+        /* An ofdm source's configuration, by the names its faces give: what a
+           scorer needs to know which PPDUs the frames below are. The rate is
+           the pair (a `wlan` source's pair is its Table 17-6 row), the PHY
+           options and the idle gap, which is noise, not signal. */
+        if (src->type == WFM_SYNTH_FRAMES)
+          {
+            if (src->constellation >= 0 && src->constellation < 4)
+              cJSON_AddStringToObject (
+                  a, "wfmgen:constellation",
+                  OFDM_CONSTELLATION_NAMES[src->constellation]);
+            if (src->code_rate >= 0 && src->code_rate < 4)
+              cJSON_AddStringToObject (a, "wfmgen:code_rate",
+                                       OFDM_CODE_RATE_NAMES[src->code_rate]);
+            if (src->wlan)
+              cJSON_AddNumberToObject (a, "wfmgen:wlan", (double)src->wlan);
+            if (src->mac >= 0 && src->mac < 3)
+              cJSON_AddStringToObject (a, "wfmgen:mac",
+                                       OFDM_MAC_NAMES[src->mac]);
+            cJSON_AddNumberToObject (a, "wfmgen:scrambler_init",
+                                     (double)src->scrambler_init);
+            cJSON_AddNumberToObject (a, "wfmgen:window", (double)src->window);
+            cJSON_AddNumberToObject (a, "wfmgen:gap", (double)src->gap);
+            cJSON_AddNumberToObject (a, "wfmgen:bandwidth",
+                                     src->bandwidth > 0.0 ? src->bandwidth
+                                                          : 20e6);
           }
         /* The truth for scoring (payload-data-source.md 4.8): what the
          * source's data sent, as the record carries it -- frames, the fill

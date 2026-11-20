@@ -1029,9 +1029,11 @@ ______________________________________________________________________
 [data source](#data-a-payload-drawn-frame-by-frame): the L-STF, the L-LTF, the
 SIGNAL field and the Data field, built through the [`wlan`](../wlan.md)
 object from the frame's octets. `--data-len` is the PSDU in bits, a whole
-number of octets, and the first bit of each eight is the octet's least
-significant, the order the PHY sends them. A source ends when its data does,
-as every data source does.
+number of octets, and the first bit of each eight is the octet's most
+significant, the order a data file's bytes and a hex Field unpack in, so
+`--data-from-file psdu.bin` sends the PSDU in the file and `--data 0x0802...`
+the octets it spells. A source ends when its data does, as every data source
+does.
 
 The rate is one number, the 20 MHz data rate in Mb/s of Table 17-6: 6, 9, 12,
 18, 24, 36, 48 or 54. It is a second spelling of `--constellation` and

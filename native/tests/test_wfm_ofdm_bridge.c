@@ -21,8 +21,9 @@
 
 typedef float _Complex cf;
 
-/* 100 octets of a fixed pattern, as 800 literal bits, first bit least
-   significant: the bits the bridge packs back into these octets. */
+/* 100 octets of a fixed pattern, as 800 literal bits, first bit most
+   significant (a file's bytes and a hex Field unpack so): the bits the
+   bridge packs back into these octets. */
 static uint8_t bits_lit[1600]; /* the 800 bits twice: two frames */
 static uint8_t octets[100];
 
@@ -34,7 +35,7 @@ make_data (void)
       octets[k] = (uint8_t)(k * 7u + 3u);
       for (unsigned j = 0; j < 8u; j++)
         bits_lit[8u * k + j] = bits_lit[800u + 8u * k + j]
-            = (octets[k] >> j) & 1u;
+            = (octets[k] >> (7u - j)) & 1u;
     }
 }
 
@@ -728,6 +729,10 @@ test_a_data_file_gone_between_validation_and_build (void)
   dp_wfm_synth_state_t *ok = dp_wfm_source_to_synth (&s, 20e6);
   DP_CHECK (ok != NULL);
   dp_wfm_synth_destroy (ok);
+  /* the file's bytes are the PSDU's octets: the render is the PPDU wlan
+     builds from them (a file unpacks most significant bit first) */
+  const dp_wlan_rate_t r36 = { 4u, WLAN_CODE_3_4 };
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
   remove (path);
   DP_CHECK (dp_wfm_source_to_synth (&s, 20e6) == NULL);
   DP_CHECK (dp_wfm_compose_build_synth (&s, 20e6, 0, 0.0, 100.0, 0.0, 0, 0, 0)

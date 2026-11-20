@@ -932,7 +932,7 @@ test_a_child_that_refuses_its_payload_leaves_the_source_and_the_frame (void)
 static int
 test_reset_with_no_frame_in_play_replays_nothing (void)
 {
-  float _Complex x[N_OUT], y[N_OUT], want[N_OUT];
+  float _Complex x[N_OUT + 1], y[N_OUT], want[N_OUT];
   /* (a) a frame spent to its last sample: the cursor is at n_out, nothing is
      in play (set_state's definition), so reset leaves it and the next sample
      draws frame 1; frame 0 does not play twice */

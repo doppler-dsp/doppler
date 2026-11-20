@@ -379,7 +379,9 @@ class _SynthEngine:
         Configuration (patterns, codes, window, RRC taps, chirp span) is kept.
         With a refill attached the data-ended latch is NOT cleared and the
         rewound cursor replays the frame in the buffer (the last one pulled),
-        since a pulled source cannot rewind what it consumed.
+        since a pulled source cannot rewind what it consumed. A frames synth
+        replays only a frame in play and never clears the latch
+        (dp_wfm_synth_attach_frames()).
 
         Examples
         --------

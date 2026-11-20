@@ -1155,7 +1155,15 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
 
 /* One 802.11 octet is eight bits of the frame, the first bit its least
    significant: the order the PHY sends them in. */
-#define OFDM_PSDU_MAX 4095u
+
+/* The names tables (wfm_names.h) are indexed by these values: the order is
+   the contract, held here for the two C enums and in test_wfm_ofdm_bridge.c
+   for each name against its value. */
+_Static_assert (WLAN_CODE_1_2 == 0 && WLAN_CODE_2_3 == 1 && WLAN_CODE_3_4 == 2
+                    && WLAN_CODE_5_6 == 3,
+                "OFDM_CODE_RATE_NAMES is indexed by dp_wlan_code_t");
+_Static_assert (WLAN_MAC_NONE == 0 && WLAN_MAC_FCS == 1 && WLAN_MAC_DATA == 2,
+                "OFDM_MAC_NAMES is indexed by dp_wlan_mac_t");
 
 typedef struct
 {
@@ -1167,30 +1175,48 @@ typedef struct
   size_t   n_sym, ppdu_len, n_out;
 } wfofdm_geom_t;
 
+/* The rate pair of two indexes, which dp_wlan_n_bpsc has already vouched
+   for. */
+static dp_wlan_rate_t
+wfofdm_rate (int c, int r)
+{
+  return (dp_wlan_rate_t){ dp_wlan_n_bpsc (c), (dp_wlan_code_t)r };
+}
+
 /* The (constellation, code rate) a source names: wlan N expands through the
-   standard's Table 17-6; otherwise the two fields are the pair. */
+   standard's Table 17-6; otherwise the two fields are the pair, and an index
+   outside the four a face offers (a C or Python source can give one) is
+   refused in the field's own words. */
 static const char *
 wfofdm_pair (const wfm_source_t *src, int *c, int *r)
 {
   *c = src->constellation;
   *r = src->code_rate;
   if (!src->wlan)
-    return NULL;
-  const dp_wlan_tables_t *t = dp_wlan_tables_standard ();
-  dp_wlan_rate_t          pair;
-  if (!dp_wlan_rate_from_mbps (t, (unsigned)src->wlan, &pair))
+    {
+      if (!dp_wlan_n_bpsc (*c))
+        return "constellation is one of bpsk, qpsk, qam16 or qam64";
+      if (*r < 0 || *r > 3)
+        return "code_rate is one of 1/2, 2/3, 3/4 or 5/6";
+      return NULL;
+    }
+  dp_wlan_rate_t pair;
+  if (src->wlan < 0
+      || !dp_wlan_rate_from_mbps (dp_wlan_tables_standard (),
+                                  (unsigned)src->wlan, &pair))
     return "wlan is the 20 MHz data rate in Mb/s and takes one of 6, 9, 12, "
            "18, 24, 36, 48 or 54";
-  *c = pair.n_bpsc == 1u   ? 0
-       : pair.n_bpsc == 2u ? 1
-       : pair.n_bpsc == 4u ? 2
-                           : 3;
+  for (int k = 0; k < 4; k++)
+    if (dp_wlan_n_bpsc (k) == pair.n_bpsc)
+      *c = k;
   *r = (int)pair.code;
   return NULL;
 }
 
 /* The channel bandwidth: 0 (a C source that skipped the defaults) is the
-   preset's 20 MHz. */
+   preset's 20 MHz. A negative one is a finite wrong value, refused by name
+   in ofdm_source_error; a NaN compares false and takes the default, so it
+   reaches no size or index. */
 static double
 wfofdm_bw (const wfm_source_t *src)
 {
@@ -1208,7 +1234,8 @@ ofdm_source_error (const wfm_source_t *src)
         return "wlan is the 802.11 data rate of an ofdm source: give type "
                "ofdm, or drop wlan";
       if (src->constellation || src->code_rate || src->scrambler_init
-          || src->window || src->mac || src->gap || wfofdm_bw (src) != 20e6)
+          || src->window || src->mac || src->gap
+          || (src->bandwidth != 0.0 && src->bandwidth != 20e6))
         return "constellation, code_rate, scrambler_init, window, mac, gap "
                "and bandwidth are fields of an ofdm source: give type ofdm, "
                "or drop them";
@@ -1217,6 +1244,9 @@ ofdm_source_error (const wfm_source_t *src)
   if (src->wlan && (src->constellation || src->code_rate))
     return "wlan is a spelling of constellation and code_rate: give wlan, "
            "or constellation and code_rate, not both";
+  if (src->bandwidth < 0.0)
+    return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
+           "source, not negative";
   if (src->wlan && wfofdm_bw (src) != 20e6)
     return "wlan is the data rate at 20 MHz, and a bandwidth other than "
            "20 MHz carries a different rate for the same pair: give "
@@ -1229,24 +1259,18 @@ ofdm_source_error (const wfm_source_t *src)
   const char *why = wfofdm_pair (src, &c, &r);
   if (why)
     return why;
-  /* The first argument that fails, by name, as every face says it. The
-     window and the oversampling are checked at fs, in
-     dp_wfm_ofdm_fs_error: M is not known here. */
-  if ((why = dp_wlan_params_why (c, r, 0u, 1u)) != NULL)
-    return why;
-  const dp_wlan_rate_t pair = { c == 0   ? 1u
-                                : c == 1 ? 2u
-                                : c == 2 ? 4u
-                                         : 6u,
-                                (dp_wlan_code_t)r };
+  const dp_wlan_rate_t pair = wfofdm_rate (c, r);
   unsigned             mbps;
   if (!dp_wlan_mbps (dp_wlan_tables_standard (), &pair, &mbps))
     return "this constellation and code_rate have no SIGNAL RATE bits "
            "(Table 17-6 lists eight of the sixteen pairs)";
-  if ((unsigned)src->scrambler_init > 127u)
+  if (src->scrambler_init < 0 || src->scrambler_init > 127)
     return "scrambler_init is the 7-bit initial state: 1 to 127, or 0 to "
            "draw one per PPDU from seed";
-  if (src->mac == 2)
+  if (src->mac != WLAN_MAC_NONE && src->mac != WLAN_MAC_FCS
+      && src->mac != WLAN_MAC_DATA)
+    return "mac is one of none, fcs or data";
+  if (src->mac == WLAN_MAC_DATA)
     return "mac data needs a mac_header, which this release does not take: "
            "use mac none or fcs";
   if (src->snr_mode == 2 || src->snr_mode == 3)
@@ -1263,14 +1287,15 @@ ofdm_source_error (const wfm_source_t *src)
   const size_t bits = common_data_len (src);
   if (bits == 0 || bits % 8u)
     return "an ofdm frame is whole octets: data_len must be a multiple of 8";
-  const size_t psdu = bits / 8u + (src->mac == 1 ? 4u : 0u);
-  if (psdu < 1u || psdu > OFDM_PSDU_MAX)
+  if (!dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, 0, bits / 8u))
     return "an ofdm frame's PSDU is 1 to 4095 octets, the FCS included: "
-           "data_len out of range";
+           "data_len is out of range";
   return NULL;
 }
 
-/* The rules that need fs, and the geometry they decide. */
+/* The rules that need fs, and the geometry they decide. Every size_t field is
+   range-checked BEFORE it is narrowed or summed: a wrapped sum allocates a
+   frame smaller than the renderer writes. */
 static const char *
 wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
 {
@@ -1288,24 +1313,21 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
   g->constellation = c;
   g->code_rate     = r;
   g->oversample    = (unsigned)m;
-  if ((why = dp_wlan_params_why (c, r, (uint32_t)src->window, g->oversample))
-      != NULL)
-    return why;
-  g->n_bits                 = common_data_len (src);
-  g->psdu_len               = g->n_bits / 8u + (src->mac == 1 ? 4u : 0u);
-  const dp_wlan_rate_t pair = { c == 0   ? 1u
-                                : c == 1 ? 2u
-                                : c == 2 ? 4u
-                                         : 6u,
-                                (dp_wlan_code_t)r };
+  if (src->window > (size_t)WLAN_SYM_LEN * g->oversample)
+    return "window is 0 to 80 times fs over bandwidth samples: the "
+           "shortest OFDM symbol";
+  g->n_bits   = common_data_len (src);
+  g->psdu_len = dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, 0, g->n_bits / 8u);
+  const dp_wlan_rate_t pair = wfofdm_rate (c, r);
   g->n_sym                  = dp_wlan_rate_n_sym (&pair, g->psdu_len);
   g->ppdu_len
       = dp_wlan_ppdu_len (g->n_sym, (unsigned)src->window, g->oversample);
   if (!g->ppdu_len)
     return "this PSDU does not fit one PPDU at this rate: shorten data_len";
-  g->n_out = g->ppdu_len + src->gap;
-  if (g->n_out > WFM_SYNTH_FRAME_MAX)
+  if (g->ppdu_len > WFM_SYNTH_FRAME_MAX
+      || src->gap > WFM_SYNTH_FRAME_MAX - g->ppdu_len)
     return "an ofdm frame, its gap included, is at most 2^24 samples";
+  g->n_out = g->ppdu_len + src->gap;
   return NULL;
 }
 
@@ -1334,8 +1356,8 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
               float _Complex *out, size_t n_out)
 {
   wfofdm_render_t *r = u;
-  uint8_t          psdu[OFDM_PSDU_MAX];
-  uint8_t          body[OFDM_PSDU_MAX];
+  uint8_t          psdu[WLAN_PSDU_MAX];
+  uint8_t          body[WLAN_PSDU_MAX];
   if (n_bits != r->n_bits || n_out != r->n_out)
     return 1;
   const size_t n_oct = n_bits / 8u;
@@ -1346,16 +1368,10 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
         b = (uint8_t)(b | (bits[8u * k + j] << j));
       body[k] = b;
     }
-  size_t len = n_oct;
-  if (r->mac == 1)
-    {
-      len = dp_wlan_mpdu (WLAN_MAC_FCS, NULL, 0, body, n_oct, psdu,
-                          sizeof psdu);
-      if (!len)
-        return 1;
-    }
-  else
-    memcpy (psdu, body, n_oct);
+  const size_t len = dp_wlan_mpdu ((dp_wlan_mac_t)r->mac, NULL, 0, body, n_oct,
+                                   psdu, sizeof psdu);
+  if (!len)
+    return 1;
   uint32_t scr = r->scrambler_init;
   if (!scr)
     {
@@ -1380,34 +1396,34 @@ wfofdm_free (void *u)
   free (r);
 }
 
-/* The renderer's configuration, as bytes: the reject keys. */
+/* The renderer's configuration, as bytes: the reject keys. Only what no other
+   key already decides: the frame's bit count and length are the synth's own
+   keys, and the gap is n_out less the PPDU's length, which the keys below
+   (rate, window, M, mac) and the bit count fix. Each key here is proved
+   alone by test_wfm_ofdm_bridge.c, at an equal n_out. */
 #define WFOF_STATE_MAGIC DP_FOURCC ('W', 'F', 'O', 'F')
 #define WFOF_STATE_VERSION 1u
-#define OFDM_STATE_BYTES (sizeof (dp_state_hdr_t) + 7u * 4u + 4u * 8u)
+#define WFOF_STATE_BYTES (sizeof (dp_state_hdr_t) + 6u * 4u + 8u)
 
 static size_t
 wfofdm_state_bytes (const void *u)
 {
   (void)u;
-  return OFDM_STATE_BYTES;
+  return WFOF_STATE_BYTES;
 }
 
 static void
 wfofdm_get_state (const void *u, void *blob)
 {
   const wfofdm_render_t *r = u;
-  DP_GET_OPEN (WFOF_STATE_MAGIC, WFOF_STATE_VERSION, OFDM_STATE_BYTES);
+  DP_GET_OPEN (WFOF_STATE_MAGIC, WFOF_STATE_VERSION, WFOF_STATE_BYTES);
   dp_w_u32 (&_w, r->constellation);
   dp_w_u32 (&_w, r->code_rate);
   dp_w_u32 (&_w, r->window);
   dp_w_u32 (&_w, r->oversample);
   dp_w_u32 (&_w, (uint32_t)r->mac);
   dp_w_u32 (&_w, r->scrambler_init);
-  dp_w_u32 (&_w, 0u);
   dp_w_u64 (&_w, r->seed);
-  dp_w_u64 (&_w, r->gap);
-  dp_w_u64 (&_w, r->n_bits);
-  dp_w_u64 (&_w, r->n_out);
 }
 
 /* Never called by the synth (it compares get_state's bytes); present for the

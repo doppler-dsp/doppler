@@ -300,13 +300,12 @@ class _SynthEngine:
 
     Parameters
     ----------
-    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss", "ofdm"], default "tone"
+    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"], default "tone"
         The waveform. For `bits` attach the pattern with set_bits(), for
-        `symbols` the complex stream with set_symbols(), for `dsss` the burst
-        with set_dsss_chips(), and for `ofdm` the frame renderer with
-        attach_frames() (C only), each after construction.
+        `symbols` the complex stream with set_symbols(), and for `dsss` the
+        burst with set_dsss_chips(), after construction.
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
-        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``, ``"ofdm"``.
+        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     fs : float, default 1000000.0
         Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
         against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.
@@ -359,7 +358,7 @@ class _SynthEngine:
 
     def __init__(
         self,
-        type: Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss", "ofdm"] = "tone",
+        type: Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"] = "tone",
         fs: float = 1000000.0,
         freq: float = 0.0,
         snr: float = 100.0,

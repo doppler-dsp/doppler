@@ -1938,6 +1938,7 @@ dp_wlan_map function
 dp_wlan_mbps function
 dp_wlan_mpdu function
 dp_wlan_mpdu_len function
+dp_wlan_n_bpsc function
 dp_wlan_n_cbps function
 dp_wlan_n_dbps function
 dp_wlan_n_sym function

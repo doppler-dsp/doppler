@@ -457,9 +457,11 @@ typedef struct {
                             output rate, filled with noise at the source's
                             noise variance. */
     double bandwidth; /**< For type=ofdm: the channel bandwidth in Hz, 20e6,
-                            10e6 or 5e6 for 802.11a/g/p/j. The segment's fs
-                            must be an integer multiple of it; the multiple is
-                            the oversampling M, done by a larger transform. */
+                            10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the
+                            default. The segment's fs must be an integer
+                            multiple of it, at most 128 times it; the
+                            multiple is the oversampling M, done by a larger
+                            transform. */
     wfm_seq_t mac_header; /**< For type=ofdm with mac=data: the MAC header, 24 or
                             30 octets (a data frame's header). A Field of whole
                             octets on the command line and in a scene, where a
@@ -984,8 +986,9 @@ const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 /**
  * @brief The rules of an `ofdm` source that need the segment's sample rate:
  *        `fs` is an integer multiple of `bandwidth` (the oversampling `M`,
- *        done by a larger transform), `window` is within 80 `M` samples, and
- *        a frame with its `gap` is at most 2^24 samples. Asked by
+ *        done by a larger transform), `M` is at most 128, `window` is within
+ *        80 `M` samples, and a frame with its `gap` is at most 2^24 samples.
+ *        Asked by
  *        dp_wfm_scene_error(), so every face says the same sentence.
  *
  * @param src  The source; any other type, or one that fails its rate-free

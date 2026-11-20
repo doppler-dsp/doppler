@@ -430,7 +430,7 @@
         "bandwidth": {
           "type": "number",
           "default": 20000000.0,
-          "description": "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j. The segment's fs must be an integer multiple of it; the multiple is the oversampling M, done by a larger transform. Omitted from a record at its default."
+          "description": "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an integer multiple of it, at most 128 times it; the multiple is the oversampling M, done by a larger transform. Omitted from a record at its default."
         },
         "mac_header": {
           "type": "string",

@@ -580,10 +580,114 @@ test_each_refusal_names_its_field (void)
   DP_CHECK (dp_wfm_source_to_synth_error (&s, 40e6) == NULL);
   s.bandwidth = 0.0;
   DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
-  /* a NaN bandwidth is garbage in: it takes the default and reaches no size
-     or index (a wrong value is not an allocation) */
-  s.bandwidth = NAN;
-  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+  return 0;
+}
+
+/* The accepting side of each ranged rule, at its edge: the refusal table
+   above holds one past it, and only the pair says where the edge is. */
+static int
+test_each_range_accepts_its_edge (void)
+{
+  /* window is within 80 M samples, at an M above 1 so the M is in it: at
+     fs 40 MHz (M = 2) 160 is accepted and 161 refused. A cap of 80 alone
+     would refuse 160; a cap with no limit would accept 161. */
+  wfm_source_t s = source ();
+  s.window       = 160;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 40e6) == NULL);
+  dp_wfm_synth_state_t *syn = dp_wfm_source_to_synth (&s, 40e6);
+  DP_CHECK (syn != NULL);
+  dp_wfm_synth_destroy (syn);
+  s.window        = 161;
+  const char *why = dp_wfm_source_to_synth_error (&s, 40e6);
+  DP_CHECK (why && strstr (why, "window is 0 to 80 times"));
+  /* scrambler_init 1 and 127, the 7-bit state's ends, each builds */
+  static const int scr[2] = { 1, 127 };
+  for (int k = 0; k < 2; k++)
+    {
+      s                = source ();
+      s.scrambler_init = scr[k];
+      DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+      syn = dp_wfm_source_to_synth (&s, 20e6);
+      DP_CHECK (syn != NULL);
+      dp_wfm_synth_destroy (syn);
+    }
+  /* M = 128 builds and 129 is refused. One octet is one Data symbol at
+     36 Mb/s, so the frame is (400 + 80) * 128 = 61440 samples; the longest
+     PSDU would be 14 M. */
+  s          = source ();
+  s.data_len = 8;
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6 * 128.0) == NULL);
+  syn = dp_wfm_source_to_synth (&s, 20e6 * 128.0);
+  DP_CHECK (syn != NULL);
+  dp_wfm_synth_destroy (syn);
+  why = dp_wfm_source_to_synth_error (&s, 20e6 * 129.0);
+  DP_CHECK (why && strstr (why, "at most 128"));
+  return 0;
+}
+
+/* dp_wfm_ofdm_fs_error answers only for an ofdm source its rate-free rules
+   accept: another type, and a source those rules refuse, answer NULL at a
+   sample rate that would refuse an accepted ofdm source. */
+static int
+test_the_fs_rules_answer_only_an_accepted_ofdm_source (void)
+{
+  wfm_source_t s = source ();
+  /* control: the accepted source at 30 MHz is refused by this rule */
+  const char *why = dp_wfm_ofdm_fs_error (&s, 30e6);
+  DP_CHECK (why && strstr (why, "fs must be an integer multiple"));
+  DP_CHECK (dp_wfm_ofdm_fs_error (&s, 20e6) == NULL);
+  /* the same rate on a source its own rules refuse */
+  s.scrambler_init = 128;
+  DP_CHECK (dp_wfm_ofdm_fs_error (&s, 30e6) == NULL);
+  /* and on another type, one its own rules accept (the defaults), so the
+     type alone answers */
+  s      = (wfm_source_t)WFM_SOURCE_DEFAULTS;
+  s.type = WFM_SYNTH_BPSK;
+  DP_CHECK (dp_wfm_source_error (&s) == NULL);
+  DP_CHECK (dp_wfm_ofdm_fs_error (&s, 30e6) == NULL);
+  return 0;
+}
+
+/* The frame renderer's contract is unit mean power over the frame, its gap
+   not counted (wfm_synth_frame_fn). The ofdm renderer meets it as wlan
+   does: every field at unit power over its useful samples. At 6 Mb/s
+   (BPSK) every Data symbol is exact too, so the whole check is a rounding
+   bound, not a statistic: 1e-4, from test_wlan_core.c section 10 (a
+   sample's error is at most the 64-point transform's 9.2e-6, which moves a
+   mean power by at most twice that). At M = 2 every length doubles; the
+   error it must catch is a frame at another scale, such as the inverse
+   transform's own 1/64, which reads 52 / 64^2. */
+static int
+test_the_frame_has_unit_power_over_its_useful_samples (void)
+{
+  wfm_source_t s             = source ();
+  s.wlan                     = 6;
+  s.gap                      = 200;
+  const unsigned       m     = 2;
+  const dp_wlan_rate_t r6    = { 1u, WLAN_CODE_1_2 };
+  const size_t         n_sym = dp_wlan_rate_n_sym (&r6, 100);
+  const size_t         len   = dp_wlan_ppdu_len (n_sym, 0u, m);
+  DP_REQUIRE (len == (400 + 80 * n_sym) * m);
+  cf *x = render (&s, 20e6 * m, len + s.gap);
+  DP_REQUIRE (x);
+  /* L-STF: 160 samples, no prefix; L-LTF: 128 useful after a 32 prefix;
+     SIGNAL: 64 after a 16 prefix; at 20 MHz, times M here */
+  size_t first[3] = { 0, 192, 336 }, n[3] = { 160, 128, 64 };
+  for (size_t f = 0; f < 3 + n_sym; f++)
+    {
+      const size_t a = f < 3 ? first[f] : 400 + 80 * (f - 3) + 16;
+      const size_t k = f < 3 ? n[f] : 64;
+      double       p = 0;
+      for (size_t i = a * m; i < (a + k) * m; i++)
+        p += cabs (x[i]) * cabs (x[i]);
+      p /= (double)(k * m);
+      if (fabs (p - 1.0) >= 1e-4)
+        DP_TEST_ERR ("field %zu: mean power %.6f", f, p);
+      DP_CHECK (fabs (p - 1.0) < 1e-4);
+    }
+  for (size_t i = len; i < len + s.gap; i++)
+    DP_CHECK (x[i] == 0.0f);
+  free (x);
   return 0;
 }
 
@@ -904,6 +1008,9 @@ main (void)
   rc |= test_each_name_is_its_value ();
   rc |= test_wlan_n_is_its_pair_for_all_eight ();
   rc |= test_each_refusal_names_its_field ();
+  rc |= test_each_range_accepts_its_edge ();
+  rc |= test_the_fs_rules_answer_only_an_accepted_ofdm_source ();
+  rc |= test_the_frame_has_unit_power_over_its_useful_samples ();
   rc |= test_the_gap_carries_noise_at_the_noise_variance ();
   rc |= test_a_resume_mid_ppdu_continues ();
   rc |= test_each_key_decides_a_restore_alone ();

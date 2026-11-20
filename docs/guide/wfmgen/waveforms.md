@@ -1065,7 +1065,8 @@ not a hole in it. The default `--window 0` is no transition shaping at all, and 
 meet the 802.11 transmit mask when oversampled. Measured at `fs` = 80 MHz
 (`M` = 4): `--window 0` reads -35.4 dBr at 30 MHz against the mask's -40, and
 a window of 2 `M` samples (8 there) passes every point
-([#3190](https://github.com/doppler-dsp/doppler/issues/3190)). At 40 MHz
+([#3190](https://github.com/doppler-dsp/doppler/issues/3190)); the
+measurement is in `src/doppler/wlan/tests/validation/wlan/results.md`. At 40 MHz
 the mask is representable to 20 MHz only, since 30 MHz is above Nyquist.
 A source meant to meet the mask gives `--window`:
 

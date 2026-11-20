@@ -532,6 +532,7 @@
 * **WLAN\_STF\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_SYM\_LEN** ([**wlan\_core.h**](wlan__core_8h.md))
 * **WLAN\_TAIL\_BITS** ([**wlan\_core.h**](wlan__core_8h.md))
+* **WLAN\_WINDOW\_STANDARD** ([**wlan\_core.h**](wlan__core_8h.md))
 
 
 

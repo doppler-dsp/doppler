@@ -2041,6 +2041,7 @@
 * **dp\_wlan\_signal\_bits** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_tables\_empty** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_tables\_standard** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_window\_resolve** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dot\_q15\_scalar** ([**q15\_mac.h**](q15__mac_8h.md))
 
 

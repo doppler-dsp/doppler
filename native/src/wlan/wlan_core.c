@@ -240,6 +240,12 @@ wlan_window_ok (uint32_t window, uint32_t oversample)
   return window <= WLAN_SYM_LEN * oversample;
 }
 
+uint32_t
+dp_wlan_window_resolve (uint32_t window, uint32_t oversample)
+{
+  return window == WLAN_WINDOW_STANDARD ? 2u * oversample : window;
+}
+
 const char *
 dp_wlan_params_why (int constellation, int code_rate, uint32_t window,
                     uint32_t oversample)
@@ -250,7 +256,8 @@ dp_wlan_params_why (int constellation, int code_rate, uint32_t window,
     return "code_rate must be 0 to 3";
   if (oversample < 1 || oversample > WLAN_OVERSAMPLE_MAX)
     return "oversample must be 1 to 128";
-  if (!wlan_window_ok (window, oversample))
+  if (!wlan_window_ok (dp_wlan_window_resolve (window, oversample),
+                       oversample))
     return "window must be 0 to 80 * oversample";
   return NULL;
 }
@@ -275,7 +282,7 @@ dp_wlan_create (int constellation, int code_rate, uint32_t window,
   s->code            = (uint32_t)code_rate;
   s->n_cbps          = dp_wlan_n_cbps (&r);
   s->n_dbps          = dp_wlan_n_dbps (&r);
-  s->window          = window;
+  s->window          = dp_wlan_window_resolve (window, oversample);
   s->oversample      = oversample;
   unsigned mbps      = 0;
   s->rate_mbps

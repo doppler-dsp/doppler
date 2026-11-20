@@ -162,10 +162,10 @@ def test_ppdu_is_the_c_output_for_the_36_mbps_ppdu():
 def test_ppdu_oversampled_decimates_to_the_20_mhz_ppdu():
     """oversample=2 is the same PPDU on a grid twice as fine."""
     psdu = _psdu()
-    x1 = Wlan(constellation="qam16", code_rate="r34").ppdu(psdu, 93)
-    x2 = Wlan(constellation="qam16", code_rate="r34", oversample=2).ppdu(
-        psdu, 93
-    )
+    x1 = Wlan(constellation="qam16", code_rate="r34", window=0).ppdu(psdu, 93)
+    x2 = Wlan(
+        constellation="qam16", code_rate="r34", window=0, oversample=2
+    ).ppdu(psdu, 93)
     assert x1.shape == (880,) and x2.shape == (1760,)
     assert _rel_l2(x2[::2], x1) < _TOL
     # control: a half-coarse-sample shift of the fine grid is far over it
@@ -175,6 +175,23 @@ def test_ppdu_oversampled_decimates_to_the_20_mhz_ppdu():
 def test_ppdu_length_follows_window_and_oversample():
     w = Wlan(constellation="qam16", code_rate="r34", window=3, oversample=4)
     assert w.ppdu(_psdu(), 93).shape == (4 * (160 + 160 + 80 + 480) + 3,)
+
+
+@pytest.mark.parametrize("oversample", [1, 2, 4, 128])
+def test_the_default_window_is_the_standards_100_ns(oversample):
+    """Nothing passed is the 100 ns transition, `2 * oversample` samples at
+    the output rate (17.3.2.5), and 0 is the explicit rectangular choice."""
+    default = Wlan(oversample=oversample)
+    assert default.window == 2 * oversample
+    rect = Wlan(window=0, oversample=oversample)
+    assert rect.window == 0
+    # the window is real: the PPDU is longer by it, and its samples differ
+    xd, xr = (w.ppdu(_psdu(), 93) for w in (default, rect))
+    assert xd.shape[0] - xr.shape[0] == 2 * oversample
+    assert not np.array_equal(xd[: xr.shape[0]], xr)
+    # control: a window of the same length asked for by count is the default
+    same = Wlan(window=2 * oversample, oversample=oversample)
+    np.testing.assert_array_equal(same.ppdu(_psdu(), 93), xd)
 
 
 def test_window_and_oversample_read_back():
@@ -224,7 +241,7 @@ def test_ppdu_refuses_naming_why(n_psdu, state, why):
 
 
 def test_ppdu_refuses_a_short_output_buffer_and_leaves_it():
-    w = Wlan(constellation="qam16", code_rate="r34")
+    w = Wlan(constellation="qam16", code_rate="r34", window=0)
     out = np.full(879, 123 + 0j, dtype=np.complex64)
     with pytest.raises(ValueError, match="need >= 880"):
         w.ppdu(_psdu(), 93, out=out)
@@ -246,7 +263,7 @@ def test_a_pair_with_no_table_row_cannot_be_sent_and_says_so():
 @pytest.mark.parametrize("n_psdu", [1, 4095])
 def test_ppdu_takes_the_psdu_length_edges(n_psdu):
     """4095 octets at 6 Mb/s is the layout's largest PPDU."""
-    w = Wlan(constellation="bpsk", code_rate="r12")
+    w = Wlan(constellation="bpsk", code_rate="r12", window=0)
     x = w.ppdu(_psdu(n_psdu), 93)
     assert x.shape == (w.ppdu_max_out(n_psdu),)
     assert x.shape == (160 + 160 + 80 + 80 * w.n_sym(n_psdu),)

@@ -34,6 +34,7 @@ extern "C"
 #define WLAN_GI 16u
 #define WLAN_SYM_LEN 80u
 #define WLAN_OVERSAMPLE_MAX 128u
+#define WLAN_WINDOW_STANDARD UINT32_MAX
 #define WLAN_STF_LEN 160u
 #define WLAN_LTF_LEN 160u
 #define WLAN_SIG_BITS 24u
@@ -106,7 +107,7 @@ typedef struct
 dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
                                  uint32_t window, uint32_t oversample);
 
-unsigned dp_wlan_n_bpsc (int constellation);
+uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
 
 const char *dp_wlan_params_why (int constellation, int code_rate,
                                 uint32_t window, uint32_t oversample);
@@ -137,7 +138,7 @@ size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 
 size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
-size_t dp_wlan_ppdu_max_out (const dp_wlan_state_t *state, size_t n_in);
+size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
 
 int64_t dp_wlan_ppdu_why(dp_wlan_state_t *state, const uint8_t *in, size_t n_in, uint32_t scrambler_state, float _Complex *out, size_t max_out, const char **why);
 

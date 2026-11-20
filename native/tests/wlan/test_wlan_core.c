@@ -1746,6 +1746,54 @@ main (void)
     free (off);
   }
 
+  /* ── 10d'. The default window: WLAN_WINDOW_STANDARD ────────────────────
+   * The header (WLAN_WINDOW_STANDARD, dp_wlan_window_resolve): the sentinel
+   * is the standard's 100 ns transition, `2 * M` samples; any other value is
+   * returned as it came, so 0 stays the rectangular choice; the free
+   * functions take counts and refuse the sentinel as out of range. */
+  {
+    static const uint32_t ms[] = { 1, 2, 4, 16, 128 };
+    for (size_t i = 0; i < sizeof ms / sizeof *ms; i++)
+      {
+        const uint32_t m = ms[i];
+        DP_CHECK (dp_wlan_window_resolve (WLAN_WINDOW_STANDARD, m) == 2u * m);
+        DP_CHECK (dp_wlan_window_resolve (0, m) == 0);
+        DP_CHECK (dp_wlan_window_resolve (3, m) == 3);
+        dp_wlan_state_t *d = dp_wlan_create (2, 2, WLAN_WINDOW_STANDARD, m);
+        dp_wlan_state_t *r = dp_wlan_create (2, 2, 0, m);
+        DP_REQUIRE (d != NULL && r != NULL);
+        /* the state holds the count, never the sentinel */
+        DP_CHECK (d->window == 2u * m && r->window == 0);
+        /* the PPDU is longer by the window: ppdu_why_max_out reads it */
+        DP_CHECK (dp_wlan_ppdu_why_max_out (d, 100)
+                  == dp_wlan_ppdu_why_max_out (r, 100) + 2u * m);
+        dp_wlan_destroy (d);
+        dp_wlan_destroy (r);
+      }
+    /* the oversampling is still named first, and a refusal about the window
+       never quotes the sentinel */
+    DP_CHECK (strstr (dp_wlan_params_why (0, 0, WLAN_WINDOW_STANDARD, 0),
+                      "oversample")
+              != NULL);
+    DP_CHECK (dp_wlan_params_why (0, 0, WLAN_WINDOW_STANDARD, 4) == NULL);
+    DP_CHECK (strstr (dp_wlan_params_why (0, 0, 81, 1), "0 to 80") != NULL);
+    /* the free functions refuse the sentinel, leaving the modulator alone */
+    {
+      dp_ofdm_state_t *o = dp_ofdm_create ();
+      DP_CHECK (dp_wlan_layout (o, dp_wlan_tables_standard (), 1,
+                                WLAN_WINDOW_STANDARD, 1)
+                == -1);
+      DP_CHECK (o->n_cls == 0 && o->n_runs == 0 && !o->sealed);
+      dp_ofdm_destroy (o);
+      const dp_wlan_rate_t rate    = { 4, WLAN_CODE_3_4 };
+      uint8_t              psdu[8] = { 0 };
+      static float _Complex out[4096];
+      DP_CHECK (dp_wlan_ppdu (dp_wlan_tables_standard (), &rate, psdu, 8, 93,
+                              WLAN_WINDOW_STANDARD, 1, out, 4096)
+                == 0);
+    }
+  }
+
   /* ── 10e. The window reaches a symbol body only above the guard interval ─
    * The header (dp_wlan_create): "Above the 16 * M guard interval the
    * cross-fade reaches into the symbol body." The modulator weights only a

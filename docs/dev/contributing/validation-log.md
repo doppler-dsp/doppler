@@ -103,7 +103,7 @@ listed the moment its folder exists. There is no list here to update.
 | [Frame](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md)                         | `wfm`         | 16/16  | 4        | 1 — F2                     |
 | [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md)                           | `wfm`         | 18/18  | 4        | 2 — F1, F2                 |
 | [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md)                       | `wfm`         | 20/20  | 4        | 2 — F2, F3                 |
-| [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                         | `wfm`         | 21/21  | 6        | 1 — F5                     |
+| [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                         | `wfm`         | 22/22  | 10       | 2 — F5, F9                 |
 | [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                       | `wfm`         | 16/16  | 5        | none                       |
 | [Wlan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wlan/tests/validation/wlan/results.md)                              | `wlan`        | 5/5    | 7        | 2 — F4, F7                 |
 | [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md)                           | `— (C only)`  | 12/12  | 5        | 1 — F2                     |

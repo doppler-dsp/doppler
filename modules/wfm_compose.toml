@@ -708,6 +708,22 @@ type = "double"
 default = "20e6"
 doc = "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for 802.11a/g/p/j. The segment's fs must be an integer multiple of it; the multiple is the oversampling M, done by a larger transform."
 
+[[module.wfm_compose.source.fields]]
+name = "mac_header"
+json = "mac_header"
+json_when = { type = "ofdm" }
+cli = "--mac-header"
+metavar = "FIELD"
+help_section = "OFDM"
+type = "uint8_t*"
+bytes = true
+coerce = "bit_pattern"
+# An object takes bits: a str is refused, naming field_bits(), as data_code's is.
+coerce_str_fn = "dp_wfm_source_bits_refuse_text"
+c_ptr = "mac_header.bits"
+c_len = "mac_header.len"
+doc = "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data frame's header), as a Field of whole octets, each unpacked most significant bit first (a hex Field 0x0802... is the octets it spells). The PHY appends the frame's octets (the data source) and the FCS. Refused with mac none or fcs, and without it for mac data."
+
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
 bridge_fn = "dp_wfm_source_to_synth"

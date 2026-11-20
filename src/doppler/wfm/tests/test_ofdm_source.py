@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import zlib
 
 import numpy as np
 import pytest
@@ -105,6 +106,26 @@ REFUSALS = {
         ["--mac", "data"],
         "mac data needs a mac_header",
     ),
+    "header-too-short": (
+        {**_OK, "wlan": 36, "mac": "data", "mac_header": "0x" + "00" * 20},
+        ["--mac", "data", "--mac-header", "0x" + "00" * 20],
+        "mac_header is a data frame's header",
+    ),
+    "header-not-whole-octets": (
+        {**_OK, "mac": "data", "mac_header": "10101"},
+        ["--mac", "data", "--mac-header", "10101"],
+        "mac_header is whole octets",
+    ),
+    "header-with-mac-none": (
+        {**_OK, "mac_header": "0x" + "00" * 24},
+        ["--mac-header", "0x" + "00" * 24],
+        "mac_header is the MAC header",
+    ),
+    "header-with-mac-fcs": (
+        {**_OK, "mac": "fcs", "mac_header": "0x" + "00" * 24},
+        ["--mac", "fcs", "--mac-header", "0x" + "00" * 24],
+        "mac_header is the MAC header",
+    ),
     "data-len-not-octets": (
         {**_OK, "data_len": 12},
         ["--data-len", "12"],
@@ -115,7 +136,10 @@ REFUSALS = {
 
 def _kwargs(seg: dict) -> dict:
     """A scene segment as Python keywords: the data Field becomes bits."""
-    return {k: field_bits(v) if k == "data" else v for k, v in seg.items()}
+    return {
+        k: field_bits(v) if k in ("data", "mac_header") else v
+        for k, v in seg.items()
+    }
 
 
 def _cli(args: list[str], tmp_path):
@@ -249,3 +273,56 @@ def test_the_frame_flags_are_refused_for_ofdm(flags, tmp_path):
     )
     assert p.returncode == 2, p.stderr
     assert "ofdm renders finished samples" in p.stderr, p.stderr
+
+
+#: A 24-octet data frame header: Frame Control, Duration, three addresses,
+#: Sequence Control.
+HEADER = bytes.fromhex("08020000ffffffffffff0200000000010200000000020000")
+
+
+def test_mac_data_is_header_body_and_fcs_on_every_face(tmp_path):
+    """mac data sends the PPDU of header + the frame's octets + the FCS,
+    the FCS computed here (zlib's CRC-32, least significant octet first), not
+    by the code under test, and the three faces agree."""
+    body = bytes(OCTETS)
+    psdu = HEADER + body
+    psdu += zlib.crc32(psdu).to_bytes(4, "little")
+    want = Wlan(constellation="qam16", code_rate="r34").ppdu(
+        np.frombuffer(psdu, np.uint8), 93
+    )
+    seg = {
+        **_OK,
+        "scrambler_init": 93,
+        "mac": "data",
+        "mac_header": "0x" + HEADER.hex(),
+    }
+    kw = _kwargs(seg)
+    got = Synth(**kw).steps(len(want))
+    np.testing.assert_allclose(got, want, atol=1e-5)
+    again = Composer.from_json(
+        json.dumps({"version": 1, "segments": [seg]})
+    ).compose()
+    np.testing.assert_array_equal(again, got)
+    p, out = _cli(
+        [
+            "--type",
+            "ofdm",
+            "--fs",
+            "20e6",
+            "--wlan",
+            "36",
+            "--scrambler-init",
+            "93",
+            "--mac",
+            "data",
+            "--mac-header",
+            "0x" + HEADER.hex(),
+            "--data",
+            "pn:800:15",
+            "--data-len",
+            "800",
+        ],
+        tmp_path,
+    )
+    assert p.returncode == 0, p.stderr
+    np.testing.assert_array_equal(np.fromfile(out, np.complex64), got)

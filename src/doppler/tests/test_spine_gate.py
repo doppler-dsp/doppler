@@ -377,6 +377,29 @@ def test_removing_an_artifact_turns_its_row_missing(
     assert f"widget {key}:" not in complete.err
 
 
+def _private(imported: bool) -> Callable[[Path], None]:
+    """The object's class renamed ``_Widget``: private, so not in
+    ``__all__`` (just-makeit gh-2607), and imported by the package or not."""
+
+    def change(root: Path) -> None:
+        toml = (root / "objects/widget.toml").read_text(encoding="utf-8")
+        _w(root, "objects/widget.toml", toml.replace('"Widget"', '"_Widget"'))
+        line = "from .sig import _Widget\n\n" if imported else ""
+        _w(root, "src/doppler/sig/__init__.py", line + "__all__ = []\n")
+
+    return change
+
+
+def test_a_private_class_is_bound_by_its_import(branch: Branch) -> None:
+    r = _gate(branch(_private(imported=True)))
+    assert r.states["Bind"] == "present", r.out
+    assert "widget bind/class:" not in r.err
+    # Control: the same private class with no import line is not bound.
+    c = _gate(branch(_private(imported=False)))
+    assert c.states["Bind"] == "missing", c.out
+    assert "widget bind/class:" in c.err
+
+
 LAND = [
     ("no-changelog", {"fragment": False}, "land/changelog"),
     ("no-issue-line", {"msg": "feat: the widget\n"}, "land/issue-link"),

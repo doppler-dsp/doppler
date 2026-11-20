@@ -119,6 +119,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import ast
 import os
 import re
 import subprocess
@@ -391,6 +392,42 @@ def _norm(name: str) -> str:
     return name.replace("_", "").lower()
 
 
+def _private_bound(
+    root: Path,
+    manifest: dict[str, object],
+    objects: Iterable[str],
+    package: dict[str, str],
+) -> dict[str, str]:
+    """``{dotted: bare}`` for the bound classes no ``__all__`` lists.
+
+    ``__all__`` is a package's public list, and a name that starts with an
+    underscore is never in it (just-makeit gh-2607). An object whose
+    ``class_name`` is such a name (``_SynthEngine``) is bound all the same
+    when its package's ``__init__.py`` imports it by name, which is the
+    line jm writes for it. The import is read from the source, so a
+    private class nothing imports is still missing.
+    """
+    found: dict[str, str] = {}
+    for obj in objects:
+        table = manifest.get(obj)
+        name = table.get("class_name") if isinstance(table, dict) else None
+        pkg = package.get(obj, "")
+        if not (isinstance(name, str) and name.startswith("_") and pkg):
+            continue
+        init = root / "src" / PKG / pkg / "__init__.py"
+        if not init.is_file():
+            continue
+        imported = {
+            alias.asname or alias.name
+            for node in ast.walk(ast.parse(init.read_text(encoding="utf-8")))
+            if isinstance(node, ast.ImportFrom)
+            for alias in node.names
+        }
+        if name in imported:
+            found[f"{PKG}.{pkg}.{name}"] = name
+    return found
+
+
 def _classes(
     manifest: dict[str, object], obj: str, pkg: str, exported: dict[str, str]
 ) -> dict[str, str]:
@@ -401,8 +438,9 @@ def _classes(
     object's with the underscores dropped (``acc_f32`` is ``AccF32``).
     Only classes its own package exports count, so a neighbour's class of
     the same name is not this object's. A class whose name starts with an
-    underscore (``_SynthEngine``) is exported and not public: it is bound,
-    and owes no user story of its own.
+    underscore (``_SynthEngine``) is imported by its package and not in
+    ``__all__`` (:func:`_private_bound`): it is bound, and owes no user
+    story of its own.
     """
     table = manifest.get(obj)
     declared: set[str] = set()
@@ -569,6 +607,7 @@ def survey(
         for sym, kind in syms.items()
         if kind == "class"
     }
+    exported.update(_private_bound(root, manifest, objects, package))
     classes = {
         o: _classes(manifest, o, package.get(o, ""), exported) for o in objects
     }

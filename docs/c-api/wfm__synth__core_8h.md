@@ -366,7 +366,7 @@ int dp_wfm_synth_attach_frames_state (
 
 
 
-For a renderer that carries configuration: the blob nests `ops'` get\_state over the renderer's `user`, and [**dp\_wfm\_synth\_set\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_state) refuses a blob whose sub-blob differs from the live renderer's by a byte. The bytes are the renderer's reject keys, never running state: `ops'` set\_state is not called (it keeps its slot, for the triplet's shape), and a state\_bytes of 0 makes the synth refuse to serialize.
+For a renderer that carries configuration: the blob nests `ops'` get\_state over the renderer's `user`, and [**dp\_wfm\_synth\_set\_state()**](wfm__synth__core_8h.md#function-dp_wfm_synth_set_state) refuses a blob whose sub-blob differs from the live renderer's by a byte. The bytes are the renderer's reject keys, never running state: `ops'` set\_state is not called (it may be NULL), and a state\_bytes of 0 makes the synth refuse to serialize.
 
 
 

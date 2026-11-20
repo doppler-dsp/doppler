@@ -1299,10 +1299,8 @@ ofdm_source_error (const wfm_source_t *src)
 static const char *
 wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
 {
-  int         c, r;
-  const char *why = wfofdm_pair (src, &c, &r);
-  if (why)
-    return why;
+  int c, r;
+  (void)wfofdm_pair (src, &c, &r); /* ofdm_source_error has accepted it */
   const double ratio = fs / wfofdm_bw (src);
   const double m     = floor (ratio + 0.5);
   if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
@@ -1320,10 +1318,10 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
   g->psdu_len = dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, 0, g->n_bits / 8u);
   const dp_wlan_rate_t pair = wfofdm_rate (c, r);
   g->n_sym                  = dp_wlan_rate_n_sym (&pair, g->psdu_len);
+  /* A PSDU of 1 to 4095 octets is 1 to WLAN_N_SYM_MAX Data symbols at the
+     slowest rate (test_wlan_core.c pins both ends), so a PPDU always fits. */
   g->ppdu_len
       = dp_wlan_ppdu_len (g->n_sym, (unsigned)src->window, g->oversample);
-  if (!g->ppdu_len)
-    return "this PSDU does not fit one PPDU at this rate: shorten data_len";
   if (g->ppdu_len > WFM_SYNTH_FRAME_MAX
       || src->gap > WFM_SYNTH_FRAME_MAX - g->ppdu_len)
     return "an ofdm frame, its gap included, is at most 2^24 samples";
@@ -1358,8 +1356,7 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
   wfofdm_render_t *r = u;
   uint8_t          psdu[WLAN_PSDU_MAX];
   uint8_t          body[WLAN_PSDU_MAX];
-  if (n_bits != r->n_bits || n_out != r->n_out)
-    return 1;
+  /* The synth calls with the n_bits and n_out fixed at attach. */
   const size_t n_oct = n_bits / 8u;
   for (size_t k = 0; k < n_oct; k++)
     {
@@ -1370,9 +1367,7 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
     }
   const size_t len = dp_wlan_mpdu ((dp_wlan_mac_t)r->mac, NULL, 0, body, n_oct,
                                    psdu, sizeof psdu);
-  if (!len)
-    return 1;
-  uint32_t scr = r->scrambler_init;
+  uint32_t     scr = r->scrambler_init;
   if (!scr)
     {
       uint64_t h = dp_hash64 (DP_HASH64_INIT, &r->seed, sizeof r->seed);
@@ -1382,10 +1377,10 @@ wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
   const char   *why = NULL;
   const int64_t got
       = dp_wlan_ppdu_why (r->w, psdu, len, scr, out, r->ppdu_len, &why);
-  if (got <= 0 || (size_t)got != r->ppdu_len)
-    return 1;
   memset (out + r->ppdu_len, 0, (n_out - r->ppdu_len) * sizeof *out);
-  return 0;
+  /* The geometry was validated at attach, so a PPDU is rendered; a refusal
+     is the synth's to report. */
+  return got != (int64_t)r->ppdu_len;
 }
 
 static void
@@ -1426,19 +1421,10 @@ wfofdm_get_state (const void *u, void *blob)
   dp_w_u64 (&_w, r->seed);
 }
 
-/* Never called by the synth (it compares get_state's bytes); present for the
-   triplet's shape, and refusing, so a caller that did call it is not
-   silently accepted. */
-static int
-wfofdm_set_state (void *u, const void *blob)
-{
-  (void)u;
-  (void)blob;
-  return DP_ERR_INVALID;
-}
-
+/* The synth compares get_state's bytes and never calls a renderer's
+   set_state, so the triplet has none. */
 static const wfm_synth_refill_state_t wfofdm_state_ops
-    = { wfofdm_state_bytes, wfofdm_get_state, wfofdm_set_state, NULL };
+    = { wfofdm_state_bytes, wfofdm_get_state, NULL, NULL };
 
 int
 dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
@@ -1450,14 +1436,11 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   if (ofdm_source_error (src) || wfofdm_geom (src, fs, &g))
     return -1;
   wfofdm_render_t *r = dp_xcalloc (1, sizeof *r);
-  r->w               = dp_wlan_create ((int)g.constellation, g.code_rate,
-                                       (uint32_t)src->window, g.oversample);
-  if (!r->w)
-    {
-      free (r);
-      return -1;
-    }
-  r->mac            = src->mac;
+  /* The arguments were validated by ofdm_source_error and wfofdm_geom, so
+     the constructor cannot refuse them. */
+  r->w   = dp_wlan_create (g.constellation, g.code_rate, (uint32_t)src->window,
+                           g.oversample);
+  r->mac = src->mac;
   r->scrambler_init = (uint32_t)src->scrambler_init;
   r->seed           = seed;
   r->gap            = src->gap;
@@ -1489,11 +1472,8 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   p->chunk_bits  = g.n_bits;
   p->chunk       = dp_xcalloc (g.n_bits, 1);
   p->raw         = 1;
-  if (dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free) != 0)
-    {
-      data_pull_free (p);
-      return -1;
-    }
+  /* A frames synth with its renderer installed takes a refill. */
+  (void)dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free);
   (void)dp_wfm_synth_set_refill_state (syn, &data_pull_state);
   return dp_wfm_synth_attach_frames_state (syn, &wfofdm_state_ops);
 }

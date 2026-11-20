@@ -966,7 +966,7 @@ int dp_wfm_synth_attach_frames(dp_wfm_synth_state_t *state, wfm_synth_frame_fn f
  * over the renderer's `user`, and dp_wfm_synth_set_state() refuses a blob whose
  * sub-blob differs from the live renderer's by a byte. The bytes are the
  * renderer's reject keys, never running state: @p ops' set_state is not called
- * (it keeps its slot, for the triplet's shape), and a state_bytes of 0 makes
+ * (it may be NULL), and a state_bytes of 0 makes
  * the synth refuse to serialize.
  *
  * @param state  a synth with a renderer installed.

@@ -200,7 +200,7 @@ test_mac_data_renders_header_body_and_fcs (void)
   wfm_source_t g = source ();
   g.mac          = WLAN_MAC_DATA;
   g.mac_header   = (wfm_seq_t){
-    .kind = WFM_SEQ_PN, .len = 8u * 24u, .reg_bits = 15, .seed_a = 1
+    .kind = WFM_SEQ_PN, .len = 8u * 24u, .reg_bits = 15, .seed = 1
   };
   DP_CHECK (dp_wfm_source_to_synth_error (&g, 20e6) == NULL);
   uint8_t gb[240];

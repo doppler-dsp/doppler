@@ -294,7 +294,7 @@ def review() -> None:
         "`dp_wlan_layout` checked its window only through the modulator: "
         "for 80 M < window <= 160 M the L-STF and L-LTF classes were added "
         "to the caller's modulator before the SIGNAL class refused. The "
-        "window ceiling is now one helper that `dp_wlan_params_why` and the "
+        "window ceiling is one helper that `dp_wlan_params_why` and the "
         "layout's up-front guard both call, and the header says a refusal "
         "by the arguments leaves the modulator untouched (C 10f).",
     )
@@ -305,7 +305,8 @@ def review() -> None:
         "had passed. Every in-range pair builds (C section 1) and the "
         "allocation aborts rather than return NULL, so the branch was "
         "dead, and it was the only way `dp_wlan_create_why` could have "
-        "returned NULL with its reason unset. Removed.",
+        "returned NULL with its reason unset. `dp_wlan_create` has no such "
+        "branch.",
     )
     R.find(
         "default_window_fails_mask",
@@ -498,7 +499,7 @@ def build(write: bool = True) -> Report:
             "error grows to -25 dB near 24 M, and an early receiver pays "
             f"from 8 M ({R.ref('window_cost_by_rx_timing')}, §2.1).",
             "**Every header claim is pinned in C beside a control**, and a "
-            "layout refused by its arguments now leaves the modulator "
+            "layout refused by its arguments leaves the modulator "
             f"untouched ({R.ref('wlan_layout_window_refused_late')}).",
             "**Conformance stops at the printed tables**: Annex I's worked "
             "PPDU is not transcribed "

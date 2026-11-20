@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 
 foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo rate_converter_demo
              ccsds_link_demo dsss_burst_receiver_demo burst_capture_demo
-             wfmgen_demo wfmgen_frame_demo wfmgen_data_source_demo framed_link_demo
+             wfmgen_demo wfmgen_frame_demo wfmgen_data_source_demo wfmgen_ofdm_demo framed_link_demo
              data_source_link_demo
              wfm_field_demo
              doppler_channel_profile_demo async_despread_demo

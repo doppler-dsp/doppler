@@ -3027,12 +3027,11 @@ class AsyncDsssReceiver:
         search is bit-identical at every count, so this changes the cost of a
         steps() call and nothing about its output. A pool that steps its
         receivers in parallel sets each one to 1. A mutator's value, so it
-        travels in the state blob (#2022). The blob carries the count that RAN,
-        not the request: set_threads(0) on a writer restores as the count the
-        writer ran (its online cores, capped at the tiles at D = 1) on any
-        reader, by design -- a resumed receiver runs as the one that was
-        checkpointed, and a pool's 1 is 1 everywhere. Setup path; not while
-        another thread is inside steps().
+        travels in the state blob (#2022), in one place: the searcher's own
+        blob, as the request, which dp_correlator_set_state() applies through
+        dp_correlator_set_threads(). A pool's 1 restores as 1 everywhere; a
+        writer's 0 restores as 0, which the reader runs on its own online
+        cores. Setup path; not while another thread is inside steps().
 
         Parameters
         ----------

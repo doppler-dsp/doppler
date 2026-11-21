@@ -5125,8 +5125,9 @@ main (void)
    * the tile count. The second
    * emitter is what makes the list's second scan -- a fanned pick over
    * the working mask -- part of the comparison. And the pool's
-   * lifecycle: a tiled continuous engine starts with one, a burst engine
-   * and a single-tile one never have one, set_threads re-sizes it. */
+   * lifecycle: a tiled continuous engine starts one at its first push, a
+   * burst engine has none until asked, one tile at D = 1 never has one,
+   * set_threads starts and re-sizes it. */
   {
     const size_t           spc = 2, sf = 7, nx = sf * spc, D = 4;
     const double           crate = 1.0e6;
@@ -5136,8 +5137,9 @@ main (void)
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->search->window_bins == 3 && c->search->coherent_bins == D);
     DP_REQUIRE (dp_correlator_set_max_peaks (c, 4, NULL) == 0);
-    DP_CHECK_MSG (c->search->threads >= 1,
-                  "a tiled engine starts with a pool");
+    DP_CHECK_MSG (c->search->threads >= 1 && c->pool == NULL,
+                  "a tiled engine counts its workers and starts none "
+                  "before its first push");
     /* A standalone engine fans its per-epoch stages too (#2775); only a
        composition clears it. Sabotage: create's default 0 -> red. */
     DP_CHECK_MSG (c->search->epoch_fan == 1,
@@ -5147,8 +5149,10 @@ main (void)
         CODE7, sf, crate * (double)spc, crate, 0.0, 70.0, 0.0, 1e-2, 0.9, 0, 1,
         0.0);
     DP_REQUIRE (one != NULL);
+    DP_REQUIRE (one->search->window_bins == 1
+                && one->search->coherent_bins == 1);
     DP_CHECK_MSG (one->search->threads == 1 && one->pool == NULL,
-                  "a single-tile engine runs serially");
+                  "a single-tile engine at D = 1 runs serially");
     DP_CHECK (dp_correlator_set_threads (one, 4) == DP_OK
               && one->search->threads == 1);
     dp_correlator_destroy (one);
@@ -5238,10 +5242,153 @@ main (void)
                       "the surface is byte-identical with the epoch fan off");
         c->search->epoch_fan = 1;
       }
+    /* One tile at D > 1 takes the request too (#3055): its map fans by
+       epoch, bin and row as a tiled block's does, and its decide pass is
+       one chunk at every count, so no byte can move. A burst engine is
+       that search, and asks for one worker until told otherwise.
+       Sabotage: ask for workers only at window_bins > 1 (the rule before
+       #3055) -> the count reads 1 at 2, 4 and 8. */
+    {
+      dp_correlator_state_t *o = burst_from_code (
+          CODE7, sf, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 0.0);
+      DP_REQUIRE (o != NULL);
+      DP_REQUIRE_MSG (o->search->window_bins == 1
+                          && o->search->coherent_bins > 1
+                          && n >= o->search->frame_n,
+                      "one tile, a block of several epochs, and a stream "
+                      "that fills one");
+      /* The coherent surface: a burst engine keeps no decided one. */
+      const size_t    ns   = o->search->n_surf;
+      float _Complex *oref = malloc (ns * sizeof *oref);
+      float _Complex *ogot = malloc (ns * sizeof *ogot);
+      DP_REQUIRE (oref && ogot);
+      DP_CHECK (o->search->threads == 1 && o->pool == NULL);
+      const size_t noref  = dp_correlator_push (o, x, n, href, 16);
+      const float  onoise = o->noise_est;
+      DP_CHECK (dp_correlator_surface_complex (o, oref, ns) == ns);
+      for (int i = 0; i < 3; i++)
+        {
+          DP_CHECK (dp_correlator_set_threads (o, counts[i]) == DP_OK);
+          DP_CHECK_MSG (o->search->threads == counts[i] && o->pool != NULL,
+                        "a one-tile D > 1 block takes every worker asked "
+                        "for");
+          dp_correlator_reset (o);
+          const size_t ngot = dp_correlator_push (o, x, n, hgot, 16);
+          DP_CHECK (ngot == noref);
+          DP_CHECK (dp_correlator_surface_complex (o, ogot, ns) == ns);
+          DP_CHECK_MSG (memcmp (oref, ogot, ns * sizeof *oref) == 0,
+                        "one tile: the surface is byte-identical at any "
+                        "thread count");
+          DP_CHECK_MSG (memcmp (&o->noise_est, &onoise, sizeof onoise) == 0,
+                        "one tile: the CFAR reference is bit-identical at "
+                        "any count");
+          for (size_t h = 0; h < ngot && h < noref; h++)
+            DP_CHECK (hgot[h].row == href[h].row && hgot[h].col == href[h].col
+                      && hgot[h].peak_mag == href[h].peak_mag
+                      && hgot[h].test_stat == href[h].test_stat);
+        }
+      /* The request is a mutator's value (#2022): it travels in the blob
+         and a restore applies it through set_threads, so a target at one
+         worker resumes at three. A blob whose tail is not zero is refused
+         and leaves the target's request as it was. Sabotage: drop the
+         restore, or the write, in get/set_state -> the request reads 1. */
+      {
+        DP_REQUIRE (dp_correlator_set_threads (o, 3) == DP_OK
+                    && o->search->threads == 3);
+        dp_correlator_state_t *t = burst_from_code (
+            CODE7, sf, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 0.0);
+        DP_REQUIRE (t != NULL && t->search->threads_req == 1);
+        const size_t sb = dp_correlator_state_bytes (o);
+        DP_REQUIRE (sb == dp_correlator_state_bytes (t));
+        unsigned char *blob = malloc (sb), *bad = malloc (sb);
+        DP_REQUIRE (blob && bad);
+        dp_correlator_get_state (o, blob);
+        DP_CHECK (dp_correlator_set_state (t, blob) == DP_OK);
+        DP_CHECK_MSG (t->search->threads_req == 3 && t->search->threads == 3,
+                      "the thread request travels in the blob");
+        const size_t at_pad
+            = DP_CORRELATOR_SEARCH_EXTRA_OFF + offsetof (search_extra_t, _pad);
+        const uint32_t one = 1;
+        DP_REQUIRE (dp_correlator_set_threads (t, 1) == DP_OK);
+        memcpy (bad, blob, sb);
+        memcpy (bad + at_pad, &one, sizeof one);
+        DP_CHECK (dp_correlator_set_state (t, bad) == DP_ERR_INVALID);
+        DP_CHECK_MSG (t->search->threads_req == 1,
+                      "a refused blob leaves the request as it was");
+        free (blob);
+        free (bad);
+        dp_correlator_destroy (t);
+      }
+      /* A restore at the request the target already has keeps its running
+         pool: the same workers, which have run (their generation counts
+         the fans). Two things hold it: set_state applies the request only
+         when it moved, and set_threads() at the running count keeps the
+         pool. The second has its own row below; the first, alone, has the
+         unpushed-engine row after this block. Sabotage: both at once ->
+         a new pool, generation 0. */
+      {
+        DP_REQUIRE (dp_correlator_set_threads (o, 3) == DP_OK);
+        dp_correlator_reset (o);
+        (void)dp_correlator_push (o, x, n, hgot, 16);
+        const dp_pool_t    *pool = o->pool;
+        const unsigned long gen  = pool ? pool->gen : 0;
+        DP_REQUIRE_MSG (pool != NULL && gen > 0, "a pool that has run");
+        const size_t   sb   = dp_correlator_state_bytes (o);
+        unsigned char *blob = malloc (sb);
+        DP_REQUIRE (blob != NULL);
+        dp_correlator_get_state (o, blob);
+        DP_CHECK (dp_correlator_set_state (o, blob) == DP_OK);
+        DP_CHECK_MSG (o->pool == pool && o->pool->gen == gen,
+                      "a restore at the same request keeps the running "
+                      "pool");
+        /* The setter's own half. Sabotage: rebuild the pool in
+           search_apply_threads() at an unchanged count -> red. */
+        DP_CHECK (dp_correlator_set_threads (o, 3) == DP_OK);
+        DP_CHECK_MSG (o->pool == pool && o->pool->gen == gen,
+                      "set_threads at the running count keeps the pool");
+        free (blob);
+      }
+      free (ogot);
+      free (oref);
+      dp_correlator_destroy (o);
+    }
+    /* A restore at the request the target already has starts nothing: a
+       tiled engine before its first push has counted its workers and
+       started none, and a blob at its own request leaves it so. Sabotage:
+       apply the request in set_state even when it has not moved ->
+       set_threads() starts the workers by name. Needs two cores for the
+       count to be more than one; on one, there are no workers to start. */
+    {
+      dp_correlator_state_t *f = dp_correlator_create_continuous (
+          CODE7, sf, crate * (double)spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9,
+          0, 7, 0.0);
+      DP_REQUIRE (f != NULL && f->pool == NULL && f->search->threads_req == 0);
+      const size_t   sb   = dp_correlator_state_bytes (f);
+      unsigned char *blob = malloc (sb);
+      DP_REQUIRE (blob != NULL);
+      dp_correlator_get_state (f, blob);
+      DP_CHECK (dp_correlator_set_state (f, blob) == DP_OK);
+      if (f->search->threads > 1)
+        DP_CHECK_MSG (f->pool == NULL,
+                      "a restore at the same request starts no workers");
+      free (blob);
+      dp_correlator_destroy (f);
+    }
+    /* A count that drops gives the map's worker slots back: each holds
+       its own FFT plans and scratch. Explicit counts, so a one-core box
+       grows and trims the same. Sabotage: drop dp__dd_map_trim() from
+       search_apply_threads() -> the map keeps 4. */
+    DP_REQUIRE (dp_correlator_set_threads (c, 4) == DP_OK
+                && c->search->threads == 4);
+    DP_CHECK (dp__dd_map_slots (c->dd_map) == 4);
+    DP_REQUIRE (dp_correlator_set_threads (c, 2) == DP_OK
+                && c->search->threads == 2);
+    DP_CHECK_MSG (dp__dd_map_slots (c->dd_map) == 2,
+                  "a dropped thread count frees the map's extra slots");
     DP_CHECK (dp_correlator_set_threads (c, 0) == DP_OK
               && c->search->threads >= 1);
-    /* After a regrid to one tile the engine runs serially, with no pool
-       (#2746) -- not the workers the tiled grid had. Two asked for
+    /* After a regrid to one tile at D = 1 the engine runs serially, with
+       no pool (#2746) -- not the workers the tiled grid had. Two asked for
        explicitly, so the premise holds on a one-core box too. (The D = 1
        cap at the tiles is test_correlator_regrid_failure's: a D = 1 regrid
        is reachable only there.) */

@@ -632,6 +632,12 @@ typedef struct
   double zone_half_chips; /**< CORRELATOR_STATE_VERSION 3:
                                dp_correlator_set_peak_zone()'s
                                half_chips (a mutator, #2022).      */
+  int32_t threads_req; /**< CORRELATOR_STATE_VERSION 4:
+                            dp_correlator_set_threads()'s n, the REQUEST
+                            (a mutator, #2022), restored through the
+                            setter, so the target's grid and cores cap
+                            it as they would at the call.          */
+  uint32_t _pad;       /**< Zero: the struct's tail, written.       */
 } search_extra_t;
 
 /** @brief Where a search flavor's @ref search_extra_t sits in its blob: after

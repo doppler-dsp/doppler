@@ -509,6 +509,7 @@
 * **json\_why** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 * **json** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_bool** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **json\_keep\_zero** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_omit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_required** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 

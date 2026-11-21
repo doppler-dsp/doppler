@@ -16,8 +16,10 @@ What it shows, in order:
    each draws its scrambler's initial state from ``seed`` and its index, so
    they differ and the run is reproducible.
 3. ``fs`` twice the bandwidth is a larger transform, not a resampler: with
-   no window every second sample is the 20 MHz PPDU's, and a ``gap`` after
-   each PPDU is noise at the source's noise variance.
+   no window (``window=0``) every second sample is the 20 MHz PPDU's, and a
+   ``gap`` after each PPDU is noise at the source's noise variance. The
+   source's default window is the standard's 100 ns, ``2 * fs / bandwidth``
+   samples, as ``Wlan``'s is.
 
 Every claim is an explicit check that exits non-zero on failure.
 
@@ -63,8 +65,7 @@ x = ppdu()
 psdu = HEADER + body
 psdu += zlib.crc32(psdu).to_bytes(4, "little")  # the FCS, least significant
 # octet first
-# window=0: the ofdm source still defaults to rectangular (#3190)
-want = Wlan(constellation="qam16", code_rate="r34", window=0).ppdu(
+want = Wlan(constellation="qam16", code_rate="r34").ppdu(
     np.frombuffer(psdu, np.uint8), 93
 )
 n = len(want)
@@ -98,10 +99,16 @@ check(
 # 3. twice the bandwidth: a larger transform, and the gap's noise
 z = ppdu(fs=40e6)
 check("at 40 MHz a PPDU is twice as long", len(z) == 4 * n)
-d = np.abs(z[0 : 2 * n : 2] - x[:n])
+# The same 100 ns window is `2 M` samples, and a window cross-fades the
+# transition on a finer grid, so the two rates agree outside it; with no
+# window (window=0) the 40 MHz samples are the 20 MHz ones, every second.
+r20 = ppdu(window=0)
+r40 = ppdu(fs=40e6, window=0)
+m = len(r20) // 2  # one PPDU, no window
+d = np.abs(r40[0 : 2 * m : 2] - r20[:m])
 check(
-    "every second sample is the 20 MHz PPDU's",
-    np.sqrt(np.sum(d**2) / np.sum(np.abs(x[:n]) ** 2)) < 1.5e-3,
+    "with no window every second sample is the 20 MHz PPDU's",
+    np.sqrt(np.sum(d**2) / np.sum(np.abs(r20[:m]) ** 2)) < 1.5e-3,
 )
 GAP = 20000
 g = np.asarray(

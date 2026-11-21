@@ -1057,22 +1057,33 @@ run re-renders the same PPDU.
 half- and quarter-clocked channels). The multiple is done by a larger
 transform, not a resampler, so with `--window 0` every second sample of the
 40 MHz PPDU is the 20 MHz one, to float rounding (a window blends the
-neighbours of each symbol boundary, so it is not). `--window N` is the transition window in samples at the output
-rate, at most 80 times the multiple, and `--gap N` is `N` idle samples after
-each PPDU. A source with `--snr` puts its noise in the gap too, at the
-variance the PPDU carries, so a gap is a silent stretch of the channel and
-not a hole in it. The default `--window 0` is no transition shaping at all, and it does not
-meet the 802.11 transmit mask when oversampled. Measured at `fs` = 80 MHz
-(`M` = 4): `--window 0` reads -35.4 dBr at 30 MHz against the mask's -40, and
-a window of 2 `M` samples (8 there) passes every point
-([#3190](https://github.com/doppler-dsp/doppler/issues/3190)); the
-measurement is in `src/doppler/wlan/tests/validation/wlan/results.md`. At 40 MHz
-the mask is representable to 20 MHz only, since 30 MHz is above Nyquist.
-A source meant to meet the mask gives `--window`:
+neighbours of each symbol boundary, so it is not). `--window N` is the
+transition window in samples at the output rate, at most 80 times the
+multiple. Left out it is the standard's 100 ns transition, `2 * fs / bandwidth` samples (`wlan`'s default at the same oversampling), and `--window 0` is no transition shaping at all. A scene or a record written from the
+source holds the count, so it renders the same samples under any later
+default. `--gap N` is `N` idle samples after each PPDU. A source with `--snr`
+puts its noise in the gap too, at the variance the PPDU carries, so a gap is
+a silent stretch of the channel and not a hole in it.
+
+The default window is what meets the 802.11 transmit mask when oversampled.
+Measured at `fs` = 80 MHz (`M` = 4): `--window 0` reads -35.4 dBr at 30 MHz
+against the mask's -40, and the default window of 2 `M` samples (8 there)
+passes every point; the measurement is in
+`src/doppler/wlan/tests/validation/wlan/results.md` (finding
+`default_window_fails_mask`). At 40 MHz the mask is representable to 20 MHz
+only, since 30 MHz is above Nyquist.
 
 ```sh
-wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --window 4 --gap 400 \
+wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --gap 400 \
        --snr 20 --seed 7 --data pn:3200:15 --data-len 1600 -o oversampled.cf32
+```
+
+A source that wants no transition shaping, the rectangular window, asks for
+it:
+
+```sh
+wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --window 0 --gap 400 \
+       --snr 20 --seed 7 --data pn:3200:15 --data-len 1600 -o rect.cf32
 ```
 
 The noise reference is the signal power over the noise power in the full

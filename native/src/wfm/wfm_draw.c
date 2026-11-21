@@ -10,6 +10,8 @@
 
 #include "doppler/wfm/wfm_compose.h"
 
+#include <math.h>
+
 /* Deterministic uniform double in [0,1) from a 64-bit key (splitmix64). */
 static double
 draw_u01 (uint64_t key)
@@ -168,4 +170,29 @@ dp_wfm_compose_draws (const wfm_segment_t *segs, size_t n_segs,
         }
     }
   return total;
+}
+
+/* The channel bandwidth of an ofdm source: 0 (a C source that skipped the
+   defaults) is the preset's 20 MHz. A negative one is a finite wrong value,
+   refused by name in ofdm_source_error; a NaN compares false and takes the
+   default, so it reaches no size or index. */
+double
+dp_wfm_source_bandwidth (const wfm_source_t *src)
+{
+  return src->bandwidth > 0.0 ? src->bandwidth : 20e6;
+}
+
+size_t
+dp_wfm_source_window (const wfm_source_t *src, double fs)
+{
+  if (src->window != WFM_WINDOW_UNSET)
+    return src->window;
+  /* The oversampling wfofdm_geom derives from the same two numbers; a rate
+     that is no whole multiple of the bandwidth has none, and the unset value
+     is left for dp_wfm_ofdm_fs_error to refuse. */
+  const double ratio = fs / dp_wfm_source_bandwidth (src);
+  const double m     = floor (ratio + 0.5);
+  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
+    return WFM_WINDOW_UNSET;
+  return 2u * (size_t)m;
 }

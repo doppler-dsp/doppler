@@ -32,6 +32,7 @@
     .rrc_beta = 0.35, \
     .rrc_span = 8, \
     .acq_reps = 1, \
+    .window = WFM_WINDOW_UNSET, \
     .bandwidth = 20e6 \
   }
 

@@ -319,7 +319,11 @@ def review() -> None:
         "to spare; `window=0`, by asking, still fails by those margins, as "
         "a stated property of the rectangular choice. At M = 1 the mask "
         "beyond 10 MHz is not representable at all. wfmgen's ofdm source "
-        "still defaults to 0 (#3190).",
+        "takes the same default: its samples equal `Wlan`'s at M = 1, 2 "
+        "and 4 (`test_the_default_window_is_the_standards_100_ns` in "
+        "`src/doppler/wfm/tests/test_ofdm_source.py`, and the C pin "
+        "`test_the_default_window_is_the_standards_100_ns`), so the mask "
+        "result carries over to it (#3190).",
     )
     R.find(
         "mask_peak_reference_biased",
@@ -496,8 +500,8 @@ def build(write: bool = True) -> Report:
             "**`Wlan`'s default window is the standard's 2 M and passes the "
             "transmit mask** by 7.9 dB or more; `window=0`, by asking, reads "
             "-35.4 dBr at 30 MHz against -40 at M = 4 "
-            f"({R.ref('default_window_fails_mask')}, #3190 for the wfmgen "
-            "half).",
+            f"({R.ref('default_window_fails_mask')}; wfmgen's ofdm source "
+            "takes the same default).",
             "**A window is free up to the 16 M guard interval** for a "
             "receiver taking the last 64 M samples, exactly; past it the "
             "error grows to -25 dB near 24 M, and an early receiver pays "

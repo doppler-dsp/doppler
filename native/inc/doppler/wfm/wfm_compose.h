@@ -141,6 +141,18 @@ typedef enum
  * matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi`
  * in the `*_hi` companion (see the `ranged` enum).
  */
+/**
+ * @brief The `window` of an ofdm source that nobody set: the standard's 100 ns
+ *        transition, `2 * fs / bandwidth` samples.
+ *
+ * It is the manifest default of `wfm_source_t.window`, so a source a face
+ * builds starts unset, and `0` stays the explicit rectangular window (a C
+ * caller that zero-initializes a source gets it). A count of samples is never
+ * this large: the range is 0 to `80 * fs / bandwidth`, at most
+ * `80 * 128`. dp_wfm_source_window() turns it into the count.
+ */
+#define WFM_WINDOW_UNSET SIZE_MAX
+
 typedef struct {
     int type;        /**< Waveform type. tone: complex sinusoid. noise:
                           AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven
@@ -448,7 +460,10 @@ typedef struct {
                             resume re-renders the same PPDU. */
     size_t window; /**< For type=ofdm: the transition window in samples at
                             the output rate, 0 for none, at most 80 times fs
-                            over bandwidth (the shortest OFDM symbol). */
+                            over bandwidth (the shortest OFDM symbol). Unset
+                            (WFM_WINDOW_UNSET) is the standard's 100 ns,
+                            2 * fs / bandwidth samples; a scene or a record
+                            written from the source holds that count. */
     int mac; /**< For type=ofdm: how the caller's octets become the
                             PSDU. none: as given. fcs: an MPDU without its FCS,
                             which the PHY appends. data: a header (mac_header)
@@ -1002,6 +1017,44 @@ const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
  * @endcode
  */
 const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The window an ofdm source renders with, in samples at the output
+ *        rate: the count it holds, or the standard's for an unset one.
+ *
+ * `WFM_WINDOW_UNSET` gives `2 * fs / bandwidth` (the 100 ns transition,
+ * 17.3.2.5, which `dp_wlan_window_resolve` gives `Wlan` at the same
+ * oversampling); any other count, `0` included, is returned as it is, so the
+ * explicit rectangular window stays. When `fs` is not a whole multiple of the
+ * bandwidth there is no oversampling to scale by, and the unset value comes
+ * back unchanged for dp_wfm_ofdm_fs_error() to refuse. The one place the
+ * default is defined for this face: the renderer, the scene and the record
+ * each call it, so none holds an unset window.
+ *
+ * @param src  The source.
+ * @param fs   The segment's sample rate, Hz.
+ * @return The count of samples.
+ *
+ * @code
+ * wfm_source_t s = WFM_SOURCE_DEFAULTS;   // window unset
+ * size_t w = dp_wfm_source_window (&s, 80e6);   // 8: 2 * (80 / 20)
+ * s.window = 0;
+ * w = dp_wfm_source_window (&s, 80e6);          // 0: rectangular, asked for
+ * @endcode
+ */
+size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The channel bandwidth of an ofdm source, Hz: its `bandwidth`, or the
+ *        preset's 20e6 when that is 0 (a C source that skipped the defaults).
+ *
+ * A negative value is not repaired here: dp_wfm_source_error() refuses it by
+ * name.
+ *
+ * @param src  The source.
+ * @return Hz.
+ */
+double dp_wfm_source_bandwidth(const wfm_source_t *src);
 
 /**
  * @brief Install an `ofdm` source's frame renderer and its data pull on a

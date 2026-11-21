@@ -1186,6 +1186,7 @@ typedef struct
   unsigned oversample;    /* M = fs / bandwidth */
   size_t   n_bits;        /* data_len: the frame's bits */
   size_t   psdu_len;      /* octets, the FCS included */
+  size_t   window;        /* samples at fs: dp_wfm_source_window's count */
   size_t   n_sym, ppdu_len, n_out;
 } wfofdm_geom_t;
 
@@ -1227,16 +1228,6 @@ wfofdm_pair (const wfm_source_t *src, int *c, int *r)
   return NULL;
 }
 
-/* The channel bandwidth: 0 (a C source that skipped the defaults) is the
-   preset's 20 MHz. A negative one is a finite wrong value, refused by name
-   in ofdm_source_error; a NaN compares false and takes the default, so it
-   reaches no size or index. */
-static double
-wfofdm_bw (const wfm_source_t *src)
-{
-  return src->bandwidth > 0.0 ? src->bandwidth : 20e6;
-}
-
 /* The rules of an ofdm source that need no sample rate. */
 static const char *
 ofdm_source_error (const wfm_source_t *src)
@@ -1248,7 +1239,8 @@ ofdm_source_error (const wfm_source_t *src)
         return "wlan is the 802.11 data rate of an ofdm source: give type "
                "ofdm, or drop wlan";
       if (src->constellation || src->code_rate || src->scrambler_init
-          || src->window || src->mac || src->gap || src->mac_header.len
+          || (src->window && src->window != WFM_WINDOW_UNSET) || src->mac
+          || src->gap || src->mac_header.len
           || (src->bandwidth != 0.0 && src->bandwidth != 20e6))
         return "constellation, code_rate, scrambler_init, window, mac, "
                "mac_header, gap and bandwidth are fields of an ofdm source: "
@@ -1261,12 +1253,13 @@ ofdm_source_error (const wfm_source_t *src)
   if (src->bandwidth < 0.0)
     return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
            "source, not negative";
-  if (src->wlan && wfofdm_bw (src) != 20e6)
+  if (src->wlan && dp_wfm_source_bandwidth (src) != 20e6)
     return "wlan is the data rate at 20 MHz, and a bandwidth other than "
            "20 MHz carries a different rate for the same pair: give "
            "constellation and code_rate with that bandwidth, or drop wlan";
-  if (wfofdm_bw (src) != 20e6 && wfofdm_bw (src) != 10e6
-      && wfofdm_bw (src) != 5e6)
+  if (dp_wfm_source_bandwidth (src) != 20e6
+      && dp_wfm_source_bandwidth (src) != 10e6
+      && dp_wfm_source_bandwidth (src) != 5e6)
     return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
            "source";
   int         c, r;
@@ -1333,7 +1326,7 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
 {
   int c, r;
   (void)wfofdm_pair (src, &c, &r); /* ofdm_source_error has accepted it */
-  const double ratio = fs / wfofdm_bw (src);
+  const double ratio = fs / dp_wfm_source_bandwidth (src);
   const double m     = floor (ratio + 0.5);
   if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
     return "fs must be an integer multiple of bandwidth: the oversampling "
@@ -1343,7 +1336,8 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
   g->constellation = c;
   g->code_rate     = r;
   g->oversample    = (unsigned)m;
-  if (src->window > (size_t)WLAN_SYM_LEN * g->oversample)
+  g->window = dp_wfm_source_window (src, fs); /* the ratio is checked above */
+  if (g->window > (size_t)WLAN_SYM_LEN * g->oversample)
     return "window is 0 to 80 times fs over bandwidth samples: the "
            "shortest OFDM symbol";
   g->n_bits   = common_data_len (src);
@@ -1354,7 +1348,7 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
   /* A PSDU of 1 to 4095 octets is 1 to WLAN_N_SYM_MAX Data symbols at the
      slowest rate (test_wlan_core.c pins both ends), so a PPDU always fits. */
   g->ppdu_len
-      = dp_wlan_ppdu_len (g->n_sym, (unsigned)src->window, g->oversample);
+      = dp_wlan_ppdu_len (g->n_sym, (unsigned)g->window, g->oversample);
   if (g->ppdu_len > WFM_SYNTH_FRAME_MAX
       || src->gap > WFM_SYNTH_FRAME_MAX - g->ppdu_len)
     return "an ofdm frame, its gap included, is at most 2^24 samples";
@@ -1476,7 +1470,7 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   wfofdm_render_t *r = dp_xcalloc (1, sizeof *r);
   /* The arguments were validated by ofdm_source_error and wfofdm_geom, so
      the constructor cannot refuse them. */
-  r->w   = dp_wlan_create (g.constellation, g.code_rate, (uint32_t)src->window,
+  r->w   = dp_wlan_create (g.constellation, g.code_rate, (uint32_t)g.window,
                            g.oversample);
   r->mac = src->mac;
   r->hdr_len = (uint32_t)(src->mac_header.len / 8u);
@@ -1493,7 +1487,7 @@ dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
   r->gap            = src->gap;
   r->constellation  = (uint32_t)g.constellation;
   r->code_rate      = (uint32_t)g.code_rate;
-  r->window         = (uint32_t)src->window;
+  r->window         = (uint32_t)g.window;
   r->oversample     = g.oversample;
   r->n_bits         = g.n_bits;
   r->n_out          = g.n_out;

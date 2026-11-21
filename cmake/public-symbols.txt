@@ -1832,6 +1832,7 @@ dp_wfm_snr_over_fs function
 dp_wfm_source_attach_dsss function
 dp_wfm_source_attach_frame function
 dp_wfm_source_attach_ofdm function
+dp_wfm_source_bandwidth function
 dp_wfm_source_bits_refuse_text function
 dp_wfm_source_common_frame function
 dp_wfm_source_crc_refuse_text function
@@ -1848,6 +1849,7 @@ dp_wfm_source_sync_refuse_text function
 dp_wfm_source_synth_type function
 dp_wfm_source_to_synth function
 dp_wfm_source_to_synth_error function
+dp_wfm_source_window function
 dp_wfm_spec_headroom function
 dp_wfm_spec_template_json function
 dp_wfm_spec_to_json function

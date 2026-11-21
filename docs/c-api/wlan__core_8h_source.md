@@ -138,7 +138,7 @@ size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 
 size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
-size_t dp_wlan_ppdu_why_max_out (const dp_wlan_state_t *state, size_t n_in);
+size_t dp_wlan_ppdu_max_out (const dp_wlan_state_t *state, size_t n_in);
 
 int64_t dp_wlan_ppdu_why(dp_wlan_state_t *state, const uint8_t *in, size_t n_in, uint32_t scrambler_state, float _Complex *out, size_t max_out, const char **why);
 

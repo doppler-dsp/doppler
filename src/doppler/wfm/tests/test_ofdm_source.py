@@ -391,7 +391,7 @@ def test_a_scene_without_the_key_takes_the_default_at_load(fs, m):
     assert len(zero.compose()) == len(default) - 2 * m
 
 
-def test_the_cli_omits_the_window_for_the_default_and_gives_0_for_none(
+def test_the_cli_default_window_is_the_standards_and_0_is_rectangular(
     tmp_path,
 ):
     base = [
@@ -409,10 +409,62 @@ def test_the_cli_omits_the_window_for_the_default_and_gives_0_for_none(
     rect = np.fromfile(out, np.complex64)
     assert len(rect) == len(default) - 4  # 2 M samples at M = 2
     assert not np.allclose(rect, default[: len(rect)], atol=1e-3)
+    # a record of the default run carries the count the source rendered with
+    rec = tmp_path / "rec.json"
+    p, _ = _cli([*base, "--record", str(rec)], tmp_path)
+    assert p.returncode == 0, p.stderr
+    assert (
+        json.loads(rec.read_text(encoding="utf-8"))["segments"][0]["window"]
+        == 4
+    )
 
 
-def test_the_range_sentence_quotes_the_count_never_the_sentinel():
-    """81 M is refused as the range says; the unset window never is."""
-    with pytest.raises(ValueError, match="window is 0 to 80 times"):
+def test_the_range_sentence_is_for_a_count_and_the_unset_window_is_none():
+    """81 M is refused as the range says, without the sentinel in the words;
+    the unset window is accepted."""
+    with pytest.raises(ValueError, match="window is 0 to 80 times") as e:
         Synth(**_kwargs({**_OK, "window": 81})).steps(8)
+    assert "1844" not in str(e.value), "the sentence quotes the sentinel"
     Synth(**_kwargs(_OK)).steps(8)  # unset: accepted at M = 1
+
+
+def test_a_sigmf_holds_each_segments_own_window_not_the_files():
+    """The annotation resolves against the segment's rate: a mixed-rate scene
+    (file rate unstated, so 0) and a file rate that differs from the segment's
+    both write the count each source rendered with."""
+    segs = [
+        Segment(**_kwargs({**_OK, "fs": fs, "scrambler_init": 93}))
+        for fs in (20e6, 40e6)
+    ]
+    c = Composer(segs)
+    held = [
+        a["wfmgen:window"] for a in json.loads(c.to_sigmf())["annotations"]
+    ]
+    assert held == [2, 4], held
+    one = Composer([segs[0]])
+    for file_rate in (40e6, 30e6):
+        ann = json.loads(one.to_sigmf(fs=file_rate))["annotations"][0]
+        assert ann["wfmgen:window"] == 2, (file_rate, ann)
+
+
+@pytest.mark.parametrize("junk", ["null", '"4"', "true", "[4]"])
+def test_a_window_that_is_no_number_is_the_default(junk):
+    """As every other count row: a key that is no number is its default."""
+    text = json.dumps({**_OK, "scrambler_init": 93})[:-1]
+    text += f', "window": {junk}}}'
+    held = json.dumps({**_OK, "scrambler_init": 93, "window": 2})
+    a = Composer.from_json('{"version": 1, "segments": [' + text + "]}")
+    b = Composer.from_json('{"version": 1, "segments": [' + held + "]}")
+    np.testing.assert_array_equal(a.compose(), b.compose())
+
+
+def test_the_help_does_not_print_the_sentinel(tmp_path):
+    p = subprocess.run(
+        [cli._runnable(), "--help"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert p.returncode == 0, p.stderr
+    assert "--window" in p.stdout
+    assert "WFM_WINDOW_UNSET" not in p.stdout

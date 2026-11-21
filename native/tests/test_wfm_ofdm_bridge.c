@@ -1016,6 +1016,8 @@ test_the_default_window_is_the_standards_100_ns (void)
   DP_CHECK (dp_wfm_source_window (&s, 20e6) == 2u);
   DP_CHECK (dp_wfm_source_window (&s, 40e6) == 4u);
   DP_CHECK (dp_wfm_source_window (&s, 20e6 * 128.0) == 256u);
+  /* above 128 there is no count either: the bound is the constructor's */
+  DP_CHECK (dp_wfm_source_window (&s, 20e6 * 129.0) == WFM_WINDOW_UNSET);
   s.bandwidth = 5e6;
   DP_CHECK (dp_wfm_source_window (&s, 20e6) == 8u); /* M = 4 */
   s.bandwidth = 0.0;                                /* the preset's 20 MHz */
@@ -1061,8 +1063,16 @@ test_the_default_window_is_the_standards_100_ns (void)
 
   /* a C caller that zero-fills a source gets 0, the rectangular window, by
      its own spelling */
-  wfm_source_t z = source ();
-  z.window       = 0;
+  const wfm_source_t from = source ();
+  wfm_source_t       z;
+  memset (&z, 0, sizeof z);
+  z.type           = from.type;
+  z.snr            = from.snr;
+  z.data           = from.data;
+  z.data_len       = from.data_len;
+  z.wlan           = from.wlan;
+  z.scrambler_init = from.scrambler_init;
+  DP_CHECK (z.window == 0u); /* nobody set it: the struct's own zero */
   DP_CHECK (check_render (&z, 20e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
 
   /* a window on another type is still refused; the unset one is not */

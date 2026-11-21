@@ -640,7 +640,7 @@ def help_lines(row: dict, doc: str) -> list[str]:
     others = [o["cli"] for o in row.get("not_with", []) if o["cli"]]
     if others:
         text += " Not with " + ", ".join(others) + "."
-    if row["default"] is not None:
+    if row["default"] is not None and not is_named(row["default"]):
         # A no-break space: the wrap may not split "(default" from its
         # value, and textwrap does not count U+00A0 as a place to break.
         text += f" (default\u00a0{row['default']})"
@@ -791,7 +791,9 @@ def row_schema(r: dict, doc: str) -> dict:
         doc += " Scalar, or a [lo, hi] pair drawn uniformly per repeat."
     else:
         prop = scalar
-    if r["json_omit"]:
+    if r["json_omit"] and is_named(r["default"]):
+        doc += " A record holds the resolved value, never the absence."
+    elif r["json_omit"]:
         doc += " Omitted from a record at its default."
     d = _typed_default(r)
     if d is not None:

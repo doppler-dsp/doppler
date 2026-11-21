@@ -3180,7 +3180,7 @@ size_t dp_wfm_source_window (
 
 
 
-`WFM_WINDOW_UNSET` gives `2 * fs / bandwidth` (the 100 ns transition, 17.3.2.5, which `dp_wlan_window_resolve` gives `Wlan` at the same oversampling); any other count, `0` included, is returned as it is, so the explicit rectangular window stays. When `fs` is not a whole multiple of the bandwidth there is no oversampling to scale by, and the unset value comes back unchanged for [**dp\_wfm\_ofdm\_fs\_error()**](wfm__compose_8h.md#function-dp_wfm_ofdm_fs_error) to refuse. The one place the default is defined for this face: the renderer, the scene and the record each call it, so none holds an unset window.
+`WFM_WINDOW_UNSET` gives `2 * fs / bandwidth` (the 100 ns transition, 17.3.2.5, which `dp_wlan_window_resolve` gives `Wlan` at the same oversampling); any other count, `0` included, is returned as it is, so the explicit rectangular window stays. When `fs` is not a whole multiple of the bandwidth, or the multiple is above 128 (`WLAN_OVERSAMPLE_MAX`), there is no oversampling to scale by, and the unset value comes back unchanged for [**dp\_wfm\_ofdm\_fs\_error()**](wfm__compose_8h.md#function-dp_wfm_ofdm_fs_error) to refuse; a count it returns is never above `2 * 128`. The one place the default is defined for this face: the renderer, the scene and the record each call it, so none holds an unset window.
 
 
 

@@ -10,6 +10,8 @@
 
 #include "doppler/wfm/wfm_compose.h"
 
+#include "doppler/wlan/wlan_core.h" /* WLAN_OVERSAMPLE_MAX */
+
 #include <math.h>
 
 /* Deterministic uniform double in [0,1) from a 64-bit key (splitmix64). */
@@ -188,11 +190,13 @@ dp_wfm_source_window (const wfm_source_t *src, double fs)
   if (src->window != WFM_WINDOW_UNSET)
     return src->window;
   /* The oversampling wfofdm_geom derives from the same two numbers; a rate
-     that is no whole multiple of the bandwidth has none, and the unset value
-     is left for dp_wfm_ofdm_fs_error to refuse. */
+     that is no whole multiple of the bandwidth, or one above
+     WLAN_OVERSAMPLE_MAX, has none, and the unset value is left for
+     dp_wfm_ofdm_fs_error to refuse. */
   const double ratio = fs / dp_wfm_source_bandwidth (src);
   const double m     = floor (ratio + 0.5);
-  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
+  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0
+      || m > (double)WLAN_OVERSAMPLE_MAX)
     return WFM_WINDOW_UNSET;
   return 2u * (size_t)m;
 }

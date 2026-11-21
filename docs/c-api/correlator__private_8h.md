@@ -90,6 +90,7 @@ _The correlator's detection layer: the ring, the noise estimate, the one peak pi
 |  size\_t | [**det\_peak\_scan**](#function-det_peak_scan) (const float \* surf, const uint8\_t \* mask, size\_t k0, size\_t k1) <br>_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._ |
 |  void | [**det\_peak\_zone**](#function-det_peak_zone) (uint8\_t \* mask, size\_t ny, size\_t nx, size\_t r, size\_t c, size\_t excl\_rows, size\_t excl\_cols) <br>_The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._ |
 |  dp\_f32\_t \* | [**det\_ring\_create**](#function-det_ring_create) (size\_t cap\_min) <br> |
+|  size\_t | [**search\_native\_row**](#function-search_native_row) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* st, const float \* surf, size\_t row, size\_t col) <br> |
 |  int | [**search\_rate\_better**](#function-search_rate_better) (size\_t h, float stat, float best) <br>_Does hypothesis_ `h's` _statistic_`stat` _replace the best so far,_`best` _? The rule the rate search picks its winner by._ |
 |  size\_t | [**search\_rate\_count\_at**](#function-search_rate_count_at) (size\_t rate\_hyps, size\_t D) <br> |
 |  size\_t | [**search\_resolve\_tile\_alias**](#function-search_resolve_tile_alias) (const [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* st, size\_t row, size\_t col) <br> |
@@ -691,6 +692,24 @@ static void det_peak_zone (
 ```C++
 static inline dp_f32_t * det_ring_create (
     size_t cap_min
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function search\_native\_row 
+
+```C++
+static inline size_t search_native_row (
+    const dp_correlator_state_t * st,
+    const float * surf,
+    size_t row,
+    size_t col
 ) 
 ```
 

@@ -63,10 +63,10 @@ typedef struct
   int                unit_interval; /**< require 0 < v <= 1 */
   const char        *json;          /**< the scene/record key */
   int                json_required; /**< absent/unknown: refuse */
-  int                json_keep_zero; /**< 0 is a value: written
-                                         under json_omit */
   int                json_omit;     /**< not written at its
                                          default (or at 0) */
+  int                json_keep_zero; /**< 0 is a value: written
+                                         under json_omit */
   int                json_bool;     /**< written as true/false */
   int                has_when;      /**< written only when ... */
   int                when_row;    /**< ... this row's choice ... */

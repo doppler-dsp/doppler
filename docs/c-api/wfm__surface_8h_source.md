@@ -52,8 +52,8 @@ typedef struct
   int                unit_interval; 
   const char        *json;          
   int                json_required; 
-  int                json_keep_zero; 
   int                json_omit;     
+  int                json_keep_zero; 
   int                json_bool;     
   int                has_when;      
   int                when_row;    

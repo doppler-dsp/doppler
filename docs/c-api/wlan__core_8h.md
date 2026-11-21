@@ -109,6 +109,11 @@ _IEEE 802.11 non-HT OFDM (Clause 17) builders: a PSDU in, the constellation poin
 |  uint32\_t | [**dp\_wlan\_window\_resolve**](#function-dp_wlan_window_resolve) (uint32\_t window, uint32\_t oversample) <br>_The window, in samples at the output rate, that a caller's_ `window` _argument means at this oversampling._ |
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  uint32\_t | [**dp\_wlan\_window\_standard**](#function-dp_wlan_window_standard) (uint32\_t oversample) <br>_The standard's 100 ns transition at an oversampling:_ `2 * M` _samples (17.3.2.5)._ |
 
 
 
@@ -1550,6 +1555,45 @@ The count.
 0
 ```
  
+
+
+        
+
+<hr>
+## Public Static Functions Documentation
+
+
+
+
+### function dp\_wlan\_window\_standard 
+
+_The standard's 100 ns transition at an oversampling:_ `2 * M` _samples (17.3.2.5)._
+```C++
+static inline uint32_t dp_wlan_window_standard (
+    uint32_t oversample
+) 
+```
+
+
+
+The one definition of the rule. It is `static inline` so that wfmgen's draw library, which links no DSP, calls it instead of keeping a copy; [**dp\_wlan\_window\_resolve()**](wlan__core_8h.md#function-dp_wlan_window_resolve) returns it for WLAN\_WINDOW\_STANDARD.
+
+
+
+
+**Parameters:**
+
+
+* `oversample` `M`. 
+
+
+
+**Returns:**
+
+The count. 
+
+
+
 
 
         

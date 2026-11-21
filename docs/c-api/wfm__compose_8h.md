@@ -146,6 +146,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
+|  unsigned | [**dp\_wfm\_source\_oversample**](#function-dp_wfm_source_oversample) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, const char \*\* why) <br>_The oversampling_ `M = fs / bandwidth` _of an ofdm source, 1 to_`WLAN_OVERSAMPLE_MAX` _, or 0 with the reason it has none._ |
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._ |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
 |  const char \* | [**dp\_wfm\_source\_to\_synth\_error**](#function-dp_wfm_source_to_synth_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Why_ [_**dp\_wfm\_source\_to\_synth()**_](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) _refused this source, or NULL._ |
@@ -3021,6 +3022,47 @@ Lengths are tested, never pointers: a carried `frame`, an `acq_code` with non-ze
 **Returns:**
 
 1 when the source is framed, 0 otherwise (including NULL). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_oversample 
+
+_The oversampling_ `M = fs / bandwidth` _of an ofdm source, 1 to_`WLAN_OVERSAMPLE_MAX` _, or 0 with the reason it has none._
+```C++
+unsigned dp_wfm_source_oversample (
+    const wfm_source_t * src,
+    double fs,
+    const char ** why
+) 
+```
+
+
+
+The one derivation: [**dp\_wfm\_ofdm\_fs\_error()**](wfm__compose_8h.md#function-dp_wfm_ofdm_fs_error) and the renderer take their geometry from it, and [**dp\_wfm\_source\_window()**](wfm__compose_8h.md#function-dp_wfm_source_window) scales by it. `fs` must be a whole multiple of the bandwidth (the transform is longer, not resampled) and at most 128 times it.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` The segment's sample rate, Hz. 
+* `why` Receives the refusal's sentence, or NULL on success; may be NULL. 
+
+
+
+**Returns:**
+
+`M`, or 0. 
 
 
 

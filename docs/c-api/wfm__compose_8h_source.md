@@ -246,6 +246,9 @@ size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
 
 double dp_wfm_source_bandwidth(const wfm_source_t *src);
 
+unsigned dp_wfm_source_oversample(const wfm_source_t *src, double fs,
+                                  const char **why);
+
 int dp_wfm_source_attach_ofdm(dp_wfm_synth_state_t *syn,
                               const wfm_source_t *src, double fs,
                               uint32_t seed);

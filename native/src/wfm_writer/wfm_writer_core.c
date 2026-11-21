@@ -1205,8 +1205,7 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
                 a, "wfmgen:window", (double)dp_wfm_source_window (src, s->fs));
             cJSON_AddNumberToObject (a, "wfmgen:gap", (double)src->gap);
             cJSON_AddNumberToObject (a, "wfmgen:bandwidth",
-                                     src->bandwidth > 0.0 ? src->bandwidth
-                                                          : 20e6);
+                                     dp_wfm_source_bandwidth (src));
           }
         /* The truth for scoring (payload-data-source.md 4.8): what the
          * source's data sent, as the record carries it -- frames, the fill

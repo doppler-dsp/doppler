@@ -468,3 +468,13 @@ def test_the_help_does_not_print_the_sentinel(tmp_path):
     assert p.returncode == 0, p.stderr
     assert "--window" in p.stdout
     assert "WFM_WINDOW_UNSET" not in p.stdout
+
+
+def test_the_python_face_reads_the_unset_window_back_as_the_constant():
+    """Declared: a source's ``window`` attribute reads ``2**64 - 1`` while
+    unset (a getter has no ``fs`` to resolve against); the resolved count is
+    in the record and the samples. ``window=0`` reads back 0."""
+    assert Synth(**_kwargs(_OK)).window == 2**64 - 1
+    assert Synth(**_kwargs({**_OK, "window": 0})).window == 0
+    c = Composer([Segment(**_kwargs(_OK))])
+    assert json.loads(c.to_json())["segments"][0]["window"] == 2

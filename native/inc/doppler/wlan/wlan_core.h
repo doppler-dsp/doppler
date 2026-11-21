@@ -254,6 +254,23 @@ dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
 unsigned dp_wlan_n_bpsc (int constellation);
 
 /**
+ * @brief The standard's 100 ns transition at an oversampling: `2 * M`
+ *        samples (17.3.2.5).
+ *
+ * The one definition of the rule. It is `static inline` so that wfmgen's
+ * draw library, which links no DSP, calls it instead of keeping a copy;
+ * dp_wlan_window_resolve() returns it for WLAN_WINDOW_STANDARD.
+ *
+ * @param oversample  `M`.
+ * @return The count.
+ */
+static inline uint32_t
+dp_wlan_window_standard (uint32_t oversample)
+{
+  return 2u * oversample;
+}
+
+/**
  * @brief The window, in samples at the output rate, that a caller's
  *        @p window argument means at this oversampling.
  *

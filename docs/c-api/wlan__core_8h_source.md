@@ -109,6 +109,12 @@ dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
 
 unsigned dp_wlan_n_bpsc (int constellation);
 
+static inline uint32_t
+dp_wlan_window_standard (uint32_t oversample)
+{
+  return 2u * oversample;
+}
+
 uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
 
 const char *dp_wlan_params_why (int constellation, int code_rate,

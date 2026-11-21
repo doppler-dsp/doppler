@@ -976,6 +976,179 @@ _acq_tile_alias_hop_check (void)
   return 0;
 }
 
+/* The tile-edge alias, fanned: search_report_peaks() resolves a dwell's
+ * picks as (pick, hypothesis) tasks on the search's pool, each summing in
+ * one fixed order, so what it reports cannot depend on the worker count.
+ * The edge tones of _acq_tile_doppler_check() (the ones whose rows the hop
+ * moves) are pushed a dwell at a time through one engine at 1 worker and
+ * one at 4: every field of every hit and every carried twin row must be
+ * bit-identical, and every row the 4-worker engine reports must be the one
+ * the serial search_resolve_tile_alias() gives its pick. The 1-vs-4
+ * comparison alone runs one task body twice, so it is red only on a race;
+ * the serial one is red on a wrong body. */
+static int
+_hit_same (const dp_correlator_hit_t *a, const dp_correlator_hit_t *b)
+{
+#define DP_SAME_FIELD(f) (memcmp (&a->f, &b->f, sizeof a->f) == 0)
+  return DP_SAME_FIELD (row) && DP_SAME_FIELD (col) && DP_SAME_FIELD (peak_mag)
+         && DP_SAME_FIELD (noise_est) && DP_SAME_FIELD (test_stat)
+         && DP_SAME_FIELD (cn0_dbhz_est) && DP_SAME_FIELD (samples_consumed)
+         && DP_SAME_FIELD (chip_phase) && DP_SAME_FIELD (doppler_rate_hz_s)
+         && DP_SAME_FIELD (test_stat_peak);
+#undef DP_SAME_FIELD
+}
+
+static int
+_acq_tile_alias_fanned_check (void)
+{
+  const size_t           sf = 7, spc = 2, nx = sf * spc, reps = 8;
+  const double           crate = 1.0e6, fs = crate * (double)spc;
+  const double           span = crate / (2.0 * (double)sf);
+  dp_correlator_state_t *one  = burst_from_code (
+      CODE7, sf, reps, spc, crate, 60.0, 3.5 * span, 1e-3, 0.9, 0, 0.0);
+  dp_correlator_state_t *four = burst_from_code (
+      CODE7, sf, reps, spc, crate, 60.0, 3.5 * span, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (one != NULL && four != NULL);
+  DP_REQUIRE (one->search->window_bins > 1 && one->search->coherent_bins > 1
+              && one->search->blk_raw);
+  DP_REQUIRE (dp_correlator_set_threads (one, 1) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_threads (four, 4) == DP_OK);
+  DP_REQUIRE_MSG (four->search->threads == 4 && four->pool != NULL,
+                  "the fanned engine runs on 4 workers");
+  DP_REQUIRE (dp_correlator_set_max_peaks (one, 8, NULL) == DP_OK);
+  DP_REQUIRE (dp_correlator_set_max_peaks (four, 8, NULL) == DP_OK);
+  /* The coherent path, so the dwell's surface is mag_buf after the push. */
+  DP_REQUIRE (four->search->n_noncoh <= 1);
+  const double native = 2.0 * span;
+  const double edge[] = { 0.5, -0.5, 1.5, -1.5 };
+  const size_t dwell  = one->search->coherent_bins * nx;
+  size_t       dwells = 0, fewest = DP_CORRELATOR_MAX_PEAKS;
+  for (size_t i = 0; i < sizeof edge / sizeof *edge; i++)
+    for (int q = -4; q <= 4; q++)
+      {
+        const double    f   = (edge[i] + 0.005 * (double)q) * native;
+        const size_t    len = 6 * dwell;
+        float _Complex *x   = malloc (len * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        for (size_t k = 0; k < len; k++)
+          {
+            const double ph = 2.0 * M_PI * f * (double)k / fs;
+            x[k]            = ((CODE7[(k % nx) / spc] & 1u) ? -1.0f : 1.0f)
+                              * (float _Complex) (cos (ph) + I * sin (ph));
+          }
+        dp_correlator_reset (one);
+        dp_correlator_reset (four);
+        size_t hits = 0;
+        for (size_t off = 0; off < len; off += dwell)
+          {
+            dp_correlator_hit_t h1[8], h4[8];
+            const size_t n1 = dp_correlator_push (one, x + off, dwell, h1, 8);
+            const size_t n4 = dp_correlator_push (four, x + off, dwell, h4, 8);
+            DP_CHECK (n4 == n1);
+            for (size_t k = 0; k < n1 && k < n4; k++)
+              DP_CHECK (_hit_same (&h1[k], &h4[k]));
+            DP_CHECK (four->n_twins == one->n_twins);
+            for (size_t k = 0; k < one->n_twins && k < four->n_twins; k++)
+              DP_CHECK (four->twin_row[k] == one->twin_row[k]
+                        && four->twin_col[k] == one->twin_col[k]);
+            if (n4 == 0)
+              continue;
+            /* The dwell's hits are its listed picks in order (a held twin
+               takes none): each one's row, against the serial resolve of
+               that pick's native row. */
+            size_t p = 0;
+            for (size_t k = 0; k < n4; k++)
+              {
+                while (p < four->n_peaks && four->peaks[p].col != h4[k].col)
+                  p++;
+                DP_REQUIRE_MSG (p < four->n_peaks, "every hit is a pick");
+                const size_t col = four->peaks[p].col;
+                const size_t nat = search_native_row (four, four->mag_buf,
+                                                      four->peaks[p].row, col);
+                DP_CHECK_MSG (
+                    h4[k].row == search_resolve_tile_alias (four, nat, col),
+                    "a fanned row is the serial resolve's");
+                p++;
+              }
+            hits += n4;
+            dwells++;
+            if (four->n_peaks < fewest)
+              fewest = four->n_peaks;
+          }
+        free (x);
+        DP_REQUIRE (hits >= 1);
+      }
+  /* Several picks every dwell that lists one, or the fan had nothing to
+     spread: two at the least, on each of them. */
+  DP_CHECK (dwells >= 36);
+  DP_CHECK_MSG (fewest >= 2, "every dwell fans two picks or more");
+
+  /* Each pick its own hypotheses: two emitters in one dwell, each found at
+     its own code phase within a bin of its own tone. A (the stronger, so
+     the first pick) sits just past the +0.5 tile edge, where its raw pick
+     is one tile low at every q and only the alias check moves it back; B
+     sits just past the -0.5 edge, where its raw pick is already right at
+     every q. A fan that hands a pick another pick's powers (pw + 3 * i) or
+     another pick's row or column (k / 3) hops B with A, at every q; with
+     the check off, A stays a tile low at every q. Matching by column as
+     well as row keeps a sidelobe landing on a tone from standing in. On
+     CODE31, as CODE7's seven chips cannot hold two emitters apart. */
+  {
+    const size_t           sf2 = 31, nx2 = sf2 * spc;
+    const double           span2   = crate / (2.0 * (double)sf2);
+    const double           native2 = 2.0 * span2;
+    dp_correlator_state_t *two     = burst_from_code (
+        CODE31, sf2, reps, spc, crate, 50.0, 3.5 * span2, 1e-3, 0.9, 0, 0.0);
+    DP_REQUIRE (two != NULL);
+    DP_REQUIRE (two->search->window_bins > 1 && two->search->coherent_bins > 1
+                && two->search->blk_raw);
+    DP_REQUIRE (dp_correlator_set_threads (two, 4) == DP_OK);
+    DP_REQUIRE (dp_correlator_set_max_peaks (two, 8, NULL) == DP_OK);
+    const double res2  = two->search->doppler_res_hz;
+    const size_t lag_b = 7 * spc;              /* B seven chips late */
+    DP_REQUIRE (two->search->lag_bins == nx2); /* a column is a sample */
+    for (int q = -4; q <= 4; q++)
+      {
+        const double    fa  = (0.5 + 0.005 * (double)q) * native2;
+        const double    fb  = (-0.5 + 0.005 * (double)q) * native2;
+        const size_t    len = 6 * two->search->coherent_bins * nx2;
+        float _Complex *x   = malloc (len * sizeof *x);
+        DP_REQUIRE (x != NULL);
+        for (size_t k = 0; k < len; k++)
+          {
+            const double pa = 2.0 * M_PI * fa * (double)k / fs;
+            const double pb = 2.0 * M_PI * fb * (double)k / fs;
+            const size_t kb = (k + nx2 - lag_b) % nx2;
+            x[k] = ((CODE31[(k % nx2) / spc] & 1u) ? -1.0f : 1.0f)
+                       * (float _Complex) (cos (pa) + I * sin (pa))
+                   + 0.8f * ((CODE31[kb / spc] & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (pb) + I * sin (pb));
+          }
+        dp_correlator_reset (two);
+        dp_correlator_hit_t h[8];
+        const size_t        nh = dp_correlator_push (two, x, len, h, 8);
+        free (x);
+        DP_REQUIRE (nh >= 2);
+        /* Each emitter's own pick: the hit at its column (A at lag 0, B
+           at lag_b), whose row must be its own tone's. */
+        int got_a = 0, got_b = 0;
+        for (size_t k = 0; k < nh; k++)
+          {
+            const double f = dp_correlator_bin_doppler_hz (two, h[k].row);
+            if (h[k].col == 0)
+              got_a = fabs (f - fa) <= res2;
+            else if (h[k].col == lag_b)
+              got_b = fabs (f - fb) <= res2;
+          }
+        DP_CHECK (got_a && got_b);
+      }
+    dp_correlator_destroy (two);
+  }
+  dp_correlator_destroy (one);
+  dp_correlator_destroy (four);
+  return 0;
+}
+
 /* A tiled burst search with NO design C/N0 is D = 1, as it always was.
  *
  * Only a stated C/N0 asks for a depth inside the tiles. Without one the
@@ -4212,6 +4385,7 @@ main (void)
   (void)_acq_wideband_default_depth_check ();
   (void)_acq_tiled_burst_offcentre_check ();
   (void)_acq_tile_alias_hop_check ();
+  (void)_acq_tile_alias_fanned_check ();
   (void)_acq_hit_chip_phase_check ();
   (void)_acq_ramp_odd_period_check ();
   (void)_acq_map_equivalence_check ();

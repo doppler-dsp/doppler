@@ -3543,34 +3543,6 @@ search_band_cells (size_t D, size_t sb, size_t window_bins, size_t cb)
  * cells the search ranges over, search_band_cells(). */
 #define DP_CORRELATOR_DOPPLER_INTERP 2u
 
-/* The native row a surface pick reports: the surface is the Doppler axis
- * interpolated `interp`-fold, and every consumer scales `doppler_bin` by
- * `doppler_res_hz`, so a pick on an interpolated row is reported at the
- * native row of the strongest native cell within its own zone (the two
- * native neighbours), at its column -- the same rule as before the list,
- * applied per peak instead of once to the global maximum. `interp == 1`
- * (wideband mode, and D == 1) is the identity. */
-static size_t
-search_native_row (const dp_correlator_state_t *st, const float *surf,
-                   size_t row, size_t col)
-{
-  dp_correlator_search_t *const srch = st->search;
-  if (srch->interp <= 1)
-    return row;
-  const size_t rows = srch->n_surf / srch->lag_bins;
-  size_t       best = rows;
-  for (size_t d = 0; d <= 2 * srch->interp; d++)
-    {
-      size_t r = (row + rows + d - srch->interp) % rows;
-      if (r % srch->interp)
-        continue;
-      size_t k = r * srch->lag_bins + col;
-      if (best == rows || surf[k] > surf[best * srch->lag_bins + col])
-        best = r;
-    }
-  return best / srch->interp;
-}
-
 /* ── The decided surface's passes, per chunk ────────────────────────────
  *
  * Every pass that reads or writes a whole surface after the fan -- the
@@ -4144,6 +4116,26 @@ search_peak_on_lag (const dp_correlator_state_t *st, const float *surf,
   return (float)p;
 }
 
+/* The tile-edge alias of a dwell's picks, fanned: one task a (pick,
+ * hypothesis), each summing its hypothesis in search_tile_alias_power()'s
+ * one order, so the rows are those the serial loop resolves at any worker
+ * count. */
+typedef struct
+{
+  const dp_correlator_state_t *st;
+  const size_t                *row; /* each pick's native row */
+  double                      *pw;  /* 3 a pick, h = -1, 0, +1 */
+} search_alias_t;
+
+static void
+search_alias_task (size_t k, void *ctx)
+{
+  const search_alias_t *a = (const search_alias_t *)ctx;
+  const size_t          i = k / 3;
+  a->pw[k] = search_tile_alias_power (a->st, a->row[i], a->st->peaks[i].col,
+                                      (long)(k % 3) - 1);
+}
+
 /* The listed peaks of the dwell just decided, as results: each pick's
  * native row and column, its own statistic against the dwell's reference,
  * and the two-epoch rule of docs/design/async-dsss-receiver.md §7.1 -- a
@@ -4174,12 +4166,29 @@ search_report_peaks (dp_correlator_state_t *st, const float *surf,
   size_t                        listed_col[DP_CORRELATOR_MAX_PEAKS];
   uint32_t                      seen_row[DP_CORRELATOR_MAX_PEAKS],
       seen_col[DP_CORRELATOR_MAX_PEAKS];
+  /* Every pick's native row, then, on a tiled block-coherent engine, the
+     tile-edge alias of all of them at once: one fan of 3 tasks a pick on
+     the search's pool, one wake a dwell (search_alias_task()). Every pick,
+     not the first `room`: the loop below stops on results, and a held twin
+     takes none, so which picks it reaches is known only once it has run. A
+     pick it never reaches is resolved for nothing, which changes no
+     result. */
+  size_t row[DP_CORRELATOR_MAX_PEAKS];
+  for (size_t i = 0; i < st->n_peaks; i++)
+    row[i] = search_native_row (st, surf, st->peaks[i].row, st->peaks[i].col);
+  if (st->n_peaks && search_tile_alias_applies (st))
+    {
+      double         pw[3 * DP_CORRELATOR_MAX_PEAKS];
+      search_alias_t a = { st, row, pw };
+      dp_pool_run (search_block_pool (st), 3 * st->n_peaks, search_alias_task,
+                   &a);
+      for (size_t i = 0; i < st->n_peaks; i++)
+        row[i] = search_tile_alias_pick (st, row[i], pw + 3 * i);
+    }
   for (size_t i = 0; i < st->n_peaks && ndet < room; i++)
     {
-      const size_t c = st->peaks[i].col;
-      const size_t r = search_resolve_tile_alias (
-          st, search_native_row (st, surf, st->peaks[i].row, st->peaks[i].col),
-          c);
+      const size_t c   = st->peaks[i].col;
+      const size_t r   = row[i];
       seen_row[n_seen] = (uint32_t)r;
       seen_col[n_seen] = (uint32_t)c;
       n_seen++;

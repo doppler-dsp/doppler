@@ -275,17 +275,16 @@ class Ofdm:
         self,
         class_index: int,
         count: int,
-        cyclic_prefix: int = 4294967295,
+        cyclic_prefix: int = ...,
         polarity_offset: int = 0,
         first_phase: int = 0,
     ) -> int:
         """Append a run of `count` OFDM symbols of one class. `cyclic_prefix`
-        overrides the class's prefix for this run (omit it, or give 4294967295
-        = 2**32 - 1, `OFDM_CP_DEFAULT` in C, to keep the class's; a named
-        default is just-buildit/just-makeit#2679); `polarity_offset` is the
-        class's polarity element used by the run's first symbol; `first_phase`
-        is the pattern phase of the run's first symbol. Returns the run's
-        index.
+        overrides the class's prefix for this run (omit it, or give
+        `OFDM_CP_DEFAULT` = 4294967295 = 2**32 - 1, to keep the class's);
+        `polarity_offset` is the class's polarity element used by the run's
+        first symbol; `first_phase` is the pattern phase of the run's first
+        symbol. Returns the run's index.
 
         Parameters
         ----------
@@ -293,7 +292,7 @@ class Ofdm:
             An existing class.
         count : int
             OFDM symbols, at least 1.
-        cyclic_prefix : int, default 4294967295
+        cyclic_prefix : int, default OFDM_CP_DEFAULT
             Override of the class's prefix, or OFDM_CP_DEFAULT; at most the
             class's `useful`.
         polarity_offset : int, default 0

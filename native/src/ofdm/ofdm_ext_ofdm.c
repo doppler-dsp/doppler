@@ -339,7 +339,7 @@ OfdmObj_add_run (OfdmObject *self, PyObject *args, PyObject *kwds)
                              "polarity_offset", "first_phase", NULL };
   long long    class_index_raw     = 0LL;
   long long    count_raw           = 0LL;
-  long long    cyclic_prefix_raw   = 4294967295;
+  long long    cyclic_prefix_raw   = OFDM_CP_DEFAULT;
   long long    polarity_offset_raw = 0;
   long long    first_phase_raw     = 0;
   if (!PyArg_ParseTupleAndKeywords (
@@ -1168,11 +1168,11 @@ static PyMethodDef OfdmObj_methods[] = {
     "-> int\n"
     "\n"
     "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` "
-    "overrides the class's prefix for this run (omit it, or give 4294967295 = "
-    "2**32 - 1, `OFDM_CP_DEFAULT` in C, to keep the class's; a named default "
-    "is just-buildit/just-makeit#2679); `polarity_offset` is the class's "
-    "polarity element used by the run's first symbol; `first_phase` is the "
-    "pattern phase of the run's first symbol. Returns the run's index.\n"
+    "overrides the class's prefix for this run (omit it, or give "
+    "`OFDM_CP_DEFAULT` = 4294967295 = 2**32 - 1, to keep the class's); "
+    "`polarity_offset` is the class's polarity element used by the run's "
+    "first symbol; `first_phase` is the pattern phase of the run's first "
+    "symbol. Returns the run's index.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1180,7 +1180,7 @@ static PyMethodDef OfdmObj_methods[] = {
     "    An existing class.\n"
     "count : int\n"
     "    OFDM symbols, at least 1.\n"
-    "cyclic_prefix : int, default 4294967295\n"
+    "cyclic_prefix : int, default OFDM_CP_DEFAULT\n"
     "    Override of the class's prefix, or OFDM_CP_DEFAULT; at most the\n"
     "    class's `useful`.\n"
     "polarity_offset : int, default 0\n"

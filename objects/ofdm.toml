@@ -84,7 +84,7 @@ params = [
 
 [[ofdm.methods]]
 name = "add_run"
-doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (omit it, or give 4294967295 = 2**32 - 1, `OFDM_CP_DEFAULT` in C, to keep the class's; a named default is just-buildit/just-makeit#2679); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
+doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (omit it, or give `OFDM_CP_DEFAULT` = 4294967295 = 2**32 - 1, to keep the class's); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
 arg_type = "void"
 return_type = "int"
 error_negative = true
@@ -93,7 +93,7 @@ error_message = "cannot append a run: class_index names no class, count is 0, fi
 params = [
     { name = "class_index", type = "uint32_t" },
     { name = "count", type = "uint32_t" },
-    { name = "cyclic_prefix", type = "uint32_t", default = "4294967295" },
+    { name = "cyclic_prefix", type = "uint32_t", default = "OFDM_CP_DEFAULT" },
     { name = "polarity_offset", type = "uint32_t", default = "0" },
     { name = "first_phase", type = "uint32_t", default = "0" },
 ]

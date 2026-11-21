@@ -245,7 +245,7 @@ class Writer:
 
         Parameters
         ----------
-        on : int
+        on : int, default 1
             Non-zero to count clipped components, 0 to stop.
         """
 
@@ -396,21 +396,21 @@ def write_blue_header(
     fs : float
         Sample rate (Hz) -> `xdelta = 1/fs`; 0.0 writes `xdelta = 0` (rate
         unknown).
-    sample_type : str
+    sample_type : str, default 'cf32'
         One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
         ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
-    endian : str
+    endian : str, default 'le'
         One of ``"le"``, ``"be"``.
-    fc : float
+    fc : float, default 0.0
         Center frequency (Hz); non-zero adds a `FREQ` keyword in the HCB
         keyword area.
-    data_start : float
+    data_start : float, default 0.0
         `data_start` field: 512 attached, 0 detached.
-    total : int
+    total : int, default 0
         Complex-sample count -> `data_size`.
-    detached : int
+    detached : int, default 1
         Non-zero sets the HCB `detached` flag.
-    t0 : float
+    t0 : float, default 0.0
         Capture start in UNIX seconds, or ::WFM_TIMECODE_UNSET (0.0) to
         leave the timecode unset.
     """

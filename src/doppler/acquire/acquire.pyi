@@ -314,7 +314,7 @@ class BurstCapture:
         Preamble repetitions (>= 1).
     fs : float, default 1.0
         Sample rate, Hz (> 0); 1 for normalized units.
-    cn0_dbhz : float
+    cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE
         C/N0 the search is sized for, dB-Hz, of the preamble's mean power: any
         finite value, or NaN (DP_CORRELATOR_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0
@@ -1143,7 +1143,7 @@ class PersistentBurstCapture:
         Preamble repetitions (>= 1).
     fs : float, default 1.0
         Sample rate, Hz (> 0).
-    cn0_dbhz : float
+    cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE
         C/N0 the search is sized for, dB-Hz: any finite value, or NaN
         (DP_CORRELATOR_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0

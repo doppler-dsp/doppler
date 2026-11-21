@@ -1479,22 +1479,22 @@ class Frame:
 
         Parameters
         ----------
-        kind : int
+        kind : int, default 0
             stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
             caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
             has to reach the assembler through its ops table.
-        first_field : int
+        first_field : int, default 0
             First field covered.
-        n_fields : int
+        n_fields : int, default 0
             Fields covered; 0 = the stage does not run.
-        depth : int
+        depth : int, default 0
             Interleaving depth, for an outer code.
-        emit_num : int
+        emit_num : int, default 0
             Expansion numerator for a stage that emits a NEW stream; 0 when the
             stage stays inside the frame.
-        emit_den : int
+        emit_den : int, default 0
             Expansion denominator.
-        unit_bits : int
+        unit_bits : int, default 0
             INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
             to the outer code's symbol — permuting octets is what spreads a
             burst across the codewords of a code over GF(256), and permuting
@@ -1749,9 +1749,9 @@ class Frame:
             name of the first field covered.
         last : str
             name of the last field covered; may equal first.
-        depth : int
+        depth : int, default 0
             RS / interleave depth; 0 when unused.
-        unit_bits : int
+        unit_bits : int, default 0
             interleave unit; 0 reads as 1.
 
         Returns
@@ -2494,22 +2494,22 @@ class FrameDesc:
 
         Parameters
         ----------
-        kind : int
+        kind : int, default 0
             stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
             caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
             has to reach the assembler through its ops table.
-        first_field : int
+        first_field : int, default 0
             First field covered.
-        n_fields : int
+        n_fields : int, default 0
             Fields covered; 0 = the stage does not run.
-        depth : int
+        depth : int, default 0
             Interleaving depth, for an outer code.
-        emit_num : int
+        emit_num : int, default 0
             Expansion numerator for a stage that emits a NEW stream; 0 when the
             stage stays inside the frame.
-        emit_den : int
+        emit_den : int, default 0
             Expansion denominator.
-        unit_bits : int
+        unit_bits : int, default 0
             INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
             to the outer code's symbol — permuting octets is what spreads a
             burst across the codewords of a code over GF(256), and permuting
@@ -2764,9 +2764,9 @@ class FrameDesc:
             name of the first field covered.
         last : str
             name of the last field covered; may equal first.
-        depth : int
+        depth : int, default 0
             RS / interleave depth; 0 when unused.
-        unit_bits : int
+        unit_bits : int, default 0
             interleave unit; 0 reads as 1.
 
         Returns

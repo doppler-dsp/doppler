@@ -83,15 +83,15 @@ class Ofdm:
             Transform length, 2 to OFDM_N_FFT_MAX.
         subcarrier_map : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             `n_fft` entries, index `k + n_fft/2`, each OFDM_DATA or OFDM_NULL.
-        useful : int
+        useful : int, default 0
             Body samples read cyclically from the transform; 0 reads as n_fft.
-        cyclic_prefix : int
+        cyclic_prefix : int, default 0
             Default prefix, samples; at most `useful`.
-        window : int
+        window : int, default 0
             Window transition, samples; at most the symbol length.
-        scale : float
+        scale : float, default 1.0
             Multiplies the transform output.
-        n_phase : int
+        n_phase : int, default 1
             Period of the fixed pattern, at least 1.
 
         Returns
@@ -293,12 +293,12 @@ class Ofdm:
             An existing class.
         count : int
             OFDM symbols, at least 1.
-        cyclic_prefix : int
+        cyclic_prefix : int, default 4294967295
             Override of the class's prefix, or OFDM_CP_DEFAULT; at most the
             class's `useful`.
-        polarity_offset : int
+        polarity_offset : int, default 0
             Polarity element of the run's first symbol.
-        first_phase : int
+        first_phase : int, default 0
             Pattern phase of the run's first symbol.
 
         Returns

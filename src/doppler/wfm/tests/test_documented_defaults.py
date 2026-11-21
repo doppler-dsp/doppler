@@ -21,13 +21,9 @@ import pytest
 
 from doppler.wfm import Segment, Synth
 
-#: (class, parameter) -> why it still disagrees. Shrink-only.
-EXEMPT = {
-    ("Synth", "fs"): (
-        "#3142, just-buildit/just-makeit#2678: the composer generator gives "
-        "a source type fs = 1e6 and renders the Segment field default 1.0"
-    ),
-}
+#: (class, parameter) -> why it still disagrees. Shrink-only; empty since
+#: jm 0.133.1 renders the source type's fs from the object (#3142).
+EXEMPT: dict[tuple[str, str], str] = {}
 
 _LINE = re.compile(r"^(\w+) : [^\n,]+, default ([^\n]+)$", re.M)
 
@@ -80,9 +76,14 @@ def test_documented_defaults_are_the_actual_defaults(cls):
     )
 
 
-def test_the_exempt_entry_is_the_one_in_the_issue():
-    """A control: the check does see the Synth.fs disagreement."""
-    assert _disagrees(Synth).get("fs") == (1.0, 1_000_000.0)
+def test_the_check_sees_the_synth_fs_disagreement_it_once_had():
+    """A control: a docstring that said 1.0 for fs 1e6 is reported."""
+
+    class Bare:
+        fs = 1_000_000.0
+
+    doc = "fs : float, default 1.0\n    Sample rate.\n"
+    assert _differences(doc, Bare()) == {"fs": (1.0, 1_000_000.0)}
 
 
 def test_an_enum_default_is_compared_not_just_unquoted():

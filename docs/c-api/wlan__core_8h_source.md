@@ -107,6 +107,8 @@ typedef struct
 dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
                                  uint32_t window, uint32_t oversample);
 
+unsigned dp_wlan_n_bpsc (int constellation);
+
 uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
 
 const char *dp_wlan_params_why (int constellation, int code_rate,

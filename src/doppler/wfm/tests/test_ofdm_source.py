@@ -207,7 +207,8 @@ def test_the_engine_face_does_not_offer_the_type():
 
 def _ppdu_from_wlan() -> np.ndarray:
     """What ``wlan`` builds from the same octets, by its own Python face."""
-    w = Wlan(constellation="qam16", code_rate="r34")
+    # window=0: the ofdm source still defaults to rectangular (#3190)
+    w = Wlan(constellation="qam16", code_rate="r34", window=0)
     return w.ppdu(OCTETS, 93)
 
 
@@ -287,7 +288,7 @@ def test_mac_data_is_header_body_and_fcs_on_every_face(tmp_path):
     body = bytes(OCTETS)
     psdu = HEADER + body
     psdu += zlib.crc32(psdu).to_bytes(4, "little")
-    want = Wlan(constellation="qam16", code_rate="r34").ppdu(
+    want = Wlan(constellation="qam16", code_rate="r34", window=0).ppdu(
         np.frombuffer(psdu, np.uint8), 93
     )
     seg = {

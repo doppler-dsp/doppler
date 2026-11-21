@@ -1097,9 +1097,13 @@ def test_a_data_source_carries_no_crc_unless_asked():
 def test_the_retired_sync_spelling_is_refused_naming_frame():
     """``sync=`` is a field of the frame description now: any non-empty
     value is refused and the message points at ``frame=``."""
-    for bad in (BARKER13, "0x1acf", b"\x1a"):
+    for bad in (BARKER13, "0x1acf", b"\x01\x00\x01"):
         with pytest.raises((RuntimeError, ValueError), match="frame"):
             Synth(type="bits", data=PAYLOAD, sync=bad).steps(8)
+    # an octet is not a bit: refused at construction, before ``frame``
+    # is ever named (jm 0.133.1, just-makeit#2696)
+    with pytest.raises(ValueError, match="bit array"):
+        Synth(type="bits", data=PAYLOAD, sync=b"\x1a")
 
 
 def test_dsss_window_opens_each_frame_with_the_pure_code():
@@ -1195,3 +1199,33 @@ def test_chirp_span_survives_json_in_a_summed_segment():
     )
     solo_back = Composer.from_json(solo.to_json()).compose()
     assert np.allclose(_inst_freq(solo_back, 1e6)[span:], 3e5, atol=3e3)
+
+
+_BIT_FIELDS = ("data", "fill", "acq_code", "data_code", "mac_header")
+
+
+@pytest.mark.parametrize("field", _BIT_FIELDS)
+def test_a_bit_field_takes_bytes_as_the_equal_list_and_refuses_a_non_bit(
+    field,
+):
+    """A ``bytes`` of 0/1 is the bit array the equal list is, and an element
+    other than 0 or 1 is refused at construction with a sentence naming a bit
+    array: before jm 0.133.1 ``bytes([8, 0, 8, 8])`` was taken octet-for-bit
+    and rendered silence (#3194, just-makeit#2696)."""
+    bits = [1, 0, 1, 1]
+    kw = {"type": "bits", "sps": 4, "fs": 1.0, "snr": 100.0, "data": bits}
+    if field == "data":
+        kw = {k: v for k, v in kw.items() if k != "data"}
+    if field == "mac_header":
+        # a data frame's header: 24 octets, as 192 bits; the source is ofdm
+        bits = [1, 0] * 96
+        kw = {"type": "ofdm", "mac": "data", "fs": 20e6, "snr": 100.0}
+        kw["data"] = [1, 0] * 32
+    as_bytes = Synth(**kw, **{field: bytes(bits)}).steps(64)
+    as_list = Synth(**kw, **{field: list(bits)}).steps(64)
+    as_array = Synth(**kw, **{field: np.array(bits, np.uint8)}).steps(64)
+    assert np.array_equal(as_bytes, as_list)
+    assert np.array_equal(as_array, as_list)
+    for bad in (bytes([8, *bits[1:]]), [8, *bits[1:]]):
+        with pytest.raises(ValueError, match="bit array"):
+            Synth(**kw, **{field: bad})

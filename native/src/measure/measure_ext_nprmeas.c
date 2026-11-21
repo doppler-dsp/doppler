@@ -516,7 +516,7 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     "    Notch lower edge (Hz).\n"
     "notch_hi : float\n"
     "    Notch upper edge (Hz).\n"
-    "guard_hz : float\n"
+    "guard_hz : float, default 0.0\n"
     "    Keep-out around the notch edges (Hz).\n"
     "\n"
     "Returns\n"

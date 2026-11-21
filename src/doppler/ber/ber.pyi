@@ -197,15 +197,15 @@ class BerMeter:
         ----------
         rx : npt.NDArray[np.complex64]
             Recovered symbols to align against the truth.
-        t0 : int
+        t0 : int, default 0
             Truth index of the marker's first occurrence.
-        n_marker : int
+        n_marker : int, default 0
             Marker length in symbols; 0 selects BER_SYNC_SYMS.
-        period : int
+        period : int, default 0
             Repeat period in symbols; 0 for a single occurrence.
-        lag_span : int
+        lag_span : int, default 0
             Search half-width in symbols; 0 selects BER_LAG_SPAN.
-        pfa : float
+        pfa : float, default 0.0
             Whole-search false-alarm probability; 0 selects 1e-6.
 
         Returns
@@ -259,9 +259,9 @@ class BerMeter:
         ----------
         rx : npt.NDArray[np.complex64]
             Recovered symbols to score.
-        lo : int
+        lo : int, default 0
             First symbol index to score (inclusive).
-        hi : int
+        hi : int, default 0
             One past the last symbol index to score; clamped to rx_len. `hi =
             0` scores nothing, so pass the window's true end.
 
@@ -1129,9 +1129,9 @@ def ber_lock_symbol(
     ----------
     flags : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Per-symbol lock flags, nonzero = locked; NULL gives -1.
-    sustain : int
+    sustain : int, default 200
         Consecutive locked symbols required; 0 selects 200.
-    min_frac : float
+    min_frac : float, default 0.9
         Fraction of the remaining record that must be locked, in (0, 1]; a
         value <= 0 (or NaN) selects 0.9.
 
@@ -1186,11 +1186,11 @@ def ber_evm_db(
     rx : npt.NDArray[np.complex64]
         Symbol-rate complex samples (matched-filter output). NULL gives
         0.0.
-    lo : int
+    lo : int, default 0
         First symbol of the window (inclusive).
-    hi : int
+    hi : int, default 0
         One past the last symbol; clamped to rx_len.
-    m : int
+    m : int, default 4
         Constellation order the stream carries (2, 4, 8, ...).
 
     Returns
@@ -1244,9 +1244,9 @@ def ber_settle_from(
     ----------
     budget : int
         dp_ber_settle_syms() of the loops in use.
-    timing_lock : int
+    timing_lock : int, default -1
         dp_ber_lock_symbol() of the timing flag, or -1.
-    carrier_lock : int
+    carrier_lock : int, default -1
         dp_ber_lock_symbol() of the carrier flag, or -1.
 
     Returns

@@ -2173,7 +2173,7 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "    Preamble repetitions (>= 1).\n"
     "fs : float, default 1.0\n"
     "    Sample rate, Hz (> 0).\n"
-    "cn0_dbhz : float\n"
+    "cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE\n"
     "    C/N0 the search is sized for, dB-Hz: any finite value, or NaN\n"
     "    (DP_CORRELATOR_CN0_NONE) for no design point.\n"
     "doppler_uncertainty : float, default 0.0\n"

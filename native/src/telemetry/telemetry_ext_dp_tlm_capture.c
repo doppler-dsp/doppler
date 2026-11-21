@@ -582,7 +582,7 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "n : int\n"
+    "n : int, default 0\n"
     "    Records wanted; 0 means \"everything accumulated\".\n"
     "out : npt.NDArray[Any] | None\n"
     "    Destination.\n"

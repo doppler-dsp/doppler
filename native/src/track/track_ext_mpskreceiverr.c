@@ -1102,7 +1102,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "    Telemetry context to attach, or NULL to detach.\n"
     "prefix : str\n"
     "    Probe-name prefix, e.g. \"rx\".\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th symbol (every decim-th gain update for the two\n"
     "    AGC probes); >= 1.\n"
     "\n"

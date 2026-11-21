@@ -2149,7 +2149,7 @@ static PyTypeObject BurstCaptureObjType = {
     "    Preamble repetitions (>= 1).\n"
     "fs : float, default 1.0\n"
     "    Sample rate, Hz (> 0); 1 for normalized units.\n"
-    "cn0_dbhz : float\n"
+    "cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE\n"
     "    C/N0 the search is sized for, dB-Hz, of the preamble's mean power: "
     "any\n"
     "    finite value, or NaN (DP_CORRELATOR_CN0_NONE) for no design point.\n"

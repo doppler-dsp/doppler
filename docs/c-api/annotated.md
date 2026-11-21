@@ -170,7 +170,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**wfm\_scene\_ops**](structwfm__scene__ops.md) _The composer's own entry points, as a table its state starts with._     
 * **struct** [**wfm\_segment\_t**](structwfm__segment__t.md) _One composer segment: one or more sources summed over the same span, then a trailing off-time gap._     
 * **struct** [**wfm\_seq\_t**](structwfm__seq__t.md) _A run of bits, however it is produced._     
-* **struct** [**wfm\_source\_t**](structwfm__source__t.md)     
+* **struct** [**wfm\_source\_t**](structwfm__source__t.md) _One additive source within a segment: a_ `synth` _config + its level._    
 * **struct** [**wfm\_span\_t**](structwfm__span__t.md) _One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._    
 * **struct** [**wfm\_stage\_op\_t**](structwfm__stage__op__t.md) _How one kind of stage actually transforms bits._     
 * **struct** [**wfm\_stage\_t**](structwfm__stage__t.md) _One transform, and — the whole point — the fields it covers._     

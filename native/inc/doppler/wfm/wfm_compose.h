@@ -130,18 +130,6 @@ typedef enum
 } wfm_bitmod_t;
 
 /**
- * @brief One additive source within a segment: a `synth` config + its level.
- *
- * The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the
- * segment's — one receiver, one sample rate). `level` is the source's average
- * power in dBFS (≤0); the segment sums its sources, each scaled by
- * `10^(level/20)`.
- *
- * Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the
- * matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi`
- * in the `*_hi` companion (see the `ranged` enum).
- */
-/**
  * @brief The `window` of an ofdm source that nobody set: the standard's 100 ns
  *        transition, `2 * fs / bandwidth` samples.
  *
@@ -153,6 +141,18 @@ typedef enum
  */
 #define WFM_WINDOW_UNSET SIZE_MAX
 
+/**
+ * @brief One additive source within a segment: a `synth` config + its level.
+ *
+ * The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the
+ * segment's — one receiver, one sample rate). `level` is the source's average
+ * power in dBFS (≤0); the segment sums its sources, each scaled by
+ * `10^(level/20)`.
+ *
+ * Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the
+ * matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi`
+ * in the `*_hi` companion (see the `ranged` enum).
+ */
 typedef struct {
     int type;        /**< Waveform type. tone: complex sinusoid. noise:
                           AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven
@@ -1037,9 +1037,9 @@ const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
  *
  * @code
  * wfm_source_t s = WFM_SOURCE_DEFAULTS;   // window unset
- * size_t w = dp_wfm_source_window (&s, 80e6);   // 8: 2 * (80 / 20)
+ * printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 8: 2 * (80 / 20)
  * s.window = 0;
- * w = dp_wfm_source_window (&s, 80e6);          // 0: rectangular, asked for
+ * printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 0: rectangular
  * @endcode
  */
 size_t dp_wfm_source_window(const wfm_source_t *src, double fs);

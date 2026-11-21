@@ -37,7 +37,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | struct | [**wfm\_draw\_t**](structwfm__draw__t.md) <br>_One rendered source instance: its timing AND the values it was actually rendered with._  |
 | struct | [**wfm\_scene\_ops**](structwfm__scene__ops.md) <br>_The composer's own entry points, as a table its state starts with._  |
 | struct | [**wfm\_segment\_t**](structwfm__segment__t.md) <br>_One composer segment: one or more sources summed over the same span, then a trailing off-time gap._  |
-| struct | [**wfm\_source\_t**](structwfm__source__t.md) <br> |
+| struct | [**wfm\_source\_t**](structwfm__source__t.md) <br>_One additive source within a segment: a_ `synth` _config + its level._ |
 | struct | [**wfm\_span\_t**](structwfm__span__t.md) <br>_One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._ |
 
 
@@ -194,7 +194,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**WFM\_NUM\_SAMPLES\_PLAIN**](wfm__compose_8h.md#define-wfm_num_samples_plain)  `((size\_t)1024)`<br>_A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one: what_`--count` _, a scene and_`Segment` _default to._ |
-| define  | [**WFM\_WINDOW\_UNSET**](wfm__compose_8h.md#define-wfm_window_unset)  `SIZE\_MAX`<br>_One additive source within a segment: a_ `synth` _config + its level._ |
+| define  | [**WFM\_WINDOW\_UNSET**](wfm__compose_8h.md#define-wfm_window_unset)  `SIZE\_MAX`<br>_The_ `window` _of an ofdm source that nobody set: the standard's 100 ns transition,_`2 * fs / bandwidth` _samples._ |
 
 ## Detailed Description
 
@@ -3201,9 +3201,9 @@ The count of samples.
 
 ```C++
 wfm_source_t s = WFM_SOURCE_DEFAULTS;   // window unset
-size_t w = dp_wfm_source_window (&s, 80e6);   // 8: 2 * (80 / 20)
+printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 8: 2 * (80 / 20)
 s.window = 0;
-w = dp_wfm_source_window (&s, 80e6);          // 0: rectangular, asked for
+printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 0: rectangular
 ```
  
 
@@ -3572,20 +3572,11 @@ _A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one:
 
 ### define WFM\_WINDOW\_UNSET 
 
-_One additive source within a segment: a_ `synth` _config + its level._
+_The_ `window` _of an ofdm source that nobody set: the standard's 100 ns transition,_`2 * fs / bandwidth` _samples._
 ```C++
 #define WFM_WINDOW_UNSET `SIZE_MAX`
 ```
 
-
-
-The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the segment's — one receiver, one sample rate). `level` is the source's average power in dBFS (≤0); the segment sums its sources, each scaled by `10^(level/20)`.
-
-
-Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi` in the `*_hi` companion (see the `ranged` enum).
-
-
-The `window` of an ofdm source that nobody set: the standard's 100 ns transition, `2 * fs / bandwidth` samples.
 
 
 It is the manifest default of `wfm_source_t.window`, so a source a face builds starts unset, and `0` stays the explicit rectangular window (a C caller that zero-initializes a source gets it). A count of samples is never this large: the range is 0 to `80 * fs / bandwidth`, at most `80 * 128`. [**dp\_wfm\_source\_window()**](wfm__compose_8h.md#function-dp_wfm_source_window) turns it into the count. 

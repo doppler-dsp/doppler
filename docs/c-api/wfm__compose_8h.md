@@ -3200,6 +3200,8 @@ The count of samples.
 
 
 ```C++
+#include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+
 wfm_source_t s = WFM_SOURCE_DEFAULTS;   // window unset
 printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 8: 2 * (80 / 20)
 s.window = 0;

@@ -260,16 +260,11 @@ are not whole samples, a conflict rule when both are given) and a default
 each face fills in itself (the same default in three places that can
 drift).
 
-**What the Python face shows.** jm 0.133.0 renders the declared default as
-the number, `window: int = 4294967295`, and refuses a named constant there
-("not a valid `uint32_t` literal"). Its `optional = true` renders
-`window=None` in the stub and `int or None` in the docstring, but the
-generated C parses a plain integer and an omitted keyword stays 0, so the
-stub and the binding disagree
-([just-makeit#2697](https://github.com/just-buildit/just-makeit/issues/2697)).
-The face ships the number, and the docstring's first sentence says what the
-default means. When #2697 is fixed the declaration moves to `optional` with
-no C change.
+**What the Python face shows.** The manifest declares the default as
+`default_raw = "WLAN_WINDOW_STANDARD"`, so the stub reads
+`window: int = ...` and the docstring `window : int, default WLAN_WINDOW_STANDARD`; the binding starts at the constant and passes it to
+create. An omitted keyword is the standard's window and `window=0` is the
+rectangular one, by asking.
 
 **What a default caller sees.** The symbol boundaries are cross-faded over
 `2 * M` samples and the PPDU is `2 * M` samples longer (`dp_wlan_ppdu_len`

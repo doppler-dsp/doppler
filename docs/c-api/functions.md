@@ -1826,7 +1826,7 @@
 * **dp\_wfm\_source\_sync\_refuse\_text** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_synth\_type** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_to\_synth\_error** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
-* **dp\_wfm\_source\_window** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_source\_window** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_spec\_headroom** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_spec\_template\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_spec\_to\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))

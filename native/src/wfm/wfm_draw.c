@@ -205,6 +205,10 @@ dp_wfm_source_window (const wfm_source_t *src, double fs)
 {
   if (src->window != WFM_WINDOW_UNSET)
     return src->window;
+  /* Only an ofdm source (type frames) has a window to resolve: any other
+     type renders with none, whatever its fs and bandwidth are. */
+  if (src->type != WFM_SYNTH_FRAMES)
+    return 0;
   /* The standard's count at the source's oversampling, by wlan's own rule
      (the inline both share);
      a rate with no oversampling has none, and the unset value is left for

@@ -21,9 +21,17 @@ import pytest
 
 from doppler.wfm import Segment, Synth
 
-#: (class, parameter) -> why it still disagrees. Shrink-only; empty since
-#: jm 0.133.1 renders the source type's fs from the object (#3142).
-EXEMPT: dict[tuple[str, str], str] = {}
+#: (class, parameter) -> why it still disagrees. Shrink-only. ``window``'s
+#: documented default is the unset INPUT; its read resolves through
+#: ``get_fn`` (jm 0.134.0), so a bare tone reads 0 (#3211).
+_WINDOW = (
+    "window's default names the unset input and its read resolves it "
+    "(get_fn, #3211)"
+)
+EXEMPT: dict[tuple[str, str], str] = {
+    ("Synth", "window"): _WINDOW,
+    ("Segment", "window"): _WINDOW,
+}
 
 #: A default the docstring names by its C constant (jm renders a manifest
 #: default that names one as ``default NAME``), and the value it has.

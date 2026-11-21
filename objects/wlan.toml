@@ -44,9 +44,10 @@ doc = "The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is 5/6."
 [[wlan.init_params]]
 name = "window"
 type = "uint32_t"
-# WLAN_WINDOW_STANDARD (UINT32_MAX): the standard's transition. jm cannot
-# render a named default or a None that reaches create (just-makeit#2697).
-default = "4294967295"
+# WLAN_WINDOW_STANDARD (UINT32_MAX): the standard's transition, resolved by
+# dp_wlan_window_resolve. jm 0.133.1 names the constant: default_raw
+# (just-makeit#2697).
+default_raw = "WLAN_WINDOW_STANDARD"
 doc = "The default is the standard's 100 ns transition, `2 * oversample` samples; 0 is no window. Otherwise the window length in samples at the OUTPUT rate, 0 to 80 times `oversample`: the cross-fade at each OFDM symbol boundary of the PPDUs `ppdu` renders. Above the `16 * oversample` guard interval the cross-fade reaches into the symbol body."
 
 [[wlan.init_params]]

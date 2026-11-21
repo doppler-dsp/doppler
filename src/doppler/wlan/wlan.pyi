@@ -20,7 +20,7 @@ class Wlan:
         The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is
         5/6.
         One of ``"r12"``, ``"r23"``, ``"r34"``, ``"r56"``.
-    window : int, default 4294967295
+    window : int, default WLAN_WINDOW_STANDARD
         The default is the standard's 100 ns transition, `2 * oversample`
         samples; 0 is no window. Otherwise the window length in samples at the
         OUTPUT rate, 0 to 80 times `oversample`: the cross-fade at each OFDM
@@ -56,7 +56,7 @@ class Wlan:
         self,
         constellation: Literal["bpsk", "qpsk", "qam16", "qam64"] = "qam16",
         code_rate: Literal["r12", "r23", "r34", "r56"] = "r12",
-        window: int = 4294967295,
+        window: int = ...,
         oversample: int = 1,
     ) -> None: ...
     def reset(self) -> None:

@@ -45,7 +45,7 @@ WlanObj_init (WlanObject *self, PyObject *args, PyObject *kwds)
       = { "constellation", "code_rate", "window", "oversample", NULL };
   const char *constellation_str = "qam16";
   const char *code_rate_str     = "r12";
-  long long   window_raw        = 4294967295;
+  long long   window_raw        = WLAN_WINDOW_STANDARD;
   long long   oversample_raw    = 1;
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssLL", kwlist,
@@ -665,7 +665,7 @@ static PyTypeObject WlanObjType = {
     "    The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is\n"
     "    5/6.\n"
     "    One of ``\"r12\"``, ``\"r23\"``, ``\"r34\"``, ``\"r56\"``.\n"
-    "window : int, default 4294967295\n"
+    "window : int, default WLAN_WINDOW_STANDARD\n"
     "    The default is the standard's 100 ns transition, `2 * oversample`\n"
     "    samples; 0 is no window. Otherwise the window length in samples at "
     "the\n"

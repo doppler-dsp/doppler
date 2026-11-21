@@ -980,8 +980,12 @@ _acq_tile_alias_hop_check (void)
  * picks as (pick, hypothesis) tasks on the search's pool, each summing in
  * one fixed order, so what it reports cannot depend on the worker count.
  * The edge tones of _acq_tile_doppler_check() (the ones whose rows the hop
- * moves) are pushed through one engine at 1 worker and one at 4, and every
- * field of every hit and every carried twin row must be bit-identical. */
+ * moves) are pushed a dwell at a time through one engine at 1 worker and
+ * one at 4: every field of every hit and every carried twin row must be
+ * bit-identical, and every row the 4-worker engine reports must be the one
+ * the serial search_resolve_tile_alias() gives its pick. The 1-vs-4
+ * comparison alone runs one task body twice, so it is red only on a race;
+ * the serial one is red on a wrong body. */
 static int
 _hit_same (const dp_correlator_hit_t *a, const dp_correlator_hit_t *b)
 {
@@ -1009,16 +1013,21 @@ _acq_tile_alias_fanned_check (void)
               && one->search->blk_raw);
   DP_REQUIRE (dp_correlator_set_threads (one, 1) == DP_OK);
   DP_REQUIRE (dp_correlator_set_threads (four, 4) == DP_OK);
+  DP_REQUIRE_MSG (four->search->threads == 4 && four->pool != NULL,
+                  "the fanned engine runs on 4 workers");
   DP_REQUIRE (dp_correlator_set_max_peaks (one, 8, NULL) == DP_OK);
   DP_REQUIRE (dp_correlator_set_max_peaks (four, 8, NULL) == DP_OK);
+  /* The coherent path, so the dwell's surface is mag_buf after the push. */
+  DP_REQUIRE (four->search->n_noncoh <= 1);
   const double native = 2.0 * span;
   const double edge[] = { 0.5, -0.5, 1.5, -1.5 };
-  size_t       picks  = 0;
+  const size_t dwell  = one->search->coherent_bins * nx;
+  size_t       dwells = 0, fewest = DP_CORRELATOR_MAX_PEAKS;
   for (size_t i = 0; i < sizeof edge / sizeof *edge; i++)
     for (int q = -4; q <= 4; q++)
       {
         const double    f   = (edge[i] + 0.005 * (double)q) * native;
-        const size_t    len = 6 * one->search->coherent_bins * nx;
+        const size_t    len = 6 * dwell;
         float _Complex *x   = malloc (len * sizeof *x);
         DP_REQUIRE (x != NULL);
         for (size_t k = 0; k < len; k++)
@@ -1029,22 +1038,50 @@ _acq_tile_alias_fanned_check (void)
           }
         dp_correlator_reset (one);
         dp_correlator_reset (four);
-        dp_correlator_hit_t h1[8], h4[8];
-        const size_t        n1 = dp_correlator_push (one, x, len, h1, 8);
-        const size_t        n4 = dp_correlator_push (four, x, len, h4, 8);
+        size_t hits = 0;
+        for (size_t off = 0; off < len; off += dwell)
+          {
+            dp_correlator_hit_t h1[8], h4[8];
+            const size_t n1 = dp_correlator_push (one, x + off, dwell, h1, 8);
+            const size_t n4 = dp_correlator_push (four, x + off, dwell, h4, 8);
+            DP_CHECK (n4 == n1);
+            for (size_t k = 0; k < n1 && k < n4; k++)
+              DP_CHECK (_hit_same (&h1[k], &h4[k]));
+            DP_CHECK (four->n_twins == one->n_twins);
+            for (size_t k = 0; k < one->n_twins && k < four->n_twins; k++)
+              DP_CHECK (four->twin_row[k] == one->twin_row[k]
+                        && four->twin_col[k] == one->twin_col[k]);
+            if (n4 == 0)
+              continue;
+            /* The dwell's hits are its listed picks in order (a held twin
+               takes none): each one's row, against the serial resolve of
+               that pick's native row. */
+            size_t p = 0;
+            for (size_t k = 0; k < n4; k++)
+              {
+                while (p < four->n_peaks && four->peaks[p].col != h4[k].col)
+                  p++;
+                DP_REQUIRE_MSG (p < four->n_peaks, "every hit is a pick");
+                const size_t col = four->peaks[p].col;
+                const size_t nat = search_native_row (four, four->mag_buf,
+                                                      four->peaks[p].row, col);
+                DP_CHECK_MSG (
+                    h4[k].row == search_resolve_tile_alias (four, nat, col),
+                    "a fanned row is the serial resolve's");
+                p++;
+              }
+            hits += n4;
+            dwells++;
+            if (four->n_peaks < fewest)
+              fewest = four->n_peaks;
+          }
         free (x);
-        DP_REQUIRE (n1 >= 1);
-        DP_CHECK (n4 == n1);
-        for (size_t k = 0; k < n1 && k < n4; k++)
-          DP_CHECK (_hit_same (&h1[k], &h4[k]));
-        DP_CHECK (four->n_twins == one->n_twins);
-        for (size_t k = 0; k < one->n_twins && k < four->n_twins; k++)
-          DP_CHECK (four->twin_row[k] == one->twin_row[k]
-                    && four->twin_col[k] == one->twin_col[k]);
-        picks += one->n_peaks;
+        DP_REQUIRE (hits >= 1);
       }
-  /* Several picks a dwell, or the fan had nothing to spread. */
-  DP_CHECK (picks > 36);
+  /* Several picks every dwell that lists one, or the fan had nothing to
+     spread: two at the least, on each of them. */
+  DP_CHECK (dwells >= 36);
+  DP_CHECK_MSG (fewest >= 2, "every dwell fans two picks or more");
 
   /* Each pick its own hypotheses: two emitters in one dwell, each found at
      its own code phase within a bin of its own tone. A (the stronger, so

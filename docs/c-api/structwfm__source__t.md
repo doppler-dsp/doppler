@@ -1059,7 +1059,7 @@ size_t wfm_source_t::window;
 
 
 
-For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). Unset (WFM\_WINDOW\_UNSET) is the standard's 100 ns, 2 \* fs / bandwidth samples; a scene or a record written from the source holds that count. 
+For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). Unset (WFM\_WINDOW\_UNSET, 2\*\*64 - 1, which is what Python reads back) is the standard's 100 ns, 2 \* fs / bandwidth samples; a scene or a record written from the source holds that count. 
 
 
         

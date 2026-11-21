@@ -290,6 +290,33 @@ test_a_record_holds_each_ofdm_segments_resolved_window (void)
   cJSON_Delete (root);
   free (rec);
   dp_wfm_compose_destroy (c);
+
+  /* an explicit 0 survives its record: written as 0 (a record without it
+     would read back as the default), and read back as 0 */
+  const char *rect
+      = "{\"version\":1,\"segments\":["
+        "{\"type\":\"ofdm\",\"fs\":40e6,\"wlan\":36,\"data\":\"pn:800:15\","
+        "\"data_len\":800,\"scrambler_init\":93,\"snr\":100,\"window\":0}]}";
+  dp_wfm_compose_state_t *r = dp_wfm_compose_from_json (rect);
+  DP_REQUIRE (r);
+  const wfm_segment_t *rs = dp_wfm_compose_segments (r, &n, NULL, NULL);
+  DP_REQUIRE (rs && n == 1);
+  DP_CHECK (rs[0].sources[0].window == 0u);
+  rec = dp_wfm_spec_to_json (rs, n, 0, 0, 0, 0.0);
+  DP_REQUIRE (rec);
+  cJSON *rj = cJSON_Parse (rec);
+  DP_REQUIRE (rj);
+  const cJSON *rw = cJSON_GetObjectItem (
+      cJSON_GetArrayItem (cJSON_GetObjectItem (rj, "segments"), 0), "window");
+  DP_CHECK (rw && rw->valuedouble == 0.0); /* present, and 0 */
+  cJSON_Delete (rj);
+  dp_wfm_compose_state_t *back = dp_wfm_compose_from_json (rec);
+  DP_REQUIRE (back);
+  const wfm_segment_t *bs = dp_wfm_compose_segments (back, &n, NULL, NULL);
+  DP_CHECK (bs && bs[0].sources[0].window == 0u);
+  dp_wfm_compose_destroy (back);
+  dp_wfm_compose_destroy (r);
+  free (rec);
   return 0;
 }
 

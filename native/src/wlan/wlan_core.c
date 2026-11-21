@@ -243,7 +243,8 @@ wlan_window_ok (uint32_t window, uint32_t oversample)
 uint32_t
 dp_wlan_window_resolve (uint32_t window, uint32_t oversample)
 {
-  return window == WLAN_WINDOW_STANDARD ? 2u * oversample : window;
+  return window == WLAN_WINDOW_STANDARD ? dp_wlan_window_standard (oversample)
+                                        : window;
 }
 
 const char *

@@ -1038,13 +1038,22 @@ test_the_default_window_is_the_standards_100_ns (void)
 
   /* the render is wlan's PPDU at that window, at M = 1, 2 and 4 */
   s.wlan = 36;
-  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 2u, 1u) == 0);
-  DP_CHECK (check_render (&s, 40e6, &r36, WLAN_MAC_NONE, 4u, 2u) == 0);
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE,
+                          dp_wlan_window_resolve (WLAN_WINDOW_STANDARD, 1u),
+                          1u)
+            == 0);
+  DP_CHECK (check_render (&s, 40e6, &r36, WLAN_MAC_NONE,
+                          dp_wlan_window_resolve (WLAN_WINDOW_STANDARD, 2u),
+                          2u)
+            == 0);
   s.wlan          = 0;
   s.bandwidth     = 5e6;
   s.constellation = 2;
   s.code_rate     = WLAN_CODE_3_4;
-  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 8u, 4u) == 0);
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE,
+                          dp_wlan_window_resolve (WLAN_WINDOW_STANDARD, 4u),
+                          4u)
+            == 0);
   /* negative control: that is not the rectangular PPDU. The window adds `2 M`
      samples, and the same count rendered at 0 differs. */
   s.bandwidth     = 0.0;

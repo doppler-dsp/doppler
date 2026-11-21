@@ -184,19 +184,31 @@ dp_wfm_source_bandwidth (const wfm_source_t *src)
   return src->bandwidth > 0.0 ? src->bandwidth : 20e6;
 }
 
+unsigned
+dp_wfm_source_oversample (const wfm_source_t *src, double fs, const char **why)
+{
+  const double ratio = fs / dp_wfm_source_bandwidth (src);
+  const double m     = floor (ratio + 0.5);
+  const char  *no    = NULL;
+  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
+    no = "fs must be an integer multiple of bandwidth: the oversampling "
+         "is done by a larger transform, not a resampler";
+  else if (m > (double)WLAN_OVERSAMPLE_MAX)
+    no = "fs over bandwidth is at most 128";
+  if (why)
+    *why = no;
+  return no ? 0u : (unsigned)m;
+}
+
 size_t
 dp_wfm_source_window (const wfm_source_t *src, double fs)
 {
   if (src->window != WFM_WINDOW_UNSET)
     return src->window;
-  /* The oversampling wfofdm_geom derives from the same two numbers; a rate
-     that is no whole multiple of the bandwidth, or one above
-     WLAN_OVERSAMPLE_MAX, has none, and the unset value is left for
+  /* The standard's count at the source's oversampling, by wlan's own rule
+     (the inline both share);
+     a rate with no oversampling has none, and the unset value is left for
      dp_wfm_ofdm_fs_error to refuse. */
-  const double ratio = fs / dp_wfm_source_bandwidth (src);
-  const double m     = floor (ratio + 0.5);
-  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0
-      || m > (double)WLAN_OVERSAMPLE_MAX)
-    return WFM_WINDOW_UNSET;
-  return 2u * (size_t)m;
+  const unsigned m = dp_wfm_source_oversample (src, fs, NULL);
+  return m ? dp_wlan_window_standard (m) : WFM_WINDOW_UNSET;
 }

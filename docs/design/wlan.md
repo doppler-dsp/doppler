@@ -288,13 +288,18 @@ on every face:
 | scene JSON                            | no `window` key                  | `"window": 0`        |
 | Python `Segment`, `Synth`, `Composer` | `window` omitted                 | `window=0`           |
 
-`dp_wfm_source_window (src, fs)` is the one place the count is decided:
-`2 * fs / bandwidth` for an unset window, the held count otherwise, and the
-unset value back when `fs` is no whole multiple of the bandwidth, which
-`dp_wfm_ofdm_fs_error` then refuses by its own sentence. The renderer, the
-scene writer and the SigMF annotation each call it, so a scene written by
-`Composer` and `wfmgen:window` hold the resolved count, never the absence: a
-record then renders the same samples under any later default. A scene a
+`dp_wfm_source_window (src, fs)` is the one place the count is decided: the
+held count, or for an unset window `dp_wlan_window_standard` (the rule
+`dp_wlan_window_resolve` applies, an inline so wfmgen's draw library shares
+it without linking the DSP) at the oversampling `dp_wfm_source_oversample` derives (`fs` over the bandwidth,
+the one derivation the renderer's geometry shares). When `fs` has no
+oversampling (no whole multiple of the bandwidth, or above 128) the unset
+value comes back, which `dp_wfm_ofdm_fs_error` refuses by its own sentence;
+a record of such a scene writes no `window` key, and the scene cannot
+compose. The renderer, the scene writer and the SigMF annotation each call
+it, so a scene written by `Composer` and `wfmgen:window` hold the resolved
+count, never the absence: a record then renders the same samples under any
+later default. A scene a
 user wrote without `window` is unset and takes the default at load. The
 range check and its sentence (`window is 0 to 80 times fs over bandwidth`)
 run on the resolved count, never the sentinel. The scene writer's rule "not
@@ -302,7 +307,12 @@ written at its default or at zero" keeps the zero for this row
 (`json_keep_zero`, set by the generator for a default that names a
 constant): `"window": 0` is a value, and a record without it would read
 back as the default. A window on another type is refused as before, and the
-unset one is not a window. The tests are
+unset one is not a window. The Python face holds the field as it is: a
+source's `window` attribute reads back `2**64 - 1` while unset, because a
+getter has no `fs` to resolve against and jm renders none for a source
+field; the resolved count is in `to_json()`, `to_sigmf()` and the samples.
+The docstring names the constant, `WFM_WINDOW_UNSET`, which is the C
+spelling of that number. The tests are
 `test_the_default_window_is_the_standards_100_ns` (C and Python) and the two
 record tests in `src/doppler/wfm/tests/test_ofdm_source.py`.
 

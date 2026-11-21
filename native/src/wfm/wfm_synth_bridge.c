@@ -1326,17 +1326,14 @@ wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
 {
   int c, r;
   (void)wfofdm_pair (src, &c, &r); /* ofdm_source_error has accepted it */
-  const double ratio = fs / dp_wfm_source_bandwidth (src);
-  const double m     = floor (ratio + 0.5);
-  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
-    return "fs must be an integer multiple of bandwidth: the oversampling "
-           "is done by a larger transform, not a resampler";
-  if (m > (double)WLAN_OVERSAMPLE_MAX)
-    return "fs over bandwidth is at most 128";
+  const char    *no = NULL;
+  const unsigned m  = dp_wfm_source_oversample (src, fs, &no);
+  if (no)
+    return no;
   g->constellation = c;
   g->code_rate     = r;
-  g->oversample    = (unsigned)m;
-  g->window = dp_wfm_source_window (src, fs); /* the ratio is checked above */
+  g->oversample    = m;
+  g->window        = dp_wfm_source_window (src, fs); /* M is checked above */
   if (g->window > (size_t)WLAN_SYM_LEN * g->oversample)
     return "window is 0 to 80 times fs over bandwidth samples: the "
            "shortest OFDM symbol";

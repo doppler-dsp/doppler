@@ -3173,8 +3173,9 @@ static PyGetSetDef Synth_getset[] = {
   { "window", (getter)Synth_get_window, (setter)Synth_set_window,
     "For type=ofdm: the transition window in samples at the output rate, 0 "
     "for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). "
-    "Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs / bandwidth "
-    "samples; a scene or a record written from the source holds that count.\n",
+    "Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads back) is "
+    "the standard's 100 ns, 2 * fs / bandwidth samples; a scene or a record "
+    "written from the source holds that count.\n",
     NULL },
   { "mac", (getter)Synth_get_mac, (setter)Synth_set_mac,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
@@ -3860,11 +3861,11 @@ static PyTypeObject SynthType = {
       "    For type=ofdm: the transition window in samples at the output "
       "rate, 0\n"
       "    for none, at most 80 times fs over bandwidth (the shortest OFDM\n"
-      "    symbol). Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs "
-      "/\n"
-      "    bandwidth samples; a scene or a record written from the source "
-      "holds\n"
-      "    that count.\n"
+      "    symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python "
+      "reads\n"
+      "    back) is the standard's 100 ns, 2 * fs / bandwidth samples; a "
+      "scene or\n"
+      "    a record written from the source holds that count.\n"
       "mac : str, default ``\"none\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"
@@ -5915,8 +5916,9 @@ static PyGetSetDef Segment_getset[] = {
   { "window", (getter)Segment_flat_window, NULL,
     "For type=ofdm: the transition window in samples at the output rate, 0 "
     "for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). "
-    "Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs / bandwidth "
-    "samples; a scene or a record written from the source holds that count.\n",
+    "Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads back) is "
+    "the standard's 100 ns, 2 * fs / bandwidth samples; a scene or a record "
+    "written from the source holds that count.\n",
     NULL },
   { "mac", (getter)Segment_flat_mac, NULL,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
@@ -6329,11 +6331,11 @@ static PyTypeObject SegmentType = {
       "    For type=ofdm: the transition window in samples at the output "
       "rate, 0\n"
       "    for none, at most 80 times fs over bandwidth (the shortest OFDM\n"
-      "    symbol). Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs "
-      "/\n"
-      "    bandwidth samples; a scene or a record written from the source "
-      "holds\n"
-      "    that count.\n"
+      "    symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python "
+      "reads\n"
+      "    back) is the standard's 100 ns, 2 * fs / bandwidth samples; a "
+      "scene or\n"
+      "    a record written from the source holds that count.\n"
       "mac : str, default ``\"none\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"

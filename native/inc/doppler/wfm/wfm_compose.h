@@ -461,7 +461,8 @@ typedef struct {
     size_t window; /**< For type=ofdm: the transition window in samples at
                             the output rate, 0 for none, at most 80 times fs
                             over bandwidth (the shortest OFDM symbol). Unset
-                            (WFM_WINDOW_UNSET) is the standard's 100 ns,
+                            (WFM_WINDOW_UNSET, 2**64 - 1, which is what
+                            Python reads back) is the standard's 100 ns,
                             2 * fs / bandwidth samples; a scene or a record
                             written from the source holds that count. */
     int mac; /**< For type=ofdm: how the caller's octets become the
@@ -1059,6 +1060,24 @@ size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
  * @return Hz.
  */
 double dp_wfm_source_bandwidth(const wfm_source_t *src);
+
+/**
+ * @brief The oversampling `M = fs / bandwidth` of an ofdm source, 1 to
+ *        `WLAN_OVERSAMPLE_MAX`, or 0 with the reason it has none.
+ *
+ * The one derivation: dp_wfm_ofdm_fs_error() and the renderer take their
+ * geometry from it, and dp_wfm_source_window() scales by it. `fs` must be a
+ * whole multiple of the bandwidth (the transform is longer, not resampled)
+ * and at most 128 times it.
+ *
+ * @param src  The source.
+ * @param fs   The segment's sample rate, Hz.
+ * @param why  Receives the refusal's sentence, or NULL on success; may be
+ *             NULL.
+ * @return `M`, or 0.
+ */
+unsigned dp_wfm_source_oversample(const wfm_source_t *src, double fs,
+                                  const char **why);
 
 /**
  * @brief Install an `ofdm` source's frame renderer and its data pull on a

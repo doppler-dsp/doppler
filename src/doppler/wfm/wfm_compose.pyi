@@ -253,9 +253,9 @@ class Synth:
     window : int, default WFM_WINDOW_UNSET
         For type=ofdm: the transition window in samples at the output rate, 0
         for none, at most 80 times fs over bandwidth (the shortest OFDM
-        symbol). Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs /
-        bandwidth samples; a scene or a record written from the source holds
-        that count.
+        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads
+        back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or
+        a record written from the source holds that count.
     mac : str, default ``"none"``
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header
@@ -724,9 +724,9 @@ class Segment:
     window : int, default WFM_WINDOW_UNSET
         For type=ofdm: the transition window in samples at the output rate, 0
         for none, at most 80 times fs over bandwidth (the shortest OFDM
-        symbol). Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs /
-        bandwidth samples; a scene or a record written from the source holds
-        that count.
+        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads
+        back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or
+        a record written from the source holds that count.
     mac : str, default ``"none"``
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header

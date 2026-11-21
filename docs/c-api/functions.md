@@ -1822,6 +1822,7 @@
 * **dp\_wfm\_source\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_frame\_error** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_has\_frame** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **dp\_wfm\_source\_oversample** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_sync\_refuse\_text** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
 * **dp\_wfm\_source\_synth\_type** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **dp\_wfm\_source\_to\_synth\_error** ([**wfm\_compose.h**](wfm__compose_8h.md), [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md))
@@ -2044,6 +2045,7 @@
 * **dp\_wlan\_tables\_empty** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_tables\_standard** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dp\_wlan\_window\_resolve** ([**wlan\_core.h**](wlan__core_8h.md))
+* **dp\_wlan\_window\_standard** ([**wlan\_core.h**](wlan__core_8h.md))
 * **dot\_q15\_scalar** ([**q15\_mac.h**](q15__mac_8h.md))
 
 

@@ -669,7 +669,7 @@ metavar = "N"
 help_section = "OFDM"
 type = "size_t"
 default = "WFM_WINDOW_UNSET"
-doc = "For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). Unset (WFM_WINDOW_UNSET) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or a record written from the source holds that count."
+doc = "For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or a record written from the source holds that count."
 
 [[module.wfm_compose.source.fields]]
 name = "mac"

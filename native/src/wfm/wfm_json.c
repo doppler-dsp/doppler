@@ -787,10 +787,11 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
             *(size_t *)((char *)base + r->reps_off) = f.reps;
           continue;
         }
-      /* An absent count is the default's own bits, not its double: a size_t
-         default that names a sentinel (WFM_WINDOW_UNSET, SIZE_MAX) does not
-         survive the trip through a double, and row_set would refuse it. */
-      if (!it && r->kind == WFM_SV_SIZE && !r->range_bit)
+      /* An absent count, or one that is no number (num() takes its default
+         for the same input), is the default's own bits, not its double: a
+         size_t default that names a sentinel (WFM_WINDOW_UNSET, SIZE_MAX) does
+         not survive the trip through a double, and row_set would refuse it. */
+      if (!cJSON_IsNumber (it) && r->kind == WFM_SV_SIZE && !r->range_bit)
         {
           *(size_t *)((char *)base + r->off)
               = *(const size_t *)((const char *)def + r->off);

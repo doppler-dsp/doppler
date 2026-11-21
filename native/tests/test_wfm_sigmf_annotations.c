@@ -230,6 +230,69 @@ test_annotate_refuses_without_a_sidecar (void)
   return 0;
 }
 
+/* An ofdm source's window is unset until something resolves it, and a record
+   holds the count it rendered with: a SigMF annotation resolves against its
+   SEGMENT's rate (not the file's), so a mixed-rate scene with an unstated
+   file rate writes 2 for the 20 MHz source and 4 for the 40 MHz one; so does
+   the scene JSON. Sabotage: resolve against the file's fs in the writer ->
+   the unstated rate writes the unset value (1.8e19) for both. */
+static int
+test_a_record_holds_each_ofdm_segments_resolved_window (void)
+{
+  const char *scene
+      = "{\"version\":1,\"segments\":["
+        "{\"type\":\"ofdm\",\"fs\":20e6,\"wlan\":36,\"data\":\"pn:800:15\","
+        "\"data_len\":800,\"scrambler_init\":93,\"snr\":100},"
+        "{\"type\":\"ofdm\",\"fs\":40e6,\"wlan\":36,\"data\":\"pn:800:15\","
+        "\"data_len\":800,\"scrambler_init\":93,\"snr\":100}]}";
+  dp_wfm_compose_state_t *c = dp_wfm_compose_from_json (scene);
+  DP_REQUIRE_MSG (c, "compose the mixed-rate scene");
+  size_t               n    = 0;
+  const wfm_segment_t *segs = dp_wfm_compose_segments (c, &n, NULL, NULL);
+  DP_REQUIRE (segs && n == 2);
+
+  /* the SigMF annotations, file rate unstated and then a rate that is
+     neither segment's */
+  const double rates[2] = { 0.0, 30e6 };
+  for (int k = 0; k < 2; k++)
+    {
+      char *doc = dp_wfm_sigmf_meta_json (0, 0, rates[k], 0.0, 0.0, segs, n);
+      DP_REQUIRE (doc);
+      cJSON *root = cJSON_Parse (doc);
+      DP_REQUIRE (root);
+      const cJSON *ann = cJSON_GetObjectItem (root, "annotations");
+      DP_REQUIRE (ann && cJSON_GetArraySize (ann) == 2);
+      const double want[2] = { 2.0, 4.0 };
+      for (int i = 0; i < 2; i++)
+        {
+          const cJSON *w = cJSON_GetObjectItem (cJSON_GetArrayItem (ann, i),
+                                                "wfmgen:window");
+          DP_CHECK (w && w->valuedouble == want[i]);
+        }
+      cJSON_Delete (root);
+      free (doc);
+    }
+
+  /* the scene JSON holds the same counts */
+  char *rec = dp_wfm_spec_to_json (segs, n, 0, 0, 0, 0.0);
+  DP_REQUIRE (rec);
+  cJSON *root = cJSON_Parse (rec);
+  DP_REQUIRE (root);
+  const cJSON *sg = cJSON_GetObjectItem (root, "segments");
+  DP_REQUIRE (sg && cJSON_GetArraySize (sg) == 2);
+  const double want[2] = { 2.0, 4.0 };
+  for (int i = 0; i < 2; i++)
+    {
+      const cJSON *w
+          = cJSON_GetObjectItem (cJSON_GetArrayItem (sg, i), "window");
+      DP_CHECK (w && w->valuedouble == want[i]);
+    }
+  cJSON_Delete (root);
+  free (rec);
+  dp_wfm_compose_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -237,5 +300,6 @@ main (void)
   DP_CHECK (test_raw_sidecar_round_trip () == 0);
   DP_CHECK (test_no_annotations_reads_empty () == 0);
   DP_CHECK (test_annotate_refuses_without_a_sidecar () == 0);
+  DP_CHECK (test_a_record_holds_each_ofdm_segments_resolved_window () == 0);
   DP_TEST_END ("test_wfm_sigmf_annotations");
 }

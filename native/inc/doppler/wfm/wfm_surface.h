@@ -846,7 +846,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  1 to 127. (default 0)\n" \
   "  --window N      For type=ofdm: the transition window in samples at the output\n" \
   "                  rate, 0 for none, at most 80 times fs over bandwidth (the\n" \
-  "                  shortest OFDM symbol). (default WFM_WINDOW_UNSET)\n" \
+  "                  shortest OFDM symbol).\n" \
   "  --mac M         For type=ofdm: how the caller's octets become the PSDU. One\n" \
   "                  of: none | fcs | data. (default none)\n" \
   "  --gap N         For type=ofdm: idle samples after each PPDU, at the output\n" \

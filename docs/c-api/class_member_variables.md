@@ -1094,11 +1094,11 @@
 
 ## t
 
-* **threads** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **threshold** ([**ber\_align\_t**](structber__align__t.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **test\_stat** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **taps** ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md), [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md), [**dp\_fir\_state\_t**](structdp__fir__state__t.md))
 * **tlm** ([**dp\_agc\_state\_t**](structdp__agc__state__t.md), [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md), [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md), [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
+* **threads** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **tlm\_decim** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_prefix** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_handover** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))

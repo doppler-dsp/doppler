@@ -3724,15 +3724,14 @@ _test_threads_change_nothing_but_cost (void)
   DP_CHECK (a->state == ASYNC_DSSS_RX_TRACKING); /* the search ran and hit */
   DP_CHECK_EQ_SZ (na, nb);
   DP_CHECK (na > 0 && memcmp (sa, sb, na * sizeof *sa) == 0);
-  /* Every running field, through the blob: equal but for the thread count
-     each carries -- the receiver's own, and its search's request (a
-     mutator's value of the Correlator's, #2022), found in the blob as the
-     search's own blob. */
+  /* Every running field, through the blob: equal but for the one thread
+     count it carries, the search's request (a mutator's value of the
+     Correlator's, #2022), found in the blob as the search's own blob. The
+     receiver keeps no copy of its own. */
   const size_t   nbytes = dp_async_dsss_receiver_state_bytes (a);
   unsigned char *ba = malloc (nbytes), *bb = malloc (nbytes);
   dp_async_dsss_receiver_get_state (a, ba);
   dp_async_dsss_receiver_get_state (b, bb);
-  ((async_dsss_receiver_extra_t *)(bb + sizeof (dp_state_hdr_t)))->threads = 1;
   {
     const size_t   cb  = dp_correlator_state_bytes (a->acq);
     unsigned char *cba = malloc (cb);
@@ -3752,27 +3751,50 @@ _test_threads_change_nothing_but_cost (void)
   DP_CHECK (memcmp (ba, bb, nbytes) == 0);
   free (ba);
   free (bb);
-  /* A regrid to one tile re-applies the cap (#2746), and the blob carries
-     what then runs: the 4-thread, five-tile receiver saves threads = 1 and
-     restores as 1 into a receiver on the same one-tile grid. Sabotage:
-     drop the re-cap in dp_correlator_configure_search_raw -> it saves 4. */
+  /* A regrid to one tile re-applies the cap (#2746) and keeps the request:
+     the 4-thread, five-tile receiver runs 1 on one tile, its blob carries
+     the 4 it asked for, and a receiver on the same one-tile grid restores
+     the 4 and runs 1. Sabotage: drop the re-cap in
+     dp_correlator_configure_search_raw -> it runs 4. */
   DP_REQUIRE (dp_async_dsss_receiver_configure_search_raw (b, 1, 1) == 0);
   DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (b), 1);
+  DP_CHECK_EQ_INT (b->acq->search->threads_req, 4);
   {
     const size_t   nr   = dp_async_dsss_receiver_state_bytes (b);
     unsigned char *blob = malloc (nr);
     DP_REQUIRE (blob != NULL);
     dp_async_dsss_receiver_get_state (b, blob);
-    DP_CHECK_EQ_INT (
-        (int)((async_dsss_receiver_extra_t *)(blob + sizeof (dp_state_hdr_t)))
-            ->threads,
-        1);
     dp_async_dsss_receiver_state_t *c
         = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
     DP_REQUIRE (c != NULL);
     DP_REQUIRE (dp_async_dsss_receiver_configure_search_raw (c, 1, 1) == 0);
     DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_state (c, blob), DP_OK);
+    DP_CHECK_EQ_INT (c->acq->search->threads_req, 4);
     DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (c), 1);
+    dp_async_dsss_receiver_destroy (c);
+    free (blob);
+  }
+  /* The request has one home, the search's blob, and a restore reads it
+     back as asked: a writer at 0 (the online cores) restores as 0 into a
+     reader that asked for 2, whatever either machine's core count. Sabotage:
+     have the receiver re-apply the count its writer RAN after the search
+     restored its request (the v17 copy) -> the reader asks for that count,
+     at least 1, not 0. */
+  {
+    DP_REQUIRE (dp_async_dsss_receiver_set_threads (a, 0) == DP_OK);
+    DP_REQUIRE (a->acq->search->threads_req == 0);
+    dp_async_dsss_receiver_state_t *c
+        = _slow_rx (code, 45.0, 5000.0, 0.0, 0.0);
+    DP_REQUIRE (c != NULL);
+    DP_REQUIRE (dp_async_dsss_receiver_set_threads (c, 2) == DP_OK);
+    const size_t   nr   = dp_async_dsss_receiver_state_bytes (a);
+    unsigned char *blob = malloc (nr);
+    DP_REQUIRE (blob != NULL && nr == dp_async_dsss_receiver_state_bytes (c));
+    dp_async_dsss_receiver_get_state (a, blob);
+    DP_CHECK_EQ_INT (dp_async_dsss_receiver_set_state (c, blob), DP_OK);
+    DP_CHECK_EQ_INT (c->acq->search->threads_req, 0);
+    DP_CHECK_EQ_INT (dp_async_dsss_receiver_get_threads (c),
+                     dp_async_dsss_receiver_get_threads (a));
     dp_async_dsss_receiver_destroy (c);
     free (blob);
   }

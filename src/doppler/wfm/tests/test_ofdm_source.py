@@ -207,8 +207,7 @@ def test_the_engine_face_does_not_offer_the_type():
 
 def _ppdu_from_wlan() -> np.ndarray:
     """What ``wlan`` builds from the same octets, by its own Python face."""
-    # window=0: the ofdm source still defaults to rectangular (#3190)
-    w = Wlan(constellation="qam16", code_rate="r34", window=0)
+    w = Wlan(constellation="qam16", code_rate="r34")
     return w.ppdu(OCTETS, 93)
 
 
@@ -288,7 +287,7 @@ def test_mac_data_is_header_body_and_fcs_on_every_face(tmp_path):
     body = bytes(OCTETS)
     psdu = HEADER + body
     psdu += zlib.crc32(psdu).to_bytes(4, "little")
-    want = Wlan(constellation="qam16", code_rate="r34", window=0).ppdu(
+    want = Wlan(constellation="qam16", code_rate="r34").ppdu(
         np.frombuffer(psdu, np.uint8), 93
     )
     seg = {
@@ -327,3 +326,93 @@ def test_mac_data_is_header_body_and_fcs_on_every_face(tmp_path):
     )
     assert p.returncode == 0, p.stderr
     np.testing.assert_array_equal(np.fromfile(out, np.complex64), got)
+
+
+# --- the default window (#3190) -------------------------------------------
+#
+# A source nobody gave a window renders with the standard's 100 ns
+# transition, ``2 * fs / bandwidth`` samples, as ``Wlan``'s default is at the
+# same oversampling. ``window=0`` is the rectangular window, asked for. A
+# scene or a record holds the count the source rendered with, never the
+# absence, so it renders the same samples under any later default.
+
+_RATES = [(20e6, 1), (40e6, 2), (80e6, 4)]
+
+
+def _wlan(m: int, **kw) -> Wlan:
+    return Wlan(constellation="qam16", code_rate="r34", oversample=m, **kw)
+
+
+@pytest.mark.parametrize(("fs", "m"), _RATES)
+def test_the_default_window_is_the_standards_100_ns(fs, m):
+    """Unset is wlan's own default; ``window=0`` is wlan's rectangular PPDU."""
+    seg = {**_OK, "fs": fs, "scrambler_init": 93}
+    want = _wlan(m).ppdu(OCTETS, 93)
+    rect = _wlan(m, window=0).ppdu(OCTETS, 93)
+    assert len(want) == len(rect) + 2 * m  # the window is 2 M samples
+    got = Synth(**_kwargs(seg)).steps(len(want))
+    np.testing.assert_allclose(got, want, atol=1e-5)
+    # the control: the rectangular PPDU is not the default one
+    assert not np.allclose(got[: len(rect)], rect, atol=1e-3)
+    zero = Synth(**_kwargs({**seg, "window": 0})).steps(len(rect))
+    np.testing.assert_allclose(zero, rect, atol=1e-5)
+
+
+@pytest.mark.parametrize(("fs", "m"), _RATES)
+def test_a_scene_and_a_sigmf_hold_the_window_the_source_rendered_with(fs, m):
+    """The record carries ``2 M``, never the absence; an explicit 0 is kept."""
+    seg = {**_OK, "fs": fs, "scrambler_init": 93}
+    for window, held in ((None, 2 * m), (0, 0), (3, 3)):
+        kw = _kwargs(seg if window is None else {**seg, "window": window})
+        c = Composer([Segment(**kw)])
+        rec = json.loads(c.to_json())["segments"][0]
+        assert rec["window"] == held, (window, rec)
+        ann = json.loads(c.to_sigmf(fs=fs))["annotations"][0]
+        assert ann["wfmgen:window"] == held
+        # the record renders the samples the source rendered
+        np.testing.assert_array_equal(
+            Composer.from_json(c.to_json()).compose(), c.compose()
+        )
+
+
+@pytest.mark.parametrize(("fs", "m"), _RATES)
+def test_a_scene_without_the_key_takes_the_default_at_load(fs, m):
+    """A hand-written scene with no ``window`` is the unset one."""
+    seg = {**_OK, "fs": fs, "scrambler_init": 93}
+    bare = Composer.from_json(json.dumps({"version": 1, "segments": [seg]}))
+    held = Composer.from_json(
+        json.dumps({"version": 1, "segments": [{**seg, "window": 2 * m}]})
+    )
+    default = bare.compose()  # a finite source: one compose() per scene
+    np.testing.assert_array_equal(default, held.compose())
+    zero = Composer.from_json(
+        json.dumps({"version": 1, "segments": [{**seg, "window": 0}]})
+    )
+    assert len(zero.compose()) == len(default) - 2 * m
+
+
+def test_the_cli_omits_the_window_for_the_default_and_gives_0_for_none(
+    tmp_path,
+):
+    base = [
+        "--type", "ofdm", "--fs", "40e6", "--wlan", "36",
+        "--scrambler-init", "93", "--data", "pn:800:15", "--data-len", "800",
+    ]  # fmt: skip
+    p, out = _cli(base, tmp_path)
+    assert p.returncode == 0, p.stderr
+    default = np.fromfile(out, np.complex64)
+    p, out = _cli([*base, "--window", "4"], tmp_path)
+    assert p.returncode == 0, p.stderr
+    np.testing.assert_array_equal(np.fromfile(out, np.complex64), default)
+    p, out = _cli([*base, "--window", "0"], tmp_path)
+    assert p.returncode == 0, p.stderr
+    rect = np.fromfile(out, np.complex64)
+    assert len(rect) == len(default) - 4  # 2 M samples at M = 2
+    assert not np.allclose(rect, default[: len(rect)], atol=1e-3)
+
+
+def test_the_range_sentence_quotes_the_count_never_the_sentinel():
+    """81 M is refused as the range says; the unset window never is."""
+    with pytest.raises(ValueError, match="window is 0 to 80 times"):
+        Synth(**_kwargs({**_OK, "window": 81})).steps(8)
+    Synth(**_kwargs(_OK)).steps(8)  # unset: accepted at M = 1

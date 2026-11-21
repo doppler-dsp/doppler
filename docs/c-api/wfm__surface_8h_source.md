@@ -52,6 +52,7 @@ typedef struct
   int                unit_interval; 
   const char        *json;          
   int                json_required; 
+  int                json_keep_zero; 
   int                json_omit;     
   int                json_bool;     
   int                has_when;      
@@ -502,6 +503,7 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .off = offsetof (wfm_source_t, window),
     .json = "window",
     .json_omit = 1,
+    .json_keep_zero = 1,
     .has_when = 1,
     .when_row = WFM_SURFACE_source_type,
     .when_value = 9,
@@ -810,7 +812,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  1 to 127. (default 0)\n" \
   "  --window N      For type=ofdm: the transition window in samples at the output\n" \
   "                  rate, 0 for none, at most 80 times fs over bandwidth (the\n" \
-  "                  shortest OFDM symbol). (default 0)\n" \
+  "                  shortest OFDM symbol). (default WFM_WINDOW_UNSET)\n" \
   "  --mac M         For type=ofdm: how the caller's octets become the PSDU. One\n" \
   "                  of: none | fcs | data. (default none)\n" \
   "  --gap N         For type=ofdm: idle samples after each PPDU, at the output\n" \

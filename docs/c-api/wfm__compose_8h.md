@@ -37,7 +37,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | struct | [**wfm\_draw\_t**](structwfm__draw__t.md) <br>_One rendered source instance: its timing AND the values it was actually rendered with._  |
 | struct | [**wfm\_scene\_ops**](structwfm__scene__ops.md) <br>_The composer's own entry points, as a table its state starts with._  |
 | struct | [**wfm\_segment\_t**](structwfm__segment__t.md) <br>_One composer segment: one or more sources summed over the same span, then a trailing off-time gap._  |
-| struct | [**wfm\_source\_t**](structwfm__source__t.md) <br>_One additive source within a segment: a_ `synth` _config + its level._ |
+| struct | [**wfm\_source\_t**](structwfm__source__t.md) <br> |
 | struct | [**wfm\_span\_t**](structwfm__span__t.md) <br>_One rendered segment instance's exact timing: where it lands in the composed stream and how its_ `delay | on | off` _spans divide it._ |
 
 
@@ -133,6 +133,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  int | [**dp\_wfm\_source\_attach\_ofdm**](#function-dp_wfm_source_attach_ofdm) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint32\_t seed) <br>_Install an_ `ofdm` _source's frame renderer and its data pull on a synth created with type WFM\_SYNTH\_FRAMES: the PPDU of each frame of the data source, built through_`wlan` _from the source's constellation and code rate (or_`wlan` _),_`window` _,_`mac` _,_`gap` _and the oversampling_`fs / bandwidth` _. A no-op for any other type._ |
+|  double | [**dp\_wfm\_source\_bandwidth**](#function-dp_wfm_source_bandwidth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The channel bandwidth of an ofdm source, Hz: its_ `bandwidth` _, or the preset's 20e6 when that is 0 (a C source that skipped the defaults)._ |
 |  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for a source's bit field: an object takes bits._  |
 |  int | [**dp\_wfm\_source\_common\_frame**](#function-dp_wfm_source_common_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, int crc, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_The common frame as a description:_ `[preamble x reps | sync | data | crc]` _, built by the ONE function that builds it._ |
 |  size\_t | [**dp\_wfm\_source\_crc\_refuse\_text**](#function-dp_wfm_source_crc_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `crc=` _: a CRC is a stage of the frame description._ |
@@ -148,6 +149,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._ |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
 |  const char \* | [**dp\_wfm\_source\_to\_synth\_error**](#function-dp_wfm_source_to_synth_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Why_ [_**dp\_wfm\_source\_to\_synth()**_](wfm__compose__bridge_8h.md#function-dp_wfm_source_to_synth) _refused this source, or NULL._ |
+|  size\_t | [**dp\_wfm\_source\_window**](#function-dp_wfm_source_window) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_The window an ofdm source renders with, in samples at the output rate: the count it holds, or the standard's for an unset one._  |
 |  double | [**dp\_wfm\_spec\_headroom**](#function-dp_wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**dp\_wfm\_spec\_template\_json**](#function-dp_wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**dp\_wfm\_spec\_to\_json**](#function-dp_wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, int seed\_advance, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
@@ -192,6 +194,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**WFM\_NUM\_SAMPLES\_PLAIN**](wfm__compose_8h.md#define-wfm_num_samples_plain)  `((size\_t)1024)`<br>_A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one: what_`--count` _, a scene and_`Segment` _default to._ |
+| define  | [**WFM\_WINDOW\_UNSET**](wfm__compose_8h.md#define-wfm_window_unset)  `SIZE\_MAX`<br>_One additive source within a segment: a_ `synth` _config + its level._ |
 
 ## Detailed Description
 
@@ -2450,6 +2453,43 @@ dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
 
 
 
+### function dp\_wfm\_source\_bandwidth 
+
+_The channel bandwidth of an ofdm source, Hz: its_ `bandwidth` _, or the preset's 20e6 when that is 0 (a C source that skipped the defaults)._
+```C++
+double dp_wfm_source_bandwidth (
+    const wfm_source_t * src
+) 
+```
+
+
+
+A negative value is not repaired here: [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm_source_error) refuses it by name.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+
+
+
+**Returns:**
+
+Hz. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_bits\_refuse\_text 
 
 _Refuse text for a source's bit field: an object takes bits._ 
@@ -3128,6 +3168,52 @@ dp_wfm_source_to_synth_error (&s, 1e6);   // dp_wfm_why_pn_poly
 
 
 
+### function dp\_wfm\_source\_window 
+
+_The window an ofdm source renders with, in samples at the output rate: the count it holds, or the standard's for an unset one._ 
+```C++
+size_t dp_wfm_source_window (
+    const wfm_source_t * src,
+    double fs
+) 
+```
+
+
+
+`WFM_WINDOW_UNSET` gives `2 * fs / bandwidth` (the 100 ns transition, 17.3.2.5, which `dp_wlan_window_resolve` gives `Wlan` at the same oversampling); any other count, `0` included, is returned as it is, so the explicit rectangular window stays. When `fs` is not a whole multiple of the bandwidth there is no oversampling to scale by, and the unset value comes back unchanged for [**dp\_wfm\_ofdm\_fs\_error()**](wfm__compose_8h.md#function-dp_wfm_ofdm_fs_error) to refuse. The one place the default is defined for this face: the renderer, the scene and the record each call it, so none holds an unset window.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` The segment's sample rate, Hz. 
+
+
+
+**Returns:**
+
+The count of samples.
+
+
+
+```C++
+wfm_source_t s = WFM_SOURCE_DEFAULTS;   // window unset
+size_t w = dp_wfm_source_window (&s, 80e6);   // 8: 2 * (80 / 20)
+s.window = 0;
+w = dp_wfm_source_window (&s, 80e6);          // 0: rectangular, asked for
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_spec\_headroom 
 
 _The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._
@@ -3479,6 +3565,33 @@ _A plain segment's on-time when its_ `num_samples` _is 0 and no source sets one:
 
 
 
+
+<hr>
+
+
+
+### define WFM\_WINDOW\_UNSET 
+
+_One additive source within a segment: a_ `synth` _config + its level._
+```C++
+#define WFM_WINDOW_UNSET `SIZE_MAX`
+```
+
+
+
+The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the segment's — one receiver, one sample rate). `level` is the source's average power in dBFS (≤0); the segment sums its sources, each scaled by `10^(level/20)`.
+
+
+Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi` in the `*_hi` companion (see the `ranged` enum).
+
+
+The `window` of an ofdm source that nobody set: the standard's 100 ns transition, `2 * fs / bandwidth` samples.
+
+
+It is the manifest default of `wfm_source_t.window`, so a source a face builds starts unset, and `0` stays the explicit rectangular window (a C caller that zero-initializes a source gets it). A count of samples is never this large: the range is 0 to `80 * fs / bandwidth`, at most `80 * 128`. [**dp\_wfm\_source\_window()**](wfm__compose_8h.md#function-dp_wfm_source_window) turns it into the count. 
+
+
+        
 
 <hr>
 

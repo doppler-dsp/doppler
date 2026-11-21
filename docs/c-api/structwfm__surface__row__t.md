@@ -42,6 +42,7 @@
 |  size\_t | [**hi\_off**](#variable-hi_off)  <br> |
 |  const char \* | [**json**](#variable-json)  <br> |
 |  int | [**json\_bool**](#variable-json_bool)  <br> |
+|  int | [**json\_keep\_zero**](#variable-json_keep_zero)  <br> |
 |  int | [**json\_omit**](#variable-json_omit)  <br> |
 |  int | [**json\_required**](#variable-json_required)  <br> |
 |  [**wfm\_sv\_kind\_t**](wfm__surface_8h.md#enum-wfm_sv_kind_t) | [**kind**](#variable-kind)  <br> |
@@ -205,6 +206,23 @@ int wfm_surface_row_t::json_bool;
 
 
 written as true/false 
+
+
+        
+
+<hr>
+
+
+
+### variable json\_keep\_zero 
+
+```C++
+int wfm_surface_row_t::json_keep_zero;
+```
+
+
+
+0 is a value: written under json\_omit 
 
 
         

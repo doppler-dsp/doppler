@@ -250,7 +250,7 @@ class Synth:
         For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
         0 draws a fresh state for each PPDU from seed, so a run is reproducible
         and a resume re-renders the same PPDU.
-    window : int, default 0
+    window : int, default WFM_WINDOW_UNSET
         For type=ofdm: the transition window in samples at the output rate, 0
         for none, at most 80 times fs over bandwidth (the shortest OFDM
         symbol).
@@ -719,7 +719,7 @@ class Segment:
         For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
         0 draws a fresh state for each PPDU from seed, so a run is reproducible
         and a resume re-renders the same PPDU.
-    window : int, default 0
+    window : int, default WFM_WINDOW_UNSET
         For type=ofdm: the transition window in samples at the output rate, 0
         for none, at most 80 times fs over bandwidth (the shortest OFDM
         symbol).

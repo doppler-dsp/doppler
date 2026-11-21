@@ -104,11 +104,14 @@ main (void)
   const size_t len = dp_wlan_mpdu (WLAN_MAC_DATA, header, 24, octets, 100,
                                    psdu, sizeof psdu);
   const dp_wlan_rate_t rate = { 4u, WLAN_CODE_3_4 };
-  const size_t n = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (&rate, len), 0u, 1u);
+  /* the source's window is unset: the standard's, which wlan resolves the
+     same way (2 samples at 20 MHz) */
+  const uint32_t win = dp_wlan_window_resolve (WLAN_WINDOW_STANDARD, 1u);
+  const size_t n = dp_wlan_ppdu_len (dp_wlan_rate_n_sym (&rate, len), win, 1u);
   cf          *want = malloc (n * sizeof *want);
   cf          *x    = malloc ((2 * n + 64u) * sizeof *x);
   if (!want || !x
-      || dp_wlan_ppdu (dp_wlan_tables_standard (), &rate, psdu, len, 93, 0u,
+      || dp_wlan_ppdu (dp_wlan_tables_standard (), &rate, psdu, len, 93, win,
                        1u, want, n)
              != n)
     return 1;
@@ -135,25 +138,35 @@ main (void)
   check (memcmp (y, y + n, n * sizeof *y) != 0,
          "2. a drawn scrambler gives each PPDU its own state");
 
-  /* 3. twice the bandwidth: a larger transform */
+  /* 3. twice the bandwidth: a larger transform. A window cross-fades each
+     symbol boundary on a finer grid at 40 MHz, so the two rates agree
+     outside it; with window 0 every second sample is the 20 MHz one. */
   src.scrambler_init = 93;
   src.seed           = 0;
-  cf *z              = malloc ((4 * n + 64u) * sizeof *z);
-  if (!z || run (&src, 40e6, z, 4 * n + 64u) != 4 * n)
+  src.window         = 0;
+  const size_t n0    = n - win; /* a PPDU without its window */
+  cf          *r     = malloc ((2 * n0 + 64u) * sizeof *r);
+  cf          *z     = malloc ((4 * n0 + 64u) * sizeof *z);
+  if (!r || !z || run (&src, 20e6, r, 2 * n0 + 64u) != 2 * n0
+      || run (&src, 40e6, z, 4 * n0 + 64u) != 4 * n0)
     return 1;
   num = 0;
-  for (size_t i = 0; i < n; i++)
+  den = 0;
+  for (size_t i = 0; i < n0; i++)
     {
-      const double d = cabs ((double _Complex)z[2 * i] - x[i]);
+      const double d = cabs ((double _Complex)z[2 * i] - r[i]);
       num += d * d;
+      den += creal (r[i]) * creal (r[i]) + cimag (r[i]) * cimag (r[i]);
     }
   check (sqrt (num / den) < 1.5e-3,
-         "3. every second sample of the 40 MHz PPDU is the 20 MHz one");
+         "3. with no window every second sample of the 40 MHz PPDU is the "
+         "20 MHz one");
 
   free (want);
   free (x);
   free (y);
   free (z);
+  free (r);
   printf ("%s\n", failures ? "FAILED" : "all checks passed");
   return failures ? 1 : 0;
 }

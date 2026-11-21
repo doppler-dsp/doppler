@@ -1047,7 +1047,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   const char        *code_rate             = "1/2";
   int                scrambler_init        = 0;
   PyObject          *window_obj            = NULL;
-  unsigned long long window_raw            = 0;
+  unsigned long long window_raw            = WFM_WINDOW_UNSET;
   const char        *mac                   = "none";
   PyObject          *gap_obj               = NULL;
   unsigned long long gap_raw               = 0;
@@ -3855,7 +3855,7 @@ static PyTypeObject SynthType = {
       "    0 draws a fresh state for each PPDU from seed, so a run is "
       "reproducible\n"
       "    and a resume re-renders the same PPDU.\n"
-      "window : int, default 0\n"
+      "window : int, default WFM_WINDOW_UNSET\n"
       "    For type=ofdm: the transition window in samples at the output "
       "rate, 0\n"
       "    for none, at most 80 times fs over bandwidth (the shortest OFDM\n"
@@ -6319,7 +6319,7 @@ static PyTypeObject SegmentType = {
       "    0 draws a fresh state for each PPDU from seed, so a run is "
       "reproducible\n"
       "    and a resume re-renders the same PPDU.\n"
-      "window : int, default 0\n"
+      "window : int, default WFM_WINDOW_UNSET\n"
       "    For type=ofdm: the transition window in samples at the output "
       "rate, 0\n"
       "    for none, at most 80 times fs over bandwidth (the shortest OFDM\n"

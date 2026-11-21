@@ -275,6 +275,37 @@ every point by at least 7.9 dB at `M = 4` (finding
 window fails the 30 MHz point. The tests that pin `M = 1` bit-identity
 against a committed PPDU state `window = 0`.
 
+**The wfmgen face.** `wfm_source_t.window` is a `size_t` whose manifest
+default is a named constant, `WFM_WINDOW_UNSET` (`SIZE_MAX`): a source a face
+builds starts unset, and a C caller that zero-initializes a source gets `0`,
+the rectangular window, by its own spelling. Unset is told from 0 by value
+on every face:
+
+| face                                  | unset                            | explicit rectangular |
+| ------------------------------------- | -------------------------------- | -------------------- |
+| struct                                | `WFM_WINDOW_UNSET` (the default) | `0`                  |
+| CLI                                   | `--window` omitted               | `--window 0`         |
+| scene JSON                            | no `window` key                  | `"window": 0`        |
+| Python `Segment`, `Synth`, `Composer` | `window` omitted                 | `window=0`           |
+
+`dp_wfm_source_window (src, fs)` is the one place the count is decided:
+`2 * fs / bandwidth` for an unset window, the held count otherwise, and the
+unset value back when `fs` is no whole multiple of the bandwidth, which
+`dp_wfm_ofdm_fs_error` then refuses by its own sentence. The renderer, the
+scene writer and the SigMF annotation each call it, so a scene written by
+`Composer` and `wfmgen:window` hold the resolved count, never the absence: a
+record then renders the same samples under any later default. A scene a
+user wrote without `window` is unset and takes the default at load. The
+range check and its sentence (`window is 0 to 80 times fs over bandwidth`)
+run on the resolved count, never the sentinel. The scene writer's rule "not
+written at its default or at zero" keeps the zero for this row
+(`json_keep_zero`, set by the generator for a default that names a
+constant): `"window": 0` is a value, and a record without it would read
+back as the default. A window on another type is refused as before, and the
+unset one is not a window. The tests are
+`test_the_default_window_is_the_standards_100_ns` (C and Python) and the two
+record tests in `src/doppler/wfm/tests/test_ofdm_source.py`.
+
 ## 4. What each 802.11 PHY block composes
 
 ### What exists, and what does not
@@ -1327,43 +1358,6 @@ drift.
     source field has, and is sugar over the same 24 octets, so it can follow
     the first slice without moving anything. The alternative declares both
     at once.
-
-1. **The default window on the wfmgen face** ([#3190](https://github.com/doppler-dsp/doppler/issues/3190)).
-    `Wlan` and the C constructor take the standard's 100 ns transition by
-    default (section 3, "The default window"); the wfmgen `ofdm` source
-    follows once the type lands. Its design, ruled with the first half:
-
-    **wfmgen** (the half that follows #3184). `wfm_source_t.window` is a
-    `size_t` whose default is no longer 0: the generated defaults function
-    (`gen_wfm_defaults.py`, from the manifest row) sets it to the sentinel,
-    so a source built by the faces starts "unset", and a C caller that
-    zero-initializes a source gets `0`, the explicit rectangular choice, the
-    old behavior, by its own spelling. Unset is told from 0 by value, in one
-    place:
-
-    | face                                  | unset                               | explicit rectangular |
-    | ------------------------------------- | ----------------------------------- | -------------------- |
-    | struct                                | the sentinel (the manifest default) | `0`                  |
-    | CLI                                   | `--window` omitted                  | `--window 0`         |
-    | scene JSON                            | no `window` key                     | `"window": 0`        |
-    | Python `Segment`, `Synth`, `Composer` | `window` omitted                    | `window=0`           |
-
-    The source's window is resolved once, where the faces already hand a
-    source to the one validator (`dp_wfm_source_error`): the next call,
-    a resolve step beside it, replaces the sentinel with `2 * M` from the
-    source's own `fs` and `bandwidth`. So a scene written by `Composer`
-    (and the SigMF annotation `wfmgen:window`) holds the resolved count,
-    never the absence: `json_omit = "default"` compares the count to the
-    sentinel default, so it is written. A scene read back renders the same
-    samples under any later default, which the absence would not. No new
-    manifest key is needed. A scene a user wrote without `window` is read as
-    unset and resolved at load, so it takes the default at load time, and
-    its round trip then carries the count.
-
-    The order is fixed: the resolve step runs first, then
-    `dp_wfm_source_error` and the ofdm rules that need `fs` check the resolved
-    source, so a refusal sentence about `window` quotes the resolved
-    count's range (`0` to `80 * M`), never the sentinel.
 
 ## 11. The work, in order
 

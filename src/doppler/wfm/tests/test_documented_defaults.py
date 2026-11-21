@@ -25,6 +25,10 @@ from doppler.wfm import Segment, Synth
 #: jm 0.133.1 renders the source type's fs from the object (#3142).
 EXEMPT: dict[tuple[str, str], str] = {}
 
+#: A default the docstring names by its C constant (jm renders a manifest
+#: default that names one as ``default NAME``), and the value it has.
+CONSTANTS = {"WFM_WINDOW_UNSET": 2**64 - 1}
+
 _LINE = re.compile(r"^(\w+) : [^\n,]+, default ([^\n]+)$", re.M)
 
 
@@ -35,6 +39,9 @@ def _documented(doc: str) -> list[tuple[str, object]]:
         text = text.strip()
         # an enum default is written ``"tone"`` in the docstring
         text = text.removeprefix("``").removesuffix("``")
+        if text in CONSTANTS:
+            out.append((name, CONSTANTS[text]))
+            continue
         try:
             out.append((name, ast.literal_eval(text)))
         except (ValueError, SyntaxError):
@@ -105,3 +112,19 @@ def test_an_enum_default_is_compared_not_just_unquoted():
 
     assert _differences(doc, Wrong()) == {"type": ("tone", "noise")}
     assert _differences(doc, Right()) == {}
+
+
+def test_a_named_constant_default_is_compared_by_its_value():
+    """Controls: ``default WFM_WINDOW_UNSET`` is read as the constant's value,
+    so a bare object whose attribute differs is reported, and one that holds
+    it is not."""
+    doc = "window : int, default WFM_WINDOW_UNSET\n    The window.\n"
+
+    class Unset:
+        window = 2**64 - 1
+
+    class Zero:
+        window = 0
+
+    assert _differences(doc, Unset()) == {}
+    assert _differences(doc, Zero()) == {"window": (2**64 - 1, 0)}

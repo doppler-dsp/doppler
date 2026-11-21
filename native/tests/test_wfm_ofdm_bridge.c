@@ -60,6 +60,9 @@ source (void)
   s.data_len       = 800;
   s.wlan           = 36;
   s.scrambler_init = 93;
+  /* The rectangular window, asked for: the pins below are at window 0. A
+     source that keeps the default has its own test (the default window). */
+  s.window = 0;
   return s;
 }
 
@@ -998,12 +1001,87 @@ test_the_mac_header_is_a_key (void)
   return 0;
 }
 
+/* The default window: a source nobody gave a window renders with the
+   standard's 100 ns transition, `2 * fs / bandwidth` samples, which is what
+   wlan's own default gives at the same M; an explicit 0 stays rectangular. */
+static int
+test_the_default_window_is_the_standards_100_ns (void)
+{
+  const dp_wlan_rate_t r36 = { 4u, WLAN_CODE_3_4 };
+  wfm_source_t         s   = source ();
+  const wfm_source_t   d   = WFM_SOURCE_DEFAULTS;
+  DP_CHECK (d.window == WFM_WINDOW_UNSET); /* the manifest default */
+  s.window = d.window;
+  /* the count, at each M the faces can reach: 2 M, by fs / bandwidth */
+  DP_CHECK (dp_wfm_source_window (&s, 20e6) == 2u);
+  DP_CHECK (dp_wfm_source_window (&s, 40e6) == 4u);
+  DP_CHECK (dp_wfm_source_window (&s, 20e6 * 128.0) == 256u);
+  s.bandwidth = 5e6;
+  DP_CHECK (dp_wfm_source_window (&s, 20e6) == 8u); /* M = 4 */
+  s.bandwidth = 0.0;                                /* the preset's 20 MHz */
+  DP_CHECK (dp_wfm_source_window (&s, 40e6) == 4u);
+  /* a count is returned as it is, 0 included: the rectangular window */
+  s.window = 0;
+  DP_CHECK (dp_wfm_source_window (&s, 40e6) == 0u);
+  s.window = 3;
+  DP_CHECK (dp_wfm_source_window (&s, 40e6) == 3u);
+  /* no whole M: no count, left for the fs rule to refuse by its sentence */
+  s.window = WFM_WINDOW_UNSET;
+  DP_CHECK (dp_wfm_source_window (&s, 30e6) == WFM_WINDOW_UNSET);
+  const char *why = dp_wfm_source_to_synth_error (&s, 30e6);
+  DP_CHECK (why && strstr (why, "fs must be an integer multiple"));
+  /* never the range sentence: the sentinel is not a count above 80 M */
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6) == NULL);
+  DP_CHECK (dp_wfm_source_to_synth_error (&s, 20e6 * 128.0) == NULL);
+
+  /* the render is wlan's PPDU at that window, at M = 1, 2 and 4 */
+  s.wlan = 36;
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 2u, 1u) == 0);
+  DP_CHECK (check_render (&s, 40e6, &r36, WLAN_MAC_NONE, 4u, 2u) == 0);
+  s.wlan          = 0;
+  s.bandwidth     = 5e6;
+  s.constellation = 2;
+  s.code_rate     = WLAN_CODE_3_4;
+  DP_CHECK (check_render (&s, 20e6, &r36, WLAN_MAC_NONE, 8u, 4u) == 0);
+  /* negative control: that is not the rectangular PPDU. The window adds `2 M`
+     samples, and the same count rendered at 0 differs. */
+  s.bandwidth     = 0.0;
+  s.constellation = 0;
+  s.code_rate     = 0;
+  s.wlan          = 36;
+  size_t len0     = 0;
+  cf    *rect     = reference (&r36, WLAN_MAC_NONE, s.data_len / 8u, 0,
+                               s.scrambler_init, 0u, 1u, &len0);
+  cf    *def      = rect ? render (&s, 20e6, len0) : NULL;
+  DP_REQUIRE (rect && def);
+  double e;
+  DP_CHECK (rel_l2 (def, rect, len0, &e) > 1e-3);
+  free (rect);
+  free (def);
+
+  /* a C caller that zero-fills a source gets 0, the rectangular window, by
+     its own spelling */
+  wfm_source_t z = source ();
+  z.window       = 0;
+  DP_CHECK (check_render (&z, 20e6, &r36, WLAN_MAC_NONE, 0u, 1u) == 0);
+
+  /* a window on another type is still refused; the unset one is not */
+  wfm_source_t b = WFM_SOURCE_DEFAULTS;
+  b.type         = WFM_SYNTH_BPSK;
+  DP_CHECK (dp_wfm_source_error (&b) == NULL);
+  b.window = 4;
+  why      = dp_wfm_source_error (&b);
+  DP_CHECK (why && strstr (why, "are fields of an ofdm source"));
+  return 0;
+}
+
 int
 main (void)
 {
   make_data ();
   int rc = 0;
   rc |= test_renders_the_ppdu_wlan_builds ();
+  rc |= test_the_default_window_is_the_standards_100_ns ();
   rc |= test_mac_data_renders_header_body_and_fcs ();
   rc |= test_each_name_is_its_value ();
   rc |= test_wlan_n_is_its_pair_for_all_eight ();

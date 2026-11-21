@@ -8,7 +8,7 @@
 
 
 
-_One additive source within a segment: a_ `synth` _config + its level._[More...](#detailed-description)
+
 
 * `#include <wfm_compose.h>`
 
@@ -135,16 +135,6 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 
 
 
-## Detailed Description
-
-
-The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the segment's — one receiver, one sample rate). `level` is the source's average power in dBFS (≤0); the segment sums its sources, each scaled by `10^(level/20)`.
-
-
-Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi` in the `*_hi` companion (see the `ranged` enum). 
-
-
-    
 ## Public Attributes Documentation
 
 
@@ -1059,7 +1049,7 @@ size_t wfm_source_t::window;
 
 
 
-For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). 
+For type=ofdm: the transition window in samples at the output rate, 0 for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). Unset (WFM\_WINDOW\_UNSET) is the standard's 100 ns, 2 \* fs / bandwidth samples; a scene or a record written from the source holds that count. 
 
 
         

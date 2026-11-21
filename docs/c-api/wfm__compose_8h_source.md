@@ -59,6 +59,8 @@ typedef enum
   WFM_BITMOD_QPSK = 2, 
 } wfm_bitmod_t;
 
+#define WFM_WINDOW_UNSET SIZE_MAX
+
 typedef struct {
     int type;        
     double freq;     
@@ -239,6 +241,10 @@ extern const char dp_wfm_why_retired_crc[];
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
 
 const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
+
+size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
+
+double dp_wfm_source_bandwidth(const wfm_source_t *src);
 
 int dp_wfm_source_attach_ofdm(dp_wfm_synth_state_t *syn,
                               const wfm_source_t *src, double fs,

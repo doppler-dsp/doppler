@@ -41,7 +41,7 @@ class Correlator:
         Detection threshold on peak / noise; default 0.
     noise_lo : int, default 0
         First noise bin; default 0.
-    noise_hi : int
+    noise_hi : int, default (unsigned long long)-1ULL
         Last noise bin; default SIZE_MAX, the last bin.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         How the noise bins are aggregated into the floor the test statistic
@@ -57,7 +57,7 @@ class Correlator:
         known data clock.
     reps : int, default 1
         Preamble repetitions a burst holds (the burst search).
-    cn0_dbhz : float
+    cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE
         Design-point C/N0, dB-Hz; default DP_CORRELATOR_CN0_NONE (NaN, none).
         The continuous search needs a finite one.
     doppler_uncertainty : float, default 0.0
@@ -1171,7 +1171,7 @@ class Correlator:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "acq" or "ch0.acq".
-        decim : int
+        decim : int, default 1
             Emit every decim-th decided dwell; >= 1. Refused
             (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
             (docs/design/correlator.md section 4).

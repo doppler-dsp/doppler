@@ -276,10 +276,9 @@ class Synth:
         np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
         appends the frame's octets (the data source) and the FCS. Refused with
         mac none or fcs, and without it for mac data.
-    fs : float, default 1.0
-        Sample rate in Hz, one per segment and shared by all its sources. At
-        the default 1.0 every frequency is normalised (cycles per sample);
-        state it whenever a scene is in real Hz.
+    fs : float, default 1000000.0
+        Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
+        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.
     """
 
     def __init__(

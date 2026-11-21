@@ -473,12 +473,12 @@ def design_lowpass(
 
     Parameters
     ----------
-    fpass : float
+    fpass : float, default 0.4
         Passband edge, Nyquist-normalized (1.0 == fs/2), `0 < fpass <
         fstop`.
-    fstop : float
+    fstop : float, default 0.6
         Stopband edge, Nyquist-normalized (1.0 == fs/2).
-    atten_db : float
+    atten_db : float, default 60.0
         Target stopband attenuation in dB (positive).
 
     Returns

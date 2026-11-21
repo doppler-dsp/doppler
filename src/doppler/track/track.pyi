@@ -471,9 +471,9 @@ class StateFilter:
 
         Parameters
         ----------
-        delay : float
+        delay : float, default 0.0
             Detector delay in updates.
-        gain : float
+        gain : float, default 1.0
             Loop gain as a multiple of nominal.
 
         Returns
@@ -504,9 +504,9 @@ class StateFilter:
 
         Parameters
         ----------
-        delay : float
+        delay : float, default 0.0
             Detector delay in updates.
-        gain : float
+        gain : float, default 1.0
             Loop gain as a multiple of nominal.
 
         Returns
@@ -852,15 +852,15 @@ class KalmanStateFilter:
 
         Parameters
         ----------
-        sigma_e : float
+        sigma_e : float, default 0.0
             RMS detector error when locked, 0 to keep.
-        sigma_a : float
+        sigma_a : float, default 0.0
             RMS change of the rate per update, 0 to keep.
-        t : float
+        t : float, default 0.0
             Update period in samples, 0 to keep.
-        sigma_f0 : float
+        sigma_f0 : float, default 0.0
             Frequency uncertainty, 0 for the steady state.
-        bn : float
+        bn : float, default 0.0
             Noise bandwidth in cycles per sample (automatic form), 0 for the
             figures form.
 
@@ -893,9 +893,9 @@ class KalmanStateFilter:
 
         Parameters
         ----------
-        delay : float
+        delay : float, default 0.0
             Detector delay in updates.
-        gain : float
+        gain : float, default 1.0
             Loop gain as a multiple of nominal.
 
         Returns
@@ -919,9 +919,9 @@ class KalmanStateFilter:
 
         Parameters
         ----------
-        delay : float
+        delay : float, default 0.0
             Detector delay in updates.
-        gain : float
+        gain : float, default 1.0
             Loop gain as a multiple of nominal.
 
         Returns
@@ -1223,7 +1223,7 @@ class Costas:
         prefix : str
             Probe-name prefix, e.g. "car" or "ch0.car"; at most 21 characters,
             since "<prefix>.freq_rate" must fit the 31-character probe name.
-        decim : int
+        decim : int, default 1
             Emit every decim-th symbol; >= 1.
 
         Raises
@@ -1797,7 +1797,7 @@ class Dll:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "code" or "ch0.code".
-        decim : int
+        decim : int, default 1
             Emit every decim-th epoch; >= 1.
 
         Raises
@@ -2199,7 +2199,7 @@ class Dll:
             Per-decision false-alarm probability, in (0, 1).
         n_looks : int
             Non-coherent integration depth N (looks); clamped >= 1.
-        ref_snr_db : float
+        ref_snr_db : float, default 0.0
             Noise-reference estimator SNR in dB (> 0), or 0 to derive from
             n_looks as above.
 
@@ -2609,7 +2609,7 @@ class SymbolSync:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "sync" or "rx.sync".
-        decim : int
+        decim : int, default 1
             Emit every decim-th symbol; >= 1.
 
         Raises
@@ -3131,7 +3131,7 @@ class RateSync:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "sync".
-        decim : int
+        decim : int, default 1
             Emit every decim-th symbol; >= 1.
 
         Raises
@@ -3930,7 +3930,7 @@ class CarrierNda:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "car" or "rx.car".
-        decim : int
+        decim : int, default 1
             Emit every decim-th sample; >= 1.
 
         Raises
@@ -4387,7 +4387,7 @@ class MpskReceiver:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "rx".
-        decim : int
+        decim : int, default 1
             Emit every decim-th symbol (every decim-th gain update for the two
             AGC probes); >= 1.
 
@@ -4972,7 +4972,7 @@ class BpskReceiver:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "rx".
-        decim : int
+        decim : int, default 1
             Emit every decim-th symbol (every decim-th gain update for the two
             AGC probes); >= 1.
 
@@ -5631,7 +5631,7 @@ class MpskReceiverR:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "rx".
-        decim : int
+        decim : int, default 1
             Emit every decim-th symbol (every decim-th gain update for the two
             AGC probes); >= 1.
 

@@ -1180,7 +1180,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "    Context to attach, or NULL to detach every receiver.\n"
     "prefix : str\n"
     "    Probe-name prefix; NULL means \"pool\".\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th event on each probe; >= 1.\n"
     "\n"
     "Raises\n"

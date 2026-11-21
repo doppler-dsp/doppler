@@ -913,7 +913,7 @@ static PyMethodDef CostasObj_methods[] = {
     "    Probe-name prefix, e.g. \"car\" or \"ch0.car\"; at most 21 "
     "characters,\n"
     "    since \"<prefix>.freq_rate\" must fit the 31-character probe name.\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th symbol; >= 1.\n"
     "\n"
     "Raises\n"

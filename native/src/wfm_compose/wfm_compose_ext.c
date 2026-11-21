@@ -442,9 +442,11 @@ _attach_frame (wfm_source_t *_jm_src, PyObject *_jm_obj)
 
 /* Coerce a 0/1 pattern (bytes | int sequence) or None
  * into an owned *dst and *n_dst (one shared coercer; each bytes field
- * passes its own struct destination). */
+ * passes its own struct destination).
+ * A bit_pattern field passes its name as bits, and an element
+ * that is not 0 or 1 is refused by it (gh-2696). */
 static int
-_attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
+_attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj, const char *bits)
 {
   free (*dst);
   *dst   = NULL;
@@ -456,6 +458,17 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
       Py_ssize_t nb = PyBytes_GET_SIZE (obj);
       if (nb <= 0)
         return 1;
+      const uint8_t *in = (const uint8_t *)PyBytes_AS_STRING (obj);
+      for (Py_ssize_t i = 0; bits && i < nb; i++)
+        if (in[i] > 1)
+          {
+            PyErr_Format (PyExc_ValueError,
+                          "%s is a bit array, one element per bit (0 or 1): "
+                          "element %zd is %ld, not a bit; np.unpackbits turns "
+                          "octets into bits",
+                          bits, (Py_ssize_t)(i), (long)(in[i]));
+            return 0;
+          }
       uint8_t *buf = (uint8_t *)malloc ((size_t)nb);
       if (!buf)
         {
@@ -489,6 +502,17 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
             Py_DECREF (seq);
             return 0;
           }
+        if (bits && v != 0 && v != 1)
+          {
+            free (buf);
+            Py_DECREF (seq);
+            PyErr_Format (PyExc_ValueError,
+                          "%s is a bit array, one element per bit (0 or 1): "
+                          "element %zd is %ld, not a bit; np.unpackbits turns "
+                          "octets into bits",
+                          bits, (Py_ssize_t)(i), (long)(v));
+            return 0;
+          }
         buf[i] = (uint8_t)(v != 0);
       }
     Py_DECREF (seq);
@@ -503,10 +527,10 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
  * its reason. Anything else is _attach_bytes's. */
 static int
 _coerce_dp_wfm_source_bits_refuse_text (uint8_t **dst, size_t *n_dst,
-                                        PyObject *obj)
+                                        PyObject *obj, const char *bits)
 {
   if (!obj || !PyUnicode_Check (obj))
-    return _attach_bytes (dst, n_dst, obj);
+    return _attach_bytes (dst, n_dst, obj, bits);
   Py_ssize_t  slen;
   const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
   if (!s)
@@ -549,10 +573,10 @@ _coerce_dp_wfm_source_bits_refuse_text (uint8_t **dst, size_t *n_dst,
  * its reason. Anything else is _attach_bytes's. */
 static int
 _coerce_dp_wfm_source_sync_refuse_text (uint8_t **dst, size_t *n_dst,
-                                        PyObject *obj)
+                                        PyObject *obj, const char *bits)
 {
   if (!obj || !PyUnicode_Check (obj))
-    return _attach_bytes (dst, n_dst, obj);
+    return _attach_bytes (dst, n_dst, obj, bits);
   Py_ssize_t  slen;
   const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
   if (!s)
@@ -595,10 +619,10 @@ _coerce_dp_wfm_source_sync_refuse_text (uint8_t **dst, size_t *n_dst,
  * its reason. Anything else is _attach_bytes's. */
 static int
 _coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
-                                       PyObject *obj)
+                                       PyObject *obj, const char *bits)
 {
   if (!obj || !PyUnicode_Check (obj))
-    return _attach_bytes (dst, n_dst, obj);
+    return _attach_bytes (dst, n_dst, obj, bits);
   Py_ssize_t  slen;
   const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
   if (!s)
@@ -670,8 +694,8 @@ Synth_replace_acq_code (SynthObject *self, PyObject *value)
   wfm_source_t _t  = self->src;
   _t.acq_code.bits = NULL;
   _t.acq_code.len  = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.acq_code.bits,
-                                               &_t.acq_code.len, value))
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_t.acq_code.bits, &_t.acq_code.len, value, "acq_code"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -700,7 +724,8 @@ Synth_replace_data_code (SynthObject *self, PyObject *value)
   _t.data_code.bits = NULL;
   _t.data_code.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data_code.bits,
-                                               &_t.data_code.len, value))
+                                               &_t.data_code.len, value,
+                                               "data_code"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -729,7 +754,8 @@ Synth_replace_sync (SynthObject *self, PyObject *value)
   _t.retired_sync.bits = NULL;
   _t.retired_sync.len  = 0;
   if (!_coerce_dp_wfm_source_sync_refuse_text (
-          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value))
+          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value,
+          "sync"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -757,8 +783,8 @@ Synth_replace_crc (SynthObject *self, PyObject *value)
   wfm_source_t _t     = self->src;
   _t.retired_crc.bits = NULL;
   _t.retired_crc.len  = 0;
-  if (!_coerce_dp_wfm_source_crc_refuse_text ((uint8_t **)&_t.retired_crc.bits,
-                                              &_t.retired_crc.len, value))
+  if (!_coerce_dp_wfm_source_crc_refuse_text (
+          (uint8_t **)&_t.retired_crc.bits, &_t.retired_crc.len, value, "crc"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -813,7 +839,8 @@ Synth_replace_bits (SynthObject *self, PyObject *value)
   _t.retired_bits.bits = NULL;
   _t.retired_bits.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value))
+          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value,
+          "bits"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -842,7 +869,7 @@ Synth_replace_data (SynthObject *self, PyObject *value)
   _t.data.bits    = NULL;
   _t.data.len     = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data.bits,
-                                               &_t.data.len, value))
+                                               &_t.data.len, value, "data"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -871,7 +898,7 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
   _t.fill.bits    = NULL;
   _t.fill.len     = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.fill.bits,
-                                               &_t.fill.len, value))
+                                               &_t.fill.len, value, "fill"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -900,7 +927,8 @@ Synth_replace_mac_header (SynthObject *self, PyObject *value)
   _t.mac_header.bits = NULL;
   _t.mac_header.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.mac_header.bits,
-                                               &_t.mac_header.len, value))
+                                               &_t.mac_header.len, value,
+                                               "mac_header"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -1025,7 +1053,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   unsigned long long gap_raw               = 0;
   double             bandwidth             = 20e6;
   PyObject          *mac_header            = NULL;
-  double             fs                    = 1e6;
+  double             fs                    = 1000000.0;
   PyObject          *_kw                   = kwds;
   int                _kw_owned             = 0;
   if (kwds)
@@ -3172,7 +3200,10 @@ static PyGetSetDef Synth_getset[] = {
     "appends the frame's octets (the data source) and the FCS. Refused with "
     "mac none or fcs, and without it for mac data.\n",
     NULL },
-  { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
+  { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs,
+    "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz "
+    "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -3861,12 +3892,10 @@ static PyTypeObject SynthType = {
       "    appends the frame's octets (the data source) and the FCS. Refused "
       "with\n"
       "    mac none or fcs, and without it for mac data.\n"
-      "fs : float, default 1.0\n"
-      "    Sample rate in Hz, one per segment and shared by all its sources. "
-      "At\n"
-      "    the default 1.0 every frequency is normalised (cycles per "
-      "sample);\n"
-      "    state it whenever a scene is in real Hz.\n"),
+      "fs : float, default 1000000.0\n"
+      "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
+      "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per "
+      "sample.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */

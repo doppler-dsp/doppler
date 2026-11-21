@@ -817,7 +817,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "    Telemetry context to attach, or NULL to detach.\n"
     "prefix : str\n"
     "    Probe-name prefix, e.g. \"sync\" or \"rx.sync\".\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th symbol; >= 1.\n"
     "\n"
     "Raises\n"

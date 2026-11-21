@@ -752,7 +752,7 @@ static PyMethodDef AGCObj_methods[] = {
     "    Telemetry context to attach, or NULL to detach.\n"
     "prefix : str\n"
     "    Probe-name prefix, e.g. \"agc\" or \"rx.agc\".\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th gain update; >= 1.\n"
     "\n"
     "Raises\n"

@@ -2194,7 +2194,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    Telemetry context to attach, or NULL to detach.\n"
     "prefix : str\n"
     "    Probe-name prefix; NULL means \"rx\".\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th event on each probe; >= 1.\n"
     "\n"
     "Raises\n"

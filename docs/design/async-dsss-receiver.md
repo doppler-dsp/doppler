@@ -61,7 +61,7 @@ measured at: the certification's 3.069 Mcps point, below, or the pool's
 5 Mcps sizing point (§5).
 
 **What the certification covers.** The receiver's
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 holds 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip,
 on continuous random data with no gap, `carrier_freq_hz` 0, and a search
 over ±3 kHz (±1/T_E), and at no other point: not this point's chip rates,
@@ -269,7 +269,8 @@ transition, and the code loop's symbol-scale look shrinks toward one
 partial. `create()` accepts such a rate (the chain asks only that the
 symbol rate not exceed the chip rate), `steps_max_out()` is not a bound
 there ([#2469](https://github.com/doppler-dsp/doppler/issues/2469)), and
-the `code_period` carrier window of §4.4 is refused or warned there.
+the `code_period` carrier window proposed in §4.4 has to be refused or
+warned there.
 
 ### 1.6 Code and carrier are coherent; the data is not
 
@@ -1047,7 +1048,7 @@ and the runs that lead here are in
     - **A'**: A with the symbol-period aid off;
     - **C**: A' with the carrier loop's error formed from one coherent sum
         over the code-period window find_max_power picks
-        (`dll_core.c:1055-1068`), squared and halved, in place of the sum of
+        (`dll_core.c:1066-1081`), squared and halved, in place of the sum of
         squared partials (`async_dsss_receiver_core.c:812-815`).
 - **Cells:** carried of 70 (a run carries when over 80% of its 500-symbol
     windows match the data at either polarity) · loss against the BPSK
@@ -1642,9 +1643,7 @@ receiver and never multiplied by N. Two changes answer it:
     the one-tile search was about 83% FFT passes, 62% of it in the
     radix-31 and radix-11 passes of the 2,046-point period (record §9.4).
     The lag axis is now read on a padded power-of-two grid (§1.2), and the
-    decision pass's peak scan skips blocks that cannot move the pick;
-    sharing the slow-time transform across tiles is the next step, parked
-    (doppler#2732).
+    decision pass's peak scan skips blocks that cannot move the pick.
 
 **What the pool as built taught.** Its push was one receiver's plus a
 central searcher's that never stopped, because a new emitter may appear at
@@ -1817,7 +1816,7 @@ ______________________________________________________________________
 - [the measurement record](async-dsss-receiver-measurements.md) — every run
     behind the numbers here, under the same section numbers, the pool as
     built's included.
-- [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+- [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
     — the receiver at the 3.069 Mcps point (§1), and only there; the
     [validation log](../dev/contributing/validation-log.md) holds the stages
     under it.

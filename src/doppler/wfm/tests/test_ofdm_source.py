@@ -470,11 +470,56 @@ def test_the_help_does_not_print_the_sentinel(tmp_path):
     assert "WFM_WINDOW_UNSET" not in p.stdout
 
 
-def test_the_python_face_reads_the_unset_window_back_as_the_constant():
-    """Declared: a source's ``window`` attribute reads ``2**64 - 1`` while
-    unset (a getter has no ``fs`` to resolve against); the resolved count is
-    in the record and the samples. ``window=0`` reads back 0."""
-    assert Synth(**_kwargs(_OK)).window == 2**64 - 1
+UNSET = 2**64 - 1  # WFM_WINDOW_UNSET, what the resolver returns
+
+
+@pytest.mark.parametrize("m", [1, 2, 4])
+def test_an_unset_window_reads_the_count_the_source_renders_with(m):
+    """``Synth.window`` goes through ``dp_wfm_source_window`` at the
+    source's ``fs``: 2 * M, the count the samples use."""
+    syn = Synth(**_kwargs({**_OK, "fs": m * 20e6}))
+    assert syn.window == 2 * m
+
+
+def test_a_window_reads_what_was_given_and_follows_fs():
+    """An explicit 0 and an explicit count read as given; an unset one
+    re-resolves when ``fs`` is set to another rate, and reads the
+    unset constant at an ``fs`` with no oversampling."""
     assert Synth(**_kwargs({**_OK, "window": 0})).window == 0
+    assert Synth(**_kwargs({**_OK, "window": 6})).window == 6
+    syn = Synth(**_kwargs(_OK))
+    assert syn.window == 2
+    syn.fs = 80e6
+    assert syn.window == 8
+    syn.fs = 30e6  # 1.5 times the bandwidth: no oversampling
+    assert syn.window == UNSET
+    syn.window = 6  # a setter round trip stores what it was given
+    syn.fs = 40e6
+    assert syn.window == 6
+
+
+def test_a_record_still_holds_the_resolved_count_the_getter_reads():
+    """Only the Python read moved: ``to_json`` writes the resolved count
+    for an unset window and the given one for an explicit one."""
     c = Composer([Segment(**_kwargs(_OK))])
     assert json.loads(c.to_json())["segments"][0]["window"] == 2
+    c = Composer([Segment(**_kwargs({**_OK, "window": 0}))])
+    assert json.loads(c.to_json())["segments"][0]["window"] == 0
+
+
+@pytest.mark.parametrize("fs", [20e6, 40e6, 1e6, 30e6])
+def test_a_non_ofdm_source_reads_no_window(fs):
+    """Declared: a source that is not ofdm renders with no window, so its
+    unset ``window`` reads 0 at any rate."""
+    assert Synth(type="tone", fs=fs).window == 0
+
+
+def test_a_segments_window_reads_the_unset_constant_until_jm_resolves_it():
+    """Declared, held as it is today (just-makeit#2717, from #3211): a
+    Segment's flat ``window`` reads its first source's, whose fs is the
+    default 1e6, not the segment's, so it reads the unset constant where
+    ``Synth`` reads 4. This row changes when jm resolves at the segment's
+    fs."""
+    kw = _kwargs({**_OK, "fs": 40e6})
+    assert Synth(**kw).window == 4
+    assert Segment(**kw).window == UNSET

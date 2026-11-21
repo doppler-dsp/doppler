@@ -1027,6 +1027,14 @@ test_the_default_window_is_the_standards_100_ns (void)
   DP_CHECK (dp_wfm_source_window (&s, 40e6) == 0u);
   s.window = 3;
   DP_CHECK (dp_wfm_source_window (&s, 40e6) == 3u);
+  /* a source that is not ofdm renders with no window, at any rate */
+  {
+    wfm_source_t t = WFM_SOURCE_DEFAULTS;
+    t.type         = WFM_SYNTH_TONE;
+    DP_CHECK (dp_wfm_source_window (&t, 20e6) == 0u);
+    DP_CHECK (dp_wfm_source_window (&t, 40e6) == 0u);
+    DP_CHECK (dp_wfm_source_window (&t, 1e6) == 0u);
+  }
   /* no whole M: no count, left for the fs rule to refuse by its sentence */
   s.window = WFM_WINDOW_UNSET;
   DP_CHECK (dp_wfm_source_window (&s, 30e6) == WFM_WINDOW_UNSET);

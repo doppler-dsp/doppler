@@ -307,12 +307,18 @@ written at its default or at zero" keeps the zero for this row
 (`json_keep_zero`, set by the generator for a default that names a
 constant): `"window": 0` is a value, and a record without it would read
 back as the default. A window on another type is refused as before, and the
-unset one is not a window. The Python face holds the field as it is: a
-source's `window` attribute reads back `2**64 - 1` while unset, because a
-getter has no `fs` to resolve against and jm renders none for a source
-field; the resolved count is in `to_json()`, `to_sigmf()` and the samples.
-The docstring names the constant, `WFM_WINDOW_UNSET`, which is the C
-spelling of that number. The tests are
+unset one is not a window. The Python face reads the count the
+source renders with: `Synth.window` goes through `dp_wfm_source_window` at
+the object's `fs`, so an unset window reads 2, 4 or 8 at one, two or four
+times the bandwidth and follows a later `fs`, and an `fs` with no
+oversampling reads `WFM_WINDOW_UNSET`, `2**64 - 1`, the value the scene is
+refused for. Only the read changes: the stored member, the setter, the
+constructor keyword, `to_json()` and `from_json()` keep what was given, and
+`to_json()` writes the resolved count. A source that is not ofdm renders
+with no window, so its unset `window` reads 0 at any rate. A `Segment`'s flat `window`
+reads its first source's, which holds the default `fs`, so it reads the
+unset constant until jm resolves a flat read at the segment's own rate
+(just-makeit#2717; the row in `test_ofdm_source.py` holds it as it is). The tests are
 `test_the_default_window_is_the_standards_100_ns` (C and Python) and the two
 record tests in `src/doppler/wfm/tests/test_ofdm_source.py`.
 

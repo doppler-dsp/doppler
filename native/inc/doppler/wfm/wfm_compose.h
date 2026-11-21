@@ -461,10 +461,16 @@ typedef struct {
     size_t window; /**< For type=ofdm: the transition window in samples at
                             the output rate, 0 for none, at most 80 times fs
                             over bandwidth (the shortest OFDM symbol). Unset
-                            (WFM_WINDOW_UNSET, 2**64 - 1, which is what
-                            Python reads back) is the standard's 100 ns,
-                            2 * fs / bandwidth samples; a scene or a record
-                            written from the source holds that count. */
+                            (WFM_WINDOW_UNSET, 2**64 - 1) is the standard's
+                            100 ns, 2 * fs / bandwidth samples; a scene or a
+                            record written from the source holds that count.
+                            A Synth reads that count at its fs, so an
+                            unset window reads 2, 4 or 8 at 1, 2 or 4 times
+                            the bandwidth; at an fs with no oversampling the
+                            read is WFM_WINDOW_UNSET, 2**64 - 1, which the
+                            scene is refused for. A Segment's flat window
+                            reads the unset constant. What is stored,
+                            set and written is what was given. */
     int mac; /**< For type=ofdm: how the caller's octets become the
                             PSDU. none: as given. fcs: an MPDU without its FCS,
                             which the PHY appends. data: a header (mac_header)
@@ -1030,7 +1036,8 @@ const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
  * bandwidth, or the multiple is above 128 (`WLAN_OVERSAMPLE_MAX`), there is
  * no oversampling to scale by, and the unset value comes back unchanged for
  * dp_wfm_ofdm_fs_error() to refuse; a count it returns is never above
- * `2 * 128`. The one place the
+ * `2 * 128`. A source whose type is not ofdm (`WFM_SYNTH_FRAMES`) and whose
+ * window is unset returns `0`: it renders with no window. The one place the
  * default is defined for this face: the renderer, the scene and the record
  * each call it, so none holds an unset window.
  *

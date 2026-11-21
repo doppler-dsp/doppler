@@ -253,9 +253,13 @@ class Synth:
     window : int, default WFM_WINDOW_UNSET
         For type=ofdm: the transition window in samples at the output rate, 0
         for none, at most 80 times fs over bandwidth (the shortest OFDM
-        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads
-        back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or
-        a record written from the source holds that count.
+        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1) is the standard's 100 ns,
+        2 * fs / bandwidth samples; a scene or a record written from the source
+        holds that count. A Synth reads that count at its fs, so an unset
+        window reads 2, 4 or 8 at 1, 2 or 4 times the bandwidth; at an fs with
+        no oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which the
+        scene is refused for. A Segment's flat window reads the unset constant.
+        What is stored, set and written is what was given.
     mac : str, default ``"none"``
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header
@@ -724,9 +728,13 @@ class Segment:
     window : int, default WFM_WINDOW_UNSET
         For type=ofdm: the transition window in samples at the output rate, 0
         for none, at most 80 times fs over bandwidth (the shortest OFDM
-        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads
-        back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or
-        a record written from the source holds that count.
+        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1) is the standard's 100 ns,
+        2 * fs / bandwidth samples; a scene or a record written from the source
+        holds that count. A Synth reads that count at its fs, so an unset
+        window reads 2, 4 or 8 at 1, 2 or 4 times the bandwidth; at an fs with
+        no oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which the
+        scene is refused for. A Segment's flat window reads the unset constant.
+        What is stored, set and written is what was given.
     mac : str, default ``"none"``
         For type=ofdm: how the caller's octets become the PSDU. none: as given.
         fcs: an MPDU without its FCS, which the PHY appends. data: a header

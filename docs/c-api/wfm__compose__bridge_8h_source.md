@@ -61,6 +61,9 @@ wfm_frame_desc_t *dp_wfm_frame_refuse_text(const char *, const char **why);
 /* Owned pointer `frame` (gh-1711): format. */
 char *dp_wfm_frame_to_json(const wfm_frame_desc_t *);
 
+/* Read source field `window` at rate fs (get_fn, gh-2710). */
+size_t dp_wfm_source_window(const wfm_source_t *, double);
+
 #ifdef __cplusplus
 }
 #endif

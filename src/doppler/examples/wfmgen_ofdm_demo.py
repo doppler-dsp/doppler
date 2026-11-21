@@ -63,7 +63,8 @@ x = ppdu()
 psdu = HEADER + body
 psdu += zlib.crc32(psdu).to_bytes(4, "little")  # the FCS, least significant
 # octet first
-want = Wlan(constellation="qam16", code_rate="r34").ppdu(
+# window=0: the ofdm source still defaults to rectangular (#3190)
+want = Wlan(constellation="qam16", code_rate="r34", window=0).ppdu(
     np.frombuffer(psdu, np.uint8), 93
 )
 n = len(want)

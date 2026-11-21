@@ -406,6 +406,34 @@ search_tile_alias_pick (const dp_correlator_state_t *st, size_t row,
   return (size_t)(((long)row + win * (long)D + (long)rows) % (long)rows);
 }
 
+/* The native row a surface pick reports: the surface is the Doppler axis
+ * interpolated `interp`-fold, and every consumer scales `doppler_bin` by
+ * `doppler_res_hz`, so a pick on an interpolated row is reported at the
+ * native row of the strongest native cell within its own zone (the two
+ * native neighbours), at its column -- the same rule as before the list,
+ * applied per peak instead of once to the global maximum. `interp == 1`
+ * (wideband mode, and D == 1) is the identity. */
+static inline size_t
+search_native_row (const dp_correlator_state_t *st, const float *surf,
+                   size_t row, size_t col)
+{
+  dp_correlator_search_t *const srch = st->search;
+  if (srch->interp <= 1)
+    return row;
+  const size_t rows = srch->n_surf / srch->lag_bins;
+  size_t       best = rows;
+  for (size_t d = 0; d <= 2 * srch->interp; d++)
+    {
+      size_t r = (row + rows + d - srch->interp) % rows;
+      if (r % srch->interp)
+        continue;
+      size_t k = r * srch->lag_bins + col;
+      if (best == rows || surf[k] > surf[best * srch->lag_bins + col])
+        best = r;
+    }
+  return best / srch->interp;
+}
+
 /* The three hypotheses in order, then the winner (see above). */
 static inline size_t
 search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t col)

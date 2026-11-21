@@ -23,9 +23,20 @@ defect.
 
 Each case runs a real pytest in a subprocess against a seeded file, with the
 REPO's own ``pyproject.toml`` as its config, so what is exercised is the
-committed filter and not a restatement of it. The last case is the sabotage:
-the same hollow test under a config WITHOUT the filter passes, so it is the
-filter that makes the first case red.
+committed filter and not a restatement of it. The sabotage case: the same
+hollow test under a config WITHOUT the filter passes, so it is the filter
+that makes the first case red.
+
+The child is bounded to its own ``tmp_path`` (``--confcutdir``). Given
+``-c`` with the repo's config and no bound, pytest takes the repo as the
+conftest cut, and every parent of the seeded file that is not an ancestor
+of the repo joins the collection walk: pytest 9 collects a directory node
+at each level, up through the system temp directory. Each level is
+scanned, and on Windows every sibling it lists is ``lstat``-ed
+(``samefile_nofollow``) while the walk prunes to the argument's path, so a
+sibling xdist worker's ``mkdtemp`` directory removed in that window failed
+the child's collection (#2718). The last case holds the bound: no
+directory outside the child's own is collected.
 """
 
 from __future__ import annotations
@@ -33,14 +44,11 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from doppler.tests._repo import repo_root
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 REPO = repo_root(__file__)
 
@@ -61,7 +69,13 @@ HELPER = (
 MODES = [["--benchmark-disable"], ["--benchmark-only"]]
 
 
-def _pytest(tmp_path: Path, body: str, config: Path, mode: list[str]):
+def _pytest(
+    tmp_path: Path,
+    body: str,
+    config: Path,
+    mode: list[str],
+    plugin: Path | None = None,
+):
     test = tmp_path / "bench_seeded.py"
     test.write_text(body)
     # Run under `make test-python` this test is itself in an xdist worker,
@@ -72,6 +86,12 @@ def _pytest(tmp_path: Path, body: str, config: Path, mode: list[str]):
     env = {
         k: v for k, v in os.environ.items() if not k.startswith("PYTEST_XDIST")
     }
+    extra: list[str] = []
+    if plugin is not None:
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(plugin.parent), *filter(None, [env.get("PYTHONPATH")])]
+        )
+        extra = ["-p", plugin.stem]
     return subprocess.run(
         [
             sys.executable,
@@ -82,11 +102,16 @@ def _pytest(tmp_path: Path, body: str, config: Path, mode: list[str]):
             str(config),
             "--rootdir",
             str(tmp_path),
+            # The collection walk stops here, not at the filesystem root
+            # (#2718; the module docstring has the mechanism).
+            "--confcutdir",
+            str(tmp_path),
             "-p",
             "no:cacheprovider",
             "-p",
             "no:xdist",
             "-q",
+            *extra,
             *mode,
         ],
         cwd=tmp_path,
@@ -129,3 +154,50 @@ def test_without_the_filter_the_hollow_test_passes(tmp_path):
     sabotaged.write_text(text.replace(line, ""), encoding="utf-8")
     r = _pytest(tmp_path, HOLLOW, sabotaged, ["--benchmark-disable"])
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+#: A plugin for the child that writes every directory its collection
+#: walks, one a line, to the file named by ``WALK_LOG``.
+WALK_OBSERVER = """\
+import os
+
+
+def pytest_collectstart(collector):
+    if type(collector).__name__ == "Dir":
+        with open(os.environ["WALK_LOG"], "a", encoding="utf-8") as f:
+            f.write(str(collector.path) + "\\n")
+"""
+
+
+def test_the_child_collects_nothing_above_its_own_directory(
+    tmp_path, monkeypatch
+):
+    """The walk stays inside the child's directory (#2718).
+
+    ``temp`` stands for the system temp directory: the child works in
+    ``temp/work`` (as a ``tmp_path`` under ``%TEMP%`` is), and ``temp``
+    also holds a sibling, as another xdist worker's ``mkdtemp`` would be.
+    The race itself cannot be a test; what it needs can: a walk that
+    reaches ``temp`` lists the sibling, and on Windows ``lstat``-s it.
+    Every directory the child collects is logged, and none may be outside
+    ``temp/work``. Sabotage: drop ``--confcutdir`` from ``_pytest`` -> the
+    log holds ``temp`` and every directory above it.
+    """
+    temp = tmp_path / "temp"
+    work = temp / "work"
+    work.mkdir(parents=True)
+    (temp / "tmpsibling").mkdir()
+    plugins = tmp_path / "plugins"
+    plugins.mkdir()
+    observer = plugins / "walk_observer.py"
+    observer.write_text(WALK_OBSERVER, encoding="utf-8")
+    log = tmp_path / "walk.log"
+    monkeypatch.setenv("WALK_LOG", str(log))
+    r = _pytest(
+        work, CALLS, REPO / "pyproject.toml", MODES[0], plugin=observer
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    walked = log.read_text(encoding="utf-8").splitlines()
+    assert walked, "the observer saw no directory: it is not running"
+    outside = [p for p in walked if not Path(p).is_relative_to(work)]
+    assert not outside, f"the child walked outside its directory: {outside}"

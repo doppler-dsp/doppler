@@ -1764,9 +1764,9 @@ main (void)
         DP_REQUIRE (d != NULL && r != NULL);
         /* the state holds the count, never the sentinel */
         DP_CHECK (d->window == 2u * m && r->window == 0);
-        /* the PPDU is longer by the window: ppdu_why_max_out reads it */
-        DP_CHECK (dp_wlan_ppdu_why_max_out (d, 100)
-                  == dp_wlan_ppdu_why_max_out (r, 100) + 2u * m);
+        /* the PPDU is longer by the window: ppdu_max_out reads it */
+        DP_CHECK (dp_wlan_ppdu_max_out (d, 100)
+                  == dp_wlan_ppdu_max_out (r, 100) + 2u * m);
         dp_wlan_destroy (d);
         dp_wlan_destroy (r);
       }

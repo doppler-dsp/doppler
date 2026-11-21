@@ -3131,8 +3131,9 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  * one worker, and the chunk count is the grid's -- so this changes the
  * cost of a push and nothing about its result. The request travels in
  * the state blob (a mutator's value, #2022): dp_correlator_set_state()
- * applies it through this call, so the target's grid and cores cap it as
- * they would here. Setup path, never hot; not while another thread is
+ * applies it through this call, so the target resolves it as it would
+ * here: 0 becomes the target's own online cores, an explicit n is taken
+ * whole, and either is capped at the target's tiles only at D = 1. Setup path, never hot; not while another thread is
  * inside push().
  *
  * @param state Must be non-NULL.

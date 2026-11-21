@@ -2931,7 +2931,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 8320
+        "bytes": 8336
       }
     },
     "record": {
@@ -2961,6 +2961,7 @@
           "snr_mode": "auto",
           "sps": 1,
           "type": "ofdm",
+          "window": 2,
           "wlan": 36
         }
       ],
@@ -3047,7 +3048,7 @@
     "exit": 0,
     "outputs": {
       "sink.bin": {
-        "bytes": 7040
+        "bytes": 7056
       }
     },
     "record": {
@@ -3076,6 +3077,7 @@
           "snr_mode": "auto",
           "sps": 1,
           "type": "ofdm",
+          "window": 2,
           "wlan": 36
         }
       ],

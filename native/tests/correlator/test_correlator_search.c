@@ -5319,10 +5319,72 @@ main (void)
         free (bad);
         dp_correlator_destroy (t);
       }
+      /* A restore at the request the target already has keeps its running
+         pool: the same workers, which have run (their generation counts
+         the fans). Two things hold it: set_state applies the request only
+         when it moved, and set_threads() at the running count keeps the
+         pool. The second has its own row below; the first, alone, has the
+         unpushed-engine row after this block. Sabotage: both at once ->
+         a new pool, generation 0. */
+      {
+        DP_REQUIRE (dp_correlator_set_threads (o, 3) == DP_OK);
+        dp_correlator_reset (o);
+        (void)dp_correlator_push (o, x, n, hgot, 16);
+        const dp_pool_t    *pool = o->pool;
+        const unsigned long gen  = pool ? pool->gen : 0;
+        DP_REQUIRE_MSG (pool != NULL && gen > 0, "a pool that has run");
+        const size_t   sb   = dp_correlator_state_bytes (o);
+        unsigned char *blob = malloc (sb);
+        DP_REQUIRE (blob != NULL);
+        dp_correlator_get_state (o, blob);
+        DP_CHECK (dp_correlator_set_state (o, blob) == DP_OK);
+        DP_CHECK_MSG (o->pool == pool && o->pool->gen == gen,
+                      "a restore at the same request keeps the running "
+                      "pool");
+        /* The setter's own half. Sabotage: rebuild the pool in
+           search_apply_threads() at an unchanged count -> red. */
+        DP_CHECK (dp_correlator_set_threads (o, 3) == DP_OK);
+        DP_CHECK_MSG (o->pool == pool && o->pool->gen == gen,
+                      "set_threads at the running count keeps the pool");
+        free (blob);
+      }
       free (ogot);
       free (oref);
       dp_correlator_destroy (o);
     }
+    /* A restore at the request the target already has starts nothing: a
+       tiled engine before its first push has counted its workers and
+       started none, and a blob at its own request leaves it so. Sabotage:
+       apply the request in set_state even when it has not moved ->
+       set_threads() starts the workers by name. Needs two cores for the
+       count to be more than one; on one, there are no workers to start. */
+    {
+      dp_correlator_state_t *f = dp_correlator_create_continuous (
+          CODE7, sf, crate * (double)spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9,
+          0, 7, 0.0);
+      DP_REQUIRE (f != NULL && f->pool == NULL && f->search->threads_req == 0);
+      const size_t   sb   = dp_correlator_state_bytes (f);
+      unsigned char *blob = malloc (sb);
+      DP_REQUIRE (blob != NULL);
+      dp_correlator_get_state (f, blob);
+      DP_CHECK (dp_correlator_set_state (f, blob) == DP_OK);
+      if (f->search->threads > 1)
+        DP_CHECK_MSG (f->pool == NULL,
+                      "a restore at the same request starts no workers");
+      free (blob);
+      dp_correlator_destroy (f);
+    }
+    /* A count that drops gives the map's worker slots back: each holds
+       its own FFT plans and scratch. Explicit counts, so a one-core box
+       grows and trims the same. Sabotage: drop dp__dd_map_trim() from
+       search_apply_threads() -> the map keeps 4. */
+    DP_REQUIRE (dp_correlator_set_threads (c, 4) == DP_OK
+                && c->search->threads == 4);
+    DP_CHECK (dp__dd_map_slots (c->dd_map) == 4);
+    DP_REQUIRE (dp_correlator_set_threads (c, 2) == DP_OK
+                && c->search->threads == 2);
+    DP_CHECK_MSG (dp__dd_map_slots (c->dd_map) == 2,
+                  "a dropped thread count frees the map's extra slots");
     DP_CHECK (dp_correlator_set_threads (c, 0) == DP_OK
               && c->search->threads >= 1);
     /* After a regrid to one tile at D = 1 the engine runs serially, with

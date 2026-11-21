@@ -2751,6 +2751,12 @@ dp__dd_map_trim (dp__dd_map_t *m, int slots)
     dd_slot_free (&m->slot[--m->slots]);
 }
 
+int
+dp__dd_map_slots (const dp__dd_map_t *m)
+{
+  return m->slots;
+}
+
 void
 dp__dd_map_destroy (dp__dd_map_t *m)
 {
@@ -5085,8 +5091,8 @@ search_start_threads (dp_correlator_state_t *st)
   if (st->dd_map)
     {
       (void)dp__dd_map_reserve (st->dd_map, (int)want);
-      if (want > (long)st->dd_map->slots)
-        want = st->dd_map->slots;
+      if (want > (long)dp__dd_map_slots (st->dd_map))
+        want = dp__dd_map_slots (st->dd_map);
     }
   if (st->pool && want == dp_pool_threads (st->pool))
     return;
@@ -7575,9 +7581,12 @@ dp__search_set_state (dp_correlator_state_t *st, const void *blob)
   st->zone_half_chips    = ex.zone_half_chips;
   st->consumed           = 0;
   /* The thread request is a mutator's value (#2022), restored through its
-     setter: the target's own grid and cores cap it as the call would, and
-     the output is the same at every count. Set only when it moved, so a
-     restore at the same request keeps the running pool. */
+     setter, which resolves it on the target as the call would: 0 to the
+     target's online cores, an explicit n whole, either capped at the tiles
+     only at D = 1. The output is the same at every count. Set only when
+     it moved: a target at the writer's request keeps what it has, its
+     running pool or none before its first push, since set_threads()
+     starts the workers by name. */
   if (ex.threads_req != (int32_t)srch->threads_req)
     (void)dp_correlator_set_threads (st, (int)ex.threads_req);
 

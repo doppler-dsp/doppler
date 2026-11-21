@@ -109,6 +109,13 @@ int dp__dd_map_reserve (dp__dd_map_t *map, int slots);
 void dp__dd_map_trim (dp__dd_map_t *map, int slots);
 
 /**
+ * @brief The worker slots a map has built.
+ * @param map  The map.
+ * @return Its slot count, >= 1.
+ */
+int dp__dd_map_slots (const dp__dd_map_t *map);
+
+/**
  * @brief A map's shape.
  * @param map  The map.
  * @return Its shape, owned by the map.

@@ -100,6 +100,7 @@
 * **CARRIER\_NDA\_DEN\_AVERAGED** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_LIMITER** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_UNIT** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
+* **CARRIER\_NDA\_DISC\_SLOPE** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_EPS** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_INV\_2PI** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_LOCK\_ALPHA** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))

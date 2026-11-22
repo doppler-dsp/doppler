@@ -88,6 +88,14 @@ extern "C"
 #define CARRIER_NDA_LOCK_ALPHA 0.05
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
 
+#define CARRIER_NDA_DISC_SLOPE 2.0
+
+JM_FORCEINLINE double
+carrier_nda_loop_error (double pe)
+{
+  return pe / CARRIER_NDA_DISC_SLOPE;
+}
+
 #define CARRIER_NDA_DEN_LIMITER 0
 #define CARRIER_NDA_DEN_AVERAGED 1
 #define CARRIER_NDA_DEN_UNIT 2
@@ -276,7 +284,8 @@ extern "C"
      * cycles/sample and n-invariant — n only sets the window length. lf.integ
      * is thus the carrier frequency correction in cycles/sample (read back by
      * dp_carrier_nda_get_norm_freq). */
-    s->ctl_cyc = dp_loop_filter_step (&s->lf, pe) / s->t_upd;
+    s->ctl_cyc
+        = dp_loop_filter_step (&s->lf, carrier_nda_loop_error (pe)) / s->t_upd;
   }
 
 #ifndef __cplusplus

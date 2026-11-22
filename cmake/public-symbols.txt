@@ -10,6 +10,7 @@ carrier_mpsk_update function
 carrier_mpsk_wipeoff function
 carrier_nda_arm_step function
 carrier_nda_disc function
+carrier_nda_loop_error function
 carrier_nda_steer function
 carrier_nda_update function
 carrier_nda_wipeoff function

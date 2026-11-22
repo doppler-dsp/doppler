@@ -16,6 +16,7 @@
 * **carrier\_mpsk\_wipeoff** ([**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md))
 * **carrier\_nda\_arm\_step** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **carrier\_nda\_disc** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
+* **carrier\_nda\_loop\_error** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **carrier\_nda\_steer** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **carrier\_nda\_update** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **carrier\_nda\_wipeoff** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))

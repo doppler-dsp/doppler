@@ -559,7 +559,10 @@ mpsk_rx_m_out_ok (double cap, size_t m_out, int strict)
   mpsk_rx_steer (mpsk_rx_loops_t *l, double pe)
   {
     l->car_error = pe;
-    l->freq_ctrl = -dp_loop_filter_step (&l->car_lf, pe) * l->freq_scale;
+    /* The discriminator's slope (2 at lock, every M) divided out where
+       carrier_nda divides it, so bn_carrier is the closed loop's (#3224). */
+    l->freq_ctrl = -dp_loop_filter_step (&l->car_lf, carrier_nda_loop_error (pe))
+                   * l->freq_scale;
   }
 
   /**

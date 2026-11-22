@@ -70,6 +70,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**carrier\_nda\_arm\_step**](#function-carrier_nda_arm_step) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, float \_Complex d, double \* pe, double \* lock) <br>_Slide the moving-average arm by one sample; discriminate the output._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**carrier\_nda\_disc**](#function-carrier_nda_disc) (float \_Complex z, int m, double \* pe, double \* lock) <br>_The M-th-power discriminator on an arm sample, normalized by its own amplitude law._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**carrier\_nda\_loop\_error**](#function-carrier_nda_loop_error) (double pe) <br>_The discriminator's error as a unit-slope loop takes it: divided by CARRIER\_NDA\_DISC\_SLOPE. The one place every loop on this discriminator scales it_  __[_**carrier\_nda\_steer()**_](carrier__nda__core_8h.md#function-carrier_nda_steer) _and MpskReceiver's_[_**mpsk\_rx\_steer()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_steer) __ _so_`bn` _means the closed loop's noise bandwidth at high SNR for every M (#3224). Dividing by 2 is exact._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_nda\_steer**](#function-carrier_nda_steer) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, double pe) <br>_Steer the NCO with a phase error through the loop filter._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_nda\_update**](#function-carrier_nda_update) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, float \_Complex z, double noise\_pw) <br>_One loop update on a caller's integrate-and-dump_ `z:` _the discriminator with the configured denominator, the configured lock statistic, and the steer._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**carrier\_nda\_wipeoff**](#function-carrier_nda_wipeoff) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
@@ -135,6 +136,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 | define  | [**CARRIER\_NDA\_DEN\_AVERAGED**](carrier__nda__core_8h.md#define-carrier_nda_den_averaged)  `1`<br>_An average of_ `|z|^2` _(an EMA, booted as a cumulative mean). Its mean is signal plus noise, so the gain is_`gamma/(gamma + 1)` _at update SNR gamma. M = 2 only._ |
 | define  | [**CARRIER\_NDA\_DEN\_LIMITER**](carrier__nda__core_8h.md#define-carrier_nda_den_limiter)  `0`<br>_The denominator in force (the state's_ `den` _, which_[_**dp\_carrier\_nda\_set\_denominator()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_set_denominator) _derives from its arguments): the update's own_`|z|^2` _, a per-update limiter (the default, and the one_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _computes). Gain_`E[1/(1 + n/A)]` _, falling with SNR._ |
 | define  | [**CARRIER\_NDA\_DEN\_UNIT**](carrier__nda__core_8h.md#define-carrier_nda_den_unit)  `2`<br>_That average less the caller's noise power, clamped between avg \* gamma\_d/(gamma\_d + 1) and avg, with gamma\_d the design update SNR: gain 1 where the estimate holds, never above the design point's, never the averaged form's sign. M = 2 only._  |
+| define  | [**CARRIER\_NDA\_DISC\_SLOPE**](carrier__nda__core_8h.md#define-carrier_nda_disc_slope)  `2.0`<br>_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too. A loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._ |
 | define  | [**CARRIER\_NDA\_EPS**](carrier__nda__core_8h.md#define-carrier_nda_eps)  `1e-12`<br>_Numerical guard on the arm sample's power \|z\|^2: at or below it (or NaN) the discriminator outputs 0 for both phase error and lock signal (not tunable)._  |
 | define  | [**CARRIER\_NDA\_INV\_2PI**](carrier__nda__core_8h.md#define-carrier_nda_inv_2pi)  `0.15915494309189535 /\* 1 / (2\*pi) \*/`<br>_1/(2\*pi): rad -&gt; cycles scale folded into the loop gains so the loop filter outputs the NCO control in cycles/sample._  |
 | define  | [**CARRIER\_NDA\_LOCK\_ALPHA**](carrier__nda__core_8h.md#define-carrier_nda_lock_alpha)  `0.05`<br>_EMA smoothing (per sample) for the lock metric: alpha = det\_ema\_alpha(0.0, 15.9), giving N\_eff = (2-alpha)/alpha = 39 effective looks (&gt;= the 30-look floor)._  |
@@ -181,7 +183,7 @@ lock signal").
 A caller must start the residual carrier inside a window, and there are two separate limits on that window. Which one binds decides whether a violation is obvious or silent, so both belong here rather than only in the design of whatever composes this.
 
 
-**Loop capture, roughly `k * bn / M`.** Where pull-in is prompt and predictable. This is the tighter bound at every shipped setting and it is the one a caller normally meets. Violating it is LOUD: the tracked frequency walks and `locked` never asserts, which is unmistakable in telemetry.
+**Loop capture, roughly `k * bn / M`.** Where pull-in is prompt and predictable: `k` is 1/4 for settling within `2/bn` samples (the validation report's §2.5 seeding rule), and a residual inside `bn/M` settles within `5/bn`. This is the tighter bound at every shipped setting and it is the one a caller normally meets. Violating it is LOUD: the tracked frequency walks and `locked` never asserts, which is unmistakable in telemetry.
 
 
 **The aliasing ceiling, `1/(2M)` cycles per sample.** The discriminator runs once per input sample, so an M-th power folds when the residual advances more than half a cycle per update  i.e. at a residual of `1/(2M)` cyc/sample, with stable false locks spaced `1/M` apart. The M-fold ambiguity is therefore a FREQUENCY ambiguity as well as a phase one. Violating this is SILENT and it is this object's worst failure mode: the loop sits still at the wrong frequency and reports a healthy lock statistic  measured on QPSK at a residual of one quarter the update rate, tracked frequency 2e-6 against a true 0.03125 and a lock statistic of +0.83 against the ~1.0 a real lock reads. Nothing self-referenced detects it: the constellation is stationary, so EVM and blind M2M4 both look clean. It takes an external frequency reference, a sync word, or a coarse estimate seeded through `init_norm_freq`.
@@ -196,6 +198,19 @@ A caller must start the residual carrier inside a window, and there are two sepa
 **
 
 The ceiling is linear in the rate the discriminator updates at, and nothing else in the loop depends on that rate  so it is free margin for whoever picks it. Stepping this object per input sample, which is what dp\_carrier\_nda\_steps does, is the widest setting available and puts the ceiling tens of times beyond loop capture. A composer that instead taps a DECIMATED stream inherits a proportionally tighter ceiling: at two samples per symbol it falls to one symbol rate over M, which is the regime the QPSK false lock above was measured in. The rule for a composition is to choose the tap so the ceiling stays clear of loop capture at every M it supports, which makes the silent failure structurally unreachable and leaves only the loud one.
+
+
+
+
+**
+**
+
+`bn` (with `zeta`) is the closed loop's: the discriminator's slope at lock, 2 at every M, is divided out before the loop filter ([**carrier\_nda\_loop\_error()**](carrier__nda__core_8h.md#function-carrier_nda_loop_error), #3224), so `bn` is the loop's noise bandwidth and `zeta` its damping whenever the discriminator's gain is its high-SNR value. Measured, test\_carrier\_nda\_core.c section 18: 1.00 to 1.04 of `bn` at every M and denominator. At finite SNR the gain falls by what each denominator gives, and the loop's bandwidth and damping with it:
+* the limiter (the default): its gain falls with the SNR at the discriminator (0.62 at 3.8 dB a look); there `bn` is the design value of a loop that runs narrower;
+* the averaged form: `gamma/(gamma + 1)` at update SNR gamma;
+* the unit form: 1, while the caller's noise power holds. Until #3224 the slope went undivided and the loop ran about 1.67 times wider than `bn` said, at a damping near 1.0.
+
+
 
 
 
@@ -308,6 +323,40 @@ signal", for the squaring-loss measurement that says normalizing is equal or bet
 * `m` Constellation order (2, 4, 8). 
 * `pe` Receives the phase error. 
 * `lock` Receives the lock signal. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function carrier\_nda\_loop\_error 
+
+_The discriminator's error as a unit-slope loop takes it: divided by CARRIER\_NDA\_DISC\_SLOPE. The one place every loop on this discriminator scales it_  __[_**carrier\_nda\_steer()**_](carrier__nda__core_8h.md#function-carrier_nda_steer) _and MpskReceiver's_[_**mpsk\_rx\_steer()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_steer) __ _so_`bn` _means the closed loop's noise bandwidth at high SNR for every M (#3224). Dividing by 2 is exact._
+```C++
+JM_FORCEINLINE double carrier_nda_loop_error (
+    double pe
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `pe` The discriminator's output. 
+
+
+
+**Returns:**
+
+The error in radians of carrier phase, slope 1 at lock. 
+
 
 
 
@@ -1558,6 +1607,20 @@ _The denominator in force (the state's_ `den` _, which_[_**dp\_carrier\_nda\_set
 _That average less the caller's noise power, clamped between avg \* gamma\_d/(gamma\_d + 1) and avg, with gamma\_d the design update SNR: gain 1 where the estimate holds, never above the design point's, never the averaged form's sign. M = 2 only._ 
 ```C++
 #define CARRIER_NDA_DEN_UNIT `2`
+```
+
+
+
+
+<hr>
+
+
+
+### define CARRIER\_NDA\_DISC\_SLOPE 
+
+_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too. A loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._
+```C++
+#define CARRIER_NDA_DISC_SLOPE `2.0`
 ```
 
 

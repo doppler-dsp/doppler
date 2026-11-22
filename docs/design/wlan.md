@@ -319,10 +319,7 @@ oversampling reads `WFM_WINDOW_UNSET`, `2**64 - 1`, the value the scene is
 refused for. Only the read changes: the stored member, the setter, the
 constructor keyword, `to_json()` and `from_json()` keep what was given, and
 `to_json()` writes the resolved count. A source that is not ofdm renders
-with no window, so its unset `window` reads 0 at any rate. A `Segment`'s flat `window`
-reads its first source's, which holds the default `fs`, so it reads the
-unset constant until jm resolves a flat read at the segment's own rate
-(just-makeit#2717; the row in `test_ofdm_source.py` holds it as it is). The tests are
+with no window, so its unset `window` reads 0 at any rate. A `Segment`'s flat `window` reads the same, at the segment's own `fs`. The tests are
 `test_the_default_window_is_the_standards_100_ns` (C and Python) and the two
 record tests in `src/doppler/wfm/tests/test_ofdm_source.py`.
 

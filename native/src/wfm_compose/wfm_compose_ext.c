@@ -2764,11 +2764,16 @@ Synth_set_scrambler_init (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_read_window (SynthObject *self, double fs)
+{
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_wfm_source_window (&self->src, fs));
+}
+static PyObject *
 Synth_get_window (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dp_wfm_source_window (&self->src, self->fs));
+  return Synth_read_window (self, self->fs);
 }
 static int
 Synth_set_window (SynthObject *self, PyObject *value, void *closure)
@@ -3179,8 +3184,7 @@ static PyGetSetDef Synth_getset[] = {
     "that count. A Synth reads that count at its fs, so an unset window reads "
     "2, 4 or 8 at 1, 2 or 4 times the bandwidth; at an fs with no "
     "oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which the scene is "
-    "refused for. A Segment's flat window reads the unset constant. What is "
-    "stored, set and written is what was given.\n",
+    "refused for. What is stored, set and written is what was given.\n",
     NULL },
   { "mac", (getter)Synth_get_mac, (setter)Synth_set_mac,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
@@ -3875,9 +3879,8 @@ static PyTypeObject SynthType = {
       "with\n"
       "    no oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which "
       "the\n"
-      "    scene is refused for. A Segment's flat window reads the unset "
-      "constant.\n"
-      "    What is stored, set and written is what was given.\n"
+      "    scene is refused for. What is stored, set and written is what was\n"
+      "    given.\n"
       "mac : str, default ``\"none\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"
@@ -5055,7 +5058,8 @@ Segment_flat_type (SegmentObject *self, void *closure)
                        "type is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "type");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "type");
 }
 static PyObject *
 Segment_flat_freq (SegmentObject *self, void *closure)
@@ -5067,7 +5071,8 @@ Segment_flat_freq (SegmentObject *self, void *closure)
                        "freq is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "freq");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "freq");
 }
 static PyObject *
 Segment_flat_snr (SegmentObject *self, void *closure)
@@ -5079,7 +5084,8 @@ Segment_flat_snr (SegmentObject *self, void *closure)
                        "snr is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "snr");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "snr");
 }
 static PyObject *
 Segment_flat_snr_mode (SegmentObject *self, void *closure)
@@ -5091,8 +5097,8 @@ Segment_flat_snr_mode (SegmentObject *self, void *closure)
                        "snr_mode is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "snr_mode");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "snr_mode");
 }
 static PyObject *
 Segment_flat_seed (SegmentObject *self, void *closure)
@@ -5104,7 +5110,8 @@ Segment_flat_seed (SegmentObject *self, void *closure)
                        "seed is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "seed");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "seed");
 }
 static PyObject *
 Segment_flat_sps (SegmentObject *self, void *closure)
@@ -5116,7 +5123,8 @@ Segment_flat_sps (SegmentObject *self, void *closure)
                        "sps is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "sps");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "sps");
 }
 static PyObject *
 Segment_flat_pn_length (SegmentObject *self, void *closure)
@@ -5128,8 +5136,8 @@ Segment_flat_pn_length (SegmentObject *self, void *closure)
                        "pn_length is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "pn_length");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "pn_length");
 }
 static PyObject *
 Segment_flat_pn_poly (SegmentObject *self, void *closure)
@@ -5141,8 +5149,8 @@ Segment_flat_pn_poly (SegmentObject *self, void *closure)
                        "pn_poly is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "pn_poly");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "pn_poly");
 }
 static PyObject *
 Segment_flat_lfsr (SegmentObject *self, void *closure)
@@ -5154,7 +5162,8 @@ Segment_flat_lfsr (SegmentObject *self, void *closure)
                        "lfsr is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "lfsr");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "lfsr");
 }
 static PyObject *
 Segment_flat_level (SegmentObject *self, void *closure)
@@ -5166,7 +5175,8 @@ Segment_flat_level (SegmentObject *self, void *closure)
                        "level is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "level");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "level");
 }
 static PyObject *
 Segment_flat_background (SegmentObject *self, void *closure)
@@ -5178,8 +5188,8 @@ Segment_flat_background (SegmentObject *self, void *closure)
                        "background is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "background");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "background");
 }
 static PyObject *
 Segment_flat_f_end (SegmentObject *self, void *closure)
@@ -5191,7 +5201,8 @@ Segment_flat_f_end (SegmentObject *self, void *closure)
                        "f_end is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "f_end");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "f_end");
 }
 static PyObject *
 Segment_flat_span (SegmentObject *self, void *closure)
@@ -5203,7 +5214,8 @@ Segment_flat_span (SegmentObject *self, void *closure)
                        "span is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "span");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "span");
 }
 static PyObject *
 Segment_flat_doppler (SegmentObject *self, void *closure)
@@ -5215,8 +5227,8 @@ Segment_flat_doppler (SegmentObject *self, void *closure)
                        "doppler is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "doppler");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "doppler");
 }
 static PyObject *
 Segment_flat_doppler_rate (SegmentObject *self, void *closure)
@@ -5228,8 +5240,8 @@ Segment_flat_doppler_rate (SegmentObject *self, void *closure)
                        "doppler_rate is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "doppler_rate");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "doppler_rate");
 }
 static PyObject *
 Segment_flat_carrier_hz (SegmentObject *self, void *closure)
@@ -5241,8 +5253,8 @@ Segment_flat_carrier_hz (SegmentObject *self, void *closure)
                        "carrier_hz is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "carrier_hz");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "carrier_hz");
 }
 static PyObject *
 Segment_flat_doppler_lifetime (SegmentObject *self, void *closure)
@@ -5254,8 +5266,8 @@ Segment_flat_doppler_lifetime (SegmentObject *self, void *closure)
                        "doppler_lifetime is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "doppler_lifetime");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "doppler_lifetime");
 }
 static PyObject *
 Segment_flat_modulation (SegmentObject *self, void *closure)
@@ -5267,8 +5279,8 @@ Segment_flat_modulation (SegmentObject *self, void *closure)
                        "modulation is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "modulation");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "modulation");
 }
 static PyObject *
 Segment_flat_pulse (SegmentObject *self, void *closure)
@@ -5280,7 +5292,8 @@ Segment_flat_pulse (SegmentObject *self, void *closure)
                        "pulse is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "pulse");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "pulse");
 }
 static PyObject *
 Segment_flat_rrc_beta (SegmentObject *self, void *closure)
@@ -5292,8 +5305,8 @@ Segment_flat_rrc_beta (SegmentObject *self, void *closure)
                        "rrc_beta is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "rrc_beta");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "rrc_beta");
 }
 static PyObject *
 Segment_flat_rrc_span (SegmentObject *self, void *closure)
@@ -5305,8 +5318,8 @@ Segment_flat_rrc_span (SegmentObject *self, void *closure)
                        "rrc_span is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "rrc_span");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "rrc_span");
 }
 static PyObject *
 Segment_flat_symbols (SegmentObject *self, void *closure)
@@ -5318,8 +5331,8 @@ Segment_flat_symbols (SegmentObject *self, void *closure)
                        "symbols is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "symbols");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "symbols");
 }
 static PyObject *
 Segment_flat_acq_code (SegmentObject *self, void *closure)
@@ -5331,8 +5344,8 @@ Segment_flat_acq_code (SegmentObject *self, void *closure)
                        "acq_code is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "acq_code");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "acq_code");
 }
 static PyObject *
 Segment_flat_acq_reps (SegmentObject *self, void *closure)
@@ -5344,8 +5357,8 @@ Segment_flat_acq_reps (SegmentObject *self, void *closure)
                        "acq_reps is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "acq_reps");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "acq_reps");
 }
 static PyObject *
 Segment_flat_data_code (SegmentObject *self, void *closure)
@@ -5357,8 +5370,8 @@ Segment_flat_data_code (SegmentObject *self, void *closure)
                        "data_code is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "data_code");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "data_code");
 }
 static PyObject *
 Segment_flat_sync (SegmentObject *self, void *closure)
@@ -5370,7 +5383,8 @@ Segment_flat_sync (SegmentObject *self, void *closure)
                        "sync is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "sync");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "sync");
 }
 static PyObject *
 Segment_flat_crc (SegmentObject *self, void *closure)
@@ -5382,7 +5396,8 @@ Segment_flat_crc (SegmentObject *self, void *closure)
                        "crc is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "crc");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "crc");
 }
 static PyObject *
 Segment_flat_symbol_rate (SegmentObject *self, void *closure)
@@ -5394,8 +5409,8 @@ Segment_flat_symbol_rate (SegmentObject *self, void *closure)
                        "symbol_rate is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "symbol_rate");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "symbol_rate");
 }
 static PyObject *
 Segment_flat_dsss_code_only (SegmentObject *self, void *closure)
@@ -5407,8 +5422,8 @@ Segment_flat_dsss_code_only (SegmentObject *self, void *closure)
                        "dsss_code_only is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "dsss_code_only");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "dsss_code_only");
 }
 static PyObject *
 Segment_flat_frame (SegmentObject *self, void *closure)
@@ -5420,7 +5435,8 @@ Segment_flat_frame (SegmentObject *self, void *closure)
                        "frame is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "frame");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "frame");
 }
 static PyObject *
 Segment_flat_bits (SegmentObject *self, void *closure)
@@ -5432,7 +5448,8 @@ Segment_flat_bits (SegmentObject *self, void *closure)
                        "bits is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "bits");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "bits");
 }
 static PyObject *
 Segment_flat_data (SegmentObject *self, void *closure)
@@ -5444,7 +5461,8 @@ Segment_flat_data (SegmentObject *self, void *closure)
                        "data is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "data");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "data");
 }
 static PyObject *
 Segment_flat_data_len (SegmentObject *self, void *closure)
@@ -5456,8 +5474,8 @@ Segment_flat_data_len (SegmentObject *self, void *closure)
                        "data_len is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "data_len");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "data_len");
 }
 static PyObject *
 Segment_flat_fill (SegmentObject *self, void *closure)
@@ -5469,7 +5487,8 @@ Segment_flat_fill (SegmentObject *self, void *closure)
                        "fill is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "fill");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "fill");
 }
 static PyObject *
 Segment_flat_code_only_symbols (SegmentObject *self, void *closure)
@@ -5481,8 +5500,8 @@ Segment_flat_code_only_symbols (SegmentObject *self, void *closure)
                        "code_only_symbols is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "code_only_symbols");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "code_only_symbols");
 }
 static PyObject *
 Segment_flat_frame_symbols (SegmentObject *self, void *closure)
@@ -5494,8 +5513,8 @@ Segment_flat_frame_symbols (SegmentObject *self, void *closure)
                        "frame_symbols is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "frame_symbols");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "frame_symbols");
 }
 static PyObject *
 Segment_flat_wlan (SegmentObject *self, void *closure)
@@ -5507,7 +5526,8 @@ Segment_flat_wlan (SegmentObject *self, void *closure)
                        "wlan is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "wlan");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "wlan");
 }
 static PyObject *
 Segment_flat_constellation (SegmentObject *self, void *closure)
@@ -5519,8 +5539,8 @@ Segment_flat_constellation (SegmentObject *self, void *closure)
                        "constellation is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "constellation");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "constellation");
 }
 static PyObject *
 Segment_flat_code_rate (SegmentObject *self, void *closure)
@@ -5532,8 +5552,8 @@ Segment_flat_code_rate (SegmentObject *self, void *closure)
                        "code_rate is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "code_rate");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "code_rate");
 }
 static PyObject *
 Segment_flat_scrambler_init (SegmentObject *self, void *closure)
@@ -5545,8 +5565,8 @@ Segment_flat_scrambler_init (SegmentObject *self, void *closure)
                        "scrambler_init is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "scrambler_init");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "scrambler_init");
 }
 static PyObject *
 Segment_flat_window (SegmentObject *self, void *closure)
@@ -5558,7 +5578,10 @@ Segment_flat_window (SegmentObject *self, void *closure)
                        "window is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "window");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_window ((SynthObject *)_it, self->fs);
+  return PyObject_GetAttrString (_it, "window");
 }
 static PyObject *
 Segment_flat_mac (SegmentObject *self, void *closure)
@@ -5570,7 +5593,8 @@ Segment_flat_mac (SegmentObject *self, void *closure)
                        "mac is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "mac");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "mac");
 }
 static PyObject *
 Segment_flat_gap (SegmentObject *self, void *closure)
@@ -5582,7 +5606,8 @@ Segment_flat_gap (SegmentObject *self, void *closure)
                        "gap is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "gap");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "gap");
 }
 static PyObject *
 Segment_flat_bandwidth (SegmentObject *self, void *closure)
@@ -5594,8 +5619,8 @@ Segment_flat_bandwidth (SegmentObject *self, void *closure)
                        "bandwidth is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "bandwidth");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "bandwidth");
 }
 static PyObject *
 Segment_flat_mac_header (SegmentObject *self, void *closure)
@@ -5607,8 +5632,8 @@ Segment_flat_mac_header (SegmentObject *self, void *closure)
                        "mac_header is only on a single-source Segment");
       return NULL;
     }
-  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
-                                 "mac_header");
+  PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  return PyObject_GetAttrString (_it, "mac_header");
 }
 
 static PyObject *
@@ -5933,8 +5958,7 @@ static PyGetSetDef Segment_getset[] = {
     "that count. A Synth reads that count at its fs, so an unset window reads "
     "2, 4 or 8 at 1, 2 or 4 times the bandwidth; at an fs with no "
     "oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which the scene is "
-    "refused for. A Segment's flat window reads the unset constant. What is "
-    "stored, set and written is what was given.\n",
+    "refused for. What is stored, set and written is what was given.\n",
     NULL },
   { "mac", (getter)Segment_flat_mac, NULL,
     "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
@@ -6356,9 +6380,8 @@ static PyTypeObject SegmentType = {
       "with\n"
       "    no oversampling the read is WFM_WINDOW_UNSET, 2**64 - 1, which "
       "the\n"
-      "    scene is refused for. A Segment's flat window reads the unset "
-      "constant.\n"
-      "    What is stored, set and written is what was given.\n"
+      "    scene is refused for. What is stored, set and written is what was\n"
+      "    given.\n"
       "mac : str, default ``\"none\"``\n"
       "    For type=ofdm: how the caller's octets become the PSDU. none: as "
       "given.\n"

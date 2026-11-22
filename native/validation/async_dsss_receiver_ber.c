@@ -104,12 +104,20 @@
      from the run it would gate. */
 
 /* The pre-despread loop is "reliable to twice" its bound,
-   ASYNC_DSSS_RX_CARRIER_PULLIN_HZ, measured on the seed it is handed,
+   ASYNC_DSSS_RX_CARRIER_PULLIN_HZ at the receiver's own bandwidth (the one
+   create() derives from the floor's C/N0, which every receiver here is
+   built at),
+   measured on the seed it is handed,
    which the refine's hand-over is. Inside that the hand-over cannot be why
    a burst did not settle, so an unsettled burst there is some other
    failure, and fails. Past it a burst may settle or not (#2409). */
 #define PULLIN_RELIABLE_HZ(fc)                                                \
-  (2.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (dp_s415_chip_rate (fc), DP_S415_SF))
+  (2.0                                                                        \
+   * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (                                        \
+       dp_async_dsss_receiver_carrier_bn (dp_s415_cn0 (DP_S415_FLOOR_DB),     \
+                                          dp_s415_chip_rate (fc),             \
+                                          DP_S415_SF),                        \
+       dp_s415_chip_rate (fc), DP_S415_SF))
 
 /* The sweep: both carriers of 415.1-B-1, from its Es/N0 floor (4 dB) to
    7 dB, where a point at 200 errors still costs under a minute. */
@@ -217,7 +225,7 @@ run_burst (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   uint8_t     *bits  = dp_xmalloc (n_sym);
   for (size_t i = 0; i < n_sym; i++)
     bits[i] = (uint8_t)(dp_air_symbol_bit (&air, 0, (long)i) > 0);
-  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, true);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   DP_REQUIRE (rx != NULL);
 
   const size_t   ocap = (size_t)(BURST_S * DP_S415_SYM) + 64 + OUT_CAP;
@@ -432,8 +440,7 @@ spec_draw (const uint8_t *code, double fc, double esn0, uint32_t seed,
           bits[k][i]  = (uint8_t)(b > 0);
         }
     }
-  dp_async_dsss_pool_state_t *p
-      = dp_s415_pool (code, fc, SPEC_NRX, cn0, 2.0, 0);
+  dp_async_dsss_pool_state_t *p = dp_s415_pool (code, fc, SPEC_NRX, 2.0, 0);
   DP_REQUIRE (p);
   float complex *x    = dp_xmalloc (SPEC_PUSH * sizeof *x);
   const size_t   ocap = (size_t)(secs * DP_S415_SYM) + 4096;

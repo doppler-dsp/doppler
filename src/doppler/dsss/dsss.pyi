@@ -2431,10 +2431,11 @@ class AsyncDsssReceiver:
         while half the search's Doppler row, `chip_rate / (code_len *
         coherent_bins)`, is inside the carrier loop's acquisition bound,
         ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is `coherent_bins >=
-        ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`, 25, at any chip rate. A receiver
-        configured outside it (a one-epoch search, D = 1, among them) is
-        refused, and a blob in the refining state is refused by set_state().
-        The name is a placeholder (async-dsss-receiver.md §4.4).
+        ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`, with `bn` the receiver's carrier
+        bandwidth (dp_async_dsss_receiver_carrier_bn()): 25 at 0.04, at any
+        chip rate. A receiver configured outside it (a one-epoch search, D = 1,
+        among them) is refused, and a blob in the refining state is refused by
+        set_state(). The name is a placeholder (async-dsss-receiver.md §4.4).
 
     Raises
     ------

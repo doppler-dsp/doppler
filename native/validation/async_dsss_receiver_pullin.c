@@ -110,13 +110,13 @@
  * interpolates, and the held chips' images pass its transition band) for
  * the comparison with the default 4. `--bn-carrier BN` tracks with the
  * pre-despread carrier loop at noise bandwidth BN per code period in
- * place of ASYNC_DSSS_RX_BN_CARRIER: the loop filter is re-initialised
+ * place of the receiver's own (dp_async_dsss_receiver_carrier_bn() at the
+ * C/N0 it is built at): the loop filter is re-initialised
  * through the receiver's state on each entry into tracking (integrator
  * kept), and each row records the bandwidth it ran at (bn_car).
- * `--bn-carrier rule` takes it from the owner's loop rule instead
- * (docs/design/async-dsss-receiver.md §1.3: about 20 dB of loop SNR at the
- * 4 dB floor, `rho - 10 log10(2 bn)`, with rho the per-update SNR there),
- * per carrier: pi_bn_rule(), the one place the rule is written.
+ * `--bn-carrier rule` holds every cell at the floor's bandwidth, the
+ * receiver's own derivation at the 4 dB floor's C/N0 (pi_bn_rule()), where
+ * a receiver built at a cell's C/N0 above the floor takes a wider one.
  * `--loop-order N` names the carrier loop's order, recorded per row
  * (loop_order); 2 is the built loop. At 3, `--acq a|b|c` is how the loop
  * gets there (docs/design/async-dsss-receiver.md 4.9, "Acquisition"),
@@ -383,8 +383,9 @@ typedef struct
 static dp_hist_t pi_hist[PI_CELLS][2][PQ_N];
 static double    pi_cell_key[PI_CELLS][3];
 /* --bn-carrier: the pre-despread carrier loop's noise bandwidth (per code
-   period) the draws track with, in place of the built
-   ASYNC_DSSS_RX_BN_CARRIER; NAN: as built. */
+   period) the draws track with, in place of the receiver's own
+   (dp_async_dsss_receiver_carrier_bn() at the C/N0 it is built at); NAN:
+   the receiver's own. */
 static double pi_bn_car = NAN;
 /* The code lock's look count forced on each entry into tracking, for the
    #3134 control (0: as built, dp_det_n_noncoh()'s sizing). */
@@ -400,17 +401,17 @@ static char pi_acq = 'c';
    order-2 loop's frequency slope over the acquisition. */
 static int pi_seed_rate = 0;
 
-/* The owner's loop rule, docs/design/async-dsss-receiver.md §1.3: a loop
-   SNR of PI_LOOP_SNR_DB at the floor, in the rule's convention
-   `rho - 10 log10(2 bn)`, rho the per-update SNR (C/N0 at the antenna
-   times the update period). The one place the rule is written; every
-   bandwidth the rule sets comes from here. */
-#define PI_LOOP_SNR_DB 20.0
+/* The owner's loop rule, docs/design/async-dsss-receiver.md §1.3, at the
+   floor for carrier fc: the receiver's own derivation,
+   dp_async_dsss_receiver_carrier_bn(), the one place the rule is written.
+   --bn-carrier rule holds every draw at the floor's bandwidth, whatever
+   C/N0 the draw's receiver was built at. */
 #define PI_FLOOR_ESN0_DB 4.0
 static double
-pi_bn_rule (double rho_floor)
+pi_bn_rule (double fc)
 {
-  return rho_floor / (2.0 * pow (10.0, PI_LOOP_SNR_DB / 10.0));
+  return dp_async_dsss_receiver_carrier_bn (dp_s415_cn0 (PI_FLOOR_ESN0_DB),
+                                            dp_s415_chip_rate (fc), SF);
 }
 
 /* The per-update SNR rho = C/N0 T for a carrier fc at Es/N0 esn0. */
@@ -576,7 +577,7 @@ static double
 pi_switch_window_s (double fc)
 {
   const double T = (double)SF / dp_s415_chip_rate (fc);
-  return 5.0 / pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB)) * T;
+  return 5.0 / pi_bn_rule (fc) * T;
 }
 
 static void
@@ -587,7 +588,7 @@ pi_switch_design (double fc, pi_switch_t *sw)
   sw->rho           = pi_rho (fc, PI_FLOOR_ESN0_DB);
   sw->g             = pi_slope (sw->rho, 1, 5501u + (uint64_t)(fc / 1e8));
   sw->x             = 2.0 * M_PI * DP_S415_RATE_HZ_S * sw->T * sw->T;
-  sw->bn_track      = pi_bn_rule (sw->rho);
+  sw->bn_track      = pi_bn_rule (fc);
   dp_loop_filter_state_t lf;
   dp_loop_filter_init (&lf, ASYNC_DSSS_RX_BN_CARRIER, 0.707, 1.0);
   sw->ki2   = lf.ki;
@@ -945,7 +946,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   DP_REQUIRE (
       dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 8807u + seed, PI_PUSH));
 
-  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, true);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   DP_REQUIRE (rx != NULL);
 
   const size_t   n_blk  = (size_t)(secs * DP_S415_FS) / PI_PUSH;
@@ -1159,10 +1160,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
          own API (configure keeps the integrator, the hand-over's
          frequency; set_order carries it). The block the hand-over fell in
          ran as built: at most one block, 0.37 ms, about 1.5 code periods. */
-      const double bn_track = pi_bn_rule_on
-                                  ? pi_bn_rule (pi_rho (fc, PI_FLOOR_ESN0_DB))
+      const double bn_track = pi_bn_rule_on        ? pi_bn_rule (fc)
                               : !isnan (pi_bn_car) ? pi_bn_car
-                                                   : ASYNC_DSSS_RX_BN_CARRIER;
+                                                   : rx->bn_carrier;
       if (tracking && !was_tracking)
         {
           narrowed = 0;
@@ -1175,9 +1175,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                  seeded carries, the rate starts at 0. Design a enters at
                  order 2 and switches at the lock below. */
               if (pi_acq == 'b')
-                DP_REQUIRE (
-                    dp_costas_set_order (&rx->car, 3, ASYNC_DSSS_RX_BN_CARRIER)
-                    == DP_OK);
+                DP_REQUIRE (dp_costas_set_order (&rx->car, 3, rx->bn_carrier)
+                            == DP_OK);
               else if (pi_acq == 'c')
                 DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track)
                             == DP_OK);
@@ -1587,13 +1586,12 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
     d->base_half_sample_chip
         = 0.5 / (rx->spc * (rx->srch_rs ? rx->srch_ratio : 1.0));
     d->base_unamb_hz = 1.0 / (4.0 * T);
-    /* The shipped pull-in, scaled to the bandwidth the loop ran at (it is
-       proportional to bn: ASYNC_DSSS_RX_CARRIER_PULLIN_HZ's own form). */
-    d->base_pullin_hz = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (chip, SF)
-                        * rx->car.lf.bn / ASYNC_DSSS_RX_BN_CARRIER;
-    d->bn_car         = rx->car.lf.bn;
-    d->loop_order     = pi_loop_order;
-    d->acq            = pi_loop_order == 3 ? pi_acq : '-';
+    /* The pull-in at the bandwidth the loop ran at. */
+    d->base_pullin_hz
+        = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (rx->car.lf.bn, chip, SF);
+    d->bn_car     = rx->car.lf.bn;
+    d->loop_order = pi_loop_order;
+    d->acq        = pi_loop_order == 3 ? pi_acq : '-';
     d->rate_end_hz_s
         = dp_costas_get_norm_rate (&rx->car) * DP_S415_FS * DP_S415_FS;
     if (pi_loop_order == 3 && pi_acq == 'c')
@@ -2135,14 +2133,12 @@ pi_design (const double fcs[2], const double esn0s[4])
         {
           dp_loop_filter_state_t lf;
           const double           T = (double)SF / (dp_s415_chip_rate (fcs[f]));
-          dp_loop_filter_init (
-              &lf, pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)), 0.707, 1.0);
+          dp_loop_filter_init (&lf, pi_bn_rule (fcs[f]), 0.707, 1.0);
           lag_per = fmax (
               lag_per,
               360.0 * dp_state_filter_steady_error (2, lf.ki, 0.0, 2, T * T));
           dp_state_filter_state_t sf;
-          dp_state_filter_init (
-              &sf, pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)), 1.0);
+          dp_state_filter_init (&sf, pi_bn_rule (fcs[f]), 1.0);
           o3_per = fmax (o3_per, 360.0
                                      * dp_state_filter_steady_error (
                                          3, sf.ki, sf.kr, 3, T * T * T));
@@ -2179,9 +2175,8 @@ pi_design (const double fcs[2], const double esn0s[4])
         uint8_t      code[SF];
         for (size_t i = 0; i < SF; i++)
           code[i] = (uint8_t)(i & 1u);
-        dp_async_dsss_receiver_state_t *rx
-            = dp_s415_rx (code, fcs[f], cn0, true);
-        size_t nc = 0;
+        dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
+        size_t                          nc = 0;
         if (!rx || dp_correlator_get_n_noncoh (rx->acq, &nc) != DP_OK)
           {
             DP_CHECK_MSG (0, "the search's dwell is readable");
@@ -2230,10 +2225,11 @@ pi_design (const double fcs[2], const double esn0s[4])
         const int    kw = 1;
         const double k
             = pi_slope (rho, kw, 4410u + (uint64_t)(f * 8 + e * 2 + 1));
-        const double bns[2]
-            = { pi_bn_rule (pi_rho (fcs[f], PI_FLOOR_ESN0_DB)),
-                pi_bn_rule_on || isnan (pi_bn_car) ? ASYNC_DSSS_RX_BN_CARRIER
-                                                   : pi_bn_car };
+        const double bns[2] = { pi_bn_rule (fcs[f]),
+                                pi_bn_rule_on || isnan (pi_bn_car)
+                                    ? dp_async_dsss_receiver_carrier_bn (
+                                          dp_s415_cn0 (esn0s[e]), chip, SF)
+                                    : pi_bn_car };
         for (int order = 2; order <= 3; order++)
           for (int b = 0; b < 2; b++)
             for (int di = 0; di < 3; di++)
@@ -2546,10 +2542,11 @@ main (int argc, char **argv)
                               PI_CL_CHECK_S, spc, NULL, NULL, &cc)
                     == 0);
         pi_code_nl = 0;
-        printf ("  code lock, 2.8 GHz 10 dB static seed %u: as built "
-                "(n = %zu) changes %zu times over the data; at n = %zu, "
-                "%zu (#3134)\n",
-                PI_CL_SEED, cd.code_nl, cd.code_tog, cc.code_nl, cc.code_tog);
+        printf (
+            "  code lock, 2.8 GHz 10 dB static seed %u: the receiver's own "
+            "(n = %zu) changes %zu times over the data; at n = %zu, "
+            "%zu (#3134)\n",
+            PI_CL_SEED, cd.code_nl, cd.code_tog, cc.code_nl, cc.code_tog);
         DP_CHECK_MSG (!isnan (cd.t_code_s) && cd.code_tog == 0,
                       "#3134: the code lock does not change over the data "
                       "once sustained");

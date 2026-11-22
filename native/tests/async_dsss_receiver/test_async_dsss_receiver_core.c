@@ -5482,7 +5482,7 @@ _test_no_refine_hands_over_at_the_seed (void)
   dp_async_dsss_receiver_state_t *rx = _no_refine_create (NULL);
   DP_REQUIRE (rx != NULL);
   DP_REQUIRE (rx->acq->search->coherent_bins
-              >= ASYNC_DSSS_RX_NO_REFINE_MIN_BINS);
+              >= ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (rx->bn_carrier));
   DP_CHECK (dp_async_dsss_receiver_seed (rx, 3.25, 120.0, 58.0) == DP_OK);
   DP_CHECK (rx->state == ASYNC_DSSS_RX_TRACKING);
   DP_CHECK (dp_async_dsss_receiver_get_refining (rx) == 0);
@@ -5562,14 +5562,58 @@ _test_no_refine_hands_over_at_the_seed (void)
 }
 
 /* refine false needs a deep search: refused below
- * ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (25), built at it, and refine true built
- * at every depth. CODE7 at 1 Mchip/s, so a code period is 7 us: a
+ * ASYNC_DSSS_RX_NO_REFINE_MIN_BINS at the receiver's carrier bandwidth, 25
+ * at the widest (ASYNC_DSSS_RX_BN_CARRIER, which a design C/N0 of 70 dB-Hz
+ * takes here), built at it, and refine true built at every depth. CODE7 at
+ * 1 Mchip/s, so a code period is 7 us: a
  * code-only window of 49.5 periods gives code_only_epochs 48 and D 24, one
  * of 50.5 gives 49 and D 25, and none gives D = 1, the one-epoch search.
  *
  * Sabotages: no refusal -> the D = 24 and D = 1 rows red; the rule moved a
  * bin (> in place of >=, or 1 / bn rounded down) -> the D = 25 row or the
  * D = 24 row red. */
+/* D3, the carrier loop's bandwidth from the owner's loop-SNR rule
+ * (async-dsss-receiver.md §1.3): at the 415.1-B-1 floor, C/N0 38.77 dB-Hz,
+ * rho = C/N0 T is 2.397 at 2.2 GHz and 1.884 at 2.8 GHz (T = 1023 chips at
+ * the carrier times 31/21216), so bn = rho / 200 is 0.01199 and 0.00942;
+ * at a design C/N0 the rule allows wider, the release's 0.04. A receiver
+ * built at the floor carries that bandwidth, and its tracking carrier loop
+ * runs at it.
+ *
+ * Sabotage: the release's constant restored in create() (bn_carrier =
+ * ASYNC_DSSS_RX_BN_CARRIER) -> every receiver row red; the cap dropped ->
+ * the 70 dB-Hz row red; the rule's 200 as 100 -> the floor rows red. */
+static int
+_test_carrier_bn_follows_the_loop_snr_rule (void)
+{
+  const double chip22 = 2.2e9 * 31.0 / 21216.0,
+               chip28 = 2.8e9 * 31.0 / 21216.0;
+  DP_CHECK_MSG (
+      fabs (dp_async_dsss_receiver_carrier_bn (38.77, chip22, 1023) - 0.011987)
+          < 1e-5,
+      "2.2 GHz at the floor: rho / 200");
+  DP_CHECK_MSG (
+      fabs (dp_async_dsss_receiver_carrier_bn (38.77, chip28, 1023) - 0.009419)
+          < 1e-5,
+      "2.8 GHz at the floor: rho / 200");
+  DP_CHECK_MSG (dp_async_dsss_receiver_carrier_bn (70.0, chip22, 1023)
+                    == ASYNC_DSSS_RX_BN_CARRIER,
+                "where the rule allows wider, the release's bandwidth");
+  /* A receiver built at the floor carries the rule's bandwidth. */
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, 38.77, 1e-2, 0.9, 500.0, 4, 8, 0,
+      0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
+  DP_REQUIRE (rx != NULL);
+  const double want = dp_async_dsss_receiver_carrier_bn (38.77, 1.0e6, 7);
+  DP_CHECK_MSG (want < ASYNC_DSSS_RX_BN_CARRIER && rx->bn_carrier == want,
+                "the receiver's carrier bandwidth is the rule's at its C/N0");
+  /* Its tracking chain's carrier loop, built by create(), runs at it. */
+  DP_CHECK_MSG (dp_costas_get_bn (&rx->car) == want,
+                "the tracking carrier loop is built at that bandwidth");
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 static int
 _test_no_refine_needs_a_deep_search (void)
 {
@@ -5578,18 +5622,19 @@ _test_no_refine_needs_a_deep_search (void)
     double code_only_s;
     size_t d;
   } rows[] = { { 0.0, 1 }, { 49.5 * 7e-6, 24 }, { 50.5 * 7e-6, 25 } };
-  DP_CHECK (ASYNC_DSSS_RX_NO_REFINE_MIN_BINS == 25);
+  DP_CHECK (ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (ASYNC_DSSS_RX_BN_CARRIER) == 25);
   for (size_t i = 0; i < sizeof rows / sizeof *rows; i++)
     {
       dp_async_dsss_receiver_state_t *with = dp_async_dsss_receiver_create (
-          CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0,
+          CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0,
           0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false,
           rows[i].code_only_s, 0.0, true);
       DP_REQUIRE (with != NULL);
+      DP_REQUIRE (with->bn_carrier == ASYNC_DSSS_RX_BN_CARRIER);
       DP_REQUIRE (with->acq->search->coherent_bins == rows[i].d);
       dp_async_dsss_receiver_destroy (with);
       dp_async_dsss_receiver_state_t *without = dp_async_dsss_receiver_create (
-          CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, 58.0, 1e-2, 0.9, 500.0, 4, 8, 0,
+          CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0,
           0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false,
           rows[i].code_only_s, 0.0, false);
       DP_CHECK ((without != NULL) == (rows[i].d >= 25));
@@ -5631,7 +5676,7 @@ _ramp_handover (double f0, uint32_t seed, double *err_hz, double *bound_hz,
   dp_gold_state_t *g = dp_gold_create (934, 350, 567, 73, 10);
   DP_REQUIRE (g && dp_gold_generate (g, 1023, code, 1023) == 1023);
   dp_gold_destroy (g);
-  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, false);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, false);
   /* The emitter on the air (dp_air_test.h): the shipped synth with its
      window, the front end's converter, a Doppler channel on the ramp. */
   dp_air_emitter_t e
@@ -5755,6 +5800,7 @@ main (void)
   DP_CHECK (_test_chunking_changes_nothing () == 0);
   DP_CHECK (_test_no_refine_hands_over_the_search_doppler () == 0);
   DP_CHECK (_test_no_refine_hands_over_at_the_seed () == 0);
+  DP_CHECK (_test_carrier_bn_follows_the_loop_snr_rule () == 0);
   DP_CHECK (_test_no_refine_needs_a_deep_search () == 0);
   DP_CHECK (_test_handover_round_trips () == 0);
   DP_CHECK (_test_ring_blob_rejects () == 0);

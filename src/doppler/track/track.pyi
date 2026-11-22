@@ -4462,7 +4462,7 @@ class CarrierNda:
 
     @property
     def last_error(self) -> float:
-        """Last phase error from the M-th-power discriminator."""
+        """Last phase error from the M-th-power discriminator, raw."""
 
     @property
     def bn(self) -> float:

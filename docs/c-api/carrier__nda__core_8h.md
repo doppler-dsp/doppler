@@ -79,7 +79,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  void | [**dp\_carrier\_nda\_destroy**](#function-dp_carrier_nda_destroy) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Destroy an NDA carrier loop instance and release all memory._  |
 |  double | [**dp\_carrier\_nda\_get\_block\_thresh**](#function-dp_carrier_nda_get_block_thresh) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_The block lock's threshold on R (0 when the EMA decides)._  |
 |  double | [**dp\_carrier\_nda\_get\_bn**](#function-dp_carrier_nda_get_bn) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Loop noise bandwidth currently in use._  |
-|  double | [**dp\_carrier\_nda\_get\_last\_error**](#function-dp_carrier_nda_get_last_error) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Last phase error from the M-th-power discriminator._  |
+|  double | [**dp\_carrier\_nda\_get\_last\_error**](#function-dp_carrier_nda_get_last_error) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Last phase error from the M-th-power discriminator, raw._  |
 |  double | [**dp\_carrier\_nda\_get\_lock**](#function-dp_carrier_nda_get_lock) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Lock-signal EMA: Re((z/\|z\|)^M) smoothed per sample by CARRIER\_NDA\_LOCK\_ALPHA._  |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_carrier\_nda\_get\_lock\_rule**](#function-dp_carrier_nda_get_lock_rule) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_The lock decision's rule (thresholds and verify counts)._  |
 |  int | [**dp\_carrier\_nda\_get\_locked**](#function-dp_carrier_nda_get_locked) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_carrier\_nda\_configure\_lock)._  |
@@ -138,7 +138,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 | define  | [**CARRIER\_NDA\_DEN\_AVERAGED**](carrier__nda__core_8h.md#define-carrier_nda_den_averaged)  `1`<br>_An average of_ `|z|^2` _(an EMA, booted as a cumulative mean). Its mean is signal plus noise, so the gain is_`gamma/(gamma + 1)` _at update SNR gamma. M = 2 only._ |
 | define  | [**CARRIER\_NDA\_DEN\_LIMITER**](carrier__nda__core_8h.md#define-carrier_nda_den_limiter)  `0`<br>_The denominator in force (the state's_ `den` _, which_[_**dp\_carrier\_nda\_set\_denominator()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_set_denominator) _derives from its arguments): the update's own_`|z|^2` _, a per-update limiter (the default, and the one_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _computes). Gain_`E[1/(1 + n/A)]` _, falling with SNR._ |
 | define  | [**CARRIER\_NDA\_DEN\_UNIT**](carrier__nda__core_8h.md#define-carrier_nda_den_unit)  `2`<br>_That average less the caller's noise power, clamped between avg \* gamma\_d/(gamma\_d + 1) and avg, with gamma\_d the design update SNR: gain 1 where the estimate holds, never above the design point's, never the averaged form's sign. M = 2 only._  |
-| define  | [**CARRIER\_NDA\_DISC\_SLOPE**](carrier__nda__core_8h.md#define-carrier_nda_disc_slope)  `2.0`<br>_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too. A loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._ |
+| define  | [**CARRIER\_NDA\_DISC\_SLOPE**](carrier__nda__core_8h.md#define-carrier_nda_disc_slope)  `2.0`<br>_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too._**What has slope 2** _is the raw discriminator output:_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _,_`last_error` _, the_`.e` _probe and_[_**dp\_carrier\_nda\_get\_last\_error()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_get_last_error) _._**What the filter is handed** _has slope 1: a loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._ |
 | define  | [**CARRIER\_NDA\_EPS**](carrier__nda__core_8h.md#define-carrier_nda_eps)  `1e-12`<br>_Numerical guard on the arm sample's power \|z\|^2: at or below it (or NaN) the discriminator outputs 0 for both phase error and lock signal (not tunable)._  |
 | define  | [**CARRIER\_NDA\_INV\_2PI**](carrier__nda__core_8h.md#define-carrier_nda_inv_2pi)  `0.15915494309189535 /\* 1 / (2\*pi) \*/`<br>_1/(2\*pi): rad -&gt; cycles scale folded into the loop gains so the loop filter outputs the NCO control in cycles/sample._  |
 | define  | [**CARRIER\_NDA\_LOCK\_ALPHA**](carrier__nda__core_8h.md#define-carrier_nda_lock_alpha)  `0.05`<br>_EMA smoothing (per sample) for the lock metric: alpha = det\_ema\_alpha(0.0, 15.9), giving N\_eff = (2-alpha)/alpha = 39 effective looks (&gt;= the 30-look floor)._  |
@@ -672,7 +672,7 @@ bn per update, cycles an update: cycles/sample at the default update period of 1
 
 ### function dp\_carrier\_nda\_get\_last\_error 
 
-_Last phase error from the M-th-power discriminator._ 
+_Last phase error from the M-th-power discriminator, raw._ 
 ```C++
 double dp_carrier_nda_get_last_error (
     const dp_carrier_nda_state_t * state
@@ -681,7 +681,7 @@ double dp_carrier_nda_get_last_error (
 
 
 
-Im((z/\|z\|)^M) scaled by 1, 1/2, 1/4 for M = 2, 4, 8, which equalizes the S-curve slope across M.
+Im((z/\|z\|)^M) scaled by 1, 1/2, 1/4 for M = 2, 4, 8, which equalizes the S-curve slope across M at CARRIER\_NDA\_DISC\_SLOPE (2); with an averaged or unit denominator, 2IQ over that denominator, slope 2 at unit amplitude. This is the discriminator's output, as the `.e` probe reads it, NOT what the loop filter is handed: the filter takes it divided by the slope, [**carrier\_nda\_loop\_error()**](carrier__nda__core_8h.md#function-carrier_nda_loop_error), slope 1.
 
 
 
@@ -1693,7 +1693,7 @@ _That average less the caller's noise power, clamped between avg \* gamma\_d/(ga
 
 ### define CARRIER\_NDA\_DISC\_SLOPE 
 
-_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too. A loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._
+_The discriminator's slope at lock, error per radian of carrier phase, at every M:_ `sin 2 theta` _at M = 2 and the {1, 1/2, 1/4} scale that makes it 2 at 4 and 8 too._**What has slope 2** _is the raw discriminator output:_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _,_`last_error` _, the_`.e` _probe and_[_**dp\_carrier\_nda\_get\_last\_error()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_get_last_error) _._**What the filter is handed** _has slope 1: a loop filter's gains assume the rest of its loop has unit gain (_[_**dp\_loop\_filter\_init()**_](loop__filter__core_8h.md#function-dp_loop_filter_init) _), so the error reaches the filter divided by this, through_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _, and_`bn` _and_`zeta` _are then the closed loop's (#3224)._
 ```C++
 #define CARRIER_NDA_DISC_SLOPE `2.0`
 ```

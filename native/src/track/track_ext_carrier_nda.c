@@ -754,7 +754,7 @@ static PyGetSetDef CarrierNda_getset[] = {
     "below-threshold ones (see configure_lock).\n",
     NULL },
   { "last_error", (getter)CarrierNda_getprop_last_error, NULL,
-    "Last phase error from the M-th-power discriminator.\n", NULL },
+    "Last phase error from the M-th-power discriminator, raw.\n", NULL },
   { "bn", (getter)CarrierNda_getprop_bn, (setter)CarrierNda_setprop_bn,
     "Loop noise bandwidth currently in use.\n"
     "\n"

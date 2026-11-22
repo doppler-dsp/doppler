@@ -239,7 +239,7 @@ The closed loop's noise bandwidth is `bn` cycles per sample, a fixed function of
 A loop gain K other than 1 (the detector's slope times the actuator's gain) scales the natural frequency and the damping each by the square root of K, so the noise bandwidth becomes `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` times `bn`: 5/3 at K = 2 and 3 at K = 4 for zeta = 0.707, and 2/3 at K = 0.5. A detector whose slope is 2 is the first instance found (doppler#3224). A detector whose slope is not 1, or rides on signal level or SNR, is scaled to unit slope before the filter, by dividing by its own slope; a slope that rides on level makes the bandwidth ride on level.
 
 
-Held by `native/validation/loop_filter_noise_bw.c` (the promise), `test_loop_filter_contract.py` (the gain formula, and these sentences on every face) and the detector matrix of doppler#3229 (the callers' side).
+Held by `native/validation/loop_filter_noise_bw.c` (the promise), `test_loop_filter_contract.py` (the gain formula, and these sentences on every face) and test\_loop\_detector\_contract.py (the callers' side).
 
 
 

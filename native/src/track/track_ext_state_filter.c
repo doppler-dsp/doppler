@@ -794,7 +794,7 @@ static PyTypeObject StateFilterObjType = {
     "\n"
     "Held by the state filter's own tests for the promise,\n"
     "test_loop_filter_contract.py for these sentences on every face, and the\n"
-    "detector matrix of doppler#3229 for the callers' side.\n"
+    "test_loop_detector_contract.py for the callers' side.\n"
     "\n"
     "Parameters\n"
     "----------\n"

@@ -63,9 +63,11 @@
 
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/ber/ber_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/detection/detection_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "doppler/loop_filter/loop_filter_core.h"
 #include <math.h>
 #include <stdio.h>
@@ -370,6 +372,148 @@ hb_design (void)
   return 0;
 }
 
+/* ------------------------------------------------------------------------
+ * The sweep on carrier_nda at M = 2 (docs/design/async-dsss-receiver.md,
+ * "The sweep, on carrier_nda at M = 2"): the half-bandwidth rule tested on
+ * the loop the receiver is to build -- carrier_nda driven through its
+ * composition API once a code period, on the window sum, with the three
+ * denominators, at the rule's bn with the squaring loss.
+ * ------------------------------------------------------------------------ */
+
+/* The three denominators the sweep runs, and the mean-loop detector each is
+   predicted with (carrier_edge.h). */
+static const int HB_NDA_DET[3]
+    = { HB_DET_IQ_LIM, HB_DET_IQ_PWR, HB_DET_IQ_UNIT };
+static const char *const HB_NDA_NAME[3] = { "limiter", "averaged", "unit" };
+/* The averaged and unit forms' EMA weight an update (the page's 1/256). */
+#define HB_NDA_ALPHA (1.0 / 256.0)
+/* carrier_nda's error is scaled to slope 2 at lock (sin 2 theta at M = 2,
+   carrier_nda_core.h); the design's mean loop is in the convention where an
+   ideal detector's slope is 1 (I Q / A^2). */
+#define HB_NDA_SLOPE 2.0
+/* The block lock the page sizes for the floor: B updates (31 at 2.2 GHz, 40
+   at 2.8: "The loop's lock statistic", its table), Pfa 1e-3, 2 blocks up and
+   3 down (det_verify_count's, the code lock's budget). */
+#define HB_NDA_PFA 1e-3
+#define HB_NDA_UP 2u
+#define HB_NDA_DOWN 3u
+/* The grid, B_L, and the control's step (the page's). */
+static const double HB_NDA_GRID[]
+    = { 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.65, 1.0, 2.0 };
+#define HB_NDA_NGRID (sizeof HB_NDA_GRID / sizeof HB_NDA_GRID[0])
+
+/** One sweep configuration: a cell, a denominator, the design's loop and
+    the object's filter that realizes it. */
+typedef struct
+{
+  hb_cfg_t c;        /* the design's: S-curve, bn, sigma, t_upd       */
+  int      den;      /* 0 limiter, 1 averaged, 2 unit                 */
+  double   bn_obj;   /* the object's filter: bn' and zeta' with       */
+  double   zeta_obj; /* 2 kp' = kp and 2 ki' = ki (hb_nda_filter)     */
+  double   gamma_fl; /* the update SNR at the floor, linear (the clamp) */
+  uint32_t blk;      /* the block lock's length                       */
+} hb_nda_t;
+
+/* The rule's bn with the squaring loss (the owner's ruling, 2026-11-22):
+   bn = rho S_L / 200 at the floor, S_L = 1 / (1 + 1/(2 gamma)) at the
+   floor's update SNR gamma = C/N0 T. 0.00993 at 2.2 GHz, 0.00744 at 2.8. */
+static double
+hb_nda_bn (double fc)
+{
+  const double chip = dp_s415_chip_rate (fc);
+  const double T    = (double)DP_S415_SF / chip;
+  const double g    = pow (10.0, dp_s415_cn0 (DP_S415_FLOOR_DB) / 10.0) * T;
+  return dp_async_dsss_receiver_carrier_bn (dp_s415_cn0 (DP_S415_FLOOR_DB),
+                                            chip, DP_S415_SF)
+         / (1.0 + 1.0 / (2.0 * g));
+}
+
+/* The object's filter (bn', zeta') whose gains, times the detector's slope
+   HB_NDA_SLOPE, are the design loop's (bn, 0.707): the closed loop is then
+   the one the mean loop predicts. Two equations in two unknowns on
+   dp_loop_filter_init()'s own gain formulas, by Newton in log space from
+   the continuous-time answer (zeta / sqrt K, bn (4 zeta^2 / K + 1) / (4
+   zeta^2 + 1)), to 1e-14 relative. */
+static void
+hb_nda_filter (double bn, double *bn_o, double *zeta_o)
+{
+  const double           z0 = 0.707, K = HB_NDA_SLOPE;
+  dp_loop_filter_state_t d = { 0 };
+  dp_loop_filter_init (&d, bn, z0, 1.0);
+  double x[2] = { log (bn * (4.0 * z0 * z0 / K + 1.0) / (4.0 * z0 * z0 + 1.0)),
+                  log (z0 / sqrt (K)) };
+  for (int it = 0; it < 60; it++)
+    {
+      double                 f[2], J[2][2];
+      dp_loop_filter_state_t a = { 0 };
+      dp_loop_filter_init (&a, exp (x[0]), exp (x[1]), 1.0);
+      f[0] = log (K * a.kp / d.kp);
+      f[1] = log (K * a.ki / d.ki);
+      if (fabs (f[0]) < 1e-14 && fabs (f[1]) < 1e-14)
+        break;
+      for (int j = 0; j < 2; j++)
+        {
+          double y[2] = { x[0], x[1] };
+          y[j] += 1e-7;
+          dp_loop_filter_state_t b = { 0 };
+          dp_loop_filter_init (&b, exp (y[0]), exp (y[1]), 1.0);
+          J[0][j] = (log (K * b.kp / d.kp) - f[0]) / 1e-7;
+          J[1][j] = (log (K * b.ki / d.ki) - f[1]) / 1e-7;
+        }
+      const double det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
+      x[0] -= (J[1][1] * f[0] - J[0][1] * f[1]) / det;
+      x[1] -= (J[0][0] * f[1] - J[1][0] * f[0]) / det;
+    }
+  *bn_o   = exp (x[0]);
+  *zeta_o = exp (x[1]);
+}
+
+/* The twelve configurations, in the order --half-bw numbers its points:
+   the cells (4 dB then 10 dB, 2.2 then 2.8 GHz), each with the three
+   denominators. */
+static void
+hb_nda_cfgs (hb_nda_t *n)
+{
+  const double fcs[2] = { 2.2e9, 2.8e9 }, es[2] = { 4.0, 10.0 };
+  int          i = 0;
+  for (int e = 0; e < 2; e++)
+    for (int f = 0; f < 2; f++)
+      for (int dn = 0; dn < 3; dn++, i++)
+        {
+          const double bn = hb_nda_bn (fcs[f]);
+          hb_cfg_bn (&n[i].c, fcs[f], es[e], bn, HB_NDA_DET[dn]);
+          n[i].den = dn;
+          hb_nda_filter (bn, &n[i].bn_obj, &n[i].zeta_obj);
+          n[i].gamma_fl = pow (10.0, (dp_s415_cn0 (DP_S415_FLOOR_DB)
+                                      + 10.0 * log10 (n[i].c.t_upd))
+                                         / 10.0);
+          n[i].blk      = fcs[f] < 2.5e9 ? 31u : 40u;
+        }
+}
+
+/* The budget a point's draws are held to: inside the edge, the worst over
+   the start phases 3 sigma or more from the null of the mean loop's last
+   update more than sigma from its lock point, seconds. NAN when a start
+   slips (the point is past the edge). */
+static double
+hb_nda_budget (const hb_cfg_t *c, double frac)
+{
+  double worst = 0.0;
+  for (int sg = -1; sg <= 1; sg += 2)
+    for (int k = 1; k <= HB_NSTART; k++)
+      {
+        const double th0 = -0.5 * M_PI + M_PI * k / HB_NSTART;
+        if (0.5 * M_PI - fabs (hb_fold (th0)) < HB_TOL_SIGMA * c->sigma)
+          continue;
+        const hb_pred_t p
+            = hb_mean_loop (c, sg * frac, th0, (size_t)(HB_CAP_S / c->t_upd));
+        if (labs (p.n) >= 2 || !p.settled)
+          return NAN;
+        worst = fmax (worst, (double)p.t_last * c->t_upd);
+      }
+  return worst;
+}
+
 /** One draw's readings. */
 typedef struct
 {
@@ -379,27 +523,40 @@ typedef struct
   double t_lock, t_freq, t_flag; /* sustained: phase, B_L/4, .locked; s    */
   int    capped;                 /* reached HB_CAP_S without the phase test */
   size_t n_upd;
-  double pin_err;  /* worst |probe phase - phase word|, cyc   */
-  double pin_late; /* the same with the probe one update late */
-  double sd_tail;  /* sd of the folded error past the lock, rad */
+  double pin_err;  /* worst |summed .nco - the NCO's phase word|, cyc */
+  double pin_late; /* the same with the probe one update late       */
+  double sd_tail;  /* sd of the folded error past the lock, rad     */
 } hb_draw_t;
 
 /* One draw: a carrier stepped `frac` B_L off the loop's 0 Hz seed, started
-   at a uniform phase, one BPSK symbol an update, at the configuration's
-   update SNR. Every reading is from the probes dp_costas_set_telemetry()
-   registers (costas_core.c's flush), read back each update. The NCO's
-   phase is the sum of the `.nco` probe (the complete command, cycles a
-   sample) over the updates; the truth's minus it is the error the slips
-   and the phase test read. */
+   at a uniform phase, one BPSK symbol an update, at the cell's update SNR.
+   carrier_nda runs as a composer would: each sample through
+   carrier_nda_wipeoff(), their sum (the window sum) through
+   carrier_nda_update() once an update, with the true noise power of a sum
+   for the unit form. Every reading is from the probes
+   dp_carrier_nda_set_telemetry() registers, flushed and read back each
+   update. The NCO's phase is the sum of the `.nco` probe (the full command,
+   cycles a sample) over each update's samples; the truth's minus it, at the
+   update's middle, is the error the slips and the phase test read. */
 static hb_draw_t
-hb_draw (const hb_cfg_t *c, double frac, uint32_t seed)
+hb_draw (const hb_nda_t *n, double frac, uint32_t seed)
 {
-  hb_draw_t          d   = { 0 };
-  const size_t       cap = (size_t)(HB_CAP_S / c->t_upd);
-  dp_costas_state_t *k   = dp_costas_create (c->bn, 0.707, 0.0, TSAMPS, 0.0);
-  dp_tlm_t          *tl  = dp_tlm_create (64);
+  const hb_cfg_t         *c   = &n->c;
+  hb_draw_t               d   = { 0 };
+  const size_t            cap = (size_t)(HB_CAP_S / c->t_upd);
+  dp_carrier_nda_state_t *k
+      = dp_carrier_nda_create (n->bn_obj, n->zeta_obj, 0.0, 8, 1, 2);
+  dp_tlm_t *tl = dp_tlm_create (64);
   /* Fixed, valid arguments: a refusal is a defect, not a configuration. */
-  if (!k || !tl || dp_costas_set_telemetry (k, tl, "car", 1) != DP_OK)
+  if (!k || !tl
+      || dp_carrier_nda_set_update_period (k, (double)TSAMPS) != DP_OK
+      || dp_carrier_nda_set_denominator (k, n->den == 0 ? 1.0 : HB_NDA_ALPHA,
+                                         n->den == 2 ? n->gamma_fl : 0.0)
+             != DP_OK
+      || dp_carrier_nda_set_block_lock (k, n->blk, HB_NDA_PFA, HB_NDA_UP,
+                                        HB_NDA_DOWN)
+             != DP_OK
+      || dp_carrier_nda_set_telemetry (k, tl, "car", 1) != DP_OK)
     abort ();
   const int id_nco = dp_tlm_probe_id (tl, "car.nco"),
             id_frq = dp_tlm_probe_id (tl, "car.freq"),
@@ -407,43 +564,47 @@ hb_draw (const hb_cfg_t *c, double frac, uint32_t seed)
   /* Three streams a draw: the start phase, the data, the noise. */
   uint32_t ps = seed * 104729u + 7u, ds = seed * 7919u + 3u;
   d.th0 = M_PI * (2.0 * ((double)(dp_xs32 (&ps) >> 8) / 16777216.0) - 1.0);
-  dp_awgn_state_t *g = dp_awgn_create (
-      7919u * seed + 1u,
-      dp_awgn_amplitude_for_snr (
-          (float)(c->gamma_db - 10.0 * log10 ((double)TSAMPS)), 1.0f));
+  const double     snr_s = c->gamma_db - 10.0 * log10 ((double)TSAMPS);
+  dp_awgn_state_t *g     = dp_awgn_create (
+      7919u * seed + 1u, dp_awgn_amplitude_for_snr ((float)snr_s, 1.0f));
   if (!g)
     abort ();
+  /* A sum of TSAMPS samples of unit amplitude has power TSAMPS^2; its
+     noise, TSAMPS times a sample's, TSAMPS / 10^(snr_s/10). */
+  const double noise_pw
+      = (double)TSAMPS * (double)TSAMPS / pow (10.0, c->gamma_db / 10.0);
   const double f0  = frac * c->bn / (double)TSAMPS; /* cycles a sample */
   uint8_t     *fph = dp_xmalloc (cap), *ffr = dp_xmalloc (cap),
           *flk      = dp_xmalloc (cap);
   double       *err = dp_xmalloc (cap * sizeof *err);
-  float complex in[TSAMPS], nz[TSAMPS], out[4];
+  float complex nz[TSAMPS];
   dp_tlm_rec_t  rec[64];
-  double        nco_sum = 0.0, nco_prev = 0.0; /* cycles */
-  double        frq_prev = 0.0; /* the frequency this update runs at */
-  size_t        run = 0, stop = cap, u = 0;
+  /* The command in force over an update's samples, and the one before it;
+     the NCO's phase, cycles, at the start of the update. */
+  double cmd = dp_carrier_nda_get_nco_freq (k), cmd_prev = cmd, ph_start = 0.0;
+  size_t run = 0, stop = cap, u = 0;
   for (; u < stop; u++)
     {
       const double sym = (dp_xs32 (&ds) & 1u) ? 1.0 : -1.0;
       (void)dp_awgn_generate (g, TSAMPS, nz, TSAMPS);
+      /* The error at the update's middle: the truth's phase there less the
+         NCO's, which runs at `cmd` over the update. */
+      const double truth
+          = d.th0 / TWOPI + f0 * ((double)u + 0.5) * (double)TSAMPS;
+      err[u]            = TWOPI * (truth - (ph_start + 0.5 * cmd * TSAMPS));
+      float complex acc = 0.0f;
       for (size_t i = 0; i < TSAMPS; i++)
         {
           const double ph
               = d.th0 + TWOPI * f0 * (double)(u * (size_t)TSAMPS + i);
-          in[i] = (float complex) (sym * cos (ph))
-                  + (float complex) (sym * sin (ph)) * I + nz[i];
+          const float complex x = (float complex) (sym * cos (ph))
+                                  + (float complex) (sym * sin (ph)) * I
+                                  + nz[i];
+          acc += carrier_nda_wipeoff (k, x);
         }
-      /* The error at this update's middle, where its prompt is centred:
-         at the end of the update's samples the NCO has advanced by the
-         commands of the updates before (nco_sum); half an update earlier
-         it was behind that by half the frequency it ran at, the last
-         update's `.freq`. The end would read a step's own advance, half an
-         update of it, as error: 14 degrees at 2 B_L and bn 0.04. */
-      const double truth
-          = d.th0 / TWOPI + f0 * ((double)u + 0.5) * (double)TSAMPS;
-      err[u] = TWOPI * (truth - (nco_sum - 0.5 * frq_prev * TSAMPS));
-      (void)dp_costas_steps (k, in, TSAMPS, out, 4);
-      double       nco = 0.0, frq = 0.0, lkd = 0.0;
+      carrier_nda_update (k, acc, n->den == 2 ? noise_pw : 0.0);
+      dp_carrier_nda_tlm_flush (k);
+      double       nco = cmd, frq = 0.0, lkd = 0.0;
       const size_t got = dp_tlm_read (tl, 0, rec, 64);
       for (size_t r = 0; r < got; r++)
         {
@@ -454,20 +615,19 @@ hb_draw (const hb_cfg_t *c, double frac, uint32_t seed)
           else if (rec[r].probe == id_lkd)
             lkd = rec[r].value;
         }
-      nco_sum += nco * (double)TSAMPS;
-      /* The pin: the summed probe, less the frequency the next update
-         will run at, is the NCO's own phase word, to the float probe's
-         and the word's quantization. And read one update late, it is not. */
+      ph_start += cmd * TSAMPS;
+      /* The pin: the summed probe is the NCO's own phase word, to the
+         float probe's and the word's quantization; read one update late,
+         it is not. */
       const double word = (double)k->nco.phase / 4294967296.0;
-      const double mine = nco_sum - (double)k->nco.norm_freq * TSAMPS;
-      const double late = mine - nco * TSAMPS + nco_prev * TSAMPS;
-      double       e1 = mine - word, e2 = late - word;
+      const double late = ph_start - cmd * TSAMPS + cmd_prev * TSAMPS;
+      double       e1 = ph_start - word, e2 = late - word;
       e1 -= floor (e1 + 0.5);
       e2 -= floor (e2 + 0.5);
       d.pin_err  = fmax (d.pin_err, fabs (e1));
       d.pin_late = fmax (d.pin_late, fabs (e2));
-      nco_prev   = nco;
-      frq_prev   = frq;
+      cmd_prev   = cmd;
+      cmd        = nco;
       fph[u]     = fabs (hb_fold (err[u])) < HB_TOL_SIGMA * c->sigma;
       ffr[u]     = fabs (frq * TSAMPS - frac * c->bn) < 0.25 * c->bn;
       flk[u]     = lkd > 0.5;
@@ -505,9 +665,9 @@ hb_draw (const hb_cfg_t *c, double frac, uint32_t seed)
   long prev     = n0;
   for (size_t v = 0; v <= end; v++)
     {
-      const long n = lround (err[v] / M_PI);
-      d.cross += n != prev;
-      prev = n;
+      const long nn = lround (err[v] / M_PI);
+      d.cross += nn != prev;
+      prev = nn;
     }
   free (fph);
   free (ffr);
@@ -515,8 +675,44 @@ hb_draw (const hb_cfg_t *c, double frac, uint32_t seed)
   free (err);
   dp_awgn_destroy (g);
   dp_tlm_destroy (tl);
-  dp_costas_destroy (k);
+  dp_carrier_nda_destroy (k);
   return d;
+}
+
+/* --design's sweep section: each configuration's loop, the object's filter
+   that realizes it, its edges and the budget a point's draws are held to. */
+static void
+hb_nda_design (void)
+{
+  hb_nda_t *ns = dp_xmalloc (12 * sizeof *ns);
+  hb_nda_cfgs (ns);
+  printf ("# design_sweep: carrier_nda at M = 2, the rule's bn with the "
+          "squaring loss\ncell,den,bn,b_l_hz,bn_obj,zeta_obj,k,sigma_deg,"
+          "edge_worst,edge_start0,block\n");
+  for (int i = 0; i < 12; i++)
+    {
+      const hb_cfg_t *c = &ns[i].c;
+      printf ("%.1f/%.0f,%s,%.5f,%.2f,%.6f,%.4f,%.3f,%.2f,%.3f,%.3f,%u\n",
+              c->fc / 1e9, c->esn0, HB_NDA_NAME[ns[i].den], c->bn,
+              c->bn / c->t_upd, ns[i].bn_obj, ns[i].zeta_obj, c->k,
+              c->sigma * 180.0 / M_PI, hb_edge (c, 1), hb_edge (c, 0),
+              ns[i].blk);
+      fflush (stdout);
+    }
+  printf ("# design_budget: s, inside the edge (nan past it)\ncell,den");
+  for (size_t g = 0; g < HB_NDA_NGRID; g++)
+    printf (",%.2f", HB_NDA_GRID[g]);
+  printf ("\n");
+  for (int i = 0; i < 12; i++)
+    {
+      printf ("%.1f/%.0f,%s", ns[i].c.fc / 1e9, ns[i].c.esn0,
+              HB_NDA_NAME[ns[i].den]);
+      for (size_t g = 0; g < HB_NDA_NGRID; g++)
+        printf (",%.4f", hb_nda_budget (&ns[i].c, HB_NDA_GRID[g]));
+      printf (",5/beff %.4f\n", 5.0 / ns[i].c.beff);
+      fflush (stdout);
+    }
+  free (ns);
 }
 
 /* --half-bw: every point's draws, one row each. A point is a configuration,
@@ -527,29 +723,31 @@ hb_draw (const hb_cfg_t *c, double frac, uint32_t seed)
 static int
 hb_run (unsigned shard, unsigned shards)
 {
-  hb_cfg_t *cs = dp_xmalloc (8 * sizeof *cs);
-  hb_cfgs (cs);
-  printf ("# half_bw\ncell,bn,b_l_hz,frac,sign,seed,th0_deg,null_deg,n_pred,"
-          "t_pred_s,n_meas,crossings,t_lock_s,t_freq_s,t_flag_s,capped,"
-          "updates,sd_tail_deg,sigma_deg,pin_err_cyc,pin_late_cyc\n");
+  hb_nda_t *ns = dp_xmalloc (12 * sizeof *ns);
+  hb_nda_cfgs (ns);
+  printf ("# half_bw\ncell,den,bn,b_l_hz,frac,sign,seed,th0_deg,null_deg,"
+          "n_pred,t_pred_s,n_meas,crossings,t_lock_s,t_freq_s,t_flag_s,"
+          "capped,updates,sd_tail_deg,sigma_deg,pin_err_cyc,pin_late_cyc\n");
   unsigned point = 0;
-  for (int i = 0; i < 8; i++)
-    for (size_t g = 0; g <= HB_NGRID; g++)
+  for (int i = 0; i < 12; i++)
+    for (size_t g = 0; g <= HB_NDA_NGRID; g++)
       for (int sg = 1; sg >= -1; sg -= 2, point++)
         {
           if (point % shards != shard)
             continue;
-          const hb_cfg_t *c    = &cs[i];
-          const double    frac = sg * (g < HB_NGRID ? HB_GRID[g] : HB_CONTROL);
+          const hb_cfg_t *c = &ns[i].c;
+          const double    frac
+              = sg * (g < HB_NDA_NGRID ? HB_NDA_GRID[g] : HB_CONTROL);
           for (uint32_t s = 1; s <= HB_DRAWS; s++)
             {
-              hb_draw_t d = hb_draw (c, frac, s);
+              hb_draw_t d = hb_draw (&ns[i], frac, s);
               hb_pred_t p = hb_mean_loop (c, frac, d.th0,
                                           (size_t)(HB_CAP_S / c->t_upd));
-              printf ("%.1f/%.0f,%.5f,%.2f,%.2f,%+d,%u,%.2f,%.2f,%ld,%.4f,%ld,"
-                      "%ld,%.4f,%.4f,%.4f,%d,%zu,%.2f,%.2f,%.2e,%.2e\n",
-                      c->fc / 1e9, c->esn0, c->bn, c->bn / c->t_upd,
-                      fabs (frac), sg, s, d.th0 * 180.0 / M_PI,
+              printf ("%.1f/%.0f,%s,%.5f,%.2f,%.2f,%+d,%u,%.2f,%.2f,%ld,%.4f,"
+                      "%ld,%ld,%.4f,%.4f,%.4f,%d,%zu,%.2f,%.2f,%.2e,%.2e\n",
+                      c->fc / 1e9, c->esn0, HB_NDA_NAME[ns[i].den], c->bn,
+                      c->bn / c->t_upd, fabs (frac), sg, s,
+                      d.th0 * 180.0 / M_PI,
                       (0.5 * M_PI - fabs (hb_fold (d.th0))) * 180.0 / M_PI,
                       p.n, p.settled ? p.t_last * c->t_upd : NAN, d.n_meas,
                       d.cross, d.t_lock, d.t_freq, d.t_flag, d.capped, d.n_upd,
@@ -558,25 +756,49 @@ hb_run (unsigned shard, unsigned shards)
               fflush (stdout);
             }
         }
-  free (cs);
+  free (ns);
   return 0;
 }
 
-/* The pin, for --check: on one draw at half the rule's bandwidth, the
-   phase the slips are read from (the summed `.nco` probe) is the NCO's own
-   phase word, and the same sum one update late is not. */
+/* The pins, for --check, on one draw at half the rule's bandwidth (2.8 GHz,
+   10 dB, the unit form): the phase the slips are read from (the summed
+   `.nco` probe) is the NCO's own phase word, and the same sum one update
+   late is not; and the object's filter realizes the design loop's gains. */
 static void
 hb_pin (void)
 {
-  hb_cfg_t *c = dp_xmalloc (sizeof *c);
-  hb_cfg (c, 2.8e9, 10.0, 1);
-  hb_draw_t d = hb_draw (c, 0.5, 1u);
+  hb_nda_t *ns = dp_xmalloc (12 * sizeof *ns);
+  hb_nda_cfgs (ns);
+  const hb_nda_t *n = &ns[11]; /* 2.8 GHz, 10 dB, unit */
+  hb_draw_t       d = hb_draw (n, 0.5, 1u);
   printf ("  half-bw pin: probe phase vs the NCO's word %.1e cycles; one "
           "update late %.1e\n",
           d.pin_err, d.pin_late);
   DP_CHECK_MSG (d.pin_err < 1e-3, "the summed .nco probe is the NCO's phase");
   DP_CHECK_MSG (d.pin_late > 1e-3, "and read one update late it is not");
-  free (c);
+  dp_loop_filter_state_t a = { 0 }, b = { 0 };
+  dp_loop_filter_init (&a, n->bn_obj, n->zeta_obj, 1.0);
+  dp_loop_filter_init (&b, n->c.bn, 0.707, 1.0);
+  printf ("  half-bw loop: object bn %.6f zeta %.4f; slope x gains / the "
+          "design's: kp %.12f, ki %.12f\n",
+          n->bn_obj, n->zeta_obj, HB_NDA_SLOPE * a.kp / b.kp,
+          HB_NDA_SLOPE * a.ki / b.ki);
+  DP_CHECK_NEAR (HB_NDA_SLOPE * a.kp / b.kp, 1.0, 1e-12);
+  DP_CHECK_NEAR (HB_NDA_SLOPE * a.ki / b.ki, 1.0, 1e-12);
+  /* Its failing case: the design's own (bn, 0.707) on the object, the
+     factor 2 dropped, is a loop with twice the gains. */
+  DP_CHECK (fabs (HB_NDA_SLOPE * b.kp / b.kp - 1.0) > 0.5);
+  /* The draw locks, crossing the lock points its own start phase predicts
+     on the mean loop (half the bandwidth is past the unit form's
+     worst-start edge, 0.38 B_L, so a start near the null may cross one). */
+  const hb_pred_t p
+      = hb_mean_loop (&n->c, 0.5, d.th0, (size_t)(HB_CAP_S / n->c.t_upd));
+  printf ("  half-bw draw: start %.1f deg, crossed %ld (mean loop %ld), "
+          "locked at %.3f s\n",
+          d.th0 * 180.0 / M_PI, d.n_meas, p.n, d.t_lock);
+  DP_CHECK_MSG (!d.capped && d.n_meas == p.n,
+                "it locks, crossing the lock points its start predicts");
+  free (ns);
 }
 
 int
@@ -584,7 +806,11 @@ main (int argc, char **argv)
 {
   const int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   if (argc > 1 && strcmp (argv[1], "--design") == 0)
-    return hb_design ();
+    {
+      const int rc = hb_design ();
+      hb_nda_design ();
+      return rc;
+    }
   if (argc > 1 && strcmp (argv[1], "--half-bw") == 0)
     {
       unsigned shard = 0, shards = 1;

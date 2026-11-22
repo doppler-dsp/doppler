@@ -500,10 +500,12 @@ main (void)
     (void)dp_despreader_steps (ch, rx, L, sym, 64);
     DP_CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
-    /* Partial registration failure unwinds: leave exactly five free
-     * slots — the carrier attach succeeds (5 probes), the code attach
-     * cannot fit its 5, and the whole attach fails with the carrier
-     * detached again. */
+    /* Whole or nothing: leave exactly five free slots -- room for the
+     * carrier's probes but not the code loop's as well. The dry run on a
+     * scratch registry (dp_tlm_has_room_for) refuses before either
+     * registers, so the table is left as it was and both loops detached.
+     * It used to attach the carrier, fail on the code loop and unwind,
+     * leaving the carrier's names behind as dead slots. */
     char pname[DP_TLM_NAME_MAX];
     for (size_t i = 0;
          dp_tlm_probe_count (tlm) < (size_t)(DP_TLM_MAX_PROBES - 5); i++)
@@ -513,9 +515,10 @@ main (void)
       }
     DP_CHECK (dp_despreader_set_telemetry (ch, tlm, "nope", 1)
               == DP_ERR_INVALID);
-    /* The carrier's names are in the table: its attach did succeed, so
-       this is the partial case and not a carrier that never fit. */
-    DP_CHECK (dp_tlm_probe_id (tlm, "nope.car.nco") >= 0);
+    /* Nothing of either loop registered: the free slots are still free. */
+    DP_CHECK (dp_tlm_probe_id (tlm, "nope.car.nco") < 0);
+    DP_CHECK (dp_tlm_probe_id (tlm, "nope.code.e") < 0);
+    DP_CHECK (dp_tlm_probe_count (tlm) == (size_t)(DP_TLM_MAX_PROBES - 5));
     DP_CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
               && ch->code.tlm.ctx == NULL);
     dp_despreader_destroy (ch);

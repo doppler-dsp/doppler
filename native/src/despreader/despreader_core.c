@@ -137,10 +137,34 @@ dp_despreader_set_telemetry (dp_despreader_state_t *state, dp_tlm_t *tlm,
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK)
     return DP_ERR_INVALID;
+  /* Whole or nothing (#1897's shape, the correlator's dry run, #2647): a
+   * registry cannot unregister, so a child refusing after the other has
+   * registered would leave its names behind. Which child holds the longest
+   * name moves as probes are added -- the code loop's "code.offset_pwr"
+   * (7772ced26) overtook the carrier's "car.freq_rate" -- so the check is
+   * the attach itself, on a scratch registry, and then whether the
+   * caller's table has room for what it lacks. The dry run detaches both
+   * children; a refusal leaves the despreader detached whole. */
+  dp_tlm_t *scratch = dp_tlm_create (1);
+  if (!scratch)
+    return DP_ERR_MEMORY;
+  int rc = dp_costas_set_telemetry (&state->car, scratch, car, decim);
+  if (rc == DP_OK)
+    rc = dp_dll_set_telemetry (&state->code, scratch, code, decim);
+  if (rc == DP_OK && !dp_tlm_has_room_for (tlm, scratch))
+    rc = DP_ERR_INVALID;
+  (void)dp_costas_set_telemetry (&state->car, NULL, p, decim);
+  (void)dp_dll_set_telemetry (&state->code, NULL, p, decim);
+  dp_tlm_destroy (scratch);
+  if (rc != DP_OK)
+    {
+      state->tlm_ctx = NULL;
+      return rc;
+    }
   /* Pure forwarder: the carrier loop under "<prefix>.car", the code loop
-   * under "<prefix>.code"; if the second registration fails the first is
-   * unwound so nothing is left half-armed. */
-  int rc = dp_costas_set_telemetry (&state->car, tlm, car, decim);
+   * under "<prefix>.code". After the dry run neither can refuse; if one
+   * did, the first is unwound so nothing is left half-armed. */
+  rc = dp_costas_set_telemetry (&state->car, tlm, car, decim);
   if (rc != DP_OK)
     return rc;
   rc = dp_dll_set_telemetry (&state->code, tlm, code, decim);

@@ -1827,6 +1827,23 @@ Built at `cac908f39`, step 2 of the build order, on the object alone; the review
     - `set_denominator` takes two numbers, not a mode name. A method's `string_enum` renders as `str` in the stub, which no probe can make; an init parameter's renders as `Literal`.
     - The probe list gains `car.nco`.
 
+**The gains under noise read high, inside the interval.** §17's gain row measures the averaged form at 0.718 against `γ/(γ + 1)` = 0.706, and the unit form at 1.017 against 1.
+
+- Its estimate's sd, from the error's variance `2A² + 1` over 200,000 updates and divided by `sin 0.2`, is 0.0080 for the averaged form and 0.0113 for the unit form. Both readings are +1.5 σ.
+- The three forms read one noise stream (seed 99), so that is one draw seen twice, not two biases.
+- The quotient's own bias, `var(avg)/avg²` at α 1/256, is about 0.1%.
+
+**The detector's slope (#3224).**
+
+- **The finding.** `carrier_nda_disc()` is scaled to slope 2 at lock for every M (`sin 2θ` at M = 2), and `dp_loop_filter`'s gains assume the rest of the loop has unit gain.
+    - So the object's `bn` is its filter's design value, not its loop's bandwidth. At ζ 0.707 the closed loop runs about 1.67 times wider, at ζ about 1.0.
+    - This holds for `MpskReceiver`'s carrier loop too, and nothing in either validation report measures the bandwidth against `bn`. That is a fact about the shipped object, filed on the general object.
+- **The sweep's handling.** The sweep configures the object's filter so that the closed loop is the design's. It solves `2·kp′ = kp(bn, 0.707)` and `2·ki′ = ki(bn, 0.707)` on `dp_loop_filter_init()`'s own gains, giving bn′ 0.006593 / 0.004952 and ζ′ 0.498. The solve is pinned, and the sweep's read sets the jitter it measures against the design's.
+- **For the receiver swap, two options:**
+    - (a) **Configure (bn′, ζ′) at the call site,** as the sweep does. Nothing in the object changes. The receiver carries a solve, and `bn` stays nominal for every other caller.
+    - (b) **The object owns its slope,** so `bn` means the loop's bandwidth for every M and every denominator. The averaged form's `γ/(γ + 1)` is the same kind of term. That changes every caller's loop and every pinned pull-in and settling number in `carrier_nda`'s and `MpskReceiver`'s reports.
+    - **Recommended: (b),** once the owner rules on #3224. A general object's `bn` that names its loop's bandwidth is the object's job, and (a) would leave the receiver as the one caller whose `bn` means what it says. Until then the swap can use (a), which is exactly the configuration the sweep validates.
+
 **The receiver:**
 
 - `s->car`, `s->car_held` (the coast's snapshot) and `s->car_frozen` (the refine's) become `carrier_nda`, by-value POD; the boxcar ring is inline (`boxcar_core.h:61`), so the coast's struct copy holds.

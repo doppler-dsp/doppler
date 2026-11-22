@@ -260,10 +260,13 @@ extern "C"
 
 /** @brief The discriminator's slope at lock, error per radian of carrier
  *  phase, at every M: `sin 2 theta` at M = 2 and the {1, 1/2, 1/4} scale
- *  that makes it 2 at 4 and 8 too. A loop filter's gains assume the rest of
- *  its loop has unit gain (dp_loop_filter_init()), so the error reaches the
- *  filter divided by this, through carrier_nda_loop_error(), and `bn` and
- *  `zeta` are then the closed loop's (#3224). */
+ *  that makes it 2 at 4 and 8 too. **What has slope 2** is the raw
+ *  discriminator output: carrier_nda_disc(), `last_error`, the `.e` probe
+ *  and dp_carrier_nda_get_last_error(). **What the filter is handed** has
+ *  slope 1: a loop filter's gains assume the rest of its loop has unit
+ *  gain (dp_loop_filter_init()), so the error reaches the filter divided by
+ *  this, through carrier_nda_loop_error(), and `bn` and `zeta` are then the
+ *  closed loop's (#3224). */
 #define CARRIER_NDA_DISC_SLOPE 2.0
 
 /** @brief The discriminator's error as a unit-slope loop takes it: divided
@@ -1115,10 +1118,14 @@ carrier_nda_loop_error (double pe)
    */
   double dp_carrier_nda_get_lock (const dp_carrier_nda_state_t *state);
   /**
-   * @brief Last phase error from the M-th-power discriminator.
+   * @brief Last phase error from the M-th-power discriminator, raw.
    *
    * Im((z/|z|)^M) scaled by 1, 1/2, 1/4 for M = 2, 4, 8, which equalizes
-   * the S-curve slope across M.
+   * the S-curve slope across M at CARRIER_NDA_DISC_SLOPE (2); with an
+   * averaged or unit denominator, 2IQ over that denominator, slope 2 at
+   * unit amplitude. This is the discriminator's output, as the `.e` probe
+   * reads it, NOT what the loop filter is handed: the filter takes it
+   * divided by the slope, carrier_nda_loop_error(), slope 1.
    *
    * @param state  Must be non-NULL.
    * @return Dimensionless error, bounded in magnitude by 1; 0 before the

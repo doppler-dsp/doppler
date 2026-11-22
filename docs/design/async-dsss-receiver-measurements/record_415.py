@@ -837,6 +837,19 @@ def handover(argv: list[str]) -> int:
             if r["t_pull_s"] != "nan" and r["t_track_s"] != "nan"
         ]
         never_pull = len(every) - len(t_pull)
+        # Each flag by C1's corrected count (§4.11): never sustained,
+        # sustained and changed over the data after it, sustained and clean.
+        flags = []
+        for name, t_key, tog_key in (
+            ("sym", "t_sym_s", "sym_tog"),
+            ("code", "t_code_s", "code_tog"),
+            ("car", "t_car_s", "car_tog"),
+            ("demod", "t_demod_s", "demod_tog"),
+            ("sync", "t_sync_s", "sync_tog"),
+        ):
+            nev = sum(r[t_key] == "nan" for r in every)
+            chg = sum(r[t_key] != "nan" and int(r[tog_key]) > 0 for r in every)
+            flags.append(f"{name} {nev}/{chg}/{len(every) - nev - chg}")
         tab.append(
             [
                 f"{fc} GHz {es} dB "
@@ -858,6 +871,10 @@ def handover(argv: list[str]) -> int:
                     else "n/a"
                 )
                 + f"; never {never_pull}",
+                ", ".join(flags),
+                f"{sum(int(r['car_slips']) > 0 for r in every)} / "
+                f"{sum(r['slipped'] == '1' for r in every)}",
+                f"{sum(r['works'] == '1' for r in every)} of {len(every)}",
                 f"{n} (+{len(every) - n} off code)",
                 stat("seed_err_hz", "{:.1f}"),
                 stat("seed_code_chip", "{:.3f}"),
@@ -885,6 +902,9 @@ def handover(argv: list[str]) -> int:
                 "of those, pulled in",
                 "carrier lock, s",
                 "pulled in after the hand-over, s",
+                "flags: never / changed / clean",
+                "carrier slips / data slipped",
+                "works",
                 "draws",
                 "seed Doppler, Hz",
                 "seed code, chip",

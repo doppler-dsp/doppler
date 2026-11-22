@@ -2058,6 +2058,37 @@ The run: 17,280 draws (288 points × 60) in 16 shards, one job on swiftgo-ai9465
 
 **The `.nco` pin, and its limit.** The summed probe is the NCO's word to under 10⁻³ cycles on every draw of up to 4,145 updates (1.3 s). Past that the float probe's rounding accumulates: up to 1.2 × 10⁻² cycles (4.3°) on a locked draw and 1.9 × 10⁻² on a capped one. Read one update late it is off by at least 2.7 × 10⁻³ on every locked draw. The verdicts above rest on draws that lock inside their budgets, well under 1.3 s, or on counts of whole half-cycles, which 4° does not move. A rerun accumulates the phase from the NCO's word.
 
+**The owner's rulings on the sweep, 2026-11-22: "1 go, 2 yes, 3 lock time".**
+
+1. The receiver's swap to `carrier_nda` goes ahead.
+1. #3224, yes: the object accounts for its own detector slope, so `bn` is the loop's bandwidth.
+1. The hand-over's requirement is a lock time within a budget, not zero slips. With it: "Slips can't reliably be controlled". A cycle slip on the way in is therefore a reading, never a pass criterion: no check, pin or prediction may require zero slips during pull-in. Each is printed, and the gate is lock inside the budget and inside 20 s.
+
+**Prediction 3, restated as ruling 3 makes it.** The budget is a lock-time bound as a function of the hand-over error in `B_L`, taken from this sweep with its interval. It is not `5 / B_eff`, and not the mean loop's last excursion.
+
+- The table holds every draw of a step: both signs and every start phase, slips included.
+- The worst of 120 bounds the chance of a longer lock under 2.5% (95%, the rule of three).
+- `read_sweep.py` prints every step, with the 90th percentile beside these.
+
+Time to the sustained phase lock, s, median / worst of 120 draws, by the hand-over error:
+
+| cell   | form     | 0.25 `B_L`  | 0.5         | 1.0         | 2.0          | unlocked in 20 s |
+| ------ | -------- | ----------- | ----------- | ----------- | ------------ | ---------------- |
+| 2.2/4  | limiter  | 0.12 / 0.26 | 0.38 / 0.59 | 1.43 / 1.92 | 5.87 / 8.27  | 0 of 480         |
+| 2.2/4  | averaged | 0.10 / 0.23 | 0.29 / 0.45 | 1.16 / 1.67 | 4.40 / 7.32  | 0 of 480         |
+| 2.2/4  | unit     | 0.06 / 0.12 | 0.15 / 0.27 | 0.57 / 0.86 | 2.32 / 3.36  | 0 of 480         |
+| 2.8/4  | limiter  | 0.17 / 0.31 | 0.51 / 0.76 | 1.92 / 2.87 | 7.86 / 12.39 | 2 of 480         |
+| 2.8/4  | averaged | 0.11 / 0.24 | 0.36 / 0.66 | 1.38 / 2.18 | 5.52 / 7.83  | 0 of 480         |
+| 2.8/4  | unit     | 0.06 / 0.18 | 0.16 / 0.28 | 0.57 / 0.94 | 2.27 / 3.65  | 0 of 480         |
+| 2.2/10 | limiter  | 0.08 / 0.20 | 0.21 / 0.29 | 0.73 / 0.84 | 2.83 / 3.29  | 0 of 480         |
+| 2.2/10 | averaged | 0.08 / 0.16 | 0.21 / 0.32 | 0.71 / 0.86 | 2.75 / 3.30  | 0 of 480         |
+| 2.2/10 | unit     | 0.07 / 0.14 | 0.17 / 0.28 | 0.58 / 0.68 | 2.27 / 2.60  | 0 of 480         |
+| 2.8/10 | limiter  | 0.09 / 0.20 | 0.23 / 0.30 | 0.79 / 0.94 | 3.09 / 3.55  | 0 of 480         |
+| 2.8/10 | averaged | 0.09 / 0.19 | 0.22 / 0.32 | 0.77 / 0.92 | 2.97 / 3.62  | 0 of 480         |
+| 2.8/10 | unit     | 0.08 / 0.19 | 0.17 / 0.25 | 0.59 / 0.76 | 2.33 / 2.86  | 0 of 480         |
+
+The unit form locks about twice as fast as the averaged form at the floor. Up to 2 `B_L` every form locks inside 20 s, except 2 of 480 draws of the limiter at 2.8/4.
+
 ##### `carrier_nda`'s options
 
 Built at `cac908f39`, step 2 of the build order, on the object alone; the review's four defects are fixed at the commit after it. Each option is off by default. `steps()`, `MpskReceiver` (which shares only `carrier_nda_disc()`) and every existing caller are unchanged.

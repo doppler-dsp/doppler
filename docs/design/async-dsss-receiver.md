@@ -1799,20 +1799,27 @@ It cannot run on today's `carrier_nda`, which updates once a sample and has no a
 
 **`validate_costas_pullin --half-bw`**, committed at `e2b7fe1e6`, tests today's `Costas` detector. It is superseded by this sweep and is not run. Its `--design` mode stays: it is where this row's numbers come from. Its draw path moves to `carrier_nda` when the sweep is built.
 
-##### What it takes to build (not built; the owner decides)
+##### `carrier_nda`'s options
 
-**The proposed order, for the owner to rule on:**
+Built at `cac908f39`, step 2 of the build order, on the object alone. Each option is off by default. `steps()`, `MpskReceiver` (which shares only `carrier_nda_disc()`) and every existing caller are unchanged.
 
-1. `carrier_nda`'s options, with their pins and sabotage, the object alone.
-1. The sweep on it.
-1. The receiver's swap, after the sweep is read.
+| option            | the call                                                    | what it does                                                                                                                                                                                                                                                                                                           | its pin, in `test_carrier_nda_core.c` §17                                                                                                                                                      |
+| ----------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the update period | `dp_carrier_nda_set_update_period (s, t_upd)`               | `bn` per update; the filter's output, cycles an update, is spread over the update's `t_upd` samples (`carrier_nda_steer()`), and `get_norm_freq` follows. `steps()` is the per-sample loop and returns 0 at any other period                                                                                           | the steer against an independent filter, exactly; a composer's sums at 0.2 `B_L` settle on the step, and with the period left at 1 they do not                                                 |
+| the denominator   | `dp_carrier_nda_set_denominator (s, alpha, gamma_d)`        | `alpha` 1 with `gamma_d` 0 is the limiter (the default, `carrier_nda_disc()`'s arithmetic); `alpha` < 1 the averaged form, an EMA booted as a cumulative mean; `gamma_d` > 0 the unit form, the average less the caller's noise power, clamped between `avg · γ_d/(γ_d + 1)` and `avg`. M = 2 only, except the limiter | the quotient on known inputs, exactly, against the limiter's value; the same at 10⁻³ and 10³ times the level; the clamp from below, from a noise past the power (the sign kept) and from above |
+| the block lock    | `dp_carrier_nda_set_block_lock (s, len, pfa, n_up, n_down)` | `R = Σ(I² − Q²)/Σ(I² + Q²)` on a block, once a block, against the Beta threshold through `dp_det_threshold_f()`: `r = (g − 1)/(g + 1)`. M = 2 only                                                                                                                                                                     | 0.518 at 31 updates and 0.463 at 40 (this page's table); 211 crossings in 200,000 noise blocks against Pfa 10⁻³ (Wilson 99%); the decision's 2 up and 3 down                                   |
+| `.nco`            | `set_telemetry`                                             | the full NCO command, cycles a sample, a fifth probe                                                                                                                                                                                                                                                                   | the probe list and its record, against `.freq`                                                                                                                                                 |
 
-`carrier_nda` takes four changes. Each is an option with today's default unchanged, so `MpskReceiver` and the Python `CarrierNDA` are untouched. Each comes with its pin and failing case in `test_carrier_nda_core.c`, and the state version moves.
-
-- **An update period.** `config_loop()` designs the gains at one sample (`carrier_nda_core.c:72`), and `_steer()` holds `integ + kp · pe` as a frequency for the samples that follow. A once-a-code-period update needs its bn per update and its command spread over `tsamps` samples, as `Costas` does.
-- **The averaged denominator** (above).
-- **A block lock statistic** (below).
-- **A `.nco` probe** for the complete command, as B's inventory requires.
+- **One update, for a composer:** `carrier_nda_update (s, z, noise_pw)` runs the configured denominator and lock on its integrate-and-dump `z`, then steers. `steps()` calls it, and at the defaults it is the same arithmetic in the same order.
+- **State version 6.** The options and their running sums are in the blob, and a blob its setters could not leave is refused (four forgeries pinned).
+- **Sabotage.** Each of ten breaks turns §17 red, from 2 to 10 checks: the steer not spread, the denominator ignored, the unit form unclamped, the average not booted, the block lock ignored, the threshold left as `g`, no `.nco` emit, the period not in the blob check, `steps()` ignoring a period, and `get_norm_freq` not spread.
+- **The defaults, shown unchanged.**
+    - Every existing C, Python, stub and state-matrix test passes.
+    - `carrier_nda`'s validation report regenerates byte-identical data on this tree and on the base (`befe01125`).
+- **The Python face grew.**
+    - `set_update_period`, `set_denominator`, `set_block_lock` and `block_thresh` are bound. #2022's gate probes every mutator, and its exempt list only shrinks, so a C-only setter could not land. Bound, the three read TRAVELS. A second state-matrix row, `CarrierNda_m2`, gives the probe the order they accept.
+    - `set_denominator` takes two numbers, not a mode name. A method's `string_enum` renders as `str` in the stub, which no probe can make; an init parameter's renders as `Literal`.
+    - The probe list gains `car.nco`.
 
 **The receiver:**
 
@@ -1828,7 +1835,9 @@ It cannot run on today's `carrier_nda`, which updates once a sample and has no a
 - **The second**, `MpskReceiver`'s at 0.01 a symbol, takes up the residual phase at the decision strobe, after `RateConverter` and the matched filter: the first loop's jitter where its bandwidth passes it, and the reference that moves with the timing.
 - **Control (b)** of run 415 shows the second loop alone carrying a 40 Hz hand-over error at 10 dB.
 
-##### The loop's lock statistic: `I² − Q²` on a block (owner, 2026-11-22)
+##### The loop's lock statistic: `I² − Q²` on a block
+
+The owner's ruling, 2026-11-22.
 
 **The statistic** is on the window sum, summed over a block of B updates and dumped: `R = Σ(I² − Q²) / Σ(I² + Q²)`, D8's ratio-of-sums form. It replaces D7's block mean of `|Re P|/|P|`, whose `|·|` is the fold.
 
@@ -1848,7 +1857,9 @@ It cannot run on today's `carrier_nda`, which updates once a sample and has no a
 
 **A false lock exists** at `Δf = 1/(2T)` (1,571 / 2,000 Hz): the phase advances π an update and the square is still. The window sum's coherent loss there is 3.9 dB, and the statistic reads lock at that loss. It is past every hand-over error run 415 saw (worst 403 Hz).
 
-##### Non-data-aided, every loop and lock statistic (owner, 2026-11-22: "It should be non data-aided")
+##### Non-data-aided, every loop and lock statistic
+
+The owner, 2026-11-22: "It should be non data-aided".
 
 Magnitudes are written `abs(·)` so the table's cells hold.
 
@@ -2296,7 +2307,9 @@ The rows, the selection and the captures' sidecars are committed to the measurem
 
 - **(ii) A receiver broken by construction.** The first loop is opened (bn 0) and its NCO is set off the hand-over by `K / T` (four partials a code period): 12,569 Hz at 2.2 GHz and 15,997 Hz at 2.8. That is harness-only, through `dp_costas_set_norm_freq()` at the entry to tracking. Every partial's coherent sum is then at the null of `sinc(Δf T / K)`, so no despread quantity carries signal: not the code loop's looks, not the symbols, not the demodulator's input. Required before it is run, by that arithmetic: the code and symbol flags never sustain, and the symbols' error rate is chance. "Works" must read 0 under (i) and under the criterion as it stands.
 
-#### The hand-over: `CarrierAcquisition`'s dwell (paper, 2026-11-22; nothing built or run)
+#### The hand-over: `CarrierAcquisition`'s dwell
+
+On paper; nothing in this section is built or run.
 
 **The owner's direction.**
 
@@ -2410,7 +2423,9 @@ The dwell grows as the edge's inverse square, so the averaged form's narrower ed
 
 **The fine estimate below replaces this estimator's figure as the hand-over, and `CarrierAcquisition` becomes its fallback.** The numbers above stand as `CarrierAcquisition`'s own.
 
-#### The hand-over: the M-th power of the refine's partial dumps (proposed, 2026-11-22; paper, nothing built or run)
+#### The hand-over: the M-th power of the refine's partial dumps
+
+Proposed, on paper; nothing in this section is built or run.
 
 **The owner, 2026-11-22.**
 
@@ -2570,7 +2585,9 @@ At 10 dB the same dwell gives `ρ` 25 to 28 dB and sd 0.05 to 0.08 Hz.
     - The blob round-trips at version 22.
 - **Unchanged:** `CarrierAcquisition`, `PolynomialPhaseEstimator`, the search.
 
-#### The error-rate window (built at `77547aa86`, 2026-11-22: step 1 of the build order)
+#### The error-rate window
+
+Built at `77547aa86`, step 1 of the build order.
 
 **The owner's points.**
 
@@ -2658,7 +2675,9 @@ At 10 dB the same dwell gives `ρ` 25 to 28 dB and sd 0.05 to 0.08 Hz.
 
 So (i) and (ii) cannot read the receiver at all with a window that short, (iii) is green under the window at `77547aa86`, and (iv) is a check outside the use case. None of the four is shown on this page to be a receiver that fails inside a 20 s allocation.
 
-#### The five lock detectors at today's settings, and the proposed sizing (paper, 2026-11-22)
+#### The five lock detectors at today's settings, and the proposed sizing
+
+On paper.
 
 **The owner's question.** "are we using the proper integrate-and-dump length on the test statistic so that signals snr is high enough to not declare unlock falsely? Are we assuming a DC level in AWGN for the lock signal or are we calibrating the null hypothesis threshold to false alarm-rate?"
 

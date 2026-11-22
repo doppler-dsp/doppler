@@ -54,6 +54,46 @@
 #define DP_S415_FRAME_SYM 1000u
 #define DP_S415_CODE_ONLY_SYM 275u
 
+/** The lock allocation from arrival, s: 415.1-B-1 §7.4.1's acquisition
+ *  time, and the owner's "typically allocated 20 seconds to lock". A link
+ *  whose flags have not all sustained by then did not lock. */
+#define DP_S415_LOCK_S 20.0
+/** The error rate's scored stretch after the window opens, s
+ *  (docs/design/async-dsss-receiver.md, "The error-rate window"). */
+#define DP_S415_SCORE_S 5.0
+
+/** The receiver's five lock flags, in one order for every harness that
+ *  reads them: the symbol, code, pre-despread carrier, demodulator carrier
+ *  and demodulator sync flags. */
+enum
+{
+  DP_S415_FLAG_SYM,
+  DP_S415_FLAG_CODE,
+  DP_S415_FLAG_CAR,
+  DP_S415_FLAG_DEMOD,
+  DP_S415_FLAG_SYNC,
+  DP_S415_N_FLAGS
+};
+
+/** Read the five flags of @p rx into @p f, all down unless it is tracking
+ *  (the flags of a receiver that is searching or refining are not its
+ *  link's). */
+static inline void
+dp_s415_lock_flags (const dp_async_dsss_receiver_state_t *rx,
+                    unsigned char                         f[DP_S415_N_FLAGS])
+{
+  const int tr = rx->state == ASYNC_DSSS_RX_TRACKING;
+  f[DP_S415_FLAG_SYM]
+      = (unsigned char)(tr && dp_async_dsss_receiver_get_locked (rx));
+  f[DP_S415_FLAG_CODE]
+      = (unsigned char)(tr && dp_async_dsss_receiver_get_code_locked (rx));
+  f[DP_S415_FLAG_CAR] = (unsigned char)(tr && rx->car.lock.locked);
+  f[DP_S415_FLAG_DEMOD]
+      = (unsigned char)(tr && rx->rx && rx->rx->l.car_lock.locked);
+  f[DP_S415_FLAG_SYNC]
+      = (unsigned char)(tr && rx->rx && rx->rx->l.timing.lock.locked);
+}
+
 /** Chips a second at carrier @p fc: F_fwd x 31 / (221 x 96). */
 static inline double
 dp_s415_chip_rate (double fc)

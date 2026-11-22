@@ -182,6 +182,7 @@
  *              [--to S]]
  */
 #include "async_dsss_receiver_common.h"
+#include "carrier_edge.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/awgn/awgn_core.h"
 #include "doppler/ber/ber_core.h"
@@ -219,7 +220,7 @@
 /* 415.1-B-1 §7.4.1, the acquisition requirement: short-code PN lock (the
    receiver's code lock, get_code_locked()) with probability at least
    PI_ACQ_P within PI_ACQ_S of arrival, the signal within +/-1,500 Hz. */
-#define PI_ACQ_S 20.0
+#define PI_ACQ_S DP_S415_LOCK_S
 #define PI_ACQ_P 0.9
 #define PI_MAX_CELL 64u
 /* The excursion levels a change's second before is read against, deg of
@@ -308,7 +309,19 @@ typedef struct
   double end_stale_hz; /* the hand-over's Doppler against the end's
                           truth: what end_resid_hz would read if it
                           took get_doppler_hz() (the --check margin) */
-  int           false_lock, aligned, slipped, end_unsynced, works, data_ended;
+  int false_lock, aligned, slipped, end_unsynced, works, data_ended;
+  /* The error-rate window (async-dsss-receiver.md, "The error-rate
+     window"): it opens at the latest of the five flags' sustained times,
+     t_lock_s (NAN: one never sustained, or not inside DP_S415_LOCK_S of
+     arrival, lock20 0); the meter aligns once there, and a failure is
+     its own verdict, unaligned_lock. The analytic budget is a check on the
+     draws whose hand-over is inside the loop's worst-start edge (edge_hz,
+     carrier_edge.h): early_lock 1 when the window opened before the
+     hand-over plus the budget (budget_s), a flag that declared before its
+     loops settled; -1 outside the edge, where the budget predicts
+     nothing. */
+  double        t_lock_s, edge_hz, budget_s;
+  int           lock20, unaligned_lock, early_lock;
   unsigned long errors, scored;
   double        evm_db, m2m4_db;
   /* The carrier loop's stress against the truth (degrees of carrier
@@ -946,6 +959,23 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
     }
 }
 
+/* Whether a draw's link works: every one of the five flags sustained
+   (§4.11 C17) and never changed over the data, up at the end, not a false
+   lock, the data held (no slip, an end the meter could sync), and the
+   error-rate window's two verdicts: all five sustained inside the lock
+   allocation (lock20) and the meter aligned at that start (aligned; its
+   failure is unaligned_lock). check_cell() pins the last two. */
+static int
+pi_works (const draw_t *d)
+{
+  return !isnan (d->t_sym_s) && !isnan (d->t_code_s) && d->sym_tog == 0
+         && d->code_tog == 0 && !d->false_lock && !d->slipped
+         && !d->end_unsynced && d->car_tog == 0 && d->dem_tog == 0
+         && d->syn_tog == 0 && !isnan (d->t_car_s) && !isnan (d->t_demod_s)
+         && !isnan (d->t_sync_s) && d->car_up_end && d->dem_up_end
+         && d->syn_up_end && d->lock20 && d->aligned;
+}
+
 static int
 run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           uint32_t seed, double secs, unsigned spc, const capture_t *cp,
@@ -1447,10 +1477,15 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                                &lv_scored, &lv_next, tlm, id_lag, id_cnt);
             }
         }
-      f_sym[b] = (uint8_t)(tracking && dp_async_dsss_receiver_get_locked (rx));
-      f_cod[b]
-          = (uint8_t)(tracking && dp_async_dsss_receiver_get_code_locked (rx));
-      f_x[0][b] = (uint8_t)(tracking && rx->car.lock.locked);
+      /* The five flags, through the one reader every harness at the point
+         uses (dp_s415_lock_flags(), all down unless tracking). */
+      unsigned char fl5[DP_S415_N_FLAGS];
+      dp_s415_lock_flags (rx, fl5);
+      f_sym[b]  = fl5[DP_S415_FLAG_SYM];
+      f_cod[b]  = fl5[DP_S415_FLAG_CODE];
+      f_x[0][b] = fl5[DP_S415_FLAG_CAR];
+      f_x[1][b] = fl5[DP_S415_FLAG_DEMOD];
+      f_x[2][b] = fl5[DP_S415_FLAG_SYNC];
       /* The pull-in against the truth: the live carrier's error at the
          block's end inside PI_PULL_FRAC of the loop's own bound. */
       f_pull[b] = 0;
@@ -1465,9 +1500,6 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                                               rx->car.lf.bn,
                                               dp_s415_chip_rate (fc), SF));
         }
-      f_x[1][b] = (uint8_t)(tracking && rx->rx && rx->rx->l.car_lock.locked);
-      f_x[2][b]
-          = (uint8_t)(tracking && rx->rx && rx->rx->l.timing.lock.locked);
       /* A block is DATA when the truth puts its middle in a data symbol. */
       const long sym
           = dp_air_truth (&air, 0, b * PI_PUSH + PI_PUSH / 2).symbol;
@@ -1891,16 +1923,56 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   d->pulled_in    = rx->state == ASYNC_DSSS_RX_TRACKING
                     && fabs (d->end_resid_hz) < d->base_pullin_hz;
 
-  /* The error rate of the current track, against the payload as each
-     symbol carried it. */
-  d->evm_db = d->m2m4_db = NAN;
-  if (rx->state == ASYNC_DSSS_RX_TRACKING && first_in != SIZE_MAX
-      && ns > 2 * ((size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS) + 500)
+  /* The error-rate window (async-dsss-receiver.md, "The error-rate
+     window"): it opens at the latest of the five flags' sustained times,
+     inside DP_S415_LOCK_S of arrival (the draw's start); a draw outside it
+     is "not locked in 20 s" and is never scored. The block's end is
+     where the window opens, in the symbols of the track that is current
+     at the end (s_end, s_gen). */
+  d->t_lock_s = d->edge_hz = d->budget_s = NAN;
+  d->lock20 = d->unaligned_lock = 0;
+  d->early_lock                 = -1;
+  size_t lock_sym               = SIZE_MAX;
+  {
+    const unsigned char *fl[DP_S415_N_FLAGS]
+        = { f_sym, f_cod, f_x[0], f_x[1], f_x[2] };
+    const int64_t s5
+        = dp_ber_lock_all (fl, DP_S415_N_FLAGS, n_blk, PI_SUSTAIN, 0.9,
+                           (size_t)(DP_S415_LOCK_S / blk_s), NULL);
+    if (s5 >= 0)
+      {
+        d->lock20   = 1;
+        d->t_lock_s = (double)s5 * blk_s;
+        if (s_gen[s5] == gen && s_end[s5] != SIZE_MAX)
+          lock_sym = s_end[s5];
+      }
+  }
+  /* The analytic budget, as a check where it predicts: a hand-over inside
+     the loop's worst-start edge. A window that opens before the hand-over
+     plus the budget is a flag that declared before its loops settled; it
+     is a detector finding, and the window stays the observed one. */
+  if (!isnan (d->ho_err_hz) && !isnan (d->t_track_s))
     {
-      int          ok     = 0;
-      const size_t settle = dp_ber_settle (
-          rx->rx->l.timing.bn, rx->rx->l.bn_carrier, NULL, NULL, ns, &ok);
-      long base = dp_air_truth (&air, 0, first_in).symbol - 60;
+      d->edge_hz = hb_edge_hz (fc, esn0, d->bn_car);
+      if (fabs (d->ho_err_hz) <= d->edge_hz && rx->rx)
+        {
+          d->budget_s = (double)dp_ber_settle_syms (rx->rx->l.timing.bn,
+                                                    rx->rx->l.bn_carrier)
+                        / DP_S415_SYM;
+          if (d->lock20)
+            d->early_lock = d->t_lock_s < d->t_track_s + d->budget_s;
+        }
+    }
+
+  /* The error rate of the current track, against the payload as each
+     symbol carried it, from the window's start to the draw's end. The
+     meter aligns once, there; a failure is the verdict unaligned_lock. */
+  d->evm_db = d->m2m4_db = NAN;
+  if (lock_sym != SIZE_MAX && rx->state == ASYNC_DSSS_RX_TRACKING
+      && first_in != SIZE_MAX)
+    {
+      d->unaligned_lock = 1;
+      long base         = dp_air_truth (&air, 0, first_in).symbol - 60;
       if (base < 0)
         base = 0;
       const size_t n_truth = (size_t)(secs * DP_S415_SYM) + 1000;
@@ -1911,13 +1983,13 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           truth[i]      = (uint8_t)(bit > 0);
         }
       const size_t guard = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
-      if (ok && settle + 2 * guard + 500 < ns)
+      if (lock_sym + 2 * guard + 500 < ns)
         {
           dp_ber_marker_t mk     = { NULL, DP_BER_SYNC_SYMS, 0, 0, 0 };
           dp_ber_marker_t mk_end = mk;
           size_t          at     = dp_ber_marker_place (
-              truth, n_truth, 2, settle + DP_BER_LAG_SPAN, 0, DP_BER_LAG_SPAN,
-              DP_BER_SYNC_PFA, 1);
+              truth, n_truth, 2, lock_sym + DP_BER_LAG_SPAN, 0,
+              DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
           mk.t0            = at == SIZE_MAX ? n_truth : at;
           dp_ber_sync_t sy = dp_ber_sync (syms, ns, truth, n_truth, &mk, 2,
                                           DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
@@ -1930,7 +2002,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
               dp_ber_sync_t end
                   = dp_ber_sync (syms, ns, truth, n_truth, &mk_end, 2,
                                  DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
-              d->aligned = 1;
+              d->aligned        = 1;
+              d->unaligned_lock = 0;
               /* A slip is a different alignment at the end; an end the
                  sync could not place is its own verdict (end_unsynced),
                  not a slip: dp_ber_sync has refused a clean, aligned end
@@ -1941,9 +2014,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                   = end.ok
                     && (end.lag != sy.lag || cos (end.phase - sy.phase) < 0.0);
               const long   lo_e = (long)(mk.t0 + mk.n) - sy.lag;
-              const size_t lo   = (lo_e > 0 && (size_t)lo_e > settle)
+              const size_t lo   = (lo_e > 0 && (size_t)lo_e > lock_sym)
                                       ? (size_t)lo_e
-                                      : settle;
+                                      : lock_sym;
               dp_ber_t     acc;
               dp_ber_init (&acc, 2, ULONG_MAX);
               dp_ber_score (&acc, syms, lo, ns, truth, n_truth, &mk, &sy);
@@ -1975,17 +2048,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
             }
         }
     }
-  /* Works: both flags sustained and never changed over the data, not a
-     false lock, and the data good: a slip, or an end the meter could not
-     sync (#3131), fails it whatever the flags say. */
-  /* Every one of the five flags sustained (§4.11 C17): a flag that never
-     sustains fails the draw, whatever its last block reads. */
-  d->works = s_sym >= 0 && s_cod >= 0 && d->sym_tog == 0 && d->code_tog == 0
-             && !d->false_lock && !d->slipped && !d->end_unsynced
-             && d->car_tog == 0 && d->dem_tog == 0 && d->syn_tog == 0
-             && !isnan (d->t_car_s) && !isnan (d->t_demod_s)
-             && !isnan (d->t_sync_s) && d->car_up_end && d->dem_up_end
-             && d->syn_up_end;
+  d->works      = pi_works (d);
   d->data_ended = dp_air_data_ended (&air);
 
   if (itlm)
@@ -2087,7 +2150,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
   "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate,t_narrow_s,"                 \
   "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s,"            \
-  "t_car_s,pulled_in,t_pull_s,t_demod_s,t_sync_s\n"
+  "t_car_s,pulled_in,t_pull_s,t_demod_s,t_sync_s,t_lock_s,lock20,"            \
+  "unaligned_lock,edge_hz,budget_s,early_lock\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -2101,7 +2165,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
-      "%.2f,%.2f,%.4f,%d,%.4f,%.4f,%.4f\n",
+      "%.2f,%.2f,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -2122,7 +2186,8 @@ emit_row (const draw_t *d, uint32_t seed)
       d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
       d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
       d->rate_post_narrow_hz_s, d->slope_settled_hz_s, d->t_car_s,
-      d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s);
+      d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s, d->t_lock_s,
+      d->lock20, d->unaligned_lock, d->edge_hz, d->budget_s, d->early_lock);
 }
 
 static int
@@ -2136,6 +2201,7 @@ static void
 print_cell (const draw_t *ds, size_t n)
 {
   size_t        works = 0, acq = 0, fl = 0, al = 0, slip = 0, unsync = 0;
+  size_t        late = 0, unal = 0, early = 0;
   unsigned long err = 0, sc = 0;
   double        t[PI_DRAWS * 4];
   size_t        nt = 0;
@@ -2145,6 +2211,9 @@ print_cell (const draw_t *ds, size_t n)
       acq += !isnan (ds[i].t_sym_s) && !isnan (ds[i].t_code_s);
       fl += (size_t)ds[i].false_lock;
       al += (size_t)ds[i].aligned;
+      late += (size_t)!ds[i].lock20;
+      unal += (size_t)ds[i].unaligned_lock;
+      early += (size_t)(ds[i].early_lock == 1);
       slip += (size_t)(ds[i].aligned && ds[i].slipped);
       unsync += (size_t)(ds[i].aligned && ds[i].end_unsynced);
       if (ds[i].aligned && !ds[i].slipped)
@@ -2165,13 +2234,15 @@ print_cell (const draw_t *ds, size_t n)
             : NAN;
   printf (
       "  %.1f GHz %4.1f dB %+4.0f Hz/s works %2zu/%zu [%.2f, "
-      "%.2f], acquired %zu, false %zu; lock %.2f/%.2f/%.2f s; aligned "
+      "%.2f], acquired %zu, false %zu; lock %.2f/%.2f/%.2f s; not locked "
+      "in %.0f s %zu, unaligned at lock %zu, early lock %zu; aligned "
       "%zu, slipped %zu, end unsynced %zu; SER %.2e [%.2e, %.2e] (%lu/%lu), "
       "loss %.2f dB\n",
       ds[0].fc / 1e9, ds[0].esn0, ds[0].rate == 0.0 ? 0.0 : DP_S415_RATE_HZ_S,
       works, n, wl, wh, acq, fl, nt ? t[nt / 2] : NAN,
-      nt ? t[(size_t)(0.9 * (double)nt)] : NAN, nt ? t[nt - 1] : NAN, al, slip,
-      unsync, ci.p_hat, ci.lo, ci.hi, err, sc, loss);
+      nt ? t[(size_t)(0.9 * (double)nt)] : NAN, nt ? t[nt - 1] : NAN,
+      DP_S415_LOCK_S, late, unal, early, al, slip, unsync, ci.p_hat, ci.lo,
+      ci.hi, err, sc, loss);
 }
 
 /* 415.1-B-1 §7.4.1 in every cell. Its form depends on what the cell's
@@ -2222,6 +2293,16 @@ check_cell (const draw_t *ds, size_t n)
   for (size_t i = 0; i < n; i++)
     {
       DP_CHECK_MSG (ds[i].works, "at 10 dB static every draw's link works");
+      /* The error-rate window's two terms in "works", on a draw that
+         works: the same draw not locked inside the allocation, or
+         unaligned at its lock, does not. */
+      draw_t late = ds[i], unal = ds[i];
+      late.lock20  = 0;
+      unal.aligned = 0;
+      DP_CHECK_MSG (!pi_works (&late), "a link not locked in 20 s does not "
+                                       "work, whatever its flags read");
+      DP_CHECK_MSG (!pi_works (&unal), "a link the meter cannot align at its "
+                                       "lock does not work");
       DP_CHECK_MSG (ds[i].aligned, "and aligns at the start");
       DP_CHECK_MSG (!ds[i].slipped, "and holds that alignment to the end");
       DP_CHECK_MSG (!ds[i].end_unsynced, "and the meter syncs at the end");

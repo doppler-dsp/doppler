@@ -461,7 +461,7 @@ spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
    that fans its block across a worker pool would otherwise turn these
    rows into wall-time rows on a many-core box. */
 static dp_async_dsss_receiver_state_t *
-spec_rx (const uint8_t *code, double fc, double cn0)
+spec_rx (const uint8_t *code, double fc)
 {
   dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   if (rx)
@@ -482,7 +482,7 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
   const double fs_in = DP_S415_FS, chip = dp_s415_chip_rate (pt->carrier_hz);
   const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
-  dp_async_dsss_receiver_state_t *rx = spec_rx (code, pt->carrier_hz, cn0);
+  dp_async_dsss_receiver_state_t *rx = spec_rx (code, pt->carrier_hz);
   if (!rx)
     return 1;
   const size_t    D     = dp_async_dsss_receiver_get_coherent_bins (rx);
@@ -538,7 +538,7 @@ run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
   const double fs_in = DP_S415_FS;
   const double cn0   = dp_s415_cn0 (DP_S415_FLOOR_DB);
   const size_t maxb  = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
-  dp_async_dsss_receiver_state_t *rx  = spec_rx (code, pt->carrier_hz, cn0);
+  dp_async_dsss_receiver_state_t *rx  = spec_rx (code, pt->carrier_hz);
   float _Complex                 *x   = malloc ((size_t)BLOCK * sizeof *x);
   float _Complex                 *out = malloc ((size_t)BLOCK * sizeof *out);
   spec_src_t                      src;

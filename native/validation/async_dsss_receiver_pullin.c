@@ -2200,7 +2200,6 @@ pi_design (const double fcs[2], const double esn0s[4])
       {
         const double esn0 = k ? 10.0 : 4.0;
         const double chip = dp_s415_chip_rate (fcs[f]);
-        const double cn0  = dp_s415_cn0 (esn0);
         uint8_t      code[SF];
         for (size_t i = 0; i < SF; i++)
           code[i] = (uint8_t)(i & 1u);
@@ -2254,11 +2253,12 @@ pi_design (const double fcs[2], const double esn0s[4])
         const int    kw = 1;
         const double k
             = pi_slope (rho, kw, 4410u + (uint64_t)(f * 8 + e * 2 + 1));
-        const double bns[2] = { pi_bn_rule (fcs[f]),
-                                pi_bn_rule_on || isnan (pi_bn_car)
-                                    ? dp_async_dsss_receiver_carrier_bn (
-                                          dp_s415_cn0 (esn0s[e]), chip, SF)
-                                    : pi_bn_car };
+        /* The rule's, and the run's: the receiver's own (built at the
+           floor, so the rule's too) unless --bn-carrier names one. */
+        const double bns[2]
+            = { pi_bn_rule (fcs[f]), pi_bn_rule_on || isnan (pi_bn_car)
+                                         ? pi_bn_rule (fcs[f])
+                                         : pi_bn_car };
         for (int order = 2; order <= 3; order++)
           for (int b = 0; b < 2; b++)
             for (int di = 0; di < 3; di++)

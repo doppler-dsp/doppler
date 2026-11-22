@@ -375,6 +375,8 @@ carrier_nda_loop_error (double pe)
   dp_lockdet_rule_t
   dp_carrier_nda_get_lock_rule (const dp_carrier_nda_state_t *state);
 
+  void dp_carrier_nda_hold (dp_carrier_nda_state_t *state);
+
   double dp_carrier_nda_get_nco_phase_ahead (const dp_carrier_nda_state_t *state,
                                              size_t ahead);
 

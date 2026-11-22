@@ -451,6 +451,7 @@ dp_carrier_nda_get_nco_phase_ahead function
 dp_carrier_nda_get_norm_freq function
 dp_carrier_nda_get_sps function
 dp_carrier_nda_get_state function
+dp_carrier_nda_hold function
 dp_carrier_nda_init function
 dp_carrier_nda_reset function
 dp_carrier_nda_set_block_lock function

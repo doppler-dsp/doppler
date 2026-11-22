@@ -779,6 +779,38 @@ test_phase_ahead_and_rule (void)
   return 0;
 }
 
+/* ── 20. dp_carrier_nda_hold(): a held loop runs on its integrator ───────
+ * An update with a large error (0.6 rad), then a hold: the NCO's command
+ * is integ / t_upd exactly, and over the next 3 update intervals of wipes
+ * the phase advances by exactly that frequency's increment a sample, with
+ * no repeat of the proportional step. Sabotage: a hold that leaves the
+ * command -> the frequency check and the phase advance are red. ──────── */
+static int
+test_hold_runs_on_the_integrator (void)
+{
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (0.02, 0.707, 0.001, 8, 1, 2);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+  for (int k = 0; k < 64; k++)
+    (void)carrier_nda_wipeoff (c, 1.0f);
+  carrier_nda_update (c, cexpf (I * 0.6f), 0.0);
+  const double kick = c->ctl_cyc - c->lf.integ / c->t_upd;
+  DP_CHECK (fabs (kick) > 1e-6); /* the update did leave a proportional term */
+  dp_carrier_nda_hold (c);
+  DP_CHECK (c->ctl_cyc == c->lf.integ / c->t_upd);
+  DP_CHECK (dp_carrier_nda_get_nco_freq (c)
+            == c->nco.norm_freq + c->lf.integ / c->t_upd);
+  const uint32_t ph0 = c->nco.phase;
+  const uint32_t inc
+      = c->nco.phase_inc + nco_norm_freq_to_inc (c->lf.integ / c->t_upd);
+  for (int k = 0; k < 3 * 64; k++)
+    (void)carrier_nda_wipeoff (c, 1.0f);
+  DP_CHECK (c->nco.phase == (uint32_t)(ph0 + (uint32_t)(3 * 64) * inc));
+  dp_carrier_nda_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1592,6 +1624,8 @@ main (void)
   if (test_bn_is_the_loops () != 0)
     return 1;
   if (test_phase_ahead_and_rule () != 0)
+    return 1;
+  if (test_hold_runs_on_the_integrator () != 0)
     return 1;
 
   DP_TEST_END ("test_carrier_nda_core");

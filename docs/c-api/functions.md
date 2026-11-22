@@ -569,6 +569,7 @@
 * **dp\_carrier\_nda\_get\_norm\_freq** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **dp\_carrier\_nda\_get\_sps** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **dp\_carrier\_nda\_get\_state** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
+* **dp\_carrier\_nda\_hold** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **dp\_carrier\_nda\_init** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **dp\_carrier\_nda\_reset** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **dp\_carrier\_nda\_set\_block\_lock** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))

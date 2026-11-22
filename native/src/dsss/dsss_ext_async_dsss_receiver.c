@@ -272,10 +272,12 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                        "1, refine_n_fft >= 1, refine_zero_pad >= 1, a symbol "
                        "of at most 2^20 Dll partials, segments * chip_rate / "
                        "(code_len * symbol_rate) <= 1048576; and for the "
-                       "searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, "
-                       "a finite doppler_uncertainty >= 0; refine false "
-                       "needs a search at least 25 code periods deep; a "
-                       "symbol of at least a code period)");
+                       "searcher a finite cn0_dbhz whose update SNR over a "
+                       "code period is finite and positive with a carrier "
+                       "bandwidth the loop filter accepts, 0 < pfa < 1, 0 < "
+                       "pd < 1, a finite doppler_uncertainty >= 0; refine "
+                       "false needs a search at least 25 code periods deep; "
+                       "a symbol of at least a code period)");
       return -1;
     }
   return 0;
@@ -550,7 +552,7 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "locked", "Health flag: the symbol-lock detector." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` declares strictly above this." },
-  { "car_last_error", "Pre-despread Costas residual, rad." },
+  { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
   { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",
@@ -1618,11 +1620,14 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "debug.\n",
     NULL },
   { "car_last_error", (getter)AsyncDsssReceiver_getprop_car_last_error, NULL,
-    "Pre-despread Costas phase discriminator (rad): the residual carrier "
-    "phase LOOP 1 (which de-rotates before the Dll) is not nulling.\n",
+    "The pre-despread carrier loop's last phase error (rad): the residual "
+    "carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, "
+    "as its loop filter takes it -- carrier_nda's discriminator divided by "
+    "its slope (carrier_nda_loop_error()), so radians near lock. The "
+    "\".car.e\" probe is the raw discriminator, twice this.\n",
     NULL },
   { "car_nco_freq", (getter)AsyncDsssReceiver_getprop_car_nco_freq, NULL,
-    "LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency command, "
+    "LOOP 1 (the pre-despread carrier loop) output = NCO frequency command, "
     "cycles/sample of the front-end (chip_rate*spc) rate.\n",
     NULL },
   { "mpsk_last_error", (getter)AsyncDsssReceiver_getprop_mpsk_last_error, NULL,
@@ -1711,9 +1716,9 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "lets it go -- or, at the default lost_confirm_s of 0, until reset() --\n"
     "and symbol lock (`locked`) is what says the symbols are a signal's, so\n"
     "read it rather than the count (#2439). Under the specification's\n"
-    "coupled offset + 500 Hz/s Doppler ramp the pre-despread Costas removes\n"
-    "the full carrier dynamics before the code loop, so the recovered\n"
-    "constellation lands cleanly on the BPSK real axis.\n"
+    "coupled offset + 500 Hz/s Doppler ramp the pre-despread carrier loop\n"
+    "removes the full carrier dynamics before the code loop, so the\n"
+    "recovered constellation lands cleanly on the BPSK real axis.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -2164,10 +2169,10 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "  keeps no running estimate while tracking;\n"
     "- \"<prefix>.phase.car\" -- the pre-despread carrier NCO's phase at the\n"
     "  call's FIRST sample, cycles in [0, 1)\n"
-    "  (dp_costas_get_nco_phase_ahead() past the samples the chain still\n"
-    "  carries), exact: the loop steers only at a period's end. The phase of\n"
-    "  the tracking chain; while searching or refining it is the placeholder\n"
-    "  chain's, and \".state\" says which;\n"
+    "  (dp_carrier_nda_get_nco_phase_ahead() past the samples the chain\n"
+    "  still carries), exact: the loop steers only at a period's end. The\n"
+    "  phase of the tracking chain; while searching or refining it is the\n"
+    "  placeholder chain's, and \".state\" says which;\n"
     "- \"<prefix>.phase.code\" -- the code NCO's prompt phase at the call's\n"
     "  first sample, chips (dp_dll_get_code_phase_ahead()), exact to within\n"
     "  a code-loop update inside the carried samples. It is the code NCO's\n"
@@ -2192,11 +2197,13 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Each loop reports under the prefix, at its own update rate:\n"
     "\n"
     "- \"<prefix>.car\" -- the chip-domain carrier loop\n"
-    "  (dp_costas_set_telemetry(): \".lock\", \".e\", \".freq\", "
+    "  (dp_carrier_nda_set_telemetry(): \".lock\", \".e\", \".freq\", "
     "\".locked\",\n"
-    "  \".nco\", \".freq_rate\", \".order\"), once per carrier update: once a "
-    "code\n"
-    "  period, except while it coasts, when loop 1 is held;\n"
+    "  \".nco\"; \".e\" is the raw discriminator, slope 2, so twice the "
+    "phase\n"
+    "  error in radians near lock, and \".lock\" the last block's ratio of\n"
+    "  sums), once per carrier update: once a code period, except while it\n"
+    "  coasts, when loop 1 is held;\n"
     "- \"<prefix>.code\" -- the code loop (dp_dll_set_telemetry(): \".e\",\n"
     "  \".rate\", \".lock\", \".locked\", \".nco\", and the lock statistic's "
     "two\n"
@@ -2754,10 +2761,14 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "Dll\n"
     "    partials, segments * chip_rate / (code_len * symbol_rate) <= "
     "1048576;\n"
-    "    and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a\n"
-    "    finite doppler_uncertainty >= 0; refine false needs a search at "
-    "least\n"
-    "    25 code periods deep; a symbol of at least a code period)``.\n"
+    "    and for the searcher a finite cn0_dbhz whose update SNR over a code\n"
+    "    period is finite and positive with a carrier bandwidth the loop "
+    "filter\n"
+    "    accepts, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= "
+    "0;\n"
+    "    refine false needs a search at least 25 code periods deep; a symbol "
+    "of\n"
+    "    at least a code period)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

@@ -132,8 +132,7 @@ double async_dsss_receiver_status_t::car_last_error;
 
 
 
-Pre-despread Costas residual, rad. 
- 
+Pre-despread loop's residual, rad (slope 1). 
 
 
         

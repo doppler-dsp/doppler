@@ -311,12 +311,10 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
 }
 
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
- * the pre-despread carrier loop), mirroring dsss_receiver_core.c's own
- * dsss_rx_build_chain: dp_costas_init()'s tsamps is one whole code period, and
- * costas_update() is called once per period from a non-data-aided
- * (squaring) combine of that period's emitted coherent-I&D partials (see
- * adr_track_period()) -- not once per partial (see this function's own
- * comment on dp_costas_init() below for why). */
+ * the pre-despread carrier loop). The carrier loop is carrier_nda at M = 2,
+ * its update period one code period: carrier_nda_update() runs once a
+ * period on the Dll's window sum (see adr_track_period()), not once a
+ * partial, so each update integrates the whole period. */
 static void
 adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                        double doppler_hz_est, size_t segments, size_t sps,
@@ -381,7 +379,7 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
 
   /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est
    * again -- same reasoning as dsss_receiver_core.c's own
-   * dsss_rx_build_chain(): the pre-despread Costas loop below already removes
+   * dsss_rx_build_chain(): the pre-despread carrier loop below already removes
    * the FULL physical Doppler, so only a small residual should reach
    * MpskReceiver. Re-seeding it with the full doppler_hz_est (evaluated at
    * target_rate=sps*symbol_rate, a much smaller rate than the front end)
@@ -636,10 +634,13 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                          double doppler_hz_est, size_t segments, size_t sps,
                          int n)
 {
-  dp_carrier_nda_state_t    car;
-  dp_dll_state_t           *dll = NULL;
-  dp_RateConverter_state_t *rc  = NULL;
-  dp_mpsk_receiver_state_t *rx  = NULL;
+  dp_carrier_nda_state_t car;
+  dp_dll_state_t        *dll = NULL;
+  /* Zeroed first, padding included: the loop is copied into car and
+     car_held whole, and their blobs are whole-struct snapshots. */
+  memset (&car, 0, sizeof car);
+  dp_RateConverter_state_t *rc = NULL;
+  dp_mpsk_receiver_state_t *rx = NULL;
   adr_build_track_chain (s, chip_phase, doppler_hz_est, segments, sps, n, &car,
                          &dll, &rc, &rx);
   adr_free_track_chain (s);
@@ -847,16 +848,12 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
   return x_len;
 }
 
-/* One carrier-wiped code period through the Dll -> ONE costas_update() per
- * period, driven by a NON-DATA-AIDED (squaring) discriminator on the
- * period's code-period window (the coherent sum the look-back picked,
- * dp_dll_get_window_sum()). A data transition lands inside nearly every
- * period, and a decision-directed combine was corrupted by exactly those
- * transitions (a +/-57deg discriminator that averaged to zero, so the
- * whole carrier burden fell to the post-despread MpskReceiver loop);
- * squaring a transition-free window removes the data with no sign
- * decision. It runs PRE-despread, so despreading stays coherent: the
- * "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track.
+/* One carrier-wiped code period through the Dll -> at most ONE
+ * carrier_nda_update() a period, on the period's code-period window (the
+ * coherent sum the look-back picked, dp_dll_get_window_sum()): the M = 2
+ * error removes the data with no sign decision, and the window does not
+ * span a data transition. It runs PRE-despread, so despreading stays coherent:
+ * the "unfreeze and track loop 1" step of coarse -> freeze -> refine -> track.
  * The Dll's emitted partials are the despread symbol stream this object
  * hands to RateConverter/MpskReceiver; they go to dll_out (capacity
  * max_out), and the count is returned. */
@@ -900,7 +897,13 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
     }
   const int car_coast = s->had_lock && !code_up && !sym_up;
   if (car_coast && !s->car_coasting)
-    s->car = s->car_held;
+    {
+      /* The hold point, run on its integrator: car_held's command still
+         carries its last update's proportional step, which the NCO would
+         otherwise repeat every update interval of the coast. */
+      s->car = s->car_held;
+      dp_carrier_nda_hold (&s->car);
+    }
   s->car_coasting = car_coast;
   dp_dll_set_coast (s->dll, s->had_lock && !code_up && !sym_up);
   if (s->tlm && s->tlm_coast >= 0)
@@ -913,7 +916,12 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
     s->car_wiped_buf[i] = carrier_nda_wipeoff (&s->car, period[i]);
   size_t n_out
       = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
-  if (n_out > 0 && !car_coast)
+  /* The Dll emits nothing until an epoch closes, then that epoch's dumps
+     (or, with one segment, one output), so n_out > 0 is exactly "a new
+     window sum exists" (dll_core.c's epoch close). A block that closes two
+     epochs updates once, on the later sum. */
+  const int update = n_out > 0 && !car_coast;
+  if (update)
     {
       /* The carrier loop's update: the one coherent sum over the
          code-period window the Dll's look-back picked this period
@@ -930,7 +938,7 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
          the loop's probes once per update. */
       if (s->car.tlm.ctx)
         dp_carrier_nda_tlm_flush (&s->car);
-      /* Continuous carrier->code aiding: the pre-despread Costas tracks the
+      /* Continuous carrier->code aiding: the pre-despread loop tracks the
          FULL carrier offset (including the 500 Hz/s ramp), so refresh the
          code NCO's rate bias from it every period. This keeps the initial
          build-time seed (dp_dll_set_rate_aid in adr_build_track_chain) fresh
@@ -942,6 +950,11 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
                                          * (s->chip_rate * (double)s->spc)
                                          / s->carrier_freq_hz);
     }
+  else
+    /* No update this period (a coast, or no epoch closed): the next
+       period's wipe runs on the integrator, not on a repeat of the last
+       update's proportional step. */
+    dp_carrier_nda_hold (&s->car);
   return n_out;
 }
 
@@ -1434,6 +1447,17 @@ dp_async_dsss_receiver_create (
   obj->bn_carrier
       = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
   adr_size_carrier_lock (obj, cn0_dbhz, chip_rate, code_len);
+  /* A design C/N0 whose update SNR is not finite and positive (an absurd
+     finite cn0_dbhz overflows or underflows it), or whose rule bandwidth
+     the loop filter refuses, builds no carrier loop: the unit denominator
+     takes gamma > 0 (0 would select the averaged form), and the in-place
+     init is unguarded. Refused here, not aborted in the build. */
+  if (!(isfinite (obj->car_gamma) && obj->car_gamma > 0.0)
+      || !dp_loop_filter_params_ok (obj->bn_carrier, 0.707, 1.0))
+    {
+      dp_async_dsss_receiver_destroy (obj);
+      return NULL;
+    }
   /* With no refine the search's Doppler is the hand-over, and the carrier
      loop pulls in from it only while half the search's Doppler row is
      inside the loop's acquisition bound (async-dsss-receiver.md §4.4).
@@ -2374,7 +2398,7 @@ dp_async_dsss_receiver_configure_lock_raw (
 }
 
 /* The whole carrier the live chain holds, Hz: loop 1's (the pre-despread
- * Costas, in cycles per front-end sample) plus what loop 2 -- the
+ * carrier loop, in cycles per front-end sample) plus what loop 2 -- the
  * post-despread MpskReceiver, at sps * symbol_rate -- has taken up beyond
  * it, its loop-filter integrator. status() reports it and
  * configure_chain_raw() re-seeds a rebuilt chain from it (doppler#1261,
@@ -2613,7 +2637,7 @@ double
 dp_async_dsss_receiver_get_car_last_error (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return dp_carrier_nda_get_last_error (&state->car);
+  return carrier_nda_loop_error (dp_carrier_nda_get_last_error (&state->car));
 }
 
 double
@@ -2733,6 +2757,23 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
   }
 }
 
+/* Is c the carrier loop create() builds for s (adr_build_track_chain)? The
+   blob's reject keys for the carrier children. bn is compared to the rule's
+   value: a caller that retuned the live loop's bandwidth through
+   dp_carrier_nda_set_bn() (the pull-in harness's --bn-carrier) has a loop
+   this receiver did not build, and its blob is refused. */
+static int
+adr_carrier_is_built (const dp_async_dsss_receiver_state_t *s,
+                      const dp_carrier_nda_state_t         *c)
+{
+  return c->m == 2 && c->t_upd == (double)s->tsamps
+         && c->den == CARRIER_NDA_DEN_UNIT
+         && c->den_alpha == ASYNC_DSSS_RX_CAR_DEN_ALPHA
+         && c->den_gamma == s->car_gamma && c->blk_len == s->car_blk
+         && (s->car_blk == 0 || c->blk_pfa == ASYNC_DSSS_RX_CAR_LOCK_PFA)
+         && c->bn == s->bn_carrier && c->zeta == 0.707;
+}
+
 int
 dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
                                   const void                     *blob)
@@ -2806,8 +2847,21 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   DP_R_CHILD (&_r, dp_dll, s->refine_dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->refine_rc);
   DP_R_CHILD (&_r, dp_carrier_acq, s->ca);
-  DP_R_CHILD (&_r, dp_carrier_nda, &s->car);
-  DP_R_CHILD (&_r, dp_carrier_nda, &s->car_held);
+  /* The two carrier children decode into copies and commit only when each
+     is the loop create() builds: M = 2, an update a period, the unit
+     denominator at the design point's gamma, the block lock create()
+     sized, and the rule's bn and the build's zeta. Their configuration is
+     not this blob's to change (car_gamma, car_blk and bn_carrier are
+     create()'s, restored by it): a blob from a receiver built at another
+     C/N0 has the same size and would restore a different loop, and one
+     with an update a sample would run the control tsamps times too large. */
+  dp_carrier_nda_state_t car = s->car, held = s->car_held;
+  DP_R_CHILD (&_r, dp_carrier_nda, &car);
+  DP_R_CHILD (&_r, dp_carrier_nda, &held);
+  if (!adr_carrier_is_built (s, &car) || !adr_carrier_is_built (s, &held))
+    return DP_ERR_INVALID;
+  s->car      = car;
+  s->car_held = held;
   DP_R_CHILD (&_r, dp_dll, s->dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   DP_R_CHILD (&_r, dp_mpsk_receiver, s->rx);

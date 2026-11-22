@@ -90,6 +90,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  double | [**dp\_carrier\_nda\_get\_norm\_freq**](#function-dp_carrier_nda_get_norm_freq) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Tracked carrier frequency: the NCO centre plus the loop's integrated correction (integrator only, smoothed), spread over the update period._  |
 |  size\_t | [**dp\_carrier\_nda\_get\_sps**](#function-dp_carrier_nda_get_sps) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Samples per symbol the arm window is sized from._  |
 |  void | [**dp\_carrier\_nda\_get\_state**](#function-dp_carrier_nda_get_state) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
+|  void | [**dp\_carrier\_nda\_hold**](#function-dp_carrier_nda_hold) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Hold the loop: the NCO runs on the integrator alone until the next update._  |
 |  void | [**dp\_carrier\_nda\_init**](#function-dp_carrier_nda_init) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t sps, int n, int m) <br>_Initialise an NDA carrier loop in place (no allocation)._  |
 |  void | [**dp\_carrier\_nda\_reset**](#function-dp_carrier_nda_reset) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
 |  int | [**dp\_carrier\_nda\_set\_block\_lock**](#function-dp_carrier_nda_set_block_lock) ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, uint32\_t len, double pfa, uint32\_t n\_up, uint32\_t n\_down) <br>_Decide the lock on a block: the ratio of sums over_ `len` _updates, against the exact threshold at_`pfa` _._ |
@@ -1043,6 +1044,36 @@ A whole-struct snapshot (config, NCO, loop filter, boxcar arm, lock EMA and dete
 
 * `state` Must be non-NULL. 
 * `blob` Caller-owned buffer of at least [**dp\_carrier\_nda\_state\_bytes()**](carrier__nda__core_8h.md#function-dp_carrier_nda_state_bytes) bytes. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_carrier\_nda\_hold 
+
+_Hold the loop: the NCO runs on the integrator alone until the next update._ 
+```C++
+void dp_carrier_nda_hold (
+    dp_carrier_nda_state_t * state
+) 
+```
+
+
+
+[**carrier\_nda\_steer()**](carrier__nda__core_8h.md#function-carrier_nda_steer) commands `(integ + kp*e) / t_upd` cycles a sample, and [**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff) applies that command every sample until the next update: the proportional term `kp*e` is spread over the update's `t_upd` samples, a phase step of `kp*e` in all. A composer that stops updating (a coast, or a period whose update it skips) would otherwise go on applying that step every update interval, a frequency bias of `kp*e / t_upd` for as long as it holds. This sets the command to `integ / t_upd`, the integrator's frequency, as a coast should run. The integrator, the lock and the NCO's phase are unchanged; the next update steers as usual.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
 
 
 

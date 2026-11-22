@@ -366,7 +366,7 @@ static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
   { "locked", "Health flag: the symbol-lock detector." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` declares strictly above this." },
-  { "car_last_error", "Pre-despread Costas residual, rad." },
+  { "car_last_error", "Pre-despread loop's residual, rad (slope 1)." },
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
   { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",

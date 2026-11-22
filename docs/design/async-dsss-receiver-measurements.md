@@ -4509,3 +4509,11 @@ Each loop has a whole-draw page and a page from the hand-over to the end of the 
 | code       | 8.56749 | 8.56749 | 2    | 3      | 20    | 0.000976563 | 0.002     |
 | demod      | 0.3     | 0.24    | 8    | 32     | 0     | 0.05        | 0.01      |
 | demod_sync | 0.311   | 0.311   | 2    | 6      | 133   | 0           | 0.005     |
+
+**Every capture's pages.** All 30 captured draws are drawn with the same page set, 477 pages. The four lead draws' pages are in the tree (run415/figs). The other 26 draws' pages (81 MB) are on swiftgo, and [run415/figs-index.csv](async-dsss-receiver-measurements/run415/figs-index.csv) gives each one's draw, arm, category, cell, seed, where it is and its page list. Any of them is drawn again from its capture by [run415/figs2.py](async-dsss-receiver-measurements/run415/figs2.py), run from the tree:
+
+```text
+.venv/bin/python figs2.py RUN_DIR OUT_DIR DRAW   # e.g. G-slips-2.8-10-37
+```
+
+The captures themselves are reproducible from the commit and the seed: `validate_async_dsss_receiver_pullin --telemetry DIR --draw F,E,0,SEED [--bn-carrier 0.04]` on `integ/async-rx` at `ed98d1fd8`, the build the controls passed on.

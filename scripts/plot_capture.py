@@ -420,17 +420,20 @@ def main(argv=None):
             ax.legend(fontsize=args.label_size - 1, loc="upper right")
         else:
             ax.plot(xs[name], series[name], lw=0.9)
-        for value, label in lines.get(name, ()):
+        for k, (value, label) in enumerate(lines.get(name, ())):
             ax.axhline(value, color="C3", lw=0.8, ls="--", zorder=1)
             if label:
+                # Alternate sides of the line, so two close references (a
+                # detector's up and down) do not print over each other.
+                above = k % 2 == 0
                 ax.annotate(
                     label,
                     (1.0, value),
                     xycoords=("axes fraction", "data"),
-                    xytext=(-2, 1),
+                    xytext=(-2, 1 if above else -1),
                     textcoords="offset points",
                     ha="right",
-                    va="bottom",
+                    va="bottom" if above else "top",
                     fontsize=args.label_size,
                     color="C3",
                 )

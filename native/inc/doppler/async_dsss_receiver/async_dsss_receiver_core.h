@@ -154,9 +154,12 @@ extern "C"
 {
 #endif
 
-  /** The pre-despread Costas's loop bandwidth (not a constructor parameter).
-   * The refine stage's frozen carrier never calls costas_update(), so its
-   * own bn/zeta are irrelevant -- only its tsamps and init_norm_freq matter.
+  /** The widest bandwidth the pre-despread Costas takes: the receiver's
+   * own is dp_async_dsss_receiver_carrier_bn() at its design C/N0, which is
+   * this value wherever the loop-SNR rule allows it and narrower where it
+   * does not. The refine stage's frozen carrier never calls costas_update(),
+   * so its own bn/zeta are irrelevant -- only its tsamps and init_norm_freq
+   * matter.
    *
    * 0.04 is set by pull-in and dynamics, not jitter: the refined seed
    * leaves a residual the loop must pull in, and tracking the specification's 500 Hz/s
@@ -181,20 +184,56 @@ extern "C"
    * is immune to the transitions, so the plain PLL tracks the coupled
    * Doppler. The FLL is not exposed at all. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
-/** The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles
- *  per sample over its one-code-period update (`m = 2`, the squaring
- *  discriminator), `native/validation/costas_pullin.c`'s measured 100%
- *  line -- reliable to twice it, dead by four. 97.8 Hz at 5 Mcps over
- *  Gold-1023. */
-#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
-  (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
+/** The pre-despread carrier loop's least loop SNR at the design C/N0, dB:
+ *  the owner's rule (async-dsss-receiver.md §1.3), `rho - 10 log10(2 bn)`
+ *  with `rho = C/N0 T` the update's SNR, so `bn <= rho / 200`. */
+#define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB 20.0
+/** The pre-despread carrier loop's acquisition bound, Hz, at bandwidth
+ *  @p bn: `bn / m` cycles per sample over its one-code-period update (`m =
+ *  2`, the squaring discriminator), `native/validation/costas_pullin.c`'s
+ *  measured 100% line -- reliable to twice it, dead by four. 97.8 Hz at
+ *  5 Mcps over Gold-1023 and bn 0.04. */
+#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
+  ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
 /** The least search depth, `coherent_bins`, a receiver built with `refine`
- *  false takes: half the search's Doppler row, `chip_rate / (2 * code_len *
- *  coherent_bins)`, is then inside ASYNC_DSSS_RX_CARRIER_PULLIN_HZ, which
- *  is `coherent_bins >= 1 / ASYNC_DSSS_RX_BN_CARRIER` at any chip rate
- *  (async-dsss-receiver.md §4.4). */
-#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS                                      \
-  ((size_t)(1.0 / ASYNC_DSSS_RX_BN_CARRIER + 0.5))
+ *  false takes at carrier bandwidth @p bn: half the search's Doppler row,
+ *  `chip_rate / (2 * code_len * coherent_bins)`, is then inside
+ *  ASYNC_DSSS_RX_CARRIER_PULLIN_HZ, which is `coherent_bins >= 1 / bn` at
+ *  any chip rate (async-dsss-receiver.md §4.4). */
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn) ((size_t)(1.0 / (bn) + 0.5))
+
+  /**
+   * @brief The pre-despread carrier loop's bandwidth at a design C/N0: the
+   *        owner's loop-SNR rule (async-dsss-receiver.md §1.3), no wider
+   *        than ASYNC_DSSS_RX_BN_CARRIER.
+   *
+   * The loop updates once a code period, `T = code_len / chip_rate`, on a
+   * coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR is `rho / (2
+   * bn)`, so ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB of it asks `bn <= rho /
+   * 200`. The bandwidth is that, or ASYNC_DSSS_RX_BN_CARRIER where the rule
+   * allows more: the rule is a ceiling, and the release's 0.04 is the
+   * widest the loop has been designed at. At the 415.1-B-1 floor (C/N0
+   * 38.77 dB-Hz) it is 0.0120 at 2.2 GHz and 0.0094 at 2.8 GHz.
+   * create() sizes the receiver's carrier loop with it, at `cn0_dbhz`.
+   *
+   * @param cn0_dbhz   Design C/N0, dB-Hz.
+   * @param chip_rate  Chips per second, > 0.
+   * @param code_len   Chips a code period, > 0.
+   * @return The bandwidth, per update.
+   * @code
+   * #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+   * #include <stdio.h>
+   * int main (void)
+   * {
+   *   double chip = 2.2e9 * 31.0 / 21216.0;  // 415.1-B-1 at 2.2 GHz
+   *   printf ("%.4f\n", dp_async_dsss_receiver_carrier_bn (38.77, chip, 1023));
+   *   printf ("%.2f\n", dp_async_dsss_receiver_carrier_bn (70.0, chip, 1023));
+   *   return 0;  // prints 0.0120 then 0.04
+   * }
+   * @endcode
+   */
+  double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
+                                            size_t code_len);
   /** The Dll's bn, per epoch whatever the steer rate (the symbol-period aid
    * steers once per symbol and keeps bn per epoch): DsssReceiver's value,
    * narrower than dp_dll_create()'s default 0.01 for noise immunity at the
@@ -414,6 +453,10 @@ typedef enum
                           (`m_out`: even, 2..8).                         */
     double chip_rate;    /**< Chip rate, Hz (config).                   */
     double symbol_rate;  /**< Data-symbol rate, Hz (config).            */
+    double bn_carrier; /**< Config: the pre-despread carrier loop's
+                            bandwidth, dp_async_dsss_receiver_carrier_bn()
+                            at cn0_dbhz, set by create() and restored by
+                            it (not in the blob: cn0_dbhz has no mutator). */
     double cn0_dbhz; /**< Design C/N0 -- feeds both Acquisition's own
                            sizing and (derated) CarrierAcquisition's
                            design_snr on every refine-chain (re)build. */
@@ -792,8 +835,10 @@ typedef enum
    *                search's Doppler row, `chip_rate / (code_len *
    *                coherent_bins)`, is inside the carrier loop's acquisition
    *                bound, ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is
-   *                `coherent_bins >= ASYNC_DSSS_RX_NO_REFINE_MIN_BINS`, 25,
-   *                at any chip rate. A receiver configured outside it (a one-epoch
+   *                `coherent_bins >= ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`,
+   *                with `bn` the receiver's carrier bandwidth
+   *                (dp_async_dsss_receiver_carrier_bn()): 25 at 0.04, at any
+   *                chip rate. A receiver configured outside it (a one-epoch
    *                search, D = 1, among them) is refused, and a blob in the
    *                refining state is refused by set_state(). The name is a
    *                placeholder (async-dsss-receiver.md §4.4).

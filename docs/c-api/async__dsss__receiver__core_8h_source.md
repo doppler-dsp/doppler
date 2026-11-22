@@ -42,10 +42,13 @@ extern "C"
 #endif
 
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
-#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
-  (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
-#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS                                      \
-  ((size_t)(1.0 / ASYNC_DSSS_RX_BN_CARRIER + 0.5))
+#define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB 20.0
+#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
+  ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn) ((size_t)(1.0 / (bn) + 0.5))
+
+  double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
+                                            size_t code_len);
 #define ASYNC_DSSS_RX_DLL_BN 0.002
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
   /* The damping of both Dlls this receiver builds, the tracker and the
@@ -163,6 +166,7 @@ typedef enum
     int    n;        
     double chip_rate;    
     double symbol_rate;  
+    double bn_carrier; 
     double cn0_dbhz; 
     double pfa;      
     double pd;       

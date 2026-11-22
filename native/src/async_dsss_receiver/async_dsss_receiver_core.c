@@ -139,6 +139,20 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
     s->both_down_samples = 0;
 }
 
+double
+dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
+                                   size_t code_len)
+{
+  /* rho = C/N0 T, T one code period: the update's coherent SNR. The rule's
+     loop SNR rho / (2 bn) at ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB is the
+     ceiling; the release's bandwidth is the widest taken. */
+  const double rho
+      = pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
+  const double bn
+      = rho / (2.0 * pow (10.0, ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB / 10.0));
+  return bn < ASYNC_DSSS_RX_BN_CARRIER ? bn : ASYNC_DSSS_RX_BN_CARRIER;
+}
+
 /* Allocate a fresh refine-stage chain (frozen carrier + collection Dll +
  * RateConverter + CarrierAcquisition, plus their scratch buffers) from
  * the given hand-off phase/frequency, without touching `s`'s existing
@@ -164,7 +178,7 @@ adr_build_refine_chain (
    * is ever touched. bn_fll = 0: no FLL anywhere in this object (see the
    * ASYNC_DSSS_RX_BN_CARRIER comment). */
   double front_end_rate = s->chip_rate * (double)s->spc;
-  dp_costas_init (car_frozen_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
+  dp_costas_init (car_frozen_out, s->bn_carrier, 0.707,
                   doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   dp_dll_state_t *refine_dll = dp_xnn (
@@ -375,7 +389,7 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
      the FLL cross-product is too noisy on the despread-symbol input and
      drives the carrier wander that causes the residual slips). */
-  dp_costas_init (car_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
+  dp_costas_init (car_out, s->bn_carrier, 0.707,
                   doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   *dll_out = dll;
@@ -1352,6 +1366,11 @@ dp_async_dsss_receiver_create (
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
+  /* The carrier loop's bandwidth, from the loop-SNR rule at the design
+     C/N0 (dp_async_dsss_receiver_carrier_bn()): the refine rule below and
+     every chain this receiver builds read it. */
+  obj->bn_carrier
+      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
   /* With no refine the search's Doppler is the hand-over, and the carrier
      loop pulls in from it only while half the search's Doppler row is
      inside the loop's acquisition bound (async-dsss-receiver.md §4.4).
@@ -1361,7 +1380,8 @@ dp_async_dsss_receiver_create (
      because at D = 1 / bn the two are equal. Outside it a seed would hand
      the loop a residual it cannot pull in, so the receiver is not built. */
   if (!refine
-      && obj->acq->search->coherent_bins < ASYNC_DSSS_RX_NO_REFINE_MIN_BINS)
+      && obj->acq->search->coherent_bins
+             < ASYNC_DSSS_RX_NO_REFINE_MIN_BINS (obj->bn_carrier))
     {
       dp_async_dsss_receiver_destroy (obj);
       return NULL;

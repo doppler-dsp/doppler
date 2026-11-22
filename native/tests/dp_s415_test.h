@@ -68,31 +68,34 @@ dp_s415_cn0 (double esn0_db)
   return esn0_db + 10.0 * log10 (DP_S415_SYM);
 }
 
-/** The receiver at the point and carrier @p fc, designed for @p cn0:
- *  the binding's defaults, the point's search span, its gap (the code-only
- *  symbols, in seconds) and its Doppler rate. @p refine is the argument
- *  the callers vary. */
+/** The receiver at the point and carrier @p fc, designed for the floor:
+ *  its `cn0_dbhz` is the floor's C/N0 (Es/N0 DP_S415_FLOOR_DB) whatever
+ *  level the scene runs at, since a receiver is built once, for its weakest
+ *  signal (owner, 2026-11-21). The binding's defaults, the point's search
+ *  span, its gap (the code-only symbols, in seconds) and its Doppler rate.
+ *  @p refine is the argument the callers vary. */
 static inline dp_async_dsss_receiver_state_t *
-dp_s415_rx (const uint8_t *code, double fc, double cn0, bool refine)
+dp_s415_rx (const uint8_t *code, double fc, bool refine)
 {
   return dp_async_dsss_receiver_create (
       code, DP_S415_SF, dp_s415_chip_rate (fc), DP_S415_SYM, DP_S415_FS, 2,
-      cn0, 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
-      100000, fc, 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
-      DP_S415_RATE_HZ_S, refine);
+      dp_s415_cn0 (DP_S415_FLOOR_DB), 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, false, 100000, fc, 0.0, false,
+      (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, DP_S415_RATE_HZ_S, refine);
 }
 
-/** A pool of @p n receivers at the point, as dp_s415_rx() builds each, with
- *  its release rule (@p lost_s) and @p threads. */
+/** A pool of @p n receivers at the point, as dp_s415_rx() builds each (at
+ *  the floor's C/N0), with its release rule (@p lost_s) and @p threads. */
 static inline dp_async_dsss_pool_state_t *
-dp_s415_pool (const uint8_t *code, double fc, size_t n, double cn0,
-              double lost_s, int threads)
+dp_s415_pool (const uint8_t *code, double fc, size_t n, double lost_s,
+              int threads)
 {
   return dp_async_dsss_pool_create (
       code, DP_S415_SF, n, dp_s415_chip_rate (fc), DP_S415_SYM, DP_S415_FS, 2,
-      cn0, 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
-      100000, fc, lost_s, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
-      DP_S415_RATE_HZ_S, threads, true);
+      dp_s415_cn0 (DP_S415_FLOOR_DB), 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, false, 100000, fc, lost_s, false,
+      (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, DP_S415_RATE_HZ_S, threads,
+      true);
 }
 
 /** An emitter on the air at the point: carrier @p fc, offset @p f0 Hz at

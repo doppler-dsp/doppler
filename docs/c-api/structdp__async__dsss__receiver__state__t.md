@@ -38,6 +38,7 @@ _Composed receiver state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  bool | [**align\_pending**](#variable-align_pending)  <br> |
+|  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
@@ -231,6 +232,23 @@ bool dp_async_dsss_receiver_state_t::align_pending;
 
 Running: the searcher was reset and discards search samples to the next multiple of `coherent_bins * code_bins` before its next dwell starts. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable bn\_carrier 
+
+```C++
+double dp_async_dsss_receiver_state_t::bn_carrier;
+```
+
+
+
+Config: the pre-despread carrier loop's bandwidth, [**dp\_async\_dsss\_receiver\_carrier\_bn()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_carrier_bn) at cn0\_dbhz, set by create() and restored by it (not in the blob: cn0\_dbhz has no mutator). 
 
 
         

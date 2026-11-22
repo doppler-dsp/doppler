@@ -1606,8 +1606,7 @@ _autocorr (const uint8_t *code, size_t t)
 static dp_async_dsss_pool_state_t *
 _g415_pool (const uint8_t *code, double lost_s)
 {
-  return dp_s415_pool (code, G415_FC, 2, dp_s415_cn0 (DP_S415_FLOOR_DB),
-                       lost_s, 1);
+  return dp_s415_pool (code, G415_FC, 2, lost_s, 1);
 }
 
 static int

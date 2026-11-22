@@ -235,9 +235,9 @@ bits_for (double samples)
 }
 
 static dp_async_dsss_receiver_state_t *
-lk_rx (const uint8_t *code, double fc, double cn0)
+lk_rx (const uint8_t *code, double fc)
 {
-  return dp_s415_rx (code, fc, cn0, true);
+  return dp_s415_rx (code, fc, true);
 }
 
 typedef struct
@@ -330,7 +330,7 @@ run_dropout (const uint8_t *code, double fc, double esn0_db, uint32_t seed,
   DP_REQUIRE (scene_init (&air, code, fc, out->carrier_hz, cn0, 0.0, frame0,
                           seed + 100000u, bits, n_bits));
   dp_awgn_state_t                *g  = lk_noise (seed + 100000u, cn0);
-  dp_async_dsss_receiver_state_t *rx = lk_rx (code, fc, cn0);
+  dp_async_dsss_receiver_state_t *rx = lk_rx (code, fc);
   if (!g || !rx)
     return 1;
   float complex *blk  = dp_xmalloc (PUSH * sizeof *blk);
@@ -595,7 +595,7 @@ run_story (const uint8_t *code, const story_t *st, const char *dir, int check,
                           (double)delay / DP_S415_FS, 0, st->seed, bits,
                           n_bits));
   dp_awgn_state_t                *g  = lk_noise (st->seed, cn0);
-  dp_async_dsss_receiver_state_t *rx = lk_rx (code, fc, cn0);
+  dp_async_dsss_receiver_state_t *rx = lk_rx (code, fc);
   if (!g || !rx)
     return 1;
   /* Every event mid-data: each cut and the departure, read off the
@@ -725,7 +725,7 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   const double fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
   const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
   const double rate                  = DP_S415_RATE_HZ_S;
-  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, refine);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, refine);
   /* The emitter on the air (native/tests/dp_air_test.h): the shipped synth
      with its window, the front end's converter, a Doppler channel on the
      ramp, the shipped noise; the truth is the channel's own offset. */
@@ -933,7 +933,7 @@ run_code_lock (const uint8_t *code, double fc, double esn0, int noisy, int pin,
   dp_air_t air;
   DP_REQUIRE (dp_air_init (&air, &e, 1, DP_S415_FS, noisy ? cn0 : NAN,
                            seed * 7919u + 3u, PUSH));
-  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true);
+  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, true);
   dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
   DP_REQUIRE (rx != NULL && tlm != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
@@ -1095,7 +1095,7 @@ run_noise_lock (const uint8_t *code, double fc, double esn0, int pin,
   dp_air_t air;
   DP_REQUIRE (
       dp_air_init (&air, &e, 1, DP_S415_FS, NAN, seed * 7919u + 5u, PUSH));
-  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, cn0, true);
+  dp_async_dsss_receiver_state_t *rx  = dp_s415_rx (code, fc, true);
   dp_tlm_t                       *tlm = dp_tlm_create (1u << 16);
   DP_REQUIRE (rx != NULL && tlm != NULL);
   DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)

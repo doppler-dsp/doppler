@@ -490,7 +490,7 @@ spec_src_next (spec_src_t *s, float _Complex *x, size_t n)
 static dp_async_dsss_receiver_state_t *
 spec_rx (const uint8_t *code, double fc, double cn0)
 {
-  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, cn0, true);
+  dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   if (rx)
     (void)dp_async_dsss_receiver_set_threads (rx, 1);
   return rx;

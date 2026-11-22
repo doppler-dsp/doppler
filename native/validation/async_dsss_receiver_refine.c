@@ -62,9 +62,9 @@
 #define RF_MAX_S 3.0 /* a refine longer than this is stuck */
 
 static dp_async_dsss_receiver_state_t *
-rf_rx (const uint8_t *code, double fc, double cn0)
+rf_rx (const uint8_t *code, double fc)
 {
-  return dp_s415_rx (code, fc, cn0, true);
+  return dp_s415_rx (code, fc, true);
 }
 
 /* Feed `rx` from `air` until it leaves refining; the samples fed, or 0 if
@@ -103,7 +103,7 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
   const double cn0 = dp_s415_cn0 (DP_S415_FLOOR_DB);
   dp_air_t     air;
   DP_REQUIRE (dp_air_init (&air, NULL, 0, DP_S415_FS, cn0, 4242u, RF_PUSH));
-  dp_async_dsss_receiver_state_t *rx = rf_rx (code, fc, cn0);
+  dp_async_dsss_receiver_state_t *rx = rf_rx (code, fc);
   DP_REQUIRE (rx != NULL);
   const double   pfa  = rx->pfa;
   const size_t   ocap = 1u << 14;
@@ -182,7 +182,7 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
   const size_t                    ocap = 1u << 14;
   float complex                  *x    = dp_xmalloc (RF_PUSH * sizeof *x);
   float complex                  *out  = dp_xmalloc (ocap * sizeof *out);
-  dp_async_dsss_receiver_state_t *rx   = rf_rx (code, fc, cn0);
+  dp_async_dsss_receiver_state_t *rx   = rf_rx (code, fc);
   DP_REQUIRE (rx != NULL);
   const double     off = rx->acq->search->doppler_res_hz * off_frac;
   dp_air_emitter_t e   = dp_s415_emitter (

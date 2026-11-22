@@ -1701,6 +1701,136 @@ _test_reacquire_after_switch_off (void)
  * unbroken, past the 0.02 s interval (16 kHz re-locks the loop and 28 kHz
  * also loses code lock, so 20 kHz sits mid-band). Sabotage: give reacquire
  * the both-flags test -> its row red. */
+/* The carrier children's configuration is a reject key. A receiver's blob
+ * restores into its twin (the control); one field of the source's carrier
+ * changed through carrier_nda's own setters (so the child itself is a valid
+ * carrier_nda blob) is refused, one row per key: the update period, the
+ * denominator's form, its design gamma, its weight, the block length, bn,
+ * zeta. So is a blob from a receiver built at another C/N0, the same size.
+ * The twin is untouched by a refusal of its carrier children. Sabotage:
+ * drop the adr_carrier_is_built() check -> every forged row restores, red. */
+static dp_async_dsss_receiver_state_t *
+_car_twin (double cn0)
+{
+  return dp_async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 3.0e6, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
+}
+
+static int
+_test_carrier_config_is_a_reject_key (void)
+{
+  for (int key = 0; key <= 8; key++)
+    {
+      dp_async_dsss_receiver_state_t *a = _car_twin (key == 8 ? 45.0 : 38.77);
+      dp_async_dsss_receiver_state_t *b = _car_twin (38.77);
+      DP_REQUIRE (a && b);
+      dp_carrier_nda_state_t *c = &a->car;
+      switch (key)
+        {
+        case 1:
+          DP_REQUIRE (dp_carrier_nda_set_update_period (c, 1.0) == DP_OK);
+          break;
+        case 2:
+          DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0, 0.0)
+                      == DP_OK);
+          break;
+        case 3:
+          DP_REQUIRE (dp_carrier_nda_set_denominator (c, 1.0 / 256.0,
+                                                      2.0 * a->car_gamma)
+                      == DP_OK);
+          break;
+        case 4:
+          DP_REQUIRE (
+              dp_carrier_nda_set_denominator (c, 1.0 / 128.0, a->car_gamma)
+              == DP_OK);
+          break;
+        case 5:
+          DP_REQUIRE (
+              dp_carrier_nda_set_block_lock (c, a->car_blk + 1u, 1e-3, 2, 3)
+              == DP_OK);
+          break;
+        case 6:
+          DP_REQUIRE (dp_carrier_nda_set_bn (c, 0.5 * a->bn_carrier) == DP_OK);
+          break;
+        case 7:
+          DP_REQUIRE (dp_loop_filter_configure (&c->lf, c->bn, 0.9, 1.0)
+                      == DP_OK);
+          c->lf.kp *= 0.15915494309189535;
+          c->lf.ki *= 0.15915494309189535;
+          c->zeta = 0.9;
+          break;
+        default:
+          break;
+        }
+      const size_t sz = dp_async_dsss_receiver_state_bytes (a);
+      DP_CHECK (sz == dp_async_dsss_receiver_state_bytes (b));
+      void *blob = malloc (sz);
+      dp_async_dsss_receiver_get_state (a, blob);
+      const dp_carrier_nda_state_t before = b->car;
+      const int rc = dp_async_dsss_receiver_set_state (b, blob);
+      DP_CHECK_MSG (key == 0 ? rc == DP_OK : rc == DP_ERR_INVALID,
+                    "a carrier the receiver did not build is refused");
+      if (key != 0)
+        DP_CHECK (b->car.bn == before.bn && b->car.t_upd == before.t_upd
+                  && b->car.den_gamma == before.den_gamma);
+      free (blob);
+      dp_async_dsss_receiver_destroy (a);
+      dp_async_dsss_receiver_destroy (b);
+    }
+  return 0;
+}
+
+/* The coast runs the carrier on its integrator. Locked at 70 dB-Hz on the
+ * CODE7 fixture, then the emitter is cut (silence): both flags fall, the
+ * receiver coasts, and on every period of the coast the carrier's NCO
+ * command is exactly the integrator's frequency, integ / t_upd, with no
+ * repeat of the held update's proportional step (carrier_nda_steer()
+ * spreads that step over one update; a coast that kept it would run a
+ * frequency bias of kp e / t_upd for the whole dropout). Sabotage: drop
+ * the hold on entering the coast -> red on the first coasting period. */
+static int
+_test_coast_runs_on_the_integrator (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs       = 1.0e6 * (double)spc;
+  const double    sym_rate = 35714.29;
+  const size_t    te       = sf * spc;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, fs / sym_rate, 0.0, 70.0, 3000,
+                   te * 5 + 3, 7, &x, &n, &data);
+  dp_async_dsss_receiver_state_t *rx
+      = _searching_rx (70.0, sym_rate, 1.0, false);
+  DP_REQUIRE (rx != NULL);
+  float _Complex *syms;
+  (void)_stream (rx, x, n, te, &syms);
+  free (syms);
+  DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+  float _Complex *z        = calloc (te, sizeof *z);
+  float _Complex *junk     = malloc (te * 8 * sizeof *junk);
+  size_t          coasting = 0, held = 0;
+  for (size_t k = 0; k < 4000; k++)
+    {
+      (void)dp_async_dsss_receiver_steps (rx, z, te, junk, te * 8);
+      if (rx->car_coasting)
+        {
+          coasting++;
+          held += rx->car.ctl_cyc == rx->car.lf.integ / rx->car.t_upd;
+        }
+    }
+  printf ("  coast: %zu coasting periods, %zu on the integrator alone\n",
+          coasting, held);
+  DP_CHECK (coasting > 0 && held == coasting);
+  free (junk);
+  free (z);
+  free (x);
+  free (data);
+  dp_async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 static int
 _test_reacquire_is_symbol_lock_alone (void)
 {
@@ -5938,6 +6068,8 @@ main (void)
   (void)_test_lost_after_switch_off ();
   (void)_test_reacquire_after_switch_off ();
   (void)_test_reacquire_is_symbol_lock_alone ();
+  DP_CHECK (_test_coast_runs_on_the_integrator () == 0);
+  DP_CHECK (_test_carrier_config_is_a_reject_key () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_configure_chain_raw_keeps_the_phase ();

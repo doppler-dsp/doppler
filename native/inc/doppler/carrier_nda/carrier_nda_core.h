@@ -960,6 +960,25 @@ carrier_nda_loop_error (double pe)
   dp_carrier_nda_get_lock_rule (const dp_carrier_nda_state_t *state);
 
   /**
+   * @brief Hold the loop: the NCO runs on the integrator alone until the
+   *        next update.
+   *
+   * carrier_nda_steer() commands `(integ + kp*e) / t_upd` cycles a sample,
+   * and carrier_nda_wipeoff() applies that command every sample until the
+   * next update: the proportional term `kp*e` is spread over the update's
+   * `t_upd` samples, a phase step of `kp*e` in all. A composer that stops
+   * updating (a coast, or a period whose update it skips) would otherwise go
+   * on applying that step every update interval, a frequency bias of `kp*e
+   * / t_upd` for as long as it holds. This sets the command to `integ /
+   * t_upd`, the integrator's frequency, as a coast should run. The
+   * integrator, the lock and the NCO's phase are unchanged; the next update
+   * steers as usual.
+   *
+   * @param state  Must be non-NULL.
+   */
+  void dp_carrier_nda_hold (dp_carrier_nda_state_t *state);
+
+  /**
    * @brief The carrier phase the NCO will apply @p ahead samples from now,
    *        with no loop update in between.
    *

@@ -1,7 +1,7 @@
 /**
  * @file async_dsss_receiver_core.h
  * @brief Composed continuous DSSS receiver: Acquisition -> hand-off ->
- *        CarrierAcquisition refine -> Costas/Dll/RateConverter/
+ *        CarrierAcquisition refine -> carrier_nda/Dll/RateConverter/
  *        MpskReceiver track, one object.
  *
  * Unlike `DsssReceiver`, which goes straight from an acquisition hit to
@@ -963,7 +963,7 @@ typedef enum
    *   keeps no running estimate while tracking;
    * - "<prefix>.phase.car" -- the pre-despread carrier NCO's phase at the
    *   call's FIRST sample, cycles in [0, 1)
-   *   (dp_costas_get_nco_phase_ahead() past the samples the chain still
+   *   (dp_carrier_nda_get_nco_phase_ahead() past the samples the chain still
    *   carries), exact: the loop steers only at a period's end. The phase
    *   of the tracking chain; while searching or refining it is the
    *   placeholder chain's, and ".state" says which;
@@ -990,8 +990,10 @@ typedef enum
    *
    * Each loop reports under the prefix, at its own update rate:
    * - "<prefix>.car" -- the chip-domain carrier loop
-   *   (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
-   *   ".nco", ".freq_rate", ".order"), once per carrier update: once a code
+   *   (dp_carrier_nda_set_telemetry(): ".lock", ".e", ".freq", ".locked",
+   *   ".nco"; ".e" is the raw discriminator, slope 2, so twice the phase
+   *   error in radians near lock, and ".lock" the last block's ratio of
+   *   sums), once per carrier update: once a code
    *   period, except while it
    *   coasts, when loop 1 is held;
    * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
@@ -1138,7 +1140,7 @@ typedef enum
    * of 0, until reset() -- and symbol lock (`locked`) is what says the
    * symbols are a signal's, so read it rather than the count (#2439).
    * Under the specification's coupled offset + 500 Hz/s Doppler ramp the pre-despread
-   * Costas removes the full carrier dynamics before the code loop, so the
+   * carrier loop removes the full carrier dynamics before the code loop, so the
    * recovered constellation lands cleanly on the BPSK real axis.
    *
    * @param state    Must be non-NULL.
@@ -1333,7 +1335,7 @@ typedef enum
     int    locked;       /**< Health flag: the symbol-lock detector.         */
     double lock_metric;  /**< cos(2*phi) over the symbols, drives `locked`.  */
     double lock_threshold; /**< `locked` declares strictly above this.      */
-    double car_last_error; /**< Pre-despread Costas residual, rad.          */
+    double car_last_error; /**< Pre-despread loop's residual, rad (slope 1). */
     double mpsk_last_error; /**< Post-despread carrier residual, rad.       */
     uint64_t state_samples; /**< Input samples since `state` was entered.   */
     uint64_t both_down_samples; /**< Input samples both flags have been down
@@ -1846,13 +1848,16 @@ typedef enum
    * @return 1 while code lock is declared, else 0. */
   int dp_async_dsss_receiver_get_code_locked (
       const dp_async_dsss_receiver_state_t *state);
-  /** @brief Pre-despread Costas phase discriminator (rad): the residual
-   * carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling.
+  /** @brief The pre-despread carrier loop's last phase error (rad): the
+   * residual carrier phase LOOP 1 (which de-rotates before the Dll) is not
+   * nulling, as its loop filter takes it -- carrier_nda's discriminator
+   * divided by its slope (carrier_nda_loop_error()), so radians near lock.
+   * The ".car.e" probe is the raw discriminator, twice this.
    * @param state  Must be non-NULL.
    * @return Phase error, radians. */
   double dp_async_dsss_receiver_get_car_last_error (
       const dp_async_dsss_receiver_state_t *state);
-  /** @brief LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency
+  /** @brief LOOP 1 (the pre-despread carrier loop) output = NCO frequency
    * command, cycles/sample of the front-end (chip_rate*spc) rate.
    * @param state  Must be non-NULL.
    * @return NCO command, cycles/sample at chip_rate * spc. */
@@ -1886,7 +1891,7 @@ typedef enum
    *   ASYNC_DSSS_RX_LOCK_UP / _DOWN / _N_UP / _N_DOWN; telemetry
    *   ".sym.lock";
    * - car: the pre-despread carrier loop's decision on its lock metric
-   *   (dp_costas_get_lock_rule()); ".car.lock";
+   *   (dp_carrier_nda_get_lock_rule()); ".car.lock";
    * - code: the Dll's decision on its statistic R
    *   (dp_dll_get_lock_rule()), as configure_lock_raw() last retuned it on
    *   the Dll held now; ".code.lock";

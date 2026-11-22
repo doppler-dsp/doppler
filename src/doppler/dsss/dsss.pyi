@@ -59,7 +59,7 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     lock_threshold : float
         `locked` declares strictly above this.
     car_last_error : float
-        Pre-despread Costas residual, rad.
+        Pre-despread loop's residual, rad (slope 1).
     mpsk_last_error : float
         Post-despread carrier residual, rad.
     state_samples : int
@@ -119,7 +119,7 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
 
     @property
     def car_last_error(self) -> float:
-        """Pre-despread Costas residual, rad."""
+        """Pre-despread loop's residual, rad (slope 1)."""
 
     @property
     def mpsk_last_error(self) -> float:
@@ -171,7 +171,7 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
     lock_threshold : float
         `locked` declares strictly above this.
     car_last_error : float
-        Pre-despread Costas residual, rad.
+        Pre-despread loop's residual, rad (slope 1).
     mpsk_last_error : float
         Post-despread carrier residual, rad.
     state_samples : int
@@ -231,7 +231,7 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
 
     @property
     def car_last_error(self) -> float:
-        """Pre-despread Costas residual, rad."""
+        """Pre-despread loop's residual, rad (slope 1)."""
 
     @property
     def mpsk_last_error(self) -> float:
@@ -2448,9 +2448,11 @@ class AsyncDsssReceiver:
         input sample with reacquire), refine_samples_per_symbol >= 1,
         refine_n_fft >= 1, refine_zero_pad >= 1, a symbol of at most 2^20 Dll
         partials, segments * chip_rate / (code_len * symbol_rate) <= 1048576;
-        and for the searcher a finite cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a
-        finite doppler_uncertainty >= 0; refine false needs a search at least
-        25 code periods deep; a symbol of at least a code period)``.
+        and for the searcher a finite cn0_dbhz whose update SNR over a code
+        period is finite and positive with a carrier bandwidth the loop filter
+        accepts, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
+        refine false needs a search at least 25 code periods deep; a symbol of
+        at least a code period)``.
 
     Examples
     --------
@@ -2536,9 +2538,9 @@ class AsyncDsssReceiver:
         lets it go -- or, at the default lost_confirm_s of 0, until reset() --
         and symbol lock (`locked`) is what says the symbols are a signal's, so
         read it rather than the count (#2439). Under the specification's
-        coupled offset + 500 Hz/s Doppler ramp the pre-despread Costas removes
-        the full carrier dynamics before the code loop, so the recovered
-        constellation lands cleanly on the BPSK real axis.
+        coupled offset + 500 Hz/s Doppler ramp the pre-despread carrier loop
+        removes the full carrier dynamics before the code loop, so the
+        recovered constellation lands cleanly on the BPSK real axis.
 
         Parameters
         ----------
@@ -2982,10 +2984,10 @@ class AsyncDsssReceiver:
           keeps no running estimate while tracking;
         - "<prefix>.phase.car" -- the pre-despread carrier NCO's phase at the
           call's FIRST sample, cycles in [0, 1)
-          (dp_costas_get_nco_phase_ahead() past the samples the chain still
-          carries), exact: the loop steers only at a period's end. The phase of
-          the tracking chain; while searching or refining it is the placeholder
-          chain's, and ".state" says which;
+          (dp_carrier_nda_get_nco_phase_ahead() past the samples the chain
+          still carries), exact: the loop steers only at a period's end. The
+          phase of the tracking chain; while searching or refining it is the
+          placeholder chain's, and ".state" says which;
         - "<prefix>.phase.code" -- the code NCO's prompt phase at the call's
           first sample, chips (dp_dll_get_code_phase_ahead()), exact to within
           a code-loop update inside the carried samples. It is the code NCO's
@@ -3010,9 +3012,11 @@ class AsyncDsssReceiver:
         Each loop reports under the prefix, at its own update rate:
 
         - "<prefix>.car" -- the chip-domain carrier loop
-          (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
-          ".nco", ".freq_rate", ".order"), once per carrier update: once a code
-          period, except while it coasts, when loop 1 is held;
+          (dp_carrier_nda_set_telemetry(): ".lock", ".e", ".freq", ".locked",
+          ".nco"; ".e" is the raw discriminator, slope 2, so twice the phase
+          error in radians near lock, and ".lock" the last block's ratio of
+          sums), once per carrier update: once a code period, except while it
+          coasts, when loop 1 is held;
         - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
           ".rate", ".lock", ".locked", ".nco", and the lock statistic's two
           terms ".prompt_amp" and ".offset_pwr"), once per code period (with
@@ -3479,13 +3483,16 @@ class AsyncDsssReceiver:
 
     @property
     def car_last_error(self) -> float:
-        """Pre-despread Costas phase discriminator (rad): the residual carrier
-        phase LOOP 1 (which de-rotates before the Dll) is not nulling.
+        """The pre-despread carrier loop's last phase error (rad): the residual
+        carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling,
+        as its loop filter takes it -- carrier_nda's discriminator divided by
+        its slope (carrier_nda_loop_error()), so radians near lock. The
+        ".car.e" probe is the raw discriminator, twice this.
         """
 
     @property
     def car_nco_freq(self) -> float:
-        """LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency
+        """LOOP 1 (the pre-despread carrier loop) output = NCO frequency
         command, cycles/sample of the front-end (chip_rate*spc) rate.
         """
 

@@ -206,10 +206,11 @@ dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
  * the loop filter's own divided by it. The question dp_loop_filter_state_ok
  * answers is about the filter's own gains, so it is asked of a copy with the
  * fold undone, rather than a second gains check living here. It is the bare
- * predicate: nothing embeds a carrier_nda by value, and every path that sets
- * the filter (create, set_bn) goes through dp_loop_filter_configure's domain
- * check, so a zeroed filter is a forgery that freezes the loop, not an
- * unseeded embedding. */
+ * predicate: every path that sets the filter (create, init, set_bn) goes
+ * through dp_loop_filter_configure's domain check, so a zeroed filter is a
+ * forgery that freezes the loop. A composer that embeds one by value (the
+ * async receiver's car and car_held) initializes it before any blob is
+ * taken, so a zeroed embedding is refused, not read as an unseeded loop. */
 /* The block lock's threshold on R at a Pfa, dp_det_ratio_threshold()'s:
    set_block_lock sets it and the state check recomputes it. */
 static double
@@ -513,6 +514,14 @@ double
 dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state)
 {
   return state->blk_thr;
+}
+
+void
+dp_carrier_nda_hold (dp_carrier_nda_state_t *state)
+{
+  /* The integrator's frequency, cycles a sample: the proportional term was
+     one update's phase step and is not repeated. */
+  state->ctl_cyc = state->lf.integ / state->t_upd;
 }
 
 dp_lockdet_rule_t

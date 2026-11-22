@@ -91,6 +91,7 @@ extern "C"
 #define CARRIER_NDA_DEN_LIMITER 0
 #define CARRIER_NDA_DEN_AVERAGED 1
 #define CARRIER_NDA_DEN_UNIT 2
+#define CARRIER_NDA_BLOCK_MAX_LEN 10000000u
 
   typedef struct
   {
@@ -121,13 +122,14 @@ extern "C"
     /* The composer's options (all off by default; see "Options for a
        composer" at the top). */
     double t_upd;     
-    int    den;       
     double den_alpha; 
     double den_gamma; 
     double pow_avg;   
     double pow_n;     
+    int32_t  den;     
     uint32_t blk_len; 
     uint32_t blk_n;   
+    uint32_t opt_zero; 
     double   blk_thr; 
     double   blk_pfa; 
     double   blk_num; 

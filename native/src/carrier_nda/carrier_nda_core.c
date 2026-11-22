@@ -108,6 +108,7 @@ dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
   s->blk_len   = 0;
   s->blk_thr   = 0.0;
   s->blk_pfa   = 0.0;
+  s->opt_zero  = 0;
   /* By-value init is unguarded: the caller checks (bn, zeta) with
      dp_loop_filter_params_ok() first, as dp_carrier_nda_create() does. */
   (void)config_loop (s, bn, zeta);
@@ -229,31 +230,59 @@ carrier_nda_state_ok (const dp_carrier_nda_state_t *s)
   lf.ki /= CARRIER_NDA_INV_2PI;
   /* `m` is the order create() takes, and the retained bn/zeta the getters
      report are the loop's own, as config_loop() stores them (#2022). */
-  /* The options as their setters leave them: a period >= 1, a known
-     denominator (M = 2 for the two averaged ones) with its own weight and
-     design SNR in range, and a block lock of >= 2 updates whose count is
-     inside it and whose threshold is the one its Pfa gives. */
+  /* The options as their setters, and an update, could leave them:
+     - a period >= 1;
+     - a known denominator with its own weight and design SNR in range (M =
+       2 for every form but the limiter), and a running average that is
+       finite and >= 0, and zero with its count while the limiter is in
+       force;
+     - a block lock of 2 to CARRIER_NDA_BLOCK_MAX_LEN updates whose count is
+       inside it, whose sums are what updates leave (finite, den >= 0,
+       |num| <= den, zero at a block's start), whose threshold is the one
+       its (len, pfa) gives and is the rule the lock detector holds; and
+       with the block lock off, nothing of it left.
+     The threshold is compared within 1e-9 relative, not bit for bit: it
+     comes out of a bisection over lgamma and a continued fraction, so a
+     blob written on one libm and restored on another may differ by ulps,
+     and 1e-9 is far under any difference a Pfa would notice. */
   const int den_ok
-      = s->den_alpha > 0.0 && s->den_alpha <= 1.0
+      = s->den_alpha > 0.0 && s->den_alpha <= 1.0 && isfinite (s->pow_avg)
+        && s->pow_avg >= 0.0 && isfinite (s->pow_n) && s->pow_n >= 0.0
         && (s->den == CARRIER_NDA_DEN_LIMITER
                 ? s->den_alpha == 1.0 && s->den_gamma == 0.0
+                      && s->pow_avg == 0.0 && s->pow_n == 0.0
             : s->den == CARRIER_NDA_DEN_AVERAGED
                 ? s->m == 2 && s->den_alpha < 1.0 && s->den_gamma == 0.0
             : s->den == CARRIER_NDA_DEN_UNIT
                 ? s->m == 2 && isfinite (s->den_gamma) && s->den_gamma > 0.0
                 : 0);
-  const int blk_ok
-      = s->blk_len == 0
-            ? s->blk_n == 0 && s->blk_thr == 0.0 && s->blk_pfa == 0.0
-            : s->m == 2 && s->blk_len >= 2 && s->blk_n < s->blk_len
-                  && s->blk_thr
-                         == carrier_nda_block_thresh (s->blk_len, s->blk_pfa);
+  int blk_ok;
+  if (s->blk_len == 0)
+    blk_ok = s->blk_n == 0 && s->blk_thr == 0.0 && s->blk_pfa == 0.0
+             && s->blk_num == 0.0 && s->blk_den == 0.0;
+  else
+    {
+      const double r = s->m == 2 && s->blk_len >= 2
+                               && s->blk_len <= CARRIER_NDA_BLOCK_MAX_LEN
+                               && s->blk_pfa > 0.0 && s->blk_pfa < 1.0
+                           ? carrier_nda_block_thresh (s->blk_len, s->blk_pfa)
+                           : NAN;
+      blk_ok = isfinite (r) && s->blk_n < s->blk_len
+               && fabs (s->blk_thr - r) <= 1e-9 * fabs (r)
+               && s->lockdet.up_thresh == s->blk_thr
+               && s->lockdet.down_thresh == s->blk_thr && isfinite (s->blk_num)
+               && isfinite (s->blk_den) && s->blk_den >= 0.0
+               && fabs (s->blk_num) <= s->blk_den * (1.0 + 1e-12)
+               && (s->blk_n > 0 || (s->blk_num == 0.0 && s->blk_den == 0.0));
+    }
   return (s->m == 2 || s->m == 4 || s->m == 8) && dp_loop_filter_state_ok (&lf)
          && s->bn == s->lf.bn && s->zeta == s->lf.zeta
          && dp_boxcar_state_ok (&s->arm) && dp_lockdet_state_ok (&s->lockdet)
-         && isfinite (s->t_upd) && s->t_upd >= 1.0 && den_ok && blk_ok
-         && isfinite (s->pow_avg) && s->pow_avg >= 0.0 && isfinite (s->pow_n)
-         && s->pow_n >= 0.0;
+         && isfinite (s->t_upd) && s->t_upd >= 1.0 && s->opt_zero == 0
+         && (s->den == CARRIER_NDA_DEN_LIMITER
+             || s->den == CARRIER_NDA_DEN_AVERAGED
+             || s->den == CARRIER_NDA_DEN_UNIT)
+         && den_ok && blk_ok;
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
@@ -398,6 +427,15 @@ dp_carrier_nda_configure_lock (dp_carrier_nda_state_t *state, double up_thresh,
                                double down_thresh, uint32_t n_up,
                                uint32_t n_down)
 {
+  /* The EMA's rule: a block lock in force gives way to it, so the reported
+     block_thresh and the rule deciding never disagree. */
+  if (state->blk_len)
+    {
+      state->blk_len = state->blk_n = 0;
+      state->blk_thr = state->blk_pfa = 0.0;
+      state->blk_num = state->blk_den = 0.0;
+      state->lock                     = 0.0;
+    }
   dp_lockdet_configure (&state->lockdet, up_thresh, down_thresh, n_up, n_down);
 }
 
@@ -414,7 +452,11 @@ dp_carrier_nda_set_update_period (dp_carrier_nda_state_t *state, double t_upd)
     return DP_ERR_INVALID;
   /* bn and zeta are kept and now mean per update; the filter's gains do
      not depend on the period (the loop is designed at t = 1 an update), so
-     only the spread over the update's samples changes. */
+     only the spread over the update's samples changes. The integrator holds
+     cycles an update: rescaled by new/old it keeps the tracked frequency,
+     integ / t_upd cycles a sample, through the call. ctl_cyc is already
+     cycles a sample and stays. */
+  state->lf.integ *= t_upd / state->t_upd;
   state->t_upd = t_upd;
   return DP_OK;
 }
@@ -455,7 +497,8 @@ dp_carrier_nda_set_block_lock (dp_carrier_nda_state_t *state, uint32_t len,
     }
   else
     {
-      if (state->m != 2 || len < 2 || !(pfa > 0.0 && pfa < 1.0))
+      if (state->m != 2 || len < 2 || len > CARRIER_NDA_BLOCK_MAX_LEN
+          || !(pfa > 0.0 && pfa < 1.0))
         return DP_ERR_INVALID;
       state->blk_len = len;
       state->blk_pfa = pfa;

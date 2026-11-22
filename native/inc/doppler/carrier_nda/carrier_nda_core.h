@@ -254,6 +254,13 @@ extern "C"
  *  gain 1 where the estimate holds, never above the design point's, never
  *  the averaged form's sign. M = 2 only. */
 #define CARRIER_NDA_DEN_UNIT 2
+/** @brief The largest block a block lock takes, updates. Its threshold is
+ *  dp_det_threshold_f()'s F(len, len) quantile, a bisection on a continued
+ *  fraction capped at 300 terms. Against scipy's `f.isf`, the threshold r it
+ *  gives holds to 1e-9 relative at 1e7 and fails outright between 2e8 and
+ *  5e8 (r even turns negative at 2^31). A block of 1e7 code periods is
+ *  about 50 minutes at the 415.1-B-1 point. */
+#define CARRIER_NDA_BLOCK_MAX_LEN 10000000u
 
   /**
    * @brief Telemetry attachment: a borrowed context + this object's probe
@@ -302,13 +309,16 @@ extern "C"
     /* The composer's options (all off by default; see "Options for a
        composer" at the top). */
     double t_upd;     /**< samples a loop update (1 = every sample).      */
-    int    den;       /**< CARRIER_NDA_DEN_*: what divides the error.     */
     double den_alpha; /**< the averaged power's EMA weight a update.      */
     double den_gamma; /**< the unit form's design update SNR, linear.     */
     double pow_avg;   /**< running average of |z|^2 (averaged, unit).     */
     double pow_n;     /**< updates averaged so far: the boot's mean.      */
+    int32_t  den;     /**< CARRIER_NDA_DEN_*: what divides the error.     */
     uint32_t blk_len; /**< block lock: updates a block (0 = the EMA).     */
     uint32_t blk_n;   /**< updates in the current block.                  */
+    uint32_t opt_zero; /**< always 0: the four 32-bit fields fill two
+                            words, so a whole-struct blob has no padding
+                            between them; the state check holds it 0.   */
     double   blk_thr; /**< its threshold on R (exact Beta, at blk_pfa).   */
     double   blk_pfa; /**< the false-alarm rate the threshold is for.    */
     double   blk_num; /**< sum of I^2 - Q^2 in the current block.        */
@@ -748,7 +758,9 @@ extern "C"
    * n_up=8; n_up=64 was the smallest verify count that reliably
    * eliminated them -- see carrier_nda_core.c's CARRIER_NDA_LOCK_DEFAULT_*
    * comment for the exact trial data). A live lock survives the re-tune;
-   * the in-flight verify run restarts.
+   * the in-flight verify run restarts. It re-tunes the EMA's rule: with a
+   * block lock set (dp_carrier_nda_set_block_lock()), it returns to the EMA
+   * first, so block_thresh and the rule in force never disagree.
    *
    * @param state        Must be non-NULL.
    * @param up_thresh    Declare threshold on the lock-signal EMA.
@@ -786,8 +798,11 @@ extern "C"
    * per update: `bn` becomes the noise bandwidth times the update period
    * (`B_L * t_upd / fs`), and the filter's output, a frequency in cycles an
    * update, is spread over the update's samples (carrier_nda_steer()). The
-   * frequency readouts follow. The configured `bn` and `zeta` are kept, and
-   * the running state (the NCO, the integrator, the lock) is not touched.
+   * frequency readouts follow. The configured `bn` and `zeta` are kept. On a
+   * running loop the integrator, which holds cycles an update, is rescaled by
+   * the new period over the old, so the tracked frequency (cycles a sample)
+   * and the command held for the next sample are unchanged by the call; the
+   * NCO and the lock are not touched.
    *
    * dp_carrier_nda_steps() runs the loop once a sample, so it is defined at
    * the default 1 only: at any other period it writes nothing and returns 0.
@@ -869,12 +884,14 @@ extern "C"
    * decision restarts unlocked, and the block in progress is cleared.
    *
    * @param state   Must be non-NULL.
-   * @param len     Updates a block, >= 2; or 0 for the EMA.
+   * @param len     Updates a block, 2 to CARRIER_NDA_BLOCK_MAX_LEN; or 0 for
+   *                the EMA.
    * @param pfa     The false-alarm rate a block, in (0, 1).
    * @param n_up    Blocks above the threshold to declare; clamped >= 1.
    * @param n_down  Blocks below it to drop; clamped >= 1.
    * @return DP_OK, or DP_ERR_INVALID (nothing changes) for an M other than
-   *         2, a @p len of 1, or a @p pfa out of range.
+   *         2, a @p len of 1 or past CARRIER_NDA_BLOCK_MAX_LEN, or a @p pfa
+   *         out of range.
    * @code
    * >>> from doppler.track import CarrierNda
    * >>> c = CarrierNda(bn=0.012, sps=8, n=1, m=2)

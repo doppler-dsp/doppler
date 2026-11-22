@@ -737,6 +737,7 @@
 * **ok** ([**ber\_align\_t**](structber__align__t.md), [**frame\_check\_t**](structframe__check__t.md), [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md))
 * **out\_bits** ([**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md), [**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md))
 * **outer** ([**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md))
+* **opt\_zero** ([**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md))
 * **offset** ([**dp\_chunk\_t**](structdp__chunk__t.md), [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **out\_buf** ([**dp\_correlator\_search**](structdp__correlator__search.md))
 * **off\_peak** ([**dp\_correlator\_shape\_t**](structdp__correlator__shape__t.md))

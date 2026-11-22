@@ -4006,7 +4006,10 @@ class CarrierNda:
         input found real false locks at n_up=8; n_up=64 was the smallest verify
         count that reliably eliminated them -- see carrier_nda_core.c's
         CARRIER_NDA_LOCK_DEFAULT_* comment for the exact trial data). A live
-        lock survives the re-tune; the in-flight verify run restarts.
+        lock survives the re-tune; the in-flight verify run restarts. It
+        re-tunes the EMA's rule: with a block lock set
+        (dp_carrier_nda_set_block_lock()), it returns to the EMA first, so
+        block_thresh and the rule in force never disagree.
 
         Parameters
         ----------
@@ -4037,8 +4040,11 @@ class CarrierNda:
         per update: `bn` becomes the noise bandwidth times the update period
         (`B_L * t_upd / fs`), and the filter's output, a frequency in cycles an
         update, is spread over the update's samples (carrier_nda_steer()). The
-        frequency readouts follow. The configured `bn` and `zeta` are kept, and
-        the running state (the NCO, the integrator, the lock) is not touched.
+        frequency readouts follow. The configured `bn` and `zeta` are kept. On
+        a running loop the integrator, which holds cycles an update, is
+        rescaled by the new period over the old, so the tracked frequency
+        (cycles a sample) and the command held for the next sample are
+        unchanged by the call; the NCO and the lock are not touched.
 
         dp_carrier_nda_steps() runs the loop once a sample, so it is defined at
         the default 1 only: at any other period it writes nothing and returns
@@ -4146,7 +4152,7 @@ class CarrierNda:
         Parameters
         ----------
         len : int
-            Updates a block, >= 2; or 0 for the EMA.
+            Updates a block, 2 to CARRIER_NDA_BLOCK_MAX_LEN; or 0 for the EMA.
         pfa : float, default 1e-3
             The false-alarm rate a block, in (0, 1).
         n_up : int, default 2

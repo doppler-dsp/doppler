@@ -111,6 +111,27 @@
  * which makes the silent failure structurally unreachable and leaves only the
  * loud one.
  *
+ * @par Options for a composer that updates once a block
+ * A composer that runs the loop on its own integrate-and-dump (a despreader's
+ * window sum once a code period, say) drives it through the composition API,
+ * carrier_nda_wipeoff() once a sample and carrier_nda_update() once a sum,
+ * and sets up to three options, each off by default, so dp_carrier_nda_steps()
+ * and every existing caller are unchanged:
+ *   - **the update period**, dp_carrier_nda_set_update_period(): `bn` becomes
+ *     per update and the loop's command is spread over the samples of an
+ *     update, as `Costas` does;
+ *   - **the denominator**, dp_carrier_nda_set_denominator(): the phase error
+ *     over an average of `|z|^2` (the averaged form, gain `gamma/(gamma+1)`),
+ *     or over that average less the caller's noise power, clamped (the unit
+ *     form, gain 1), in place of the per-update limiter;
+ *   - **a block lock**, dp_carrier_nda_set_block_lock(): the ratio of sums
+ *     `R = sum(I^2 - Q^2) / sum(I^2 + Q^2)` over a block, against the exact
+ *     Beta threshold at a Pfa, in place of the per-sample EMA.
+ * The two M-th-power options are derived at M = 2 only and refused at 4 and
+ * 8, whose laws are not derived. The derivation and the numbers at the
+ * 415.1-B-1 point are docs/design/async-dsss-receiver.md, "The pre-despread
+ * carrier loop becomes carrier_nda".
+ *
  * @par What `n` costs
  * `n` sets the arm window to `sps / n` samples, and the window is not free:
  * the arm averages across data transitions, so its coherent gain after the
@@ -142,6 +163,7 @@
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include <math.h>
 #include "doppler/telemetry/telemetry_core.h"
+#include "doppler/detection/detection_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -218,6 +240,21 @@ extern "C"
  * A threshold of `eta * this` has per-look Pfa = Q(eta). */
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
 
+/** @brief The denominator in force (the state's `den`, which
+ *  dp_carrier_nda_set_denominator() derives from its arguments): the
+ *  update's own `|z|^2`, a per-update limiter (the default, and the one
+ *  carrier_nda_disc() computes). Gain `E[1/(1 + n/A)]`, falling with SNR. */
+#define CARRIER_NDA_DEN_LIMITER 0
+/** @brief An average of `|z|^2` (an EMA, booted as a cumulative mean). Its
+ *  mean is signal plus noise, so the gain is `gamma/(gamma + 1)` at update
+ *  SNR gamma. M = 2 only. */
+#define CARRIER_NDA_DEN_AVERAGED 1
+/** @brief That average less the caller's noise power, clamped between
+ *  avg * gamma_d/(gamma_d + 1) and avg, with gamma_d the design update SNR:
+ *  gain 1 where the estimate holds, never above the design point's, never
+ *  the averaged form's sign. M = 2 only. */
+#define CARRIER_NDA_DEN_UNIT 2
+
   /**
    * @brief Telemetry attachment: a borrowed context + this object's probe
    *        ids.  NULL ctx (the default) means detached — the probe site is
@@ -232,6 +269,7 @@ extern "C"
     int32_t   id_e;      /**< "<prefix>.e"    — M-th-power phase error */
     int32_t   id_freq;   /**< "<prefix>.freq" — tracked carrier freq   */
     int32_t   id_locked; /**< "<prefix>.locked" — lockdet flag 0/1     */
+    int32_t   id_nco;    /**< "<prefix>.nco" — the full NCO command    */
   } carrier_nda_tlm_t;
 
   /**
@@ -261,6 +299,20 @@ extern "C"
                                   counters stepped on `lock` each sample
                                   (mirrors MpskReceiver's own pre-existing
                                   handover step on this same statistic).   */
+    /* The composer's options (all off by default; see "Options for a
+       composer" at the top). */
+    double t_upd;     /**< samples a loop update (1 = every sample).      */
+    int    den;       /**< CARRIER_NDA_DEN_*: what divides the error.     */
+    double den_alpha; /**< the averaged power's EMA weight a update.      */
+    double den_gamma; /**< the unit form's design update SNR, linear.     */
+    double pow_avg;   /**< running average of |z|^2 (averaged, unit).     */
+    double pow_n;     /**< updates averaged so far: the boot's mean.      */
+    uint32_t blk_len; /**< block lock: updates a block (0 = the EMA).     */
+    uint32_t blk_n;   /**< updates in the current block.                  */
+    double   blk_thr; /**< its threshold on R (exact Beta, at blk_pfa).   */
+    double   blk_pfa; /**< the false-alarm rate the threshold is for.    */
+    double   blk_num; /**< sum of I^2 - Q^2 in the current block.        */
+    double   blk_den; /**< sum of I^2 + Q^2 in the current block.         */
     carrier_nda_tlm_t tlm;   /**< live telemetry attachment; zeroed in blobs */
   } dp_carrier_nda_state_t;
 
@@ -455,8 +507,10 @@ extern "C"
    * @brief Steer the NCO with a phase error through the loop filter.
    *
    * Filters @p pe and stores the PI filter's output (`integ + kp*pe`, in
-   * cycles/sample) as the frequency control the next carrier_nda_wipeoff()
-   * feeds the LO.
+   * cycles an update) spread over the update's `t_upd` samples, cycles a
+   * sample, as the frequency control the next carrier_nda_wipeoff() feeds
+   * the LO. At the default `t_upd` of 1 the division is exact and the
+   * control is the filter's output.
    *
    * @param s   Carrier loop state.  Must be non-NULL.
    * @param pe  Phase error from the NDA discriminator (carrier_nda_arm_step).
@@ -475,8 +529,88 @@ extern "C"
      * cycles/sample and n-invariant — n only sets the window length. lf.integ
      * is thus the carrier frequency correction in cycles/sample (read back by
      * dp_carrier_nda_get_norm_freq). */
-    s->ctl_cyc = dp_loop_filter_step (&s->lf, pe);
+    s->ctl_cyc = dp_loop_filter_step (&s->lf, pe) / s->t_upd;
   }
+
+  /**
+   * @brief One loop update on a caller's integrate-and-dump @p z: the
+   * discriminator with the configured denominator, the configured lock
+   * statistic, and the steer.
+   *
+   * The composition API's update, for a caller that forms its own arm (a
+   * despread window sum, once a code period) and calls
+   * carrier_nda_wipeoff() once a sample in between. With every option at its
+   * default it is exactly dp_carrier_nda_steps()'s per-sample update:
+   * carrier_nda_disc() on @p z, the lock EMA and its decision, the steer.
+   *
+   * - **The error** is `Im(z^M)` over the configured denominator: `|z|^M`
+   *   (the limiter, carrier_nda_disc()), the running average of `|z|^2`
+   *   (averaged, M = 2), or that average less @p noise_pw, clamped
+   *   (unit, M = 2). The running average takes @p z before it divides, and
+   *   boots as a cumulative mean: the weight is the larger of 1/n and
+   *   `den_alpha`.
+   * - **The lock** is the EMA of `Re((z/|z|)^M)` and its decision, or, with
+   *   a block lock set, the ratio of sums over the block, decided once a
+   *   block against its threshold.
+   *
+   * @param s         Carrier loop state.  Must be non-NULL.
+   * @param z         The update's arm sample (any scale).
+   * @param noise_pw  The noise power in @p z's own units (`E|n|^2` of one
+   *                  update), read by the unit denominator only; pass 0
+   *                  otherwise.
+   */
+#ifndef __cplusplus
+  JM_FORCEINLINE JM_HOT void
+  carrier_nda_update (dp_carrier_nda_state_t *s, float _Complex z,
+                      double noise_pw)
+  {
+    double pe, lk;
+    carrier_nda_disc (z, s->m, &pe, &lk);
+    if (s->den != CARRIER_NDA_DEN_LIMITER)
+      {
+        /* M = 2 only (set_denominator refuses the rest): Im(z^2) = 2IQ over
+           the average power, or over the average less the noise, clamped
+           between the design point's signal share and the average itself.
+           Formed in double: the products are of the caller's scale. */
+        const double i = (double)crealf (z), q = (double)cimagf (z);
+        const double p = i * i + q * q;
+        s->pow_n += 1.0;
+        const double w = 1.0 / s->pow_n > s->den_alpha ? 1.0 / s->pow_n
+                                                       : s->den_alpha;
+        s->pow_avg += w * (p - s->pow_avg);
+        double a2 = s->pow_avg;
+        if (s->den == CARRIER_NDA_DEN_UNIT)
+          {
+            const double lo = s->pow_avg * s->den_gamma / (s->den_gamma + 1.0);
+            a2              = s->pow_avg - noise_pw;
+            a2              = a2 < lo ? lo : a2 > s->pow_avg ? s->pow_avg : a2;
+          }
+        pe = a2 > 0.0 ? 2.0 * i * q / a2 : 0.0;
+      }
+    if (s->blk_len)
+      {
+        /* The ratio of sums over the block, R = sum(I^2 - Q^2) / sum(I^2 +
+           Q^2), M = 2: Beta(B/2, B/2) about 0 on noise, so its threshold is
+           exact (set_block_lock). */
+        const double i = (double)crealf (z), q = (double)cimagf (z);
+        s->blk_num += i * i - q * q;
+        s->blk_den += i * i + q * q;
+        if (++s->blk_n >= s->blk_len)
+          {
+            s->lock = s->blk_den > 0.0 ? s->blk_num / s->blk_den : 0.0;
+            (void)dp_lockdet_step (&s->lockdet, s->lock);
+            s->blk_n   = 0;
+            s->blk_num = s->blk_den = 0.0;
+          }
+      }
+    else
+      {
+        s->lock += CARRIER_NDA_LOCK_ALPHA * (lk - s->lock);
+        (void)dp_lockdet_step (&s->lockdet, s->lock);
+      }
+    carrier_nda_steer (s, pe);
+  }
+#endif /* !__cplusplus */
 
   /**
    * @brief Create an NDA carrier loop instance.
@@ -553,9 +687,11 @@ extern "C"
    * "<prefix>.lock" (the lock-signal EMA), "<prefix>.e" (the M-th-power
    * phase discriminator — the loop stress), "<prefix>.freq" (the tracked
    * carrier, NCO centre + integrated correction, cycles/sample) and
-   * "<prefix>.locked" (the verify-counted lockdet decision, 0/1).
-   * A composing receiver (the MPSK receiver) calls this once per recovered
-   * symbol instead.
+   * "<prefix>.locked" (the verify-counted lockdet decision, 0/1) and
+   * "<prefix>.nco" (the full NCO command, centre plus `integ + kp*e` spread
+   * over the update, cycles/sample: dp_carrier_nda_get_nco_freq()). A
+   * composer that updates once a block calls this once an update; summed over
+   * the update's samples, `.nco` is the phase the LO advanced by.
    *
    * @param s  State with a non-NULL tlm.ctx (caller-checked).
    */
@@ -564,12 +700,14 @@ extern "C"
   /**
    * @brief Attach (or detach) a telemetry context and register the carrier
    * loop's probes on it.
-   * Registers four probes, emitted once per input sample (this is a
+   * Registers five probes, emitted once per input sample (this is a
    * sample-rate loop — use @p decim to thin the stream): "<prefix>.lock"
-   * (the lock-signal EMA, ~1 when phase-locked), "<prefix>.e" (the
-   * M-th-power phase discriminator — the loop stress), "<prefix>.freq" (the
-   * tracked carrier frequency, cycles/sample) and "<prefix>.locked" (the
-   * verify-counted lockdet decision, 0/1).  Passing NULL detaches.
+   * (the lock statistic: the EMA, ~1 when phase-locked, or the last block's
+   * R), "<prefix>.e" (the M-th-power phase discriminator — the loop
+   * stress), "<prefix>.freq" (the tracked carrier frequency,
+   * cycles/sample), "<prefix>.locked" (the verify-counted lockdet decision,
+   * 0/1) and "<prefix>.nco" (the full NCO command, cycles/sample).  Passing
+   * NULL detaches.
    * Setup path, never hot: call before the producer thread starts
    * stepping; the context is borrowed and must outlive the attachment
    * (SPSC rules in dp_tlm/dp_tlm_core.h).
@@ -578,7 +716,7 @@ extern "C"
    * @param prefix Probe-name prefix, e.g. "car" or "rx.car".
    * @param decim  Emit every decim-th sample; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
-   *         four probes (the attach fails whole; everything stays
+   *         five probes (the attach fails whole; everything stays
    *         detached).
    * @code
    * >>> import numpy as np
@@ -588,7 +726,7 @@ extern "C"
    * >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
    * >>> c.set_telemetry(tlm, "car", decim=8)
    * >>> sorted(tlm.probe_names)
-   * ['car.e', 'car.freq', 'car.lock', 'car.locked']
+   * ['car.e', 'car.freq', 'car.lock', 'car.locked', 'car.nco']
    * >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(
    * ...     np.complex64)
    * >>> _ = c.steps(x)
@@ -646,16 +784,132 @@ extern "C"
    *  @return 1 when locked, 0 otherwise (0 after create/reset). */
   int dp_carrier_nda_get_locked (const dp_carrier_nda_state_t *state);
 
+  /**
+   * @brief Set the loop's update period: @p t_upd samples a loop update.
+   *
+   * For a composer that updates the loop once a block (carrier_nda_update()
+   * once a sum, carrier_nda_wipeoff() once a sample). The loop is designed
+   * per update: `bn` becomes the noise bandwidth times the update period
+   * (`B_L * t_upd / fs`), and the filter's output, a frequency in cycles an
+   * update, is spread over the update's samples (carrier_nda_steer()). The
+   * frequency readouts follow. The configured `bn` and `zeta` are kept, and
+   * the running state (the NCO, the integrator, the lock) is not touched.
+   *
+   * dp_carrier_nda_steps() runs the loop once a sample, so it is defined at
+   * the default 1 only: at any other period it writes nothing and returns 0.
+   *
+   * @param state  Must be non-NULL.
+   * @param t_upd  Samples an update, finite and >= 1 (it may be fractional:
+   *               a code period of 2,750.4 samples).
+   * @return DP_OK, or DP_ERR_INVALID (nothing changes) for a period that is
+   *         not finite or under 1.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import CarrierNda
+   * >>> c = CarrierNda(bn=0.012, sps=8, n=1, m=2)
+   * >>> c.set_update_period(3500.0)   # once a code period of 3,500 samples
+   * >>> len(c.steps(np.ones(8, dtype=np.complex64)))   # steps() is per sample
+   * 0
+   *
+   * @endcode
+   */
+  int dp_carrier_nda_set_update_period (dp_carrier_nda_state_t *state,
+                                        double                  t_upd);
+
+  /**
+   * @brief Choose what divides the phase error: the update's power averaged
+   * with weight @p alpha, less the caller's noise power when @p gamma_d is
+   * set.
+   *
+   * One parametrization covers the three forms:
+   *   - `alpha = 1, gamma_d = 0`: one update's own `|z|^2`, the limiter (the
+   *     default; carrier_nda_disc()'s arithmetic, exactly);
+   *   - `alpha < 1, gamma_d = 0`: the average, the averaged form;
+   *   - `gamma_d > 0`: the average less the noise, clamped between the
+   *     design point's signal share, `avg * gamma_d/(gamma_d + 1)`, and the
+   *     average itself, the unit form.
+   * At update SNR `gamma` the limiter's gain falls with the SNR, the averaged
+   * form's is `gamma/(gamma + 1)`, and the unit form's is 1 while the
+   * caller's noise power holds (carrier_nda_update()). The clamp keeps the
+   * unit form's gain at most the design point's 1, and its sign the
+   * average's, at boot or when the noise estimate is off.
+   *
+   * Every form but the limiter is derived at M = 2 only and refused at M = 4
+   * and 8. Setting a form clears the running average; the loop's other state
+   * is untouched.
+   *
+   * @param state    Must be non-NULL.
+   * @param alpha    The average's EMA weight an update, in (0, 1]: 1/256 at
+   *                 the 415.1-B-1 point, 1 for the limiter.
+   * @param gamma_d  The design update SNR, linear: > 0 for the unit form,
+   *                 0 otherwise.
+   * @return DP_OK, or DP_ERR_INVALID (nothing changes) for an @p alpha
+   *         outside (0, 1], a @p gamma_d negative or not finite, or a form
+   *         other than the limiter at an M other than 2.
+   * @code
+   * >>> from doppler.track import CarrierNda
+   * >>> c = CarrierNda(bn=0.01, sps=8, n=1, m=2)
+   * >>> c.set_denominator(1.0 / 256.0, 2.4)   # the unit form, gamma_d 3.8 dB
+   * >>> c.set_denominator(1.0, 0.0)           # back to the limiter
+   *
+   * @endcode
+   */
+  int dp_carrier_nda_set_denominator (dp_carrier_nda_state_t *state,
+                                      double alpha, double gamma_d);
+
+  /**
+   * @brief Decide the lock on a block: the ratio of sums over @p len
+   * updates, against the exact threshold at @p pfa.
+   *
+   * `R = sum(I^2 - Q^2) / sum(I^2 + Q^2)` over a block of updates, dumped
+   * once a block. On noise alone `(R + 1)/2` is exactly `Beta(len/2,
+   * len/2)`: the block's own total power is the noise reference, so the
+   * threshold needs no noise estimate. It is that law's upper @p pfa point,
+   * through dp_det_threshold_f() (`R > r` is `X/Y > (1 + r)/(1 - r)` for
+   * `X, Y` chi-square on @p len degrees). The decision takes @p n_up blocks
+   * above it to declare and @p n_down below it to drop (one threshold, time
+   * hysteresis only). `lock` then reads the last block's R.
+   *
+   * @p len 0 returns to the per-sample EMA and its default rule
+   * (dp_carrier_nda_configure_lock()'s). M = 2 only. Either way the lock
+   * decision restarts unlocked, and the block in progress is cleared.
+   *
+   * @param state   Must be non-NULL.
+   * @param len     Updates a block, >= 2; or 0 for the EMA.
+   * @param pfa     The false-alarm rate a block, in (0, 1).
+   * @param n_up    Blocks above the threshold to declare; clamped >= 1.
+   * @param n_down  Blocks below it to drop; clamped >= 1.
+   * @return DP_OK, or DP_ERR_INVALID (nothing changes) for an M other than
+   *         2, a @p len of 1, or a @p pfa out of range.
+   * @code
+   * >>> from doppler.track import CarrierNda
+   * >>> c = CarrierNda(bn=0.012, sps=8, n=1, m=2)
+   * >>> c.set_block_lock(31, 1e-3, 2, 3)
+   * >>> round(c.block_thresh, 3)   # the Beta(15.5, 15.5) upper 1e-3 point
+   * 0.518
+   *
+   * @endcode
+   */
+  int dp_carrier_nda_set_block_lock (dp_carrier_nda_state_t *state,
+                                     uint32_t len, double pfa, uint32_t n_up,
+                                     uint32_t n_down);
+
+  /** @brief The block lock's threshold on R (0 when the EMA decides).
+   *  @param state  Must be non-NULL.
+   *  @return The threshold set_block_lock() derived, or 0. */
+  double dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop
  * exactly.
  */
 /** @brief State-blob magic for CarrierNda (FourCC "CNDA"). */
 #define CARRIER_NDA_STATE_MAGIC DP_FOURCC ('C', 'N', 'D', 'A')
-/** @brief State-blob layout version (v5: the arm AGC was removed). */
+/** @brief State-blob layout version (v6: the composer's options). */
 #define CARRIER_NDA_STATE_VERSION                                             \
-  5u /* v5: the arm AGC is gone -- carrier_nda_disc normalises by its own    \
-        |z|^M, so nothing upstream has to manufacture |z| = 1 (gh-657) */
+  6u /* v6: the update period, the denominator, the block lock and their     \
+        running sums; v5: the arm AGC is gone -- carrier_nda_disc            \
+        normalises by its own |z|^M (gh-657) */
 
   /**
    * @brief Serialized-state byte size.
@@ -718,7 +972,9 @@ extern "C"
    * @param x_len    Number of input samples.
    * @param out      De-rotated samples, one per input.
    * @param max_out  Capacity of @p out.
-   * @return Number of de-rotated samples written to @p out (equals @p x_len).
+   * @return Number of de-rotated samples written to @p out (equals @p x_len);
+   *         0, with nothing written, when an update period other than 1 is
+   *         set (dp_carrier_nda_set_update_period()).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import CarrierNda
@@ -743,7 +999,8 @@ extern "C"
                             size_t x_len, float _Complex *out, size_t max_out);
   /**
    * @brief Tracked carrier frequency: the NCO centre plus the loop's
-   * integrated correction (integrator only, smoothed).
+   * integrated correction (integrator only, smoothed), spread over the
+   * update period.
    *
    * Under a frequency ramp it lags the true carrier by the Type-II ramp
    * error; see dp_carrier_nda_get_nco_freq() for the full command.
@@ -796,9 +1053,9 @@ extern "C"
   /**
    * @brief Loop noise bandwidth currently in use.
    * @param state  Must be non-NULL.
-   * @return bn in cycles/sample (the loop updates every sample): the
-   *         create() value or the last one dp_carrier_nda_set_bn()
-   *         accepted.
+   * @return bn per update, cycles an update: cycles/sample at the default
+   *         update period of 1. The create() value or the last one
+   *         dp_carrier_nda_set_bn() accepted.
    */
   double dp_carrier_nda_get_bn (const dp_carrier_nda_state_t *state);
   /** @brief Retune bn, keeping zeta. A bn outside dp_loop_filter_params_ok()

@@ -962,7 +962,8 @@ add_executable(test_tlm_bound_real native/tests/test_tlm_bound_real.c)
 target_link_libraries(
   test_tlm_bound_real
   PRIVATE dp_tlm_capture_core dp_tlm_core carrier_nda_core lo_core
-          loop_filter_core boxcar_core agc_core lockdet_core Threads::Threads ${DP_MATH_LIBRARY})
+          loop_filter_core boxcar_core agc_core lockdet_core detection_core
+          Threads::Threads ${DP_MATH_LIBRARY})
 target_include_directories(test_tlm_bound_real
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)

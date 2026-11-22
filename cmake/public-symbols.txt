@@ -11,6 +11,7 @@ carrier_mpsk_wipeoff function
 carrier_nda_arm_step function
 carrier_nda_disc function
 carrier_nda_steer function
+carrier_nda_update function
 carrier_nda_wipeoff function
 conv_next_state function
 conv_states function
@@ -436,6 +437,7 @@ dp_carrier_mpsk_steps_max_out function
 dp_carrier_nda_configure_lock function
 dp_carrier_nda_create function
 dp_carrier_nda_destroy function
+dp_carrier_nda_get_block_thresh function
 dp_carrier_nda_get_bn function
 dp_carrier_nda_get_last_error function
 dp_carrier_nda_get_lock function
@@ -448,10 +450,13 @@ dp_carrier_nda_get_sps function
 dp_carrier_nda_get_state function
 dp_carrier_nda_init function
 dp_carrier_nda_reset function
+dp_carrier_nda_set_block_lock function
 dp_carrier_nda_set_bn function
+dp_carrier_nda_set_denominator function
 dp_carrier_nda_set_norm_freq function
 dp_carrier_nda_set_state function
 dp_carrier_nda_set_telemetry function
+dp_carrier_nda_set_update_period function
 dp_carrier_nda_state_bytes function
 dp_carrier_nda_steps function
 dp_carrier_nda_steps_max_out function

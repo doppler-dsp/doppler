@@ -571,6 +571,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: CarrierNda(0.01, 0.707, 0.0, 4, 2, 4),
         lambda o, seg: np.array(o.steps(seg)),
     ),
+    # BPSK: the composer's denominators and block lock exist at M = 2 only,
+    # so their values are probed on this row.
+    "CarrierNda_m2": (
+        lambda: CarrierNda(0.01, 0.707, 0.0, 4, 2, 2),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
     "LoopFilter": (
         lambda: LoopFilter(0.01, 0.707, 1.0),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),

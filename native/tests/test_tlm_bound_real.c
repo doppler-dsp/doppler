@@ -13,8 +13,8 @@
  *
  * carrier_nda is the deliberate choice. Of the eleven instrumented objects it
  * is the ONLY unconditional per-input emitter -- its flush is not gated on a
- * strobe, so it fires four probes every single input sample, plus a fifth
- * (the embedded AGC's gain) every eighth. Anything that would break the bound
+ * strobe, so it fires five probes every single input sample. Anything that
+ * would break the bound
  * breaks it here first.
  *
  * The strong assertion is `count <= bound`, not `dropped == 0`. Zero drops
@@ -63,10 +63,12 @@ main (void)
   DP_CHECK (dp_carrier_nda_set_telemetry (c, t, "car", 1) == DP_OK);
 
   size_t probes = dp_tlm_probe_count (t);
-  /* 4, all its own. Was 5 until gh-657 retired the embedded arm AGC and with
-     it the forwarded "car.agc.gain_db". If this number moves, the bound moves
-     with it -- which is the point of deriving it rather than hard-coding. */
-  DP_CHECK (probes == 4);
+  /* 5, all its own: lock, e, freq, locked and the full NCO command, nco
+     (added for a composer that updates once a block). gh-657 had taken it
+     from 5 to 4 by retiring the embedded arm AGC and its forwarded
+     "car.agc.gain_db". If this number moves, the bound moves with it --
+     which is the point of deriving it rather than hard-coding. */
+  DP_CHECK (probes == 5);
 
   size_t bound = dp_tlm_block_bound (t, BLOCK);
   DP_CHECK (bound == probes * BLOCK);
@@ -115,8 +117,8 @@ main (void)
   DP_CHECK (dp_tlm_dropped (t) == 0);
 
   /* Tightness, which is what makes the inequality above mean something. The
-     audit predicts this object emits 4 probes per input UNCONDITIONALLY and
-     nothing else -- 2048 records for a 512-sample block, which is the bound
+     audit predicts this object emits 5 probes per input UNCONDITIONALLY and
+     nothing else -- 2560 records for a 512-sample block, which is the bound
      exactly. The measurement agrees to the record, so the bound is not merely
      satisfied, it is understood.
 
@@ -124,7 +126,8 @@ main (void)
      AGC's gain every AGC_DECIM_DEFAULT (8) inputs. gh-657 removed that AGC,
      which is precisely the kind of density change this equality exists to
      make someone look at -- it went red, and the audit was updated rather
-     than the assertion relaxed.
+     than the assertion relaxed. The .nco probe took it from 4 to 5 the same
+     way.
 
      Two assertions, doing different jobs. The floor catches the ratio
      collapsing -- a silent object satisfies `worst <= bound` while proving
@@ -133,7 +136,7 @@ main (void)
      goes red, and that is the correct outcome. */
   DP_CHECK (total > 0);
   DP_CHECK (worst > bound / 2);
-  DP_CHECK (worst == 4 * BLOCK); /* the audit's exact prediction */
+  DP_CHECK (worst == 5 * BLOCK); /* the audit's exact prediction */
 
   dp_tlm_capture_destroy (cap);
   dp_tlm_destroy (t);

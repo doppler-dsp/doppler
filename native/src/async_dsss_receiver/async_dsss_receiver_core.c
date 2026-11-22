@@ -139,17 +139,43 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
     s->both_down_samples = 0;
 }
 
+/* The carrier loop's design point and block lock, from the design C/N0.
+ * gamma is the update's SNR, C/N0 over a code period. The loop's jitter is
+ * the unit denominator's: its error, divided by the slope, has variance
+ * (1 + 1/(2 gamma)) / (2 gamma) an update, and the closed loop passes 2 bn
+ * of it (pin 18 of test_carrier_nda_core.c measures that law), so
+ * phase_var = bn (1 + 1/(2 gamma)) / gamma: 1/200 rad^2 at the rule's bn.
+ * The block is the least whose ratio of sums detects at Pd
+ * ASYNC_DSSS_RX_CAR_LOCK_PD against the exact threshold at Pfa
+ * ASYNC_DSSS_RX_CAR_LOCK_PFA: at the 415.1-B-1 floor 33 updates at 2.2 GHz
+ * and 43 at 2.8 GHz. */
+static void
+adr_size_carrier_lock (dp_async_dsss_receiver_state_t *s, double cn0_dbhz,
+                       double chip_rate, size_t code_len)
+{
+  const double g = pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
+  const double var = s->bn_carrier * (1.0 + 1.0 / (2.0 * g)) / g;
+  const int    b = dp_det_ratio_block_len (g, var, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+                                           ASYNC_DSSS_RX_CAR_LOCK_PD,
+                                           (int)CARRIER_NDA_BLOCK_MAX_LEN);
+  s->car_gamma   = g;
+  s->car_blk     = b > 0 ? (uint32_t)b : 0u;
+}
+
 double
 dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                    size_t code_len)
 {
   /* rho = C/N0 T, T one code period: the update's coherent SNR. The rule's
-     loop SNR rho / (2 bn) at ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB is the
-     ceiling; the release's bandwidth is the widest taken. */
+     loop SNR rho S_L / (2 bn) at ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB is the
+     ceiling, counting the squaring loss S_L = 1 / (1 + 1/(2 rho)) of the
+     M = 2 detector (the owner's ruling, 2026-11-22); the release's
+     bandwidth is the widest taken. */
   const double rho
       = pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
   const double bn
-      = rho / (2.0 * pow (10.0, ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB / 10.0));
+      = rho / (1.0 + 1.0 / (2.0 * rho))
+        / (2.0 * pow (10.0, ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB / 10.0));
   return bn < ASYNC_DSSS_RX_BN_CARRIER ? bn : ASYNC_DSSS_RX_BN_CARRIER;
 }
 
@@ -294,7 +320,7 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
 static void
 adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                        double doppler_hz_est, size_t segments, size_t sps,
-                       int n, dp_costas_state_t *car_out,
+                       int n, dp_carrier_nda_state_t *car_out,
                        dp_dll_state_t           **dll_out,
                        dp_RateConverter_state_t **rc_out,
                        dp_mpsk_receiver_state_t **rx_out)
@@ -386,11 +412,31 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
    * integration by `segments`, too weak/noisy to steer a clean carrier
    * estimate. Pure PLL, no FLL (bn_fll = 0 below). */
   double front_end_rate = s->chip_rate * (double)s->spc;
-  /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
-     the FLL cross-product is too noisy on the despread-symbol input and
-     drives the carrier wander that causes the residual slips). */
-  dp_costas_init (car_out, s->bn_carrier, 0.707,
-                  doppler_hz_est / front_end_rate, s->tsamps, 0.0);
+  /* carrier_nda at M = 2 through its composition API: the receiver wipes
+     each sample (carrier_nda_wipeoff) and hands it the Dll's window sum
+     once a period (carrier_nda_update), so its update period is the
+     period's samples, and its arm (sps 8, n 1) is never stepped. The unit
+     denominator divides the error by the window sum's signal power,
+     averaged at ASYNC_DSSS_RX_CAR_DEN_ALPHA less the Dll's window noise,
+     clamped below at the design point's share (car_gamma). The lock is the
+     ratio of sums of I^2 - Q^2 over I^2 + Q^2 on blocks of car_blk
+     updates, at Pfa ASYNC_DSSS_RX_CAR_LOCK_PFA, with the code lock's
+     verify counts. Every option is a valid configuration create()
+     vouched for, so a refusal here is a defect. */
+  dp_carrier_nda_init (car_out, s->bn_carrier, 0.707,
+                       doppler_hz_est / front_end_rate, 8, 1, 2);
+  if (dp_carrier_nda_set_update_period (car_out, (double)s->tsamps) != DP_OK
+      || dp_carrier_nda_set_denominator (car_out, ASYNC_DSSS_RX_CAR_DEN_ALPHA,
+                                         s->car_gamma)
+             != DP_OK
+      || (s->car_blk
+          && dp_carrier_nda_set_block_lock (
+                 car_out, s->car_blk, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+                 (uint32_t)dp_det_verify_count (ASYNC_DSSS_RX_CAR_LOCK_PFA,
+                                                1e-6),
+                 (uint32_t)dp_det_verify_count (0.01, 1e-6))
+                 != DP_OK))
+    abort ();
 
   *dll_out = dll;
   *rc_out  = rc;
@@ -467,9 +513,9 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   int r
       = s->acq ? dp_correlator_set_telemetry (s->acq, t, acq, d, NULL) : DP_OK;
   if (r == DP_OK)
-    r = dp_costas_set_telemetry (&s->car, t, car, d);
+    r = dp_carrier_nda_set_telemetry (&s->car, t, car, d);
   if (r == DP_OK)
-    r = dp_costas_set_telemetry (&s->car_held, t, car, d);
+    r = dp_carrier_nda_set_telemetry (&s->car_held, t, car, d);
   if (r == DP_OK)
     r = dp_dll_set_telemetry (s->dll, t, code, d);
   /* The code loop's filter at its own cadence, each steer of the symbol
@@ -544,8 +590,8 @@ static void
 adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
 {
   const char *p = s->tlm_prefix;
-  (void)dp_costas_set_telemetry (&s->car, NULL, p, 1);
-  (void)dp_costas_set_telemetry (&s->car_held, NULL, p, 1);
+  (void)dp_carrier_nda_set_telemetry (&s->car, NULL, p, 1);
+  (void)dp_carrier_nda_set_telemetry (&s->car_held, NULL, p, 1);
   (void)dp_dll_set_telemetry (s->dll, NULL, p, 1);
   (void)dp_dll_set_steer_telemetry (s->dll, NULL, p, 1);
   (void)dp_RateConverter_set_telemetry (s->rc, NULL, p, 1);
@@ -590,7 +636,7 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
                          double doppler_hz_est, size_t segments, size_t sps,
                          int n)
 {
-  dp_costas_state_t         car;
+  dp_carrier_nda_state_t    car;
   dp_dll_state_t           *dll = NULL;
   dp_RateConverter_state_t *rc  = NULL;
   dp_mpsk_receiver_state_t *rx  = NULL;
@@ -864,32 +910,26 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
       dp_tlm_emit (s->tlm, s->tlm_hold, (double)(code_up && sym_up));
     }
   for (size_t i = 0; i < s->tsamps; i++)
-    s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
+    s->car_wiped_buf[i] = carrier_nda_wipeoff (&s->car, period[i]);
   size_t n_out
       = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
   if (n_out > 0 && !car_coast)
     {
-      /* NON-DATA-AIDED carrier discriminator over the code period: the
-         one coherent sum over the code-period window the Dll's look-back
-         picked this period (dp_dll_get_window_sum()), a transition-free
-         window whenever a symbol is at least a code period, which create()
-         requires. Squaring removes the BPSK data (d^2 = 1) with no sign
-         decision; half the squared sum's angle is the carrier phase (mod
-         pi, the harmless BPSK ambiguity). It reaches the Costas loop as a
-         unit phasor (Re = cos(phi) >= 0, so its own data wipe never flips
-         it, and its discriminator reads sin(phi)): the NDA principle the
-         downstream MpskReceiver carrier loop uses, applied PRE-despread so
-         despreading stays coherent instead of leaving the whole carrier
-         burden to the post-despread loop. */
-      const float _Complex w  = dp_dll_get_window_sum (s->dll);
-      const float _Complex sq = w * w;
-      double phi              = 0.5 * atan2 (cimag (sq), creal (sq));
-      float _Complex P        = (float)cos (phi) + (float)sin (phi) * I;
-      costas_update (&s->car, P);
-      /* costas_update() emits nothing: the composing caller flushes
-         the loop's probes once per update (costas_core.h). */
+      /* The carrier loop's update: the one coherent sum over the
+         code-period window the Dll's look-back picked this period
+         (dp_dll_get_window_sum()), a transition-free window whenever a
+         symbol is at least a code period, which create() requires. Its
+         M = 2 error Im(w^2) removes the BPSK data (d^2 = 1) with no sign
+         decision, and is divided by the window's signal power: the
+         running average of |w|^2 less the Dll's noise on the window
+         sum's scale (dp_dll_get_window_noise()). The lock's ratio of sums
+         is formed on the same w. */
+      carrier_nda_update (&s->car, dp_dll_get_window_sum (s->dll),
+                          dp_dll_get_window_noise (s->dll));
+      /* carrier_nda_update() emits nothing: the composing caller flushes
+         the loop's probes once per update. */
       if (s->car.tlm.ctx)
-        dp_costas_tlm_flush (&s->car);
+        dp_carrier_nda_tlm_flush (&s->car);
       /* Continuous carrier->code aiding: the pre-despread Costas tracks the
          FULL carrier offset (including the 500 Hz/s ramp), so refresh the
          code NCO's rate bias from it every period. This keeps the initial
@@ -898,7 +938,7 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
          (dll_set_rate_ aid only stores the field, never clobbers phase_inc).
          Off when carrier_freq_hz == 0. */
       if (s->carrier_freq_hz > 0.0)
-        dp_dll_set_rate_aid (s->dll, dp_costas_get_norm_freq (&s->car)
+        dp_dll_set_rate_aid (s->dll, dp_carrier_nda_get_norm_freq (&s->car)
                                          * (s->chip_rate * (double)s->spc)
                                          / s->carrier_freq_hz);
     }
@@ -1393,6 +1433,7 @@ dp_async_dsss_receiver_create (
      every chain this receiver builds read it. */
   obj->bn_carrier
       = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
+  adr_size_carrier_lock (obj, cn0_dbhz, chip_rate, code_len);
   /* With no refine the search's Doppler is the hand-over, and the carrier
      loop pulls in from it only while half the search's Doppler row is
      inside the loop's acquisition bound (async-dsss-receiver.md §4.4).
@@ -2154,8 +2195,8 @@ dp_async_dsss_receiver_steps (dp_async_dsss_receiver_state_t *state,
   double ph_car = 0.0, ph_code = 0.0;
   if (state->tlm && x_len)
     {
-      ph_car
-          = dp_costas_get_nco_phase_ahead (&state->car, state->car_carry_len);
+      ph_car  = dp_carrier_nda_get_nco_phase_ahead (&state->car,
+                                                    state->car_carry_len);
       ph_code = dp_dll_get_code_phase_ahead (state->dll, state->car_carry_len);
     }
   size_t n_out = adr_steps (state, x, x_len, out, max_out);
@@ -2336,7 +2377,7 @@ dp_async_dsss_receiver_configure_lock_raw (
 static double
 adr_tracked_doppler_hz (const dp_async_dsss_receiver_state_t *s)
 {
-  return dp_costas_get_norm_freq (&s->car) * s->chip_rate * (double)s->spc
+  return dp_carrier_nda_get_norm_freq (&s->car) * s->chip_rate * (double)s->spc
          + dp_mpsk_receiver_get_norm_freq (s->rx)
                * ((double)s->sps * s->symbol_rate);
 }
@@ -2525,7 +2566,7 @@ dp_lockdet_rule_t
 dp_async_dsss_receiver_get_car_lock_rule (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return dp_costas_get_lock_rule (&state->car);
+  return dp_carrier_nda_get_lock_rule (&state->car);
 }
 
 dp_lockdet_rule_t
@@ -2567,14 +2608,14 @@ double
 dp_async_dsss_receiver_get_car_last_error (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return dp_costas_get_last_error (&state->car);
+  return dp_carrier_nda_get_last_error (&state->car);
 }
 
 double
 dp_async_dsss_receiver_get_car_nco_freq (
     const dp_async_dsss_receiver_state_t *state)
 {
-  return dp_costas_get_nco_freq (&state->car);
+  return dp_carrier_nda_get_nco_freq (&state->car);
 }
 
 double
@@ -2592,9 +2633,10 @@ dp_async_dsss_receiver_state_bytes (const dp_async_dsss_receiver_state_t *s)
          + dp_costas_state_bytes (&s->car_frozen)
          + dp_dll_state_bytes (s->refine_dll)
          + dp_RateConverter_state_bytes (s->refine_rc)
-         + dp_carrier_acq_state_bytes (s->ca) + dp_costas_state_bytes (&s->car)
-         + dp_costas_state_bytes (&s->car_held) + dp_dll_state_bytes (s->dll)
-         + dp_RateConverter_state_bytes (s->rc)
+         + dp_carrier_acq_state_bytes (s->ca)
+         + dp_carrier_nda_state_bytes (&s->car)
+         + dp_carrier_nda_state_bytes (&s->car_held)
+         + dp_dll_state_bytes (s->dll) + dp_RateConverter_state_bytes (s->rc)
          + dp_mpsk_receiver_state_bytes (s->rx)
          + (s->srch_rs ? dp_resamp_state_bytes (s->srch_rs) : 0)
          + s->srch_hist_cap * sizeof (float _Complex)
@@ -2657,8 +2699,8 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
   DP_W_CHILD (&_w, dp_dll, s->refine_dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->refine_rc);
   DP_W_CHILD (&_w, dp_carrier_acq, s->ca);
-  DP_W_CHILD (&_w, dp_costas, &s->car);
-  DP_W_CHILD (&_w, dp_costas, &s->car_held);
+  DP_W_CHILD (&_w, dp_carrier_nda, &s->car);
+  DP_W_CHILD (&_w, dp_carrier_nda, &s->car_held);
   DP_W_CHILD (&_w, dp_dll, s->dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->rc);
   DP_W_CHILD (&_w, dp_mpsk_receiver, s->rx);
@@ -2759,8 +2801,8 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   DP_R_CHILD (&_r, dp_dll, s->refine_dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->refine_rc);
   DP_R_CHILD (&_r, dp_carrier_acq, s->ca);
-  DP_R_CHILD (&_r, dp_costas, &s->car);
-  DP_R_CHILD (&_r, dp_costas, &s->car_held);
+  DP_R_CHILD (&_r, dp_carrier_nda, &s->car);
+  DP_R_CHILD (&_r, dp_carrier_nda, &s->car_held);
   DP_R_CHILD (&_r, dp_dll, s->dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->rc);
   DP_R_CHILD (&_r, dp_mpsk_receiver, s->rx);

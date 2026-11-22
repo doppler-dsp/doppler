@@ -35,6 +35,7 @@
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 #ifdef __cplusplus
 extern "C"
 {

@@ -41,12 +41,14 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
-|  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
+|  [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) | [**car**](#variable-car)  <br> |
+|  uint32\_t | [**car\_blk**](#variable-car_blk)  <br> |
 |  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  int | [**car\_coasting**](#variable-car_coasting)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car\_frozen**](#variable-car_frozen)  <br> |
-|  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
+|  double | [**car\_gamma**](#variable-car_gamma)  <br> |
+|  [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
 |  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
@@ -298,13 +300,30 @@ Owned CarrierAcquisition refining the Doppler.
 ### variable car 
 
 ```C++
-dp_costas_state_t dp_async_dsss_receiver_state_t::car;
+dp_carrier_nda_state_t dp_async_dsss_receiver_state_t::car;
 ```
 
 
 
 Track stage: pre-despread carrier loop (loop 1), by value. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable car\_blk 
+
+```C++
+uint32_t dp_async_dsss_receiver_state_t::car_blk;
+```
+
+
+
+Config: the carrier block lock's length, updates, det\_ratio\_block\_len() at car\_gamma and the loop's jitter (0: no block reaches Pd, the EMA decides). Set and restored by create(). 
 
 
         
@@ -382,10 +401,27 @@ Refine-stage carrier wipe, frozen at the seed's coarse Doppler (never updated).
 
 
 
+### variable car\_gamma 
+
+```C++
+double dp_async_dsss_receiver_state_t::car_gamma;
+```
+
+
+
+Config: the carrier loop's update SNR at cn0\_dbhz, linear (C/N0 over a code period): the unit denominator's clamp and the block lock's sizing read it. Set and restored by create(). 
+
+
+        
+
+<hr>
+
+
+
 ### variable car\_held 
 
 ```C++
-dp_costas_state_t dp_async_dsss_receiver_state_t::car_held;
+dp_carrier_nda_state_t dp_async_dsss_receiver_state_t::car_held;
 ```
 
 

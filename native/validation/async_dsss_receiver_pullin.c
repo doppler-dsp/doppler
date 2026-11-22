@@ -111,45 +111,15 @@
  * the comparison with the default 4. `--bn-carrier BN` tracks with the
  * pre-despread carrier loop at noise bandwidth BN per code period in
  * place of the receiver's own (dp_async_dsss_receiver_carrier_bn() at the
- * C/N0 it is built at): the loop filter is re-initialised
- * through the receiver's state on each entry into tracking (integrator
- * kept), and each row records the bandwidth it ran at (bn_car).
+ * C/N0 it is built at): the bandwidth is set through
+ * dp_carrier_nda_set_bn() on each entry into tracking (zeta and the
+ * integrator kept), and each row records the bandwidth it ran at (bn_car).
  * `--bn-carrier rule` holds every cell at the floor's bandwidth, the
  * receiver's own derivation at the 4 dB floor's C/N0 (pi_bn_rule()), where
  * a receiver built at a cell's C/N0 above the floor takes a wider one.
- * `--loop-order N` names the carrier loop's order, recorded per row
- * (loop_order); 2 is the built loop. At 3, `--acq a|b|c` is how the loop
- * gets there (docs/design/async-dsss-receiver.md 4.9, "Acquisition"),
- * recorded per row (acq), with BN the tracking bandwidth (--bn-carrier's,
- * or the rule's, or the built one):
- *   a  enter tracking at order 2 at the built bandwidth; at the stint's
- *      first lock (both flags up, the coast's own event) switch to
- *      order 3 at BN (dp_costas_set_order: the frequency carries, the
- *      rate starts at 0);
- *   b  enter at order 3 at the built bandwidth; at the first lock narrow
- *      to BN (dp_costas_configure: frequency and rate kept);
- *   c  order 3 at BN from the entry into tracking (the default; the
- *      control);
- *   d  as a, but the switch waits until the order-2 loop has settled under
- *      the ramp (its error's mean over 5 / BN updates within 3 sigma /
- *      sqrt(n) of the design lag x / ki), then the integrator's slope over
- *      the next 5 / BN updates (slope_settled_hz_s; the seed with
- *      --seed-rate);
- *   e  at the first lock, order 3 at the derived wide bandwidth, held the
- *      derived time, then narrowed to BN in one configure;
- *   f  as e, narrowed in two steps (the geometric mean, held 5 / bn_mid
- *      updates, then BN).
- * The wide bandwidth and the holds are pi_switch_design()'s, printed in the
- * `# switch` section. t_narrow_s is when the narrow order-3 loop is in
- * place; rate_pre/post_narrow_hz_s the rate either side of the last
- * narrowing (configure keeps it).
- * Each row records when design a or b switched (t_switch_s), the slope of
- * the order-2 loop's frequency over the stint up to then (slope_hz_s, a
- * least-squares fit over the blocks, Hz/s) and the rate the third-order
- * filter holds at the end (rate_end_hz_s). `--seed-rate` (design a) seeds
- * the rate at the switch from that slope (dp_costas_set_norm_rate); without
- * it the rate starts at 0. A capture carries car.order and car.rate_hz_s
- * once a block.
+ * The order-3 arms (`--loop-order 3`, `--acq`, `--seed-rate`) were
+ * retired when the receiver's carrier loop became carrier_nda, which is
+ * second order.
  *
  * The C12 controls (docs/design/async-dsss-receiver.md §4.11):
  * `--no-emitter` renders the emitter 400 dB under the noise, the scene's
@@ -160,20 +130,19 @@
  * the cell's own claims are not asserted on a control's draws.
  *
  * `--design` prints only the `# design` section, which --emit also prints:
- * per carrier, level and order, the loop the rule and the run's
+ * per carrier and level, the second-order loop the rule and the run's
  * bandwidth ask for, read through the shipped exact functions
- * (dp_state_filter_loop_bandwidth / _loop_stable / _steady_error, with
- * dp_loop_filter_init's and dp_state_filter_init's gains): the detector's
+ * (dp_state_filter_loop_bandwidth / _steady_error, with
+ * dp_loop_filter_init's gains): the detector's
  * slope at that level (a Monte Carlo of the error the receiver forms, on
  * the shipped awgn), the delivered bandwidth at that slope and at the
  * delays the lag instrument measured, the loop SNR in the rule's
  * convention and on the squared phase with the slope referred (reported,
- * not designed to), order 3's lower gain edge, and the ramp's lag.
+ * not designed to), and the ramp's lag.
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
- *             [--bn-carrier BN|rule] [--loop-order 2|3 [--acq a..f]
- *              [--seed-rate]]
+ *             [--bn-carrier BN|rule]
  *             [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--no-emitter | --expect-broken [--carrier-null]]
@@ -260,19 +229,8 @@ typedef struct
      spacing. */
   double base_row_hz, base_half_sample_chip, base_unamb_hz, base_pullin_hz;
   double base_half_spacing_chip;
-  double bn_car;     /* the carrier loop's bandwidth the draw tracked with */
-  int    loop_order; /* the carrier loop's order the draw tracked with */
-  char   acq;        /* --acq at order 3, '-' at order 2 */
-  double t_switch_s; /* design a/b: when the loop went to its tracking
-                        form, s into the run (NAN: never) */
-  double slope_hz_s; /* the order-2 loop's frequency slope up to then */
-  double rate_end_hz_s; /* the order-3 rate at the end, Hz/s */
-  double t_narrow_s;    /* the narrow order-3 loop in place, s (NAN: never) */
-  double rate_pre_narrow_hz_s, rate_post_narrow_hz_s; /* e/f: across the
-                                                         last narrowing */
-  double slope_settled_hz_s; /* d: the slope over the settled window */
-  int    seed_rate;          /* --seed-rate */
-  size_t code_nl;            /* the code lock's look count it ran with */
+  double bn_car;  /* the carrier loop's bandwidth the draw tracked with */
+  size_t code_nl; /* the code lock's look count it ran with */
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
@@ -281,7 +239,7 @@ typedef struct
   int64_t sym_tog, code_tog;
   /* The other three lock indicators the receiver exposes (owner: no lock
      indicator toggles in the data once acquired; it names no subset):
-     the carrier loop's (Costas), the demodulator's carrier lock and its
+     the carrier loop's (carrier_nda), the demodulator's carrier lock and its
      timing sync's. Each: changes over the data after its own sustained
      lock, its last change (NAN: none) and whether it is up at the end. */
   int64_t car_tog, dem_tog, syn_tog; /* -1: never sustained */
@@ -452,14 +410,6 @@ static int pi_carrier_null = 0;
 static size_t pi_code_nl = 0;
 /* --bn-carrier rule: the bandwidth comes from pi_bn_rule() per carrier. */
 static int pi_bn_rule_on = 0;
-/* --loop-order: the carrier loop's order (2: the built loop). */
-static int pi_loop_order = 2;
-/* --acq: how an order-3 loop is reached ('a', 'b' or 'c'; see the file
-   comment). */
-static char pi_acq = 'c';
-/* --seed-rate: design a seeds the order-3 rate at the switch from the
-   order-2 loop's frequency slope over the acquisition. */
-static int pi_seed_rate = 0;
 
 /* The owner's loop rule, docs/design/async-dsss-receiver.md §1.3, at the
    floor for carrier fc: the receiver's own derivation,
@@ -565,126 +515,6 @@ pi_slope (double rho, int kw, uint64_t seed)
     }
   dp_awgn_destroy (g);
   return acc / ((double)PI_SLOPE_N * 2.0 * PI_SLOPE_D);
-}
-
-/* The order-3 switch, derived (docs/design/async-dsss-receiver.md 4.9),
-   once per carrier from what create knows: the update period T, the
-   floor's per-update SNR, the detector's slope g there (pi_slope), the
-   rule's tracking bandwidth and the specified ramp R (DP_S415_RATE_HZ_S, the
-   receiver's doppler_rate). Rates and phases in the loop's own units:
-   x = 2 pi R T^2 radians per update^2.
-     - lag_e: the order-2 loop's steady error under the ramp at the
-       bandwidth it runs at until the switch (the built
-       ASYNC_DSSS_RX_BN_CARRIER), x / ki, in the detector's units (what
-       design d's settled test holds its mean to), and psi0 the phase it
-       means, asin(lag_e / g): where order 3 starts at a switch.
-     - The switch transient: the shipped StateFilter step in the canonical
-       loop (an accumulating oscillator, a detector e = g sin(psi) one
-       update late), started locked in frequency, rate 0, at psi0, the
-       input frequency ramping x an update. Its peak |psi|, and the
-       updates until the rate is within 10% of x and |psi| under
-       PI_SW_SETTLE_DEG for good.
-     - bn_wide: the narrowest bandwidth from the tracking one up to
-       STATE_FILTER_BNT_MAX whose peak stays under PI_SW_PEAK_FRAC of the
-       fold (90 degrees on the carrier phase), and hold the time it needs
-       there before narrowing; bn_mid the geometric mean for the two-step
-       narrowing, held 5 / bn_mid updates (the house settling figure). */
-#define PI_SW_PEAK_FRAC 0.25
-#define PI_SW_SETTLE_DEG 11.25
-#define PI_SW_DELAY 1
-typedef struct
-{
-  double T, rho, g, x, bn_track, ki2, lag_e, psi0;
-  double peak_track_deg, settle_track_s; /* design a's transient */
-  double bn_wide, peak_wide_deg, sd_wide_deg, hold_s;
-  double bn_mid, hold_mid_s;
-  double w_s; /* design d: 5 / bn_track updates, s */
-} pi_switch_t;
-
-static double
-pi_sw_transient (double bn, const pi_switch_t *sw, double *settle_upd)
-{
-  dp_state_filter_state_t sf;
-  dp_state_filter_init (&sf, bn, 1.0);
-  const size_t n_max = (size_t)(200.0 / bn) + 1000;
-  double       hist[PI_SW_DELAY + 1], psi = sw->psi0, peak = fabs (psi);
-  size_t       last_bad = 0;
-  for (int i = 0; i <= PI_SW_DELAY; i++)
-    hist[i] = psi;
-  for (size_t n = 0; n < n_max; n++)
-    {
-      const double e = sw->g * sin (hist[PI_SW_DELAY]);
-      const double c = dp_state_filter_step (&sf, e);
-      psi += sw->x * (double)n - c;
-      for (int i = PI_SW_DELAY; i > 0; i--)
-        hist[i] = hist[i - 1];
-      hist[0] = psi;
-      if (fabs (psi) > peak)
-        peak = fabs (psi);
-      if (fabs (sf.rate - sw->x) > 0.1 * fabs (sw->x)
-          || fabs (psi) * 180.0 / M_PI > PI_SW_SETTLE_DEG)
-        last_bad = n + 1;
-      if (fabs (psi) > M_PI)
-        break; /* past the fold: not a transient */
-    }
-  *settle_upd = (double)last_bad;
-  return peak * 180.0 / M_PI;
-}
-
-/* Design d's window, 5 / BN updates at the rule's bandwidth, in seconds:
-   the house settling figure, without the rest of pi_switch_design(). */
-static double
-pi_switch_window_s (double fc)
-{
-  const double T = (double)SF / dp_s415_chip_rate (fc);
-  return 5.0 / pi_bn_rule (fc) * T;
-}
-
-static void
-pi_switch_design (double fc, pi_switch_t *sw)
-{
-  const double chip = dp_s415_chip_rate (fc);
-  sw->T             = (double)SF / chip;
-  sw->rho           = pi_rho (fc, PI_FLOOR_ESN0_DB);
-  sw->g             = pi_slope (sw->rho, 1, 5501u + (uint64_t)(fc / 1e8));
-  sw->x             = 2.0 * M_PI * DP_S415_RATE_HZ_S * sw->T * sw->T;
-  sw->bn_track      = pi_bn_rule (fc);
-  dp_loop_filter_state_t lf;
-  dp_loop_filter_init (&lf, ASYNC_DSSS_RX_BN_CARRIER, 0.707, 1.0);
-  sw->ki2   = lf.ki;
-  sw->lag_e = sw->x / lf.ki;
-  sw->psi0  = asin (fmin (1.0, sw->lag_e / sw->g));
-  double s;
-  sw->peak_track_deg = pi_sw_transient (sw->bn_track, sw, &s);
-  sw->settle_track_s = s * sw->T;
-  sw->bn_wide = NAN, sw->peak_wide_deg = NAN, sw->hold_s = NAN;
-  for (int i = 0; i <= 400; i++)
-    {
-      const double bn = sw->bn_track
-                        * pow (STATE_FILTER_BNT_MAX / sw->bn_track, i / 400.0);
-      const double pk = pi_sw_transient (bn, sw, &s);
-      if (pk <= PI_SW_PEAK_FRAC * 90.0)
-        {
-          sw->bn_wide = bn, sw->peak_wide_deg = pk, sw->hold_s = s * sw->T;
-          break;
-        }
-    }
-  /* The jitter there: the squared-phase model of the # design rows
-     (noise referred to phase through g; code period, Kw = 1). */
-  sw->sd_wide_deg = NAN;
-  if (!isnan (sw->bn_wide))
-    {
-      dp_state_filter_state_t sf;
-      dp_state_filter_init (&sf, sw->bn_wide, 1.0);
-      const double bd = dp_state_filter_loop_bandwidth (
-          3, sf.kp, sf.ki, sf.kr, (double)PI_SW_DELAY, sw->g);
-      sw->sd_wide_deg = 180.0 / M_PI
-                        * sqrt (bd / (sw->g * sw->g * sw->rho)
-                                * (1.0 + 1.0 / (2.0 * sw->rho)));
-      sw->bn_mid      = sqrt (sw->bn_wide * sw->bn_track);
-      sw->hold_mid_s  = 5.0 / sw->bn_mid * sw->T;
-    }
-  sw->w_s = 5.0 / sw->bn_track * sw->T;
 }
 
 /* The use case's dynamics (docs/design/async-dsss-receiver.md, "The
@@ -1040,17 +870,12 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   float complex *syms   = dp_xmalloc (ocap * sizeof *syms);
   float complex *tmp    = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
-  d->ho_err_hz            = NAN;
-  d->t_car_s              = NAN;
-  d->t_pull_s             = NAN;
-  d->t_demod_s            = NAN;
-  d->t_sync_s             = NAN;
-  d->t_switch_s           = NAN;
-  d->slope_hz_s           = NAN;
-  d->t_narrow_s           = NAN;
-  d->rate_pre_narrow_hz_s = d->rate_post_narrow_hz_s = NAN;
-  d->slope_settled_hz_s                              = NAN;
-  d->t_track_s                                       = NAN;
+  d->ho_err_hz   = NAN;
+  d->t_car_s     = NAN;
+  d->t_pull_s    = NAN;
+  d->t_demod_s   = NAN;
+  d->t_sync_s    = NAN;
+  d->t_track_s   = NAN;
   d->seed_err_hz = d->seed_code_chip = d->seed_t_s = NAN;
   d->ho_code_chip = d->ho_age_s = NAN;
   /* The instrument: the receiver's own probes on every draw that is not a
@@ -1077,22 +902,6 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   double        last_v[PQ_N], last_t[PQ_N];
   uint64_t      at_v[PQ_N], at_t[PQ_N];
   int           was_tracking = 0;
-  int           narrowed     = 0; /* --acq a/b: this stint's lock seen */
-  /* The order-2 loop's frequency over the stint up to the switch, for a
-     least-squares slope: n, sums of t, f, t^2, t f. */
-  double sl_n = 0, sl_t = 0, sl_f = 0, sl_tt = 0, sl_tf = 0;
-  /* Designs d/e/f: the switch's derived parameters, the stint's phase
-     (0 before the first lock), when it began, and d's window of errors. */
-  pi_switch_t  sw;
-  int          sw_phase = 0;
-  double       sw_t0    = 0.0;
-  double       s2_n = 0, s2_t = 0, s2_f = 0, s2_tt = 0, s2_tf = 0;
-  const size_t w_blk = (size_t)ceil (pi_switch_window_s (fc)
-                                     / ((double)PI_PUSH / DP_S415_FS));
-  double      *w_e   = dp_xmallocn (w_blk + 1, sizeof *w_e);
-  size_t       w_n   = 0;
-  if (pi_loop_order == 3 && pi_acq >= 'd')
-    pi_switch_design (fc, &sw);
   if (!(cp && cp->path))
     {
       itlm = dp_tlm_create (1u << 16);
@@ -1120,7 +929,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   dp_tlm_t         *tlm    = NULL;
   dp_tlm_capture_t *cap    = NULL;
   int               id_car = -1, id_code = -1, id_hz = -1, id_data = -1;
-  int               id_ecar = -1, id_ecod = -1, id_order = -1, id_rate = -1;
+  int               id_ecar = -1, id_ecod = -1;
   int               id_ecu = -1, id_hyp = -1, id_lag = -1, id_cnt = -1;
   int               id_edc = -1;
   double            ecu = 0.0, ec_prev = NAN; /* err.car_unwrapped, cycles */
@@ -1146,23 +955,21 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           DP_REQUIRE (tlm != NULL);
           DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (rx, tlm, "rx", 1)
                       == DP_OK);
-          id_car   = dp_tlm_probe (tlm, "truth.car", 1);
-          id_code  = dp_tlm_probe (tlm, "truth.code", 1);
-          id_hz    = dp_tlm_probe (tlm, "truth.hz", 1);
-          id_data  = dp_tlm_probe (tlm, "truth.data", 1);
-          id_ecar  = dp_tlm_probe (tlm, "err.car_deg", 1);
-          id_ecod  = dp_tlm_probe (tlm, "err.code_chip", 1);
-          id_order = dp_tlm_probe (tlm, "car.order", 1);
-          id_rate  = dp_tlm_probe (tlm, "car.rate_hz_s", 1);
-          id_ecu   = dp_tlm_probe (tlm, "err.car_unwrapped", 1);
-          id_hyp   = dp_tlm_probe (tlm, "rx.code.hyp", 1);
-          id_lag   = dp_tlm_probe (tlm, "err.sym_lag", 1);
-          id_cnt   = dp_tlm_probe (tlm, "err.count", 1);
-          id_edc   = dp_tlm_probe (tlm, "err.demod_car_deg", 1);
+          id_car  = dp_tlm_probe (tlm, "truth.car", 1);
+          id_code = dp_tlm_probe (tlm, "truth.code", 1);
+          id_hz   = dp_tlm_probe (tlm, "truth.hz", 1);
+          id_data = dp_tlm_probe (tlm, "truth.data", 1);
+          id_ecar = dp_tlm_probe (tlm, "err.car_deg", 1);
+          id_ecod = dp_tlm_probe (tlm, "err.code_chip", 1);
+          id_ecu  = dp_tlm_probe (tlm, "err.car_unwrapped", 1);
+          id_hyp  = dp_tlm_probe (tlm, "rx.code.hyp", 1);
+          id_lag  = dp_tlm_probe (tlm, "err.sym_lag", 1);
+          id_cnt  = dp_tlm_probe (tlm, "err.count", 1);
+          id_edc  = dp_tlm_probe (tlm, "err.demod_car_deg", 1);
           DP_REQUIRE (id_car >= 0 && id_code >= 0 && id_hz >= 0 && id_data >= 0
-                      && id_ecar >= 0 && id_ecod >= 0 && id_order >= 0
-                      && id_rate >= 0 && id_ecu >= 0 && id_hyp >= 0
-                      && id_lag >= 0 && id_cnt >= 0 && id_edc >= 0);
+                      && id_ecar >= 0 && id_ecod >= 0 && id_ecu >= 0
+                      && id_hyp >= 0 && id_lag >= 0 && id_cnt >= 0
+                      && id_edc >= 0);
           dp_sample_clock_init (&clk, DP_S415_FS, 0);
           cap = dp_tlm_capture_open (tlm, PI_PUSH, cp->path, &clk);
           DP_REQUIRE_MSG (cap != NULL, "the draw's capture opens");
@@ -1192,10 +999,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
         {
           const dp_air_truth_t t
               = dp_air_truth (&air, 0, (uint64_t)b * PI_PUSH);
-          const double ec
-              = dp_costas_get_nco_phase_ahead (&rx->car, rx->car_carry_len)
-                - (t.car_cycles - floor (t.car_cycles));
-          e_car[b] = (float)(ec - 0.5 * floor (ec / 0.5 + 0.5));
+          const double ec = dp_carrier_nda_get_nco_phase_ahead (
+                                &rx->car, rx->car_carry_len)
+                            - (t.car_cycles - floor (t.car_cycles));
+          e_car[b]        = (float)(ec - 0.5 * floor (ec / 0.5 + 0.5));
           const double ek
               = dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
                 - t.code_chips + 0.5 * chip / DP_S415_FS;
@@ -1239,42 +1046,25 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       const size_t got
           = dp_async_dsss_receiver_steps (rx, x, PI_PUSH, tmp, ocap);
       const int tracking = rx->state == ASYNC_DSSS_RX_TRACKING;
-      /* --bn-carrier / --loop-order: on every entry into tracking (each
-         seed rebuilds the chain) the carrier loop is set through Costas's
-         own API (configure keeps the integrator, the hand-over's
-         frequency; set_order carries it). The block the hand-over fell in
-         ran as built: at most one block, 0.37 ms, about 1.5 code periods. */
+      /* --bn-carrier: on every entry into tracking (each seed rebuilds the
+         chain) the carrier loop is set through carrier_nda's own API
+         (set_bn keeps zeta and the integrator, the hand-over's
+         frequency). The block the hand-over fell in ran as built: at most
+         one block, 0.37 ms, about 1.5 code periods. */
       const double bn_track = pi_bn_rule_on        ? pi_bn_rule (fc)
                               : !isnan (pi_bn_car) ? pi_bn_car
                                                    : rx->bn_carrier;
       if (tracking && !was_tracking)
         {
-          narrowed = 0;
-          sw_phase = 0;
-          w_n      = 0;
-          sl_n = sl_t = sl_f = sl_tt = sl_tf = 0.0;
-          if (pi_loop_order == 3)
-            {
-              /* Through Costas's own switch: the frequency the hand-over
-                 seeded carries, the rate starts at 0. Design a enters at
-                 order 2 and switches at the lock below. */
-              if (pi_acq == 'b')
-                DP_REQUIRE (dp_costas_set_order (&rx->car, 3, rx->bn_carrier)
-                            == DP_OK);
-              else if (pi_acq == 'c')
-                DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track)
-                            == DP_OK);
-            }
-          else if (!isnan (pi_bn_car) || pi_bn_rule_on)
-            DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
-                        == DP_OK);
+          if (!isnan (pi_bn_car) || pi_bn_rule_on)
+            DP_REQUIRE (dp_carrier_nda_set_bn (&rx->car, bn_track) == DP_OK);
           if (pi_carrier_null)
             {
               const double df = (double)rx->segments * rx->chip_rate
                                 / (double)rx->code_len;
-              dp_costas_set_norm_freq (&rx->car,
-                                       dp_costas_get_norm_freq (&rx->car)
-                                           + df / (rx->chip_rate * rx->spc));
+              dp_carrier_nda_set_norm_freq (
+                  &rx->car, dp_carrier_nda_get_norm_freq (&rx->car)
+                                + df / (rx->chip_rate * rx->spc));
             }
           /* The #3134 control: the code lock at another look count, through
              the Dll's own configure (which re-sizes its threshold for that
@@ -1288,152 +1078,6 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
               (void)dp_dll_set_lock_verify (rx->dll, rx->dll->lock.n_up, down);
             }
           d->code_nl = rx->dll->n_looks;
-        }
-      /* --acq a/b: at the stint's first lock, the receiver's own event
-         (both flags up: had_lock), the loop goes to its tracking form. */
-      const double t_blk = (double)(b + 1) * PI_PUSH / DP_S415_FS;
-      if (tracking && !narrowed)
-        {
-          const double f = dp_costas_get_norm_freq (&rx->car) * DP_S415_FS;
-          sl_n += 1.0, sl_t += t_blk, sl_f += f, sl_tt += t_blk * t_blk,
-              sl_tf += t_blk * f;
-        }
-      if (tracking && pi_loop_order == 3 && !narrowed && rx->had_lock
-          && (pi_acq == 'a' || pi_acq == 'b'))
-        {
-          narrowed         = 1;
-          d->t_switch_s    = t_blk;
-          d->t_narrow_s    = t_blk;
-          const double den = sl_n * sl_tt - sl_t * sl_t;
-          d->slope_hz_s    = sl_n >= 2.0 && den > 0.0
-                                 ? (sl_n * sl_tf - sl_t * sl_f) / den
-                                 : NAN;
-          if (pi_acq == 'a')
-            {
-              DP_REQUIRE (dp_costas_set_order (&rx->car, 3, bn_track)
-                          == DP_OK);
-              if (pi_seed_rate && !isnan (d->slope_hz_s))
-                DP_REQUIRE (
-                    dp_costas_set_norm_rate (
-                        &rx->car, d->slope_hz_s / (DP_S415_FS * DP_S415_FS))
-                    == DP_OK);
-            }
-          else
-            DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
-                        == DP_OK);
-        }
-      if (tracking && pi_loop_order == 3 && pi_acq >= 'd' && sw_phase < 3)
-        {
-          if (sw_phase == 0 && rx->had_lock)
-            {
-              /* The stint's first lock: the pull-in slope is recorded for
-                 every design, as design a records it. */
-              const double den = sl_n * sl_tt - sl_t * sl_t;
-              d->slope_hz_s    = sl_n >= 2.0 && den > 0.0
-                                     ? (sl_n * sl_tf - sl_t * sl_f) / den
-                                     : NAN;
-              sw_t0            = t_blk;
-              sw_phase         = 1;
-              if (pi_acq != 'd')
-                {
-                  DP_REQUIRE (dp_costas_set_order (&rx->car, 3, sw.bn_wide)
-                              == DP_OK);
-                  d->t_switch_s = t_blk;
-                }
-            }
-          else if (sw_phase == 1 && pi_acq == 'd')
-            {
-              /* Settled: the order-2 error's mean over the last 5 / BN
-                 updates holds at the design lag. */
-              if (w_n < w_blk)
-                w_e[w_n++] = dp_costas_get_last_error (&rx->car);
-              else
-                {
-                  memmove (w_e, w_e + 1, (w_blk - 1) * sizeof *w_e);
-                  w_e[w_blk - 1] = dp_costas_get_last_error (&rx->car);
-                }
-              if (w_n == w_blk)
-                {
-                  double m = 0.0, v = 0.0;
-                  for (size_t i = 0; i < w_blk; i++)
-                    m += w_e[i];
-                  m /= (double)w_blk;
-                  for (size_t i = 0; i < w_blk; i++)
-                    v += (w_e[i] - m) * (w_e[i] - m);
-                  const double se
-                      = sqrt (v / (double)(w_blk - 1)) / sqrt ((double)w_blk);
-                  if (fabs (fabs (m) - sw.lag_e) <= 3.0 * se)
-                    {
-                      sw_phase = 2;
-                      sw_t0    = t_blk;
-                      s2_n = s2_t = s2_f = s2_tt = s2_tf = 0.0;
-                    }
-                }
-            }
-          else if (sw_phase == 1)
-            {
-              if (t_blk - sw_t0 >= sw.hold_s)
-                {
-                  d->rate_pre_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
-                                            * DP_S415_FS * DP_S415_FS;
-                  DP_REQUIRE (dp_costas_configure (&rx->car,
-                                                   pi_acq == 'e' ? sw.bn_track
-                                                                 : sw.bn_mid,
-                                                   rx->car.zeta)
-                              == DP_OK);
-                  d->rate_post_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
-                                             * DP_S415_FS * DP_S415_FS;
-                  sw_t0                    = t_blk;
-                  sw_phase                 = pi_acq == 'e' ? 3 : 2;
-                  if (pi_acq == 'e')
-                    d->t_narrow_s = t_blk;
-                }
-            }
-          else if (sw_phase == 2 && pi_acq == 'd')
-            {
-              const double f = dp_costas_get_norm_freq (&rx->car) * DP_S415_FS;
-              s2_n += 1.0, s2_t += t_blk, s2_f += f, s2_tt += t_blk * t_blk,
-                  s2_tf += t_blk * f;
-              if (t_blk - sw_t0 >= sw.w_s)
-                {
-                  const double den = s2_n * s2_tt - s2_t * s2_t;
-                  d->slope_settled_hz_s
-                      = s2_n >= 2.0 && den > 0.0
-                            ? (s2_n * s2_tf - s2_t * s2_f) / den
-                            : NAN;
-                  DP_REQUIRE (dp_costas_set_order (&rx->car, 3, sw.bn_track)
-                              == DP_OK);
-                  if (pi_seed_rate && !isnan (d->slope_settled_hz_s))
-                    DP_REQUIRE (dp_costas_set_norm_rate (
-                                    &rx->car, d->slope_settled_hz_s
-                                                  / (DP_S415_FS * DP_S415_FS))
-                                == DP_OK);
-                  d->t_switch_s = d->t_narrow_s = t_blk;
-                  sw_phase                      = 3;
-                }
-            }
-          else if (sw_phase == 2)
-            {
-              if (t_blk - sw_t0 >= sw.hold_mid_s)
-                {
-                  d->rate_pre_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
-                                            * DP_S415_FS * DP_S415_FS;
-                  DP_REQUIRE (
-                      dp_costas_configure (&rx->car, sw.bn_track, rx->car.zeta)
-                      == DP_OK);
-                  d->rate_post_narrow_hz_s = dp_costas_get_norm_rate (&rx->car)
-                                             * DP_S415_FS * DP_S415_FS;
-                  d->t_narrow_s            = t_blk;
-                  sw_phase                 = 3;
-                }
-            }
-        }
-      if (tlm)
-        {
-          dp_tlm_emit (tlm, id_order, (double)dp_costas_get_order (&rx->car));
-          dp_tlm_emit (tlm, id_rate,
-                       dp_costas_get_norm_rate (&rx->car) * DP_S415_FS
-                           * DP_S415_FS);
         }
       if (tracking && isnan (d->ho_err_hz))
         {
@@ -1623,8 +1267,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           } rules[] = {
             { "sym", dp_async_dsss_receiver_get_sym_lock_rule (rx), 0.0,
               rx->lock_alpha, NAN },
-            { "car", dp_async_dsss_receiver_get_car_lock_rule (rx), 0.0,
-              COSTAS_LOCK_ALPHA, dp_costas_get_bn (&rx->car) },
+            /* carrier_nda's block lock when the receiver sets one (a
+               block statistic over car_blk updates), else its EMA. */
+            { "car", dp_async_dsss_receiver_get_car_lock_rule (rx),
+              (double)rx->car_blk, rx->car_blk ? 0.0 : CARRIER_NDA_LOCK_ALPHA,
+              dp_carrier_nda_get_bn (&rx->car) },
             { "code", dp_async_dsss_receiver_get_code_lock_rule (rx),
               (double)rx->dll->n_looks, rx->dll->lock_alpha,
               dp_dll_get_bn (rx->dll) },
@@ -1720,15 +1367,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
     /* The pull-in at the bandwidth the loop ran at. */
     d->base_pullin_hz
         = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (rx->car.lf.bn, chip, SF);
-    d->bn_car     = rx->car.lf.bn;
-    d->loop_order = pi_loop_order;
-    d->acq        = pi_loop_order == 3 ? pi_acq : '-';
-    d->rate_end_hz_s
-        = dp_costas_get_norm_rate (&rx->car) * DP_S415_FS * DP_S415_FS;
-    if (pi_loop_order == 3 && pi_acq == 'c')
-      d->t_narrow_s = d->t_track_s; /* narrow from the entry into tracking */
-    free (w_e);
-    d->seed_rate              = pi_seed_rate;
+    d->bn_car                 = rx->car.lf.bn;
     d->base_half_spacing_chip = 0.5 * rx->dll->spacing;
     double sc = 0.0, sc2 = 0.0, sk = 0.0, sk2 = 0.0, pk = 0.0, spk = 0.0;
     size_t n_off = 0, n_all = 0;
@@ -2147,9 +1786,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "off_code_frac,"                                                            \
   "ho_peak_deg,steady_peak_deg,base_lag_deg,base_sd_deg,base_ho_deg,"         \
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
-  "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
-  "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate,t_narrow_s,"                 \
-  "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s,"            \
+  "base_half_spacing_chip,bn_car,win_natural_frac,"                           \
   "t_car_s,pulled_in,t_pull_s,t_demod_s,t_sync_s,t_lock_s,lock20,"            \
   "unaligned_lock,edge_hz,budget_s,early_lock\n"
 
@@ -2164,8 +1801,8 @@ emit_row (const draw_t *d, uint32_t seed)
       ".3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
-      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
-      "%.2f,%.2f,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d\n",
+      "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,"
+      "%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -2183,11 +1820,9 @@ emit_row (const draw_t *d, uint32_t seed)
       d->base_sd_deg, d->base_ho_deg, d->base_row_hz, d->base_half_sample_chip,
       d->base_unamb_hz, d->base_pullin_hz, d->base_half_spacing_chip,
       d->bn_car, d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
-      d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
-      d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
-      d->rate_post_narrow_hz_s, d->slope_settled_hz_s, d->t_car_s,
-      d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s, d->t_lock_s,
-      d->lock20, d->unaligned_lock, d->edge_hz, d->budget_s, d->early_lock);
+      d->t_car_s, d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s,
+      d->t_lock_s, d->lock20, d->unaligned_lock, d->edge_hz, d->budget_s,
+      d->early_lock);
 }
 
 static int
@@ -2326,25 +1961,6 @@ check_cell (const draw_t *ds, size_t n)
                   "its error rate is under the bound's PI_MARGIN_DB lower");
 }
 
-/* Order 3's lower gain edge at a delay: the least stable loop gain, by
-   bisection on dp_state_filter_loop_stable(). Order 2 has none (0). */
-static double
-pi_k_low (int order, const double g[3], double delay)
-{
-  if (order == 2)
-    return 0.0;
-  double lo = 0.01, hi = 1.0;
-  for (int i = 0; i < 50; i++)
-    {
-      const double m = 0.5 * (lo + hi);
-      if (dp_state_filter_loop_stable (3, g[0], g[1], g[2], delay, m))
-        hi = m;
-      else
-        lo = m;
-    }
-  return hi;
-}
-
 /* The `# design` section: see the file comment. Delays 0, 1 and 1.75
    updates span what the lag instrument measured (lag.epoch_T uniform over
    one update, the look-back adding up to 0.75 on most code-period
@@ -2361,7 +1977,7 @@ pi_design (const double fcs[2], const double esn0s[4])
   printf ("# pass\nstep_km,passes,f2_raw_max_hz_s2,timing_max_hz_s,"
           "prop_max_hz_s,prop_pass_h_km,prop_pass_el_deg,prop_pass_fc_ghz,"
           "prop_pass_eps,rotation,r_env_hz_s,o2_lag_at_r_env_deg,"
-          "o2_lag_at_prop_max_deg,res_f2_max_hz_s2,o3_err_at_res_f2_deg");
+          "o2_lag_at_prop_max_deg,res_f2_max_hz_s2");
   for (int i = 0; i < PI_PASS_BINS; i++)
     printf (",env_%.0f", (double)(i + 1) * DP_S415_SPAN_HZ / PI_PASS_BINS);
   printf ("\n");
@@ -2369,7 +1985,7 @@ pi_design (const double fcs[2], const double esn0s[4])
     {
       const double rot = pi_pass_rotation (pe[g].v_min);
       /* The order-2 lag at the rule's bn, the larger of the carriers'. */
-      double lag_per = 0.0, o3_per = 0.0;
+      double lag_per = 0.0;
       for (int f = 0; f < 2; f++)
         {
           dp_loop_filter_state_t lf;
@@ -2378,20 +1994,14 @@ pi_design (const double fcs[2], const double esn0s[4])
           lag_per = fmax (
               lag_per,
               360.0 * dp_state_filter_steady_error (2, lf.ki, 0.0, 2, T * T));
-          dp_state_filter_state_t sf;
-          dp_state_filter_init (&sf, pi_bn_rule (fcs[f]), 1.0);
-          o3_per = fmax (o3_per, 360.0
-                                     * dp_state_filter_steady_error (
-                                         3, sf.ki, sf.kr, 3, T * T * T));
         }
       const double r_env = pi_r_env (pe[g].timing_max, rot);
       printf ("%.0f,%d,%.3f,%.3f,%.3f,%.0f,%.1f,%.1f,%.4f,%.4f,%.0f,%.3f,"
-              "%.3f,%.3f,%.5f",
+              "%.3f,%.3f",
               pe[g].step_km, pe[g].n_pass, pe[g].f2_max, pe[g].timing_max,
               pe[g].prop_max, pe[g].prop_h_km, pe[g].prop_el_deg,
               pe[g].prop_fc / 1e9, pe[g].prop_eps, rot, r_env, lag_per * r_env,
-              lag_per * pe[g].prop_max, pe[g].res_f2_max,
-              o3_per * pe[g].res_f2_max);
+              lag_per * pe[g].prop_max, pe[g].res_f2_max);
       for (int i = 0; i < PI_PASS_BINS; i++)
         printf (",%.3f", pe[g].env[i]);
       printf ("\n");
@@ -2433,29 +2043,10 @@ pi_design (const double fcs[2], const double esn0s[4])
                 cdopp * (double)db * per, cdopp * (double)(db * nc) * per);
         dp_async_dsss_receiver_destroy (rx);
       }
-  /* The order-3 switch, per carrier, as run_draw derives it
-     (pi_switch_design). */
-  printf ("# switch\nfc_ghz,T_us,rho_floor,slope,bn_track,ramp_x_rad_upd2,"
-          "lag_e,psi0_deg,peak_at_track_deg,settle_at_track_s,bn_wide,"
-          "peak_at_wide_deg,sd_at_wide_deg,hold_wide_s,bn_mid,hold_mid_s,"
-          "settle_window_s\n");
-  for (int f = 0; f < 2; f++)
-    {
-      pi_switch_t sw;
-      pi_switch_design (fcs[f], &sw);
-      printf ("%.1f,%.2f,%.4f,%.4f,%.5f,%.4e,%.4f,%.2f,%.2f,%.4f,%.5f,%.2f,"
-              "%.2f,%.4f,%.5f,%.4f,%.4f\n",
-              fcs[f] / 1e9, sw.T * 1e6, sw.rho, sw.g, sw.bn_track, sw.x,
-              sw.lag_e, sw.psi0 * 180.0 / M_PI, sw.peak_track_deg,
-              sw.settle_track_s, sw.bn_wide, sw.peak_wide_deg, sw.sd_wide_deg,
-              sw.hold_s, sw.bn_mid, sw.hold_mid_s, sw.w_s);
-      DP_CHECK_MSG (!isnan (sw.bn_wide),
-                    "a wide order-3 bandwidth holds the switch transient");
-    }
   static const double delays[3] = { 0.0, 1.0, 1.75 };
   printf ("# design\nfc_ghz,esn0_db,order,bn_source,bn,"
           "T_us,rho,kw,slope,delay,bn_delivered,lsnr_rule_db,lsnr_sq_db,"
-          "k_low,lag400_deg\n");
+          "lag400_deg\n");
   for (int f = 0; f < 2; f++)
     for (int e = 0; e < 4; e++)
       {
@@ -2471,46 +2062,32 @@ pi_design (const double fcs[2], const double esn0s[4])
             = { pi_bn_rule (fcs[f]), pi_bn_rule_on || isnan (pi_bn_car)
                                          ? pi_bn_rule (fcs[f])
                                          : pi_bn_car };
-        for (int order = 2; order <= 3; order++)
-          for (int b = 0; b < 2; b++)
-            for (int di = 0; di < 3; di++)
-              {
-                double g[3];
-                if (order == 2)
-                  {
-                    dp_loop_filter_state_t lf;
-                    dp_loop_filter_init (&lf, bns[b], 0.707, 1.0);
-                    g[0] = lf.kp, g[1] = lf.ki, g[2] = 0.0;
-                  }
-                else
-                  {
-                    dp_state_filter_state_t sf;
-                    dp_state_filter_init (&sf, bns[b], 1.0);
-                    g[0] = sf.kp, g[1] = sf.ki, g[2] = sf.kr;
-                  }
-                const double bd = dp_state_filter_loop_bandwidth (
-                    order, g[0], g[1], g[2], delays[di], k);
-                /* The page's claim (4.9): at every level and
-                   measured delay, the loop is stable at the detector's
-                   slope, and order 3's slope clears its lower edge. */
-                DP_CHECK_MSG (!isnan (bd), "the loop is stable at the "
-                                           "detector's slope");
-                DP_CHECK_MSG (k > pi_k_low (order, g, delays[di]),
-                              "the slope is above the lower gain edge");
-                printf (
-                    "%.1f,%.1f,%d,%s,%.5f,%.2f,%.4f,%d,%.4f,%.2f,"
-                    "%.6f,%.2f,%.2f,%.4f,%.3f\n",
-                    fcs[f] / 1e9, esn0s[e], order, b ? "run" : "rule", bns[b],
-                    T * 1e6, rho, kw, k, delays[di], bd,
-                    10.0 * log10 (rho / (2.0 * bns[b])),
-                    10.0
-                        * log10 (k * k * rho
-                                 / (4.0 * bd * (1.0 + kw / (2.0 * rho)))),
-                    pi_k_low (order, g, delays[di]),
-                    360.0
-                        * dp_state_filter_steady_error (
-                            order, g[1], g[2], 2, DP_S415_RATE_HZ_S * T * T));
-              }
+        /* The loop is second order (carrier_nda's PI filter). */
+        const int order = 2;
+        for (int b = 0; b < 2; b++)
+          for (int di = 0; di < 3; di++)
+            {
+              dp_loop_filter_state_t lf;
+              dp_loop_filter_init (&lf, bns[b], 0.707, 1.0);
+              const double bd = dp_state_filter_loop_bandwidth (
+                  order, lf.kp, lf.ki, 0.0, delays[di], k);
+              /* The page's claim (4.9): at every level and measured
+                 delay, the loop is stable at the detector's slope. */
+              DP_CHECK_MSG (!isnan (bd), "the loop is stable at the "
+                                         "detector's slope");
+              printf ("%.1f,%.1f,%d,%s,%.5f,%.2f,%.4f,%d,%.4f,%.2f,"
+                      "%.6f,%.2f,%.2f,%.3f\n",
+                      fcs[f] / 1e9, esn0s[e], order, b ? "run" : "rule",
+                      bns[b], T * 1e6, rho, kw, k, delays[di], bd,
+                      10.0 * log10 (rho / (2.0 * bns[b])),
+                      10.0
+                          * log10 (k * k * rho
+                                   / (4.0 * bd * (1.0 + kw / (2.0 * rho)))),
+                      360.0
+                          * dp_state_filter_steady_error (order, lf.ki, 0.0, 2,
+                                                          DP_S415_RATE_HZ_S * T
+                                                              * T));
+            }
       }
 }
 
@@ -2559,11 +2136,6 @@ main (int argc, char **argv)
               DP_REQUIRE (pi_bn_car >= 0.0 && pi_bn_car < 0.25);
             }
         }
-      else if (strcmp (argv[i], "--loop-order") == 0 && i + 1 < argc)
-        {
-          pi_loop_order = atoi (argv[++i]);
-          DP_REQUIRE (pi_loop_order == 2 || pi_loop_order == 3);
-        }
       else if (strcmp (argv[i], "--dynamics") == 0 && i + 1 < argc)
         {
           ++i;
@@ -2577,13 +2149,6 @@ main (int argc, char **argv)
         pi_expect_broken = 1;
       else if (strcmp (argv[i], "--carrier-null") == 0)
         pi_carrier_null = 1;
-      else if (strcmp (argv[i], "--seed-rate") == 0)
-        pi_seed_rate = 1;
-      else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
-        {
-          pi_acq = argv[++i][0];
-          DP_REQUIRE (pi_acq >= 'a' && pi_acq <= 'f');
-        }
       else if (strcmp (argv[i], "--design") == 0)
         design = 1;
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)
@@ -2659,12 +2224,6 @@ main (int argc, char **argv)
         (void)snprintf (bn_tag, sizeof bn_tag, "_bnrule");
       else if (!isnan (pi_bn_car))
         (void)snprintf (bn_tag, sizeof bn_tag, "_bn%g", pi_bn_car);
-      if (pi_loop_order == 3)
-        {
-          const size_t l = strlen (bn_tag);
-          (void)snprintf (bn_tag + l, sizeof bn_tag - l, "_o3%c%s", pi_acq,
-                          pi_seed_rate ? "s" : "");
-        }
       (void)snprintf (stem, sizeof stem,
                       "pullin_%.1fGHz_%.0fdB_%.0fHzs_s%u%s%s", g, es, rt, sd,
                       spc ? (spc == 2 ? "_spc2" : "_spcN") : "", bn_tag);

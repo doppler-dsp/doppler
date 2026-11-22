@@ -46,17 +46,19 @@
  *     ring is held for the receiver's lifetime -- up to ~38 KiB (Gold-1023
  *     at 2 samples a chip) -- and carried in every blob, a pool member's
  *     included.
- *   - **tracking**: the pre-despread carrier loop (`costas_wipeoff`/
- *     `costas_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`. The
- *     carrier loop updates once per code period from a NON-DATA-AIDED
- *     (squaring) discriminator over that period's coherent-I&D partials
- *     (`adr_track_period()`): a code period spans ~0.9 data symbols at
- *     the specification's ratio, so a transition lands inside nearly every period, and (docs/design/async-dsss-receiver.md)
- *     squaring is what makes the error transition-robust. At
- *     `ASYNC_DSSS_RX_BN_CARRIER` the loop pulls the refined seed in and
- *     removes the full coupled Doppler (offset and 500 Hz/s ramp) before
- *     despreading, so `MpskReceiver` is left a small residual. A pure PLL:
- *     no FLL.
+ *   - **tracking**: the pre-despread carrier loop (`carrier_nda_wipeoff`/
+ *     `carrier_nda_update`) -> `Dll` -> `RateConverter` -> `MpskReceiver`.
+ *     The carrier loop is carrier_nda at M = 2. It updates once a code
+ *     period on the Dll's despread window sum (`adr_track_period()`): the
+ *     look-back's window does not span a data transition, and its M = 2
+ *     error `Im(w^2)` removes the data with no sign decision. The error is
+ *     divided by the window's signal power (the unit denominator: the
+ *     averaged `|w|^2` less the Dll's window noise), and the lock is the
+ *     ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` on blocks sized by
+ *     det_ratio_block_len() (docs/design/async-dsss-receiver.md, "The
+ *     loop's lock statistic"). It removes the coupled Doppler (offset and
+ *     500 Hz/s ramp) before despreading, so `MpskReceiver` is left a small
+ *     residual. A pure PLL: no FLL.
  *   - **lost**: the emitter is gone. Without `reacquire`, entered from
  *     tracking when BOTH lock flags have been down, without a break, for
  *     longer than `lost_confirm_s` (docs/design/async-dsss-receiver.md §10,
@@ -129,6 +131,7 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/cic/cic_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -154,45 +157,43 @@ extern "C"
 {
 #endif
 
-  /** The widest bandwidth the pre-despread Costas takes: the receiver's
-   * own is dp_async_dsss_receiver_carrier_bn() at its design C/N0, which is
-   * this value wherever the loop-SNR rule allows it and narrower where it
-   * does not. The refine stage's frozen carrier never calls costas_update(),
-   * so its own bn/zeta are irrelevant -- only its tsamps and init_norm_freq
-   * matter.
+  /** The widest bandwidth the pre-despread carrier loop takes, per update
+   * (a code period): the receiver's own is
+   * dp_async_dsss_receiver_carrier_bn() at its design C/N0, which is this
+   * value wherever the loop-SNR rule allows it and narrower where it does
+   * not. The refine stage's frozen carrier (a Costas whose update is never
+   * called) reads only its seed frequency and update length.
    *
-   * 0.04 is set by pull-in and dynamics, not jitter: the refined seed
-   * leaves a residual the loop must pull in, and tracking the specification's 500 Hz/s
-   * ramp with a per-period Type-II loop needs the bandwidth to keep the
-   * velocity lag (~ramp/omega_n^2) small. It rides the ramp with a clean
-   * despread constellation; about 0.03 is the least that works. The phase
-   * detector is |P|-normalized, so this is the true noise bandwidth, and
-   * the ~5 dB Es/N0 floor is still met.
-   *
-   * The pull-in range is measured: native/validation/costas_pullin.c sweeps
-   * it in multiples of the `bn/m` bound (`m = 2`, the squaring
-   * discriminator), its spot check on every push (CI's sweep job, `make
-   * test-sweep`). At bn = 0.04 over a 2046-sample code period the bound is
-   * 9.775e-6 cycles/sample, 60 Hz at the specification's 6.138 MHz front end; the loop
-   * acquires 100% inside it on both signs, is reliable to 2x and dead by 4x.
-   * The receiver's hand-off residual was measured at -54..+375 Hz, routinely
-   * 2-6x the bound (doppler#982): check the hand-off against the bound
-   * before widening bn.
-   *
-   * No FLL: the cross-product frequency discriminator is far too noisy on
-   * this loop's data-modulated input, and the squaring phase discriminator
-   * is immune to the transitions, so the plain PLL tracks the coupled
-   * Doppler. The FLL is not exposed at all. */
+   * 0.04 is the widest the loop has been designed at: tracking the
+   * specification's 500 Hz/s ramp with a per-period Type-II loop needs the
+   * bandwidth to keep the velocity lag (~ramp/omega_n^2) small, and at the
+   * design C/N0's rule the loop is narrower. bn is the closed loop's noise
+   * bandwidth (carrier_nda divides out its detector's slope, #3224). No
+   * FLL. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
 /** The pre-despread carrier loop's least loop SNR at the design C/N0, dB:
- *  the owner's rule (async-dsss-receiver.md §1.3), `rho - 10 log10(2 bn)`
- *  with `rho = C/N0 T` the update's SNR, so `bn <= rho / 200`. */
+ *  the owner's rule (async-dsss-receiver.md §1.3), `rho S_L / (2 bn)` with
+ *  `rho = C/N0 T` the update's SNR and `S_L = 1 / (1 + 1/(2 rho))` the M = 2
+ *  detector's squaring loss (the owner's ruling, 2026-11-22), so `bn <= rho
+ *  S_L / 200`. */
 #define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB 20.0
-/** The pre-despread carrier loop's acquisition bound, Hz, at bandwidth
- *  @p bn: `bn / m` cycles per sample over its one-code-period update (`m =
- *  2`, the squaring discriminator), `native/validation/costas_pullin.c`'s
- *  measured 100% line -- reliable to twice it, dead by four. 97.8 Hz at
- *  5 Mcps over Gold-1023 and bn 0.04. */
+/** The pre-despread carrier loop's unit denominator: the EMA weight an
+ *  update of the window sum's power (docs/design/async-dsss-receiver.md,
+ *  "The averaging length": 81 / 64 ms at the floor, 10 to 12 times the
+ *  loop's memory). */
+#define ASYNC_DSSS_RX_CAR_DEN_ALPHA (1.0 / 256.0)
+/** The carrier block lock's false-alarm rate a block, the code lock's. */
+#define ASYNC_DSSS_RX_CAR_LOCK_PFA 1e-3
+/** The carrier block lock's detection probability a block at the design
+ *  C/N0, the code lock's. */
+#define ASYNC_DSSS_RX_CAR_LOCK_PD 0.99
+/** Half the pre-despread carrier loop's noise bandwidth, Hz, at @p bn:
+ *  `B_L / 2 = bn / (2 T)`, T a code period. 97.8 Hz at 5 Mcps over
+ *  Gold-1023 and bn 0.04. It is the owner's half-bandwidth rule for a
+ *  frequency step; the sweep on carrier_nda (sweep-1b7312b09) measured
+ *  its no-slip reach at the 4 dB floor at 0.25 `B_L` (unit form), half of
+ *  this, so a step at this bound may slip during pull-in, where slips are
+ *  allowed (the owner's ruling, 2026-11-22). */
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
   ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
 /** The least search depth, `coherent_bins`, a receiver built with `refine`
@@ -208,12 +209,13 @@ extern "C"
    *        than ASYNC_DSSS_RX_BN_CARRIER.
    *
    * The loop updates once a code period, `T = code_len / chip_rate`, on a
-   * coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR is `rho / (2
-   * bn)`, so ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB of it asks `bn <= rho /
-   * 200`. The bandwidth is that, or ASYNC_DSSS_RX_BN_CARRIER where the rule
-   * allows more: the rule is a ceiling, and the release's 0.04 is the
-   * widest the loop has been designed at. At the 415.1-B-1 floor (C/N0
-   * 38.77 dB-Hz) it is 0.0120 at 2.2 GHz and 0.0094 at 2.8 GHz.
+   * coherent sum whose SNR is `rho = C/N0 T`. Its loop SNR, counting the
+   * M = 2 detector's squaring loss `S_L = 1 / (1 + 1/(2 rho))`, is `rho S_L
+   * / (2 bn)`, so ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB of it asks `bn <= rho
+   * S_L / 200`. The bandwidth is that, or ASYNC_DSSS_RX_BN_CARRIER where
+   * the rule allows more: the rule is a ceiling, and the release's 0.04 is
+   * the widest the loop has been designed at. At the 415.1-B-1 floor (C/N0
+   * 38.77 dB-Hz) it is 0.00993 at 2.2 GHz and 0.00744 at 2.8 GHz.
    * create() sizes the receiver's carrier loop with it, at `cn0_dbhz`.
    *
    * @param cn0_dbhz   Design C/N0, dB-Hz.
@@ -228,7 +230,7 @@ extern "C"
    *   double chip = 2.2e9 * 31.0 / 21216.0;  // 415.1-B-1 at 2.2 GHz
    *   printf ("%.4f\n", dp_async_dsss_receiver_carrier_bn (38.77, chip, 1023));
    *   printf ("%.2f\n", dp_async_dsss_receiver_carrier_bn (70.0, chip, 1023));
-   *   return 0;  // prints 0.0120 then 0.04
+   *   return 0;  // prints 0.0099 then 0.04
    * }
    * @endcode
    */
@@ -395,11 +397,12 @@ typedef enum
     size_t         refine_rc_out_cap;   /**< Capacity of
                                              refine_rc_out_buf, samples. */
 
-    /* Track stage: DsssReceiver's own composition. dp_costas_init()'s tsamps is
-     * one whole code period, and the pre-despread carrier loop updates once
-     * per period from a non-data-aided (squaring) combine of that period's
-     * coherent-I&D partials (see adr_track_period() in the .c file). */
-    dp_costas_state_t         car; /**< Track stage: pre-despread carrier
+    /* Track stage. The pre-despread carrier loop is carrier_nda at M = 2,
+     * updated once a code period (its update period is the period's
+     * samples) on the Dll's despread window sum, with the unit
+     * denominator fed the Dll's window noise and the ratio-of-sums block
+     * lock (see adr_build_track_chain() and adr_track_period()). */
+    dp_carrier_nda_state_t    car; /**< Track stage: pre-despread carrier
                                         loop (loop 1), by value.        */
     dp_dll_state_t           *dll; /**< Owned live tracking Dll.        */
     dp_RateConverter_state_t *rc;  /**< Owned resampler to the
@@ -457,6 +460,14 @@ typedef enum
                             bandwidth, dp_async_dsss_receiver_carrier_bn()
                             at cn0_dbhz, set by create() and restored by
                             it (not in the blob: cn0_dbhz has no mutator). */
+    double car_gamma; /**< Config: the carrier loop's update SNR at
+                           cn0_dbhz, linear (C/N0 over a code period): the
+                           unit denominator's clamp and the block lock's
+                           sizing read it. Set and restored by create(). */
+    uint32_t car_blk; /**< Config: the carrier block lock's length, updates,
+                           det_ratio_block_len() at car_gamma and the loop's
+                           jitter (0: no block reaches Pd, the EMA decides).
+                           Set and restored by create(). */
     double cn0_dbhz; /**< Design C/N0 -- feeds both Acquisition's own
                            sizing and (derated) CarrierAcquisition's
                            design_snr on every refine-chain (re)build. */
@@ -598,7 +609,7 @@ typedef enum
                                         receiver cannot free-run onto a
                                         neighbour's code (#1271).        */
     int      car_coasting;         /**< Running: the carrier loop is held. */
-    dp_costas_state_t car_held;       /**< The carrier as of the last
+    dp_carrier_nda_state_t car_held;  /**< The carrier as of the last
                                         period with both lock flags up,
                                         restored on entering the hold.    */
 
@@ -1074,7 +1085,7 @@ typedef enum
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
    * ...                                                    "rx.code")))
-   * ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate', 'rx.code.steer.aid', 'rx.code.steer.ctrl', 'rx.code.steer.e', 'rx.code.steer.integ', 'rx.code.steer.prop']
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate', 'rx.code.steer.aid', 'rx.code.steer.ctrl', 'rx.code.steer.e', 'rx.code.steer.integ', 'rx.code.steer.prop']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
    * ...                                                    "rx.refu")))
    * ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.den', 'rx.sym.lock', 'rx.sym.locked', 'rx.sym.num']
@@ -1995,7 +2006,7 @@ typedef enum
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 21u /* v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 22u /* v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

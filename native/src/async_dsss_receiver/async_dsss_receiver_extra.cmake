@@ -38,7 +38,8 @@ target_link_libraries(test_adr_telemetry_oom PRIVATE
     wfm_dsp_core gold_core snr_core ber_core correlator_core fft2d_core
     fft_core detection_core dp_tlm_core cvt_core carrier_acq_core psd_core
     spectral_core acc_trace_core correlator_core dll_core
-    loop_filter_core lockdet_core costas_core state_filter_core lo_core
+    loop_filter_core lockdet_core costas_core carrier_nda_core boxcar_core
+    state_filter_core lo_core
     RateConverter_core
     resamp_core hbdecim_core cic_core fir_core resample_core agc_core
     mpsk_receiver_core ddc_core hbdecim_r2c_core ddcr_core ratesync_core

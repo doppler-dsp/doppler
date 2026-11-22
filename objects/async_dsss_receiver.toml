@@ -11,7 +11,8 @@
 #
 # Composes the continuous search (correlator) + carrier_acq (CarrierAcquisition, the
 # refine stage's frequency estimator) + dll (code tracking, both stages)
-# + costas (carrier loop, both stages) + RateConverter (both stages) +
+# + costas (the refine stage's frozen carrier wipe) + carrier_nda (the
+# track stage's pre-despread carrier loop) + RateConverter (both stages) +
 # mpsk_receiver (demod, track stage only) -- the same cross-module
 # composition shape dsss_receiver.toml already uses, extended with the
 # refine stage's own children.
@@ -31,6 +32,7 @@ depends_on = [
     { name = "carrier_acq", link = true },
     { name = "dll", link = true },
     { name = "costas", link = true },
+    { name = "carrier_nda", link = true },
     { name = "RateConverter", link = true },
     { name = "mpsk_receiver", link = true },
     # RateConverter's own cascade components -- jm's depends_on linking is

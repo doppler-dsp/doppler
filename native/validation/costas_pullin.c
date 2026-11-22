@@ -389,9 +389,9 @@ static const int HB_NDA_DET[3]
 static const char *const HB_NDA_NAME[3] = { "limiter", "averaged", "unit" };
 /* The averaged and unit forms' EMA weight an update (the page's 1/256). */
 #define HB_NDA_ALPHA (1.0 / 256.0)
-/* The block lock the page sizes for the floor: B updates (31 at 2.2 GHz, 40
-   at 2.8: "The loop's lock statistic", its table), Pfa 1e-3, 2 blocks up and
-   3 down (det_verify_count's, the code lock's budget). */
+/* The block lock, as the receiver sizes it at the floor: Pfa 1e-3, Pd
+   0.99, 2 blocks up and 3 down (det_verify_count's, the code lock's
+   budget). */
 #define HB_NDA_PFA 1e-3
 #define HB_NDA_UP 2u
 #define HB_NDA_DOWN 3u
@@ -412,18 +412,14 @@ typedef struct
   uint32_t blk;      /* the block lock's length                       */
 } hb_nda_t;
 
-/* The rule's bn with the squaring loss (the owner's ruling, 2026-11-22):
-   bn = rho S_L / 200 at the floor, S_L = 1 / (1 + 1/(2 gamma)) at the
-   floor's update SNR gamma = C/N0 T. 0.00993 at 2.2 GHz, 0.00744 at 2.8. */
+/* The rule's bn with the squaring loss (the owner's ruling, 2026-11-22),
+   the receiver's own: dp_async_dsss_receiver_carrier_bn() at the floor.
+   0.00992 at 2.2 GHz, 0.00744 at 2.8. */
 static double
 hb_nda_bn (double fc)
 {
-  const double chip = dp_s415_chip_rate (fc);
-  const double T    = (double)DP_S415_SF / chip;
-  const double g    = pow (10.0, dp_s415_cn0 (DP_S415_FLOOR_DB) / 10.0) * T;
-  return dp_async_dsss_receiver_carrier_bn (dp_s415_cn0 (DP_S415_FLOOR_DB),
-                                            chip, DP_S415_SF)
-         / (1.0 + 1.0 / (2.0 * g));
+  return dp_async_dsss_receiver_carrier_bn (
+      dp_s415_cn0 (DP_S415_FLOOR_DB), dp_s415_chip_rate (fc), DP_S415_SF);
 }
 
 /* The twelve configurations, in the order --half-bw numbers its points:
@@ -446,7 +442,14 @@ hb_nda_cfgs (hb_nda_t *n)
           n[i].gamma_fl = pow (10.0, (dp_s415_cn0 (DP_S415_FLOOR_DB)
                                       + 10.0 * log10 (n[i].c.t_upd))
                                          / 10.0);
-          n[i].blk      = fcs[f] < 2.5e9 ? 31u : 40u;
+          /* The receiver's own sizing: the unit form's jitter at the
+             rule's bn, bn (1 + 1/(2 gamma)) / gamma, and the exact tail
+             (det_ratio_block_len): 33 at 2.2 GHz, 43 at 2.8. The sweep's
+             committed rows (sweep-1b7312b09) ran the page's 31 / 40. */
+          n[i].blk = (uint32_t)dp_det_ratio_block_len (
+              n[i].gamma_fl,
+              bn * (1.0 + 1.0 / (2.0 * n[i].gamma_fl)) / n[i].gamma_fl,
+              HB_NDA_PFA, 0.99, (int)CARRIER_NDA_BLOCK_MAX_LEN);
         }
 }
 

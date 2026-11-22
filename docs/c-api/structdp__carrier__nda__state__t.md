@@ -46,7 +46,7 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 |  double | [**blk\_thr**](#variable-blk_thr)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**ctl\_cyc**](#variable-ctl_cyc)  <br> |
-|  int | [**den**](#variable-den)  <br> |
+|  int32\_t | [**den**](#variable-den)  <br> |
 |  double | [**den\_alpha**](#variable-den_alpha)  <br> |
 |  double | [**den\_gamma**](#variable-den_gamma)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
@@ -56,6 +56,7 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) | [**nco**](#variable-nco)  <br> |
+|  uint32\_t | [**opt\_zero**](#variable-opt_zero)  <br> |
 |  double | [**pow\_avg**](#variable-pow_avg)  <br> |
 |  double | [**pow\_n**](#variable-pow_n)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
@@ -300,7 +301,7 @@ NCO control (cyc/sample) for next wipeoff.
 ### variable den 
 
 ```C++
-int dp_carrier_nda_state_t::den;
+int32_t dp_carrier_nda_state_t::den;
 ```
 
 
@@ -468,6 +469,24 @@ dp_lo_state_t dp_carrier_nda_state_t::nco;
 
 
 integer carrier NCO (uint32 phase). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable opt\_zero 
+
+```C++
+uint32_t dp_carrier_nda_state_t::opt_zero;
+```
+
+
+
+always 0: the four 32-bit fields fill two words, so a whole-struct blob has no padding between them; the state check holds it 0. 
  
 
 

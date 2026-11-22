@@ -131,6 +131,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**CARRIER\_NDA\_BLOCK\_MAX\_LEN**](carrier__nda__core_8h.md#define-carrier_nda_block_max_len)  `10000000u`<br>_The largest block a block lock takes, updates. Its threshold is_ [_**dp\_det\_threshold\_f()**_](detection__core_8h.md#function-dp_det_threshold_f) _'s F(len, len) quantile, a bisection on a continued fraction capped at 300 terms. Against scipy's_`f.isf` _, the threshold r it gives holds to 1e-9 relative at 1e7 and fails outright between 2e8 and 5e8 (r even turns negative at 2^31). A block of 1e7 code periods is about 50 minutes at the 415.1-B-1 point._ |
 | define  | [**CARRIER\_NDA\_DEN\_AVERAGED**](carrier__nda__core_8h.md#define-carrier_nda_den_averaged)  `1`<br>_An average of_ `|z|^2` _(an EMA, booted as a cumulative mean). Its mean is signal plus noise, so the gain is_`gamma/(gamma + 1)` _at update SNR gamma. M = 2 only._ |
 | define  | [**CARRIER\_NDA\_DEN\_LIMITER**](carrier__nda__core_8h.md#define-carrier_nda_den_limiter)  `0`<br>_The denominator in force (the state's_ `den` _, which_[_**dp\_carrier\_nda\_set\_denominator()**_](carrier__nda__core_8h.md#function-dp_carrier_nda_set_denominator) _derives from its arguments): the update's own_`|z|^2` _, a per-update limiter (the default, and the one_[_**carrier\_nda\_disc()**_](carrier__nda__core_8h.md#function-carrier_nda_disc) _computes). Gain_`E[1/(1 + n/A)]` _, falling with SNR._ |
 | define  | [**CARRIER\_NDA\_DEN\_UNIT**](carrier__nda__core_8h.md#define-carrier_nda_den_unit)  `2`<br>_That average less the caller's noise power, clamped between avg \* gamma\_d/(gamma\_d + 1) and avg, with gamma\_d the design update SNR: gain 1 where the estimate holds, never above the design point's, never the averaged form's sign. M = 2 only._  |
@@ -441,7 +442,7 @@ void dp_carrier_nda_configure_lock (
 
 
 
-Full lockdet control, mirroring [**dp\_costas\_configure\_lock()**](costas__core_8h.md#function-dp_costas_configure_lock): a split declare/drop threshold pair on the lock-signal EMA (level hysteresis) and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32 down) start from MpskReceiver's own carrier lock-indicator thresholds, but size n\_up independently: `lock` is a fast per-sample EMA, so consecutive looks are highly autocorrelated and MpskReceiver's own n\_up=8 does not compound the false-declare rate the way it would for independent looks (direct Monte Carlo against a noise-only, no-carrier input found real false locks at n\_up=8; n\_up=64 was the smallest verify count that reliably eliminated them  see carrier\_nda\_core.c's CARRIER\_NDA\_LOCK\_DEFAULT\_\* comment for the exact trial data). A live lock survives the re-tune; the in-flight verify run restarts.
+Full lockdet control, mirroring [**dp\_costas\_configure\_lock()**](costas__core_8h.md#function-dp_costas_configure_lock): a split declare/drop threshold pair on the lock-signal EMA (level hysteresis) and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32 down) start from MpskReceiver's own carrier lock-indicator thresholds, but size n\_up independently: `lock` is a fast per-sample EMA, so consecutive looks are highly autocorrelated and MpskReceiver's own n\_up=8 does not compound the false-declare rate the way it would for independent looks (direct Monte Carlo against a noise-only, no-carrier input found real false locks at n\_up=8; n\_up=64 was the smallest verify count that reliably eliminated them  see carrier\_nda\_core.c's CARRIER\_NDA\_LOCK\_DEFAULT\_\* comment for the exact trial data). A live lock survives the re-tune; the in-flight verify run restarts. It re-tunes the EMA's rule: with a block lock set ([**dp\_carrier\_nda\_set\_block\_lock()**](carrier__nda__core_8h.md#function-dp_carrier_nda_set_block_lock)), it returns to the EMA first, so block\_thresh and the rule in force never disagree.
 
 
 
@@ -1042,7 +1043,7 @@ int dp_carrier_nda_set_block_lock (
 
 
 * `state` Must be non-NULL. 
-* `len` Updates a block, &gt;= 2; or 0 for the EMA. 
+* `len` Updates a block, 2 to CARRIER\_NDA\_BLOCK\_MAX\_LEN; or 0 for the EMA. 
 * `pfa` The false-alarm rate a block, in (0, 1). 
 * `n_up` Blocks above the threshold to declare; clamped &gt;= 1. 
 * `n_down` Blocks below it to drop; clamped &gt;= 1. 
@@ -1051,7 +1052,7 @@ int dp_carrier_nda_set_block_lock (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID (nothing changes) for an M other than 2, a `len` of 1, or a `pfa` out of range. 
+DP\_OK, or DP\_ERR\_INVALID (nothing changes) for an M other than 2, a `len` of 1 or past CARRIER\_NDA\_BLOCK\_MAX\_LEN, or a `pfa` out of range. 
 ```C++
 >>> from doppler.track import CarrierNda
 >>> c = CarrierNda(bn=0.012, sps=8, n=1, m=2)
@@ -1303,7 +1304,7 @@ int dp_carrier_nda_set_update_period (
 
 
 
-For a composer that updates the loop once a block ([**carrier\_nda\_update()**](carrier__nda__core_8h.md#function-carrier_nda_update) once a sum, [**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff) once a sample). The loop is designed per update: `bn` becomes the noise bandwidth times the update period (`B_L * t_upd / fs`), and the filter's output, a frequency in cycles an update, is spread over the update's samples ([**carrier\_nda\_steer()**](carrier__nda__core_8h.md#function-carrier_nda_steer)). The frequency readouts follow. The configured `bn` and `zeta` are kept, and the running state (the NCO, the integrator, the lock) is not touched.
+For a composer that updates the loop once a block ([**carrier\_nda\_update()**](carrier__nda__core_8h.md#function-carrier_nda_update) once a sum, [**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff) once a sample). The loop is designed per update: `bn` becomes the noise bandwidth times the update period (`B_L * t_upd / fs`), and the filter's output, a frequency in cycles an update, is spread over the update's samples ([**carrier\_nda\_steer()**](carrier__nda__core_8h.md#function-carrier_nda_steer)). The frequency readouts follow. The configured `bn` and `zeta` are kept. On a running loop the integrator, which holds cycles an update, is rescaled by the new period over the old, so the tracked frequency (cycles a sample) and the command held for the next sample are unchanged by the call; the NCO and the lock are not touched.
 
 
 [**dp\_carrier\_nda\_steps()**](carrier__nda__core_8h.md#function-dp_carrier_nda_steps) runs the loop once a sample, so it is defined at the default 1 only: at any other period it writes nothing and returns 0.
@@ -1507,6 +1508,20 @@ Out-of-line on purpose: the emit machinery must not inline into the per-sample h
 ## Macro Definition Documentation
 
 
+
+
+
+### define CARRIER\_NDA\_BLOCK\_MAX\_LEN 
+
+_The largest block a block lock takes, updates. Its threshold is_ [_**dp\_det\_threshold\_f()**_](detection__core_8h.md#function-dp_det_threshold_f) _'s F(len, len) quantile, a bisection on a continued fraction capped at 300 terms. Against scipy's_`f.isf` _, the threshold r it gives holds to 1e-9 relative at 1e7 and fails outright between 2e8 and 5e8 (r even turns negative at 2^31). A block of 1e7 code periods is about 50 minutes at the 415.1-B-1 point._
+```C++
+#define CARRIER_NDA_BLOCK_MAX_LEN `10000000u`
+```
+
+
+
+
+<hr>
 
 
 

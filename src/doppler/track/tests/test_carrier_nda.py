@@ -235,3 +235,43 @@ def test_steps_out_undersized_raises():
     c = CarrierNda(m=4)
     with pytest.raises(ValueError):
         c.steps(_unmod(0.001, 1000), out=np.zeros(1, dtype=np.complex64))
+
+
+def test_composer_options_through_the_binding():
+    """The three options a loop updated once a block takes, as a Python
+    caller meets them: each refusal raises ValueError and changes nothing,
+    and each accepted setting changes what the object does."""
+    c = CarrierNda(bn=0.012, sps=8, n=1, m=2)
+    # The update period: steps() is the per-sample loop and emits nothing
+    # once a block's period is set; back at 1 it runs again.
+    x = np.ones(16, dtype=np.complex64)
+    with pytest.raises(ValueError):
+        c.set_update_period(0.5)
+    assert len(c.steps(x)) == 16
+    c.set_update_period(64.0)
+    assert len(c.steps(x)) == 0
+    c.set_update_period(1.0)
+    assert len(c.steps(x)) == 16
+    # The denominator: a weight outside (0, 1] is refused; the averaged and
+    # unit forms are BPSK-only, the limiter is every order's.
+    with pytest.raises(ValueError):
+        c.set_denominator(0.0, 0.0)
+    c.set_denominator(1.0 / 256.0, 2.4)
+    q = CarrierNda(bn=0.012, sps=8, n=1, m=4)
+    with pytest.raises(ValueError):
+        q.set_denominator(1.0 / 256.0, 0.0)
+    q.set_denominator(1.0, 0.0)
+    # The block lock: the Beta threshold at the design's two block lengths,
+    # a block of 1 refused, and 0 back to the EMA.
+    assert c.block_thresh == 0.0
+    c.set_block_lock(31, 1e-3, 2, 3)
+    assert round(c.block_thresh, 3) == 0.518
+    c.set_block_lock(40)
+    assert round(c.block_thresh, 3) == 0.463
+    with pytest.raises(ValueError):
+        c.set_block_lock(1)
+    assert round(c.block_thresh, 3) == 0.463
+    with pytest.raises(ValueError):
+        q.set_block_lock(31)
+    c.set_block_lock(0)
+    assert c.block_thresh == 0.0

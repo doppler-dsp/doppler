@@ -96,6 +96,7 @@
 * **CARRIER\_MPSK\_LOCK\_ALPHA** ([**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md))
 * **CARRIER\_MPSK\_STATE\_MAGIC** ([**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md))
 * **CARRIER\_MPSK\_STATE\_VERSION** ([**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md))
+* **CARRIER\_NDA\_BLOCK\_MAX\_LEN** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_AVERAGED** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_LIMITER** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_UNIT** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))

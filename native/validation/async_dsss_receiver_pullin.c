@@ -272,6 +272,13 @@ typedef struct
   int    car_up_end, dem_up_end, syn_up_end;
   double sym_tog1_s, code_tog1_s; /* NAN: none */
   double end_resid_hz;
+  /* The pull-in (async-dsss-receiver.md §4.11, D3's run): when the
+     carrier flag was first sustained (NAN: never), and whether the loop
+     pulled in, read against the truth: tracking at the end with the live
+     carrier inside the loop's own pull-in bound (base_pullin_hz), the
+     bound a loop outside capture never falls inside. */
+  double t_car_s;
+  int    pulled_in;
   double end_stale_hz; /* the hand-over's Doppler against the end's
                           truth: what end_resid_hz would read if it
                           took get_doppler_hz() (the --check margin) */
@@ -961,6 +968,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   float complex *tmp    = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
   d->ho_err_hz            = NAN;
+  d->t_car_s              = NAN;
   d->t_switch_s           = NAN;
   d->slope_hz_s           = NAN;
   d->t_narrow_s           = NAN;
@@ -1566,6 +1574,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       {
         const int64_t s  = dp_ber_lock_symbol (f_x[k], n_blk, PI_SUSTAIN, 0.9);
         int64_t       f1 = -1;
+        if (k == 0)
+          d->t_car_s = s >= 0 ? (double)s * blk_s : NAN;
         *tog[k]  = s >= 0 ? dp_ber_lock_transitions (f_x[k], data, n_blk,
                                                      (size_t)s, &f1)
                           : 0;
@@ -1803,6 +1813,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                     - dp_air_truth (&air, 0, n_in).car_hz;
   d->false_lock   = rx->state == ASYNC_DSSS_RX_TRACKING
                     && fabs (d->end_resid_hz) >= 0.25 * DP_S415_SYM;
+  d->pulled_in    = rx->state == ASYNC_DSSS_RX_TRACKING
+                    && fabs (d->end_resid_hz) < d->base_pullin_hz;
 
   /* The error rate of the current track, against the payload as each
      symbol carried it. */
@@ -1945,7 +1957,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
   "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
   "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate,t_narrow_s,"                 \
-  "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s\n"
+  "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s,"            \
+  "t_car_s,pulled_in\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1958,7 +1971,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
-      "%.2f,%.2f\n",
+      "%.2f,%.2f,%.4f,%d\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -1977,7 +1990,8 @@ emit_row (const draw_t *d, uint32_t seed)
       d->bn_car, d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
       d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
       d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
-      d->rate_post_narrow_hz_s, d->slope_settled_hz_s);
+      d->rate_post_narrow_hz_s, d->slope_settled_hz_s, d->t_car_s,
+      d->pulled_in);
 }
 
 static int

@@ -34,6 +34,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 * `#include "doppler/ber/ber_core.h"`
 * `#include "doppler/doppler_channel/doppler_channel_core.h"`
 * `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/ppe/ppe_core.h"`
 
 
 
@@ -54,6 +55,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 | Type | Name |
 | ---: | :--- |
 | struct | [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) <br>_The receiver's own fields in its state blob, after the envelope and before the children._  |
+| struct | [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) <br> |
 | struct | [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) <br>_One consistent picture of what the receiver is doing, by value._  |
 | struct | [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) <br>_Composed receiver state._  |
 
@@ -93,6 +95,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 |  int | [**dp\_async\_dsss\_receiver\_configure\_search\_raw**](#function-dp_async_dsss_receiver_configure_search_raw) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded search's grid directly. Forwards to_ `dp_correlator_configure_search_raw()` __ _the escape hatch under this object's_`symbol_rate` _-driven auto-sizing, for a power user who wants a specific_`(doppler_bins, n_noncoh)` _. The pin replaces the whole auto-sized grid, the window-tiled search included. Only meaningful while searching; the search does not run again until the next_`reset()` _._ |
 |  [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* | [**dp\_async\_dsss\_receiver\_create**](#function-dp_async_dsss_receiver_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, double sample\_rate, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks, double carrier\_freq\_hz, double lost\_confirm\_s, bool reacquire, double code\_only\_s, double doppler\_rate, bool refine) <br>_Create an AsyncDsssReceiver in the searching state._  |
 |  void | [**dp\_async\_dsss\_receiver\_destroy**](#function-dp_async_dsss_receiver_destroy) ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_Destroy a receiver and release every child._  |
+|  int | [**dp\_async\_dsss\_receiver\_fine\_design**](#function-dp_async_dsss_receiver_fine_design) (double cn0\_dbhz, double chip\_rate, size\_t code\_len, double p\_flip, double symbol\_rate, int m, size\_t refine\_segments, double e\_hz, double eps\_chip, double block\_s, double pfa, double p\_ho, size\_t max\_blocks, [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) \* out) <br>_Design the fine hand-over at a design point: K, the dwell and its rates._  |
 |  double | [**dp\_async\_dsss\_receiver\_get\_car\_last\_error**](#function-dp_async_dsss_receiver_get_car_last_error) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The pre-despread carrier loop's last phase error (rad): the residual carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling, as its loop filter takes it_  _carrier\_nda's discriminator divided by its slope (_[_**carrier\_nda\_loop\_error()**_](carrier__nda__core_8h.md#function-carrier_nda_loop_error) _), so radians near lock. The ".car.e" probe is the raw discriminator, twice this._ |
 |  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_async\_dsss\_receiver\_get\_car\_lock\_rule**](#function-dp_async_dsss_receiver_get_car_lock_rule) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_The carrier loop's lock rule; see_ [_**dp\_async\_dsss\_receiver\_get\_sym\_lock\_rule()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_sym_lock_rule) _._ |
 |  double | [**dp\_async\_dsss\_receiver\_get\_car\_nco\_freq**](#function-dp_async_dsss_receiver_get_car_nco_freq) (const [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md) \* state) <br>_LOOP 1 (the pre-despread carrier loop) output = NCO frequency command, cycles/sample of the front-end (chip\_rate\*spc) rate._  |
@@ -634,6 +637,72 @@ void dp_async_dsss_receiver_destroy (
 
 
 * `state` May be NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_async\_dsss\_receiver\_fine\_design 
+
+_Design the fine hand-over at a design point: K, the dwell and its rates._ 
+```C++
+int dp_async_dsss_receiver_fine_design (
+    double cn0_dbhz,
+    double chip_rate,
+    size_t code_len,
+    double p_flip,
+    double symbol_rate,
+    int m,
+    size_t refine_segments,
+    double e_hz,
+    double eps_chip,
+    double block_s,
+    double pfa,
+    double p_ho,
+    size_t max_blocks,
+    async_dsss_receiver_fine_t * out
+) 
+```
+
+
+
+One pair sum's SNR is `g = (gamma/K) rho^2/kappa (1 - eps)^2 sinc^2(e T / K)`, with `gamma = C/N0 T` (T a code period), the replica's `rho^2/kappa` from the code's share of sign-changing boundaries `p_flip` (`rho = 1 - p/4`, `kappa = 1 - p/3`), the code error `eps` chips and the carrier error `e` Hz. Squared (M = 2) it is `gamma_sq = c^2 g^2 / (4 g + 2 + v g^2)`, where a sum straddles a symbol edge with probability `q = T symbol_rate / K`, `c = 1 - q/3` and `v = 1 - 0.4 q - c^2`. Over a dwell of `D` refine blocks of `block_s` seconds the estimate sees `n_s = K D block_s / T` sums at `rho = n_s gamma_sq`, through PolynomialPhaseEstimator's Kaiser window (50 dB), whose peak-bin share `p` and variance ratio `eta` are computed from the window itself. A wrong peak is `(n_s - 1)/2 exp(-p rho/2)`. The check refuses the right one with `1 - Q1(sqrt(2 p rho), sqrt(2 ln(n_s/pfa)))`. The dwell is the least `D` at which the two sum to at most `1 - p_ho`.
+
+
+At the 415.1-B-1 floor (C/N0 38.77 dB-Hz, Gold-1023, 3,000 symbols a second, refine\_segments 10, e 3,000 Hz, eps 0.25, blocks of 5.33 ms, pfa 1e-3) K is 5 and the dwell is 32 blocks at 2.2 GHz and 35 at 2.8 GHz, at p\_ho 0.99; 24 / 27 at 0.9 and 39 / 42 at 0.999.
+
+
+
+
+**Parameters:**
+
+
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `chip_rate` Chips a second, &gt; 0. 
+* `code_len` Chips a code period, &gt; 0. 
+* `p_flip` The code's share of sign-changing chip boundaries, from 0 to 1. 
+* `symbol_rate` Data symbols a second, &gt; 0. 
+* `m` Constellation order; the loss law is M = 2's. 
+* `refine_segments` The refine Dll's dumps a code period. 
+* `e_hz` The seed's design carrier error bound, Hz. 
+* `eps_chip` The design code error, chips, in [0, 1). 
+* `block_s` One refine block, seconds. 
+* `pfa` The check's false-alarm rate, in (0, 1). 
+* `p_ho` The hand-over's probability, in (0, 1). 
+* `max_blocks` The longest dwell to consider. 
+* `out` Receives the design. 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID for M other than 2, an argument out of range, no divisor of refine\_segments that covers `e_hz`, or no dwell up to `max_blocks` that reaches `p_ho`. 
+
 
 
 

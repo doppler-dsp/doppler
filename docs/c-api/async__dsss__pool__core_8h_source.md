@@ -36,6 +36,7 @@
 #include "doppler/resamp/resamp_core.h"
 #include "doppler/hbdecim/hbdecim_core.h"
 #include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/ppe/ppe_core.h"
 #ifdef __cplusplus
 extern "C"
 {

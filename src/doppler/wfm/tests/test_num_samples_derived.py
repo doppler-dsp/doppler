@@ -87,6 +87,24 @@ def test_a_count_beside_sources_that_set_the_length_is_refused(make, count):
         Composer([make(num_samples=count)])
 
 
+@pytest.mark.parametrize(
+    ("make", "on"),
+    [(_data_seg, 3 * 8), (_burst_seg, 31 * 2 * 2)],
+    ids=["finite data", "lone dsss burst"],
+)
+def test_the_length_they_derive_is_not_a_dropped_count(make, on):
+    """What ``Composer.segments`` reads back carries the derived length, so
+    a copy of those segments must compose (#3225): a count EQUAL to the
+    derived one is accepted and composes what 0 does; one sample more is
+    still refused."""
+    derived = Composer([make()]).compose()
+    np.testing.assert_array_equal(
+        Composer([make(num_samples=on)]).compose(), derived
+    )
+    with pytest.raises(ValueError, match=WHY):
+        Composer([make(num_samples=on + 1)])
+
+
 def test_a_plain_segment_keeps_its_count():
     assert (
         Composer([Segment(type="tone", num_samples=100)]).compose().size == 100

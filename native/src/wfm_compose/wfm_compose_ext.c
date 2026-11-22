@@ -5834,8 +5834,9 @@ static PyGetSetDef Segment_getset[] = {
     "Segment on-time in samples, before the trailing gap: 0 derives it from "
     "the sources, or 1024 when they set none. A finite data source sets its "
     "frames, a lone dsss burst one burst, and a stream runs to its end. A "
-    "count beside a finite data source or a lone dsss burst is refused, since "
-    "they set the length; give repeats for more.\n",
+    "count beside a finite data source or a lone dsss burst is refused unless "
+    "it is the length they set, which is what a Composer's segments read "
+    "back; give repeats for more.\n",
     NULL },
   { "off_samples", (getter)Segment_get_off_samples,
     (setter)Segment_set_off_samples,
@@ -6592,9 +6593,10 @@ static PyTypeObject SegmentType = {
       "its\n"
       "    frames, a lone dsss burst one burst, and a stream runs to its end. "
       "A\n"
-      "    count beside a finite data source or a lone dsss burst is "
-      "refused,\n"
-      "    since they set the length; give repeats for more.\n"
+      "    count beside a finite data source or a lone dsss burst is refused\n"
+      "    unless it is the length they set, which is what a Composer's "
+      "segments\n"
+      "    read back; give repeats for more.\n"
       "off_samples : int | tuple[int, int], default 0\n"
       "    Trailing gap after the on-time, in samples. It carries the noise "
       "floor\n"

@@ -2110,7 +2110,7 @@ Every source's [**dp\_wfm\_source\_error()**](wfm__compose_8h.md#function-dp_wfm
 
 
 * A continuous dsss source's chip rate `fs / sps`, at its segment's `fs`, is at least its `symbol_rate`  one chip per data symbol, the synth's own floor ([**dp\_wfm\_source\_dsss\_cps()**](wfm__compose_8h.md#function-dp_wfm_source_dsss_cps)). The default `fs = 1.0` with a `symbol_rate` in Hz is the case that finds it (doppler#1706); the reason is dp\_wfm\_why\_dsss\_cont\_rate.
-* A count (`num_samples`, non-zero or ranged) beside sources that set the segment's length ([**dp\_wfm\_segment\_sets\_length()**](wfm__compose_8h.md#function-dp_wfm_segment_sets_length)) is refused with dp\_wfm\_why\_count\_derived: the length is theirs, so it would be dropped (doppler#1729).
+* A count (`num_samples`, non-zero or ranged) beside sources that set the segment's length ([**dp\_wfm\_segment\_sets\_length()**](wfm__compose_8h.md#function-dp_wfm_segment_sets_length)) is refused with dp\_wfm\_why\_count\_derived: the length is theirs, so it would be dropped (doppler#1729). A count equal to the length they derive is not: it is what a composer's segments read back, and it composes the same.
 * A data STREAM (`--data-from-file -`) has no end to repeat, so `repeat`, `continuous` and a segment's `repeats > 1` are refused, and stdin feeds at most one source.
 
 

@@ -736,6 +736,210 @@ size_t dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
                      unsigned window, unsigned oversample, float _Complex *out,
                      size_t cap);
 
+/**
+ * @brief The capacity dp_wlan_signal_bits_why() needs: WLAN_SIG_BITS.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @return WLAN_SIG_BITS.
+ */
+size_t dp_wlan_signal_bits_max_out (const dp_wlan_state_t *state);
+
+/**
+ * @brief The SIGNAL field's 24 bits for a PSDU of @p psdu_len octets at this object's rate (Figure 17-5): dp_wlan_signal_bits() over the standard tables, with the refusal's reason.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param psdu_len        PSDU octets, 1 to WLAN_PSDU_MAX.
+ * @param [out] out       Receives WLAN_SIG_BITS unpacked bits.
+ * @param max_out         Capacity of @p out.
+ * @param [out] why       On a refusal only, a static sentence saying why. May be NULL.
+ * @return The bits written, or -1 if the rate has no SIGNAL RATE bits, the length is out of range or @p max_out is short.
+ *
+ * @code
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s
+ * >>> w.signal_bits(100).tolist()  # RATE, 0, LENGTH lsb first, parity, tail
+ * [1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ * >>> w.signal_bits(0)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: the PSDU is 1 to 4095 octets
+ * @endcode
+ */
+int64_t dp_wlan_signal_bits_why (dp_wlan_state_t *state, size_t psdu_len,
+                                 uint8_t *out, size_t max_out,
+                                 const char **why);
+
+/**
+ * @brief The capacity dp_wlan_data_bits_why() needs: `n_sym * n_dbps`.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param n_in            PSDU octets.
+ * @return Bits, or 0 for a length outside 1 to WLAN_PSDU_MAX.
+ */
+size_t dp_wlan_data_bits_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+/**
+ * @brief The Data field's bits for a PSDU at this object's rate: dp_wlan_data_bits() with the refusal's reason.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param in              The PSDU octets.
+ * @param n_in            Their count, 1 to WLAN_PSDU_MAX.
+ * @param scrambler_state The scrambler register's initial state, 1 to 127.
+ * @param [out] out       Receives dp_wlan_data_bits_max_out() bits.
+ * @param max_out         Capacity of @p out.
+ * @param [out] why       On a refusal only, a static sentence saying why. May be NULL.
+ * @return The bits written, or -1 if the length or the state is out of range or @p max_out is short.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan(constellation="qam16", code_rate="r34")
+ * >>> psdu = np.arange(100, dtype=np.uint8)
+ * >>> w.data_bits(psdu, 93).shape  # n_sym 6 times n_dbps 144
+ * (864,)
+ * >>> w.data_bits(psdu, 128)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: the scrambler state is 1 to 127
+ * @endcode
+ */
+int64_t dp_wlan_data_bits_why (dp_wlan_state_t *state, const uint8_t *in,
+                               size_t n_in, uint32_t scrambler_state,
+                               uint8_t *out, size_t max_out,
+                               const char **why);
+
+/**
+ * @brief The capacity dp_wlan_map_why() needs: `n_in / n_bpsc` points.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param n_in            Bits.
+ * @return Points.
+ */
+size_t dp_wlan_map_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+/**
+ * @brief Map interleaved bits to this rate's constellation points: dp_wlan_map() over the standard tables, with the refusal's reason.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param in              Unpacked bits.
+ * @param n_in            Their count: a whole number of groups of `n_bpsc`, not 0.
+ * @param [out] out       Receives dp_wlan_map_max_out() points.
+ * @param max_out         Capacity of @p out, in points.
+ * @param [out] why       On a refusal only, a static sentence saying why. May be NULL.
+ * @return The points written, or -1 for a partial group, no bits or a short @p max_out.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan(constellation="qam16", code_rate="r34")
+ * >>> pts = w.map(np.array([0, 0, 0, 0, 1, 1, 1, 1], dtype=np.uint8))
+ * >>> bool(np.allclose(pts, [-0.9487 - 0.9487j, 0.3162 + 0.3162j], atol=1e-3))
+ * True
+ * >>> w.map(np.zeros(7, dtype=np.uint8))
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: the bits are a whole number of groups of n_bpsc
+ * @endcode
+ */
+int64_t dp_wlan_map_why (dp_wlan_state_t *state, const uint8_t *in,
+                         size_t n_in, float _Complex *out, size_t max_out,
+                         const char **why);
+
+/**
+ * @brief The capacity dp_wlan_points_why() needs: `48 + 48 * n_sym`.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param n_in            PSDU octets.
+ * @return Points, or 0 for a length outside 1 to WLAN_PSDU_MAX.
+ */
+size_t dp_wlan_points_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+/**
+ * @brief The constellation points a PSDU's layout takes, at this object's rate: dp_wlan_points() with the refusal's reason.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param in              The PSDU octets.
+ * @param n_in            Their count, 1 to WLAN_PSDU_MAX.
+ * @param scrambler_state The scrambler register's initial state, 1 to 127.
+ * @param [out] out       Receives dp_wlan_points_max_out() points.
+ * @param max_out         Capacity of @p out, in points.
+ * @param [out] why       On a refusal only, a static sentence saying why. May be NULL.
+ * @return The points written, or -1 if the rate has no SIGNAL RATE bits, the length or the state is out of range or @p max_out is short.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan(constellation="qam16", code_rate="r34")
+ * >>> psdu = np.arange(100, dtype=np.uint8)
+ * >>> w.points(psdu, 93).shape  # 48 SIGNAL + 48 * 6 Data
+ * (336,)
+ * >>> w.points_max_out(100)
+ * 336
+ * >>> w.points(psdu, 0)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: the scrambler state is 1 to 127
+ * @endcode
+ */
+int64_t dp_wlan_points_why (dp_wlan_state_t *state, const uint8_t *in,
+                            size_t n_in, uint32_t scrambler_state,
+                            float _Complex *out, size_t max_out,
+                            const char **why);
+
+/**
+ * @brief The capacity dp_wlan_mpdu_why() needs: WLAN_PSDU_MAX, the longest PSDU.
+ *
+ * @param state           A rate holder from dp_wlan_create().
+ * @param n_in            Unused.
+ * @return WLAN_PSDU_MAX.
+ */
+size_t dp_wlan_mpdu_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+/**
+ * @brief A data frame's PSDU from its body and, optionally, its MAC header:
+ *        dp_wlan_mpdu() in WLAN_MAC_DATA mode, or in WLAN_MAC_FCS mode when
+ *        @p header_len is 0, with the refusal's reason.
+ *
+ * With no header the body is taken as an MPDU that lacks its FCS and the
+ * result is the body and its FCS, which is also what an empty header gives in
+ * data mode, so "no header" and "an empty header" are one result. There is no
+ * way to ask for the body unchanged: WLAN_MAC_NONE is the body itself. The
+ * MPDU does not depend on the rate; it is on the object so a caller builds a
+ * frame and renders it with one handle.
+ *
+ * @param state       A rate holder from dp_wlan_create().
+ * @param in          The body octets (the whole MPDU without its FCS when
+ *                    there is no header).
+ * @param n_in        Their count.
+ * @param header      Header octets, or NULL.
+ * @param header_len  Their count; 0 for none.
+ * @param[out] out    Receives the header, the body and the FCS.
+ * @param max_out     Capacity of @p out.
+ * @param[out] why    On a refusal only, a static sentence saying why. May be
+ *                    NULL.
+ * @return The octets written, or -1 if the MPDU is 0 or above WLAN_PSDU_MAX
+ *         octets or @p max_out is short.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan()
+ * >>> header = np.arange(24, dtype=np.uint8)
+ * >>> body = np.arange(10, dtype=np.uint8)
+ * >>> psdu = w.mpdu(body, header)  # 24 + 10 + the 4-octet FCS
+ * >>> psdu.shape
+ * (38,)
+ * >>> bytes(psdu[-4:]).hex()  # CRC-32/ISO-HDLC, least significant first
+ * 'c0958e66'
+ * >>> w.mpdu(body).shape  # no header: the body and its FCS
+ * (14,)
+ * @endcode
+ */
+int64_t dp_wlan_mpdu_why (dp_wlan_state_t *state, const uint8_t *in,
+                          size_t n_in, const uint8_t *header,
+                          size_t header_len, uint8_t *out, size_t max_out,
+                          const char **why);
+
 #ifdef __cplusplus
 }
 #endif

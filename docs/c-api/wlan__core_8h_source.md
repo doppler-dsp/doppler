@@ -208,6 +208,39 @@ size_t dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
                      unsigned window, unsigned oversample, float _Complex *out,
                      size_t cap);
 
+size_t dp_wlan_signal_bits_max_out (const dp_wlan_state_t *state);
+
+int64_t dp_wlan_signal_bits_why (dp_wlan_state_t *state, size_t psdu_len,
+                                 uint8_t *out, size_t max_out,
+                                 const char **why);
+
+size_t dp_wlan_data_bits_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+int64_t dp_wlan_data_bits_why (dp_wlan_state_t *state, const uint8_t *in,
+                               size_t n_in, uint32_t scrambler_state,
+                               uint8_t *out, size_t max_out,
+                               const char **why);
+
+size_t dp_wlan_map_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+int64_t dp_wlan_map_why (dp_wlan_state_t *state, const uint8_t *in,
+                         size_t n_in, float _Complex *out, size_t max_out,
+                         const char **why);
+
+size_t dp_wlan_points_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+int64_t dp_wlan_points_why (dp_wlan_state_t *state, const uint8_t *in,
+                            size_t n_in, uint32_t scrambler_state,
+                            float _Complex *out, size_t max_out,
+                            const char **why);
+
+size_t dp_wlan_mpdu_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+int64_t dp_wlan_mpdu_why (dp_wlan_state_t *state, const uint8_t *in,
+                          size_t n_in, const uint8_t *header,
+                          size_t header_len, uint8_t *out, size_t max_out,
+                          const char **why);
+
 #ifdef __cplusplus
 }
 #endif

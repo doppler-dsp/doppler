@@ -237,7 +237,7 @@ extern "C"
    *
    * Held by `native/validation/loop_filter_noise_bw.c` (the promise),
    * `test_loop_filter_contract.py` (the gain formula, and these sentences on
-   * every face) and the detector matrix of doppler#3229 (the callers' side).
+   * every face) and test_loop_detector_contract.py (the callers' side).
    *
    * ### Arguments
    *

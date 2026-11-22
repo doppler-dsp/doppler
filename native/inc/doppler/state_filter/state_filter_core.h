@@ -263,7 +263,7 @@ const char *dp_state_filter_params_why (double bn, double t);
  *
  * Held by the state filter's own tests for the promise,
  * `test_loop_filter_contract.py` for these sentences on every face, and the
- * detector matrix of doppler#3229 for the callers' side.
+ * test_loop_detector_contract.py for the callers' side.
  *
  * ### Arguments
  *

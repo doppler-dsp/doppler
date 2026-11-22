@@ -344,7 +344,7 @@ The closed loop's noise bandwidth is `bn` cycles per sample, a fixed function of
 A loop gain K other than 1 changes the delivered bandwidth, and this third-order loop is also stable only for K above a lower edge near `1/(a*b)` of nominal and below an upper edge that falls with the delay (docs/design/loop-filter.md section 12), so a detector slope below that edge breaks the loop with no error reported. The second-order closed form `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` does not apply to it. A detector whose slope is not 1, or rides on signal level or SNR, is scaled to unit slope before the filter; a slope that rides on level makes the bandwidth ride on level.
 
 
-Held by the state filter's own tests for the promise, `test_loop_filter_contract.py` for these sentences on every face, and the detector matrix of doppler#3229 for the callers' side.
+Held by the state filter's own tests for the promise, `test_loop_filter_contract.py` for these sentences on every face, and the test\_loop\_detector\_contract.py for the callers' side.
 
 
 

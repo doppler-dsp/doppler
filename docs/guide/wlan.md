@@ -58,6 +58,36 @@ the CRC over a whole frame is one constant. The C example shows it:
 --8<-- "native/examples/wlan_mac_demo.c"
 ```
 
+## The stages from Python
+
+`Wlan` reaches each stage of the chain, so a frame can be built and inspected
+a stage at a time. Every method is the C function of the same name over the
+object's rate and the standard tables.
+
+```python
+import numpy as np
+from doppler.wlan import Wlan
+
+w = Wlan(constellation="qam16", code_rate="r34")        # 36 Mb/s
+header = np.arange(24, dtype=np.uint8)                  # the caller's header
+body = np.arange(10, dtype=np.uint8)
+psdu = w.mpdu(body, header)                             # + the 4-octet FCS
+assert psdu.shape == (38,)
+
+sig = w.signal_bits(len(psdu))                          # 24 bits
+data = w.data_bits(psdu, 93)                            # n_sym * n_dbps bits
+points = w.points(psdu, 93)                             # 48 + 48 * n_sym
+assert sig.shape == (24,)
+assert data.shape == (w.n_sym(len(psdu)) * w.n_dbps,)
+assert points.shape == (w.points_max_out(len(psdu)),)
+
+x = w.ppdu(psdu, 93)                                    # the samples
+assert x.shape == (w.ppdu_max_out(len(psdu)),)
+```
+
+A refusal is a `ValueError` that says why: a scrambler state outside 1 to 127,
+a PSDU outside 1 to 4095 octets, or a rate Table 17-6 has no row for.
+
 ## The PPDU
 
 A whole frame, from a PSDU to samples, is one call, `dp_wlan_ppdu()`. The

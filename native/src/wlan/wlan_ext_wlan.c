@@ -347,6 +347,1066 @@ WlanObj_ppdu (WlanObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+WlanObj_signal_bits_max_out (WlanObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_wlan_signal_bits_max_out (self->handle));
+}
+
+static PyObject *
+WlanObj_signal_bits (WlanObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]    = { "psdu_len", "out", NULL };
+  PyObject          *psdu_len_obj = NULL;
+  unsigned long long psdu_len_raw = 0ULL;
+  PyObject          *out_obj      = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &psdu_len_obj,
+                                    &out_obj))
+    return NULL;
+  if (psdu_len_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (psdu_len_obj);
+      if (_ix == NULL)
+        {
+          return NULL;
+        }
+      psdu_len_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((psdu_len_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || psdu_len_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "psdu_len: %S is out of range for size_t [0, %llu]",
+                        _ix, (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return NULL;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t psdu_len = (size_t)psdu_len_raw;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_wlan_signal_bits_max_out (self->handle);
+      size_t _min_cap = _omax > dp_wlan_signal_bits_max_out (self->handle)
+                            ? _omax
+                            : (dp_wlan_signal_bits_max_out (self->handle));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      const char *_why = NULL;
+      int64_t _rc = dp_wlan_signal_bits_why (self->handle, psdu_len,
+                                             (uint8_t *)PyArray_DATA (out_arr),
+                                             _cap, &_why);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                          "signal_bits refused", (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Wlan.signal_bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = dp_wlan_signal_bits_max_out (self->handle);
+  size_t _cap  = dp_wlan_signal_bits_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "Wlan.signal_bits: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int64_t     _rc
+      = dp_wlan_signal_bits_why (self->handle, psdu_len, _d0, _cap, &_why);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "signal_bits refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (
+          PyExc_RuntimeError,
+          "Wlan.signal_bits: wrote %zu elements into a buffer of %zu",
+          (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+WlanObj_data_bits_max_out (WlanObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n_in = 0;
+  if (!PyArg_ParseTuple (args, "n", &n_in))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_wlan_data_bits_max_out (self->handle, (size_t)n_in));
+}
+
+static PyObject *
+WlanObj_data_bits (WlanObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]           = { "x", "scrambler_state", "out", NULL };
+  PyObject    *x_obj               = NULL;
+  long long    scrambler_state_raw = 0LL;
+  PyObject    *out_obj             = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OL|O", _kwlist, &x_obj,
+                                    &scrambler_state_raw, &out_obj))
+    return NULL;
+  if (scrambler_state_raw < 0 || scrambler_state_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "scrambler_state: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)scrambler_state_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t       scrambler_state = (uint32_t)scrambler_state_raw;
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *x     = (const uint8_t *)PyArray_DATA (x_arr);
+  size_t         x_len = (size_t)PyArray_SIZE (x_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_wlan_data_bits_max_out (self->handle, x_len);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      const char *_why = NULL;
+      int64_t     _rc  = dp_wlan_data_bits_why (
+          self->handle, x, x_len, scrambler_state,
+          (uint8_t *)PyArray_DATA (out_arr), _cap, &_why);
+      Py_DECREF (x_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                          "data_bits refused", (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "Wlan.data_bits: wrote %zu elements into a buffer of %zu",
+              (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = x_len;
+  size_t _cap  = dp_wlan_data_bits_max_out (self->handle, x_len);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Wlan.data_bits: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int64_t _rc = dp_wlan_data_bits_why (self->handle, x, x_len, scrambler_state,
+                                       _d0, _cap, &_why);
+  Py_DECREF (x_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "data_bits refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Wlan.data_bits: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+WlanObj_map_max_out (WlanObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n_in = 0;
+  if (!PyArg_ParseTuple (args, "n", &n_in))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_wlan_map_max_out (self->handle, (size_t)n_in));
+}
+
+static PyObject *
+WlanObj_map (WlanObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj    = NULL;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &in_obj,
+                                    &out_obj))
+    return NULL;
+  PyArrayObject *in_arr
+      = jm_array_arg (in_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!in_arr)
+    {
+      return NULL;
+    }
+  Py_ssize_t n = PyArray_SIZE (in_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_wlan_map_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      const char *_why = NULL;
+      int64_t     _rc  = dp_wlan_map_why (
+          self->handle, (const uint8_t *)PyArray_DATA (in_arr), (size_t)n,
+          (float _Complex *)PyArray_DATA (out_arr), _cap, &_why);
+      Py_DECREF (in_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "map refused",
+                          (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Wlan.map: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = dp_wlan_map_max_out (self->handle, (size_t)n);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (in_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Wlan.map: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (in_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int64_t     _rc
+      = dp_wlan_map_why (self->handle, (const uint8_t *)PyArray_DATA (in_arr),
+                         (size_t)n, _d0, _cap, &_why);
+  Py_DECREF (in_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "map refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Wlan.map: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+WlanObj_points_max_out (WlanObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n_in = 0;
+  if (!PyArg_ParseTuple (args, "n", &n_in))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (
+      dp_wlan_points_max_out (self->handle, (size_t)n_in));
+}
+
+static PyObject *
+WlanObj_points (WlanObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]           = { "x", "scrambler_state", "out", NULL };
+  PyObject    *x_obj               = NULL;
+  long long    scrambler_state_raw = 0LL;
+  PyObject    *out_obj             = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OL|O", _kwlist, &x_obj,
+                                    &scrambler_state_raw, &out_obj))
+    return NULL;
+  if (scrambler_state_raw < 0 || scrambler_state_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (
+          PyExc_OverflowError,
+          "scrambler_state: %lld is out of range for uint32_t [%lld, %lld]",
+          (long long)scrambler_state_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t       scrambler_state = (uint32_t)scrambler_state_raw;
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *x     = (const uint8_t *)PyArray_DATA (x_arr);
+  size_t         x_len = (size_t)PyArray_SIZE (x_arr);
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_COMPLEX64,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_wlan_points_max_out (self->handle, x_len);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      const char *_why = NULL;
+      int64_t     _rc  = dp_wlan_points_why (
+          self->handle, x, x_len, scrambler_state,
+          (float _Complex *)PyArray_DATA (out_arr), _cap, &_why);
+      Py_DECREF (x_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "points refused",
+                          (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Wlan.points: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = x_len;
+  size_t _cap  = dp_wlan_points_max_out (self->handle, x_len);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Wlan.points: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int64_t _rc = dp_wlan_points_why (self->handle, x, x_len, scrambler_state,
+                                    _d0, _cap, &_why);
+  Py_DECREF (x_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "points refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Wlan.points: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+WlanObj_mpdu_max_out (WlanObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n_in = 0;
+  if (!PyArg_ParseTuple (args, "n", &n_in))
+    return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_wlan_mpdu_max_out (self->handle, (size_t)n_in));
+}
+
+static PyObject *
+WlanObj_mpdu (WlanObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]  = { "x", "header", "out", NULL };
+  PyObject    *x_obj      = NULL;
+  PyObject    *header_obj = NULL;
+  PyObject    *out_obj    = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|OO", _kwlist, &x_obj,
+                                    &header_obj, &out_obj))
+    return NULL;
+  PyArrayObject *x_arr
+      = jm_array_arg (x_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "x");
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const uint8_t *x          = (const uint8_t *)PyArray_DATA (x_arr);
+  size_t         x_len      = (size_t)PyArray_SIZE (x_arr);
+  PyArrayObject *header_arr = NULL;
+  const uint8_t *header     = NULL;
+  size_t         header_len = 0;
+  if (header_obj && header_obj != Py_None)
+    {
+      PyArrayObject *header_got = jm_array_arg (
+          header_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS, "header");
+      if (!header_got)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      header_arr = header_got;
+      header     = (const uint8_t *)PyArray_DATA (header_arr);
+      header_len = (size_t)PyArray_SIZE (header_arr);
+    }
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          Py_XDECREF (header_arr);
+          return NULL;
+        }
+      PyArrayObject *out_arr
+          = jm_array_arg (out_obj, NPY_UINT8,
+                          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE, "out");
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          Py_XDECREF (header_arr);
+          return NULL;
+        }
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          Py_XDECREF (header_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      size_t _omax    = dp_wlan_mpdu_max_out (self->handle, x_len);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          Py_XDECREF (header_arr);
+          return NULL;
+        }
+      if (!self->handle)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          Py_XDECREF (header_arr);
+          PyErr_SetString (PyExc_RuntimeError, "destroyed");
+          return NULL;
+        }
+      const char *_why = NULL;
+      int64_t     _rc
+          = dp_wlan_mpdu_why (self->handle, x, x_len, header, header_len,
+                              (uint8_t *)PyArray_DATA (out_arr), _cap, &_why);
+      Py_DECREF (x_arr);
+      Py_XDECREF (header_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "mpdu refused",
+                          (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
+      if ((size_t)(n_out) > (size_t)(_cap))
+        {
+          Py_DECREF (out_arr);
+          PyErr_Format (PyExc_RuntimeError,
+                        "Wlan.mpdu: wrote %zu elements into a buffer of %zu",
+                        (size_t)(n_out), (size_t)(_cap));
+          return NULL;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
+      return _oview;
+    }
+  if (!self->handle)
+    {
+      Py_DECREF (x_arr);
+      Py_XDECREF (header_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t _need = x_len;
+  size_t _cap  = dp_wlan_mpdu_max_out (self->handle, x_len);
+  (void)_need;
+  size_t _adim_need = (size_t)(_cap);
+  if (_adim_need > (size_t)NPY_MAX_INTP)
+    {
+      Py_DECREF (x_arr);
+      Py_XDECREF (header_arr);
+      PyErr_Format (PyExc_OverflowError,
+                    "Wlan.mpdu: output of %zu elements is too large",
+                    _adim_need);
+      return NULL;
+    }
+  npy_intp  _adim = (npy_intp)_adim_need;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
+  if (!arr0)
+    {
+      Py_DECREF (x_arr);
+      Py_XDECREF (header_arr);
+      return NULL;
+    }
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
+  if (!self->handle)
+    {
+      Py_DECREF (arr0);
+      Py_DECREF (x_arr);
+      Py_XDECREF (header_arr);
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  const char *_why = NULL;
+  int64_t _rc = dp_wlan_mpdu_why (self->handle, x, x_len, header, header_len,
+                                  _d0, _cap, &_why);
+  Py_DECREF (x_arr);
+  Py_XDECREF (header_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "mpdu refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
+  if ((size_t)(n_out) > (size_t)(_cap))
+    {
+      Py_DECREF (arr0);
+      PyErr_Format (PyExc_RuntimeError,
+                    "Wlan.mpdu: wrote %zu elements into a buffer of %zu",
+                    (size_t)(n_out), (size_t)(_cap));
+      return NULL;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
 WlanObj_n_sym (WlanObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -579,6 +1639,306 @@ static PyMethodDef WlanObj_methods[] = {
     "    Samples, or 0 for a length outside that range or for a rate with no\n"
     "    SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the\n"
     "    others cannot be sent, and `rate_mbps` is 0 for them).\n" },
+  { "signal_bits", (PyCFunction)(void *)WlanObj_signal_bits,
+    METH_VARARGS | METH_KEYWORDS,
+    "signal_bits(psdu_len, out) -> ndarray\n"
+    "\n"
+    "The SIGNAL field's 24 bits for a PSDU of `psdu_len` octets at this rate: "
+    "RATE, a reserved 0, LENGTH least significant bit first, an even-parity "
+    "bit and six zero tail bits (Figure 17-5). One bit per element. Refuses "
+    "with `ValueError` naming why.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "psdu_len : int\n"
+    "    PSDU octets, 1 to WLAN_PSDU_MAX.\n"
+    "out : npt.NDArray[np.uint8] | None\n"
+    "    Optional pre-allocated output buffer. When given, the result is\n"
+    "    written into it and the returned array is a view of exactly the\n"
+    "    samples produced; when omitted, a fresh array is allocated.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    The bits written, or -1 if the rate has no SIGNAL RATE bits, the\n"
+    "    length is out of range or max_out is short.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``signal_bits refused``, with the\n"
+    "    return code appended (gh-869), when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.wlan import Wlan\n"
+    ">>> w = Wlan(constellation=\"qam16\", code_rate=\"r34\")  # 36 Mb/s\n"
+    ">>> w.signal_bits(100).tolist()  # RATE, 0, LENGTH lsb first, parity, "
+    "tail\n"
+    "[1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "
+    "0]\n"
+    ">>> w.signal_bits(0)\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the PSDU is 1 to 4095 octets\n" },
+  { "signal_bits_max_out", (PyCFunction)WlanObj_signal_bits_max_out,
+    METH_NOARGS,
+    "signal_bits_max_out() -> int\n"
+    "\n"
+    "The capacity dp_wlan_signal_bits_why() needs: WLAN_SIG_BITS.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    WLAN_SIG_BITS.\n" },
+  { "data_bits", (PyCFunction)(void *)WlanObj_data_bits,
+    METH_VARARGS | METH_KEYWORDS,
+    "data_bits(x, scrambler_state, out) -> ndarray\n"
+    "\n"
+    "The Data field's bits for a PSDU at this rate: SERVICE, the PSDU (each "
+    "octet least significant bit first), tail and pad, scrambled from "
+    "`scrambler_state` except the tail. One bit per element, `n_sym * n_dbps` "
+    "of them. Refuses with `ValueError` naming why.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "    The PSDU octets.\n"
+    "scrambler_state : int\n"
+    "    The scrambler register's initial state, 1 to 127.\n"
+    "out : npt.NDArray[np.uint8] | None\n"
+    "    Optional pre-allocated output buffer. When given, the result is\n"
+    "    written into it and the returned array is a view of exactly the\n"
+    "    samples produced; when omitted, a fresh array is allocated.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    The bits written, or -1 if the length or the state is out of range\n"
+    "    or max_out is short.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``data_bits refused``, with the\n"
+    "    return code appended (gh-869), when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wlan import Wlan\n"
+    ">>> w = Wlan(constellation=\"qam16\", code_rate=\"r34\")\n"
+    ">>> psdu = np.arange(100, dtype=np.uint8)\n"
+    ">>> w.data_bits(psdu, 93).shape  # n_sym 6 times n_dbps 144\n"
+    "(864,)\n"
+    ">>> w.data_bits(psdu, 128)\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the scrambler state is 1 to 127\n" },
+  { "data_bits_max_out", (PyCFunction)WlanObj_data_bits_max_out, METH_VARARGS,
+    "data_bits_max_out(n_in) -> int\n"
+    "\n"
+    "The capacity dp_wlan_data_bits_why() needs: `n_sym * n_dbps`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_in : int\n"
+    "    PSDU octets.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Bits, or 0 for a length outside 1 to WLAN_PSDU_MAX.\n" },
+  { "map", (PyCFunction)(void *)WlanObj_map, METH_VARARGS | METH_KEYWORDS,
+    "map(x, out) -> ndarray\n"
+    "\n"
+    "Map interleaved bits (one per element, a whole number of groups of "
+    "`n_bpsc`) to this rate's constellation points: unit average power, with "
+    "the standard's bit encodings. Refuses with `ValueError` naming why.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "    Unpacked bits.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Optional pre-allocated output buffer. When given, the result is\n"
+    "    written into it and the returned array is a view of exactly the\n"
+    "    samples produced; when omitted, a fresh array is allocated.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    The points written, or -1 for a partial group, no bits or a short\n"
+    "    max_out.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``map refused``, with the return\n"
+    "    code appended (gh-869), when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wlan import Wlan\n"
+    ">>> w = Wlan(constellation=\"qam16\", code_rate=\"r34\")\n"
+    ">>> pts = w.map(np.array([0, 0, 0, 0, 1, 1, 1, 1], dtype=np.uint8))\n"
+    ">>> bool(np.allclose(pts, [-0.9487 - 0.9487j, 0.3162 + 0.3162j], "
+    "atol=1e-3))\n"
+    "True\n"
+    ">>> w.map(np.zeros(7, dtype=np.uint8))\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the bits are a whole number of groups of n_bpsc\n" },
+  { "map_max_out", (PyCFunction)WlanObj_map_max_out, METH_VARARGS,
+    "map_max_out(n_in) -> int\n"
+    "\n"
+    "The capacity dp_wlan_map_why() needs: `n_in / n_bpsc` points.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_in : int\n"
+    "    Bits.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Points.\n" },
+  { "points", (PyCFunction)(void *)WlanObj_points,
+    METH_VARARGS | METH_KEYWORDS,
+    "points(x, scrambler_state, out) -> ndarray\n"
+    "\n"
+    "The constellation points a PSDU's layout takes, in layout order: the "
+    "SIGNAL field's 48, then the Data field's `48 * n_sym`, as complex64. The "
+    "input to `Ofdm`, and what `ppdu` modulates. Refuses with `ValueError` "
+    "naming why.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "    The PSDU octets.\n"
+    "scrambler_state : int\n"
+    "    The scrambler register's initial state, 1 to 127.\n"
+    "out : npt.NDArray[np.complex64] | None\n"
+    "    Optional pre-allocated output buffer. When given, the result is\n"
+    "    written into it and the returned array is a view of exactly the\n"
+    "    samples produced; when omitted, a fresh array is allocated.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    The points written, or -1 if the rate has no SIGNAL RATE bits, the\n"
+    "    length or the state is out of range or max_out is short.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``points refused``, with the return\n"
+    "    code appended (gh-869), when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wlan import Wlan\n"
+    ">>> w = Wlan(constellation=\"qam16\", code_rate=\"r34\")\n"
+    ">>> psdu = np.arange(100, dtype=np.uint8)\n"
+    ">>> w.points(psdu, 93).shape  # 48 SIGNAL + 48 * 6 Data\n"
+    "(336,)\n"
+    ">>> w.points_max_out(100)\n"
+    "336\n"
+    ">>> w.points(psdu, 0)\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the scrambler state is 1 to 127\n" },
+  { "points_max_out", (PyCFunction)WlanObj_points_max_out, METH_VARARGS,
+    "points_max_out(n_in) -> int\n"
+    "\n"
+    "The capacity dp_wlan_points_why() needs: `48 + 48 * n_sym`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_in : int\n"
+    "    PSDU octets.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Points, or 0 for a length outside 1 to WLAN_PSDU_MAX.\n" },
+  { "mpdu", (PyCFunction)(void *)WlanObj_mpdu, METH_VARARGS | METH_KEYWORDS,
+    "mpdu(x, header, out) -> ndarray\n"
+    "\n"
+    "A data frame's PSDU from its body and, optionally, its MAC header: the "
+    "`header` octets, then the `body`, then the FCS (CRC-32/ISO-HDLC over "
+    "everything before it, least significant octet first). Without a header, "
+    "or with an empty one, the body is taken as an MPDU that lacks its FCS "
+    "and the result is the body and its FCS. There is no spelling that "
+    "returns the body unchanged: that is the body itself. 1 to 4095 octets in "
+    "all. Refuses with `ValueError` naming why.\n"
+    "\n"
+    "With no header the body is taken as an MPDU that lacks its FCS and the\n"
+    "result is the body and its FCS, which is also what an empty header\n"
+    "gives in data mode, so \"no header\" and \"an empty header\" are one\n"
+    "result. There is no way to ask for the body unchanged: WLAN_MAC_NONE is\n"
+    "the body itself. The MPDU does not depend on the rate; it is on the\n"
+    "object so a caller builds a frame and renders it with one handle.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
+    "    The body octets (the whole MPDU without its FCS when there is no\n"
+    "    header).\n"
+    "header : npt.NDArray[np.uint8] | bytes | bytearray | memoryview, default "
+    "None\n"
+    "    Header octets, or NULL.\n"
+    "out : npt.NDArray[np.uint8] | None\n"
+    "    Receives the header, the body and the FCS.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint8]\n"
+    "    The octets written, or -1 if the MPDU is 0 or above WLAN_PSDU_MAX\n"
+    "    octets or max_out is short.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``mpdu refused``, with the return\n"
+    "    code appended (gh-869), when it gives none.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wlan import Wlan\n"
+    ">>> w = Wlan()\n"
+    ">>> header = np.arange(24, dtype=np.uint8)\n"
+    ">>> body = np.arange(10, dtype=np.uint8)\n"
+    ">>> psdu = w.mpdu(body, header)  # 24 + 10 + the 4-octet FCS\n"
+    ">>> psdu.shape\n"
+    "(38,)\n"
+    ">>> bytes(psdu[-4:]).hex()  # CRC-32/ISO-HDLC, least significant first\n"
+    "'c0958e66'\n"
+    ">>> w.mpdu(body).shape  # no header: the body and its FCS\n"
+    "(14,)\n" },
+  { "mpdu_max_out", (PyCFunction)WlanObj_mpdu_max_out, METH_VARARGS,
+    "mpdu_max_out(n_in) -> int\n"
+    "\n"
+    "The capacity dp_wlan_mpdu_why() needs: WLAN_PSDU_MAX, the longest\n"
+    "PSDU.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_in : int\n"
+    "    Unused.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    WLAN_PSDU_MAX.\n" },
   { "n_sym", (PyCFunction)(void *)WlanObj_n_sym, METH_VARARGS | METH_KEYWORDS,
     "n_sym(psdu_len) -> int\n"
     "\n"

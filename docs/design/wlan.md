@@ -634,6 +634,35 @@ every other key is today's. The caller's octets are the existing payload
 data source, `data_len` bits per PPDU and one PPDU per frame, as a DSSS burst
 is one burst per frame; `mac` says what they are (section 3).
 
+### The stages on `Wlan`
+
+`Wlan` holds a rate and reaches the chain's stages through the one set of
+standard tables. Each Python method is the C stage function over the object's
+rate and `dp_wlan_tables_standard()`, with the sentence of its refusal, so no
+number is typed on the face:
+
+| Python method        | C                         | returns                                   |
+| -------------------- | ------------------------- | ----------------------------------------- |
+| `signal_bits(n)`     | `dp_wlan_signal_bits_why` | the SIGNAL field's 24 bits, as `uint8`    |
+| `data_bits(psdu, s)` | `dp_wlan_data_bits_why`   | the Data field's `n_sym * n_dbps` bits    |
+| `map(bits)`          | `dp_wlan_map_why`         | constellation points, `complex64`         |
+| `points(psdu, s)`    | `dp_wlan_points_why`      | `48 + 48 * n_sym` points, in layout order |
+| `mpdu(body, header)` | `dp_wlan_mpdu_why`        | header, body and FCS, as `uint8`          |
+| `ppdu(psdu, s)`      | `dp_wlan_ppdu_why`        | the whole PPDU, `complex64`               |
+
+Each has a `<name>_max_out` beside it that says how many elements it returns,
+and `ppdu_max_out(n)` is the PPDU's length in samples. `s` is the scrambler
+register's initial state, 1 to 127. `mpdu` does not depend on
+the rate; it is on the object so one handle builds and renders a frame. With a
+header it is `WLAN_MAC_DATA`, without one `WLAN_MAC_FCS`, and an empty header
+gives the same octets; there is no spelling for `WLAN_MAC_NONE`, which is the
+body itself.
+`test_wlan_stages.py` holds each against an oracle of its own: the FCS against
+zlib's CRC-32, the Data field by running the scrambler `x^7 + x^4 + 1` here
+and undoing it, the SIGNAL field against Figure 17-5's layout and the mapper
+against unit power over every group. `test_wlan_core.c` holds each equal to
+the free function it calls and each refusal's sentence.
+
 ### The preset, `--wlan N`
 
 `ofdm` takes general fields: `constellation`, `code_rate`, `scrambler_init`,

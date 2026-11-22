@@ -2023,7 +2023,40 @@ It cannot run on today's `carrier_nda`, which updates once a sample and has no a
 - **The control, which must fail:** a step of 10 `B_L`, both signs, 60 draws in each of the twelve configurations (four cells, three denominators). The mean loop spins through the whole 20 s cap in every configuration, so every draw should reach the cap slipping throughout. A draw that locks inside 20 s refutes that.
 - **Run:** 15,840 draws plus 1,440 control, one job on swiftgo-ai9465 from a clean detached tree at the commit that builds `carrier_nda`'s changes. About 5.3 CPU-hours, 20 minutes over 16 processes. One shard is timed first, and the rows are committed with their command.
 
-**`validate_costas_pullin --half-bw`**, committed at `e2b7fe1e6`, tests today's `Costas` detector. It is superseded by this sweep and is not run. Its `--design` mode stays: it is where this row's numbers come from. Its draw path moves to `carrier_nda` when the sweep is built.
+**`validate_costas_pullin --half-bw`** runs this sweep on `carrier_nda` from `1b7312b09`, where today's `Costas` draw was retired. `--design` prints the predictions below, the object's filter for each configuration, and each point's budget.
+
+##### The sweep's read, at `1b7312b09`
+
+The run: 17,280 draws (288 points × 60) in 16 shards, one job on swiftgo-ai9465 from a clean detached tree, 15 minutes. The rows, `--design`'s output and the read script are `async-dsss-receiver-measurements/sweep-1b7312b09/`. `python3 read_sweep.py .` prints every number below.
+
+**The configured loop is the design's, measured.** From the jitter, `B_eff` is the design's `B_eff` times (the tail's sd / the derived σ)², over the locked draws inside the edge. It reads 0.964 to 1.003 of the design at the twelve configurations. Eleven of the 95% intervals hold 1; the twelfth (2.8/10, averaged) is [0.929, 0.998].
+
+| prediction                                                                                     | verdict                | the reading                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 4. The 10 `B_L` control never locks inside 20 s                                                | **holds**              | 0 of 1,440 locked                                                                                                                                                                                                                                                                                      |
+| 1. At or below the worst-start edge, no draw slips; past it, some do from the first grid point | **refuted as written** | 13 (configuration, step) pairs inside the noise-free edge slipped, 1 to 8 draws in 120, all at the last one or two grid points under it. Past the edge every configuration slipped from the first point. The owner's one half slips at all twelve configurations, 72 to 120 draws in 120, as predicted |
+| 2. A draw starting 3 σ or more from the null crosses the lock points its start predicts        | **refuted as written** | 9,268 of 14,608 agree. Inside the edge 5,277 of 5,440 (97.0%); past it 3,991 of 9,168, where the mean loop spins and the noise picks where it stops                                                                                                                                                    |
+| 3. Inside the edge, such a draw locks by the point's budget                                    | **refuted as written** | 114 of 5,560 (2.1%) locked after it, by up to 0.088 s against budgets of 0.12 to 0.27 s. The pilot had flagged this: the noise's delay of the first sustained run is not derived                                                                                                                       |
+
+**The noise-free edge is not the noisy one.** In 120 draws no configuration slipped up to a step of 0.57 to 0.87 of its mean-loop edge, and the first slips came at 0.76 to 1.02 of it:
+
+| cell   | limiter: edge, last step with no slip, first slip | averaged          | unit              |
+| ------ | ------------------------------------------------- | ----------------- | ----------------- |
+| 2.2/4  | 0.263, 0.15, 0.20 `B_L`                           | 0.291, 0.20, 0.25 | 0.382, 0.25, 0.30 |
+| 2.8/4  | 0.240, 0.15, 0.20                                 | 0.274, 0.20, 0.25 | 0.383, 0.25, 0.30 |
+| 2.2/10 | 0.350, 0.30, 0.35                                 | 0.353, 0.30, 0.35 | 0.382, 0.30, 0.35 |
+| 2.8/10 | 0.343, 0.30, 0.35                                 | 0.347, 0.30, 0.35 | 0.383, 0.30, 0.35 |
+
+**What it says about the owner's rule.** For `carrier_nda` at M = 2 the half-bandwidth rule does not hold, at any cell or with any denominator. A step under the last slip-free one is the reach. 0 slips in 120 draws bounds the slip probability under 3% (95%). The reach is 0.15 to 0.25 `B_L` at the floor and 0.30 at 10 dB:
+
+- the unit form, 7.8 Hz (2.2 GHz) and 7.4 Hz (2.8 GHz) at the floor;
+- the averaged form, 6.2 and 6.0 Hz;
+- the limiter, 4.7 and 4.5 Hz;
+- 9.4 and 8.9 Hz at 10 dB for every form.
+
+`B_L` is 31.2 and 29.8 Hz at the rule's bn with the squaring loss. The hand-over requirement is that reach, not the mean-loop edge. The fine estimate proposed above (sd 0.2 Hz, age about 1 Hz at 11 Hz/s) sits inside it.
+
+**The `.nco` pin, and its limit.** The summed probe is the NCO's word to under 10⁻³ cycles on every draw of up to 4,145 updates (1.3 s). Past that the float probe's rounding accumulates: up to 1.2 × 10⁻² cycles (4.3°) on a locked draw and 1.9 × 10⁻² on a capped one. Read one update late it is off by at least 2.7 × 10⁻³ on every locked draw. The verdicts above rest on draws that lock inside their budgets, well under 1.3 s, or on counts of whole half-cycles, which 4° does not move. A rerun accumulates the phase from the NCO's word.
 
 ##### `carrier_nda`'s options
 

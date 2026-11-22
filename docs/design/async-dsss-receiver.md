@@ -1278,15 +1278,13 @@ the chain under both.
     (`costas_wipeoff` with `costas_update` never called) feeds a collection
     `Dll` whose look-back segments oversample each epoch, then a
     `RateConverter` to `CarrierAcquisition`'s own rate, then
-    two `CarrierAcquisition`s: one on that stream against the data
-    spectrum, one on its square against a tone (§4.7). Oversampling is
-    required rather than tidy: the asynchronous data's residual carrier
-    rides a spectrum about `symbol_rate` wide, which one dump per epoch
-    aliases. When the squared estimator reports ready, or the data one
-    reports ready or gives up, the live chain is built **fresh** from the
-    seed's chip phase, advanced by the clock dilation over the refine
-    (doppler#1249) — not wherever the refine `Dll` drifted to — and the
-    refined Doppler, or the seed's when both give up. It starts at the
+    `CarrierAcquisition`. Oversampling is required rather than tidy: the
+    asynchronous data's residual carrier rides a spectrum about
+    `symbol_rate` wide, which one dump per epoch aliases. When the
+    estimator reports ready or gives up, the live chain is built **fresh**
+    from the seed's chip phase, advanced by the clock dilation over the
+    refine (doppler#1249) — not wherever the refine `Dll` drifted to — and
+    the refined Doppler, or the seed's on a give-up. It starts at the
     refine's estimate of where it stopped, `ceil(k · period)` samples from
     the hand-off (k whole code periods, the fraction carried in its phase),
     on the same input sample at any chunking: the refine decides up to its
@@ -1530,105 +1528,11 @@ receiver cannot reach.
 1. A one-tile deep search fans its block across the workers
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
 
-### 4.7 The refine: a squared stream and a derived threshold
+### 4.7 The refine: the data template's estimator
 
-The refine estimates the seed's residual carrier from the despread stream,
-`refine_samples_per_symbol` samples a symbol (12 kSa/s at 3 kbps). The
-stream carries the asynchronous data, except inside a code-only window,
-and the search's hit lands anywhere in a frame: over 20 start phases at
-the 415.1 point, seeds fell from symbol 6 to symbol 966 of 1000, so a dwell
-can be all code-only, all data, or both. Two estimators fold every block:
+The refine is one `CarrierAcquisition` estimator on the despread stream of a seed (`ca`): the data spectrum's template, `sinc²` over `symbol_rate`, against a block of the despread stream, and a detection when the statistic passes its threshold. That threshold is `CARRIER_ACQ_KAPPA`'s rule, which is fitted, not derived. The hand-over takes its estimate when it decides, and the seed's own Doppler when the dwell reaches its cap (`get_handover_source()`). At the use case's configuration it tests once, at its dwell target, so its per-dwell false-alarm rate is its `pfa`; `validate_async_dsss_receiver_refine` reads that rate on noise and the hand-over's error on the emitter.
 
-| estimator | input                                          | template                                      | threshold                    |
-| --------- | ---------------------------------------------- | --------------------------------------------- | ---------------------------- |
-| data      | the despread stream                            | the data spectrum, sinc², `symbol_rate` wide  | `CARRIER_ACQ_KAPPA` (fitted) |
-| squared   | its square, from the `Dll`'s level start-up on | a tone: the CA's own PSD kernel of a constant | derived (below)              |
-
-**Squaring removes the data.** BPSK's ±1 squares to 1, so
-$x^2 = A^2 e^{j 2\theta} + 2 A e^{j\theta} n + n^2$ is a tone at twice
-the residual on a code-only block and on a data block alike. A sample a
-symbol edge splits has amplitude $(1 - 2f)A$; its square is still a
-positive real, a loss of power and never of sign. The estimate is halved.
-
-- **Loss.** With $\rho = (E_s/N_0) / 4$ a sample, the squared stream's SNR
-    is $\rho^2 / (4\rho + 2)$: a loss of $\rho / (4\rho + 2)$, −8.6 dB at
-    4 dB, −7.6 at 5, −5.9 at 7, −4.6 at 10. Halving the estimate takes the
-    error to half, 6 dB back in variance.
-- **Range.** $2f$ must lie inside the two-sided PSD, so $|f| < r/4$: 3.0
-    kHz at 415.1 and 2.7 kHz at 3.069 Mcps. The search hands over within
-    half a Doppler row, 1.5 kHz at 3.069 Mcps (one epoch deep).
-- **The `Dll`'s level start-up is skipped.** The refine `Dll` is rebuilt at
-    every seed, and its output level holds only once
-    `DLL_OUT_LEVEL_PERIODS / 2` periods have accrued: before that a period
-    is divided by its own small, noisy magnitude. Those samples are a heavy
-    tail on noise: through the receiver's own chain, noise alone fired the
-    squared estimator on 2.4% of dwells at 2.2 GHz, 0.7% at 2.8 GHz and 1.7%
-    at 3.069 Mcps against a 0.1% target, all of it the first block. Skipped,
-    it fires on 1, 0 and 1 of 2000. The squared estimator's dwell is what
-    is left of the data one's, so it decides no later.
-
-**The hand-over.** The squared estimate when its estimator is ready;
-failing that, the data estimate when it is; failing both, the seed's own
-Doppler. The refine decides when the squared estimator is ready or the
-data one decides (`dp__adsss_refine_decided()`): both fold every block, so
-the squared one has been tested on each block the data one saw, and the
-refine takes no longer than the data estimator alone. The live chain
-starts past the further of the two estimators' reach.
-
-**The squared estimator's threshold is derived.** `CARRIER_ACQ_KAPPA` is
-fitted to the data template; on the tone template it realizes about 0 at
-pfa 1e-3, too strict to use. The statistic is $\max_k C[k] /
-\mathrm{median}_k C[k]$ with $C[k] = \sum_m P[m]\, t[(m - k) \bmod N]$,
-$P$ the averaged periodogram of $n$ Hann-windowed blocks of $L$ samples
-zero-padded to $N$:
-
-- **One lag.** Per block, $C$ is a complex Gaussian quadratic form
-    $x^H A x$, $A_{jk} = w_j w_k\, \tau(j - k)$, $\tau$ the template's
-    transform at lag $j - k$. Under noise it is a weighted sum of
-    exponentials, moment-matched to $\chi^2_\nu$ with
-    $\nu = 2n\, \mathrm{tr}(A)^2 / \|A\|_F^2$.
-- **The peak over lags.** The lags are one smooth process, not cells:
-    measured, the count of independent lags a cell model needs grows with
-    the level (39 to 72 for the tone template), and a fixed count realizes
-    2.4 to 5.7 times the target. Rice's upcrossing count of a $\chi^2_\nu$
-    process over the $N$ circular lags,
-    $N \sqrt{2 y \lambda_2 / \pi}\, f_\nu(y)$, with
-    $\lambda_2 = 1 - \mathrm{corr}_C(1)$ from the exact lag covariance
-    $\mathrm{tr}(A_0 A_D)$, plus one lag's own tail.
-- **The median.** A sample median of correlated lags, normal about the
-    $\chi^2_\nu$ median with standard error $1 / (2 f(m) \sqrt{N_\mathrm{eff}})$,
-    $N_\mathrm{eff} = \|A\|_F^2 / \sum_j A_{jj}^2$; the tail is averaged over
-    it.
-- **The threshold** solves that probability at `pfa`, by bisection. Every
-    input is the window's and the template's, from one transform of the
-    template, with no matrix formed (`carrier_acq_null_stats()`), and the
-    incomplete gamma is the detection module's one (`dp__gammaq()`).
-
-Realized, it is conservative: 0.3 to 0.9 of the target over 40,000
-noise-only dwells a row (pfa 1e-2 and 1e-3, 4 and 16 blocks, the squared
-and the unsquared Gaussian), and 157 of 20,000 at pfa 1e-2 and 16 blocks in
-`test_carrier_acq_core`, $[0.67\%, 0.92\%]$ at 95%. The data estimator keeps
-`CARRIER_ACQ_KAPPA`: for the sinc² template $N_\mathrm{eff} = 2.9$, too
-few lags for the median's normal model, and the derived rule over-corrects
-there, realizing about 0. The rule is the CA's (`carrier_acq_private.h`),
-switched on for the squared estimator only, and travels in the CA's blob.
-
-**Hand-over error.** One built receiver at the 415.1 point (2.2 and 2.8
-GHz, 80 draws a row: 20 frame start phases by 4 seeds) and at 3.069 Mcps
-(20 seeds); median / max, Hz, as built (the data estimator alone) → now:
-
-| Es/N0 | 415.1 2.2 GHz static | 415.1 2.8 GHz static | 3.069 static      | 415.1 2.2 GHz 400 Hz/s | 3.069 400 Hz/s      |
-| ----- | -------------------- | -------------------- | ----------------- | ---------------------- | ------------------- |
-| 4 dB  | 28 / 239 → 9 / 32    | 37 / 291 → 7 / 168   | 75 / 248 → 5 / 16 | 38 / 136 → 17 / 88     | 78 / 197 → 22 / 40  |
-| 5 dB  | 30 / 233 → 7 / 163   | 39 / 284 → 6 / 32    | 98 / 192 → 5 / 13 | 27 / 98 → 13 / 87      | 91 / 1459 → 10 / 30 |
-| 7 dB  | 39 / 282 → 4 / 129   | 41 / 357 → 4 / 15    | 77 / 325 → 5 / 15 | 37 / 425 → 9 / 146     | 73 / 195 → 5 / 25   |
-| 10 dB | 19 / 194 → 3 / 12    | 57 / 292 → 3 / 12    | 57 / 229 → 3 / 10 | 23 / 294 → 10 / 22     | 49 / 212 → 8 / 17   |
-
-No row is worse than as built in median, 90th percentile, maximum or the
-rate of errors past half a bin; that rate falls from 1 to 55% to at most
-1.2%, and the 2.8 GHz 400 Hz/s rows, not shown, likewise. The squared
-estimator decides 1410 of the 1440 draws; the other 30, all on 415.1 and
-28 of them at 4 and 5 dB, hand over the data estimate.
+A squared-stream estimator with a derived threshold was built beside it (`79fa50cfe`) and reverted on this branch: a behavior change with no failing requirement behind it (owner, 2026-11-21). It stays in the branch's history at that commit.
 
 ### 4.8 The carrier loop's bandwidth
 
@@ -2236,7 +2140,7 @@ Read from the code at `eef09663f` (A's baseline). A probe is a `dp_tlm` probe un
 **The receiver's own probes.**
 
 - `rx.state`, `rx.handover_hz`, `rx.refused`, `rx.sym.lock` and `rx.sym.locked`.
-- `rx.ho_src`, `rx.cn0`, `rx.phase.car` and `rx.phase.code`; `rx.had_lock`, `rx.coast` and `rx.hold` once a code period; `rx.release`; and the refine's `rx.ref.*` / `rx.ref_sq.*`.
+- `rx.ho_src`, `rx.cn0`, `rx.phase.car` and `rx.phase.code`; `rx.had_lock`, `rx.coast` and `rx.hold` once a code period; `rx.release`; and the refine's `rx.ref.*`.
 - The pull-in `--telemetry` capture adds, once a block: `truth.{car,code,hz,data}`, `err.{car_deg,code_chip,car_unwrapped,sym_lag,count,demod_car_deg}`, `car.order`, `car.rate_hz_s` and `rx.code.hyp`.
 
 **The one switch: the coast (#1271).** Once both flags have been up in this stint (`had_lock`, set when code and symbol lock are up together and cleared when a chain is built, `adr.c:580`), both down at a code period's start (`adr.c:856-893`) enters it:
@@ -2705,32 +2609,9 @@ the reviewer's populations, the pair caught all 416 Doppler-offset ghosts in
 a median 0.20 s and released 23 of 2050 true emitters, all 20 dB below a
 60 dB-Hz partner they co-move with (doppler#2550). A ghost on its parent's
 own carrier (k = 0) is left alone: allowing it releases most true emitters
-that share a stronger one's Doppler (doppler#2551). At the 415.1-B-1 point
-(11 MSa/s in, a pool designed at 4 dB Es/N0), allowing it would release 65
-to 78 of about 95 second emitters held on a 70 dB-Hz one's carrier at 38.8
-to 44 dB-Hz, within 0.8 to 1.4 s; the rule as it is releases none. The
-constants are `ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the
-measurements behind them are on doppler#2529 and doppler#2551.
-
-**Where a k = 0 ghost goes.** The refine's squared estimator (§4.7) pulls a
-sidelobe seed onto the lattice point nearest it, so at 2.2 GHz a seed one
-step off often lands on its parent's carrier. A k = 0 ghost leaves by the
-loss release (`lost_confirm_s`) when both its lock flags are down. One that
-decodes its parent's data through the sidelobe holds symbol lock, and
-nothing releases it. Seeded on a 60 dB-Hz parent's sidelobe and run 10 s at
-`lost_confirm_s` 2.0, at both 415.1 carriers: 13 of 40 k = 0 seeds are
-held without the squared estimator and 11 of 40 with it; of 160 seeds one
-or two steps off, none and 2. The k = ±1 seeds the squared estimator moves
-onto the carrier leave by the loss release instead, a median 2.5 s after
-the seed against under 1 s by the ghost rule.
-
-**The code's own sidelobe.** A Gold-1023 code's autocorrelation sidelobes
-are 63 or 65 of its peak's 1023, about −24 dB. Beside a 70 dB-Hz emitter
-that is about 46 dB-Hz, above the gate of a pool designed at the 38.8 dB-Hz
-floor, so the pool's own search can seed one: at the 415.1 point, 167 chips
-from its parent, in 6 of 126 tenures. It sits on its parent's carrier with
-code and symbol lock, so the duplicate rule, the ghost rule and the loss
-release all leave it.
+that share a stronger one's Doppler (doppler#2551). The constants are
+`ASYNC_DSSS_POOL_GHOST_*` in `async_dsss_pool_core.h`, and the measurements
+behind them are on doppler#2529.
 
 ### 8.1 The holder owns the clock; events are SigMF annotations
 

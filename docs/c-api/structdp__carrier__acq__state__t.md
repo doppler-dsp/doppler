@@ -53,10 +53,6 @@ _CarrierAcquisition state: owned PSD and detector children, scratch, config and 
 |  double | [**s\_t2**](#variable-s_t2)  <br> |
 |  double | [**sample\_rate\_hz**](#variable-sample_rate_hz)  <br> |
 |  bool | [**sequential**](#variable-sequential)  <br> |
-|  int | [**thr\_derived**](#variable-thr_derived)  <br> |
-|  double | [**thr\_lam2**](#variable-thr_lam2)  <br> |
-|  double | [**thr\_neff**](#variable-thr_neff)  <br> |
-|  double | [**thr\_nu1**](#variable-thr_nu1)  <br> |
 |  [**carrier\_acq\_tlm\_t**](structcarrier__acq__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 
 
@@ -409,78 +405,6 @@ bool dp_carrier_acq_state_t::sequential;
 
 
 Config: true tests after every block, false tests once at dwell\_target. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable thr\_derived 
-
-```C++
-int dp_carrier_acq_state_t::thr_derived;
-```
-
-
-
-1: the derived threshold (set only through the private [**dp\_\_carrier\_acq\_derive\_threshold()**](carrier__acq__private_8h.md#function-dp__carrier_acq_derive_threshold), and carried in the blob); 0: KAPPA. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable thr\_lam2 
-
-```C++
-double dp_carrier_acq_state_t::thr_lam2;
-```
-
-
-
-The lag process's second spectral moment, 1 - corr(one bin). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable thr\_neff 
-
-```C++
-double dp_carrier_acq_state_t::thr_neff;
-```
-
-
-
-Independent lags the median sees: \|\|A\|\|\_F^2 / sum\_j A\_jj^2. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable thr\_nu1 
-
-```C++
-double dp_carrier_acq_state_t::thr_nu1;
-```
-
-
-
-Degrees of freedom a block adds to a lag's chi-square: 2 tr(A)^2 / \|\|A\|\|\_F^2. 
  
 
 

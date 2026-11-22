@@ -1936,9 +1936,8 @@ _test_ghost_needs_both_tests (void)
    -> PSD -> AccTrace. A version-2 trace held the mean, which version 3
    reads as a sum. The pool restores whole or nothing, so the refusal
    leaves it exactly as advanced, though its own fields and receiver 0's
-   children decode first. Two traces in each of the three receivers and in
-   the search-only one (the refine's data and squared estimators), so eight
-   hits. */
+   children decode first. One trace in each of the three receivers and in
+   the search-only one (the refine's estimator), so four hits. */
 static int
 _test_nested_trace_version_refused (void)
 {
@@ -1951,7 +1950,7 @@ _test_nested_trace_version_refused (void)
   (void)dp_async_dsss_pool_push (p, x, 4096);
   DP_STATE_NESTED_VERSION_TEST (
       dp_async_dsss_pool, p, (void)dp_async_dsss_pool_push (p, x + 4096, 4096),
-      ACC_TRACE_STATE_MAGIC, 2u, 8, 1);
+      ACC_TRACE_STATE_MAGIC, 2u, 4, 1);
   dp_async_dsss_pool_destroy (p);
   free (x);
   return 0;

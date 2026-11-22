@@ -43,15 +43,6 @@ dp__adsss_same_code_phase (double a, double b, double code_len)
   return d <= DP_CORRELATOR_SAME_PHASE_CHIPS;
 }
 
-static inline int
-dp__adsss_refine_decided (const dp_async_dsss_receiver_state_t *s)
-{
-  const dp_carrier_acq_state_t *ca  = s->ca;
-  const size_t                  cap = ca->sequential ? ca->max_n_blocks
-                                                     : ca->dwell_target;
-  return s->ca_sq->ready || ca->ready || ca->n_blocks >= cap;
-}
-
 #ifdef __cplusplus
 }
 #endif

@@ -70,7 +70,7 @@ LOCK_STATS = (
     ("demod.sync.lock", "demod_sync"),
 )
 #: The tests drawn over their own thresholds (1 is the decision).
-TESTS = ("acq.stat/gate", "ref.stat/thr", "ref_sq.stat/thr")
+TESTS = ("acq.stat/gate", "ref.stat/thr")
 #: Per cell, the share of settled tracking blocks off the emitter's code
 #: (the rows' own ``off_code_frac``), stated on every figure of the cell.
 OFF_SHARE: dict[Cell, str] = {}

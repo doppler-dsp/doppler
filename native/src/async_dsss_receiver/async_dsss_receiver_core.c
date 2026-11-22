@@ -1,8 +1,6 @@
 #include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 #include "doppler/async_dsss_receiver/async_dsss_receiver_private.h"
-#include "doppler/carrier_acq/carrier_acq_private.h"
 #include "doppler/detection/detection_core.h"
-#include "doppler/psd/psd_core.h"
 #include "doppler/util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
@@ -11,7 +9,7 @@
 /* Defined below, beside the refine chain that uses it. */
 static dp_carrier_acq_state_t *
 adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
-                     double target_rate, dp_carrier_acq_state_t *tone_of);
+                     double                                target_rate);
 
 /* The tracker's symbol period in Dll partials: `segments` partials a code
    period, chip_rate / code_len periods a second, symbol_rate symbols. One
@@ -156,9 +154,9 @@ adr_build_refine_chain (
     dp_async_dsss_receiver_state_t *s, double chip_phase,
     double doppler_hz_est, dp_costas_state_t *car_frozen_out,
     dp_dll_state_t **refine_dll_out, dp_RateConverter_state_t **refine_rc_out,
-    dp_carrier_acq_state_t **ca_out, dp_carrier_acq_state_t **ca_sq_out,
-    float _Complex **dll_out_buf_out, size_t *dll_out_cap_out,
-    float _Complex **rc_out_buf_out, size_t *rc_out_cap_out)
+    dp_carrier_acq_state_t **ca_out, float _Complex **dll_out_buf_out,
+    size_t *dll_out_cap_out, float _Complex **rc_out_buf_out,
+    size_t *rc_out_cap_out)
 {
   /* Frozen carrier: costas_update() is never called on this instance --
    * the direct C equivalent of Python's freeze_carrier=True. bn/tsamps
@@ -194,8 +192,7 @@ adr_build_refine_chain (
    * formula, ported verbatim (see objects/async_dsss_receiver.toml's
    * refine_design_margin_db doc comment for why this empirical derating
    * is used as-is rather than re-derived). */
-  dp_carrier_acq_state_t *ca    = adr_new_carrier_acq (s, target_rate, NULL);
-  dp_carrier_acq_state_t *ca_sq = adr_new_carrier_acq (s, target_rate, ca);
+  dp_carrier_acq_state_t *ca = adr_new_carrier_acq (s, target_rate);
 
   float _Complex *dll_out_buf
       = dp_xmallocn (s->refine_segments, sizeof (*dll_out_buf));
@@ -207,7 +204,6 @@ adr_build_refine_chain (
   *refine_dll_out  = refine_dll;
   *refine_rc_out   = refine_rc;
   *ca_out          = ca;
-  *ca_sq_out       = ca_sq;
   *dll_out_buf_out = dll_out_buf;
   *dll_out_cap_out = s->refine_segments;
   *rc_out_buf_out  = rc_out_buf;
@@ -218,13 +214,11 @@ static void
 adr_free_refine_chain (dp_async_dsss_receiver_state_t *s)
 {
   dp_carrier_acq_destroy (s->ca);
-  dp_carrier_acq_destroy (s->ca_sq);
   dp_RateConverter_destroy (s->refine_rc);
   dp_dll_destroy (s->refine_dll);
   free (s->refine_dll_out_buf);
   free (s->refine_rc_out_buf);
   s->ca                 = NULL;
-  s->ca_sq              = NULL;
   s->refine_rc          = NULL;
   s->refine_dll         = NULL;
   s->refine_dll_out_buf = NULL;
@@ -246,14 +240,13 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   dp_dll_state_t           *refine_dll  = NULL;
   dp_RateConverter_state_t *refine_rc   = NULL;
   dp_carrier_acq_state_t   *ca          = NULL;
-  dp_carrier_acq_state_t   *ca_sq       = NULL;
   float _Complex           *dll_out_buf = NULL;
   size_t                    dll_out_cap = 0;
   float _Complex           *rc_out_buf  = NULL;
   size_t                    rc_out_cap  = 0;
 
   adr_build_refine_chain (s, chip_phase, doppler_hz_est, &car_frozen,
-                          &refine_dll, &refine_rc, &ca, &ca_sq, &dll_out_buf,
+                          &refine_dll, &refine_rc, &ca, &dll_out_buf,
                           &dll_out_cap, &rc_out_buf, &rc_out_cap);
 
   adr_free_refine_chain (s);
@@ -261,7 +254,6 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->refine_dll         = refine_dll;
   s->refine_rc          = refine_rc;
   s->ca                 = ca;
-  s->ca_sq              = ca_sq;
   s->refine_dll_out_buf = dll_out_buf;
   s->refine_dll_out_cap = dll_out_cap;
   s->refine_rc_out_buf  = rc_out_buf;
@@ -425,10 +417,9 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX], sym_lock[DP_TLM_NAME_MAX],
       sym_locked[DP_TLM_NAME_MAX], st[DP_TLM_NAME_MAX],
       handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX],
-      ref[DP_TLM_NAME_MAX], ref_sq[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX],
-      ph_code[DP_TLM_NAME_MAX], cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX],
-      had_lock[DP_TLM_NAME_MAX], coast[DP_TLM_NAME_MAX], hold[DP_TLM_NAME_MAX],
-      release[DP_TLM_NAME_MAX];
+      ref[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX], ph_code[DP_TLM_NAME_MAX],
+      cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX], had_lock[DP_TLM_NAME_MAX],
+      coast[DP_TLM_NAME_MAX], hold[DP_TLM_NAME_MAX], release[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
@@ -440,7 +431,6 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (handover, p, "handover_hz") != DP_OK
       || dp_tlm_name_join (refused, p, "refused") != DP_OK
       || dp_tlm_name_join (ref, p, "ref") != DP_OK
-      || dp_tlm_name_join (ref_sq, p, "ref_sq") != DP_OK
       || dp_tlm_name_join (ph_car, p, "phase.car") != DP_OK
       || dp_tlm_name_join (ph_code, p, "phase.code") != DP_OK
       || dp_tlm_name_join (cn0, p, "cn0") != DP_OK
@@ -466,12 +456,10 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
     r = dp_RateConverter_set_telemetry (s->rc, t, rc, d);
   if (r == DP_OK)
     r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
-  /* The refine's two estimators: each test beside its threshold, while
+  /* The refine's estimator: each test beside its threshold, while
      refining (dp_carrier_acq_set_telemetry()). */
   if (r == DP_OK)
     r = dp_carrier_acq_set_telemetry (s->ca, t, ref, d);
-  if (r == DP_OK)
-    r = dp_carrier_acq_set_telemetry (s->ca_sq, t, ref_sq, d);
   /* The receiver's own decision, the one its users act on: the symbol-lock
      metric and the lockdet's flag, once per emitted symbol. */
   if (r == DP_OK)
@@ -534,7 +522,6 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   if (s->acq)
     (void)dp_correlator_set_telemetry (s->acq, NULL, p, 1, NULL);
   (void)dp_carrier_acq_set_telemetry (s->ca, NULL, p, 1);
-  (void)dp_carrier_acq_set_telemetry (s->ca_sq, NULL, p, 1);
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
   s->tlm_ho_src = s->tlm_cn0 = s->tlm_phase_car = s->tlm_phase_code = -1;
@@ -605,26 +592,10 @@ adr_rebuild_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
  * it for detection at the derated C/N0, two blocks at 45 dB-Hz with the
  * shipped margin, while the estimate's noise the chain must pull in from is
  * 210 Hz there and 77 at seven), bounded by the give-up cap. */
-/* The despread samples the squared estimator skips at the start of every
- * refine: the refine Dll is rebuilt at each seed, and its output level holds
- * only once DLL_OUT_LEVEL_PERIODS / 2 periods have accrued (dll_core.h:
- * before that the first periods are divided by their own small, noisy
- * magnitude). Through a square those impulsive samples are a heavy tail on
- * noise alone -- 2.4% false alarms against a 0.1% target at the 2.2 GHz
- * point, all of it the first block (§4.7) -- so they never reach it. That
- * many code periods, in samples at the refine rate, rounded up. */
-static size_t
-adr_sq_skip (const dp_async_dsss_receiver_state_t *s, double target_rate)
-{
-  return (size_t)ceil (0.5 * (double)DLL_OUT_LEVEL_PERIODS * target_rate
-                       * (double)s->code_len / s->chip_rate);
-}
-
 static dp_carrier_acq_state_t *
 adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
-                     double target_rate, dp_carrier_acq_state_t *tone_of)
+                     double                                target_rate)
 {
-  const int squared = tone_of != NULL;
   /* design_snr/resolution_hz: freq_refine.refine_seed_carrier_acq()'s own
    * formula, ported verbatim (see objects/async_dsss_receiver.toml's
    * refine_design_margin_db doc comment for why this empirical derating
@@ -633,48 +604,14 @@ adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
   double design_snr    = dp_det_cn0_to_snr (effective_cn0_dbhz, target_rate);
   double resolution_hz = (double)s->refine_samples_per_symbol * s->symbol_rate
                          / (double)s->refine_n_fft;
-  /* The squared stream's template is a tone's: the spectrum `tone_of`'s
-     own PSD kernel makes of one block of a constant. `tone_of` is the data
-     estimator, built just before from the same arguments, so the block,
-     the window and the zero-pad are the CA's own by construction (its
-     floor on a short block included). The frame call uses the kernel's
-     scratch and leaves the PSD's average alone. */
-  float *tmpl = NULL;
-  size_t nfft = 0;
-  if (squared)
-    {
-      dp_psd_kernel_t *k   = &tone_of->psd->k;
-      float _Complex  *one = dp_xmallocn (k->n, sizeof *one);
-      for (size_t i = 0; i < k->n; i++)
-        one[i] = 1.0f;
-      nfft = k->nfft;
-      tmpl = dp_xmallocn (nfft, sizeof *tmpl);
-      dp_psd_frame_power (k, one, tmpl);
-      free (one);
-    }
   dp_carrier_acq_state_t *ca = dp_xnn (dp_carrier_acq_create (
       target_rate, s->symbol_rate, resolution_hz, s->refine_zero_pad,
-      DP_PSD_WINDOW_HANN, 0.0f, tmpl, nfft, s->pfa, s->pd, design_snr,
+      DP_PSD_WINDOW_HANN, 0.0f, NULL, 0, s->pfa, s->pd, design_snr,
       s->refine_sequential, s->refine_max_n_blocks));
-  free (tmpl);
-  /* Its statistic is the one the derived threshold covers; the data
-     template keeps the default rule (§4.7). */
-  if (squared)
-    dp__carrier_acq_derive_threshold (ca);
   if (ca->dwell_target < s->refine_min_blocks)
     ca->dwell_target = s->refine_min_blocks;
   if (ca->dwell_target > ca->max_n_blocks)
     ca->dwell_target = ca->max_n_blocks;
-  /* The squared estimator starts adr_sq_skip() samples late, so it tests
-     on the blocks that fit in the rest of the data template's dwell: it
-     decides no later than the data template does. */
-  if (squared)
-    {
-      const size_t skip = adr_sq_skip (s, target_rate);
-      const size_t blk  = ca->psd->k.n; /* the CA's block, floored at 3 */
-      const size_t span = ca->dwell_target * blk;
-      ca->dwell_target  = span > skip + blk ? (span - skip) / blk : 1;
-    }
   return ca;
 }
 
@@ -714,22 +651,18 @@ adr_refine_period (dp_async_dsss_receiver_state_t *s,
   if (n_rc == 0)
     return;
 
-  /* The samples the data template has taken: its blocks and its carry, so
-     the count lives in the blob. It takes every sample of the refine (the
-     refine ends when it decides), so this is the refine's own count. */
-  const size_t before = s->ca->n_blocks * s->ca->psd->k.n + s->ca->carry_len;
   dp_carrier_acq_steps (s->ca, s->refine_rc_out_buf, n_rc);
-  /* Then squared, in place (the buffer is scratch): BPSK's +-1 squares to
-     1, so a data block and a code-only one are both a tone at twice the
-     residual. The Dll's level start-up is skipped (adr_sq_skip()). */
-  const size_t skip
-      = adr_sq_skip (s, (double)s->refine_samples_per_symbol * s->symbol_rate);
-  if (before + n_rc <= skip)
-    return;
-  const size_t off = before < skip ? skip - before : 0;
-  for (size_t i = off; i < n_rc; i++)
-    s->refine_rc_out_buf[i] *= s->refine_rc_out_buf[i];
-  dp_carrier_acq_steps (s->ca_sq, s->refine_rc_out_buf + off, n_rc - off);
+}
+
+/* The refine has decided: the carrier estimate is ready, or it has given
+ * up at its block cap. The one test both the period loop below and
+ * steps() ask, so the loop stops exactly where steps() hands over. */
+static int
+adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
+{
+  const dp_carrier_acq_state_t *ca = s->ca;
+  size_t cap = ca->sequential ? ca->max_n_blocks : ca->dwell_target;
+  return ca->ready || ca->n_blocks >= cap;
 }
 
 /* The first sample a live chain can start on at or past @p at: the smallest
@@ -812,7 +745,7 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
       s->car_carry_len = 0;
     }
 
-  while (pos + s->tsamps <= x_len && !dp__adsss_refine_decided (s))
+  while (pos + s->tsamps <= x_len && !adr_refine_decided (s))
     {
       adr_refine_period (s, x + pos);
       s->refine_periods++;
@@ -823,7 +756,7 @@ adr_process_refine (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
      feeds it, and the track rebuild clears this buffer. Buffering it here
      would also overrun car_carry_buf, which holds at most one period: only
      a loop that consumed every whole period leaves less than one. */
-  if (dp__adsss_refine_decided (s))
+  if (adr_refine_decided (s))
     {
       s->car_carry_len = 0;
       return pos;
@@ -1505,9 +1438,9 @@ dp_async_dsss_receiver_create (
    * for real the moment a hit fires (fixed shape, same rationale
    * dsss_receiver_core.c's own state struct doc comment gives). */
   adr_build_refine_chain (obj, 0.0, 0.0, &obj->car_frozen, &obj->refine_dll,
-                          &obj->refine_rc, &obj->ca, &obj->ca_sq,
-                          &obj->refine_dll_out_buf, &obj->refine_dll_out_cap,
-                          &obj->refine_rc_out_buf, &obj->refine_rc_out_cap);
+                          &obj->refine_rc, &obj->ca, &obj->refine_dll_out_buf,
+                          &obj->refine_dll_out_cap, &obj->refine_rc_out_buf,
+                          &obj->refine_rc_out_cap);
   obj->refine_samples_fed = 0;
 
   adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_m_out (sps),
@@ -1989,24 +1922,16 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
       const size_t taken = adr_process_refine (state, x, x_len);
 
       dp_carrier_acq_state_t *ca = state->ca;
-      if (!dp__adsss_refine_decided (state))
+      if (!adr_refine_decided (state))
         {
           adr_refine_hist_push (state, x, x_len);
           return 0; /* still refining, no output yet */
         }
 
-      /* The squared stream's tone sits at twice the residual, so its
-         estimate is halved; failing it, the data template's; failing both,
-         the seed's own (§4.7). */
-      const dp_carrier_acq_state_t *sq = state->ca_sq;
-      double                        refined_doppler_hz_est
+      double refined_doppler_hz_est
           = state->seed_doppler_hz_est
-            + (sq->ready   ? 0.5 * sq->residual_hz
-               : ca->ready ? ca->residual_hz
-                           : 0.0); /* give-up: unrefined */
-      int ho_src = sq->ready   ? ASYNC_DSSS_RX_HO_SQUARED
-                   : ca->ready ? ASYNC_DSSS_RX_HO_DATA
-                               : ASYNC_DSSS_RX_HO_SEED;
+            + (ca->ready ? ca->residual_hz : 0.0); /* give-up: unrefined */
+      int ho_src = ca->ready ? ASYNC_DSSS_RX_HO_DATA : ASYNC_DSSS_RX_HO_SEED;
       /* samples_consumed_refine: freq_refine.refine_seed_carrier_acq()'s
        * own elapsed-time formula, ported verbatim -- a resampled chain
        * has no exact raw-sample-to-block correspondence to track through
@@ -2019,16 +1944,8 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
        * larger number). */
       double target_rate
           = (double)state->refine_samples_per_symbol * state->symbol_rate;
-      /* The refine has consumed what the further estimator reached: the
-         data template from the first sample, the squared one, once it has
-         taken a block, from adr_sq_skip() samples in. */
-      const double d_samp = (double)ca->n_blocks * (double)state->refine_n_fft;
-      const double q_samp
-          = sq->n_blocks
-                ? (double)adr_sq_skip (state, target_rate)
-                      + (double)sq->n_blocks * (double)state->refine_n_fft
-                : 0.0;
-      double   elapsed_s = (d_samp > q_samp ? d_samp : q_samp) / target_rate;
+      double elapsed_s
+          = (double)ca->n_blocks * (double)state->refine_n_fft / target_rate;
       double   front_end_rate = state->chip_rate * (double)state->spc;
       uint64_t samples_consumed_refine
           = (uint64_t)llround (elapsed_s * front_end_rate);
@@ -2633,9 +2550,7 @@ dp_async_dsss_receiver_state_bytes (const dp_async_dsss_receiver_state_t *s)
          + dp_costas_state_bytes (&s->car_frozen)
          + dp_dll_state_bytes (s->refine_dll)
          + dp_RateConverter_state_bytes (s->refine_rc)
-         + dp_carrier_acq_state_bytes (s->ca)
-         + dp_carrier_acq_state_bytes (s->ca_sq)
-         + dp_costas_state_bytes (&s->car)
+         + dp_carrier_acq_state_bytes (s->ca) + dp_costas_state_bytes (&s->car)
          + dp_costas_state_bytes (&s->car_held) + dp_dll_state_bytes (s->dll)
          + dp_RateConverter_state_bytes (s->rc)
          + dp_mpsk_receiver_state_bytes (s->rx)
@@ -2700,7 +2615,6 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
   DP_W_CHILD (&_w, dp_dll, s->refine_dll);
   DP_W_CHILD (&_w, dp_RateConverter, s->refine_rc);
   DP_W_CHILD (&_w, dp_carrier_acq, s->ca);
-  DP_W_CHILD (&_w, dp_carrier_acq, s->ca_sq);
   DP_W_CHILD (&_w, dp_costas, &s->car);
   DP_W_CHILD (&_w, dp_costas, &s->car_held);
   DP_W_CHILD (&_w, dp_dll, s->dll);
@@ -2744,7 +2658,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.state > ASYNC_DSSS_RX_LOST || extra.pooled > 1
-      || extra.ho_src > ASYNC_DSSS_RX_HO_SQUARED
+      || extra.ho_src > ASYNC_DSSS_RX_HO_DATA
       || (extra.state == ASYNC_DSSS_RX_IDLE && !extra.pooled)
       || (extra.state == ASYNC_DSSS_RX_SEARCHING && extra.pooled)
       || extra.pick_want > ASYNC_DSSS_RX_MAX_PEAKS
@@ -2803,7 +2717,6 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   DP_R_CHILD (&_r, dp_dll, s->refine_dll);
   DP_R_CHILD (&_r, dp_RateConverter, s->refine_rc);
   DP_R_CHILD (&_r, dp_carrier_acq, s->ca);
-  DP_R_CHILD (&_r, dp_carrier_acq, s->ca_sq);
   DP_R_CHILD (&_r, dp_costas, &s->car);
   DP_R_CHILD (&_r, dp_costas, &s->car_held);
   DP_R_CHILD (&_r, dp_dll, s->dll);

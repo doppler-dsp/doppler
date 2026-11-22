@@ -319,7 +319,6 @@ enum
   PQ_SYNC,
   PQ_ACQ,
   PQ_REF,
-  PQ_REFSQ,
   PQ_CAR_ERR,
   PQ_CODE_ERR,
   PQ_DCAR_E,
@@ -342,7 +341,6 @@ static const struct
   { "demod.sync.lock", "rx.demod.sync.lock", NULL, -1.0, 1.0, 100 },
   { "acq.stat/gate", "rx.acq.stat", "rx.acq.gate", 0.0, 5.0, 100 },
   { "ref.stat/thr", "rx.ref.stat", "rx.ref.thr", 0.0, 5.0, 100 },
-  { "ref_sq.stat/thr", "rx.ref_sq.stat", "rx.ref_sq.thr", 0.0, 5.0, 100 },
   { "car.err_deg", NULL, NULL, -90.0, 90.0, 90 }, /* x sign(ramp) */
   { "code.err_chip", NULL, NULL, -0.5, 0.5, 100 },
   { "demod.car.e", "rx.demod.car.e", NULL, -1.0, 1.0, 100 },

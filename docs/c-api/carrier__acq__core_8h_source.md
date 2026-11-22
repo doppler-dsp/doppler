@@ -59,14 +59,6 @@ typedef struct {
     size_t dwell_target;  
     size_t max_n_blocks;  
     size_t nfft;          
-    /* The template's own null statistics, derived at create() from the
-     * window and the template (docs/design/async-dsss-receiver.md §4.7):
-     * the derived threshold reads them, the default (KAPPA) one does
-     * not. */
-    double thr_nu1;  
-    double thr_lam2; 
-    double thr_neff; 
-    int    thr_derived; 
     carrier_acq_tlm_t tlm; 
 } dp_carrier_acq_state_t;
 
@@ -101,7 +93,7 @@ int dp_carrier_acq_set_telemetry(dp_carrier_acq_state_t *state,
  * correlator_core does not hash-verify its own reference spectra
  * either). */
 #define CARRIER_ACQ_STATE_MAGIC DP_FOURCC('C', 'A', 'Q', 'R')
-#define CARRIER_ACQ_STATE_VERSION 3u
+#define CARRIER_ACQ_STATE_VERSION 2u
 size_t dp_carrier_acq_state_bytes(const dp_carrier_acq_state_t *state);
 void   dp_carrier_acq_get_state(const dp_carrier_acq_state_t *state, void *blob);
 int    dp_carrier_acq_set_state(dp_carrier_acq_state_t *state, const void *blob);

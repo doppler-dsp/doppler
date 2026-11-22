@@ -3,7 +3,6 @@
  */
 #include "doppler/clib_common.h"
 #include "doppler/detection/detection_core.h"
-#include "doppler/detection/detection_private.h"
 #include <math.h>
 
 #ifndef M_SQRT1_2
@@ -108,16 +107,6 @@ gammaq (double a, double x)
   if (x < a + 1.0)
     return 1.0 - exp (lfront) * gser (a, x);
   return exp (lfront) * gcf (a, x);
-}
-
-/* The one incomplete gamma, for the modules that reuse it
-   (detection_private.h). A wrapper, so this file's own calls keep the
-   static one the compiler can inline: an exported symbol under -fPIC can
-   be interposed, and is not. */
-double
-dp__gammaq (double a, double x)
-{
-  return gammaq (a, x);
 }
 
 /* P(Poisson(v) <= n-1) = Q(n, v) exactly (standard Poisson/gamma

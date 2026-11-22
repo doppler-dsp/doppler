@@ -319,7 +319,7 @@ uint64_t async_dsss_receiver_extra_t::ho_src;
 
 
 
-v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 3. 
+v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 2. 
  
 
 

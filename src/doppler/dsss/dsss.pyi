@@ -2993,7 +2993,7 @@ class AsyncDsssReceiver:
           (status().refused_hits);
         - "<prefix>.ho_src" -- which estimate the live chain was built from, an
           ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's, 2 the
-          data template's, 3 the squared stream's);
+          data template's);
         - "<prefix>.cn0" -- the seed's C/N0 estimate, dB-Hz
           (status().cn0_dbhz_est): constant over a tenure, since the receiver
           keeps no running estimate while tracking;
@@ -3048,11 +3048,9 @@ class AsyncDsssReceiver:
           symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and its
           decision (dp_async_dsss_receiver_get_locked()), the one its users act
           on, once per emitted symbol;
-        - "<prefix>.ref" and "<prefix>.ref_sq" -- the refine's two estimators,
-          the data template's and the squared stream's
+        - "<prefix>.ref" -- the refine's estimator, the data template's
           (dp_carrier_acq_set_telemetry(): ".stat", ".thr", ".hz", ".n",
-          ".ready"), once per tested block while refining. ".ref_sq.hz" is the
-          squared tone's frequency, twice the residual.
+          ".ready"), once per tested block while refining.
         - "<prefix>.state", "<prefix>.handover_hz", "<prefix>.refused",
           "<prefix>.ho_src", "<prefix>.cn0", "<prefix>.phase.car" and
           "<prefix>.phase.code" -- the lifecycle (an async_dsss_rx_state_t),
@@ -3130,8 +3128,8 @@ class AsyncDsssReceiver:
         ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
         ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
-        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref_sq"))
-        ['rx.ref_sq.hz', 'rx.ref_sq.n', 'rx.ref_sq.ready', 'rx.ref_sq.stat', 'rx.ref_sq.thr']
+        >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))
+        ['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.refused']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """

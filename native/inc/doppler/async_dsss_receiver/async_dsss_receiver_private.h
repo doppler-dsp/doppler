@@ -115,26 +115,6 @@ dp__adsss_same_code_phase (double a, double b, double code_len)
   return d <= DP_CORRELATOR_SAME_PHASE_CHIPS;
 }
 
-/**
- * @brief Whether the refine has decided (docs/design/async-dsss-receiver.md
- *        §4.7): the squared estimator is ready, or the data template has
- *        decided -- ready, or at its give-up cap.
- *
- * Both estimators fold every block, so when the data template decides the
- * squared one has been tested on each block it saw (on the same block, at
- * dwell_target, when not sequential): the refine takes no longer than the
- * data template alone. The receiver's one test, and the tests' (#2974's
- * split rows stop on it).
- */
-static inline int
-dp__adsss_refine_decided (const dp_async_dsss_receiver_state_t *s)
-{
-  const dp_carrier_acq_state_t *ca  = s->ca;
-  const size_t                  cap = ca->sequential ? ca->max_n_blocks
-                                                     : ca->dwell_target;
-  return s->ca_sq->ready || ca->ready || ca->n_blocks >= cap;
-}
-
 #ifdef __cplusplus
 }
 #endif

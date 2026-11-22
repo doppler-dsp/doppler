@@ -1931,7 +1931,7 @@ The owner's ruling, 2026-11-22.
 - **Its noise scale** is the block's own total power. Under noise alone `(R + 1)/2` is exactly `Beta(B/2, B/2)`: mean 0, variance `1/(B + 1)`.
 - **The threshold** is that Beta's 10⁻³ upper point. It needs no noise estimate and no Gaussian approximation; the Dll's noise estimate would bring its own error into the threshold.
 
-**With signal at the floor, in lock,** the mean is `μ₁ = γ/(γ + 1) · E[cos 2θ]`, averaged over the loop's jitter at the rule's bn: the unit form's `σ_θ² = bn (1 + 1/(2γ))/γ`, 1/200 rad² (4.05°). The detection probability is exact for that model: `R > r` is `Σ((1 − r) I² − (1 + r) Q²) > 0`, a sum of independent terms, whose characteristic function is inverted (`det_ratio_pd()`). B is the least that reaches Pd 0.99 (`det_ratio_block_len()`). The receiver derives it at create from its design C/N0 (`adr_size_carrier_lock()`), and `_test_carrier_bn_follows_the_loop_snr_rule` pins the loop it builds.
+**With signal at the floor, in lock,** the mean is `μ₁ = γ/(γ + 1) · E[cos 2θ]`, averaged over the loop's jitter at the rule's bn: the unit form's `σ_θ² = bn (1 + 1/(2γ))/γ`, 1/200 rad² (4.05°). The detection probability is exact for that model: `R > r` is `Σ((1 − r) I² − (1 + r) Q²) > 0`, a sum of independent terms, whose characteristic function is inverted (`det_ratio_pd()`). B is the least that reaches Pd 0.99 (`det_ratio_block_len()`). The length follows the jitter the denominator gives, so the receiver derives it at create from its design C/N0 (`adr_size_carrier_lock()`) and carries no table; `_test_carrier_bn_follows_the_loop_snr_rule` pins the loop it builds.
 
 | cell  | γ     | μ₁    | B            | threshold (Beta, Pfa 10⁻³) | Pd    | false unlock a decision |
 | ----- | ----- | ----- | ------------ | -------------------------- | ----- | ----------------------- |
@@ -2086,6 +2086,11 @@ there is one check per arm, so both arms fail).
 - Both arms failing `code_held` means that in the reacquire arm the code
     lock fell before the release. The release's timing is not in the
     message, so the run must print it.
+- **Now green, both arms, on its fixture unchanged,** with the pre-despread
+    loop `carrier_nda` at M = 2 (`730820f5e`; the gate run at `e6a47ba9f`).
+    What turned it back is not isolated: the swap changed the detector, its
+    denominator, the bandwidth rule and the lock statistic at once. The
+    refutation above (the 6.5 kHz step) still stands as the claim's test.
 
 **Red 2: the lifecycle example loses lock after its 10 ms fade.**
 
@@ -2122,6 +2127,10 @@ there is one check per arm, so both arms fail).
 - **Row:** the example at 415.1 with its 10 ms fade, plus the fades at
     415.1 the report lacks (§2 of the plan). It is **refuted** if any flag
     falls after a 10 ms fade at the rule's bn, at 10 dB.
+- **Now green, both faces, on the example unchanged,** with the
+    pre-despread loop `carrier_nda` at M = 2 (`730820f5e`; the gate run at
+    `e6a47ba9f`). As for red 1, what turned it back is not isolated, and the
+    row above is still its test.
 
 **Red 3: `pullin --check` at 10 dB static** (2.8 GHz, one 20 s draw).
 

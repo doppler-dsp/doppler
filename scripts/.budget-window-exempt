@@ -1,0 +1,39 @@
+# Files that still open an error-rate window on the analytic budget
+# (dp_ber_settle / dp_ber_settle_from, Python settle_from / ber_settle_from)
+# or score by a best-lag search (_best_ber), and how many calls each holds.
+#
+# Read by scripts/check_budget_windows.py (make lint-budget-windows). A
+# receiver measurement opens its window at the observed lock of every flag
+# the receiver publishes, inside a stated allocation, aligned once there:
+# dp_ber_lock_all(), native/tests/dp_ber_test.h, and
+# docs/dev/contributing/measuring-a-receiver.md, "The traps". This list only
+# shrinks: a file over its count, or a file with calls and no row, is red,
+# and so is a row above its file's count. A file converted to
+# dp_ber_lock_all() deletes its row (#3231).
+#
+# path  calls  reason
+
+# The function's own unit tests: they test the budget path itself.
+native/tests/test_dp_ber.c  4  dp_ber_settle()'s own unit test (the budget, the flags, the max)
+src/doppler/ber/tests/test_ber_functions.py  1  ber_settle_from's jm-generated contract test
+
+# MpskReceiver's harnesses: one receiver, two loops, both flags passed
+# where the receiver publishes them; to move to dp_ber_lock_all (#3231).
+native/tests/dp_rx_test.h  1  the receiver battery: carrier flag only, timing NULL (#3231)
+native/validation/mpsk_ber_common.h  1  MpskReceiver's BER sweep: carrier flag only (#3231)
+native/validation/rx_coding_gain.c  1  coding-gain sweep: no flags, the budget alone (#3231)
+native/validation/rx_frame_fer.c  1  frame FER sweep: carrier flag only (#3231)
+src/doppler/track/tests/_mpsk_rx_harness.py  1  settle_from(): the Python harness's budget-or-flags window (#3231)
+src/doppler/track/tests/test_mpsk_receiver_oversampling.py  1  via settle_from (#3231)
+src/doppler/track/tests/test_mpsk_receiver_performance.py  3  via settle_from (#3231)
+src/doppler/track/tests/test_mpsk_receiver_r.py  5  via settle_from (#3231)
+
+# The async receiver's demodulator-only loss measurement: the composed
+# receiver's flags are not the measured object's (#3231).
+native/validation/async_dsss_receiver_loss.c  2  MpskReceiver alone (an all-up flag: the budget alone) and the receiver (one flag) (#3231)
+
+# The best-lag search, the 3.069 Mcps tests: until lengthened or retired (#3080).
+native/tests/async_dsss_receiver/test_async_dsss_receiver_core.c  9  _best_ber, the 3.069 Mcps receiver tests (#3080)
+native/tests/dsss_receiver/test_dsss_receiver_core.c  3  _best_ber, DsssReceiver's tests (#3080)
+src/doppler/dsss/tests/characterization/async_dsss_receiver/characterize.py  1  _best_ber in the async receiver's characterization (#3080)
+src/doppler/dsss/tests/test_async_dsss_receiver.py  2  _best_ber in the async receiver's Python tests (#3080)

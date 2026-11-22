@@ -151,6 +151,14 @@
  * it the rate starts at 0. A capture carries car.order and car.rate_hz_s
  * once a block.
  *
+ * The C12 controls (docs/design/async-dsss-receiver.md §4.11):
+ * `--no-emitter` renders the emitter 400 dB under the noise, the scene's
+ * noise alone with its truth still defined, and asserts that no flag
+ * sustains on a draw; `--expect-broken` asserts that a draw does not work,
+ * for the carrier loop opened through `--bn-carrier` at a bandwidth that
+ * cannot follow a hand-over. Each prints its verdict a draw on stderr, and
+ * the cell's own claims are not asserted on a control's draws.
+ *
  * `--design` prints only the `# design` section, which --emit also prints:
  * per carrier, level and order, the loop the rule and the run's
  * bandwidth ask for, read through the shipped exact functions
@@ -168,6 +176,7 @@
  *              [--seed-rate]]
  *             [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
+ *             [--no-emitter | --expect-broken]     (the C12 controls)
  *             [--telemetry DIR --draw FC,ESN0,RATE,SEED [--from S]
  *              [--to S]]
  */
@@ -289,6 +298,10 @@ typedef struct
      row and 90% of the rest), in seconds from the draw's start; NAN:
      never. t_car_s is the lock flag's; this is the truth's. */
   double t_pull_s;
+  /* The demodulator's carrier and sync flags' sustained times (NAN: never),
+     beside t_sym_s, t_code_s and t_car_s, so each of the five flags has
+     its own "never sustained" (§4.11 C1). */
+  double t_demod_s, t_sync_s;
   double end_stale_hz; /* the hand-over's Doppler against the end's
                           truth: what end_resid_hz would read if it
                           took get_doppler_hz() (the --check margin) */
@@ -404,6 +417,13 @@ static double    pi_cell_key[PI_CELLS][3];
    (dp_async_dsss_receiver_carrier_bn() at the C/N0 it is built at); NAN:
    the receiver's own. */
 static double pi_bn_car = NAN;
+/* The C12 controls (async-dsss-receiver.md §4.11): --no-emitter renders the
+   emitter 400 dB under the noise (amplitude 1e-20), the scene's noise
+   alone with its truth still defined, and asserts no flag sustains;
+   --expect-broken asserts a draw does not work (the carrier loop opened
+   through --bn-carrier). Each prints its verdict to stderr. */
+static int pi_no_emitter    = 0;
+static int pi_expect_broken = 0;
 /* The code lock's look count forced on each entry into tracking, for the
    #3134 control (0: as built, dp_det_n_noncoh()'s sizing). */
 static size_t pi_code_nl = 0;
@@ -956,9 +976,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   dp_air_emitter_t e
       = dp_s415_emitter (code, fc, d->f0, d->rate, cn0, 0.0, 100u + seed);
   e.frame_off = d->frame_off;
-  e.bits      = pay;
-  e.n_bits    = n_pay;
-  e.spc       = spc;
+  if (pi_no_emitter)
+    e.cn0_dbhz -= 400.0; /* the noise alone: amplitude 1e-20 */
+  e.bits   = pay;
+  e.n_bits = n_pay;
+  e.spc    = spc;
   dp_air_t air;
   DP_REQUIRE (
       dp_air_init (&air, &e, 1, DP_S415_FS, cn0, 8807u + seed, PI_PUSH));
@@ -981,6 +1003,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   d->ho_err_hz            = NAN;
   d->t_car_s              = NAN;
   d->t_pull_s             = NAN;
+  d->t_demod_s            = NAN;
+  d->t_sync_s             = NAN;
   d->t_switch_s           = NAN;
   d->slope_hz_s           = NAN;
   d->t_narrow_s           = NAN;
@@ -1600,8 +1624,13 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       {
         const int64_t s  = dp_ber_lock_symbol (f_x[k], n_blk, PI_SUSTAIN, 0.9);
         int64_t       f1 = -1;
+        const double  ts = s >= 0 ? (double)s * blk_s : NAN;
         if (k == 0)
-          d->t_car_s = s >= 0 ? (double)s * blk_s : NAN;
+          d->t_car_s = ts;
+        else if (k == 1)
+          d->t_demod_s = ts;
+        else
+          d->t_sync_s = ts;
         *tog[k]  = s >= 0 ? dp_ber_lock_transitions (f_x[k], data, n_blk,
                                                      (size_t)s, &f1)
                           : 0;
@@ -1954,6 +1983,30 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
     d->t_pull_s = sp >= 0 ? (double)sp * (double)PI_PUSH / DP_S415_FS : NAN;
   }
   free (f_pull);
+  /* The controls' verdicts (C12), one line a draw, stderr. */
+  if (pi_no_emitter)
+    {
+      const int any = !isnan (d->t_sym_s) || !isnan (d->t_code_s)
+                      || !isnan (d->t_car_s) || !isnan (d->t_demod_s)
+                      || !isnan (d->t_sync_s);
+      fprintf (stderr,
+               "control no-emitter %.1f GHz %.1f dB seed %u bn %.4g: "
+               "%s\n",
+               fc / 1e9, esn0, seed, d->bn_car,
+               any ? "FAIL, a flag sustains on noise"
+                   : "PASS, no flag sustains");
+      DP_CHECK_MSG (!any, "control: no flag sustains on the noise alone");
+    }
+  if (pi_expect_broken)
+    {
+      fprintf (stderr,
+               "control opened-loop %.1f GHz %.1f dB seed %u bn %.4g "
+               "(pull-in %.4g Hz): %s\n",
+               fc / 1e9, esn0, seed, d->bn_car, d->base_pullin_hz,
+               d->works ? "FAIL, it works" : "PASS, it does not work");
+      DP_CHECK_MSG (!d->works, "control: the opened carrier loop does not "
+                               "work");
+    }
   free (f_sym);
   free (f_cod);
   for (int k = 0; k < 3; k++)
@@ -1989,7 +2042,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
   "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate,t_narrow_s,"                 \
   "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s,"            \
-  "t_car_s,pulled_in,t_pull_s\n"
+  "t_car_s,pulled_in,t_pull_s,t_demod_s,t_sync_s\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -2002,7 +2055,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
-      "%.2f,%.2f,%.4f,%d,%.4f\n",
+      "%.2f,%.2f,%.4f,%d,%.4f,%.4f,%.4f\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -2022,7 +2075,7 @@ emit_row (const draw_t *d, uint32_t seed)
       d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
       d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
       d->rate_post_narrow_hz_s, d->slope_settled_hz_s, d->t_car_s,
-      d->pulled_in, d->t_pull_s);
+      d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s);
 }
 
 static int
@@ -2371,8 +2424,11 @@ main (int argc, char **argv)
             pi_bn_rule_on = 1;
           else
             {
+              /* 0 is the opened loop (the C12 control): the loop filter
+                 takes it, with zero gains, so the NCO holds the hand-over's
+                 frequency and the pull-in bound is 0 Hz. */
               pi_bn_car = strtod (argv[i], NULL);
-              DP_REQUIRE (pi_bn_car > 0.0 && pi_bn_car < 0.25);
+              DP_REQUIRE (pi_bn_car >= 0.0 && pi_bn_car < 0.25);
             }
         }
       else if (strcmp (argv[i], "--loop-order") == 0 && i + 1 < argc)
@@ -2387,6 +2443,10 @@ main (int argc, char **argv)
                       || strcmp (argv[i], "ramp") == 0);
           pi_dyn_pass = strcmp (argv[i], "pass") == 0;
         }
+      else if (strcmp (argv[i], "--no-emitter") == 0)
+        pi_no_emitter = 1;
+      else if (strcmp (argv[i], "--expect-broken") == 0)
+        pi_expect_broken = 1;
       else if (strcmp (argv[i], "--seed-rate") == 0)
         pi_seed_rate = 1;
       else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
@@ -2558,8 +2618,14 @@ main (int argc, char **argv)
             continue;
           if (!emit)
             print_cell (ds, n);
-          check_cell (ds, n);
-          check_acq (ds, n, !check && shards == 1 && draws >= PI_DRAWS, emit);
+          /* A control's draws are built not to work: the cell's own claims
+             do not apply to them, their verdicts above do. */
+          if (!pi_no_emitter && !pi_expect_broken)
+            {
+              check_cell (ds, n);
+              check_acq (ds, n, !check && shards == 1 && draws >= PI_DRAWS,
+                         emit);
+            }
         }
   free (ds);
   if (check)

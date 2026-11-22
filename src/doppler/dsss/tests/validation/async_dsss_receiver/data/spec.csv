@@ -1,2 +1,2 @@
-fc_ghz,esn0_db,window,draws,held,scored,unaligned,slipped,clean_errors,clean_symbols,clean_ser,clean_ser_lo,clean_ser_hi,clean_loss_db,all_errors,all_symbols,all_ser
-2.8,7.0,code_period,1.0,3,3.0,0.0,0.0,23.0,6757.0,0.0034039,0.0021578,0.0049294,1.363,23.0,6757.0,0.0034039
+fc_ghz,esn0_db,draws,held,scored,unaligned,slipped,clean_errors,clean_symbols,clean_ser,clean_ser_lo,clean_ser_hi,clean_loss_db,all_errors,all_symbols,all_ser
+2.8,7.0,1.0,3,3.0,0.0,0.0,23.0,6757.0,0.0034039,0.0021578,0.0049294,1.363,23.0,6757.0,0.0034039

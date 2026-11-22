@@ -1,3 +1,2 @@
-fc_ghz,esn0_db,window,seed,n_looks,look,n_down,thresh_down,epochs,p2,o2,snr_look_meas,snr_look_model,loss_db,decisions,misses,miss_rate,drops,drops_indep
-2.8,10.0,partials,1.0,3.0,2748.0,3.0,4.739,15564.0,13.9876,1.7428,7.02598,7.49455,0.28,3875.0,53.0,0.01368,0.0,0.01
-2.8,10.0,code_period,1.0,3.0,2748.0,3.0,4.739,15564.0,13.9892,1.74313,7.02531,7.49455,0.281,3873.0,54.0,0.01394,0.0,0.01
+fc_ghz,esn0_db,seed,n_looks,look,n_down,thresh_down,epochs,p2,o2,snr_look_meas,snr_look_model,loss_db,decisions,misses,miss_rate,drops,drops_indep
+2.8,10.0,1.0,3.0,2748.0,3.0,4.739,15564.0,13.9892,1.74313,7.02531,7.49455,0.281,3873.0,54.0,0.01394,0.0,0.01

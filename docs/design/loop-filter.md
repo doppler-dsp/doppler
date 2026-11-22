@@ -161,9 +161,7 @@ root of `K`, so the bandwidth is `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` times
 `bn`: **5/3 at `K = 2` and 3 at `K = 4`**, not `K`, at `zeta = 0.707`. The
 tests that hold it are `native/validation/loop_filter_noise_bw.c` (the
 promise), `src/doppler/track/tests/test_loop_filter_contract.py` (the gain
-formula, and the contract's sentences on every face) and the detector matrix
-of [#3229](https://github.com/doppler-dsp/doppler/issues/3229) (the callers'
-side).
+formula, and the contract's sentences on every face) and `src/doppler/track/tests/test_loop_detector_contract.py` (the callers' side).
 
 **It is the single most consequential thing about this object.** A
 discriminator whose slope is 2 delivers a loop 5/3 times wider than the `bn`

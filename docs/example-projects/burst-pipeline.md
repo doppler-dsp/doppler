@@ -10,11 +10,11 @@ The files are listed [at the bottom of this page](#the-files). The tabs there sh
 
 <!-- docs-snippet: no-exec=downloads the release tarball; the clean-container walk (tests/install) runs it for real -->
 ```sh
-curl -fsSL https://github.com/doppler-dsp/doppler/archive/refs/tags/v0.84.0.tar.gz \
-  | tar -xz --strip-components=2 doppler-0.84.0/example-projects/burst-pipeline
+curl -fsSL https://github.com/doppler-dsp/doppler/archive/refs/tags/v0.85.0.tar.gz \
+  | tar -xz --strip-components=2 doppler-0.85.0/example-projects/burst-pipeline
 ```
 
-Or browse [`example-projects/burst-pipeline/`](https://github.com/doppler-dsp/doppler/tree/v0.84.0/example-projects/burst-pipeline).
+Or browse [`example-projects/burst-pipeline/`](https://github.com/doppler-dsp/doppler/tree/v0.85.0/example-projects/burst-pipeline).
 
 <!-- doc-version:end -->
 

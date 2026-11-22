@@ -92,7 +92,6 @@ extern "C"
 #define ASYNC_DSSS_RX_HO_NONE 0
 #define ASYNC_DSSS_RX_HO_SEED 1
 #define ASYNC_DSSS_RX_HO_DATA 2
-#define ASYNC_DSSS_RX_HO_SQUARED 3
 
 /* SSOT: enum=async_dsss_rx_state */
 typedef enum
@@ -114,7 +113,6 @@ typedef enum
     dp_dll_state_t           *refine_dll; 
     dp_RateConverter_state_t *refine_rc;  
     dp_carrier_acq_state_t   *ca;         
-    dp_carrier_acq_state_t   *ca_sq;      
     size_t refine_segments; 
     uint64_t refine_samples_fed; 
     uint64_t refine_periods;     
@@ -480,7 +478,7 @@ typedef enum
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 20u /* v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 21u /* v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

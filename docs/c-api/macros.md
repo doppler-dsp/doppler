@@ -48,7 +48,6 @@
 * **ASYNC\_DSSS\_RX\_HO\_DATA** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_HO\_NONE** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_HO\_SEED** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
-* **ASYNC\_DSSS\_RX\_HO\_SQUARED** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOCK\_DOWN** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOCK\_DWELL** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOCK\_N\_DOWN** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

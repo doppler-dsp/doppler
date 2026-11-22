@@ -1,20 +1,15 @@
 /**
  * @file async_dsss_receiver_refine.c
  * @brief The refine at the 415.1-B-1 point: how often it decides on noise,
- *        and what each of its two estimators hands over.
+ *        and what it hands over.
  *
- * The refine (docs/design/async-dsss-receiver.md §4.7) runs two
- * CarrierAcquisition estimators on the despread stream of a seed: the data
- * template's on the stream and the squared stream's against a tone's
- * template, its threshold derived. The hand-over takes the squared
- * estimate, halved, when it decided; failing it, the data template's;
- * failing both, the seed's own Doppler. At the use case's configuration
+ * The refine (docs/design/async-dsss-receiver.md §4.7) runs one
+ * CarrierAcquisition estimator, the data template's, on the despread
+ * stream of a seed. The hand-over takes its estimate when it decided, and
+ * the seed's own Doppler when it gave up. At the use case's configuration
  * the refine is NOT sequential (refine_sequential false, the binding's
- * default for the receiver and the pool): each estimator tests ONCE, at
- * its dwell target. So the design's per-dwell false-alarm rate is each
- * estimator's pfa -- one test -- and the hand-over's, which takes either,
- * is at most their union, 2 pfa: the baseline the noise rows are read
- * against.
+ * default for the receiver and the pool): the estimator tests ONCE, at its
+ * dwell target, so the design's per-dwell false-alarm rate is its pfa.
  *
  * Stimulus: the use-case scene, native/tests/dp_air_test.h, at the 415.1
  * point (11 MSa/s, 3,000 sym/s, the 275-in-1,000 code-only window), C/N0
@@ -24,33 +19,24 @@
  * NOISE. The scene with no emitter, the noise at the design C/N0's
  * reference. Each dwell: a reset, a seed at a drawn code phase and a drawn
  * Doppler in +/-1,500 Hz, then the receiver fed until it leaves refining.
- * Per estimator, whether it decided (its `ready`); for the hand-over,
- * which estimate it took (get_handover_source()). Rates with Wilson 95%
- * intervals against pfa (each estimator) and 2 pfa (the hand-over taking
- * either).
+ * Whether the estimator decided (its `ready`), and which estimate the
+ * hand-over took (get_handover_source()). The rate with its Wilson 95%
+ * interval against pfa.
  *
  * HAND-OVER. The emitter on the air, static or on a +/-400 Hz/s ramp (the
  * sign by seed), at the floor (4 dB) and 7 dB. Each dwell is seeded on the
  * truth's code phase at that sample, as the receiver's code NCO would read
  * it (half a receive sample before the continuous phase, the dwell-start
  * convention of rx.phase.code), and on the truth's Doppler plus an offset
- * from a grid of OFFSETS across one search row. Each dwell runs twice on
- * the same scene: as built here, and with the squared estimator SILENCED
- * (its dwell target set out of reach through the receiver's public state
- * after the seed, so it never tests). Silenced, the decision rule is "the
- * data template decided, else the cap" -- the rule without the squared
- * estimator -- with everything else this build. A read of the data
- * estimate on the as-built dwell is not possible: each estimator tests
- * once at its own dwell target, the squared one's ends no later than the
- * data one's, and the hand-over comes first. Recorded against the
- * channel's own offset at the hand-over sample: the error of what each arm
+ * from a grid of OFFSETS across one search row. Recorded against the
+ * channel's own offset at the hand-over sample: the error of what was
  * handed over, and which estimate it took.
  *
  * Asserted, the same in the sweep and --check: every dwell leaves
- * refining (a hand-over or a give-up, never stuck); and on noise no rate
- * is shown to exceed its design -- each estimator's interval starts at or
- * under pfa, the hand-over's at or under 2 pfa. Printed: the rates, and
- * the hand-over errors as median, 90th percentile and worst, per column.
+ * refining (a hand-over or a give-up, never stuck); and on noise the
+ * rate is not shown to exceed its design: its interval starts at or under
+ * pfa. Printed: the rate, and the hand-over errors as median, 90th
+ * percentile and worst.
  * --check: 2.8 GHz, 300 noise dwells and the static 7 dB hand-over grid
  * at one noise seed.
  *
@@ -124,10 +110,10 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
   float complex *x    = dp_xmalloc (RF_PUSH * sizeof *x);
   float complex *out  = dp_xmalloc (ocap * sizeof *out);
   uint32_t       st   = trial_rng ((uint32_t)(fc / 1e8));
-  size_t         data = 0, sq = 0, any = 0, stuck = 0;
+  size_t         data = 0, stuck = 0;
   size_t         src[4] = { 0, 0, 0, 0 };
   if (emit)
-    printf ("# noise\nfc_ghz,dwell,data_ready,sq_ready,ho_src,samples\n");
+    printf ("# noise\nfc_ghz,dwell,data_ready,ho_src,samples\n");
   for (size_t d = 0; d < n; d++)
     {
       dp_async_dsss_receiver_reset (rx);
@@ -137,26 +123,22 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
       DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, dop, cn0) == DP_OK);
       const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
       stuck += fed == 0;
-      const int dr = rx->ca->ready, sr = rx->ca_sq->ready;
+      const int dr = rx->ca->ready;
       data += (size_t)dr;
-      sq += (size_t)sr;
-      any += (size_t)(dr || sr);
       const int hs = dp_async_dsss_receiver_get_handover_source (rx);
       if (hs >= 0 && hs < 4)
         src[hs]++;
       if (emit)
-        printf ("%.1f,%zu,%d,%d,%d,%llu\n", fc / 1e9, d, dr, sr, hs,
+        printf ("%.1f,%zu,%d,%d,%llu\n", fc / 1e9, d, dr, hs,
                 (unsigned long long)fed);
     }
   DP_CHECK_MSG (stuck == 0, "every noise dwell leaves refining");
   if (!emit)
     printf ("  noise at %.1f GHz: %zu dwells (hand-over from the seed %zu, "
-            "data %zu, squared %zu)\n",
+            "data %zu)\n",
             fc / 1e9, n, src[ASYNC_DSSS_RX_HO_SEED],
-            src[ASYNC_DSSS_RX_HO_DATA], src[ASYNC_DSSS_RX_HO_SQUARED]);
+            src[ASYNC_DSSS_RX_HO_DATA]);
   rate_row ("data template decides", data, n, pfa, emit);
-  rate_row ("squared stream decides", sq, n, pfa, emit);
-  rate_row ("either (the hand-over's)", any, n, 2.0 * pfa, emit);
   free (x);
   free (out);
   dp_async_dsss_receiver_destroy (rx);
@@ -189,17 +171,12 @@ err_col (const char *what, double *v, size_t n)
 }
 
 /* One hand-over dwell: the emitter at the 415.1 point, the receiver seeded
-   on the truth's code phase and the truth's Doppler plus `off`. With
-   `silence_sq` the squared estimator is held from ever testing (its dwell
-   target set out of reach through the receiver's public state, after the
-   seed builds it), so the hand-over is the data template's or the cap's:
-   the decision rule without the squared estimator, everything else this
-   build. Returns the error of what was handed over against the channel's
-   offset at the hand-over sample (NAN if it stuck) and the source. */
+   on the truth's code phase and the truth's Doppler plus `off`. Returns the
+   error of what was handed over against the channel's offset at the hand-over
+   sample (NAN if it stuck) and the source. */
 static int
 one_handover (const uint8_t *code, double fc, double cn0, double rate,
-              uint32_t s, size_t o, double off_frac, int silence_sq,
-              double *err, int *src)
+              uint32_t s, size_t o, double off_frac, double *err, int *src)
 {
   const double                    chip = dp_s415_chip_rate (fc);
   const size_t                    ocap = 1u << 14;
@@ -225,16 +202,12 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
       = fmod (t0.code_chips - 0.5 * chip / DP_S415_FS + 1023.0, 1023.0);
   DP_REQUIRE (dp_async_dsss_receiver_seed (rx, ph, t0.car_hz + off, cn0)
               == DP_OK);
-  if (silence_sq)
-    rx->ca_sq->dwell_target = SIZE_MAX; /* never tests, never decides */
   const uint64_t fed = rf_until_decided (rx, &air, x, out, ocap);
   const uint64_t at  = at0 + (rx->samples_in - rx->state_samples);
   *err               = fed ? dp_async_dsss_receiver_get_doppler_hz (rx)
                                  - dp_air_truth (&air, 0, at).car_hz
                            : NAN;
   *src               = dp_async_dsss_receiver_get_handover_source (rx);
-  DP_CHECK_MSG (!silence_sq || !rx->ca_sq->ready,
-                "a silenced squared estimator never decides");
   dp_air_free (&air);
   dp_async_dsss_receiver_destroy (rx);
   free (x);
@@ -243,9 +216,7 @@ one_handover (const uint8_t *code, double fc, double cn0, double rate,
 }
 
 /* HAND-OVER: the offset grid at carrier `fc`, Es/N0 `esn0`, ramp
-   magnitude `rate`, each dwell twice on the same scene: as built here
-   (the squared estimate when it decides) and with the squared estimator
-   silenced (the data template's hand-over). */
+   magnitude `rate`. */
 static int
 handover_rows (const uint8_t *code, double fc, double esn0, double rate,
                size_t seeds, int emit)
@@ -253,45 +224,32 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
   const double cn0 = dp_s415_cn0 (esn0);
   const size_t n   = RF_OFFSETS * seeds;
   double      *eb  = dp_xmalloc (n * sizeof *eb);
-  double      *ed  = dp_xmalloc (n * sizeof *ed);
-  size_t       k = 0, stuck = 0, sb[4] = { 0 }, sd[4] = { 0 };
+  size_t       k = 0, stuck = 0, sb[3] = { 0 };
   for (uint32_t s = 1; s <= seeds; s++)
     for (size_t o = 0; o < RF_OFFSETS; o++, k++)
       {
         const double frac
             = -1.0 + 2.0 * ((double)o + 0.5) / (double)RF_OFFSETS;
-        int hb = 0, hd = 0;
-        DP_REQUIRE (
-            one_handover (code, fc, cn0, rate, s, o, frac, 0, &eb[k], &hb)
-            == 0);
-        DP_REQUIRE (
-            one_handover (code, fc, cn0, rate, s, o, frac, 1, &ed[k], &hd)
-            == 0);
-        stuck += isnan (eb[k]) + isnan (ed[k]);
-        if (hb >= 0 && hb < 4)
+        int hb = 0;
+        DP_REQUIRE (one_handover (code, fc, cn0, rate, s, o, frac, &eb[k], &hb)
+                    == 0);
+        stuck += isnan (eb[k]);
+        if (hb >= 0 && hb < 3)
           sb[hb]++;
-        if (hd >= 0 && hd < 4)
-          sd[hd]++;
         if (emit)
-          printf ("%.1f,%.1f,%.0f,%u,%.3f,%.2f,%d,%.2f,%d\n", fc / 1e9, esn0,
+          printf ("%.1f,%.1f,%.0f,%u,%.3f,%.2f,%d\n", fc / 1e9, esn0,
                   rate == 0.0 ? 0.0 : (s & 1u ? rate : -rate), s, frac, eb[k],
-                  hb, ed[k], hd);
+                  hb);
       }
   DP_CHECK_MSG (stuck == 0, "every hand-over dwell leaves refining");
   if (!emit)
     {
-      printf ("    %.1f GHz %4.1f dB %s: %zu dwells each arm\n", fc / 1e9,
-              esn0, rate == 0.0 ? "static" : "+/-400 Hz/s", n);
-      printf ("      as built (squared %zu, data %zu, seed %zu):\n",
-              sb[ASYNC_DSSS_RX_HO_SQUARED], sb[ASYNC_DSSS_RX_HO_DATA],
-              sb[ASYNC_DSSS_RX_HO_SEED]);
+      printf ("    %.1f GHz %4.1f dB %s: %zu dwells (data %zu, seed %zu)\n",
+              fc / 1e9, esn0, rate == 0.0 ? "static" : "+/-400 Hz/s", n,
+              sb[ASYNC_DSSS_RX_HO_DATA], sb[ASYNC_DSSS_RX_HO_SEED]);
       err_col ("handed over", eb, n);
-      printf ("      data template, squared silenced (data %zu, seed %zu):\n",
-              sd[ASYNC_DSSS_RX_HO_DATA], sd[ASYNC_DSSS_RX_HO_SEED]);
-      err_col ("handed over", ed, n);
     }
   free (eb);
-  free (ed);
   return 0;
 }
 
@@ -322,7 +280,7 @@ main (int argc, char **argv)
     DP_REQUIRE (noise_rows (code, fcs[f], dwells, emit) == 0);
   if (emit)
     printf ("# handover\nfc_ghz,esn0_db,rate_hz_s,seed,offset_rows,"
-            "err_hz,ho_src,data_only_err_hz,data_only_ho_src\n");
+            "err_hz,ho_src\n");
   else
     printf ("  hand-over: %u offsets across one search row, the error "
             "against the channel's offset at the hand-over sample\n",

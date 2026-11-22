@@ -135,20 +135,6 @@ typedef struct {
                             *  (see dp_carrier_acq_create()'s own doc).     */
     size_t nfft;          /**< PSD / template length, bins (config,
                                from the PSD core at create()).        */
-
-    /* The template's own null statistics, derived at create() from the
-     * window and the template (docs/design/async-dsss-receiver.md §4.7):
-     * the derived threshold reads them, the default (KAPPA) one does
-     * not. */
-    double thr_nu1;  /**< Degrees of freedom a block adds to a lag's
-                          chi-square: 2 tr(A)^2 / ||A||_F^2.        */
-    double thr_lam2; /**< The lag process's second spectral moment,
-                          1 - corr(one bin).                         */
-    double thr_neff; /**< Independent lags the median sees:
-                          ||A||_F^2 / sum_j A_jj^2.                  */
-    int    thr_derived; /**< 1: the derived threshold (set only through
-                             the private dp__carrier_acq_derive_threshold(),
-                             and carried in the blob); 0: KAPPA.      */
     carrier_acq_tlm_t tlm; /**< Telemetry attachment; not in the blob. */
 } dp_carrier_acq_state_t;
 
@@ -378,10 +364,8 @@ int dp_carrier_acq_set_telemetry(dp_carrier_acq_state_t *state,
 /** @brief State-blob layout version; bumped when the payload changes.
  *  Version 2: the nested detector blob is the one correlator's 'CORL', in
  *  its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no
- *  release was cut, so 3.3's change rides the same unreleased version).
- *  Version 3: the threshold rule (KAPPA or derived) is carried and
- *  restored. */
-#define CARRIER_ACQ_STATE_VERSION 3u
+ *  release was cut, so 3.3's change rides the same unreleased version). */
+#define CARRIER_ACQ_STATE_VERSION 2u
 /**
  * @brief Size of this instance's serialized state blob.
  * @param state  Instance to size (non-NULL).

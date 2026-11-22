@@ -268,15 +268,13 @@ extern "C"
 /** @brief Where the last hand-over's Doppler came from (".ho_src" and
  *  dp_async_dsss_receiver_get_handover_source()): none since the last
  *  seed (searching or refining), the seed's own (the refine gave up, or
- *  its estimate failed the hand-over's checks), the data-template
- *  estimator's, or the squared-stream estimator's, halved (§4.7). */
+ *  its estimate failed the hand-over's checks), or the data-template
+ *  estimator's (§4.7). */
 #define ASYNC_DSSS_RX_HO_NONE 0
 /** @brief The hand-over took the seed's own Doppler. */
 #define ASYNC_DSSS_RX_HO_SEED 1
 /** @brief The hand-over took the data-template estimator's. */
 #define ASYNC_DSSS_RX_HO_DATA 2
-/** @brief The hand-over took the squared-stream estimator's, halved. */
-#define ASYNC_DSSS_RX_HO_SQUARED 3
 
 /** The state machine's values (`state` below, also the first byte of a
  * serialized blob's extra record). Searching -> refining -> tracking, and
@@ -322,15 +320,7 @@ typedef enum
                                                CarrierAcquisition's
                                                rate.                    */
     dp_carrier_acq_state_t   *ca;         /**< Owned CarrierAcquisition
-                                               refining the Doppler from
-                                               the despread stream (the
-                                               data template).          */
-    dp_carrier_acq_state_t   *ca_sq;      /**< Owned CarrierAcquisition on
-                                               the SQUARED despread stream
-                                               (a tone at twice the
-                                               residual, data or none;
-                                               a tone's template, the
-                                               derived threshold).      */
+                                               refining the Doppler.    */
     size_t refine_segments; /**< dp_dll_lookback_segments() result,
                                   computed once at create: config for
                                   refine_dll's layout, needed again by
@@ -909,7 +899,7 @@ typedef enum
    *   (status().refused_hits);
    * - "<prefix>.ho_src" -- which estimate the live chain was built from,
    *   an ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's,
-   *   2 the data template's, 3 the squared stream's);
+   *   2 the data template's);
    * - "<prefix>.cn0" -- the seed's C/N0 estimate, dB-Hz
    *   (status().cn0_dbhz_est): constant over a tenure, since the receiver
    *   keeps no running estimate while tracking;
@@ -964,11 +954,9 @@ typedef enum
    *   symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and
    *   its decision (dp_async_dsss_receiver_get_locked()), the one its
    *   users act on, once per emitted symbol;
-   * - "<prefix>.ref" and "<prefix>.ref_sq" -- the refine's two
-   *   estimators, the data template's and the squared stream's
+   * - "<prefix>.ref" -- the refine's estimator, the data template's
    *   (dp_carrier_acq_set_telemetry(): ".stat", ".thr", ".hz", ".n",
-   *   ".ready"), once per tested block while refining. ".ref_sq.hz" is
-   *   the squared tone's frequency, twice the residual.
+   *   ".ready"), once per tested block while refining.
    * - "<prefix>.state", "<prefix>.handover_hz", "<prefix>.refused",
    *   "<prefix>.ho_src", "<prefix>.cn0", "<prefix>.phase.car" and
    *   "<prefix>.phase.code" -- the lifecycle (an async_dsss_rx_state_t),
@@ -1038,8 +1026,8 @@ typedef enum
    * ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
    * ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
-   * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref_sq"))
-   * ['rx.ref_sq.hz', 'rx.ref_sq.n', 'rx.ref_sq.ready', 'rx.ref_sq.stat', 'rx.ref_sq.thr']
+   * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))
+   * ['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.refused']
    * >>> rx.set_telemetry(None, "rx")      # detach
    *
    * @endcode
@@ -1873,9 +1861,8 @@ typedef enum
       const dp_async_dsss_receiver_state_t *state);
 
   /** @brief Which estimate the live chain's Doppler came from:
-   *         ASYNC_DSSS_RX_HO_NONE until a hand-over, then _SEED, _DATA or
-   *         _SQUARED (the refine's choice, §4.7), NONE again at the next
-   *         seed.
+   *         ASYNC_DSSS_RX_HO_NONE until a hand-over, then _SEED or _DATA
+   *         (the refine's choice, §4.7), NONE again at the next seed.
    * @param state  Must be non-NULL.
    * @return One of the ASYNC_DSSS_RX_HO_* values. */
   int dp_async_dsss_receiver_get_handover_source (
@@ -1948,13 +1935,13 @@ typedef enum
     uint64_t excl_at; /**< v18: the sample the exclusions name.          */
     uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; /**< v18: each pick's
                                    sample, the unused tail zeroed.      */
-    uint64_t ho_src; /**< v19: ASYNC_DSSS_RX_HO_*, refused past 3.       */
+    uint64_t ho_src; /**< v19: ASYNC_DSSS_RX_HO_*, refused past 2.       */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 20u /* v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 21u /* v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

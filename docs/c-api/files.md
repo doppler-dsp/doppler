@@ -82,7 +82,6 @@ Here is a list of all files with brief descriptions:
                 * **file** [**burst\_despreader\_core.h**](burst__despreader__core_8h.md) _BurstDespreader component API._     
             * **dir** [**carrier\_acq**](dir_92c8a71a0b308d7c304bd53eb19bc933.md)     
                 * **file** [**carrier\_acq\_core.h**](carrier__acq__core_8h.md) _CarrierAcquisition — PSDMF residual-carrier frequency refinement._     
-                * **file** [**carrier\_acq\_private.h**](carrier__acq__private_8h.md) _The carrier acquisition's derived detection threshold._     
             * **dir** [**carrier\_mpsk**](dir_bb3a0f9e61a286c66b69840ec2385900.md)     
                 * **file** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md) _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._     
             * **dir** [**carrier\_nda**](dir_6eb92e8a380cf8a945db661ecf671c65.md)     
@@ -120,7 +119,6 @@ Here is a list of all files with brief descriptions:
                 * **file** [**despreader\_core.h**](despreader__core_8h.md) _Continuous DSSS despreader — Costas carrier loop + DLL code loop._     
             * **dir** [**detection**](dir_c7528e0bd68524c48f260a564c045102.md)     
                 * **file** [**detection\_core.h**](detection__core_8h.md) _Detection-theory utilities for the amplitude-ratio test statistic._     
-                * **file** [**detection\_private.h**](detection__private_8h.md) _The detection module's numeric kernels other modules reuse._     
             * **dir** [**dll**](dir_c5ff741ba8e1e68126223ee4df379547.md)     
                 * **file** [**dll\_core.h**](dll__core_8h.md) _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._     
             * **dir** [**doppler\_channel**](dir_8380ecb58e2e244790f54835382515ec.md)     

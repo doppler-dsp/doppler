@@ -8,11 +8,9 @@
  * carrier loop the refine stage's Doppler: the
  * coarse seed plus the residual `CarrierAcquisition` finds on the
  * despread stream, the peak of its averaged PSD correlated with a sinc^2
- * template, parabolically refined between bins -- and, since the squared
- * estimator (docs/design/async-dsss-receiver.md §4.7), the same on the
- * stream's square against a tone's template, handed over when found. At the
- * floor from a 50 kHz seed the estimate lands 200-460 Hz low on every seed
- * with the floor's 18-block dwell, and loop 1 (pull-in 60 Hz) then acquires it
+ * template, parabolically refined between bins. At the floor from a
+ * 50 kHz seed the estimate lands 200-460 Hz low on every seed with the
+ * floor's 18-block dwell, and loop 1 (pull-in 60 Hz) then acquires it
  * slowly or not at all (#1252). This harness measures that estimate on
  * its own, with nothing downstream of it: the error of the Doppler the
  * receiver hands over, against the seed's offset, against the dwell, and
@@ -332,21 +330,14 @@ main (int argc, char **argv)
           else
             {
               /* The defect this harness was built to see: on the
-                 retired stream the data template's estimate keeps about
-                 a third of the seed's error, in the seed's direction --
-                 over 200 Hz at +-1100 Hz. The refine hands over its
-                 squared estimate instead (async-dsss-receiver.md §4.7),
-                 and squaring removes the data lobe the one-dump stream
-                 aliases, so this stream too hands over inside loop 1's
-                 pull-in. Sabotage: the squared estimator fed unsquared
-                 -> the 200 Hz lean is back. */
+                 retired stream the estimate keeps about a third of the
+                 seed's error, in the seed's direction. The check pins
+                 that the harness sees it. */
               DP_CHECK_MSG (at_zero.segments == 1,
                             "100 dB gives one dump per epoch");
-              DP_CHECK_MSG (fabs (at_zero.mean) < 60.0
-                                && fabs (at_off[0].mean) < 60.0
-                                && fabs (at_off[1].mean) < 60.0,
-                            "the bias at 0 and +-1100 Hz is inside loop "
-                            "1's pull-in on the retired stream too");
+              DP_CHECK_MSG (at_off[0].mean > 200.0 && at_off[1].mean < -200.0,
+                            "on the retired stream the bias at +-1100 Hz "
+                            "is over 200 Hz toward the seed");
             }
         }
     }

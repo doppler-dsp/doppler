@@ -251,11 +251,7 @@ The receiver reports one consistent picture by value through `status()`.
 It carries no timestamp: the caller owns the sample clock and stamps it.
 
 **`refine`** decides what a detection hands to tracking. True, the default,
-refines the search's Doppler first: it estimates the residual on the
-despread stream and on its square, where the data drops out, and hands over
-the squared estimate when that one finds the carrier, on a stretch of data
-and a code-only one alike
-([async-dsss-receiver](../design/async-dsss-receiver.md) §4.7). False hands the search's own Doppler
+refines the search's Doppler first. False hands the search's own Doppler
 straight to tracking, with no refining state, which takes a search at
 least 25 code periods deep: set `code_only_s` (and `doppler_rate`) so
 `coherent_bins` reaches 25, or the receiver refuses to build. The pool

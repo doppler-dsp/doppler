@@ -1,10 +1,7 @@
 #include "doppler/carrier_acq/carrier_acq_core.h"
-#include "doppler/carrier_acq/carrier_acq_private.h"
 #include "doppler/dp_complex.h"
-#include "doppler/psd/psd_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
-#include "dp_stats_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdint.h>
@@ -59,136 +56,6 @@ static const double TONE_HZ        = 123.0;
 #define SPS 8
 #define N_SYMBOLS 4000
 #define MAX_N_BLOCKS 100000
-
-/* A tone's template on the receiver's refine geometry (async-dsss-receiver
- * §4.7): 12 kSa/s, 64-point blocks zero-padded 8 times, the spectrum the
- * CA's own PSD kernel makes of one block of a constant. */
-#define TONE_FS 12000.0
-#define TONE_N 64u
-#define TONE_PAD 8u
-static dp_carrier_acq_state_t *
-_tone_ca (double pfa, size_t dwell)
-{
-  /* NULL on any failure: the caller requires it. */
-  dp_psd_kernel_t k;
-  if (dp_psd_kernel_init (&k, TONE_N, DP_PSD_WINDOW_HANN, 0.0f, TONE_PAD, 1.0)
-      != DP_OK)
-    return NULL;
-  float _Complex one[TONE_N];
-  for (size_t i = 0; i < TONE_N; i++)
-    one[i] = 1.0f;
-  float *t = malloc (k.nfft * sizeof *t);
-  if (!t)
-    {
-      dp_psd_kernel_free (&k);
-      return NULL;
-    }
-  dp_psd_frame_power (&k, one, t);
-  dp_carrier_acq_state_t *ca = dp_carrier_acq_create (
-      TONE_FS, 3000.0, TONE_FS / (double)TONE_N, TONE_PAD, DP_PSD_WINDOW_HANN,
-      0.0f, t, k.nfft, pfa, 0.9, 1.0, false, 100);
-  if (ca)
-    ca->dwell_target = dwell;
-  dp_psd_kernel_free (&k);
-  free (t);
-  return ca;
-}
-
-/* The derived threshold's realized false-alarm rate (async-dsss-receiver
- * §4.7): noise-only dwells of the squared stream (a complex Gaussian
- * squared, what the receiver's squared estimator sees with no signal),
- * 16 blocks each, through the built estimator at pfa 1e-2. The derivation
- * is conservative by construction (0.3-0.9 of the target in the design's
- * Monte Carlo), so the count's whole Wilson interval must lie at or under
- * the target, and its top must not collapse toward nothing, which is what
- * the fitted KAPPA rule does here (about 1e-4 at this pfa). 20000 dwells,
- * enough that the rule's realized 0.55% and an anticonservative 1.2% have
- * intervals on opposite sides of 1%. A probability is stated with its
- * interval: printed whatever the verdict. Sabotage: KAPPA in place of the
- * derived rule -> the top falls under pfa / 4; the median's spread dropped
- * (1.2% realized) -> the top rises past pfa. */
-static int
-_test_derived_threshold_false_alarms (void)
-{
-  const double            pfa   = 1e-2;
-  const size_t            dwell = 16, trials = 20000, n = dwell * TONE_N;
-  dp_carrier_acq_state_t *ca = _tone_ca (pfa, dwell);
-  DP_REQUIRE (ca != NULL);
-  dp__carrier_acq_derive_threshold (ca);
-  float _Complex *x  = malloc (n * sizeof *x);
-  uint32_t        st = 0x5eed1234u;
-  DP_REQUIRE (x != NULL);
-  size_t fired = 0;
-  for (size_t tr = 0; tr < trials; tr++)
-    {
-      for (size_t i = 0; i < n; i++)
-        {
-          const float _Complex z = dp_cgauss (&st);
-          x[i]                   = z * z;
-        }
-      dp_carrier_acq_reset (ca);
-      dp_carrier_acq_steps (ca, x, n);
-      DP_REQUIRE (ca->n_blocks == dwell);
-      fired += ca->ready;
-    }
-  double lo, hi; /* lo is printed: the interval, not a point */
-  dp_wilson ((double)fired, (double)trials, &lo, &hi);
-  printf ("derived threshold: %zu of %zu noise-only dwells fired, "
-          "[%.4f, %.4f] at pfa %g (eta %.3f)\n",
-          fired, trials, lo, hi, pfa,
-          dp__carrier_acq_derived_threshold (ca, dwell));
-  DP_CHECK_MSG (hi <= pfa, "the derived threshold holds its false-alarm "
-                           "rate at or under the target");
-  DP_CHECK_MSG (hi >= pfa / 4.0, "and is not the fitted rule's near-zero "
-                                 "one");
-  free (x);
-  dp_carrier_acq_destroy (ca);
-  return 0;
-}
-
-/* The rule travels (#2022 class): a blob from the derived estimator lands
- * on the derived rule in a target built with the default one, and a
- * flag that is neither rule is refused, the target untouched. Sabotage:
- * set_state leaving thr_derived alone -> the target stays on KAPPA. */
-static int
-_test_derived_threshold_round_trip (void)
-{
-  dp_carrier_acq_state_t *a = _tone_ca (1e-3, 16), *b = _tone_ca (1e-3, 16);
-  DP_REQUIRE (a != NULL && b != NULL);
-  dp__carrier_acq_derive_threshold (a);
-  DP_REQUIRE (a->thr_derived == 1 && b->thr_derived == 0);
-  const size_t   nb   = dp_carrier_acq_state_bytes (a);
-  unsigned char *blob = malloc (nb), *bad = malloc (nb);
-  DP_REQUIRE (blob && bad && nb == dp_carrier_acq_state_bytes (b));
-  dp_carrier_acq_get_state (a, blob);
-  memcpy (bad, blob, nb);
-  /* The flag's byte: the blob's one difference from b's own. */
-  dp_carrier_acq_state_t *c  = _tone_ca (1e-3, 16);
-  unsigned char          *cb = malloc (nb);
-  DP_REQUIRE (c != NULL && cb != NULL);
-  dp_carrier_acq_get_state (c, cb);
-  size_t at = SIZE_MAX, diffs = 0;
-  for (size_t i = 0; i < nb; i++)
-    if (blob[i] != cb[i])
-      {
-        at = i;
-        diffs++;
-      }
-  DP_REQUIRE_MSG (diffs == 1, "the rule is one byte of the blob");
-  bad[at] = 2;
-  DP_CHECK (dp_carrier_acq_set_state (b, bad) == DP_ERR_INVALID);
-  DP_CHECK_MSG (b->thr_derived == 0, "a refused blob leaves the rule");
-  DP_CHECK (dp_carrier_acq_set_state (b, blob) == DP_OK);
-  DP_CHECK_MSG (b->thr_derived == 1,
-                "a restored estimator tests against the derived rule");
-  free (cb);
-  free (bad);
-  free (blob);
-  dp_carrier_acq_destroy (a);
-  dp_carrier_acq_destroy (b);
-  dp_carrier_acq_destroy (c);
-  return 0;
-}
 
 /* The telemetry pairs each decision with the statistic it thresholds,
  * per tested block: five records a block in sequential mode, ".ready" 0
@@ -291,8 +158,6 @@ main (void)
 {
   DP_CHECK (_test_give_up_leaves_ready_false () == 0);
   DP_CHECK (_test_telemetry_pairs_decision_with_statistic () == 0);
-  DP_CHECK (_test_derived_threshold_false_alarms () == 0);
-  DP_CHECK (_test_derived_threshold_round_trip () == 0);
   /* ── sequential=true: fires early, accurate residual_hz ── */
   {
     size_t          n;

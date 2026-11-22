@@ -40,7 +40,6 @@ _Composed receiver state._ [More...](#detailed-description)
 |  bool | [**align\_pending**](#variable-align_pending)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
-|  [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md) \* | [**ca\_sq**](#variable-ca_sq)  <br> |
 |  [**dp\_costas\_state\_t**](structdp__costas__state__t.md) | [**car**](#variable-car)  <br> |
 |  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
@@ -266,25 +265,7 @@ dp_carrier_acq_state_t* dp_async_dsss_receiver_state_t::ca;
 
 
 
-Owned CarrierAcquisition refining the Doppler from the despread stream (the data template). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable ca\_sq 
-
-```C++
-dp_carrier_acq_state_t* dp_async_dsss_receiver_state_t::ca_sq;
-```
-
-
-
-Owned CarrierAcquisition on the SQUARED despread stream (a tone at twice the residual, data or none; a tone's template, the derived threshold). 
+Owned CarrierAcquisition refining the Doppler. 
  
 
 

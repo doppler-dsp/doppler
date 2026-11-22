@@ -107,7 +107,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 | Type | Name |
 | ---: | :--- |
 | define  | [**CARRIER\_ACQ\_STATE\_MAGIC**](carrier__acq__core_8h.md#define-carrier_acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('C', 'A', 'Q', 'R')`<br>_State-blob magic ("CAQR"); set\_state() rejects any other._  |
-| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `3u`<br>_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is the one correlator's 'CORL', in its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no release was cut, so 3.3's change rides the same unreleased version). Version 3: the threshold rule (KAPPA or derived) is carried and restored._  |
+| define  | [**CARRIER\_ACQ\_STATE\_VERSION**](carrier__acq__core_8h.md#define-carrier_acq_state_version)  `2u`<br>_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is the one correlator's 'CORL', in its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no release was cut, so 3.3's change rides the same unreleased version)._  |
 
 ## Detailed Description
 
@@ -563,9 +563,9 @@ _State-blob magic ("CAQR"); set\_state() rejects any other._
 
 ### define CARRIER\_ACQ\_STATE\_VERSION 
 
-_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is the one correlator's 'CORL', in its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no release was cut, so 3.3's change rides the same unreleased version). Version 3: the threshold rule (KAPPA or derived) is carried and restored._ 
+_State-blob layout version; bumped when the payload changes. Version 2: the nested detector blob is the one correlator's 'CORL', in its 1-D detector flavor (#2752 steps 3.2 and 3.3, between which no release was cut, so 3.3's change rides the same unreleased version)._ 
 ```C++
-#define CARRIER_ACQ_STATE_VERSION `3u`
+#define CARRIER_ACQ_STATE_VERSION `2u`
 ```
 
 

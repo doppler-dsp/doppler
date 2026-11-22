@@ -1,6 +1,4 @@
 #include "doppler/carrier_acq/carrier_acq_core.h"
-#include "doppler/carrier_acq/carrier_acq_private.h"
-#include "doppler/detection/detection_private.h"
 #include "doppler/dp_complex.h"
 #include "doppler/util/util_core.h"
 #include <math.h>
@@ -41,136 +39,6 @@ carrier_acq_parabolic_offset (float y1, float y2, float y3)
   if (denom == 0.0f)
     return 0.0;
   return 0.5 * (double)(y1 - y3) / (double)denom;
-}
-
-/* The template's null statistics (docs/design/async-dsss-receiver.md §4.7).
- * One block's correlation at a lag is the quadratic form x^H A x of the
- * block's n samples, A[j][k] = w_j w_k tau(j - k), tau(d) the template's
- * transform at lag d, sum_m t_m exp(-2 pi i d (m - nfft/2) / nfft) (the
- * template is DC-centred at nfft/2). Under white noise it is a weighted sum
- * of exponentials, moment-matched to a chi-square of 2 tr(A)^2 / ||A||_F^2
- * degrees of freedom a block. |A[j][k]|^2 depends on j - k only through
- * |tau|, so the Frobenius sums are sums over the lag d of g(d) =
- * |tau(d)|^2 sum_{j - k = d} w_j^2 w_k^2: the lag process's correlation at
- * a shift of D bins is sum_d g(d) cos(2 pi d D / nfft) / sum_d g(d), its
- * second spectral moment 1 - that at D = 1, and the circular sum of it
- * nfft g(0) / sum_d g(d) (every |d| < n < nfft), so the median's
- * independent lags are sum_d g(d) / g(0). O(n * nfft), no matrix formed. */
-static void
-carrier_acq_null_stats (dp_carrier_acq_state_t *s, const float *w, size_t n,
-                        const float *tmpl, size_t nfft)
-{
-  double f2 = 0.0, g0 = 0.0, g1 = 0.0, tr = 0.0, sw2 = 0.0;
-  for (size_t j = 0; j < n; j++)
-    sw2 += (double)w[j] * (double)w[j];
-  for (size_t d = 0; d < n; d++)
-    {
-      double re = 0.0, im = 0.0;
-      for (size_t m = 0; m < nfft; m++)
-        {
-          const double ph = -2.0 * M_PI * (double)d
-                            * ((double)m - (double)nfft / 2.0) / (double)nfft;
-          re += (double)tmpl[m] * cos (ph);
-          im += (double)tmpl[m] * sin (ph);
-        }
-      double ww = 0.0;
-      for (size_t k = 0; k + d < n; k++)
-        ww += (double)w[k + d] * (double)w[k + d] * (double)w[k]
-              * (double)w[k];
-      const double g    = (re * re + im * im) * ww;
-      const double mult = d == 0 ? 1.0 : 2.0; /* lags +d and -d */
-      f2 += mult * g;
-      g1 += mult * g * cos (2.0 * M_PI * (double)d / (double)nfft);
-      if (d == 0)
-        {
-          g0 = g;
-          tr = re * sw2;
-        }
-    }
-  s->thr_nu1  = 2.0 * tr * tr / f2;
-  s->thr_lam2 = 1.0 - g1 / f2;
-  s->thr_neff = f2 / g0;
-}
-
-/* A chi-square of nu degrees of freedom: its density, and its median by
-   bisection on the survival function (dp__gammaq, the detection module's
-   one incomplete gamma). */
-static double
-carrier_acq_chi2_pdf (double y, double nu)
-{
-  if (y <= 0.0)
-    return 0.0;
-  const double h = 0.5 * nu;
-  return exp ((h - 1.0) * log (y) - 0.5 * y - h * M_LN2 - dp_lgamma (h));
-}
-
-static double
-carrier_acq_chi2_median (double nu)
-{
-  double lo = 0.0, hi = nu + 20.0 * sqrt (2.0 * nu) + 50.0;
-  for (int i = 0; i < 100; i++)
-    {
-      const double mid = 0.5 * (lo + hi);
-      if (dp__gammaq (0.5 * nu, 0.5 * mid) > 0.5)
-        lo = mid;
-      else
-        hi = mid;
-    }
-  return 0.5 * (lo + hi);
-}
-
-/* P(peak / median > eta) under noise alone, at nu degrees of freedom a
-   lag: Rice's upcrossing count of the chi-square lag process over the nfft
-   circular lags, plus one lag's own tail, averaged over the median's
-   spread -- a sample median of thr_neff independent lags, normal about the
-   chi-square median with standard error 1 / (2 f(m) sqrt(thr_neff)) --
-   by a 81-node rule over +-6 standard errors. */
-static double
-carrier_acq_null_pfa (const dp_carrier_acq_state_t *s, double nu, double m,
-                      double se, double eta)
-{
-  double num = 0.0, den = 0.0;
-  for (int i = 0; i < 81; i++)
-    {
-      const double z  = -6.0 + 12.0 * (double)i / 80.0;
-      const double wt = exp (-0.5 * z * z);
-      double       mm = m + se * z;
-      if (mm < 1e-9)
-        mm = 1e-9;
-      const double y = eta * mm;
-      double       p = (double)s->nfft * sqrt (2.0 * y * s->thr_lam2 / M_PI)
-                           * carrier_acq_chi2_pdf (y, nu)
-                       + dp__gammaq (0.5 * nu, 0.5 * y);
-      num += wt * (p < 1.0 ? p : 1.0);
-      den += wt;
-    }
-  return num / den;
-}
-
-double
-dp__carrier_acq_derived_threshold (const dp_carrier_acq_state_t *s,
-                                   size_t                        n_blocks)
-{
-  const double nu = s->thr_nu1 * (double)n_blocks;
-  const double m  = carrier_acq_chi2_median (nu);
-  const double se
-      = 1.0 / (2.0 * carrier_acq_chi2_pdf (m, nu) * sqrt (s->thr_neff));
-  double lo = 1.0, hi = 100.0; /* the null probability falls with eta */
-  for (int i = 0; i < 60; i++)
-    {
-      const double mid = 0.5 * (lo + hi);
-      if (carrier_acq_null_pfa (s, nu, m, se, mid) > s->pfa)
-        lo = mid;
-      else
-        hi = mid;
-    }
-  return 0.5 * (lo + hi);
-}
-
-void
-dp__carrier_acq_derive_threshold (dp_carrier_acq_state_t *ca)
-{
-  ca->thr_derived = 1;
 }
 
 dp_carrier_acq_state_t *
@@ -245,7 +113,6 @@ dp_carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
   else
     carrier_acq_default_template (tmpl, s->nfft, sample_rate_hz,
                                   symbol_rate_hz);
-  carrier_acq_null_stats (s, s->psd->k.w, s->psd->k.n, tmpl, s->nfft);
   double s_t = 0.0, s_t2 = 0.0;
   for (size_t k = 0; k < s->nfft; k++)
     {
@@ -404,19 +271,14 @@ carrier_acq_giveup_cap (const dp_carrier_acq_state_t *s)
  * real recalibration when nfft changed (an earlier, toy nfft=64
  * calibration point was wildly wrong at this object's real nfft=512
  * default -- caught by the very C test suite this fix now passes).
- * A derived rule exists beside it, dp__carrier_acq_derived_threshold()
- * (docs/design/async-dsss-receiver.md §4.7): Rice's upcrossing count over
- * the lags with the median's own spread, conservative where the template
- * leaves enough independent lags (a tone's, 23) and over-correcting where
- * it does not (this default sinc^2 one, 2.9). It is switched on per
- * estimator; this rule stays the default. */
+ * TODO: revisit and properly derive (or recalibrate across a wider
+ * nfft/pfa/window/template grid) when time allows -- tracked in
+ * FINISHING_PLAN.md, not forgotten. */
 #define CARRIER_ACQ_KAPPA 7.9
 
 static float
 carrier_acq_ratio_threshold (const dp_carrier_acq_state_t *s, size_t n_blocks)
 {
-  if (s->thr_derived)
-    return (float)dp__carrier_acq_derived_threshold (s, n_blocks);
   double z      = CARRIER_ACQ_KAPPA * dp_det_threshold (s->pfa);
   double spread = sqrt (s->s_t2 / (double)n_blocks) / s->s_t;
   return (float)(1.0 + z * spread);
@@ -537,14 +399,13 @@ typedef struct
   uint64_t max_n_blocks;
   uint64_t n_blocks;
   uint8_t  ready;
-  uint8_t  thr_derived; /* version 3: the threshold rule, 0 or 1 */
   /* Explicit, and named on purpose: a designated initializer zeroes members
      it does not mention, but the PADDING between them keeps unspecified
      values (C11 6.7.9p10), and this struct is written to the blob whole. The
-     six bytes here and thr_derived are the seven the compiler would insert
-     before the double, so the layout keeps its size. Both DSSS receivers
-     already carry this member for this reason. */
-  uint8_t  _pad[6];
+     seven bytes here are the same seven the compiler would insert before the
+     double, so the format is byte-identical -- they are simply defined now.
+     Both DSSS receivers already carry this member for this reason. */
+  uint8_t  _pad[7];
   double   residual_hz;
   uint64_t carry_len;
 } carrier_acq_extra_t;
@@ -568,7 +429,6 @@ dp_carrier_acq_get_state (const dp_carrier_acq_state_t *s, void *blob)
     .max_n_blocks = (uint64_t)s->max_n_blocks,
     .n_blocks     = (uint64_t)s->n_blocks,
     .ready        = (uint8_t)s->ready,
-    .thr_derived  = (uint8_t)(s->thr_derived != 0),
     .residual_hz  = s->residual_hz,
     .carry_len    = (uint64_t)s->carry_len,
   };
@@ -600,7 +460,7 @@ dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
       /* A carry is 0..n-1 samples: steps processes a full one at once, so
          get_state never writes n, and a blob that claims it is refused
          rather than restored into a state steps cannot reach. */
-      || extra.carry_len >= (uint64_t)s->psd->k.n || extra.thr_derived > 1)
+      || extra.carry_len >= (uint64_t)s->psd->k.n)
     return DP_ERR_INVALID;
   /* The residual is a bin's offset within the sample rate, so it lies within
      half of it. A forged residual of NaN or 1e298 reached the async hand-off's
@@ -623,8 +483,5 @@ dp_carrier_acq_set_state (dp_carrier_acq_state_t *s, const void *blob)
   s->ready       = (bool)extra.ready;
   s->residual_hz = extra.residual_hz;
   s->carry_len   = (size_t)extra.carry_len;
-  /* The rule the writer tested with: a restored squared-tone estimator
-     keeps its derived threshold whatever its target was built with. */
-  s->thr_derived = extra.thr_derived;
   return DP_OK;
 }

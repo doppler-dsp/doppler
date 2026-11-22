@@ -979,7 +979,7 @@ double dp_symsync_ted_slope (
 A TED's raw output is a timing error multiplied by three things it did not choose — the signal amplitude, the transition density, and the detector's own slope against this pulse. Only the last belongs to the detector, and only it can be computed rather than estimated: the matched pair's composite is a raised cosine in closed form (wfm\_rc\_h()), so for i.i.d. symbols  and the answer is a construct-time number. Amplitude does NOT appear: it enters as `A^2` (Gardner) or `A^1` (DTTL) and is the AGC's business, not the detector's — a unity-gain matched cascade delivers the symbol amplitude it was sent ([**dp\_RateConverter\_gain()**](RateConverter__core_8h.md#function-dp_rateconverter_gain)). Transition density is left alone, because it is data.
 
 
-Divide a raw TED output by this and the result has unit slope per symbol of timing error, so a loop bandwidth means the same thing at every roll-off, on either detector. Measured through a real matched cascade at the stable zero, it does: 0.99 to 1.00 for both, from beta 0.1 to 0.9 (`validate_ratesync_scurve` phase 3).
+Divide a raw TED output by this and the result has unit slope per symbol of timing error, so a loop bandwidth means the same thing at every roll-off, on either detector. Measured through a real matched cascade at the stable zero (`validate_ratesync_scurve` phase 3, within its tolerance of 0.12): Gardner's worst is 0.9447 at beta 0.1, where the pulse's tails are truncated hardest, and DTTL reads 0.9998 to 1.0013 from beta 0.1 to 0.9. `test_loop_detector_contract.py` reads the same slope through Python by the same method.
 
 
 

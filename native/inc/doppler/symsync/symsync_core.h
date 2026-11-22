@@ -167,8 +167,11 @@ extern "C"
    * Divide a raw TED output by this and the result has unit slope per symbol
    * of timing error, so a loop bandwidth means the same thing at every
    * roll-off, on either detector. Measured through a real matched cascade at
-   * the stable zero, it does: 0.99 to 1.00 for both, from beta 0.1 to 0.9
-   * (`validate_ratesync_scurve` phase 3).
+   * the stable zero (`validate_ratesync_scurve` phase 3, within its
+   * tolerance of 0.12): Gardner's worst is 0.9447 at beta 0.1, where the
+   * pulse's tails are truncated hardest, and DTTL reads 0.9998 to 1.0013
+   * from beta 0.1 to 0.9. `test_loop_detector_contract.py` reads the same
+   * slope through Python by the same method.
    *
    * @note This comment used to claim the opposite — "the shipped
    * normalisation's slope varies 10.6x between beta 0.1 and 0.9" — and that

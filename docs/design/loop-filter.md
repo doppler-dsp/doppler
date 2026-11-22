@@ -146,18 +146,30 @@ ______________________________________________________________________
 ## 3. The promise holds only in the loop's own units
 
 `bn` is the noise bandwidth **of the closed loop**, and the derivation above
-assumes the rest of the loop has unit gain: that the discriminator returns
-one unit of error per unit of the quantity being tracked, and the oscillator
-applies one unit of correction per unit of control. In the textbook that is
-the condition `Kd * K0 = 1`.
+assumes the rest of the loop has unit gain: the textbook condition
+`Kd * K0 = 1`. The filter never sees the discriminator or the oscillator, so
+that condition is the caller's to deliver.
 
-Nothing in `loop_filter_core.h` can enforce this — the filter never sees the
-discriminator or the oscillator. **It is the caller's obligation, and it is
-the single most consequential thing about this object.** A discriminator
-whose slope is 4 delivers a loop four times wider than the `bn` its
-constructor was handed, and nothing anywhere reports the discrepancy: the
-loop still tracks, just with the wrong bandwidth, the wrong settling time
-and the wrong noise.
+**The contract is stated once**, on `dp_loop_filter_create()` in
+`loop_filter_core.h` (and on `dp_state_filter_create_why()` for the third-order
+filter), and it reaches the Python class docstring and the C reference from
+there: what the caller delivers (a unit-slope detector in the unit the control
+is applied in, a unit-gain actuator once per update, the linear region, no
+extra delay), and what a gain `K` other than 1 does to the bandwidth. This
+page does not repeat it. A gain `K` scales `wn` and `zeta` each by the square
+root of `K`, so the bandwidth is `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` times
+`bn`: **5/3 at `K = 2` and 3 at `K = 4`**, not `K`, at `zeta = 0.707`. The
+tests that hold it are `native/validation/loop_filter_noise_bw.c` (the
+promise), `src/doppler/track/tests/test_loop_filter_contract.py` (the gain
+formula, and the contract's sentences on every face) and the detector matrix
+of [#3229](https://github.com/doppler-dsp/doppler/issues/3229) (the callers'
+side).
+
+**It is the single most consequential thing about this object.** A
+discriminator whose slope is 2 delivers a loop 5/3 times wider than the `bn`
+its constructor was handed, and nothing anywhere reports the discrepancy: the
+loop still tracks, just with the wrong bandwidth, the wrong settling time and
+the wrong noise.
 
 This is why doppler's discriminators normalise by their own contribution,
 and it is worth seeing that the rule was arrived at independently three

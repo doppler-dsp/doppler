@@ -2391,13 +2391,39 @@ Synth_set_symbols (SynthObject *self, PyObject *value, void *closure)
   return Synth_replace_symbols (self, value) ? 0 : -1;
 }
 static PyObject *
+Synth_read_acq_code (SynthObject *self, double fs)
+{
+  size_t   _g_n = dp_wfm_source_acq_code_bits (&self->src, fs, NULL, 0);
+  uint8_t *_g   = NULL;
+  if (_g_n)
+    {
+      _g = (uint8_t *)malloc (_g_n);
+      if (!_g)
+        {
+          return PyErr_NoMemory ();
+        }
+      else if (dp_wfm_source_acq_code_bits (&self->src, fs, _g, _g_n) != _g_n)
+        {
+          free (_g);
+          _g = NULL;
+          return PyErr_Format (PyExc_RuntimeError,
+                               "dp_wfm_source_acq_code_bits() sized acq_code "
+                               "as %zu elements, then wrote another count",
+                               _g_n);
+        }
+    }
+  if (!_g)
+    Py_RETURN_NONE;
+  PyObject *_r
+      = PyBytes_FromStringAndSize ((const char *)_g, (Py_ssize_t)_g_n);
+  free (_g);
+  return _r;
+}
+static PyObject *
 Synth_get_acq_code (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.acq_code.bits && self->src.acq_code.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.acq_code.bits,
-                                      (Py_ssize_t)self->src.acq_code.len);
-  Py_RETURN_NONE;
+  return Synth_read_acq_code (self, self->fs);
 }
 static int
 Synth_set_acq_code (SynthObject *self, PyObject *value, void *closure)
@@ -2439,13 +2465,40 @@ Synth_set_acq_reps (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_read_data_code (SynthObject *self, double fs)
+{
+  size_t   _g_n = dp_wfm_source_data_code_bits (&self->src, fs, NULL, 0);
+  uint8_t *_g   = NULL;
+  if (_g_n)
+    {
+      _g = (uint8_t *)malloc (_g_n);
+      if (!_g)
+        {
+          return PyErr_NoMemory ();
+        }
+      else if (dp_wfm_source_data_code_bits (&self->src, fs, _g, _g_n) != _g_n)
+        {
+          free (_g);
+          _g = NULL;
+          return PyErr_Format (
+              PyExc_RuntimeError,
+              "dp_wfm_source_data_code_bits() sized data_code as %zu "
+              "elements, then wrote another count",
+              _g_n);
+        }
+    }
+  if (!_g)
+    Py_RETURN_NONE;
+  PyObject *_r
+      = PyBytes_FromStringAndSize ((const char *)_g, (Py_ssize_t)_g_n);
+  free (_g);
+  return _r;
+}
+static PyObject *
 Synth_get_data_code (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.data_code.bits && self->src.data_code.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.data_code.bits,
-                                      (Py_ssize_t)self->src.data_code.len);
-  Py_RETURN_NONE;
+  return Synth_read_data_code (self, self->fs);
 }
 static int
 Synth_set_data_code (SynthObject *self, PyObject *value, void *closure)
@@ -2556,13 +2609,39 @@ Synth_set_bits (SynthObject *self, PyObject *value, void *closure)
   return Synth_replace_bits (self, value) ? 0 : -1;
 }
 static PyObject *
+Synth_read_data (SynthObject *self, double fs)
+{
+  size_t   _g_n = dp_wfm_source_data_bits (&self->src, fs, NULL, 0);
+  uint8_t *_g   = NULL;
+  if (_g_n)
+    {
+      _g = (uint8_t *)malloc (_g_n);
+      if (!_g)
+        {
+          return PyErr_NoMemory ();
+        }
+      else if (dp_wfm_source_data_bits (&self->src, fs, _g, _g_n) != _g_n)
+        {
+          free (_g);
+          _g = NULL;
+          return PyErr_Format (PyExc_RuntimeError,
+                               "dp_wfm_source_data_bits() sized data as %zu "
+                               "elements, then wrote another count",
+                               _g_n);
+        }
+    }
+  if (!_g)
+    Py_RETURN_NONE;
+  PyObject *_r
+      = PyBytes_FromStringAndSize ((const char *)_g, (Py_ssize_t)_g_n);
+  free (_g);
+  return _r;
+}
+static PyObject *
 Synth_get_data (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.data.bits && self->src.data.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.data.bits,
-                                      (Py_ssize_t)self->src.data.len);
-  Py_RETURN_NONE;
+  return Synth_read_data (self, self->fs);
 }
 static int
 Synth_set_data (SynthObject *self, PyObject *value, void *closure)
@@ -2604,13 +2683,39 @@ Synth_set_data_len (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_read_fill (SynthObject *self, double fs)
+{
+  size_t   _g_n = dp_wfm_source_fill_bits (&self->src, fs, NULL, 0);
+  uint8_t *_g   = NULL;
+  if (_g_n)
+    {
+      _g = (uint8_t *)malloc (_g_n);
+      if (!_g)
+        {
+          return PyErr_NoMemory ();
+        }
+      else if (dp_wfm_source_fill_bits (&self->src, fs, _g, _g_n) != _g_n)
+        {
+          free (_g);
+          _g = NULL;
+          return PyErr_Format (PyExc_RuntimeError,
+                               "dp_wfm_source_fill_bits() sized fill as %zu "
+                               "elements, then wrote another count",
+                               _g_n);
+        }
+    }
+  if (!_g)
+    Py_RETURN_NONE;
+  PyObject *_r
+      = PyBytes_FromStringAndSize ((const char *)_g, (Py_ssize_t)_g_n);
+  free (_g);
+  return _r;
+}
+static PyObject *
 Synth_get_fill (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.fill.bits && self->src.fill.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.fill.bits,
-                                      (Py_ssize_t)self->src.fill.len);
-  Py_RETURN_NONE;
+  return Synth_read_fill (self, self->fs);
 }
 static int
 Synth_set_fill (SynthObject *self, PyObject *value, void *closure)
@@ -2906,13 +3011,41 @@ Synth_set_bandwidth (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_read_mac_header (SynthObject *self, double fs)
+{
+  size_t   _g_n = dp_wfm_source_mac_header_bits (&self->src, fs, NULL, 0);
+  uint8_t *_g   = NULL;
+  if (_g_n)
+    {
+      _g = (uint8_t *)malloc (_g_n);
+      if (!_g)
+        {
+          return PyErr_NoMemory ();
+        }
+      else if (dp_wfm_source_mac_header_bits (&self->src, fs, _g, _g_n)
+               != _g_n)
+        {
+          free (_g);
+          _g = NULL;
+          return PyErr_Format (
+              PyExc_RuntimeError,
+              "dp_wfm_source_mac_header_bits() sized mac_header as %zu "
+              "elements, then wrote another count",
+              _g_n);
+        }
+    }
+  if (!_g)
+    Py_RETURN_NONE;
+  PyObject *_r
+      = PyBytes_FromStringAndSize ((const char *)_g, (Py_ssize_t)_g_n);
+  free (_g);
+  return _r;
+}
+static PyObject *
 Synth_get_mac_header (SynthObject *self, void *closure)
 {
   (void)closure;
-  if (self->src.mac_header.bits && self->src.mac_header.len)
-    return PyBytes_FromStringAndSize ((const char *)self->src.mac_header.bits,
-                                      (Py_ssize_t)self->src.mac_header.len);
-  Py_RETURN_NONE;
+  return Synth_read_mac_header (self, self->fs);
 }
 static int
 Synth_set_mac_header (SynthObject *self, PyObject *value, void *closure)
@@ -5367,6 +5500,8 @@ Segment_flat_acq_code (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_acq_code ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "acq_code");
 }
 static PyObject *
@@ -5393,6 +5528,8 @@ Segment_flat_data_code (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_data_code ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "data_code");
 }
 static PyObject *
@@ -5484,6 +5621,8 @@ Segment_flat_data (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_data ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "data");
 }
 static PyObject *
@@ -5510,6 +5649,8 @@ Segment_flat_fill (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_fill ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "fill");
 }
 static PyObject *
@@ -5655,6 +5796,8 @@ Segment_flat_mac_header (SegmentObject *self, void *closure)
       return NULL;
     }
   PyObject *_it = PyList_GET_ITEM (self->sources, 0);
+  if (PyObject_TypeCheck (_it, &SynthType))
+    return Synth_read_mac_header ((SynthObject *)_it, self->fs);
   return PyObject_GetAttrString (_it, "mac_header");
 }
 

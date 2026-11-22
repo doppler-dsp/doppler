@@ -51,8 +51,28 @@ wfm_frame_desc_t *dp_wfm_frame_refuse_text(const char *, const char **why);
 /* Owned pointer `frame` (gh-1711): format. */
 char *dp_wfm_frame_to_json(const wfm_frame_desc_t *);
 
+/* Write source field `acq_code` at rate fs: at most max elements, returning
+ * the count (out NULL, max 0 sizes; get_fn, gh-2718). */
+size_t dp_wfm_source_acq_code_bits(const wfm_source_t *, double, uint8_t *, size_t);
+
+/* Write source field `data_code` at rate fs: at most max elements,
+ * returning the count (out NULL, max 0 sizes; get_fn, gh-2718). */
+size_t dp_wfm_source_data_code_bits(const wfm_source_t *, double, uint8_t *, size_t);
+
+/* Write source field `data` at rate fs: at most max elements, returning the
+ * count (out NULL, max 0 sizes; get_fn, gh-2718). */
+size_t dp_wfm_source_data_bits(const wfm_source_t *, double, uint8_t *, size_t);
+
+/* Write source field `fill` at rate fs: at most max elements, returning the
+ * count (out NULL, max 0 sizes; get_fn, gh-2718). */
+size_t dp_wfm_source_fill_bits(const wfm_source_t *, double, uint8_t *, size_t);
+
 /* Read source field `window` at rate fs (get_fn, gh-2710). */
 size_t dp_wfm_source_window(const wfm_source_t *, double);
+
+/* Write source field `mac_header` at rate fs: at most max elements,
+ * returning the count (out NULL, max 0 sizes; get_fn, gh-2718). */
+size_t dp_wfm_source_mac_header_bits(const wfm_source_t *, double, uint8_t *, size_t);
 
 #ifdef __cplusplus
 }

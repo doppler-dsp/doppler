@@ -1,0 +1,1 @@
+- **A generated Field reads back as its bits.** `Segment.data`, `data_code`, `acq_code`, `fill` and `mac_header` read a PN, Gold or dotted description as the bits it renders, where they read `None` ([#3192](https://github.com/doppler-dsp/doppler/issues/3192)); with just-makeit 0.135.0 a scene that uses one recomposes from `Composer.segments`.

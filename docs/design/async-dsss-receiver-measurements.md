@@ -4342,3 +4342,30 @@ The owner's ruling 5 makes the `code_period` carrier window the receiver's one m
 | 2.8 GHz | `code_period` | 90 of 90 | **10 of 90** | 2.53e-2   | 1.19 dB    |
 
 At the 4 dB floor the `partials` window slips four times as often at 2.8 GHz, and its unslipped receivers still lose 4.8 dB. The `code_period` window is the better mode at the floor, but it is not slip-free either: 10 of 90 at 2.8 GHz and 3 of 88 at 2.2 GHz are the floor's open slip finding.
+
+### 12.31 What was weighed (2026-11-21) — the carrier's window before the hypothesis settles
+
+Paper only; nothing here was built or run. The design page's §4.10, D0,
+proposed forming the carrier error on the symbol aid's window. That left a
+rule for the symbols before the aid's EMAs settle. Two were written up,
+and one more was set aside. The owner ruled that the carrier loop does not
+switch (2026-11-21: "There should be no switching in the carrier loop;
+always on"). That kept the first, which is now the design page's rule.
+
+- **The aid's window from the first look.** Kept; the design page states
+    it.
+- **The look-back's window until code lock declares, then the aid's.** Not
+    carried: it is a switch. Its condition was `code.locked`, D5's
+    det-sized decision, which comes after `n · n_up` looks: 38 symbols
+    (12.7 ms) at 2.2 GHz and 46 (15.3 ms) at 2.8 at the floor's sizing,
+    inside the carrier's pull-in. The switch would step the cadence from `T`
+    to `T_sym`, so the bandwidth in hertz steps by `K/P` (×0.955 and ×0.75).
+    The error would step by up to the residual frequency across the two
+    windows' offset, at most one epoch: 4.3° at the 37.6 Hz bound. Costas has
+    no run-time `tsamps` change, so the switch needed a setter that re-times
+    the filter and rescales the integrator, as `set_update_period()` does for
+    the Dll: a change to the general object. Until the switch, the carrier
+    would also carry the look-back's choice on its own noise.
+- **Per-partial before the switch.** Never proposed. It is the retired
+    `partials` form, which slips 41 of 89 bursts at 2.8 GHz in §12.30's
+    comparison.

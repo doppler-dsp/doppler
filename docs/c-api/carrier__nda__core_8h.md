@@ -429,7 +429,7 @@ dp_carrier_nda_state_t * dp_carrier_nda_create (
 **Parameters:**
 
 
-* `bn` Loop noise bandwidth (default 0.01). 
+* `bn` Loop noise bandwidth (default 0.01), of the closed loop given a unit-slope detector (see LoopFilter). The detector's slope is 2 per radian at every M and level (doppler#3224), so the delivered bandwidth is 5/3 of `bn` at damping 0.707 until that is fixed; it also falls with the SNR per arm. 
 * `zeta` Damping factor (default 0.707). 
 * `init_norm_freq` Seed carrier frequency, cycles/sample (default 0.0). 
 * `sps` Samples per symbol (default 8). 

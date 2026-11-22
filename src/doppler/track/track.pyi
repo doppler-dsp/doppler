@@ -1154,7 +1154,10 @@ class Costas:
     Parameters
     ----------
     bn : float, default 0.05
-        bn constructor parameter.
+        Loop noise bandwidth, of the closed loop given a unit-slope detector
+        (see LoopFilter). The detector's slope is 1 per radian at every signal
+        level and falls below 1 as the SNR per symbol falls (about 0.6 at 0 dB
+        for BPSK), so the delivered loop is narrower at low SNR.
     zeta : float, default 0.707
         zeta constructor parameter.
     init_norm_freq : float, default 0.0
@@ -1687,7 +1690,12 @@ class Dll:
     init_chip : float, default 0.0
         Seed code phase, chips (default 0.0).
     bn : float, default 0.01
-        Loop noise bandwidth (default 0.01).
+        Loop noise bandwidth (default 0.01), of the closed loop given a
+        unit-slope detector (see LoopFilter). At `segments` 1 the delivered
+        bandwidth is not `bn`: about 50 times it at 127 chips and unstable at
+        1023 (doppler#3234); the discriminator's own slope is 1.31 per chip at
+        spacing 0.5 (2 or more samples per chip) and 0 at a spacing of one chip
+        or more.
     zeta : float, default 0.707
         Damping factor (default 0.707).
     spacing : float, default 0.5
@@ -2557,7 +2565,12 @@ class SymbolSync:
     sps : int, default 4
         Nominal input samples per symbol (default: 4).
     bn : float, default 0.01
-        Loop noise bandwidth, normalized to the symbol rate (default: 0.01).
+        Loop noise bandwidth, normalized to the symbol rate (default: 0.01), of
+        the closed loop given a unit-slope detector (see LoopFilter). The
+        detector is divided by a running power average, not by its own slope,
+        so the delivered bandwidth is 0.54 times `bn` at roll-off 0.1 and 1.99
+        times at 0.9 for Gardner (doppler#3238), and DTTL's slope goes as the
+        inverse of the amplitude.
     zeta : float, default 0.707
         Loop damping factor (default: 0.707).
     order : Literal["linear", "parabolic", "cubic"], default "cubic"
@@ -3074,7 +3087,12 @@ class RateSync:
         Matched-filter arms; a power of two. Sets the fractional-timing
         resolution to 1/num_phases of an output period.
     bn : float, default 0.01
-        Loop noise bandwidth, normalised to the symbol rate.
+        Loop noise bandwidth, normalised to the symbol rate, of the closed loop
+        given a unit-slope detector (see LoopFilter). The detector is
+        normalised by its own slope against the pulse, which makes the slope 1
+        at UNIT symbol amplitude only: Gardner's goes as the amplitude squared
+        and DTTL's as the amplitude, so a quarter-amplitude stream runs a
+        Gardner loop at 1/16 of `bn`.
     zeta : float, default 0.707
         Damping factor (1.0 = critical; 0.707 usual).
     ted : Literal["gardner", "dttl"], default "gardner"
@@ -3517,7 +3535,11 @@ class CarrierMpsk:
     Parameters
     ----------
     bn : float, default 0.05
-        Loop noise bandwidth (default 0.05).
+        Loop noise bandwidth (default 0.05), of the closed loop given a
+        unit-slope detector (see LoopFilter). The detector's slope is 1 per
+        radian at every signal level and falls below 1 as the SNR per symbol
+        falls (about 0.6 at 0 dB for BPSK, and near 0 at 6 dB for 8-PSK), so
+        the delivered loop is narrower at low SNR.
     zeta : float, default 0.707
         Damping factor (default 0.707).
     init_norm_freq : float, default 0.0
@@ -3868,7 +3890,11 @@ class CarrierNda:
     Parameters
     ----------
     bn : float, default 0.01
-        Loop noise bandwidth (default 0.01).
+        Loop noise bandwidth (default 0.01), of the closed loop given a
+        unit-slope detector (see LoopFilter). The detector's slope is 2 per
+        radian at every M and level (doppler#3224), so the delivered bandwidth
+        is 5/3 of `bn` at damping 0.707 until that is fixed; it also falls with
+        the SNR per arm.
     zeta : float, default 0.707
         Damping factor (default 0.707).
     init_norm_freq : float, default 0.0

@@ -632,7 +632,13 @@ dll_update(dp_dll_state_t *s)
  *                   period need not be a whole number of samples (11 MSa/s
  *                   over 5 Mcps is 2.2).
  * @param init_chip  Seed code phase, chips (default 0.0).
- * @param bn         Loop noise bandwidth (default 0.01).
+ * @param bn         Loop noise bandwidth (default 0.01), of the closed
+ *                   loop given a unit-slope detector (see LoopFilter). At
+ *                   `segments` 1 the delivered bandwidth is not `bn`: about
+ *                   50 times it at 127 chips and unstable at 1023
+ *                   (doppler#3234); the discriminator's own slope is 1.31
+ *                   per chip at spacing 0.5 (2 or more samples per chip) and 0 at a spacing of one chip
+ *                   or more.
  * @param zeta       Damping factor (default 0.707).
  * @param spacing    Early/late tap offset, chips (default 0.5).
  * @param segments   Partial correlations per code epoch (default 1). 1 = a

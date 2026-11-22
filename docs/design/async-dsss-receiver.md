@@ -1916,6 +1916,19 @@ The pre-despread loop **is** `dp_costas`: `dp_costas_init()` at `async_dsss_rece
     - It starts as a cumulative mean from the hand-over, the Dll's own boot (`lock_nz`). After 16 updates (5 ms) its sd is 25%, so the gain is within ±25% from the first updates of the pull-in.
 - **Level changes.** The use case's level moves with range over a pass, slowly against 81 ms. After a level step the gain is off by the step until the EMA follows, about 3 time constants (0.25 s): ×4 for +6 dB, ×¼ for −6 dB.
 
+**All of it on the despread signal (owner, 2026-11-22: "It should all be calculated on the despread signal otherwise there's no way to get reliable estimates - you'll just measure noise").** The I·Q error, the `I² − Q²` lock statistic and the amplitude `Â` are all formed on the Dll's despread code-period window sum, `w = dp_dll_get_window_sum()` (read at `async_dsss_receiver_core.c:884`), or on sums of it. The noise term is the Dll's offset-tap noise estimate (`dp_dll_get_noise_est()`, `dll_core.c:1724`), also a despread correlation, against an offset code phase.
+
+- **Nothing in the carrier loop's gain path is measured before despreading.** The one pre-despread operation is the wipe-off, `costas_wipeoff()` once a sample, a rotation by the NCO. It measures nothing.
+- **The receiver's one AGC is `MpskReceiver`'s** (`MPSK_RX_AGC_BW_RATIO`, `:379`). It acts after despreading, in the demodulator's front end, and feeds the demodulator's timing detector level. It does not reach the pre-despread loop.
+- **Why**, in numbers:
+
+| cell   | SNR of one window sum (γ = C/N0 · T) | SNR of one pre-despread sample (C/N0 / 11 MSa/s) |
+| ------ | ------------------------------------ | ------------------------------------------------ |
+| 2.2/4  | 3.80 dB                              | −31.6 dB                                         |
+| 2.8/4  | 2.75 dB                              | −31.6 dB                                         |
+| 2.2/10 | 9.80 dB                              | −25.6 dB                                         |
+| 2.8/10 | 8.75 dB                              | −25.6 dB                                         |
+
 **Effective bandwidth against the design** (`B_eff / B_L` at the detector's gain, ζ 0.707):
 
 | level                    | today's detector (its slope) | I·Q, unit amplitude by (a)        |
@@ -1955,10 +1968,10 @@ Each draw starts at a phase uniform over the cycle, from its own stream, indepen
 | 2.8/4, rule  | 0.367                    | 0.442                | 0.383                                 | 0.459                             |
 | 2.2/10, rule | 0.572                    | 0.653                | 0.382                                 | 0.458                             |
 | 2.8/10, rule | 0.553                    | 0.633                | 0.383                                 | 0.459                             |
-| 2.2/4, 0.04  | 0.38                     | 0.46                 | —                                     | —                                 |
-| 2.8/4, 0.04  | 0.34                     | 0.42                 | —                                     | —                                 |
-| 2.2/10, 0.04 | 0.54                     | 0.62                 | —                                     | —                                 |
-| 2.8/10, 0.04 | 0.52                     | 0.60                 | —                                     | —                                 |
+| 2.2/4, 0.04  | 0.393                    | 0.468                | —                                     | —                                 |
+| 2.8/4, 0.04  | 0.355                    | 0.429                | —                                     | —                                 |
+| 2.2/10, 0.04 | 0.554                    | 0.633                | —                                     | —                                 |
+| 2.8/10, 0.04 | 0.534                    | 0.613                | —                                     | —                                 |
 
 So the owner's one half is predicted to hold at 10 dB for today's detector. At the floor it fails for both detectors: no start phase slips below 0.37 to 0.41 `B_L`, and from 0.45 some do. `--design` also prints, per step, the share of start phases that cross one lock point and the share that cross two.
 
@@ -2012,15 +2025,56 @@ All readings come from the probes `dp_costas_set_telemetry()` registers.
 - **Time:** the local point took 14 s for 60 draws, about 0.23 s a draw inside the edge. A control draw at the cap is about 9 s (60,000 to 80,000 updates at 2,046 samples). The estimate is about 3.5 CPU-hours, 15 minutes over 16 processes. One shard is timed and announced first.
 - **With a detector axis** (today's, and I·Q on the signal power), the draws double to 21,120 plus 1,920 control. That is about 7 CPU-hours, 30 minutes over 16 processes.
 
-##### What I·Q takes to build (not built; the owner decides)
+##### Reuse first: the library already has this loop, `carrier_nda` (owner, 2026-11-22: "I thought we already had this NDA loop?")
 
-- **`Costas` gains a detector mode**, `dp_costas_set_detector()`. Today's `sgn(Re) Im/|P|` stays the default, so the `Despreader`, `DsssReceiver` and the Python `Costas` are unchanged unless they opt in. The new mode is `I · Q / Â²`, with `Â²` the caller's signal-power estimate passed per update. A by-value mode field joins the state blob, so `COSTAS_STATE_VERSION` moves to 5. Its pins:
-    - the S-curve slope is 1 at a known power;
-    - the gain does not move with input level;
-    - the failing case is the mode ignored.
-- **The receiver passes the window sum** (`dp_dll_get_window_sum()`), not the folded phasor, scaled to unit amplitude by `Â` from proposal (a): an EMA of α = 1/256 of `|w|²`, less the Dll's noise estimate at the window's length, booted as a cumulative mean.
-- **The lock statistic becomes `I² − Q²`** (below, replacing D7's `|Re P|/|P|` block mean).
-- **What changes:** `test_costas_core.c` (the mode's pins and the state round trip), `validate_costas_pullin` (the detector axis), `validate_costas_jitter` (a row per mode), and the pull-in harness's `rules.csv` (the new statistic's rule).
+**`carrier_nda` at M = 2 is the I·Q detector.**
+
+- Its error is `Im((z/|z|)²) = 2IQ/(I² + Q²) = sin 2ψ`, and its lock signal is `Re((z/|z|)²) = (I² − Q²)/(I² + Q²)` (`carrier_nda_disc()`, `carrier_nda_core.h:292`).
+- It has a C composition API (`carrier_nda_wipeoff()`, `_arm_step()`, `_steer()`), and `MpskReceiver` already runs it after despreading.
+- The comment at `async_dsss_receiver_core.c:872-883` says the pre-despread loop applies "the NDA principle the downstream MpskReceiver carrier loop uses". What it applies is a fold of the squared sum, fed to `Costas`'s decision-directed detector. A second I·Q detector in `Costas` would be a peer implementation of `carrier_nda_disc()`, and two do not go in.
+
+**1. Can the pre-despread loop be `carrier_nda` at M = 2, fed the window sum once a code period?** Yes, after four changes to `carrier_nda`. Each change serves both loops and keeps today's default for its other users:
+
+- **The update period.** `config_loop()` designs the gains at an update interval of one sample (`carrier_nda_core.c:72`), and `_steer()` holds `integ + kp · pe` as a frequency, in cycles a sample, for the samples that follow. A loop that updates once a code period needs its bn per update and its command spread over `tsamps` samples, as `Costas` does (`integ / tsamps`, and `kp · e` as a phase nudge).
+    - That is a samples-per-update argument.
+    - The receiver then calls `carrier_nda_wipeoff()` each sample and, once a period, `carrier_nda_disc()` on the window sum and `_steer()`. The boxcar arm is bypassed: the Dll's window sum is already the integrate-and-dump the arm approximates.
+- **The normalization** (item 2): an option to divide by a caller-given `Â²` instead of the per-update `|z|²`.
+- **The lock statistic.** A block `Σ(I² − Q²) / Σ(I² + Q²)` mode beside the EMA of the limited `Re((z/|z|)²)` (the owner's `I² − Q²`, below). D8's block proposal for `MpskReceiver`'s carrier lock is the same change, so one change serves both.
+- **The probes.** `carrier_nda` registers `lock`, `e`, `freq` and `locked` (`carrier_nda_core.c:150`). B's inventory requires the NCO's complete command and the proportional term, which `Costas`'s `.nco` gives today. A `.nco` probe is added, under the receiver's `rx.car` prefix, so the pull-in harness's probe names and figures stay the same.
+
+**The receiver's side:**
+
+- `s->car`, `s->car_held` (the coast's snapshot) and `s->car_frozen` (the refine's) change type. Both are by-value POD, and the boxcar's ring is inline (`boxcar_core.h:61`), so the coast's struct copy stays valid.
+- The rate aid's tap, `dp_costas_get_norm_freq (&s->car)` at `:901` and `:2339`, becomes `dp_carrier_nda_get_norm_freq()`.
+- The receiver's state blob packs `car` and `car_held`, so its version moves.
+- `s->car_frozen` is only an NCO during the refine, and could stay `Costas`. It changes with the others so that one loop type holds the carrier.
+
+**2. Where `carrier_nda` departs from today's rulings.**
+
+- **The limiter.** It divides each sample by its own `|z|²`, a per-update limiter, where the owner asked for unit amplitude from a slow estimate on the despread signal.
+- **What `docs/design/mpsk.md` §3.2 measured** (M = 2, normalized against raw form, loop SNR) is −0.63 dB at 0 dB, −0.37 at 3 dB, −0.04 at 6 dB and +0.04 at 10 dB. Linear in dB between its points, at the window sum's γ that is about −0.35 dB (2.8/4, 2.75 dB), −0.28 (2.2/4, 3.80 dB), +0.03 (2.8/10, 8.75 dB) and +0.04 (2.2/10, 9.80 dB).
+- **This row's derivation** gives the limiter 0.10 dB (2.2/4) and 0.20 dB (2.8/4) more noise than unit amplitude at equal effective bandwidth. Its larger cost is the gain: slope 0.62 / 0.55 at the floor, so `B_eff / B_L` is 0.75 / 0.70 and moves with SNR (0.93 / 0.91 at 10 dB). That is the level dependence the owner's unit-amplitude rule removes.
+- **The fix is one change in `carrier_nda`**, the normalization option above, serving both loops.
+
+**3. Why two carrier loops in cascade.**
+
+- **The first loop runs before despreading, once a code period.** It keeps the Dll's coherent integration coherent: the partials and window sums are taken on a wiped-off carrier. It also supplies the code loop's rate aid, the carrier-to-code coupling of §1.8 (`:901`).
+- **Its phase is the window sum's, not the decision's.** Between the two sit `RateConverter`'s resampling and the demodulator's matched filter and timing loop. The second loop, `MpskReceiver`'s at 0.01 a symbol, takes up the residual phase at the decision strobe: the first loop's jitter where its bandwidth passes it, and the phase reference that moves with the timing.
+- **Its history**, from the comment at `:805-812`: before the first loop had a working detector, "the whole carrier burden fell to the post-despread MpskReceiver loop". Control (b) of run 415 shows the second loop alone carrying a 40 Hz hand-over error at 10 dB.
+- **The measured cost.** I have not found the "17.8 dB at decisions" on this page or in the measurements companion, so it is not cited here. Its source is asked for before it is stated.
+
+**4. Recommendation: reuse `carrier_nda` for the first loop, with the four changes above**, not a detector mode on `Costas`.
+
+- It is the detector the owner asked for, and the loop the owner expected.
+- Its normalization, update period and block lock statistic then serve the demodulator's loop too. A `Costas` mode would make a second implementation of the same discriminator.
+- `Costas` keeps its decision-directed detector for its other users: the `Despreader`, `DsssReceiver` and the Python class.
+
+**What changes, and which pins:**
+
+- **`carrier_nda`:** the update period, the normalization option, the block lock mode and the `.nco` probe. Each comes with its pin and failing case, in `test_carrier_nda_core.c`, and its state version moves.
+- **The receiver:** the loop's type, the window sum fed scaled by `Â` from proposal (a), and the rate-aid tap. Its state version moves.
+- **`validate_costas_pullin`'s half-bandwidth section** keeps testing today's receiver's detector. The I·Q arm of the sweep runs on `carrier_nda` in the configuration the receiver would build. That is a section in `carrier_nda`'s own pull-in characterization (`src/doppler/track/tests/characterization/pull_in/`), or one beside this one built on `carrier_nda`; the choice is made when it is written.
+- **The pull-in harness's `rules.csv`** gains the new statistic's rule.
 
 ##### The I·Q loop's lock statistic: `I² − Q²` (owner, 2026-11-22)
 

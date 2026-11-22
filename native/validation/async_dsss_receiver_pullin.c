@@ -1590,7 +1590,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
      the loop's worst-start edge. A window that opens before the hand-over
      plus the budget is a flag that declared before its loops settled; it
      is a detector finding, and the window stays the observed one. */
-  if (!isnan (d->ho_err_hz) && !isnan (d->t_track_s))
+  /* Not on a control: its claims are not asserted, and an opened loop's
+     mean loop never settles, so the edge's bisection would run every trial
+     to the cap. */
+  if (!isnan (d->ho_err_hz) && !isnan (d->t_track_s) && !pi_expect_broken
+      && !pi_no_emitter)
     {
       d->edge_hz = hb_edge_hz (fc, esn0, d->bn_car);
       if (fabs (d->ho_err_hz) <= d->edge_hz && rx->rx)

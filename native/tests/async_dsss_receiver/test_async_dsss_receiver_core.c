@@ -40,6 +40,7 @@
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
 #include "dp_air_test.h"
+#include "dp_ber_test.h" /* dp_ber_lock_all: the observed-lock window */
 #include "dp_chunk_inv.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
@@ -765,9 +766,18 @@ _test_awgn_esn0_floor (void)
 {
   const size_t sf = 1023, spc = 2;
   const double chip_rate = 3.069e6, sym_rate = 2700.0;
-  const double fs    = chip_rate * (double)spc;
-  const double cps   = chip_rate / sym_rate; /* 1136.67, non-integer */
-  const size_t n_sym = 1500;
+  const double fs  = chip_rate * (double)spc;
+  const double cps = chip_rate / sym_rate; /* 1136.67, non-integer */
+  /* 2 s: the observed-lock window needs the pull-in inside the record. A
+     hand-over at the search's edge (the 8 dB draw's, -100 Hz, 1.3 B_L of
+     the carrier loop at the rule's bn) pulls in in about 1 s, well inside
+     the 20 s allocation; the 0.56 s this record used to be ended mid
+     pull-in. */
+  const size_t n_sym = 5400;
+  /* The draw's first bits and its noise are the 1,500-symbol record's, so
+     the scene's opening is the one the floor was first read on; the bits
+     past them come from a stream of their own. */
+  const size_t n_head = 1508;
 
   uint8_t *code = malloc (sf);
   dp_dsss_gold_1023 (code);
@@ -791,9 +801,10 @@ _test_awgn_esn0_floor (void)
       uint8_t *dbits  = malloc (n_data);
       double  *dsym   = malloc (n_data * sizeof *dsym);
       uint32_t st     = 0x51ced00du + (uint32_t)p;
+      uint32_t st2    = 0x9e3779b9u + (uint32_t)p;
       for (size_t i = 0; i < n_data; i++)
         {
-          dbits[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+          dbits[i] = (uint8_t)(dp_xs32 (i < n_head ? &st : &st2) & 1u);
           dsym[i]  = 1.0 - 2.0 * (double)dbits[i]; /* transmitted BPSK sym */
         }
 
@@ -813,22 +824,49 @@ _test_awgn_esn0_floor (void)
           code, sf, chip_rate, sym_rate, chip_rate * (double)spc, 2, cn0, 1e-3,
           0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0,
           false, 0.0, 0.0, true);
-      float _Complex *syms   = NULL;
-      size_t          n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
-      double          ber    = _best_ber (syms, n_syms, dsym, n_data);
-      double evm = dp_test_evm_db_hard (syms, n_syms); /* no lag/truth */
-      double snr = dp_test_m2m4_snr_db (syms, n_syms); /* blind M2M4   */
-      ber_at[p]  = ber;
-      evm_at[p]  = evm;
-      snr_at[p]  = snr;
+      /* The observed-lock window (dp_ber_lock_all, the five flags the
+         receiver publishes, each sustained): every metric is read from
+         the moment the link is locked, so a pull-in is never scored. A
+         link that never locks scores chance. */
+      float _Complex *syms   = malloc (tot * sizeof *syms);
+      unsigned char  *fl     = calloc (DP_S415_N_FLAGS * tot, 1);
+      size_t          n_syms = 0;
+      for (size_t pos = 0; rx && pos < tot; pos += sf * spc)
+        {
+          const size_t take = pos + sf * spc <= tot ? sf * spc : tot - pos;
+          const size_t k    = dp_async_dsss_receiver_steps (
+              rx, x + pos, take, syms + n_syms, tot - n_syms);
+          unsigned char f[DP_S415_N_FLAGS];
+          dp_s415_lock_flags (rx, f);
+          for (size_t j = 0; j < k; j++)
+            for (size_t q = 0; q < DP_S415_N_FLAGS; q++)
+              fl[q * tot + n_syms + j] = f[q];
+          n_syms += k;
+        }
+      const unsigned char *fp[DP_S415_N_FLAGS];
+      for (size_t q = 0; q < DP_S415_N_FLAGS; q++)
+        fp[q] = fl + q * tot;
+      const int64_t at = dp_ber_lock_all (fp, DP_S415_N_FLAGS, n_syms, 200,
+                                          0.9, n_syms, NULL);
+      const size_t  w0 = at >= 0 ? (size_t)at : 0;
+      double        ber
+          = at >= 0 && (size_t)at < n_data
+                ? _best_ber (syms + w0, n_syms - w0, dsym + w0, n_data - w0)
+                : 0.5;
+      double evm = dp_test_evm_db_hard (syms + w0, n_syms - w0); /* no lag */
+      double snr = dp_test_m2m4_snr_db (syms + w0, n_syms - w0); /* blind */
+      free (fl);
+      ber_at[p] = ber;
+      evm_at[p] = evm;
+      snr_at[p] = snr;
       /* Print all three: ber is the truth-referenced number; evm (self-
          referenced, no lag) and the blind M2M4 SNR are the independent
          validators that can't be fooled by a lucky-lag false pass. */
-      printf ("    Es/N0=%4.1f dB  cn0=%5.1f dB-Hz  tracking=%d  ber=%.4f  "
-              "evm=%6.1f dB  m2m4_snr=%5.1f dB\n",
+      printf ("    Es/N0=%4.1f dB  cn0=%5.1f dB-Hz  tracking=%d  locked at "
+              "%.2f s  ber=%.4f  evm=%6.1f dB  m2m4_snr=%5.1f dB\n",
               esn0_pts[p], cn0,
-              rx ? dp_async_dsss_receiver_get_tracking (rx) : 0, ber, evm,
-              snr);
+              rx ? dp_async_dsss_receiver_get_tracking (rx) : 0,
+              at >= 0 ? (double)at / sym_rate : -1.0, ber, evm, snr);
 
       free (syms);
       dp_async_dsss_receiver_destroy (rx);

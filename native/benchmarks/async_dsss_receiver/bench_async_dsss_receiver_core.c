@@ -562,9 +562,9 @@ run_spec_search (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 static int
 run_spec_track (jm_bench_t *bench, const uint8_t *code, const spec_pt_t *pt)
 {
-  const double fs_in = DP_S415_FS, chip = dp_s415_chip_rate (pt->carrier_hz);
-  const double cn0  = dp_s415_cn0 (DP_S415_FLOOR_DB);
-  const size_t maxb = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
+  const double fs_in = DP_S415_FS;
+  const double cn0   = dp_s415_cn0 (DP_S415_FLOOR_DB);
+  const size_t maxb  = (size_t)(SPEC_MAX_LOCK_S * fs_in) / BLOCK;
   dp_async_dsss_receiver_state_t *rx  = spec_rx (code, pt->carrier_hz, cn0);
   float _Complex                 *x   = malloc ((size_t)BLOCK * sizeof *x);
   float _Complex                 *out = malloc ((size_t)BLOCK * sizeof *out);

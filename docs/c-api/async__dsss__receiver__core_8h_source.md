@@ -16,6 +16,7 @@
 #include "doppler/correlator/correlator_core.h"
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/cic/cic_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -43,6 +44,9 @@ extern "C"
 
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
 #define ASYNC_DSSS_RX_CARRIER_LOOP_SNR_DB 20.0
+#define ASYNC_DSSS_RX_CAR_DEN_ALPHA (1.0 / 256.0)
+#define ASYNC_DSSS_RX_CAR_LOCK_PFA 1e-3
+#define ASYNC_DSSS_RX_CAR_LOCK_PD 0.99
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
   ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
 #define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn) ((size_t)(1.0 / (bn) + 0.5))
@@ -127,11 +131,12 @@ typedef enum
     size_t         refine_dll_out_cap;  
     float _Complex *refine_rc_out_buf;  
     size_t         refine_rc_out_cap;   
-    /* Track stage: DsssReceiver's own composition. dp_costas_init()'s tsamps is
-     * one whole code period, and the pre-despread carrier loop updates once
-     * per period from a non-data-aided (squaring) combine of that period's
-     * coherent-I&D partials (see adr_track_period() in the .c file). */
-    dp_costas_state_t         car; 
+    /* Track stage. The pre-despread carrier loop is carrier_nda at M = 2,
+     * updated once a code period (its update period is the period's
+     * samples) on the Dll's despread window sum, with the unit
+     * denominator fed the Dll's window noise and the ratio-of-sums block
+     * lock (see adr_build_track_chain() and adr_track_period()). */
+    dp_carrier_nda_state_t    car; 
     dp_dll_state_t           *dll; 
     dp_RateConverter_state_t *rc;  
     dp_mpsk_receiver_state_t *rx;  
@@ -167,6 +172,8 @@ typedef enum
     double chip_rate;    
     double symbol_rate;  
     double bn_carrier; 
+    double car_gamma; 
+    uint32_t car_blk; 
     double cn0_dbhz; 
     double pfa;      
     double pd;       
@@ -230,7 +237,7 @@ typedef enum
     uint64_t both_down_samples;    
     int      had_lock;             
     int      car_coasting;         
-    dp_costas_state_t car_held;       
+    dp_carrier_nda_state_t car_held;  
     double   seed_chip_phase;     
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
@@ -484,7 +491,7 @@ typedef enum
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 21u /* v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 22u /* v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

@@ -21,6 +21,7 @@ depends_on = [
     { name = "carrier_acq", link = true },
     { name = "dll", link = true },
     { name = "costas", link = true },
+    { name = "carrier_nda", link = true },
     { name = "RateConverter", link = true },
     { name = "mpsk_receiver", link = true },
     { name = "resamp", link = true },

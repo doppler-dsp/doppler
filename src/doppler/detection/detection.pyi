@@ -1131,8 +1131,10 @@ def det_ratio_block_len(
     then bisection (the probability rises with `n`). Both sides are exact
     for the model, so the block's decisions have the stated rates, and
     blocks are disjoint, so verify counts on them count independent
-    decisions. At the 415.1-B-1 floor, for the pre-despread carrier loop's
-    window sums, it is 34 at 2.2 GHz and 43 at 2.8 GHz.
+    decisions. At the 415.1-B-1 floor's window sums (`gamma` 2.397 and
+    1.884) it is 33 at 2.2 GHz and 43 at 2.8 GHz at the async receiver's
+    carrier jitter, 1/200 rad^2 (4.05 deg, the unit form at the rule's bn),
+    and 34 and 43 at 4.40 and 4.50 deg.
 
     Parameters
     ----------

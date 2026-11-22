@@ -2890,7 +2890,7 @@ _test_status_record (void)
   /* doppler#1261: the whole carrier estimate -- loop 1 plus what loop 2
      took up beyond it, the sum configure_chain_raw() re-seeds from. */
   DP_CHECK (fabs (st.doppler_hz
-                  - (dp_costas_get_norm_freq (&rx->car) * fs
+                  - (dp_carrier_nda_get_norm_freq (&rx->car) * fs
                      + dp_async_dsss_receiver_get_norm_freq (rx)
                            * ((double)rx->sps * rx->symbol_rate)))
             < 1e-9);
@@ -3837,10 +3837,10 @@ _test_tlm_in_situ_probes (void)
   size_t       carried = 0;
   for (size_t pos = pre_silence; pos + chunk <= n; pos += chunk)
     {
-      const double want_car
-          = dp_async_dsss_receiver_get_tracking (rx)
-                ? dp_costas_get_nco_phase_ahead (&rx->car, rx->car_carry_len)
-                : NAN;
+      const double want_car = dp_async_dsss_receiver_get_tracking (rx)
+                                  ? dp_carrier_nda_get_nco_phase_ahead (
+                                        &rx->car, rx->car_carry_len)
+                                  : NAN;
       const double want_code
           = dp_async_dsss_receiver_get_tracking (rx)
                 ? dp_dll_get_code_phase_ahead (rx->dll, rx->car_carry_len)
@@ -3945,7 +3945,7 @@ _test_lock_rules (void)
   DP_CHECK (memcmp (&s, &s2, sizeof s) == 0);
 
   dp_lockdet_rule_t a = dp_async_dsss_receiver_get_car_lock_rule (rx);
-  dp_lockdet_rule_t b = dp_costas_get_lock_rule (&rx->car);
+  dp_lockdet_rule_t b = dp_carrier_nda_get_lock_rule (&rx->car);
   DP_CHECK (memcmp (&a, &b, sizeof a) == 0 && a.n_up >= 1);
   a = dp_async_dsss_receiver_get_code_lock_rule (rx);
   b = dp_dll_get_lock_rule (rx->dll);
@@ -5684,27 +5684,35 @@ _test_no_refine_hands_over_at_the_seed (void)
 /* D3, the carrier loop's bandwidth from the owner's loop-SNR rule
  * (async-dsss-receiver.md §1.3): at the 415.1-B-1 floor, C/N0 38.77 dB-Hz,
  * rho = C/N0 T is 2.397 at 2.2 GHz and 1.884 at 2.8 GHz (T = 1023 chips at
- * the carrier times 31/21216), so bn = rho / 200 is 0.01199 and 0.00942;
+ * the carrier times 31/21216), and with the M = 2 detector's squaring loss
+ * S_L = 1 / (1 + 1/(2 rho)) (the owner's ruling, 2026-11-22) bn = rho S_L /
+ * 200 is 0.00993 and 0.00744;
  * at a design C/N0 the rule allows wider, the release's 0.04. A receiver
  * built at the floor carries that bandwidth, and its tracking carrier loop
  * runs at it.
  *
+ * The loop it builds is carrier_nda in the unit form at the design update
+ * SNR, updated once a code period, with the block lock det_ratio_block_len()
+ * sizes at the unit form's jitter.
+ *
  * Sabotage: the release's constant restored in create() (bn_carrier =
- * ASYNC_DSSS_RX_BN_CARRIER) -> every receiver row red; the cap dropped ->
- * the 70 dB-Hz row red; the rule's 200 as 100 -> the floor rows red. */
+ * ASYNC_DSSS_RX_BN_CARRIER) -> every receiver row red; the block lock not
+ * set in the build -> the block rows red; the cap dropped ->
+ * the 70 dB-Hz row red; the rule's 200 as 100, or S_L dropped -> the floor
+ * rows red. */
 static int
 _test_carrier_bn_follows_the_loop_snr_rule (void)
 {
   const double chip22 = 2.2e9 * 31.0 / 21216.0,
                chip28 = 2.8e9 * 31.0 / 21216.0;
   DP_CHECK_MSG (
-      fabs (dp_async_dsss_receiver_carrier_bn (38.77, chip22, 1023) - 0.011987)
+      fabs (dp_async_dsss_receiver_carrier_bn (38.77, chip22, 1023) - 0.009919)
           < 1e-5,
-      "2.2 GHz at the floor: rho / 200");
+      "2.2 GHz at the floor: rho S_L / 200");
   DP_CHECK_MSG (
-      fabs (dp_async_dsss_receiver_carrier_bn (38.77, chip28, 1023) - 0.009419)
+      fabs (dp_async_dsss_receiver_carrier_bn (38.77, chip28, 1023) - 0.007443)
           < 1e-5,
-      "2.8 GHz at the floor: rho / 200");
+      "2.8 GHz at the floor: rho S_L / 200");
   DP_CHECK_MSG (dp_async_dsss_receiver_carrier_bn (70.0, chip22, 1023)
                     == ASYNC_DSSS_RX_BN_CARRIER,
                 "where the rule allows wider, the release's bandwidth");
@@ -5717,8 +5725,29 @@ _test_carrier_bn_follows_the_loop_snr_rule (void)
   DP_CHECK_MSG (want < ASYNC_DSSS_RX_BN_CARRIER && rx->bn_carrier == want,
                 "the receiver's carrier bandwidth is the rule's at its C/N0");
   /* Its tracking chain's carrier loop, built by create(), runs at it. */
-  DP_CHECK_MSG (dp_costas_get_bn (&rx->car) == want,
+  DP_CHECK_MSG (dp_carrier_nda_get_bn (&rx->car) == want,
                 "the tracking carrier loop is built at that bandwidth");
+  /* The loop's form and lock, as create() derives them: the unit
+     denominator at the design update SNR, and the block lock the exact
+     tail sizes at the unit form's jitter, bn (1 + 1/(2 gamma)) / gamma. */
+  {
+    const double g = pow (10.0, 38.77 / 10.0) * 7.0 / 1.0e6;
+    const int    b = dp_det_ratio_block_len (
+        g, want * (1.0 + 1.0 / (2.0 * g)) / g, ASYNC_DSSS_RX_CAR_LOCK_PFA,
+        ASYNC_DSSS_RX_CAR_LOCK_PD, (int)CARRIER_NDA_BLOCK_MAX_LEN);
+    printf ("  carrier lock: gamma %.4f, block %u (derived %d), threshold "
+            "%.3f\n",
+            rx->car_gamma, rx->car_blk, b,
+            dp_carrier_nda_get_block_thresh (&rx->car));
+    DP_CHECK (fabs (rx->car_gamma / g - 1.0) < 1e-12);
+    DP_CHECK (rx->car.den == CARRIER_NDA_DEN_UNIT
+              && rx->car.den_gamma == rx->car_gamma);
+    DP_CHECK (b >= 2 && rx->car_blk == (uint32_t)b
+              && rx->car.blk_len == rx->car_blk);
+    DP_CHECK (dp_carrier_nda_get_block_thresh (&rx->car)
+              == dp_det_ratio_threshold (ASYNC_DSSS_RX_CAR_LOCK_PFA, b));
+    DP_CHECK (rx->car.t_upd == (double)rx->tsamps);
+  }
   dp_async_dsss_receiver_destroy (rx);
   return 0;
 }

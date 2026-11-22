@@ -87,7 +87,8 @@ dp_s415_lock_flags (const dp_async_dsss_receiver_state_t *rx,
       = (unsigned char)(tr && dp_async_dsss_receiver_get_locked (rx));
   f[DP_S415_FLAG_CODE]
       = (unsigned char)(tr && dp_async_dsss_receiver_get_code_locked (rx));
-  f[DP_S415_FLAG_CAR] = (unsigned char)(tr && rx->car.lock.locked);
+  f[DP_S415_FLAG_CAR]
+      = (unsigned char)(tr && dp_carrier_nda_get_locked (&rx->car));
   f[DP_S415_FLAG_DEMOD]
       = (unsigned char)(tr && rx->rx && rx->rx->l.car_lock.locked);
   f[DP_S415_FLAG_SYNC]

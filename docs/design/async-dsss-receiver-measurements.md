@@ -4434,3 +4434,74 @@ The 2.8 GHz rows of control (a)'s comparison arm read bn 0.0094, not 0.04: `--bn
 | 2.8 GHz 10 dB | 0.04     | 57 of 60            | 57 of 60                      |
 
 No count moves: every row that worked had all five flags sustained. Control (b)'s two rows move from 1 to 0, since their carrier flag never sustains. The first table stays above as it was printed. Whether these counts can be read as a verdict waits on the controls rerun under the fixed criterion.
+
+### 12.33 What was measured (2026-11-21) — step 2's controls under C17, the captures, and the lead figures
+
+**Read the control verdicts first.** Under C17's criterion (every one of the five flags sustained) the controls pass, 13 of 13: [run415/controls2/verdicts.txt](async-dsss-receiver-measurements/run415/controls2/verdicts.txt), rows in [run415/controls2/controls.csv](async-dsss-receiver-measurements/run415/controls2/controls.csv). The producer is `integ/async-rx` at `ed98d1fd8` on swiftgo, clean tree, 22:57 to 23:01.
+
+| control                                                      | cells                               | verdict                       | the term that refuses it                                                                  |
+| ------------------------------------------------------------ | ----------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------- |
+| (a) `--no-emitter`, both arms                                | 2.2 and 2.8 GHz, 4 and 10 dB        | 8 of 8 pass: no flag sustains | —                                                                                         |
+| (b) `--bn-carrier 0 --expect-broken`, seed 1                 | 2.2 and 2.8 GHz, 10 dB              | 2 of 2 pass: `works` 0        | the carrier flag never sustains; code and symbol sustain; SER 9 / 176,133 and 8 / 176,129 |
+| (ii) `--bn-carrier 0 --expect-broken --carrier-null`, seed 1 | 2.2 and 2.8 GHz 10 dB, 2.2 GHz 4 dB | 3 of 3 pass: `works` 0        | the symbol flag never sustains; code and symbol never sustain; SER 0 / 0                  |
+
+Control (ii) required a symbol error rate at chance. It cannot be read from these rows: the error meter never aligned, so no symbol was scored (0 / 0). The flags' part of the requirement holds.
+
+**The captures.** `run415_pick.py capture` chose them from the 480 rows of §12.32 by the draw rule's five categories, with C17's "works": per cell and arm, the lowest seed that works, that has a flag change after it sustained, that has a flag that never sustains, that slips (`car_slips > 0`), or that hands over outside the guideline arm's `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` (18.8 Hz). The 30 draws are captured whole with `$V --telemetry DIR --draw F,E,0,SEED [--bn-carrier 0.04]`, and all 30 wrote. The list is [run415/captures/list.txt](async-dsss-receiver-measurements/run415/captures/list.txt), with the empty categories in [run415/captures/empty.txt](async-dsss-receiver-measurements/run415/captures/empty.txt). The sidecars (`.tlm-meta`, `.rules.csv`) are under [run415/captures/](async-dsss-receiver-measurements/run415/captures/list.txt). The 5.2 GB of `.tlm` records stay on swiftgo under `~/bench-work/implementer/logs/run415/cap`.
+
+| cell          | arm       | works | changes | never | slips | outside |
+| ------------- | --------- | ----- | ------- | ----- | ----- | ------- |
+| 2.2 GHz 4 dB  | guideline | 9     | 1       | 3     | 2     | 1       |
+| 2.2 GHz 4 dB  | 0.04      | 9     | 1       | 3     | 3     | 1       |
+| 2.2 GHz 10 dB | guideline | 1     | 6       | empty | 11    | 1       |
+| 2.2 GHz 10 dB | 0.04      | 1     | empty   | empty | empty | 1       |
+| 2.8 GHz 4 dB  | guideline | empty | 1       | 34    | 1     | 1       |
+| 2.8 GHz 4 dB  | 0.04      | empty | 1       | empty | 1     | 1       |
+| 2.8 GHz 10 dB | guideline | 1     | 3       | empty | 37    | 1       |
+| 2.8 GHz 10 dB | 0.04      | 1     | 2       | empty | empty | 1       |
+
+**The lead figures.** One complete guideline-arm draw per cell: category 1 (works) where there is one, else category 5. They are drawn by `scripts/plot_capture.py --time --mark rx.state` from the draw's capture, and `rx.coast` and `rx.hold` sit on every page.
+
+- The four loop pages show each loop's error, proportional term, integrator and NCO control, with the truth's error beside them.
+- The five detector pages show each statistic with its thresholds (`--line`, from the draw's `rules.csv`) above its flag.
+- Each draw's settings table is printed from its own `rules.csv`.
+
+**2.2 GHz 4 dB, seed 9 (works).** Pages: [the pre-despread carrier loop](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/loop-1-carrier.png), [the code loop, per steer](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/loop-2-code.png), [the demodulator's carrier loop](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/loop-3-demod-carrier.png), [the timing loop](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/loop-4-timing.png), [symbol lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/det-1-symbol.png), [carrier lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/det-2-carrier.png), [code lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/det-3-code.png), [demod carrier lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/det-4-demod-carrier.png), [sync lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-4-9/det-5-sync.png).
+
+| detector   | up      | down    | n_up | n_down | looks | alpha       | loop bn   |
+| ---------- | ------- | ------- | ---- | ------ | ----- | ----------- | --------- |
+| sym        | 0.5     | 0.3     | 30   | 15     | 0     | 0.0333333   | nan       |
+| car        | 0.85    | 0.78    | 8    | 32     | 0     | 0.1         | 0.0119907 |
+| code       | 8.87409 | 8.87409 | 2    | 3      | 22    | 0.000976563 | 0.002     |
+| demod      | 0.3     | 0.24    | 8    | 32     | 0     | 0.05        | 0.01      |
+| demod_sync | 0.311   | 0.311   | 2    | 6      | 133   | 0           | 0.005     |
+
+**2.2 GHz 10 dB, seed 1 (works).** Pages: [the pre-despread carrier loop](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/loop-1-carrier.png), [the code loop, per steer](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/loop-2-code.png), [the demodulator's carrier loop](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/loop-3-demod-carrier.png), [the timing loop](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/loop-4-timing.png), [symbol lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/det-1-symbol.png), [carrier lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/det-2-carrier.png), [code lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/det-3-code.png), [demod carrier lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/det-4-demod-carrier.png), [sync lock](async-dsss-receiver-measurements/run415/figs/G-works-2.2-10-1/det-5-sync.png).
+
+| detector   | up      | down    | n_up | n_down | looks | alpha       | loop bn   |
+| ---------- | ------- | ------- | ---- | ------ | ----- | ----------- | --------- |
+| sym        | 0.5     | 0.3     | 30   | 15     | 0     | 0.0333333   | nan       |
+| car        | 0.85    | 0.78    | 8    | 32     | 0     | 0.1         | 0.0119907 |
+| code       | 8.87409 | 8.87409 | 2    | 3      | 22    | 0.000976563 | 0.002     |
+| demod      | 0.3     | 0.24    | 8    | 32     | 0     | 0.05        | 0.01      |
+| demod_sync | 0.311   | 0.311   | 2    | 6      | 133   | 0           | 0.005     |
+
+**2.8 GHz 4 dB, seed 1 (no draw works; outside the bound).** Pages: [the pre-despread carrier loop](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/loop-1-carrier.png), [the code loop, per steer](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/loop-2-code.png), [the demodulator's carrier loop](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/loop-3-demod-carrier.png), [the timing loop](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/loop-4-timing.png), [symbol lock](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/det-1-symbol.png), [carrier lock](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/det-2-carrier.png), [code lock](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/det-3-code.png), [demod carrier lock](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/det-4-demod-carrier.png), [sync lock](async-dsss-receiver-measurements/run415/figs/G-outside-2.8-4-1/det-5-sync.png).
+
+| detector   | up      | down    | n_up | n_down | looks | alpha       | loop bn   |
+| ---------- | ------- | ------- | ---- | ------ | ----- | ----------- | --------- |
+| sym        | 0.5     | 0.3     | 30   | 15     | 0     | 0.0333333   | nan       |
+| car        | 0.85    | 0.78    | 8    | 32     | 0     | 0.1         | 0.0094213 |
+| code       | 8.56749 | 8.56749 | 2    | 3      | 20    | 0.000976563 | 0.002     |
+| demod      | 0.3     | 0.24    | 8    | 32     | 0     | 0.05        | 0.01      |
+| demod_sync | 0.311   | 0.311   | 2    | 6      | 133   | 0           | 0.005     |
+
+**2.8 GHz 10 dB, seed 1 (works).** Pages: [the pre-despread carrier loop](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/loop-1-carrier.png), [the code loop, per steer](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/loop-2-code.png), [the demodulator's carrier loop](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/loop-3-demod-carrier.png), [the timing loop](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/loop-4-timing.png), [symbol lock](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/det-1-symbol.png), [carrier lock](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/det-2-carrier.png), [code lock](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/det-3-code.png), [demod carrier lock](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/det-4-demod-carrier.png), [sync lock](async-dsss-receiver-measurements/run415/figs/G-works-2.8-10-1/det-5-sync.png).
+
+| detector   | up      | down    | n_up | n_down | looks | alpha       | loop bn   |
+| ---------- | ------- | ------- | ---- | ------ | ----- | ----------- | --------- |
+| sym        | 0.5     | 0.3     | 30   | 15     | 0     | 0.0333333   | nan       |
+| car        | 0.85    | 0.78    | 8    | 32     | 0     | 0.1         | 0.0094213 |
+| code       | 8.56749 | 8.56749 | 2    | 3      | 20    | 0.000976563 | 0.002     |
+| demod      | 0.3     | 0.24    | 8    | 32     | 0     | 0.05        | 0.01      |
+| demod_sync | 0.311   | 0.311   | 2    | 6      | 133   | 0           | 0.005     |

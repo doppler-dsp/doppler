@@ -785,12 +785,19 @@ def handover(argv: list[str]) -> int:
         [p.read_text(encoding="utf-8") for p in sorted(d.glob("s*.csv"))]
     )
     out.mkdir(parents=True, exist_ok=True)
-    cells = sorted({cell_of(r) for r in data["pullin"]})
+    # A cell and an arm: the arm is the carrier bandwidth the rows ran at
+    # (`bn_car`, read from the built receiver), so the guideline arm and
+    # the comparison arm of one cell are two rows of the table.
+    arms = sorted({(cell_of(r), r["bn_car"]) for r in data["pullin"]})
     tab = []
-    for c in cells:
-        rows = [r for r in data["pullin"] if cell_of(r) == c]
+    for c, bn in arms:
+        rows = [
+            r for r in data["pullin"] if cell_of(r) == c and r["bn_car"] == bn
+        ]
         fc, es, rate = c
-        fig_handover(rows, c, out / f"handover_{fc}GHz_{es}dB_{rate}Hzs.png")
+        fig_handover(
+            rows, c, out / f"handover_{fc}GHz_{es}dB_{rate}Hzs_bn{bn}.png"
+        )
 
         every = rows
         rows = [r for r in every if on_code(r)]
@@ -810,10 +817,33 @@ def handover(argv: list[str]) -> int:
             for k in sorted(HO_SRC)
             if any(r["ho_src"] == k for r in rows)
         )
+        # The pull-in, over every draw of the arm: the hand-over error
+        # against the arm's own bound, how many fell outside it, and of
+        # those how many the loop pulled in anyway (the rows' pulled_in);
+        # the carrier flag's sustained time where it was, "never" counted.
+        bound = float(every[0]["base_pullin_hz"])
+        outside = [
+            r
+            for r in every
+            if r["ho_err_hz"] != "nan" and abs(float(r["ho_err_hz"])) > bound
+        ]
+        t_car = [float(r["t_car_s"]) for r in every if r["t_car_s"] != "nan"]
+        never = len(every) - len(t_car)
         tab.append(
             [
                 f"{fc} GHz {es} dB "
-                + ("static" if float(rate) == 0 else f"+/-{rate} Hz/s"),
+                + ("static" if float(rate) == 0 else f"+/-{rate} Hz/s")
+                + f", bn {bn}",
+                stat("ho_err_hz", "{:.1f}", every),
+                f"{len(outside)} of {len(every)} (> {bound:.1f} Hz)",
+                f"{sum(r['pulled_in'] == '1' for r in outside)} of "
+                f"{len(outside)}",
+                (
+                    " / ".join(f"{x:.2f}" for x in _pct(t_car))
+                    if t_car
+                    else "n/a"
+                )
+                + f"; never {never}",
                 f"{n} (+{len(every) - n} off code)",
                 stat("seed_err_hz", "{:.1f}"),
                 stat("seed_code_chip", "{:.3f}"),
@@ -835,7 +865,11 @@ def handover(argv: list[str]) -> int:
         "spc 4, C/N0 at the antenna.\n\n"
         + table(
             (
-                "cell",
+                "cell, arm",
+                "hand-over error, every draw, Hz",
+                "outside the arm's pull-in bound",
+                "of those, pulled in",
+                "carrier lock, s",
                 "draws",
                 "seed Doppler, Hz",
                 "seed code, chip",

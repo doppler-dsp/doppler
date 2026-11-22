@@ -2391,7 +2391,39 @@ The dwell grows as the edge's inverse square, so the averaged form's narrower ed
 
 - **A dwell of a few hundred milliseconds** would cut the noise term by `√(T / 85 ms)`, with a staleness under 2 Hz: 300 ms gives 49 Hz sd at the floor and 24 Hz at 10 dB. That still puts most floor hand-overs outside the edge, so the loop pulls in on the path the owner calls non-deterministic.
 - **The code-only line.** Any dwell of a frame or more (0.333 s) holds a whole code-only window, so its spectrum holds the line. With that line in it, the tone's `T^(−3/2)` law would put the hand-over inside the edge. The owner ruled that the estimator may not rely on it. It is stated here as what the frame structure gives, not as the design.
-- **The law the owner rejected.** A squared stream gives a line at twice the offset, whose bound falls as `T^(−3/2)` despite the squaring loss. That law, not the noise added, is what a longer dwell of the spectral matched filter lacks. Stated for the owner; not proposed.
+
+**The alternative's numbers, for the owner; not proposed.** It is the open-loop form of the detector the owner has approved for the loop:
+
+- the **same despread window sums** `carrier_nda` would take, squared once a code period, `w²`;
+- a tone at `2Δf`, with the data removed;
+- located by a coherent transform over the dwell.
+
+The owner's objection, "Why raise the noise by squaring?", is about the squaring loss `1 + 1/(2γ)`. That loss depends on the SNR where the square is taken:
+
+| where the square is taken                     | SNR there                     | squaring loss                                      |
+| --------------------------------------------- | ----------------------------- | -------------------------------------------------- |
+| one despread window sum, the loop's own input | γ 3.80 / 2.75 dB at the floor | 0.82 / 1.02 dB, the loss the I·Q loop already pays |
+| the refine's 12 kSa/s stream (`79fa50cfe`)    | Es/N0 / 4 = −2.0 dB a sample  | 2.5 dB                                             |
+| one pre-despread sample                       | −31.6 dB                      | 28.6 dB                                            |
+
+At the four cells. Here `γ_sq = γ²/(4γ + 2)` is a squared sum's SNR, `N = D/T` the window sums in the dwell `D`, and the sd is the tone's bound halved to `Δf`. The outlier probability is Rife–Boorstyn's over the bins spanning 1.2 times the cell's largest seed error.
+
+| cell   | loss    | `γ_sq`  | at 85.3 ms: output SNR, sd, P(outlier) | at 300 ms: output SNR, sd | at 1 s: output SNR, sd |
+| ------ | ------- | ------- | -------------------------------------- | ------------------------- | ---------------------- |
+| 2.2/4  | 0.82 dB | −3.0 dB | 21.2 dB, 0.20 Hz, < 10⁻²⁵              | 26.7 dB, 0.03 Hz          | 31.9 dB, < 0.01 Hz     |
+| 2.8/4  | 1.02 dB | −4.3 dB | 21.0 dB, 0.20 Hz, < 10⁻²⁵              | 26.5 dB, 0.03 Hz          | 31.7 dB, 0.01 Hz       |
+| 2.2/10 | 0.22 dB | 3.6 dB  | 27.8 dB, 0.09 Hz, < 10⁻¹⁰⁰             | 33.3 dB, 0.01 Hz          | 38.5 dB, < 0.01 Hz     |
+| 2.8/10 | 0.28 dB | 2.5 dB  | 27.8 dB, 0.09 Hz, < 10⁻¹⁰⁰             | 33.2 dB, 0.01 Hz          | 38.5 dB, < 0.01 Hz     |
+
+- **At today's 85.3 ms**, the sd is 50 to 70 times inside the edge, against the all-data spectral match's 92 Hz. The window sums' noise is taken as independent from one to the next; windows that borrow the previous period's tail overlap a little, which is not included.
+- **The unambiguous range** is `±1/(4T)`: ±786 Hz at 2.2 GHz, ±1,000 Hz at 2.8, with an image at `1/(2T)` (1,571 / 2,000 Hz).
+    - The search's seed error (`seed_err_hz`, run 415) is inside it at the floor: 60 of 60, worst 371 / 936 Hz.
+    - At 10 dB it is not: 5 of 60 (2.2 GHz, 871 to 1,235 Hz) and 3 of 60 (2.8 GHz, 1,085 to 1,498 Hz).
+    - On its own this estimate would hand those draws over one image off. The existing spectral estimate, with sd 46 to 92 Hz, picks the image. The two together are the coarse and fine of one hand-over.
+- **The Doppler rate.** The tone at `2Δf` moves at 22 Hz/s. It sweeps more than one of the transform's bins (`1/D`) past `D = √(1/22)` = 0.21 s: 0.16 bins at 85.3 ms, 2 at 300 ms, 22 at 1 s. Beyond about 0.2 s a longer dwell costs more than it gains unless the transform has a rate term. The estimate's age at the hand-over is 0.47 Hz at 85.3 ms.
+- **How it differs from the reverted estimator** (`79fa50cfe`, reverted by `467fdbb02`).
+    - That one squared the refine's 12 kSa/s despread stream, at −2.0 dB a sample, where symbol edges split samples, and handed it to `CarrierAcquisition`'s detection test as a second spectrum.
+    - This one squares one transition-free code-period window sum, at 2.75 to 3.80 dB at the floor (the pre-despread loop's own input), and locates the tone coherently.
 
 **The stopping rule.**
 

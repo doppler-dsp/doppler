@@ -34,7 +34,7 @@ class CarrierAcquisition:
         - ``"blackman-harris"`` — 4-term Blackman-Harris.
     beta : float, default 0.0
         Kaiser beta (ignored for hann/blackman-harris).
-    psd_template : NDArray[np.float32], default ...
+    psd_template : NDArray[np.float32], default None
         Known PSD-shape template override, length must equal nfft =
         next_pow_two(block * zero_pad), block as above; NULL/length-0 means
         "not supplied" -- the default rectangular-pulse sinc^2 template (from

@@ -582,7 +582,7 @@ static PyTypeObject CarrierAcquisitionObjType = {
     "    - ``\"blackman-harris\"`` — 4-term Blackman-Harris.\n"
     "beta : float, default 0.0\n"
     "    Kaiser beta (ignored for hann/blackman-harris).\n"
-    "psd_template : NDArray[np.float32], default ...\n"
+    "psd_template : NDArray[np.float32], default None\n"
     "    Known PSD-shape template override, length must equal nfft =\n"
     "    next_pow_two(block * zero_pad), block as above; NULL/length-0 means\n"
     "    \"not supplied\" -- the default rectangular-pulse sinc^2 template "

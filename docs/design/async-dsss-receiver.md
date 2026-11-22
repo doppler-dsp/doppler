@@ -2157,12 +2157,14 @@ The owner's ruling, 2026-11-22.
 - **Its noise scale** is the block's own total power. Under noise alone `(R + 1)/2` is exactly `Beta(B/2, B/2)`: mean 0, variance `1/(B + 1)`.
 - **The threshold** is that Beta's 10⁻³ upper point. It needs no noise estimate and no Gaussian approximation; the Dll's noise estimate would bring its own error into the threshold.
 
-**With signal at the floor, in lock,** the mean is `μ₁ = γ/(γ + 1) · E[cos 2θ]`, averaged over the loop's jitter at the rule's bn. The per-update sd follows by D8's delta method.
+**With signal at the floor, in lock,** the mean is `μ₁ = γ/(γ + 1) · E[cos 2θ]`, averaged over the loop's jitter at the rule's bn: the unit form's `σ_θ² = bn (1 + 1/(2γ))/γ`, 1/200 rad² (4.05°). The detection probability is exact for that model: `R > r` is `Σ((1 − r) I² − (1 + r) Q²) > 0`, a sum of independent terms, whose characteristic function is inverted (`det_ratio_pd()`). B is the least that reaches Pd 0.99 (`det_ratio_block_len()`). The receiver derives it at create from its design C/N0 (`adr_size_carrier_lock()`), and `_test_carrier_bn_follows_the_loop_snr_rule` pins the loop it builds.
 
-| cell  | μ₁    | sd a update | B            | threshold (Beta, Pfa 10⁻³) | Pd    | false unlock a decision |
-| ----- | ----- | ----------- | ------------ | -------------------------- | ----- | ----------------------- |
-| 2.2/4 | 0.697 | 0.417       | 31 (9.9 ms)  | 0.518                      | 0.992 | 8.4 × 10⁻³              |
-| 2.8/4 | 0.645 | 0.484       | 40 (10.0 ms) | 0.463                      | 0.991 | 8.8 × 10⁻³              |
+| cell  | γ     | μ₁    | B            | threshold (Beta, Pfa 10⁻³) | Pd    | false unlock a decision |
+| ----- | ----- | ----- | ------------ | -------------------------- | ----- | ----------------------- |
+| 2.2/4 | 2.397 | 0.699 | 33 (10.5 ms) | 0.504                      | 0.990 | 1.0 × 10⁻²              |
+| 2.8/4 | 1.884 | 0.647 | 43 (10.8 ms) | 0.449                      | 0.991 | 8.8 × 10⁻³              |
+
+**A Gaussian for the ratio undersizes the block.** D8's delta method gives the per-update sd (0.417 / 0.484) and, with a Gaussian block mean, B = 31 / 40 at Pd 0.992 / 0.991 (at 4.40° / 4.50°). Measured, those blocks detect at 0.982 / 0.983, and the exact tail gives the same (0.9822 against 0.9827, `test_detection_core.c`, the ratio section). The Gaussian is optimistic in the lower tail, where Pd 0.99 is read. At 4.40° / 4.50° the exact B is 34 / 43.
 
 **Verify counts** are the code lock's budget, on independent block decisions: 2 up (`det_verify_count(10⁻³, 10⁻⁶)`) and 3 down (`(0.01, 10⁻⁶)`). The blocks are disjoint. Their only dependence is the loop's phase memory, about `1/(4 B_L)` = 6.6 ms, under one block.
 
@@ -2847,6 +2849,7 @@ At 10 dB the same dwell gives `ρ` 25 to 28 dB and sd 0.05 to 0.08 Hz.
 - **The estimate's age.** At 11 Hz/s, `R·D/2` is 0.94 / 1.03 Hz. With the sd, the hand-over sits well inside the narrowest edge (10.3 Hz) whenever the right peak is taken. So the edge's probability is `1 − P_w − P_miss`.
 - **`CarrierAcquisition`'s test runs over the same dwell.** Its `dwell_target` is raised to the fine one, which only makes its detection more certain.
 - **If `ε`'s bound is the rows' 0.40, not 0.25,** the dwell is 73 / 80 blocks (389 / 427 ms). There the rate costs 0.4 to 0.6 dB at `max_rate` 0, and `PolynomialPhaseEstimator`'s rate axis is due. The test row measures `ε` and decides.
+- **A candidate cause of the 0.40, not established.** The refine `Dll` runs at bn 0.002, and a closed-loop reading of the `Dll` at the receiver's configuration (Gold-1023, 2 samples a chip, segments 4 and 10, the aid on and off; #3234) measures its loop about 19 times wider than that. A loop that wide has about 4.4 times the code jitter sd its bn predicts. That could be the rows' 0.40 chip against the grid's 0.25. The reading was at 3.069 Mcps; the one at 415.1-B-1's rates is owed, and the test row's code error over the dwell decides.
 
 **The test row, fixed before any run.**
 
@@ -3031,7 +3034,7 @@ On paper.
 | flag                | today                              | proposed                                                                                                                               | B, threshold (2.2 / 2.8 GHz)                    | Pd            | from                        |
 | ------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------- | --------------------------- |
 | code                | det block, n 22 / 20               | unchanged; the look's Pfa excess is D5's, on paper                                                                                     | —                                               | 0.993 / 0.992 | §4.10                       |
-| carrier             | `Costas` EMA of `abs(Re P)/abs(P)` | `carrier_nda`'s `Σ(I² − Q²) / Σ(I² + Q²)` on the window sum, exact Beta threshold. This replaces D7's block mean of `abs(Re P)/abs(P)` | 31 / 40 updates (9.9 / 10.0 ms), 0.518 / 0.463  | 0.992 / 0.991 | the `carrier_nda` row above |
+| carrier             | `Costas` EMA of `abs(Re P)/abs(P)` | `carrier_nda`'s `Σ(I² − Q²) / Σ(I² + Q²)` on the window sum, exact Beta threshold. This replaces D7's block mean of `abs(Re P)/abs(P)` | 33 / 43 updates (10.5 / 10.8 ms), 0.504 / 0.449 | 0.990 / 0.991 | the `carrier_nda` row above |
 | symbol              | EMA, 0.5 / 0.3, 30 / 15            | block ratio of sums, exact Beta threshold                                                                                              | 40 / 41 symbols (13.3 / 13.7 ms), 0.463 / 0.458 | 0.996 / 0.997 | D8                          |
 | demodulator carrier | EMA, 0.3 / 0.24, 8 / 32            | block of `Re((z/abs(z))²)`                                                                                                             | 35 / 36 symbols (11.7 / 12.0 ms), 0.369 / 0.364 | 0.99          | D8                          |
 | sync                | block 133, 0.311                   | **not derived**: needs the composite pulse, the noise correlation at half a symbol, and the timing error (#3177)                       | —                                               | —             | D8                          |

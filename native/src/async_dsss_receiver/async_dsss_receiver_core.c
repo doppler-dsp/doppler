@@ -197,18 +197,90 @@ adr_fine_window (size_t n, double *p, double *eta)
   *eta = sw2m2 * ((double)n * (double)n * (double)n / 12.0) / (swm2 * swm2);
 }
 
+/* The window's coherent loss for a tone chirping at r cycles a sample
+   squared over n samples, dB: |sum w e^{j pi r m^2}|^2 / (sum w)^2 with m
+   centred, where the even phase puts the peak at the centre frequency. */
+static double
+adr_fine_chirp_loss_db (size_t n, double r)
+{
+  float *w = dp_xmallocn (n, sizeof *w);
+  dp_kaiser_window (w, n, (float)dp_kaiser_beta_for_sidelobe (50.0));
+  double re = 0.0, im = 0.0, sw = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double m = (double)i - 0.5 * (double)(n - 1);
+      re += (double)w[i] * cos (M_PI * r * m * m);
+      im += (double)w[i] * sin (M_PI * r * m * m);
+      sw += (double)w[i];
+    }
+  free (w);
+  return -10.0 * log10 ((re * re + im * im) / (sw * sw));
+}
+
+/* The least dwell meeting p_ho at one squared sum's SNR gs; 0 if none up
+   to max_blocks. With the rate axis off (max_rate 0) a tone chirping at r
+   loses the window's chirp loss at each candidate length; with it on the
+   estimator searches max_rate and its rows join the union and the check.
+   Fills out's dwell fields. */
+static size_t
+adr_fine_dwell (int k, double T, double gs, double r, double max_rate,
+                double block_s, double pfa, double p_ho, size_t max_blocks,
+                int m, async_dsss_receiver_fine_t *out)
+{
+  for (size_t d = 1; d <= max_blocks; d++)
+    {
+      const size_t n_s = (size_t)llround ((double)k * (double)d * block_s / T);
+      if (n_s < 4)
+        continue;
+      size_t n_rate = 1;
+      if (max_rate > 0.0)
+        {
+          /* The estimator's own grid at this length. */
+          dp_ppe_state_t *p = dp_ppe_create (n_s, max_rate);
+          if (!p)
+            return 0;
+          n_rate = p->n_rate;
+          dp_ppe_destroy (p);
+        }
+      double pw, eta;
+      adr_fine_window (n_s, &pw, &eta);
+      const double loss_db
+          = max_rate == 0.0 && r > 0.0 ? adr_fine_chirp_loss_db (n_s, r) : 0.0;
+      const double rho   = (double)n_s * gs * pow (10.0, -loss_db / 10.0);
+      const double cells = (double)n_s * (double)n_rate;
+      const double t     = log (cells / pfa);
+      const double p_w   = 0.5 * (cells - 1.0) * exp (-pw * rho / 2.0);
+      const double miss
+          = 1.0 - dp_marcum_q (1, sqrt (2.0 * pw * rho), sqrt (2.0 * t));
+      if (p_w + miss <= 1.0 - p_ho)
+        {
+          const double dur = (double)n_s * T / (double)k;
+          out->blocks      = d;
+          out->n_s         = n_s;
+          out->n_rate      = n_rate;
+          out->rho         = rho;
+          out->p_w         = p_w;
+          out->p_miss      = miss;
+          out->thr_db      = adr_fine_thr_db ((size_t)cells, pfa);
+          out->sd_hz
+              = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
+          return d;
+        }
+    }
+  return 0;
+}
+
 int
-dp_async_dsss_receiver_fine_design (double cn0_dbhz, double chip_rate,
-                                    size_t code_len, double p_flip,
-                                    double symbol_rate, int m,
-                                    size_t refine_segments, double e_hz,
-                                    double eps_chip, double block_s,
-                                    double pfa, double p_ho, size_t max_blocks,
-                                    async_dsss_receiver_fine_t *out)
+dp_async_dsss_receiver_fine_design (
+    double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
+    double symbol_rate, int m, size_t refine_segments, double e_hz,
+    double rate_hz_s, double eps_chip, double block_s, double pfa, double p_ho,
+    size_t max_blocks, async_dsss_receiver_fine_t *out)
 {
   if (m != 2 || !isfinite (cn0_dbhz) || !(chip_rate > 0.0) || code_len == 0
       || !(p_flip >= 0.0 && p_flip <= 1.0) || !(symbol_rate > 0.0)
       || refine_segments == 0 || !(e_hz >= 0.0) || !isfinite (e_hz)
+      || !(rate_hz_s >= 0.0) || !isfinite (rate_hz_s)
       || !(eps_chip >= 0.0 && eps_chip < 1.0) || !(block_s > 0.0)
       || !(pfa > 0.0 && pfa < 1.0) || !(p_ho > 0.0 && p_ho < 1.0))
     return DP_ERR_INVALID;
@@ -231,36 +303,42 @@ dp_async_dsss_receiver_fine_design (double cn0_dbhz, double chip_rate,
   const double q = T * symbol_rate / (double)k;
   const double c = 1.0 - q / 3.0, v = (1.0 - 0.4 * q) - c * c;
   const double gs = c * c * g * g / (4.0 * g + 2.0 + v * g * g);
-  for (size_t d = 1; d <= max_blocks; d++)
+  out->k          = k;
+  out->g          = g;
+  out->gamma_sq   = gs;
+  /* The rate-free dwell's chirp loss, reported; then the two ways to
+     meet p_ho under the rate: the axis off, the loss taken at each length
+     (A), or the axis on with its rows (B). The shorter dwell is the
+     design; a tie keeps the axis off. */
+  const double               r = (double)m * rate_hz_s * (T / k) * (T / k);
+  async_dsss_receiver_fine_t a = *out, bb = *out; /* k, g, gamma_sq */
+  if (!adr_fine_dwell (k, T, gs, 0.0, 0.0, block_s, pfa, p_ho, max_blocks, m,
+                       out))
+    return DP_ERR_INVALID;
+  out->chirp_loss_db = r > 0.0 ? adr_fine_chirp_loss_db (out->n_s, r) : 0.0;
+  out->max_rate      = 0.0;
+  if (r == 0.0)
+    return DP_OK;
+  const size_t da = adr_fine_dwell (k, T, gs, r, 0.0, block_s, pfa, p_ho,
+                                    max_blocks, m, &a);
+  const size_t db = adr_fine_dwell (k, T, gs, r, r, block_s, pfa, p_ho,
+                                    max_blocks, m, &bb);
+  if (!da && !db)
+    return DP_ERR_INVALID;
+  const double chirp = out->chirp_loss_db;
+  if (da && (!db || da <= db))
     {
-      const size_t n_s = (size_t)llround ((double)k * (double)d * block_s / T);
-      if (n_s < 4)
-        continue;
-      double pw, eta;
-      adr_fine_window (n_s, &pw, &eta);
-      const double rho = (double)n_s * gs;
-      const double t   = log ((double)n_s / pfa);
-      const double p_w = 0.5 * (double)(n_s - 1) * exp (-pw * rho / 2.0);
-      const double miss
-          = 1.0 - dp_marcum_q (1, sqrt (2.0 * pw * rho), sqrt (2.0 * t));
-      if (p_w + miss <= 1.0 - p_ho)
-        {
-          const double dur = (double)n_s * T / (double)k;
-          out->k           = k;
-          out->g           = g;
-          out->gamma_sq    = gs;
-          out->blocks      = d;
-          out->n_s         = n_s;
-          out->rho         = rho;
-          out->p_w         = p_w;
-          out->p_miss      = miss;
-          out->thr_db      = adr_fine_thr_db (n_s, pfa);
-          out->sd_hz
-              = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
-          return DP_OK;
-        }
+      *out          = a;
+      out->max_rate = 0.0;
+      out->n_rate   = 1;
     }
-  return DP_ERR_INVALID;
+  else
+    {
+      *out          = bb;
+      out->max_rate = r;
+    }
+  out->chirp_loss_db = chirp;
+  return DP_OK;
 }
 
 double
@@ -1708,6 +1786,7 @@ dp_async_dsss_receiver_create (
         = dp_async_dsss_receiver_fine_design (
               cn0_dbhz, chip_rate, code_len, (double)flips / (double)code_len,
               symbol_rate, m, obj->refine_segments, 2.0 * doppler_uncertainty,
+              doppler_rate,
               0.5 / (spc * (obj->srch_rs ? obj->srch_ratio : 1.0)), block_s,
               pfa, ASYNC_DSSS_RX_FINE_P_HO, refine_max_n_blocks, &obj->fine)
           == DP_OK;
@@ -1722,7 +1801,8 @@ dp_async_dsss_receiver_create (
             = (size_t)ceil ((double)obj->fine.blocks * block_s / T + 1.0)
               * (size_t)obj->fine.k;
         obj->fine_buf = dp_xmallocn (obj->fine_cap, sizeof *obj->fine_buf);
-        obj->fine_ppe = dp_xnn (dp_ppe_create (obj->fine_cap, 0.0));
+        obj->fine_ppe
+            = dp_xnn (dp_ppe_create (obj->fine_cap, obj->fine.max_rate));
       }
   }
   /* Placeholder chains (phase 0, no Doppler) -- always allocated, seeded
@@ -2241,10 +2321,17 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
         {
           const ppe_result_t r = dp_ppe_estimate (
               state->fine_ppe, state->fine_buf, state->fine_n);
-          const double T   = (double)state->code_len / state->chip_rate;
-          const double thr = adr_fine_thr_db (state->fine_n, state->pfa);
+          const double T = (double)state->code_len / state->chip_rate;
+          /* The check's cells are the sums times the rate rows; the
+             frequency handed over is the tone's at the buffer's end (the
+             estimator's rate is the chirp's, cycles a sum squared, from
+             the first sum). */
+          const double thr = adr_fine_thr_db (
+              state->fine_n * state->fine_ppe->n_rate, state->pfa);
+          const double f_end
+              = r.freq_norm + r.rate_norm * (double)(state->fine_n - 1);
           state->fine_hz
-              = r.freq_norm * (double)state->fine.k / T / (double)state->m;
+              = f_end * (double)state->fine.k / T / (double)state->m;
           state->fine_snr_db = r.snr_db;
           if (state->tlm)
             {

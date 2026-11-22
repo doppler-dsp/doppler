@@ -67,13 +67,16 @@ extern "C"
     double p_miss;   
     double thr_db;   
     double sd_hz;    
+    double chirp_loss_db; 
+    double max_rate; 
+    size_t n_rate;   
   } async_dsss_receiver_fine_t;
 
   int dp_async_dsss_receiver_fine_design (
       double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
       double symbol_rate, int m, size_t refine_segments, double e_hz,
-      double eps_chip, double block_s, double pfa, double p_ho,
-      size_t max_blocks, async_dsss_receiver_fine_t *out);
+      double rate_hz_s, double eps_chip, double block_s, double pfa,
+      double p_ho, size_t max_blocks, async_dsss_receiver_fine_t *out);
 #define ASYNC_DSSS_RX_DLL_BN 0.002
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
   /* The damping of both Dlls this receiver builds, the tracker and the

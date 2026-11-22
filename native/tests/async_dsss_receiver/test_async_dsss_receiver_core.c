@@ -1714,7 +1714,8 @@ _test_reacquire_after_switch_off (void)
  * more than a bin from 2f. The failures stay under (1 - p_ho) plus 3
  * sigma. M other than 2, and an e no divisor covers, are refused.
  * Sabotage: the window's beta at the filter-design 50 dB (4.55) in place of
- * the estimator's (6.85) -> 32 and 35, red on the numbers. */
+ * the estimator's (6.85) -> 32 and 35, red on the numbers; the rate axis
+ * never turned on -> the 400 Hz/s rows red. */
 static int
 _test_fine_design (void)
 {
@@ -1726,8 +1727,8 @@ _test_fine_design (void)
         async_dsss_receiver_fine_t o;
         DP_CHECK (dp_async_dsss_receiver_fine_design (
                       38.77, fcs[f] * 31.0 / 21216.0, 1023, 544.0 / 1023.0,
-                      3000.0, 2, 10, 3000.0, 0.25, 64.0 / 12000.0, 1e-3, ph[i],
-                      400, &o)
+                      3000.0, 2, 10, 3000.0, 0.0, 0.25, 64.0 / 12000.0, 1e-3,
+                      ph[i], 400, &o)
                   == DP_OK);
         printf ("  fine design: %.1f GHz p_ho %.3f: K %d, %zu blocks, n_s "
                 "%zu, rho %.2f dB, P_w %.1e, P_miss %.1e, thr %.2f dB, sd "
@@ -1735,22 +1736,49 @@ _test_fine_design (void)
                 fcs[f] / 1e9, ph[i], o.k, o.blocks, o.n_s,
                 10.0 * log10 (o.rho), o.p_w, o.p_miss, o.thr_db, o.sd_hz);
         DP_CHECK (o.k == 5 && o.blocks == want[f][i]);
+        DP_CHECK (o.max_rate == 0.0 && o.n_rate == 1);
+      }
+  /* The rate axis: the chirp at R_env (11 Hz/s) and at 400 Hz/s over the
+     p_ho 0.99 dwell, printed with what the rule decides. */
+  for (int f = 0; f < 2; f++)
+    for (int ri = 0; ri < 2; ri++)
+      {
+        async_dsss_receiver_fine_t o;
+        const double               rate = ri ? 400.0 : 11.0;
+        DP_CHECK (dp_async_dsss_receiver_fine_design (
+                      38.77, fcs[f] * 31.0 / 21216.0, 1023, 544.0 / 1023.0,
+                      3000.0, 2, 10, 3000.0, rate, 0.25, 64.0 / 12000.0, 1e-3,
+                      0.99, 400, &o)
+                  == DP_OK);
+        printf ("  fine design: %.1f GHz at %.0f Hz/s: chirp loss %.2f dB at "
+                "max_rate 0; rate axis %s (%zu rows), %zu blocks, thr %.2f "
+                "dB\n",
+                fcs[f] / 1e9, rate, o.chirp_loss_db,
+                o.max_rate > 0.0 ? "on" : "off", o.n_rate, o.blocks, o.thr_db);
+        /* At R_env the chirp costs under a block: the axis stays off and
+           the dwell is the rate-free one or a block past it. At 400 Hz/s
+           it costs 9 dB: the axis is on, with the estimator's rows. */
+        if (ri == 0)
+          DP_CHECK (o.max_rate == 0.0 && o.n_rate == 1
+                    && o.blocks <= want[f][1] + 1);
+        else
+          DP_CHECK (o.max_rate > 0.0 && o.n_rate > 1 && o.chirp_loss_db > 3.0);
       }
   async_dsss_receiver_fine_t o;
   DP_CHECK (dp_async_dsss_receiver_fine_design (
-                38.77, 3.2e6, 1023, 0.5, 3000.0, 4, 10, 3000.0, 0.25,
+                38.77, 3.2e6, 1023, 0.5, 3000.0, 4, 10, 3000.0, 0.0, 0.25,
                 64.0 / 12000.0, 1e-3, 0.99, 400, &o)
             == DP_ERR_INVALID);
   DP_CHECK (dp_async_dsss_receiver_fine_design (
-                38.77, 3.2e6, 1023, 0.5, 3000.0, 2, 10, 1e6, 0.25,
+                38.77, 3.2e6, 1023, 0.5, 3000.0, 2, 10, 1e6, 0.0, 0.25,
                 64.0 / 12000.0, 1e-3, 0.99, 400, &o)
             == DP_ERR_INVALID);
   /* The Monte Carlo: no symbol edge (a symbol rate far under the sums'),
      so the model's sum is a tone in Gaussian noise. */
   const double chip = 2.2e9 * 31.0 / 21216.0, T = 1023.0 / chip;
   DP_REQUIRE (dp_async_dsss_receiver_fine_design (
-                  38.77, chip, 1023, 544.0 / 1023.0, 1e-6, 2, 10, 3000.0, 0.25,
-                  64.0 / 12000.0, 1e-3, 0.99, 400, &o)
+                  38.77, chip, 1023, 544.0 / 1023.0, 1e-6, 2, 10, 3000.0, 0.0,
+                  0.25, 64.0 / 12000.0, 1e-3, 0.99, 400, &o)
               == DP_OK);
   const size_t    n = o.n_s;
   dp_ppe_state_t *p = dp_ppe_create (n, 0.0);

@@ -37,9 +37,12 @@
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**blocks**](#variable-blocks)  <br> |
+|  double | [**chirp\_loss\_db**](#variable-chirp_loss_db)  <br> |
 |  double | [**g**](#variable-g)  <br> |
 |  double | [**gamma\_sq**](#variable-gamma_sq)  <br> |
 |  int | [**k**](#variable-k)  <br> |
+|  double | [**max\_rate**](#variable-max_rate)  <br> |
+|  size\_t | [**n\_rate**](#variable-n_rate)  <br> |
 |  size\_t | [**n\_s**](#variable-n_s)  <br> |
 |  double | [**p\_miss**](#variable-p_miss)  <br> |
 |  double | [**p\_w**](#variable-p_w)  <br> |
@@ -120,6 +123,24 @@ the dwell, refine blocks.
 
 
 
+### variable chirp\_loss\_db 
+
+```C++
+double async_dsss_receiver_fine_t::chirp_loss_db;
+```
+
+
+
+the tone's loss at max\_rate 0 over the rate-free dwell, at the design rate, dB. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable g 
 
 ```C++
@@ -165,6 +186,42 @@ int async_dsss_receiver_fine_t::k;
 
 
 sums a code period: the smallest divisor of refine\_segments whose range K/(2MT) covers e. 
+
+
+        
+
+<hr>
+
+
+
+### variable max\_rate 
+
+```C++
+double async_dsss_receiver_fine_t::max_rate;
+```
+
+
+
+the estimator's rate half-span, cycles a sum squared: 0 when the chirp loss leaves the dwell inside p\_ho, else M rate (T/K)^2. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_rate 
+
+```C++
+size_t async_dsss_receiver_fine_t::n_rate;
+```
+
+
+
+the estimator's rate rows (1 when off): they join the union bound and the check's cells. 
+ 
 
 
         

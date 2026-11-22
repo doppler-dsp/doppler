@@ -258,6 +258,13 @@ extern "C"
                           10 gamma_E / ln 10 (the exponential bin's mean
                           dB under the dB of its mean).                 */
     double sd_hz;    /**< the estimate's sd, Hz, once divided by M.     */
+    double chirp_loss_db; /**< the tone's loss at max_rate 0 over the
+                               rate-free dwell, at the design rate, dB.  */
+    double max_rate; /**< the estimator's rate half-span, cycles a sum
+                          squared: 0 when the chirp loss leaves the dwell
+                          inside p_ho, else M rate (T/K)^2.              */
+    size_t n_rate;   /**< the estimator's rate rows (1 when off): they
+                          join the union bound and the check's cells.    */
   } async_dsss_receiver_fine_t;
 
   /**
@@ -280,10 +287,19 @@ extern "C"
    * sqrt(2 ln(n_s/pfa)))`. The dwell is the least `D` at which the two sum
    * to at most `1 - p_ho`.
    *
+   * **The rate axis.** A carrier changing at `rate_hz_s` Hz/s puts a chirp
+   * of `M rate (T/K)^2` cycles a sum squared on the tone. Over the dwell
+   * found above, the window's coherent sum loses `chirp_loss_db` at
+   * max_rate 0. The axis turns on exactly when that loss would leave the
+   * dwell short of `p_ho`; the estimator then searches that half-span, its
+   * rows (PolynomialPhaseEstimator's own grid at the buffer's length) join
+   * the union bound and the check's cells, and the dwell is designed again
+   * with them. Derived, not a threshold.
+   *
    * At the 415.1-B-1 floor (C/N0 38.77 dB-Hz, Gold-1023, 3,000 symbols a
    * second, refine_segments 10, e 3,000 Hz, eps 0.25, blocks of 5.33 ms,
-   * pfa 1e-3) K is 5 and the dwell is 32 blocks at 2.2 GHz and 35 at 2.8
-   * GHz, at p_ho 0.99; 24 / 27 at 0.9 and 39 / 42 at 0.999.
+   * pfa 1e-3) K is 5 and the dwell is 39 blocks at 2.2 GHz and 42 at 2.8
+   * GHz, at p_ho 0.99; 29 / 32 at 0.9 and 47 / 51 at 0.999, with no rate.
    *
    * @param cn0_dbhz         Design C/N0, dB-Hz.
    * @param chip_rate        Chips a second, > 0.
@@ -294,6 +310,8 @@ extern "C"
    * @param m                Constellation order; the loss law is M = 2's.
    * @param refine_segments  The refine Dll's dumps a code period.
    * @param e_hz             The seed's design carrier error bound, Hz.
+   * @param rate_hz_s        The carrier rate the receiver is designed to,
+   *                         Hz/s, >= 0 (its doppler_rate).
    * @param eps_chip         The design code error, chips, in [0, 1).
    * @param block_s          One refine block, seconds.
    * @param pfa              The check's false-alarm rate, in (0, 1).
@@ -307,8 +325,8 @@ extern "C"
   int dp_async_dsss_receiver_fine_design (
       double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
       double symbol_rate, int m, size_t refine_segments, double e_hz,
-      double eps_chip, double block_s, double pfa, double p_ho,
-      size_t max_blocks, async_dsss_receiver_fine_t *out);
+      double rate_hz_s, double eps_chip, double block_s, double pfa,
+      double p_ho, size_t max_blocks, async_dsss_receiver_fine_t *out);
   /** The Dll's bn, per epoch whatever the steer rate (the symbol-period aid
    * steers once per symbol and keeps bn per epoch): DsssReceiver's value,
    * narrower than dp_dll_create()'s default 0.01 for noise immunity at the
@@ -392,9 +410,9 @@ extern "C"
 /** @brief The hand-over took the fine estimate: the refine's squared pair
  *  sums located by PolynomialPhaseEstimator, divided by M. */
 #define ASYNC_DSSS_RX_HO_FINE 3
-/** The fine hand-over's probability, the dwell's target: proposed, not yet
- *  ruled by the owner (docs/design/async-dsss-receiver.md, "The dwell,
- *  derived"). */
+/** The fine hand-over's probability, the dwell's target: the owner's
+ *  ruling, 2026-11-22 ("0.99 is fine"; docs/design/async-dsss-receiver.md,
+ *  "The dwell, derived"). */
 #define ASYNC_DSSS_RX_FINE_P_HO 0.99
 
 /** The state machine's values (`state` below, also the first byte of a

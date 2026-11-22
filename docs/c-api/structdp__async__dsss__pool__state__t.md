@@ -37,15 +37,23 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  double \* | [**car\_hist**](#variable-car_hist)  <br> |
+|  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
 |  float \_Complex \* | [**carry**](#variable-carry)  <br> |
 |  size\_t | [**carry\_len**](#variable-carry_len)  <br> |
 |  uint8\_t \* | [**cl\_hist**](#variable-cl_hist)  <br> |
+|  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**fe**](#variable-fe)  <br> |
+|  float \_Complex \* | [**fe\_buf**](#variable-fe_buf)  <br> |
+|  size\_t | [**fe\_cap**](#variable-fe_cap)  <br> |
+|  uint64\_t | [**fe\_out**](#variable-fe_out)  <br> |
+|  double | [**fe\_ratio**](#variable-fe_ratio)  <br> |
+|  uint64\_t | [**fed\_in**](#variable-fed_in)  <br> |
 |  size\_t | [**feed\_n**](#variable-feed_n)  <br> |
 |  const float \_Complex \* | [**feed\_x**](#variable-feed_x)  <br> |
 |  size\_t | [**ghost\_window**](#variable-ghost_window)  <br> |
 |  size\_t | [**group**](#variable-group)  <br> |
 |  size\_t \* | [**hist\_len**](#variable-hist_len)  <br> |
 |  size\_t | [**hist\_pos**](#variable-hist_pos)  <br> |
+|  double | [**in\_spc**](#variable-in_spc)  <br> |
 |  double | [**lattice\_hz**](#variable-lattice_hz)  <br> |
 |  size\_t | [**n\_receivers**](#variable-n_receivers)  <br> |
 |  size\_t \* | [**n\_sym**](#variable-n_sym)  <br> |
@@ -140,6 +148,24 @@ n\_receivers rings of ghost\_window carrier estimates (status().doppler\_hz), Hz
 
 
 
+### variable carrier\_hz 
+
+```C++
+double dp_async_dsss_pool_state_t::carrier_hz;
+```
+
+
+
+The receivers' carrier\_freq\_hz, for the dilation status() carries a phase by. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable carry 
 
 ```C++
@@ -185,6 +211,113 @@ uint8_t* dp_async_dsss_pool_state_t::cl_hist;
 
 
 The same rings of status().code\_locked. 
+
+
+        
+
+<hr>
+
+
+
+### variable fe 
+
+```C++
+resamp_state_t* dp_async_dsss_pool_state_t::fe;
+```
+
+
+
+The pool's one front end: the input resampled to the search's rate, a power of two samples a code period, which the search and every receiver are built at; NULL when the input's period is already whole (§5). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fe\_buf 
+
+```C++
+float _Complex* dp_async_dsss_pool_state_t::fe_buf;
+```
+
+
+
+Its output, one push's worth. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fe\_cap 
+
+```C++
+size_t dp_async_dsss_pool_state_t::fe_cap;
+```
+
+
+
+fe\_buf's capacity, samples. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fe\_out 
+
+```C++
+uint64_t dp_async_dsss_pool_state_t::fe_out;
+```
+
+
+
+Samples it has produced since create or reset. 
+
+
+        
+
+<hr>
+
+
+
+### variable fe\_ratio 
+
+```C++
+double dp_async_dsss_pool_state_t::fe_ratio;
+```
+
+
+
+Its rate: receiver samples an input sample; 1 without it. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fed\_in 
+
+```C++
+uint64_t dp_async_dsss_pool_state_t::fed_in;
+```
+
+
+
+The input sample status() reports at: the first whole input sample at or after the receivers' next one (samples - carry\_len without fe). 
+ 
 
 
         
@@ -291,6 +424,24 @@ size_t dp_async_dsss_pool_state_t::hist_pos;
 
 
 The ring slot the next step writes; one clock for every ring. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable in\_spc 
+
+```C++
+double dp_async_dsss_pool_state_t::in_spc;
+```
+
+
+
+Input samples a chip. 
  
 
 

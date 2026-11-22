@@ -284,10 +284,11 @@ _test_fractional_period_phase (double ratio)
     {
       const size_t len = m - pos < blk ? m - pos : blk;
       (void)dp_async_dsss_pool_push (p, y + pos, len);
-      /* The searcher gets what the pool's receivers got: the pool holds a
-         partial period back (carry_len), and a holder's phase is at the
-         sample after the ones it was fed. */
-      const size_t fed = pos + len - p->carry_len;
+      /* The searcher gets what the pool's receivers got: the input up to
+         fed_in, the sample a holder's phase is reported at -- the sample
+         after the ones it was fed, mapped through the pool's front end
+         (its resampler to 2,048 samples a period) when there is one. */
+      const size_t fed = (size_t)p->fed_in;
       float _Complex none[1];
       (void)dp_async_dsss_receiver_steps (q, y + q_fed, fed - q_fed, none, 0);
       q_fed = fed;
@@ -1254,7 +1255,7 @@ _test_refused_restore_changes_nothing (void)
   /* Clobber receiver 2's envelope magic: its sub-blob follows the pool's
      header, extra, carry, and receivers 0 and 1. */
   const size_t cells = src->n_receivers * src->ghost_window;
-  const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 10
+  const size_t rx2   = sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 12
                        + src->group * sizeof (float _Complex)
                        + src->n_receivers * sizeof (uint64_t)
                        + cells * (sizeof (double) + 1)
@@ -1815,6 +1816,91 @@ _test_nested_trace_version_refused (void)
   return 0;
 }
 
+/* The pool's one front end (async-dsss-receiver.md §5). At a rate where a
+   code period is not a whole number of samples (2.2 a chip: 2250.6) the
+   pool resamples the stream once to the search's 2,048 samples a period
+   and builds the search and every receiver there: none resamples again,
+   every call is a whole period, and status() counts in the caller's
+   samples. At 2 a chip (2,046, whole) there is none. Then a blob taken
+   mid-stream, mid-carry and mid-front-end restores into a fresh pool that
+   ends where an unbroken one does, byte for byte, symbols included.
+   Sabotages: build the receivers at the input rate -> the engagement
+   checks red; leave the front end out of the blob -> the resumed pool
+   differs. */
+static dp_async_dsss_pool_state_t *
+_fe_pool (const uint8_t *code, double fs)
+{
+  return dp_async_dsss_pool_create (
+      code, 1023, 3, POOL_CR, POOL_RS, fs, 2, 47.0, 1e-3, 0.9, 500.0, 4, 8, 0,
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, 1);
+}
+
+static int
+_test_front_end (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  const double                whole = _fe_pool (code, POOL_FS) ? POOL_FS : 0;
+  dp_async_dsss_pool_state_t *w     = _fe_pool (code, POOL_FS);
+  DP_REQUIRE (whole > 0 && w != NULL);
+  DP_CHECK (w->fe == NULL && w->period == 2046);
+  dp_async_dsss_pool_destroy (w);
+
+  const double              ratio = 1.1;
+  size_t                    n;
+  float _Complex           *x  = _two_emitters (code, &n);
+  const size_t              ny = (size_t)ceil ((double)n * ratio) + 64;
+  float _Complex           *y  = malloc (ny * sizeof *y);
+  dp_RateConverter_state_t *rc = dp_RateConverter_create (ratio, 0);
+  DP_REQUIRE (x && y && rc);
+  const size_t                m  = dp_RateConverter_execute (rc, x, n, y, ny);
+  const double                fs = POOL_FS * ratio;
+  dp_async_dsss_pool_state_t *a  = _fe_pool (code, fs);
+  dp_async_dsss_pool_state_t *b  = _fe_pool (code, fs);
+  dp_async_dsss_pool_state_t *c  = _fe_pool (code, fs);
+  DP_REQUIRE (a && b && c);
+  DP_CHECK (a->fe != NULL && a->period == 2048);
+  DP_CHECK (a->search->srch_rs == NULL);
+  for (size_t i = 0; i < a->n_receivers; i++)
+    DP_CHECK (a->rx[i]->srch_rs == NULL && a->rx[i]->tsamps == 2048);
+  /* One push of everything, against a split at a sample inside a group and
+     a resume into a fresh pool. */
+  const size_t half = m / 2 + 777;
+  (void)dp_async_dsss_pool_push (a, y, m);
+  (void)dp_async_dsss_pool_push (b, y, half);
+  DP_REQUIRE (b->carry_len > 0);
+  /* status() in the caller's samples: receiver 2 holds nothing in this
+     stream, so it has been idle for every sample it was fed, the front
+     end's output less the carry, counted back at the input's rate. */
+  const async_dsss_receiver_status_t st = dp_async_dsss_pool_status (b, 2);
+  DP_REQUIRE (st.state == ASYNC_DSSS_RX_IDLE);
+  DP_CHECK (fabs ((double)st.state_samples
+                  - (double)(b->fe_out - b->carry_len) / b->fe_ratio)
+            <= 1.0);
+  const size_t   bytes = dp_async_dsss_pool_state_bytes (b);
+  unsigned char *blob  = malloc (bytes);
+  DP_REQUIRE (blob != NULL);
+  dp_async_dsss_pool_get_state (b, blob);
+  DP_REQUIRE (dp_async_dsss_pool_set_state (c, blob) == DP_OK);
+  (void)dp_async_dsss_pool_push (c, y + half, m - half);
+  unsigned char *ba = malloc (bytes), *bc = malloc (bytes);
+  DP_REQUIRE (ba && bc);
+  dp_async_dsss_pool_get_state (a, ba);
+  dp_async_dsss_pool_get_state (c, bc);
+  DP_CHECK (memcmp (ba, bc, bytes) == 0);
+  DP_CHECK (a->fed_in == c->fed_in && a->samples == c->samples);
+  free (ba);
+  free (bc);
+  free (blob);
+  dp_async_dsss_pool_destroy (a);
+  dp_async_dsss_pool_destroy (b);
+  dp_async_dsss_pool_destroy (c);
+  dp_RateConverter_destroy (rc);
+  free (x);
+  free (y);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1832,6 +1918,7 @@ main (void)
   DP_CHECK (_test_two_emitters_two_holders () == 0);
   DP_CHECK (_test_fractional_period_phase (1.1) == 0);
   DP_CHECK (_test_fractional_period_phase (1.05) == 0);
+  DP_CHECK (_test_front_end () == 0);
   DP_CHECK (_test_zone_keeps_the_outcome () == 0);
   DP_CHECK (_test_zone_lists_the_weaker () == 0);
   DP_CHECK (_test_zone_delays_a_same_lag_pair () == 0);

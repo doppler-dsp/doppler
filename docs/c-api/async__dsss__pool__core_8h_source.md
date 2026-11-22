@@ -45,7 +45,10 @@ extern "C"
 #define ASYNC_DSSS_POOL_NO_RECEIVER (-1)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC   DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 8u /* v8: the carry is a group of
+#define ASYNC_DSSS_POOL_STATE_VERSION 9u /* v9: the front end (its
+                                              resampler child, its
+                                              output count, fed_in); v8:
+                                              the carry is a group of
                                               periods, and its receivers'
                                               blobs carry the exclusions'
                                               and picks' samples (ADRX
@@ -85,6 +88,14 @@ extern "C"
     size_t          carry_len;   
     size_t   n_receivers;        
     uint64_t samples;            
+    resamp_state_t *fe; 
+    double          fe_ratio; 
+    float _Complex *fe_buf;   
+    size_t          fe_cap;   
+    uint64_t fe_out; 
+    uint64_t fed_in; 
+    double   in_spc; 
+    double   carrier_hz; 
     uint64_t released_lost;      
     uint64_t released_duplicate; 
     uint64_t released_ghost;     

@@ -1233,9 +1233,6 @@ less). No row measures either at this point (§9). In order:
     profile by stage.
 1. A one-tile deep search fans its block across the workers
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)).
-1. The pool resamples the capture once, and its search and receivers are
-    created at that rate, so each tracker works on $N$ samples a code
-    period (§5).
 1. The search's resampler, written so the compiler vectorizes it.
 1. Kernel changes, each adopted only on a measured gain of half or more.
 
@@ -1269,12 +1266,17 @@ is set against the LEO nadir-pass figure `f_dot_max = (f_c/c)·(v²/h)`,
 about 579 Hz/s at 2.5 GHz and 800 km; the engine's coherent depth is sized
 from the bound (§2.1).
 
-- **No shared front end.** The pool hands every code period of the
-    caller's capture, as it arrives, to the search and to each receiver.
-    The search resamples it to $N$ samples a code period inside its own
-    receiver (§1.2); each tracking receiver wipes the carrier and
-    correlates over the capture's own samples, so N trackers do that work
-    N times.
+- **One front end.** When a code period is not a whole number of the
+    caller's samples (11 MSa/s at the 415.1-B-1 point: 3,500.6 and 2,750.5
+    samples a period), the pool resamples the stream once to $N$ = 2,048
+    samples a code period (§1.2), the search's rate, and builds the search
+    and every receiver there. Nobody resamples again, every receiver call
+    is a whole period with no carry, and each tracker works on 0.59 to
+    0.74 of the samples it would at the capture rate. `status()` reports
+    in the caller's samples: counts at the input rate, and a held signal's
+    phase carried to the input sample `fed_in` that stands for the
+    receivers' next one. A whole-sample period (2,046 at two samples a
+    chip) has no front end and nothing changes.
 - **One search, owned by the controller.** Code phase across the whole
     carrier range, ±50 kHz, with the slow-time Doppler search of §2.3, on
     the one acquisition kernel. It runs **only while at least one receiver

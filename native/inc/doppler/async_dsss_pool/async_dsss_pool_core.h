@@ -23,8 +23,11 @@
  *    thread count: one thread and N give the same bytes.
  * 3. **Then the controller, serially, once a group of
  *    ASYNC_DSSS_POOL_PERIODS_PER_JOIN code periods.** A receiver is fed
- *    exactly one code period (`code_len * sample_rate / chip_rate` samples,
- *    its floor when that is not whole) per call, the search and the
+ *    exactly one code period per call: `code_len * sample_rate /
+ *    chip_rate` samples when that is whole, and otherwise 2,048 (a power
+ *    of two, dp_correlator_search_period()), the pool resampling the
+ *    stream once to that rate and building the search and every receiver
+ *    there, so none resamples again (the front end, §5). The search and the
  *    receivers a group of those periods at a time, the workers joined once
  *    a group, on the grid of the pool's sample count from create or reset;
  *    push() keeps what is left past the last whole group and feeds it with
@@ -154,7 +157,10 @@ extern "C"
  * (v0.48.0 - v0.73.0), and v0.74.0 shipped this pool as v2. Each version
  * of a magic names one layout, so this pool steps past every number the
  * magic has carried (#2569; scripts/check_state_versions.py). */
-#define ASYNC_DSSS_POOL_STATE_VERSION 8u /* v8: the carry is a group of
+#define ASYNC_DSSS_POOL_STATE_VERSION 9u /* v9: the front end (its
+                                              resampler child, its
+                                              output count, fed_in); v8:
+                                              the carry is a group of
                                               periods, and its receivers'
                                               blobs carry the exclusions'
                                               and picks' samples (ADRX
@@ -229,6 +235,22 @@ extern "C"
     size_t   n_receivers;        /**< Receivers, fixed at create.         */
     uint64_t samples;            /**< Input samples pushed since create or
                                       reset: the pool's shared clock.   */
+    resamp_state_t *fe; /**< The pool's one front end: the input resampled
+                             to the search's rate, a power of two samples
+                             a code period, which the search and every
+                             receiver are built at; NULL when the input's
+                             period is already whole (§5).              */
+    double          fe_ratio; /**< Its rate: receiver samples an input
+                                   sample; 1 without it.               */
+    float _Complex *fe_buf;   /**< Its output, one push's worth.        */
+    size_t          fe_cap;   /**< fe_buf's capacity, samples.          */
+    uint64_t fe_out; /**< Samples it has produced since create or reset. */
+    uint64_t fed_in; /**< The input sample status() reports at: the first
+                          whole input sample at or after the receivers'
+                          next one (samples - carry_len without fe).    */
+    double   in_spc; /**< Input samples a chip.                         */
+    double   carrier_hz; /**< The receivers' carrier_freq_hz, for the
+                              dilation status() carries a phase by.   */
     uint64_t released_lost;      /**< Lost receivers the controller reset. */
     uint64_t released_duplicate; /**< Duplicate holders it reset.          */
     uint64_t released_ghost;     /**< Sidelobe ghosts it reset.            */
@@ -447,7 +469,13 @@ extern "C"
    *
    * dp_async_dsss_receiver_status() of that receiver, as of the last whole
    * code period fed, after the controller's step on it: a receiver the
-   * controller released reads idle. A
+   * controller released reads idle. In the caller's samples: with the
+   * front end, `state_samples` and `both_down_samples` are counted back at
+   * the input rate, and a held signal's `chip_phase` is the phase at
+   * input sample `fed_in`, the first whole one at or after the receivers'
+   * next sample (the front end's `k / ratio - delay`), carried there from
+   * the receiver's own and dilated with a carrier; without it `fed_in` is
+   * `samples - carry_len` and the record is the receiver's own. A
    * @p receiver past the pool returns a zeroed record with
    * `state` @ref ASYNC_DSSS_POOL_NO_RECEIVER.
    *

@@ -3611,8 +3611,15 @@ class AsyncDsssPool:
 
         dp_async_dsss_receiver_status() of that receiver, as of the last whole
         code period fed, after the controller's step on it: a receiver the
-        controller released reads idle. A receiver past the pool returns a
-        zeroed record with `state` ASYNC_DSSS_POOL_NO_RECEIVER.
+        controller released reads idle. In the caller's samples: with the front
+        end, `state_samples` and `both_down_samples` are counted back at the
+        input rate, and a held signal's `chip_phase` is the phase at input
+        sample `fed_in`, the first whole one at or after the receivers' next
+        sample (the front end's `k / ratio - delay`), carried there from the
+        receiver's own and dilated with a carrier; without it `fed_in` is
+        `samples - carry_len` and the record is the receiver's own. A receiver
+        past the pool returns a zeroed record with `state`
+        ASYNC_DSSS_POOL_NO_RECEIVER.
 
         Parameters
         ----------

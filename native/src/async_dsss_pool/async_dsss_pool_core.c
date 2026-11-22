@@ -62,6 +62,21 @@ dp_async_dsss_pool_create (
   if (n_receivers == 0 || n_receivers > ASYNC_DSSS_POOL_MAX_RECEIVERS
       || threads < 0)
     return NULL;
+  /* The one front end (§5): when the input's code period is not a whole
+     number of samples, the pool resamples the stream once to the search's
+     rate, a power of two samples a period (dp_correlator_search_period()),
+     and builds the search and every receiver there, so none resamples
+     again and every receiver call is a whole period with no carry. A
+     whole input period needs no front end and changes nothing. */
+  double       rx_rate  = sample_rate;
+  const size_t n_period = dp_correlator_search_period (
+      code_len, sample_rate > 0.0 ? sample_rate : 2.0 * chip_rate, chip_rate);
+  if (n_period && sample_rate > 0.0)
+    {
+      const double rr = chip_rate * (double)n_period / (double)code_len;
+      if (fabs (rr / sample_rate - 1.0) > 1e-12)
+        rx_rate = rr;
+    }
   /* Fixed sizes from validated arguments: abort-on-OOM, no unwind path. */
   dp_async_dsss_pool_state_t *s = dp_xcalloc (1, sizeof *s);
   s->n_receivers                = n_receivers;
@@ -72,8 +87,8 @@ dp_async_dsss_pool_create (
       /* The receiver validates every parameter it takes; the first refusal
          refuses the pool. */
       s->rx[i] = dp_async_dsss_receiver_create (
-          code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz,
-          pfa, pd, doppler_uncertainty, segments, sps, differential,
+          code, code_len, chip_rate, symbol_rate, rx_rate, m, cn0_dbhz, pfa,
+          pd, doppler_uncertainty, segments, sps, differential,
           refine_max_error_db, refine_samples_per_symbol,
           refine_design_margin_db, refine_n_fft, refine_zero_pad,
           refine_sequential, refine_max_n_blocks, carrier_freq_hz,
@@ -94,11 +109,11 @@ dp_async_dsss_pool_create (
      first, its tiles fanned across the workers, and the receivers after
      it (feed_group()). */
   s->search = dp_async_dsss_receiver_create (
-      code, code_len, chip_rate, symbol_rate, sample_rate, m, cn0_dbhz, pfa,
-      pd, doppler_uncertainty, segments, sps, differential,
-      refine_max_error_db, refine_samples_per_symbol, refine_design_margin_db,
-      refine_n_fft, refine_zero_pad, refine_sequential, refine_max_n_blocks,
-      carrier_freq_hz, lost_confirm_s, reacquire, code_only_s, doppler_rate);
+      code, code_len, chip_rate, symbol_rate, rx_rate, m, cn0_dbhz, pfa, pd,
+      doppler_uncertainty, segments, sps, differential, refine_max_error_db,
+      refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
+      refine_zero_pad, refine_sequential, refine_max_n_blocks, carrier_freq_hz,
+      lost_confirm_s, reacquire, code_only_s, doppler_rate);
   if (!s->search)
     {
       dp_async_dsss_pool_destroy (s);
@@ -120,8 +135,17 @@ dp_async_dsss_pool_create (
      period is not whole; the receivers' partials close on their code
      NCOs' phase, so the block need not be exactly a period). */
   s->period = s->rx[0]->tsamps;
-  s->group  = s->period * ASYNC_DSSS_POOL_PERIODS_PER_JOIN;
-  s->carry  = dp_xcalloc (s->group, sizeof *s->carry);
+  /* sample_rate 0 is the receivers' default, two samples a chip: a whole
+     period, so no front end. */
+  s->in_spc
+      = s->rx[0]->spc
+        / (rx_rate > 0.0 && sample_rate > 0.0 ? rx_rate / sample_rate : 1.0);
+  s->fe_ratio   = rx_rate != sample_rate ? rx_rate / sample_rate : 1.0;
+  s->carrier_hz = carrier_freq_hz;
+  if (rx_rate != sample_rate)
+    s->fe = dp_xnn (dp_resamp_create (s->fe_ratio));
+  s->group = s->period * ASYNC_DSSS_POOL_PERIODS_PER_JOIN;
+  s->carry = dp_xcalloc (s->group, sizeof *s->carry);
   /* The ghost rule's clock is the controller's: one step a code period. */
   s->lattice_hz   = chip_rate / (2.0 * (double)code_len);
   s->ghost_window = (size_t)llround (ASYNC_DSSS_POOL_GHOST_WINDOW_S * chip_rate
@@ -153,6 +177,8 @@ dp_async_dsss_pool_destroy (dp_async_dsss_pool_state_t *s)
   free (s->n_sym);
   free (s->sym_buf);
   free (s->carry);
+  dp_resamp_destroy (s->fe);
+  free (s->fe_buf);
   free (s->car_hist);
   free (s->cl_hist);
   free (s->hist_len);
@@ -173,7 +199,11 @@ dp_async_dsss_pool_reset (dp_async_dsss_pool_state_t *s)
   s->searching      = false;
   s->search_periods = 0;
   s->samples        = 0;
-  s->carry_len      = 0;
+  s->fed_in         = 0;
+  s->fe_out         = 0;
+  if (s->fe)
+    dp_resamp_reset (s->fe);
+  s->carry_len = 0;
   /* The blob writes the whole carry and refuses a nonzero unused tail. */
   memset (s->carry, 0, s->group * sizeof *s->carry);
   s->released_lost      = 0;
@@ -467,9 +497,10 @@ feed_group (dp_async_dsss_pool_state_t *s, const float _Complex *x)
   (void)control (s);
 }
 
-size_t
-dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
-                         const float _Complex *x, size_t x_len)
+/* push() in the receivers' samples: the front end's output, or the input
+   itself without one. */
+static size_t
+push_rx (dp_async_dsss_pool_state_t *s, const float _Complex *x, size_t x_len)
 {
   /* A period's call emits that period's symbols plus at most one carried
      period's (sym_extra), and a push feeds at most x_len / period + 1
@@ -491,7 +522,6 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
     }
   for (size_t i = 0; i < s->n_receivers; i++)
     s->n_sym[i] = 0;
-  s->samples += x_len;
   /* Every receiver call is exactly one period on the shared grid, so where
      each call starts and ends -- and where a receiver reads its release
      clock, once per call -- is a position in the stream. The carry first,
@@ -519,6 +549,46 @@ dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
   return count_holders (s);
 }
 
+/* The receivers' next sample as an input index (fractional): the front
+   end's own contract, k / ratio - delay, for its k-th output. */
+static double
+rx_next_in (const dp_async_dsss_pool_state_t *s)
+{
+  const uint64_t k = s->fe_out - s->carry_len;
+  return (double)k / s->fe_ratio - dp_resamp_get_execute_delay (s->fe);
+}
+
+size_t
+dp_async_dsss_pool_push (dp_async_dsss_pool_state_t *s,
+                         const float _Complex *x, size_t x_len)
+{
+  s->samples += x_len;
+  if (!s->fe)
+    {
+      const size_t held = push_rx (s, x, x_len);
+      s->fed_in         = s->samples - s->carry_len;
+      return held;
+    }
+  /* Resampled once, for the search and every receiver alike. */
+  const size_t need = (size_t)ceil ((double)x_len * s->fe_ratio) + 4;
+  if (need > s->fe_cap)
+    {
+      free (s->fe_buf);
+      s->fe_buf = dp_xmallocn (need, sizeof *s->fe_buf);
+      s->fe_cap = need;
+    }
+  const size_t ny = dp_resamp_execute (s->fe, x, x_len, s->fe_buf, s->fe_cap);
+  s->fe_out += ny;
+  const size_t held = push_rx (s, s->fe_buf, ny);
+  /* The first whole input sample at or after the receivers' next one, at
+     most the next one pushed. */
+  const double t = ceil (rx_next_in (s) - 1e-9);
+  s->fed_in      = t <= 0.0                  ? 0
+                   : t >= (double)s->samples ? s->samples
+                                             : (uint64_t)t;
+  return held;
+}
+
 async_dsss_receiver_status_t
 dp_async_dsss_pool_status (const dp_async_dsss_pool_state_t *s,
                            size_t                            receiver)
@@ -529,7 +599,27 @@ dp_async_dsss_pool_status (const dp_async_dsss_pool_state_t *s,
       none.state                        = ASYNC_DSSS_POOL_NO_RECEIVER;
       return none;
     }
-  return dp_async_dsss_receiver_status (s->rx[receiver]);
+  async_dsss_receiver_status_t st
+      = dp_async_dsss_receiver_status (s->rx[receiver]);
+  if (!s->fe)
+    return st;
+  /* In the caller's samples: the receiver's counts scaled back to input
+     samples, and a held signal's phase carried from the receiver's next
+     sample to fed_in, the input sample its search picks are carried to,
+     dilated with a carrier as a hit is. */
+  st.state_samples
+      = (uint64_t)llround ((double)st.state_samples / s->fe_ratio);
+  st.both_down_samples
+      = (uint64_t)llround ((double)st.both_down_samples / s->fe_ratio);
+  if (holds (st.state))
+    {
+      double g = ((double)s->fed_in - rx_next_in (s)) / s->in_spc;
+      if (s->carrier_hz > 0.0)
+        g *= 1.0 + st.doppler_hz / s->carrier_hz;
+      st.chip_phase
+          = dp_fmod_pos (st.chip_phase + g, (double)s->rx[receiver]->code_len);
+    }
+  return st;
 }
 
 size_t
@@ -674,6 +764,8 @@ typedef struct
   uint64_t hist_pos;
   uint64_t searching;      /* v5: 0 or 1, the search fed last period */
   uint64_t search_periods; /* v5: periods the search was fed          */
+  uint64_t fe_out;         /* v9: the front end's output count        */
+  uint64_t fed_in;         /* v9: the input sample status() reports at */
 } async_dsss_pool_extra_t;
 
 /* The ghost rule's history in the blob: each ring's length, then every
@@ -701,6 +793,7 @@ dp_async_dsss_pool_state_bytes (const dp_async_dsss_pool_state_t *s)
              + s->group * sizeof *s->carry + hist_bytes (s);
   for (size_t i = 0; i < s->n_receivers; i++)
     n += dp_async_dsss_receiver_state_bytes (s->rx[i]);
+  n += s->fe ? dp_resamp_state_bytes (s->fe) : 0;
   return n + dp_async_dsss_receiver_state_bytes (s->search);
 }
 
@@ -720,6 +813,8 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
     .hist_pos           = (uint64_t)s->hist_pos,
     .searching          = (uint64_t)(s->searching != 0),
     .search_periods     = s->search_periods,
+    .fe_out             = s->fe_out,
+    .fed_in             = s->fed_in,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   /* The whole buffer, its unused tail zeros (create, reset and every
@@ -737,6 +832,10 @@ dp_async_dsss_pool_get_state (const dp_async_dsss_pool_state_t *s, void *blob)
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_W_CHILD (&_w, dp_async_dsss_receiver, s->rx[i]);
   DP_W_CHILD (&_w, dp_async_dsss_receiver, s->search);
+  /* The front end, when there is one: create fixes whether there is, so
+     the layout is this pool's. */
+  if (s->fe)
+    DP_W_CHILD (&_w, dp_resamp, s->fe);
 }
 
 /* The decode, child by child into the live receivers: a refusal part way
@@ -752,6 +851,7 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_receivers != (uint64_t)s->n_receivers || extra.threads < 0
       || extra.threads > INT_MAX || extra.carry_len >= (uint64_t)s->group
+      || extra.fed_in > extra.samples || (!s->fe && extra.fe_out != 0)
       || extra.searching > 1
       || (s->tlm
           && effective_threads ((int)extra.threads, s->n_receivers) != 1))
@@ -794,6 +894,8 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   for (size_t i = 0; i < s->n_receivers; i++)
     DP_R_CHILD (&_r, dp_async_dsss_receiver, s->rx[i]);
   DP_R_CHILD (&_r, dp_async_dsss_receiver, s->search);
+  if (s->fe)
+    DP_R_CHILD (&_r, dp_resamp, s->fe);
   /* The pool's own: every receiver pooled, the search search-only and
      never holding. */
   for (size_t i = 0; i < n; i++)
@@ -820,6 +922,8 @@ decode_state (dp_async_dsss_pool_state_t *s, const void *blob)
   s->hist_pos           = (size_t)extra.hist_pos;
   s->searching          = extra.searching != 0;
   s->search_periods     = extra.search_periods;
+  s->fe_out             = extra.fe_out;
+  s->fed_in             = extra.fed_in;
   memcpy (s->car_hist, car, n * w * sizeof *s->car_hist);
   memcpy (s->cl_hist, cl, n * w * sizeof *s->cl_hist);
   for (size_t i = 0; i < s->n_receivers; i++)

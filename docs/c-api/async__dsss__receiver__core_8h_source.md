@@ -36,6 +36,7 @@
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/ppe/ppe_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -53,6 +54,26 @@ extern "C"
 
   double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                             size_t code_len);
+
+  typedef struct
+  {
+    int    k;        
+    double g;        
+    double gamma_sq; 
+    size_t blocks;   
+    size_t n_s;      
+    double rho;      
+    double p_w;      
+    double p_miss;   
+    double thr_db;   
+    double sd_hz;    
+  } async_dsss_receiver_fine_t;
+
+  int dp_async_dsss_receiver_fine_design (
+      double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
+      double symbol_rate, int m, size_t refine_segments, double e_hz,
+      double eps_chip, double block_s, double pfa, double p_ho,
+      size_t max_blocks, async_dsss_receiver_fine_t *out);
 #define ASYNC_DSSS_RX_DLL_BN 0.002
 #define ASYNC_DSSS_RX_DLL_SPACING 0.5
   /* The damping of both Dlls this receiver builds, the tracker and the

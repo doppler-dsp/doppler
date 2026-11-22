@@ -162,6 +162,96 @@ adr_size_carrier_lock (dp_async_dsss_receiver_state_t *s, double cn0_dbhz,
   s->car_blk     = b > 0 ? (uint32_t)b : 0u;
 }
 
+/* The Kaiser window PolynomialPhaseEstimator applies (50 dB), at n points:
+   its peak-bin share p = (sum w)^2 / (n sum w^2) and the frequency
+   estimate's variance over the rectangular bound, eta = sum w^2 m^2 (n^3 /
+   12) / (sum w m^2)^2, with m the centred index. */
+static void
+adr_fine_window (size_t n, double *p, double *eta)
+{
+  float *w = dp_xmallocn (n, sizeof *w);
+  dp_kaiser_window (w, n, (float)dp_kaiser_beta_for_sidelobe (50.0));
+  double sw = 0.0, sw2 = 0.0, sw2m2 = 0.0, swm2 = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      const double m = (double)i - 0.5 * (double)(n - 1), wi = (double)w[i];
+      sw += wi;
+      sw2 += wi * wi;
+      sw2m2 += wi * wi * m * m;
+      swm2 += wi * m * m;
+    }
+  free (w);
+  *p   = sw * sw / ((double)n * sw2);
+  *eta = sw2m2 * ((double)n * (double)n * (double)n / 12.0) / (swm2 * swm2);
+}
+
+int
+dp_async_dsss_receiver_fine_design (double cn0_dbhz, double chip_rate,
+                                    size_t code_len, double p_flip,
+                                    double symbol_rate, int m,
+                                    size_t refine_segments, double e_hz,
+                                    double eps_chip, double block_s,
+                                    double pfa, double p_ho, size_t max_blocks,
+                                    async_dsss_receiver_fine_t *out)
+{
+  if (m != 2 || !isfinite (cn0_dbhz) || !(chip_rate > 0.0) || code_len == 0
+      || !(p_flip >= 0.0 && p_flip <= 1.0) || !(symbol_rate > 0.0)
+      || refine_segments == 0 || !(e_hz >= 0.0) || !isfinite (e_hz)
+      || !(eps_chip >= 0.0 && eps_chip < 1.0) || !(block_s > 0.0)
+      || !(pfa > 0.0 && pfa < 1.0) || !(p_ho > 0.0 && p_ho < 1.0))
+    return DP_ERR_INVALID;
+  const double T = (double)code_len / chip_rate;
+  int          k = 0;
+  for (size_t d = 1; d <= refine_segments; d++)
+    if (refine_segments % d == 0 && (double)d / (2.0 * m * T) > e_hz)
+      {
+        k = (int)d;
+        break;
+      }
+  if (!k)
+    return DP_ERR_INVALID;
+  const double gamma = pow (10.0, cn0_dbhz / 10.0) * T;
+  const double rho_r = 1.0 - p_flip / 4.0, kap = 1.0 - p_flip / 3.0;
+  const double x    = e_hz * T / (double)k;
+  const double sinc = x == 0.0 ? 1.0 : sin (M_PI * x) / (M_PI * x);
+  const double g = gamma / (double)k * rho_r * rho_r / kap * (1.0 - eps_chip)
+                   * (1.0 - eps_chip) * sinc * sinc;
+  const double q = T * symbol_rate / (double)k;
+  const double c = 1.0 - q / 3.0, v = (1.0 - 0.4 * q) - c * c;
+  const double gs = c * c * g * g / (4.0 * g + 2.0 + v * g * g);
+  for (size_t d = 1; d <= max_blocks; d++)
+    {
+      const size_t n_s = (size_t)llround ((double)k * (double)d * block_s / T);
+      if (n_s < 4)
+        continue;
+      double pw, eta;
+      adr_fine_window (n_s, &pw, &eta);
+      const double rho = (double)n_s * gs;
+      const double t   = log ((double)n_s / pfa);
+      const double p_w = 0.5 * (double)(n_s - 1) * exp (-pw * rho / 2.0);
+      const double miss
+          = 1.0 - dp_marcum_q (1, sqrt (2.0 * pw * rho), sqrt (2.0 * t));
+      if (p_w + miss <= 1.0 - p_ho)
+        {
+          const double dur = (double)n_s * T / (double)k;
+          out->k           = k;
+          out->g           = g;
+          out->gamma_sq    = gs;
+          out->blocks      = d;
+          out->n_s         = n_s;
+          out->rho         = rho;
+          out->p_w         = p_w;
+          out->p_miss      = miss;
+          out->thr_db
+              = 10.0 * log10 (t) + 10.0 * 0.57721566490153286 / log (10.0);
+          out->sd_hz
+              = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
+          return DP_OK;
+        }
+    }
+  return DP_ERR_INVALID;
+}
+
 double
 dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                    size_t code_len)

@@ -151,6 +151,7 @@
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/ppe/ppe_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -236,6 +237,78 @@ extern "C"
    */
   double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                             size_t code_len);
+
+  /** The fine hand-over's design: the refine's squared pair sums, located by
+   *  PolynomialPhaseEstimator, and the dwell that hands over inside the
+   *  carrier loop's edge with probability `p_ho`. Every field is derived by
+   *  dp_async_dsss_receiver_fine_design() (docs/design/async-dsss-receiver.md,
+   *  "The hand-over: the M-th power of the refine's partial dumps"). */
+  typedef struct
+  {
+    int    k;        /**< sums a code period: the smallest divisor of
+                          refine_segments whose range K/(2MT) covers e. */
+    double g;        /**< one sum's SNR, linear, with every loss.       */
+    double gamma_sq; /**< one squared sum's SNR, linear.                */
+    size_t blocks;   /**< the dwell, refine blocks.                     */
+    size_t n_s;      /**< sums in the dwell.                            */
+    double rho;      /**< the estimate's output SNR, linear: n_s gamma_sq. */
+    double p_w;      /**< a wrong peak, the union bound.                */
+    double p_miss;   /**< the check refuses the right one.              */
+    double thr_db;   /**< the check on snr_db: 10 log10(ln(n_s/pfa)) +
+                          10 gamma_E / ln 10 (the exponential bin's mean
+                          dB under the dB of its mean).                 */
+    double sd_hz;    /**< the estimate's sd, Hz, once divided by M.     */
+  } async_dsss_receiver_fine_t;
+
+  /**
+   * @brief Design the fine hand-over at a design point: K, the dwell and
+   *        its rates.
+   *
+   * One pair sum's SNR is `g = (gamma/K) rho^2/kappa (1 - eps)^2
+   * sinc^2(e T / K)`, with `gamma = C/N0 T` (T a code period), the
+   * replica's `rho^2/kappa` from the code's share of sign-changing
+   * boundaries `p_flip` (`rho = 1 - p/4`, `kappa = 1 - p/3`), the code
+   * error `eps` chips and the carrier error `e` Hz. Squared (M = 2) it is
+   * `gamma_sq = c^2 g^2 / (4 g + 2 + v g^2)`, where a sum straddles a
+   * symbol edge with probability `q = T symbol_rate / K`, `c = 1 - q/3`
+   * and `v = 1 - 0.4 q - c^2`. Over a dwell of `D` refine blocks of
+   * `block_s` seconds the estimate sees `n_s = K D block_s / T` sums at
+   * `rho = n_s gamma_sq`, through PolynomialPhaseEstimator's Kaiser window
+   * (50 dB), whose peak-bin share `p` and variance ratio `eta` are computed
+   * from the window itself. A wrong peak is `(n_s - 1)/2 exp(-p rho/2)`.
+   * The check refuses the right one with `1 - Q1(sqrt(2 p rho),
+   * sqrt(2 ln(n_s/pfa)))`. The dwell is the least `D` at which the two sum
+   * to at most `1 - p_ho`.
+   *
+   * At the 415.1-B-1 floor (C/N0 38.77 dB-Hz, Gold-1023, 3,000 symbols a
+   * second, refine_segments 10, e 3,000 Hz, eps 0.25, blocks of 5.33 ms,
+   * pfa 1e-3) K is 5 and the dwell is 32 blocks at 2.2 GHz and 35 at 2.8
+   * GHz, at p_ho 0.99; 24 / 27 at 0.9 and 39 / 42 at 0.999.
+   *
+   * @param cn0_dbhz         Design C/N0, dB-Hz.
+   * @param chip_rate        Chips a second, > 0.
+   * @param code_len         Chips a code period, > 0.
+   * @param p_flip           The code's share of sign-changing chip
+   *                         boundaries, from 0 to 1.
+   * @param symbol_rate      Data symbols a second, > 0.
+   * @param m                Constellation order; the loss law is M = 2's.
+   * @param refine_segments  The refine Dll's dumps a code period.
+   * @param e_hz             The seed's design carrier error bound, Hz.
+   * @param eps_chip         The design code error, chips, in [0, 1).
+   * @param block_s          One refine block, seconds.
+   * @param pfa              The check's false-alarm rate, in (0, 1).
+   * @param p_ho             The hand-over's probability, in (0, 1).
+   * @param max_blocks       The longest dwell to consider.
+   * @param out              Receives the design.
+   * @return DP_OK; DP_ERR_INVALID for M other than 2, an argument out of
+   *         range, no divisor of refine_segments that covers @p e_hz, or no
+   *         dwell up to @p max_blocks that reaches @p p_ho.
+   */
+  int dp_async_dsss_receiver_fine_design (
+      double cn0_dbhz, double chip_rate, size_t code_len, double p_flip,
+      double symbol_rate, int m, size_t refine_segments, double e_hz,
+      double eps_chip, double block_s, double pfa, double p_ho,
+      size_t max_blocks, async_dsss_receiver_fine_t *out);
   /** The Dll's bn, per epoch whatever the steer rate (the symbol-period aid
    * steers once per symbol and keeps bn per epoch): DsssReceiver's value,
    * narrower than dp_dll_create()'s default 0.01 for noise immunity at the

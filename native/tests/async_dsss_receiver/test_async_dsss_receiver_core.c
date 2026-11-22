@@ -39,6 +39,7 @@
 #include "doppler/correlator/correlator_private.h" /* the search's extra block */
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/gold/gold_core.h" /* the specification Gold-1023 for the Es/N0-floor sweep   */
+#include "doppler/ppe/ppe_core.h" /* the fine hand-over's estimator */
 #include "dp_air_test.h"
 #include "dp_ber_test.h" /* dp_ber_lock_all: the observed-lock window */
 #include "dp_chunk_inv.h"
@@ -1701,6 +1702,90 @@ _test_reacquire_after_switch_off (void)
  * unbroken, past the 0.02 s interval (16 kHz re-locks the loop and 28 kHz
  * also loses code lock, so 20 kHz sits mid-band). Sabotage: give reacquire
  * the both-flags test -> its row red. */
+/* The fine hand-over's design (dp_async_dsss_receiver_fine_design()).
+ * The numbers: at the 415.1-B-1 floor (Gold-1023's 544 of 1,023 boundaries
+ * changing sign, 3,000 symbols a second, refine_segments 10, e 3,000 Hz,
+ * eps 0.25, blocks of 5.33 ms, pfa 1e-3) K is 5 and the dwell is 39 blocks
+ * at 2.2 GHz and 42 at 2.8 at p_ho 0.99, 29 / 32 at 0.9 and 47 / 51 at
+ * 0.999. The measurement: at a design whose sums carry no symbol edge, a
+ * Monte Carlo through PolynomialPhaseEstimator itself, 400 draws of n_s
+ * sums z = sqrt(g) e^{j 2 pi f k} + n (n unit complex Gaussian), squared:
+ * a draw fails if the check refuses (snr_db under thr_db) or the peak is
+ * more than a bin from 2f. The failures stay under (1 - p_ho) plus 3
+ * sigma. M other than 2, and an e no divisor covers, are refused.
+ * Sabotage: the window's beta at the filter-design 50 dB (4.55) in place of
+ * the estimator's (6.85) -> 32 and 35, red on the numbers. */
+static int
+_test_fine_design (void)
+{
+  const double fcs[2] = { 2.2e9, 2.8e9 }, ph[3] = { 0.9, 0.99, 0.999 };
+  const size_t want[2][3] = { { 29, 39, 47 }, { 32, 42, 51 } };
+  for (int f = 0; f < 2; f++)
+    for (int i = 0; i < 3; i++)
+      {
+        async_dsss_receiver_fine_t o;
+        DP_CHECK (dp_async_dsss_receiver_fine_design (
+                      38.77, fcs[f] * 31.0 / 21216.0, 1023, 544.0 / 1023.0,
+                      3000.0, 2, 10, 3000.0, 0.25, 64.0 / 12000.0, 1e-3, ph[i],
+                      400, &o)
+                  == DP_OK);
+        printf ("  fine design: %.1f GHz p_ho %.3f: K %d, %zu blocks, n_s "
+                "%zu, rho %.2f dB, P_w %.1e, P_miss %.1e, thr %.2f dB, sd "
+                "%.3f Hz\n",
+                fcs[f] / 1e9, ph[i], o.k, o.blocks, o.n_s,
+                10.0 * log10 (o.rho), o.p_w, o.p_miss, o.thr_db, o.sd_hz);
+        DP_CHECK (o.k == 5 && o.blocks == want[f][i]);
+      }
+  async_dsss_receiver_fine_t o;
+  DP_CHECK (dp_async_dsss_receiver_fine_design (
+                38.77, 3.2e6, 1023, 0.5, 3000.0, 4, 10, 3000.0, 0.25,
+                64.0 / 12000.0, 1e-3, 0.99, 400, &o)
+            == DP_ERR_INVALID);
+  DP_CHECK (dp_async_dsss_receiver_fine_design (
+                38.77, 3.2e6, 1023, 0.5, 3000.0, 2, 10, 1e6, 0.25,
+                64.0 / 12000.0, 1e-3, 0.99, 400, &o)
+            == DP_ERR_INVALID);
+  /* The Monte Carlo: no symbol edge (a symbol rate far under the sums'),
+     so the model's sum is a tone in Gaussian noise. */
+  const double chip = 2.2e9 * 31.0 / 21216.0, T = 1023.0 / chip;
+  DP_REQUIRE (dp_async_dsss_receiver_fine_design (
+                  38.77, chip, 1023, 544.0 / 1023.0, 1e-6, 2, 10, 3000.0, 0.25,
+                  64.0 / 12000.0, 1e-3, 0.99, 400, &o)
+              == DP_OK);
+  const size_t    n = o.n_s;
+  dp_ppe_state_t *p = dp_ppe_create (n, 0.0);
+  float _Complex *y = malloc (n * sizeof *y);
+  DP_REQUIRE (p && y);
+  const double f   = 0.7 * 3000.0 * T / (double)o.k; /* cycles a sum */
+  const double amp = sqrt (o.g);
+  uint32_t     st  = 3240u;
+  int          bad = 0;
+  const int    nd  = 400;
+  for (int d = 0; d < nd; d++)
+    {
+      for (size_t k = 0; k < n; k++)
+        {
+          const double ph = 2.0 * M_PI * f * (double)k;
+          const float _Complex z
+              = (float _Complex) (amp * cos (ph) + I * amp * sin (ph))
+                + dp_cgauss (&st);
+          y[k] = z * z;
+        }
+      const ppe_result_t r  = dp_ppe_estimate (p, y, n);
+      double             df = r.freq_norm - 2.0 * f;
+      df -= floor (df + 0.5);
+      bad += r.snr_db < o.thr_db || fabs (df) * (double)n > 1.0;
+    }
+  const double fail = (double)bad / nd;
+  printf ("  fine design, Monte Carlo: %zu blocks, %zu sums, %d of %d "
+          "failed (designed %.1e)\n",
+          o.blocks, n, bad, nd, o.p_w + o.p_miss);
+  DP_CHECK (fail <= 0.01 + 3.0 * sqrt (0.01 * 0.99 / nd));
+  free (y);
+  dp_ppe_destroy (p);
+  return 0;
+}
+
 /* The carrier children's configuration is a reject key. A receiver's blob
  * restores into its twin (the control); one field of the source's carrier
  * changed through carrier_nda's own setters (so the child itself is a valid
@@ -6070,6 +6155,7 @@ main (void)
   (void)_test_reacquire_is_symbol_lock_alone ();
   DP_CHECK (_test_coast_runs_on_the_integrator () == 0);
   DP_CHECK (_test_carrier_config_is_a_reject_key () == 0);
+  DP_CHECK (_test_fine_design () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_configure_chain_raw_keeps_the_phase ();

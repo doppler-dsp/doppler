@@ -481,7 +481,13 @@ extern "C"
   /**
    * @brief Create an NDA carrier loop instance.
    *
-   * @param bn              Loop noise bandwidth (default 0.01).
+   * @param bn              Loop noise bandwidth (default 0.01), of the
+ *                        closed loop given a unit-slope detector (see
+ *                        LoopFilter). The detector's slope is 2 per radian
+ *                        at every M and level (doppler#3224), so the
+ *                        delivered bandwidth is 5/3 of `bn` at damping
+ *                        0.707 until that is fixed; it also falls with the
+ *                        SNR per arm.
    * @param zeta            Damping factor (default 0.707).
    * @param init_norm_freq  Seed carrier frequency, cycles/sample (default
    * 0.0).

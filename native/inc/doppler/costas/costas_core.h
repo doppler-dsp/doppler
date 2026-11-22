@@ -243,7 +243,12 @@ costas_update(dp_costas_state_t *s, float _Complex P)
 /**
  * @brief Create a Costas instance.
  *
- * @param bn              Loop noise bandwidth (default 0.05).
+ * @param bn              Loop noise bandwidth (default 0.05), of the
+ *                        closed loop given a unit-slope detector (see
+ *                        LoopFilter). The detector's slope is 1 per radian
+ *                        at every signal level and falls below 1 as the SNR
+ *                        per symbol falls (about 0.6 at 0 dB for BPSK), so
+ *                        the delivered loop is narrower at low SNR.
  * @param zeta            Damping factor (default 0.707).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample (default 0.0).
  * @param tsamps          Samples per symbol (default 64).

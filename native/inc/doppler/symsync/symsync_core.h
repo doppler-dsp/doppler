@@ -434,7 +434,12 @@ extern "C"
    *
    * @param sps  Nominal input samples per symbol (default: 4).
    * @param bn  Loop noise bandwidth, normalized to the symbol rate
-   *            (default: 0.01).
+   *            (default: 0.01), of the closed loop given a unit-slope
+   *            detector (see LoopFilter). The detector is divided by a
+   *            running power average, not by its own slope, so the
+   *            delivered bandwidth is 0.54 times `bn` at roll-off 0.1 and
+   *            1.99 times at 0.9 for Gardner (doppler#3238), and DTTL's
+   *            slope goes as the inverse of the amplitude.
    * @param zeta  Loop damping factor (default: 0.707).
    * @param order  Enum index; 0=linear…2=cubic.
    * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).

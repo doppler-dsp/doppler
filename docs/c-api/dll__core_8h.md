@@ -1821,6 +1821,18 @@ int dp_dll_set_steer_telemetry (
 **Returns:**
 
 DP\_OK, or DP\_ERR\_INVALID (an overlong prefix or a full probe table), the set then detached. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> from doppler.telemetry import Telemetry
+>>> code = np.random.default_rng(1).integers(0, 2, 31).astype(np.uint8)
+>>> tlm = Telemetry(1 << 12)
+>>> d = Dll(code=code, sps=2)
+>>> d.set_steer_telemetry(tlm, "code.steer")
+>>> sorted(n.split(".")[-1] for n in tlm.probe_names)
+['aid', 'ctrl', 'e', 'integ', 'prop']
+```
+ 
 
 
 

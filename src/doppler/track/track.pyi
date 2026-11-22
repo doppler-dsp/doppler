@@ -1929,6 +1929,59 @@ class Dll:
 
         """
 
+    def set_steer_telemetry(
+        self,
+        tlm: object | None,
+        prefix: str,
+        decim: int = 1,
+    ) -> None:
+        """Attach (or detach) the per-steer telemetry set: the loop filter's
+        outputs at each steer of the symbol-period aid.
+
+        dp_dll_set_telemetry()'s probes flush once a code epoch, but with the
+        symbol-period aid on (dp_dll_set_symbol_period()) the loop steers once
+        a symbol window, so those probes hold the last steer. This set is
+        emitted at the steer itself, in aid_look(): "<prefix>.e" (the
+        discriminator), ".prop" (kp * e), ".integ" (the filter's integrator),
+        ".ctrl" (what the steer adds to the nominal code rate, code periods a
+        sample, the rate aid excluded) and ".aid" (the rate aid,
+        dp_dll_set_rate_aid()). A held loop (dp_dll_set_coast()) still emits:
+        its discriminator reads, and its filter outputs are the held ones. With
+        the aid off nothing is emitted: the steer is the epoch's, and the epoch
+        set shows it. Its own context, so a composer that does not ask for it
+        (the despreader) registers and emits nothing more. Observation only: no
+        decision reads it.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context, or NULL to detach this set.
+        prefix : str
+            Probe-name prefix, e.g. "rx.code.steer".
+        decim : int, default 1
+            Emit every decim-th steer; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_steer_telemetry failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> from doppler.telemetry import Telemetry
+        >>> code = np.random.default_rng(1).integers(0, 2, 31).astype(np.uint8)
+        >>> tlm = Telemetry(1 << 12)
+        >>> d = Dll(code=code, sps=2)
+        >>> d.set_steer_telemetry(tlm, "code.steer")
+        >>> sorted(n.split(".")[-1] for n in tlm.probe_names)
+        ['aid', 'ctrl', 'e', 'integ', 'prop']
+
+        """
+
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code
         phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is

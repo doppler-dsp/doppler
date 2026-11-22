@@ -78,6 +78,20 @@ params = [
   { name = "decim", type = "uint32_t", default = "1" },
 ]
 
+# The per-steer set (d9041d731): the loop filter's terms once a steer,
+# its own context. Bound so #2022's mutator gate can probe it: its value is
+# a borrowed handle, not state.
+[[dll.methods]]
+name = "set_steer_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", retain = true, header = "doppler/dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
 [[dll.methods]]
 name = "configure"
 doc = "Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate. Raises ValueError, changing nothing, when (bn, zeta) is outside the loop filter's domain: bn >= 0 and zeta > 0, both finite, whose loop gains come out finite."

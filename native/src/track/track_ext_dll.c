@@ -17,7 +17,8 @@ typedef struct
 {
   PyObject_HEAD dp_dll_state_t *handle;
   jm_inflight_t _jm_inflight; /* gh-2272: GIL-free calls running */
-  PyObject     *_jm_retain_set_telemetry_tlm; /* keeps tlm's owner alive */
+  PyObject     *_jm_retain_set_telemetry_tlm;   /* keeps tlm's owner alive */
+  PyObject *_jm_retain_set_steer_telemetry_tlm; /* keeps tlm's owner alive */
 } DllObject;
 
 static void
@@ -27,6 +28,7 @@ DllObj_dealloc (DllObject *self)
     dp_dll_destroy (self->handle);
   jm_inflight_free (&self->_jm_inflight);
   Py_XDECREF (self->_jm_retain_set_telemetry_tlm);
+  Py_XDECREF (self->_jm_retain_set_steer_telemetry_tlm);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -360,6 +362,78 @@ DllObj_set_telemetry (DllObject *self, PyObject *args, PyObject *kwds)
   if (tlm_obj != Py_None)
     Py_INCREF (tlm_obj);
   Py_XSETREF (self->_jm_retain_set_telemetry_tlm,
+              tlm_obj != Py_None ? tlm_obj : NULL);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_set_steer_telemetry (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject    *tlm_obj   = Py_None;
+  const char  *prefix    = NULL;
+  long long    decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|L", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return NULL;
+              PyErr_Clear ();
+              PyErr_Format (PyExc_TypeError,
+                            "tlm must be the doppler.telemetry.dp_tlm capsule"
+                            " or an object exposing it as ._capsule,"
+                            " not %s",
+                            Py_TYPE (tlm_obj)->tp_name);
+              return NULL;
+            }
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  if (decim_raw < 0 || decim_raw > (long long)UINT32_MAX)
+    {
+      PyErr_Format (PyExc_OverflowError,
+                    "decim: %lld is out of range for uint32_t [%lld, %lld]",
+                    (long long)decim_raw, (long long)0, (long long)UINT32_MAX);
+      return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  int _rc = dp_dll_set_steer_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_steer_telemetry failed", (long long)_rc);
+      return NULL;
+    }
+  /* retain: the kernel keeps `tlm`, so this object keeps its owner
+     until the next call replaces it or None detaches it. */
+  if (tlm_obj != Py_None)
+    Py_INCREF (tlm_obj);
+  Py_XSETREF (self->_jm_retain_set_steer_telemetry_tlm,
               tlm_obj != Py_None ? tlm_obj : NULL);
   Py_RETURN_NONE;
 }
@@ -1081,6 +1155,55 @@ static PyMethodDef DllObj_methods[] = {
     ">>> recs = tlm.read()   # seven records per code epoch\n"
     ">>> len(recs) > 0 and len(recs) % 7 == 0\n"
     "True\n" },
+  { "set_steer_telemetry", (PyCFunction)(void *)DllObj_set_steer_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_steer_telemetry(tlm, prefix, decim) -> None\n"
+    "\n"
+    "Attach (or detach) the per-steer telemetry set: the loop filter's\n"
+    "outputs at each steer of the symbol-period aid.\n"
+    "\n"
+    "dp_dll_set_telemetry()'s probes flush once a code epoch, but with the\n"
+    "symbol-period aid on (dp_dll_set_symbol_period()) the loop steers once\n"
+    "a symbol window, so those probes hold the last steer. This set is\n"
+    "emitted at the steer itself, in aid_look(): \"<prefix>.e\" (the\n"
+    "discriminator), \".prop\" (kp * e), \".integ\" (the filter's "
+    "integrator),\n"
+    "\".ctrl\" (what the steer adds to the nominal code rate, code periods a\n"
+    "sample, the rate aid excluded) and \".aid\" (the rate aid,\n"
+    "dp_dll_set_rate_aid()). A held loop (dp_dll_set_coast()) still emits:\n"
+    "its discriminator reads, and its filter outputs are the held ones. With\n"
+    "the aid off nothing is emitted: the steer is the epoch's, and the epoch\n"
+    "set shows it. Its own context, so a composer that does not ask for it\n"
+    "(the despreader) registers and emits nothing more. Observation only: no\n"
+    "decision reads it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : object | None\n"
+    "    Telemetry context, or NULL to detach this set.\n"
+    "prefix : str\n"
+    "    Probe-name prefix, e.g. \"rx.code.steer\".\n"
+    "decim : int, default 1\n"
+    "    Emit every decim-th steer; >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_steer_telemetry failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> code = np.random.default_rng(1).integers(0, 2, 31).astype(np.uint8)\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> d = Dll(code=code, sps=2)\n"
+    ">>> d.set_steer_telemetry(tlm, \"code.steer\")\n"
+    ">>> sorted(n.split(\".\")[-1] for n in tlm.probe_names)\n"
+    "['aid', 'ctrl', 'e', 'integ', 'prop']\n" },
   { "configure", (PyCFunction)(void *)DllObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta) -> None\n"

@@ -81,10 +81,12 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  double | [**dp\_carrier\_nda\_get\_bn**](#function-dp_carrier_nda_get_bn) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Loop noise bandwidth currently in use._  |
 |  double | [**dp\_carrier\_nda\_get\_last\_error**](#function-dp_carrier_nda_get_last_error) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Last phase error from the M-th-power discriminator._  |
 |  double | [**dp\_carrier\_nda\_get\_lock**](#function-dp_carrier_nda_get_lock) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Lock-signal EMA: Re((z/\|z\|)^M) smoothed per sample by CARRIER\_NDA\_LOCK\_ALPHA._  |
+|  [**dp\_lockdet\_rule\_t**](structdp__lockdet__rule__t.md) | [**dp\_carrier\_nda\_get\_lock\_rule**](#function-dp_carrier_nda_get_lock_rule) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_The lock decision's rule (thresholds and verify counts)._  |
 |  int | [**dp\_carrier\_nda\_get\_locked**](#function-dp_carrier_nda_get_locked) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_carrier\_nda\_configure\_lock)._  |
 |  int | [**dp\_carrier\_nda\_get\_m**](#function-dp_carrier_nda_get_m) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Constellation order the discriminator strips._  |
 |  int | [**dp\_carrier\_nda\_get\_n**](#function-dp_carrier_nda_get_n) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Arm-window divisor: the moving average spans sps / n samples._  |
 |  double | [**dp\_carrier\_nda\_get\_nco\_freq**](#function-dp_carrier_nda_get_nco_freq) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Instantaneous NCO frequency command = centre + full loop-filter output (integ + kp\*e), cycles/sample. Mean rides a ramp with no lag; variance is the loop stress. See the impl for the estimator-vs-command distinction._  |
+|  double | [**dp\_carrier\_nda\_get\_nco\_phase\_ahead**](#function-dp_carrier_nda_get_nco_phase_ahead) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, size\_t ahead) <br>_The carrier phase the NCO will apply_ `ahead` _samples from now, with no loop update in between._ |
 |  double | [**dp\_carrier\_nda\_get\_norm\_freq**](#function-dp_carrier_nda_get_norm_freq) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Tracked carrier frequency: the NCO centre plus the loop's integrated correction (integrator only, smoothed), spread over the update period._  |
 |  size\_t | [**dp\_carrier\_nda\_get\_sps**](#function-dp_carrier_nda_get_sps) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state) <br>_Samples per symbol the arm window is sized from._  |
 |  void | [**dp\_carrier\_nda\_get\_state**](#function-dp_carrier_nda_get_state) (const [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
@@ -739,6 +741,40 @@ Value from -1 to 1; ~1 at lock, zero-mean (sd CARRIER\_NDA\_LOCK\_NORM\_SD) with
 
 
 
+### function dp\_carrier\_nda\_get\_lock\_rule 
+
+_The lock decision's rule (thresholds and verify counts)._ 
+```C++
+dp_lockdet_rule_t dp_carrier_nda_get_lock_rule (
+    const dp_carrier_nda_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The rule the lock detector holds. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_carrier\_nda\_get\_locked 
 
 _Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see dp\_carrier\_nda\_configure\_lock)._ 
@@ -864,6 +900,45 @@ double dp_carrier_nda_get_nco_freq (
 **Returns:**
 
 Frequency in cycles/sample; the seed frequency until the loop has run. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_carrier\_nda\_get\_nco\_phase\_ahead 
+
+_The carrier phase the NCO will apply_ `ahead` _samples from now, with no loop update in between._
+```C++
+double dp_carrier_nda_get_nco_phase_ahead (
+    const dp_carrier_nda_state_t * state,
+    size_t ahead
+) 
+```
+
+
+
+[**carrier\_nda\_wipeoff()**](carrier__nda__core_8h.md#function-carrier_nda_wipeoff) advances the NCO by its centre increment plus the loop's control, both fixed between updates, so `ahead` samples on the phase word is that sum `ahead` times, in the NCO's own 32-bit arithmetic: exact for every sample before the next update. A composition holding samples not yet wiped asks this for the phase at the newest one.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `ahead` Samples from the next one to be wiped (0 = that one). 
+
+
+
+**Returns:**
+
+Phase in cycles, in [0, 1). 
 
 
 

@@ -956,6 +956,30 @@ carrier_nda_loop_error (double pe)
    *  @return The threshold set_block_lock() derived, or 0. */
   double dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state);
 
+  /** @brief The lock decision's rule (thresholds and verify counts).
+   *  @param state  Must be non-NULL.
+   *  @return The rule the lock detector holds. */
+  dp_lockdet_rule_t
+  dp_carrier_nda_get_lock_rule (const dp_carrier_nda_state_t *state);
+
+  /**
+   * @brief The carrier phase the NCO will apply @p ahead samples from now,
+   *        with no loop update in between.
+   *
+   * carrier_nda_wipeoff() advances the NCO by its centre increment plus
+   * the loop's control, both fixed between updates, so @p ahead samples on
+   * the phase word is that sum @p ahead times, in the NCO's own 32-bit
+   * arithmetic: exact for every sample before the next update. A
+   * composition holding samples not yet wiped asks this for the phase at
+   * the newest one.
+   *
+   * @param state  Must be non-NULL.
+   * @param ahead  Samples from the next one to be wiped (0 = that one).
+   * @return Phase in cycles, in [0, 1).
+   */
+  double dp_carrier_nda_get_nco_phase_ahead (const dp_carrier_nda_state_t *state,
+                                             size_t ahead);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop
  * exactly.

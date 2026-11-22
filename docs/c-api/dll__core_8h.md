@@ -94,6 +94,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  size\_t | [**dp\_dll\_get\_segments**](#function-dp_dll_get_segments) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Partial correlations per code period._  |
 |  void | [**dp\_dll\_get\_state**](#function-dp_dll_get_state) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, void \* blob) <br>_Serialize the loop state into_ `blob` _._ |
 |  size\_t | [**dp\_dll\_get\_symbol\_window**](#function-dp_dll_get_symbol_window) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
+|  double | [**dp\_dll\_get\_window\_noise**](#function-dp_dll_get_window_noise) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The noise power of one window sum (_ [_**dp\_dll\_get\_window\_sum()**_](dll__core_8h.md#function-dp_dll_get_window_sum) _), from the offset tap's estimate._ |
 |  float \_Complex | [**dp\_dll\_get\_window\_sum**](#function-dp_dll_get_window_sum) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_The prompt's coherent sum over the code-period window the last epoch's look-back picked._  |
 |  void | [**dp\_dll\_hold\_here**](#function-dp_dll_hold_here) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
 |  int | [**dp\_dll\_init**](#function-dp_dll_init) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, double sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
@@ -1210,6 +1211,49 @@ size_t dp_dll_get_symbol_window (
 **Returns:**
 
 Window length L in partials, or 0 with the aid off. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_get\_window\_noise 
+
+_The noise power of one window sum (_ [_**dp\_dll\_get\_window\_sum()**_](dll__core_8h.md#function-dp_dll_get_window_sum) _), from the offset tap's estimate._
+```C++
+double dp_dll_get_window_noise (
+    const dp_dll_state_t * state
+) 
+```
+
+
+
+[**dp\_dll\_get\_noise\_est()**](dll__core_8h.md#function-dp_dll_get_noise_est) is on a look's scale: a look is one partial normalized by its nominal samples (`seg_norm = sf * sps / segments`), or with the symbol-period aid on, the sum of `aid_len` such partials. For noise white at the sample rate a partial's offset power is `s2 / seg_norm` (`s2` a sample's), so the estimate is `L s2 / seg_norm`, `L` the partials a look sums (`aid_len` under the aid, else 1). The window sum is unnormalized over `sf * sps` samples, so its noise power is `sf sps s2`, which is the estimate times `sf * sps * seg_norm / L`. That is what this returns: a composer that divides by the signal's power on the window sum's scale (carrier\_nda's unit denominator) subtracts it there.
+
+
+The offset code's cross-correlation with the signal adds at most its Gold sidelobe's power, (65/1023)^2 of the signal's for Gold-1023.
+
+
+**The modes it holds for**, each pinned on noise against the truth (test\_dll\_core.c, window noise): one segment (a look an epoch, `L` 1); several segments with the symbol-period aid off (a look a partial, `L` 1); several with the aid on (a look sums `aid_len` partials, `L` aid\_len). It reads the fields of the mode in force, so a call after [**dp\_dll\_set\_symbol\_period()**](dll__core_8h.md#function-dp_dll_set_symbol_period) reads the new `L` against an EMA formed under the old one until the estimate refreshes (about `1 / alpha` looks). It reads the code loop's nominal partial length, so it holds for a loop at its nominal rate: a code loop free-running on noise drifts, and a partial then holds other than `seg_norm` samples.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The noise power on the window sum's scale; 0 when the estimate is (after create, reset or a lock re-tune). 
 
 
 

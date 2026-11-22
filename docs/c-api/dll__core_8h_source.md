@@ -369,6 +369,8 @@ double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 
 double dp_dll_get_noise_est(const dp_dll_state_t *state);
 
+double dp_dll_get_window_noise(const dp_dll_state_t *state);
+
 void dp_dll_tlm_flush(const dp_dll_state_t *s);
 
 int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);

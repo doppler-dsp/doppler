@@ -210,16 +210,12 @@ dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
  * the filter (create, set_bn) goes through dp_loop_filter_configure's domain
  * check, so a zeroed filter is a forgery that freezes the loop, not an
  * unseeded embedding. */
-/* The block lock's threshold on R at a Pfa: (R + 1)/2 is Beta(len/2,
-   len/2) on noise, and R > r is X/Y > (1 + r)/(1 - r) with X = sum(I^2), Y =
-   sum(Q^2) chi-square on len degrees each, so r = (g - 1)/(g + 1) with g the
-   F(len, len) upper point. One home for the derivation: set_block_lock
-   sets it and the state check recomputes it. */
+/* The block lock's threshold on R at a Pfa, dp_det_ratio_threshold()'s:
+   set_block_lock sets it and the state check recomputes it. */
 static double
 carrier_nda_block_thresh (uint32_t len, double pfa)
 {
-  const double g = dp_det_threshold_f (pfa, (int)len);
-  return (g - 1.0) / (g + 1.0);
+  return dp_det_ratio_threshold (pfa, (int)len);
 }
 
 static int
@@ -517,4 +513,21 @@ double
 dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state)
 {
   return state->blk_thr;
+}
+
+dp_lockdet_rule_t
+dp_carrier_nda_get_lock_rule (const dp_carrier_nda_state_t *state)
+{
+  return dp_lockdet_rule (&state->lockdet);
+}
+
+double
+dp_carrier_nda_get_nco_phase_ahead (const dp_carrier_nda_state_t *state,
+                                    size_t                        ahead)
+{
+  /* Unsigned wrap is the NCO's modulus; the increment is the one
+     lo_step_ctrl() adds each sample until the next steer. */
+  const uint32_t inc
+      = state->nco.phase_inc + nco_norm_freq_to_inc (state->ctl_cyc);
+  return nco_word_to_norm (state->nco.phase + (uint32_t)ahead * inc);
 }

@@ -1724,3 +1724,15 @@ dp_dll_get_noise_est (const dp_dll_state_t *state)
 {
   return state->noise_ema;
 }
+
+double
+dp_dll_get_window_noise (const dp_dll_state_t *state)
+{
+  /* The look's partials: aid_len under the symbol-period aid (segmented
+     only; one segment looks once an epoch), else one. */
+  const double looks = state->segments > 1 && state->sym_period > 0.0
+                           ? (double)state->aid_len
+                           : 1.0;
+  return state->noise_ema * (double)state->sf * state->sps * state->seg_norm
+         / looks;
+}

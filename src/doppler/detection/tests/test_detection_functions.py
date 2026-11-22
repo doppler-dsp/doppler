@@ -128,6 +128,42 @@ class TestDetectionFunctions(unittest.TestCase):
         else:
             self.assertIsInstance(result, float)
 
+    def test_det_ratio_threshold_contract(self):
+        try:
+            result = module.det_ratio_threshold(pfa=1.0, n=1)
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, float)
+
+    def test_det_ratio_pd_contract(self):
+        try:
+            result = module.det_ratio_pd(
+                n=1,
+                pfa=1.0,
+                gamma=1.0,
+                phase_var=1.0,
+            )
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, float)
+
+    def test_det_ratio_block_len_contract(self):
+        try:
+            result = module.det_ratio_block_len(
+                gamma=1.0,
+                phase_var=1.0,
+                pfa=1.0,
+                pd=1.0,
+                max_n=1,
+            )
+        except (ValueError, RuntimeError, OverflowError) as e:
+            self.skipTest(f"the kernel refused the synthetic arguments: {e}")
+        else:
+            self.assertIsInstance(result, int)
+            self.assertNotIsInstance(result, bool)
+
     def test_det_pd_noncoherent_contract(self):
         try:
             result = module.det_pd_noncoherent(

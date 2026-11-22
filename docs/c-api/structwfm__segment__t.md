@@ -197,7 +197,7 @@ size_t wfm_segment_t::num_samples;
 
 
 
-Segment on-time in samples, before the trailing gap: 0 derives it from the sources, or 1024 when they set none. A finite data source sets its frames, a lone dsss burst one burst, and a stream runs to its end. A count beside a finite data source or a lone dsss burst is refused, since they set the length; give repeats for more. 
+Segment on-time in samples, before the trailing gap: 0 derives it from the sources, or 1024 when they set none. A finite data source sets its frames, a lone dsss burst one burst, and a stream runs to its end. A count beside a finite data source or a lone dsss burst is refused unless it is the length they set, which is what a Composer's segments read back; give repeats for more. 
 
 
         

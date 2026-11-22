@@ -826,7 +826,18 @@ dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
   for (size_t i = 0; i < n_segs; i++)
     if ((segs[i].num_samples || (segs[i].ranged & WFM_RANGE_NUM_SAMPLES))
         && dp_wfm_segment_sets_length (&segs[i]))
-      return dp_wfm_why_count_derived;
+      {
+        /* The length they derive is not a count that would be dropped: it
+           is what Composer.segments reads back, and a copy of those
+           segments must compose. Only a count that is not that length (or a
+           range) is refused. */
+        wfm_segment_t derived = segs[i];
+        derived.num_samples   = 0;
+        derived.ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
+        if ((segs[i].ranged & WFM_RANGE_NUM_SAMPLES)
+            || segs[i].num_samples != resolved_num_samples (&derived))
+          return dp_wfm_why_count_derived;
+      }
   return NULL;
 }
 

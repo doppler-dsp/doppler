@@ -60,7 +60,7 @@ _Second-order proportional-integral loop filter — the shared engine of every t
 | Type | Name |
 | ---: | :--- |
 |  int | [**dp\_loop\_filter\_configure**](#function-dp_loop_filter_configure) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state, double bn, double zeta, double t) <br>_Retune the loop gains_ `kp` _/_`ki` _for a new (bn, zeta, t) without disturbing the integrator._ |
-|  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a loop\_filter instance, validating its arguments._  |
+|  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* | [**dp\_loop\_filter\_create**](#function-dp_loop_filter_create) (double bn, double zeta, double t) <br>_Create a second-order loop filter whose closed loop has noise bandwidth_ `bn` _, for a loop whose rest has unit gain._ |
 |  void | [**dp\_loop\_filter\_destroy**](#function-dp_loop_filter_destroy) ([**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* state) <br>_Destroy a loop\_filter instance and release all memory._  |
 |  int | [**dp\_loop\_filter\_embedded\_ok**](#function-dp_loop_filter_embedded_ok) (const [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) \* s) <br>_Whether a filter EMBEDDED by value is one its owner could hold: the all-zero struct of an embedding not yet seeded, or one_ [_**dp\_loop\_filter\_state\_ok()**_](loop__filter__core_8h.md#function-dp_loop_filter_state_ok) _accepts._ |
 |  int | [**dp\_loop\_filter\_fll\_bn\_ok**](#function-dp_loop_filter_fll_bn_ok) (double bn\_fll) <br>_The domain of a first-order FLL-assist bandwidth:_ `bn_fll >= 0` _with a finite gain_`4 * bn_fll` _._ |
@@ -121,7 +121,7 @@ An error `e` in, a control value out: `control = integ + kp*e`, with the integra
 `bn` is the noise bandwidth of the CLOSED loop, in cycles per sample, and `t` is the update period in samples — so a loop ticking once per update has a bandwidth of `bn * t` cycles per update, and only that PRODUCT matters. Measured (`native/validation/loop_filter_noise_bw.c`), the delivered bandwidth is always slightly **wide**, never narrow, by a fractional excess with a closed form:  At `zeta` = 0.707 that is `bn*t <= 0.0112` for 1% and `<= 0.0552` for 5%; heavier damping is more forgiving (`0.0450` for 1% at zeta = 2.0). Every configuration shipped in this library sits inside the 1% figure. Being wide rather than narrow is the safe direction — a caller sizing jitter or settling off `bn` is conservative.
 
 
-The promise assumes the REST of the loop has unit gain (`Kd*K0 = 1`): a discriminator whose slope is 4 delivers a loop four times wider than the `bn` it was handed, and nothing here can detect that. See docs/design/loop-filter.md §3.
+The promise holds only when the rest of the loop has unit gain, which this filter cannot see. What the caller must deliver, and what happens when it does not, is **the contract**, stated once on [**dp\_loop\_filter\_create()**](loop__filter__core_8h.md#function-dp_loop_filter_create) (and so on the Python class's docstring): the detector's slope at lock is 1, the actuator's gain is 1, and a gain K scales the bandwidth by `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)`. See also docs/design/loop-filter.md section 3.
 
 
 Settling follows from the same number: a step settles to +-5% within about 2.3 loop constants (`2.3/bn` updates) at zeta = 0.707, so the `5/bn` rule used throughout this library is comfortable rather than tight.
@@ -209,7 +209,7 @@ True
 
 ### function dp\_loop\_filter\_create 
 
-_Create a loop\_filter instance, validating its arguments._ 
+_Create a second-order loop filter whose closed loop has noise bandwidth_ `bn` _, for a loop whose rest has unit gain._
 ```C++
 dp_loop_filter_state_t * dp_loop_filter_create (
     double bn,
@@ -217,6 +217,33 @@ dp_loop_filter_state_t * dp_loop_filter_create (
     double t
 ) 
 ```
+
+
+
+#### The contract
+
+
+
+The closed loop's noise bandwidth is `bn` cycles per sample, a fixed function of `kp` and `ki`, provided the rest of the loop has unit gain. The filter cannot see the rest of the loop, so each of these is the caller's to deliver, and each is checkable:
+
+
+
+* The error detector's slope at lock is 1 per unit of the filter's error input, open loop and noise free. The filter takes the error in the unit the control is applied in, per update: the product of the detector's slope and the actuator's gain, in the units they are given, is 1. A detector that returns radians and an oscillator that takes cycles need the factor of 2\*pi once, after the filter (as Costas converts the control to cycles per sample), never inside the loop gain and never twice.
+* The actuator applies the control with unit gain, once per update, `t` samples apart.
+* The loop is tracking, inside the detector's linear region.
+* The error reaches the filter and the control reaches the actuator within the same update: no extra delay (every update of delay widens the loop; docs/design/loop-filter.md sections 11 and 12).
+
+
+
+
+A loop gain K other than 1 (the detector's slope times the actuator's gain) scales the natural frequency and the damping each by the square root of K, so the noise bandwidth becomes `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` times `bn`: 5/3 at K = 2 and 3 at K = 4 for zeta = 0.707, and 2/3 at K = 0.5. A detector whose slope is 2 is the first instance found (doppler#3224). A detector whose slope is not 1, or rides on signal level or SNR, is scaled to unit slope before the filter, by dividing by its own slope; a slope that rides on level makes the bandwidth ride on level.
+
+
+Held by `native/validation/loop_filter_noise_bw.c` (the promise), `test_loop_filter_contract.py` (the gain formula, and these sentences on every face) and the detector matrix of doppler#3229 (the callers' side).
+
+
+
+#### Arguments
 
 
 
@@ -228,7 +255,7 @@ This is the untrusted boundary — the Python constructor passes a caller's arbi
 **Parameters:**
 
 
-* `bn` Loop noise bandwidth, normalized cycles/sample; &gt;= 0 and finite (default 0.01). 
+* `bn` Loop noise bandwidth, normalized cycles/sample, of the closed loop given a unit-slope detector (see the contract); &gt;= 0 and finite (default 0.01). 
 * `zeta` Damping factor; &gt; 0 and finite (default 0.707). 
 * `t` Update period in samples; &gt; 0 and finite (default 1.0). 
 
@@ -244,6 +271,7 @@ Heap-allocated state, or NULL if any argument is outside the domain above or on 
 **Note:**
 
 Caller must call [**dp\_loop\_filter\_destroy()**](loop__filter__core_8h.md#function-dp_loop_filter_destroy) when done. 
+
 
 
 

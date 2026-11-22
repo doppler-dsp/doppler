@@ -26,10 +26,13 @@
  * wide rather than narrow is the safe direction — a caller sizing jitter or
  * settling off @c bn is conservative.
  *
- * The promise assumes the REST of the loop has unit gain (`Kd*K0 = 1`): a
- * discriminator whose slope is 4 delivers a loop four times wider than the
- * @c bn it was handed, and nothing here can detect that. See
- * docs/design/loop-filter.md §3.
+ * The promise holds only when the rest of the loop has unit gain, which this
+ * filter cannot see. What the caller must deliver, and what happens when it
+ * does not, is **the contract**, stated once on dp_loop_filter_create() (and
+ * so on the Python class's docstring): the detector's slope at lock is 1, the
+ * actuator's gain is 1, and a gain K scales the bandwidth by
+ * `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)`. See also docs/design/loop-filter.md
+ * section 3.
  *
  * Settling follows from the same number: a step settles to +-5% within about
  * 2.3 loop constants (`2.3/bn` updates) at zeta = 0.707, so the `5/bn` rule
@@ -197,7 +200,46 @@ extern "C"
   int dp_loop_filter_embedded_ok(const dp_loop_filter_state_t *s);
 
   /**
-   * @brief Create a loop_filter instance, validating its arguments.
+   * @brief Create a second-order loop filter whose closed loop has noise
+   *        bandwidth `bn`, for a loop whose rest has unit gain.
+   *
+   * ### The contract
+   *
+   * The closed loop's noise bandwidth is `bn` cycles per sample, a fixed
+   * function of `kp` and `ki`, provided the rest of the loop has unit gain.
+   * The filter cannot see the rest of the loop, so each of these is the
+   * caller's to deliver, and each is checkable:
+   *
+   * 1. The error detector's slope at lock is 1 per unit of the filter's
+   *    error input, open loop and noise free. The filter takes the error in
+   *    the unit the control is applied in, per update: the product of the
+   *    detector's slope and the actuator's gain, in the units they are
+   *    given, is 1. A detector that returns radians and an oscillator that
+   *    takes cycles need the factor of 2*pi once, after the filter (as
+   *    Costas converts the control to cycles per sample), never inside the
+   *    loop gain and never twice.
+   * 2. The actuator applies the control with unit gain, once per update,
+   *    `t` samples apart.
+   * 3. The loop is tracking, inside the detector's linear region.
+   * 4. The error reaches the filter and the control reaches the actuator
+   *    within the same update: no extra delay (every update of delay widens
+   *    the loop; docs/design/loop-filter.md sections 11 and 12).
+   *
+   * A loop gain K other than 1 (the detector's slope times the actuator's
+   * gain) scales the natural frequency and the damping each by the square
+   * root of K, so the noise bandwidth becomes `(4*K*zeta^2 + 1) /
+   * (4*zeta^2 + 1)` times `bn`: 5/3 at K = 2 and 3 at K = 4 for zeta =
+   * 0.707, and 2/3 at K = 0.5. A detector whose slope is 2 is the first
+   * instance found (doppler#3224). A detector whose slope is not 1, or rides
+   * on signal level or SNR, is scaled to unit slope before the filter, by
+   * dividing by its own slope; a slope that rides on level makes the
+   * bandwidth ride on level.
+   *
+   * Held by `native/validation/loop_filter_noise_bw.c` (the promise),
+   * `test_loop_filter_contract.py` (the gain formula, and these sentences on
+   * every face) and the detector matrix of doppler#3229 (the callers' side).
+   *
+   * ### Arguments
    *
    * This is the untrusted boundary — the Python constructor passes a
    * caller's arbitrary doubles here — so unlike dp_loop_filter_init() it
@@ -205,8 +247,9 @@ extern "C"
    * gains from it. `bn = 0` is inside the domain and is accepted: it means a
    * deliberately frozen loop.
    *
-   * @param bn    Loop noise bandwidth, normalized cycles/sample; >= 0 and
-   *              finite (default 0.01).
+   * @param bn    Loop noise bandwidth, normalized cycles/sample, of the
+   *              closed loop given a unit-slope detector (see the contract);
+   *              >= 0 and finite (default 0.01).
    * @param zeta  Damping factor; > 0 and finite (default 0.707).
    * @param t     Update period in samples; > 0 and finite (default 1.0).
    * @return Heap-allocated state, or NULL if any argument is outside the

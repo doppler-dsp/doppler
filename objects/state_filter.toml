@@ -1,4 +1,37 @@
 [state_filter]
+doc = """A third-order state filter whose closed loop has noise bandwidth `bn`,
+for a loop whose rest has unit gain.
+
+The contract. The closed loop's noise bandwidth is `bn` cycles per
+sample, a fixed function of `kp`, `ki` and `kr`, provided the rest of
+the loop has unit gain. The filter cannot see the rest of the loop, so
+each of these is the caller's to deliver, and each is checkable:
+
+1. The error detector's slope at lock is 1 per unit of the filter's
+   error input, open loop and noise free, in the unit the control is
+   applied in per update; the radians-to-cycles factor, where the
+   oscillator takes cycles, is applied once after the filter, never
+   inside the loop gain.
+2. The actuator applies the control with unit gain, once per update,
+   `t` samples apart.
+3. The loop is tracking, inside the detector's linear region.
+4. The error reaches the filter and the control reaches the actuator
+   within the same update: the delivered bandwidth is the one asked for
+   at a delay of zero.
+
+A loop gain K other than 1 changes the delivered bandwidth, and this
+third-order loop is also stable only for K above a lower edge near
+1/(a*b) of nominal and below an upper edge that falls with the delay
+(docs/design/loop-filter.md section 12), so a detector slope below that
+edge breaks the loop with no error reported. The second-order closed
+form (4*K*zeta^2 + 1) / (4*zeta^2 + 1) does not apply to it. A detector
+whose slope is not 1, or rides on signal level or SNR, is scaled to
+unit slope before the filter; a slope that rides on level makes the
+bandwidth ride on level.
+
+Held by the state filter's own tests for the promise,
+test_loop_filter_contract.py for these sentences on every face, and the
+detector matrix of doppler#3229 for the callers' side."""
 arg_type = "double"
 return_type = "double"
 mutable = "true"

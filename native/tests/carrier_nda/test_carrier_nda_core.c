@@ -743,6 +743,42 @@ test_bn_is_the_loops (void)
   return 0;
 }
 
+/* ── 19. get_nco_phase_ahead() and get_lock_rule() ─────────────────────
+ * After a steer the NCO advances by its centre increment plus the loop's
+ * control a sample; the phase ahead k samples is read, then k samples are
+ * wiped, and the phase word the NCO then holds is the answer, exactly, for
+ * k from 0 to 3,000 (past one 2^32 wrap of the product at this rate). The
+ * lock rule is the one set_block_lock() configured. Sabotage: drop the
+ * control from the increment -> the answer is off by k * ctl, red. ───── */
+static int
+test_phase_ahead_and_rule (void)
+{
+  dp_carrier_nda_state_t *c
+      = dp_carrier_nda_create (0.02, 0.707, 0.013, 8, 1, 2);
+  DP_REQUIRE (c != NULL);
+  DP_REQUIRE (dp_carrier_nda_set_update_period (c, 64.0) == DP_OK);
+  DP_REQUIRE (dp_carrier_nda_set_block_lock (c, 31, 1e-3, 2, 3) == DP_OK);
+  /* One update off the seed, so the control is not zero. */
+  for (int k = 0; k < 64; k++)
+    (void)carrier_nda_wipeoff (c, 1.0f);
+  carrier_nda_update (c, cexpf (I * 0.3f), 0.0);
+  DP_CHECK (c->ctl_cyc != 0.0);
+  const size_t ks[4] = { 0, 1, 777, 3000 };
+  for (int i = 0; i < 4; i++)
+    {
+      dp_carrier_nda_state_t t = *c;
+      const double ans = dp_carrier_nda_get_nco_phase_ahead (&t, ks[i]);
+      for (size_t k = 0; k < ks[i]; k++)
+        (void)carrier_nda_wipeoff (&t, 1.0f);
+      DP_CHECK (ans == (double)t.nco.phase / 4294967296.0);
+    }
+  const dp_lockdet_rule_t rl = dp_carrier_nda_get_lock_rule (c);
+  DP_CHECK (rl.up_thresh == dp_carrier_nda_get_block_thresh (c) && rl.n_up == 2
+            && rl.n_down == 3);
+  dp_carrier_nda_destroy (c);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1554,6 +1590,8 @@ main (void)
   if (test_composer_options () != 0)
     return 1;
   if (test_bn_is_the_loops () != 0)
+    return 1;
+  if (test_phase_ahead_and_rule () != 0)
     return 1;
 
   DP_TEST_END ("test_carrier_nda_core");

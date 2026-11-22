@@ -1488,6 +1488,41 @@ double dp_dll_get_lock_stat(const dp_dll_state_t *state);
 double dp_dll_get_noise_est(const dp_dll_state_t *state);
 
 /**
+ * @brief The noise power of one window sum (dp_dll_get_window_sum()),
+ *        from the offset tap's estimate.
+ *
+ * dp_dll_get_noise_est() is on a look's scale: a look is one partial
+ * normalized by its nominal samples (`seg_norm = sf * sps / segments`), or
+ * with the symbol-period aid on, the sum of `aid_len` such partials. For
+ * noise white at the sample rate a partial's offset power is `s2 /
+ * seg_norm` (`s2` a sample's), so the estimate is `L s2 / seg_norm`, `L`
+ * the partials a look sums (`aid_len` under the aid, else 1). The window
+ * sum is unnormalized over `sf * sps` samples, so its noise power is `sf
+ * sps s2`, which is the estimate times `sf * sps * seg_norm / L`. That is
+ * what this returns: a composer that divides by the signal's power on the
+ * window sum's scale (carrier_nda's unit denominator) subtracts it there.
+ *
+ * The offset code's cross-correlation with the signal adds at most its
+ * Gold sidelobe's power, (65/1023)^2 of the signal's for Gold-1023.
+ *
+ * **The modes it holds for**, each pinned on noise against the truth
+ * (test_dll_core.c, window noise): one segment (a look an epoch, `L` 1);
+ * several segments with the symbol-period aid off (a look a partial, `L`
+ * 1); several with the aid on (a look sums `aid_len` partials, `L`
+ * aid_len). It reads the fields of the mode in force, so a call after
+ * dp_dll_set_symbol_period() reads the new `L` against an EMA formed under
+ * the old one until the estimate refreshes (about `1 / alpha` looks). It
+ * reads the code loop's nominal partial length, so it holds for a loop at
+ * its nominal rate: a code loop free-running on noise drifts, and a
+ * partial then holds other than `seg_norm` samples.
+ *
+ * @param state  Must be non-NULL.
+ * @return The noise power on the window sum's scale; 0 when the estimate
+ *         is (after create, reset or a lock re-tune).
+ */
+double dp_dll_get_window_noise(const dp_dll_state_t *state);
+
+/**
  * @brief Emit the code loop's telemetry records for the epoch just closed.
  *
  * Out-of-line on purpose: the emit machinery must not inline into the

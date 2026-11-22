@@ -1,4 +1,5 @@
 #include "doppler/detection/detection_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <limits.h>
@@ -6,6 +7,92 @@
 #include <stdio.h>
 
 #define CLOSE(a, b, tol) (fabs ((a) - (b)) < (tol))
+
+/* ── The ratio of sums: det_ratio_threshold / _pd / _block_len ──────────
+ * The numbers: at the 415.1-B-1 floor (gamma 2.397 and 1.884, jitter 4.40
+ * and 4.50 deg) block_len returns 34 and 43. The measurement: blocks of n
+ * terms z = sqrt(gamma) d e^{j theta} + noise, d a random sign, theta
+ * Gaussian at the jitter, the noise unit complex Gaussian, and the block's
+ * ratio of sums against det_ratio_threshold(1e-3, n). At n = block_len the
+ * measured detection rate reaches 0.99 less its 3-sigma Monte-Carlo error,
+ * and det_ratio_pd() at the delta method's n (31 and 40) is the measured
+ * rate there within 3 sigma, so the probability itself is pinned, not just
+ * the length. On noise alone the rate is the Pfa's, under 2e-3 at 20,000
+ * blocks, and det_ratio_pd at gamma 0 is the pfa. The arguments' range is
+ * refused. Sabotage: the delta method's Gaussian for the ratio in place of
+ * the inversion -> 31 and 40, measured 0.982 and 0.983, red. ─────────── */
+static double
+ratio_mc (double g, double sg, int n, double r, int nb, uint32_t seed,
+          double *pfa)
+{
+  uint32_t     st  = seed;
+  const double amp = sqrt (g);
+  int          hit = 0, fa = 0;
+  for (int b = 0; b < nb; b++)
+    {
+      double num = 0.0, den = 0.0, n0 = 0.0, d0 = 0.0;
+      for (int k = 0; k < n; k++)
+        {
+          const double d         = (dp_xs32 (&st) & 1u) ? 1.0 : -1.0;
+          const double th        = sg * dp_gauss (&st);
+          const float _Complex e = dp_cgauss (&st), w = dp_cgauss (&st);
+          const double zi = amp * d * cos (th) + (double)crealf (e);
+          const double zq = amp * d * sin (th) + (double)cimagf (e);
+          const double wi = (double)crealf (w), wq = (double)cimagf (w);
+          num += zi * zi - zq * zq;
+          den += zi * zi + zq * zq;
+          n0 += wi * wi - wq * wq;
+          d0 += wi * wi + wq * wq;
+        }
+      hit += num / den > r;
+      fa += n0 / d0 > r;
+    }
+  *pfa = (double)fa / nb;
+  return (double)hit / nb;
+}
+
+static int
+test_ratio_sizing (void)
+{
+  const double g[2] = { 2.397, 1.884 }, sdeg[2] = { 4.40, 4.50 };
+  const int    want[2] = { 34, 43 }, delta[2] = { 31, 40 };
+  const int    nb = 20000;
+  const double se = 3.0 * sqrt (0.99 * 0.01 / nb);
+  for (int i = 0; i < 2; i++)
+    {
+      const double sg = sdeg[i] * 3.141592653589793 / 180.0;
+      const int    n
+          = dp_det_ratio_block_len (g[i], sg * sg, 1e-3, 0.99, 10000000);
+      double       pfa, pfa2;
+      const double pd
+          = ratio_mc (g[i], sg, n, dp_det_ratio_threshold (1e-3, n), nb,
+                      9001u + (uint32_t)i, &pfa);
+      const double pd_d = ratio_mc (g[i], sg, delta[i],
+                                    dp_det_ratio_threshold (1e-3, delta[i]),
+                                    nb, 7001u + (uint32_t)i, &pfa2);
+      const double pr_d = dp_det_ratio_pd (delta[i], 1e-3, g[i], sg * sg);
+      printf ("  ratio: gamma %.3f, %.2f deg: n %d, threshold %.3f, "
+              "measured Pd %.4f, Pfa %.1e; at n %d derived %.4f, measured "
+              "%.4f\n",
+              g[i], sdeg[i], n, dp_det_ratio_threshold (1e-3, n), pd, pfa,
+              delta[i], pr_d, pd_d);
+      DP_CHECK (n == want[i]);
+      DP_CHECK (pd > 0.99 - se);
+      DP_CHECK (pfa < 2e-3);
+      DP_CHECK (fabs (pr_d - pd_d) < 3.0 * sqrt (pr_d * (1.0 - pr_d) / nb));
+    }
+  DP_CHECK (CLOSE (dp_det_ratio_pd (31, 1e-3, 0.0, 0.0), 1e-3, 1e-6));
+  DP_CHECK (dp_det_ratio_block_len (0.0, 0.0, 1e-3, 0.99, 1000) == 0);
+  DP_CHECK (dp_det_ratio_block_len (2.0, -1.0, 1e-3, 0.99, 1000) == 0);
+  DP_CHECK (dp_det_ratio_block_len (2.0, 0.0, 0.0, 0.99, 1000) == 0);
+  DP_CHECK (dp_det_ratio_block_len (2.0, 0.0, 1e-3, 1.0, 1000) == 0);
+  DP_CHECK (dp_det_ratio_block_len (2.0, 0.0, 1e-3, 0.99, 1) == 0);
+  /* A signal too weak for any block under the cap. */
+  DP_CHECK (dp_det_ratio_block_len (1e-6, 0.0, 1e-3, 0.99, 100000) == 0);
+  DP_CHECK (isnan (dp_det_ratio_pd (0, 1e-3, 1.0, 0.0)));
+  DP_CHECK (isnan (dp_det_ratio_threshold (0.0, 31)));
+  return 0;
+}
 
 int
 main (void)
@@ -793,6 +880,8 @@ main (void)
         prev = v;
       }
   }
+
+  DP_CHECK (test_ratio_sizing () == 0);
 
   DP_TEST_END ("test_detection_core");
 }

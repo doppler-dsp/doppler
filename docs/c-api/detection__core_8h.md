@@ -63,6 +63,9 @@ _Detection-theory utilities for the amplitude-ratio test statistic._ [More...](#
 |  double | [**dp\_det\_pd\_power**](#function-dp_det_pd_power) (double snr\_power, int dwell, double power\_threshold) <br>_Detection probability for the power detector._  |
 |  double | [**dp\_det\_pfa\_cell**](#function-dp_det_pfa_cell) (double pfa, double n\_cells) <br>_The per-cell false-alarm probability that gives a search of n\_cells independent cells the false-alarm probability pfa (Sidak)._  |
 |  double | [**dp\_det\_q\_inv**](#function-dp_det_q_inv) (double p) <br>_Upper-tail quantile of the standard normal: the eta with Q(eta) = p._  |
+|  int | [**dp\_det\_ratio\_block\_len**](#function-dp_det_ratio_block_len) (double gamma, double phase\_var, double pfa, double pd, int max\_n) <br>_The least block whose ratio of sums detects with probability_ `pd` _at its exact threshold for_`pfa` _._ |
+|  double | [**dp\_det\_ratio\_pd**](#function-dp_det_ratio_pd) (int n, double pfa, double gamma, double phase\_var) <br>_The probability that a block's ratio of sums exceeds its threshold under signal, exact for a Gaussian phase jitter._  |
+|  double | [**dp\_det\_ratio\_threshold**](#function-dp_det_ratio_threshold) (double pfa, int n) <br>_The threshold on a block's ratio of sums_ `R = sum(I^2 - Q^2) / sum(I^2 + Q^2)` _at a false-alarm rate, exact on noise._ |
 |  double | [**dp\_det\_snr**](#function-dp_det_snr) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample amplitude SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**dp\_det\_snr\_power**](#function-dp_det_snr_power) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample power SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**dp\_det\_snr\_to\_cn0**](#function-dp_det_snr_to_cn0) (double snr, double fs) <br>_The C/N0, dB-Hz, of a per-sample amplitude SNR at a sample rate: the inverse of_ [_**dp\_det\_cn0\_to\_snr()**_](detection__core_8h.md#function-dp_det_cn0_to_snr) _._ |
@@ -761,6 +764,166 @@ Quantile in H0 sigmas  positive below the median, exactly 0 at it, negative abov
 -2.3263
 >>> round(det_threshold(pfa=5e-6), 4)   # the OTHER law -- not this one
 4.9409
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_det\_ratio\_block\_len 
+
+_The least block whose ratio of sums detects with probability_ `pd` _at its exact threshold for_`pfa` _._
+```C++
+int dp_det_ratio_block_len (
+    double gamma,
+    double phase_var,
+    double pfa,
+    double pd,
+    int max_n
+) 
+```
+
+
+
+Sizes a block lock on R from the operating point: the smallest `n` with det\_ratio\_pd(n, pfa, gamma, phase\_var) &gt;= `pd`, searched by doubling and then bisection (the probability rises with `n`). Both sides are exact for the model, so the block's decisions have the stated rates, and blocks are disjoint, so verify counts on them count independent decisions. At the 415.1-B-1 floor, for the pre-despread carrier loop's window sums, it is 34 at 2.2 GHz and 43 at 2.8 GHz.
+
+
+
+
+**Parameters:**
+
+
+* `gamma` Signal-to-noise ratio a term, linear, &gt; 0. 
+* `phase_var` Phase jitter, rad^2, &gt;= 0. 
+* `pfa` The false-alarm rate a block, in (0, 1). 
+* `pd` The detection probability a block, in (0, 1). 
+* `max_n` The longest block to consider (&gt;= 2). 
+
+
+
+**Returns:**
+
+The block length, 2 to `max_n`; 0 for an argument out of range, or when no block that long reaches `pd`.
+
+
+
+```C++
+>>> import math
+>>> from doppler.detection import det_ratio_block_len
+>>> det_ratio_block_len(2.397, math.radians(4.40) ** 2, 1e-3, 0.99, 10**7)
+34
+>>> det_ratio_block_len(1.884, math.radians(4.50) ** 2, 1e-3, 0.99, 10**7)
+43
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_det\_ratio\_pd 
+
+_The probability that a block's ratio of sums exceeds its threshold under signal, exact for a Gaussian phase jitter._ 
+```C++
+double dp_det_ratio_pd (
+    int n,
+    double pfa,
+    double gamma,
+    double phase_var
+) 
+```
+
+
+
+Each term is `z = A d e^{j theta} + noise`, `|d| = 1`, the noise complex Gaussian; `gamma` is `A^2 / E|noise|^2` and `phase_var` the jitter `E[theta^2]`, Gaussian and independent from term to term. With `r` the threshold det\_ratio\_threshold() gives for (`n`, `pfa`), `R > r` is `W = sum((1 - r) I^2 - (1 + r) Q^2) > 0`, a sum of independent terms. Its characteristic function is one term's to the power `n`, and the probability is its inversion (Gil-Pelaez): a quadrature over the jitter at +/-8 sigma and Simpson's rule on the frequency axis, in real arithmetic. At `gamma` 0 it is the false-alarm rate, `pfa`.
+
+
+A Gaussian for the ratio (the delta method) is optimistic in the lower tail, where a detection probability near 1 is read: at `gamma` 2.397 and 4.40 deg it gives 0.992 at n = 31, where this gives 0.982, and the measurement 0.982 (test\_detection\_core.c's ratio section).
+
+
+
+
+**Parameters:**
+
+
+* `n` Terms in the block (&gt;= 1). 
+* `pfa` The false-alarm rate the threshold is for, in (0, 1). 
+* `gamma` Signal-to-noise ratio a term, linear, &gt;= 0. 
+* `phase_var` Phase jitter, rad^2, &gt;= 0. 
+
+
+
+**Returns:**
+
+The detection probability; NaN on invalid input.
+
+
+
+```C++
+>>> import math
+>>> from doppler.detection import det_ratio_pd
+>>> s2 = math.radians(4.40) ** 2
+>>> round(det_ratio_pd(31, 1e-3, 2.397, s2), 3)
+0.982
+>>> round(det_ratio_pd(34, 1e-3, 2.397, s2), 3)
+0.992
+>>> round(det_ratio_pd(31, 1e-3, 0.0, 0.0), 6)  # noise alone: the pfa
+0.001
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_det\_ratio\_threshold 
+
+_The threshold on a block's ratio of sums_ `R = sum(I^2 - Q^2) / sum(I^2 + Q^2)` _at a false-alarm rate, exact on noise._
+```C++
+double dp_det_ratio_threshold (
+    double pfa,
+    int n
+) 
+```
+
+
+
+On noise alone (I, Q independent zero-mean Gaussians of one variance) `(R + 1)/2` is exactly `Beta(n/2, n/2)`: the block's own total power is the noise reference, so no noise estimate enters. `R > r` is `X/Y > (1 + r)/(1 - r)` with `X = sum(I^2)` and `Y = sum(Q^2)` chi-square on `n` degrees each, so `r = (g - 1)/(g + 1)` with `g = det_threshold_f(pfa,
+n)`. It is the lock statistic of an NDA BPSK carrier loop (I and Q of a squared-out phase) and of a symbol lock on the same form.
+
+
+
+
+**Parameters:**
+
+
+* `pfa` The false-alarm rate a block, in (0, 1). 
+* `n` Terms in the block (&gt;= 1). 
+
+
+
+**Returns:**
+
+The threshold on R, in (0, 1); NaN on invalid input.
+
+
+
+```C++
+>>> from doppler.detection import det_ratio_threshold
+>>> round(det_ratio_threshold(1e-3, 31), 3)
+0.518
+>>> round(det_ratio_threshold(1e-3, 34), 3)
+0.498
 ```
  
 

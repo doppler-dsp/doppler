@@ -372,6 +372,12 @@ carrier_nda_loop_error (double pe)
 
   double dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state);
 
+  dp_lockdet_rule_t
+  dp_carrier_nda_get_lock_rule (const dp_carrier_nda_state_t *state);
+
+  double dp_carrier_nda_get_nco_phase_ahead (const dp_carrier_nda_state_t *state,
+                                             size_t ahead);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop
  * exactly.

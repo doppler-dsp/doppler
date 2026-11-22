@@ -1641,10 +1641,70 @@ replica_terms_follow_transitions (void)
   return 0;
 }
 
+/* dp_dll_get_window_noise(): the offset tap's estimate on the window sum's
+ * scale. Noise alone, of known power a sample (2, per-component sigma 1),
+ * so a window sum over sf * sps samples carries sf * sps * 2. Three
+ * geometries: one segment (a look an epoch, normalized by the period),
+ * four segments (a look a partial), and four with the symbol-period aid
+ * (a look sums aid_len partials). Each reads the truth within 10%: the
+ * estimate's EMA, booted as a cumulative mean, has a relative sd of 2.2%
+ * or less over these looks. The loop is held (bn 1e-9): on noise a
+ * running code loop wanders in rate, and a partial then holds other than
+ * its nominal samples (measured 0.71 to 0.83 of the truth at bn 0.002);
+ * a tracking receiver's loop is locked. Sabotage: drop the division by the
+ * look's partials -> the aid case reads aid_len times the truth, red; drop
+ * seg_norm -> every case reads 1/seg_norm of it, red. */
+static int
+_test_window_noise_is_the_window_sums (void)
+{
+  enum
+  {
+    SFN = 63,
+    SPN = 2,
+    PER = 4000
+  };
+  uint8_t code[SFN];
+  make_code (code, SFN, 4242u);
+  const size_t     tsamps = (size_t)SFN * SPN;
+  float _Complex  *x      = malloc ((size_t)PER * tsamps * sizeof *x);
+  float _Complex  *out    = malloc ((size_t)PER * 8 * sizeof *out);
+  dp_awgn_state_t *g      = dp_awgn_create (31337u, 1.0f);
+  DP_REQUIRE (x && out && g);
+  (void)dp_awgn_generate (g, (size_t)PER * tsamps, x, (size_t)PER * tsamps);
+  const struct
+  {
+    size_t      seg;
+    double      period;
+    const char *name;
+  } c[3] = { { 1, 0.0, "one segment" },
+             { 4, 0.0, "four segments" },
+             { 4, 8.0, "four segments, aid" } };
+  for (int k = 0; k < 3; k++)
+    {
+      dp_dll_state_t *d
+          = dp_dll_create (code, SFN, SPN, 0.0, 1e-9, 0.707, 0.5, c[k].seg);
+      DP_REQUIRE (d != NULL);
+      if (c[k].period > 0.0)
+        DP_REQUIRE (dp_dll_set_symbol_period (d, c[k].period) == DP_OK);
+      (void)dp_dll_steps (d, x, (size_t)PER * tsamps, out, (size_t)PER * 8);
+      const double nw    = dp_dll_get_window_noise (d);
+      const double truth = 2.0 * (double)tsamps;
+      printf ("  window noise, %s: %.1f against %.1f (L %zu)\n", c[k].name, nw,
+              truth, c[k].period > 0.0 ? d->aid_len : (size_t)1);
+      DP_CHECK (fabs (nw / truth - 1.0) < 0.10);
+      dp_dll_destroy (d);
+    }
+  dp_awgn_destroy (g);
+  free (out);
+  free (x);
+  return 0;
+}
+
 int
 main (void)
 {
   DP_CHECK (replica_terms_follow_transitions () == 0);
+  DP_CHECK (_test_window_noise_is_the_window_sums () == 0);
   DP_CHECK (_test_window_sum_is_the_look_back () == 0);
   DP_CHECK (_test_block_correlate_is_the_per_sample_path () == 0);
 

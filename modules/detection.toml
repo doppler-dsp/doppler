@@ -203,6 +203,62 @@ name = "n"
 type = "int"
 
 [[module.detection.functions]]
+name = "det_ratio_threshold"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_ratio_pd"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "n"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "gamma"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "phase_var"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_ratio_block_len"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "gamma"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "phase_var"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_n"
+type = "int"
+
+[[module.detection.functions]]
 name = "det_pd_noncoherent"
 return_type = "double"
 

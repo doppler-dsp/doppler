@@ -33,6 +33,9 @@ from .detection import (  # noqa: E402
     det_pd_power,
     det_pfa_cell,
     det_q_inv,
+    det_ratio_block_len,
+    det_ratio_pd,
+    det_ratio_threshold,
     det_snr,
     det_snr_power,
     det_snr_to_cn0,
@@ -73,4 +76,7 @@ __all__ = [
     "det_cn0_to_snr",
     "det_snr_to_cn0",
     "det_pd_cfar",
+    "det_ratio_block_len",
+    "det_ratio_pd",
+    "det_ratio_threshold",
 ]

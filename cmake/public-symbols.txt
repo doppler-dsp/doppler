@@ -440,10 +440,12 @@ dp_carrier_nda_get_block_thresh function
 dp_carrier_nda_get_bn function
 dp_carrier_nda_get_last_error function
 dp_carrier_nda_get_lock function
+dp_carrier_nda_get_lock_rule function
 dp_carrier_nda_get_locked function
 dp_carrier_nda_get_m function
 dp_carrier_nda_get_n function
 dp_carrier_nda_get_nco_freq function
+dp_carrier_nda_get_nco_phase_ahead function
 dp_carrier_nda_get_norm_freq function
 dp_carrier_nda_get_sps function
 dp_carrier_nda_get_state function
@@ -760,6 +762,9 @@ dp_det_pd_noncoherent function
 dp_det_pd_power function
 dp_det_pfa_cell function
 dp_det_q_inv function
+dp_det_ratio_block_len function
+dp_det_ratio_pd function
+dp_det_ratio_threshold function
 dp_det_snr function
 dp_det_snr_power function
 dp_det_snr_to_cn0 function
@@ -787,6 +792,7 @@ dp_dll_get_noise_est function
 dp_dll_get_segments function
 dp_dll_get_state function
 dp_dll_get_symbol_window function
+dp_dll_get_window_noise function
 dp_dll_get_window_sum function
 dp_dll_hold_here function
 dp_dll_init function

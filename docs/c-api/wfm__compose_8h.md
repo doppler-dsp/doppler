@@ -130,6 +130,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_segment\_sets\_length**](#function-dp_wfm_segment_sets_length) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* seg) <br>_Whether a segment's sources SET its on-time, so its_ `num_samples` _is derived and a count given beside them refused._ |
 |  int | [**dp\_wfm\_segment\_snr\_and\_level**](#function-dp_wfm_segment_snr_and_level) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* g) <br>_The source in a segment that sets both_ `snr` _and a_`level` _where only one is allowed, or -1 when there is none._ |
 |  double | [**dp\_wfm\_snr\_over\_fs**](#function-dp_wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
+|  size\_t | [**dp\_wfm\_source\_acq\_code\_bits**](#function-dp_wfm_source_acq_code_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_The bits a source's sequence field reads as: a literal's own, or the run its generator renders._  |
 |  int | [**dp\_wfm\_source\_attach\_dsss**](#function-dp_wfm_source_attach_dsss) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
 |  int | [**dp\_wfm\_source\_attach\_frame**](#function-dp_wfm_source_attach_frame) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Attach an unspread source's bit pattern, framed or not._  |
 |  int | [**dp\_wfm\_source\_attach\_ofdm**](#function-dp_wfm_source_attach_ofdm) ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint32\_t seed) <br>_Install an_ `ofdm` _source's frame renderer and its data pull on a synth created with type WFM\_SYNTH\_FRAMES: the PPDU of each frame of the data source, built through_`wlan` _from the source's constellation and code rate (or_`wlan` _),_`window` _,_`mac` _,_`gap` _and the oversampling_`fs / bandwidth` _. A no-op for any other type._ |
@@ -138,14 +139,18 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  int | [**dp\_wfm\_source\_common\_frame**](#function-dp_wfm_source_common_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, const [**wfm\_seq\_t**](structwfm__seq__t.md) \* sync, int crc, [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* d) <br>_The common frame as a description:_ `[preamble x reps | sync | data | crc]` _, built by the ONE function that builds it._ |
 |  size\_t | [**dp\_wfm\_source\_crc\_refuse\_text**](#function-dp_wfm_source_crc_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `crc=` _: a CRC is a stage of the frame description._ |
 |  double | [**dp\_wfm\_source\_create\_snr**](#function-dp_wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `dp_wfm_synth_create()` _._ |
+|  size\_t | [**dp\_wfm\_source\_data\_bits**](#function-dp_wfm_source_data_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`data` _._ |
+|  size\_t | [**dp\_wfm\_source\_data\_code\_bits**](#function-dp_wfm_source_data_code_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`data_code` _._ |
 |  uint64\_t | [**dp\_wfm\_source\_data\_frames**](#function-dp_wfm_source_data_frames) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none. On continuous dsss, which has no frame, its bits._ |
 |  int | [**dp\_wfm\_source\_data\_is\_stream**](#function-dp_wfm_source_data_is_stream) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Whether a source's data is a stream:_ `data_from_file` _is_`-` _._ |
 |  uint64\_t | [**dp\_wfm\_source\_data\_samples**](#function-dp_wfm_source_data_samples) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint64\_t frames) <br>_Samples the first_ `frames` _frames of a source's data occupy; 0 with no data._ |
 |  double | [**dp\_wfm\_source\_dsss\_cps**](#function-dp_wfm_source_dsss_cps) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Chips per data symbol of a CONTINUOUS dsss source at_ `fs` _._ |
 |  size\_t | [**dp\_wfm\_source\_dsss\_nchips**](#function-dp_wfm_source_dsss_nchips) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Chips one DSSS BURST from this source occupies, description and all._  |
 |  const char \* | [**dp\_wfm\_source\_error**](#function-dp_wfm_source_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source can be built; else why not, as a sentence._  |
+|  size\_t | [**dp\_wfm\_source\_fill\_bits**](#function-dp_wfm_source_fill_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`fill` _._ |
 |  const char \* | [**dp\_wfm\_source\_frame\_error**](#function-dp_wfm_source_frame_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_NULL when this source's frame fields can be honoured; else why not._  |
 |  int | [**dp\_wfm\_source\_has\_frame**](#function-dp_wfm_source_has_frame) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_Non-zero when this source describes a FRAME._  |
+|  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, uint8\_t \* out, size\_t max) <br>_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`mac_header` _._ |
 |  unsigned | [**dp\_wfm\_source\_oversample**](#function-dp_wfm_source_oversample) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, const char \*\* why) <br>_The oversampling_ `M = fs / bandwidth` _of an ofdm source, 1 to_`WLAN_OVERSAMPLE_MAX` _, or 0 with the reason it has none._ |
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \* text, uint8\_t \* out, size\_t max\_out, const char \*\* why) <br>_Refuse text for the retired_ `sync=` _: a sync word is a field of the frame description._ |
 |  int | [**dp\_wfm\_source\_synth\_type**](#function-dp_wfm_source_synth_type) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src) <br>_The synth type to create this source with._  |
@@ -2322,6 +2327,57 @@ SNR over fs in dB.
 
 
 
+### function dp\_wfm\_source\_acq\_code\_bits 
+
+_The bits a source's sequence field reads as: a literal's own, or the run its generator renders._ 
+```C++
+size_t dp_wfm_source_acq_code_bits (
+    const wfm_source_t * src,
+    double fs,
+    uint8_t * out,
+    size_t max
+) 
+```
+
+
+
+A `wfm_seq_t` field is a literal (`bits` non-NULL) or a generated one (a PN, Gold or dotted description with `bits` NULL and `len` its output length). These five are the Python read of `acq_code`, `data_code`, `data`, `fill` and `mac_header`: they write the field's bits through [**dp\_wfm\_seq\_bits()**](wfm__frame_8h.md#function-dp_wfm_seq_bits), so a generated field reads as the bits it renders and not as nothing. A field that is absent (`len` 0) or draws its bits from the frame's data source (`WFM_SEQ_DATA`) has none and returns 0. What is stored, set and written to a record is unchanged.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` The segment's sample rate, Hz; unused, a read of bits has no rate. 
+* `out` Receives the bits, one per byte; NULL with `max` 0 only asks how many there are. 
+* `max` Capacity of `out`. 
+
+
+
+**Returns:**
+
+The bits the field holds, or 0.
+
+
+
+```C++
+#include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+
+wfm_source_t s = WFM_SOURCE_DEFAULTS;
+s.mac_header = (wfm_seq_t){ .kind = WFM_SEQ_PN, .len = 192, .reg_bits = 15 };
+printf ("%zu\n", dp_wfm_source_mac_header_bits (&s, 20e6, NULL, 0)); // 192
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_attach\_dsss 
 
 _Attach a dsss source's data to a freshly-created synth._ 
@@ -2672,6 +2728,86 @@ The SNR in dB for create.
 
 
 
+### function dp\_wfm\_source\_data\_bits 
+
+_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`data` _._
+```C++
+size_t dp_wfm_source_data_bits (
+    const wfm_source_t * src,
+    double fs,
+    uint8_t * out,
+    size_t max
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused. 
+* `out` Receives the bits, or NULL to count. 
+* `max` Capacity of `out`. 
+
+
+
+**Returns:**
+
+The bits the field holds, or 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_code\_bits 
+
+_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`data_code` _._
+```C++
+size_t dp_wfm_source_data_code_bits (
+    const wfm_source_t * src,
+    double fs,
+    uint8_t * out,
+    size_t max
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused. 
+* `out` Receives the bits, or NULL to count. 
+* `max` Capacity of `out`. 
+
+
+
+**Returns:**
+
+The bits the field holds, or 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_data\_frames 
 
 _Frames a FINITE data source makes,_ `ceil(bits / LEN)` _; 0 for a stream or none. On continuous dsss, which has no frame, its bits._
@@ -2953,6 +3089,46 @@ dp_wfm_source_error (&s);   // NULL: x^5 + x^2 + 1 fits
 
 
 
+### function dp\_wfm\_source\_fill\_bits 
+
+_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`fill` _._
+```C++
+size_t dp_wfm_source_fill_bits (
+    const wfm_source_t * src,
+    double fs,
+    uint8_t * out,
+    size_t max
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused. 
+* `out` Receives the bits, or NULL to count. 
+* `max` Capacity of `out`. 
+
+
+
+**Returns:**
+
+The bits the field holds, or 0. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_frame\_error 
 
 _NULL when this source's frame fields can be honoured; else why not._ 
@@ -3022,6 +3198,46 @@ Lengths are tested, never pointers: a carried `frame`, an `acq_code` with non-ze
 **Returns:**
 
 1 when the source is framed, 0 otherwise (including NULL). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_mac\_header\_bits 
+
+_As_ [_**dp\_wfm\_source\_acq\_code\_bits()**_](wfm__compose_8h.md#function-dp_wfm_source_acq_code_bits) _, for_`mac_header` _._
+```C++
+size_t dp_wfm_source_mac_header_bits (
+    const wfm_source_t * src,
+    double fs,
+    uint8_t * out,
+    size_t max
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `src` The source. 
+* `fs` Unused. 
+* `out` Receives the bits, or NULL to count. 
+* `max` Capacity of `out`. 
+
+
+
+**Returns:**
+
+The bits the field holds, or 0. 
 
 
 

@@ -23,6 +23,33 @@
 #include "doppler/wfm_synth/wfm_synth_core.h"
 #include "doppler/wlan/wlan_core.h" /* the ofdm type's renderer */
 
+/* The bits a sequence field reads as, through dp_wfm_seq_bits (the one place
+   a wfm_seq_t becomes bits). With no buffer it only counts: a field with
+   bits or a generated kind has `len` of them; WFM_SEQ_DATA has none of its
+   own. */
+static size_t
+seq_read (const wfm_seq_t *s, uint8_t *out, size_t max)
+{
+  if (s->len == 0 || s->kind == WFM_SEQ_DATA)
+    return 0;
+  if (!out)
+    return (s->kind == WFM_SEQ_LITERAL && !s->bits) ? 0 : s->len;
+  return dp_wfm_seq_bits (s, out, max);
+}
+
+#define SEQ_READER(field)                                                     \
+  size_t dp_wfm_source_##field##_bits (const wfm_source_t *src, double fs,    \
+                                       uint8_t *out, size_t max)              \
+  {                                                                           \
+    (void)fs;                                                                 \
+    return seq_read (&src->field, out, max);                                  \
+  }
+SEQ_READER (acq_code)
+SEQ_READER (data_code)
+SEQ_READER (data)
+SEQ_READER (fill)
+SEQ_READER (mac_header)
+
 /* Pulse enum index 1 == "rrc" (see the wfm_pulse [[enum]] SSOT). */
 #define WFM_PULSE_RRC 1
 

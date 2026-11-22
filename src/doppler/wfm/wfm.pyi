@@ -1252,14 +1252,14 @@ class Frame:
 
     Parameters
     ----------
-    preamble : NDArray[np.uint8], default ...
+    preamble : NDArray[np.uint8], default None
         Preamble bits, one per element, each 0 or 1. Omitted, there is no
         preamble. A repeated preamble is repeated in its bits:
         `field_bits("pn:31:5*4")`.
-    sync : NDArray[np.uint8], default ...
+    sync : NDArray[np.uint8], default None
         Sync-word bits, one per element, each 0 or 1. Omitted, the frame is
         unsynced.
-    payload : NDArray[np.uint8], default ...
+    payload : NDArray[np.uint8], default None
         Payload bits, one per element, each 0 or 1. Omitted, the frame carries
         none.
     crc : Literal["none", "crc16"], default "none"
@@ -2260,14 +2260,14 @@ class FrameDesc:
 
     Parameters
     ----------
-    preamble : NDArray[np.uint8], default ...
+    preamble : NDArray[np.uint8], default None
         Preamble bits, one per element, each 0 or 1. Omitted, there is no
         preamble. A repeated preamble is repeated in its bits:
         `field_bits("pn:31:5*4")`.
-    sync : NDArray[np.uint8], default ...
+    sync : NDArray[np.uint8], default None
         Sync-word bits, one per element, each 0 or 1. Omitted, the frame is
         unsynced.
-    payload : NDArray[np.uint8], default ...
+    payload : NDArray[np.uint8], default None
         Payload bits, one per element, each 0 or 1. Omitted, the frame carries
         none.
     crc : Literal["none", "crc16"], default "none"

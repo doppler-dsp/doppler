@@ -14,21 +14,25 @@ its state and its proofs.*
     The 802.11 non-HT builders are built: `wlan` (C and Python) on the
     general modulator `ofdm` gives the rate table, the minimal MAC, the
     coding chain, the layout and the PPDU. Not built: wfmgen's `ofdm`
-    waveform type (section 5), the HT, VHT and HE flavors, and Annex I's
-    stage-by-stage conformance test. "What exists, and what does not" in
+    waveform type (section 5) and the HT, VHT and HE flavors. "What exists, and what does not" in
     section 4 says which blocks have a home today. Section 10 lists the
     decisions, ruled and open; sections 8 and 9 list what is not known.
 
-!!! warning "No preset claims conformance yet"
+!!! note "Where the conformance evidence lives"
 
-    The general shape is the deliverable. Every clause, table and figure
-    number below refers to IEEE Std 802.11-2024 unless it says otherwise.
-    Section 9 lists each standard-fixed number and says whether it is
-    **checked against that text**; the rest are unchecked. No test, header,
-    document or changelog line says a preset "conforms to" 802.11a, g, n or
-    ac, or cites Annex I as passed, until section 7's proofs run against
-    tables transcribed from the text. A builder labels as unverified any
+    Every clause, table and figure number below refers to IEEE Std
+    802.11-2024 unless it says otherwise. Section 9 lists each
+    standard-fixed number and says whether it is **checked against that
+    text**; the rest are unchecked, and a builder labels as unverified any
     number section 9 does not mark checked.
+
+    Annex I.1's worked example (the 100-octet PSDU at 36 Mb/s, every stage)
+    is run against each release by the downstream conformance driver, which
+    reports a failure as an issue in this repository; the release of
+    2026-11-19 passed it. The stage-by-stage comparison is recorded on
+    [#3148](https://github.com/doppler-dsp/doppler/issues/3148). This tree holds the
+    Annex I example in no test.
+    What its own tests hold is listed in section 7.
 
 wfmgen gains one waveform type, `ofdm`. It is a caller of the general OFDM
 modulator; the IEEE 802.11 OFDM PHYs are layouts that `wlan` builds for it.
@@ -117,8 +121,8 @@ symbol; `N_SYM` OFDM symbols in the Data field.
     the 802.11 component.
 1. **Bit-exact where the standard gives bits, to the printed precision
     where it gives samples**, against the standard's own example, when the
-    text is in hand (section 7). Annex I is the anchor *when it is read*; it
-    is not a claim of the first slice.
+    text is in hand (section 7). Annex I is the anchor: the downstream
+    conformance driver runs it against each release (section 7).
 1. **0 dBFS is unit average power**, as for every wfmgen source. An
     802.11 PPDU's fields are normalized by the standard to equal power, so
     one scale factor serves the whole PPDU.
@@ -307,12 +311,18 @@ written at its default or at zero" keeps the zero for this row
 (`json_keep_zero`, set by the generator for a default that names a
 constant): `"window": 0` is a value, and a record without it would read
 back as the default. A window on another type is refused as before, and the
-unset one is not a window. The Python face holds the field as it is: a
-source's `window` attribute reads back `2**64 - 1` while unset, because a
-getter has no `fs` to resolve against and jm renders none for a source
-field; the resolved count is in `to_json()`, `to_sigmf()` and the samples.
-The docstring names the constant, `WFM_WINDOW_UNSET`, which is the C
-spelling of that number. The tests are
+unset one is not a window. The Python face reads the count the
+source renders with: `Synth.window` goes through `dp_wfm_source_window` at
+the object's `fs`, so an unset window reads 2, 4 or 8 at one, two or four
+times the bandwidth and follows a later `fs`, and an `fs` with no
+oversampling reads `WFM_WINDOW_UNSET`, `2**64 - 1`, the value the scene is
+refused for. Only the read changes: the stored member, the setter, the
+constructor keyword, `to_json()` and `from_json()` keep what was given, and
+`to_json()` writes the resolved count. A source that is not ofdm renders
+with no window, so its unset `window` reads 0 at any rate. A `Segment`'s flat `window`
+reads its first source's, which holds the default `fs`, so it reads the
+unset constant until jm resolves a flat read at the segment's own rate
+(just-makeit#2717; the row in `test_ofdm_source.py` holds it as it is). The tests are
 `test_the_default_window_is_the_standards_100_ns` (C and Python) and the two
 record tests in `src/doppler/wfm/tests/test_ofdm_source.py`.
 
@@ -1155,38 +1165,40 @@ The rule is that the anchor is the standard, never the implementation
 under test and never a second implementation in the tree. The modulator's
 own proofs are on [its page](ofdm.md) and need no standard. What follows
 holds a preset to a standard, and the tables are
-transcribed from the text (section 9); the unit test holds the RATE bits,
-both training sequences, the constellation encodings and the 2/3 and 3/4
-puncture masks against their printed form, and the second permutation by its
-worked 16-QAM example and by a re-derivation of the printed equation (for
-every index of all four pairs). Not held to the text: Annex I's
-stage-by-stage example, which waits for its fixture
-([#3148](https://github.com/doppler-dsp/doppler/issues/3148)), and the pilot
-polarity sequence. Where the tests pin only what is derivable (a layout's structure, the lengths, the
-round trip of the coding chain's own inverses), claiming no conformance.
+transcribed from the text (section 9).
 
-1. **Annex I, stage by stage, when the text is read.** Annex I encodes one
-    100-octet PSDU at 36 Mb/s and prints every intermediate: the PSDU, the
-    SIGNAL bits, their coded and interleaved forms, the scrambled, coded,
-    punctured and interleaved Data bits, the subcarrier values and the time
-    samples of each field. A C test holds those tables as literals
-    **transcribed from the text** and compares each stage: bits exactly,
-    samples to the printed precision. A table produced by running the
-    implementation would encode the builder, so the transcription needs the
-    text (section 10).
+**What holds what.** Annex I.1's worked example is run against each release
+by the downstream conformance driver, and the release of 2026-11-19 passed it, every stage
+including the time-domain samples at the library's unit-power scale
+([#3148](https://github.com/doppler-dsp/doppler/issues/3148)). The tree's
+own tests hold the RATE bits, both training sequences, the constellation
+encodings, the 2/3 and 3/4 puncture lists, the catalogue check value of the
+FCS, and the second permutation by its worked 16-QAM example and by a
+re-derivation of Eq. (17-16) and (17-17) for every index of all four pairs.
+The pilot polarity sequence and Tables I-17 and I-18 are not held in the
+tree. Where the tests pin only what is derivable (a layout's structure, the
+lengths, the round trip of the coding chain's own inverses), they claim no
+conformance.
+
+1. **Annex I, stage by stage.** Annex I encodes one 100-octet PSDU at
+    36 Mb/s and prints every intermediate: the PSDU, the SIGNAL bits, their
+    coded and interleaved forms, the scrambled, coded, punctured and
+    interleaved Data bits, the subcarrier values and the time samples of
+    each field. The downstream conformance driver compares each stage, bits
+    exactly and samples to the printed precision, against a fixture it
+    builds from the standard; this tree holds none of those tables, so a
+    table produced by running the implementation never stands in for the
+    text.
 1. **The tables Annex I does not exercise, literal by literal.** Annex I
     covers one rate: 16-QAM at 3/4. The BPSK, QPSK and 64-QAM maps
     (Tables 17-15 to 17-18), the 2/3 puncture pattern (Figure 17-9), the
     RATE encodings (Table 17-6) and the timing constants (Table 17-5) are
     each small enough to pin entry by entry against the standard.
-1. **The FCS.** The CRC is pinned by its published catalogue check value
-    (the nine ASCII digits `123456789` give `CBF43926` for CRC-32/ISO-HDLC)
-    independent of this standard, and the byte order on the wire by the Annex
-    I PSDU's last four octets: `fcs` mode over the Annex I frame without its
-    FCS must reproduce the printed PSDU exactly. That second test does not
-    exist yet and the Annex I octets are not in the tree
-    ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)); until it
-    does, the byte order rests on the catalogue value alone.
+1. **The FCS.** The CRC is pinned in the tree by its published catalogue
+    check value (the nine ASCII digits `123456789` give `CBF43926` for
+    CRC-32/ISO-HDLC), independent of this standard. The byte order on the
+    wire and the whole Annex I PSDU, FCS included, are held by the
+    downstream conformance driver's run of the example, not by a test here.
 1. **Transmit-quality measurements with the library's tools**: the power
     spectrum against the transmit mask (17.3.9.3), spectral flatness
     (17.3.9.7.3), relative constellation error (17.3.9.7.4) and PAPR. A
@@ -1239,38 +1251,38 @@ page refers to. A row marked unchecked is from memory: a builder that
 writes it into code labels it unverified, and a test that holds it claims
 no conformance.
 
-| number                                                                                                                                                                                        | cited as                                                                   | against the text                                                                                                                                                                                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Clause numbers: OFDM 17, ERP 18, HT 19, VHT 21, HE 27                                                                                                                                         | table of contents                                                          | checked                                                                                                                                                                                                                                                            |
-| The worked example is Annex I                                                                                                                                                                 | Annex I                                                                    | checked                                                                                                                                                                                                                                                            |
-| `N_FFT` 64, `Δf` 312.5 kHz, `N_SD` 48, `N_SP` 4; GI 0.8 µs, OFDM symbol 4 µs; L-STF 8 µs, L-LTF 8 µs                                                                                          | Table 17-5                                                                 | checked                                                                                                                                                                                                                                                            |
-| pilots on subcarriers -21, -7, 7, 21 with values 1, 1, 1, -1                                                                                                                                  | 17.3.5.9, 17.3.5.10, Eq. (17-24)                                           | checked                                                                                                                                                                                                                                                            |
-| eight rates and their modulation and coding pairs; RATE bits                                                                                                                                  | Tables 17-4, 17-6                                                          | checked                                                                                                                                                                                                                                                            |
-| scrambler `x^7 + x^4 + 1`                                                                                                                                                                     | 17.3.5.5, Eq. (17-14)                                                      | checked                                                                                                                                                                                                                                                            |
-| BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                                                                   | checked                                                                                                                                                                                                                                                            |
-| puncture patterns for 2/3 and 3/4                                                                                                                                                             | Figure 17-9                                                                | checked                                                                                                                                                                                                                                                            |
-| puncture pattern for 5/6                                                                                                                                                                      | Clause 19                                                                  | unchecked                                                                                                                                                                                                                                                          |
-| SIGNAL bit order: R1..R4, reserved, LENGTH LSB first, even parity, six tail bits                                                                                                              | Figure 17-5, 17.3.4.1                                                      | checked                                                                                                                                                                                                                                                            |
-| second interleaver permutation, `s = max(N_BPSC/2, 1)`; the worked example `k = 17` to `i = 13`, `j = 12`                                                                                     | Eq. (17-16), (17-17); Annex I.1.6.2, Tables I-17, I-18                     | checked                                                                                                                                                                                                                                                            |
-| interleaver, 16 columns (the first permutation uses `N_CBPS/16`)                                                                                                                              | 17.3.5.7, Eq. (17-15)                                                      | checked                                                                                                                                                                                                                                                            |
-| `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                                               | Table 17-14                                                                | checked                                                                                                                                                                                                                                                            |
-| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | checked; held as relabels of the library's maps (section 4)                                                                                                                                                                                                        |
-| L-STF and L-LTF sequences and the √(13/6) factor                                                                                                                                              | 17.3.3, Eq. (17-6), (17-8)                                                 | checked; the per-field scale is `1/√52`, unit average power, derived (goal 5)                                                                                                                                                                                      |
-| window, `T_TR` about 100 ns                                                                                                                                                                   | 17.3.2.5                                                                   | checked                                                                                                                                                                                                                                                            |
-| transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7                                                         | unchecked                                                                                                                                                                                                                                                          |
-| Annex I example: 100 octets, 36 Mb/s                                                                                                                                                          | Annex I                                                                    | checked                                                                                                                                                                                                                                                            |
-| Annex I example: `SCRAMBLER_INITIAL_VALUE` 54                                                                                                                                                 | I.1.5.2                                                                    | checked; see the note below                                                                                                                                                                                                                                        |
-| ERP-OFDM signal extension, 6 µs (`aSignalExtension`)                                                                                                                                          | Clause 18                                                                  | checked                                                                                                                                                                                                                                                            |
-| MAC frame format: header, body, FCS; the 24-octet three-address data header (Frame Control, Duration/ID, three addresses, Sequence Control); QoS Control and HT Control as optional additions | Clause 9                                                                   | unchecked                                                                                                                                                                                                                                                          |
-| FCS: CRC-32, generator polynomial, ones complement and byte order on the wire                                                                                                                 | 9.2.4.9                                                                    | checked against the catalogue value only (`CBF43926` over `123456789`, appended least significant octet first, `0x26 0x39 0xF4 0xCB`, in the test); not reproduced over Annex I's PSDU: no test does ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)) |
-| HT-SIG, VHT-SIG-B CRC-8 parameters                                                                                                                                                            | Clauses 19, 21                                                             | unchecked                                                                                                                                                                                                                                                          |
-| L-SIG LENGTH is 12 bits and limits the PSDU to 1 to 4,095 octets                                                                                                                              | 17.3.4.3, Table 17-1                                                       | checked                                                                                                                                                                                                                                                            |
-| HT: 52 + 4 subcarriers at 20 MHz, 108 + 6 at 40 MHz; 13 and 18 interleaver columns; short GI 0.4 µs                                                                                           | Clause 19 (Table 19-17 for the columns)                                    | checked                                                                                                                                                                                                                                                            |
-| VHT: 234 + 8 subcarriers at 80 MHz; 256-QAM at MCS 8 and 9                                                                                                                                    | Table 21-5, Clause 21 MCS tables                                           | checked                                                                                                                                                                                                                                                            |
-| VHT: `N_FFT` 256 and 512                                                                                                                                                                      | derived, not stated: Table 21-5 gives `N_ST` 242 and 484 at `Δf` 312.5 kHz | consistent                                                                                                                                                                                                                                                         |
-| HE: `Δf` 78.125 kHz, GI 0.8 / 1.6 / 3.2 µs                                                                                                                                                    | Table 27-13                                                                | checked                                                                                                                                                                                                                                                            |
-| HE: 1024-QAM at MCS 10 and 11                                                                                                                                                                 | Clause 27                                                                  | unchecked                                                                                                                                                                                                                                                          |
-| `K_MOD` for 256-QAM and 1024-QAM (1/√170, 1/√682)                                                                                                                                             | 21.3.10.9, 27.3.12                                                         | checked                                                                                                                                                                                                                                                            |
+| number                                                                                                                                                                                        | cited as                                                                   | against the text                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clause numbers: OFDM 17, ERP 18, HT 19, VHT 21, HE 27                                                                                                                                         | table of contents                                                          | checked                                                                                                                                                                                                                                                     |
+| The worked example is Annex I                                                                                                                                                                 | Annex I                                                                    | checked                                                                                                                                                                                                                                                     |
+| `N_FFT` 64, `Δf` 312.5 kHz, `N_SD` 48, `N_SP` 4; GI 0.8 µs, OFDM symbol 4 µs; L-STF 8 µs, L-LTF 8 µs                                                                                          | Table 17-5                                                                 | checked                                                                                                                                                                                                                                                     |
+| pilots on subcarriers -21, -7, 7, 21 with values 1, 1, 1, -1                                                                                                                                  | 17.3.5.9, 17.3.5.10, Eq. (17-24)                                           | checked                                                                                                                                                                                                                                                     |
+| eight rates and their modulation and coding pairs; RATE bits                                                                                                                                  | Tables 17-4, 17-6                                                          | checked                                                                                                                                                                                                                                                     |
+| scrambler `x^7 + x^4 + 1`                                                                                                                                                                     | 17.3.5.5, Eq. (17-14)                                                      | checked                                                                                                                                                                                                                                                     |
+| BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                                                                   | checked                                                                                                                                                                                                                                                     |
+| puncture patterns for 2/3 and 3/4                                                                                                                                                             | Figure 17-9                                                                | checked                                                                                                                                                                                                                                                     |
+| puncture pattern for 5/6                                                                                                                                                                      | Clause 19                                                                  | unchecked                                                                                                                                                                                                                                                   |
+| SIGNAL bit order: R1..R4, reserved, LENGTH LSB first, even parity, six tail bits                                                                                                              | Figure 17-5, 17.3.4.1                                                      | checked                                                                                                                                                                                                                                                     |
+| second interleaver permutation, `s = max(N_BPSC/2, 1)`; the worked example `k = 17` to `i = 13`, `j = 12`                                                                                     | Eq. (17-16), (17-17); Annex I.1.6.2, Tables I-17, I-18                     | checked                                                                                                                                                                                                                                                     |
+| interleaver, 16 columns (the first permutation uses `N_CBPS/16`)                                                                                                                              | 17.3.5.7, Eq. (17-15)                                                      | checked                                                                                                                                                                                                                                                     |
+| `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                                               | Table 17-14                                                                | checked                                                                                                                                                                                                                                                     |
+| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | checked; held as relabels of the library's maps (section 4)                                                                                                                                                                                                 |
+| L-STF and L-LTF sequences and the √(13/6) factor                                                                                                                                              | 17.3.3, Eq. (17-6), (17-8)                                                 | checked; the per-field scale is `1/√52`, unit average power, derived (goal 5)                                                                                                                                                                               |
+| window, `T_TR` about 100 ns                                                                                                                                                                   | 17.3.2.5                                                                   | checked                                                                                                                                                                                                                                                     |
+| transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7                                                         | unchecked                                                                                                                                                                                                                                                   |
+| Annex I example: 100 octets, 36 Mb/s                                                                                                                                                          | Annex I                                                                    | checked                                                                                                                                                                                                                                                     |
+| Annex I example: `SCRAMBLER_INITIAL_VALUE` 54                                                                                                                                                 | I.1.5.2                                                                    | checked; see the note below                                                                                                                                                                                                                                 |
+| ERP-OFDM signal extension, 6 µs (`aSignalExtension`)                                                                                                                                          | Clause 18                                                                  | checked                                                                                                                                                                                                                                                     |
+| MAC frame format: header, body, FCS; the 24-octet three-address data header (Frame Control, Duration/ID, three addresses, Sequence Control); QoS Control and HT Control as optional additions | Clause 9                                                                   | unchecked                                                                                                                                                                                                                                                   |
+| FCS: CRC-32, generator polynomial, ones complement and byte order on the wire                                                                                                                 | 9.2.4.9                                                                    | checked in the tree against the catalogue value (`CBF43926` over `123456789`, appended least significant octet first, `0x26 0x39 0xF4 0xCB`, in the test); the Annex I PSDU is run downstream ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)) |
+| HT-SIG, VHT-SIG-B CRC-8 parameters                                                                                                                                                            | Clauses 19, 21                                                             | unchecked                                                                                                                                                                                                                                                   |
+| L-SIG LENGTH is 12 bits and limits the PSDU to 1 to 4,095 octets                                                                                                                              | 17.3.4.3, Table 17-1                                                       | checked                                                                                                                                                                                                                                                     |
+| HT: 52 + 4 subcarriers at 20 MHz, 108 + 6 at 40 MHz; 13 and 18 interleaver columns; short GI 0.4 µs                                                                                           | Clause 19 (Table 19-17 for the columns)                                    | checked                                                                                                                                                                                                                                                     |
+| VHT: 234 + 8 subcarriers at 80 MHz; 256-QAM at MCS 8 and 9                                                                                                                                    | Table 21-5, Clause 21 MCS tables                                           | checked                                                                                                                                                                                                                                                     |
+| VHT: `N_FFT` 256 and 512                                                                                                                                                                      | derived, not stated: Table 21-5 gives `N_ST` 242 and 484 at `Δf` 312.5 kHz | consistent                                                                                                                                                                                                                                                  |
+| HE: `Δf` 78.125 kHz, GI 0.8 / 1.6 / 3.2 µs                                                                                                                                                    | Table 27-13                                                                | checked                                                                                                                                                                                                                                                     |
+| HE: 1024-QAM at MCS 10 and 11                                                                                                                                                                 | Clause 27                                                                  | unchecked                                                                                                                                                                                                                                                   |
+| `K_MOD` for 256-QAM and 1024-QAM (1/√170, 1/√682)                                                                                                                                             | 21.3.10.9, 27.3.12                                                         | checked                                                                                                                                                                                                                                                     |
 
 **The Annex I scrambler start, two ways.** The text gives the example's
 `SCRAMBLER_INITIAL_VALUE` as 54. That value is the first seven bits of the
@@ -1334,16 +1346,11 @@ drift.
 
 ### Open
 
-1. **Annex I, stage by stage.** The Clause 17 tables are transcribed
-    (section 9); the unit test holds the RATE bits, the training sequences, the
-    constellation encodings and the 2/3 and 3/4 puncture masks against their
-    printed form and the second permutation by a worked point and a
-    re-derivation of the equation. What is
-    open is Annex I's own stage-by-stage example (section 7's first proof),
-    which no test holds yet ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)),
-    and the rows section 9 marks unchecked (the MAC frame format, the mask
-    and accuracy limits). Until the Annex I proof runs no preset is
-    certified.
+1. **The rows section 9 marks unchecked** (the MAC frame format, the mask
+    and accuracy limits). Annex I's stage-by-stage example is run against
+    each release by the downstream conformance driver (section 7); what the
+    tree holds itself is listed there, and no preset is certified by this
+    page alone.
 
 1. **What anchors HT, VHT and HE.** Unknown 3 in section 8: no printed
     waveform exists for them.

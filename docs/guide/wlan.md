@@ -21,8 +21,10 @@ worked 16-QAM example and by a re-derivation of Eq. (17-16) and (17-17) for
 every index of all four pairs, which is the printed equation implemented a
 second time, not a printed table. The pilot polarity sequence is not held
 against a printed form. The 5/6 code rate is Clause 19's and is not
-checked. Nothing here claims conformance with 802.11a,
-g, n or ac until Annex I's stage-by-stage example passes.
+checked. Annex I.1's worked example, stage by stage, is run against each
+release by the downstream conformance driver, and the release of 2026-11-19 passed it; this
+tree holds none of Annex I's tables, so the example is not a test here
+([#3148](https://github.com/doppler-dsp/doppler/issues/3148)).
 
 ## A rate
 

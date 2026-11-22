@@ -2275,8 +2275,9 @@ def limits(d: Data) -> None:
         "and clears the integrator",
     )
     R.limit(
-        d.life["probes"] == ["car.e", "car.freq", "car.lock", "car.locked"],
-        f"the loop publishes exactly four probes "
+        d.life["probes"]
+        == ["car.e", "car.freq", "car.lock", "car.locked", "car.nco"],
+        f"the loop publishes exactly five probes "
         f"({', '.join(d.life['probes'])})",
     )
     R.limit(

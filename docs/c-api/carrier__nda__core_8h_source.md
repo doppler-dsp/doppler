@@ -22,6 +22,7 @@
 #include "doppler/dp_tlm/dp_tlm_core.h"
 #include <math.h>
 #include "doppler/telemetry/telemetry_core.h"
+#include "doppler/detection/detection_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -87,6 +88,10 @@ extern "C"
 #define CARRIER_NDA_LOCK_ALPHA 0.05
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
 
+#define CARRIER_NDA_DEN_LIMITER 0
+#define CARRIER_NDA_DEN_AVERAGED 1
+#define CARRIER_NDA_DEN_UNIT 2
+
   typedef struct
   {
     dp_tlm_t *ctx;       
@@ -94,6 +99,7 @@ extern "C"
     int32_t   id_e;      
     int32_t   id_freq;   
     int32_t   id_locked; 
+    int32_t   id_nco;    
   } carrier_nda_tlm_t;
 
   typedef struct
@@ -112,6 +118,20 @@ extern "C"
     double         last_error; 
     double          ctl_cyc; 
     dp_lockdet_state_t lockdet; 
+    /* The composer's options (all off by default; see "Options for a
+       composer" at the top). */
+    double t_upd;     
+    int    den;       
+    double den_alpha; 
+    double den_gamma; 
+    double pow_avg;   
+    double pow_n;     
+    uint32_t blk_len; 
+    uint32_t blk_n;   
+    double   blk_thr; 
+    double   blk_pfa; 
+    double   blk_num; 
+    double   blk_den; 
     carrier_nda_tlm_t tlm;   
   } dp_carrier_nda_state_t;
 
@@ -254,8 +274,61 @@ extern "C"
      * cycles/sample and n-invariant — n only sets the window length. lf.integ
      * is thus the carrier frequency correction in cycles/sample (read back by
      * dp_carrier_nda_get_norm_freq). */
-    s->ctl_cyc = dp_loop_filter_step (&s->lf, pe);
+    s->ctl_cyc = dp_loop_filter_step (&s->lf, pe) / s->t_upd;
   }
+
+#ifndef __cplusplus
+  JM_FORCEINLINE JM_HOT void
+  carrier_nda_update (dp_carrier_nda_state_t *s, float _Complex z,
+                      double noise_pw)
+  {
+    double pe, lk;
+    carrier_nda_disc (z, s->m, &pe, &lk);
+    if (s->den != CARRIER_NDA_DEN_LIMITER)
+      {
+        /* M = 2 only (set_denominator refuses the rest): Im(z^2) = 2IQ over
+           the average power, or over the average less the noise, clamped
+           between the design point's signal share and the average itself.
+           Formed in double: the products are of the caller's scale. */
+        const double i = (double)crealf (z), q = (double)cimagf (z);
+        const double p = i * i + q * q;
+        s->pow_n += 1.0;
+        const double w = 1.0 / s->pow_n > s->den_alpha ? 1.0 / s->pow_n
+                                                       : s->den_alpha;
+        s->pow_avg += w * (p - s->pow_avg);
+        double a2 = s->pow_avg;
+        if (s->den == CARRIER_NDA_DEN_UNIT)
+          {
+            const double lo = s->pow_avg * s->den_gamma / (s->den_gamma + 1.0);
+            a2              = s->pow_avg - noise_pw;
+            a2              = a2 < lo ? lo : a2 > s->pow_avg ? s->pow_avg : a2;
+          }
+        pe = a2 > 0.0 ? 2.0 * i * q / a2 : 0.0;
+      }
+    if (s->blk_len)
+      {
+        /* The ratio of sums over the block, R = sum(I^2 - Q^2) / sum(I^2 +
+           Q^2), M = 2: Beta(B/2, B/2) about 0 on noise, so its threshold is
+           exact (set_block_lock). */
+        const double i = (double)crealf (z), q = (double)cimagf (z);
+        s->blk_num += i * i - q * q;
+        s->blk_den += i * i + q * q;
+        if (++s->blk_n >= s->blk_len)
+          {
+            s->lock = s->blk_den > 0.0 ? s->blk_num / s->blk_den : 0.0;
+            (void)dp_lockdet_step (&s->lockdet, s->lock);
+            s->blk_n   = 0;
+            s->blk_num = s->blk_den = 0.0;
+          }
+      }
+    else
+      {
+        s->lock += CARRIER_NDA_LOCK_ALPHA * (lk - s->lock);
+        (void)dp_lockdet_step (&s->lockdet, s->lock);
+      }
+    carrier_nda_steer (s, pe);
+  }
+#endif /* !__cplusplus */
 
   dp_carrier_nda_state_t *dp_carrier_nda_create (double bn, double zeta,
                                            double init_norm_freq, size_t sps,
@@ -276,14 +349,27 @@ extern "C"
 
   int dp_carrier_nda_get_locked (const dp_carrier_nda_state_t *state);
 
+  int dp_carrier_nda_set_update_period (dp_carrier_nda_state_t *state,
+                                        double                  t_upd);
+
+  int dp_carrier_nda_set_denominator (dp_carrier_nda_state_t *state,
+                                      double alpha, double gamma_d);
+
+  int dp_carrier_nda_set_block_lock (dp_carrier_nda_state_t *state,
+                                     uint32_t len, double pfa, uint32_t n_up,
+                                     uint32_t n_down);
+
+  double dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop
  * exactly.
  */
 #define CARRIER_NDA_STATE_MAGIC DP_FOURCC ('C', 'N', 'D', 'A')
 #define CARRIER_NDA_STATE_VERSION                                             \
-  5u /* v5: the arm AGC is gone -- carrier_nda_disc normalises by its own    \
-        |z|^M, so nothing upstream has to manufacture |z| = 1 (gh-657) */
+  6u /* v6: the update period, the denominator, the block lock and their     \
+        running sums; v5: the arm AGC is gone -- carrier_nda_disc            \
+        normalises by its own |z|^M (gh-657) */
 
   size_t dp_carrier_nda_state_bytes (const dp_carrier_nda_state_t *state);
   void dp_carrier_nda_get_state (const dp_carrier_nda_state_t *state, void *blob);

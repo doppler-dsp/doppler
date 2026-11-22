@@ -1,4 +1,5 @@
 #include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/detection/detection_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +47,10 @@ seed (dp_carrier_nda_state_t *s, double init_norm_freq)
   dp_boxcar_init (&s->arm, s->arm_len, 1.0);
   s->lock       = 0.0;
   s->last_error = 0.0;
+  /* The options' running sums restart; their settings are config. */
+  s->pow_avg = s->pow_n = 0.0;
+  s->blk_n              = 0;
+  s->blk_num = s->blk_den = 0.0;
   dp_lockdet_reset (&s->lockdet); /* drop the lock; keep the configured rule */
 }
 
@@ -94,6 +99,15 @@ dp_carrier_nda_init (dp_carrier_nda_state_t *s, double bn, double zeta,
    * attachment; that leaves init responsible for the initial zero.
    * dp_carrier_nda_create's calloc gets this for free. */
   memset (&s->tlm, 0, sizeof s->tlm);
+  /* The composer's options, all off: one update a sample, the limiter, the
+     lock EMA. */
+  s->t_upd     = 1.0;
+  s->den       = CARRIER_NDA_DEN_LIMITER;
+  s->den_alpha = 1.0;
+  s->den_gamma = 0.0;
+  s->blk_len   = 0;
+  s->blk_thr   = 0.0;
+  s->blk_pfa   = 0.0;
   /* By-value init is unguarded: the caller checks (bn, zeta) with
      dp_loop_filter_params_ok() first, as dp_carrier_nda_create() does. */
   (void)config_loop (s, bn, zeta);
@@ -147,21 +161,23 @@ dp_carrier_nda_set_telemetry (dp_carrier_nda_state_t *state, dp_tlm_t *tlm,
       return DP_OK;
     }
   const char              *p      = prefix ? prefix : "car";
-  static const char *const sfx[4] = { "lock", "e", "freq", "locked" };
-  char                     name[4][DP_TLM_NAME_MAX];
-  for (size_t i = 0; i < 4; i++) /* all names before any registration */
+  static const char *const sfx[5] = { "lock", "e", "freq", "locked", "nco" };
+  char                     name[5][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 5; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   int id_lock   = dp_tlm_probe (tlm, name[0], decim);
   int id_e      = dp_tlm_probe (tlm, name[1], decim);
   int id_freq   = dp_tlm_probe (tlm, name[2], decim);
   int id_locked = dp_tlm_probe (tlm, name[3], decim);
-  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0)
+  int id_nco    = dp_tlm_probe (tlm, name[4], decim);
+  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0 || id_nco < 0)
     return DP_ERR_INVALID; /* table full: attach fails whole */
   state->tlm.id_lock   = id_lock;
   state->tlm.id_e      = id_e;
   state->tlm.id_freq   = id_freq;
   state->tlm.id_locked = id_locked;
+  state->tlm.id_nco    = id_nco;
   state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
@@ -173,8 +189,11 @@ dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   /* Tracked carrier = NCO centre + the loop's integrated correction
    * (cycles/sample) — the same reconstruction as get_norm_freq. */
-  dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, s->nco.norm_freq + s->lf.integ);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, dp_carrier_nda_get_norm_freq (s));
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lockdet.locked);
+  /* The full command the LO applies a sample: summed over an update's
+     samples, the phase it advanced by. */
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_nco, dp_carrier_nda_get_nco_freq (s));
 }
 
 /* A snapshot this object could hold: its embedded loop filter's gains are
@@ -190,6 +209,18 @@ dp_carrier_nda_tlm_flush (const dp_carrier_nda_state_t *s)
  * the filter (create, set_bn) goes through dp_loop_filter_configure's domain
  * check, so a zeroed filter is a forgery that freezes the loop, not an
  * unseeded embedding. */
+/* The block lock's threshold on R at a Pfa: (R + 1)/2 is Beta(len/2,
+   len/2) on noise, and R > r is X/Y > (1 + r)/(1 - r) with X = sum(I^2), Y =
+   sum(Q^2) chi-square on len degrees each, so r = (g - 1)/(g + 1) with g the
+   F(len, len) upper point. One home for the derivation: set_block_lock
+   sets it and the state check recomputes it. */
+static double
+carrier_nda_block_thresh (uint32_t len, double pfa)
+{
+  const double g = dp_det_threshold_f (pfa, (int)len);
+  return (g - 1.0) / (g + 1.0);
+}
+
 static int
 carrier_nda_state_ok (const dp_carrier_nda_state_t *s)
 {
@@ -198,9 +229,31 @@ carrier_nda_state_ok (const dp_carrier_nda_state_t *s)
   lf.ki /= CARRIER_NDA_INV_2PI;
   /* `m` is the order create() takes, and the retained bn/zeta the getters
      report are the loop's own, as config_loop() stores them (#2022). */
+  /* The options as their setters leave them: a period >= 1, a known
+     denominator (M = 2 for the two averaged ones) with its own weight and
+     design SNR in range, and a block lock of >= 2 updates whose count is
+     inside it and whose threshold is the one its Pfa gives. */
+  const int den_ok
+      = s->den_alpha > 0.0 && s->den_alpha <= 1.0
+        && (s->den == CARRIER_NDA_DEN_LIMITER
+                ? s->den_alpha == 1.0 && s->den_gamma == 0.0
+            : s->den == CARRIER_NDA_DEN_AVERAGED
+                ? s->m == 2 && s->den_alpha < 1.0 && s->den_gamma == 0.0
+            : s->den == CARRIER_NDA_DEN_UNIT
+                ? s->m == 2 && isfinite (s->den_gamma) && s->den_gamma > 0.0
+                : 0);
+  const int blk_ok
+      = s->blk_len == 0
+            ? s->blk_n == 0 && s->blk_thr == 0.0 && s->blk_pfa == 0.0
+            : s->m == 2 && s->blk_len >= 2 && s->blk_n < s->blk_len
+                  && s->blk_thr
+                         == carrier_nda_block_thresh (s->blk_len, s->blk_pfa);
   return (s->m == 2 || s->m == 4 || s->m == 8) && dp_loop_filter_state_ok (&lf)
          && s->bn == s->lf.bn && s->zeta == s->lf.zeta
-         && dp_boxcar_state_ok (&s->arm) && dp_lockdet_state_ok (&s->lockdet);
+         && dp_boxcar_state_ok (&s->arm) && dp_lockdet_state_ok (&s->lockdet)
+         && isfinite (s->t_upd) && s->t_upd >= 1.0 && den_ok && blk_ok
+         && isfinite (s->pow_avg) && s->pow_avg >= 0.0 && isfinite (s->pow_n)
+         && s->pow_n >= 0.0;
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
@@ -224,6 +277,10 @@ dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
                       size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
+  /* steps() is the per-sample loop: an update every sample. A composer's
+     period is the composition API's (set_update_period). */
+  if (state->t_upd != 1.0)
+    return 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
    * only — SPSC contract), so the detached loop contains NO call site:
    * an extern call inside the loop forces the compiler to assume every
@@ -237,13 +294,9 @@ dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
       for (size_t i = 0; i < x_len; i++)
         {
           float _Complex d = carrier_nda_wipeoff (state, x[i]);
-          double pe, lk;
-          if (carrier_nda_arm_step (state, d, &pe, &lk))
-            {
-              state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
-              (void)dp_lockdet_step (&state->lockdet, state->lock);
-              carrier_nda_steer (state, pe);
-            }
+          /* The arm's moving average, then one update: at the defaults,
+             carrier_nda_disc(), the lock EMA and its decision, the steer. */
+          carrier_nda_update (state, dp_boxcar_step (&state->arm, d), 0.0);
           if (emitted < max_out)
             out[emitted++] = d;
         }
@@ -253,13 +306,9 @@ dp_carrier_nda_steps (dp_carrier_nda_state_t *state, const float _Complex *x,
       for (size_t i = 0; i < x_len; i++)
         {
           float _Complex d = carrier_nda_wipeoff (state, x[i]);
-          double pe, lk;
-          if (carrier_nda_arm_step (state, d, &pe, &lk))
-            {
-              state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
-              (void)dp_lockdet_step (&state->lockdet, state->lock);
-              carrier_nda_steer (state, pe);
-            }
+          /* The arm's moving average, then one update: at the defaults,
+             carrier_nda_disc(), the lock EMA and its decision, the steer. */
+          carrier_nda_update (state, dp_boxcar_step (&state->arm, d), 0.0);
           if (emitted < max_out)
             out[emitted++] = d;
           dp_carrier_nda_tlm_flush (state);
@@ -278,7 +327,7 @@ dp_carrier_nda_get_norm_freq (const dp_carrier_nda_state_t *state)
    * true carrier by the constant Type-II ramp error (the standing phase error
    * lives in the omitted proportional path — see dp_carrier_nda_get_nco_freq).
    */
-  return state->nco.norm_freq + state->lf.integ;
+  return state->nco.norm_freq + state->lf.integ / state->t_upd;
 }
 
 double
@@ -356,4 +405,73 @@ int
 dp_carrier_nda_get_locked (const dp_carrier_nda_state_t *state)
 {
   return state->lockdet.locked;
+}
+
+int
+dp_carrier_nda_set_update_period (dp_carrier_nda_state_t *state, double t_upd)
+{
+  if (!(isfinite (t_upd) && t_upd >= 1.0))
+    return DP_ERR_INVALID;
+  /* bn and zeta are kept and now mean per update; the filter's gains do
+     not depend on the period (the loop is designed at t = 1 an update), so
+     only the spread over the update's samples changes. */
+  state->t_upd = t_upd;
+  return DP_OK;
+}
+
+int
+dp_carrier_nda_set_denominator (dp_carrier_nda_state_t *state, double alpha,
+                                double gamma_d)
+{
+  if (!(alpha > 0.0 && alpha <= 1.0)
+      || !(isfinite (gamma_d) && gamma_d >= 0.0))
+    return DP_ERR_INVALID;
+  /* alpha 1 with no noise subtracted is one update's own power: the limiter,
+     kept on carrier_nda_disc()'s exact arithmetic. */
+  const int den = gamma_d > 0.0 ? CARRIER_NDA_DEN_UNIT
+                  : alpha < 1.0 ? CARRIER_NDA_DEN_AVERAGED
+                                : CARRIER_NDA_DEN_LIMITER;
+  if (den != CARRIER_NDA_DEN_LIMITER && state->m != 2)
+    return DP_ERR_INVALID;
+  state->den       = den;
+  state->den_alpha = alpha;
+  state->den_gamma = gamma_d;
+  state->pow_avg = state->pow_n = 0.0;
+  return DP_OK;
+}
+
+int
+dp_carrier_nda_set_block_lock (dp_carrier_nda_state_t *state, uint32_t len,
+                               double pfa, uint32_t n_up, uint32_t n_down)
+{
+  if (len == 0)
+    {
+      state->blk_len = 0;
+      state->blk_thr = state->blk_pfa = 0.0;
+      dp_lockdet_configure (&state->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP,
+                            CARRIER_NDA_LOCK_DEFAULT_DOWN,
+                            CARRIER_NDA_LOCK_DEFAULT_N_UP,
+                            CARRIER_NDA_LOCK_DEFAULT_N_DOWN);
+    }
+  else
+    {
+      if (state->m != 2 || len < 2 || !(pfa > 0.0 && pfa < 1.0))
+        return DP_ERR_INVALID;
+      state->blk_len = len;
+      state->blk_pfa = pfa;
+      state->blk_thr = carrier_nda_block_thresh (len, pfa);
+      dp_lockdet_configure (&state->lockdet, state->blk_thr, state->blk_thr,
+                            n_up, n_down);
+    }
+  state->blk_n   = 0;
+  state->blk_num = state->blk_den = 0.0;
+  state->lock                     = 0.0;
+  dp_lockdet_reset (&state->lockdet);
+  return DP_OK;
+}
+
+double
+dp_carrier_nda_get_block_thresh (const dp_carrier_nda_state_t *state)
+{
+  return state->blk_thr;
 }

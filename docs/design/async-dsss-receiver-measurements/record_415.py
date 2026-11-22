@@ -850,6 +850,17 @@ def handover(argv: list[str]) -> int:
             nev = sum(r[t_key] == "nan" for r in every)
             chg = sum(r[t_key] != "nan" and int(r[tog_key]) > 0 for r in every)
             flags.append(f"{name} {nev}/{chg}/{len(every) - nev - chg}")
+        # C17's criterion from the rows' own columns: works as printed,
+        # and all five flags sustained (t_car_s, t_demod_s and t_sync_s,
+        # beside the symbol's and code's it already required). Equal to
+        # "works" on rows the fixed harness printed.
+        works_c17 = sum(
+            r["works"] == "1"
+            and all(
+                r[k] != "nan" for k in ("t_car_s", "t_demod_s", "t_sync_s")
+            )
+            for r in every
+        )
         tab.append(
             [
                 f"{fc} GHz {es} dB "
@@ -875,6 +886,7 @@ def handover(argv: list[str]) -> int:
                 f"{sum(int(r['car_slips']) > 0 for r in every)} / "
                 f"{sum(r['slipped'] == '1' for r in every)}",
                 f"{sum(r['works'] == '1' for r in every)} of {len(every)}",
+                f"{works_c17} of {len(every)}",
                 f"{n} (+{len(every) - n} off code)",
                 stat("seed_err_hz", "{:.1f}"),
                 stat("seed_code_chip", "{:.3f}"),
@@ -898,13 +910,14 @@ def handover(argv: list[str]) -> int:
             (
                 "cell, arm",
                 "hand-over error, every draw, Hz",
-                "outside the arm's pull-in bound",
+                "outside ASYNC_DSSS_RX_CARRIER_PULLIN_HZ",
                 "of those, pulled in",
                 "carrier lock, s",
                 "pulled in after the hand-over, s",
                 "flags: never / changed / clean",
                 "carrier slips / data slipped",
-                "works",
+                "works, as printed",
+                "works, every flag sustained (C17)",
                 "draws",
                 "seed Doppler, Hz",
                 "seed code, chip",

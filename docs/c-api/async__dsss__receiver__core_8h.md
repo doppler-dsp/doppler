@@ -15,6 +15,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 * `#include "doppler/carrier_acq/carrier_acq_core.h"`
 * `#include "doppler/cic/cic_core.h"`
 * `#include "doppler/carrier_nda/carrier_nda_core.h"`
+* `#include "doppler/ppe/ppe_core.h"`
 * `#include "doppler/costas/costas_core.h"`
 * `#include "doppler/dll/dll_core.h"`
 * `#include "doppler/dp_state.h"`
@@ -34,7 +35,6 @@ _Composed continuous DSSS receiver: Acquisition -&gt; hand-off -&gt; CarrierAcqu
 * `#include "doppler/ber/ber_core.h"`
 * `#include "doppler/doppler_channel/doppler_channel_core.h"`
 * `#include "doppler/dp_tlm/dp_tlm_core.h"`
-* `#include "doppler/ppe/ppe_core.h"`
 
 
 
@@ -173,7 +173,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br>_Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._  |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `22u /\* v22: the pre-despread carrier loop is carrier\_nda ('CNDA' children for car and car\_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set\_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `23u /\* v23: the fine hand-over's buffer and count (ho\_src 3); v22: the pre-despread carrier loop is carrier\_nda ('CNDA' children for car and car\_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set\_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples\_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine\_min\_blocks; v8: refused\_hits; v7: no hand-off flavor; v6: the cell pull-in \*/`<br>_Layout version of the AsyncDsssReceiver blob (history below)._  |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_LOOP\_SNR\_DB**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_loop_snr_db)  `20.0`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (bn, chip\_rate, code\_len) `((bn) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
@@ -189,7 +189,9 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_BN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_bn)  `0.002`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_SPACING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_spacing)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_ZETA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_zeta)  `0.707`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_FINE\_P\_HO**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_fine_p_ho)  `0.99`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_HO\_DATA**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_data)  `2`<br>_The hand-over took the data-template estimator's._  |
+| define  | [**ASYNC\_DSSS\_RX\_HO\_FINE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_fine)  `3`<br>_The hand-over took the fine estimate: the refine's squared pair sums located by PolynomialPhaseEstimator, divided by M._  |
 | define  | [**ASYNC\_DSSS\_RX\_HO\_NONE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_none)  `0`<br>_Where the last hand-over's Doppler came from (".ho\_src" and_ [_**dp\_async\_dsss\_receiver\_get\_handover\_source()**_](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_handover_source) _): none since the last seed (searching or refining), the seed's own (the refine gave up, or its estimate failed the hand-over's checks), or the data-template estimator's (§4.7)._ |
 | define  | [**ASYNC\_DSSS\_RX\_HO\_SEED**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_ho_seed)  `1`<br>_The hand-over took the seed's own Doppler._  |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_DOWN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_down)  `0.3`<br> |
@@ -2160,7 +2162,8 @@ The receiver reports under the prefix, once per steps() call that carries sample
 * "&lt;prefix&gt;.state"  where the call left the receiver, the ASYNC\_DSSS\_RX\_\* value: 0 searching, 1 refining, 2 tracking, 3 idle (a pooled receiver holding nothing), 4 lost (status().state);
 * "&lt;prefix&gt;.handover\_hz"  the Doppler the chain was built from, Hz ([**dp\_async\_dsss\_receiver\_get\_doppler\_hz()**](async__dsss__receiver__core_8h.md#function-dp_async_dsss_receiver_get_doppler_hz)): 0 before a seed, the seed's while refining, the refined value from the hand-over on, and 0 again after a refused hand-over or a reset(), which return the receiver to searching. A record is a float, so it resolves about 0.5 Hz near 5 MHz. Not the live carrier: status().doppler\_hz reads that, and ".car.freq" and ".car.nco" are the carrier loop's own view of it, in cycles a sample at the input rate, so times chip\_rate \* spc for Hz;
 * "&lt;prefix&gt;.refused"  the hits refused as seeds so far (status().refused\_hits);
-* "&lt;prefix&gt;.ho\_src"  which estimate the live chain was built from, an ASYNC\_DSSS\_RX\_HO\_\* value (0 none since the seed, 1 the seed's, 2 the data template's);
+* "&lt;prefix&gt;.ho\_src"  which estimate the live chain was built from, an ASYNC\_DSSS\_RX\_HO\_\* value (0 none since the seed, 1 the seed's, 2 the data template's, 3 the fine estimate's);
+* "&lt;prefix&gt;.ref\_fine.hz", ".snr\_db", ".n"  the fine hand-over's estimate (Hz, against the seed), its peak-to-mean and its sums, once at the refine's decision, whether or not its check passed;
 * "&lt;prefix&gt;.cn0"  the seed's C/N0 estimate, dB-Hz (status().cn0\_dbhz\_est): constant over a tenure, since the receiver keeps no running estimate while tracking;
 * "&lt;prefix&gt;.phase.car"  the pre-despread carrier NCO's phase at the call's FIRST sample, cycles in [0, 1) ([**dp\_carrier\_nda\_get\_nco\_phase\_ahead()**](carrier__nda__core_8h.md#function-dp_carrier_nda_get_nco_phase_ahead) past the samples the chain still carries), exact: the loop steers only at a period's end. The phase of the tracking chain; while searching or refining it is the placeholder chain's, and ".state" says which;
 * "&lt;prefix&gt;.phase.code"  the code NCO's prompt phase at the call's first sample, chips ([**dp\_dll\_get\_code\_phase\_ahead()**](dll__core_8h.md#function-dp_dll_get_code_phase_ahead)), exact to within a code-loop update inside the carried samples. It is the code NCO's word, the START of a sample's dwell; the Dll takes its prompt at the dwell's CENTRE, half an increment later ([**dll\_tap\_base()**](dll__core_8h.md#function-dll_tap_base), [**nco\_dwell\_center()**](nco__core_8h.md#function-nco_dwell_center): the zero-order-hold rule). So a prompt on the continuous code phase reads here half a sample BEFORE it (0.5 chip\_rate / fs chips), with no correlation lost  measured in the pull-in captures, -0.186 chip at 2.69 samples a chip (0.500 sample) and -0.148 at 3.42 (0.505).
@@ -2233,7 +2236,7 @@ DP\_OK, or DP\_ERR\_INVALID on decim 0, a prefix too long for some probe's name 
 >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
 ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
 >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))
-['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.refused']
+['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']
 >>> rx.set_telemetry(None, "rx")      # detach
 ```
  
@@ -2535,7 +2538,7 @@ _Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob._
 
 _Layout version of the AsyncDsssReceiver blob (history below)._ 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `22u /* v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */`
 ```
 
 
@@ -2807,11 +2810,43 @@ Damping factor of both Dlls (the tracker and the refine collector).
 
 
 
+### define ASYNC\_DSSS\_RX\_FINE\_P\_HO 
+
+```C++
+#define ASYNC_DSSS_RX_FINE_P_HO `0.99`
+```
+
+
+
+The fine hand-over's probability, the dwell's target: proposed, not yet ruled by the owner (docs/design/async-dsss-receiver.md, "The dwell,
+derived"). 
+
+
+        
+
+<hr>
+
+
+
 ### define ASYNC\_DSSS\_RX\_HO\_DATA 
 
 _The hand-over took the data-template estimator's._ 
 ```C++
 #define ASYNC_DSSS_RX_HO_DATA `2`
+```
+
+
+
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_HO\_FINE 
+
+_The hand-over took the fine estimate: the refine's squared pair sums located by PolynomialPhaseEstimator, divided by M._ 
+```C++
+#define ASYNC_DSSS_RX_HO_FINE `3`
 ```
 
 

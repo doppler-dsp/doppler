@@ -45,6 +45,7 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**excl**](#variable-excl)  <br> |
 |  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
+|  uint64\_t | [**fine\_n**](#variable-fine_n)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
 |  uint64\_t | [**ho\_src**](#variable-ho_src)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
@@ -294,6 +295,23 @@ v18: the sample the exclusions name.
 
 
 
+### variable fine\_n 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::fine_n;
+```
+
+
+
+v23: the fine hand-over's sums so far, at most fine\_cap; the buffer follows the refine ring. 
+
+
+        
+
+<hr>
+
+
+
 ### variable had\_lock 
 
 ```C++
@@ -319,8 +337,7 @@ uint64_t async_dsss_receiver_extra_t::ho_src;
 
 
 
-v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 2. 
- 
+v19: ASYNC\_DSSS\_RX\_HO\_\*, refused past 3 (v23). 
 
 
         

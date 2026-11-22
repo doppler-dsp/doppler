@@ -317,6 +317,18 @@ typedef struct {
     float _Complex *aid_ring_e; /**< last `aid_ring` early partials.         */
     float _Complex *aid_ring_l; /**< last `aid_ring` late partials.          */
     double        *aid_power;  /**< per-hypothesis window-power EMA (Q).    */
+    /* ── the carrier look: the D0 decision arm (dp_dll_set_carrier_look()) ──
+       Off as built. On, each look of the winning hypothesis marks its
+       boundary b, and when partial b + segments - 1 has arrived the prompt
+       partials b .. b + segments - 1 (one code period from the winner's
+       boundary) are summed from aid_ring_p into look_sum and look_n
+       counts it. The code loop, the lock look and the steer read none of
+       it. Packed in the blob (v19); the arm is not a shipped mode. */
+    float _Complex look_sum; /**< the last carrier look's prompt sum.      */
+    uint64_t look_mark;      /**< b + 1 of the look awaiting its last
+                                  partial; 0 when none waits.            */
+    uint64_t look_n;         /**< carrier looks closed since the last take. */
+    int      look_on;        /**< 1 when the carrier look is on.           */
     int owns_code;           /**< 1 if dp_dll_destroy() frees `code`.         */
     /** The replica's +-1 values on its half-chip grid, 2 sf + 1 floats:
         entry i is the sign of chip i / 2 and entry 2 sf repeats entry 0, so
@@ -1414,6 +1426,43 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
  *  @return The winning window's prompt sum. */
 float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
 
+/** @brief Turn the carrier look on or off: the D0 decision arm
+ *         (docs/design/async-dsss-receiver.md §4.10, D0), not a shipped
+ *         mode.
+ *
+ * With the symbol-period aid on (dp_dll_set_symbol_period()), each look
+ * the aid's winning hypothesis takes marks that window's first partial b.
+ * When partial b + segments - 1 has arrived, the prompt partials b to
+ * b + segments - 1 -- one code period from the winner's boundary, whatever
+ * the aid's own window length -- are summed coherently, and that sum is
+ * what dp_dll_take_carrier_look() returns. A symbol is longer than a code
+ * period here (dp_dll_symbol_period_ok()), so each sum closes before the
+ * next look opens. The code loop, the lock detector and the steer do not
+ * read it: with the look off the Dll runs as it did, and with it on only
+ * the sum and its count move. Turning it on or off clears the sum, the
+ * count and any pending mark; reset and seed clear them and keep the
+ * setting.
+ *
+ *  @param state  Must be non-NULL.
+ *  @param on     1 to form the looks, 0 to stop.
+ *  @return DP_OK, or DP_ERR_INVALID, changing nothing, when @p on is not
+ *          0 or 1, or is 1 without the symbol-period aid. */
+int dp_dll_set_carrier_look(dp_dll_state_t *state, int on);
+
+/** @brief Take the carrier look (dp_dll_set_carrier_look()): how many
+ *         looks have closed since the last take, and the newest one's sum.
+ *
+ * A caller that updates once per look takes once per block of input and
+ * updates when the count is non-zero. A symbol is longer than a code
+ * period, so a block of one code period closes at most one look.
+ *  @param state  Must be non-NULL.
+ *  @param sum    If non-NULL, receives the newest look's coherent prompt
+ *                sum over one code period from the winner's boundary (0
+ *                before the first).
+ *  @return The looks closed since the last take, reset, seed or setting;
+ *          0 with the carrier look off. */
+uint64_t dp_dll_take_carrier_look(dp_dll_state_t *state, float _Complex *sum);
+
 /** @brief Current lock decision (1 = locked, 0 = not), with the configured
  *         verify-count / hysteresis rule applied (see dp_dll_configure_lock).
  *  @param state  Must be non-NULL.
@@ -1525,7 +1574,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 18u /* v18: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 19u /* v19: the carrier look, look_sum/look_mark/look_n/look_on (D0's decision arm); v18: the last look's |P| and |O|^2, look_prompt_amp/look_offset_pwr (#3134); v17: rtab, a heap pointer, zero in the blob; v16: win_p, scratch, zero in the blob; v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

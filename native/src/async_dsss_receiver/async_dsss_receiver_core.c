@@ -320,6 +320,10 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
       if (partials_per_symbol >= 2.0
           && dp_dll_set_symbol_period (dll, partials_per_symbol) != DP_OK)
         abort ();
+      /* The D0 arm (car_on_look) needs the aid's looks; at a point
+         without them it is a misuse of the switch, not a configuration. */
+      if (s->car_on_look && dp_dll_set_carrier_look (dll, 1) != DP_OK)
+        abort ();
       size_t win  = dp_dll_get_symbol_window (dll);
       size_t look = (win ? win : 1) * (s->tsamps / segments);
       double amp
@@ -384,8 +388,14 @@ adr_build_track_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
      the FLL cross-product is too noisy on the despread-symbol input and
      drives the carrier wander that causes the residual slips). */
+  /* The D0 arm updates once per look, a symbol apart on average, so its
+     loop is built at one symbol's samples: the integrator's conversion to
+     a frequency (integ / tsamps) then holds on the mean interval. */
+  const size_t car_tsamps
+      = s->car_on_look ? (size_t)lround (front_end_rate / s->symbol_rate)
+                       : s->tsamps;
   dp_costas_init (car_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
-                  doppler_hz_est / front_end_rate, s->tsamps, 0.0);
+                  doppler_hz_est / front_end_rate, car_tsamps, 0.0);
 
   *dll_out = dll;
   *rc_out  = rc;
@@ -902,7 +912,13 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
     s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
   size_t n_out
       = dp_dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
-  if (n_out > 0 && !car_coast)
+  /* The D0 arm: one update per closed look, on the look's sum; a look
+     that closes in the hold is dropped, as the hold drops the window. */
+  float _Complex look_sum = 0.0f;
+  const int      on_look  = s->dll->look_on;
+  const int      looked
+      = on_look && dp_dll_take_carrier_look (s->dll, &look_sum) > 0;
+  if (on_look ? looked && !car_coast : n_out > 0 && !car_coast)
     {
       /* NON-DATA-AIDED carrier discriminator over the code period: the
          one coherent sum over the code-period window the Dll's look-back
@@ -916,7 +932,8 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
          downstream MpskReceiver carrier loop uses, applied PRE-despread so
          despreading stays coherent instead of leaving the whole carrier
          burden to the post-despread loop. */
-      const float _Complex w  = dp_dll_get_window_sum (s->dll);
+      const float _Complex w
+          = on_look ? look_sum : dp_dll_get_window_sum (s->dll);
       const float _Complex sq = w * w;
       double phi              = 0.5 * atan2 (cimag (sq), creal (sq));
       float _Complex P        = (float)cos (phi) + (float)sin (phi) * I;

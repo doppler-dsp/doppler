@@ -126,6 +126,10 @@ seed (dp_dll_state_t *s)
   s->aid_count    = 0;
   s->aid_last_end = 0;
   s->aid_best     = 0;
+  /* The carrier look keeps its setting and forgets its looks. */
+  s->look_sum  = 0.0f;
+  s->look_mark = 0;
+  s->look_n    = 0;
   if (s->aid_ring_p)
     {
       memset (s->aid_ring_p, 0, s->aid_ring * sizeof (*s->aid_ring_p));
@@ -205,6 +209,28 @@ aid_window_starts (const dp_dll_state_t *s, size_t h, uint64_t start)
  * change of winner on this very partial fires one update, not two (two
  * hypotheses end a window on the same partial whenever P is not an
  * integer). */
+/* The carrier look (dp_dll_set_carrier_look()): partial `i` has arrived;
+ * if the marked boundary b's code period, partials b .. b + segments - 1,
+ * is now whole, sum its prompts from the ring and count the look. The
+ * ring holds 2 (L + Q) + 2 partials and a symbol is longer than a code
+ * period, so the period is still in it when it closes. */
+static void
+carrier_look_close (dp_dll_state_t *s, uint64_t i)
+{
+  if (!s->look_mark)
+    return;
+  const uint64_t b = s->look_mark - 1;
+  if (i + 1 < b + s->segments)
+    return;
+  const size_t   mask = s->aid_ring - 1;
+  float _Complex sp   = 0.0f;
+  for (uint64_t k = b; k < b + s->segments; k++)
+    sp += s->aid_ring_p[k & mask];
+  s->look_sum  = sp;
+  s->look_mark = 0;
+  s->look_n++;
+}
+
 static void
 aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
           float _Complex early, float _Complex late)
@@ -215,6 +241,8 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
   s->aid_ring_o[i & mask] = noise;
   s->aid_ring_e[i & mask] = early;
   s->aid_ring_l[i & mask] = late;
+  if (s->look_on)
+    carrier_look_close (s, i);
   if (i + 1 < s->aid_len)
     return;
   const uint64_t start = i + 1 - s->aid_len;
@@ -243,7 +271,12 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
      not a look. */
   if (s->aid_last_end && start < s->aid_last_end)
     return;
-  s->aid_last_end   = i + 1;
+  s->aid_last_end = i + 1;
+  if (s->look_on)
+    {
+      s->look_mark = start + 1;
+      carrier_look_close (s, i);
+    }
   float _Complex sp = 0.0f, so = 0.0f, se = 0.0f, sl = 0.0f;
   for (uint64_t k = start; k <= i; k++)
     {
@@ -418,6 +451,7 @@ dp_dll_init (dp_dll_state_t *s, const uint8_t *code, size_t code_len,
   s->aid_power                  = NULL;
   s->sym_period                 = 0.0;
   s->aid_len = s->aid_nhyp = s->aid_ring = 0;
+  s->look_on                    = 0;
   /* In-place (stack-embedded) init: start detached — dp_dll_create's calloc
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
@@ -461,6 +495,7 @@ free_aid_buffers (dp_dll_state_t *s)
   s->aid_power                  = NULL;
   s->aid_ring = s->aid_nhyp = s->aid_len = 0;
   s->sym_period                          = 0.0;
+  s->look_on = 0; /* the carrier look reads the aid's rings */
 }
 
 static void
@@ -757,6 +792,13 @@ dp_dll_set_state (dp_dll_state_t *s, const void *blob)
       && (!dp_dll_symbol_period_ok (t.segments, t.sym_period)
           || t.aid_len >= t.aid_ring || t.aid_best >= t.aid_nhyp
           || t.aid_last_end > t.aid_count))
+    return DP_ERR_INVALID;
+  /* The carrier look: on only with the aid, its pending mark at most the
+     partials counted, and its sum finite. */
+  if ((t.look_on != 0 && t.look_on != 1)
+      || (t.look_on && !(s->sym_period > 0.0))
+      || t.look_mark > t.aid_count
+      || !(isfinite (crealf (t.look_sum)) && isfinite (cimagf (t.look_sum))))
     return DP_ERR_INVALID;
   /* The retained config a live instance can only hold after create (or a
      retune) accepted it: the spacing places the early and late taps, and
@@ -1424,6 +1466,28 @@ dp_dll_set_rate_aid (dp_dll_state_t *state, double rate_aid)
   state->rate_aid = rate_aid;
   if (state->coast)
     state->code_nco.phase_inc = held_phase_inc (state);
+}
+
+int
+dp_dll_set_carrier_look (dp_dll_state_t *state, int on)
+{
+  if ((on != 0 && on != 1) || (on && !(state->sym_period > 0.0)))
+    return DP_ERR_INVALID;
+  state->look_on   = on;
+  state->look_sum  = 0.0f;
+  state->look_mark = 0;
+  state->look_n    = 0;
+  return DP_OK;
+}
+
+uint64_t
+dp_dll_take_carrier_look (dp_dll_state_t *state, float _Complex *sum)
+{
+  const uint64_t n = state->look_n;
+  if (sum)
+    *sum = state->look_sum;
+  state->look_n = 0;
+  return n;
 }
 
 size_t

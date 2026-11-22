@@ -565,6 +565,17 @@ typedef enum
                                         receiver cannot free-run onto a
                                         neighbour's code (#1271).        */
     int      car_coasting;         /**< Running: the carrier loop is held. */
+    /** The D0 decision arm (docs/design/async-dsss-receiver.md §4.10, D0),
+        a validator's switch and not a shipped mode: no setter, 0 after
+        create. Read only when a tracking chain is built. Set to 1 before
+        the hand-over, it builds the carrier loop at one symbol's samples
+        (round(chip_rate * spc / symbol_rate)) and turns the Dll's carrier
+        look on (dp_dll_set_carrier_look()), and the carrier then updates
+        once per look on the look's sum in place of the look-back's window
+        (dp_dll_get_window_sum()). Not in the blob: a restored chain keeps
+        the arm through its Dll's and carrier's own blobs, and a chain
+        built after a restore is built with this instance's value. */
+    int      car_on_look;
     dp_costas_state_t car_held;       /**< The carrier as of the last
                                         period with both lock flags up,
                                         restored on entering the hold.    */

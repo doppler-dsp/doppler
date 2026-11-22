@@ -194,6 +194,10 @@
 
 #define PI_PUSH 4096u
 #define PI_SUSTAIN 200u /* blocks: 74 ms */
+/* The pull-in's test (t_pull_s): the carrier's frequency error against the
+   truth inside this fraction of the loop's own pull-in bound
+   (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ at its bandwidth), half of it. */
+#define PI_PULL_FRAC 0.5
 /* Draws a cell in the sweep: 60, the count the floor brief's paired-seed
    run makes, and the least at which 415.1-B-1 §7.4.1 can be DEMONSTRATED
    with one miss allowed -- 59 of 60 reads a Wilson 95% lower limit of
@@ -279,6 +283,12 @@ typedef struct
      bound a loop outside capture never falls inside. */
   double t_car_s;
   int    pulled_in;
+  /* When the carrier loop brought its frequency error, against the truth,
+     inside PI_PULL_FRAC of its own pull-in bound and held it there
+     (dp_ber_lock_symbol()'s rule on the per-block test: 200 blocks in a
+     row and 90% of the rest), in seconds from the draw's start; NAN:
+     never. t_car_s is the lock flag's; this is the truth's. */
+  double t_pull_s;
   double end_stale_hz; /* the hand-over's Doppler against the end's
                           truth: what end_resid_hz would read if it
                           took get_doppler_hz() (the --check margin) */
@@ -962,6 +972,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   uint8_t       *f_x[3] = { dp_xmalloc (n_blk), dp_xmalloc (n_blk),
                             dp_xmalloc (n_blk) }; /* car, demod, sync */
   uint8_t       *data   = dp_xmalloc (n_blk);
+  uint8_t       *f_pull = dp_xmalloc (n_blk); /* |freq error| inside */
   float complex *x      = dp_xmalloc (PI_PUSH * sizeof *x);
   const size_t   ocap   = (size_t)(secs * DP_S415_SYM) + 4096;
   float complex *syms   = dp_xmalloc (ocap * sizeof *syms);
@@ -969,6 +980,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   size_t         ns = 0, first_in = SIZE_MAX;
   d->ho_err_hz            = NAN;
   d->t_car_s              = NAN;
+  d->t_pull_s             = NAN;
   d->t_switch_s           = NAN;
   d->slope_hz_s           = NAN;
   d->t_narrow_s           = NAN;
@@ -1397,6 +1409,20 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       f_cod[b]
           = (uint8_t)(tracking && dp_async_dsss_receiver_get_code_locked (rx));
       f_x[0][b] = (uint8_t)(tracking && rx->car.lock.locked);
+      /* The pull-in against the truth: the live carrier's error at the
+         block's end inside PI_PULL_FRAC of the loop's own bound. */
+      f_pull[b] = 0;
+      if (tracking)
+        {
+          const double fe
+              = dp_async_dsss_receiver_status (rx).doppler_hz
+                - dp_air_truth (&air, 0, (uint64_t)(b + 1) * PI_PUSH).car_hz;
+          f_pull[b]
+              = (uint8_t)(fabs (fe) < PI_PULL_FRAC
+                                          * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (
+                                              rx->car.lf.bn,
+                                              dp_s415_chip_rate (fc), SF));
+        }
       f_x[1][b] = (uint8_t)(tracking && rx->rx && rx->rx->l.car_lock.locked);
       f_x[2][b]
           = (uint8_t)(tracking && rx->rx && rx->rx->l.timing.lock.locked);
@@ -1923,6 +1949,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   free (s_gen);
   free (cross);
   free (coast);
+  {
+    const int64_t sp = dp_ber_lock_symbol (f_pull, n_blk, PI_SUSTAIN, 0.9);
+    d->t_pull_s = sp >= 0 ? (double)sp * (double)PI_PUSH / DP_S415_FS : NAN;
+  }
+  free (f_pull);
   free (f_sym);
   free (f_cod);
   for (int k = 0; k < 3; k++)
@@ -1958,7 +1989,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "base_half_spacing_chip,bn_car,win_natural_frac,loop_order,acq,"            \
   "t_switch_s,slope_hz_s,rate_end_hz_s,seed_rate,t_narrow_s,"                 \
   "rate_pre_narrow_hz_s,rate_post_narrow_hz_s,slope_settled_hz_s,"            \
-  "t_car_s,pulled_in\n"
+  "t_car_s,pulled_in,t_pull_s\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1971,7 +2002,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,%d,%c,%.4f,%.2f,%.2f,%d,%.4f,%.2f,"
-      "%.2f,%.2f,%.4f,%d\n",
+      "%.2f,%.2f,%.4f,%d,%.4f\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -1991,7 +2022,7 @@ emit_row (const draw_t *d, uint32_t seed)
       d->loop_order, d->acq, d->t_switch_s, d->slope_hz_s, d->rate_end_hz_s,
       d->seed_rate, d->t_narrow_s, d->rate_pre_narrow_hz_s,
       d->rate_post_narrow_hz_s, d->slope_settled_hz_s, d->t_car_s,
-      d->pulled_in);
+      d->pulled_in, d->t_pull_s);
 }
 
 static int

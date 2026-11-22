@@ -1446,7 +1446,19 @@ float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
  *  @param prefix  Probe-name prefix, e.g. "rx.code.steer".
  *  @param decim   Emit every decim-th steer; >= 1.
  *  @return DP_OK, or DP_ERR_INVALID (an overlong prefix or a full probe
- *          table), the set then detached. */
+ *          table), the set then detached.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> from doppler.telemetry import Telemetry
+ * >>> code = np.random.default_rng(1).integers(0, 2, 31).astype(np.uint8)
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> d = Dll(code=code, sps=2)
+ * >>> d.set_steer_telemetry(tlm, "code.steer")
+ * >>> sorted(n.split(".")[-1] for n in tlm.probe_names)
+ * ['aid', 'ctrl', 'e', 'integ', 'prop']
+ *
+ * @endcode */
 int dp_dll_set_steer_telemetry(dp_dll_state_t *state, dp_tlm_t *tlm,
                                const char *prefix, uint32_t decim);
 

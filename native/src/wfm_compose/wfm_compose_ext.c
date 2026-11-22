@@ -444,7 +444,8 @@ _attach_frame (wfm_source_t *_jm_src, PyObject *_jm_obj)
  * into an owned *dst and *n_dst (one shared coercer; each bytes field
  * passes its own struct destination).
  * A bit_pattern field passes its name as bits, and an element
- * that is not 0 or 1 is refused by it (gh-2696). */
+ * that is not 0 or 1 is refused by it (gh-2696); a plain
+ * field passes NULL and takes only bytes (gh-2701). */
 static int
 _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj, const char *bits)
 {
@@ -453,13 +454,34 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj, const char *bits)
   *n_dst = 0;
   if (!obj || obj == Py_None)
     return 1;
+  if (!bits)
+    {
+      if (!PyBytes_Check (obj))
+        {
+          PyErr_SetString (PyExc_TypeError, "bits must be bytes or None");
+          return 0;
+        }
+      Py_ssize_t nb = PyBytes_GET_SIZE (obj);
+      if (nb <= 0)
+        return 1;
+      uint8_t *buf = (uint8_t *)malloc ((size_t)nb);
+      if (!buf)
+        {
+          PyErr_NoMemory ();
+          return 0;
+        }
+      memcpy (buf, PyBytes_AS_STRING (obj), (size_t)nb);
+      *dst   = buf;
+      *n_dst = (size_t)nb;
+      return 1;
+    }
   if (PyBytes_Check (obj))
     {
       Py_ssize_t nb = PyBytes_GET_SIZE (obj);
       if (nb <= 0)
         return 1;
       const uint8_t *in = (const uint8_t *)PyBytes_AS_STRING (obj);
-      for (Py_ssize_t i = 0; bits && i < nb; i++)
+      for (Py_ssize_t i = 0; i < nb; i++)
         if (in[i] > 1)
           {
             PyErr_Format (PyExc_ValueError,
@@ -502,7 +524,7 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj, const char *bits)
             Py_DECREF (seq);
             return 0;
           }
-        if (bits && v != 0 && v != 1)
+        if (v != 0 && v != 1)
           {
             free (buf);
             Py_DECREF (seq);
@@ -513,7 +535,7 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj, const char *bits)
                           bits, (Py_ssize_t)(i), (long)(v));
             return 0;
           }
-        buf[i] = (uint8_t)(v != 0);
+        buf[i] = (uint8_t)v;
       }
     Py_DECREF (seq);
     *dst   = buf;
@@ -6652,106 +6674,167 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             }
           syn->src = src[i].sources[k]; /* scalars + bytes ptrs */
           syn->fs  = src[i].fs;
-          if (syn->src.acq_code.bits && syn->src.acq_code.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.acq_code.len);
-              if (copy)
-                memcpy (copy, syn->src.acq_code.bits, syn->src.acq_code.len);
-              syn->src.acq_code.bits = copy;
-            }
-          else
-            {
-              syn->src.acq_code.bits = NULL;
-              syn->src.acq_code.len  = 0;
-            }
-          if (syn->src.data_code.bits && syn->src.data_code.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.data_code.len);
-              if (copy)
-                memcpy (copy, syn->src.data_code.bits, syn->src.data_code.len);
-              syn->src.data_code.bits = copy;
-            }
-          else
-            {
-              syn->src.data_code.bits = NULL;
-              syn->src.data_code.len  = 0;
-            }
-          if (syn->src.retired_sync.bits && syn->src.retired_sync.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.retired_sync.len);
-              if (copy)
-                memcpy (copy, syn->src.retired_sync.bits,
-                        syn->src.retired_sync.len);
-              syn->src.retired_sync.bits = copy;
-            }
-          else
-            {
-              syn->src.retired_sync.bits = NULL;
-              syn->src.retired_sync.len  = 0;
-            }
-          if (syn->src.retired_crc.bits && syn->src.retired_crc.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.retired_crc.len);
-              if (copy)
-                memcpy (copy, syn->src.retired_crc.bits,
-                        syn->src.retired_crc.len);
-              syn->src.retired_crc.bits = copy;
-            }
-          else
-            {
-              syn->src.retired_crc.bits = NULL;
-              syn->src.retired_crc.len  = 0;
-            }
-          if (syn->src.retired_bits.bits && syn->src.retired_bits.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.retired_bits.len);
-              if (copy)
-                memcpy (copy, syn->src.retired_bits.bits,
-                        syn->src.retired_bits.len);
-              syn->src.retired_bits.bits = copy;
-            }
-          else
-            {
-              syn->src.retired_bits.bits = NULL;
-              syn->src.retired_bits.len  = 0;
-            }
-          if (syn->src.data.bits && syn->src.data.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.data.len);
-              if (copy)
-                memcpy (copy, syn->src.data.bits, syn->src.data.len);
-              syn->src.data.bits = copy;
-            }
-          else
-            {
-              syn->src.data.bits = NULL;
-              syn->src.data.len  = 0;
-            }
-          if (syn->src.fill.bits && syn->src.fill.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.fill.len);
-              if (copy)
-                memcpy (copy, syn->src.fill.bits, syn->src.fill.len);
-              syn->src.fill.bits = copy;
-            }
-          else
-            {
-              syn->src.fill.bits = NULL;
-              syn->src.fill.len  = 0;
-            }
-          if (syn->src.mac_header.bits && syn->src.mac_header.len)
-            {
-              uint8_t *copy = (uint8_t *)malloc (syn->src.mac_header.len);
-              if (copy)
-                memcpy (copy, syn->src.mac_header.bits,
-                        syn->src.mac_header.len);
-              syn->src.mac_header.bits = copy;
-            }
-          else
-            {
-              syn->src.mac_header.bits = NULL;
-              syn->src.mac_header.len  = 0;
-            }
+          {
+            const void *_b0            = syn->src.symbols;
+            syn->src.symbols           = NULL;
+            const void *_b1            = syn->src.acq_code.bits;
+            syn->src.acq_code.bits     = NULL;
+            const void *_b2            = syn->src.data_code.bits;
+            syn->src.data_code.bits    = NULL;
+            const void *_b3            = syn->src.retired_sync.bits;
+            syn->src.retired_sync.bits = NULL;
+            const void *_b4            = syn->src.retired_crc.bits;
+            syn->src.retired_crc.bits  = NULL;
+            const void *_b5            = syn->src.retired_bits.bits;
+            syn->src.retired_bits.bits = NULL;
+            const void *_b6            = syn->src.data.bits;
+            syn->src.data.bits         = NULL;
+            const void *_b7            = syn->src.fill.bits;
+            syn->src.fill.bits         = NULL;
+            const void *_b8            = syn->src.mac_header.bits;
+            syn->src.mac_header.bits   = NULL;
+            if (_b0)
+              {
+                size_t _sz = syn->src.n_symbols * sizeof *syn->src.symbols;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b0, _sz);
+                syn->src.symbols = _c;
+              }
+            if (_b1)
+              {
+                size_t _sz
+                    = syn->src.acq_code.len * sizeof *syn->src.acq_code.bits;
+                void *_c = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b1, _sz);
+                syn->src.acq_code.bits = _c;
+              }
+            if (_b2)
+              {
+                size_t _sz
+                    = syn->src.data_code.len * sizeof *syn->src.data_code.bits;
+                void *_c = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b2, _sz);
+                syn->src.data_code.bits = _c;
+              }
+            if (_b3)
+              {
+                size_t _sz = syn->src.retired_sync.len
+                             * sizeof *syn->src.retired_sync.bits;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b3, _sz);
+                syn->src.retired_sync.bits = _c;
+              }
+            if (_b4)
+              {
+                size_t _sz = syn->src.retired_crc.len
+                             * sizeof *syn->src.retired_crc.bits;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b4, _sz);
+                syn->src.retired_crc.bits = _c;
+              }
+            if (_b5)
+              {
+                size_t _sz = syn->src.retired_bits.len
+                             * sizeof *syn->src.retired_bits.bits;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b5, _sz);
+                syn->src.retired_bits.bits = _c;
+              }
+            if (_b6)
+              {
+                size_t _sz = syn->src.data.len * sizeof *syn->src.data.bits;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b6, _sz);
+                syn->src.data.bits = _c;
+              }
+            if (_b7)
+              {
+                size_t _sz = syn->src.fill.len * sizeof *syn->src.fill.bits;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b7, _sz);
+                syn->src.fill.bits = _c;
+              }
+            if (_b8)
+              {
+                size_t _sz = syn->src.mac_header.len
+                             * sizeof *syn->src.mac_header.bits;
+                void  *_c  = malloc (_sz ? _sz : 1);
+                if (!_c)
+                  {
+                    syn->src.frame = NULL;
+                    Py_DECREF (syn);
+                    Py_DECREF (srclist);
+                    Py_DECREF (list);
+                    return PyErr_NoMemory ();
+                  }
+                memcpy (_c, _b8, _sz);
+                syn->src.mac_header.bits = _c;
+              }
+          }
           {
             wfm_frame_desc_t *_a0 = (wfm_frame_desc_t *)syn->src.frame;
             syn->src.frame        = NULL;
@@ -7728,7 +7811,28 @@ static PyMethodDef Composer_methods[] = {
   { "_draws_json", (PyCFunction)Composer__draws_json, METH_NOARGS,
     "_draws_json(...) -> str" },
   { "to_sigmf", (PyCFunction)(void (*) (void))Composer_to_sigmf,
-    METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str" },
+    METH_VARARGS | METH_KEYWORDS,
+    "to_sigmf(sample_type, endian, fs, fc, t0) -> str\n"
+    "\n"
+    "Serialise as to_sigmf.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "sample_type : str, default ``\"cf32\"``\n"
+    "    Input.\n"
+    "endian : str, default ``\"le\"``\n"
+    "    Input.\n"
+    "fs : float, default 0.0\n"
+    "    Input.\n"
+    "fc : float, default 0.0\n"
+    "    Input.\n"
+    "t0 : float, default 0.0\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "str\n"
+    "    Output.\n" },
   { "from_json", (PyCFunction)Composer_from_json, METH_VARARGS | METH_CLASS,
     "from_json(json) -> Composer\n"
     "\n"

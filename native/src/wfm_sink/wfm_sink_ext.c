@@ -518,7 +518,7 @@ static PyMethodDef StreamSink_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "timeout_ms : int\n"
+    "timeout_ms : int, default 0\n"
     "    Budget; <= 0 uses the stream layer's 5 s default.\n"
     "\n"
     "Raises\n"
@@ -538,7 +538,7 @@ static PyMethodDef StreamSink_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "on : int\n"
+    "on : int, default 1\n"
     "    Non-zero to count clips, 0 to stop counting.\n" },
   { "close", (PyCFunction)StreamSink_close, METH_NOARGS,
     "Release the handle and free resources." },

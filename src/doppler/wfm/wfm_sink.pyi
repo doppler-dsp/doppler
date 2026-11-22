@@ -84,7 +84,7 @@ class StreamSink:
 
         Parameters
         ----------
-        timeout_ms : int
+        timeout_ms : int, default 0
             Budget; <= 0 uses the stream layer's 5 s default.
 
         Raises
@@ -104,7 +104,7 @@ class StreamSink:
 
         Parameters
         ----------
-        on : int
+        on : int, default 1
             Non-zero to count clips, 0 to stop counting.
         """
     @property

@@ -1005,7 +1005,26 @@ class Composer:
         fc: float = ...,
         t0: float = ...,
     ) -> str:
-        """Serialise as to_sigmf."""
+        """Serialise as to_sigmf.
+
+        Parameters
+        ----------
+        sample_type : str, default ``"cf32"``
+            Input.
+        endian : str, default ``"le"``
+            Input.
+        fs : float, default 0.0
+            Input.
+        fc : float, default 0.0
+            Input.
+        t0 : float, default 0.0
+            Input.
+
+        Returns
+        -------
+        str
+            Output.
+        """
     @property
     def _capsule(self) -> Any:
         """Borrowed `doppler.wfm.composer` capsule for this composer.

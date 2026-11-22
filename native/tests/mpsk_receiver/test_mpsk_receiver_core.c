@@ -666,8 +666,12 @@ main (void)
      why the estimate is sampled either side of the lock edge rather than at
      block boundaries. */
   {
-    const double bn   = 0.01;
-    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 1.0) / SPS;
+    const double bn = 0.01;
+    /* Four times the prompt-lock bound (#3224 made it bn/(4m)): the checks
+       below are relative to the offset, and at the bound itself the loop's
+       own frequency jitter is the offset's size. The corrected loop settles
+       from here (u = 1) within 5/bn. */
+    const double foff = dp_test_freq_offset_inside_bw (bn, 4, 4.0) / SPS;
     dp_mpsk_receiver_state_t *rx
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 0.65, 0.0);
     make_mpsk (tx, idx, 4, foff, 30.0, 33u);

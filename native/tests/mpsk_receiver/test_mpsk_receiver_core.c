@@ -2223,7 +2223,11 @@ main (void)
                     cnt++;
                   }
               }
-            got[real] = cnt ? fabs (s1 / (double)cnt) : -1.0;
+            /* The lag in carrier phase: the discriminator reads the
+               M-th power's, slope 2 at every M, and the law is the loop's
+               (whose gain is 1 since #3224 divided that slope out). */
+            got[real] = cnt ? fabs (s1 / (double)cnt) / CARRIER_NDA_DISC_SLOPE
+                            : -1.0;
             dp_mpsk_receiver_destroy (rx);
           }
         printf ("  lo_sps ramp r=%.0e: law %.4f rad, complex %.4f, "

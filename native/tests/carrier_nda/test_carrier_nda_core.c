@@ -18,7 +18,8 @@
  *      — telemetry: five sample-rate probes, attachment-independent blobs
  *  14. The lock signal is BOUNDED in +-1, at every M and every input
  *  15. The derived threshold chain, as arithmetic
- *  16. The SEEDING RULE: |df| <= bn/M settles within 2/bn samples
+ *  16. The SEEDING RULE: |df| <= bn/(4M) settles within 2/bn samples
+ *  18. bn is the closed loop's: measured noise bandwidth, every M and form
  *  17. The composer's options: the update period, the denominator
  *      (averaged, unit with its clamp), the block lock, and their blob
  *
@@ -158,7 +159,9 @@ test_composer_options (void)
     dp_loop_filter_init (&ref, 0.02, 0.707, 1.0);
     ref.kp *= CARRIER_NDA_INV_2PI;
     ref.ki *= CARRIER_NDA_INV_2PI;
-    const double out = dp_loop_filter_step (&ref, 0.25);
+    /* The filter takes the error over the discriminator's slope (#3224). */
+    const double out
+        = dp_loop_filter_step (&ref, 0.25 / CARRIER_NDA_DISC_SLOPE);
     carrier_nda_steer (c, 0.25);
     DP_CHECK (c->ctl_cyc == out / 100.0);
     DP_CHECK (c->ctl_cyc != out); /* the period ignored */
@@ -471,7 +474,7 @@ test_composer_options (void)
     const float _Complex z = cexpf (I * 0.3f);
     double pe, lk;
     carrier_nda_disc (z, 2, &pe, &lk);
-    const double out = dp_loop_filter_step (&ref, pe);
+    const double out = dp_loop_filter_step (&ref, pe / CARRIER_NDA_DISC_SLOPE);
     carrier_nda_update (c, z, 0.0);
     dp_carrier_nda_tlm_flush (c);
     const double ctr = c->nco.norm_freq; /* the NCO's centre, as it holds it */
@@ -676,6 +679,63 @@ test_composer_options (void)
     dp_carrier_nda_destroy (a);
     dp_carrier_nda_destroy (b);
   }
+  return 0;
+}
+
+/* ── 18. bn is the closed loop's (#3224): the measured noise bandwidth
+ * against bn at every M and every denominator. Input a unit phasor with
+ * white phase noise of variance s^2 (small: the linear region), one update
+ * a sample; the NCO's phase then has variance 2 bn s^2 when bn is the
+ * loop's noise bandwidth. With the discriminator's slope (2) not divided
+ * out, the closed loop runs about 1.67 times wider (zeta 1.0 against
+ * 0.707), and the ratio reads near that. ──────────────────────────────── */
+static int
+test_bn_is_the_loops (void)
+{
+  const double bn = 0.01, s = 0.02;
+  const int    ms[3] = { 2, 4, 8 };
+  for (int mi = 0; mi < 3; mi++)
+    for (int f = 0; f < 3; f++)
+      {
+        if (ms[mi] != 2 && f > 0)
+          continue; /* the averaged and unit forms are M = 2 only */
+        dp_carrier_nda_state_t *c
+            = dp_carrier_nda_create (bn, 0.707, 0.0, 8, 1, ms[mi]);
+        DP_REQUIRE (c != NULL);
+        DP_REQUIRE (dp_carrier_nda_set_denominator (
+                        c, f == 0 ? 1.0 : 1.0 / 256.0, f == 2 ? 1.0 : 0.0)
+                    == DP_OK);
+        uint32_t  st    = 4321u + (uint32_t)(10 * mi + f);
+        const int nwarm = 5000, n = 400000;
+        double    s1 = 0.0, s2 = 0.0;
+        for (int k = 0; k < nwarm + n; k++)
+          {
+            const double ph = s * dp_gauss (&st);
+            const float _Complex z
+                = carrier_nda_wipeoff (c, cexpf (I * (float)ph));
+            carrier_nda_update (c, z, 0.0);
+            if (k >= nwarm)
+              {
+                /* The NCO's phase, radians, folded about 0. */
+                double th = TWOPI * (double)c->nco.phase / 4294967296.0;
+                th -= TWOPI * floor (th / TWOPI + 0.5);
+                s1 += th;
+                s2 += th * th;
+              }
+          }
+        const double var   = s2 / n - (s1 / n) * (s1 / n);
+        const double ratio = var / (2.0 * bn * s * s);
+        printf ("  bn is the loop's: M = %d, %s: measured / bn %.3f\n", ms[mi],
+                f == 0   ? "limiter"
+                : f == 1 ? "averaged"
+                         : "unit",
+                ratio);
+        /* 400,000 updates against the loop's ~1/(4 bn) memory: the
+           estimate's sd is a few percent. 0.85 to 1.15 holds it and refuses
+           the slope-2 loop's ~1.67. */
+        DP_CHECK (ratio > 0.85 && ratio < 1.15);
+        dp_carrier_nda_destroy (c);
+      }
   return 0;
 }
 
@@ -1272,12 +1332,13 @@ main (void)
    *    (src/doppler/track/tests/validation/carrier_nda, section 2.5)    *
    *    measured it across three M and three bn:                         *
    *                                                                    *
-   *      seed within |df| <= bn/M  ->  settled within 2/bn samples      *
+   *      seed within |df| <= bn/(4M)  ->  settled within 2/bn samples   *
    *                                                                    *
    *    and found the behaviour splits into two regimes about that       *
    *    point. Normalising the offset as u = |df|*M/bn and the time as   *
-   *    T*bn, nine (M, bn) pairs collapse onto ONE curve: flat at        *
-   *    1.76-1.92 loop constants for u <= 1, then quadratic.             *
+   *    T*bn, nine (M, bn) pairs collapse onto ONE curve: flat for       *
+   *    u <= 1/4, then quadratic (bn/M while the loop ran 1.67x wide,    *
+   *    before #3224 made bn the closed loop's).                        *
    *                                                                    *
    *    Three separate claims, because they fail in different ways:      *
    *      (a) the BUDGET holds at the window edge, at every M;           *
@@ -1307,8 +1368,8 @@ main (void)
     for (int mi = 0; mi < 3; mi++)
       {
         const int m = ms[mi];
-        /* u = 0.25, 1.0 (the window edge) and 4.0 (well outside it). */
-        const double us[3]  = { 0.25, 1.0, 4.0 };
+        /* u = 1/16, 1/4 (the window edge) and 4.0 (well outside it). */
+        const double us[3]  = { 0.0625, 0.25, 4.0 };
         size_t      *dst[3] = { &s_in[mi], &s_edge[mi], &s_out[mi] };
         for (int ui = 0; ui < 3; ui++)
           {
@@ -1487,6 +1548,8 @@ main (void)
   }
 
   if (test_composer_options () != 0)
+    return 1;
+  if (test_bn_is_the_loops () != 0)
     return 1;
 
   DP_TEST_END ("test_carrier_nda_core");

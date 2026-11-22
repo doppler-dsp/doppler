@@ -274,8 +274,18 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
     The only kind of offset a lock-time assertion may seed. Returned in the
     same units the loop bandwidth is stated in, because that is what makes the
     two comparable at a glance: `bn_carrier` is normalised to the symbol rate,
-    so the bound is `bn_carrier / m` cycles per symbol and this returns a
-    fraction of it. **There is no `sps` here.** Converting to cycles per sample
+    so the bound is `bn_carrier / (4 m)` cycles per symbol and this returns a
+    fraction of it.
+
+    **The 4 is #3224's.** `bn_carrier` is the closed loop's noise bandwidth
+    since the discriminator's slope (2, at every M) is divided out; before,
+    the loop ran about 1.67 times wider than `bn_carrier` said, and this bound
+    was `bn_carrier / m`. On the corrected loop the prompt-lock window is
+    `bn / (4M)`, settling within `2 / bn` updates: `CarrierNda`'s validation
+    report, §2.5, in the same normalisation (`u = df * M / bn`, per update;
+    this loop updates once a symbol).
+
+    **There is no `sps` here.** Converting to cycles per sample
     happens once, at the constructor that wants it -- `demod` does it, and
     doing it anywhere else is the sps-sized error `dp_rx_mpsk.h` warns about.
 
@@ -286,7 +296,7 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
     while asking a 4x harder question at 8PSK than at BPSK.
 
     `frac` is the fraction of the bound: 1.0 seeds exactly at
-    `bn_carrier / m`, and the default 0.5 at half of it. **Tests seed at or
+    `bn_carrier / (4 m)`, and the default 0.5 at half of it. **Tests seed at or
     under the bound**, and both ends of that matter -- seeded on truth the
     loop never leaves its initial state and measures nothing, seeded past the
     bound it measures the dice.
@@ -294,9 +304,11 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
     **The envelope is measured, not quoted here.**
     `doppler.track.tests.characterization.pull_in` sweeps it — success
     fraction against multiples of this bound, across every order and two
-    oversampling ratios — and `make characterize` re-derives it. As it stands
-    the carrier loop is reliable out to 4x the bound (3x at 8PSK) and dead by
-    5x, so seeding AT the bound keeps a 3-4x margin. Those figures live in
+    oversampling ratios — and `make characterize` re-derives it. Before #3224
+    it read
+    the carrier loop reliable out to 4x the old `bn_carrier / m` bound (3x at
+    8PSK) and dead by 5x; it has not been re-run on the corrected loop, so
+    those multiples are of the old bound and stale until it is. They live in
     that sweep's output rather than in this docstring because a number
     nothing re-runs is prose, and two findings were once filed against the
     receiver on the strength of one (doppler#843, doppler#849).
@@ -308,7 +320,7 @@ def freq_offset_inside_bw(bn_carrier, m, frac=0.5):
     measuring, measure it as a characterisation sweep with a reported success
     fraction, never as a pass/fail assertion.
     """
-    return frac * bn_carrier / m
+    return frac * bn_carrier / (4.0 * m)
 
 
 def clock_offset_inside_bw(bn_timing, frac=0.5):

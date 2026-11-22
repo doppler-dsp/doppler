@@ -387,10 +387,6 @@ static const int HB_NDA_DET[3]
 static const char *const HB_NDA_NAME[3] = { "limiter", "averaged", "unit" };
 /* The averaged and unit forms' EMA weight an update (the page's 1/256). */
 #define HB_NDA_ALPHA (1.0 / 256.0)
-/* carrier_nda's error is scaled to slope 2 at lock (sin 2 theta at M = 2,
-   carrier_nda_core.h); the design's mean loop is in the convention where an
-   ideal detector's slope is 1 (I Q / A^2). */
-#define HB_NDA_SLOPE 2.0
 /* The block lock the page sizes for the floor: B updates (31 at 2.2 GHz, 40
    at 2.8: "The loop's lock statistic", its table), Pfa 1e-3, 2 blocks up and
    3 down (det_verify_count's, the code lock's budget). */
@@ -408,8 +404,8 @@ typedef struct
 {
   hb_cfg_t c;        /* the design's: S-curve, bn, sigma, t_upd       */
   int      den;      /* 0 limiter, 1 averaged, 2 unit                 */
-  double   bn_obj;   /* the object's filter: bn' and zeta' with       */
-  double   zeta_obj; /* 2 kp' = kp and 2 ki' = ki (hb_nda_filter)     */
+  double   bn_obj;   /* the object's bn and zeta: the design's, since  */
+  double   zeta_obj; /* #3224 made bn the closed loop's               */
   double   gamma_fl; /* the update SNR at the floor, linear (the clamp) */
   uint32_t blk;      /* the block lock's length                       */
 } hb_nda_t;
@@ -428,46 +424,6 @@ hb_nda_bn (double fc)
          / (1.0 + 1.0 / (2.0 * g));
 }
 
-/* The object's filter (bn', zeta') whose gains, times the detector's slope
-   HB_NDA_SLOPE, are the design loop's (bn, 0.707): the closed loop is then
-   the one the mean loop predicts. Two equations in two unknowns on
-   dp_loop_filter_init()'s own gain formulas, by Newton in log space from
-   the continuous-time answer (zeta / sqrt K, bn (4 zeta^2 / K + 1) / (4
-   zeta^2 + 1)), to 1e-14 relative. */
-static void
-hb_nda_filter (double bn, double *bn_o, double *zeta_o)
-{
-  const double           z0 = 0.707, K = HB_NDA_SLOPE;
-  dp_loop_filter_state_t d = { 0 };
-  dp_loop_filter_init (&d, bn, z0, 1.0);
-  double x[2] = { log (bn * (4.0 * z0 * z0 / K + 1.0) / (4.0 * z0 * z0 + 1.0)),
-                  log (z0 / sqrt (K)) };
-  for (int it = 0; it < 60; it++)
-    {
-      double                 f[2], J[2][2];
-      dp_loop_filter_state_t a = { 0 };
-      dp_loop_filter_init (&a, exp (x[0]), exp (x[1]), 1.0);
-      f[0] = log (K * a.kp / d.kp);
-      f[1] = log (K * a.ki / d.ki);
-      if (fabs (f[0]) < 1e-14 && fabs (f[1]) < 1e-14)
-        break;
-      for (int j = 0; j < 2; j++)
-        {
-          double y[2] = { x[0], x[1] };
-          y[j] += 1e-7;
-          dp_loop_filter_state_t b = { 0 };
-          dp_loop_filter_init (&b, exp (y[0]), exp (y[1]), 1.0);
-          J[0][j] = (log (K * b.kp / d.kp) - f[0]) / 1e-7;
-          J[1][j] = (log (K * b.ki / d.ki) - f[1]) / 1e-7;
-        }
-      const double det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
-      x[0] -= (J[1][1] * f[0] - J[0][1] * f[1]) / det;
-      x[1] -= (J[0][0] * f[1] - J[1][0] * f[0]) / det;
-    }
-  *bn_o   = exp (x[0]);
-  *zeta_o = exp (x[1]);
-}
-
 /* The twelve configurations, in the order --half-bw numbers its points:
    the cells (4 dB then 10 dB, 2.2 then 2.8 GHz), each with the three
    denominators. */
@@ -482,8 +438,9 @@ hb_nda_cfgs (hb_nda_t *n)
         {
           const double bn = hb_nda_bn (fcs[f]);
           hb_cfg_bn (&n[i].c, fcs[f], es[e], bn, HB_NDA_DET[dn]);
-          n[i].den = dn;
-          hb_nda_filter (bn, &n[i].bn_obj, &n[i].zeta_obj);
+          n[i].den      = dn;
+          n[i].bn_obj   = bn;
+          n[i].zeta_obj = 0.707;
           n[i].gamma_fl = pow (10.0, (dp_s415_cn0 (DP_S415_FLOOR_DB)
                                       + 10.0 * log10 (n[i].c.t_upd))
                                          / 10.0);
@@ -763,7 +720,10 @@ hb_run (unsigned shard, unsigned shards)
 /* The pins, for --check, on one draw at half the rule's bandwidth (2.8 GHz,
    10 dB, the unit form): the phase the slips are read from (the summed
    `.nco` probe) is the NCO's own phase word, and the same sum one update
-   late is not; and the object's filter realizes the design loop's gains. */
+   late is not; and the draw locks as the mean loop predicts. Its loop is the
+   design's at the design's own bn and zeta: carrier_nda divides out its
+   discriminator's slope (#3224; test_carrier_nda_core.c section 18 pins the
+   bandwidth). */
 static void
 hb_pin (void)
 {
@@ -776,18 +736,6 @@ hb_pin (void)
           d.pin_err, d.pin_late);
   DP_CHECK_MSG (d.pin_err < 1e-3, "the summed .nco probe is the NCO's phase");
   DP_CHECK_MSG (d.pin_late > 1e-3, "and read one update late it is not");
-  dp_loop_filter_state_t a = { 0 }, b = { 0 };
-  dp_loop_filter_init (&a, n->bn_obj, n->zeta_obj, 1.0);
-  dp_loop_filter_init (&b, n->c.bn, 0.707, 1.0);
-  printf ("  half-bw loop: object bn %.6f zeta %.4f; slope x gains / the "
-          "design's: kp %.12f, ki %.12f\n",
-          n->bn_obj, n->zeta_obj, HB_NDA_SLOPE * a.kp / b.kp,
-          HB_NDA_SLOPE * a.ki / b.ki);
-  DP_CHECK_NEAR (HB_NDA_SLOPE * a.kp / b.kp, 1.0, 1e-12);
-  DP_CHECK_NEAR (HB_NDA_SLOPE * a.ki / b.ki, 1.0, 1e-12);
-  /* Its failing case: the design's own (bn, 0.707) on the object, the
-     factor 2 dropped, is a loop with twice the gains. */
-  DP_CHECK (fabs (HB_NDA_SLOPE * b.kp / b.kp - 1.0) > 0.5);
   /* The draw locks, crossing the lock points its own start phase predicts
      on the mean loop (half the bandwidth is past the unit form's
      worst-start edge, 0.38 B_L, so a start near the null may cross one). */

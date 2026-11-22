@@ -76,7 +76,9 @@
  * whatever composes this.
  *
  * **Loop capture, roughly `k * bn / M`.** Where pull-in is prompt and
- * predictable. This is the tighter bound at every shipped setting and it is
+ * predictable: `k` is 1/4 for settling within `2/bn` samples (the validation
+ * report's §2.5 seeding rule), and a residual inside `bn/M` settles within
+ * `5/bn`. This is the tighter bound at every shipped setting and it is
  * the one a caller normally meets. Violating it is LOUD: the tracked
  * frequency walks and `locked` never asserts, which is unmistakable in
  * telemetry.
@@ -110,6 +112,22 @@
  * the tap so the ceiling stays clear of loop capture at every M it supports,
  * which makes the silent failure structurally unreachable and leaves only the
  * loud one.
+ *
+ * @par What `bn` means
+ * `bn` (with `zeta`) is the closed loop's: the discriminator's slope at lock,
+ * 2 at every M, is divided out before the loop filter
+ * (carrier_nda_loop_error(), #3224), so `bn` is the loop's noise bandwidth
+ * and `zeta` its damping whenever the discriminator's gain is its high-SNR
+ * value. Measured, test_carrier_nda_core.c section 18: 1.00 to 1.04 of `bn`
+ * at every M and denominator. At finite SNR the gain falls by what each
+ * denominator gives, and the loop's bandwidth and damping with it:
+ *   - the limiter (the default): its gain falls with the SNR at the
+ *     discriminator (0.62 at 3.8 dB a look); there `bn` is the design value
+ *     of a loop that runs narrower;
+ *   - the averaged form: `gamma/(gamma + 1)` at update SNR gamma;
+ *   - the unit form: 1, while the caller's noise power holds.
+ * Until #3224 the slope went undivided and the loop ran about 1.67 times
+ * wider than `bn` said, at a damping near 1.0.
  *
  * @par Options for a composer that updates once a block
  * A composer that runs the loop on its own integrate-and-dump (a despreader's
@@ -239,6 +257,27 @@ extern "C"
  * sqrt(Var_look * alpha/(2-alpha)) with Var_look = 1/2 exactly, for every M.
  * A threshold of `eta * this` has per-look Pfa = Q(eta). */
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
+
+/** @brief The discriminator's slope at lock, error per radian of carrier
+ *  phase, at every M: `sin 2 theta` at M = 2 and the {1, 1/2, 1/4} scale
+ *  that makes it 2 at 4 and 8 too. A loop filter's gains assume the rest of
+ *  its loop has unit gain (dp_loop_filter_init()), so the error reaches the
+ *  filter divided by this, through carrier_nda_loop_error(), and `bn` and
+ *  `zeta` are then the closed loop's (#3224). */
+#define CARRIER_NDA_DISC_SLOPE 2.0
+
+/** @brief The discriminator's error as a unit-slope loop takes it: divided
+ *  by CARRIER_NDA_DISC_SLOPE. The one place every loop on this
+ *  discriminator scales it -- carrier_nda_steer() and MpskReceiver's
+ *  mpsk_rx_steer() -- so `bn` means the closed loop's noise bandwidth at
+ *  high SNR for every M (#3224). Dividing by 2 is exact.
+ *  @param pe  The discriminator's output.
+ *  @return The error in radians of carrier phase, slope 1 at lock. */
+JM_FORCEINLINE double
+carrier_nda_loop_error (double pe)
+{
+  return pe / CARRIER_NDA_DISC_SLOPE;
+}
 
 /** @brief The denominator in force (the state's `den`, which
  *  dp_carrier_nda_set_denominator() derives from its arguments): the
@@ -539,7 +578,8 @@ extern "C"
      * cycles/sample and n-invariant — n only sets the window length. lf.integ
      * is thus the carrier frequency correction in cycles/sample (read back by
      * dp_carrier_nda_get_norm_freq). */
-    s->ctl_cyc = dp_loop_filter_step (&s->lf, pe) / s->t_upd;
+    s->ctl_cyc
+        = dp_loop_filter_step (&s->lf, carrier_nda_loop_error (pe)) / s->t_upd;
   }
 
   /**

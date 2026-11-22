@@ -148,6 +148,326 @@ class Wlan:
             others cannot be sent, and `rate_mbps` is 0 for them).
         """
 
+    def signal_bits(
+        self,
+        psdu_len: int,
+        out: npt.NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """The SIGNAL field's 24 bits for a PSDU of `psdu_len` octets at this
+        rate: RATE, a reserved 0, LENGTH least significant bit first, an
+        even-parity bit and six zero tail bits (Figure 17-5). One bit per
+        element. Refuses with `ValueError` naming why.
+
+        Parameters
+        ----------
+        psdu_len : int
+            PSDU octets, 1 to WLAN_PSDU_MAX.
+        out : npt.NDArray[np.uint8] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            The bits written, or -1 if the rate has no SIGNAL RATE bits, the
+            length is out of range or max_out is short.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``signal_bits refused``, with the
+            return code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> from doppler.wlan import Wlan
+        >>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s
+        >>> w.signal_bits(100).tolist()  # RATE, 0, LENGTH lsb first, parity, tail
+        [1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        >>> w.signal_bits(0)
+        Traceback (most recent call last):
+            ...
+        ValueError: the PSDU is 1 to 4095 octets
+
+        """
+
+    def signal_bits_max_out(self) -> int:
+        """The capacity dp_wlan_signal_bits_why() needs: WLAN_SIG_BITS.
+
+        Returns
+        -------
+        int
+            WLAN_SIG_BITS.
+        """
+
+    def data_bits(
+        self,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        scrambler_state: int,
+        out: npt.NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """The Data field's bits for a PSDU at this rate: SERVICE, the PSDU
+        (each octet least significant bit first), tail and pad, scrambled from
+        `scrambler_state` except the tail. One bit per element, `n_sym *
+        n_dbps` of them. Refuses with `ValueError` naming why.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            The PSDU octets.
+        scrambler_state : int
+            The scrambler register's initial state, 1 to 127.
+        out : npt.NDArray[np.uint8] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            The bits written, or -1 if the length or the state is out of range
+            or max_out is short.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``data_bits refused``, with the
+            return code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wlan import Wlan
+        >>> w = Wlan(constellation="qam16", code_rate="r34")
+        >>> psdu = np.arange(100, dtype=np.uint8)
+        >>> w.data_bits(psdu, 93).shape  # n_sym 6 times n_dbps 144
+        (864,)
+        >>> w.data_bits(psdu, 128)
+        Traceback (most recent call last):
+            ...
+        ValueError: the scrambler state is 1 to 127
+
+        """
+
+    def data_bits_max_out(self, n_in: int, /) -> int:
+        """The capacity dp_wlan_data_bits_why() needs: `n_sym * n_dbps`.
+
+        Parameters
+        ----------
+        n_in : int
+            PSDU octets.
+
+        Returns
+        -------
+        int
+            Bits, or 0 for a length outside 1 to WLAN_PSDU_MAX.
+        """
+
+    def map(
+        self,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Map interleaved bits (one per element, a whole number of groups of
+        `n_bpsc`) to this rate's constellation points: unit average power, with
+        the standard's bit encodings. Refuses with `ValueError` naming why.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            Unpacked bits.
+        out : npt.NDArray[np.complex64] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            The points written, or -1 for a partial group, no bits or a short
+            max_out.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``map refused``, with the return
+            code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wlan import Wlan
+        >>> w = Wlan(constellation="qam16", code_rate="r34")
+        >>> pts = w.map(np.array([0, 0, 0, 0, 1, 1, 1, 1], dtype=np.uint8))
+        >>> bool(np.allclose(pts, [-0.9487 - 0.9487j, 0.3162 + 0.3162j], atol=1e-3))
+        True
+        >>> w.map(np.zeros(7, dtype=np.uint8))
+        Traceback (most recent call last):
+            ...
+        ValueError: the bits are a whole number of groups of n_bpsc
+
+        """
+
+    def map_max_out(self, n_in: int, /) -> int:
+        """The capacity dp_wlan_map_why() needs: `n_in / n_bpsc` points.
+
+        Parameters
+        ----------
+        n_in : int
+            Bits.
+
+        Returns
+        -------
+        int
+            Points.
+        """
+
+    def points(
+        self,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        scrambler_state: int,
+        out: npt.NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """The constellation points a PSDU's layout takes, in layout order: the
+        SIGNAL field's 48, then the Data field's `48 * n_sym`, as complex64.
+        The input to `Ofdm`, and what `ppdu` modulates. Refuses with
+        `ValueError` naming why.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            The PSDU octets.
+        scrambler_state : int
+            The scrambler register's initial state, 1 to 127.
+        out : npt.NDArray[np.complex64] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            The points written, or -1 if the rate has no SIGNAL RATE bits, the
+            length or the state is out of range or max_out is short.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``points refused``, with the return
+            code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wlan import Wlan
+        >>> w = Wlan(constellation="qam16", code_rate="r34")
+        >>> psdu = np.arange(100, dtype=np.uint8)
+        >>> w.points(psdu, 93).shape  # 48 SIGNAL + 48 * 6 Data
+        (336,)
+        >>> w.points_max_out(100)
+        336
+        >>> w.points(psdu, 0)
+        Traceback (most recent call last):
+            ...
+        ValueError: the scrambler state is 1 to 127
+
+        """
+
+    def points_max_out(self, n_in: int, /) -> int:
+        """The capacity dp_wlan_points_why() needs: `48 + 48 * n_sym`.
+
+        Parameters
+        ----------
+        n_in : int
+            PSDU octets.
+
+        Returns
+        -------
+        int
+            Points, or 0 for a length outside 1 to WLAN_PSDU_MAX.
+        """
+
+    def mpdu(
+        self,
+        x: npt.NDArray[np.uint8] | bytes | bytearray | memoryview,
+        header: npt.NDArray[np.uint8] | bytes | bytearray | memoryview = ...,
+        out: npt.NDArray[np.uint8] | None = None,
+    ) -> NDArray[np.uint8]:
+        """A data frame's PSDU from its body and, optionally, its MAC header:
+        the `header` octets, then the `body`, then the FCS (CRC-32/ISO-HDLC
+        over everything before it, least significant octet first). Without a
+        header, or with an empty one, the body is taken as an MPDU that lacks
+        its FCS and the result is the body and its FCS. There is no spelling
+        that returns the body unchanged: that is the body itself. 1 to 4095
+        octets in all. Refuses with `ValueError` naming why.
+
+        With no header the body is taken as an MPDU that lacks its FCS and the
+        result is the body and its FCS, which is also what an empty header
+        gives in data mode, so "no header" and "an empty header" are one
+        result. There is no way to ask for the body unchanged: WLAN_MAC_NONE is
+        the body itself. The MPDU does not depend on the rate; it is on the
+        object so a caller builds a frame and renders it with one handle.
+
+        Parameters
+        ----------
+        x : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
+            The body octets (the whole MPDU without its FCS when there is no
+            header).
+        header : npt.NDArray[np.uint8] | bytes | bytearray | memoryview, default None
+            Header octets, or NULL.
+        out : npt.NDArray[np.uint8] | None
+            Receives the header, the body and the FCS.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            The octets written, or -1 if the MPDU is 0 or above WLAN_PSDU_MAX
+            octets or max_out is short.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``mpdu refused``, with the return
+            code appended (gh-869), when it gives none.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.wlan import Wlan
+        >>> w = Wlan()
+        >>> header = np.arange(24, dtype=np.uint8)
+        >>> body = np.arange(10, dtype=np.uint8)
+        >>> psdu = w.mpdu(body, header)  # 24 + 10 + the 4-octet FCS
+        >>> psdu.shape
+        (38,)
+        >>> bytes(psdu[-4:]).hex()  # CRC-32/ISO-HDLC, least significant first
+        'c0958e66'
+        >>> w.mpdu(body).shape  # no header: the body and its FCS
+        (14,)
+
+        """
+
+    def mpdu_max_out(self, n_in: int, /) -> int:
+        """The capacity dp_wlan_mpdu_why() needs: WLAN_PSDU_MAX, the longest
+        PSDU.
+
+        Parameters
+        ----------
+        n_in : int
+            Unused.
+
+        Returns
+        -------
+        int
+            WLAN_PSDU_MAX.
+        """
+
     def n_sym(self, psdu_len: int) -> int:
         """The Data OFDM symbols a PSDU of `psdu_len` octets needs at this
         rate, `ceil((16 + 8*psdu_len + 6) / n_dbps)`. 0 for a length of 0 or

@@ -4,9 +4,10 @@
 # (docs/design/wlan.md): the minimal MAC with its FCS, the scrambler, the BCC
 # with puncturing, the interleaver, the mapper and the layout for the OFDM
 # modulator. Its Python face is the rate (the two columns of Table 17-4 that
-# do not change with the clocking) and what follows from it; the builders that
-# need the standard's tables reach Python with the wfmgen type, which owns the
-# tables' source. The rate is configuration, reached by no mutator: there is no
+# do not change with the clocking), what follows from it, and the chain's
+# stages over the standard's tables: the SIGNAL and Data bits, the mapper, the
+# points, the MPDU and the PPDU. The rate is configuration, reached by no
+# mutator: there is no
 # running state, so no state blob.
 [wlan]
 arg_type = "void"
@@ -72,6 +73,85 @@ why = true
 error = "ValueError"
 error_message = "ppdu refused"
 params = [{ name = "scrambler_state", type = "uint32_t" }]
+
+[[wlan.methods]]
+name = "signal_bits"
+doc = "The SIGNAL field's 24 bits for a PSDU of `psdu_len` octets at this rate: RATE, a reserved 0, LENGTH least significant bit first, an even-parity bit and six zero tail bits (Figure 17-5). One bit per element. Refuses with `ValueError` naming why."
+arg_type = "void"
+return_type = "uint8_t"
+fn = "dp_wlan_signal_bits_why"
+max_out_fn = "dp_wlan_signal_bits_max_out"
+variable_output = true
+pass_capacity = true
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "signal_bits refused"
+params = [{ name = "psdu_len", type = "size_t" }]
+
+[[wlan.methods]]
+name = "data_bits"
+doc = "The Data field's bits for a PSDU at this rate: SERVICE, the PSDU (each octet least significant bit first), tail and pad, scrambled from `scrambler_state` except the tail. One bit per element, `n_sym * n_dbps` of them. Refuses with `ValueError` naming why."
+arg_type = "uint8_t"
+return_type = "uint8_t"
+fn = "dp_wlan_data_bits_why"
+max_out_fn = "dp_wlan_data_bits_max_out"
+variable_output = true
+pass_capacity = true
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "data_bits refused"
+params = [{ name = "scrambler_state", type = "uint32_t" }]
+
+[[wlan.methods]]
+name = "map"
+doc = "Map interleaved bits (one per element, a whole number of groups of `n_bpsc`) to this rate's constellation points: unit average power, with the standard's bit encodings. Refuses with `ValueError` naming why."
+arg_type = "uint8_t"
+return_type = "float _Complex"
+fn = "dp_wlan_map_why"
+max_out_fn = "dp_wlan_map_max_out"
+variable_output = true
+pass_capacity = true
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "map refused"
+
+[[wlan.methods]]
+name = "points"
+doc = "The constellation points a PSDU's layout takes, in layout order: the SIGNAL field's 48, then the Data field's `48 * n_sym`, as complex64. The input to `Ofdm`, and what `ppdu` modulates. Refuses with `ValueError` naming why."
+arg_type = "uint8_t"
+return_type = "float _Complex"
+fn = "dp_wlan_points_why"
+max_out_fn = "dp_wlan_points_max_out"
+variable_output = true
+pass_capacity = true
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "points refused"
+params = [{ name = "scrambler_state", type = "uint32_t" }]
+
+[[wlan.methods]]
+name = "mpdu"
+doc = "A data frame's PSDU from its body and, optionally, its MAC header: the `header` octets, then the `body`, then the FCS (CRC-32/ISO-HDLC over everything before it, least significant octet first). Without a header, or with an empty one, the body is taken as an MPDU that lacks its FCS and the result is the body and its FCS. There is no spelling that returns the body unchanged: that is the body itself. 1 to 4095 octets in all. Refuses with `ValueError` naming why."
+arg_type = "uint8_t"
+return_type = "uint8_t"
+fn = "dp_wlan_mpdu_why"
+max_out_fn = "dp_wlan_mpdu_max_out"
+variable_output = true
+pass_capacity = true
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "mpdu refused"
+params = [{ name = "header", type = "uint8_t[]", default = "[]" }]
 
 [[wlan.methods]]
 name = "n_sym"

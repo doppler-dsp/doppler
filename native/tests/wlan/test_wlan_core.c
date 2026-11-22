@@ -1914,5 +1914,86 @@ main (void)
         }
     }
 
+  /* ── 12. The stages on the rate holder are the free functions ───────────
+   * dp_wlan_signal_bits_why, _data_bits_why, _map_why, _points_why,
+   * _mpdu_why call the free functions over this
+   * object's rate and the standard tables, and say why they refuse. */
+  {
+    const dp_wlan_tables_t *t = dp_wlan_tables_standard ();
+    const dp_wlan_rate_t    r = { 4, WLAN_CODE_3_4 };
+    dp_wlan_state_t        *w = dp_wlan_create (2, 2, 0, 1);
+    DP_REQUIRE (w != NULL);
+    uint8_t psdu[100];
+    for (size_t i = 0; i < 100; i++)
+      psdu[i] = (uint8_t)(i * 29 + 5);
+    const char *why = NULL;
+
+    uint8_t a[WLAN_PSDU_MAX * 8], b[WLAN_PSDU_MAX * 8];
+    DP_CHECK (dp_wlan_signal_bits_max_out (w) == WLAN_SIG_BITS);
+    DP_CHECK (dp_wlan_signal_bits_why (w, 100, a, WLAN_SIG_BITS, &why)
+              == WLAN_SIG_BITS);
+    DP_CHECK (dp_wlan_signal_bits (t, &r, 100, b) == WLAN_SIG_BITS);
+    DP_CHECK (memcmp (a, b, WLAN_SIG_BITS) == 0);
+    DP_CHECK (dp_wlan_signal_bits_why (w, 0, a, WLAN_SIG_BITS, &why) == -1);
+    DP_CHECK (strcmp (why, "the PSDU is 1 to 4095 octets") == 0);
+
+    const size_t nb = dp_wlan_data_bits_max_out (w, 100);
+    DP_CHECK (nb == 6 * 144);
+    DP_CHECK (dp_wlan_data_bits_why (w, psdu, 100, 93, a, nb, &why)
+              == (int64_t)nb);
+    DP_CHECK (dp_wlan_data_bits (&r, psdu, 100, 93, b, nb) == nb);
+    DP_CHECK (memcmp (a, b, nb) == 0);
+    DP_CHECK (dp_wlan_data_bits_why (w, psdu, 100, 0, a, nb, &why) == -1);
+    DP_CHECK (strcmp (why, "the scrambler state is 1 to 127") == 0);
+    DP_CHECK (dp_wlan_data_bits_why (w, psdu, 100, 93, a, nb - 1, &why) == -1);
+    DP_CHECK (strcmp (why, "the output buffer is shorter than the Data field")
+              == 0);
+
+    float _Complex pa[48 + 48 * 6], pb[48 + 48 * 6];
+    DP_CHECK (dp_wlan_points_max_out (w, 100) == 48 + 48 * 6);
+    DP_CHECK (dp_wlan_points_why (w, psdu, 100, 93, pa, 48 + 48 * 6, &why)
+              == 48 + 48 * 6);
+    DP_CHECK (dp_wlan_points (t, &r, psdu, 100, 93, pb, 48 + 48 * 6)
+              == 48 + 48 * 6);
+    DP_CHECK (memcmp (pa, pb, sizeof pa) == 0);
+    DP_CHECK (dp_wlan_points_why (w, psdu, 0, 93, pa, 48 + 48 * 6, &why)
+              == -1);
+    DP_CHECK (strcmp (why, "the PSDU is 1 to 4095 octets") == 0);
+
+    uint8_t bits[16];
+    for (size_t i = 0; i < 16; i++)
+      bits[i] = (uint8_t)((i * 5 + 1) & 1);
+    float _Complex ma[4], mb[4];
+    DP_CHECK (dp_wlan_map_max_out (w, 16) == 4);
+    DP_CHECK (dp_wlan_map_why (w, bits, 16, ma, 4, &why) == 4);
+    DP_CHECK (dp_wlan_map (t, 4, bits, 16, mb) == 4);
+    DP_CHECK (memcmp (ma, mb, sizeof ma) == 0);
+    DP_CHECK (dp_wlan_map_why (w, bits, 15, ma, 4, &why) == -1);
+    DP_CHECK (strcmp (why, "the bits are a whole number of groups of n_bpsc")
+              == 0);
+
+    /* mpdu: a header is the data wrap, none is the FCS wrap, an empty one
+       is the same octets as none */
+    DP_CHECK (dp_wlan_mpdu_max_out (w, 24) == WLAN_PSDU_MAX);
+    DP_CHECK (
+        dp_wlan_mpdu_why (w, psdu + 24, 10, psdu, 24, a, WLAN_PSDU_MAX, &why)
+        == 38);
+    DP_CHECK (dp_wlan_mpdu (WLAN_MAC_DATA, psdu, 24, psdu + 24, 10, b, 38)
+              == 38);
+    DP_CHECK (memcmp (a, b, 38) == 0);
+    DP_CHECK (dp_wlan_mpdu_why (w, psdu, 34, NULL, 0, a, WLAN_PSDU_MAX, &why)
+              == 38);
+    DP_CHECK (dp_wlan_mpdu (WLAN_MAC_FCS, NULL, 0, psdu, 34, b, 38) == 38);
+    DP_CHECK (memcmp (a, b, 38) == 0);
+    uint8_t c[WLAN_PSDU_MAX];
+    DP_CHECK (dp_wlan_mpdu_why (w, psdu, 34, psdu, 0, c, WLAN_PSDU_MAX, &why)
+              == 38);
+    DP_CHECK (memcmp (a, c, 38) == 0); /* an empty header is no header */
+    DP_CHECK (dp_wlan_mpdu_why (w, psdu + 24, 10, psdu, 24, a, 37, &why)
+              == -1);
+    DP_CHECK (strcmp (why, "the output buffer is shorter than the MPDU") == 0);
+    dp_wlan_destroy (w);
+  }
+
   DP_TEST_END ("test_wlan_core");
 }

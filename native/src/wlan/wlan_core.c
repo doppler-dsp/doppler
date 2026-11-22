@@ -361,6 +361,169 @@ dp_wlan_ppdu_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
                                 state->oversample, out, max_out);
 }
 
+/* The composite's stages, bound on the rate holder. Each is the free
+   function of the same name over this object's rate and the standard tables
+   (the SSOT for every number), with the reason it refuses. A binding sizes
+   its output from the _max_out beside it. */
+
+static dp_wlan_rate_t
+state_rate (const dp_wlan_state_t *state)
+{
+  return (dp_wlan_rate_t){ state->n_bpsc, (dp_wlan_code_t)state->code };
+}
+
+size_t
+dp_wlan_signal_bits_max_out (const dp_wlan_state_t *state)
+{
+  (void)state;
+  return WLAN_SIG_BITS;
+}
+
+int64_t
+dp_wlan_signal_bits_why (dp_wlan_state_t *state, size_t psdu_len, uint8_t *out,
+                         size_t max_out, const char **why)
+{
+  const char *sentence = NULL;
+  if (state->rate_mbps == 0)
+    sentence = "this rate has no SIGNAL RATE bits (Table 17-6 lists eight of "
+               "the sixteen pairs)";
+  else if (psdu_len < 1 || psdu_len > WLAN_PSDU_MAX)
+    sentence = "the PSDU is 1 to 4095 octets";
+  else if (max_out < WLAN_SIG_BITS)
+    sentence = "the output buffer is shorter than the SIGNAL field";
+  if (sentence)
+    {
+      if (why)
+        *why = sentence;
+      return -1;
+    }
+  const dp_wlan_rate_t r = state_rate (state);
+  return (int64_t)dp_wlan_signal_bits (dp_wlan_tables_standard (), &r,
+                                       psdu_len, out);
+}
+
+size_t
+dp_wlan_data_bits_max_out (const dp_wlan_state_t *state, size_t n_in)
+{
+  return dp_wlan_n_sym (state, n_in) * state->n_dbps;
+}
+
+int64_t
+dp_wlan_data_bits_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
+                       uint32_t scrambler_state, uint8_t *out, size_t max_out,
+                       const char **why)
+{
+  const size_t n        = dp_wlan_data_bits_max_out (state, n_in);
+  const char  *sentence = NULL;
+  if (n == 0)
+    sentence = "the PSDU is 1 to 4095 octets";
+  else if (scrambler_state < 1 || scrambler_state > 127)
+    sentence = "the scrambler state is 1 to 127";
+  else if (max_out < n)
+    sentence = "the output buffer is shorter than the Data field";
+  if (sentence)
+    {
+      if (why)
+        *why = sentence;
+      return -1;
+    }
+  const dp_wlan_rate_t r = state_rate (state);
+  return (int64_t)dp_wlan_data_bits (&r, in, n_in, (uint8_t)scrambler_state,
+                                     out, max_out);
+}
+
+size_t
+dp_wlan_map_max_out (const dp_wlan_state_t *state, size_t n_in)
+{
+  return n_in / state->n_bpsc;
+}
+
+int64_t
+dp_wlan_map_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
+                 float _Complex *out, size_t max_out, const char **why)
+{
+  const char *sentence = NULL;
+  if (n_in == 0 || n_in % state->n_bpsc)
+    sentence = "the bits are a whole number of groups of n_bpsc";
+  else if (max_out < dp_wlan_map_max_out (state, n_in))
+    sentence = "the output buffer is shorter than the points";
+  if (sentence)
+    {
+      if (why)
+        *why = sentence;
+      return -1;
+    }
+  return (int64_t)dp_wlan_map (dp_wlan_tables_standard (), state->n_bpsc, in,
+                               n_in, out);
+}
+
+size_t
+dp_wlan_points_max_out (const dp_wlan_state_t *state, size_t n_in)
+{
+  const size_t n_sym = dp_wlan_n_sym (state, n_in);
+  return n_sym ? WLAN_N_SD + (size_t)WLAN_N_SD * n_sym : 0;
+}
+
+int64_t
+dp_wlan_points_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
+                    uint32_t scrambler_state, float _Complex *out,
+                    size_t max_out, const char **why)
+{
+  const size_t n        = dp_wlan_points_max_out (state, n_in);
+  const char  *sentence = NULL;
+  if (state->rate_mbps == 0)
+    sentence = "this rate has no SIGNAL RATE bits (Table 17-6 lists eight of "
+               "the sixteen pairs)";
+  else if (n == 0)
+    sentence = "the PSDU is 1 to 4095 octets";
+  else if (scrambler_state < 1 || scrambler_state > 127)
+    sentence = "the scrambler state is 1 to 127";
+  else if (max_out < n)
+    sentence = "the output buffer is shorter than the points";
+  if (sentence)
+    {
+      if (why)
+        *why = sentence;
+      return -1;
+    }
+  const dp_wlan_rate_t r = state_rate (state);
+  return (int64_t)dp_wlan_points (dp_wlan_tables_standard (), &r, in, n_in,
+                                  (uint8_t)scrambler_state, out, max_out);
+}
+
+size_t
+dp_wlan_mpdu_max_out (const dp_wlan_state_t *state, size_t n_in)
+{
+  (void)state;
+  (void)n_in;
+  return WLAN_PSDU_MAX;
+}
+
+int64_t
+dp_wlan_mpdu_why (dp_wlan_state_t *state, const uint8_t *in, size_t n_in,
+                  const uint8_t *header, size_t header_len, uint8_t *out,
+                  size_t max_out, const char **why)
+{
+  (void)state;
+  /* No header is the FCS wrap of the body; an empty header gives the same
+     octets in the data wrap, so the two spellings are one result. */
+  const dp_wlan_mac_t mode     = header_len ? WLAN_MAC_DATA : WLAN_MAC_FCS;
+  const size_t        n        = dp_wlan_mpdu_len (mode, header_len, n_in);
+  const char         *sentence = NULL;
+  if (n == 0)
+    sentence = "the MPDU is 1 to 4095 octets with its FCS";
+  else if (max_out < n)
+    sentence = "the output buffer is shorter than the MPDU";
+  if (sentence)
+    {
+      if (why)
+        *why = sentence;
+      return -1;
+    }
+  return (int64_t)dp_wlan_mpdu (mode, header, header_len, in, n_in, out,
+                                max_out);
+}
+
 /* ── The scrambler ───────────────────────────────────────────────────── */
 
 /* The scrambling sequence of x^7 + x^4 + 1 is the register's history:

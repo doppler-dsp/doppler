@@ -1693,13 +1693,12 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
    receiver's ring is emptied, which the state checks below rest on. A
    ghost on A's own carrier (k = 0) is NOT taken by the ghost rule -- a
    co-located true emitter looks the same to it (§8, doppler#2551). With A
-   at 60 dB-Hz the ghost rule leaves it (whether it is then held, decoding
-   A's data through the sidelobe, or freed by the loss release is a
-   population's fraction, measured by the ghost populations); with A at 55
-   dB-Hz it holds neither flag and the loss release frees it
-   (lost_confirm_s 0.5 s). Sabotage:
-   drop the ghost pass -> the k = 2 ghost holds to the end; let the carrier
-   test take k = 0 -> the 60 dB-Hz k = 0 ghost leaves as a ghost; drop the
+   at 55 dB-Hz it holds neither flag and the loss release frees it
+   (lost_confirm_s 0.5 s). The 60 dB-Hz k = 0 row, whose premise (the
+   ghost on A's carrier) came from the reverted squared refine, is out
+   until its scene is derived under the release's refine (doppler#3216).
+   Sabotage: drop the ghost pass -> the k = 2 ghost holds to the end; let
+   the carrier test take k = 0 -> the 55 dB-Hz one leaves as a ghost; drop the
    pool's reset of a lost receiver -> the 55 dB-Hz one is never freed. Not
    pinned here: hist_clear on the ghost release. The search reseeds the
    freed receiver in the same control step, and the next group's record
@@ -1710,44 +1709,6 @@ _test_ghost_is_released (void)
 {
   uint8_t code[1023];
   dp_dsss_gold_1023 (code);
-  {
-    /* (2a) On A's carrier, its code lock low: the ghost rule leaves it
-       (a co-located true emitter looks the same, §8). What happens to it
-       then is a population's question, not this seed's: through the
-       sidelobe it may decode A's data well enough to hold symbol lock (and
-       be held) or not (and the loss release frees it), and which is a
-       fraction the ghost populations measure. Printed, not claimed. */
-    _g415_t z;
-    DP_REQUIRE (_g415_scene (code, 1, 60.0, 0, 0.5, 4.0, &z) == 0);
-    dp_async_dsss_pool_state_t *p = z.p;
-    DP_REQUIRE_MSG (z.tracked && z.n > 0, "the k = 0 ghost reached tracking");
-    printf ("k = 0 ghost, A at 60 dB-Hz: carrier %.1f Hz off A's, code lock "
-            "%.2f, symbol lock %.2f; released as ghost %llu, lost %llu\n",
-            z.df_end, (double)z.code_up / (double)z.n,
-            (double)z.sym_up / (double)z.n,
-            (unsigned long long)p->released_ghost,
-            (unsigned long long)p->released_lost);
-    DP_REQUIRE_MSG (fabs (z.df_end) < ASYNC_DSSS_POOL_GHOST_EPS_HZ
-                        && (double)z.code_up
-                               < ASYNC_DSSS_POOL_GHOST_LOCK_FRAC * (double)z.n,
-                    "it sits on A's carrier with its code lock low");
-    DP_CHECK_MSG (p->released_ghost == 0 && !z.rule_k,
-                  "the ghost rule does not take a k = 0 ghost");
-    DP_CHECK_MSG (z.any_k, "the rule with k = 0 admitted would have: it is "
-                           "the k != 0 test alone that keeps it");
-    /* Whichever end it came to, its flags say why: freed by the loss
-       release only after both flags were down for the confirm span (0.5 s,
-       in whole pushes), and otherwise still tracking. */
-    const double push_s = (double)p->group / DP_S415_FS;
-    if (p->released_lost)
-      DP_CHECK_MSG ((double)z.both_down * push_s >= 0.5 - push_s,
-                    "freed by the loss release with both flags down");
-    else
-      DP_CHECK_MSG (dp_async_dsss_pool_status (p, 1).state
-                        == ASYNC_DSSS_RX_TRACKING,
-                    "and otherwise still held");
-    dp_async_dsss_pool_destroy (p);
-  }
   {
     /* (2b) A weaker parent (55 dB-Hz): the k = 0 seed holds neither flag,
        and the loss release frees it. */

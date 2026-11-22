@@ -29,7 +29,7 @@ from doppler.track.tests.characterization.pull_in.characterize import (
 
 @pytest.mark.parametrize("m", ORDERS)
 def test_carrier_acquires_at_the_bound(m):
-    """At 1.0x `bn_carrier / m` the carrier loop acquires, at every order.
+    """At 1.0x `bn_carrier / (4 m)` the carrier loop acquires, at every order.
 
     This is the rule the tests and validators are held to, so it is the one
     point that must hold per push rather than per campaign.

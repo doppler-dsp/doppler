@@ -312,7 +312,8 @@ def draw_geometry(rng, real):
         "bn_timing": bn_timing,
         "bn_carrier": bn_carrier,
         # Offsets INSIDE each loop bandwidth, sign included -- and the
-        # carrier one is `bn_carrier / m`, cycles per SYMBOL, NOT
+        # carrier one is `bn_carrier / (4 m)` (the 4 since #3224 made bn
+        # the loop's real bandwidth), cycles per SYMBOL, NOT
         # `bn_carrier / sps`. Both parts of that matter and this line had
         # both wrong. The NDA discriminator is an M-th power, so it sees m
         # times the offset and the bound carries a `/m`; and the bound is
@@ -583,7 +584,7 @@ def run_trial(
         g["bn_carrier"] = min(g["bn_carrier"], bn_max)
         g["bn_timing"] = min(g["bn_timing"], bn_max)
         # Re-cap against the bound in ITS units after bn was narrowed --
-        # bn_carrier / m, cycles per symbol. No sps here either.
+        # bn_carrier / (4 m), cycles per symbol. No sps here either.
         g["freq_offset"] = np.sign(g["freq_offset"]) * min(
             abs(g["freq_offset"]),
             abs(freq_offset_inside_bw(g["bn_carrier"], g["m"], frac=0.5)),

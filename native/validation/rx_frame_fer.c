@@ -527,10 +527,9 @@ rx_frame_default_cfg (rx_frame_cfg_t *c, dp_frame_name_t frame)
   c->fc    = 0.0;
   /* An offset INSIDE the loop's acquisition bound, so the carrier loop has
      real work to do. The bound carries the `m` -- the NDA discriminator is an
-     M-th power, so it is `bn_carrier / m` per symbol. At the BPSK this file
-     measures, `0.5 * bn / sps` happened to be exactly that, so this is the
-     same number it always was; written through the helper because the
-     coincidence is only true at m = 2 and nothing here said so (doppler#843).
+     M-th power -- and since #3224 a 4: `bn_carrier / (4 m)` per symbol, the
+     corrected loop's prompt-lock window (doppler#843 put it behind the
+     helper).
    */
   c->bn_timing  = 0.01;
   c->bn_carrier = 0.005;

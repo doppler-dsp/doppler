@@ -69,7 +69,7 @@ floor the receiver was held to: its BER is under 5% at 5 dB and over 10% at
 BER sits from the bound.
 
 **The 3.069 Mcps point** is the receiver's
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.85.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip, on
 continuous random data with no data-free block, `carrier_freq_hz` 0, and a
 search over ±3 kHz (±1/T_E). It covers that point and no other: not the

@@ -453,7 +453,10 @@ def main(argv=None):
 
         text = "\n".join(textwrap.wrap(caption, 150))
         lines_n = text.count("\n") + 1
-        fig.subplots_adjust(bottom=min(0.4, 0.035 * lines_n + 0.04))
+        # The caption's room in inches, a line of 8 pt text about 0.16 in,
+        # so a tall figure does not leave a gap above it.
+        height = fig.get_size_inches()[1]
+        fig.subplots_adjust(bottom=(0.16 * lines_n + 0.45) / height)
         fig.text(0.01, 0.005, text, fontsize=8, va="bottom", ha="left")
 
     out = args.out or args.capture.with_suffix(".png")

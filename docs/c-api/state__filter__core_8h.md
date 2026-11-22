@@ -63,7 +63,7 @@ _A filter over an explicit state vector (the frequency estimate and its rate): t
 |  double | [**dp\_state\_filter\_bandwidth**](#function-dp_state_filter_bandwidth) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double delay, double gain) <br>_This filter's exact delivered noise bandwidth at a detector delay and loop gain._  |
 |  int | [**dp\_state\_filter\_configure**](#function-dp_state_filter_configure) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Retune the gains for a new_ `(bn, t)` _without disturbing the frequency and rate estimates._ |
 |  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create**](#function-dp_state_filter_create) (double bn, double t) <br>_Create a state filter, validating its arguments. The binding calls_ [_**dp\_state\_filter\_create\_why()**_](state__filter__core_8h.md#function-dp_state_filter_create_why) _, which also says why it refused._ |
-|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create\_why**](#function-dp_state_filter_create_why) (double bn, double t, const char \*\* why) <br>_Create a state filter, validating its arguments: the one constructor the Python class_ `StateFilter` _calls._ |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create\_why**](#function-dp_state_filter_create_why) (double bn, double t, const char \*\* why) <br>_Create a third-order state filter whose closed loop has noise bandwidth_ `bn` _, for a loop whose rest has unit gain: the one constructor the Python class_`StateFilter` _calls._ |
 |  void | [**dp\_state\_filter\_destroy**](#function-dp_state_filter_destroy) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state) <br>_Destroy a state filter and release all memory._  |
 |  void | [**dp\_state\_filter\_get\_state**](#function-dp_state_filter_get_state) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, void \* blob) <br>_Serialize the filter into_ `blob:` _gains, estimates, bn and t._ |
 |  void | [**dp\_state\_filter\_init**](#function-dp_state_filter_init) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Initialise a filter in place (no allocation)._  |
@@ -139,7 +139,7 @@ The three gains come from a loop noise bandwidth `bn` (cycles per sample) and an
 
 
 
-Like the second-order filter, the promise assumes a unit-gain loop (docs/design/loop-filter.md section 3). A third-order loop is CONDITIONALLY stable in the loop gain `K` (the discriminator slope times the oscillator gain): it needs `K` above a lower edge near `1/(a*b)` of nominal, and the sampled loop has an upper edge that falls with the detector's delay. [**dp\_state\_filter\_create()**](state__filter__core_8h.md#function-dp_state_filter_create) accepts a `bn*t` up to STATE\_FILTER\_BNT\_MAX, the largest for which the loop is stable at every gain from STATE\_FILTER\_K\_MIN to STATE\_FILTER\_K\_MAX and every detector delay up to STATE\_FILTER\_DELAY\_MAX updates. The object cannot see the gain or the delay: a discriminator whose slope is below the lower edge breaks the loop with no error reported. [**dp\_state\_filter\_stable()**](state__filter__core_8h.md#function-dp_state_filter_stable) and [**dp\_state\_filter\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_bandwidth) answer for a gain and delay you know.
+Like the second-order filter, the promise assumes a unit-gain loop: the contract is stated on [**dp\_state\_filter\_create\_why()**](state__filter__core_8h.md#function-dp_state_filter_create_why) (and so on the Python class's docstring) and in docs/design/loop-filter.md section 3. A third-order loop is CONDITIONALLY stable in the loop gain `K` (the discriminator slope times the oscillator gain): it needs `K` above a lower edge near `1/(a*b)` of nominal, and the sampled loop has an upper edge that falls with the detector's delay. [**dp\_state\_filter\_create()**](state__filter__core_8h.md#function-dp_state_filter_create) accepts a `bn*t` up to STATE\_FILTER\_BNT\_MAX, the largest for which the loop is stable at every gain from STATE\_FILTER\_K\_MIN to STATE\_FILTER\_K\_MAX and every detector delay up to STATE\_FILTER\_DELAY\_MAX updates. The object cannot see the gain or the delay: a discriminator whose slope is below the lower edge breaks the loop with no error reported. [**dp\_state\_filter\_stable()**](state__filter__core_8h.md#function-dp_state_filter_stable) and [**dp\_state\_filter\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_bandwidth) answer for a gain and delay you know.
 
 
 The state struct is public so a tracker can embed it by value, as with [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md), and drive it with [**dp\_state\_filter\_init()**](state__filter__core_8h.md#function-dp_state_filter_init) and the inline [**dp\_state\_filter\_step()**](state__filter__core_8h.md#function-dp_state_filter_step).
@@ -314,7 +314,7 @@ Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#fu
 
 ### function dp\_state\_filter\_create\_why 
 
-_Create a state filter, validating its arguments: the one constructor the Python class_ `StateFilter` _calls._
+_Create a third-order state filter whose closed loop has noise bandwidth_ `bn` _, for a loop whose rest has unit gain: the one constructor the Python class_`StateFilter` _calls._
 ```C++
 dp_state_filter_state_t * dp_state_filter_create_why (
     double bn,
@@ -325,12 +325,39 @@ dp_state_filter_state_t * dp_state_filter_create_why (
 
 
 
+#### The contract
+
+
+
+The closed loop's noise bandwidth is `bn` cycles per sample, a fixed function of `kp`, `ki` and `kr`, provided the rest of the loop has unit gain. The filter cannot see the rest of the loop, so each of these is the caller's to deliver, and each is checkable:
+
+
+
+* The error detector's slope at lock is 1 per unit of the filter's error input, open loop and noise free, in the unit the control is applied in per update; the radians-to-cycles factor, where the oscillator takes cycles, is applied once after the filter, never inside the loop gain.
+* The actuator applies the control with unit gain, once per update, `t` samples apart.
+* The loop is tracking, inside the detector's linear region.
+* The error reaches the filter and the control the actuator within the same update: the delivered bandwidth is the one asked for at a delay of zero.
+
+
+
+
+A loop gain K other than 1 changes the delivered bandwidth, and this third-order loop is also stable only for K above a lower edge near `1/(a*b)` of nominal and below an upper edge that falls with the delay (docs/design/loop-filter.md section 12), so a detector slope below that edge breaks the loop with no error reported. The second-order closed form `(4*K*zeta^2 + 1) / (4*zeta^2 + 1)` does not apply to it. A detector whose slope is not 1, or rides on signal level or SNR, is scaled to unit slope before the filter; a slope that rides on level makes the bandwidth ride on level.
+
+
+Held by the state filter's own tests for the promise, `test_loop_filter_contract.py` for these sentences on every face, and the detector matrix of doppler#3229 for the callers' side.
+
+
+
+#### Arguments
+
+
+
 
 
 **Parameters:**
 
 
-* `bn` Loop noise bandwidth, normalized cycles/sample; &gt;= 0 (default 0.01). `bn = 0` is a deliberately frozen loop. 
+* `bn` Loop noise bandwidth, normalized cycles/sample, of the closed loop given a unit-slope detector (see the contract); &gt;= 0 (default 0.01). `bn = 0` is a deliberately frozen loop. 
 * `t` Update period in samples; &gt; 0 (default 1.0). 
 * `why` Where the refusal's sentence goes, naming the argument it refused ([**dp\_state\_filter\_params\_why()**](state__filter__core_8h.md#function-dp_state_filter_params_why)); set to NULL when the filter is built. May be NULL. 
 
@@ -362,6 +389,7 @@ Traceback (most recent call last):
 ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
 ```
  
+
 
 
         

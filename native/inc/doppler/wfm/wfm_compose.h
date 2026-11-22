@@ -516,9 +516,10 @@ typedef struct {
                               or 1024 when they set none. A finite data
                               source sets its frames, a lone dsss burst one
                               burst, and a stream runs to its end. A count beside a finite
-                              data source or a lone dsss burst is refused,
-                              since they set the length; give repeats for
-                              more. */
+                              data source or a lone dsss burst is refused
+                              unless it is the length they set, which is
+                              what a Composer's segments read back; give
+                              repeats for more. */
     size_t off_samples;  /**< Trailing gap after the on-time, in samples. It
                               carries the noise floor or hard zeros, per
                               gap_noise. */
@@ -1283,7 +1284,8 @@ void dp_wfm_synth_set_data_pacing(dp_wfm_synth_state_t *syn,
  * - A count (`num_samples`, non-zero or ranged) beside sources that set
  *   the segment's length (dp_wfm_segment_sets_length()) is refused with
  *   dp_wfm_why_count_derived: the length is theirs, so it would be dropped
- *   (doppler#1729).
+ *   (doppler#1729). A count equal to the length they derive is not: it is
+ *   what a composer's segments read back, and it composes the same.
  * - A data STREAM (`--data-from-file -`) has no end to repeat, so
  *   `repeat`, `continuous` and a segment's `repeats > 1` are refused, and
  *   stdin feeds at most one source.

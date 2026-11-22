@@ -1,0 +1,1 @@
+- **A composer's `segments` compose again.** A segment whose sources set its length (a finite data source, a lone dsss burst) reads back with that length as `num_samples`, and a count equal to it is no longer refused as dropped; any other count still is ([#3225](https://github.com/doppler-dsp/doppler/issues/3225)).

@@ -76,13 +76,11 @@ def test_a_generated_field_reads_as_the_bits_it_renders(field):
 
 @pytest.mark.parametrize("field", sorted(SCENES))
 def test_the_segments_recompose_to_the_same_samples(field):
-    """The read-back also carries the segment's derived ``num_samples``,
-    which a finite source refuses beside itself (a separate matter, held
-    by ``test_num_samples_derived.py``, #3225), so the copy leaves it 0."""
+    """What ``segments`` reads back composes the same samples, with no edit
+    of the copy: its ``num_samples`` is the length the sources derive, and a
+    count equal to that is not dropped (#3225)."""
     c = _scene(SCENES[field])
     segs = c.segments
-    for s in segs:
-        s.num_samples = 0
     again = Composer(segs)
     np.testing.assert_array_equal(again.compose(), c.compose())
 

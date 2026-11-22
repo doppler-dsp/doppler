@@ -968,7 +968,8 @@ _test_telemetry_follows_the_loops (void)
   const char *outputs[]
       = { "rx.car.freq", "rx.car.nco",        "rx.code.rate",
           "rx.code.nco", "rx.demod.car.freq", "rx.demod.sync.rate",
-          "rx.sym.lock", "rx.sym.locked" };
+          "rx.sym.lock", "rx.sym.locked",     "rx.sym.num",
+          "rx.sym.den" };
   enum
   {
     N_OUT = sizeof outputs / sizeof outputs[0]
@@ -987,23 +988,74 @@ _test_telemetry_follows_the_loops (void)
      last of each is the receiver's own decision as it stands. */
   DP_CHECK (_tlm_emitted (t, "rx.sym.lock") == n_syms);
   DP_CHECK (_tlm_emitted (t, "rx.sym.locked") == n_syms);
+  DP_CHECK (_tlm_emitted (t, "rx.sym.num") == n_syms
+            && _tlm_emitted (t, "rx.sym.den") == n_syms);
+  /* The steer set reports at the steers, one record a steer, and the
+     timing loop's terms with its own six probes. */
+  DP_CHECK_MSG (_tlm_emitted (t, "rx.code.steer.e") > 0
+                    && _tlm_emitted (t, "rx.code.steer.e")
+                           == _tlm_emitted (t, "rx.code.steer.integ"),
+                "the code loop's steer set reports");
+  DP_CHECK (_tlm_emitted (t, "rx.demod.sync.integ")
+            == _tlm_emitted (t, "rx.demod.sync.e"));
   {
-    const int     id_lock   = dp_tlm_probe_id (t, "rx.sym.lock");
-    const int     id_locked = dp_tlm_probe_id (t, "rx.sym.locked");
-    dp_tlm_rec_t *recs      = malloc ((1u << 18) * sizeof *recs);
+    const int id_lock   = dp_tlm_probe_id (t, "rx.sym.lock");
+    const int id_locked = dp_tlm_probe_id (t, "rx.sym.locked");
+    /* The instrumentation of async-dsss-receiver.md §4.11 B: the symbol
+       metric's two EMAs, the code loop's filter at each steer, and the
+       timing loop's two filter terms. Each one's last record is the
+       field it reads, as the receiver ends. */
+    const int     id_num = dp_tlm_probe_id (t, "rx.sym.num");
+    const int     id_den = dp_tlm_probe_id (t, "rx.sym.den");
+    const int     id_se  = dp_tlm_probe_id (t, "rx.code.steer.e");
+    const int     id_si  = dp_tlm_probe_id (t, "rx.code.steer.integ");
+    const int     id_sp  = dp_tlm_probe_id (t, "rx.code.steer.prop");
+    const int     id_ti  = dp_tlm_probe_id (t, "rx.demod.sync.integ");
+    const int     id_tp  = dp_tlm_probe_id (t, "rx.demod.sync.prop");
+    dp_tlm_rec_t *recs   = malloc ((1u << 18) * sizeof *recs);
     DP_REQUIRE (recs != NULL);
+    DP_REQUIRE (id_num >= 0 && id_den >= 0 && id_se >= 0 && id_si >= 0
+                && id_sp >= 0 && id_ti >= 0 && id_tp >= 0);
     const size_t n_rec     = dp_tlm_read (t, 1u << 18, recs, 1u << 18);
-    float        last_lock = NAN, last_locked = NAN;
+    float        last_lock = NAN, last_locked = NAN, l_num = NAN, l_den = NAN,
+                 l_se = NAN, l_si = NAN, l_sp = NAN, l_ti = NAN, l_tp = NAN;
     for (size_t j = 0; j < n_rec; j++)
       {
-        if (recs[j].probe == id_lock)
-          last_lock = recs[j].value;
-        else if (recs[j].probe == id_locked)
-          last_locked = recs[j].value;
+        const int   pr = (int)recs[j].probe;
+        const float v  = recs[j].value;
+        if (pr == id_lock)
+          last_lock = v;
+        else if (pr == id_locked)
+          last_locked = v;
+        else if (pr == id_num)
+          l_num = v;
+        else if (pr == id_den)
+          l_den = v;
+        else if (pr == id_se)
+          l_se = v;
+        else if (pr == id_si)
+          l_si = v;
+        else if (pr == id_sp)
+          l_sp = v;
+        else if (pr == id_ti)
+          l_ti = v;
+        else if (pr == id_tp)
+          l_tp = v;
       }
     DP_CHECK (last_lock == (float)dp_async_dsss_receiver_get_lock_metric (rx));
     DP_CHECK (last_locked == (float)dp_async_dsss_receiver_get_locked (rx));
     DP_CHECK (dp_async_dsss_receiver_get_locked (rx) == 1);
+    DP_CHECK_MSG (l_num == (float)rx->lock_num && l_den == (float)rx->lock_den,
+                  "sym.num and sym.den are the metric's two EMAs");
+    DP_CHECK_MSG (l_se == (float)rx->dll->last_error
+                      && l_si == (float)rx->dll->lf.integ
+                      && l_sp == (float)(rx->dll->lf.kp * rx->dll->last_error),
+                  "the steer set is the code loop's filter at its last steer");
+    DP_CHECK_MSG (l_ti == (float)rx->rx->l.timing.lf.integ
+                      && l_tp
+                             == (float)(rx->rx->l.timing.lf.kp
+                                        * rx->rx->l.timing.last_error),
+                  "the timing loop's filter terms, at its last symbol");
     free (recs);
   }
   uint64_t before[N_OUT];
@@ -1148,6 +1200,63 @@ _test_telemetry_follows_the_loops (void)
  * engine, which no rebuild touches: attached with the loops, kept by a
  * refused re-attach, and detached with them -- or a searching receiver
  * would keep a context the caller may destroy. */
+/* A probe observes; it decides nothing (async-dsss-receiver.md §4.11 B).
+ * One stream into two receivers, one with every set attached (the epoch
+ * sets, the code loop's steer set, the timing loop's filter terms, the
+ * symbol metric's EMAs), the other detached: the symbols they emit and
+ * the state they end in are the same bytes. Sabotage: an emit site that
+ * writes the loop it reads (the steer set's emit storing its kp * e into
+ * last_error, say) -> the symbols or the blob differ. */
+static int
+_test_telemetry_moves_no_output (void)
+{
+  const size_t    sf = 7, spc = 4;
+  const double    fs = 1.0e6 * (double)spc, sym_rate = 35714.29;
+  const double    tsym = fs / sym_rate;
+  const size_t    te = sf * spc, n_sym = 400, pre_silence = te * 5 + 3;
+  const double    cn0 = 70.0;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
+                   &x, &n, &data);
+  dp_async_dsss_receiver_state_t *a
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  dp_async_dsss_receiver_state_t *b
+      = _searching_rx (cn0, sym_rate, 0.0, false);
+  dp_tlm_t *t = dp_tlm_create (1 << 18);
+  DP_REQUIRE (a != NULL && b != NULL && t != NULL);
+  DP_REQUIRE (dp_async_dsss_receiver_set_telemetry (a, t, "rx", 1) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (a, 0.0, 0.0, cn0) == DP_OK);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (b, 0.0, 0.0, cn0) == DP_OK);
+  /* The seed rebuilt the chain; the attach follows it, so the steer set
+     is on the live Dll. */
+  DP_REQUIRE (a->dll->tlm.steer_ctx == t && b->dll->tlm.steer_ctx == NULL);
+  float _Complex *sa, *sb;
+  const size_t    na = _stream (a, x + pre_silence, n - pre_silence, te, &sa);
+  const size_t    nb = _stream (b, x + pre_silence, n - pre_silence, te, &sb);
+  DP_CHECK (_tlm_emitted (t, "rx.code.steer.e") > 0);
+  DP_CHECK_MSG (na == nb && na > 20 && memcmp (sa, sb, na * sizeof *sa) == 0,
+                "the symbols are the same bytes, probes or none");
+  const size_t   cb = dp_async_dsss_receiver_state_bytes (a);
+  unsigned char *ba = malloc (cb), *bb = malloc (cb);
+  DP_REQUIRE (ba != NULL && bb != NULL
+              && dp_async_dsss_receiver_state_bytes (b) == cb);
+  dp_async_dsss_receiver_get_state (a, ba);
+  dp_async_dsss_receiver_get_state (b, bb);
+  DP_CHECK_MSG (memcmp (ba, bb, cb) == 0, "and so is the state they end in");
+  free (ba);
+  free (bb);
+  free (sa);
+  free (sb);
+  dp_async_dsss_receiver_destroy (a);
+  dp_async_dsss_receiver_destroy (b);
+  dp_tlm_destroy (t);
+  free (x);
+  free (data);
+  return 0;
+}
+
 static int
 _test_telemetry_reaches_the_search (void)
 {
@@ -3642,7 +3751,7 @@ _test_tlm_names_documented (void)
       = { "rx.state",      "rx.handover_hz", "rx.refused", "rx.sym.lock",
           "rx.sym.locked", "rx.ho_src",      "rx.cn0",     "rx.phase.car",
           "rx.phase.code", "rx.had_lock",    "rx.coast",   "rx.hold",
-          "rx.release" };
+          "rx.release",    "rx.sym.num",     "rx.sym.den" };
   enum
   {
     N_CHILD = sizeof children / sizeof children[0],
@@ -5756,6 +5865,7 @@ main (void)
   (void)_test_awgn_esn0_floor ();
   (void)_test_accessor_coverage ();
   (void)_test_telemetry_follows_the_loops ();
+  (void)_test_telemetry_moves_no_output ();
   (void)_test_telemetry_reaches_the_search ();
   (void)_test_seed_on_searching_flavor ();
   (void)_test_lost_after_switch_off ();

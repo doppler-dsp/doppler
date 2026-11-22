@@ -142,8 +142,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int32\_t | [**tlm\_refused**](#variable-tlm_refused)  <br> |
 |  int32\_t | [**tlm\_release**](#variable-tlm_release)  <br> |
 |  int32\_t | [**tlm\_state**](#variable-tlm_state)  <br> |
+|  int32\_t | [**tlm\_sym\_den**](#variable-tlm_sym_den)  <br> |
 |  int32\_t | [**tlm\_sym\_lock**](#variable-tlm_sym_lock)  <br> |
 |  int32\_t | [**tlm\_sym\_locked**](#variable-tlm_sym_locked)  <br> |
+|  int32\_t | [**tlm\_sym\_num**](#variable-tlm_sym_num)  <br> |
 |  float \_Complex \* | [**track\_dll\_out\_buf**](#variable-track_dll_out_buf)  <br> |
 |  size\_t | [**track\_dll\_out\_cap**](#variable-track_dll_out_cap)  <br> |
 |  float \_Complex \* | [**track\_rc\_out\_buf**](#variable-track_rc_out_buf)  <br> |
@@ -2087,6 +2089,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_state;
 
 
 
+### variable tlm\_sym\_den 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_sym_den;
+```
+
+
+
+"&lt;prefix&gt;.sym.den" id, -1 detached. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable tlm\_sym\_lock 
 
 ```C++
@@ -2114,6 +2134,24 @@ int32_t dp_async_dsss_receiver_state_t::tlm_sym_locked;
 
 
 "&lt;prefix&gt;.sym.locked" id, -1 detached. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_sym\_num 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_sym_num;
+```
+
+
+
+"&lt;prefix&gt;.sym.num" id, -1 detached. 
+ 
 
 
         

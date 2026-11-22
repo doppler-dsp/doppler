@@ -255,6 +255,16 @@ aid_look (dp_dll_state_t *s, float _Complex part, float _Complex noise,
   lock_look (s, sp, so);
   float me = cabsf (se), ml = cabsf (sl), mp = cabsf (sp);
   dll_steer (s, (double)me * me, (double)ml * ml, (double)mp * mp);
+  if (s->tlm.steer_ctx) /* the per-steer set (dp_dll_set_steer_telemetry) */
+    {
+      const double pe = s->lf.kp * s->last_error;
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_e, s->last_error);
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_prop, pe);
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_integ, s->lf.integ);
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_ctrl,
+                   s->inv_upd * (s->ctrl_i * s->lf.integ + s->ctrl_p * pe));
+      dp_tlm_emit (s->tlm.steer_ctx, s->tlm.id_s_aid, s->rate_aid);
+    }
 }
 
 /* Composition faces of the lock detector (dll_core.h): thin extern
@@ -615,6 +625,32 @@ dp_dll_set_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
   state->tlm.id_lock   = id_lock;
   state->tlm.id_locked = id_locked;
   state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+int
+dp_dll_set_steer_telemetry (dp_dll_state_t *state, dp_tlm_t *tlm,
+                            const char *prefix, uint32_t decim)
+{
+  state->tlm.steer_ctx = NULL;
+  if (!tlm)
+    return DP_OK;
+  const char              *p      = prefix ? prefix : "code.steer";
+  static const char *const sfx[5] = { "e", "prop", "integ", "ctrl", "aid" };
+  char                     name[5][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 5; i++) /* all names before any registration */
+    if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
+      return DP_ERR_INVALID;
+  int id[5];
+  for (size_t i = 0; i < 5; i++)
+    if ((id[i] = dp_tlm_probe (tlm, name[i], decim)) < 0)
+      return DP_ERR_INVALID; /* table full: the set stays detached */
+  state->tlm.id_s_e     = id[0];
+  state->tlm.id_s_prop  = id[1];
+  state->tlm.id_s_integ = id[2];
+  state->tlm.id_s_ctrl  = id[3];
+  state->tlm.id_s_aid   = id[4];
+  state->tlm.steer_ctx  = tlm; /* set last: the emit site gates on it */
   return DP_OK;
 }
 

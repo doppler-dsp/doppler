@@ -638,6 +638,8 @@ typedef enum
     uint32_t  tlm_decim;                   /**< The attach's decimation.  */
     int32_t   tlm_sym_lock;   /**< "<prefix>.sym.lock" id, -1 detached.   */
     int32_t   tlm_sym_locked; /**< "<prefix>.sym.locked" id, -1 detached. */
+    int32_t   tlm_sym_num;    /**< "<prefix>.sym.num" id, -1 detached.    */
+    int32_t   tlm_sym_den;    /**< "<prefix>.sym.den" id, -1 detached.    */
     int32_t   tlm_state;      /**< "<prefix>.state" id, -1 detached.      */
     int32_t   tlm_handover;   /**< "<prefix>.handover_hz" id, -1 detached.*/
     int32_t   tlm_refused;    /**< "<prefix>.refused" id, -1 detached.    */
@@ -983,12 +985,17 @@ typedef enum
    *   coasts, when loop 1 is held;
    * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
    *   ".rate", ".lock", ".locked", ".nco", and the lock statistic's two
-   *   terms ".prompt_amp" and ".offset_pwr"), once per discriminator
-   *   update;
+   *   terms ".prompt_amp" and ".offset_pwr"), once per code period
+   *   (with the symbol aid on, the last steer held);
+   * - "<prefix>.code.steer" -- the code loop's filter at each steer of the
+   *   symbol aid (dp_dll_set_steer_telemetry(): ".e", ".prop", ".integ",
+   *   ".ctrl", ".aid"), the loop's own cadence;
    * - "<prefix>.demod" -- the symbol-domain demodulator
    *   (dp_mpsk_receiver_set_telemetry(): its lock, its carrier and timing
    *   loops, the symbols, its AGC), once per recovered symbol (the AGC's
-   *   pair once per gain update);
+   *   pair once per gain update), and the timing loop's two filter terms
+   *   beside them, ".demod.sync.prop" and ".demod.sync.integ"
+   *   (dp_ratesync_loop_set_filter_telemetry());
    * - "<prefix>.acq" -- the acquisition engine
    *   (dp_correlator_set_telemetry()), once per decided dwell;
    * - "<prefix>.rc" -- the rate converter between the code loop and the
@@ -998,7 +1005,9 @@ typedef enum
    * - "<prefix>.sym.lock" and "<prefix>.sym.locked" -- the receiver's own
    *   symbol-lock metric (dp_async_dsss_receiver_get_lock_metric()) and
    *   its decision (dp_async_dsss_receiver_get_locked()), the one its
-   *   users act on, once per emitted symbol;
+   *   users act on, once per emitted symbol; "<prefix>.sym.num" and
+   *   "<prefix>.sym.den", the metric's two EMAs (their ratio is
+   *   ".sym.lock"), on the same symbols;
    * - "<prefix>.ref" -- the refine's estimator, the data template's
    *   (dp_carrier_acq_set_telemetry(): ".stat", ".thr", ".hz", ".n",
    *   ".ready"), once per tested block while refining.
@@ -1065,10 +1074,10 @@ typedef enum
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
    * ...                                                    "rx.code")))
-   * ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate', 'rx.code.steer.aid', 'rx.code.steer.ctrl', 'rx.code.steer.e', 'rx.code.steer.integ', 'rx.code.steer.prop']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
    * ...                                                    "rx.refu")))
-   * ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
+   * ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.den', 'rx.sym.lock', 'rx.sym.locked', 'rx.sym.num']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
    * ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))

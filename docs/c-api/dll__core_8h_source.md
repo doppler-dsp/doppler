@@ -42,6 +42,15 @@ typedef struct {
     int32_t id_nco;    
     int32_t id_pamp;   
     int32_t id_opwr;   
+    /* The per-steer set (dp_dll_set_steer_telemetry()), its own context:
+       emitted at each steer of the symbol-period aid, beside the epoch
+       set above. NULL = detached. */
+    dp_tlm_t *steer_ctx; 
+    int32_t id_s_e;      
+    int32_t id_s_prop;   
+    int32_t id_s_integ;  
+    int32_t id_s_ctrl;   
+    int32_t id_s_aid;    
 } dll_tlm_t;
 
 typedef struct {
@@ -318,6 +327,9 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
                             uint32_t n_up, uint32_t n_down);
 
 float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
+
+int dp_dll_set_steer_telemetry(dp_dll_state_t *state, dp_tlm_t *tlm,
+                               const char *prefix, uint32_t decim);
 
 int dp_dll_get_locked(const dp_dll_state_t *state);
 

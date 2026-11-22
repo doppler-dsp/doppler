@@ -106,6 +106,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  int | [**dp\_dll\_set\_lock\_verify**](#function-dp_dll_set_lock_verify) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
 |  void | [**dp\_dll\_set\_rate\_aid**](#function-dp_dll_set_rate_aid) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
 |  int | [**dp\_dll\_set\_state**](#function-dp_dll_set_state) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const void \* blob) <br>_Restore from_ `blob` _._ |
+|  int | [**dp\_dll\_set\_steer\_telemetry**](#function-dp_dll_set_steer_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) the per-steer telemetry set: the loop filter's outputs at each steer of the symbol-period aid._  |
 |  int | [**dp\_dll\_set\_symbol\_period**](#function-dp_dll_set_symbol_period) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double partials\_per\_symbol) <br>_Give the loop the data-symbol period, so the lock detector's looks and the code discriminator's windows are coherent over a symbol instead of a quarter-epoch partial._  |
 |  int | [**dp\_dll\_set\_telemetry**](#function-dp_dll_set_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers seven probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock —_ [_**dp\_dll\_get\_code\_rate()**_](dll__core_8h.md#function-dp_dll_get_code_rate) _, the loop's own rate, without the carrier aid; a held loop reports its held integrator's), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic) and "&lt;prefix&gt;.nco" (what the code NCO is commanded: the complete loop-filter output, the integrator, the proportional term and the carrier aid, as chips per nominal chip, at the NCO's resolution of one phase-increment step; a held loop's held command), and the two terms the lock statistic is formed from, for its decomposition (#3134): "&lt;prefix&gt;.prompt\_amp" (the epoch's last look's prompt magnitude \|P\|, the signal term) and "&lt;prefix&gt;.offset\_pwr" (that look's offset (noise) tap power \|O\|^2, the noise reference's input, of which R's denominator E\|O\|^2 is the running mean). Both are in the units the statistic is formed in_ _the look's normalized correlation. They are ONE look's terms_ _the epoch's last look_ _not the epoch's sum: with segments &gt; 1 an epoch holds several looks, and R sums \|P\|^2 over n\_looks of them, so R = sqrt(2 sum \|P\|^2 / E\|O\|^2) is rebuilt from these only as their moments (n\_looks E\|P\|^2 over E\|O\|^2), never from one epoch's pair. Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Serialized-state byte size._  |
@@ -1706,6 +1707,46 @@ DP\_OK or DP\_ERR\_INVALID.
 * `blob` Blob from [**dp\_dll\_get\_state()**](dll__core_8h.md#function-dp_dll_get_state).
 
 The blob is decoded and checked whole before any of `state` is written, so a refusal changes nothing (doppler#2092). Refused: a wrong-object, wrong-version, wrong-size or foreign-endian envelope; a blob whose code length, samples per chip, segment count or symbol-aid geometry (on or off, its ring and hypotheses) is not this instance's; and running fields no live instance carries  a chunk index past the segments, a noise offset outside the code, a non-finite or negative noise guard, and on an aided instance a non-finite period, a window as long as its ring, a best hypothesis past its hypotheses or a last look past the partials counted. The code, the buffers and the telemetry attachment stay this instance's. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_dll\_set\_steer\_telemetry 
+
+_Attach (or detach) the per-steer telemetry set: the loop filter's outputs at each steer of the symbol-period aid._ 
+```C++
+int dp_dll_set_steer_telemetry (
+    dp_dll_state_t * state,
+    dp_tlm_t * tlm,
+    const char * prefix,
+    uint32_t decim
+) 
+```
+
+
+
+[**dp\_dll\_set\_telemetry()**](dll__core_8h.md#function-dp_dll_set_telemetry)'s probes flush once a code epoch, but with the symbol-period aid on ([**dp\_dll\_set\_symbol\_period()**](dll__core_8h.md#function-dp_dll_set_symbol_period)) the loop steers once a symbol window, so those probes hold the last steer. This set is emitted at the steer itself, in aid\_look(): "&lt;prefix&gt;.e" (the discriminator), ".prop" (kp \* e), ".integ" (the filter's integrator), ".ctrl" (what the steer adds to the nominal code rate, code periods a sample, the rate aid excluded) and ".aid" (the rate aid, [**dp\_dll\_set\_rate\_aid()**](dll__core_8h.md#function-dp_dll_set_rate_aid)). A held loop ([**dp\_dll\_set\_coast()**](dll__core_8h.md#function-dp_dll_set_coast)) still emits: its discriminator reads, and its filter outputs are the held ones. With the aid off nothing is emitted: the steer is the epoch's, and the epoch set shows it. Its own context, so a composer that does not ask for it (the despreader) registers and emits nothing more. Observation only: no decision reads it. 
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `tlm` Telemetry context, or NULL to detach this set. 
+* `prefix` Probe-name prefix, e.g. "rx.code.steer". 
+* `decim` Emit every decim-th steer; &gt;= 1. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID (an overlong prefix or a full probe table), the set then detached. 
+
+
+
 
 
         

@@ -254,6 +254,8 @@ typedef enum
     uint32_t  tlm_decim;                   
     int32_t   tlm_sym_lock;   
     int32_t   tlm_sym_locked; 
+    int32_t   tlm_sym_num;    
+    int32_t   tlm_sym_den;    
     int32_t   tlm_state;      
     int32_t   tlm_handover;   
     int32_t   tlm_refused;    

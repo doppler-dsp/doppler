@@ -795,6 +795,7 @@ dp_dll_set_code_phase function
 dp_dll_set_lock_verify function
 dp_dll_set_rate_aid function
 dp_dll_set_state function
+dp_dll_set_steer_telemetry function
 dp_dll_set_symbol_period function
 dp_dll_set_telemetry function
 dp_dll_state_bytes function
@@ -1412,6 +1413,7 @@ dp_ratesync_loop_get_state function
 dp_ratesync_loop_init function
 dp_ratesync_loop_reset function
 dp_ratesync_loop_set_cascade function
+dp_ratesync_loop_set_filter_telemetry function
 dp_ratesync_loop_set_state function
 dp_ratesync_loop_set_telemetry function
 dp_ratesync_loop_state_bytes function

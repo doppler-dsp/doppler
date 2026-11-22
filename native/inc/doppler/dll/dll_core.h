@@ -118,6 +118,17 @@ typedef struct {
     int32_t id_pamp;   /**< "<prefix>.prompt_amp" — the last look's |P| */
     int32_t id_opwr;   /**< "<prefix>.offset_pwr" — its offset tap's
                             |O|^2, the noise reference's input           */
+    /* The per-steer set (dp_dll_set_steer_telemetry()), its own context:
+       emitted at each steer of the symbol-period aid, beside the epoch
+       set above. NULL = detached. */
+    dp_tlm_t *steer_ctx; /**< NULL = the per-steer set detached       */
+    int32_t id_s_e;      /**< "<prefix>.e" — the steer's discriminator */
+    int32_t id_s_prop;   /**< "<prefix>.prop" — kp * e                 */
+    int32_t id_s_integ;  /**< "<prefix>.integ" — the filter's integrator */
+    int32_t id_s_ctrl;   /**< "<prefix>.ctrl" — the control the steer
+                              added to the nominal rate, code periods a
+                              sample (aid excluded)                     */
+    int32_t id_s_aid;    /**< "<prefix>.aid" — the rate aid, a ratio    */
 } dll_tlm_t;
 
 /**
@@ -1413,6 +1424,31 @@ void dp_dll_configure_lock_raw(dp_dll_state_t *state, double up_thresh,
  *  @param state  Must be non-NULL.
  *  @return The winning window's prompt sum. */
 float _Complex dp_dll_get_window_sum(const dp_dll_state_t *state);
+
+/**
+ * @brief Attach (or detach) the per-steer telemetry set: the loop filter's
+ *        outputs at each steer of the symbol-period aid.
+ *
+ * dp_dll_set_telemetry()'s probes flush once a code epoch, but with the
+ * symbol-period aid on (dp_dll_set_symbol_period()) the loop steers once a
+ * symbol window, so those probes hold the last steer. This set is emitted
+ * at the steer itself, in aid_look(): "<prefix>.e" (the discriminator),
+ * ".prop" (kp * e), ".integ" (the filter's integrator), ".ctrl" (what the
+ * steer adds to the nominal code rate, code periods a sample, the rate aid
+ * excluded) and ".aid" (the rate aid, dp_dll_set_rate_aid()). A held loop
+ * (dp_dll_set_coast()) still emits: its discriminator reads, and its
+ * filter outputs are the held ones. With the aid off nothing is emitted:
+ * the steer is the epoch's, and the epoch set shows it. Its own context, so
+ * a composer that does not ask for it (the despreader) registers and
+ * emits nothing more. Observation only: no decision reads it.
+ *  @param state   Must be non-NULL.
+ *  @param tlm     Telemetry context, or NULL to detach this set.
+ *  @param prefix  Probe-name prefix, e.g. "rx.code.steer".
+ *  @param decim   Emit every decim-th steer; >= 1.
+ *  @return DP_OK, or DP_ERR_INVALID (an overlong prefix or a full probe
+ *          table), the set then detached. */
+int dp_dll_set_steer_telemetry(dp_dll_state_t *state, dp_tlm_t *tlm,
+                               const char *prefix, uint32_t decim);
 
 /** @brief Current lock decision (1 = locked, 0 = not), with the configured
  *         verify-count / hysteresis rule applied (see dp_dll_configure_lock).

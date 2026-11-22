@@ -76,7 +76,8 @@ dp_ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
   dp_lockdet_init (&l->lock, RATESYNC_LOCK_DEFAULT_THRESH,
                    RATESYNC_LOCK_DEFAULT_THRESH, RATESYNC_LOCK_DEFAULT_N_UP,
                    RATESYNC_LOCK_DEFAULT_N_DOWN);
-  l->tlm.ctx = NULL;
+  l->tlm.ctx        = NULL;
+  l->tlm.filter_ctx = NULL;
   dp_ratesync_loop_reset (l);
 }
 
@@ -200,6 +201,34 @@ dp_ratesync_loop_tlm_flush (const ratesync_loop_t *l)
      by hand and there is no stage to read (see ratesync_loop_t::term). */
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_mu,
                l->term ? dp_resamp_get_ctrl_acc (l->term) : 0.0);
+  if (l->tlm.filter_ctx) /* dp_ratesync_loop_set_filter_telemetry() */
+    {
+      dp_tlm_emit (l->tlm.filter_ctx, l->tlm.id_prop,
+                   l->lf.kp * l->last_error);
+      dp_tlm_emit (l->tlm.filter_ctx, l->tlm.id_integ, l->lf.integ);
+    }
+}
+
+int
+dp_ratesync_loop_set_filter_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
+                                       const char *prefix, uint32_t decim)
+{
+  l->tlm.filter_ctx = NULL;
+  if (!tlm)
+    return DP_OK;
+  const char *p = prefix ? prefix : "sync";
+  char        prop[DP_TLM_NAME_MAX], integ[DP_TLM_NAME_MAX];
+  if (dp_tlm_name_join (prop, p, "prop") != DP_OK
+      || dp_tlm_name_join (integ, p, "integ") != DP_OK)
+    return DP_ERR_INVALID;
+  const int id_prop  = dp_tlm_probe (tlm, prop, decim);
+  const int id_integ = dp_tlm_probe (tlm, integ, decim);
+  if (id_prop < 0 || id_integ < 0)
+    return DP_ERR_INVALID;
+  l->tlm.id_prop    = id_prop;
+  l->tlm.id_integ   = id_integ;
+  l->tlm.filter_ctx = tlm; /* set last: the emit site gates on it */
+  return DP_OK;
 }
 
 int

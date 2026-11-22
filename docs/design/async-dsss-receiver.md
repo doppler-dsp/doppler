@@ -1882,6 +1882,7 @@ The owner's rulings of 2026-11-21 come before any change of behavior: the testin
 - D1, owner's ruling 5 (§12.30): the carrier error is formed over the code-period window, its one mode (`72f577f90`).
 - `refine` is an argument (`b3d3bdf1c`), and its default is the release's behavior.
 - The refine's estimator is the release's. The squared-stream estimator (`79fa50cfe`) is reverted on this branch: a behavior change with no failing requirement behind it (owner, 2026-11-21).
+- The pool's ghost test has no 60 dB-Hz k = 0 row: its premise, a ghost on its parent's carrier, came from the reverted squared refine, and its scene waits to be derived under the release's refine ([#3216](https://github.com/doppler-dsp/doppler/issues/3216)). The pool test no longer covers that case.
 - The Dll's run correlation (`b6ed0118a`, `7e80adb45`), a performance change; the Dll's own tests hold its outputs.
 - The pool joins its workers once every 16 code periods (`3b41f5dd1`).
 - Probes and readbacks: the Dll's look terms, the receiver's state probes, and the lock-rule getters (`7772ced26`, `edfcb0c86`, `8a1e04e34`). No decision is touched.

@@ -13,6 +13,193 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-11-22
+
+### Added
+
+- **The receiver and pool benches time the 415.1-B-1 specification
+    point.** Eight rows at 11 MSa/s in, 3,000 sym/s and 4 dB Es/N0, at 2.2
+    and 2.8 GHz: the receiver searching and tracking, and the pool holding
+    nine emitters with its search on, on 1 and 16 threads
+    (the design page, section 1).
+
+- **`wfm_synth`: a type that plays finished frames from a callback.** A
+    frame callback turns a frame of bits, drawn lazily from the bit refill,
+    into samples played as they are, each frame once. The state blob (version
+    seven) resumes it mid-frame and a restore never writes the renderer. C
+    only for now: it is the base of the wfmgen `ofdm` type
+    ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
+
+- **`wfmgen --type ofdm`: 802.11a/g/p/j PPDUs from a data source.** One PPDU
+    per frame, built through `wlan`: `wfmgen --type ofdm --wlan 54 --data ...`.
+    `--wlan N` is the 20 MHz rate in Mb/s (or `--constellation` and
+    `--code-rate`), `fs` is `M` times `--bandwidth` by a larger transform, and
+    `--mac` is `none`, `fcs` or `data` (with `--mac-header`). The CLI, the
+    scene JSON, the Python `Synth` and the C source reach it, and its SigMF
+    annotation names its configuration. See the
+    [guide](docs/guide/wfmgen/waveforms.md#ofdm-80211ag-ppdus)
+    ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
+
+### Changed
+
+- **A search's state blob carries its thread request.** `set_threads()`'s
+    count is a mutator's value (#2022), so a restored search now runs on
+    the workers the writer asked for: an explicit count as asked, and 0 as
+    the target's own online cores, capped at the tiles only at D = 1; the
+    output is the same at every count. The `Correlator` state version is
+    4, and the blobs that nest a search (`DsssReceiver`, `BurstCapture`)
+    grow by 8 bytes. `AsyncDsssReceiver` drops its own copy of the count
+    the writer ran, which overrode the request on restore; its state
+    version is 18, and its blob and `AsyncDsssPool`'s keep their size
+    ([what goes in the blob](docs/design/state-serialization.md), #3055).
+
+- **`FIR` runs four vectors of outputs at a time, each its own running
+    sum.** One sum was a chain of dependent adds as long as the filter. On
+    an AVX2 + FMA build the real-tap rows now take 0.34-0.64 of the time
+    and the complex-tap rows 0.23-0.31, the latter because complex taps
+    ran scalar everywhere but AVX-512 and now have a vector kernel on AVX2,
+    SSE2 and NEON. On a portable x86-64 build (the SSE2 tier of jm
+    0.133.0) the real-tap rows take 0.34-0.53 of v0.84.0's time and the
+    complex-tap rows 0.48-0.75. Outputs move in the last place under
+    `-ffast-math`; a stream still gives the same bits however the caller
+    splits it.
+
+- **just-makeit pin 0.126.1 → 0.133.0.** A portable x86-64 build now
+    runs the SIMD macros on four float lanes (an SSE2 tier in `jm_simd.h`)
+    and the dot product on four accumulators, so a result can differ from
+    the previous release in the last place. A package's `__all__` no longer
+    lists underscore names, and the choice tables carry docstrings in the
+    stubs.
+
+- **just-makeit pin 0.133.0 → 0.133.1.** A bit field of a wfm source
+    (`data`, `fill`, `acq_code`, `data_code`, `mac_header`, `sync`) now raises
+    `ValueError` for any element other than 0 or 1, whether it arrives as
+    `bytes`, a list, an array or JSON; before, a `bytes` of octets was taken
+    octet-for-bit and rendered a silent wrong waveform
+    ([#3194](https://github.com/doppler-dsp/doppler/issues/3194)). Octets go
+    through `np.unpackbits` first. `Synth.fs` is documented as its real
+    default, 1e6 Hz, so the documented-defaults test's exemption is gone
+    ([#3142](https://github.com/doppler-dsp/doppler/issues/3142)). Many
+    docstrings now state `default V` where the manifest declares one.
+
+- **just-makeit pin 0.133.1 → 0.134.0.** `default_raw` is refused at load on
+    a param table that does not read it (only an object's or a view's
+    `init_params` do), and a composer source or segment field may declare
+    `get_fn`, a Python read that goes through a C function of the struct and
+    the rate while the stored value, `to_json` and `from_json` are unchanged
+    ([just-makeit#2709](https://github.com/just-buildit/just-makeit/issues/2709),
+    [just-makeit#2710](https://github.com/just-buildit/just-makeit/issues/2710)).
+    The re-render changes no file.
+
+- **just-makeit pin 0.134.0 → 0.134.1.** A `Segment`'s flat `window` now
+    reads the source's `get_fn` at the segment's own `fs`, the same count a
+    `Synth` reads, closing the Segment half of #3211
+    ([just-makeit#2717](https://github.com/just-buildit/just-makeit/issues/2717)).
+    The re-render changes `wfm_compose_ext.c` only.
+
+- **`Ofdm.add_run`'s `cyclic_prefix` default names its constant.** The
+    signature reads `cyclic_prefix: int = ...` and the docstring
+    `default OFDM_CP_DEFAULT` instead of the number 4294967295; the behaviour
+    is unchanged (an omitted prefix keeps the class's).
+
+- **`dp_wlan_layout` refuses a too-long window before it touches the
+    modulator.** A window above 80 × oversample used to be refused only after
+    the L-STF and L-LTF classes were added to `o`. Every refusal by the
+    arguments now leaves `o` untouched, as its header says. `dp_ofdm_add_class`
+    no longer refuses a NaN `scale`: a NaN parameter gives NaN samples, the
+    library's rule (#2103).
+
+- **A one-tile search with D > 1 now uses the threads asked for.**
+    `set_threads()` left it on one worker whatever the depth, though its
+    map fans by epoch, capture bin and row as a tiled search's does. The
+    request now stands at any tile count when D > 1; one tile at D = 1
+    stays serial, and the result is bit-identical at every thread count.
+    A search also starts its workers at its first push, not at create, so
+    a receiver set to one thread never builds them
+    ([the split by stage](docs/design/correlator.md), #3055).
+
+- **The resampler's decimating path takes up to 27% less time, bit for
+    bit.** Its dump read the integrate-and-dump registers at an offset the
+    accumulate loop's vector stores could not forward to; the loop now
+    starts its vectors where the dump reads them. `resamp::execute` at
+    rate 0.9999 went from 10.7 to 7.8 ns a sample and the pool's
+    one-tile push from 9.25 to 8.52 ms (x86-64-v2, gcc 16); the output
+    and the state blob are byte-identical.
+
+- **The tile-edge alias check runs on the search's pool.** A tiled,
+    block-coherent search resolves a dwell's picks as one fan of three tasks
+    a pick, one wake a dwell, each summing in the serial loop's order, so
+    every reported hit is bit-identical at any thread count. It was 61
+    ns/sample of the async-DSSS pool's serial floor at K=9 (#3060).
+
+- **`Synth.window` reads the count the source renders with.** An unset window
+    reads 2, 4 or 8 at one, two or four times the bandwidth, not
+    `2**64 - 1`, through `get_fn = "dp_wfm_source_window"` (jm 0.134.0); an
+    `fs` with no oversampling still reads `2**64 - 1`; a source that is not ofdm reads 0. The setter, `to_json`
+    and the stored value are unchanged. A `Segment`'s flat `window` still
+    reads the unset constant, awaiting just-makeit#2717 ([#3211](https://github.com/doppler-dsp/doppler/issues/3211)).
+
+- **wfmgen's `ofdm` source takes the standard's 100 ns transition by
+    default.** With no `--window`, `window` key or `window=`, it renders
+    `2 * fs / bandwidth` samples as `Wlan` does, so oversampled output meets
+    the transmit mask; `window=0` is rectangular by asking. A scene or SigMF
+    record holds the count; a scene written before this change for a
+    rectangular window left the key out, and now loads as the standard's
+    ([#3190](https://github.com/doppler-dsp/doppler/issues/3190)).
+
+- **The capacity functions of `Ofdm.modulate` and `Wlan.ppdu` are named for
+    what they do.** `dp_ofdm_modulate_why_max_out` is removed (use
+    `dp_ofdm_modulate_max_out`, which it only forwarded to) and
+    `dp_wlan_ppdu_why_max_out` is now `dp_wlan_ppdu_max_out`. The jm 0.133.0
+    manifest key `max_out_fn` names the function the binding calls, so the
+    alias the old derivation needed is gone (just-makeit#2680). Python is
+    unchanged.
+
+- **The wlan pages say where the conformance evidence lives.** Annex I.1's
+    worked example is run against each release by the downstream conformance
+    driver, and the release of 2026-11-19 passed it; the tree's own tests hold the catalogue
+    FCS value, the printed sequences, the puncture lists and the re-derived
+    permutation, and none of Annex I's tables
+    ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)).
+
+- **`Wlan` with no `window` now renders the standard's 100 ns transition.**
+    The default was no window (`window=0`); it is `2 * oversample` samples
+    at the output rate, so a default PPDU is that much longer and its symbol
+    boundaries are cross-faded. At `oversample=4` the transmit mask's
+    tightest margin is 7.9 dB where the rectangular default failed the
+    30 MHz point. `window=0` is the old output. In C,
+    `WLAN_WINDOW_STANDARD` is the new reserved `window` argument of
+    `dp_wlan_create` and `dp_wlan_window_resolve` its one definition
+    (#3190).
+
+- **`Wlan`'s `window` default names its constant.** The signature reads
+    `window: int = ...` and the docstring `default WLAN_WINDOW_STANDARD`
+    instead of the number 4294967295; the behaviour is unchanged (an omitted
+    window is the standard's `2 * oversample`, `window=0` is rectangular).
+
+### Fixed
+
+- **The benchmark-fixture gate's child pytest no longer walks the system
+    temp directory.** Bounded only by the repo's config, its collection
+    climbed every parent of its `tmp_path`. On Windows that walk stats each
+    sibling it lists, so another xdist worker's `mkdtemp` directory,
+    removed mid-walk, failed the test. The child now stops the walk at its
+    own directory (`--confcutdir`), and a test holds that bound (#2718).
+
+- **`make bench-run-check` measures only doppler's own benchmarks.** It
+    searched all of `build/`, including the downstream jm example's
+    separate build in `build/downstream-jm-py`. That example's
+    `c:capture::*` rows then failed the PR label check as unlabelled
+    doppler rows on any local run after its tests; CI was unaffected.
+    Discovery now stops at any nested `CMakeCache.txt`.
+
+- **A release no longer rides a floating runner image.** v0.84.0's x86_64
+    PyPI smoke for Python 3.9 could not start: `ubuntu-latest` had rolled to
+    26.04, where `setup-python` has no 3.9, after the wheels were already
+    published (#3188). `release.yml` now names `ubuntu-24.04` (what v0.83.0 ran on) and
+    `windows-2025-vs2026` (what `windows-latest` was on v0.84.0), and `make release-runners-check` (in `make lint`) refuses a `-latest`
+    there. `ci.yml` stays on `-latest` as the early warning.
+
 ## [0.84.0] - 2026-11-19
 
 ### Added
@@ -19735,5 +19922,6 @@ ______________________________________________________________________
 [0.82.0]: https://github.com/doppler-dsp/doppler/compare/v0.81.0...v0.82.0
 [0.83.0]: https://github.com/doppler-dsp/doppler/compare/v0.82.0...v0.83.0
 [0.84.0]: https://github.com/doppler-dsp/doppler/compare/v0.83.0...v0.84.0
+[0.85.0]: https://github.com/doppler-dsp/doppler/compare/v0.84.0...v0.85.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.84.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.85.0...HEAD

@@ -468,8 +468,7 @@ typedef struct {
                             unset window reads 2, 4 or 8 at 1, 2 or 4 times
                             the bandwidth; at an fs with no oversampling the
                             read is WFM_WINDOW_UNSET, 2**64 - 1, which the
-                            scene is refused for. A Segment's flat window
-                            reads the unset constant. What is stored,
+                            scene is refused for. What is stored,
                             set and written is what was given. */
     int mac; /**< For type=ofdm: how the caller's octets become the
                             PSDU. none: as given. fcs: an MPDU without its FCS,

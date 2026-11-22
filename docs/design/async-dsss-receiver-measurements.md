@@ -4369,3 +4369,53 @@ always on"). That kept the first, which is now the design page's rule.
 - **Per-partial before the switch.** Never proposed. It is the retired
     `partials` form, which slips 41 of 89 bursts at 2.8 GHz in §12.30's
     comparison.
+
+### 12.32 What was measured (2026-11-21) — step 2's rows; control (b) failed, so "works" in them is not a verdict
+
+**Read the control verdicts first.** Control (a), the noise alone, passed. Control (b), the carrier loop opened, failed. With the first loop at bandwidth 0, seed 1 at 10 dB static reads `works` 1 at both carriers. This run's `works` column therefore does not tell a working receiver from this broken one (§4.11 C17), and none of its `works` counts is a verdict.
+
+**Producer.** `integ/async-rx` at `5e9b56301`, built on swiftgo, clean tree; `V = validate_async_dsss_receiver_pullin`. All runs are static (`--rate 0`), and every receiver is built at the floor's C/N0.
+
+- Rows: `$V --emit --fc F --esn0 E --rate 0 --draws 60 --shard i/16` for F ∈ {2.2, 2.8}, E ∈ {4, 10}, i ∈ 0..15. The guideline arm is D3's own bandwidth; the comparison arm adds `--bn-carrier 0.04`. Their `# pullin` sections are [run415/pullin_rows.csv](async-dsss-receiver-measurements/run415/pullin_rows.csv), 480 rows with the arm in the first column.
+- Control (a): `$V --emit --fc F --esn0 E --rate 0 --draws 1 --no-emitter [--bn-carrier 0.04]`, one draw per cell and arm.
+- Control (b): `$V --telemetry DIR --draw F,10,0,1 --bn-carrier 0 --expect-broken`, run on the comparison arm's lowest working seed at each 10 dB cell (seed 1 at both).
+- The control rows are [run415/controls.csv](async-dsss-receiver-measurements/run415/controls.csv), and the harness's printed verdicts are [run415/verdicts.txt](async-dsss-receiver-measurements/run415/verdicts.txt).
+- Summaries: `record_415.py handover` over each arm's rows.
+- No capture was taken: the run stops before its captures when a control fails.
+
+**The controls.**
+
+| control                                                      | cells                                   | verdict                                                                                                             |
+| ------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| (a) the noise alone                                          | 2.2 and 2.8 GHz, 4 and 10 dB, both arms | 8 of 8 pass: no flag sustains                                                                                       |
+| (b) the first carrier loop open (bn 0, pull-in 0 Hz), seed 1 | 2.2 GHz 10 dB                           | **fail**: `works` 1; hand-over +21.27 Hz; 2,504 carrier slips; the carrier flag never sustains; 9 errors in 176,133 |
+| (b)                                                          | 2.8 GHz 10 dB                           | **fail**: `works` 1; hand-over −40.30 Hz; 4,742 carrier slips; the carrier flag never sustains; 8 errors in 176,129 |
+
+The 2.8 GHz rows of control (a)'s comparison arm read bn 0.0094, not 0.04: `--bn-carrier` is applied on entry to tracking, and those receivers never tracked.
+
+**The summaries, per cell and arm.**
+
+- "Outside" is against the arm's acquisition bound, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`: 18.8 Hz for the guideline arm at both carriers; 62.9 Hz (2.2 GHz) and 80.0 Hz (2.8 GHz) for the comparison arm.
+- Times are median / 90th percentile / worst.
+- Flags are counted by C1: never sustained / sustained and changed / sustained and clean.
+- The hand-over errors are the same in both arms, since the seeds and the refine are the same.
+
+| cell          | arm (bn) | hand-over error, Hz  | outside; of those pulled in | `t_car_s`; never       | pull-in after hand-over, s; never | sym     | code   | car     | demod   | sync    | carrier slips / data slipped | `works` |
+| ------------- | -------- | -------------------- | --------------------------- | ---------------------- | --------------------------------- | ------- | ------ | ------- | ------- | ------- | ---------------------------- | ------- |
+| 2.2 GHz 4 dB  | 0.0120   | 54.6 / 104.5 / 402.9 | 48 of 60; 45                | 0.88 / 3.23 / 8.87; 3  | 0.59 / 2.01 / 6.64; 3             | 3/29/28 | 0/2/58 | 3/12/45 | 3/26/31 | 0/50/10 | 27 / 6                       | 4       |
+| 2.2 GHz 4 dB  | 0.04     | 54.6 / 104.5 / 402.9 | 21 of 60; 18                | 0.28 / 0.41 / 0.70; 3  | 0.01 / 0.09 / 0.38; 3             | 3/41/16 | 0/4/56 | 3/52/5  | 3/16/41 | 3/51/6  | 8 / 4                        | 1       |
+| 2.2 GHz 10 dB | 0.0120   | 21.3 / 82.0 / 115.9  | 30 of 60; 30                | 0.22 / 1.03 / 2.42; 0  | 0.03 / 0.64 / 1.66; 0             | 0/14/46 | 0/0/60 | 0/0/60  | 0/17/43 | 0/0/60  | 4 / 2                        | 40      |
+| 2.2 GHz 10 dB | 0.04     | 21.3 / 82.0 / 115.9  | 9 of 60; 9                  | 0.17 / 0.19 / 0.21; 0  | 0.00 / 0.02 / 0.03; 0             | 0/0/60  | 0/0/60 | 0/0/60  | 0/0/60  | 0/0/60  | 0 / 0                        | 58      |
+| 2.8 GHz 4 dB  | 0.0094   | 20.6 / 110.2 / 351.1 | 32 of 60; 31                | 0.47 / 4.15 / 20.37; 1 | 0.09 / 2.74 / 13.66; 1            | 1/18/41 | 0/4/56 | 1/59/0  | 1/22/37 | 0/46/14 | 19 / 6                       | 0       |
+| 2.8 GHz 4 dB  | 0.04     | 20.6 / 110.2 / 351.1 | 7 of 60; 7                  | 0.28 / 0.42 / 2.80; 0  | 0.00 / 0.05 / 2.64; 0             | 0/60/0  | 0/4/56 | 0/60/0  | 0/47/13 | 0/44/16 | 37 / 22                      | 0       |
+| 2.8 GHz 10 dB | 0.0094   | 19.1 / 54.3 / 173.9  | 30 of 60; 30                | 0.21 / 0.60 / 5.72; 0  | 0.03 / 0.32 / 3.73; 0             | 0/4/56  | 0/0/60 | 0/0/60  | 0/6/54  | 0/1/59  | 1 / 0                        | 53      |
+| 2.8 GHz 10 dB | 0.04     | 19.1 / 54.3 / 173.9  | 1 of 60; 1                  | 0.17 / 0.17 / 0.22; 0  | 0.00 / 0.01 / 0.06; 0             | 0/0/60  | 0/0/60 | 0/0/60  | 0/0/60  | 0/2/58  | 0 / 0                        | 57      |
+
+**The shards that exited 1.** 22 of 128 exited 1, all on the 10 dB cells' own claims (`check_cell()`), counted per failed check:
+
+| cell          | arm    | "every draw's link works" | "aligns at the start" | "holds that alignment" | "the meter syncs at the end" | "its error rate is under the bound" |
+| ------------- | ------ | ------------------------- | --------------------- | ---------------------- | ---------------------------- | ----------------------------------- |
+| 2.2 GHz 10 dB | 0.0120 | 20                        | 2                     | 2                      | 2                            | 2                                   |
+| 2.8 GHz 10 dB | 0.0094 | 7                         | 1                     | 0                      | 1                            | 0                                   |
+| 2.2 GHz 10 dB | 0.04   | 2                         | 0                     | 0                      | 2                            | 0                                   |
+| 2.8 GHz 10 dB | 0.04   | 3                         | 0                     | 0                      | 1                            | 0                                   |

@@ -229,9 +229,9 @@ hb_edge (const hb_cfg_t *c, int worst)
 }
 
 /* The pre-despread loop's worst-start edge, Hz, for a receiver at carrier
-   fc and Es/N0 esn0 running bn: today's detector (Costas's, the one the
-   receiver runs) on the mean loop. A hand-over inside it is one whose
-   pull-in the analytic settle budget predicts (the error-rate window's
+   fc and Es/N0 esn0 running bn: the unit form's detector (carrier_nda's,
+   the one the receiver runs) on the mean loop. A hand-over inside it is one
+   whose pull-in the analytic settle budget predicts (the error-rate window's
    check). Derived once a configuration and kept: the harnesses that call
    it are single-threaded, and run one cell a process. */
 static inline double
@@ -243,7 +243,7 @@ hb_edge_hz (double fc, double esn0, double bn)
       hb_cfg_t *c = malloc (sizeof *c);
       if (!c)
         abort ();
-      hb_cfg_bn (c, fc, esn0, bn, HB_DET_TODAY);
+      hb_cfg_bn (c, fc, esn0, bn, HB_DET_IQ_UNIT);
       c_hz = hb_edge (c, 1) * bn / c->t_upd;
       free (c);
       c_fc = fc;

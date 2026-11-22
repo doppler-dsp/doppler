@@ -175,6 +175,27 @@ def main(d: str) -> None:
         print(f"{key[0]},{key[1]},{n},{ok},{worst:.4f},{med:.4f}")
     print(f"late in all: {late}")
 
+    print("\n## Lock time by hand-over error (the owner's ruling 3)")
+    # Every draw of a step, both signs and every start phase: the time to
+    # the sustained phase lock, s. The worst of n draws bounds the chance
+    # of a longer one under 3/n at 95% (the rule of three), 2.5% at 120.
+    print("cell,den,step_bl,draws,unlocked_20s,median_s,p90_s,worst_s")
+    for key in sorted(cfg):
+        for g in steps:
+            rs = pts.get((*key, g, 1), []) + pts.get((*key, g, -1), [])
+            if not rs:
+                continue
+            tl = sorted(float(r["t_lock_s"]) for r in rs if r["capped"] == "0")
+            un = sum(r["capped"] == "1" for r in rs)
+            if not tl:
+                print(f"{key[0]},{key[1]},{g:.2f},{len(rs)},{un},-,-,-")
+                continue
+            p90 = tl[min(len(tl) - 1, math.ceil(0.9 * len(tl)) - 1)]
+            print(
+                f"{key[0]},{key[1]},{g:.2f},{len(rs)},{un},"
+                f"{st.median(tl):.3f},{p90:.3f},{tl[-1]:.3f}"
+            )
+
     print("\n## 4. The control, 10 B_L: locked inside 20 s")
     ctl = [r for r in R if float(r["frac"]) >= 10]
     lk = sum(r["capped"] == "0" for r in ctl)

@@ -1869,6 +1869,62 @@ The pre-despread loop **is** `dp_costas`: `dp_costas_init()` at `async_dsss_rece
     - Whether the tail past 37.6 Hz needs a wide acquisition bn that narrows after pull-in is **not derived**: it needs the hand-over error's distribution at the floor, set against the bound.
 - **The search depth tied to bn.** `ASYNC_DSSS_RX_NO_REFINE_MIN_BINS` requires `coherent_bins ≥ 1/bn` for a receiver without the refine, so that half the search's Doppler row lies inside the pull-in bound. At the rule's bn that is 83 bins (2.2 GHz) and 106 (2.8 GHz). The engine runs 108 and 140 (the pull-in validator's `# search`), which holds with about 30% margin at both carriers. With `refine` always on (D2, proposed) the hand-over comes from the refine, not the search's row, so the requirement no longer binds. It moves with bn if it is kept.
 
+#### The half-bandwidth rule, tested on `Costas` alone (proposed; not run)
+
+**The rule (owner, 2026-11-22).** A second-order loop is predictable for offsets under half its loop bandwidth, and where that holds depends on the detector. Half the loop bandwidth is `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, `bn / (2T)`: 18.84 Hz at both carriers at the rule's bn (`B_L = bn / T` = 37.7 Hz), and 62.9 / 80.0 Hz at 0.04. This row tests the rule on the general `Costas` object, second order, configured as the receiver builds it, before the receiver depends on it.
+
+**The detector.** `Costas` has one phase detector, `e = sgn(Re P) · Im P / |P|` on the update's prompt (`costas_core.h`, `costas_update()`): the sine of P's phase folded to ±90°. Its other two options are off in the receiver: the FLL assist (`bn_fll` 0, `async_dsss_receiver_core.c:392`) and order 3. The receiver feeds it a unit phasor at half the angle of the squared window sum (`:870-887`). That phasor's phase is the window sum's phase folded to ±90°, so `e` is the same as the discriminator applied to the window sum itself. There is therefore one form to test, fed one BPSK symbol per update with no transition inside it. That is what the receiver's window gives it, and what the validator's modulated input already is.
+
+**What SNR does to it.** The S-curve below is `E[e]` against the true phase error, over §4.8's phase density at the update's SNR `γ = C/N0 · T`, by quadrature of the two-dimensional Gaussian. The lock metric's mean from the same quadrature, 0.884 / 0.858 at the floor, reproduces D7's values.
+
+| cell   | γ, dB | slope at 0 (K) | S-curve peak, at | edge, rule bn | edge, 0.04 |
+| ------ | ----- | -------------- | ---------------- | ------------- | ---------- |
+| 2.2/4  | 3.80  | 0.828          | 0.535, 53°       | 0.48 `B_L`    | 0.46 `B_L` |
+| 2.8/4  | 2.75  | 0.763          | 0.473, 51°       | 0.44 `B_L`    | 0.42 `B_L` |
+| 2.2/10 | 9.80  | 0.973          | 0.820, 63°       | 0.65 `B_L`    | 0.62 `B_L` |
+| 2.8/10 | 8.75  | 0.964          | 0.784, 61°       | 0.63 `B_L`    | 0.60 `B_L` |
+| none   | —     | 1              | 1, 90°           | 0.79 `B_L`    | 0.75 `B_L` |
+
+- **The edge** is the largest frequency step for which the loop's mean equations bring the phase in without crossing the S-curve's unstable null at ±90°. The equations use the gains of `lf_gains()` at ζ 0.707 and the mean S-curve, with no noise. Noise is taken to lower it further; that is not derived.
+- **The detector's own prediction:** the half-bandwidth rule holds with margin at 10 dB (edge 0.63 to 0.65 `B_L`). At the floor's update SNR it fails narrowly (edge 0.44 to 0.48). There the gain falls to 0.76 to 0.83 and the restoring force tops out at about half.
+- **A hint from run 415, not a test.** Of the guideline-arm draws handed over inside 18.84 Hz, these had a fold crossing in their first 0.5 s (`ho_slips`): 11 of 28 at 2.8/4, 2 of 12 at 2.2/4, and 2 of 30 and 3 of 30 at 10 dB. That column also counts noise crossings that return, so it cannot tell a slip on the way in from one.
+
+**The sweep.** It runs in `validate_costas_pullin`, a new section that reuses the validator's stimulus and trial loop (the shipped `awgn`, one BPSK symbol per update, `TSAMPS` 2046).
+
+- Points, 10,560 draws in all:
+    - the frequency step `Δf / B_L` at 0.25, 0.35, 0.40, 0.45, 0.50, 0.55, 0.65, 0.75, 1.0, 1.5 and 2.0, both signs;
+    - γ at the four cells' values;
+    - bn at the rule (0.0120, 0.0094) and at 0.04;
+    - 60 draws a point. Zero of 60 reads a Wilson 95% upper limit of 0.060.
+- **The loop:** order 2, ζ 0.707, `bn_fll` 0, seeded at 0 Hz, so the step is the hand-over error.
+- **`TSAMPS` stays 2046.** The loop sees the cell's γ, bn and `Δf · T` per update. The in-update phase advance costs at most 0.09 dB (2 `B_L` at bn 0.04), and 0.001 dB at the rule's one half.
+- **Readings per draw**, from the shipped probes (`dp_costas_set_telemetry()`):
+    - **Slips on the way in.** The unwrapped phase error is the truth's phase minus the NCO's, with the NCO's phase taken as the sum over updates of the `.nco` probe (the complete command, cycles/sample) times `TSAMPS`. The count is the number of half-cycles (π) it has moved, from its start in ±90°, at the lock time. The gross crossings are printed beside it.
+    - **Its pin.** On one draw the summed probe equals the NCO's own phase word to its quantization. The failing case is the probe read one update late.
+    - **Time to lock.** `t_pull_s`'s test on the `.freq` probe: within `B_L / 4` of the step, sustained by `dp_ber_lock_symbol()` (200 updates in a row, then 90% of the rest). The `.locked` flag's sustained time is printed beside it, as the detector's own reading.
+- **Length:** each draw runs to sustained lock plus 200 updates, capped at 20 s of updates at the cell's code period (62,857 / 80,000), the owner's allocation. A draw that reaches the cap is "no lock".
+
+**The prediction, fixed before the run.**
+
+1. **The rule as stated.** For `|Δf| ≤ 0.5 B_L`, 0 of 60 draws slip at every point, and every lock time is within the budget. One slip or one late lock refutes it at that point.
+1. **The derivation above.** At 10 dB no draw at or under 0.5 `B_L` slips. At the floor the slip fraction is above 0 by the first grid point past the derived edge: 0.45 at 2.8/4, 0.50 at 2.2/4, and 0.45 / 0.50 at 0.04. It is refuted at 10 dB by a slip at or under 0.5. At the floor it is refuted if all 60 draws are slip-free at the first grid point past the edge. A lower edge than derived does not refute it, since noise is outside the derivation.
+1. **The budget** is `5 / B_eff`: `dp_ber_test.h`'s "~5/Bn" for one loop, not doubled. `B_eff` is the loop's noise bandwidth at the detector's slope K, with `ω_n √K` and `ζ √K`.
+
+| cell   | budget, rule bn       | budget, 0.04  |
+| ------ | --------------------- | ------------- |
+| 2.2/4  | 0.150 s (471 updates) | 0.045 s (141) |
+| 2.8/4  | 0.158 s (630 updates) | 0.037 s (148) |
+| 2.2/10 | 0.135 s (424 updates) | 0.041 s (127) |
+| 2.8/10 | 0.136 s (543 updates) | 0.032 s (128) |
+
+Run 415's draws handed over inside the bound pulled in within 0.03 to 0.09 s of the hand-over (`t_pull_s − t_track_s`), under these budgets.
+
+**The control that must fail.** A step of 10 `B_L`, 377 Hz at the rule's bn, both signs, 60 draws in each of the eight configurations. Every draw slips before any lock: a slip-free lock in 0 of 60. Run 415's four guideline-arm draws that never pulled in were handed over 297 to 403 Hz off.
+
+**Where the numbers come from.** The section and its pin land on `integ/async-rx` as one commit. The rows are run from that commit on a clean, detached tree on swiftgo-ai9465, as one job, and committed with their command as `run415/costas_half_bw.csv`.
+
+**Run time.** The cost is about 20 ns a sample, times `TSAMPS`, times the updates. Points inside the edge stop near 10³ updates. A draw at the cap is 6 × 10⁴ to 8 × 10⁴ updates, about 3 s. With the 960 control draws at the cap, the estimate is 10 to 20 minutes over 16 processes. One shard is timed and announced before the job starts.
+
 #### The five lock flags
 
 The owner's rule is that a working link shows **no toggle of any flag** in the data section.

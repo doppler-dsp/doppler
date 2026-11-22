@@ -183,7 +183,10 @@ run_link (link_t *L, int wfm_type, int m, double esn0_db)
 
   /* Receive: defaults match the Python MpskReceiver for everything unset. */
   dp_mpsk_receiver_state_t *rx = dp_mpsk_receiver_create (
-      m, SPS, SPS /* m_out */, MPSK_RX_PULSE_RRC, 0.35, 8, 0.005, 0.0, 0.01,
+      /* bn_carrier 0.02: the 0.0002 cycles/sample offset is 0.0016 a
+         symbol, u = df M / bn = 0.32 at QPSK, inside the prompt-lock
+         window, so the frequency has settled when lock declares. */
+      m, SPS, SPS /* m_out */, MPSK_RX_PULSE_RRC, 0.35, 8, 0.02, 0.0, 0.01,
       0.65, 0.0, 0, 0, 1, 0.0);
   if (!rx)
     return -1;

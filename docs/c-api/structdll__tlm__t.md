@@ -44,6 +44,12 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 |  int32\_t | [**id\_opwr**](#variable-id_opwr)  <br> |
 |  int32\_t | [**id\_pamp**](#variable-id_pamp)  <br> |
 |  int32\_t | [**id\_rate**](#variable-id_rate)  <br> |
+|  int32\_t | [**id\_s\_aid**](#variable-id_s_aid)  <br> |
+|  int32\_t | [**id\_s\_ctrl**](#variable-id_s_ctrl)  <br> |
+|  int32\_t | [**id\_s\_e**](#variable-id_s_e)  <br> |
+|  int32\_t | [**id\_s\_integ**](#variable-id_s_integ)  <br> |
+|  int32\_t | [**id\_s\_prop**](#variable-id_s_prop)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**steer\_ctx**](#variable-steer_ctx)  <br> |
 
 
 
@@ -225,6 +231,112 @@ int32_t dll_tlm_t::id_rate;
 
 
 "&lt;prefix&gt;.rate" — tracked code rate 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_s\_aid 
+
+```C++
+int32_t dll_tlm_t::id_s_aid;
+```
+
+
+
+"&lt;prefix&gt;.aid" — the rate aid, a ratio 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_s\_ctrl 
+
+```C++
+int32_t dll_tlm_t::id_s_ctrl;
+```
+
+
+
+"&lt;prefix&gt;.ctrl" — the control the steer added to the nominal rate, code periods a sample (aid excluded) 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_s\_e 
+
+```C++
+int32_t dll_tlm_t::id_s_e;
+```
+
+
+
+"&lt;prefix&gt;.e" — the steer's discriminator 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_s\_integ 
+
+```C++
+int32_t dll_tlm_t::id_s_integ;
+```
+
+
+
+"&lt;prefix&gt;.integ" — the filter's integrator 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_s\_prop 
+
+```C++
+int32_t dll_tlm_t::id_s_prop;
+```
+
+
+
+"&lt;prefix&gt;.prop" — kp \* e 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable steer\_ctx 
+
+```C++
+dp_tlm_t* dll_tlm_t::steer_ctx;
+```
+
+
+
+NULL = the per-steer set detached 
  
 
 

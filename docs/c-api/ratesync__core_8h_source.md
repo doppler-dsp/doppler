@@ -63,6 +63,11 @@ extern "C"
     int32_t   id_lock;   
     int32_t   id_locked; 
     int32_t   id_mu;     
+    /* The loop-filter set (dp_ratesync_loop_set_filter_telemetry()), its
+       own context, emitted beside the set above. NULL = detached. */
+    dp_tlm_t *filter_ctx; 
+    int32_t   id_prop;    
+    int32_t   id_integ;   
   } ratesync_tlm_t;
 
   typedef struct
@@ -132,6 +137,11 @@ extern "C"
 
   int dp_ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
+
+  int dp_ratesync_loop_set_filter_telemetry (ratesync_loop_t *l,
+                                             dp_tlm_t *tlm,
+                                             const char *prefix,
+                                             uint32_t decim);
 
   void dp_ratesync_loop_tlm_flush (const ratesync_loop_t *l);
 

@@ -1500,23 +1500,38 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           /* The lock rules the flags were decided by, from the objects. */
           FILE *fr = fopen (cp->rules, "w");
           DP_REQUIRE (fr != NULL);
-          (void)fprintf (fr, "rule,up_thresh,down_thresh,n_up,n_down\n");
+          /* Each rule beside the settings that sized it, read from the
+             built receiver (async-dsss-receiver.md §4.11 B): the looks a
+             decision takes (0 for an EMA metric), the metric's EMA weight
+             (0 for a block statistic) and the bandwidth of the loop the
+             detector watches (NaN where none). */
+          (void)fprintf (fr, "rule,up_thresh,down_thresh,n_up,n_down,"
+                             "looks,alpha,loop_bn\n");
           const struct
           {
             const char       *name;
             dp_lockdet_rule_t r;
+            double            looks, alpha, bn;
           } rules[] = {
-            { "sym", dp_async_dsss_receiver_get_sym_lock_rule (rx) },
-            { "car", dp_async_dsss_receiver_get_car_lock_rule (rx) },
-            { "code", dp_async_dsss_receiver_get_code_lock_rule (rx) },
-            { "demod", dp_async_dsss_receiver_get_demod_lock_rule (rx) },
+            { "sym", dp_async_dsss_receiver_get_sym_lock_rule (rx), 0.0,
+              rx->lock_alpha, NAN },
+            { "car", dp_async_dsss_receiver_get_car_lock_rule (rx), 0.0,
+              COSTAS_LOCK_ALPHA, dp_costas_get_bn (&rx->car) },
+            { "code", dp_async_dsss_receiver_get_code_lock_rule (rx),
+              (double)rx->dll->n_looks, rx->dll->lock_alpha,
+              dp_dll_get_bn (rx->dll) },
+            { "demod", dp_async_dsss_receiver_get_demod_lock_rule (rx), 0.0,
+              CARRIER_NDA_LOCK_ALPHA, rx->rx->l.bn_carrier },
             { "demod_sync",
-              dp_async_dsss_receiver_get_demod_sync_lock_rule (rx) },
+              dp_async_dsss_receiver_get_demod_sync_lock_rule (rx),
+              (double)rx->rx->l.timing.avgs, 0.0, rx->rx->l.timing.lf.bn },
           };
           for (size_t k = 0; k < sizeof rules / sizeof *rules; k++)
-            (void)fprintf (fr, "%s,%.6g,%.6g,%u,%u\n", rules[k].name,
-                           rules[k].r.up_thresh, rules[k].r.down_thresh,
-                           rules[k].r.n_up, rules[k].r.n_down);
+            (void)fprintf (fr, "%s,%.6g,%.6g,%u,%u,%.0f,%.6g,%.6g\n",
+                           rules[k].name, rules[k].r.up_thresh,
+                           rules[k].r.down_thresh, rules[k].r.n_up,
+                           rules[k].r.n_down, rules[k].looks, rules[k].alpha,
+                           rules[k].bn);
           DP_REQUIRE (fclose (fr) == 0);
         }
     }

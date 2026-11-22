@@ -37,11 +37,14 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 | Type | Name |
 | ---: | :--- |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**filter\_ctx**](#variable-filter_ctx)  <br> |
 |  int32\_t | [**id\_ctrl**](#variable-id_ctrl)  <br> |
 |  int32\_t | [**id\_e**](#variable-id_e)  <br> |
+|  int32\_t | [**id\_integ**](#variable-id_integ)  <br> |
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
 |  int32\_t | [**id\_mu**](#variable-id_mu)  <br> |
+|  int32\_t | [**id\_prop**](#variable-id_prop)  <br> |
 |  int32\_t | [**id\_rate**](#variable-id_rate)  <br> |
 
 
@@ -110,6 +113,24 @@ NULL = detached
 
 
 
+### variable filter\_ctx 
+
+```C++
+dp_tlm_t* ratesync_tlm_t::filter_ctx;
+```
+
+
+
+NULL = the filter set detached 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable id\_ctrl 
 
 ```C++
@@ -137,6 +158,23 @@ int32_t ratesync_tlm_t::id_e;
 
 
 "&lt;prefix&gt;.e" — normalised TED error 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_integ 
+
+```C++
+int32_t ratesync_tlm_t::id_integ;
+```
+
+
+
+"&lt;prefix&gt;.integ" — the filter's integrator 
 
 
         
@@ -190,6 +228,24 @@ int32_t ratesync_tlm_t::id_mu;
 
 
 "&lt;prefix&gt;.mu" — timing NCO phase 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable id\_prop 
+
+```C++
+int32_t ratesync_tlm_t::id_prop;
+```
+
+
+
+"&lt;prefix&gt;.prop" — kp \* e 
  
 
 

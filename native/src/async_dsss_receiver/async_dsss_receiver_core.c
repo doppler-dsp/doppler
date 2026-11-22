@@ -430,6 +430,8 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
   char        car[DP_TLM_NAME_MAX], code[DP_TLM_NAME_MAX], rc[DP_TLM_NAME_MAX],
       demod[DP_TLM_NAME_MAX], acq[DP_TLM_NAME_MAX], sym_lock[DP_TLM_NAME_MAX],
       sym_locked[DP_TLM_NAME_MAX], st[DP_TLM_NAME_MAX],
+      sym_num[DP_TLM_NAME_MAX], sym_den[DP_TLM_NAME_MAX],
+      code_steer[DP_TLM_NAME_MAX], sync[DP_TLM_NAME_MAX],
       handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX],
       ref[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX], ph_code[DP_TLM_NAME_MAX],
       cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX], had_lock[DP_TLM_NAME_MAX],
@@ -441,6 +443,10 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (acq, p, "acq") != DP_OK
       || dp_tlm_name_join (sym_lock, p, "sym.lock") != DP_OK
       || dp_tlm_name_join (sym_locked, p, "sym.locked") != DP_OK
+      || dp_tlm_name_join (sym_num, p, "sym.num") != DP_OK
+      || dp_tlm_name_join (sym_den, p, "sym.den") != DP_OK
+      || dp_tlm_name_join (code_steer, p, "code.steer") != DP_OK
+      || dp_tlm_name_join (sync, p, "demod.sync") != DP_OK
       || dp_tlm_name_join (st, p, "state") != DP_OK
       || dp_tlm_name_join (handover, p, "handover_hz") != DP_OK
       || dp_tlm_name_join (refused, p, "refused") != DP_OK
@@ -466,10 +472,17 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
     r = dp_costas_set_telemetry (&s->car_held, t, car, d);
   if (r == DP_OK)
     r = dp_dll_set_telemetry (s->dll, t, code, d);
+  /* The code loop's filter at its own cadence, each steer of the symbol
+     aid (async-dsss-receiver.md §4.11, B). */
+  if (r == DP_OK)
+    r = dp_dll_set_steer_telemetry (s->dll, t, code_steer, d);
   if (r == DP_OK)
     r = dp_RateConverter_set_telemetry (s->rc, t, rc, d);
   if (r == DP_OK)
     r = dp_mpsk_receiver_set_telemetry (s->rx, t, demod, d);
+  /* The timing loop's two filter terms, beside its six probes. */
+  if (r == DP_OK)
+    r = dp_ratesync_loop_set_filter_telemetry (&s->rx->l.timing, t, sync, d);
   /* The refine's estimator: each test beside its threshold, while
      refining (dp_carrier_acq_set_telemetry()). */
   if (r == DP_OK)
@@ -480,7 +493,10 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
     {
       s->tlm_sym_lock   = dp_tlm_probe (t, sym_lock, d);
       s->tlm_sym_locked = dp_tlm_probe (t, sym_locked, d);
-      if (s->tlm_sym_lock < 0 || s->tlm_sym_locked < 0)
+      s->tlm_sym_num    = dp_tlm_probe (t, sym_num, d);
+      s->tlm_sym_den    = dp_tlm_probe (t, sym_den, d);
+      if (s->tlm_sym_lock < 0 || s->tlm_sym_locked < 0 || s->tlm_sym_num < 0
+          || s->tlm_sym_den < 0)
         r = DP_ERR_INVALID;
     }
   /* Where the receiver is in its lifecycle, the Doppler its chain was built
@@ -531,12 +547,15 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   (void)dp_costas_set_telemetry (&s->car, NULL, p, 1);
   (void)dp_costas_set_telemetry (&s->car_held, NULL, p, 1);
   (void)dp_dll_set_telemetry (s->dll, NULL, p, 1);
+  (void)dp_dll_set_steer_telemetry (s->dll, NULL, p, 1);
   (void)dp_RateConverter_set_telemetry (s->rc, NULL, p, 1);
   (void)dp_mpsk_receiver_set_telemetry (s->rx, NULL, p, 1);
+  (void)dp_ratesync_loop_set_filter_telemetry (&s->rx->l.timing, NULL, p, 1);
   if (s->acq)
     (void)dp_correlator_set_telemetry (s->acq, NULL, p, 1, NULL);
   (void)dp_carrier_acq_set_telemetry (s->ca, NULL, p, 1);
   s->tlm_sym_lock = s->tlm_sym_locked = -1;
+  s->tlm_sym_num = s->tlm_sym_den = -1;
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
   s->tlm_ho_src = s->tlm_cn0 = s->tlm_phase_car = s->tlm_phase_code = -1;
   s->tlm_had_lock = s->tlm_coast = s->tlm_hold = s->tlm_release = -1;
@@ -961,6 +980,8 @@ adr_track_chain (dp_async_dsss_receiver_state_t *s, const float _Complex *x,
           dp_tlm_emit (s->tlm, s->tlm_sym_lock, s->lock_metric);
           dp_tlm_emit (s->tlm, s->tlm_sym_locked,
                        (double)s->sym_lockdet.locked);
+          dp_tlm_emit (s->tlm, s->tlm_sym_num, s->lock_num);
+          dp_tlm_emit (s->tlm, s->tlm_sym_den, s->lock_den);
         }
     }
   return emitted;
@@ -1295,6 +1316,7 @@ dp_async_dsss_receiver_create (
 
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
   obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
+  obj->tlm_sym_num = obj->tlm_sym_den = -1;
   obj->tlm_state = obj->tlm_handover = obj->tlm_refused = -1;
   obj->tlm_ho_src = obj->tlm_cn0 = obj->tlm_phase_car = obj->tlm_phase_code
       = -1;

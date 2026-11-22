@@ -878,6 +878,69 @@ forged_state_is_refused_or_recomputed (void)
  * that was never serialized. The held snapshot keeps the bandwidth it was
  * taken with, so the retune after the hold must not change what the coast
  * replays. Returns the number of failed checks. */
+/* The per-steer telemetry set (dp_dll_set_steer_telemetry()) reports at
+ * the symbol aid's steers and moves nothing: two Dlls on one stream, one
+ * with the set attached, give the same bytes out and end in the same
+ * state, and the set's last records are the filter's own fields. With the
+ * aid off it reports nothing (the epoch set is the steer's then).
+ * Sabotage: the emit placed before dll_steer() -> its last record is the
+ * previous steer's integrator, not the field; an emit that stores into the
+ * filter -> the bytes differ. */
+static int
+steer_telemetry_reports_the_steer_and_moves_nothing (void)
+{
+  int     fails = 0;
+  uint8_t code[31];
+  make_code (code, 31, 3215u);
+  dp_dll_state_t *a = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  dp_dll_state_t *b = dp_dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 4);
+  dp_tlm_t       *t = dp_tlm_create (1 << 14);
+  if (!a || !b || !t || dp_dll_set_symbol_period (a, 8.0) != DP_OK
+      || dp_dll_set_symbol_period (b, 8.0) != DP_OK)
+    return 1;
+  DP_CHECK (dp_dll_set_steer_telemetry (a, t, "code.steer", 1) == DP_OK);
+  float _Complex rx[512], out_a[256], out_b[256];
+  for (size_t i = 0; i < 512; i++)
+    rx[i] = CMPLXF (cosf (0.3f * (float)i), sinf (0.7f * (float)i));
+  const size_t na = dp_dll_steps (a, rx, 512, out_a, 256);
+  const size_t nb = dp_dll_steps (b, rx, 512, out_b, 256);
+  DP_CHECK (na == nb && na > 0
+            && memcmp (out_a, out_b, na * sizeof *out_a) == 0);
+  const size_t   cb = dp_dll_state_bytes (a);
+  unsigned char *sa = malloc (cb), *sb = malloc (cb);
+  dp_dll_get_state (a, sa);
+  dp_dll_get_state (b, sb);
+  DP_CHECK (memcmp (sa, sb, cb) == 0);
+  free (sa);
+  free (sb);
+  const int    id_e = dp_tlm_probe_id (t, "code.steer.e");
+  const int    id_i = dp_tlm_probe_id (t, "code.steer.integ");
+  dp_tlm_rec_t recs[1 << 12];
+  const size_t nr = dp_tlm_read (t, 1 << 12, recs, 1 << 12);
+  float        le = NAN, li = NAN;
+  size_t       ne = 0;
+  for (size_t j = 0; j < nr; j++)
+    {
+      if ((int)recs[j].probe == id_e)
+        {
+          le = recs[j].value;
+          ne++;
+        }
+      else if ((int)recs[j].probe == id_i)
+        li = recs[j].value;
+    }
+  DP_CHECK (ne > 0);
+  DP_CHECK (le == (float)a->last_error && li == (float)a->lf.integ);
+  /* The aid off: no steer of the aid, nothing reported. */
+  DP_CHECK (dp_dll_set_symbol_period (a, 0.0) == DP_OK);
+  (void)dp_dll_steps (a, rx, 512, out_a, 256);
+  DP_CHECK (dp_tlm_read (t, 1 << 12, recs, 1 << 12) == 0);
+  dp_tlm_destroy (t);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  return fails;
+}
+
 static int
 hold_then_retune_resumes_exact (void)
 {
@@ -2945,6 +3008,7 @@ main (void)
   DP_CHECK (replica_word_matches_its_definition () == 0);
   DP_CHECK (tap_words_track_their_inputs () == 0);
   DP_CHECK (hold_then_retune_resumes_exact () == 0);
+  DP_CHECK (steer_telemetry_reports_the_steer_and_moves_nothing () == 0);
   DP_CHECK (coast_order_resumes_exact (0) == 0);
   DP_CHECK (coast_order_resumes_exact (1) == 0);
   DP_CHECK (coast_order_resumes_exact (2) == 0);

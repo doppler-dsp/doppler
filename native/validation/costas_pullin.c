@@ -22,8 +22,10 @@
  *
  * THE BOUND. A Costas loop's discriminator is an M-th power (squaring, so
  * m = 2 for BPSK), which divides the frequency error it can see. So the
- * offset it may be seeded with is `bn / m` — `dp_test_freq_offset_inside_bw`
- * is the one spelling of that, shared with the MPSK harness. `bn` here is
+ * offset it may be seeded with is `bn / m`. It is Costas's own: its
+ * discriminator has slope 1, so #3224's correction to the NDA loops (whose
+ * bound, `dp_test_freq_offset_inside_bw`, became `bn / (4m)`) does not
+ * apply here. `bn` here is
  * cycles per UPDATE and an update is `tsamps` samples, so in cycles per
  * SAMPLE the bound is `bn / (m * tsamps)`.
  *
@@ -135,15 +137,15 @@ lock_threshold (void)
 /**
  * @brief The seed offset, in cycles per SAMPLE, at `frac` of the bound.
  *
- * `dp_test_freq_offset_inside_bw` returns cycles per UPDATE here (its `bn` is
- * per-update for this loop, where the MPSK harness's is per-symbol); dividing
- * by `tsamps` puts it in the cycles/sample the stimulus is built in. Signed:
+ * `frac * bn / m` is cycles per UPDATE here (`bn` is per-update for this
+ * loop); dividing by `tsamps` puts it in the cycles/sample the stimulus is
+ * built in. Signed:
  * `frac` may be negative, which is the whole point of the symmetry section.
  */
 static double
 seed_offset_cyc_per_sample (double bn, int m, double frac, unsigned tsamps)
 {
-  return dp_test_freq_offset_inside_bw (bn, m, frac) / (double)tsamps;
+  return frac * bn / (double)m / (double)tsamps;
 }
 
 /**

@@ -1,8 +1,9 @@
 """How far out can each of `MpskReceiver`'s loops ACQUIRE?
 
 This subject exists because its answer was a constant. The carrier loop's
-acquisition bound — `bn_carrier / m` cycles per symbol, the `m` because the
-NDA discriminator is an M-th power — was measured once, written into three
+acquisition bound — `bn_carrier / (4 m)` cycles per symbol since #3224 (it
+was `bn_carrier / m` while the loop ran 1.67 times wider), the `m` because
+the NDA discriminator is an M-th power — was measured once, written into three
 docstrings as dated prose, and re-derived by nothing. Two findings in
 `MpskReceiver`'s validation report were filed against the receiver for
 behaviour that was really a test seeded past that bound, and both were
@@ -17,7 +18,7 @@ seeds an offset, runs, and asks one thing: did it get there.
 Two loops, two axes, and they are stated separately because their margins
 differ by more than a factor of two:
 
-- **carrier** — offset in multiples of `bn_carrier / m` cycles per SYMBOL,
+- **carrier** — offset in multiples of `bn_carrier / (4 m)` cycles per SYMBOL,
   swept across every constellation order, because the whole point of the `m`
   is that the bound is order-dependent while the multiple is not.
 - **timing** — a fractional sample-clock error in multiples of `bn_timing`,
@@ -75,10 +76,12 @@ SPS_CHOICES = (8, 16)
 #: fraction move off 1.0 without making the sweep an afternoon.
 SEEDS = 6
 
-#: Carrier offsets, in multiples of `bn_carrier / m`. Spans the region tests
-#: are held to (<= 1) through the measured cliff and past it, so the curve
-#: shows the shoulder rather than just its endpoints.
-CARRIER_MULTIPLES = (0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0)
+#: Carrier offsets, in multiples of `bn_carrier / (4 m)`. Spans the region
+#: tests are held to (<= 1) through the cliff and past it, so the curve
+#: shows the shoulder rather than just its endpoints. Before #3224 the cliff
+#: was at 5x the old `bn_carrier / m`, 20x this bound; the grid reaches 32x
+#: so it is found wherever the corrected loop puts it.
+CARRIER_MULTIPLES = (0.5, 1.0, 2.0, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0, 32.0)
 
 #: Clock errors, in multiples of `bn_timing`. Finer near 1.6-2.0, which is
 #: where the previous one-off measurement put the timing loop's shoulder.
@@ -248,7 +251,7 @@ def main():
                 f"M={m} sps={sps:<3} {cells}   reliable<={rel}  dead>={dead}"
             )
     _report(
-        "CARRIER — success fraction vs offset in multiples of bn_carrier/m",
+        "CARRIER — success fraction vs offset in multiples of bn_carrier/(4m)",
         rows,
         "            "
         + " ".join(f"{x:>4g}" for x in CARRIER_MULTIPLES)

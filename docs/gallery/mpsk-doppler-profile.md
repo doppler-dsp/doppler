@@ -103,8 +103,10 @@ symbols.
 
 ## The step has to be one a cold loop can find
 
-`F0_SYM` is 0.001 cycles/symbol, which is 0.8 of the `bn/M` seeding bound. Past
-that bound an M-th-power NDA loop still acquires, but pull-in time grows as
+`F0_SYM` is 0.001 cycles/symbol, which is 0.8 of `bn/M`: inside the window an
+M-th-power NDA loop settles from within its `5/bn` budget (it locks promptly from
+`bn/(4M)`, and `bn` is the loop's real bandwidth since #3224). Past `bn/M` the
+loop still acquires, but pull-in time grows as
 $\Delta f^2/b_n^3$ — the first draft of this example used a step 6.4× the bound
 and the receiver had not locked by the end of a 16 000-symbol record. If a cold
 acquisition is taking implausibly long, that ratio is the first thing to check.

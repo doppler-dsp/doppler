@@ -176,7 +176,8 @@
  *              [--seed-rate]]
  *             [--design]
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
- *             [--no-emitter | --expect-broken]     (the C12 controls)
+ *             [--no-emitter | --expect-broken [--carrier-null]]
+ *                                                  (the C12 controls)
  *             [--telemetry DIR --draw FC,ESN0,RATE,SEED [--from S]
  *              [--to S]]
  */
@@ -274,17 +275,19 @@ typedef struct
   size_t win_n, win_natural; /* settled blocks; of them, the look-back
                                 kept the natural (whole-epoch) window */
   double t_track_s, t_sym_s, t_code_s; /* NAN: never */
-  size_t sym_tog, code_tog;
+  /* Changes over the data after the flag sustained; -1: it never did, so
+     a never-sustained flag is never read as a clean one (§4.11 C1). */
+  int64_t sym_tog, code_tog;
   /* The other three lock indicators the receiver exposes (owner: no lock
      indicator toggles in the data once acquired; it names no subset):
      the carrier loop's (Costas), the demodulator's carrier lock and its
      timing sync's. Each: changes over the data after its own sustained
      lock, its last change (NAN: none) and whether it is up at the end. */
-  size_t car_tog, dem_tog, syn_tog;
-  double car_last_s, dem_last_s, syn_last_s;
-  int    car_up_end, dem_up_end, syn_up_end;
-  double sym_tog1_s, code_tog1_s; /* NAN: none */
-  double end_resid_hz;
+  int64_t car_tog, dem_tog, syn_tog; /* -1: never sustained */
+  double  car_last_s, dem_last_s, syn_last_s;
+  int     car_up_end, dem_up_end, syn_up_end;
+  double  sym_tog1_s, code_tog1_s; /* NAN: none */
+  double  end_resid_hz;
   /* The pull-in (async-dsss-receiver.md §4.11, D3's run): when the
      carrier flag was first sustained (NAN: never), and whether the loop
      pulled in, read against the truth: tracking at the end with the live
@@ -424,6 +427,13 @@ static double pi_bn_car = NAN;
    through --bn-carrier). Each prints its verdict to stderr. */
 static int pi_no_emitter    = 0;
 static int pi_expect_broken = 0;
+/* --carrier-null (§4.11, proposal ii): at the entry to tracking, the first
+   carrier loop's NCO is moved K / T off the hand-over (K the Dll's partials
+   a code period, T the code period), where every partial's coherent sum is
+   at the null of sinc(df T / K). With --bn-carrier 0 the loop holds it: a
+   receiver broken by construction. Its verdict asserts the code and symbol
+   flags never sustain, beside --expect-broken's works 0. */
+static int pi_carrier_null = 0;
 /* The code lock's look count forced on each entry into tracking, for the
    #3134 control (0: as built, dp_det_n_noncoh()'s sizing). */
 static size_t pi_code_nl = 0;
@@ -1228,6 +1238,14 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           else if (!isnan (pi_bn_car) || pi_bn_rule_on)
             DP_REQUIRE (dp_costas_configure (&rx->car, bn_track, rx->car.zeta)
                         == DP_OK);
+          if (pi_carrier_null)
+            {
+              const double df = (double)rx->segments * rx->chip_rate
+                                / (double)rx->code_len;
+              dp_costas_set_norm_freq (&rx->car,
+                                       dp_costas_get_norm_freq (&rx->car)
+                                           + df / (rx->chip_rate * rx->spc));
+            }
           /* The #3134 control: the code lock at another look count, through
              the Dll's own configure (which re-sizes its threshold for that
              count), keeping the drop count the receiver chose. */
@@ -1602,24 +1620,25 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   d->t_code_s         = s_cod >= 0 ? (double)s_cod * blk_s : NAN;
   int64_t first       = -1;
   d->sym_tog1_s = d->code_tog1_s = NAN;
+  d->sym_tog = d->code_tog = -1;
   if (s_sym >= 0)
     {
-      d->sym_tog = dp_ber_lock_transitions (f_sym, data, n_blk, (size_t)s_sym,
-                                            &first);
+      d->sym_tog = (int64_t)dp_ber_lock_transitions (f_sym, data, n_blk,
+                                                     (size_t)s_sym, &first);
       if (first >= 0)
         d->sym_tog1_s = (double)first * blk_s;
     }
   if (s_cod >= 0)
     {
-      d->code_tog = dp_ber_lock_transitions (f_cod, data, n_blk, (size_t)s_cod,
-                                             &first);
+      d->code_tog = (int64_t)dp_ber_lock_transitions (f_cod, data, n_blk,
+                                                      (size_t)s_cod, &first);
       if (first >= 0)
         d->code_tog1_s = (double)first * blk_s;
     }
   {
-    size_t *tog[3]  = { &d->car_tog, &d->dem_tog, &d->syn_tog };
-    double *last[3] = { &d->car_last_s, &d->dem_last_s, &d->syn_last_s };
-    int    *up[3]   = { &d->car_up_end, &d->dem_up_end, &d->syn_up_end };
+    int64_t *tog[3]  = { &d->car_tog, &d->dem_tog, &d->syn_tog };
+    double  *last[3] = { &d->car_last_s, &d->dem_last_s, &d->syn_last_s };
+    int     *up[3]   = { &d->car_up_end, &d->dem_up_end, &d->syn_up_end };
     for (int k = 0; k < 3; k++)
       {
         const int64_t s  = dp_ber_lock_symbol (f_x[k], n_blk, PI_SUSTAIN, 0.9);
@@ -1631,9 +1650,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           d->t_demod_s = ts;
         else
           d->t_sync_s = ts;
-        *tog[k]  = s >= 0 ? dp_ber_lock_transitions (f_x[k], data, n_blk,
-                                                     (size_t)s, &f1)
-                          : 0;
+        *tog[k]  = s >= 0 ? (int64_t)dp_ber_lock_transitions (
+                                f_x[k], data, n_blk, (size_t)s, &f1)
+                          : -1;
         *last[k] = NAN;
         for (size_t b = n_blk; b-- > 1;)
           if (f_x[k][b] != f_x[k][b - 1])
@@ -1778,7 +1797,7 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       const uint8_t          *fl[2]  = { f_sym, f_cod };
       const int64_t           sus[2] = { s_sym, s_cod };
       const float            *vs[2]  = { v_sym, v_cod };
-      const size_t            tot[2] = { d->sym_tog, d->code_tog };
+      const int64_t           tot[2] = { d->sym_tog, d->code_tog };
       const dp_lockdet_rule_t rl[2]
           = { dp_async_dsss_receiver_get_sym_lock_rule (rx),
               dp_async_dsss_receiver_get_code_lock_rule (rx) };
@@ -1854,7 +1873,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
               seen++;
               from = k;
             }
-          DP_CHECK_MSG (seen == tot[f], "every counted change is attributed");
+          DP_CHECK_MSG ((int64_t)seen == tot[f],
+                        "every counted change is attributed");
         }
     }
 
@@ -1958,10 +1978,14 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   /* Works: both flags sustained and never changed over the data, not a
      false lock, and the data good: a slip, or an end the meter could not
      sync (#3131), fails it whatever the flags say. */
+  /* Every one of the five flags sustained (§4.11 C17): a flag that never
+     sustains fails the draw, whatever its last block reads. */
   d->works = s_sym >= 0 && s_cod >= 0 && d->sym_tog == 0 && d->code_tog == 0
              && !d->false_lock && !d->slipped && !d->end_unsynced
              && d->car_tog == 0 && d->dem_tog == 0 && d->syn_tog == 0
-             && d->car_up_end && d->dem_up_end && d->syn_up_end;
+             && !isnan (d->t_car_s) && !isnan (d->t_demod_s)
+             && !isnan (d->t_sync_s) && d->car_up_end && d->dem_up_end
+             && d->syn_up_end;
   d->data_ended = dp_air_data_ended (&air);
 
   if (itlm)
@@ -1999,13 +2023,34 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
     }
   if (pi_expect_broken)
     {
+      /* Which term of "works" refuses it, the first that does. */
+      const char *why
+          = isnan (d->t_sym_s)     ? "the symbol flag never sustains"
+            : isnan (d->t_code_s)  ? "the code flag never sustains"
+            : isnan (d->t_car_s)   ? "the carrier flag never sustains"
+            : isnan (d->t_demod_s) ? "the demod carrier flag never sustains"
+            : isnan (d->t_sync_s)  ? "the sync flag never sustains"
+            : d->sym_tog || d->code_tog || d->car_tog || d->dem_tog
+                    || d->syn_tog
+                ? "a flag changes over the data"
+            : d->slipped || d->end_unsynced ? "the data slips or loses sync"
+            : d->false_lock                 ? "a false lock"
+                                            : "a flag is down at the end";
       fprintf (stderr,
-               "control opened-loop %.1f GHz %.1f dB seed %u bn %.4g "
-               "(pull-in %.4g Hz): %s\n",
-               fc / 1e9, esn0, seed, d->bn_car, d->base_pullin_hz,
-               d->works ? "FAIL, it works" : "PASS, it does not work");
-      DP_CHECK_MSG (!d->works, "control: the opened carrier loop does not "
-                               "work");
+               "control %s %.1f GHz %.1f dB seed %u bn %.4g (pull-in %.4g "
+               "Hz): %s%s%s; code %s, symbol %s, SER %lu / %lu\n",
+               pi_carrier_null ? "carrier-null" : "opened-loop", fc / 1e9,
+               esn0, seed, d->bn_car, d->base_pullin_hz,
+               d->works ? "FAIL, it works" : "PASS, it does not work",
+               d->works ? "" : ": ", d->works ? "" : why,
+               isnan (d->t_code_s) ? "never sustains" : "sustains",
+               isnan (d->t_sym_s) ? "never sustains" : "sustains", d->errors,
+               d->scored);
+      DP_CHECK_MSG (!d->works, "control: the broken receiver does not work");
+      if (pi_carrier_null)
+        DP_CHECK_MSG (isnan (d->t_code_s) && isnan (d->t_sym_s),
+                      "control: with the carrier at the null the code and "
+                      "symbol flags never sustain");
     }
   free (f_sym);
   free (f_cod);
@@ -2049,8 +2094,9 @@ emit_row (const draw_t *d, uint32_t seed)
 {
   printf (
       "%.1f,%.1f,%.0f,%u,%.1f,%zu,%.2f,%d,%.2f,%.4f,%.4f,%.4f,%.4f,%."
-      "4f,%.4f,%.4f,%zu,%.4f,"
-      "%zu,%.4f,%zu,%zu,%zu,%.4f,%.4f,%.4f,%d,%d,%d,%.1f,%d,%d,%d,%d,%lu,%lu,%"
+      "4f,%.4f,%.4f,%lld,%.4f,"
+      "%lld,%.4f,%lld,%lld,%lld,%.4f,%.4f,%.4f,%d,%d,%d,%.1f,%d,%d,%d,%d,%lu,%"
+      "lu,%"
       ".3f,%.3f,%d,%.3f,%.3f,%.4f,%.4f,"
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
@@ -2059,8 +2105,9 @@ emit_row (const draw_t *d, uint32_t seed)
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
-      d->sym_tog, d->sym_tog1_s, d->code_tog, d->code_tog1_s, d->car_tog,
-      d->dem_tog, d->syn_tog, d->car_last_s, d->dem_last_s, d->syn_last_s,
+      (long long)d->sym_tog, d->sym_tog1_s, (long long)d->code_tog,
+      d->code_tog1_s, (long long)d->car_tog, (long long)d->dem_tog,
+      (long long)d->syn_tog, d->car_last_s, d->dem_last_s, d->syn_last_s,
       d->car_up_end, d->dem_up_end, d->syn_up_end, d->end_resid_hz,
       d->false_lock, d->aligned, d->slipped, d->end_unsynced, d->errors,
       d->scored, d->evm_db, d->m2m4_db, d->works, d->car_mean_deg,
@@ -2447,6 +2494,8 @@ main (int argc, char **argv)
         pi_no_emitter = 1;
       else if (strcmp (argv[i], "--expect-broken") == 0)
         pi_expect_broken = 1;
+      else if (strcmp (argv[i], "--carrier-null") == 0)
+        pi_carrier_null = 1;
       else if (strcmp (argv[i], "--seed-rate") == 0)
         pi_seed_rate = 1;
       else if (strcmp (argv[i], "--acq") == 0 && i + 1 < argc)
@@ -2670,9 +2719,10 @@ main (int argc, char **argv)
         pi_code_nl = 0;
         printf (
             "  code lock, 2.8 GHz 10 dB static seed %u: the receiver's own "
-            "(n = %zu) changes %zu times over the data; at n = %zu, "
-            "%zu (#3134)\n",
-            PI_CL_SEED, cd.code_nl, cd.code_tog, cc.code_nl, cc.code_tog);
+            "(n = %zu) changes %lld times over the data; at n = %zu, "
+            "%lld (#3134)\n",
+            PI_CL_SEED, cd.code_nl, (long long)cd.code_tog, cc.code_nl,
+            (long long)cc.code_tog);
         DP_CHECK_MSG (!isnan (cd.t_code_s) && cd.code_tog == 0,
                       "#3134: the code lock does not change over the data "
                       "once sustained");

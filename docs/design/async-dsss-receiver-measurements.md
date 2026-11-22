@@ -4395,7 +4395,7 @@ The 2.8 GHz rows of control (a)'s comparison arm read bn 0.0094, not 0.04: `--bn
 
 **The summaries, per cell and arm.**
 
-- "Outside" is against the arm's acquisition bound, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`: 18.8 Hz for the guideline arm at both carriers; 62.9 Hz (2.2 GHz) and 80.0 Hz (2.8 GHz) for the comparison arm.
+- "Outside" is against the arm's acquisition bound, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`: 18.8 Hz for the guideline arm at both carriers; 62.9 Hz (2.2 GHz) and 80.0 Hz (2.8 GHz) for the comparison arm. A separate figure, the reliable pull-in, is twice that bound (`native/validation/costas_pullin.c`: reliable to twice, dead by four): 37.7 Hz for the guideline arm, and 126 / 160 Hz for the comparison arm.
 - Times are median / 90th percentile / worst.
 - Flags are counted by C1: never sustained / sustained and changed / sustained and clean.
 - The hand-over errors are the same in both arms, since the seeds and the refine are the same.
@@ -4419,3 +4419,18 @@ The 2.8 GHz rows of control (a)'s comparison arm read bn 0.0094, not 0.04: `--bn
 | 2.8 GHz 10 dB | 0.0094 | 7                         | 1                     | 0                      | 1                            | 0                                   |
 | 2.2 GHz 10 dB | 0.04   | 2                         | 0                     | 0                      | 2                            | 0                                   |
 | 2.8 GHz 10 dB | 0.04   | 3                         | 0                     | 0                      | 1                            | 0                                   |
+
+**Recomputed under C17 (2026-11-21), from these same rows and with no rerun.** "Works" with every one of the five flags sustained (`t_car_s`, `t_demod_s` and `t_sync_s` not NaN, beside the symbol's and code's it already required), by `record_415.py handover` at the commit that adds this paragraph:
+
+| cell          | arm (bn) | `works`, as printed | `works`, every flag sustained |
+| ------------- | -------- | ------------------- | ----------------------------- |
+| 2.2 GHz 4 dB  | 0.0120   | 4 of 60             | 4 of 60                       |
+| 2.2 GHz 4 dB  | 0.04     | 1 of 60             | 1 of 60                       |
+| 2.2 GHz 10 dB | 0.0120   | 40 of 60            | 40 of 60                      |
+| 2.2 GHz 10 dB | 0.04     | 58 of 60            | 58 of 60                      |
+| 2.8 GHz 4 dB  | 0.0094   | 0 of 60             | 0 of 60                       |
+| 2.8 GHz 4 dB  | 0.04     | 0 of 60             | 0 of 60                       |
+| 2.8 GHz 10 dB | 0.0094   | 53 of 60            | 53 of 60                      |
+| 2.8 GHz 10 dB | 0.04     | 57 of 60            | 57 of 60                      |
+
+No count moves: every row that worked had all five flags sustained. Control (b)'s two rows move from 1 to 0, since their carrier flag never sustains. The first table stays above as it was printed. Whether these counts can be read as a verdict waits on the controls rerun under the fixed criterion.

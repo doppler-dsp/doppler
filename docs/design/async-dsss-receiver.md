@@ -701,12 +701,12 @@ stays on.
 What the code loop carries is therefore the aided residual, not the
 residual itself:
 
-| at the specification point                                        | unaided               | aided, what the code loop carries                        |
-| ----------------------------------------------------------------- | --------------------- | -------------------------------------------------------- |
-| offset, the carrier's ±1,500 Hz                                   | ±2.19 chips/s         | the carrier loop's frequency error × 1.461 × 10⁻³        |
-| rate, `R_env` (11 Hz/s)                                           | 0.0161 chips/s²       | one code period's hold of the aid: 4 to 5 × 10⁻⁶ chips/s |
-| a hand-over error at the carrier's pull-in bound (37.7 / 37.6 Hz) | inside the offset row | 0.055 chips/s while the carrier loop pulls in            |
-| the source's own chip-rate error, table 4-2                       | 0.01 chips/s at most  | the same; no aid sees it, and no stimulus renders it     |
+| at the specification point                                                                                    | unaided               | aided, what the code loop carries                        |
+| ------------------------------------------------------------------------------------------------------------- | --------------------- | -------------------------------------------------------- |
+| offset, the carrier's ±1,500 Hz                                                                               | ±2.19 chips/s         | the carrier loop's frequency error × 1.461 × 10⁻³        |
+| rate, `R_env` (11 Hz/s)                                                                                       | 0.0161 chips/s²       | one code period's hold of the aid: 4 to 5 × 10⁻⁶ chips/s |
+| a hand-over error at the carrier's reliable pull-in, twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` (37.7 / 37.6 Hz) | inside the offset row | 0.055 chips/s while the carrier loop pulls in            |
+| the source's own chip-rate error, table 4-2                                                                   | 0.01 chips/s at most  | the same; no aid sees it, and no stimulus renders it     |
 
 `1.461 × 10⁻³` is 31 / 21,216. The hold is `R_env · T_E · 31/21,216`, with
 `T_E` 0.318 ms at 2.2 GHz and 0.250 ms at 2.8.
@@ -1644,7 +1644,7 @@ still on the carrier's axis: squaring removes the sign, and the
 transition costs amplitude, not phase. With a residual frequency `δf`, the
 two signs' parts differ in phase by at most `ε = 2π δf T`. That biases the
 squared phase by about `ε · x/(K − 2x)`: 2.2° at `x` = 1 partial and
-`δf` = 37.6 Hz, the pull-in bound. A window centred on a transition
+`δf` = 37.6 Hz, the reliable pull-in (twice the bound). A window centred on a transition
 (`x = K/2`) has no signal at all; its EMA power is the lowest, so the
 aid does not choose it once it has settled.
 
@@ -1662,7 +1662,7 @@ aid does not choose it once it has settled.
     not move, and the loop's bandwidth in hertz falls by `K/P`:
     `B_L = bn / T_sym`, 36.0 Hz at 2.2 GHz (37.7 today) and 28.2 Hz at
     2.8 GHz (37.6).
-- **The pull-in bound** (`bn / T_u`) falls with it: from 37.7 to 36.0 Hz
+- **The reliable pull-in** (twice `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, which is `bn / T_u`) falls with it: from 37.7 to 36.0 Hz
     at 2.2 GHz, and from 37.6 to 28.2 Hz at 2.8. The uncommitted hand-over
     errors at 2.8 GHz 4 dB (90th percentile 22.8 Hz, worst 68.8 Hz) put
     more of the tail outside it. D2's row reads it. This sharpens the
@@ -1681,7 +1681,7 @@ aid does not choose it once it has settled.
 
 **When the aid's winner changes.** The new window sits a whole number of
 partials from the old one. Its phase differs only by the residual frequency
-over that shift: 1.1° a partial at the 37.6 Hz bound, and nothing once the
+over that shift: 1.1° a partial at the 37.6 Hz reliable pull-in, and nothing once the
 loop holds the frequency. So a change of winner steps the phase by no more
 than that. If the new winner's window overlaps the last look, `aid_look()`
 skips it (`aid_last_end`), and the carrier skips that update. On signal,
@@ -1761,7 +1761,7 @@ same integer hypotheses:
 - **The rule's bn.** The window's SNR is 3.72 dB (`ρ · 5/4`), so §1.3's
     rule gives bn 0.0118 per update, against the epoch's 0.0094.
 
-- **The bandwidth.** `B_L` is 35.3 Hz, and so is the pull-in bound (28.2 Hz
+- **The bandwidth.** `B_L` is 35.3 Hz, and so is the reliable pull-in (28.2 Hz
     for the epoch, 37.6 Hz today). The ramp lag at 11 Hz/s is 0.89°
     (1.39° for the epoch).
 
@@ -2076,7 +2076,7 @@ nothing to refute.
 | D1, red 1     | at a 6.5 kHz step, symbol lock falls and code lock holds past the 0.02 s interval                                                                                                                                                                                                                                                                | `_test_reacquire_is_symbol_lock_alone` at 6.5 kHz, both arms                                                           | the control's code lock falls within 0.02 s of symbol lock's fall                                                                                                                                                                                                                      |
 | D1, red 2     | a 10 ms fade at 415.1 and the rule's bn walks about 1 Hz and 7° (1 σ), and every flag holds                                                                                                                                                                                                                                                      | the lifecycle example at 415.1-B-1, 10 dB, with its fade                                                               | any flag falls after the fade                                                                                                                                                                                                                                                          |
 | D1, red 3     | D5's n = 4 at 2.8 GHz 10 dB: about 3 × 10⁻⁴ drops in the 20 s check                                                                                                                                                                                                                                                                              | `pullin --check`; the 10 dB static row                                                                                 | the check fails, or any code-lock drop in 60 draws                                                                                                                                                                                                                                     |
-| D2            | the refine's hand-over error stays inside the pull-in bound, at the cadence D0 decides (36.0 / 28.2 Hz under D0; 37.7 / 37.6 Hz today)                                                                                                                                                                                                           | pull-in: untracked or unsettled draws against `ho_err_hz`                                                              | any failure with `ho_err_hz` inside the bound                                                                                                                                                                                                                                          |
+| D2            | the refine's hand-over error stays inside the reliable pull-in, twice the bound, at the cadence D0 decides (36.0 / 28.2 Hz under D0; 37.7 / 37.6 Hz today)                                                                                                                                                                                       | pull-in: untracked or unsettled draws against `ho_err_hz`                                                              | any failure with `ho_err_hz` inside the bound                                                                                                                                                                                                                                          |
 | D3            | the loop SNR at the floor, on §4.8's variance model: 21.2 dB at 2.2 GHz and 21.4 at 2.8 on today's window (sd 5.0° and 4.9°); 20.9 dB at 2.2 GHz on D0's (sd 5.2°). §1.3's form, read as `1/σ²`, gives 19.2 / 19.0 dB at the same bn: it is 3 dB under `bn/ρ` before the squaring and placement terms. This row decides which describes the loop | capture `err.car_deg` sd at the rule's bn, both carriers; and the pull-in `car_slips` at the shipped and the rule's bn | the sd lies outside ±1 dB of the variance model (4.4° to 5.6° at 2.2 GHz, 4.4° to 5.5° at 2.8); or, once D0's row has run, the rule bn's slip-draw interval excludes 0                                                                                                                 |
 | D4            | the 2.2 GHz slip cause is the one D0 tests                                                                                                                                                                                                                                                                                                       | D0's row                                                                                                               | the slips are unchanged after D0: the cause is open, and D3 stays held                                                                                                                                                                                                                 |
 | D5            | the code look's false declare is 10⁻³, free and held                                                                                                                                                                                                                                                                                             | `# code_lock_noise`, both looks                                                                                        | either is outside its 95% interval around 10⁻³                                                                                                                                                                                                                                         |
@@ -2223,8 +2223,8 @@ At the specification point the floor is Es/N0 4 dB, C/N0 38.77 dB-Hz. The code p
 
 **D3, the row that is built.** The carrier bn becomes `bn = ρ/200` at create, with `ρ = 10^(cn0_dbhz/10) · code_len / chip_rate`, replacing `ASYNC_DSSS_RX_BN_CARRIER`. It is one formula, in one place in the receiver. The validator's `pi_bn_rule()` calls it, not a copy of it. `--bn-carrier BN` stays, so the comparison arm can run at 0.04. Each arm's rows print the bandwidth it ran at, read from the built receiver (`dp_costas_get_bn()`; the rows' `bn_car`). Every cell's receiver is built at the floor's C/N0. The comparison arm keeps the release's carrier bandwidth (`--bn-carrier 0.04`) at that same `cn0_dbhz`, so the arms differ in one thing.
 
-- **What it changes:** the loop's bandwidth, and with it the pull-in bound, which goes from 126 / 160 Hz to 37.7 Hz at both carriers.
-- **The risk the row names:** hand-over errors between the rule's bound (37.7 Hz at both carriers) and the release's (126 / 160 Hz). The evidence that the bound held the hand-over tail (worst 68.8 Hz over 60 draws at 2.8 GHz 4 dB, uncommitted) was taken with the squared refine, which is reverted. Under the release's refine the hand-over error at this point is unmeasured until step 2's run.
+- **What it changes:** the loop's bandwidth, and with it the acquisition bound `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`, from 62.9 / 80.0 Hz to 18.8 Hz at both carriers, and the reliable pull-in, twice that bound (`native/validation/costas_pullin.c`: reliable to twice, dead by four), from 126 / 160 Hz to 37.7 Hz.
+- **The risk the row names:** hand-over errors between the rule's reliable pull-in (37.7 Hz at both carriers, twice its 18.8 Hz bound) and the release's (126 / 160 Hz, twice 62.9 / 80.0 Hz). The evidence that the bound held the hand-over tail (worst 68.8 Hz over 60 draws at 2.8 GHz 4 dB, uncommitted) was taken with the squared refine, which is reverted. Under the release's refine the hand-over error at this point is unmeasured until step 2's run.
 - **What it moved, open:** four rows went red with D3. They are not on the known red set and are not edited. All three are decided after the run (owner, 2026-11-21).
     - Two are 3.069 Mcps rows of `test_async_dsss_receiver_core`: `_test_awgn_esn0_floor`'s `ber_at[1] < 0.05` (5 dB reads 0.44), and `_test_handover_under_clock_offset`'s "the carrier locks and decodes on every seed". At that point's 5 dB design C/N0 the rule gives bn 0.0142 and a 21 Hz pull-in bound, against 0.04 and 60 Hz, and that point's hand-overs run 2 to 6 times the 60 Hz bound (#982).
     - One is at 415.1: `validate_async_dsss_receiver_ber --check` fails "at the regression point no burst slips" (2.8 GHz, 7 dB, eight bursts), through `make validate-check` and the Python validation tests. Its printed output on `integ/async-rx` at `d9041d731` is one `--check` draw per seed, not a rate, and it is not cited as one:
@@ -2264,7 +2264,7 @@ This runs after A to D are reviewed, the owner has seen them, and the instrument
     - has a flag change over the data after it sustained, by C1's corrected count;
     - has a flag that never sustains;
     - slips (`car_slips > 0`);
-    - hands over outside the guideline arm's pull-in bound (`|ho_err_hz| > base_pullin_hz`), pulled in or not. Its figure shows the carrier loop's error, integrator and NCO control from the hand-over on, with the truth error (`err.car_unwrapped`) beside them.
+    - hands over outside the guideline arm's acquisition bound, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` at its bandwidth, 18.8 Hz (`|ho_err_hz| > base_pullin_hz`), pulled in or not. Its figure shows the carrier loop's error, integrator and NCO control from the hand-over on, with the truth error (`err.car_unwrapped`) beside them.
 
     An empty category is reported as empty. Nothing replaces it.
 

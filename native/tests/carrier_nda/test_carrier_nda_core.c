@@ -687,8 +687,12 @@ test_composer_options (void)
  * white phase noise of variance s^2 (small: the linear region), one update
  * a sample; the NCO's phase then has variance 2 bn s^2 when bn is the
  * loop's noise bandwidth. With the discriminator's slope (2) not divided
- * out, the closed loop runs about 1.67 times wider (zeta 1.0 against
- * 0.707), and the ratio reads near that. ──────────────────────────────── */
+ * out, the loop's gain is 2: wn and zeta each rise by sqrt 2 (zeta 0.707 ->
+ * 1.0), and the continuous-time noise bandwidth by 5/3. Measured with the
+ * division sabotaged it reads 1.75 to 1.79 at bn 0.01 (the digital loop's
+ * few percent over 5/3; the correct loop reads 1.00 to 1.04 here). Not pi/2
+ * (1.57) or 2 pi: the units are cycles and radians, and the factor is the
+ * slope. ──────────────────────────────── */
 static int
 test_bn_is_the_loops (void)
 {

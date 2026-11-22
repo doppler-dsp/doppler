@@ -1528,6 +1528,11 @@ dp_async_dsss_receiver_create (
 
   adr_build_track_chain (obj, 0.0, 0.0, segments, sps, adr_m_out (sps),
                          &obj->car, &obj->dll, &obj->rc, &obj->rx);
+  /* The hold's copy starts as the loop itself, as every rebuild leaves it
+     (adr_rebuild_track_chain): a zeroed carrier_nda is no loop its own
+     state check accepts, so a blob taken before the first seed would be
+     refused on restore. */
+  obj->car_held      = obj->car;
   obj->segments      = segments;
   obj->sps           = sps;
   obj->n             = adr_m_out (sps);

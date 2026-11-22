@@ -514,12 +514,23 @@ def test_a_non_ofdm_source_reads_no_window(fs):
     assert Synth(type="tone", fs=fs).window == 0
 
 
-def test_a_segments_window_reads_the_unset_constant_until_jm_resolves_it():
-    """Declared, held as it is today (just-makeit#2717, from #3211): a
-    Segment's flat ``window`` reads its first source's, whose fs is the
-    default 1e6, not the segment's, so it reads the unset constant where
-    ``Synth`` reads 4. This row changes when jm resolves at the segment's
-    fs."""
-    kw = _kwargs({**_OK, "fs": 40e6})
-    assert Synth(**kw).window == 4
-    assert Segment(**kw).window == UNSET
+@pytest.mark.parametrize("m", [1, 2, 4])
+def test_a_segments_window_reads_what_a_synth_reads(m):
+    """A Segment's flat ``window`` resolves at the segment's ``fs``
+    (just-makeit#2717): 2 * M, the count the samples use."""
+    assert Segment(**_kwargs({**_OK, "fs": m * 20e6})).window == 2 * m
+
+
+def test_a_segments_window_reads_what_was_given_and_follows_fs():
+    assert Segment(**_kwargs({**_OK, "window": 0})).window == 0
+    assert Segment(**_kwargs({**_OK, "window": 6})).window == 6
+    seg = Segment(**_kwargs(_OK))
+    assert seg.window == 2
+    seg.fs = 80e6
+    assert seg.window == 8
+    seg.fs = 30e6  # 1.5 times the bandwidth: no oversampling
+    assert seg.window == UNSET
+
+
+def test_a_segments_tone_reads_no_window():
+    assert Segment(type="tone", fs=40e6).window == 0

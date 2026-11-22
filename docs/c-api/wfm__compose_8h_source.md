@@ -244,6 +244,17 @@ const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
 
 size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
 
+size_t dp_wfm_source_acq_code_bits(const wfm_source_t *src, double fs,
+                                   uint8_t *out, size_t max);
+size_t dp_wfm_source_data_code_bits(const wfm_source_t *src, double fs,
+                                    uint8_t *out, size_t max);
+size_t dp_wfm_source_data_bits(const wfm_source_t *src, double fs,
+                               uint8_t *out, size_t max);
+size_t dp_wfm_source_fill_bits(const wfm_source_t *src, double fs,
+                               uint8_t *out, size_t max);
+size_t dp_wfm_source_mac_header_bits(const wfm_source_t *src, double fs,
+                                     uint8_t *out, size_t max);
+
 double dp_wfm_source_bandwidth(const wfm_source_t *src);
 
 unsigned dp_wfm_source_oversample(const wfm_source_t *src, double fs,

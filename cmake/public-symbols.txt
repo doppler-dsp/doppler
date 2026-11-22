@@ -1829,6 +1829,7 @@ dp_wfm_seq_pn_create function
 dp_wfm_sigmf_meta_json function
 dp_wfm_sigmf_meta_json_ex function
 dp_wfm_snr_over_fs function
+dp_wfm_source_acq_code_bits function
 dp_wfm_source_attach_dsss function
 dp_wfm_source_attach_frame function
 dp_wfm_source_attach_ofdm function
@@ -1837,14 +1838,18 @@ dp_wfm_source_bits_refuse_text function
 dp_wfm_source_common_frame function
 dp_wfm_source_crc_refuse_text function
 dp_wfm_source_create_snr function
+dp_wfm_source_data_bits function
+dp_wfm_source_data_code_bits function
 dp_wfm_source_data_frames function
 dp_wfm_source_data_is_stream function
 dp_wfm_source_data_samples function
 dp_wfm_source_dsss_cps function
 dp_wfm_source_dsss_nchips function
 dp_wfm_source_error function
+dp_wfm_source_fill_bits function
 dp_wfm_source_frame_error function
 dp_wfm_source_has_frame function
+dp_wfm_source_mac_header_bits function
 dp_wfm_source_oversample function
 dp_wfm_source_sync_refuse_text function
 dp_wfm_source_synth_type function

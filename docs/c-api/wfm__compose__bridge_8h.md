@@ -58,8 +58,13 @@
 |  void | [**dp\_wfm\_frame\_free**](#function-dp_wfm_frame_free) ([**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \*) <br> |
 |  [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \* | [**dp\_wfm\_frame\_refuse\_text**](#function-dp_wfm_frame_refuse_text) (const char \*, const char \*\* why) <br> |
 |  char \* | [**dp\_wfm\_frame\_to\_json**](#function-dp_wfm_frame_to_json) (const [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md) \*) <br> |
+|  size\_t | [**dp\_wfm\_source\_acq\_code\_bits**](#function-dp_wfm_source_acq_code_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
 |  size\_t | [**dp\_wfm\_source\_bits\_refuse\_text**](#function-dp_wfm_source_bits_refuse_text) (const char \*, uint8\_t \*, size\_t, const char \*\*) <br> |
 |  size\_t | [**dp\_wfm\_source\_crc\_refuse\_text**](#function-dp_wfm_source_crc_refuse_text) (const char \*, uint8\_t \*, size\_t, const char \*\*) <br> |
+|  size\_t | [**dp\_wfm\_source\_data\_bits**](#function-dp_wfm_source_data_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
+|  size\_t | [**dp\_wfm\_source\_data\_code\_bits**](#function-dp_wfm_source_data_code_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
+|  size\_t | [**dp\_wfm\_source\_fill\_bits**](#function-dp_wfm_source_fill_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
+|  size\_t | [**dp\_wfm\_source\_mac\_header\_bits**](#function-dp_wfm_source_mac_header_bits) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double, uint8\_t \*, size\_t) <br> |
 |  size\_t | [**dp\_wfm\_source\_sync\_refuse\_text**](#function-dp_wfm_source_sync_refuse_text) (const char \*, uint8\_t \*, size\_t, const char \*\*) <br> |
 |  [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) \* | [**dp\_wfm\_source\_to\_synth**](#function-dp_wfm_source_to_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
 |  const char \* | [**dp\_wfm\_source\_to\_synth\_error**](#function-dp_wfm_source_to_synth_error) (const [**wfm\_source\_t**](structwfm__source__t.md) \*, double) <br> |
@@ -158,6 +163,24 @@ char * dp_wfm_frame_to_json (
 
 
 
+### function dp\_wfm\_source\_acq\_code\_bits 
+
+```C++
+size_t dp_wfm_source_acq_code_bits (
+    const wfm_source_t *,
+    double,
+    uint8_t *,
+    size_t
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dp\_wfm\_source\_bits\_refuse\_text 
 
 ```C++
@@ -184,6 +207,78 @@ size_t dp_wfm_source_crc_refuse_text (
     uint8_t *,
     size_t,
     const char **
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_bits 
+
+```C++
+size_t dp_wfm_source_data_bits (
+    const wfm_source_t *,
+    double,
+    uint8_t *,
+    size_t
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_data\_code\_bits 
+
+```C++
+size_t dp_wfm_source_data_code_bits (
+    const wfm_source_t *,
+    double,
+    uint8_t *,
+    size_t
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_fill\_bits 
+
+```C++
+size_t dp_wfm_source_fill_bits (
+    const wfm_source_t *,
+    double,
+    uint8_t *,
+    size_t
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dp\_wfm\_source\_mac\_header\_bits 
+
+```C++
+size_t dp_wfm_source_mac_header_bits (
+    const wfm_source_t *,
+    double,
+    uint8_t *,
+    size_t
 ) 
 ```
 

@@ -58,6 +58,7 @@
 #include "dp_sym_test.h"
 #include "dp_test.h"
 
+#include "carrier_edge.h"
 #include "dp_s415_test.h"
 
 #include "doppler/awgn/awgn_core.h"
@@ -257,166 +258,13 @@ cell (const char *label, int hits, int n, const char *claim)
 #define HB_CAP_S 20.0    /* the owner's lock allocation                    */
 #define HB_TOL_SIGMA 3.0 /* the phase test: inside 3 sigma of a lock point */
 #define HB_CONTROL 10.0  /* the control's step, B_L                        */
-#define HB_NPH 361       /* S-curve points over (-90, 90] degrees, 0.5 deg  */
-#define HB_NQ 481        /* quadrature points a noise axis, +/-6 sigma    */
-#define HB_NSTART 144    /* start phases --design reads per step and sign  */
 
-/* The detectors --design derives. TODAY is Costas's own, the one the draws
-   run; the three I*Q forms on the window sum w = I + jQ differ only in
-   what divides I*Q: the signal power A^2 (unit amplitude), the update's own
-   |w|^2 (the limiter carrier_nda_disc() is), or the mean total power
-   A^2 + E|n|^2. */
-enum
-{
-  HB_DET_TODAY,
-  HB_DET_IQ_UNIT,
-  HB_DET_IQ_LIM,
-  HB_DET_IQ_PWR,
-  HB_N_DET
-};
 static const char *const HB_DET_NAME[HB_N_DET]
     = { "today", "iq_unit", "iq_limiter", "iq_total_power" };
 
 static const double HB_GRID[]
     = { 0.25, 0.35, 0.40, 0.45, 0.50, 0.55, 0.65, 0.75, 1.0, 1.5, 2.0 };
 #define HB_NGRID (sizeof HB_GRID / sizeof HB_GRID[0])
-
-/** One configuration: a cell's update SNR and one of the two bandwidths. */
-typedef struct
-{
-  double fc, esn0, bn, t_upd;   /* carrier, Es/N0 dB, bn, code period s    */
-  int    det;                   /* HB_DET_*: the detector derived          */
-  double gamma_db;              /* C/N0 T, the update's coherent SNR, dB    */
-  double ph[HB_NPH], s[HB_NPH]; /* the mean S-curve E[e | phase error]    */
-  double k, v;                  /* its slope at 0; var(e) at the lock point */
-  double beff, sigma;           /* noise bandwidth at slope k, Hz; jitter   */
-} hb_cfg_t;
-
-static double
-hb_fold (double a)
-{
-  return a - M_PI * floor (a / M_PI + 0.5);
-}
-
-/* The detector's statistics at update SNR gamma (linear): the S-curve
-   E[sin(fold(arg(A e^{j phi} + n)))] over the phase error phi, its slope at
-   0 and its variance at 0, by quadrature of the complex Gaussian n (unit
-   variance a rail, A^2 = 2 gamma). This is Costas's own discriminator,
-   sgn(Re P) Im P / |P| (costas_update()), written as the folded phase. */
-static void
-hb_scurve (hb_cfg_t *c)
-{
-  const double a    = sqrt (2.0 * pow (10.0, c->gamma_db / 10.0));
-  const double h    = 12.0 / (HB_NQ - 1);
-  double       wsum = 0.0;
-  for (int i = 0; i < HB_NQ; i++)
-    for (int j = 0; j < HB_NQ; j++)
-      {
-        const double x = -6.0 + i * h, y = -6.0 + j * h;
-        wsum += exp (-0.5 * (x * x + y * y));
-      }
-  for (int p = 0; p < HB_NPH; p++)
-    {
-      c->ph[p]   = -0.5 * M_PI + M_PI * p / (HB_NPH - 1);
-      double acc = 0.0, acc2 = 0.0;
-      for (int i = 0; i < HB_NQ; i++)
-        for (int j = 0; j < HB_NQ; j++)
-          {
-            const double x = -6.0 + i * h, y = -6.0 + j * h;
-            const double w  = exp (-0.5 * (x * x + y * y)) / wsum;
-            const double ii = a * cos (c->ph[p]) + x;
-            const double qq = a * sin (c->ph[p]) + y;
-            const double e
-                = c->det == HB_DET_TODAY     ? sin (hb_fold (atan2 (qq, ii)))
-                  : c->det == HB_DET_IQ_UNIT ? ii * qq / (a * a)
-                  : c->det == HB_DET_IQ_LIM  ? ii * qq / (ii * ii + qq * qq)
-                                             : ii * qq / (a * a + 2.0);
-            acc += w * e;
-            acc2 += w * e * e;
-          }
-      c->s[p] = acc;
-      if (p == (HB_NPH - 1) / 2)
-        c->v = acc2 - acc * acc;
-    }
-  const int m = (HB_NPH - 1) / 2;
-  c->k        = (c->s[m + 1] - c->s[m - 1]) / (c->ph[m + 1] - c->ph[m - 1]);
-  /* The loop at slope k: wn scales by sqrt(k), zeta by sqrt(k); its noise
-     bandwidth, against the designed one, is sqrt(k) (zeta' + 1/(4 zeta'))
-     / (zeta + 1/(4 zeta)). The jitter is var(e)/k^2 through 2 B_eff T. */
-  const double z = 0.707, zk = z * sqrt (c->k);
-  const double ratio = sqrt (c->k) * (zk + 0.25 / zk) / (z + 0.25 / z);
-  c->beff            = ratio * c->bn / c->t_upd;
-  c->sigma           = sqrt (2.0 * c->beff * c->t_upd * c->v / (c->k * c->k));
-}
-
-static double
-hb_s (const hb_cfg_t *c, double phi)
-{
-  const double f = hb_fold (phi);
-  double       x = (f - c->ph[0]) / (c->ph[1] - c->ph[0]);
-  int          i = (int)x;
-  if (i < 0)
-    i = 0;
-  if (i > HB_NPH - 2)
-    i = HB_NPH - 2;
-  x -= i;
-  return c->s[i] * (1.0 - x) + c->s[i + 1] * x;
-}
-
-/** The mean loop's answer for one draw: the lock points it crosses on the
-    way in (signed, half cycles) and the last update its phase error is
-    more than sigma from where it settles. */
-typedef struct
-{
-  long   n;
-  size_t t_last;
-  int    settled;
-} hb_pred_t;
-
-/* The loop's own recursion with the mean S-curve in place of the noisy
-   discriminator: costas_update()'s order, integ += ki e, then the NCO
-   advances by integ and is nudged by kp e. th is truth minus NCO, radians;
-   dw the step in radians an update. */
-static hb_pred_t
-hb_mean_loop (const hb_cfg_t *c, double frac, double th0, size_t max_upd)
-{
-  dp_loop_filter_state_t lf;
-  dp_loop_filter_init (&lf, c->bn, 0.707, 1.0);
-  const double dw = TWOPI * frac * c->bn;
-  double       th = th0, integ = 0.0;
-  hb_pred_t    r  = { 0, 0, 0 };
-  const long   n0 = lround (th0 / M_PI);
-  for (size_t u = 0; u < max_upd; u++)
-    {
-      const double e = hb_s (c, th);
-      integ += lf.ki * e;
-      th += dw - integ - lf.kp * e;
-      if (fabs (hb_fold (th)) > c->sigma)
-        r.t_last = u + 1;
-      if (u > 100 && fabs (dw - integ) < 1e-9 && fabs (hb_fold (th)) < 1e-6)
-        {
-          r.settled = 1;
-          break;
-        }
-    }
-  r.n = lround (th / M_PI) - n0;
-  return r;
-}
-
-static void
-hb_cfg_det (hb_cfg_t *c, double fc, double esn0, int rule, int det)
-{
-  c->det            = det;
-  const double chip = dp_s415_chip_rate (fc);
-  c->fc             = fc;
-  c->esn0           = esn0;
-  c->t_upd          = (double)DP_S415_SF / chip;
-  c->bn             = rule ? dp_async_dsss_receiver_carrier_bn (
-                                 dp_s415_cn0 (DP_S415_FLOOR_DB), chip, DP_S415_SF)
-                           : ASYNC_DSSS_RX_BN_CARRIER;
-  c->gamma_db       = dp_s415_cn0 (esn0) + 10.0 * log10 (c->t_upd);
-  hb_scurve (c);
-}
 
 static void
 hb_cfg (hb_cfg_t *c, double fc, double esn0, int rule)
@@ -434,40 +282,6 @@ hb_cfgs (hb_cfg_t *c)
     for (int f = 0; f < 2; f++)
       for (int rule = 1; rule >= 0; rule--)
         hb_cfg (&c[i++], fcs[f], es[e], rule);
-}
-
-/* The largest step, in B_L, from which no start phase (worst start) or the
-   start at 0 crosses two or more lock points on the mean loop: bisection
-   to 1/2^13 of the bracket. */
-static int
-hb_slips (const hb_cfg_t *c, double frac, int worst, size_t max_upd)
-{
-  if (!worst)
-    return labs (hb_mean_loop (c, frac, 0.0, max_upd).n) >= 1;
-  for (int sg = -1; sg <= 1; sg += 2)
-    for (int k = 1; k <= HB_NSTART; k++)
-      if (labs (hb_mean_loop (c, sg * frac, -0.5 * M_PI + M_PI * k / HB_NSTART,
-                              max_upd)
-                    .n)
-          >= 2)
-        return 1;
-  return 0;
-}
-
-static double
-hb_edge (const hb_cfg_t *c, int worst)
-{
-  double       lo = 0.05, hi = 2.0;
-  const size_t mx = (size_t)(60.0 / c->bn);
-  for (int i = 0; i < 13; i++)
-    {
-      const double m = 0.5 * (lo + hi);
-      if (hb_slips (c, m, worst, mx))
-        hi = m;
-      else
-        lo = m;
-    }
-  return lo;
 }
 
 /* --design: everything the run is held to, before it runs. */

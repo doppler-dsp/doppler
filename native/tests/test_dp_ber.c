@@ -669,6 +669,36 @@ test_settle (void)
     DP_CHECK (s == 2600);
     DP_CHECK (s > dp_test_settle_syms (0.01, 0.01));
   }
+
+  /* The error-rate window (dp_ber_lock_all): the LATEST of every flag's
+     sustained index, refused past the allocation. Three flags DIFFER, so
+     a form that read one, or took the earliest, opens elsewhere. */
+  {
+    static unsigned char a[N], b[N], c[N];
+    const unsigned char *fl[3] = { a, b, c };
+    size_t               w     = 99;
+    memset (a, 0, sizeof a);
+    memset (b, 0, sizeof b);
+    memset (c, 0, sizeof c);
+    for (int i = 300; i < N; i++)
+      a[i] = 1;
+    for (int i = 1700; i < N; i++)
+      b[i] = 1;
+    for (int i = 900; i < N; i++)
+      c[i] = 1;
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, N, &w) == 1700);
+    DP_CHECK (w == 1);
+    /* The allocation is inclusive: a start AT the limit is locked, one
+       past it is not, and the late flag is named. */
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, 1700, NULL) == 1700);
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, 1699, &w) == -1);
+    DP_CHECK (w == 1);
+    /* A flag that never sustains is "not locked", whatever the others do,
+       and is the one named. */
+    memset (c, 0, sizeof c);
+    DP_CHECK (dp_ber_lock_all (fl, 3, N, 200, 0.9, N, &w) == -1);
+    DP_CHECK (w == 2);
+  }
 }
 
 /* --- 6. the sanity gate -------------------------------------------------- */

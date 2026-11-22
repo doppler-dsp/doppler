@@ -2996,7 +2996,10 @@ class AsyncDsssReceiver:
           (status().refused_hits);
         - "<prefix>.ho_src" -- which estimate the live chain was built from, an
           ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's, 2 the
-          data template's);
+          data template's, 3 the fine estimate's);
+        - "<prefix>.ref_fine.hz", ".snr_db", ".n" -- the fine hand-over's
+          estimate (Hz, against the seed), its peak-to-mean and its sums, once
+          at the refine's decision, whether or not its check passed;
         - "<prefix>.cn0" -- the seed's C/N0 estimate, dB-Hz
           (status().cn0_dbhz_est): constant over a tenure, since the receiver
           keeps no running estimate while tracking;
@@ -3141,7 +3144,7 @@ class AsyncDsssReceiver:
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
         ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
         >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))
-        ['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.refused']
+        ['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']
         >>> rx.set_telemetry(None, "rx")      # detach
 
         """

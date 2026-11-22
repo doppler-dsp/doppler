@@ -132,6 +132,7 @@
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/cic/cic_core.h"
 #include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/ppe/ppe_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -151,7 +152,6 @@
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
-#include "doppler/ppe/ppe_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -389,6 +389,13 @@ extern "C"
 #define ASYNC_DSSS_RX_HO_SEED 1
 /** @brief The hand-over took the data-template estimator's. */
 #define ASYNC_DSSS_RX_HO_DATA 2
+/** @brief The hand-over took the fine estimate: the refine's squared pair
+ *  sums located by PolynomialPhaseEstimator, divided by M. */
+#define ASYNC_DSSS_RX_HO_FINE 3
+/** The fine hand-over's probability, the dwell's target: proposed, not yet
+ *  ruled by the owner (docs/design/async-dsss-receiver.md, "The dwell,
+ *  derived"). */
+#define ASYNC_DSSS_RX_FINE_P_HO 0.99
 
 /** The state machine's values (`state` below, also the first byte of a
  * serialized blob's extra record). Searching -> refining -> tracking, and
@@ -727,6 +734,20 @@ typedef enum
     int32_t   tlm_state;      /**< "<prefix>.state" id, -1 detached.      */
     int32_t   tlm_handover;   /**< "<prefix>.handover_hz" id, -1 detached.*/
     int32_t   tlm_refused;    /**< "<prefix>.refused" id, -1 detached.    */
+    int32_t   tlm_fine_hz;    /**< "<prefix>.ref_fine.hz" id.              */
+    int32_t   tlm_fine_snr;   /**< "<prefix>.ref_fine.snr_db" id.          */
+    int32_t   tlm_fine_n;     /**< "<prefix>.ref_fine.n" id.               */
+    /* The fine hand-over (dp_async_dsss_receiver_fine_design()). Config,
+       set and restored by create(): fine_on, fine, fine_cap, fine_ppe.
+       Running, in the blob: fine_n and fine_buf. */
+    int                        fine_on;  /**< 0 where the design refuses.  */
+    async_dsss_receiver_fine_t fine;     /**< the design at create.        */
+    dp_ppe_state_t            *fine_ppe; /**< Owned, sized fine_cap.       */
+    float _Complex            *fine_buf; /**< Owned: the squared sums.     */
+    size_t                     fine_cap; /**< sums the dwell can produce.  */
+    size_t                     fine_n;   /**< sums so far this refine.     */
+    double fine_hz;     /**< the last fine estimate, Hz (NAN: none).       */
+    double fine_snr_db; /**< its snr_db.                                   */
     int32_t   tlm_phase_car;  /**< "<prefix>.phase.car" id, -1 detached.  */
     int32_t   tlm_phase_code; /**< "<prefix>.phase.code" id, -1 detached. */
     int32_t   tlm_cn0;        /**< "<prefix>.cn0" id, -1 detached.        */
@@ -1030,7 +1051,10 @@ typedef enum
    *   (status().refused_hits);
    * - "<prefix>.ho_src" -- which estimate the live chain was built from,
    *   an ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's,
-   *   2 the data template's);
+   *   2 the data template's, 3 the fine estimate's);
+   * - "<prefix>.ref_fine.hz", ".snr_db", ".n" -- the fine hand-over's
+   *   estimate (Hz, against the seed), its peak-to-mean and its sums, once
+   *   at the refine's decision, whether or not its check passed;
    * - "<prefix>.cn0" -- the seed's C/N0 estimate, dB-Hz
    *   (status().cn0_dbhz_est): constant over a tenure, since the receiver
    *   keeps no running estimate while tracking;
@@ -1167,7 +1191,7 @@ typedef enum
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.ph", "rx.cn")))
    * ['rx.cn0', 'rx.phase.car', 'rx.phase.code']
    * >>> sorted(p for p in tlm.probe_names if p.startswith("rx.ref"))
-   * ['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.refused']
+   * ['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', 'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']
    * >>> rx.set_telemetry(None, "rx")      # detach
    *
    * @endcode
@@ -2087,13 +2111,15 @@ typedef enum
     uint64_t excl_at; /**< v18: the sample the exclusions name.          */
     uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; /**< v18: each pick's
                                    sample, the unused tail zeroed.      */
-    uint64_t ho_src; /**< v19: ASYNC_DSSS_RX_HO_*, refused past 2.       */
+    uint64_t ho_src; /**< v19: ASYNC_DSSS_RX_HO_*, refused past 3 (v23). */
+    uint64_t fine_n; /**< v23: the fine hand-over's sums so far, at most
+                          fine_cap; the buffer follows the refine ring. */
   } async_dsss_receiver_extra_t;
 
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 22u /* v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

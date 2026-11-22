@@ -63,6 +63,14 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**excl**](#variable-excl)  <br> |
 |  uint64\_t | [**excl\_at**](#variable-excl_at)  <br> |
+|  [**async\_dsss\_receiver\_fine\_t**](structasync__dsss__receiver__fine__t.md) | [**fine**](#variable-fine)  <br> |
+|  float \_Complex \* | [**fine\_buf**](#variable-fine_buf)  <br> |
+|  size\_t | [**fine\_cap**](#variable-fine_cap)  <br> |
+|  double | [**fine\_hz**](#variable-fine_hz)  <br> |
+|  size\_t | [**fine\_n**](#variable-fine_n)  <br> |
+|  int | [**fine\_on**](#variable-fine_on)  <br> |
+|  [**dp\_ppe\_state\_t**](structdp__ppe__state__t.md) \* | [**fine\_ppe**](#variable-fine_ppe)  <br> |
+|  double | [**fine\_snr\_db**](#variable-fine_snr_db)  <br> |
 |  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  int | [**ho\_src**](#variable-ho_src)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
@@ -134,6 +142,9 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int32\_t | [**tlm\_cn0**](#variable-tlm_cn0)  <br> |
 |  int32\_t | [**tlm\_coast**](#variable-tlm_coast)  <br> |
 |  uint32\_t | [**tlm\_decim**](#variable-tlm_decim)  <br> |
+|  int32\_t | [**tlm\_fine\_hz**](#variable-tlm_fine_hz)  <br> |
+|  int32\_t | [**tlm\_fine\_n**](#variable-tlm_fine_n)  <br> |
+|  int32\_t | [**tlm\_fine\_snr**](#variable-tlm_fine_snr)  <br> |
 |  int32\_t | [**tlm\_had\_lock**](#variable-tlm_had_lock)  <br> |
 |  int32\_t | [**tlm\_handover**](#variable-tlm_handover)  <br> |
 |  int32\_t | [**tlm\_ho\_src**](#variable-tlm_ho_src)  <br> |
@@ -675,6 +686,150 @@ uint64_t dp_async_dsss_receiver_state_t::excl_at;
 
 
 samples\_in when they were set: the sample they name, which a dwell decided later carries them from. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine 
+
+```C++
+async_dsss_receiver_fine_t dp_async_dsss_receiver_state_t::fine;
+```
+
+
+
+the design at create. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_buf 
+
+```C++
+float _Complex* dp_async_dsss_receiver_state_t::fine_buf;
+```
+
+
+
+Owned: the squared sums. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_cap 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::fine_cap;
+```
+
+
+
+sums the dwell can produce. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_hz 
+
+```C++
+double dp_async_dsss_receiver_state_t::fine_hz;
+```
+
+
+
+the last fine estimate, Hz (NAN: none). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_n 
+
+```C++
+size_t dp_async_dsss_receiver_state_t::fine_n;
+```
+
+
+
+sums so far this refine. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_on 
+
+```C++
+int dp_async_dsss_receiver_state_t::fine_on;
+```
+
+
+
+0 where the design refuses. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_ppe 
+
+```C++
+dp_ppe_state_t* dp_async_dsss_receiver_state_t::fine_ppe;
+```
+
+
+
+Owned, sized fine\_cap. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable fine\_snr\_db 
+
+```C++
+double dp_async_dsss_receiver_state_t::fine_snr_db;
+```
+
+
+
+its snr\_db. 
  
 
 
@@ -1938,6 +2093,60 @@ uint32_t dp_async_dsss_receiver_state_t::tlm_decim;
 
 
 The attach's decimation. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_fine\_hz 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_fine_hz;
+```
+
+
+
+"&lt;prefix&gt;.ref\_fine.hz" id. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_fine\_n 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_fine_n;
+```
+
+
+
+"&lt;prefix&gt;.ref\_fine.n" id. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_fine\_snr 
+
+```C++
+int32_t dp_async_dsss_receiver_state_t::tlm_fine_snr;
+```
+
+
+
+"&lt;prefix&gt;.ref\_fine.snr\_db" id. 
  
 
 

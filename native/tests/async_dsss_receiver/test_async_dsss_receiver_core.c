@@ -1786,6 +1786,74 @@ _test_fine_design (void)
   return 0;
 }
 
+/* The fine hand-over at work. Gold-1023 at 3.2 Mcps, 3 samples a chip,
+ * 3,000 symbols a second, 50 dB-Hz, the carrier 500 Hz off, the refine
+ * seeded at 1,700 Hz: a seed error of 1,200 Hz, past a whole-period sum's
+ * unambiguous 1/(4T) (781 Hz), inside K's range (K 9 here, 7,031 Hz). The
+ * hand-over is the fine estimate's (ho_src 3) and within 2 Hz of the truth.
+ * The control: noise alone, seeded the same, refuses the fine check and hands
+ * over from another source. Sabotage: K forced to 1 (the dumps summed to the
+ * whole period) -> the estimate lands one image off (about 1,563 Hz), red;
+ * the check's 2.51 dB dropped -> the noise control passes the check more
+ * often (at this pfa, not on one draw: the threshold's own pin is
+ * _test_fine_design's thr_db). */
+static int
+_fine_run (int signal, double *ho_hz, int *src)
+{
+  const size_t sf = 1023, spc = 3;
+  const double chip = 3.2e6, fs = chip * (double)spc, sym = 3000.0;
+  const double cn0 = 50.0, truth = 500.0, seed_hz = 1700.0;
+  uint8_t      code[1023];
+  dp_dsss_gold_1023 (code);
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_capture (code, sf, spc, fs, fs / sym, truth, cn0, 2400, 0, 77u, &x,
+                   &n, &data);
+  if (!signal)
+    {
+      memset (x, 0, n * sizeof *x);
+      dp_dsss_add_awgn (x, n, fs, cn0, 78u);
+    }
+  dp_async_dsss_receiver_state_t *rx = dp_async_dsss_receiver_create (
+      code, sf, chip, sym, fs, 2, cn0, 1e-3, 0.9, 1500.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 0.0, 0.0, false, 0.0, 0.0, true);
+  /* K is the geometry's: here refine_segments is 9 and K 9. */
+  DP_REQUIRE (rx != NULL && rx->fine_on && rx->fine.k > 1);
+  DP_REQUIRE (dp_async_dsss_receiver_seed (rx, 0.0, seed_hz, cn0) == DP_OK);
+  float _Complex *out = malloc (n * sizeof *out);
+  const size_t    te  = sf * spc;
+  for (size_t pos = 0; pos + te <= n && rx->state != ASYNC_DSSS_RX_TRACKING;
+       pos += te)
+    (void)dp_async_dsss_receiver_steps (rx, x + pos, te, out, n);
+  *src   = dp_async_dsss_receiver_get_handover_source (rx);
+  *ho_hz = rx->doppler_hz_est;
+  printf ("  fine hand-over, %s: ho_src %d, handed over at %.2f Hz (truth "
+          "%.0f), fine %.2f Hz at snr_db %.1f over %zu sums, %zu blocks\n",
+          signal ? "signal" : "noise", *src, *ho_hz, truth,
+          rx->fine_hz + seed_hz, rx->fine_snr_db, rx->fine_n,
+          rx->ca->n_blocks);
+  const int tracking = rx->state == ASYNC_DSSS_RX_TRACKING;
+  free (out);
+  free (x);
+  free (data);
+  dp_async_dsss_receiver_destroy (rx);
+  return tracking;
+}
+
+static int
+_test_fine_hands_over (void)
+{
+  double hz;
+  int    src;
+  DP_CHECK (_fine_run (1, &hz, &src) == 1);
+  DP_CHECK (src == ASYNC_DSSS_RX_HO_FINE);
+  DP_CHECK (fabs (hz - 500.0) < 2.0);
+  DP_CHECK (_fine_run (0, &hz, &src) == 1);
+  DP_CHECK (src != ASYNC_DSSS_RX_HO_FINE);
+  return 0;
+}
+
 /* The carrier children's configuration is a reject key. A receiver's blob
  * restores into its twin (the control); one field of the source's carrier
  * changed through carrier_nda's own setters (so the child itself is a valid
@@ -4135,14 +4203,22 @@ _test_tlm_in_situ_probes (void)
     }
   DP_CHECK (tracked > 20 && refining > 0);
   DP_CHECK (carried > tracked / 2); /* the look-past is exercised */
-  /* The choice the refine made, as the hand-over reads it. */
-  const int want
-      = rx->ca->ready ? ASYNC_DSSS_RX_HO_DATA : ASYNC_DSSS_RX_HO_SEED;
+  /* The choice the refine made, as the hand-over reads it: the fine
+     estimate when its check passed (its snr_db against the largest of
+     fine_n noise bins at pfa, plus Euler's 2.51 dB), else the data
+     template's when it fired, else the seed's. */
+  const int fine_ok
+      = rx->fine_on && !isnan (rx->fine_snr_db)
+        && rx->fine_snr_db >= 10.0 * log10 (log ((double)rx->fine_n / rx->pfa))
+                                  + 10.0 * 0.57721566490153286 / log (10.0);
+  const int want = fine_ok         ? ASYNC_DSSS_RX_HO_FINE
+                   : rx->ca->ready ? ASYNC_DSSS_RX_HO_DATA
+                                   : ASYNC_DSSS_RX_HO_SEED;
   DP_CHECK (ho_seen == want);
   DP_CHECK (_tlm_emitted (t, "rx.ref.stat") > 0);
   DP_CHECK (_tlm_emitted (t, "rx.ref.stat") == _tlm_emitted (t, "rx.ref.thr"));
 
-  /* ho_src in the blob: kept across a round trip, and refused past 2. */
+  /* ho_src in the blob: kept across a round trip, and refused past 3. */
   {
     dp_async_dsss_receiver_state_t *dst
         = _searching_rx (cn0, 35714.29, 0.0, false);
@@ -4156,7 +4232,7 @@ _test_tlm_in_situ_probes (void)
     const size_t at = sizeof (dp_state_hdr_t)
                       + offsetof (async_dsss_receiver_extra_t, ho_src);
     DP_REQUIRE (at + sizeof (uint64_t) <= cb);
-    const uint64_t forged = ASYNC_DSSS_RX_HO_DATA + 1;
+    const uint64_t forged = ASYNC_DSSS_RX_HO_FINE + 1;
     memcpy (blob + at, &forged, sizeof forged);
     DP_CHECK (dp_async_dsss_receiver_set_state (dst, blob) == DP_ERR_INVALID);
     free (blob);
@@ -6156,6 +6232,7 @@ main (void)
   DP_CHECK (_test_coast_runs_on_the_integrator () == 0);
   DP_CHECK (_test_carrier_config_is_a_reject_key () == 0);
   DP_CHECK (_test_fine_design () == 0);
+  DP_CHECK (_test_fine_hands_over () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();
   (void)_test_configure_chain_raw_keeps_the_phase ();

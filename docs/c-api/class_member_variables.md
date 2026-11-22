@@ -350,10 +350,18 @@
 
 ## f
 
+* **fine\_n** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **frame\_len** ([**ccsds\_tm\_frame\_rx\_t**](structccsds__tm__frame__rx__t.md))
 * **first** ([**ccsds\_tm\_frame\_span\_t**](structccsds__tm__frame__span__t.md), [**wfm\_frame\_span\_t**](structwfm__frame__span__t.md))
 * **feed\_n** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
 * **feed\_x** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md))
+* **fine** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **fine\_buf** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **fine\_cap** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **fine\_hz** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **fine\_on** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **fine\_ppe** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **fine\_snr\_db** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **f0\_prior** ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md))
 * **frame\_offset** ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md))
 * **frame\_syms** ([**dp\_burst\_demod\_state\_t**](structdp__burst__demod__state__t.md), [**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md))
@@ -1149,6 +1157,9 @@
 * **tlm\_prefix** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_cn0** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_coast** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **tlm\_fine\_hz** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **tlm\_fine\_n** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
+* **tlm\_fine\_snr** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_had\_lock** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_handover** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_ho\_src** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))

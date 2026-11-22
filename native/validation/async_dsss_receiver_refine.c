@@ -135,9 +135,9 @@ noise_rows (const uint8_t *code, double fc, size_t n, int emit)
   DP_CHECK_MSG (stuck == 0, "every noise dwell leaves refining");
   if (!emit)
     printf ("  noise at %.1f GHz: %zu dwells (hand-over from the seed %zu, "
-            "data %zu)\n",
+            "data %zu, fine %zu)\n",
             fc / 1e9, n, src[ASYNC_DSSS_RX_HO_SEED],
-            src[ASYNC_DSSS_RX_HO_DATA]);
+            src[ASYNC_DSSS_RX_HO_DATA], src[ASYNC_DSSS_RX_HO_FINE]);
   rate_row ("data template decides", data, n, pfa, emit);
   free (x);
   free (out);
@@ -224,7 +224,7 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
   const double cn0 = dp_s415_cn0 (esn0);
   const size_t n   = RF_OFFSETS * seeds;
   double      *eb  = dp_xmalloc (n * sizeof *eb);
-  size_t       k = 0, stuck = 0, sb[3] = { 0 };
+  size_t       k = 0, stuck = 0, sb[4] = { 0 };
   for (uint32_t s = 1; s <= seeds; s++)
     for (size_t o = 0; o < RF_OFFSETS; o++, k++)
       {
@@ -234,7 +234,7 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
         DP_REQUIRE (one_handover (code, fc, cn0, rate, s, o, frac, &eb[k], &hb)
                     == 0);
         stuck += isnan (eb[k]);
-        if (hb >= 0 && hb < 3)
+        if (hb >= 0 && hb < 4)
           sb[hb]++;
         if (emit)
           printf ("%.1f,%.1f,%.0f,%u,%.3f,%.2f,%d\n", fc / 1e9, esn0,
@@ -244,9 +244,11 @@ handover_rows (const uint8_t *code, double fc, double esn0, double rate,
   DP_CHECK_MSG (stuck == 0, "every hand-over dwell leaves refining");
   if (!emit)
     {
-      printf ("    %.1f GHz %4.1f dB %s: %zu dwells (data %zu, seed %zu)\n",
+      printf ("    %.1f GHz %4.1f dB %s: %zu dwells (fine %zu, data %zu, seed "
+              "%zu)\n",
               fc / 1e9, esn0, rate == 0.0 ? "static" : "+/-400 Hz/s", n,
-              sb[ASYNC_DSSS_RX_HO_DATA], sb[ASYNC_DSSS_RX_HO_SEED]);
+              sb[ASYNC_DSSS_RX_HO_FINE], sb[ASYNC_DSSS_RX_HO_DATA],
+              sb[ASYNC_DSSS_RX_HO_SEED]);
       err_col ("handed over", eb, n);
     }
   free (eb);

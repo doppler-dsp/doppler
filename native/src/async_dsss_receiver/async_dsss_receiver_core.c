@@ -162,6 +162,18 @@ adr_size_carrier_lock (dp_async_dsss_receiver_state_t *s, double cn0_dbhz,
   s->car_blk     = b > 0 ? (uint32_t)b : 0u;
 }
 
+/* The fine check's threshold on PolynomialPhaseEstimator's snr_db (the
+   peak's dB less the spectrum's mean dB) over n sums: the peak must clear
+   the largest of n exponential noise bins at pfa, t = ln(n / pfa) bin
+   means, and an exponential bin's mean dB sits 10 gamma_E / ln 10 (2.51)
+   dB under the dB of its mean. */
+static double
+adr_fine_thr_db (size_t n, double pfa)
+{
+  return 10.0 * log10 (log ((double)n / pfa))
+         + 10.0 * 0.57721566490153286 / log (10.0);
+}
+
 /* The Kaiser window PolynomialPhaseEstimator applies (50 dB), at n points:
    its peak-bin share p = (sum w)^2 / (n sum w^2) and the frequency
    estimate's variance over the rectangular bound, eta = sum w^2 m^2 (n^3 /
@@ -242,8 +254,7 @@ dp_async_dsss_receiver_fine_design (double cn0_dbhz, double chip_rate,
           out->rho         = rho;
           out->p_w         = p_w;
           out->p_miss      = miss;
-          out->thr_db
-              = 10.0 * log10 (t) + 10.0 * 0.57721566490153286 / log (10.0);
+          out->thr_db      = adr_fine_thr_db (n_s, pfa);
           out->sd_hz
               = sqrt (6.0 * eta) / (2.0 * M_PI * dur * sqrt (rho)) / (double)m;
           return DP_OK;
@@ -393,6 +404,7 @@ adr_rebuild_refine_chain (dp_async_dsss_receiver_state_t *s, double chip_phase,
   s->car_carry_len      = 0;
   s->refine_hist_len    = 0;
   s->refine_hist_head   = 0;
+  s->fine_n             = 0;
   s->ho_src             = ASYNC_DSSS_RX_HO_NONE;
   /* The new estimators report under the old names, as the track chain's
      loops do after their rebuild. */
@@ -569,7 +581,9 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       handover[DP_TLM_NAME_MAX], refused[DP_TLM_NAME_MAX],
       ref[DP_TLM_NAME_MAX], ph_car[DP_TLM_NAME_MAX], ph_code[DP_TLM_NAME_MAX],
       cn0[DP_TLM_NAME_MAX], ho_src[DP_TLM_NAME_MAX], had_lock[DP_TLM_NAME_MAX],
-      coast[DP_TLM_NAME_MAX], hold[DP_TLM_NAME_MAX], release[DP_TLM_NAME_MAX];
+      coast[DP_TLM_NAME_MAX], hold[DP_TLM_NAME_MAX], release[DP_TLM_NAME_MAX],
+      fine_hz[DP_TLM_NAME_MAX], fine_snr[DP_TLM_NAME_MAX],
+      fine_n[DP_TLM_NAME_MAX];
   if (dp_tlm_name_join (car, p, "car") != DP_OK
       || dp_tlm_name_join (code, p, "code") != DP_OK
       || dp_tlm_name_join (rc, p, "rc") != DP_OK
@@ -592,7 +606,10 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
       || dp_tlm_name_join (had_lock, p, "had_lock") != DP_OK
       || dp_tlm_name_join (coast, p, "coast") != DP_OK
       || dp_tlm_name_join (hold, p, "hold") != DP_OK
-      || dp_tlm_name_join (release, p, "release") != DP_OK)
+      || dp_tlm_name_join (release, p, "release") != DP_OK
+      || dp_tlm_name_join (fine_hz, p, "ref_fine.hz") != DP_OK
+      || dp_tlm_name_join (fine_snr, p, "ref_fine.snr_db") != DP_OK
+      || dp_tlm_name_join (fine_n, p, "ref_fine.n") != DP_OK)
     return DP_ERR_INVALID;
   /* The searcher first: it is the one child whose attach allocates (a
      scratch context of its own, checked before it registers anything), so
@@ -670,6 +687,16 @@ adr_tlm_attach (dp_async_dsss_receiver_state_t *s)
           || s->tlm_release < 0)
         r = DP_ERR_INVALID;
     }
+  /* The fine hand-over's estimate, its snr_db and its sums, once at the
+     refine's decision. */
+  if (r == DP_OK)
+    {
+      s->tlm_fine_hz  = dp_tlm_probe (t, fine_hz, d);
+      s->tlm_fine_snr = dp_tlm_probe (t, fine_snr, d);
+      s->tlm_fine_n   = dp_tlm_probe (t, fine_n, d);
+      if (s->tlm_fine_hz < 0 || s->tlm_fine_snr < 0 || s->tlm_fine_n < 0)
+        r = DP_ERR_INVALID;
+    }
   return r;
 }
 
@@ -693,6 +720,7 @@ adr_tlm_detach (dp_async_dsss_receiver_state_t *s)
   s->tlm_state = s->tlm_handover = s->tlm_refused = -1;
   s->tlm_ho_src = s->tlm_cn0 = s->tlm_phase_car = s->tlm_phase_code = -1;
   s->tlm_had_lock = s->tlm_coast = s->tlm_hold = s->tlm_release = -1;
+  s->tlm_fine_hz = s->tlm_fine_snr = s->tlm_fine_n = -1;
 }
 
 /* Size the track chain's per-period scratch for the chain just built. One
@@ -780,6 +808,9 @@ adr_new_carrier_acq (const dp_async_dsss_receiver_state_t *s,
       s->refine_sequential, s->refine_max_n_blocks));
   if (ca->dwell_target < s->refine_min_blocks)
     ca->dwell_target = s->refine_min_blocks;
+  /* The fine hand-over's dwell, when it is the longer. */
+  if (s->fine_on && ca->dwell_target < s->fine.blocks)
+    ca->dwell_target = s->fine.blocks;
   if (ca->dwell_target > ca->max_n_blocks)
     ca->dwell_target = ca->max_n_blocks;
   return ca;
@@ -814,6 +845,30 @@ adr_refine_period (dp_async_dsss_receiver_state_t *s,
                                s->refine_dll_out_buf, s->refine_dll_out_cap);
   if (n_dll == 0)
     return;
+  /* The fine hand-over's sums: the Dll's dumps (refine_segments an epoch,
+     disjoint, adding up to the window) summed in groups to fine.k a
+     period, raised to the M-th power (M = 2: squared), buffered. The
+     summation is the anti-alias filter and the dump the decimator. */
+  if (s->fine_on)
+    {
+      const size_t grp = s->refine_segments / (size_t)s->fine.k;
+      const size_t add = n_dll / grp;
+      if (s->fine_n + add > s->fine_cap)
+        {
+          /* Full: drop the oldest, so the buffer is the latest dwell. */
+          const size_t drop = s->fine_n + add - s->fine_cap;
+          memmove (s->fine_buf, s->fine_buf + drop,
+                   (s->fine_n - drop) * sizeof *s->fine_buf);
+          s->fine_n -= drop;
+        }
+      for (size_t i = 0; i + grp <= n_dll; i += grp)
+        {
+          float _Complex z = 0.0f;
+          for (size_t j = 0; j < grp; j++)
+            z += s->refine_dll_out_buf[i + j];
+          s->fine_buf[s->fine_n++] = z * z;
+        }
+    }
 
   size_t n_rc
       = dp_RateConverter_execute (s->refine_rc, s->refine_dll_out_buf, n_dll,
@@ -832,7 +887,11 @@ adr_refine_decided (const dp_async_dsss_receiver_state_t *s)
 {
   const dp_carrier_acq_state_t *ca = s->ca;
   size_t cap = ca->sequential ? ca->max_n_blocks : ca->dwell_target;
-  return ca->ready || ca->n_blocks >= cap;
+  if (ca->n_blocks >= cap)
+    return 1;
+  /* A sequential estimator that fires early still waits out the fine
+     dwell. */
+  return ca->ready && (!s->fine_on || ca->n_blocks >= s->fine.blocks);
 }
 
 /* The first sample a live chain can start on at or past @p at: the smallest
@@ -1461,6 +1520,7 @@ dp_async_dsss_receiver_create (
   obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
   obj->tlm_sym_num = obj->tlm_sym_den = -1;
   obj->tlm_state = obj->tlm_handover = obj->tlm_refused = -1;
+  obj->tlm_fine_hz = obj->tlm_fine_snr = obj->tlm_fine_n = -1;
   obj->tlm_ho_src = obj->tlm_cn0 = obj->tlm_phase_car = obj->tlm_phase_code
       = -1;
   obj->tlm_had_lock = obj->tlm_coast = obj->tlm_hold = obj->tlm_release = -1;
@@ -1631,6 +1691,40 @@ dp_async_dsss_receiver_create (
   obj->car_carry_buf = dp_xmallocn (obj->tsamps, sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
 
+  /* The fine hand-over, designed at the design point: the code's share of
+     sign-changing boundaries (the replica's loss), the seed's error bound
+     (the seed's row and the truth each inside +/-doppler_uncertainty), the
+     code error the search's grid leaves (half a search sample), a refine
+     block's length, the receiver's pfa and ASYNC_DSSS_RX_FINE_P_HO. Off
+     where the design refuses (M other than 2, a bound no divisor of
+     refine_segments covers, or no dwell under the cap). */
+  {
+    size_t flips = 0;
+    for (size_t i = 0; i < code_len; i++)
+      flips += (code[i] & 1u) != (code[(i + 1) % code_len] & 1u);
+    const double block_s = (double)refine_n_fft
+                           / ((double)refine_samples_per_symbol * symbol_rate);
+    obj->fine_on
+        = dp_async_dsss_receiver_fine_design (
+              cn0_dbhz, chip_rate, code_len, (double)flips / (double)code_len,
+              symbol_rate, m, obj->refine_segments, 2.0 * doppler_uncertainty,
+              0.5 / (spc * (obj->srch_rs ? obj->srch_ratio : 1.0)), block_s,
+              pfa, ASYNC_DSSS_RX_FINE_P_HO, refine_max_n_blocks, &obj->fine)
+          == DP_OK;
+    obj->fine_hz = obj->fine_snr_db = NAN;
+    if (obj->fine_on)
+      {
+        const double T = (double)code_len / chip_rate;
+        /* The dwell's sums and a period's spare. A refine that runs
+           longer (CarrierAcquisition's dwell the longer) slides the
+           buffer, so the estimate is the latest dwell's, never older. */
+        obj->fine_cap
+            = (size_t)ceil ((double)obj->fine.blocks * block_s / T + 1.0)
+              * (size_t)obj->fine.k;
+        obj->fine_buf = dp_xmallocn (obj->fine_cap, sizeof *obj->fine_buf);
+        obj->fine_ppe = dp_xnn (dp_ppe_create (obj->fine_cap, 0.0));
+      }
+  }
   /* Placeholder chains (phase 0, no Doppler) -- always allocated, seeded
    * for real the moment a hit fires (fixed shape, same rationale
    * dsss_receiver_core.c's own state struct doc comment gives). */
@@ -1700,6 +1794,8 @@ dp_async_dsss_receiver_destroy (dp_async_dsss_receiver_state_t *state)
   free (state->srch_buf);
   free (state->srch_hist);
   free (state->refine_hist);
+  free (state->fine_buf);
+  dp_ppe_destroy (state->fine_ppe);
   free (state->code);
   free (state);
 }
@@ -2134,6 +2230,36 @@ adr_steps (dp_async_dsss_receiver_state_t *state, const float _Complex *x,
           = state->seed_doppler_hz_est
             + (ca->ready ? ca->residual_hz : 0.0); /* give-up: unrefined */
       int ho_src = ca->ready ? ASYNC_DSSS_RX_HO_DATA : ASYNC_DSSS_RX_HO_SEED;
+      /* The fine estimate, when its check passes: the squared sums' tone
+         is at M times the residual against the frozen carrier (the seed),
+         located by PolynomialPhaseEstimator, in cycles a sum, at fine.k
+         sums a code period. The check is the peak's peak-to-mean against
+         the largest of n noise bins at the receiver's pfa. A refusal
+         falls back to CarrierAcquisition's estimate, or the seed. */
+      state->fine_hz = state->fine_snr_db = NAN;
+      if (state->fine_on && state->fine_n >= 4)
+        {
+          const ppe_result_t r = dp_ppe_estimate (
+              state->fine_ppe, state->fine_buf, state->fine_n);
+          const double T   = (double)state->code_len / state->chip_rate;
+          const double thr = adr_fine_thr_db (state->fine_n, state->pfa);
+          state->fine_hz
+              = r.freq_norm * (double)state->fine.k / T / (double)state->m;
+          state->fine_snr_db = r.snr_db;
+          if (state->tlm)
+            {
+              dp_tlm_emit (state->tlm, state->tlm_fine_hz, state->fine_hz);
+              dp_tlm_emit (state->tlm, state->tlm_fine_snr, r.snr_db);
+              dp_tlm_emit (state->tlm, state->tlm_fine_n,
+                           (double)state->fine_n);
+            }
+          if (r.snr_db >= thr)
+            {
+              refined_doppler_hz_est
+                  = state->seed_doppler_hz_est + state->fine_hz;
+              ho_src = ASYNC_DSSS_RX_HO_FINE;
+            }
+        }
       /* samples_consumed_refine: freq_refine.refine_seed_carrier_acq()'s
        * own elapsed-time formula, ported verbatim -- a resampled chain
        * has no exact raw-sample-to-block correspondence to track through
@@ -2760,7 +2886,8 @@ dp_async_dsss_receiver_state_bytes (const dp_async_dsss_receiver_state_t *s)
          + (s->srch_rs ? dp_resamp_state_bytes (s->srch_rs) : 0)
          + s->srch_hist_cap * sizeof (float _Complex)
          + s->tsamps * sizeof (float _Complex)
-         + s->refine_hist_cap * sizeof (float _Complex);
+         + s->refine_hist_cap * sizeof (float _Complex)
+         + s->fine_cap * sizeof (float _Complex);
 }
 
 void
@@ -2806,6 +2933,7 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .refine_hist_len     = (uint64_t)s->refine_hist_len,
     .excl_at             = s->excl_at,
     .ho_src              = (uint64_t)s->ho_src,
+    .fine_n              = (uint64_t)s->fine_n,
   };
   memcpy (extra.pick_at, s->pick_at, sizeof extra.pick_at);
   memcpy (extra.excl, s->excl, sizeof extra.excl); /* tail kept zeroed */
@@ -2845,6 +2973,9 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     dp_w_cf32 (&_w, s->refine_hist, len - first);
     dp_w_zeros (&_w, (cap - len) * sizeof (float _Complex));
   }
+  /* The fine hand-over's sums, then zeros. */
+  dp_w_cf32 (&_w, s->fine_buf, s->fine_n);
+  dp_w_zeros (&_w, (s->fine_cap - s->fine_n) * sizeof (float _Complex));
 }
 
 /* Is c the carrier loop create() builds for s (adr_build_track_chain)? The
@@ -2878,7 +3009,7 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len >= (uint64_t)s->tsamps
       || extra.state > ASYNC_DSSS_RX_LOST || extra.pooled > 1
-      || extra.ho_src > ASYNC_DSSS_RX_HO_DATA
+      || extra.ho_src > ASYNC_DSSS_RX_HO_FINE || extra.fine_n > s->fine_cap
       || (extra.state == ASYNC_DSSS_RX_IDLE && !extra.pooled)
       || (extra.state == ASYNC_DSSS_RX_SEARCHING && extra.pooled)
       || extra.pick_want > ASYNC_DSSS_RX_MAX_PEAKS
@@ -2961,6 +3092,9 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
     dp_r_cf32 (&_r, s->srch_hist, s->srch_hist_cap);
   dp_r_cf32 (&_r, s->car_carry_buf, s->tsamps);
   dp_r_cf32 (&_r, s->refine_hist, s->refine_hist_cap);
+  if (s->fine_cap)
+    dp_r_cf32 (&_r, s->fine_buf, s->fine_cap);
+  s->fine_n              = (size_t)extra.fine_n;
   s->refine_hist_len     = (size_t)extra.refine_hist_len;
   s->refine_hist_head    = s->refine_hist_len % s->refine_hist_cap;
   s->state               = extra.state;

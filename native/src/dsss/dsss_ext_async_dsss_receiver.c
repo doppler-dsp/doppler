@@ -2163,7 +2163,10 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "- \"<prefix>.ho_src\" -- which estimate the live chain was built from, "
     "an\n"
     "  ASYNC_DSSS_RX_HO_* value (0 none since the seed, 1 the seed's, 2 the\n"
-    "  data template's);\n"
+    "  data template's, 3 the fine estimate's);\n"
+    "- \"<prefix>.ref_fine.hz\", \".snr_db\", \".n\" -- the fine hand-over's\n"
+    "  estimate (Hz, against the seed), its peak-to-mean and its sums, once\n"
+    "  at the refine's decision, whether or not its check passed;\n"
     "- \"<prefix>.cn0\" -- the seed's C/N0 estimate, dB-Hz\n"
     "  (status().cn0_dbhz_est): constant over a tenure, since the receiver\n"
     "  keeps no running estimate while tracking;\n"
@@ -2328,7 +2331,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "['rx.cn0', 'rx.phase.car', 'rx.phase.code']\n"
     ">>> sorted(p for p in tlm.probe_names if p.startswith(\"rx.ref\"))\n"
     "['rx.ref.hz', 'rx.ref.n', 'rx.ref.ready', 'rx.ref.stat', 'rx.ref.thr', "
-    "'rx.refused']\n"
+    "'rx.ref_fine.hz', 'rx.ref_fine.n', 'rx.ref_fine.snr_db', 'rx.refused']\n"
     ">>> rx.set_telemetry(None, \"rx\")      # detach\n" },
   { "set_threads", (PyCFunction)(void *)AsyncDsssReceiverObj_set_threads,
     METH_VARARGS | METH_KEYWORDS,

@@ -17,6 +17,7 @@
 #include "doppler/carrier_acq/carrier_acq_core.h"
 #include "doppler/cic/cic_core.h"
 #include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/ppe/ppe_core.h"
 #include "doppler/costas/costas_core.h"
 #include "doppler/dll/dll_core.h"
 #include "doppler/dp_state.h"
@@ -36,7 +37,6 @@
 #include "doppler/ber/ber_core.h"
 #include "doppler/doppler_channel/doppler_channel_core.h"
 #include "doppler/dp_tlm/dp_tlm_core.h"
-#include "doppler/ppe/ppe_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -120,6 +120,8 @@ extern "C"
 #define ASYNC_DSSS_RX_HO_NONE 0
 #define ASYNC_DSSS_RX_HO_SEED 1
 #define ASYNC_DSSS_RX_HO_DATA 2
+#define ASYNC_DSSS_RX_HO_FINE 3
+#define ASYNC_DSSS_RX_FINE_P_HO 0.99
 
 /* SSOT: enum=async_dsss_rx_state */
 typedef enum
@@ -287,6 +289,20 @@ typedef enum
     int32_t   tlm_state;      
     int32_t   tlm_handover;   
     int32_t   tlm_refused;    
+    int32_t   tlm_fine_hz;    
+    int32_t   tlm_fine_snr;   
+    int32_t   tlm_fine_n;     
+    /* The fine hand-over (dp_async_dsss_receiver_fine_design()). Config,
+       set and restored by create(): fine_on, fine, fine_cap, fine_ppe.
+       Running, in the blob: fine_n and fine_buf. */
+    int                        fine_on;  
+    async_dsss_receiver_fine_t fine;     
+    dp_ppe_state_t            *fine_ppe; 
+    float _Complex            *fine_buf; 
+    size_t                     fine_cap; 
+    size_t                     fine_n;   
+    double fine_hz;     
+    double fine_snr_db; 
     int32_t   tlm_phase_car;  
     int32_t   tlm_phase_code; 
     int32_t   tlm_cn0;        
@@ -509,10 +525,11 @@ typedef enum
     uint64_t excl_at; 
     uint64_t pick_at[ASYNC_DSSS_RX_MAX_PEAKS]; 
     uint64_t ho_src; 
+    uint64_t fine_n; 
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 22u /* v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 23u /* v23: the fine hand-over's buffer and count (ho_src 3); v22: the pre-despread carrier loop is carrier_nda ('CNDA' children for car and car_held); v21: the squared-stream refine estimator reverted, its fields gone (79fa50cfe); v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t dp_async_dsss_receiver_state_bytes (
       const dp_async_dsss_receiver_state_t *state);

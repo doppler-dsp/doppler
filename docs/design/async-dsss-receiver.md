@@ -1998,7 +1998,21 @@ At the specification point the floor is Es/N0 4 dB, C/N0 38.77 dB-Hz. The code p
 
 - **What it changes:** the loop's bandwidth, and with it the pull-in bound, which goes from 126 / 160 Hz to 37.7 Hz at both carriers.
 - **The risk the row names:** hand-over errors between the rule's bound (37.7 Hz at both carriers) and the release's (126 / 160 Hz). The evidence that the bound held the hand-over tail (worst 68.8 Hz over 60 draws at 2.8 GHz 4 dB, uncommitted) was taken with the squared refine, which is reverted. Under the release's refine the hand-over error at this point is unmeasured until step 2's run.
-- **What it moved at the old point, open:** two of `test_async_dsss_receiver_core`'s 3.069 Mcps rows went red with D3. They are `_test_awgn_esn0_floor`'s `ber_at[1] < 0.05` (5 dB reads 0.44) and `_test_handover_under_clock_offset`'s "the carrier locks and decodes on every seed". At that point's 5 dB design C/N0 the rule gives bn 0.0142 and a 21 Hz pull-in bound, against 0.04 and 60 Hz, and that point's hand-overs run 2 to 6 times the 60 Hz bound (#982). They are not on the known red set and are not edited. They are decided after the run (owner, 2026-11-21).
+- **What it moved, open:** three rows went red with D3. They are not on the known red set and are not edited. All three are decided after the run (owner, 2026-11-21).
+    - Two are 3.069 Mcps rows of `test_async_dsss_receiver_core`: `_test_awgn_esn0_floor`'s `ber_at[1] < 0.05` (5 dB reads 0.44), and `_test_handover_under_clock_offset`'s "the carrier locks and decodes on every seed". At that point's 5 dB design C/N0 the rule gives bn 0.0142 and a 21 Hz pull-in bound, against 0.04 and 60 Hz, and that point's hand-overs run 2 to 6 times the 60 Hz bound (#982).
+    - One is at 415.1: `validate_async_dsss_receiver_ber --check` fails "at the regression point no burst slips" (2.8 GHz, 7 dB, eight bursts), through `make validate-check` and the Python validation tests. Its printed output on `integ/async-rx` at `d9041d731` is one `--check` draw per seed, not a rate, and it is not cited as one:
+
+| seed | hand-over error | outcome                |
+| ---- | --------------- | ---------------------- |
+| 1    | +44.0 Hz        | settled, 22 errors     |
+| 2    | +2.1 Hz         | settled, 32 errors     |
+| 3    | −13.6 Hz        | settled, 31 errors     |
+| 4    | −69.6 Hz        | slipped, 13,948 errors |
+| 5    | −21.4 Hz        | settled, 36 errors     |
+| 6    | +8.9 Hz         | settled, 36 errors     |
+| 7    | −34.6 Hz        | settled, 13 errors     |
+| 8    | +40.4 Hz        | settled, 34 errors     |
+
 - **Its pin:** a receiver created at the floor's `cn0_dbhz` reads `dp_costas_get_bn()` equal to ρ/200 at both carriers. The failing case is the constant restored, which reads 0.04.
 - **The changelog** says the default bandwidth moved, and gives the rule.
 - **Where it is built:** on `integ/async-rx`, A's baseline, after this table is reviewed.
@@ -2030,7 +2044,7 @@ This runs after A to D are reviewed, the owner has seen them, and the instrument
 
 1. **The settings table**, printed by the harness from the built receiver's getters (B's `rules.csv` with its added columns). It is not restated by hand.
 
-1. **The pull-in, every draw of both arms.** Each row carries the signed hand-over error against the truth (`ho_err_hz`), the arm's pull-in bound read from the built receiver (`base_pullin_hz`, at `bn_car`), whether the loop pulled in (`pulled_in`: tracking at the end with the live carrier inside that bound) and the carrier flag's sustained time (`t_car_s`, NaN for never). `t_car_s` and `pulled_in` were added for this run. `record_415.py handover` summarizes each cell and arm: the hand-over error's median, 90th percentile and worst, the count outside the bound, how many of those pulled in, and the carrier-lock times with the count that never locked.
+1. **The pull-in, every draw of both arms.** Each row carries the signed hand-over error against the truth (`ho_err_hz`), the arm's pull-in bound read from the built receiver (`base_pullin_hz`, at `bn_car`), whether the loop pulled in (`pulled_in`: tracking at the end with the live carrier inside that bound) the carrier flag's sustained time (`t_car_s`, NaN for never), and the time the loop brought its frequency error against the truth inside half its own bound and held it there (`t_pull_s`: the per-block test `|status().doppler_hz − truth| < 0.5 × ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn)`, sustained by `dp_ber_lock_symbol()`'s rule, 200 blocks and 90% of the rest; NaN for never). `t_car_s`, `pulled_in` and `t_pull_s` were added for this run; `t_car_s` is the lock flag's time, and `t_pull_s` is the truth's. `record_415.py handover` summarizes each cell and arm: the hand-over error's median, 90th percentile and worst, the count outside the bound, how many of those pulled in, and the carrier-lock times with the count that never locked.
 
 The rows, the selection and the captures' sidecars are committed to the measurements companion with their commands. Nothing on this page cites them until they are.
 

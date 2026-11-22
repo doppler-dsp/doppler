@@ -829,6 +829,14 @@ def handover(argv: list[str]) -> int:
         ]
         t_car = [float(r["t_car_s"]) for r in every if r["t_car_s"] != "nan"]
         never = len(every) - len(t_car)
+        # The pull-in's own time, from the truth (t_pull_s), counted from
+        # the hand-over (t_track_s).
+        t_pull = [
+            float(r["t_pull_s"]) - float(r["t_track_s"])
+            for r in every
+            if r["t_pull_s"] != "nan" and r["t_track_s"] != "nan"
+        ]
+        never_pull = len(every) - len(t_pull)
         tab.append(
             [
                 f"{fc} GHz {es} dB "
@@ -844,6 +852,12 @@ def handover(argv: list[str]) -> int:
                     else "n/a"
                 )
                 + f"; never {never}",
+                (
+                    " / ".join(f"{x:.2f}" for x in _pct(t_pull))
+                    if t_pull
+                    else "n/a"
+                )
+                + f"; never {never_pull}",
                 f"{n} (+{len(every) - n} off code)",
                 stat("seed_err_hz", "{:.1f}"),
                 stat("seed_code_chip", "{:.3f}"),
@@ -870,6 +884,7 @@ def handover(argv: list[str]) -> int:
                 "outside the arm's pull-in bound",
                 "of those, pulled in",
                 "carrier lock, s",
+                "pulled in after the hand-over, s",
                 "draws",
                 "seed Doppler, Hz",
                 "seed code, chip",

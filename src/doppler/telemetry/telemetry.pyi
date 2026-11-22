@@ -42,7 +42,9 @@ class TelemetryStats(tuple[int, int, int, int]):
         """Registered probes."""
 
 STYPE: tuple[str, ...]
+"""Names of the stype values, indexed by value."""
 ENDIAN: tuple[str, ...]
+"""Names of the endian values, indexed by value."""
 
 @final
 class Telemetry:
@@ -84,7 +86,7 @@ class Telemetry:
 
         Parameters
         ----------
-        n : int
+        n : int, default 0
             Records wanted; 0 means "everything available".
         out : npt.NDArray[Any] | None
             Destination.
@@ -147,7 +149,7 @@ class Telemetry:
         name : str
             Probe name, e.g. "agc.gain_db". Must be shorter than
             DP_TLM_NAME_MAX.
-        decim : int
+        decim : int, default 1
             Emit every decim-th event; >= 1.
 
         Returns
@@ -580,7 +582,7 @@ class MemoryCapture:
 
         Parameters
         ----------
-        n : int
+        n : int, default 0
             Records wanted; 0 means "everything accumulated".
         out : npt.NDArray[Any] | None
             Destination.
@@ -1201,14 +1203,14 @@ class EventLog:
             whatever the holder calls it. It comes before the span, and has no
             default, because an unlabelled transition is a position with
             nothing said about it: the label is the event.
-        sample_count : int
+        sample_count : int, default 0
             Span in samples → `core:sample_count`. 0 means an INSTANT and the
             key is omitted, which is the honest spelling: a transition happens
             at a sample, and a written `0` would claim a measured span of
             nothing.
-        freq_hz : float
+        freq_hz : float, default 0.0
             Offset from the channel centre (Hz), positive above.
-        bandwidth_hz : float
+        bandwidth_hz : float, default 0.0
             Occupied width (Hz). <= 0.0 means "no band stated", and then
             neither the edges nor `doppler:freq_hz` appear: an event like a
             stream gap has no frequency, and a 0 Hz offset written for it would
@@ -1256,17 +1258,17 @@ class EventLog:
         ----------
         meta_path : str
             Sidecar to write, conventionally `<base>.sigmf-meta`.
-        sample_type : str
+        sample_type : str, default 'cf32'
             The dataset wire type, recorded as SigMF `core:datatype`.
             One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
             ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
-        endian : str
+        endian : str, default 'le'
             One of ``"le"``, ``"be"``.
-        fs : float
+        fs : float, default 0.0
             Sample rate (Hz), or 0.0 to leave `core:sample_rate` unstated. The
             dataset and the telemetry file come from dp_event_log_set_dataset()
             / _set_telemetry().
-        t0 : float
+        t0 : float, default 0.0
             Input.
 
         Raises

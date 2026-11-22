@@ -1802,7 +1802,7 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "    samples per chip.\n"
     "chip_rate : float, default 1000000.0\n"
     "    chips per second.\n"
-    "cn0_dbhz : float\n"
+    "cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE\n"
     "    design C/N0 for the acquisition, dB-Hz (or NaN).\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    the Doppler span to search, cycles/sample.\n"

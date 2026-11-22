@@ -65,6 +65,8 @@ typedef struct
   int                json_required; /**< absent/unknown: refuse */
   int                json_omit;     /**< not written at its
                                          default (or at 0) */
+  int                json_keep_zero; /**< 0 is a value: written
+                                         under json_omit */
   int                json_bool;     /**< written as true/false */
   int                has_when;      /**< written only when ... */
   int                when_row;    /**< ... this row's choice ... */
@@ -107,6 +109,15 @@ enum
   WFM_SURFACE_source_fill,
   WFM_SURFACE_source_code_only_symbols,
   WFM_SURFACE_source_frame_symbols,
+  WFM_SURFACE_source_wlan,
+  WFM_SURFACE_source_constellation,
+  WFM_SURFACE_source_code_rate,
+  WFM_SURFACE_source_scrambler_init,
+  WFM_SURFACE_source_window,
+  WFM_SURFACE_source_mac,
+  WFM_SURFACE_source_gap,
+  WFM_SURFACE_source_bandwidth,
+  WFM_SURFACE_source_mac_header,
   WFM_SURFACE_segment_fs,
   WFM_SURFACE_segment_num_samples,
   WFM_SURFACE_segment_off_samples,
@@ -445,6 +456,120 @@ static const wfm_surface_row_t WFM_SURFACE[WFM_SURFACE_N] = {
     .when_row = WFM_SURFACE_source_type,
     .when_value = 8,
   },
+  [WFM_SURFACE_source_wlan] = {
+    .name = "wlan",
+    .cli = "--wlan",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_INT,
+    .off = offsetof (wfm_source_t, wlan),
+    .json = "wlan",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_constellation] = {
+    .name = "constellation",
+    .cli = "--constellation",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_CHOICE,
+    .off = offsetof (wfm_source_t, constellation),
+    .choices = OFDM_CONSTELLATION_NAMES,
+    .n_choices = (int)(sizeof OFDM_CONSTELLATION_NAMES / sizeof *OFDM_CONSTELLATION_NAMES),
+    .json = "constellation",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_code_rate] = {
+    .name = "code_rate",
+    .cli = "--code-rate",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_CHOICE,
+    .off = offsetof (wfm_source_t, code_rate),
+    .choices = OFDM_CODE_RATE_NAMES,
+    .n_choices = (int)(sizeof OFDM_CODE_RATE_NAMES / sizeof *OFDM_CODE_RATE_NAMES),
+    .json = "code_rate",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_scrambler_init] = {
+    .name = "scrambler_init",
+    .cli = "--scrambler-init",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_INT,
+    .off = offsetof (wfm_source_t, scrambler_init),
+    .json = "scrambler_init",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_window] = {
+    .name = "window",
+    .cli = "--window",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_SIZE,
+    .off = offsetof (wfm_source_t, window),
+    .json = "window",
+    .json_omit = 1,
+    .json_keep_zero = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_mac] = {
+    .name = "mac",
+    .cli = "--mac",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_CHOICE,
+    .off = offsetof (wfm_source_t, mac),
+    .choices = OFDM_MAC_NAMES,
+    .n_choices = (int)(sizeof OFDM_MAC_NAMES / sizeof *OFDM_MAC_NAMES),
+    .json = "mac",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_gap] = {
+    .name = "gap",
+    .cli = "--gap",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_SIZE,
+    .off = offsetof (wfm_source_t, gap),
+    .json = "gap",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_bandwidth] = {
+    .name = "bandwidth",
+    .cli = "--bandwidth",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_DOUBLE,
+    .off = offsetof (wfm_source_t, bandwidth),
+    .json = "bandwidth",
+    .json_omit = 1,
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
+  [WFM_SURFACE_source_mac_header] = {
+    .name = "mac_header",
+    .cli = "--mac-header",
+    .owner = WFM_SURF_SOURCE,
+    .kind = WFM_SV_FIELD,
+    .off = offsetof (wfm_source_t, mac_header),
+    .json = "mac_header",
+    .has_when = 1,
+    .when_row = WFM_SURFACE_source_type,
+    .when_value = 9,
+  },
   [WFM_SURFACE_segment_fs] = {
     .name = "fs",
     .cli = "--fs",
@@ -598,7 +723,7 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
 /** wfmgen --help option lines for the TYPE section of USAGE. */
 #define WFM_SURFACE_HELP_TYPE \
   "  --type TYPE     Waveform type. One of: tone | noise | pn | bpsk | qpsk |\n" \
-  "                  chirp | bits | symbols | dsss. (default tone)\n"
+  "                  chirp | bits | symbols | dsss | ofdm. (default tone)\n"
 
 /** wfmgen --help option lines for the NOISE section of USAGE. */
 #define WFM_SURFACE_HELP_NOISE \
@@ -703,6 +828,36 @@ wfm_surface_row_is_set (const wfm_surface_row_t *r,
   "                  and stages that each name the span they cover (crc16, rs,\n" \
   "                  randomise, interleave, conv, or a kind of your own).\n"
 
+/** wfmgen --help option lines for the OFDM section of USAGE. */
+#define WFM_SURFACE_HELP_OFDM \
+  "  --wlan N        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one\n" \
+  "                  of 6, 9, 12, 18, 24, 36, 48, 54: a second spelling of\n" \
+  "                  constellation and code_rate (--wlan 36 is --constellation\n" \
+  "                  qam16 --code-rate 3/4). (default 0)\n" \
+  "  --constellation C\n" \
+  "                  For type=ofdm: the subcarrier constellation, one of bpsk,\n" \
+  "                  qpsk, qam16, qam64; the pair with code_rate must be a row of\n" \
+  "                  the standard's rate table. One of: bpsk | qpsk | qam16 |\n" \
+  "                  qam64. (default bpsk)\n" \
+  "  --code-rate R   For type=ofdm: the convolutional code rate, one of 1/2, 2/3,\n" \
+  "                  3/4, 5/6. One of: 1/2 | 2/3 | 3/4 | 5/6. (default 1/2)\n" \
+  "  --scrambler-init S\n" \
+  "                  For type=ofdm: the 7-bit initial state of the data scrambler,\n" \
+  "                  1 to 127. (default 0)\n" \
+  "  --window N      For type=ofdm: the transition window in samples at the output\n" \
+  "                  rate, 0 for none, at most 80 times fs over bandwidth (the\n" \
+  "                  shortest OFDM symbol).\n" \
+  "  --mac M         For type=ofdm: how the caller's octets become the PSDU. One\n" \
+  "                  of: none | fcs | data. (default none)\n" \
+  "  --gap N         For type=ofdm: idle samples after each PPDU, at the output\n" \
+  "                  rate, filled with noise at the source's noise variance.\n" \
+  "                  (default 0)\n" \
+  "  --bandwidth HZ  For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6\n" \
+  "                  for 802.11a/g/p/j; 0 is 20e6, the default. (default 20e6)\n" \
+  "  --mac-header FIELD\n" \
+  "                  For type=ofdm with mac=data: the MAC header, 24 or 30 octets\n" \
+  "                  (a data frame's header).\n"
+
 /** The keys each object of a scene takes, generated from the schema's
    `properties` (docs/schema/wfmgen.schema.json). The reader refuses any
    other key by name: the schema and the reader are one table (#1153).
@@ -732,9 +887,12 @@ static const char *const WFM_JSON_KEYS_ROOT[] = {
 static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "acq_code",
   "background",
+  "bandwidth",
   "carrier_hz",
   "code_only",
   "code_only_symbols",
+  "code_rate",
+  "constellation",
   "data",
   "data_code",
   "data_from_file",
@@ -750,9 +908,12 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "frame_symbols",
   "freq",
   "fs",
+  "gap",
   "gap_noise",
   "level",
   "lfsr",
+  "mac",
+  "mac_header",
   "modulation",
   "num_samples",
   "off_samples",
@@ -762,6 +923,7 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "repeats",
   "rrc_beta",
   "rrc_span",
+  "scrambler_init",
   "seed",
   "snr",
   "snr_mode",
@@ -770,6 +932,8 @@ static const char *const WFM_JSON_KEYS_INLINE_SEGMENT[] = {
   "symbol_rate",
   "symbols",
   "type",
+  "window",
+  "wlan",
   NULL
 };
 
@@ -787,9 +951,12 @@ static const char *const WFM_JSON_KEYS_SUM_SEGMENT[] = {
 static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "acq_code",
   "background",
+  "bandwidth",
   "carrier_hz",
   "code_only",
   "code_only_symbols",
+  "code_rate",
+  "constellation",
   "data",
   "data_code",
   "data_from_file",
@@ -803,14 +970,18 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "frame",
   "frame_symbols",
   "freq",
+  "gap",
   "level",
   "lfsr",
+  "mac",
+  "mac_header",
   "modulation",
   "pn_length",
   "pn_poly",
   "pulse",
   "rrc_beta",
   "rrc_span",
+  "scrambler_init",
   "seed",
   "snr",
   "snr_mode",
@@ -819,6 +990,8 @@ static const char *const WFM_JSON_KEYS_SOURCE[] = {
   "symbol_rate",
   "symbols",
   "type",
+  "window",
+  "wlan",
   NULL
 };
 

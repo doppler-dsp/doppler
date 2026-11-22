@@ -307,8 +307,8 @@ class _SynthEngine:
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
         ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     fs : float, default 1000000.0
-        Sample rate in Hz. Sets the carrier frequency normalisation and the
-        noise bandwidth. Default 1 000 000.0.
+        Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
+        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.
     freq : float, default 0.0
         Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is created
         only when freq != 0. For a chirp this is the start frequency f_start
@@ -379,7 +379,9 @@ class _SynthEngine:
         Configuration (patterns, codes, window, RRC taps, chirp span) is kept.
         With a refill attached the data-ended latch is NOT cleared and the
         rewound cursor replays the frame in the buffer (the last one pulled),
-        since a pulled source cannot rewind what it consumed.
+        since a pulled source cannot rewind what it consumed. A frames synth
+        replays only a frame in play and never clears the latch
+        (dp_wfm_synth_attach_frames()).
 
         Examples
         --------
@@ -451,14 +453,14 @@ class _SynthEngine:
     def get_wtype(self) -> int:
         """Return the active waveform type discriminant. Maps to the
         WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp,
-        6=bits, 7=symbols, 8=dsss. Use this to inspect which synthesis path is
-        active at runtime.
+        6=bits, 7=symbols, 8=dsss, 9=frames. Use this to inspect which
+        synthesis path is active at runtime.
 
         Returns
         -------
         int
-            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS), the
-            create-time `type` unless overridden.
+            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_FRAMES),
+            the create-time `type` unless overridden.
 
         Examples
         --------
@@ -482,7 +484,9 @@ class _SynthEngine:
         Parameters
         ----------
         val : int
-            New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+            New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_FRAMES); a synth
+            neither enters nor leaves WFM_SYNTH_FRAMES by this call, which has
+            its buffers and renderer installed or not.
 
         Raises
         ------
@@ -1475,22 +1479,22 @@ class Frame:
 
         Parameters
         ----------
-        kind : int
+        kind : int, default 0
             stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
             caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
             has to reach the assembler through its ops table.
-        first_field : int
+        first_field : int, default 0
             First field covered.
-        n_fields : int
+        n_fields : int, default 0
             Fields covered; 0 = the stage does not run.
-        depth : int
+        depth : int, default 0
             Interleaving depth, for an outer code.
-        emit_num : int
+        emit_num : int, default 0
             Expansion numerator for a stage that emits a NEW stream; 0 when the
             stage stays inside the frame.
-        emit_den : int
+        emit_den : int, default 0
             Expansion denominator.
-        unit_bits : int
+        unit_bits : int, default 0
             INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
             to the outer code's symbol — permuting octets is what spreads a
             burst across the codewords of a code over GF(256), and permuting
@@ -1745,9 +1749,9 @@ class Frame:
             name of the first field covered.
         last : str
             name of the last field covered; may equal first.
-        depth : int
+        depth : int, default 0
             RS / interleave depth; 0 when unused.
-        unit_bits : int
+        unit_bits : int, default 0
             interleave unit; 0 reads as 1.
 
         Returns
@@ -2490,22 +2494,22 @@ class FrameDesc:
 
         Parameters
         ----------
-        kind : int
+        kind : int, default 0
             stage kind: a wfm_stage_kind_t value (0=crc16…4=interleave), or a
             caller's own from `WFM_STAGE_USER` (0x1000) up, whose kernel then
             has to reach the assembler through its ops table.
-        first_field : int
+        first_field : int, default 0
             First field covered.
-        n_fields : int
+        n_fields : int, default 0
             Fields covered; 0 = the stage does not run.
-        depth : int
+        depth : int, default 0
             Interleaving depth, for an outer code.
-        emit_num : int
+        emit_num : int, default 0
             Expansion numerator for a stage that emits a NEW stream; 0 when the
             stage stays inside the frame.
-        emit_den : int
+        emit_den : int, default 0
             Expansion denominator.
-        unit_bits : int
+        unit_bits : int, default 0
             INTERLEAVE only: bits per interleaved unit; 0 reads as 1. Match it
             to the outer code's symbol — permuting octets is what spreads a
             burst across the codewords of a code over GF(256), and permuting
@@ -2760,9 +2764,9 @@ class FrameDesc:
             name of the first field covered.
         last : str
             name of the last field covered; may equal first.
-        depth : int
+        depth : int, default 0
             RS / interleave depth; 0 when unused.
-        unit_bits : int
+        unit_bits : int, default 0
             interleave unit; 0 reads as 1.
 
         Returns

@@ -85,6 +85,7 @@
 * **built** ([**dp\_frame\_state\_t**](structdp__frame__state__t.md))
 * **body** ([**dp\_pf\_shared\_t**](structdp__pf__shared__t.md))
 * **busy** ([**dp\_pool**](structdp__pool.md))
+* **base** ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **bytes** ([**dp\_state\_hdr\_t**](structdp__state__hdr__t.md))
 * **base\_inc** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **bit\_idx** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
@@ -94,6 +95,7 @@
 * **bank** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **bin\_hz** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **background** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **bandwidth** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **b** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 
 
@@ -106,7 +108,7 @@
 * **car\_last\_error** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md))
 * **chip\_phase** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md))
 * **code\_locked** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md))
-* **code\_rate** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md))
+* **code\_rate** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**dp\_burst\_despreader\_state\_t**](structdp__burst__despreader__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **conf** ([**ber\_interval\_t**](structber__interval__t.md), [**dp\_ber\_meter\_state\_t**](structdp__ber__meter__state__t.md), [**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md))
 * **cn0\_dbhz** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **convolutional** ([**ccsds\_tm\_frame\_cfg\_t**](structccsds__tm__frame__cfg__t.md))
@@ -205,6 +207,7 @@
 * **ctrl\_debt** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **ctrl\_phase** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **crest\_db** ([**time\_stats\_t**](structtime__stats__t.md))
+* **constellation** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **cli\_why** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 * **choices** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **cli** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
@@ -354,7 +357,7 @@
 * **flip\_hist** ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md))
 * **frame** ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md), [**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **frame\_valid** ([**dp\_dsss\_burst\_receiver\_state\_t**](structdp__dsss__burst__receiver__state__t.md), [**dsss\_br\_event\_t**](structdsss__br__event__t.md))
-* **frames** ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md), [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md))
+* **frames** ([**dp\_frame\_meter\_state\_t**](structdp__frame__meter__state__t.md), [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md), [**wfm\_data\_stats\_t**](structwfm__data__stats__t.md))
 * **fir\_on\_even** ([**dp\_hbdecim\_q15\_state\_t**](structdp__hbdecim__q15__state__t.md), [**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **flags** ([**dp\_header\_t**](structdp__header__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md))
 * **format** ([**dp\_header\_t**](structdp__header__t.md))
@@ -370,6 +373,10 @@
 * **fill** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **fir** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **frame\_symbols** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
+* **frames\_done** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **frames\_free** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **frames\_state** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **frames\_user** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **f1** ([**imd\_meas\_t**](structimd__meas__t.md))
 * **f2** ([**imd\_meas\_t**](structimd__meas__t.md))
 * **freq\_ctrl** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
@@ -411,6 +418,7 @@
 * **grid** ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md))
 * **gen** ([**dp\_pool**](structdp__pool.md), [**rs\_t**](structrs__t.md))
 * **gap\_noise** ([**wfm\_segment\_t**](structwfm__segment__t.md))
+* **gap** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **get\_state** ([**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md))
 
 
@@ -458,7 +466,9 @@
 * **id\_locked** ([**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md), [**costas\_tlm\_t**](structcostas__tlm__t.md), [**dll\_tlm\_t**](structdll__tlm__t.md), [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md), [**ratesync\_tlm\_t**](structratesync__tlm__t.md), [**symsync\_tlm\_t**](structsymsync__tlm__t.md))
 * **inner** ([**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md))
 * **invert** ([**conv\_code\_t**](structconv__code__t.md))
+* **id\_freq\_rate** ([**costas\_tlm\_t**](structcostas__tlm__t.md))
 * **id\_nco** ([**costas\_tlm\_t**](structcostas__tlm__t.md), [**dll\_tlm\_t**](structdll__tlm__t.md), [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md))
+* **id\_order** ([**costas\_tlm\_t**](structcostas__tlm__t.md))
 * **id\_opwr** ([**dll\_tlm\_t**](structdll__tlm__t.md))
 * **id\_pamp** ([**dll\_tlm\_t**](structdll__tlm__t.md))
 * **id\_rate** ([**dll\_tlm\_t**](structdll__tlm__t.md), [**ratesync\_tlm\_t**](structratesync__tlm__t.md), [**symsync\_tlm\_t**](structsymsync__tlm__t.md))
@@ -509,6 +519,7 @@
 * **json\_why** ([**wfm\_surface\_exclusive\_t**](structwfm__surface__exclusive__t.md))
 * **json** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_bool** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
+* **json\_keep\_zero** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_omit** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **json\_required** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
@@ -612,8 +623,11 @@
 * **mid\_frame\_timeouts** ([**dp\_reasm\_stats\_t**](structdp__reasm__stats__t.md))
 * **max\_late\_ns** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
 * **mid** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
+* **mbps** ([**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md))
 * **m\_out** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **margin** ([**node\_sync\_t**](structnode__sync__t.md))
+* **mac** ([**wfm\_source\_t**](structwfm__source__t.md))
+* **mac\_header** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **modulation** ([**wfm\_source\_t**](structwfm__source__t.md))
 
 
@@ -726,6 +740,7 @@
 * **offset\_db** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **out0** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
 * **out1** ([**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md))
+* **oversample** ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md))
 * **odd\_buf** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **out\_count** ([**ratesync\_loop\_t**](structratesync__loop__t.md))
 * **on** ([**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_span\_t**](structwfm__span__t.md))
@@ -797,6 +812,8 @@
 * **pend** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **pend\_cap** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
 * **pend\_len** ([**dp\_specan\_state\_t**](structdp__specan__state__t.md))
+* **p** ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
+* **p0** ([**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **prev\_ontime** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **pwr\_avg** ([**dp\_symsync\_state\_t**](structdp__symsync__state__t.md))
 * **probes** ([**dp\_tlm**](structdp__tlm.md), [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md))
@@ -827,7 +844,7 @@
 
 ## q
 
-* **q** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_iq16\_t**](structdp__iq16__t.md))
+* **q** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md), [**dp\_iq16\_t**](structdp__iq16__t.md), [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **q\_cap** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 * **q\_head** ([**dp\_burst\_capture\_state\_t**](structdp__burst__capture__state__t.md))
 
@@ -903,6 +920,7 @@
 * **row\_fwd** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **row\_inv** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **row\_ref\_spec** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
+* **refin** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **refout** ([**dp\_crc\_t**](structdp__crc__t.md))
 * **rate\_aid** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
 * **rate\_i** ([**dp\_dll\_state\_t**](structdp__dll__state__t.md))
@@ -917,7 +935,7 @@
 * **reg\_a** ([**dp\_gold\_state\_t**](structdp__gold__state__t.md))
 * **reg\_b** ([**dp\_gold\_state\_t**](structdp__gold__state__t.md))
 * **rows** ([**dp\_interleaver\_state\_t**](structdp__interleaver__state__t.md))
-* **r** ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md))
+* **r** ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md), [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md))
 * **real** ([**dp\_mpsk\_receiver\_state\_t**](structdp__mpsk__receiver__state__t.md))
 * **run\_index** ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md))
 * **runs** ([**dp\_ofdm\_state\_t**](structdp__ofdm__state__t.md))
@@ -931,6 +949,8 @@
 * **refill\_free** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **refill\_state** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **refill\_user** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **refused** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
+* **rate\_mbps** ([**dp\_wlan\_state\_t**](structdp__wlan__state__t.md))
 * **relabel** ([**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md))
 * **rbw\_hz** ([**imd\_meas\_t**](structimd__meas__t.md), [**npr\_meas\_t**](structnpr__meas__t.md), [**tone\_meas\_t**](structtone__meas__t.md))
 * **rise** ([**ofdm\_class\_t**](structofdm__class__t.md))
@@ -1081,6 +1101,7 @@
 * **stage** ([**wfm\_frame\_desc\_layout\_t**](structwfm__frame__desc__layout__t.md), [**wfm\_frame\_desc\_t**](structwfm__frame__desc__t.md), [**wfm\_frame\_rx\_t**](structwfm__frame__rx__t.md))
 * **sample\_type** ([**wfm\_reader\_info\_t**](structwfm__reader__info__t.md))
 * **sources** ([**wfm\_segment\_t**](structwfm__segment__t.md))
+* **scrambler\_init** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **snr\_hi** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **snr\_mode** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **set\_state** ([**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md))
@@ -1089,11 +1110,11 @@
 
 ## t
 
-* **threads** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **threshold** ([**ber\_align\_t**](structber__align__t.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **test\_stat** ([**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**dp\_correlator\_handoff\_t**](structdp__correlator__handoff__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **taps** ([**ccsds\_tm\_rand\_state\_t**](structccsds__tm__rand__state__t.md), [**ccsds\_tm\_rand\_t**](structccsds__tm__rand__t.md), [**dp\_fir\_state\_t**](structdp__fir__state__t.md))
 * **tlm** ([**dp\_agc\_state\_t**](structdp__agc__state__t.md), [**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md), [**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md), [**dp\_carrier\_nda\_state\_t**](structdp__carrier__nda__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_dll\_state\_t**](structdp__dll__state__t.md), [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md), [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
+* **threads** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_correlator\_search**](structdp__correlator__search.md))
 * **tlm\_decim** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_prefix** ([**dp\_async\_dsss\_pool\_state\_t**](structdp__async__dsss__pool__state__t.md), [**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
 * **tlm\_cn0** ([**dp\_async\_dsss\_receiver\_state\_t**](structdp__async__dsss__receiver__state__t.md))
@@ -1123,7 +1144,7 @@
 * **thr\_nu1** ([**dp\_carrier\_acq\_state\_t**](structdp__carrier__acq__state__t.md))
 * **total\_bytes** ([**dp\_chunk\_t**](structdp__chunk__t.md))
 * **test\_stat\_peak** ([**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md))
-* **threads\_req** ([**dp\_correlator\_search**](structdp__correlator__search.md))
+* **threads\_req** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**search\_extra\_t**](structsearch__extra__t.md))
 * **twin\_col** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **twin\_row** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **tlm\_ctx** ([**dp\_despreader\_state\_t**](structdp__despreader__state__t.md))
@@ -1200,11 +1221,12 @@
 * **wake** ([**dp\_pool**](structdp__pool.md))
 * **work** ([**dp\_pool**](structdp__pool.md))
 * **w** ([**dp\_psd\_kernel\_t**](structdp__psd__kernel__t.md))
-* **window** ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md), [**ofdm\_class\_t**](structofdm__class__t.md))
+* **window** ([**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md), [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md), [**ofdm\_class\_t**](structofdm__class__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **wtype** ([**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md))
 * **worst\_spur\_dbc** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **worst\_spur\_freq** ([**tone\_meas\_t**](structtone__meas__t.md))
 * **worst\_spur\_is\_harm** ([**tone\_meas\_t**](structtone__meas__t.md))
+* **wlan** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **when\_row** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 * **when\_value** ([**wfm\_surface\_row\_t**](structwfm__surface__row__t.md))
 
@@ -1228,7 +1250,7 @@
 
 ## _
 
-* **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md))
+* **\_pad** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**dp\_correlator\_hit\_t**](structdp__correlator__hit__t.md), [**dp\_costas\_state\_t**](structdp__costas__state__t.md), [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md), [**search\_extra\_t**](structsearch__extra__t.md))
 * **\_hot\_pad** ([**dp\_correlator\_search**](structdp__correlator__search.md), [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_last\_corr\_valid** ([**dp\_correlator\_state\_t**](structdp__correlator__state__t.md))
 * **\_pad\_order** ([**dp\_costas\_state\_t**](structdp__costas__state__t.md))

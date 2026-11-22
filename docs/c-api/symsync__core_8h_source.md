@@ -35,6 +35,8 @@ extern "C"
 
 #define SYMSYNC_LOCK_EPS 1e-12
 
+#define SYMSYNC_LOCK_BUDGET 1e-6
+
   typedef struct
   {
     dp_tlm_t *ctx;       

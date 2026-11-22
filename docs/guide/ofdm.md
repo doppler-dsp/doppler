@@ -36,14 +36,40 @@ every data point on its subcarrier, every pilot at its value times the
 polarity, and nothing on the null subcarriers. That is the check to reach for
 with any layout.
 
-**Refusals.** A build call that cannot be honoured raises `ValueError`. A
-layout that is not usable (no run, a window longer than an OFDM symbol, two
-fixed entries on one subcarrier in one phase) makes `check` return a negative
-value, and `modulate` return an empty array. Adding to a checked layout re-opens it and keeps
-the position and the window tail, so a signal can be extended while it is
-rendered. A `modulate` whose
-point count ends inside an OFDM symbol, or runs past the layout, returns an
-empty array and leaves the modulator untouched.
+**What comes out.** `modulate` and `finish` return a one-dimensional
+`complex64` array of samples, a new one on every call that the caller owns
+(pass `out=` to write into a `complex64` array of your own instead; from C the
+caller always supplies the buffer and sizes it with `modulate_max_out`).
+The samples are the **unnormalized** inverse transform of the grid, multiplied
+by the class's `scale` (1.0 by default): a grid of unit entries gives a mean
+power equal to the number of occupied subcarriers (52 in the example above),
+not 1, so pass `scale=1/np.sqrt(occupied)` to `add_class` for unit power.
+
+**Refusals.** A build call that cannot be honoured raises `ValueError`,
+changing nothing. A layout that is not usable (no run, a window longer than an
+OFDM symbol of its class, two fixed entries on one subcarrier in one phase)
+is found out when it is checked, and `check` says which: it raises
+`ValueError` with a sentence (`the layout has no run`) and returns `None`
+when the layout is usable. `modulate` checks on first use and refuses the
+same way: it raises `ValueError` with the sentence for an unusable layout,
+for a point count that ends inside an OFDM symbol, and for one that runs past
+the layout, leaving the modulator untouched in every case. A call that
+renders nothing, because no points remain or because zero points were given
+where the next OFDM symbol needs some, returns an empty array and is not an
+error. A buffer too short is never the library's own refusal in Python: it
+sizes the output itself, and an `out=` shorter than `modulate_max_out` is
+rejected by the binding (`out has N elements, need >= M`) before the call.
+In C the same refusal is a negative return from `dp_ofdm_modulate_why()` with
+a sentence. Adding to a checked layout re-opens it and keeps the position and
+the window tail, so a signal can be extended while it is rendered.
+
+The same lifecycle from C, with the caller owning both buffers and the
+refusal's reason read from `dp_ofdm_check_why()`. It checks itself and exits
+non-zero if anything it prints is wrong:
+
+```c
+--8<-- "native/examples/ofdm_demo.c"
+```
 
 **Resuming.** The modulator is serializable: `get_state` and `set_state`
 carry the position in the layout and the window tail, and the layout is the

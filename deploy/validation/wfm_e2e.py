@@ -48,7 +48,6 @@ Check = Callable[[], object]
 EXPECTED_SYMBOLS = {
     "PN",
     "Synth",
-    "_SynthEngine",
     "Segment",
     "Timeline",
     "Composer",

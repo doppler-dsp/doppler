@@ -107,10 +107,11 @@ dp_costas_set_telemetry (dp_costas_state_t *state, dp_tlm_t *tlm,
       state->tlm.ctx = NULL;
       return DP_OK;
     }
-  const char              *p      = prefix ? prefix : "car";
-  static const char *const sfx[5] = { "lock", "e", "freq", "locked", "nco" };
-  char                     name[5][DP_TLM_NAME_MAX];
-  for (size_t i = 0; i < 5; i++) /* all names before any registration */
+  const char              *p = prefix ? prefix : "car";
+  static const char *const sfx[7]
+      = { "lock", "e", "freq", "locked", "nco", "freq_rate", "order" };
+  char name[7][DP_TLM_NAME_MAX];
+  for (size_t i = 0; i < 7; i++) /* all names before any registration */
     if (dp_tlm_name_join (name[i], p, sfx[i]) != DP_OK)
       return DP_ERR_INVALID; /* overlong prefix: nothing registered */
   int id_lock   = dp_tlm_probe (tlm, name[0], decim);
@@ -118,14 +119,19 @@ dp_costas_set_telemetry (dp_costas_state_t *state, dp_tlm_t *tlm,
   int id_freq   = dp_tlm_probe (tlm, name[2], decim);
   int id_locked = dp_tlm_probe (tlm, name[3], decim);
   int id_nco    = dp_tlm_probe (tlm, name[4], decim);
-  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0 || id_nco < 0)
+  int id_frate  = dp_tlm_probe (tlm, name[5], decim);
+  int id_order  = dp_tlm_probe (tlm, name[6], decim);
+  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0 || id_nco < 0
+      || id_frate < 0 || id_order < 0)
     return DP_ERR_INVALID; /* table full: attach fails whole */
-  state->tlm.id_nco    = id_nco;
-  state->tlm.id_lock   = id_lock;
-  state->tlm.id_e      = id_e;
-  state->tlm.id_freq   = id_freq;
-  state->tlm.id_locked = id_locked;
-  state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
+  state->tlm.id_nco       = id_nco;
+  state->tlm.id_freq_rate = id_frate;
+  state->tlm.id_order     = id_order;
+  state->tlm.id_lock      = id_lock;
+  state->tlm.id_e         = id_e;
+  state->tlm.id_freq      = id_freq;
+  state->tlm.id_locked    = id_locked;
+  state->tlm.ctx          = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 
@@ -137,6 +143,8 @@ dp_costas_tlm_flush (const dp_costas_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, s->nco.norm_freq);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_nco, dp_costas_get_nco_freq (s));
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq_rate, dp_costas_get_norm_rate (s));
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_order, (double)dp_costas_get_order (s));
 }
 
 /* A snapshot this object could hold: its embedded loop filter's gains are
@@ -167,8 +175,8 @@ costas_state_ok (const dp_costas_state_t *s)
   const int order_ok
       = s->_pad_order == 0
         && ((s->order == 0 && !seeded && sf_zero) || s->order == 2
-            || (s->order == 3 && !sf_zero && s->sf.bn == s->bn
-                && s->sf.t == 1.0 && s->bn_fll == 0.0));
+            || (s->order == 3 && s->sf.bn == s->bn && s->sf.t == 1.0
+                && s->bn_fll == 0.0));
   return lf_ok && s->bn == s->lf.bn && s->zeta == s->lf.zeta
          && dp_loop_filter_fll_bn_ok (s->bn_fll) && s->k_fll == 4.0 * s->bn_fll
          && dp_lockdet_state_ok (&s->lock) && sf_ok && order_ok;
@@ -403,7 +411,7 @@ dp_costas_get_order (const dp_costas_state_t *state)
 int
 dp_costas_set_norm_rate (dp_costas_state_t *state, double val)
 {
-  if (state->order != 3 || !isfinite (val))
+  if (state->order != 3)
     return DP_ERR_INVALID;
   const double ts = (double)state->tsamps;
   state->sf.rate  = 2.0 * M_PI * val * ts * ts;

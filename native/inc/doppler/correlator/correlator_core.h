@@ -502,8 +502,10 @@ typedef struct dp_correlator_search
                                 the block's end (and the tile-edge test
                                 of search_resolve_tile_alias()); NULL unless
                                 the engine is tiled with D > 1.       */
-  int              threads;   /**< workers the pool runs on, the caller
-                                   included; 1 without a pool          */
+  int              threads;   /**< workers a push fans on, the caller
+                                   included; 1 = serial. The pool
+                                   starts at the first push or at
+                                   set_threads(), never at create.   */
   int threads_req; /**< what the caller asked for: set_threads()'s n,
                         0 = the online cores. `threads` is this capped
                         at one worker a tile when D = 1 and taken whole
@@ -2090,8 +2092,9 @@ int dp_correlator_set_threshold (dp_correlator_state_t *state,
 #define CORRELATOR_STATE_MAGIC DP_FOURCC ('C','O','R','L')
 /** @brief State-blob layout version; set_state() rejects any other. 2: the
  *  search's extra block carries keep_surface (#2022); 3: and the peak zone
- *  (dp_correlator_set_peak_zone(), doppler#3067). */
-#define CORRELATOR_STATE_VERSION 3u
+ *  (dp_correlator_set_peak_zone(), doppler#3067); 4: and the thread request
+ *  (dp_correlator_set_threads(), #3055). */
+#define CORRELATOR_STATE_VERSION 4u
 /**
  * @brief Size in bytes of this correlator's state blob.
  * @param state  Must be non-NULL.
@@ -3108,9 +3111,11 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  * @brief Set how many threads the searcher fans its stages across
  *        (docs/design/acq-surface.md §13, §18.3: persistent workers).
  *
- * A continuous engine is created with a pool of the machine's online
- * cores when it has more than one tile; a burst engine, and a
- * single-tile one, run serially. This sets the count: 0 auto-selects the
+ * A continuous engine is created asking for the machine's online cores,
+ * except with one tile at a depth of one epoch, which runs serially; a
+ * burst engine runs serially until asked. Its workers start at its first
+ * push, so an engine set to one thread before it is pushed never starts
+ * any. This sets the count: 0 auto-selects the
  * online core count, 1 runs everything on the calling thread, n runs on
  * n workers (the caller included). At a depth of one epoch (D = 1) the
  * count is capped at `window_bins`: every per-epoch fan hands out one
@@ -3121,17 +3126,21 @@ int dp_correlator_carrier_freq_ok (double carrier_freq_hz, double sample_rate_hz
  * kept, and every regrid re-applies it, so an engine narrowed to one tile
  * and widened again runs on the request, not on the 1 the narrow grid
  * ran on. The workers are created here, once, and parked between pushes;
- * nothing is created per push. The surface is bit-identical at every
+ * nothing is created per push after the first. The surface is bit-identical at every
  * count -- every output row and every decide chunk is computed whole by
  * one worker, and the chunk count is the grid's -- so this changes the
- * cost of a push and nothing about its result. Setup path, never hot;
- * not while another thread is inside push().
+ * cost of a push and nothing about its result. The request travels in
+ * the state blob (a mutator's value, #2022): dp_correlator_set_state()
+ * applies it through this call, so the target resolves it as it would
+ * here: 0 becomes the target's own online cores, an explicit n is taken
+ * whole, and either is capped at the target's tiles only at D = 1. Setup path, never hot; not while another thread is
+ * inside push().
  *
  * @param state Must be non-NULL.
  * @param n     Thread count; 0 = online cores, 1 = serial.
  * Refused (DP_ERR_UNSUPPORTED) on a map or detector flavor (no search record).
  *
- * @return DP_OK. The count actually running is `threads`.
+ * @return DP_OK. The count a push runs on is `threads`.
  * @code
  * >>> import numpy as np
  * >>> from doppler.correlation import Correlator

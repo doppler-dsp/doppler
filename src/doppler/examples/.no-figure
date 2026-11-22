@@ -9,5 +9,7 @@ coarse_doppler_bank_demo.py: prints the bank geometry and one detection; the ban
 custom_block_demo.py: builds the argv a CLI pipeline spawns; there is no signal to draw
 halfband_r2c_demo.py: prints the tone it shifted and the mirror it rejected; the resampling guide has the figures
 ofdm_demo.py: checks the grid by transforming the signal back and prints the numbers; the spectrum and EVM figures belong to the modulator's characterization (#3117)
+wfmgen_ofdm_demo.py: checks each PPDU against Wlan.ppdu and prints the verdicts; the spectrum and mask figures belong to the ofdm characterization (#3190)
 wlan_rates_demo.py: prints a table of symbol counts and airtimes; the guide carries it and there is no signal to draw until the PPDU renderer reaches Python
-state_filter_ramp_demo.py: prints two steady phase errors and a bandwidth; the ramp trace is two numbers, so the tracking-loops guide section carries it
+state_filter_ramp_demo.py: prints two steady phase errors and a bandwidth; the two traces are drawn by the object's validation report (ramp.png) and the tracking-loops guide section carries the two numbers
+state_filter_kalman_demo.py: prints a bandwidth and two settling counts; the guide section carries them

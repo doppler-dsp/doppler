@@ -53,9 +53,10 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
-# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" / "<prefix>.locked"
-# (the last is the verify-counted lockdet decision, 0/1), emitted once per
-# dumped symbol. None detaches; the int status binds -> None with
+# the seven probes dp_costas_set_telemetry() lists -- "<prefix>.lock",
+# ".e", ".freq", ".locked" (the verify-counted lockdet decision, 0/1),
+# ".nco", ".freq_rate" (the norm_rate property) and ".order" (the order
+# property) -- emitted once per dumped symbol. None detaches; the int status binds -> None with
 # ValueError on failure.
 [[costas.methods]]
 name = "set_telemetry"
@@ -90,7 +91,9 @@ params = [
 
 [[costas.methods]]
 name = "set_order"
-doc = "Select the active loop filter on a live loop: order 2 (the PI loop every Costas starts on) or order 3 (StateFilter, which also tracks the carrier's rate), at loop bandwidth bn. The frequency estimate carries across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises ValueError, changing nothing, for another order, a bn outside the order's domain, or order 3 while bn_fll > 0."
+doc = "Select the active loop filter on a live loop: order 2 (the PI loop every Costas starts on) or order 3 (StateFilter, which also tracks the carrier's rate), at loop bandwidth bn. The frequency estimate carries across; a new order-3 rate starts at 0 (norm_rate seeds one). Raises ValueError, changing nothing, for an order other than 2 or 3, a bn outside the loop's domain (bn >= 0 and finite at either order, and at most 0.12 at order 3), or order 3 while bn_fll > 0."
+error = "ValueError"
+error_message = "Costas.set_order: order must be 2 or 3, bn >= 0 and finite (at most 0.12 at order 3), and bn_fll must be 0 for order 3"
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -98,7 +101,7 @@ params = [{ name = "order", type = "int" }, { name = "bn", type = "double" }]
 
 [[costas.methods]]
 name = "reset"
-doc = "Re-seed the loop to the create-time frequency/phase; preserve config."
+doc = "Re-seed the loop to the create-time frequency/phase, keeping the configuration and the loop order; at order 3 the rate is zeroed."
 arg_type = "void"
 return_type = "void"
 
@@ -148,4 +151,5 @@ type = "double"
 writable = true
 # The C setter refuses and keeps the value: order 2 holds no rate.
 error = "ValueError"
-error_message = "Costas: norm_rate needs order 3 (set_order) and a finite value"
+doc = "The carrier's rate the third-order filter holds, in cycles per sample per sample (R / fs**2 for R Hz/s at sample rate fs); 0 at order 2. Writable at order 3 only: it seeds the rate, as norm_freq seeds the frequency."
+error_message = "Costas: norm_rate is held only at order 3 (set_order(3, bn) first)"

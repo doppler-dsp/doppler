@@ -61,7 +61,7 @@ measured at: the certification's 3.069 Mcps point, below, or the pool's
 5 Mcps sizing point (§5).
 
 **What the certification covers.** The receiver's
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 holds 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip,
 on continuous random data with no gap, `carrier_freq_hz` 0, and a search
 over ±3 kHz (±1/T_E), and at no other point: not this point's chip rates,
@@ -743,7 +743,7 @@ settled. A hand-over can still miss (finding `handoff_can_miss_the_carrier`),
 and a burst that did not settle
 would be counted beside the loss. Both are measured, with the loss's
 interval, in the
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
 (§2.6). Where the loss goes is the record's §2.7, measured by
 `validate_async_dsss_receiver_loss`
 (`native/validation/async_dsss_receiver_loss.c`): the 3.069 Mcps point's
@@ -1975,11 +1975,11 @@ The owner's rulings of 2026-11-21 come before any change of behavior: the testin
 
 **The candidates.** Three trees can claim to be today's receiver. None of them is yet the one this work needs.
 
-| tree                                              | what it is                                                                                  | the 415.1 harness                                                                             | receiver behavior against v0.84.0                                   |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `main` (`544b2a129`)                              | shipped; v0.84.0 plus the correlator's thread and fan work, held bit-identical by its tests | **absent**: no `validate_async_dsss_receiver_pullin`, no `dp_s415_test.h`, no `dp_air_test.h` | the same                                                            |
-| `integ/async-rx-sf2` (`84b68f9ab`)                | the 415.1 harness, the probes, the lock-rule readbacks                                      | present                                                                                       | differs: see below. Built on `c49af3401`, 59 commits behind v0.84.0 |
-| the removal tree (`edea9c649`, under this branch) | `84b68f9ab` plus D1's removal of `carrier_window` and the data regenerated on it            | present                                                                                       | as `integ`, plus D1                                                 |
+| tree                                              | what it is                                                                                           | the 415.1 harness                                                                             | receiver behavior against the last release (`93083ee01`)                     |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `main` (`544b2a129`)                              | shipped; the last release plus the correlator's thread and fan work, held bit-identical by its tests | **absent**: no `validate_async_dsss_receiver_pullin`, no `dp_s415_test.h`, no `dp_air_test.h` | the same                                                                     |
+| `integ/async-rx-sf2` (`84b68f9ab`)                | the 415.1 harness, the probes, the lock-rule readbacks                                               | present                                                                                       | differs: see below. Built on `c49af3401`, 59 commits behind the last release |
+| the removal tree (`edea9c649`, under this branch) | `84b68f9ab` plus D1's removal of `carrier_window` and the data regenerated on it                     | present                                                                                       | as `integ`, plus D1                                                          |
 
 **What `84b68f9ab` changes in the receiver**, against its base `c49af3401`, in the library source:
 
@@ -1991,19 +1991,19 @@ The owner's rulings of 2026-11-21 come before any change of behavior: the testin
 - `7772ced26`, `edfcb0c86` and `8a1e04e34` probes and readbacks, with no decision touched;
 - `85a3cae43` Costas order 3, opt-in. The receiver stays at order 2.
 
-**What v0.84.0 has that `84b68f9ab` lacks**, in the receiver's path:
+**What the last release has that `84b68f9ab` lacks**, in the receiver's path:
 
 - `08aa82223` RateSync's lock verify counts derived from a per-decision budget. This changes the demodulator's sync flag;
 - `008d6f9d4` the same for SymbolSync;
 - `60e6965ae` and `8b8d63ef2` Costas order 3 and its probes (the same work as `85a3cae43`, merged separately).
 
-So no commit is both the shipped receiver and one the 415.1 harness can run. Every 415.1 figure on this page was printed on `84b68f9ab` or the removal tree, or on scratch trees beside them. Those figures therefore describe a receiver with the WIP refine estimator and without v0.84.0's RateSync counts.
+So no commit is both the shipped receiver and one the 415.1 harness can run. Every 415.1 figure on this page was printed on `84b68f9ab` or the removal tree, or on scratch trees beside them. Those figures therefore describe a receiver with the WIP refine estimator and without the last release's RateSync counts.
 
 **Proposed: one baseline commit**, the removal branch rebased onto `main`. In it:
 
 - D1's code-period window, owner's ruling 5 (§12.30);
 - the 415.1 harness and its probes;
-- v0.84.0's lock fixes;
+- the last release's lock fixes;
 - the refine estimator `79fa50cfe` named as the one unruled behavior change still in it. Either the owner rules on it, or it comes out before the baseline is fixed.
 
 The tree is clean and its seeds are the validators' own (`1 … draws`, per cell). A figure is cited by its command and this commit, and any figure can be printed again from them. The shipped-settings receiver is the comparison arm: the same commit at the shipped carrier bn (D's rows), so the owner sees what each conformance change does. The rebase is not done; it waits on this section's review.
@@ -2559,9 +2559,7 @@ receiver and never multiplied by N. Two changes answer it:
     the one-tile search was about 83% FFT passes, 62% of it in the
     radix-31 and radix-11 passes of the 2,046-point period (record §9.4).
     The lag axis is now read on a padded power-of-two grid (§1.2), and the
-    decision pass's peak scan skips blocks that cannot move the pick;
-    sharing the slow-time transform across tiles is the next step, parked
-    (doppler#2732).
+    decision pass's peak scan skips blocks that cannot move the pick.
 
 **What the pool as built taught.** Its push was one receiver's plus a
 central searcher's that never stopped, because a new emitter may appear at
@@ -2733,7 +2731,7 @@ ______________________________________________________________________
 - [the measurement record](async-dsss-receiver-measurements.md) — every run
     behind the numbers here, under the same section numbers, the pool as
     built's included.
-- [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
+- [the certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md)
     — the receiver at the 3.069 Mcps point (§1), and only there; the
     [validation log](../dev/contributing/validation-log.md) holds the stages
     under it.

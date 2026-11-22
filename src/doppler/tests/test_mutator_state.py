@@ -73,7 +73,9 @@ member: one the probe cannot see (an ``out=`` buffer) is no evidence.
   parameter, a stream call (a pure transform of its input), or jm's
   capacity query ``<m>_max_out`` for a method the manifest declares
   ``variable_output``. Anything else inert -- a setter, or a call taking a
-  value it does not visibly keep -- is ``UNPROBED``.
+  value it does not visibly keep -- is ``UNPROBED``. A call with no
+  parameter at all has no value to keep, so one inert in every row reads
+  even when it hands nothing back.
 - The blob of the v twin is restored into a default target, a target with
   M(v) applied (the same key), targets at the other values M took, and
   targets at values beside v: a scalar a hair either side, an array of the
@@ -1060,6 +1062,7 @@ def _judge(
     valued: bool,
     may_read: bool,
     pure: bool = False,
+    no_value: bool = False,
 ) -> tuple[Verdict, list[Any]]:
     """One dimension's verdict, and the values it accepted.
 
@@ -1067,7 +1070,20 @@ def _judge(
     not a verdict by itself: a const state pointer is shallow (the call can
     still write through a member), so a pure method is READS only where the
     probe also observes it inert, and a visible write stays the write's
-    verdict, red."""
+    verdict, red.
+
+    ``no_value`` is a call with no parameter at all: nothing it takes can be
+    a value that fails to travel, so one observed inert in every row is a
+    reader even when it hands nothing back (a validator that raises or
+    returns None, such as ``Ofdm.check``, which only seals a layout the next
+    call seals again).
+
+    "Inert" here is exactly what `_observe` compares against the uncalled
+    twin: the blob before and after the continuation feed, the
+    continuation's output bytes, and the readback of every readable
+    property. A call that moves any of the four is not inert and is judged
+    as any mutator; an effect none of the four can see is not seen by this
+    gate at all, which is the limit of every verdict it gives."""
     vals, refs, returned, flavor_only = _accepted(mut, make, feed, cands)
     if not vals:
         return Verdict(
@@ -1085,7 +1101,7 @@ def _judge(
         ), vals
     uncalled = _observe(_warm(make, feed), mut, feed)
     if all(r == uncalled for r in refs):
-        if returned and (may_read or pure):
+        if (returned or no_value) and (may_read or pure):
             return Verdict(
                 "READS",
                 "const state, and observed inert in every row" if pure else "",
@@ -1160,6 +1176,7 @@ def probe(mut: Mutator, make, feed) -> Verdict:
         # UNPROBED).
         may_read=(not values and not mut.outs) or mut.stream or mut.accessor,
         pure=mut.pure,
+        no_value=not mut.params and not mut.stream and not mut.accessor,
     )
     if not vals:
         return verdict
@@ -1568,6 +1585,72 @@ def test_a_value_refusal_on_a_served_flavor_keeps_the_row() -> None:
         mut, Obj, lambda o, n: None, [Call(args=(2,)), Call(args=(3,))]
     )
     assert flavor_only is False
+
+
+def test_a_parameterless_inert_call_reads_even_returning_nothing() -> None:
+    """``Ofdm.check``: raises or returns None, changes nothing observable.
+
+    No parameter means no value that could fail to travel, so the probe's
+    inertness (blob, readbacks, continuation, all equal to the uncalled twin)
+    is the whole question. The same call that CHANGES something is not
+    excused: it is judged as any mutator.
+    """
+
+    class Quiet:
+        def __init__(self):
+            self.n = 0
+
+        def validate(self):
+            return None
+
+        @property
+        def count(self):
+            return self.n
+
+        def get_state(self):
+            return bytes([self.n])
+
+        def set_state(self, blob):
+            self.n = blob[0]
+
+    class Moves(Quiet):
+        def validate(self):
+            self.n += 1
+
+    mut = Mutator(cls="Obj", comp="obj", name="validate", kind="method")
+    calls = [Call(args=())]
+    quiet, _ = _judge(
+        mut,
+        Quiet,
+        lambda o, n: None,
+        calls,
+        valued=False,
+        may_read=True,
+        no_value=True,
+    )
+    assert quiet.name == "READS"
+    off, _ = _judge(
+        mut,
+        Quiet,
+        lambda o, n: None,
+        calls,
+        valued=False,
+        may_read=True,
+    )
+    assert off.name == "UNPROBED", "without the rule it is unprobed"
+    # The negative control: the same shape, parameterless, but the call MOVES
+    # the blob and a readback. The rule must not excuse it.
+    moves, _ = _judge(
+        mut,
+        Moves,
+        lambda o, n: None,
+        calls,
+        valued=False,
+        may_read=True,
+        no_value=True,
+    )
+    assert moves.name != "READS", "a parameterless call that moves state"
+    assert moves.name == "TRAVELS", "judged as any mutator: its value travels"
 
 
 def test_an_empty_candidate_list_is_unprobed_by_other_means() -> None:

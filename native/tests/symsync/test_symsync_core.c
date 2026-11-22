@@ -9,6 +9,7 @@
  *   4. All three interpolator orders lock
  *   5. Both TEDs (Gardner, DTTL) lock on a BPSK stream
  */
+#include "doppler/detection/detection_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/symsync/symsync_core.h"
 #include "dp_rng_test.h"
@@ -99,6 +100,40 @@ main (void)
   float _Complex *rx   = malloc (NSYM * SPS * sizeof (*rx));
   int            *bits = malloc (NSYM * sizeof (int));
   float _Complex *sym  = malloc (NSYM * sizeof (*sym));
+
+  /* 0. The lock's verify counts are derived from the (pfa, pd) the
+     threshold is sized at and SYMSYNC_LOCK_BUDGET (#3133): the defaults, and
+     a re-sizing at other rates, each give dp_det_verify_count()'s counts.
+     Negative control: the counts the defaults had (1 and 8) are not what
+     the budget gives at the re-sized rates, so a count left on a literal
+     fails the same predicate. */
+  {
+    dp_symsync_state_t *s = dp_symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC,
+                                               SYMSYNC_TED_GARDNER);
+    DP_CHECK (s != NULL);
+    if (s)
+      {
+        DP_CHECK_MSG (s->lock.n_up
+                              == (uint32_t)dp_det_verify_count (
+                                  1e-3, SYMSYNC_LOCK_BUDGET)
+                          && s->lock.n_down
+                                 == (uint32_t)dp_det_verify_count (
+                                     0.1, SYMSYNC_LOCK_BUDGET),
+                      "symsync's default counts are the budget's");
+        DP_CHECK_MSG (s->lock.n_up > 1, "a declare needs more than one block");
+        DP_CHECK (dp_symsync_configure_lock (s, 0.35, 10.0, 1e-4, 0.99)
+                  == DP_OK);
+        const uint32_t up
+            = (uint32_t)dp_det_verify_count (1e-4, SYMSYNC_LOCK_BUDGET);
+        const uint32_t down
+            = (uint32_t)dp_det_verify_count (0.01, SYMSYNC_LOCK_BUDGET);
+        DP_CHECK_MSG (s->lock.n_up == up && s->lock.n_down == down,
+                      "re-sized counts follow the rates");
+        DP_CHECK_MSG (!(up == 1u && down == 8u),
+                      "control: the old literals fail the re-sized predicate");
+        dp_symsync_destroy (s);
+      }
+  }
 
   /* 1. Lifecycle / order / reset reproducibility */
   {

@@ -486,7 +486,7 @@ main (void)
 
     size_t k     = dp_despreader_steps (ch, rx, L, sym, 64);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
-    DP_CHECK (k > 0 && n_rec == 12 * k); /* both loops flush per period */
+    DP_CHECK (k > 0 && n_rec == 14 * k); /* both loops flush per period */
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     uint8_t bit_out[64];

@@ -49,6 +49,10 @@ enum {
                            symbol_rate is supplied (dp_wfm_synth_set_dsss_cont).
                            The two modes share this one type — a symbol_rate
                            discriminates, no tenth waveform type. */
+    WFM_SYNTH_FRAMES = 9, /* finished frames of samples from a frame
+                             callback, installed by dp_wfm_synth_attach_frames();
+                             nothing in it is OFDM or any standard's: the
+                             `ofdm` face type selects it */
 };
 
 /** Continuous-DSSS data-symbol source (dp_wfm_synth_set_dsss_cont's data_mode). */
@@ -189,6 +193,50 @@ typedef struct {
     const char *(*refusal)(const void *user);
 } wfm_synth_refill_state_t;
 
+/** The most samples one frame may occupy: 2^24 (128 MB of cf32). A frame is
+ *  allocated whole, at install and again, transiently, by set_state. */
+#define WFM_SYNTH_FRAME_MAX ((size_t)1 << 24)
+
+/**
+ * @brief Renders one frame: a frame's bits in, the frame's samples out.
+ *
+ * Called by the synth when it needs the next frame (see
+ * dp_wfm_synth_attach_frames()): it has just drawn @p n_bits bits from the bit
+ * refill and now asks for @p n_out samples. A pure function of the callback's
+ * own configuration, @p bits and @p frame, and it may be called from
+ * dp_wfm_synth_set_state() as well as in play: that call re-renders the frame
+ * in play from the restored bits and index, so a callback must not assume it
+ * is called only in play order, once per frame.
+ *
+ * A callback that carries configuration (a seed, a window, a rate) attaches a
+ * wfm_synth_refill_state_t through dp_wfm_synth_attach_frames_state() whose
+ * get_state writes that configuration: without it a blob restored into a
+ * source with another configuration re-renders a different frame and nothing
+ * refuses. The triplet's bytes are configuration, never running state (a
+ * callback has none beyond @p frame): dp_wfm_synth_set_state() compares the
+ * blob's sub-blob byte for byte with the live renderer's get_state and refuses
+ * any difference, and never calls the triplet's set_state, so a refusal leaves
+ * the renderer as it was.
+ *
+ * @param user    The pointer given to dp_wfm_synth_attach_frames().
+ * @param frame   The index of the frame being rendered: 0 for the first frame
+ *                the callback renders. (The blob holds the count rendered.)
+ * @param bits    The frame's @p n_bits bits, each 0 or 1.
+ * @param n_bits  Their count, fixed at install.
+ * @param out     Receives exactly @p n_out samples. Unit mean power is this
+ *                function's contract: the carrier and the noise are applied
+ *                after it, and a frame's idle gap, if it has one, is zeros at
+ *                its end, which the power does not count.
+ * @param n_out   The samples one frame occupies, fixed at install.
+ * @return 0 for a frame rendered, non-zero for a frame refused. A refusal ends
+ *         the data as a refill's end does (`data_ended` latches, the output is
+ *         silence from then on), and dp_wfm_synth_frames_refused() says it was
+ *         a refusal.
+ */
+typedef int (*wfm_synth_frame_fn)(void *user, uint64_t frame,
+                                  const uint8_t *bits, size_t n_bits,
+                                  float _Complex *out, size_t n_out);
+
 /**
  * @brief Synth state: one streaming waveform source.
  *
@@ -280,6 +328,18 @@ typedef struct {
     uint8_t data_ended; /**< running: 1 once the data has ended (pattern
                              spent with no refill, or the refill reported
                              its end); output is silence from then on */
+    /* type=frames (dp_wfm_synth_attach_frames): `symbols` holds the frame in play
+       (`n_symbols` samples) and `sym_read_idx` is its cursor, which STOPS at
+       n_symbols; `bits` (`n_bits`) holds the frame's bits, drawn from `refill`. */
+    wfm_synth_frame_fn frames; /**< frame renderer, or NULL */
+    void *frames_user;         /**< argument passed to `frames` */
+    void (*frames_free)(void *); /**< frees `frames_user`, or NULL */
+    const wfm_synth_refill_state_t *frames_state; /**< the renderer's state
+                                                       triplet, or NULL */
+    uint64_t frames_done; /**< running: frames rendered so far; 0 means no
+                               frame is in play */
+    uint8_t refused;      /**< running: 1 when the data ended by the renderer
+                               refusing a frame (data_ended is 1 too) */
 } dp_wfm_synth_state_t;
 
 /**
@@ -339,6 +399,56 @@ wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
     return 1;
 }
 
+
+/**
+ * @brief Whether the frames synth has a sample to play, drawing the next
+ *        frame lazily when the one in play is spent.
+ *
+ * The sibling of wfm_synth_bit_ahead() and, like it, the one place the cursor
+ * moves, so the per-sample and block paths cannot disagree about a frame
+ * boundary. The cursor STOPS at `n_symbols`; with it there, the next frame is
+ * drawn when its first sample is due: the bit refill is asked for the frame's
+ * bits (a refill that reports its end, or no refill or no renderer, latches
+ * `data_ended`),
+ * then the renderer is called with the count of frames rendered as the index.
+ * A renderer that refuses latches `data_ended` and `refused`.
+ *
+ * @param s  a type=frames synth.
+ * @return 1 if a sample remains (the cursor at it), or 0: the data has ended.
+ */
+JM_FORCEINLINE int
+wfm_synth_frame_ahead(dp_wfm_synth_state_t *s)
+{
+    if (s->sym_read_idx < s->n_symbols)
+        return 1;
+    if (s->data_ended)
+        return 0;
+    if (!s->frames || !s->refill) {
+        s->data_ended = 1;
+        return 0;
+    }
+    const int ended = s->refill(s->refill_user, s->bits, s->n_bits) != 0;
+    /* The synth's bits are 0 or 1 always: the renderer is promised them, and
+       the blob carries them, whose restore refuses any other byte. A source
+       may write any byte (the bits path normalises on read,
+       wfm_synth_bit_symbol), and may write some before it reports its end,
+       so they are normalised whatever the refill returns. */
+    for (size_t k = 0; k < s->n_bits; k++)
+        s->bits[k] = s->bits[k] ? 1u : 0u;
+    if (ended) {
+        s->data_ended = 1;
+        return 0;
+    }
+    if (s->frames(s->frames_user, s->frames_done, s->bits, s->n_bits,
+                  s->symbols, s->n_symbols) != 0) {
+        s->data_ended = 1;
+        s->refused    = 1;
+        return 0;
+    }
+    s->frames_done++;
+    s->sym_read_idx = 0;
+    return 1;
+}
 
 /**
  * @brief Next symbol from the user bit pattern — one mapping, every M.
@@ -609,7 +719,8 @@ wfm_synth_shape(dp_wfm_synth_state_t *s, float _Complex *out, size_t m,
  * for tone/noise/PN.
  *
  * @param type  Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
- *              5=chirp, 6=bits, 7=symbols, 8=dsss.  The Python binding accepts
+ *              5=chirp, 6=bits, 7=symbols, 8=dsss, 9=frames (see
+ *              dp_wfm_synth_attach_frames()).  The Python binding accepts
  *              strings
  *              "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss".
  *              For "bits" attach the pattern with dp_wfm_synth_set_bits(); for
@@ -733,13 +844,15 @@ int dp_wfm_synth_set_bits(dp_wfm_synth_state_t *state, const uint8_t *bits, size
  * would resume the wrong data. dp_wfm_synth_state_refusal() says why.
  *
  * @param state      a type=bits synth with a pattern set, a type=dsss
- *                   burst with its chips set, or a continuous one whose
- *                   data_mode is `WFM_DSSS_DATA_BITS`.
+ *                   burst with its chips set, a continuous one whose
+ *                   data_mode is `WFM_DSSS_DATA_BITS`, or a
+ *                   WFM_SYNTH_FRAMES synth with its frames installed.
  * @param fn         the frame source; NULL detaches.
  * @param user       passed to @p fn; owned by the synth when @p free_user
  *                   is given, which it calls on detach or destroy.
  * @param free_user  frees @p user, or NULL.
- * @return 0, or -1 if the synth is none of those, or has no pattern.
+ * @return 0, or -1 if the synth is none of those, or has no pattern (or, for a
+ *         WFM_SYNTH_FRAMES synth, has no frames installed).
  *
  * @code
  * #include "doppler/wfm_synth/wfm_synth_core.h"
@@ -791,6 +904,98 @@ int dp_wfm_synth_set_refill(dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
  */
 int dp_wfm_synth_set_refill_state(dp_wfm_synth_state_t *state,
                                   const wfm_synth_refill_state_t *ops);
+
+/**
+ * @brief Install a frame renderer on a WFM_SYNTH_FRAMES synth.
+ *
+ * The sample-domain sibling of dp_wfm_synth_set_refill(). set_refill hands the
+ * synth bits that its own mapper and pulse shaper turn into samples;
+ * dp_wfm_synth_set_symbols() hands it one fixed buffer of symbols to cycle;
+ * this hands it a callback that renders a whole frame of finished samples,
+ * played as they are (the carrier and the noise applied after), one frame after
+ * another, each played once. Nothing here is OFDM or any standard's: it is bits
+ * in, samples out.
+ *
+ * Install order: the synth is created with type WFM_SYNTH_FRAMES, then this
+ * call allocates `bits` (@p n_bits bytes) and `symbols` (@p n_out samples) and
+ * leaves the cursor at @p n_out (no frame drawn), then dp_wfm_synth_set_refill()
+ * installs the bit source (it accepts a WFM_SYNTH_FRAMES synth that has its
+ * frames installed), then dp_wfm_synth_set_refill_state() its triplet.
+ * `bit_idx` is not used by this type. A shaper, dp_wfm_synth_set_rrc() and
+ * dp_wfm_synth_set_symbols() are no-ops for it.
+ *
+ * The cursor stops at @p n_out and never wraps. The next frame is drawn lazily,
+ * when its first sample is due: the bit refill is asked for @p n_bits bits (a
+ * refill that reports the end latches `data_ended`), then @p fn renders them.
+ * A NULL @p fn detaches the renderer and keeps the frame in play, as
+ * dp_wfm_synth_set_refill() with NULL keeps the pattern: the frame plays out
+ * and the data ends.
+ *
+ * Serialization (version 7): the blob holds the frame in play's bits, the count
+ * of frames rendered, the cursor, `data_ended` and `refused`; the samples are
+ * not in it, and dp_wfm_synth_set_state() re-renders the frame in play from the
+ * bits and the count (index count - 1) before it commits, holding two frames of
+ * memory while it does, and it refuses before any write a blob whose children,
+ * bit source or renderer envelope, bits (a byte above 1), frame length or bit
+ * count do not match this synth. The renderer's sub-blob, if it has a triplet,
+ * must equal the live renderer's get_state byte for byte; its set_state is not
+ * called. Bit-exact for the same build, machine and
+ * FFT dispatch. A refusal leaves the bit source and the frame as they were:
+ * the carrier and noise children restore before the bit source moves, so a
+ * child that refuses can leave only the children before it restored (#2104).
+ * dp_wfm_synth_reset() rewinds the cursor to the start of the frame in play,
+ * the cursor below @p n_out as set_state defines it, and rewinds neither the
+ * frame count nor the data source. With no frame in play (none drawn yet, the
+ * frame spent at @p n_out, a refusal or the end of the data) it replays
+ * nothing, and a frames synth has no pattern, so reset never clears
+ * `data_ended`; `refused` stays with it: both are cleared together when a bit
+ * source is attached or detached.
+ *
+ * The renderer is given bits of 0 and 1 only, and the synth's bits are 0 or 1
+ * always: the synth normalises the source's bytes after each draw, including
+ * one that reports the end. With a frame in play and no renderer or no bit source
+ * attached the synth cannot serialize (dp_wfm_synth_state_refusal()), because a
+ * restore could not re-render the frame.
+ *
+ * @param state      A WFM_SYNTH_FRAMES synth.
+ * @param fn         The renderer; NULL detaches.
+ * @param user       Passed to @p fn; owned by the synth when @p free_user is
+ *                   given, which it calls on detach or destroy.
+ * @param free_user  Frees @p user, or NULL.
+ * @param n_bits     Bits one frame is rendered from, > 0.
+ * @param n_out      Samples one frame occupies, 1 to 2^24 (128 MB of cf32): it
+ *                   includes any idle gap, and a larger value is refused.
+ * @return 0, or -1 if the synth is not WFM_SYNTH_FRAMES, @p n_bits is 0, @p n_out
+ *         is outside its range or an allocation fails.
+ */
+int dp_wfm_synth_attach_frames(dp_wfm_synth_state_t *state, wfm_synth_frame_fn fn,
+                            void *user, void (*free_user)(void *),
+                            size_t n_bits, size_t n_out);
+
+/**
+ * @brief Give the installed renderer its state triplet.
+ *
+ * For a renderer that carries configuration: the blob nests @p ops' get_state
+ * over the renderer's `user`, and dp_wfm_synth_set_state() refuses a blob whose
+ * sub-blob differs from the live renderer's by a byte. The bytes are the
+ * renderer's reject keys, never running state: @p ops' set_state is not called
+ * (it may be NULL), and a state_bytes of 0 makes
+ * the synth refuse to serialize.
+ *
+ * @param state  a synth with a renderer installed.
+ * @param ops    the triplet, in static storage; NULL takes it away.
+ * @return 0, or -1 when no renderer is installed.
+ */
+int dp_wfm_synth_attach_frames_state(dp_wfm_synth_state_t *state,
+                                  const wfm_synth_refill_state_t *ops);
+
+/**
+ * @brief Whether the data ended by the renderer refusing a frame.
+ * @param state  the synth.
+ * @return 1 if the renderer refused a frame, 0 if not (the data may still have
+ *         ended by the bit source's end).
+ */
+int dp_wfm_synth_frames_refused(const dp_wfm_synth_state_t *state);
 
 /**
  * @brief Why the synth's state cannot be serialized, or NULL when it can.
@@ -1008,6 +1213,8 @@ void dp_wfm_synth_destroy(dp_wfm_synth_state_t *state);
  * span) is kept.  With a refill attached the data-ended latch is NOT
  * cleared and the rewound cursor replays the frame in the buffer (the
  * last one pulled), since a pulled source cannot rewind what it consumed.
+ * A frames synth replays only a frame in play and never clears the latch
+ * (dp_wfm_synth_attach_frames()).
  *
  * @param state  Must be non-NULL.
  * @code
@@ -1135,6 +1342,12 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
         }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
+    } else if (state->wtype == WFM_SYNTH_FRAMES) {
+        /* A finished frame, played as it is: the helper draws the next one when
+         * the cursor reaches the end, and silence follows the data's end. */
+        sym = wfm_synth_frame_ahead(state)
+                  ? state->symbols[state->sym_read_idx++]
+                  : (0.0f + 0.0f * I);
     } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
@@ -1288,11 +1501,11 @@ void dp_wfm_synth_sweep_ends(double fs, double f_mid, double rate, size_t n,
 /**
  * @brief Return the active waveform type discriminant.
  * Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
- * 5=chirp, 6=bits, 7=symbols, 8=dsss.
+ * 5=chirp, 6=bits, 7=symbols, 8=dsss, 9=frames.
  * Use this to inspect which synthesis path is active at runtime.
  *
  * @param state  Must be non-NULL.
- * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS),
+ * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_FRAMES),
  *         the create-time `type` unless overridden.
  *
  * @code
@@ -1315,7 +1528,9 @@ int dp_wfm_synth_get_wtype(const dp_wfm_synth_state_t *state);
  * set_state asks the same rule of the type a blob carries.
  *
  * @param state  Must be non-NULL.
- * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_DSSS).
+ * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_FRAMES); a
+ *               synth neither enters nor leaves WFM_SYNTH_FRAMES by this call,
+ *               which has its buffers and renderer installed or not.
  * @return DP_OK, or DP_ERR_INVALID with @p state unchanged.
  *
  * @code
@@ -1487,8 +1702,10 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
    dp_wfm_synth_set_dsss_window's value (#2022); a v4 blob is shorter, so
    its length refuses it as well as its version. v6: + wtype, the first
    payload word, set_wtype's value (#2095); a v5 blob is shorter, so its
-   length refuses it as well as its version. */
-#define WFM_SYNTH_STATE_VERSION 6u
+   length refuses it as well as its version. v7: + frames_done, refused and
+   n_out (the frame length), and a presence byte for the frame renderer's triplet with its sub-blob (a v6
+   blob is shorter, so its length refuses it as well as its version). */
+#define WFM_SYNTH_STATE_VERSION 7u
 /**
  * @brief Size of this synth's serialized state blob.
  *

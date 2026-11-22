@@ -62,6 +62,12 @@ definition = "A Costas loop tracking a BPSK carrier: phase detector, loop filter
 samples = 1
 headline = true
 
+["c:costas::steps[order=3]"]
+name = "Costas carrier loop, third order"
+unit = "sample"
+definition = "The Costas loop of c:costas::steps switched to third order (dp_costas_set_order), its loop filter the StateFilter, per input sample."
+samples = 1
+
 ["c:dll::steps"]
 name = "Delay-locked loop (code tracking)"
 unit = "sample"
@@ -1484,6 +1490,41 @@ definition = "Constructing one Ofdm with an empty layout: the cost of building t
 domain = "call"
 count = 1
 
+["py:ofdm::test_bench_modulate[64-0]"]
+name = "OFDM modulate, n_fft 64, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 64, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[64-2]"]
+name = "OFDM modulate, n_fft 64 with a 2-sample window, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 64, 2-sample window, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[256-0]"]
+name = "OFDM modulate, n_fft 256, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 256, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[1024-0]"]
+name = "OFDM modulate, n_fft 1024, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 1024, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
+["py:ofdm::test_bench_modulate[4096-0]"]
+name = "OFDM modulate, n_fft 4096, from Python"
+unit = "call"
+definition = "Ofdm.modulate over a whole generic layout (n_fft 4096, a quarter-length cyclic prefix, four pilots with a polarity sequence, 7/8 occupancy), about 64k samples a call, into a caller buffer: the C row of the same layout plus the binding."
+domain = "call"
+count = 1
+
 ["c:ofdm::modulate[n_fft=64]"]
 name = "OFDM modulate, n_fft 64"
 unit = "symbol"
@@ -1531,6 +1572,59 @@ definition = "Assembling the Data field of a 100-octet PSDU (SERVICE, octets, ta
 domain = "call"
 count = 1
 
+["c:wlan::interleave[octets=1000,64qam,r34]"]
+name = "802.11 interleaver, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "The first and second interleaver permutations over the coded bits of one frame, one OFDM symbol at a time. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::map[octets=1000,64qam,r34]"]
+name = "802.11 mapper, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "The constellation mapper over the interleaved bits of one frame: groups of six bits to 64-QAM points (the standard's relabeling included). One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::points[octets=1000,64qam,r34]"]
+name = "802.11 points, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "The points of one PPDU's layout, end to end from the PSDU: the SERVICE, tail and pad assembly, the scrambler, the punctured BCC, the interleaver and the mapper, with the SIGNAL field's 48. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::layout[octets=1000,64qam,r34]"]
+name = "802.11 layout, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "Building the PPDU's OFDM layout in a fresh modulator and destroying it: the four classes, the pilots with the polarity, the runs, and the check. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wlan::ppdu[octets=1000,64qam,r34]"]
+name = "802.11 PPDU, 1000 octets at 64-QAM rate 3/4"
+unit = "frame"
+definition = "dp_wlan_ppdu: the whole PPDU from the PSDU to samples (L-STF, L-LTF, SIGNAL and the Data field): the points, the layout and the OFDM modulator. One 1000-octet PSDU at 64-QAM, code rate 3/4 (54 Mb/s, the largest rate pair Clause 17 has), 38 Data OFDM symbols, one frame per unit."
+domain = "call"
+count = 1
+
+["c:wfm_compose::ofdm[6 Mb/s,M=1]"]
+name = "wfmgen ofdm source, 6 Mb/s at 20 MHz"
+unit = "sample"
+definition = "A wfmgen ofdm source through the composer: 802.11 PPDUs (100-octet PSDUs, BPSK rate 1/2) built from a generated data source's frames at fs 20 MHz (M = 1), pulled in 4,096-sample blocks, 262,144 samples a round; throughput counts output samples."
+samples = 1
+
+["c:wfm_compose::ofdm[54 Mb/s,M=1]"]
+name = "wfmgen ofdm source, 54 Mb/s at 20 MHz"
+unit = "sample"
+definition = "A wfmgen ofdm source through the composer: 802.11 PPDUs (100-octet PSDUs, 64-QAM rate 3/4) built from a generated data source's frames at fs 20 MHz (M = 1), pulled in 4,096-sample blocks, 262,144 samples a round; throughput counts output samples."
+samples = 1
+
+["c:wfm_compose::ofdm[54 Mb/s,M=2]"]
+name = "wfmgen ofdm source, 54 Mb/s at 40 MHz"
+unit = "sample"
+definition = "A wfmgen ofdm source through the composer: 802.11 PPDUs (100-octet PSDUs, 64-QAM rate 3/4) built from a generated data source's frames at fs 40 MHz (M = 2, a transform twice as long), pulled in 4,096-sample blocks, 262,144 samples a round; throughput counts output samples."
+samples = 1
+
 ["py:wlan::test_bench_create"]
 name = "802.11 rate holder setup, from Python"
 unit = "call"
@@ -1557,6 +1651,13 @@ unit = "sample"
 definition = "The block path of the third-order loop filter fed 65,536 loop errors per round; throughput counts input errors."
 samples = 1
 
+["c:state_filter::create"]
+name = "Third-order state filter construction, from C"
+unit = "call"
+definition = "dp_state_filter_create then destroy, bn varied per call: the same bisection as a retune plus the allocation and the free, paid once per filter built."
+domain = "call"
+count = 1
+
 ["c:state_filter::configure"]
 name = "Third-order state filter retune, from C"
 unit = "call"
@@ -1578,6 +1679,52 @@ definition = "dp_state_filter_bandwidth at a detector delay of two updates: the 
 domain = "call"
 count = 1
 
+["c:state_filter_kalman::step"]
+name = "Kalman state filter, one update at a time"
+unit = "sample"
+definition = "One update of the Kalman flavor of the third-order loop filter: the loop's three lines, the covariance recursion and the gain refresh, called once per input error; throughput counts input errors."
+samples = 1
+
+["c:state_filter_kalman::steps"]
+name = "Kalman state filter, 65,536-error blocks"
+unit = "sample"
+definition = "The block path of the Kalman flavor of the third-order loop filter fed 65,536 loop errors per round; throughput counts input errors."
+samples = 1
+
+["c:state_filter_kalman::configure"]
+name = "Kalman state filter retune, from C"
+unit = "call"
+definition = "Retuning the Kalman flavor for a new bn and t: the bisection on the noise ratio around the doubling solve of the steady state, paid once per retune."
+domain = "call"
+count = 1
+
+["c:state_filter_kalman::create_start_1e2"]
+name = "Kalman state filter create with a high-gain start, bn*t 0.01"
+unit = "call"
+definition = "Creating the Kalman flavor with a start of 3 times the steady state's frequency deviation at bn*t 0.01: the constructor walks the covariance trajectory (800 updates, sampled) against the stability rectangle. Paid once per object, and per configure with a start above 1."
+domain = "call"
+count = 1
+
+["c:state_filter_kalman::create_start_1e4"]
+name = "Kalman state filter create with a high-gain start, bn*t 1e-4"
+unit = "call"
+definition = "The same at bn*t 1e-4: a walk of 80,000 updates, sampled. The cost scales as 1/(bn*t)."
+domain = "call"
+count = 1
+
+["py:state_filter_kalman::test_bench_step"]
+name = "Kalman state filter update, from Python"
+unit = "call"
+definition = "One KalmanStateFilter.step call from Python: the filter update, the covariance recursion and the call across the binding, one input error per call."
+domain = "call"
+count = 1
+
+["py:state_filter_kalman::test_bench_steps_64k"]
+name = "Kalman state filter, 65,536-error blocks, from Python"
+unit = "call"
+definition = "KalmanStateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
+samples = 65536
+
 ["py:state_filter::test_bench_step"]
 name = "Third-order state filter update, from Python"
 unit = "call"
@@ -1585,8 +1732,27 @@ definition = "One StateFilter.step call from Python: the filter update plus the 
 domain = "call"
 count = 1
 
+["py:state_filter::test_bench_create"]
+name = "Third-order state filter construction, from Python"
+unit = "call"
+definition = "StateFilter(0.01, 1.0) built and dropped from Python: the gain solve plus the binding and the free."
+domain = "call"
+count = 1
+
 ["py:state_filter::test_bench_steps_64k"]
 name = "Third-order state filter, 65,536-error blocks, from Python"
-unit = "sample"
+unit = "call"
 definition = "StateFilter.steps over a 65,536-element float64 block from Python; throughput counts input errors."
+samples = 65536
+
+["py:costas::test_bench_steps_64k"]
+name = "Costas carrier loop, from Python"
+unit = "sample"
+definition = "Costas.steps on 65,536 samples of a BPSK carrier at order 2, per input sample."
+samples = 1
+
+["py:costas::test_bench_steps_64k_order3"]
+name = "Costas carrier loop, third order, from Python"
+unit = "sample"
+definition = "Costas.steps on 65,536 samples of a BPSK carrier with the loop switched to third order (set_order), per input sample."
 samples = 1

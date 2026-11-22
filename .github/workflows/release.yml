@@ -27,7 +27,7 @@ jobs:
   # ------------------------------------------------------------------
   verify-version:
     name: Verify version consistency
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     outputs:
       version: ${{ steps.get.outputs.version }}
@@ -116,7 +116,7 @@ jobs:
   verify-ci:
     name: Verify CI passed on the tagged commit
     needs: verify-version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The only cap on waiting for a LIVE run (verify-ci.py waits while the
     # SHA's CI is queued or running, and stops at once on a dead or red one).
     # Measured 2026-11-12 over main's 93 push CI runs since 2026-10-29,
@@ -176,7 +176,7 @@ jobs:
         # what lets Dockerfile.cli pip-install on linux/arm64 instead of
         # compiling the whole tree under emulation (~19 min/release).
         arch:
-          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: x86_64, runner: ubuntu-24.04 }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@v7
@@ -301,7 +301,7 @@ jobs:
   build-windows:
     name: Build wheels (Windows x64)
     needs: verify-version
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     timeout-minutes: 45
     defaults:
       run:
@@ -343,7 +343,7 @@ jobs:
   build-sdist:
     name: Build sdist
     needs: verify-version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -384,7 +384,7 @@ jobs:
         # Native ARM64 runner (free for public repos), same as build-python's
         # aarch64 leg — no QEMU or cross-toolchain anywhere.
         arch:
-          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: x86_64, runner: ubuntu-24.04 }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
@@ -498,7 +498,7 @@ jobs:
   build-c-windows:
     name: Package C library (Windows x86_64)
     needs: verify-version
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     timeout-minutes: 45
     defaults:
       run:
@@ -544,9 +544,9 @@ jobs:
       fail-fast: false
       matrix:
         arch:
-          - { tag: x86_64, runner: ubuntu-latest, artifact: python-dist-cp312-x86_64 }
+          - { tag: x86_64, runner: ubuntu-24.04, artifact: python-dist-cp312-x86_64 }
           - { tag: aarch64, runner: ubuntu-24.04-arm, artifact: python-dist-cp312-aarch64 }
-          - { tag: win_amd64, runner: windows-latest, artifact: python-dist-windows-3.12 }
+          - { tag: win_amd64, runner: windows-2025-vs2026, artifact: python-dist-windows-3.12 }
     steps:
       - uses: actions/checkout@v7
         with:
@@ -588,7 +588,7 @@ jobs:
   wheel-tags:
     name: Check every wheel's tags are installable
     needs: [build-python, build-macos, build-windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -611,7 +611,7 @@ jobs:
   publish-python:
     name: Publish to PyPI
     needs: [verify-version, verify-ci, smoke-wheel, wheel-tags, build-sdist, build-python, build-macos, build-windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: pypi
     permissions:
@@ -653,7 +653,7 @@ jobs:
       matrix:
         # Native runners, same pair the wheel and C-package legs use.
         include:
-          - arch: { tag: amd64, runner: ubuntu-latest, platform: linux/amd64 }
+          - arch: { tag: amd64, runner: ubuntu-24.04, platform: linux/amd64 }
           - arch: { tag: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
     permissions:
       packages: write
@@ -810,7 +810,7 @@ jobs:
   publish-container-merge:
     name: Merge + smoke container manifests
     needs: [verify-version, publish-container]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       packages: write
@@ -913,7 +913,7 @@ jobs:
       # The MERGE job, not the per-arch builds: until it runs, the images
       # exist only as untagged digests and `:<version>` resolves to nothing.
       - publish-container-merge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: write
@@ -982,13 +982,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             plat: linux-x86_64
           - os: ubuntu-24.04-arm
             plat: linux-aarch64
           - os: macos-15
             plat: macos-arm64
-          - os: windows-latest
+          - os: windows-2025-vs2026
             plat: windows-x86_64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -1037,7 +1037,7 @@ jobs:
       fail-fast: false
       matrix:
         arch:
-          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: x86_64, runner: ubuntu-24.04 }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
@@ -1078,7 +1078,7 @@ jobs:
       fail-fast: false
       matrix:
         arch:
-          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: x86_64, runner: ubuntu-24.04 }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 120
@@ -1133,9 +1133,9 @@ jobs:
       fail-fast: false
       matrix:
         arch:
-          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: x86_64, runner: ubuntu-24.04 }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
-          - { tag: win_amd64, runner: windows-latest }
+          - { tag: win_amd64, runner: windows-2025-vs2026 }
           - { tag: macos_arm64, runner: macos-15 }
         python: ${{ fromJSON(needs.verify-version.outputs.pythons) }}
     runs-on: ${{ matrix.arch.runner }}

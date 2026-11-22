@@ -333,7 +333,7 @@ extern "C"
    * >>> z = np.zeros(8, np.uint8)               # no data subcarriers at all
    * >>> p = Ofdm(); p.add_class(8, z, cyclic_prefix=2)
    * 0
-   * >>> p.add_fixed(0, 4294967295, 2, 1.0)      # one pilot
+   * >>> p.add_fixed(0, 2**32 - 1, 2, 1.0)      # one pilot, every phase
    * >>> p.add_polarity(0, np.array([1, -1], np.complex64))
    * >>> p.add_run(0, 2)
    * 0
@@ -369,7 +369,7 @@ extern "C"
    * 0
    * >>> o.points_remaining()      # six data subcarriers
    * 6
-   * >>> o.add_fixed(0, 4294967295, 3, 1j)   # a pilot on a data subcarrier
+   * >>> o.add_fixed(0, 2**32 - 1, 3, 1j)   # a pilot on a data subcarrier
    * >>> o.points_remaining()      # it displaces one
    * 5
    * @endcode
@@ -404,7 +404,8 @@ extern "C"
   int dp_ofdm_add_run(dp_ofdm_state_t *state, uint32_t class_index, uint32_t count, uint32_t cyclic_prefix, uint32_t polarity_offset, uint32_t first_phase);
 
   /**
-   * @brief Check the whole layout and derive what the render uses.
+   * @brief Check the whole layout and derive what the render uses; say why
+   *        when it is not usable. This is the binding's `check`.
    *
    * Refuses a layout with no run, a window longer than an OFDM symbol of its
    * class, or two fixed entries on one subcarrier in one phase. Derives what
@@ -412,6 +413,9 @@ extern "C"
    * inverse transform per distinct length). Idempotent once it has passed.
    *
    * @param state  The modulator.
+   * @param why    Where the refusal's sentence goes: a static string naming
+   *               the condition that failed. Left as the caller set it when
+   *               the layout is usable. May be NULL.
    * @return 0 if the layout is usable, a negative value if not.
    *
    * @code
@@ -421,13 +425,24 @@ extern "C"
    * >>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1
    * >>> o.add_class(8, m)
    * 0
-   * >>> o.check() < 0            # no run yet
-   * True
+   * >>> o.check()                # no run yet
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: the layout has no run
    * >>> o.add_run(0, 1)
    * 0
-   * >>> o.check()
-   * 0
+   * >>> o.check()                # usable: returns None
    * @endcode
+   */
+  int dp_ofdm_check_why(dp_ofdm_state_t *state, const char **why);
+
+  /**
+   * @brief The plain form of dp_ofdm_check_why(): 0 if the layout is usable,
+   *        a negative value if not, with no sentence. What a C caller that
+   *        does not print the reason calls.
+   *
+   * @param state  The modulator.
+   * @return 0 if the layout is usable, a negative value if not.
    */
   int dp_ofdm_check(dp_ofdm_state_t *state);
 
@@ -455,29 +470,54 @@ extern "C"
   size_t dp_ofdm_points_remaining(dp_ofdm_state_t *state);
 
   /**
-   * @brief Samples dp_ofdm_modulate() writes for @p n_in points.
+   * @brief Samples a render of @p n_in points writes.
    *
-   * Simulates the render from the current position: OFDM symbols are taken in
-   * layout order until the next one needs more points than remain. Zero if
-   * @p n_in ends inside an OFDM symbol or runs past the layout (the call is
-   * refused), and for a layout that does not seal.
+   * Simulates the render from the current position: OFDM symbols are taken
+   * in layout order until the next one needs more points than remain. The
+   * result is zero if @p n_in ends inside an OFDM symbol or runs past the
+   * layout (that call is refused), for a layout that does not seal, and for
+   * no points when the next OFDM symbol needs some. Use it to size the
+   * output before the call.
    *
    * @param state  The modulator.
    * @param n_in   Constellation points.
    * @return Samples that call will write.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ofdm import Ofdm
+   * >>> o = Ofdm()
+   * >>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1
+   * >>> o.add_class(8, m, cyclic_prefix=2)
+   * 0
+   * >>> o.add_run(0, 3)
+   * 0
+   * >>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples
+   * 20
+   * >>> o.modulate_max_out(5)    # ends inside a symbol
+   * 0
+   * @endcode
    */
   size_t dp_ofdm_modulate_max_out(dp_ofdm_state_t *state, size_t n_in);
 
   /**
-   * @brief Render OFDM symbols from constellation points.
+   * @brief Render OFDM symbols from constellation points, or say why not.
    *
    * @param state    The modulator; sealed by this call if it is not.
    * @param in       Constellation points, consumed in layout order.
    * @param n_in     Number of points; must end on an OFDM symbol boundary.
    * @param out      Receives the samples.
    * @param max_out  Capacity of @p out. Short is a refusal, not a truncation.
-   * @return Samples written, or 0 if the call is refused, in which case
-   *         @p out and the modulator are untouched.
+   * @param why      NULL, or receives a static sentence for a refusal and
+   *                 is left as the caller set it otherwise: an unusable layout (the sentence
+   *                 dp_ofdm_check_why() gives), points that end inside an
+   *                 OFDM symbol, more points than the layout has left, or
+   *                 an output buffer shorter than dp_ofdm_modulate_max_out().
+   * @return Samples written, which may be 0: no points at the end of the
+   *         layout, or zero points mid-layout when the next OFDM symbol
+   *         needs some. A refused call changes nothing and reports it by
+   *         face: C returns a negative value and sets @p why; the Python
+   *         binding raises ValueError with that sentence.
    *
    * @code
    * >>> import numpy as np
@@ -495,7 +535,23 @@ extern "C"
    * 20
    * >>> o.points_remaining()
    * 6
+   * >>> o.modulate(np.ones(5, np.complex64))        # inside a symbol
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: the points end inside an OFDM symbol: pass a count that ends where one does (see points_remaining and modulate_max_out)
    * @endcode
+   */
+  int64_t dp_ofdm_modulate_why(dp_ofdm_state_t *state, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out, const char **why);
+
+  /**
+   * @brief The plain form of dp_ofdm_modulate_why().
+   * @param state    The modulator.
+   * @param in       Constellation points.
+   * @param n_in     Number of points.
+   * @param out      Receives the samples.
+   * @param max_out  Capacity of @p out.
+   * @return Samples written, or 0 if the call is refused or writes none; a
+   *         caller who must tell the two apart uses dp_ofdm_modulate_why().
    */
   size_t dp_ofdm_modulate(dp_ofdm_state_t *state, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out);
 

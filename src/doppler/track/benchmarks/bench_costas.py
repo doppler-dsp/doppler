@@ -34,3 +34,15 @@ def test_bench_steps_64k(benchmark, obj, rx):
         benchmark.extra_info["MSa_s"] = (
             BLOCK_64K / benchmark.stats["mean"] / 1e6
         )
+
+
+def test_bench_steps_64k_order3(benchmark, rx):
+    """The same block through the third-order filter (set_order)."""
+    obj = Costas(0.05, 0.707, 0.0, TSAMPS)
+    obj.set_order(3, 0.05)
+    benchmark(obj.steps, rx)
+    assert obj.order == 3
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

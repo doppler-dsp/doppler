@@ -654,6 +654,67 @@ main (void)
     free (j);
   }
 
+  /* ── SigMF meta: an ofdm source's annotation names its configuration, and
+     its band is the channel, not fs / sps. ── */
+  {
+    static const uint8_t hb[16] = { 0, 0, 0, 0, 1, 0, 0, 0,   /* 0x08 */
+                                    0, 0, 0, 0, 0, 0, 1, 0 }; /* 0x02 */
+    wfm_source_t         o      = { .type           = WFM_SYNTH_FRAMES,
+                                    .sps            = 1,
+                                    .wlan           = 36,
+                                    .mac            = 2,
+                                    .mac_header     = { .bits = hb, .len = 16 },
+                                    .scrambler_init = 93,
+                                    .window         = 4,
+                                    .gap            = 40,
+                                    .bandwidth      = 10e6 };
+    wfm_segment_t        so
+        = { .sources = &o, .n_sources = 1, .fs = 20e6, .num_samples = 4096 };
+    char *jo = dp_wfm_sigmf_meta_json (0, 0, 20e6, 0, 0.0, &so, 1);
+    DP_REQUIRE_MSG (jo && strstr (jo, "\"core:label\":\"ofdm\"")
+                        && strstr (jo, "\"wfmgen:wlan\":36")
+                        && strstr (jo, "\"wfmgen:mac\":\"data\"")
+                        && strstr (jo, "\"wfmgen:mac_header\":\"0802\"")
+                        && strstr (jo, "\"wfmgen:scrambler_init\":93")
+                        && strstr (jo, "\"wfmgen:window\":4")
+                        && strstr (jo, "\"wfmgen:gap\":40")
+                        && strstr (jo, "\"wfmgen:bandwidth\":10000000"),
+                    "sigmf ofdm records its configuration");
+    /* beside wlan the pair is not written: a 36 Mb/s source is not bpsk 1/2 */
+    DP_REQUIRE_MSG (jo && !strstr (jo, "wfmgen:constellation")
+                        && !strstr (jo, "wfmgen:code_rate"),
+                    "sigmf ofdm wlan source omits the unused pair");
+    /* the occupied band is the 10 MHz channel (centre 0): -5e6 .. 5e6, not
+       fs / sps = 20e6 wide */
+    DP_REQUIRE_MSG (jo && strstr (jo, "\"core:freq_lower_edge\":-5000000")
+                        && strstr (jo, "\"core:freq_upper_edge\":5000000"),
+                    "sigmf ofdm band is its channel");
+    free (jo);
+    /* a source spelled with the pair writes the pair, and no header with mac
+       none */
+    wfm_source_t q = {
+      .type = WFM_SYNTH_FRAMES, .sps = 1, .constellation = 2, .code_rate = 2
+    };
+    wfm_segment_t sq
+        = { .sources = &q, .n_sources = 1, .fs = 20e6, .num_samples = 4096 };
+    char *jq = dp_wfm_sigmf_meta_json (0, 0, 20e6, 0, 0.0, &sq, 1);
+    DP_REQUIRE_MSG (jq && strstr (jq, "\"wfmgen:constellation\":\"qam16\"")
+                        && strstr (jq, "\"wfmgen:code_rate\":\"3/4\"")
+                        && !strstr (jq, "wfmgen:wlan")
+                        && !strstr (jq, "wfmgen:mac_header"),
+                    "sigmf ofdm pair source writes the pair");
+    free (jq);
+    /* a source that is not ofdm writes none of these */
+    wfm_source_t  t = { .type = WFM_SYNTH_TONE, .sps = 1 };
+    wfm_segment_t st
+        = { .sources = &t, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+    char *jt = dp_wfm_sigmf_meta_json (0, 0, 1e6, 0, 0.0, &st, 1);
+    DP_REQUIRE_MSG (jt && !strstr (jt, "wfmgen:constellation")
+                        && !strstr (jt, "wfmgen:bandwidth"),
+                    "sigmf non-ofdm omits the ofdm keys");
+    free (jt);
+  }
+
   /* ── SigMF meta: continuous DSSS carries wfmgen:symbol_rate (the "dsss"
      core:label alone can't distinguish burst from continuous). Code-only adds
      wfmgen:data=none; a burst dsss omits both. ── */

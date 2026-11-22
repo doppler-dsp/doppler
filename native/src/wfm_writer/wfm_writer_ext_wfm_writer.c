@@ -742,7 +742,7 @@ static PyMethodDef WriterObj_methods[] = {
     "\n"
     "Parameters\n"
     "----------\n"
-    "on : int\n"
+    "on : int, default 1\n"
     "    Non-zero to count clipped components, 0 to stop.\n"
     "\n"
     "Examples\n"

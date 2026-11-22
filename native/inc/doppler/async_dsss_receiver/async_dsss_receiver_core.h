@@ -943,7 +943,8 @@ typedef enum
    * Each loop reports under the prefix, at its own update rate:
    * - "<prefix>.car" -- the chip-domain carrier loop
    *   (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
-   *   ".nco"), once per carrier update: once a code period, except while it
+   *   ".nco", ".freq_rate", ".order"), once per carrier update: once a code
+   *   period, except while it
    *   coasts, when loop 1 is held;
    * - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
    *   ".rate", ".lock", ".locked", ".nco", and the lock statistic's two
@@ -1031,7 +1032,7 @@ typedef enum
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
    * ...                                                    "rx.code")))
-   * ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
+   * ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
    * >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
    * ...                                                    "rx.refu")))
    * ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
@@ -1421,12 +1422,11 @@ typedef enum
    * search is bit-identical at every count, so this changes the cost of a
    * steps() call and nothing about its output. A pool that steps its
    * receivers in parallel sets each one to 1. A mutator's value, so it
-   * travels in the state blob (#2022). The blob carries the count that
-   * RAN, not the request: set_threads(0) on a writer restores as the count
-   * the writer ran (its online cores, capped at the tiles at D = 1) on any
-   * reader, by design -- a resumed receiver runs as the one that was
-   * checkpointed, and a pool's 1 is 1 everywhere. Setup path;
-   * not while another thread is inside steps().
+   * travels in the state blob (#2022), in one place: the searcher's own
+   * blob, as the request, which dp_correlator_set_state() applies through
+   * dp_correlator_set_threads(). A pool's 1 restores as 1 everywhere; a
+   * writer's 0 restores as 0, which the reader runs on its own online
+   * cores. Setup path; not while another thread is inside steps().
    *
    * @param state Must be non-NULL.
    * @param n     Thread count; 0 = online cores, 1 = serial.
@@ -1925,7 +1925,6 @@ typedef enum
                                      mutator's, so it travels (#2022). */
     uint64_t samples_in;    /**< v12: input samples since create.        */
     uint64_t align_pending; /**< v12: 0 or 1, a dwell alignment owed.    */
-    int64_t  threads;       /**< v12: set_threads()'s result (#2022).    */
     uint64_t rank;          /**< v13: set_rank()'s value (#2022).        */
     uint64_t n_excl;        /**< v13: set_exclusions()'s count ...       */
     double   excl[ASYNC_DSSS_RX_MAX_EXCLUSIONS]; /**< ... and phases, the
@@ -1955,7 +1954,7 @@ typedef enum
 /** @brief Envelope magic ("ADRX") identifying an AsyncDsssReceiver blob. */
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
 /** @brief Layout version of the AsyncDsssReceiver blob (history below). */
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 19u /* v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 20u /* v20: no threads, the search's own blob carries set_threads()'s request (#3055); v19: the squared-stream refine estimator (§4.7); v18: the exclusions' and picks' samples; v17: the refine hand-over's ring (#2974); v16: the search child is the correlator's search flavor ('CORL', #2752 3.4b); v15: pooled, search-only picks; v14: the search resampler and its origin; v13: rank, exclusions; v12: samples_in, the dwell alignment, threads; v11: no cell mode; v10: the dll children grew (output level, #2495); v9: refine_min_blocks; v8: refused_hits; v7: no hand-off flavor; v6: the cell pull-in */
 
   /**
    * @brief Size in bytes of the blob dp_async_dsss_receiver_get_state()

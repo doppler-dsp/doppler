@@ -24,9 +24,9 @@
 /* SSOT: enum=wfm_type, count=N_TYPES */
 static const char *const TYPE_NAMES[]
     = { "tone",  "noise", "pn",      "bpsk", "qpsk",
-        "chirp", "bits",  "symbols", "dsss" };
+        "chirp", "bits",  "symbols", "dsss",   "ofdm" };
 /** Entries in TYPE_NAMES. */
-#define N_TYPES 9
+#define N_TYPES 10
 
 /* SSOT: enum=snr_mode, cenum=doppler/wfm/wfm_compose.h:wfm_snr_mode_t */
 static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
@@ -71,6 +71,23 @@ static const char *const STAGE_KIND_NAMES[]
     = { "crc16", "rs", "randomise", "conv", "interleave" };
 /** Entries in STAGE_KIND_NAMES. */
 #define N_STAGE_KINDS 5
+
+/* The `ofdm` source type's choices. No `cenum=`: wlan_core.h is not in
+   scope here, so the index is the table position, and what ties each to its
+   C value is checked where wlan is in scope: _Static_asserts in
+   wfm_synth_bridge.c hold dp_wlan_code_t and dp_wlan_mac_t to 0, 1, 2 (3),
+   and test_wfm_ofdm_bridge.c holds each NAME to its enumerator and the
+   constellation names to dp_wlan_n_bpsc. A reorder here fails that test.
+   SSOT: enum=ofdm_constellation */
+static const char *const OFDM_CONSTELLATION_NAMES[]
+    = { "bpsk", "qpsk", "qam16", "qam64" };
+
+/* SSOT: enum=ofdm_code_rate */
+static const char *const OFDM_CODE_RATE_NAMES[]
+    = { "1/2", "2/3", "3/4", "5/6" };
+
+/* SSOT: enum=ofdm_mac */
+static const char *const OFDM_MAC_NAMES[] = { "none", "fcs", "data" };
 
 /* SSOT: enum=wfm_pulse */
 static const char *const PULSE_NAMES[] = { "rect", "rrc" };

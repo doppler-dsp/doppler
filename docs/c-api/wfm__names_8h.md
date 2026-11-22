@@ -45,6 +45,9 @@ _The one C home for the waveform enum name tables._ [More...](#detailed-descript
 |  const char \*const | [**GAP\_NOISE\_NAMES**](#variable-gap_noise_names)   = `{ "auto", "off" }`<br> |
 |  const char \*const | [**LFSR\_NAMES**](#variable-lfsr_names)   = `{ "galois", "fibonacci" }`<br> |
 |  const char \*const | [**MODE\_NAMES**](#variable-mode_names)   = `{ "auto", "fs", "ebno", "esno" }`<br> |
+|  const char \*const | [**OFDM\_CODE\_RATE\_NAMES**](#variable-ofdm_code_rate_names)   = `{ "1/2", "2/3", "3/4", "5/6" }`<br> |
+|  const char \*const | [**OFDM\_CONSTELLATION\_NAMES**](#variable-ofdm_constellation_names)   = `{ "bpsk", "qpsk", "qam16", "qam64" }`<br> |
+|  const char \*const | [**OFDM\_MAC\_NAMES**](#variable-ofdm_mac_names)   = `{ "none", "fcs", "data" }`<br> |
 |  const char \*const | [**PULSE\_NAMES**](#variable-pulse_names)   = `{ "rect", "rrc" }`<br> |
 |  const char \*const | [**SEED\_ADVANCE\_NAMES**](#variable-seed_advance_names)   = `{ "none", "noise", "all" }`<br> |
 |  const char \*const | [**SEQ\_KIND\_NAMES**](#variable-seq_kind_names)   = `{ "literal", "pn", "gold", "dotted", "data" }`<br> |
@@ -98,7 +101,7 @@ _The one C home for the waveform enum name tables._ [More...](#detailed-descript
 | ---: | :--- |
 | define  | [**N\_STAGE\_KINDS**](wfm__names_8h.md#define-n_stage_kinds)  `5`<br> |
 | define  | [**N\_STYPES**](wfm__names_8h.md#define-n_stypes)  `10`<br> |
-| define  | [**N\_TYPES**](wfm__names_8h.md#define-n_types)  `9`<br> |
+| define  | [**N\_TYPES**](wfm__names_8h.md#define-n_types)  `10`<br> |
 
 ## Detailed Description
 
@@ -210,6 +213,45 @@ const char* const LFSR_NAMES[];
 
 ```C++
 const char* const MODE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable OFDM\_CODE\_RATE\_NAMES 
+
+```C++
+const char* const OFDM_CODE_RATE_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable OFDM\_CONSTELLATION\_NAMES 
+
+```C++
+const char* const OFDM_CONSTELLATION_NAMES[];
+```
+
+
+
+
+<hr>
+
+
+
+### variable OFDM\_MAC\_NAMES 
+
+```C++
+const char* const OFDM_MAC_NAMES[];
 ```
 
 
@@ -337,7 +379,7 @@ Entries in STYPE\_NAMES.
 ### define N\_TYPES 
 
 ```C++
-#define N_TYPES `9`
+#define N_TYPES `10`
 ```
 
 

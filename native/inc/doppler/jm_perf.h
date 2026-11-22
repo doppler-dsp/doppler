@@ -118,13 +118,14 @@
  * Convention: state->delay[0..LENGTH-1] is the delay line, delay[0] = newest.
  * LENGTH, BATCH, and CHUNK must be integer constant expressions (no VLA).
  *
- * state->delay must exist even for a stateless object (LENGTH=0): whenever a
- * SIMD tier is active (BATCH > 1 — always true on aarch64, since NEON is
- * unconditional there, unlike AVX2/AVX-512 which need explicit compiler
- * flags), the generated steps() references state->delay[...] in a loop that
- * happens to run zero iterations when LENGTH is 0 — the member still has to
- * exist for the translation unit to compile. A single-element placeholder
- * field (e.g. `float delay[1]`) is enough.
+ * A stateless object (LENGTH = 0) needs no state->delay member: when LENGTH
+ * is the token `0`, or a macro that expands to it, the history copy is not
+ * emitted at all (JM_PP_IS_ZERO below). Any other spelling that merely
+ * evaluates to zero -- `(0)`, `0u`, `TAPS - 1` with TAPS 1 -- cannot be told
+ * apart from a real length by the preprocessor, so it still names
+ * state->delay whenever a SIMD tier is active (every aarch64 build, and every
+ * x86-64 build since the SSE2 tier); spell it `0`, or keep a one-element
+ * placeholder field (`float delay[1]`).
  *
  * Usage (16-tap FIR: TAPS=16, LENGTH=TAPS-1=15):
  *   JM_DEFINE_STEPS(fir_filter, fir_filter_state_t, float _Complex,
@@ -152,6 +153,41 @@
  * `, float g`; JM_EVAL_IMPL () yields nothing. */
 #define JM_EVAL_IMPL(...) __VA_ARGS__
 
+/* JM_PP_IS_ZERO(x) is the token 1 when x, macro-expanded, is the single
+ * token `0`, and 0 otherwise -- the preprocessor cannot evaluate, only
+ * match. Every paste below has a literal prefix: pasting a parenthesised
+ * argument is not a valid token, so a leading `(` is caught first and
+ * answers 0. Probe idiom: JM_PP_ZERO_PROBE_0 expands to `~, 1`, shifting
+ * the 1 into JM_PP_SECOND's slot; any other paste leaves the default 0
+ * there. */
+#define JM_PP_SECOND_(a, b, ...) b
+#define JM_PP_SECOND(...) JM_PP_SECOND_(__VA_ARGS__, )
+#define JM_PP_PAREN_PROBE_(...) ~, 1
+#define JM_PP_ZERO_PROBE_0 ~, 1
+#define JM_PP_IS_ZERO(x) JM_PP_IS_ZERO_SEL(JM_PP_SECOND(JM_PP_PAREN_PROBE_ x, 0), x)
+#define JM_PP_IS_ZERO_SEL(paren, x) JM_PP_IS_ZERO_SEL_(paren, x)
+#define JM_PP_IS_ZERO_SEL_(paren, x) JM_PP_IS_ZERO_PAREN_##paren(x)
+#define JM_PP_IS_ZERO_PAREN_1(x) 0
+#define JM_PP_IS_ZERO_PAREN_0(x) JM_PP_IS_ZERO_TOKEN_(x)
+#define JM_PP_IS_ZERO_TOKEN_(x) JM_PP_SECOND(JM_PP_ZERO_PROBE_##x, 0)
+
+/* The delay-line history copies around each batch. Selected on LENGTH, so a
+ * stateless object's steps() never names state->delay. */
+#define JM_STEPS_HISTORY(dir, LENGTH) \
+    JM_STEPS_HISTORY_SEL(dir, JM_PP_IS_ZERO(LENGTH), LENGTH)
+#define JM_STEPS_HISTORY_SEL(dir, zero, LENGTH) \
+    JM_STEPS_HISTORY_SEL_(dir, zero, LENGTH)
+#define JM_STEPS_HISTORY_SEL_(dir, zero, LENGTH) \
+    JM_STEPS_HISTORY_##dir##zero(LENGTH)
+#define JM_STEPS_HISTORY_IN_1(LENGTH)
+#define JM_STEPS_HISTORY_OUT_1(LENGTH)
+#define JM_STEPS_HISTORY_IN_0(LENGTH)                                          \
+    for (int _j = 0; _j < (LENGTH); _j++)                                     \
+        _scratch[_j] = state->delay[(LENGTH) - 1 - _j];
+#define JM_STEPS_HISTORY_OUT_0(LENGTH)                                         \
+    for (int _j = 0; _j < (LENGTH); _j++)                                     \
+        state->delay[_j] = _scratch[_main + (LENGTH) - 1 - _j];
+
 #if JM_SIMD_WIDTH_F32 > 1
 #  define JM_STEPS_SIMD_IMPL(fn, st, samp, LENGTH, BATCH, CHUNK, CARGS)         \
     {                                                                          \
@@ -159,14 +195,12 @@
         while (_i + (BATCH) <= n) {                                           \
             size_t _blk  = (n - _i < (CHUNK)) ? (n - _i) : (CHUNK);          \
             size_t _main = _blk & ~(size_t)((BATCH) - 1);                    \
-            for (int _j = 0; _j < (LENGTH); _j++)                             \
-                _scratch[_j] = state->delay[(LENGTH) - 1 - _j];              \
+            JM_STEPS_HISTORY(IN_, LENGTH)                                     \
             memcpy(_scratch + (LENGTH), input + _i, _blk * sizeof(samp));    \
             for (size_t _p = 0; _p < _main; _p += (BATCH))                   \
                 fn##_step_batch(state, _scratch + _p,                        \
                                 output + _i + _p JM_EVAL_IMPL CARGS);           \
-            for (int _j = 0; _j < (LENGTH); _j++)                             \
-                state->delay[_j] = _scratch[_main + (LENGTH) - 1 - _j];     \
+            JM_STEPS_HISTORY(OUT_, LENGTH)                                    \
             _i += _main;                                                      \
         }                                                                      \
     }

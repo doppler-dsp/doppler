@@ -89,8 +89,9 @@ validate_ber_despreader                  3.7
 validate_dll_jitter                      0.8
 validate_mpsk_receiver_real_ber          0.9
 validate_rx_frame_fer                    0.8
-validate_costas_jitter                   0.7
+validate_costas_jitter                   2.0  # RAISED 0.7 -> 2.0 s (#3127): the check runs both loop orders and adds the noise-gain rows against dp_state_filter_loop_bandwidth(); CI's sweep job read 2.03, 2.13 and 1.16 s on three runs.
 validate_state_filter_loop              0.5
+validate_state_filter_kalman_loop       1.0
 validate_mpsk_receiver_ber               0.5
 validate_carrier_nda_pullin              0.4
 validate_symsync_lock                    0.3

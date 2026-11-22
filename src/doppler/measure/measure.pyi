@@ -700,7 +700,7 @@ class NPRMeasure:
             Notch lower edge (Hz).
         notch_hi : float
             Notch upper edge (Hz).
-        guard_hz : float
+        guard_hz : float, default 0.0
             Keep-out around the notch edges (Hz).
 
         Returns

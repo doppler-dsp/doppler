@@ -84,18 +84,17 @@
  * SYMSYNC_LOCK_STAT_VARIANCE's comment for the factor-of-2 derivation
  * and the empirical elimination of a naive-but-wrong alternative.
  *
- * No down_thresh or n_up/n_down derivation is implied by the source
- * formula, so those default to the same shape dp_dll_configure_lock uses:
- * up = down = threshold (no level hysteresis by default -- splitting
- * them needs an SNR-dependent detection probability the derivation
- * doesn't supply), n_up = 1 (declare on the very first above-threshold
- * avgs-block; the (pfa, pd) sizing already targets the desired
- * per-decision operating point, unlike Dll's default which additionally
- * compounds pfa further via a verify count), n_down = 8 (a modest time
- * hysteresis, not derived from the source formula, so a single noisy
- * block doesn't drop a live lock -- the raw escape hatch,
- * dp_symsync_configure_lock_raw, exposes every knob for a caller that
- * wants to size these independently).
+ * No down_thresh is implied by the source formula, so up = down =
+ * threshold (no level hysteresis by default -- splitting them needs an
+ * SNR-dependent detection probability the derivation doesn't supply). The
+ * verify counts are derived from the same (pfa, pd) the threshold is sized
+ * at and one per-decision false-transition budget, SYMSYNC_LOCK_BUDGET =
+ * 1e-6, the library's convention for a detector's own default (the Dll's
+ * declare budget at its default pfa, the async receiver's code-lock drop):
+ * n_up = dp_det_verify_count(pfa, budget), n_down =
+ * dp_det_verify_count(1 - pd, budget); 2 and 6 at the defaults. The raw
+ * escape hatch, dp_symsync_configure_lock_raw, exposes every knob for a
+ * caller that sizes its own.
  *
  * SYMSYNC_LOCK_STAT_VARIANCE: the real per-look variance of
  * lock_signal under noise-only input, measured directly (5,000,000
@@ -126,8 +125,6 @@
 #define SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB 10.0
 #define SYMSYNC_LOCK_DEFAULT_PFA 1e-3
 #define SYMSYNC_LOCK_DEFAULT_PD 0.9
-#define SYMSYNC_LOCK_DEFAULT_N_UP 1u
-#define SYMSYNC_LOCK_DEFAULT_N_DOWN 8u
 
 /* Nominal NCO increment: the accumulator advances by 1/sps of full scale per
  * input sample, wrapping once per symbol.  The on-time strobe is the wrap and
@@ -461,9 +458,13 @@ dp_symsync_configure_lock (dp_symsync_state_t *state, double rolloff,
     return DP_ERR_INVALID;
   size_t avgs      = (size_t)avgs_n;
   double threshold = dp_det_threshold_gauss (mean, pd, pfa);
-  dp_symsync_configure_lock_raw (state, avgs, threshold, threshold,
-                                 SYMSYNC_LOCK_DEFAULT_N_UP,
-                                 SYMSYNC_LOCK_DEFAULT_N_DOWN);
+  /* Time hysteresis from the same rates and one per-decision budget. */
+  const uint32_t n_up
+      = (uint32_t)dp_det_verify_count (pfa, SYMSYNC_LOCK_BUDGET);
+  const uint32_t n_down
+      = (uint32_t)dp_det_verify_count (1.0 - pd, SYMSYNC_LOCK_BUDGET);
+  dp_symsync_configure_lock_raw (state, avgs, threshold, threshold, n_up,
+                                 n_down);
   return DP_OK;
 }
 

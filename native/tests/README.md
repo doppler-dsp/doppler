@@ -263,6 +263,15 @@ That last check is new: `acq`'s hand-written round trips `memcmp`'d two fresh
 (doppler#1471). The 30 objects outside the macro when the rule arrived are in
 `scripts/.state-roundtrip-ratchet`, which may only shrink (doppler#1475).
 
+**A composition whose child grows takes the shrunk-blob pin.** A child that
+gains a field bumps its own version, and its parents keep theirs: they sum
+their children's sizes, so a parent blob from before the growth carries the
+parent's current version and an envelope the growth smaller.
+`DP_STATE_SHRUNK_TEST (<p>, s, gone)` builds that blob from the parent's own
+and checks that `set_state` refuses it by its size, leaves the instance
+untouched and still takes the real blob. `test_despreader_core.c` rebuilds
+Costas's pre-growth layout exactly once; the other parents take the macro.
+
 ## The one exception
 
 `examples/downstream-jm/native/tests/` keeps its own `CHECK`. That is a

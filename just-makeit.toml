@@ -2,9 +2,9 @@ include = ["objects/*.toml", "modules/*.toml"]
 
 [project]
 applied_layout = "mirrored"
-jm_version = "0.126.1"
+jm_version = "0.133.1"
 name = "doppler"
-version = "0.83.0"
+version = "0.84.0"
 build = "cmake"
 # c_prefix (jm#1591, #1545): every C symbol jm derives carries dp_, so two
 # installed jm libraries that share a component name (fir, fft, agc) link
@@ -126,7 +126,7 @@ entries = [
 # Design: docs/design/waveform-enum-ssot.md
 [[enum]]
 name = "wfm_type"
-values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
+values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss", "ofdm"]
 
 [[enum]]
 # dp_correlator_flavor_t (correlator_core.h): which flavor Correlator's knobs
@@ -221,6 +221,24 @@ values = ["crc16", "rs", "randomise", "conv", "interleave"]
 [[enum]]
 name = "doppler_lifetime"
 values = ["per_instance", "persist"]
+
+# The `ofdm` source type's fields (docs/design/wlan.md, section 5). The
+# constellation is spelled by its name, one value per name, the index wlan's
+# dp_wlan_create() takes (dp_wlan_n_bpsc maps it to bits per subcarrier); the
+# larger QAMs arrive with the preset that uses them. code_rate and mac mirror
+# dp_wlan_code_t and dp_wlan_mac_t value for value: _Static_asserts in the
+# bridge hold the enumerators, and test_wfm_ofdm_bridge.c holds each name.
+[[enum]]
+name = "ofdm_constellation"
+values = ["bpsk", "qpsk", "qam16", "qam64"]
+
+[[enum]]
+name = "ofdm_code_rate"
+values = ["1/2", "2/3", "3/4", "5/6"]
+
+[[enum]]
+name = "ofdm_mac"
+values = ["none", "fcs", "data"]
 
 # The enum below names a table that no binding renders — the C side is its
 # only consumer. It is declared here anyway because doppler#760 made this

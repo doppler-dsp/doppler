@@ -383,7 +383,7 @@ class SyncFinder:
         ----------
         bits : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             Unpacked bits, one per byte.
-        max_errors : int
+        max_errors : int, default 0
             Largest tolerated Hamming distance, in bits.
 
         Returns

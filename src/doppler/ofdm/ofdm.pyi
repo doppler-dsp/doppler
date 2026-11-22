@@ -83,15 +83,15 @@ class Ofdm:
             Transform length, 2 to OFDM_N_FFT_MAX.
         subcarrier_map : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
             `n_fft` entries, index `k + n_fft/2`, each OFDM_DATA or OFDM_NULL.
-        useful : int
+        useful : int, default 0
             Body samples read cyclically from the transform; 0 reads as n_fft.
-        cyclic_prefix : int
+        cyclic_prefix : int, default 0
             Default prefix, samples; at most `useful`.
-        window : int
+        window : int, default 0
             Window transition, samples; at most the symbol length.
-        scale : float
+        scale : float, default 1.0
             Multiplies the transform output.
-        n_phase : int
+        n_phase : int, default 1
             Period of the fixed pattern, at least 1.
 
         Returns
@@ -206,7 +206,7 @@ class Ofdm:
         >>> z = np.zeros(8, np.uint8)               # no data subcarriers at all
         >>> p = Ofdm(); p.add_class(8, z, cyclic_prefix=2)
         0
-        >>> p.add_fixed(0, 4294967295, 2, 1.0)      # one pilot
+        >>> p.add_fixed(0, 2**32 - 1, 2, 1.0)      # one pilot, every phase
         >>> p.add_polarity(0, np.array([1, -1], np.complex64))
         >>> p.add_run(0, 2)
         0
@@ -224,11 +224,11 @@ class Ofdm:
         value: complex,
     ) -> None:
         """Append one fixed entry to a class: a pilot, a training value, a
-        boosted pilot. `phase` is the pattern phase it belongs to, or
-        4294967295 for every phase. `k` is the subcarrier, from `-n_fft/2` to
-        `n_fft/2 - 1`. A fixed entry displaces data on its subcarrier in its
-        phase, and is multiplied by the class's polarity element for the OFDM
-        symbol.
+        boosted pilot. `phase` is the pattern phase it belongs to, or 2**32 - 1
+        (`OFDM_ALL_PHASES` in C) for every phase. `k` is the subcarrier, from
+        `-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its
+        subcarrier in its phase, and is multiplied by the class's polarity
+        element for the OFDM symbol.
 
         A fixed entry displaces data on its subcarrier in its phase (when the
         map has data there) and is multiplied by the class's polarity element.
@@ -265,7 +265,7 @@ class Ofdm:
         0
         >>> o.points_remaining()      # six data subcarriers
         6
-        >>> o.add_fixed(0, 4294967295, 3, 1j)   # a pilot on a data subcarrier
+        >>> o.add_fixed(0, 2**32 - 1, 3, 1j)   # a pilot on a data subcarrier
         >>> o.points_remaining()      # it displaces one
         5
 
@@ -275,12 +275,13 @@ class Ofdm:
         self,
         class_index: int,
         count: int,
-        cyclic_prefix: int = 4294967295,
+        cyclic_prefix: int = ...,
         polarity_offset: int = 0,
         first_phase: int = 0,
     ) -> int:
         """Append a run of `count` OFDM symbols of one class. `cyclic_prefix`
-        overrides the class's prefix for this run (4294967295 keeps it);
+        overrides the class's prefix for this run (omit it, or give
+        `OFDM_CP_DEFAULT` = 4294967295 = 2**32 - 1, to keep the class's);
         `polarity_offset` is the class's polarity element used by the run's
         first symbol; `first_phase` is the pattern phase of the run's first
         symbol. Returns the run's index.
@@ -291,12 +292,12 @@ class Ofdm:
             An existing class.
         count : int
             OFDM symbols, at least 1.
-        cyclic_prefix : int
+        cyclic_prefix : int, default OFDM_CP_DEFAULT
             Override of the class's prefix, or OFDM_CP_DEFAULT; at most the
             class's `useful`.
-        polarity_offset : int
+        polarity_offset : int, default 0
             Polarity element of the run's first symbol.
-        first_phase : int
+        first_phase : int, default 0
             Pattern phase of the run's first symbol.
 
         Returns
@@ -327,12 +328,14 @@ class Ofdm:
 
         """
 
-    def check(self) -> int:
-        """Check the whole layout and return 0 if it is usable, or a negative
-        value if not (no run, a window longer than an OFDM symbol, two fixed
-        entries on one subcarrier in one phase). `modulate` checks on first use
-        and returns an empty array for a layout that fails; call this to find
-        out why before any points exist. Adding a class, fixed entry or run to
+    def check(self) -> None:
+        """Check the whole layout and return 0 if it is usable; raise
+        ValueError, with a sentence naming the condition, if not (no run, a
+        window longer than an OFDM symbol of its class, two fixed entries on
+        one subcarrier in one phase, or memory or a transform plan that could
+        not be built). `modulate` checks on first use and raises `ValueError`,
+        with the same sentence, for a layout that fails; call this first to
+        learn it before any points exist. Adding a class, fixed entry or run to
         a checked layout re-opens it, keeping the position and the held window
         tail, so a signal can be extended while it is rendered; the next
         `modulate` checks the longer layout.
@@ -342,10 +345,12 @@ class Ofdm:
         what the render uses (the data count per phase, the window weights, one
         inverse transform per distinct length). Idempotent once it has passed.
 
-        Returns
-        -------
-        int
-            0 if the layout is usable, a negative value if not.
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            the reason the C call gives, or ``the layout is not usable``, with
+            the return code appended (gh-869), when it gives none.
 
         Examples
         --------
@@ -355,12 +360,13 @@ class Ofdm:
         >>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1
         >>> o.add_class(8, m)
         0
-        >>> o.check() < 0            # no run yet
-        True
+        >>> o.check()                # no run yet
+        Traceback (most recent call last):
+            ...
+        ValueError: the layout has no run
         >>> o.add_run(0, 1)
         0
-        >>> o.check()
-        0
+        >>> o.check()                # usable: returns None
 
         """
 
@@ -401,9 +407,11 @@ class Ofdm:
         points: its data subcarriers less those a fixed entry displaces in its
         pattern phase. Rendering stops when the next OFDM symbol needs more
         points than remain; OFDM symbols that need none (training fields)
-        render. A point count that ends inside an OFDM symbol is refused, the
-        modulator untouched, and returns an empty array. The window tail of the
-        last OFDM symbol is held for the next call; `finish` returns it.
+        render. A refused call (an unusable layout, a point count that ends
+        inside an OFDM symbol or runs past the layout, a buffer too short)
+        raises `ValueError` saying which, the modulator untouched. The window
+        tail of the last OFDM symbol is held for the next call; `finish`
+        returns it.
 
         Parameters
         ----------
@@ -415,8 +423,18 @@ class Ofdm:
         Returns
         -------
         NDArray[np.complex64]
-            Samples written, or 0 if the call is refused, in which case out and
-            the modulator are untouched.
+            Samples written, which may be 0: no points at the end of the
+            layout, or zero points mid-layout when the next OFDM symbol needs
+            some. A refused call changes nothing and reports it by face: C
+            returns a negative value and sets why; the Python binding raises
+            ValueError with that sentence.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            the reason the C call gives, or ``modulate refused``, with the
+            return code appended (gh-869), when it gives none.
 
         Examples
         --------
@@ -435,16 +453,22 @@ class Ofdm:
         20
         >>> o.points_remaining()
         6
+        >>> o.modulate(np.ones(5, np.complex64))        # inside a symbol
+        Traceback (most recent call last):
+            ...
+        ValueError: the points end inside an OFDM symbol: pass a count that ends where one does (see points_remaining and modulate_max_out)
 
         """
 
     def modulate_max_out(self, n_in: int, /) -> int:
-        """Samples dp_ofdm_modulate() writes for n_in points.
+        """Samples a render of n_in points writes.
 
         Simulates the render from the current position: OFDM symbols are taken
-        in layout order until the next one needs more points than remain. Zero
-        if n_in ends inside an OFDM symbol or runs past the layout (the call is
-        refused), and for a layout that does not seal.
+        in layout order until the next one needs more points than remain. The
+        result is zero if n_in ends inside an OFDM symbol or runs past the
+        layout (that call is refused), for a layout that does not seal, and for
+        no points when the next OFDM symbol needs some. Use it to size the
+        output before the call.
 
         Parameters
         ----------
@@ -455,6 +479,22 @@ class Ofdm:
         -------
         int
             Samples that call will write.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ofdm import Ofdm
+        >>> o = Ofdm()
+        >>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1
+        >>> o.add_class(8, m, cyclic_prefix=2)
+        0
+        >>> o.add_run(0, 3)
+        0
+        >>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples
+        20
+        >>> o.modulate_max_out(5)    # ends inside a symbol
+        0
+
         """
 
     def finish(

@@ -244,6 +244,72 @@ FIXTURES = frozenset({BITS_FILE, SYMS_FILE, SCENE_FILE, *FRAMES})
 def cases() -> list[tuple[str, list[str]]]:
     """(name, argv) pairs. Every non-SKIP flag must appear at least once."""
     return [
+        # ---- ofdm: one PPDU per frame of the data source. --wlan N is a
+        # spelling of --constellation and --code-rate, and the matrix holds
+        # the two to the same bytes in tests, not here (one case each) ----
+        (
+            "ofdm_wlan",
+            [
+                "--type",
+                "ofdm",
+                "--fs",
+                "20e6",
+                "--wlan",
+                "36",
+                "--scrambler-init",
+                "93",
+                "--mac",
+                "fcs",
+                "--data",
+                "pn:800:15",
+                "--data-len",
+                "800",
+            ],
+        ),
+        (
+            "ofdm_mac_data",
+            [
+                "--type",
+                "ofdm",
+                "--fs",
+                "20e6",
+                "--wlan",
+                "36",
+                "--scrambler-init",
+                "93",
+                "--mac",
+                "data",
+                "--mac-header",
+                "0x08020000ffffffffffff0200000000010200000000020000",
+                "--data",
+                "pn:800:15",
+                "--data-len",
+                "800",
+            ],
+        ),
+        (
+            "ofdm_pair",
+            [
+                "--type",
+                "ofdm",
+                "--fs",
+                "40e6",
+                "--bandwidth",
+                "20e6",
+                "--constellation",
+                "qam16",
+                "--code-rate",
+                "3/4",
+                "--window",
+                "4",
+                "--gap",
+                "40",
+                "--data",
+                "pn:800:15",
+                "--data-len",
+                "800",
+            ],
+        ),
         # ---- waveform types, and the signal params each one resolves ----
         (
             "tone",

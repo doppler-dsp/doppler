@@ -1,4 +1,5 @@
 [module.dsss]
+applied_reexports = ["orchestrator"]
 doc = """
 Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader), polynomial-phase estimation and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
 

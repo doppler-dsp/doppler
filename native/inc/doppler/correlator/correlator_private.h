@@ -541,15 +541,30 @@ search_rate_better (size_t h, float stat, float best)
  * span up -- summed over the block's epochs non-coherently (a data
  * transition inside an epoch costs every hypothesis the same), each
  * epoch's column walked by the hypothesis's own code rate as
- * the map's ramp walks the tile's. Returns the native row that wins;
- * the pick's own row when the engine is not block-coherent and tiled. */
-static inline size_t
-search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t col)
+ * the map's ramp walks the tile's. search_resolve_tile_alias(), below,
+ * returns the native row that wins, and the pick's own row when the engine
+ * is not block-coherent and tiled -- what search_tile_alias_applies()
+ * tells apart. */
+static inline int
+search_tile_alias_applies (const dp_correlator_state_t *st)
+{
+  return st->search->blk_raw && st->search->window_bins > 1
+         && st->search->coherent_bins > 1;
+}
+
+/* One hypothesis of search_resolve_tile_alias(): the pick's power summed
+ * over the block's epochs with the raw epochs mixed by the row's own
+ * frequency `h` spans off (h = -1, 0, +1), in epoch order. Split out so the
+ * search can fan a dwell's (pick, hypothesis) pairs across its pool
+ * (search_report_peaks()); every caller sums in this one order, so a row
+ * resolved fanned is bit-identical to one resolved serially. Only for an
+ * engine search_tile_alias_applies() says is tiled and block-coherent. */
+static inline double
+search_tile_alias_power (const dp_correlator_state_t *st, size_t row,
+                         size_t col, long h)
 {
   const size_t D = st->search->coherent_bins, nx = st->search->code_bins;
-  const size_t W = st->search->window_bins, rows = W * D;
-  if (!st->search->blk_raw || W <= 1 || D <= 1)
-    return row;
+  const size_t rows = st->search->window_bins * D;
   const double f0 = (double)dp_fftfreq_index (row, rows) * st->search->doppler_res_hz;
   const double span = st->search->fs / (double)nx;
   /* The pick's column on a padded lag axis (lag_bins) is a lag in samples
@@ -558,33 +573,82 @@ search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t c
   if (st->search->lag_bins != nx)
     col = (size_t)lround ((double)col * (double)nx / (double)st->search->lag_bins)
           % nx;
+  const double f = f0 + (double)h * span;
+  /* The code-rate walk of this hypothesis, samples per epoch: a
+     positive Doppler runs the chip clock fast and the peak sits
+     EARLIER each epoch (the map's ramp convention). */
+  const double d  = st->search->carrier_freq_hz > 0.0
+                        ? f / st->search->carrier_freq_hz * (double)nx
+                        : 0.0;
+  double       pw = 0.0;
+  for (size_t e = 0; e < D; e++)
+    {
+      const long sh = lround (((double)e - 0.5 * (double)(D - 1)) * d);
+      const long c0 = (((long)col - sh) % (long)nx + (long)nx) % (long)nx;
+      const double _Complex acc = dp_correlator_cell_corr (
+          st, st->search->blk_raw + e * nx, (size_t)c0, f, (double)(e * nx));
+      pw += creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
+    }
+  return pw;
+}
+
+/* The winner of the three hypotheses' powers `pw[0..2]` (h = -1, 0, +1):
+ * the first strict maximum, as the row it names. */
+static inline size_t
+search_tile_alias_pick (const dp_correlator_state_t *st, size_t row,
+                        const double pw[3])
+{
+  const size_t D = st->search->coherent_bins;
+  const size_t rows = st->search->window_bins * D;
   double       best = -1.0;
   long         win  = 0;
   for (long h = -1; h <= 1; h++)
-    {
-      const double f = f0 + (double)h * span;
-      /* The code-rate walk of this hypothesis, samples per epoch: a
-         positive Doppler runs the chip clock fast and the peak sits
-         EARLIER each epoch (the map's ramp convention). */
-      const double d  = st->search->carrier_freq_hz > 0.0
-                            ? f / st->search->carrier_freq_hz * (double)nx
-                            : 0.0;
-      double       pw = 0.0;
-      for (size_t e = 0; e < D; e++)
-        {
-          const long sh = lround (((double)e - 0.5 * (double)(D - 1)) * d);
-          const long c0 = (((long)col - sh) % (long)nx + (long)nx) % (long)nx;
-          const double _Complex acc = dp_correlator_cell_corr (
-              st, st->search->blk_raw + e * nx, (size_t)c0, f, (double)(e * nx));
-          pw += creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
-        }
-      if (pw > best)
-        {
-          best = pw;
-          win  = h;
-        }
-    }
+    if (pw[h + 1] > best)
+      {
+        best = pw[h + 1];
+        win  = h;
+      }
   return (size_t)(((long)row + win * (long)D + (long)rows) % (long)rows);
+}
+
+/* The native row a surface pick reports: the surface is the Doppler axis
+ * interpolated `interp`-fold, and every consumer scales `doppler_bin` by
+ * `doppler_res_hz`, so a pick on an interpolated row is reported at the
+ * native row of the strongest native cell within its own zone (the two
+ * native neighbours), at its column -- the same rule as before the list,
+ * applied per peak instead of once to the global maximum. `interp == 1`
+ * (wideband mode, and D == 1) is the identity. */
+static inline size_t
+search_native_row (const dp_correlator_state_t *st, const float *surf,
+                   size_t row, size_t col)
+{
+  dp_correlator_search_t *const srch = st->search;
+  if (srch->interp <= 1)
+    return row;
+  const size_t rows = srch->n_surf / srch->lag_bins;
+  size_t       best = rows;
+  for (size_t d = 0; d <= 2 * srch->interp; d++)
+    {
+      size_t r = (row + rows + d - srch->interp) % rows;
+      if (r % srch->interp)
+        continue;
+      size_t k = r * srch->lag_bins + col;
+      if (best == rows || surf[k] > surf[best * srch->lag_bins + col])
+        best = r;
+    }
+  return best / srch->interp;
+}
+
+/* The three hypotheses in order, then the winner (see above). */
+static inline size_t
+search_resolve_tile_alias (const dp_correlator_state_t *st, size_t row, size_t col)
+{
+  if (!search_tile_alias_applies (st))
+    return row;
+  double pw[3];
+  for (long h = -1; h <= 1; h++)
+    pw[h + 1] = search_tile_alias_power (st, row, col, h);
+  return search_tile_alias_pick (st, row, pw);
 }
 
 /**
@@ -632,6 +696,12 @@ typedef struct
   double zone_half_chips; /**< CORRELATOR_STATE_VERSION 3:
                                dp_correlator_set_peak_zone()'s
                                half_chips (a mutator, #2022).      */
+  int32_t threads_req; /**< CORRELATOR_STATE_VERSION 4:
+                            dp_correlator_set_threads()'s n, the REQUEST
+                            (a mutator, #2022), restored through the
+                            setter, so the target's grid and cores cap
+                            it as they would at the call.          */
+  uint32_t _pad;       /**< Zero: the struct's tail, written.       */
 } search_extra_t;
 
 /** @brief Where a search flavor's @ref search_extra_t sits in its blob: after

@@ -190,7 +190,7 @@ double dp_state_filter_state_t::rate;
 
 
 
-its slope, control units per update per update. 
+slope of the frequency estimate: control units per update per update (a Doppler rate R in Hz/s at an update period T in seconds is R \* T^2 cycles per update per update). 
  
 
 

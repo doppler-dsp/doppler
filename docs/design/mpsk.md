@@ -228,9 +228,10 @@ in every case the gate a reader would expect is deliberately absent.
 - **The `strobe` tap is NOT gated on the timing loop's lock detector.** It
     steers from its first strobe, locked or not. An earlier revision gated it,
     on the sound reasoning that a pre-lock strobe is an arbitrary phase of the
-    pulse — and the transient is real (QPSK, sps = 8, 20 dB, 5 seeds: timing
-    declares at symbol 185 on average, and across that window the lock
-    statistic swings −0.947 to +0.888 where a settled lock reads +0.906).
+    pulse — and the transient is real (QPSK, sps = 8, 20 dB, 5 seeds: over
+    the first 185 symbols the lock statistic swings −0.947 to +0.888 where a
+    settled lock reads +0.906, and timing cannot declare before two
+    133-symbol decisions, symbol 266).
     But across a 24-cell sweep the gate changed exactly one cell, and what it
     really bought was making carrier acquisition easier to *measure*, not
     easier to *achieve*. A pre-lock strobe also costs less than it looks: an
@@ -1160,8 +1161,10 @@ falls out at its analytic values, Gardner 1.4997 and DTTL 2.0000.
     through exactly the interval that decides acquisition. That wound the
     integrator past pull-in: on a fine sweep of initial timing offsets, a
     0.3-symbol-wide band took **7000–25403 symbols** to recover. With the lag
-    gone the same band acquires in **133–266** at every offset, and the peak
-    normalised error falls from **38 to 0.13**.
+    gone that band acquires like every other offset, inside the first few
+    lock decisions (RateSync's certification report, §2.4, measures the
+    declare at each offset), and the peak normalised error falls from
+    **38 to 0.13**.
 
 ______________________________________________________________________
 

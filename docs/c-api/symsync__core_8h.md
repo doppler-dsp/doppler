@@ -129,6 +129,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**SYMSYNC\_LOCK\_BUDGET**](symsync__core_8h.md#define-symsync_lock_budget)  `1e-6`<br>_The per-decision false-transition budget the lock's verify counts are derived from, at the (pfa, pd)_ [_**dp\_symsync\_configure\_lock()**_](symsync__core_8h.md#function-dp_symsync_configure_lock) _sizes the threshold at: n\_up = dp\_det\_verify\_count(pfa, budget), n\_down = dp\_det\_verify\_count(1 - pd, budget). 1e-6 is the library's convention for a detector's own default: the Dll's declare budget at its default pfa, and the async receiver's code-lock drop._ |
 | define  | [**SYMSYNC\_LOCK\_EPS**](symsync__core_8h.md#define-symsync_lock_eps)  `1e-12`<br>_Numerical guard added to the on-time + mid-symbol energy sum that normalizes the lock statistic, so a silent input cannot divide by zero (not tunable)._  |
 | define  | [**SYMSYNC\_STATE\_MAGIC**](symsync__core_8h.md#define-symsync_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S', 'Y', 'N', 'C')`<br>_State-blob magic ('SYNC'); set\_state() rejects any other._  |
 | define  | [**SYMSYNC\_STATE\_VERSION**](symsync__core_8h.md#define-symsync_state_version)  `/* multi line expression */`<br>_State-blob layout version; set\_state() rejects any other._  |
@@ -1241,6 +1242,20 @@ Passing a literal `ted` (SYMSYNC\_TED\_GARDNER / SYMSYNC\_TED\_DTTL) lets the fo
 ## Macro Definition Documentation
 
 
+
+
+
+### define SYMSYNC\_LOCK\_BUDGET 
+
+_The per-decision false-transition budget the lock's verify counts are derived from, at the (pfa, pd)_ [_**dp\_symsync\_configure\_lock()**_](symsync__core_8h.md#function-dp_symsync_configure_lock) _sizes the threshold at: n\_up = dp\_det\_verify\_count(pfa, budget), n\_down = dp\_det\_verify\_count(1 - pd, budget). 1e-6 is the library's convention for a detector's own default: the Dll's declare budget at its default pfa, and the async receiver's code-lock drop._
+```C++
+#define SYMSYNC_LOCK_BUDGET `1e-6`
+```
+
+
+
+
+<hr>
 
 
 

@@ -21,7 +21,9 @@
  *   5. steps() == repeated step(), including aliasing
  *   6. The exact function: closed forms, simulation at delays 0, 1, 2 and an
  *      interpolated fraction, a Jury oracle on random gains, order 2 through
- *      the shipped loop filter
+ *      a local copy of the second-order recurrence (the shipped
+ *      dp_loop_filter_step is held against the same function by
+ *      native/validation/state_filter_loop.c under ctest)
  *   7. The stability rectangle: the bound derived from the exact function
  *      rather than restated, the grid, one stable interval in K, the lower
  *      edge against the analytic one
@@ -33,6 +35,7 @@
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -132,6 +135,42 @@ bn3_closed (double kp, double ki, double kr)
           + 4 * ki * kr + 4 * kp * kp * kr + kp * kr * kr - 4 * kp * kr
           + kr * kr)
          / (2.0 * (ki * kp + kp * kr - kr) * (8.0 - 2 * ki - 4 * kp - kr));
+}
+
+/* The gains solved in long double by the same bisection on the same closed
+ * form, written here with no code of the object's: what a platform that
+ * evaluates the closed form with other rounding (a fused multiply-add, a wider
+ * register) could produce. The largest relative difference from the object's
+ * double gains, over the grid below, is what a restore's gain tolerance has to
+ * absorb between platforms. */
+static long double
+bn3_ld (long double kp, long double ki, long double kr)
+{
+  return (2 * ki * ki * kp + 4 * ki * ki + 4 * ki * kp * kp + 3 * ki * kp * kr
+          + 4 * ki * kr + 4 * kp * kp * kr + kp * kr * kr - 4 * kp * kr
+          + kr * kr)
+         / (2.0L * (ki * kp + kp * kr - kr) * (8.0L - 2 * ki - 4 * kp - kr));
+}
+
+static void
+gains_ld (double B, long double *kp, long double *ki, long double *kr)
+{
+  const long double a = 2.0L, b = 2.0L;
+  const long double c  = (a * b * b + a * a - b) / (4.0L * (a * b - 1.0L));
+  const long double s0 = (long double)B / c;
+  long double       lo = 0.5L * s0, hi = 1.01L * s0;
+  for (int i = 0; i < 200; i++)
+    {
+      const long double th = 0.5L * (lo + hi);
+      if (bn3_ld (b * th, a * th * th, th * th * th) < (long double)B)
+        lo = th;
+      else
+        hi = th;
+    }
+  const long double th = 0.5L * (lo + hi);
+  *kp                  = b * th;
+  *ki                  = a * th * th;
+  *kr                  = th * th * th;
 }
 
 /* Jury's conditions for the delay-free third-order loop, written from the
@@ -432,7 +471,7 @@ main (void)
     static const double ts[] = { 0.25, 1.0, 7.0 };
     int                 n_cells  = 0;
     double              worst_bw = 0.0, min_pos = 1.0, max_pos = 0.0;
-    double              worst_exact = 0.0, worst_slow = 0.0;
+    double              worst_exact = 0.0, worst_slow = 0.0, worst_gain = 0.0;
     for (size_t ti = 0; ti < sizeof ts / sizeof *ts; ti++)
       for (int i = 0; i <= 400; i++)
         {
@@ -455,6 +494,20 @@ main (void)
             min_pos = pos;
           if (pos > max_pos)
             max_pos = pos;
+          /* the gains against the long double solve (see gains_ld) */
+          {
+            long double rkp, rki, rkr;
+            gains_ld (sf.bn * sf.t, &rkp, &rki, &rkr);
+            const double d1 = (double)fabsl ((sf.kp - rkp) / rkp);
+            const double d2 = (double)fabsl ((sf.ki - rki) / rki);
+            const double d3 = (double)fabsl ((sf.kr - rkr) / rkr);
+            if (d1 > worst_gain)
+              worst_gain = d1;
+            if (d2 > worst_gain)
+              worst_gain = d2;
+            if (d3 > worst_gain)
+              worst_gain = d3;
+          }
           /* the delivered bandwidth, from the independent closed form */
           const double bw = bn3_closed (sf.kp, sf.ki, sf.kr);
           if (fabs (bw / B - 1.0) > worst_bw)
@@ -477,6 +530,25 @@ main (void)
     printf ("  exact function vs bn*t: worst %.2e over bn*t >= 1e-6, "
             "%.2e below 1e-4\n",
             worst_exact, worst_slow);
+    printf ("  gains vs a long double solve: worst relative difference %.2e "
+            "(long double is %d bits), the restore tolerance is 1e-9\n",
+            worst_gain, LDBL_MANT_DIG);
+    /* The gains match a long double solve to 1e-12 (measured 1.6e-15 on
+     * x86-64, where long double is 64 bits). Where long double is wider than
+     * double (x86-64 Linux 80-bit, arm64 Linux 128-bit) a pass is a bound on
+     * that platform's gains against a wider reference, so two such platforms
+     * agree within 2e-12 and the restore tolerance of 1e-9 is 500 times that.
+     * Where it is not (macOS, Windows) the reference is the same arithmetic
+     * written twice and this says nothing about the platform's spread. The
+     * message names the width so a red leg says which case it was. */
+    {
+      char msg[128];
+      snprintf (msg, sizeof msg,
+                "gains within 1e-12 of a long double solve (long double is "
+                "%d bits, double is %d)",
+                LDBL_MANT_DIG, DBL_MANT_DIG);
+      DP_CHECK_MSG (worst_gain < 1e-12, msg);
+    }
     DP_CHECK (n_cells == 1203);
     DP_CHECK (worst_exact < 1e-9);      /* the exact function, down to 1e-6 */
     DP_CHECK (min_pos > 0.5 * 1.0001);  /* not at the lower end */
@@ -576,7 +648,8 @@ main (void)
           double exact = dp_state_filter_loop_bandwidth (2, lf.kp, lf.ki, 0.0,
                                                          0.0, 1.0);
           DP_CHECK_NEAR (exact / bn2_closed (lf.kp, lf.ki) - 1.0, 0.0, 1e-7);
-          /* The same loop through the SHIPPED filter's own step. */
+          /* The same loop through the local second-order step (lf_step is
+           * ref2_step, a deliberate copy; see ref2_t above). */
           double tail;
           double sim = bn_parseval (lf_step, &lf, 0.0, 1.0,
                                     (size_t)(1500.0 / bn) + 4000, &tail);
@@ -627,11 +700,15 @@ main (void)
     /* (c) Delays and gains against simulation of the real step: integer
      * delays are real transport delays; the fraction is the interpolation
      * model of the header. */
-    static const double     delays[] = { 0.0, 1.0, 2.0, 0.5, 1.25, 3.0 };
-    static const double     gains[]  = { 1.0, 0.7, 1.6 };
+    static const double delays[] = { 0.0, 1.0, 2.0, 0.5, 1.25, 3.0 };
+    /* 0.1 is under the lower gain edge (about 0.25 of nominal) and 60 is
+     * over the upper one at every delay here, so the grid holds unstable
+     * loops too: without them a `stable` that always said 1 would pass. */
+    static const double     gains[] = { 1.0, 0.7, 1.6, 0.1, 60.0 };
     dp_state_filter_state_t s;
+    size_t                  decided = 0, decided_unstable = 0;
     for (size_t di = 0; di < sizeof delays / sizeof *delays; di++)
-      for (size_t gi = 0; gi < 3; gi++)
+      for (size_t gi = 0; gi < sizeof gains / sizeof *gains; gi++)
         {
           fresh (&s, 0.03, 1.0);
           const double model
@@ -640,7 +717,14 @@ main (void)
               = dp_state_filter_stable (&s, delays[di], gains[gi]);
           const int sim = sim_stable (sf_step, &s, delays[di], gains[gi]);
           fresh (&s, 0.03, 1.0);
+          /* a simulation that cannot decide (sim == 0) says nothing, so
+           * the cases it DID decide are counted below */
           DP_CHECK (stable == (sim > 0) || sim == 0);
+          if (sim != 0)
+            {
+              decided++;
+              decided_unstable += sim < 0;
+            }
           if (stable)
             {
               double tail;
@@ -652,6 +736,14 @@ main (void)
           else
             DP_CHECK (isnan (model));
         }
+    printf (
+        "  delays x gains: %zu of 30 decided by the simulation, %zu of them "
+        "unstable\n",
+        decided, decided_unstable);
+    /* every cell is decided, and the two out-of-range gains are unstable at
+     * every one of the six delays (measured: 30 and 12) */
+    DP_CHECK (decided == 30);
+    DP_CHECK (decided_unstable == 12);
     /* A delay lengthens the loop and widens its bandwidth, in the order
      * of the delay (this loop at bn*t = 0.03). */
     fresh (&s, 0.03, 1.0);
@@ -932,6 +1024,33 @@ main (void)
         DP_CHECK (dp_state_filter_set_state (c, blob) == DP_ERR_INVALID);
         DP_CHECK (memcmp (&keep, c, sizeof keep) == 0);
       }
+    /* The gain tolerance of dp_state_filter_state_ok (1e-9 relative, header):
+     * the forged-gain test above perturbs by 1e-3, which a tolerance of 1e-4
+     * also refuses. Here each gain is moved by 1e-10 (accepted) and by 1e-8
+     * (refused), a decade either side of the tolerance, so a tolerance of
+     * 1e-4 or of 1e-12 fails one of the two. */
+    {
+      dp_state_filter_state_t g;
+      memset (&g, 0, sizeof g);
+      dp_state_filter_init (&g, 0.02, 1.0);
+      DP_CHECK (dp_state_filter_state_ok (&g));
+      for (int f = 0; f < 3; f++)
+        for (int sgn = -1; sgn <= 1; sgn += 2)
+          {
+            dp_state_filter_state_t inside = g, outside = g;
+            double                 *pn = f == 0   ? &inside.kp
+                                         : f == 1 ? &inside.ki
+                                                  : &inside.kr;
+            double                 *pf = f == 0   ? &outside.kp
+                                         : f == 1 ? &outside.ki
+                                                  : &outside.kr;
+            *pn *= 1.0 + sgn * 1e-10;
+            *pf *= 1.0 + sgn * 1e-8;
+            DP_CHECK (dp_state_filter_state_ok (&inside));
+            DP_CHECK (!dp_state_filter_state_ok (&outside));
+          }
+    }
+
     /* bn outside the domain, with gains consistent with nothing. */
     dp_state_filter_get_state (a, blob);
     double bad = 5.0;
@@ -943,6 +1062,20 @@ main (void)
       dp_state_filter_state_t wide;
       memset (&wide, 0, sizeof wide);
       dp_state_filter_init (&wide, 0.3, 1.0); /* bn*t = 0.3 > the bound */
+      /* the header's claim about unvalidated init: far past the bound the
+       * corner (K_MAX, DELAY_MAX) is unstable, and just past the constant
+       * (0.121, under the exact bound 0.1248) it is still stable, which is
+       * why the header makes no claim there */
+      DP_CHECK (!dp_state_filter_stable (&wide, STATE_FILTER_DELAY_MAX,
+                                         STATE_FILTER_K_MAX));
+      {
+        dp_state_filter_state_t just;
+        memset (&just, 0, sizeof just);
+        dp_state_filter_init (&just, 0.121, 1.0);
+        DP_CHECK (!dp_state_filter_params_ok (just.bn, just.t));
+        DP_CHECK (dp_state_filter_stable (&just, STATE_FILTER_DELAY_MAX,
+                                          STATE_FILTER_K_MAX));
+      }
       DP_CHECK (!dp_state_filter_params_ok (wide.bn, wide.t));
       void *wblob = malloc (dp_state_filter_state_bytes (&wide));
       dp_state_filter_get_state (&wide, wblob);
@@ -1126,6 +1259,55 @@ main (void)
         dp_state_filter_loop_bandwidth (3, 1e200, 1e200, 1e200, 0.0, 1.0)));
     DP_CHECK (
         !dp_state_filter_loop_stable (3, 1e100, 1e100, 1e100, 4.0, 1e100));
+  }
+
+  /* 12 ── The reason a refusal gives names the argument ──────────────────
+   * dp_state_filter_params_why is the predicate with a sentence: NULL exactly
+   * when dp_state_filter_params_ok accepts, and otherwise a sentence that
+   * names the argument that failed. Each refusal has its minimal pair (the
+   * same call with that one argument made good), which gives no reason. */
+  {
+    static const struct
+    {
+      double      bn, t;
+      const char *names; /* what the sentence must mention */
+    } refuse[] = {
+      { 0.01, 0.0, "t must" },
+      { 0.01, -1.0, "t must" },
+      { 0.01, INFINITY, "t must" },
+      { 0.01, NAN, "t must" },
+      { NAN, 1.0, "bn must not be NaN" },
+      { INFINITY, 1.0, "bn must be finite" },
+      { -0.01, 1.0, "bn must be >= 0" },
+      { 1e-31, 1.0, "bn*t is below" },
+      { STATE_FILTER_BNT_MAX * 1.01, 1.0, "bn*t is above" },
+    };
+    for (size_t i = 0; i < sizeof refuse / sizeof *refuse; i++)
+      {
+        const char *w = dp_state_filter_params_why (refuse[i].bn, refuse[i].t);
+        DP_CHECK (w != NULL && strstr (w, refuse[i].names) != NULL);
+        DP_CHECK (!dp_state_filter_params_ok (refuse[i].bn, refuse[i].t));
+        const char *why = "unset";
+        DP_CHECK (dp_state_filter_create_why (refuse[i].bn, refuse[i].t, &why)
+                  == NULL);
+        DP_CHECK (why == w);
+      }
+    /* the minimal pairs: each argument made good, the pair is accepted and
+     * has no reason, and create_why builds and sets why to NULL */
+    static const double good[][2]
+        = { { 0.01, 1.0 }, { 0.0, 1.0 }, { STATE_FILTER_BNT_MAX, 1.0 } };
+    for (size_t i = 0; i < sizeof good / sizeof *good; i++)
+      {
+        DP_CHECK (dp_state_filter_params_why (good[i][0], good[i][1]) == NULL);
+        DP_CHECK (dp_state_filter_params_ok (good[i][0], good[i][1]));
+        const char              *why = "unset";
+        dp_state_filter_state_t *ok
+            = dp_state_filter_create_why (good[i][0], good[i][1], &why);
+        DP_CHECK (ok != NULL && why == NULL);
+        dp_state_filter_destroy (ok);
+      }
+    /* and a NULL why is allowed */
+    DP_CHECK (dp_state_filter_create_why (0.01, 0.0, NULL) == NULL);
   }
 
   DP_TEST_END ("test_state_filter_core");

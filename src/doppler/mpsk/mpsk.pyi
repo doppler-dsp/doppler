@@ -17,7 +17,7 @@ def mpsk_map(
     ----------
     sym : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Gray label bytes (0..M-1), one per symbol.
-    m : int
+    m : int, default 4
         M in {2,4,8}.
 
     Returns
@@ -50,7 +50,7 @@ def mpsk_demap(x: npt.NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     ----------
     x : npt.NDArray[np.complex64]
         Received symbols (any amplitude; phase only).
-    m : int
+    m : int, default 4
         M in {2,4,8}.
 
     Returns
@@ -90,7 +90,7 @@ def mpsk_diff_map(
     ----------
     sym : npt.NDArray[np.uint8] | bytes | bytearray | memoryview
         Gray label bytes (0..M-1), one per symbol.
-    m : int
+    m : int, default 4
         M in {2,4,8}.
 
     Returns
@@ -127,7 +127,7 @@ def mpsk_diff_demap(
     ----------
     x : npt.NDArray[np.complex64]
         Received symbols (any amplitude; phase only).
-    m : int
+    m : int, default 4
         M in {2,4,8}.
 
     Returns
@@ -194,9 +194,9 @@ def mpsk_soft_demap(
         which uses phase only).
     llr : npt.NDArray[np.float32]
         Out: x_len * log2(M) LLRs.
-    m : int
+    m : int, default 4
         M in {2,4,8}.
-    n0 : float
+    n0 : float, default 1.0
         Noise power `E[|n|^2]`; must be positive.
 
     Examples
@@ -218,7 +218,7 @@ def mpsk_bits_per_symbol(m: int = 4) -> int:
 
     Parameters
     ----------
-    m : int
+    m : int, default 4
         M in {2,4,8}.
 
     Returns
@@ -247,7 +247,7 @@ def qam_map(sym: npt.NDArray[np.uint16], m: int = 16) -> NDArray[np.complex64]:
     ----------
     sym : npt.NDArray[np.uint16]
         Labels (0 .. M-1), one per symbol, 16-bit.
-    m : int
+    m : int, default 16
         M in {4, 16, 64, 256, 1024}.
 
     Returns
@@ -278,7 +278,7 @@ def qam_demap(x: npt.NDArray[np.complex64], m: int = 16) -> NDArray[np.uint16]:
     ----------
     x : npt.NDArray[np.complex64]
         Received symbols; amplitude matters.
-    m : int
+    m : int, default 16
         M in {4, 16, 64, 256, 1024}.
 
     Returns
@@ -302,7 +302,7 @@ def qam_bits_per_symbol(m: int = 16) -> int:
 
     Parameters
     ----------
-    m : int
+    m : int, default 16
         M in {4, 16, 64, 256, 1024}.
 
     Returns

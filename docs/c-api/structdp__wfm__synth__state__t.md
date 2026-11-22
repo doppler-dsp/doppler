@@ -57,6 +57,11 @@ _Synth state: one streaming waveform source._ [More...](#detailed-description)
 |  int | [**data\_mode**](#variable-data_mode)  <br> |
 |  [**dp\_fir\_state\_t**](structdp__fir__state__t.md) \* | [**fir**](#variable-fir)  <br> |
 |  size\_t | [**frame\_symbols**](#variable-frame_symbols)  <br> |
+|  [**wfm\_synth\_frame\_fn**](wfm__synth__core_8h.md#typedef-wfm_synth_frame_fn) | [**frames**](#variable-frames)  <br> |
+|  uint64\_t | [**frames\_done**](#variable-frames_done)  <br> |
+|  void(\* | [**frames\_free**](#variable-frames_free)  <br> |
+|  const [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) \* | [**frames\_state**](#variable-frames_state)  <br> |
+|  void \* | [**frames\_user**](#variable-frames_user)  <br> |
 |  [**dp\_lo\_state\_t**](structdp__lo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
 |  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
 |  size\_t | [**n\_code**](#variable-n_code)  <br> |
@@ -69,6 +74,7 @@ _Synth state: one streaming waveform source._ [More...](#detailed-description)
 |  void(\* | [**refill\_free**](#variable-refill_free)  <br> |
 |  const [**wfm\_synth\_refill\_state\_t**](structwfm__synth__refill__state__t.md) \* | [**refill\_state**](#variable-refill_state)  <br> |
 |  void \* | [**refill\_user**](#variable-refill_user)  <br> |
+|  uint8\_t | [**refused**](#variable-refused)  <br> |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**shaper**](#variable-shaper)  <br> |
 |  uint64\_t | [**sym\_idx**](#variable-sym_idx)  <br> |
 |  int | [**sym\_pos**](#variable-sym_pos)  <br> |
@@ -488,6 +494,91 @@ config: frame length in symbols; 0 = no window
 
 
 
+### variable frames 
+
+```C++
+wfm_synth_frame_fn dp_wfm_synth_state_t::frames;
+```
+
+
+
+frame renderer, or NULL 
+
+
+        
+
+<hr>
+
+
+
+### variable frames\_done 
+
+```C++
+uint64_t dp_wfm_synth_state_t::frames_done;
+```
+
+
+
+running: frames rendered so far; 0 means no frame is in play 
+
+
+        
+
+<hr>
+
+
+
+### variable frames\_free 
+
+```C++
+void(* dp_wfm_synth_state_t::frames_free) (void *);
+```
+
+
+
+frees `frames_user`, or NULL 
+
+
+        
+
+<hr>
+
+
+
+### variable frames\_state 
+
+```C++
+const wfm_synth_refill_state_t* dp_wfm_synth_state_t::frames_state;
+```
+
+
+
+the renderer's state triplet, or NULL 
+
+
+        
+
+<hr>
+
+
+
+### variable frames\_user 
+
+```C++
+void* dp_wfm_synth_state_t::frames_user;
+```
+
+
+
+argument passed to `frames` 
+
+
+        
+
+<hr>
+
+
+
 ### variable lo 
 
 ```C++
@@ -684,6 +775,23 @@ void* dp_wfm_synth_state_t::refill_user;
 
 
 argument passed to `refill` 
+
+
+        
+
+<hr>
+
+
+
+### variable refused 
+
+```C++
+uint8_t dp_wfm_synth_state_t::refused;
+```
+
+
+
+running: 1 when the data ended by the renderer refusing a frame (data\_ended is 1 too) 
 
 
         

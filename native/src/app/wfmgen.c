@@ -345,6 +345,12 @@ static const char USAGE[]
       "  burst-frame flags (--acq-code/--sync/--crc/--frame) and --code-only\n"
       "  with a data source. --data-code (above) is "
       "required.\n" WFM_SURFACE_HELP_DSSS_CONT "\n"
+      "OFDM (--type ofdm)\n"
+      "  802.11a/g/p/j PPDUs: the data of each frame (--data, --data-len) is\n"
+      "  the PSDU. --wlan N is --constellation and --code-rate for the 20 "
+      "MHz\n"
+      "  rate N Mb/s. fs must be an integer multiple of "
+      "--bandwidth.\n" WFM_SURFACE_HELP_OFDM "\n"
       "CLOCK DOPPLER\n"
       "  Rescales the whole received time base, so the symbol and chip rates\n"
       "  move with the carrier -- what a real pass does, and what --freq\n"
@@ -434,15 +440,17 @@ source_free (wfm_source_t *s)
   free (s->symbols);
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
+  free ((void *)s->mac_header.bits);
   free ((void *)s->data.bits);
   free ((void *)s->fill.bits);
   s->data.bits = NULL;
   s->fill.bits = NULL;
   /* Nulled individually, not chained: `symbols` is float _Complex * while the
      rest are uint8_t *, so a chain would be an incompatible assignment. */
-  s->symbols        = NULL;
-  s->acq_code.bits  = NULL;
-  s->data_code.bits = NULL;
+  s->symbols         = NULL;
+  s->acq_code.bits   = NULL;
+  s->data_code.bits  = NULL;
+  s->mac_header.bits = NULL;
   /* A --frame description is the CLI's own, read from its file. */
   dp_wfm_frame_free ((wfm_frame_desc_t *)s->frame);
   s->frame = NULL;

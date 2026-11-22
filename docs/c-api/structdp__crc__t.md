@@ -8,7 +8,7 @@
 
 
 
-_A CRC model: width, polynomial, initial register, output reflection and output XOR._ [More...](#detailed-description)
+_A CRC model: width, polynomial, initial register, output reflection, output XOR and input reflection._ [More...](#detailed-description)
 
 * `#include <dp_crc.h>`
 
@@ -38,6 +38,7 @@ _A CRC model: width, polynomial, initial register, output reflection and output 
 | ---: | :--- |
 |  uint64\_t | [**init**](#variable-init)  <br> |
 |  uint64\_t | [**poly**](#variable-poly)  <br> |
+|  int | [**refin**](#variable-refin)  <br> |
 |  int | [**refout**](#variable-refout)  <br> |
 |  unsigned | [**width**](#variable-width)  <br> |
 |  uint64\_t | [**xorout**](#variable-xorout)  <br> |
@@ -124,6 +125,24 @@ uint64_t dp_crc_t::poly;
 
 
 generator polynomial, normal form, `width` bits 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable refin 
+
+```C++
+int dp_crc_t::refin;
+```
+
+
+
+non-zero: dp\_crc\_bytes() feeds each octet LSB-first; the catalogue's `refin`. dp\_crc\_bits() ignores it: its stream is already in bit order. Last, so a literal written before this field existed compiles as `refin = 0`: write models with designated initializers. 
  
 
 

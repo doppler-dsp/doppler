@@ -158,7 +158,12 @@ dp_wfm_synth_create (int type, double fs, double freq, double snr,
 static int
 wfm_synth_runnable (const dp_wfm_synth_state_t *s, int t, int shaped)
 {
-  if (t < WFM_SYNTH_TONE || t > WFM_SYNTH_DSSS)
+  if (t < WFM_SYNTH_TONE || t > WFM_SYNTH_FRAMES)
+    return 0;
+  /* A frames synth has its frame buffers and renderer installed, and no other
+     synth has them: the type neither enters nor leaves frames by a setter or a
+     blob. */
+  if ((t == WFM_SYNTH_FRAMES) != (s->wtype == WFM_SYNTH_FRAMES))
     return 0;
   const int reads_pn = (t >= WFM_SYNTH_PN && t <= WFM_SYNTH_QPSK)
                        || (shaped && t != WFM_SYNTH_SYMBOLS
@@ -276,11 +281,12 @@ dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
      (each burst one frame of the source), or a continuous dsss stream's
      payload, read a bit per data symbol. A continuous stream with no
      payload (code-only, or its own PRBS) has nothing to refill. */
-  const int dsss = state->wtype == WFM_SYNTH_DSSS
-                   && (!(state->chips_per_symbol > 0.0)
-                       || state->data_mode == WFM_DSSS_DATA_BITS);
+  const int dsss   = state->wtype == WFM_SYNTH_DSSS
+                     && (!(state->chips_per_symbol > 0.0)
+                         || state->data_mode == WFM_DSSS_DATA_BITS);
+  const int frames = state->wtype == WFM_SYNTH_FRAMES && state->frames;
   if (fn
-      && ((state->wtype != WFM_SYNTH_BITS && !dsss) || !state->bits
+      && ((state->wtype != WFM_SYNTH_BITS && !dsss && !frames) || !state->bits
           || !state->n_bits))
     return -1;
   if (state->refill_free)
@@ -291,6 +297,7 @@ dp_wfm_synth_set_refill (dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
   /* A triplet belongs to the refill it was given for. */
   state->refill_state = NULL;
   state->data_ended   = 0;
+  state->refused      = 0; /* the flag says why data_ended is set */
   if (!fn && state->bit_idx >= state->n_bits)
     state->bit_idx = 0; /* detached at a boundary: cycle from the top */
   return 0;
@@ -304,6 +311,70 @@ dp_wfm_synth_set_refill_state (dp_wfm_synth_state_t           *state,
     return -1;
   state->refill_state = ops;
   return 0;
+}
+
+int
+dp_wfm_synth_attach_frames (dp_wfm_synth_state_t *state, wfm_synth_frame_fn fn,
+                            void  *user, void (*free_user) (void *),
+                            size_t n_bits, size_t n_out)
+{
+  if (state->wtype != WFM_SYNTH_FRAMES)
+    return -1;
+  if (!fn)
+    {
+      /* detach: the frame in play plays out and the data then ends */
+      if (state->frames_free)
+        state->frames_free (state->frames_user);
+      state->frames       = NULL;
+      state->frames_user  = NULL;
+      state->frames_free  = NULL;
+      state->frames_state = NULL;
+      return 0;
+    }
+  if (n_bits == 0 || n_bits > WFM_SYNTH_FRAME_MAX || n_out == 0
+      || n_out > WFM_SYNTH_FRAME_MAX)
+    return -1;
+  /* Both are at most 2^24 (the cap above), allocated by the library's own
+     helper, which aborts on exhaustion as every allocation here does. */
+  uint8_t        *bits = dp_xcalloc (n_bits, 1);
+  float _Complex *syms = dp_xcalloc (n_out, sizeof *syms);
+  if (state->frames_free)
+    state->frames_free (state->frames_user);
+  free (state->bits);
+  free (state->symbols);
+  state->bits         = bits;
+  state->n_bits       = n_bits;
+  state->bit_idx      = 0;
+  state->symbols      = syms;
+  state->n_symbols    = n_out;
+  state->sym_read_idx = n_out; /* no frame drawn yet */
+  state->frames       = fn;
+  state->frames_user  = user;
+  state->frames_free  = free_user;
+  state->frames_state = NULL;
+  state->frames_done  = 0;
+  state->refused      = 0;
+  state->data_ended   = 0;
+  /* a new renderer is a new source: whatever refill fed the old one no longer
+     describes these bits */
+  (void)dp_wfm_synth_set_refill (state, NULL, NULL, NULL);
+  return 0;
+}
+
+int
+dp_wfm_synth_attach_frames_state (dp_wfm_synth_state_t           *state,
+                                  const wfm_synth_refill_state_t *ops)
+{
+  if (!state->frames)
+    return -1;
+  state->frames_state = ops;
+  return 0;
+}
+
+int
+dp_wfm_synth_frames_refused (const dp_wfm_synth_state_t *state)
+{
+  return state->refused != 0;
 }
 
 /* The symbol-position counter indexes the one-symbol chip buffer the kernel
@@ -344,6 +415,19 @@ dp_wfm_synth_clock_ok (uint64_t chip_n, uint64_t sym_idx, double cps,
 const char *
 dp_wfm_synth_state_refusal (const dp_wfm_synth_state_t *state)
 {
+  /* A frame in play is carried as its bits and re-rendered on restore, which
+     needs the renderer and the bit source that made it: with either detached
+     mid-frame the blob would be refused by its own synth. */
+  if (state->wtype == WFM_SYNTH_FRAMES
+      && state->sym_read_idx < state->n_symbols
+      && (!state->frames || !state->refill))
+    return "the synth has a frame in play but no renderer or no bit source "
+           "to re-render it from, so the frame cannot be carried";
+  if (state->frames_state && state->frames_state->state_bytes
+      && state->frames_state->state_bytes (state->frames_user) == 0)
+    return state->frames_state->refusal
+               ? state->frames_state->refusal (state->frames_user)
+               : "the synth's frame renderer refuses to serialize";
   if (!state->refill)
     return NULL;
   const wfm_synth_refill_state_t *ops = state->refill_state;
@@ -482,6 +566,8 @@ dp_wfm_synth_destroy (dp_wfm_synth_state_t *state)
     dp_resamp_destroy (state->shaper);
   if (state->refill_free)
     state->refill_free (state->refill_user);
+  if (state->frames_free)
+    state->frames_free (state->frames_user);
   free (state->bits);
   free (state->symbols);
   free (state->code);
@@ -519,14 +605,25 @@ dp_wfm_synth_reset (dp_wfm_synth_state_t *state)
   state->bit_idx = 0; /* rewind the bit pattern */
   /* A pattern with no refill is the whole of the data, so rewinding it
      un-ends it; a pulled source cannot rewind what it has consumed. */
-  if (!state->refill)
-    state->data_ended = 0;
-  state->sym_read_idx = 0;   /* rewind the complex-symbol stream */
-  state->chirp_ph     = 0.0; /* rewind the sweep; span/slope stay locked */
-  state->chirp_n      = 0;
-  state->chip_n       = 0; /* rewind the continuous-DSSS chip/symbol clocks */
-  state->sym_idx      = 0;
-  state->cur_data     = 0;
+  const int frames = state->wtype == WFM_SYNTH_FRAMES;
+  if (!state->refill && !frames)
+    {
+      state->data_ended = 0;
+      state->refused    = 0;
+    }
+  /* A frames synth has no pattern: it replays the frame in play, which is
+     what set_state calls one too, the cursor below n_symbols. A spent frame
+     (the cursor at n_symbols), none drawn yet, a refusal or the end of the
+     data leave nothing in play, so the cursor stays and nothing replays;
+     frames_done, the data source and the end flags are not rewound (a source
+     cannot rewind what it has consumed). */
+  if (!frames || state->sym_read_idx < state->n_symbols)
+    state->sym_read_idx = 0; /* rewind the complex-symbol stream */
+  state->chirp_ph = 0.0;     /* rewind the sweep; span/slope stay locked */
+  state->chirp_n  = 0;
+  state->chip_n   = 0; /* rewind the continuous-DSSS chip/symbol clocks */
+  state->sym_idx  = 0;
+  state->cur_data = 0;
   if (state->fir)
     dp_fir_reset (state->fir); /* clear the RRC delay line */
   if (state->shaper)
@@ -582,7 +679,10 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
              + sizeof (uint8_t)                          /* primed       */
              + sizeof (uint8_t)                          /* data_ended   */
              + 2 * sizeof (uint64_t)                     /* dsss window  */
-             + 6;                                        /* presence     */
+             + sizeof (uint64_t)                         /* frames_done  */
+             + sizeof (uint8_t)                          /* refused      */
+             + 2 * sizeof (uint64_t)                     /* n_bits, n_out */
+             + 7;                                        /* presence     */
   if (s->fir)
     b += dp_fir_state_bytes (s->fir);
   if (s->shaper)
@@ -595,6 +695,8 @@ dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *s)
     b += dp_pn_state_bytes (s->pn);
   if (s->refill) /* the frame in play, then the source's position */
     b += s->n_bits + s->refill_state->state_bytes (s->refill_user);
+  if (s->frames_state) /* the renderer's own state, last */
+    b += s->frames_state->state_bytes (s->frames_user);
   return b;
 }
 
@@ -620,9 +722,19 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
   dp_w_bytes (&_w, &s->data_ended, 1);
   dp_w_u64 (&_w, (uint64_t)s->code_only_symbols);
   dp_w_u64 (&_w, (uint64_t)s->frame_symbols);
-  uint8_t pres[6] = { s->fir != NULL,  s->shaper != NULL, s->lo != NULL,
-                      s->awgn != NULL, s->pn != NULL,     s->refill != NULL };
-  dp_w_bytes (&_w, pres, 6);
+  dp_w_u64 (&_w, s->frames_done);
+  dp_w_bytes (&_w, &s->refused, 1);
+  /* a frames synth's frame geometry, written so a blob restores only into a
+     synth with the same frame (the samples are not in it); 0 for the other
+     types. With no bit source attached the frame in play's bits are not in
+     the blob, so the bit count is a key of its own. */
+  dp_w_u64 (&_w, s->wtype == WFM_SYNTH_FRAMES ? (uint64_t)s->n_bits : 0u);
+  dp_w_u64 (&_w, s->wtype == WFM_SYNTH_FRAMES ? (uint64_t)s->n_symbols : 0u);
+  uint8_t pres[7]
+      = { s->fir != NULL,         s->shaper != NULL, s->lo != NULL,
+          s->awgn != NULL,        s->pn != NULL,     s->refill != NULL,
+          s->frames_state != NULL };
+  dp_w_bytes (&_w, pres, 7);
   if (s->fir)
     DP_W_CHILD (&_w, dp_fir, s->fir);
   if (s->shaper)
@@ -641,7 +753,38 @@ dp_wfm_synth_get_state (const dp_wfm_synth_state_t *s, void *blob)
       if (sub)
         ops->get_state (s->refill_user, sub);
     }
+  if (s->frames_state)
+    {
+      void *sub
+          = dp_w_reserve (&_w, s->frames_state->state_bytes (s->frames_user));
+      if (sub)
+        s->frames_state->get_state (s->frames_user, sub);
+    }
 }
+
+/* Whether @p sub is an envelope of the same kind, version and size as the live
+   object's own (its get_state output is the reference): the check a child's
+   set_state would make first, made before anything is written. */
+static int
+sub_envelope_ok (const void *sub, size_t bytes, const void *live)
+{
+  const dp_state_hdr_t *h = live;
+  return sub && dp_state_validate (sub, bytes, h->magic, h->version) == DP_OK;
+}
+
+/* Walk one child's sub-blob in the read-ahead and check its envelope. */
+#define ENV_CHILD(pfx, child)                                                 \
+  do                                                                          \
+    {                                                                         \
+      const size_t _n  = pfx##_state_bytes (child);                           \
+      const void  *_sb = dp_r_reserve (&a, _n);                               \
+      void        *_lv = dp_xmallocn (_n, 1);                                 \
+      pfx##_get_state (child, _lv);                                           \
+      if (!sub_envelope_ok (_sb, _n, _lv))                                    \
+        bad = 1;                                                              \
+      free (_lv);                                                             \
+    }                                                                         \
+  while (0)
 
 int
 dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
@@ -658,7 +801,9 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
      end is what dp_wfm_synth_set_dsss_window refuses, and the child-presence
      bytes read only blob bytes and config. Children restore after this
      commit, so a child that refuses leaves these fields restored; that is
-     #2104. */
+     #2104. A frames synth restores its children BEFORE the commit and its
+     bit source after them (below), because the source's move cannot be
+     undone and must follow the last thing that can refuse. */
   /* The type is a mutator's value (set_wtype), so it travels (#2095). It is
      checked with set_wtype's own predicate against the shaper this target
      holds (the child set is checked below, and must match). */
@@ -685,10 +830,28 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
      window restores whether or not this synth was given one. */
   const uint64_t code_only = dp_r_u64 (&_r);
   const uint64_t frame     = dp_r_u64 (&_r);
-  uint8_t pres[6] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
-  dp_r_bytes (&_r, pres, 6);
+  /* In the blob since v7: the frames rendered and the refusal flag. */
+  const uint64_t frames_done = dp_r_u64 (&_r);
+  uint8_t        refused     = 0;
+  dp_r_bytes (&_r, &refused, 1);
+  const uint64_t blob_n_bits = dp_r_u64 (&_r);
+  const uint64_t blob_n_out  = dp_r_u64 (&_r);
+  uint8_t pres[7] = { 0 }; /* dp_r_bytes writes nothing on an errored reader */
+  dp_r_bytes (&_r, pres, 7);
+  /* A frames synth's cursor stops at n_symbols, so it ranges 0..n_symbols; the
+     others wrap, so it is below n_symbols. A frame is in play exactly when the
+     cursor is below n_symbols, and then at least one frame has been rendered.
+   */
+  const int fr = s->wtype == WFM_SYNTH_FRAMES;
   if (!wfm_synth_runnable (s, wtype, s->shaper != NULL)
-      || sym_read_idx >= (s->n_symbols ? s->n_symbols : 1)
+      || (fr ? sym_read_idx > s->n_symbols
+             : sym_read_idx >= (s->n_symbols ? s->n_symbols : 1))
+      || (fr && sym_read_idx < s->n_symbols && frames_done == 0)
+      || (fr && data_ended && sym_read_idx < s->n_symbols)
+      || blob_n_bits != (fr ? (uint64_t)s->n_bits : 0u)
+      || blob_n_out != (fr ? (uint64_t)s->n_symbols : 0u)
+      || (!fr && (frames_done != 0 || refused != 0)) || refused > 1
+      || (refused && !data_ended)
       || !dp_wfm_synth_sym_pos_ok (sym_pos, s->nsps)
       || (frame && code_only > frame))
     return DP_ERR_INVALID;
@@ -705,8 +868,124 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
       || (pres[2] != 0) != (s->lo != NULL)
       || (pres[3] != 0) != (s->awgn != NULL)
       || (pres[4] != 0) != (s->pn != NULL)
-      || (pres[5] != 0) != (s->refill != NULL))
+      || (pres[5] != 0) != (s->refill != NULL)
+      || (pres[6] != 0) != (s->frames_state != NULL))
     return DP_ERR_INVALID;
+  /* A frames synth re-renders the frame in play from the blob's bits and
+     index, BEFORE anything is committed: the renderer's own state first (a
+     configuration it refuses is refused here, and its set_state is its own
+     commit), then the frame into a scratch buffer, then the bit source's
+     position. The frame's bits and the sub-blobs are read ahead, past the
+     children, whose sizes are this instance's. */
+  const uint8_t  *fbits   = NULL;
+  float _Complex *scratch = NULL;
+  if (fr)
+    {
+      dp_reader_t a   = _r;
+      int         bad = 0;
+      /* A frames synth has the carrier and the noise and no shaper, pulse
+         filter or PN register (those types are not this one's). */
+      if (s->lo)
+        ENV_CHILD (dp_lo, s->lo);
+      if (s->awgn)
+        ENV_CHILD (dp_awgn, s->awgn);
+      const void *rsub = NULL, *csub = NULL;
+      if (s->refill)
+        {
+          const size_t rn = s->refill_state->state_bytes (s->refill_user);
+          fbits           = dp_r_reserve (&a, s->n_bits);
+          rsub            = dp_r_reserve (&a, rn);
+          void *lv        = dp_xmallocn (rn, 1);
+          s->refill_state->get_state (s->refill_user, lv);
+          if (!sub_envelope_ok (rsub, rn, lv))
+            bad = 1;
+          free (lv);
+          /* the renderer is promised bits of 0 or 1 */
+          for (size_t k = 0; fbits && k < s->n_bits; k++)
+            if (fbits[k] > 1)
+              bad = 1;
+        }
+      if (s->frames_state)
+        {
+          const size_t cn = s->frames_state->state_bytes (s->frames_user);
+          csub            = dp_r_reserve (&a, cn);
+          void *lv        = dp_xmallocn (cn, 1);
+          /* The renderer carries no running state: its bytes are its
+             configuration, compared whole with the live renderer's. Its
+             set_state is never called, so no refusal can leave it changed. */
+          s->frames_state->get_state (s->frames_user, lv);
+          if (!csub || memcmp (csub, lv, cn) != 0)
+            bad = 1;
+          free (lv);
+        }
+      if (bad || a.err || (s->refill && (!fbits || !rsub))
+          || (s->frames_state && !csub))
+        return DP_ERR_INVALID;
+      if (sym_read_idx < s->n_symbols)
+        {
+          /* The frame in play is re-rendered from the blob's bits, so both
+             the renderer and the bit source's bits must exist HERE: a
+             synth whose renderer was detached (attach_frames with NULL)
+             matches every presence byte of a blob taken without a renderer
+             triplet, and a hand-edited blob can put the cursor mid frame
+             with no bits. */
+          if (!s->frames || !fbits)
+            return DP_ERR_INVALID;
+          scratch = dp_mallocn (s->n_symbols, sizeof *scratch);
+          if (!scratch
+              || s->frames (s->frames_user, frames_done - 1u, fbits, s->n_bits,
+                            scratch, s->n_symbols)
+                     != 0)
+            {
+              free (scratch);
+              return DP_ERR_INVALID;
+            }
+        }
+      /* The children restore next, and the bit source after them: a child's
+         set_state checks more than its envelope (the AWGN refuses an all-zero
+         generator or a bad amplitude), so it can still refuse here, and the
+         source's position is the one thing a refusal cannot put back (it is
+         outside the synth: a counter, a file, a user's data). So nothing
+         irreversible moves before the last thing that can refuse. A child
+         that refuses leaves the children before it restored (#2104) and the
+         source, the frame and the synth's own fields as they were. A frames
+         synth has only these two children (no shaper, filter or PN). */
+      dp_reader_t c = _r;
+      if (s->lo)
+        {
+          const void *cr = dp_r_reserve (&c, dp_lo_state_bytes (s->lo));
+          if (!cr || dp_lo_set_state (s->lo, cr) != DP_OK)
+            {
+              free (scratch);
+              return DP_ERR_INVALID;
+            }
+        }
+      if (s->awgn)
+        {
+          const void *cr = dp_r_reserve (&c, dp_awgn_state_bytes (s->awgn));
+          if (!cr || dp_awgn_set_state (s->awgn, cr) != DP_OK)
+            {
+              free (scratch);
+              return DP_ERR_INVALID;
+            }
+        }
+      if (s->refill
+          && s->refill_state->set_state (s->refill_user, rsub) != DP_OK)
+        {
+          free (scratch);
+          return DP_ERR_INVALID;
+        }
+      /* from here nothing can fail */
+      if (fbits)
+        memcpy (s->bits, fbits, s->n_bits);
+      if (scratch)
+        {
+          memcpy (s->symbols, scratch, s->n_symbols * sizeof *scratch);
+          free (scratch);
+        }
+    }
+  s->frames_done       = frames_done;
+  s->refused           = refused;
   s->wtype             = wtype;
   s->sym_pos           = sym_pos;
   s->cur_re            = cur_re;
@@ -730,13 +1009,13 @@ dp_wfm_synth_set_state (dp_wfm_synth_state_t *s, const void *blob)
     DP_R_CHILD (&_r, dp_fir, s->fir);
   if (s->shaper)
     DP_R_CHILD (&_r, dp_resamp, s->shaper);
-  if (s->lo)
+  if (s->lo && !fr) /* a frames synth restored its two above */
     DP_R_CHILD (&_r, dp_lo, s->lo);
-  if (s->awgn)
+  if (s->awgn && !fr)
     DP_R_CHILD (&_r, dp_awgn, s->awgn);
   if (s->pn)
     DP_R_CHILD (&_r, dp_pn, s->pn);
-  if (s->refill)
+  if (s->refill && !fr)
     {
       const wfm_synth_refill_state_t *ops   = s->refill_state;
       const uint8_t                  *frame = dp_r_reserve (&_r, s->n_bits);
@@ -796,6 +1075,7 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
      cyclic bits[] latch. chips_per_symbol > 0 is the discriminator. */
   const int is_cont    = state->chips_per_symbol > 0.0;
   const int is_symbols = state->wtype == WFM_SYNTH_SYMBOLS;
+  const int is_frames  = state->wtype == WFM_SYNTH_FRAMES;
   const int is_chirp   = state->wtype == WFM_SYNTH_CHIRP;
   const int modulated
       = state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK;
@@ -850,6 +1130,27 @@ dp_wfm_synth_steps (dp_wfm_synth_state_t *state, float _Complex *output,
             wfm_synth_add_noise (out, noise, m);
           bit_idx = state->bit_idx;
           sidx    = state->sym_read_idx;
+          done += m;
+          continue;
+        }
+
+      if (is_frames)
+        {
+          /* Finished frames, played as they are: wfm_synth_frame_ahead() draws
+           * the next frame when the cursor reaches the end of the one in play
+           * and is the only place the cursor moves (the single step calls it
+           * too); silence follows the data's end. The carrier and the noise
+           * are applied after the frame. */
+          for (size_t i = 0; i < m; i++)
+            {
+              float _Complex sym = wfm_synth_frame_ahead (state)
+                                       ? state->symbols[state->sym_read_idx++]
+                                       : (0.0f + 0.0f * I);
+              out[i]             = has_lo ? sym * carrier[i] : sym;
+            }
+          if (has_awgn)
+            wfm_synth_add_noise (out, noise, m);
+          sidx = state->sym_read_idx; /* re-sync the block-local cursor */
           done += m;
           continue;
         }

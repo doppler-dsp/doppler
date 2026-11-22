@@ -121,6 +121,7 @@ _The wfm field surface table: every source and segment field a non-Python face r
 | define  | [**WFM\_SURFACE\_HELP\_DSSS\_BURST**](wfm__surface_8h.md#define-wfm_surface_help_dsss_burst)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_DSSS\_CONT**](wfm__surface_8h.md#define-wfm_surface_help_dsss_cont)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_NOISE**](wfm__surface_8h.md#define-wfm_surface_help_noise)  `/* multi line expression */`<br> |
+| define  | [**WFM\_SURFACE\_HELP\_OFDM**](wfm__surface_8h.md#define-wfm_surface_help_ofdm)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_PN**](wfm__surface_8h.md#define-wfm_surface_help_pn)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_PULSE**](wfm__surface_8h.md#define-wfm_surface_help_pulse)  `/* multi line expression */`<br> |
 | define  | [**WFM\_SURFACE\_HELP\_SIGNAL**](wfm__surface_8h.md#define-wfm_surface_help_signal)  `/* multi line expression */`<br> |
@@ -182,6 +183,15 @@ enum wfm__surface_8h_1ac36f475ca5b446f4fde4c9b90bec77c8 {
     WFM_SURFACE_source_fill,
     WFM_SURFACE_source_code_only_symbols,
     WFM_SURFACE_source_frame_symbols,
+    WFM_SURFACE_source_wlan,
+    WFM_SURFACE_source_constellation,
+    WFM_SURFACE_source_code_rate,
+    WFM_SURFACE_source_scrambler_init,
+    WFM_SURFACE_source_window,
+    WFM_SURFACE_source_mac,
+    WFM_SURFACE_source_gap,
+    WFM_SURFACE_source_bandwidth,
+    WFM_SURFACE_source_mac_header,
     WFM_SURFACE_segment_fs,
     WFM_SURFACE_segment_num_samples,
     WFM_SURFACE_segment_off_samples,
@@ -536,6 +546,23 @@ wfmgen help option lines for the DSSS\_CONT section of USAGE.
 
 
 wfmgen help option lines for the NOISE section of USAGE. 
+
+
+        
+
+<hr>
+
+
+
+### define WFM\_SURFACE\_HELP\_OFDM 
+
+```C++
+#define WFM_SURFACE_HELP_OFDM `/* multi line expression */`
+```
+
+
+
+wfmgen help option lines for the OFDM section of USAGE. 
 
 
         

@@ -162,6 +162,20 @@ extern "C"
  * statistic (not tunable) — mirrors SYMSYNC_LOCK_EPS. */
 #define RATESYNC_LOCK_EPS 1e-12
 
+/** @brief The lock detector's sizing rates per decision: the false-alarm
+ *  probability and detection probability the 0.311 threshold is sized for
+ *  (symsync's sizing, rolloff 0.35, Es/N0 10 dB). */
+#define RATESYNC_LOCK_PFA 1e-3
+/** @brief See RATESYNC_LOCK_PFA. */
+#define RATESYNC_LOCK_PD 0.9
+/** @brief The per-decision false-transition budget the default verify
+ *  counts are derived from: n_up = dp_det_verify_count(RATESYNC_LOCK_PFA,
+ *  budget), n_down = dp_det_verify_count(1 - RATESYNC_LOCK_PD, budget). 1e-6
+ *  is the library's convention for a detector's own default, not a new
+ *  number: the Dll's declare budget at its default pfa, the async receiver's
+ *  code-lock drop, and symsync's SYMSYNC_LOCK_BUDGET. */
+#define RATESYNC_LOCK_BUDGET 1e-6
+
   /**
    * @brief Telemetry attachment: a borrowed context + this object's probe
    *        ids. NULL ctx (the default) means detached — every probe site is
@@ -617,8 +631,9 @@ extern "C"
        thousands of times its designed gain for exactly the interval that
        decides acquisition. Measured, that wound the integrator past pull-in
        and cost 7000-25000 symbols to recover across a 0.3-symbol-wide band
-       of initial offsets; with the lag gone the same band acquires in
-       133-266. */
+       of initial offsets; with the lag gone that band acquires like every
+       other offset, inside the first few lock decisions (the validation
+       report's §2.4 measures the declare at each offset). */
     double e      = num * s->ted_scale;
     s->last_error = e;
 
@@ -875,6 +890,16 @@ extern "C"
   double dp_ratesync_get_lock_stat (const dp_ratesync_state_t *state);
 
   /** @brief Current lock decision (1 = locked), verify-counted.
+   *
+   *  One decision per block of 133 looks: the block's mean lock statistic
+   *  against 0.311, the threshold symsync sizes at a per-decision pfa of
+   *  1e-3 and pd of 0.9 (rolloff 0.35, Es/N0 10 dB). The lock declares after
+   *  2 consecutive decisions above it and drops after 6 below it: the counts
+   *  dp_det_verify_count() gives for those rates at a per-decision
+   *  false-transition budget of 1e-6. Those rates are the sizing point's;
+   *  at another Es/N0 the counts meet the budget only if the statistic's
+   *  rates do, which a caller measures, and dp_ratesync_configure_lock_raw()
+   *  sets other counts.
    *  @param state  Must be non-NULL.
    *  @return 1 when locked, 0 otherwise (0 after create/reset). */
   int dp_ratesync_get_locked (const dp_ratesync_state_t *state);

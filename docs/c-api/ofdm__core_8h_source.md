@@ -115,11 +115,15 @@ extern "C"
 
   int dp_ofdm_add_run(dp_ofdm_state_t *state, uint32_t class_index, uint32_t count, uint32_t cyclic_prefix, uint32_t polarity_offset, uint32_t first_phase);
 
+  int dp_ofdm_check_why(dp_ofdm_state_t *state, const char **why);
+
   int dp_ofdm_check(dp_ofdm_state_t *state);
 
   size_t dp_ofdm_points_remaining(dp_ofdm_state_t *state);
 
   size_t dp_ofdm_modulate_max_out(dp_ofdm_state_t *state, size_t n_in);
+
+  int64_t dp_ofdm_modulate_why(dp_ofdm_state_t *state, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out, const char **why);
 
   size_t dp_ofdm_modulate(dp_ofdm_state_t *state, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out);
 

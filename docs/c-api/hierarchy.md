@@ -61,7 +61,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_correlator\_state\_t**](structdp__correlator__state__t.md) _Correlator state, every flavor._ 
 * **struct** [**dp\_correlator\_tlm\_t**](structdp__correlator__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (docs/design/async-dsss-receiver.md §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**dp\_correlator\_set\_state()**_](correlator__core_8h.md#function-dp_correlator_set_state) _like the borrowed code._
 * **struct** [**dp\_costas\_state\_t**](structdp__costas__state__t.md) _Costas loop state._ 
-* **struct** [**dp\_crc\_t**](structdp__crc__t.md) _A CRC model: width, polynomial, initial register, output reflection and output XOR._ 
+* **struct** [**dp\_crc\_t**](structdp__crc__t.md) _A CRC model: width, polynomial, initial register, output reflection, output XOR and input reflection._ 
 * **struct** [**dp\_delay\_state\_t**](structdp__delay__state__t.md) _Delay state._ 
 * **struct** [**dp\_despreader\_state\_t**](structdp__despreader__state__t.md) _Despreader state._ 
 * **struct** [**dp\_dll\_state\_t**](structdp__dll__state__t.md) _DLL state._ 
@@ -115,6 +115,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) 
 * **struct** [**dp\_specan\_state\_t**](structdp__specan__state__t.md) _Specan state. Allocate with_ [_**dp\_specan\_create()**_](specan__core_8h.md#function-dp_specan_create) _._
 * **struct** [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md) _Spectrogram state. Allocate with_ [_**dp\_spectrogram\_create()**_](spectrogram__core_8h.md#function-dp_spectrogram_create) _._
+* **struct** [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md) _A third-order loop whose gains come from a covariance recursion._ 
 * **struct** [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) _Third-order tracking-loop filter state (embeddable by value)._ 
 * **struct** [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) _Common 16-byte envelope at the head of every state blob._ 
 * **struct** [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md) _SymbolSync state._ 
@@ -130,9 +131,9 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_viterbi\_state\_t**](structdp__viterbi__state__t.md) _A streaming maximum-likelihood (Viterbi) decoder._ 
 * **struct** [**dp\_wfm\_synth\_state\_t**](structdp__wfm__synth__state__t.md) _Synth state: one streaming waveform source._ 
 * **struct** [**dp\_wlan\_rate\_t**](structdp__wlan__rate__t.md) _A non-HT rate, by the two columns of Table 17-4 that do not change with the clocking: a constellation and a code rate._ 
-* **struct** [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) _A (rate, SIGNAL RATE bits) pair of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _._
+* **struct** [**dp\_wlan\_signal\_rate\_t**](structdp__wlan__signal__rate__t.md) _A row of_ [_**dp\_wlan\_tables\_t**_](structdp__wlan__tables__t.md) _: Table 17-6 as printed, the data rate and the SIGNAL RATE bits of one pair._
 * **struct** [**dp\_wlan\_state\_t**](structdp__wlan__state__t.md) _A non-HT rate, held with what follows from it._ 
-* **struct** [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) _What the standard supplies and this tree does not yet hold._ 
+* **struct** [**dp\_wlan\_tables\_t**](structdp__wlan__tables__t.md) _What the standard supplies: the Clause 17 literals._ 
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md) _Bounds-checked write cursor over a caller-owned state blob._ 
 * **struct** [**dsss\_br\_event\_t**](structdsss__br__event__t.md) _One completed burst's event, as_ `events()` _hands it back._
 * **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md) _Receiver-level payload that follows the state envelope: the routing flag, cached hit estimates, the grid (layout key) and the carrier-carry depth._ 

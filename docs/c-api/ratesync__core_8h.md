@@ -146,7 +146,11 @@ length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yie
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**RATESYNC\_LOCK\_BUDGET**](ratesync__core_8h.md#define-ratesync_lock_budget)  `1e-6`<br>_The per-decision false-transition budget the default verify counts are derived from: n\_up = dp\_det\_verify\_count(RATESYNC\_LOCK\_PFA,
+budget), n\_down = dp\_det\_verify\_count(1 - RATESYNC\_LOCK\_PD, budget). 1e-6 is the library's convention for a detector's own default, not a new number: the Dll's declare budget at its default pfa, the async receiver's code-lock drop, and symsync's SYMSYNC\_LOCK\_BUDGET._  |
 | define  | [**RATESYNC\_LOCK\_EPS**](ratesync__core_8h.md#define-ratesync_lock_eps)  `1e-12`<br>_Numerical guard on the on-time+mid energy sum feeding the lock statistic (not tunable) — mirrors SYMSYNC\_LOCK\_EPS._  |
+| define  | [**RATESYNC\_LOCK\_PD**](ratesync__core_8h.md#define-ratesync_lock_pd)  `0.9`<br>_See RATESYNC\_LOCK\_PFA._  |
+| define  | [**RATESYNC\_LOCK\_PFA**](ratesync__core_8h.md#define-ratesync_lock_pfa)  `1e-3`<br>_The lock detector's sizing rates per decision: the false-alarm probability and detection probability the 0.311 threshold is sized for (symsync's sizing, rolloff 0.35, Es/N0 10 dB)._  |
 | define  | [**RATESYNC\_LOOP\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_loop_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'L', 'P')`<br>_State-blob magic for the timing loop (FourCC "RSLP")._  |
 | define  | [**RATESYNC\_LOOP\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_loop_state_version)  `/* multi line expression */`<br>_Timing-loop blob layout version._  |
 | define  | [**RATESYNC\_MAX\_M**](ratesync__core_8h.md#define-ratesync_max_m)  `8`<br> |
@@ -628,7 +632,7 @@ int dp_ratesync_get_locked (
 
 
 
-
+One decision per block of 133 looks: the block's mean lock statistic against 0.311, the threshold symsync sizes at a per-decision pfa of 1e-3 and pd of 0.9 (rolloff 0.35, Es/N0 10 dB). The lock declares after 2 consecutive decisions above it and drops after 6 below it: the counts [**dp\_det\_verify\_count()**](detection__core_8h.md#function-dp_det_verify_count) gives for those rates at a per-decision false-transition budget of 1e-6. Those rates are the sizing point's; at another Es/N0 the counts meet the budget only if the statistic's rates do, which a caller measures, and [**dp\_ratesync\_configure\_lock\_raw()**](ratesync__core_8h.md#function-dp_ratesync_configure_lock_raw) sets other counts. 
 
 **Parameters:**
 
@@ -1607,11 +1611,54 @@ Passing a literal `ted` lets the force-inlined body constant-fold the detector b
 
 
 
+### define RATESYNC\_LOCK\_BUDGET 
+
+_The per-decision false-transition budget the default verify counts are derived from: n\_up = dp\_det\_verify\_count(RATESYNC\_LOCK\_PFA,
+budget), n\_down = dp\_det\_verify\_count(1 - RATESYNC\_LOCK\_PD, budget). 1e-6 is the library's convention for a detector's own default, not a new number: the Dll's declare budget at its default pfa, the async receiver's code-lock drop, and symsync's SYMSYNC\_LOCK\_BUDGET._ 
+```C++
+#define RATESYNC_LOCK_BUDGET `1e-6`
+```
+
+
+
+
+<hr>
+
+
+
 ### define RATESYNC\_LOCK\_EPS 
 
 _Numerical guard on the on-time+mid energy sum feeding the lock statistic (not tunable) — mirrors SYMSYNC\_LOCK\_EPS._ 
 ```C++
 #define RATESYNC_LOCK_EPS `1e-12`
+```
+
+
+
+
+<hr>
+
+
+
+### define RATESYNC\_LOCK\_PD 
+
+_See RATESYNC\_LOCK\_PFA._ 
+```C++
+#define RATESYNC_LOCK_PD `0.9`
+```
+
+
+
+
+<hr>
+
+
+
+### define RATESYNC\_LOCK\_PFA 
+
+_The lock detector's sizing rates per decision: the false-alarm probability and detection probability the 0.311 threshold is sized for (symsync's sizing, rolloff 0.35, Es/N0 10 dB)._ 
+```C++
+#define RATESYNC_LOCK_PFA `1e-3`
 ```
 
 

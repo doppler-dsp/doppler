@@ -4,12 +4,13 @@ description: "A general OFDM modulator as a library object: a layout of symbol c
 
 # OFDM: a general modulator
 
-!!! note "Proposed"
+!!! note "Status"
 
-    The modulator on this page is the proposal that precedes its code. The
-    primitives it builds on exist; the modulator does not. "What exists,
-    and what does not" says which is which. The decisions are at the end,
-    the ruled ones and the open ones.
+    The modulator on this page is built (`ofdm_core.h`, with its layout, its
+    state and its serialization); `wlan` is its first caller. Not built:
+    wfmgen's `ofdm` waveform type, the complex-envelope PAPR and the EVM of
+    an OFDM grid. "What exists, and what does not" says which is which. The
+    decisions are at the end, the ruled ones and the open ones.
 
 The library gains an OFDM modulator: an object that turns constellation
 points into the baseband samples of an OFDM signal, for any OFDM signal
@@ -119,7 +120,7 @@ proven.
 | BPSK and QPSK map                   | exists                                         | `mpsk`: `dp_mpsk_map`                          |
 | 16- to 1024-point QAM map           | built (#3115)                                  | `mpsk` module: `qam_map`, `qam_demap`          |
 | parametric CRC                      | built (#3116)                                  | the parametric CRC header, beside `dp_crc16.h` |
-| the modulator and its layout        | **not built**                                  | `ofdm`: this page                              |
+| the modulator and its layout        | exists                                         | `ofdm_core.h`: this page                       |
 | a complex-envelope PAPR             | absent                                         | `dp_tonemeas_time_stats` is real-valued only   |
 | EVM of an OFDM grid                 | absent                                         | a measurement, with the modulator's report     |
 
@@ -306,9 +307,11 @@ concern ([wlan](wlan.md), "The faces"), as `frame` is for `FrameDesc`.
 Standard builders (a layout from a preset) are free functions that fill an
 `Ofdm`; they live with the standard.
 
-A refused build call raises `ValueError`, and a `modulate` whose point count
-ends inside an OFDM symbol, or runs past the layout, returns an empty array
-and leaves the modulator as it was.
+A refused build call raises `ValueError`, and so does a `modulate` whose point
+count ends inside an OFDM symbol or runs past the layout, or whose layout is
+unusable, with a sentence saying which; the modulator is left as it was.
+Rendering nothing, with no points where none are needed, is an empty array
+and not a refusal.
 
 ### The window
 
@@ -326,8 +329,10 @@ its class does not pass `check`.
 ### State
 
 The modulator carries the run index, the OFDM-symbol count within the run,
-the polarity offset in force, and the previous OFDM symbol's window tail (at
-most `window` samples). It implements the state triplet
+the length of the previous OFDM symbol's window tail, and that tail's samples
+(the blob always holds the largest window's worth of slots, so its size is a
+function of the layout and the slots past the tail are zero). A run's polarity
+offset is part of the layout, not of the state. It implements the state triplet
 (`ofdm_state_bytes`, `ofdm_get_state`, `ofdm_set_state`) and is declared
 `serializable = "true"`.
 
@@ -336,8 +341,10 @@ most `window` samples). It implements the state triplet
     entries held sorted by phase and subcarrier, so two orders of entry are
     one layout), and a blob never restores into a different one.
 - **`set_state` decodes into a temporary, checks it whole, then commits**
-    (the standing rule): the run index must name a run, the count must be
-    within the run, and the tail length must be at most the window.
+    (the standing rule): the run index must name a run (or the end), the
+    count must be within the run, and the tail length must be the one the
+    position implies, which is the window of the preceding symbol's class, or
+    nothing before the first symbol and after `finish()`.
 - **A setter's value travels.** The modulator has no setter that changes
     what a blob means; a layout is replaced by constructing another.
 - **The version is 1** and `make state-versions-check` holds it.

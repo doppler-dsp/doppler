@@ -9,11 +9,13 @@ composes, and what is still unknown about it. The modulator this page calls
 is [OFDM: a general modulator](ofdm.md), which owns the layout, its struct,
 its state and its proofs.*
 
-!!! note "Proposed"
+!!! note "Status"
 
-    No part of this page is built. It is the proposal for the consumers of
-    the general modulator: the 802.11 presets, the minimal MAC, the coding
-    chain, and wfmgen's waveform type. "What exists, and what does not" in
+    The 802.11 non-HT builders are built: `wlan` (C and Python) on the
+    general modulator `ofdm` gives the rate table, the minimal MAC, the
+    coding chain, the layout and the PPDU. Not built: wfmgen's `ofdm`
+    waveform type (section 5), the HT, VHT and HE flavors, and Annex I's
+    stage-by-stage conformance test. "What exists, and what does not" in
     section 4 says which blocks have a home today. Section 10 lists the
     decisions, ruled and open; sections 8 and 9 list what is not known.
 
@@ -236,40 +238,117 @@ mappings, which are tables the first slice does not build.
 - **The CRCs.** The SIG fields use CRC-8 and the FCS a CRC-32: both are
     instances of the one parametric CRC.
 
+### The default window
+
+A caller who gives no window gets the standard's 100 ns transition
+(17.3.2.5), `2 * M` samples at the output rate; `window = 0` is the explicit
+rectangular choice, and any other value is a count of samples at the output
+rate, 0 to `80 * M`. The default must scale with `M` while `window` is a
+count, so the constructor's argument has one reserved value,
+`WLAN_WINDOW_STANDARD` (`UINT32_MAX`), and one C function,
+`dp_wlan_window_resolve (window, M)`, turns it into `2 * M` (any other value
+comes back as it was). `dp_wlan_create` and `dp_wlan_params_why` call it, so
+the state holds the resolved count (`Wlan.window` reads `2 * M` for a
+default caller) and the range check and its sentence (`window must be 0 to 80 * oversample`) run on the count, never the sentinel. The free functions
+take counts: `dp_wlan_layout` and `dp_wlan_ppdu` refuse the sentinel as above
+`80 * M`, and `dp_wlan_ppdu_len` is a pure sum whose caller resolves first;
+the function is public for a caller who wants the default there.
+
+Two other spellings were weighed and not built: a separate transition-time
+argument (a fifth argument on every C caller, a rounding rule for times that
+are not whole samples, a conflict rule when both are given) and a default
+each face fills in itself (the same default in three places that can
+drift).
+
+**What the Python face shows.** The manifest declares the default as
+`default_raw = "WLAN_WINDOW_STANDARD"`, so the stub reads
+`window: int = ...` and the docstring `window : int, default WLAN_WINDOW_STANDARD`; the binding starts at the constant and passes it to
+create. An omitted keyword is the standard's window and `window=0` is the
+rectangular one, by asking.
+
+**What a default caller sees.** The symbol boundaries are cross-faded over
+`2 * M` samples and the PPDU is `2 * M` samples longer (`dp_wlan_ppdu_len`
+adds the window); at `M = 1` that is 2 samples. The transmit mask passes
+every point by at least 7.9 dB at `M = 4` (finding
+`default_window_fails_mask` in
+`src/doppler/wlan/tests/validation/wlan/results.md`), where the rectangular
+window fails the 30 MHz point. The tests that pin `M = 1` bit-identity
+against a committed PPDU state `window = 0`.
+
+**The wfmgen face.** `wfm_source_t.window` is a `size_t` whose manifest
+default is a named constant, `WFM_WINDOW_UNSET` (`SIZE_MAX`): a source a face
+builds starts unset, and a C caller that zero-initializes a source gets `0`,
+the rectangular window, by its own spelling. Unset is told from 0 by value
+on every face:
+
+| face                                  | unset                            | explicit rectangular |
+| ------------------------------------- | -------------------------------- | -------------------- |
+| struct                                | `WFM_WINDOW_UNSET` (the default) | `0`                  |
+| CLI                                   | `--window` omitted               | `--window 0`         |
+| scene JSON                            | no `window` key                  | `"window": 0`        |
+| Python `Segment`, `Synth`, `Composer` | `window` omitted                 | `window=0`           |
+
+`dp_wfm_source_window (src, fs)` is the one place the count is decided: the
+held count, or for an unset window `dp_wlan_window_standard` (the rule
+`dp_wlan_window_resolve` applies, an inline so wfmgen's draw library shares
+it without linking the DSP) at the oversampling `dp_wfm_source_oversample` derives (`fs` over the bandwidth,
+the one derivation the renderer's geometry shares). When `fs` has no
+oversampling (no whole multiple of the bandwidth, or above 128) the unset
+value comes back, which `dp_wfm_ofdm_fs_error` refuses by its own sentence;
+a record of such a scene writes no `window` key, and the scene cannot
+compose. The renderer, the scene writer and the SigMF annotation each call
+it, so a scene written by `Composer` and `wfmgen:window` hold the resolved
+count, never the absence: a record then renders the same samples under any
+later default. A scene a
+user wrote without `window` is unset and takes the default at load. The
+range check and its sentence (`window is 0 to 80 times fs over bandwidth`)
+run on the resolved count, never the sentinel. The scene writer's rule "not
+written at its default or at zero" keeps the zero for this row
+(`json_keep_zero`, set by the generator for a default that names a
+constant): `"window": 0` is a value, and a record without it would read
+back as the default. A window on another type is refused as before, and the
+unset one is not a window. The Python face holds the field as it is: a
+source's `window` attribute reads back `2**64 - 1` while unset, because a
+getter has no `fs` to resolve against and jm renders none for a source
+field; the resolved count is in `to_json()`, `to_sigmf()` and the samples.
+The docstring names the constant, `WFM_WINDOW_UNSET`, which is the C
+spelling of that number. The tests are
+`test_the_default_window_is_the_standards_100_ns` (C and Python) and the two
+record tests in `src/doppler/wfm/tests/test_ofdm_source.py`.
+
 ## 4. What each 802.11 PHY block composes
 
 ### What exists, and what does not
 
-"Exists" means a caller reaches it today through a public C symbol. "Built"
-means it is written and in review.
+"Exists" means a caller reaches it today through a public C symbol.
 
-| PHY block (clause)                     | state                    | where                                                                | what is missing                                                                 |
-| -------------------------------------- | ------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Inverse transform (17.3.2.6)           | exists                   | `fft`: `dp_fft_create`, `dp_fft_execute_cf32`                        | nothing; any length, unnormalized, plan reused across calls                     |
-| Scrambler, `x^7 + x^4 + 1` (17.3.5.5)  | exists, lacks a map      | `pn`: `dp_pn_create`, poly `0x48`, len 7                             | the mapping from the standard's 7-bit initial state to a `pn` seed              |
-| Pilot polarity `p_n` (17.3.5.10)       | exists                   | the same `pn` sequence, all-ones start                               | nothing                                                                         |
-| BCC, K = 7, 133/171 octal (17.3.5.6)   | exists                   | `conv_code_t` `{0133, 0171}`; `ConvEncoder` (`conv_enc`)             | nothing for rate 1/2                                                            |
-| Puncturing to 2/3, 3/4, 5/6            | built (#3113)            | `punct_period`, `punct_mask` in `conv_code_t`; `conv_enc`, `viterbi` | the three patterns, from the text; a decoder reads 0.0 at each deleted position |
-| Interleaver, first permutation         | exists                   | `dp_interleave_index (k, N_CBPS/16, 16)`                             | nothing                                                                         |
-| Interleaver, second permutation        | absent                   |                                                                      | the within-group bit rotation; 802.11-specific, lives in `wlan`                 |
-| BPSK, QPSK map (Tables 17-15, 17-16)   | exists, to pin           | `mpsk`: `dp_mpsk_map`; `qam_map` at M = 4 is the same as QPSK        | the labels, from the text; see the note below                                   |
-| 16/64/256/1024-QAM map                 | built (#3115)            | `mpsk` module: `qam_map`, M = 4 to 1024, the library's own Gray map  | whether Tables 17-17 and 17-18 are that map; no standard is claimed             |
-| Subcarrier map, pilots, cyclic prefix  | not built                | `ofdm`, [the modulator](ofdm.md)                                     | the modulator and its layout                                                    |
-| Window (17.3.2.5)                      | not built                | `ofdm`                                                               | in the modulator                                                                |
-| L-STF, L-LTF sequences (17.3.3)        | absent                   |                                                                      | two constant tables in `wlan`                                                   |
-| L-SIG: RATE, LENGTH, parity (17.3.4)   | absent                   |                                                                      | field assembly in `wlan`                                                        |
-| SERVICE, tail, pad (17.3.5.2-4)        | absent                   |                                                                      | field assembly in `wlan`                                                        |
-| HT-SIG CRC-8, VHT-SIG-B, HE-SIG CRC    | built (#3116)            | the parametric CRC header, beside `dp_crc16.h`                       | the parameters of each, from the text                                           |
-| MAC header, frame body, FCS (Clause 9) | built (CRC); rest absent | the parametric CRC for the FCS                                       | field assembly in `wlan`; the minimal MAC, section 3                            |
-| LDPC (19.3.11.7)                       | absent                   |                                                                      | the codec; a design page of its own                                             |
-| Oversampling by an integer             | exists                   | `fft` at `M * N_FFT` with a zero-padded grid                         | nothing                                                                         |
-| Rate change by a non-integer           | exists                   | `RateConverter`, `Resampler`                                         | nothing; applied by the caller, not inside the source                           |
-| Spectral shaping filter                | exists                   | `fir`                                                                | whether it is needed at all is unknown 8.2                                      |
-| Carrier offset, AWGN, level, Doppler   | exists                   | `wfm_synth` (`lo`, `awgn`), `wfm_compose`, `doppler_channel`         | nothing; the common tail every source already has                               |
-| PSDU from a data source or a PN fill   | exists                   | the payload data source (`data`, `data_len`, `fill`)                 | nothing                                                                         |
-| Power spectrum, band power             | exists                   | `psd`: `dp_psd_band_power`, `dp_psd_occupied_bw`                     | a transmit-mask comparison over those bands                                     |
-| PAPR                                   | exists, real only        | `dp_tonemeas_time_stats`                                             | a complex-envelope PAPR                                                         |
-| EVM of an OFDM grid                    | absent                   |                                                                      | relative constellation error per 17.3.9.7.4                                     |
+| PHY block (clause)                     | state                    | where                                                                                   | what is missing                                                                                      |
+| -------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Inverse transform (17.3.2.6)           | exists                   | `fft`: `dp_fft_create`, `dp_fft_execute_cf32`                                           | nothing; any length, unnormalized, plan reused across calls                                          |
+| Scrambler, `x^7 + x^4 + 1` (17.3.5.5)  | exists                   | `pn`; `dp_wlan_scrambler_state_from_sequence`, `dp_wlan_scrambler_sequence`             | nothing                                                                                              |
+| Pilot polarity `p_n` (17.3.5.10)       | exists                   | the same `pn` sequence, all-ones start                                                  | nothing                                                                                              |
+| BCC, K = 7, 133/171 octal (17.3.5.6)   | exists                   | `conv_code_t` `{0133, 0171}`; `ConvEncoder` (`conv_enc`)                                | nothing for rate 1/2                                                                                 |
+| Puncturing to 2/3, 3/4, 5/6            | exists                   | `dp_wlan_bcc` sets `punct_period`, `punct_mask` in `conv_code_t`; `conv_enc`, `viterbi` | 5/6 is Clause 19's and is not checked against the text; a decoder reads 0.0 at each deleted position |
+| Interleaver, first permutation         | exists                   | `dp_interleave_index (k, N_CBPS/16, 16)`                                                | nothing                                                                                              |
+| Interleaver, second permutation        | exists                   | `dp_wlan_interleave`, with `perm2` in `dp_wlan_tables_standard()`                       | nothing                                                                                              |
+| BPSK, QPSK map (Tables 17-15, 17-16)   | exists                   | `dp_wlan_map`, with the standard's labels in `dp_wlan_tables_standard()`                | nothing; see the note below                                                                          |
+| 16/64/256/1024-QAM map                 | exists                   | `dp_wlan_map`; `qam_map` of the `mpsk` module (#3115) for the points                    | the 256 and 1024 labels are Clause 19's and are not checked                                          |
+| Subcarrier map, pilots, cyclic prefix  | exists                   | `ofdm`, [the modulator](ofdm.md); `dp_wlan_layout`                                      | nothing                                                                                              |
+| Window (17.3.2.5)                      | exists                   | `ofdm`                                                                                  | nothing                                                                                              |
+| L-STF, L-LTF sequences (17.3.3)        | exists                   | `stf`, `ltf` and their scales in `dp_wlan_tables_standard()`                            | nothing                                                                                              |
+| L-SIG: RATE, LENGTH, parity (17.3.4)   | exists                   | `dp_wlan_signal_bits`                                                                   | nothing                                                                                              |
+| SERVICE, tail, pad (17.3.5.2-4)        | exists                   | `dp_wlan_data_bits`                                                                     | nothing                                                                                              |
+| HT-SIG CRC-8, VHT-SIG-B, HE-SIG CRC    | built (#3116)            | the parametric CRC header, beside `dp_crc16.h`                                          | the parameters of each, from the text                                                                |
+| MAC header, frame body, FCS (Clause 9) | built (CRC); rest absent | the parametric CRC for the FCS                                                          | field assembly in `wlan`; the minimal MAC, section 3                                                 |
+| LDPC (19.3.11.7)                       | absent                   |                                                                                         | the codec; a design page of its own                                                                  |
+| Oversampling by an integer             | exists                   | `fft` at `M * N_FFT` with a zero-padded grid                                            | nothing                                                                                              |
+| Rate change by a non-integer           | exists                   | `RateConverter`, `Resampler`                                                            | nothing; applied by the caller, not inside the source                                                |
+| Spectral shaping filter                | exists                   | `fir`                                                                                   | whether it is needed at all is unknown 8.2                                                           |
+| Carrier offset, AWGN, level, Doppler   | exists                   | `wfm_synth` (`lo`, `awgn`), `wfm_compose`, `doppler_channel`                            | nothing; the common tail every source already has                                                    |
+| PSDU from a data source or a PN fill   | exists                   | the payload data source (`data`, `data_len`, `fill`)                                    | nothing                                                                                              |
+| Power spectrum, band power             | exists                   | `psd`: `dp_psd_band_power`, `dp_psd_occupied_bw`                                        | a transmit-mask comparison over those bands                                                          |
+| PAPR                                   | exists, real only        | `dp_tonemeas_time_stats`                                                                | a complex-envelope PAPR                                                                              |
+| EVM of an OFDM grid                    | absent                   |                                                                                         | relative constellation error per 17.3.9.7.4                                                          |
 
 Two rows carry a decision rather than a gap:
 
@@ -311,10 +390,13 @@ neighbors needed. `dsss`, the most recent, provides:
 ### The enum
 
 `ofdm` is the tenth name: index 9 in `[[enum]] wfm_type`
-(`just-makeit.toml:128`), in `TYPE_NAMES` with `N_TYPES` raised to 10
-(`wfm_names.h:24-29`), and `WFM_SYNTH_OFDM = 9` beside `WFM_SYNTH_DSSS = 8`
-(`wfm_synth_core.h:45`). List order is the C value, so the name is appended,
-never inserted. `scripts/check_wfm_enum_tables.py`, run as
+(`just-makeit.toml`), in `TYPE_NAMES` with `N_TYPES` raised to 10
+(`wfm_names.h`), and the C constant `WFM_SYNTH_FRAMES = 9` beside
+`WFM_SYNTH_DSSS = 8` (`wfm_synth_core.h`): the constant is named for what the
+branch is, and the `ofdm` face type selects it. List order is the C value, so the name is appended,
+never inserted. At the head that adds the synth, `N_TYPES` is 9 and only the C
+constant exists: the name, the manifest entry and the faces arrive with the
+bridge. `scripts/check_wfm_enum_tables.py`, run as
 `make lint-wfm-enum-tables`, holds the three to one another: each name
 table has one C home and equals its manifest `values` in order, every table
 carries an `SSOT:` annotation, the `count=` macro equals the table length,
@@ -324,23 +406,23 @@ added in one place and not the others turns it red.
 ### What `dsss` does, which `ofdm` cannot copy
 
 The synth does not render a DSSS burst. The bridge assembles it:
-`dp_wfm_source_attach_dsss` (`wfm_synth_bridge.c:901`) builds the chips from
+`dp_wfm_source_attach_dsss` builds the chips from
 the frame description and hands them to `dp_wfm_synth_set_dsss_chips`
-(`wfm_synth_core.c:367`), which stores them as the synth's `bits` pattern.
+, which stores them as the synth's `bits` pattern.
 From there a burst is played by the bit cursor and shaped by the same
 `sps` and `pulse` machinery as any bit pattern. With a data source, one
 burst is one frame pulled on demand:
 
-- `dp_wfm_synth_set_refill` (`wfm_synth_core.c:272`) installs a callback of
+- `dp_wfm_synth_set_refill` installs a callback of
     type `wfm_synth_refill_fn` (`wfm_synth_core.h:164`), `(user, bits, n)`.
     At the frame boundary the synth calls it to write the next frame's `n`
     bits into `bits` in place. **The frame length never changes**, and a
-    refill is accepted only by a `bits` or `dsss` synth (`:279-283`).
-- The bridge's callback is `data_pull_refill` (`wfm_synth_bridge.c:771`);
-    `pull_park` (`:875`) parks the cursor at the end of a placeholder frame,
+    refill is accepted only by a `bits` or `dsss` synth.
+- The bridge's callback is `data_pull_refill`;
+    `pull_park` parks the cursor at the end of a placeholder frame,
     so nothing is drawn until the first bit is due. A composer can build a
     source only to validate it without reading a byte of the data source.
-- `dp_wfm_synth_set_symbols` (`wfm_synth_core.c:455`) is the only call that
+- `dp_wfm_synth_set_symbols` is the only call that
     hands the synth a buffer of complex values. It copies them once and the
     synth cycles through them by `sym_read_idx`. It has no refill.
 
@@ -351,30 +433,29 @@ no `sps` and no pulse shaper between them.
 
 ### What `ofdm` provides, from that
 
-- A `WFM_SYNTH_OFDM` branch whose input is the existing refill: one PSDU
-    frame of `data_len` bits per pull, by the same `pull_new` and `pull_park`
-    as a `bits` frame, so the data source (`data`, `data_from_file`, `fill`),
-    its pacing and its state blob are reused unchanged.
-- At each frame boundary the synth renders the PPDU's samples from the
-    frame bits into a `cf32` buffer it owns, through the `wlan` builder and
-    the modulator, and reads the buffer out through a sample cursor until it
-    is spent. The PPDU length is a function of the configuration and
-    `data_len`, so the buffer is sized once, at attach.
-- **No shaper.** The rendered samples are the signal. The branch writes
-    them where the shaper path writes its output and then takes the same
-    tail: `wfm_mix_carrier` for a carrier, `wfm_synth_add_noise` for noise
-    (`wfm_synth_core.c:846-851`). The common tail therefore applies
-    unchanged, and `sps`, `pulse` and every `rrc_*` field are refused for
+- `WFM_SYNTH_FRAMES` (the `ofdm` type) is a synth type with a frame callback installed
+    (section 5, "The frame callback"). Its input is the
+    existing bit refill: one PSDU frame of `data_len` bits per pull, by the
+    same `pull_new` and `pull_park` as a `bits` frame, so the data source
+    (`data`, `data_from_file`, `fill`), its pacing and its state blob are
+    reused unchanged. The synth renders nothing itself: at each wrap it hands
+    the frame's bits to the callback, which the bridge installs and which
+    builds the PPDU through the `wlan` builder and the modulator. The PPDU
+    length is a function of the configuration and `data_len`, so the frame
+    buffer is sized once, at attach.
+- **No shaper.** The rendered samples are the signal. The type plays them as
+    they are and then takes the same tail: `wfm_mix_carrier` for a carrier, `wfm_synth_add_noise` for
+    noise. The common tail therefore applies unchanged, and `sps`, `pulse` and every `rrc_*` field are refused for
     `ofdm`.
 - **A data source is a frame to the bridge, and `ofdm` is not a framable
-    type.** `dp_wfm_source_has_frame` (`wfm_synth_bridge.c:99`) is true for a
-    source with `data`, and `dp_wfm_framing_flags_error` (`:87`) then refuses
-    any type outside `type_can_frame` (`:667`: `bits`, `bpsk`, `qpsk`, `pn`)
-    with `WHY_CANNOT_FRAME`. `dsss` has an explicit carve-out at `:89`. An
+    type.** `dp_wfm_source_has_frame` is true for a
+    source with `data`, and `dp_wfm_framing_flags_error` then refuses
+    any type outside `type_can_frame` (`bits`, `bpsk`, `qpsk`, `pn`)
+    with `WHY_CANNOT_FRAME`. `dsss` has an explicit carve-out. An
     `ofdm` source with a `data` PSDU would be refused as it stands, so
     `ofdm` needs the same carve-out, in `dp_wfm_framing_flags_error` and in
     `dp_wfm_source_frame_error`, and an attach path. The reuse to try first
-    is a description of one `data:LEN` field, which `pull_new` (`:827`)
+    is a description of one `data:LEN` field, which `pull_new`
     already accepts, so the PSDU rides the existing pull; the type's PR
     checks that before writing a second one. A frame description, `--sync`,
     `--crc` and `--acq-code` stay refused for `ofdm`: the PSDU is the
@@ -382,17 +463,20 @@ no `sps` and no pulse shaper between them.
 
 ### State
 
-What the blob carries today, from `dp_wfm_synth_get_state`
-(`wfm_synth_core.c:602`): `wtype`, the symbol and bit cursors, the
-continuous-DSSS chip and symbol counters, `data_ended`, a presence byte for
-each child, the children's own blobs, and, when a refill is attached, the
-frame in play (`n_bits` bytes, `:636-647`) followed by the data source's own
-blob. `dp_wfm_synth_set_state` (`:647`) decodes every field into a local and
-checks it before the first write, and a child or refill that refuses leaves
-the synth as it was. The layout is version 6 (`wfm_synth_core.h:1468`); the
-frame-in-play and the source position have travelled since version 3.
+What the blob carries, from `dp_wfm_synth_get_state`
+:   `wtype`, the symbol and bit cursors, the
+    continuous-DSSS chip and symbol counters, `data_ended`, for a frames synth
+    the count of frames rendered, the `refused` flag and the frame's length and
+    bit count, a presence byte for each child and for the renderer's triplet,
+    the children's own blobs, and, when a refill is attached, the frame in play
+    (`n_bits` bytes) followed by the data source's own blob and then the
+    renderer's. `dp_wfm_synth_set_state` decodes every field into a local and
+    checks it before the first write; a refusal before its commit leaves the
+    synth as it was, and a child that refuses after the commit leaves the
+    synth's own fields restored (#2104). The layout is
+    `WFM_SYNTH_STATE_VERSION`, 7.
 
-For `ofdm` that is almost all of it already:
+For the `ofdm` type:
 
 - **The frame in play and the source position** travel as they do for a
     `bits` frame. The rendered samples do not travel. `set_state` re-renders
@@ -404,22 +488,24 @@ For `ofdm` that is almost all of it already:
     function of the seed and a PPDU counter, and the counter travels. A draw
     from a running generator the blob does not hold would re-render a
     different PPDU for the same frame bits.
-- **The sample cursor** is new, and is checked at `set_state` against the
+- **The sample cursor** is the synth's `sym_read_idx`, and is checked at `set_state` against the
     rendered length, as `sym_pos` is checked by `dp_wfm_synth_sym_pos_ok`
-    (`:316`) before the kernel indexes a buffer with it.
+    before the kernel indexes a buffer with it.
 - **Derived values are recomputed and checked, never trusted.** The
     continuous-DSSS symbol edge `next_edge` is not in the blob: `set_state`
     recomputes it from the chip and symbol counters and refuses a blob whose
-    counters disagree (`dp_wfm_synth_clock_ok`, `:331`, installed at
-    `:696-728`). The rendered buffer and its length are `ofdm`'s derived
+    counters disagree (`dp_wfm_synth_clock_ok`). The rendered buffer and its length are `ofdm`'s derived
     values and follow the same rule.
-- **Reject keys**: the preset, the bandwidth, the constellation and code
-    rate, and the window length are compared at `set_state`, because each
-    sizes the PPDU or changes what the cursor means. The type itself
+- **Reject keys**: the constellation, the code rate, the window, the
+    oversampling `M`, the `mac` mode, `scrambler_init` and the seed are the
+    renderer's, compared at `set_state` whole; the frame's bit count and
+    length are the synth's own. The `gap` is not a key: it is the length less
+    the PPDU's, which those fix. Each is proved alone, at an equal length, in
+    `test_wfm_ofdm_bridge.c`. The type itself
     already is one: `wtype` is in the blob and `wfm_synth_runnable` checks it.
-- **The version rises to 7.** `make state-versions-check` fails a layout
-    that reuses a version the project has shipped, so the bump is a gate and
-    not a convention.
+- **The version is 7.** `make state-versions-check` fails a layout that reuses
+    a version the project has shipped, so the bump is a gate and not a
+    convention.
 
 The modulator's own state, and the layout as its reject key, are on
 [its page](ofdm.md). `wlan` is stateless: a pure function of its
@@ -433,7 +519,7 @@ saying why.
 
 Fields proposed on a source, all refused for any other type, in the one
 validator every face asks (`dp_wfm_source_to_synth_error`,
-`wfm_synth_bridge.c:339`, which calls `dp_wfm_scene_error`):
+`wfm_synth_bridge.c`, which calls `dp_wfm_scene_error`):
 
 | field            | meaning                                                                                            |
 | ---------------- | -------------------------------------------------------------------------------------------------- |
@@ -492,17 +578,35 @@ before any C.
 - an `ofdm` source whose `bandwidth` is not one the preset's clocking allows,
     whose `fs` is not an integer multiple of `bandwidth`, or whose
     `constellation` and `code_rate` are not a pair of Table 17-4;
-- `sps`, `pulse`, `rrc_beta`, `rrc_span`, `symbols`, `symbol_rate`, the DSSS
-    codes, a frame description, `--sync`, `--crc` and `--acq-code`, which
-    describe a symbol-rate stream or a frame the PHY builds itself;
+- `sps` above 1, `pulse`, `symbols`, `symbol_rate`, the DSSS codes, a frame
+    description, `--sync`, `--crc` and `--acq-code`, which describe a
+    symbol-rate stream or a frame the PHY builds itself. `rrc_beta` and
+    `rrc_span` are read only with `pulse = rrc`, which is refused, so they
+    need no refusal of their own. `modulation`, `pn_length`, `pn_poly`
+    and `lfsr` are another type's parameters and are ignored, as every
+    existing type ignores the parameters of the types it is not
+    (`dp_wfm_source_error` asks `pn_poly` only of `pn`, `bpsk` and `qpsk`);
+    the refusals above are the fields that would silently change what an
+    OFDM waveform means;
 - a `data_len` that is not a whole number of octets, or outside the PSDU
     length the preset allows;
-- `snr_mode = ebno`, until section 5's Es/N0 note settles per coded or
-    per information bit;
-- a scrambler initial state of zero;
-- `mac = data` without a `mac_header`, a `mac_header` in any other mode, a
-    `mac = fcs` or `data` source whose octets are too few to hold a header, and
-    a PSDU longer than the PHY's LENGTH field can describe.
+- `snr_mode = ebno` and `esno` (owner ruling: `auto` and `fs` mean signal
+    power over noise in the full band);
+- a `scrambler_init` above 127. Zero is not refused: it draws the initial
+    state per PPDU from `seed` and the frame index;
+- a `mac` outside `none`, `fcs` and `data`; `mac = data` without a
+    `mac_header`, a `mac_header` in any other mode, a `mac_header` that is
+    not whole octets, not 24 or 30 octets, a `data:LEN` or a Field that does
+    not build. `mac = fcs` takes one octet or more. The header is a Field
+    (a `wfm_seq_t`, as `data_code` is: reuse of its copy, free and JSON
+    handling), its octets unpacked most significant bit first like every
+    byte-to-bit unpacking here;
+- a `window` above 80 times `fs / bandwidth`, a negative `bandwidth`, a
+    `constellation` or `code_rate` index no face offers (a C or Python
+    source can give one), and a frame, its `gap` included, over 2^24 samples,
+    each range-checked before it is narrowed or summed;
+- a PSDU longer than the PHY's LENGTH field can describe (4095 octets, the
+    FCS included).
 
 ```text
 {
@@ -522,6 +626,381 @@ before any C.
 every other key is today's. The caller's octets are the existing payload
 data source, `data_len` bits per PPDU and one PPDU per frame, as a DSSS burst
 is one burst per frame; `mac` says what they are (section 3).
+
+### The preset, `--wlan N`
+
+`ofdm` takes general fields: `constellation`, `code_rate`, `scrambler_init`,
+`window`, `mac`, `mac_header`, `bandwidth` (section 5). `wlan` is a second
+spelling of the first two. It is not a type and not a second code path:
+
+```text
+--wlan 36    is    --constellation qam16 --code_rate 3/4
+```
+
+The standard's numbers arrive as a table. `dp_wlan_tables_standard()` already
+holds the eight (rate, RATE bits) rows of Table 17-6; `wlan` reads the
+table's first column, the data rate in Mb/s, which Table 17-6 prints beside
+the RATE bits. The synth does not know 802.11.
+
+#### The field
+
+`wlan` is an integer, `json_when = { type = "ofdm" }`, declared once in
+`modules/wfm_compose.toml` like every other source field. wfmgen has no
+preset mechanism; every option is a field, so this is one more. The bridge
+expands it at attach through `dp_wlan_rate_from_mbps`. One spelling per
+source: a source that gives `wlan` and also `constellation` or `code_rate` is
+refused, so the JSON writer's output has one reading.
+
+`wlan` is the 20 MHz data rate. A source with `wlan` and a `bandwidth` other
+than 20 MHz is refused: at 10 and 5 MHz the same pair carries half and a
+quarter of the rate, and a flag that says 36 must not produce an 18 Mb/s
+signal. A 10 or 5 MHz source is written with `constellation`, `code_rate` and
+`bandwidth`.
+
+#### The per-rate numbers
+
+`dp_wlan_signal_rate_t` gains a `mbps` member, the rate as Table 17-6 prints
+it. Two lookups over the table, with one convention (1 on success, 0 on a
+refusal, as `dp_wlan_bcc` and `dp_wlan_rate_ok` return):
+
+| function                              | what                                                    |
+| ------------------------------------- | ------------------------------------------------------- |
+| `dp_wlan_mbps(t, r, *mbps)`           | the printed rate of a pair; 0 for a pair with no row    |
+| `dp_wlan_rate_from_mbps(t, mbps, *r)` | the pair of a printed rate; 0, `*r` unchanged, for none |
+
+Both refuse an empty table. The 4 in `n_dbps / 4` is not in any function
+body: it is the 4 us symbol, and a test holds the transcribed column against
+`n_dbps / 4` for all eight rows, so the table and the arithmetic are two
+independent statements that must agree. The eight values are distinct (6, 9,
+12, 18, 24, 36, 48, 54), checked in the same test.
+
+On the faces:
+
+| capability            | C                        | Python                 | CLI        |
+| --------------------- | ------------------------ | ---------------------- | ---------- |
+| a pair's rate in Mb/s | `dp_wlan_mbps`           | `Wlan.rate_mbps`       |            |
+| a rate's pair         | `dp_wlan_rate_from_mbps` | none; just-makeit#2683 | `--wlan N` |
+
+`Wlan.rate_mbps` is the 20 MHz rate and the docstring says so, as
+`Wlan.airtime` already does; the object holds no clocking. It is 0 for a pair
+Table 17-6 has no row for (BPSK 2/3, 64-QAM 1/2, any 5/6). Python has no
+lookup from a rate to a pair: none; just-makeit#2683.
+
+#### Refusals, and the test for each
+
+Each refusal is tested on every face it can be reached from, and a test fails
+if the refusal does not trip. The C validator is
+`dp_wfm_source_to_synth_error`; the others are the JSON scene, the CLI and the
+Python keyword.
+
+| refusal                                       | C   | JSON | CLI | Python |
+| --------------------------------------------- | --- | ---- | --- | ------ |
+| `wlan` not one of the eight, naming the eight | x   | x    | x   | x      |
+| `wlan` with `constellation` or `code_rate`    | x   | x    | x   | x      |
+| `wlan` with a `bandwidth` other than 20 MHz   | x   | x    | x   | x      |
+| `wlan` on a type other than `ofdm`            | x   | x    | x   | x      |
+
+At the object, `dp_wlan_mbps` and `dp_wlan_rate_from_mbps` each have a test
+for the empty table, an unknown pair, an unknown rate, and `*r` unchanged on
+refusal, with the output poisoned first.
+
+#### What is proved
+
+For each of the eight N, a source with `wlan = N` renders output
+byte-identical to the source spelled with its `constellation` and
+`code_rate`, same seed. That holds the expansion, not the content.
+
+The content of a PPDU is held in this tree by `test_wlan_core.c` section 10b,
+which runs the 36 Mb/s PPDU (16-QAM, 3/4) only, against the Annex I scaling.
+The other seven rates are held by the per-stage unit tests (the RATE bits, the
+puncture masks, the permutation, the constellation encodings) and by no
+whole-PPDU check; the downstream comparison recorded on #3148 is outside
+this repository.
+
+#### The 36 Mb/s PPDU
+
+The header is 24 octets: Frame Control, Duration, three addresses, Sequence
+Control. The line runs under `make test-snippets`.
+
+```sh
+wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
+    --mac-header 0x08020000ffffffffffff0200000000010200000000020000 \
+    --data pn:800:15 --data-len 800 -o ppdu.cf32
+```
+
+### The frame callback
+
+`WFM_SYNTH_FRAMES` is a synth type that plays one finished frame of samples at a
+time, drawn lazily from a frame callback that turns a frame of bits into
+samples. It is the sample-domain sibling of the bit refill and of the symbols
+source, and the synth knows no standard: a frame is bits in, samples out. The
+face type is named `ofdm` because that is what a user types and selects it;
+the constant and the branch are generic, and the header says so.
+
+**Why a type of its own, not the symbols source.** `WFM_SYNTH_SYMBOLS` cycles
+its buffer: the cursor wraps modulo `n_symbols` in four places
+(`wfm_synth_next_symbol`, `dp_wfm_synth_step`, and the two loops of
+`dp_wfm_synth_steps`), so the cursor reaching the end of a frame is never
+observable there. Making the cursor stop, drawing the next frame lazily and
+calling the bit refill when its pacing says so (as `wfm_synth_bit_ahead` does
+for bits since #1718) would change those four sites for every symbols synth,
+and would then need the rules the shaper makes necessary: refuse `sps != 1`, an
+attached shaper or FIR, `set_rrc` and `set_nsps` after the install, widen
+`set_refill` (which refuses a symbols synth) and say what `set_symbols` does on
+a synth with a callback. A type of its own needs none of those: its branch has
+no shaper to refuse (`set_rrc` is already a no-op for a type that is not
+pn, bpsk, qpsk, bits, symbols or dsss), `set_symbols` is already a no-op for
+every type but symbols, and `SYMBOLS` keeps its wrap and its tests as they are.
+It reuses the synth's own fields, `symbols` (the frame in play, `n_out`
+samples), `sym_read_idx` (the cursor), `bits` (the frame's bits) and the bit
+refill with its source triplet.
+
+How the sources differ, in the header and here:
+
+| source                        | the caller hands the synth                        | the synth then                             |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------ |
+| `set_refill` (bits)           | a callback that writes the next frame's bits      | maps them and shapes them                  |
+| `set_symbols`                 | one fixed buffer of complex symbols               | plays it cycled, shaped or as it is        |
+| `attach_frames` (type `ofdm`) | a callback that renders a frame's bits to samples | plays each frame once, then draws the next |
+
+```text
+typedef int (*wfm_synth_frame_fn) (void *user, uint64_t frame,
+                                   const uint8_t *bits, size_t n_bits,
+                                   float _Complex *out, size_t n_out);
+int dp_wfm_synth_attach_frames (state, wfm_synth_frame_fn fn, void *user,
+                             void (*free_user) (void *),
+                             size_t n_bits, size_t n_out);
+```
+
+**The cursor and the helper.** In this type the cursor STOPS at `n_out`; it
+never wraps. One helper, `wfm_synth_frame_ahead`, the sibling of
+`wfm_synth_bit_ahead`, is the only place it moves, and both sites that read
+samples (the block path and the single step) call it; `next_symbol` serves only
+the shaped path, which this type has none of. When the cursor is at `n_out` the helper draws the next frame lazily, when
+its first sample is due: it asks the bit refill for the frame's `n_bits` bits
+(a refill that reports its end, or no refill or no renderer, latches
+`data_ended`), normalises each byte to 0 or 1 (the renderer is promised bits,
+and the bits path normalises on read), then calls
+`fn (user, frame, bits, n_bits, out, n_out)`. A non-zero return is a refusal and
+latches `data_ended` and `refused`, and the output is silence after, as it is
+after a refill's end; `dp_wfm_synth_frames_refused` says the end was a
+refusal. There is no second stopping behavior. The cursor's range is
+`0 .. n_out`, and `set_state` checks `<= n_out` for this type and `< n_symbols`
+for the others.
+
+**`frame` is the index of the frame being rendered**, from 0: the callback
+receives 0 for the first frame it renders. The blob holds the COUNT rendered:
+0 means no frame is in play, and `set_state` does not re-render then; a count
+`k > 0` means frame `k - 1` is in play, and `set_state` renders it with
+`frame = k - 1`. The cursor starts at `n_out` (no frame drawn), and a freshly
+created synth draws on its first sample.
+
+**Install order.** The type is created, then `attach_frames` allocates `bits`
+(`n_bits` bytes) and `symbols` (`n_out` samples), then `set_refill` installs
+the bit source, then `set_refill_state` its triplet. `set_refill`'s predicate
+widens by one clause, as it did for dsss: it accepts an `ofdm` synth that has
+its frames installed, and its `@return` says so. `bit_idx` is not used by this
+type: the frame's bits are drawn whole, `n_bits` at a time, and never played
+bit by bit.
+
+**Detaching.** `attach_frames (NULL, ...)` detaches the callback and keeps the
+frame in play, as `set_refill (NULL, ...)` detaches a source and keeps the
+pattern: with no callback the frame plays out and the data ends, the same end
+as a pattern with no refill. `set_symbols` on this type returns 0 and does
+nothing, as it does for every type but symbols.
+
+**What the blob carries**, and the version. The layout is version 7
+(`WFM_SYNTH_STATE_VERSION`). Written always: `frame` (`u64`, the count
+rendered), `refused` (`u8`), the frame's bit count and length (`u64` each, 0
+for a type that is not frames), and a presence byte for the renderer's triplet,
+as `pres[5]` is for the bit refill, with the triplet's sub-blob if it has one.
+The frame in play's bits and the bit source's own sub-blob travel as they do
+for a bit refill. The samples do not. The Python state matrix and any recorded
+blob size move with the version. The synth refuses to serialize (state
+refusal) while a frame is in play and the renderer or the bit source is
+detached, because a restore could not re-render it.
+
+**Resume.** `set_state` re-renders the frame in play from the blob's bits and
+`frame`, and the result is bit-exact for the same build on the same machine
+and FFT dispatch, which is what the state tests assert. The order is:
+
+1. decode every field into a local and check it, as today (#2142), including
+    the cursor against the frame length, the frame length and bit count against
+    this synth's, `refused` against `data_ended`, and that a frame is in play
+    only when the data has not ended;
+1. read ahead past the children's sub-blobs, checking each child's envelope,
+    and the bit source's against the live objects' own, the renderer's
+    sub-blob against the live renderer's `get_state` byte for byte, and the
+    frame's bits (each byte 0 or 1), before any write; each child's size is this
+    instance's `state_bytes`. The renderer's `set_state` is never called, so
+    nothing of the renderer is written at any step;
+1. render the frame in play into a scratch buffer, and refuse if the callback
+    refuses or the allocation fails;
+1. restore the children, the carrier and the noise. A child's `set_state`
+    checks more than the envelope step 2 did (the AWGN refuses an all-zero
+    generator or a bad amplitude), so one can still refuse here, and the
+    children before it stay restored, which is #2104;
+1. restore the bit source's triplet. Its position is outside the synth (a
+    counter, a file, a caller's data) and no refusal can put it back, so it
+    moves only after the last child that can refuse;
+1. commit the fields, the bits and the scratch buffer swapped in, none of which
+    can fail.
+
+A refusal at any step therefore leaves the bit source, the frame and the
+synth's own fields as they were; at step 4 or 5 the children before the one
+that refused are restored (#2104). The other types restore their children
+after the commit and their refill last, which is the same rule: nothing that
+cannot be undone moves before the last thing that can refuse.
+
+`set_state` holds two frames of memory transiently (the frame in play and the
+scratch). There is no re-render before the first frame or after `data_ended`
+has latched: with the data ended no frame is in play.
+
+**Reject keys.** The callback is a pure function of its configuration, the
+bits and `frame`; it carries no running state, and its triplet's bytes are
+its configuration, compared whole with the live renderer's. A blob restored
+into a source with a different seed, window, `M` or rate would re-render a
+different PPDU with no refusal, so the bridge's 802.11 callback uses the existing optional
+triplet (`wfm_synth_refill_state_t`, attached by
+`dp_wfm_synth_attach_frames_state`) to carry its configuration and to refuse a
+mismatch. The frame length and the bit count are keys the synth writes itself.
+A test restores into a source differing in each key and checks each is
+refused.
+
+`attach_frames` and `attach_frames_state` are C-only installers that the
+mutator-state gate does not read (their names are not `set_`). What pins them
+instead is that their values travel or are keys: the frame length and bit count
+are in the blob and checked, the renderer's configuration is its triplet, and
+the function pointer is a handle that a restore leaves as it is.
+
+**Contracts the header carries.**
+
+- **Level.** The carrier (`LO`) and the noise (`AWGN`) are applied after the
+    frame, so unit mean power over the PPDU's samples is the callback's contract,
+    as the 802.11 convention makes it
+    ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)).
+- **Frames play back to back**, with no overlap-add across frames. An idle gap
+    between PPDUs is part of the frame's length: the bridge appends zero samples
+    to the rendered PPDU, a field of the source (`gap`, in samples at `fs`,
+    default 0). Unit mean power is over the PPDU's samples and excludes the gap's
+    zeros, so the noise is set against the PPDU and the gap is noise only. A test
+    renders the same source with `gap = 0` and `gap > 0` and checks the noise
+    variance is the same.
+- **`reset()`** rewinds the cursor to the start of the frame in play
+    (`sym_read_idx = 0`), which replays the last frame rendered. A frame is in
+    play when the cursor is below `n_out`, the definition `set_state` uses, so
+    a reset with none in play (none drawn yet, the frame spent at `n_out`, a
+    refusal, the data ended) leaves the cursor and replays nothing. It does
+    not rewind `frame` or the data source, as a bit refill's reset does not
+    rewind a source it has consumed, and it never clears `data_ended`: the
+    bits types' rule that a pattern with no refill is the whole of the data
+    un-ends on a reset does not apply, since a frames synth has no pattern.
+    `refused` goes with `data_ended`: it survives every reset, and is cleared
+    wherever `data_ended` is, by attaching or detaching a bit source. A reset synth and a fresh one therefore
+    differ.
+- **`user`** is owned by the synth when `free_user` is given, which it calls on
+    detach or destroy, as `set_refill` does.
+- **The frame's length** `n_out` is fixed at install. A PPDU's length is a
+    function of the configuration and the PSDU's length, never of its bits. `n_out`
+    includes `gap`, and a frame is at most `2^24` samples (128 MB of `cf32`): a
+    larger `n_out` makes `attach_frames` return -1. The bridge, which knows the
+    parts, refuses the source naming the limit, the PPDU and the gap.
+
+`WFM_SYNTH_FRAMES` therefore has nothing in it that is OFDM or 802.11: the bridge
+installs the 802.11 callback, and another standard's frame would use the same
+type.
+
+### Oversampling: `fs = M x bandwidth`
+
+A PPDU is rendered at the bandwidth clock by default. A segment whose `fs` is
+`M` times the bandwidth, for an integer `M >= 1`, is rendered by a larger
+transform, which is zero-padding the grid before the inverse transform, not a
+resampler. `Ofdm` already takes `n_fft`, `useful` and `cyclic_prefix` per
+class, so the oversampled PPDU is another layout:
+
+- `n_fft = 64 M`; every length is `M` times its 20 MHz value: the L-STF's
+    `useful` (`160 M`), the L-LTF's body (`128 M`) and prefix (`32 M`), each
+    symbol's body (`64 M`) and prefix (`16 M`), and so `dp_wlan_ppdu_len`;
+- what does not change: the subcarrier indices (`k` from -26 to 26), the pilot
+    subcarriers (`WLAN_PILOT_K`) and their values, the scale and the pilot
+    polarity;
+- the scale does not change. `Ofdm`'s transform is unnormalized,
+    `x[m] = scale * sum_k grid[k] exp(+2j pi k m / n_fft)`, so at `m = M n` the
+    exponent is `2 pi k n / 64`: `x_M[M n] = x_1[n]` for the same `scale`, and the
+    unit-power convention holds at every `M` because the same waveform is
+    sampled finer.
+
+The C functions take `oversample` (`M`) beside the `window`: `dp_wlan_layout (o, t, n_sym, window, m)`, `dp_wlan_ppdu_len (n_sym, window, m)`, `dp_wlan_ppdu (..., window, m, out, cap)`. In wfmgen there is no flag: `M = fs / bandwidth`,
+and a quotient that is not an integer is refused naming why. `M = 1` is
+bit-identical to the output before the argument, pinned against two PPDUs
+committed from the commit before it.
+
+**Which `M`.** `M` is 1 to 128 (`WLAN_OVERSAMPLE_MAX`), so `n_fft` is at most
+8192\. The limit is chosen from a use, not from `OFDM_N_FFT_MAX`: a 20 MHz PPDU
+in a generator running at 2.56 GS/s is `M = 128`, and no 802.11 generator
+needs a faster clock. At `M = 128` the longest PPDU (4095 octets at 6 Mb/s,
+1366 symbols) is 14,039,040 samples, under the synth's `2^24` frame limit
+(16,777,216), so the frame limit never refuses a PPDU in range. The transform
+takes any length, so `M = 3, 5, 11` are accepted; the test builds the layout at
+`M = 1, 2, 3, 5, 11, 16, 128` and refuses `0` and `129`.
+
+**The decimation check, predicted before any run.** The oversampled PPDU with
+`window = 0`, decimated by taking every `M`-th sample, equals the `M = 1` PPDU
+with `window = 0`: one equation on a finer grid. The difference is float32
+rounding in two transforms, and the statistic is the relative `l2` error over
+the compared samples. The tolerance is set by the error the check must
+catch: a layout error (a length, a prefix, a scale, a grid offset) moves
+samples by `O(1)`, and the controls are at least `1e-2`. The tolerance only
+has to sit above the rounding, and its source is the accuracy the FFT's own
+test pins: `test_fft_core.c` accepts the library's float32 transform against a
+double reference to `5e-4` absolute in each of the real and imaginary parts,
+on inputs of unit scale. A complex sample therefore differs by at most
+`sqrt 2 x 5e-4`; two transforms are compared, so `2 sqrt 2 x 5e-4 = 1.41e-3`
+per sample at unit rms, which bounds the relative `l2` error; the tolerance is
+`1.5e-3`. It is asserted at every `M` tested, `2, 3, 5, 11, 16` and `128`,
+powers of two or not, and the committed-bytes cross-build check of `M = 1`
+uses the same tolerance and source. The expected size of the rounding is far
+smaller, a small multiple of `u log2 N` with `u = 2^-24` (Higham, *Accuracy and
+Stability of Numerical Algorithms*, the FFT section), about `1e-6`; that is an
+expectation and is not asserted.
+
+**With a window.** The raised cosine is
+`rise[j] = sin^2 (pi (j + 1/2) / (2 w))` for `w` samples. The two PPDUs compared
+are `M`-times with `window = M w` and `M = 1` with `window = w`: the same
+transition time. At a decimated sample `i` the fine index is `M i`, so the fine
+weight is `sin^2 (pi (i + 1/(2M)) / (2 w))` against the coarse
+`sin^2 (pi (i + 1/2) / (2 w))`: the same function, sampled `(M - 1) / (2 M)` of
+a coarse sample apart, which is `(M - 1) / 2` fine samples. The two are not
+equal inside a transition. The rise
+and the earlier symbol's continuation both lie on the `w` samples after a
+boundary (`ofdm_core.h`: the later symbol's first `w` samples are weighted by
+`rise`, the earlier symbol is continued past its end by `w` samples weighted
+by `fall`, and the two overlap-add): nothing before the boundary changes. The
+equality is therefore asserted outside the `w` samples after each boundary,
+counted on the `M = 1` grid: the start of the L-STF (the first symbol rises
+from silence), of the L-LTF, of SIGNAL and of each Data symbol.
+
+**The spectrum.** At `M = 1` the discontinuity between symbols falls inside
+the band. At `M > 1` the 52 occupied subcarriers lie between `-26 / (64 M)` and
+`+26 / (64 M)` of `fs`, and outside them is only the spectrum of the symbol
+boundaries: each OFDM symbol is a burst of finite length, so its subcarriers
+carry sin(x)/x sidelobes falling as 1/f, and a window replaces the burst's edge
+with a raised-cosine one, whose sidelobes fall faster. The unit test shows the
+power at four out-of-band frequencies is lower with a window than without. The
+802.11 transmit spectral mask bounds the signal, and no preset claims the mask
+is met.
+
+**`window` at fs.** `window` is in samples at the output rate `fs`, not at the
+bandwidth clock. Every C function here counts output samples
+(`dp_wlan_ppdu_len` adds `window` samples, and `Ofdm`'s window is a number of
+output samples per class), so there is one unit throughout and nothing is
+converted. The transition time for a given `window` therefore shortens as `fs`
+rises: `window = 2` is 100 ns at `fs = 20 MHz` and 12.5 ns at 160 MHz. The
+standard's 100 ns transition (17.3.2.5) is `2 M` samples at `fs`. The help
+text for `window` on an `ofdm` source says samples at `fs`.
+
+**What the allocation is.** The layout's maps are heap arrays of `n_fft`
+bytes, not stack arrays.
 
 ### Es/N0 for an `ofdm` source
 
@@ -676,10 +1155,14 @@ The rule is that the anchor is the standard, never the implementation
 under test and never a second implementation in the tree. The modulator's
 own proofs are on [its page](ofdm.md) and need no standard. What follows
 holds a preset to a standard, and the tables are
-transcribed from the text (section 9) and each is pinned in the unit test
-against its printed form, with a one-entry sabotage that goes red; what is
-not yet held to the text is Annex I's stage-by-stage example, which waits for
-its fixture. Where the tests pin only what is derivable (a layout's structure, the lengths, the
+transcribed from the text (section 9); the unit test holds the RATE bits,
+both training sequences, the constellation encodings and the 2/3 and 3/4
+puncture masks against their printed form, and the second permutation by its
+worked 16-QAM example and by a re-derivation of the printed equation (for
+every index of all four pairs). Not held to the text: Annex I's
+stage-by-stage example, which waits for its fixture
+([#3148](https://github.com/doppler-dsp/doppler/issues/3148)), and the pilot
+polarity sequence. Where the tests pin only what is derivable (a layout's structure, the lengths, the
 round trip of the coding chain's own inverses), claiming no conformance.
 
 1. **Annex I, stage by stage, when the text is read.** Annex I encodes one
@@ -700,8 +1183,10 @@ round trip of the coding chain's own inverses), claiming no conformance.
     (the nine ASCII digits `123456789` give `CBF43926` for CRC-32/ISO-HDLC)
     independent of this standard, and the byte order on the wire by the Annex
     I PSDU's last four octets: `fcs` mode over the Annex I frame without its
-    FCS must reproduce the printed PSDU exactly. The second value is from
-    memory until read from the text.
+    FCS must reproduce the printed PSDU exactly. That second test does not
+    exist yet and the Annex I octets are not in the tree
+    ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)); until it
+    does, the byte order rests on the catalogue value alone.
 1. **Transmit-quality measurements with the library's tools**: the power
     spectrum against the transmit mask (17.3.9.3), spectral flatness
     (17.3.9.7.3), relative constellation error (17.3.9.7.4) and PAPR. A
@@ -754,38 +1239,38 @@ page refers to. A row marked unchecked is from memory: a builder that
 writes it into code labels it unverified, and a test that holds it claims
 no conformance.
 
-| number                                                                                                                                                                                        | cited as                                                                   | against the text                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Clause numbers: OFDM 17, ERP 18, HT 19, VHT 21, HE 27                                                                                                                                         | table of contents                                                          | checked                                                                                |
-| The worked example is Annex I                                                                                                                                                                 | Annex I                                                                    | checked                                                                                |
-| `N_FFT` 64, `Δf` 312.5 kHz, `N_SD` 48, `N_SP` 4; GI 0.8 µs, OFDM symbol 4 µs; L-STF 8 µs, L-LTF 8 µs                                                                                          | Table 17-5                                                                 | checked                                                                                |
-| pilots on subcarriers -21, -7, 7, 21 with values 1, 1, 1, -1                                                                                                                                  | 17.3.5.9, 17.3.5.10, Eq. (17-24)                                           | checked                                                                                |
-| eight rates and their modulation and coding pairs; RATE bits                                                                                                                                  | Tables 17-4, 17-6                                                          | checked                                                                                |
-| scrambler `x^7 + x^4 + 1`                                                                                                                                                                     | 17.3.5.5, Eq. (17-14)                                                      | checked                                                                                |
-| BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                                                                   | checked                                                                                |
-| puncture patterns for 2/3 and 3/4                                                                                                                                                             | Figure 17-9                                                                | checked                                                                                |
-| puncture pattern for 5/6                                                                                                                                                                      | Clause 19                                                                  | unchecked                                                                              |
-| SIGNAL bit order: R1..R4, reserved, LENGTH LSB first, even parity, six tail bits                                                                                                              | Figure 17-5, 17.3.4.1                                                      | checked                                                                                |
-| second interleaver permutation, `s = max(N_BPSC/2, 1)`; the worked example `k = 17` to `i = 13`, `j = 12`                                                                                     | Eq. (17-16), (17-17); Annex I.1.6.2, Tables I-17, I-18                     | checked                                                                                |
-| interleaver, 16 columns (the first permutation uses `N_CBPS/16`)                                                                                                                              | 17.3.5.7, Eq. (17-15)                                                      | checked                                                                                |
-| `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                                               | Table 17-14                                                                | checked                                                                                |
-| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | checked; held as relabels of the library's maps (section 4)                            |
-| L-STF and L-LTF sequences and the √(13/6) factor                                                                                                                                              | 17.3.3, Eq. (17-6), (17-8)                                                 | checked; the per-field scale is `1/√52`, unit average power, derived (goal 5)          |
-| window, `T_TR` about 100 ns                                                                                                                                                                   | 17.3.2.5                                                                   | checked                                                                                |
-| transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7                                                         | unchecked                                                                              |
-| Annex I example: 100 octets, 36 Mb/s                                                                                                                                                          | Annex I                                                                    | checked                                                                                |
-| Annex I example: `SCRAMBLER_INITIAL_VALUE` 54                                                                                                                                                 | I.1.5.2                                                                    | checked; see the note below                                                            |
-| ERP-OFDM signal extension, 6 µs (`aSignalExtension`)                                                                                                                                          | Clause 18                                                                  | checked                                                                                |
-| MAC frame format: header, body, FCS; the 24-octet three-address data header (Frame Control, Duration/ID, three addresses, Sequence Control); QoS Control and HT Control as optional additions | Clause 9                                                                   | unchecked                                                                              |
-| FCS: CRC-32, generator polynomial, ones complement and byte order on the wire                                                                                                                 | 9.2.4.9                                                                    | checked; reproduced over Annex I's first 96 octets, the last four octets `67 33 21 B6` |
-| HT-SIG, VHT-SIG-B CRC-8 parameters                                                                                                                                                            | Clauses 19, 21                                                             | unchecked                                                                              |
-| L-SIG LENGTH is 12 bits and limits the PSDU to 1 to 4,095 octets                                                                                                                              | 17.3.4.3, Table 17-1                                                       | checked                                                                                |
-| HT: 52 + 4 subcarriers at 20 MHz, 108 + 6 at 40 MHz; 13 and 18 interleaver columns; short GI 0.4 µs                                                                                           | Clause 19 (Table 19-17 for the columns)                                    | checked                                                                                |
-| VHT: 234 + 8 subcarriers at 80 MHz; 256-QAM at MCS 8 and 9                                                                                                                                    | Table 21-5, Clause 21 MCS tables                                           | checked                                                                                |
-| VHT: `N_FFT` 256 and 512                                                                                                                                                                      | derived, not stated: Table 21-5 gives `N_ST` 242 and 484 at `Δf` 312.5 kHz | consistent                                                                             |
-| HE: `Δf` 78.125 kHz, GI 0.8 / 1.6 / 3.2 µs                                                                                                                                                    | Table 27-13                                                                | checked                                                                                |
-| HE: 1024-QAM at MCS 10 and 11                                                                                                                                                                 | Clause 27                                                                  | unchecked                                                                              |
-| `K_MOD` for 256-QAM and 1024-QAM (1/√170, 1/√682)                                                                                                                                             | 21.3.10.9, 27.3.12                                                         | checked                                                                                |
+| number                                                                                                                                                                                        | cited as                                                                   | against the text                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clause numbers: OFDM 17, ERP 18, HT 19, VHT 21, HE 27                                                                                                                                         | table of contents                                                          | checked                                                                                                                                                                                                                                                            |
+| The worked example is Annex I                                                                                                                                                                 | Annex I                                                                    | checked                                                                                                                                                                                                                                                            |
+| `N_FFT` 64, `Δf` 312.5 kHz, `N_SD` 48, `N_SP` 4; GI 0.8 µs, OFDM symbol 4 µs; L-STF 8 µs, L-LTF 8 µs                                                                                          | Table 17-5                                                                 | checked                                                                                                                                                                                                                                                            |
+| pilots on subcarriers -21, -7, 7, 21 with values 1, 1, 1, -1                                                                                                                                  | 17.3.5.9, 17.3.5.10, Eq. (17-24)                                           | checked                                                                                                                                                                                                                                                            |
+| eight rates and their modulation and coding pairs; RATE bits                                                                                                                                  | Tables 17-4, 17-6                                                          | checked                                                                                                                                                                                                                                                            |
+| scrambler `x^7 + x^4 + 1`                                                                                                                                                                     | 17.3.5.5, Eq. (17-14)                                                      | checked                                                                                                                                                                                                                                                            |
+| BCC generators 133 and 171 octal, output A first                                                                                                                                              | 17.3.5.6                                                                   | checked                                                                                                                                                                                                                                                            |
+| puncture patterns for 2/3 and 3/4                                                                                                                                                             | Figure 17-9                                                                | checked                                                                                                                                                                                                                                                            |
+| puncture pattern for 5/6                                                                                                                                                                      | Clause 19                                                                  | unchecked                                                                                                                                                                                                                                                          |
+| SIGNAL bit order: R1..R4, reserved, LENGTH LSB first, even parity, six tail bits                                                                                                              | Figure 17-5, 17.3.4.1                                                      | checked                                                                                                                                                                                                                                                            |
+| second interleaver permutation, `s = max(N_BPSC/2, 1)`; the worked example `k = 17` to `i = 13`, `j = 12`                                                                                     | Eq. (17-16), (17-17); Annex I.1.6.2, Tables I-17, I-18                     | checked                                                                                                                                                                                                                                                            |
+| interleaver, 16 columns (the first permutation uses `N_CBPS/16`)                                                                                                                              | 17.3.5.7, Eq. (17-15)                                                      | checked                                                                                                                                                                                                                                                            |
+| `K_MOD` (1, 1/√2, 1/√10, 1/√42)                                                                                                                                                               | Table 17-14                                                                | checked                                                                                                                                                                                                                                                            |
+| constellation bit encoding: BPSK, QPSK, 16-QAM, 64-QAM                                                                                                                                        | Figure 17-10, Tables 17-15 to 17-18                                        | checked; held as relabels of the library's maps (section 4)                                                                                                                                                                                                        |
+| L-STF and L-LTF sequences and the √(13/6) factor                                                                                                                                              | 17.3.3, Eq. (17-6), (17-8)                                                 | checked; the per-field scale is `1/√52`, unit average power, derived (goal 5)                                                                                                                                                                                      |
+| window, `T_TR` about 100 ns                                                                                                                                                                   | 17.3.2.5                                                                   | checked                                                                                                                                                                                                                                                            |
+| transmit mask corner points; flatness limits; relative constellation error limits                                                                                                             | 17.3.9.3, 17.3.9.7                                                         | unchecked                                                                                                                                                                                                                                                          |
+| Annex I example: 100 octets, 36 Mb/s                                                                                                                                                          | Annex I                                                                    | checked                                                                                                                                                                                                                                                            |
+| Annex I example: `SCRAMBLER_INITIAL_VALUE` 54                                                                                                                                                 | I.1.5.2                                                                    | checked; see the note below                                                                                                                                                                                                                                        |
+| ERP-OFDM signal extension, 6 µs (`aSignalExtension`)                                                                                                                                          | Clause 18                                                                  | checked                                                                                                                                                                                                                                                            |
+| MAC frame format: header, body, FCS; the 24-octet three-address data header (Frame Control, Duration/ID, three addresses, Sequence Control); QoS Control and HT Control as optional additions | Clause 9                                                                   | unchecked                                                                                                                                                                                                                                                          |
+| FCS: CRC-32, generator polynomial, ones complement and byte order on the wire                                                                                                                 | 9.2.4.9                                                                    | checked against the catalogue value only (`CBF43926` over `123456789`, appended least significant octet first, `0x26 0x39 0xF4 0xCB`, in the test); not reproduced over Annex I's PSDU: no test does ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)) |
+| HT-SIG, VHT-SIG-B CRC-8 parameters                                                                                                                                                            | Clauses 19, 21                                                             | unchecked                                                                                                                                                                                                                                                          |
+| L-SIG LENGTH is 12 bits and limits the PSDU to 1 to 4,095 octets                                                                                                                              | 17.3.4.3, Table 17-1                                                       | checked                                                                                                                                                                                                                                                            |
+| HT: 52 + 4 subcarriers at 20 MHz, 108 + 6 at 40 MHz; 13 and 18 interleaver columns; short GI 0.4 µs                                                                                           | Clause 19 (Table 19-17 for the columns)                                    | checked                                                                                                                                                                                                                                                            |
+| VHT: 234 + 8 subcarriers at 80 MHz; 256-QAM at MCS 8 and 9                                                                                                                                    | Table 21-5, Clause 21 MCS tables                                           | checked                                                                                                                                                                                                                                                            |
+| VHT: `N_FFT` 256 and 512                                                                                                                                                                      | derived, not stated: Table 21-5 gives `N_ST` 242 and 484 at `Δf` 312.5 kHz | consistent                                                                                                                                                                                                                                                         |
+| HE: `Δf` 78.125 kHz, GI 0.8 / 1.6 / 3.2 µs                                                                                                                                                    | Table 27-13                                                                | checked                                                                                                                                                                                                                                                            |
+| HE: 1024-QAM at MCS 10 and 11                                                                                                                                                                 | Clause 27                                                                  | unchecked                                                                                                                                                                                                                                                          |
+| `K_MOD` for 256-QAM and 1024-QAM (1/√170, 1/√682)                                                                                                                                             | 21.3.10.9, 27.3.12                                                         | checked                                                                                                                                                                                                                                                            |
 
 **The Annex I scrambler start, two ways.** The text gives the example's
 `SCRAMBLER_INITIAL_VALUE` as 54. That value is the first seven bits of the
@@ -813,8 +1298,10 @@ drift.
     confused with wfmgen's `Plan`: `--ofdm-layout FILE`, a scene key
     `"layout"`, a source field `layout`. OFDM is generally available as a
     library object ([ofdm](ofdm.md)); this page's type is one caller of it.
-1. **One type, `ofdm`, with a `standard` discriminator**, as `dsss` has
-    `symbol_rate`, rather than a `wlan` type beside it.
+1. **One type, `ofdm`, with a `standard` discriminator** naming a letter
+    (`802.11a`), as `dsss` has `symbol_rate`, rather than a `wlan` type beside
+    it. A PPDU's rate is `wlan N`, the 20 MHz data rate, or `constellation`
+    and `code_rate` (section 5, "The preset").
 1. **Both an object and a type.** The modulator, the QAM map, the CRC and
     the `wlan` builders are certified as objects first; the `ofdm` type is
     the composition.
@@ -823,7 +1310,8 @@ drift.
 1. **LDPC has its own design page**, ahead of HE and after VHT.
 1. **A non-HT rate is spelled by the two columns of Table 17-4 that do not
     change with clocking**: a constellation and `code_rate`. Mb/s names a
-    different pair at 10 MHz than at 20 MHz.
+    different pair at 10 MHz than at 20 MHz, so `wlan N`, which names it by
+    Mb/s, is the 20 MHz rate and is refused at any other bandwidth.
 1. **The scrambler's initial state is drawn per PPDU** from the source's
     `seed` through the composer's draw hash, so it is reproducible and read
     back, with `scrambler_init` to fix it (the Annex I test fixes it). The
@@ -835,29 +1323,45 @@ drift.
     whole PSDU. Nothing beyond it.
 1. **A parametric CRC** serves the FCS and the SIG fields, with
     `dp_crc16_ccitt` as one of its instances.
+1. **The synth plays a frame callback and knows no standard.** One frame of bits in, one frame of symbols out, a pure function
+    of the configuration, the bits and the frame index; the bridge installs the
+    802.11 callback (section 5, "The frame callback").
+1. **A segment's `fs` is `M` times the bandwidth, rendered by a larger
+    transform**, not resampled: `n_fft = 64 M`, the same subcarriers, every
+    length scaled by `M`, `M` from 1 to 128, `M = 1` bit-identical to the PPDU
+    without it (section 5, "Oversampling").
 1. **No MIMO.** Out of scope, not deferred (goal 7).
 
 ### Open
 
-1. **The standard's tables.** There is no copy of the text in `~/refs`.
-    Section 7's first two proofs need Annex I and the Clause 17 tables
-    transcribed from it, and the rows section 9 marks unchecked (the MAC
-    frame format, the mask and accuracy limits, the training sequences,
-    the constellation tables against the library's maps) need checking
-    against it. Until those proofs run no preset is certified.
+1. **Annex I, stage by stage.** The Clause 17 tables are transcribed
+    (section 9); the unit test holds the RATE bits, the training sequences, the
+    constellation encodings and the 2/3 and 3/4 puncture masks against their
+    printed form and the second permutation by a worked point and a
+    re-derivation of the equation. What is
+    open is Annex I's own stage-by-stage example (section 7's first proof),
+    which no test holds yet ([#3148](https://github.com/doppler-dsp/doppler/issues/3148)),
+    and the rows section 9 marks unchecked (the MAC frame format, the mask
+    and accuracy limits). Until the Annex I proof runs no preset is
+    certified.
+
 1. **What anchors HT, VHT and HE.** Unknown 3 in section 8: no printed
     waveform exists for them.
+
 1. **Confirm the Es/N0 definition.** Section 5 proposes MER on the data
     subcarriers after equalization, from ETSI TR 101 290 V1.4.1, and `auto`
     as Es/N0. The owner confirms before the wfmgen type; the modulator does
     not need it.
+
 1. **The name of the constellation field.** Recommended: a new
     `constellation` field and `[[enum]] constellation`, appended, not qam
     values added to `modulation`, whose enum `bitmod` is bound to a C enum, a
     name table and the `bits` type (section 5). The cost is two spellings
     for a mapping: `modulation` on `bits`, `constellation` on `ofdm`.
+
 1. **The spellings.** Recommended: the standard's own, `1/2`, `2/3`, `3/4`,
     `5/6` and `802.11a`; section 5 says what is checked first.
+
 1. **The form of the MAC header in the first slice.** Recommended: raw
     octets (`mac_header`) only. The field form (Frame Control, Duration/ID,
     three addresses, Sequence Control) needs a six-octet address spelling no

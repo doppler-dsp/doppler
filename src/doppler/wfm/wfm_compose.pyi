@@ -33,7 +33,7 @@ class Synth:
         (repeated preamble + data-code-spread frame) by default, or a
         continuous asynchronous stream when symbol_rate is set.
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
-        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
+        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``, ``"ofdm"``.
     freq : float | tuple[float, float], default 0.0
         Carrier or offset frequency in Hz; for chirp, the sweep start. With fs
         = 1 it is in normalised cycles per sample.
@@ -232,10 +232,55 @@ class Synth:
         Continuous dsss: the frame, in symbols, that code_only_symbols opens;
         give it with code_only_symbols, or both 0 for no window. The frame runs
         on the stream's own symbol clock, so its edges land at any chip phase.
-    fs : float, default 1.0
-        Sample rate in Hz, one per segment and shared by all its sources. At
-        the default 1.0 every frequency is normalised (cycles per sample);
-        state it whenever a scene is in real Hz.
+    wlan : int, default 0
+        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9,
+        12, 18, 24, 36, 48, 54: a second spelling of constellation and
+        code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not
+        given. Refused beside constellation or code_rate, with a bandwidth
+        other than 20 MHz, and on any other type.
+    constellation : str, default ``"bpsk"``
+        For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16,
+        qam64; the pair with code_rate must be a row of the standard's rate
+        table.
+        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``.
+    code_rate : str, default ``"1/2"``
+        For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.
+        One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``.
+    scrambler_init : int, default 0
+        For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
+        0 draws a fresh state for each PPDU from seed, so a run is reproducible
+        and a resume re-renders the same PPDU.
+    window : int, default WFM_WINDOW_UNSET
+        For type=ofdm: the transition window in samples at the output rate, 0
+        for none, at most 80 times fs over bandwidth (the shortest OFDM
+        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads
+        back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or
+        a record written from the source holds that count.
+    mac : str, default ``"none"``
+        For type=ofdm: how the caller's octets become the PSDU. none: as given.
+        fcs: an MPDU without its FCS, which the PHY appends. data: a header
+        (mac_header) and a body, with the FCS appended.
+        One of ``"none"``, ``"fcs"``, ``"data"``.
+    gap : int, default 0
+        For type=ofdm: idle samples after each PPDU, at the output rate, filled
+        with noise at the source's noise variance.
+    bandwidth : float, default 20e6
+        For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
+        802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
+        integer multiple of it, at most 128 times it; the multiple is the
+        oversampling M, done by a larger transform.
+    mac_header : bytes | None, default None
+        For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
+        frame's header). A Field of whole octets on the command line and in a
+        scene, where a hex Field such as 0x08020000 is the octets it spells; a
+        bit array in Python, 8 bits per octet, each octet's first bit the most
+        significant (bytes.fromhex is not accepted:
+        np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
+        appends the frame's octets (the data source) and the FCS. Refused with
+        mac none or fcs, and without it for mac data.
+    fs : float, default 1000000.0
+        Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz
+        against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.
     """
 
     def __init__(
@@ -276,6 +321,15 @@ class Synth:
         fill: bytes | None = ...,
         code_only_symbols: int = ...,
         frame_symbols: int = ...,
+        wlan: int = ...,
+        constellation: str = ...,
+        code_rate: str = ...,
+        scrambler_init: int = ...,
+        window: int = ...,
+        mac: str = ...,
+        gap: int = ...,
+        bandwidth: float = ...,
+        mac_header: bytes | None = ...,
         fs: float = ...,
     ) -> None: ...
     type: str
@@ -317,6 +371,15 @@ class Synth:
     fill: bytes | None
     code_only_symbols: int
     frame_symbols: int
+    wlan: int
+    constellation: str
+    code_rate: str
+    scrambler_init: int
+    window: int
+    mac: str
+    gap: int
+    bandwidth: float
+    mac_header: bytes | None
     fs: float
     def steps(self, n: int, /) -> NDArray[np.complex64]:
         """Generate the next *n* samples of this source on its own.
@@ -441,7 +504,7 @@ class Segment:
         (repeated preamble + data-code-spread frame) by default, or a
         continuous asynchronous stream when symbol_rate is set.
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``,
-        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
+        ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``, ``"ofdm"``.
     freq : float | tuple[float, float], default 0.0
         Carrier or offset frequency in Hz; for chirp, the sweep start. With fs
         = 1 it is in normalised cycles per sample.
@@ -640,6 +703,52 @@ class Segment:
         Continuous dsss: the frame, in symbols, that code_only_symbols opens;
         give it with code_only_symbols, or both 0 for no window. The frame runs
         on the stream's own symbol clock, so its edges land at any chip phase.
+    wlan : int, default 0
+        For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9,
+        12, 18, 24, 36, 48, 54: a second spelling of constellation and
+        code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not
+        given. Refused beside constellation or code_rate, with a bandwidth
+        other than 20 MHz, and on any other type.
+    constellation : str, default ``"bpsk"``
+        For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16,
+        qam64; the pair with code_rate must be a row of the standard's rate
+        table.
+        One of ``"bpsk"``, ``"qpsk"``, ``"qam16"``, ``"qam64"``.
+    code_rate : str, default ``"1/2"``
+        For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.
+        One of ``"1/2"``, ``"2/3"``, ``"3/4"``, ``"5/6"``.
+    scrambler_init : int, default 0
+        For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127.
+        0 draws a fresh state for each PPDU from seed, so a run is reproducible
+        and a resume re-renders the same PPDU.
+    window : int, default WFM_WINDOW_UNSET
+        For type=ofdm: the transition window in samples at the output rate, 0
+        for none, at most 80 times fs over bandwidth (the shortest OFDM
+        symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads
+        back) is the standard's 100 ns, 2 * fs / bandwidth samples; a scene or
+        a record written from the source holds that count.
+    mac : str, default ``"none"``
+        For type=ofdm: how the caller's octets become the PSDU. none: as given.
+        fcs: an MPDU without its FCS, which the PHY appends. data: a header
+        (mac_header) and a body, with the FCS appended.
+        One of ``"none"``, ``"fcs"``, ``"data"``.
+    gap : int, default 0
+        For type=ofdm: idle samples after each PPDU, at the output rate, filled
+        with noise at the source's noise variance.
+    bandwidth : float, default 20e6
+        For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for
+        802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an
+        integer multiple of it, at most 128 times it; the multiple is the
+        oversampling M, done by a larger transform.
+    mac_header : bytes | None, default None
+        For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data
+        frame's header). A Field of whole octets on the command line and in a
+        scene, where a hex Field such as 0x08020000 is the octets it spells; a
+        bit array in Python, 8 bits per octet, each octet's first bit the most
+        significant (bytes.fromhex is not accepted:
+        np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY
+        appends the frame's octets (the data source) and the FCS. Refused with
+        mac none or fcs, and without it for mac data.
     fs : float, default 1.0
         Sample rate in Hz, one per segment and shared by all its sources. At
         the default 1.0 every frequency is normalised (cycles per sample);
@@ -715,6 +824,15 @@ class Segment:
     fill: bytes | None
     code_only_symbols: int
     frame_symbols: int
+    wlan: int
+    constellation: str
+    code_rate: str
+    scrambler_init: int
+    window: int
+    mac: str
+    gap: int
+    bandwidth: float
+    mac_header: bytes | None
     def __init__(
         self,
         type: str = ...,
@@ -753,6 +871,15 @@ class Segment:
         fill: bytes | None = ...,
         code_only_symbols: int = ...,
         frame_symbols: int = ...,
+        wlan: int = ...,
+        constellation: str = ...,
+        code_rate: str = ...,
+        scrambler_init: int = ...,
+        window: int = ...,
+        mac: str = ...,
+        gap: int = ...,
+        bandwidth: float = ...,
+        mac_header: bytes | None = ...,
         fs: float = ...,
         num_samples: int | tuple[int, int] = ...,
         off_samples: int | tuple[int, int] = ...,

@@ -7,13 +7,21 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 
 FOLLOW_END: tuple[str, ...]
+"""Names of the follow_end values, indexed by value."""
 FTYPE: tuple[str, ...]
+"""Names of the ftype values, indexed by value."""
 STYPE: tuple[str, ...]
+"""Names of the stype values, indexed by value."""
 SAMPLE_MODE: tuple[str, ...]
+"""Names of the sample_mode values, indexed by value."""
 ENDIAN: tuple[str, ...]
+"""Names of the endian values, indexed by value."""
 FS_SOURCE: tuple[str, ...]
+"""Names of the fs_source values, indexed by value."""
 T0_SOURCE: tuple[str, ...]
+"""Names of the t0_source values, indexed by value."""
 FC_SOURCE: tuple[str, ...]
+"""Names of the fc_source values, indexed by value."""
 
 @final
 class Reader:

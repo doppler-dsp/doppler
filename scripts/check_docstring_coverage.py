@@ -512,6 +512,55 @@ def all_leaks(mods: dict[str, list[Sym]], have_runtime: bool) -> list[str]:
     return hits
 
 
+#: The per-symbol flag for a CLASS whose stub Examples section is authored (a
+#: hand-written ``@code`` block on the constructor's header), as opposed to the
+#: scaffold jm falls back to. Added with #3162: ``4f676d1d4`` moved a binding's
+#: constructor to a second function whose header block was one line, the
+#: StateFilter stub's Examples became the scaffold, and nothing failed -- the
+#: scaffold is a valid ``>>>`` doctest, so the class stayed covered on both
+#: faces and the per-symbol rule saw no transition.
+AUTHORED = "e"
+
+_SCAFFOLD_LINES = 3  # "Create with defaults:", the import, `obj = Cls()`
+
+
+def authored_example(doc: str | None) -> bool:
+    r"""Is this class docstring's Examples section a human's, not the scaffold?
+
+    The scaffold jm writes when no ``@code`` reaches a class is exactly
+    ``Create with defaults:``, ``>>> from <mod> import <Cls>`` and
+    ``>>> obj = <Cls>()``. An Examples section with a doctest line that is
+    anything more than those three is authored; none at all is not.
+
+    >>> authored_example(None)
+    False
+    >>> scaffold = (
+    ...     "X.\n\nExamples\n--------\nCreate with defaults:\n\n"
+    ...     ">>> from doppler.m import X\n>>> obj = X()\n"
+    ... )
+    >>> authored_example(scaffold)
+    False
+    >>> authored_example(scaffold + ">>> obj.step(1.0)\n")
+    True
+    >>> authored_example("X.\n\nExamples\n--------\n>>> 1 + 1\n2\n")
+    True
+    """
+    if not doc:
+        return False
+    m = re.search(r"^\s*Examples\s*\n\s*-{3,}\s*\n(.*)\Z", doc, re.S | re.M)
+    if not m:
+        return False
+    body = [ln.strip() for ln in m.group(1).splitlines() if ln.strip()]
+    if not any(ln.startswith(">>>") for ln in body):
+        return False
+    scaffold = (
+        len(body) <= _SCAFFOLD_LINES
+        and body[0] == "Create with defaults:"
+        and all(ln.startswith((">>> from ", ">>> obj = ")) for ln in body[1:])
+    )
+    return not scaffold
+
+
 def face_flags(
     mods: dict[str, list[Sym]], have_runtime: bool, ignore: set[str]
 ) -> dict[str, str]:
@@ -554,6 +603,9 @@ def face_flags(
                 faces += UNSEEN
             elif have_runtime and s.covered("runtime"):
                 faces += "r"
+            # A class's authored Examples is a third thing it can lose (#3162).
+            if s.kind == "class" and authored_example(s.stub_doc):
+                faces += AUTHORED
             out[s.qual] = faces
     return out
 
@@ -591,6 +643,12 @@ def symbol_losses(
         # Scored on a face-by-face basis, not a `continue`: the stub face is
         # still judged for a symbol whose runtime face this build never
         # exposed, and a check added below must not silently inherit a skip.
+        if AUTHORED in was and AUTHORED not in now:
+            out.append(
+                f"{qual}: authored Examples LOST (the stub now carries the "
+                "scaffold or none: check where jm reads the class's "
+                "description from, e.g. the constructor the binding calls)"
+            )
         runtime_scored = have_runtime and UNSEEN not in now
         if runtime_scored and "r" in was and "r" not in now:
             out.append(
@@ -709,7 +767,8 @@ def write_baseline(
         "",
         "[symbols]",
         "# One line per symbol COVERED on at least one face: <qual>"
-        " <faces>, s=stub r=runtime. A symbol here may never LOSE a",
+        " <faces>, s=stub r=runtime e=a class's Examples is authored,"
+        " not the scaffold. A symbol here may never LOSE a",
         "# face — that is a True -> False transition, and it fails on"
         " its own regardless of what improved elsewhere in the module.",
         "# A symbol covered on no face is omitted; it has nothing to"

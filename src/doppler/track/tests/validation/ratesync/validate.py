@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.ber import ber_evm_db, ber_settle_syms
+from doppler.detection import det_verify_count
 from doppler.resample import MatchedRateConverter
 from doppler.telemetry import Telemetry
 from doppler.tests import loop_reference as ll
@@ -46,6 +47,11 @@ DATA = HERE / "data"
 BETA = 0.35
 SPAN = 8
 NSYM = 3000
+#: The lock detector's block: one decision per LOCK_AVGS symbols, RateSync's
+#: default (symsync's sizing at pfa 1e-3, pd 0.9).
+LOCK_AVGS = 133
+#: Its declare threshold at the same sizing.
+LOCK_THRESH = 0.311
 #: Samples per symbol of the GENERATION grid. A fractional timing offset is
 #: placed exactly by generating here and decimating by ``FINE // sps``, so an
 #: offset of ``j`` fine samples is exactly ``j / FINE`` symbols — no
@@ -598,6 +604,12 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "§7 §15 NEW",
     ),
     ("C40", "destroy() may be NULL", "§1"),
+    (
+        "C41",
+        "the lock declares after n_up = verify_count(pfa, 1e-6) = 2 passing "
+        "decisions and drops after n_down = verify_count(1 - pd, 1e-6) = 6",
+        "C §21 NEW (#3133) + §2.4 (this report)",
+    ),
 ]
 
 
@@ -1147,7 +1159,9 @@ def characterise() -> Data:
         f"Every offset acquires, and every one declares well inside the "
         f"`ber_settle_syms(0.01, 0)` = {budget}-symbol budget this report "
         f"measures EVM after. The lock instants are multiples of 133, which "
-        f"is the detector's block size showing through."
+        f"is the detector's block size showing through, and none is earlier "
+        f"than the second block: a declare takes `n_up` = 2 consecutive "
+        f"passing decisions (C41)."
     )
     R.md()
     R.md(
@@ -1466,16 +1480,25 @@ def characterise() -> Data:
         ev = evm_db(y, 0.01)
         # the rectangle, on a stream matched to it
         xn = np.repeat(symbols(NSYM), 8).astype(np.complex64)
-        rn, yn, _ = run_sync(xn, 8.0, bn=0.01, m=m, pulse="iandd")
+        rn, yn, recn = run_sync(
+            xn, 8.0, bn=0.01, m=m, pulse="iandd", probes=True
+        )
         evn = evm_db(yn, 0.01)
+        # Every decision the record made, read from the object's own probe:
+        # `sync.lock` holds each block's statistic, so the decisions are its
+        # value at the end of each LOCK_AVGS-symbol block. The final
+        # `lock_stat` is one block of these and says nothing about the rest.
+        dec = np.asarray(recn["sync.lock"])[LOCK_AVGS - 1 :: LOCK_AVGS]
+        held = np.asarray(recn["sync.locked"], dtype=float)
         rows.append(
             [
                 m,
                 f"{rs.lock_stat:+.3f}",
                 f"{ev:.1f}",
-                f"{rn.lock_stat:+.3f}",
+                f"{dec.mean():+.3f}",
+                f"{int((dec > LOCK_THRESH).sum())}/{dec.size}",
                 f"{evn:.1f}",
-                int(rn.locked),
+                f"{held.mean():.0%}",
             ]
         )
         d.m_rows.append(
@@ -1483,9 +1506,11 @@ def characterise() -> Data:
                 m,
                 float(rs.lock_stat),
                 ev,
-                float(rn.lock_stat),
+                float(dec.mean()),
                 int(rn.locked),
                 evn,
+                float((dec > LOCK_THRESH).mean()),
+                float(held.mean()),
             )
         )
     R.table(
@@ -1493,9 +1518,10 @@ def characterise() -> Data:
             "m",
             "RRC lock_stat",
             "RRC EVM (dB)",
-            "IANDD lock_stat",
+            "IANDD mean decision",
+            "IANDD passing decisions",
             "IANDD EVM (dB)",
-            "IANDD locked",
+            "IANDD locked (share of record)",
         ],
         rows,
     )
@@ -1504,6 +1530,21 @@ def characterise() -> Data:
         "matched filter is a two-tap sum and the eye barely opens. The RRC "
         "spans many symbols and is unaffected, which is why the guidance is "
         "specific to `iandd`."
+    )
+    R.md()
+    m2 = next(r for r in d.m_rows if r[0] == 2)
+    R.md(
+        f"**The lock at `m = 2` with the rectangle is a false declare, not a "
+        f"lock.** On a noiseless stream it passes {m2[6]:.0%} of its "
+        f"decisions, its mean decision is {m2[3]:+.3f} against the "
+        f"{LOCK_THRESH} threshold, and it demodulates at {m2[5]:.1f} dB. "
+        f"Even so, two passing decisions in a row happen often enough to "
+        f"declare, and the flag reads locked for {m2[7]:.0%} of the record. "
+        f"The verify counts are derived for a statistic that passes with "
+        f"pd 0.9 when the eye is open and with pfa 1e-3 on noise. This one "
+        f"is neither, so no count makes the flag right here; the "
+        f"`m >= 4` rule is what keeps a caller out of the cell "
+        f"(**{R.ref('iandd_m2_lock_false_declare')}**)."
     )
     R.md()
 
@@ -2025,6 +2066,25 @@ def review(d: Data) -> None:
         "though the `ted` choice has been characterised end to end when "
         "half the axis the header prices it on has never been exercised.",
     )
+    m2 = next(r for r in d.m_rows if r[0] == 2)
+    R.find(
+        "iandd_m2_lock_false_declare",
+        "GAP",
+        f"with the rectangle at `m = 2` the timing lock declares on a loop "
+        f"that is not usably tracking. On a noiseless NRZ stream it passes "
+        f"{m2[6]:.0%} of its decisions, its mean decision is {m2[3]:+.3f} "
+        f"against the {LOCK_THRESH} threshold, it demodulates at "
+        f"{m2[5]:.1f} dB, and `locked` still reads 1 for {m2[7]:.0%} of the "
+        f"record. Before #3133 (`n_up` 1, `n_down` 8) it declared on the "
+        f"first block's pull-in transient and never dropped, 96% of the "
+        f"record, because its longest failing run (7) is shorter than "
+        f"`n_down`. The derived counts (2 and 6) narrow it but cannot "
+        f"remove it: they are sized for a statistic that passes with pd 0.9 "
+        f"or with pfa 1e-3, and this one does neither. The `m >= 4 with "
+        f"iandd` rule that keeps a caller out of the cell is documentation "
+        f"only; enforcing it at create is "
+        f"[#3150](https://github.com/doppler-dsp/doppler/issues/3150).",
+    )
     R.md()
     R.table(
         ["finding", "verdict", "detail"],
@@ -2168,6 +2228,15 @@ def limits(d: Data) -> None:
         all(t[2] > 0.55 for t in d.lock_time),
         "and settles with the eye open (lock_stat > 0.55 at every offset)",
     )
+    # The declare's time hysteresis (C41): the counts from the header's
+    # rates and budget, so a declare cannot land before the n_up-th block.
+    n_up = det_verify_count(1e-3, 1e-6)
+    earliest = min(t[1] for t in d.lock_time if t[1] >= 0)
+    R.limit(
+        earliest >= n_up * LOCK_AVGS - 1,
+        f"and none declares before n_up = {n_up} blocks of {LOCK_AVGS} looks "
+        f"(earliest symbol {earliest}): one passing decision never declares",
+    )
 
     # --- bn across planned cascades ------------------------------------
     for bn, vals in d.bn_rows:
@@ -2258,22 +2327,20 @@ def limits(d: Data) -> None:
     m4 = next(r for r in d.m_rows if r[0] == 4)
     # The m >= 4 rule is asserted on what it COSTS, not on the lock flag.
     #
-    # This used to read `m2[3] < 0.311 <= m4[3]` — m = 2 must not clear the
-    # declare threshold. That worked only while the number happened to sit
-    # at +0.180, and it stopped being true the moment the resamp ctrl fix
-    # improved the rate-1.0 cascades: m = 2 now reads +0.525 and DOES clear
-    # the threshold, while still demodulating at -8.7 dB against m = 4's
-    # -18.1 dB. So the flag flipped and the guidance did not — the rule is
-    # as right as it ever was, and `lock_stat` was never the quantity that
-    # discriminates. That is finding `locked_not_separate_scaling`, applied:
-    # the lock detector answers "is the eye open", not "is this configuration
-    # usable".
+    # This used to read `m2[3] < 0.311 <= m4[3]` on the FINAL block's
+    # lock_stat, which is one decision of twenty-two. It flipped when the
+    # resamp ctrl fix moved that one block to +0.525, while m = 2 still
+    # demodulated at -8.7 dB. The flag is no better a witness: at m = 2 it
+    # false-declares on two lucky blocks (finding iandd_m2_lock_false_declare).
+    # So the rule is measured on EVM, which is the quantity that
+    # discriminates, and the flag's share of the record is reported beside it.
     R.limit(
         m4[5] < m2[5] - 6.0,
         f"with the rectangle, m = 4 demodulates {m2[5] - m4[5]:.1f} dB "
         f"better than m = 2 ({m4[5]:.1f} vs {m2[5]:.1f} dB) — the m >= 4 "
-        f"rule, measured on EVM because `lock_stat` does not separate them "
-        f"(m = 2 reads {m2[3]:+.3f} and declares lock at {m2[5]:.1f} dB)",
+        f"rule, measured on EVM because the lock flag does not separate "
+        f"them (m = 2 passes {m2[6]:.0%} of its decisions and still reads "
+        f"locked for {m2[7]:.0%} of the record)",
     )
     R.limit(
         all(r[1] > 0.55 for r in d.m_rows),

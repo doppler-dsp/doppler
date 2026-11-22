@@ -798,6 +798,10 @@ drop_borrowed (wfm_source_t *s)
   s->data           = (wfm_seq_t){ 0 };
   s->fill           = (wfm_seq_t){ 0 };
   s->data_from_file = NULL;
+  /* An ofdm source's MAC header is part of the PSDU the signal carries, which
+     cache_sig holds; the noise copy renders no PPDU, so it keeps no header
+     (a struct-copied pointer to the composer's bits would dangle). */
+  s->mac_header = (wfm_seq_t){ 0 };
 }
 
 static int

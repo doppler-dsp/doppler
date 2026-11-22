@@ -470,10 +470,10 @@ analog relation between `wn` and `Bn`.
     measured the sum of squares of that later phase 1% to 7% under `2*Bn`, so
     a figure compared with `Bn` must say where the phase is read.
 
-1. **Stability is positivity.** The pair `(A, b)` is controllable, so `A` is
-    stable exactly when the solution `P` is positive definite (a Cholesky
-    factorization whose every pivot is positive). One solve gives both the
-    bandwidth and the verdict.
+1. **Stability is the decay of one sum.** The pair `(A, b)` is controllable,
+    so `A` is stable exactly when `P = sum_k A^k b b^T (A^T)^k` converges, and
+    that sum is the solution of the Lyapunov equation of the previous item.
+    One computation gives both the bandwidth and the verdict.
 
     **Conditioning, and where the verdict is trusted.** The gains of a slow
     loop span many decades (`kr` is about `1e-9` where `kp` is `4e-3` at
@@ -498,14 +498,18 @@ analog relation between `wn` and `Bn`.
     1e-9). An unstable loop overflows or stalls at order one, and a marginal
     one (a gain at zero, a pole at `z = 1`) never goes to zero, which is the
     "not controllable reads as not stable" rule falling out of the same test.
-    The function is verified on the design gains from `STATE_FILTER_BNT_MIN` to
-    `STATE_FILTER_BNT_MAX` at delays 0 to 4 and loop gains 0.5 to 2
-    (bandwidth within 3.1e-11 of the closed form), and against a simulation of
-    the loop's own state recursion over the Kalman recursion's gains at
+    What the tests run: the exact bandwidth at delay 0 and loop gain 1 against
+    the bandwidth asked for from `bn*t` 1e-6 to `STATE_FILTER_BNT_MAX` (1203
+    cells, within 1e-9; not claimed below 1e-6, which is above
+    `STATE_FILTER_BNT_MIN`); the verdict and the bandwidth against a
+    simulation of the real step at `bn*t` 0.03 for delays 0, 0.5, 1, 1.25, 2
+    and 3 and loop gains 1, 0.7 and 1.6; and a simulation of the loop's own
+    state recursion over the Kalman recursion's gains at
     `bn*t` from 1e-3 to 0.08, starts of 1 to 5 times, at the four corners `K`
     in {0.5, 2} by delay in {0, 2}: 1404 cases judged, no disagreement, the
-    same on every platform because there is one code path. Two limits are
-    stated, not hidden. A loop within about `1e-12` of the unit circle is
+    same on every platform because there is one code path. The sweep over
+    every `bn*t` from the floor to the bound, delays 0 to 4 and loop gains 0.5
+    to 2 is not run. Two limits are stated, not hidden. A loop within about `1e-12` of the unit circle is
     within rounding of the edge, and either answer is within that rounding.
     A gain at or below zero reads as not stable by rule, which is the correct
     frozen verdict and is why a Kalman gain that crosses zero in a transient is
@@ -513,42 +517,6 @@ analog relation between `wn` and `Bn`.
     (`create`, the blob check) come from the closed-form bisection and do not
     pass through this function, so a blob written on one platform is accepted
     on another to the last bit of the gains.
-
-    **Which phase.** The bandwidth is that of the oscillator phase at the
-    detector instant, `phi[n]`. A phase read after the `kp*e` step of the same
-    update is a different signal: the Costas lane, running this same loop,
-    measured the sum of squares of that later phase 1% to 7% under `2*Bn`, so
-    a figure compared with `Bn` must say where the phase is read.
-
-1. **Stability is positivity.** The pair `(A, b)` is controllable, so `A` is
-    stable exactly when the solution `P` is positive definite (a Cholesky
-    factorization whose every pivot is positive). One solve gives both the
-    bandwidth and the verdict.
-
-    **Conditioning, and where the verdict is trusted.** The gains of a slow
-    loop span many decades (`kr` is about `1e-9` where `kp` is `4e-3` at
-    `bn*t = 1e-3`), and a Cholesky pivot of `P` in the raw coordinates can
-    flip negative on a loop that is stable with a margin of `1e-4`. That is
-    what happened to gains off the design manifold, the ones a converging
-    Kalman filter holds (Part III): the verdict was erratic, a false "not
-    stable" at isolated updates of a stable trajectory. The solve therefore
-    runs in balanced coordinates (a diagonal similarity by powers of two,
-    which leaves the positivity of `P` and the bandwidth exactly as they were
-    and changes only the conditioning) and in extended precision (`long  double`: 64 bits of mantissa on x86-64 with gcc or clang, 113 on aarch64,
-    and the same as `double` on MSVC, where the balancing alone remains).
-    Neither alone removes the defect on the measured gains (balancing alone
-    left 2 disagreements in 1404 cases, extended precision alone 5); both do.
-    The function is verified on the design gains from `STATE_FILTER_BNT_MIN` to
-    `STATE_FILTER_BNT_MAX` at delays 0 to 4 and loop gains 0.5 to 2 (accurate
-    to 1.6e-11), and against a simulation of the loop's own state recursion
-    over the Kalman recursion's gains at `bn*t` from 1e-3 to 0.08, starts of 1
-    to 5 times, at the four corners `K` in {0.5, 2} by delay in {0, 2}: 1404
-    cases judged, no disagreement. Two limits are stated, not hidden. A loop
-    within about `1e-9` of the unit circle is within rounding of the edge, and
-    either answer is within that rounding. A gain at or below zero reads as
-    not stable by rule, which is the correct frozen verdict and is why a
-    Kalman gain that crosses zero in a transient is reported as outside the
-    rectangle there.
 
 1. **Order 2, solved.** The Lyapunov equation gives
     `Bn = (2 kp^2 + (2 + kp) ki) / (2 kp (4 - 2 kp - ki))` and the loop is
@@ -569,7 +537,11 @@ analog relation between `wn` and `Bn`.
     `b`; the gains are `kp = b*th`, `ki = a*th^2`, `kr = th^3`, the analog
     coefficients at `th = w0*t`. The scale `th` is then **solved** so that
     the exact `Bn` above equals `bn*t`: one monotone equation in one
-    unknown, started from `th = 1.2 * bn*t` (the prototype's `w0 = bn / (5/6)`). The delivered bandwidth is
+    unknown, started from `th = 1.2 * bn*t` (the prototype's `w0 = bn / (5/6)`).
+    The gains come from the closed-form order-3 bandwidth (`sf_bn3`, the
+    delay-free expression of step 3) by bisection on `th`; the general exact
+    function of §12, with its delay and gain arguments, is the independent
+    check on that expression and is not what the gains are solved from. The delivered bandwidth is
     `bn` by construction, at `d = 0`, and the discretization only moves the
     shape. A matched-pole family (`z = exp(s*t)` on the analog roots) is the
     alternative way to fix the shape; §15 lists the choice.
@@ -840,8 +812,9 @@ model the recursion converges to a constant `g`, the steady-state Kalman
 gain of an alpha-beta-gamma tracker, which depends only on the ratio of the
 two noise levels. So the fixed-gain loop is the steady-state case of the
 Kalman recurrence at some noise ratio, and that ratio is what `bn` selects.
-That correspondence is a claim for the Kalman work to prove, not one this
-page relies on.
+That correspondence is proved in the continuous limit and measured in
+discrete time in §19: the two flavors meet exactly as `bn*t` goes to zero
+and differ by a stated amount at the bounds.
 
 **What the two share:** the state `(integ, rate)`, the step's signature
 (`e` in, `c` out), the blob envelope and its `reset`, the caller's units
@@ -941,3 +914,327 @@ measures the same through the binding.
 1. **The gain family.** The gains are the analog coefficients at the solved
     scale; matched poles are the other way to fix the shape and are not
     compared ([#3123](https://github.com/doppler-dsp/doppler/issues/3123)).
+
+# Part III — the Kalman flavor
+
+Part II is a fixed-gain third-order loop. This part describes its second
+flavor, `KalmanStateFilter`: the same loop, with the gains computed each
+update from a covariance recursion instead of held constant. What it measured
+is in its validation report
+(`src/doppler/track/tests/validation/state_filter_kalman/results.md`); what
+that report does not cover is
+[#3136](https://github.com/doppler-dsp/doppler/issues/3136).
+
+## 17. Use cases
+
+1. **Acquire fast, then track narrow.** A fixed-gain loop has one bandwidth:
+    wide enough to pull in or narrow enough to ride out noise. The Kalman
+    gain is high while the state is uncertain and falls as the filter
+    learns, to the steady-state gain of the noise it is given. A loop that
+    starts with a frequency error of a few bin widths and must settle to a
+    narrow bandwidth gets both from one object.
+1. **A loop sized from the signal, not from a bandwidth.** The fixed-gain
+    flavor is sized from `bn`, a design number. A caller who knows the
+    detector's noise and how fast the carrier's rate can change gives those
+    two figures and gets the bandwidth that is optimal for them (§18).
+1. **The fixed-gain case stays.** The fixed-gain flavor's step, struct and
+    blob do not move (§21); a caller who wants a constant loop keeps it.
+
+## 18. The model, and what the caller gives
+
+**The model.** The tracked quantity has a phase, a frequency and a rate:
+`s = (theta, f, a)`, advancing as `theta' = theta + f`, `f' = f + a` and
+`a' = a + w`, where `w` is white with variance `q` per update (a rate that
+random-walks: the dynamics figure). The detector measures the phase error
+`e = theta - phi` with white noise of variance `r` per update (the
+measurement figure), `phi` being the oscillator's phase. The loop filter of
+§11 is the observer form of this model. With the predicted state
+`x = (phi, f_bar, a_bar)` it is
+
+```text
+x' = F x + K e,      F = [[1,1,0],[0,1,1],[0,0,1]],
+                     K = (kp + ki + kr,  ki + 2*kr,  kr)
+```
+
+(checked: `F - K*H` with `H = (1,0,0)` has the characteristic polynomial of
+§11.1 for every `(kp, ki, kr)`). A Kalman filter is the same recurrence with
+`K` chosen each update:
+
+```text
+S  = P[0][0] + r                     innovation variance
+K  = F P[:,0] / S
+P' = F P F^T - S K K^T + Q,           Q = diag(0, 0, q)
+```
+
+with `P` the covariance of the predicted state. The three gains the step
+reads are `kp = K0 - K1 + K2`, `ki = K1 - 2*K2`, `kr = K2`. The step itself is
+Part II's three lines; the Kalman flavor adds the covariance update that
+sets the gains before them.
+
+**What the caller gives, in the loop's units.** Two numbers, both about the
+loop's own error signal, so nothing has to be invented as a matrix:
+
+| given     | meaning                                                 | units                                |
+| --------- | ------------------------------------------------------- | ------------------------------------ |
+| `sigma_e` | rms of the detector error when locked                   | the error's units, per update        |
+| `sigma_a` | rms change of the rate per update (the dynamics figure) | control units per update, per update |
+
+so `r = sigma_e^2` and `q = sigma_a^2`. A caller who knows a C/N0 and a
+maximum jerk turns them into these two the way it already turns them into a
+detector variance. The steady-state bandwidth follows from their ratio
+alone: in the continuous limit `Bn = (5/6) * (q/r)^(1/6)` per update (§19),
+and exactly by the solve of §11.1 applied to the steady-state gains.
+
+**The automatic case: `bn` and `t` alone, as the fixed-gain flavor takes
+them.** The noise ratio is solved so the steady-state loop's exact bandwidth
+is `bn*t`, and the covariance starts at its steady state. The filter is then
+a constant-gain loop at the **Riccati** steady-state gains, which are not the
+fixed-gain flavor's: they differ by the percentages of §19. Its stability is
+therefore shown for those gains and not inherited from the fixed-gain
+flavor's (§20 does it, and the flavor has its own constants). From the
+first sample it behaves as the fixed-gain loop does to within about 1% in
+settling time (measured below), the difference being the few percent of a
+gain.
+
+**A larger start, and its cap.** A caller who gives a frequency uncertainty
+`sigma_f0` larger than the steady state's `sigma_f` (the square root of the
+steady-state covariance's frequency entry) starts with larger covariance and
+therefore larger gains for a while. The constructor refuses a start whose
+gains, at ANY update of the covariance's trajectory (not only the first),
+leave the exact stability rectangle of §12 (`K` 0.5 to 2, delays 0 and 2).
+That rule caps the start, and the cap is the object's own property, measured
+by the validator from the shipped constructor
+(the report,
+`src/doppler/track/tests/validation/state_filter_kalman/results.md`, §2.5), not typed here: it is about 6 times `sigma_f` for every `bn*t` up to
+0.04 and then falls (3.8 at 0.06, 2.4 at 0.08, 1.2 at the bound 0.12). The
+constructor also has a ceiling, `START_MAX` = 5, so **the ceiling is what
+binds up to `bn*t` 0.04 and the rule binds past it**: a fast loop gets the
+least acquisition from a start, which is the opposite of where a caller
+might want it. The rule is checked by sampling the trajectory (each test 1% of the elapsed
+updates after the last, and at least one update, so every update of the first
+100 is tested), and the report's sampling table measures that choice against
+the dense walk: the same cap to the bisection at every `bn*t` of the grid, 0.4%
+higher at a 10% step and 5% higher at a 50% step. The exact stability test is
+reliable off the design manifold (§11.1), so a sample does not step over an
+excursion.
+
+What it buys, for a noise-free frequency step and the same final `bn*t`, is
+in the report's §2.6: at `bn*t` 0.01 a start of 5 settles in 0.56 of the
+fixed-gain loop's updates, and a start of 4 in 0.59; at 0.04, 0.51 and 0.56.
+**Inside the ceiling the Kalman flavor settles a frequency step about 1.8
+times faster than the fixed-gain loop and peaks at about half the error: use
+case 1 is served by a factor under two.** A caller whose start is several bin
+widths off (a hundred times `sigma_f`) is refused; the fixed-gain answer to
+that case is to start wide and `configure` narrower (§5), which keeps the
+estimates.
+
+**What relaxing the ceiling buys, measured and not shipped.** The owner
+ruled the rule stays as designed for the first version and asked what
+relaxing it buys. The report's §2.6 measures starts of 10, 30 and 100 times
+`sigma_f` (built through the embedder's unguarded `init_qr`, which the
+validated constructors do not accept, so nothing shipped accepts them and an
+embedder that passes one is outside the certified range): at `bn*t` 0.01 a
+start of 30 settles a frequency step in 0.27 of the fixed-gain loop's
+updates, against 0.56 at the ceiling, and no closed loop diverged or failed
+to settle across starts 1 to 100, slopes 0.6, 0.76 and 1 and delays 0 to 2 at
+`bn*t` 0.01 and 0.04. Frozen at the gains in force the loop does leave the
+rectangle for a few updates past the cap; the converging loop did not
+diverge. That is a measurement, not a guarantee, and whether to relax the
+ceiling is the owner's.
+
+## 19. The claim of §13.1, proved and corrected
+
+§13.1 said the fixed-gain loop is the steady state of the Kalman recurrence
+at some noise ratio. **In the continuous limit that is exact; in discrete
+time it is not, and the difference grows with `bn*t`.**
+
+*Continuous limit.* The steady-state Kalman-Bucy filter of a triple
+integrator driven by white noise of intensity `q`, measured in noise of
+intensity `r`, has its poles where the symmetric root locus
+`1 - (q/r) / s^6 = 0` puts them: `s^6 = q/r`, six roots on a circle of radius
+`w0 = (q/r)^(1/6)`, of which the three in the left half plane are
+`-w0` and `w0 * (-1/2 +- j*sqrt(3)/2)`. That is
+`(s + w0)(s^2 + w0*s + w0^2)`, the Butterworth polynomial of §11, with
+`a = b = 2`. So the shape of the fixed-gain loop is the optimal-filter shape,
+and `bn` selects the noise ratio through `Bn = (5/6) * w0`.
+
+*Discrete time.* The steady-state gains of the discrete recursion above are
+the solution of its Riccati equation, and they differ from the fixed-gain
+loop's (analog coefficients at the solved scale) at the first order in
+`th = w0*t`. Arithmetic from the Riccati solution in scratch (a
+number a C oracle replaces: the implementation's test produces them and this
+table is regenerated from it), at the noise ratio whose exact bandwidth is
+`bn*t`, as the relative difference of each gain from the fixed-gain flavor's:
+
+| `bn*t` | `kp`  | `ki`  | `kr`  |
+| ------ | ----- | ----- | ----- |
+| 0.01   | -0.5% | -0.2% | +0.7% |
+| 0.04   | -2.0% | -0.7% | +3.0% |
+| 0.12   | -5.3% | -1.5% | +9.3% |
+
+The same to the third digit for process noise `diag(0, 0, q)` and for the
+exact sampling of a continuous white jerk. So the two flavors **meet at the
+limit and are separate objects in the finite loop**: the fixed-gain flavor is
+the Butterworth loop, the Kalman flavor's steady state is the optimal one for
+the discrete model, and they differ by a few percent of a gain at the
+bandwidths the loop is used at. Two tests follow, and neither is equality:
+the Kalman steady state equals an independent solution of the Riccati
+equation (the oracle), and its difference from the fixed-gain gains falls as
+`bn*t` falls, at the first order (a ratio bounded by a stated constant over
+a decade).
+
+## 20. Stability and bandwidth where the gains move
+
+The exact function of §12 is a statement about a loop with gains held
+constant. Evaluated at the Kalman flavor's current gains it says what the
+loop would be if they stopped changing: its delivered bandwidth and its
+stability over a detector delay and a loop gain. That is the one thing it
+says. It does not say the time-varying loop is stable, and the page does not
+claim it, with two stated exceptions.
+
+- **The constants of its own.** The first flavor's rectangle was derived
+    for the Butterworth gains and does not transfer to the Riccati ones: at
+    the bound `kr` is 9% larger and `kp` 5% smaller. The harness derives the
+    flavor's own from the exact function at its steady-state gains (the
+    report, §2.2). At `bn*t = 0.12` the upper gain edge at a delay of two
+    updates is 2.18 (the first flavor: 2.08) and the lower edge is 0.274,
+    0.314 and 0.365 at delays 0, 1 and 2 (the first flavor: 0.236, 0.268 and
+    0.310). The largest `bn*t` stable at `K = 2`, `d = 2` is 0.1302 (the first
+    flavor: 0.1248), and the lower edge at the bound sits 2.7 dB under
+    `K_MIN = 0.5` at the worst delay (the first flavor: 4.1 dB), 3.3 dB under
+    the 0.58 one caller measures. So the Kalman flavor has its own named
+    constants, and the rectangle (`bn*t` 0.12, gains 0.5 to 2, delay 2) is
+    inside both bounds; the lower margin is the smaller and is stated beside
+    the constant.
+- **A matched model at unit gain.** The Kalman filter's error dynamics are
+    exponentially stable when the model is observable and controllable,
+    which the triple integrator with noise on its rate is, so the loop is
+    stable throughout convergence when the noise figures describe the
+    signal and the detector slope is 1.
+- **The gains along the start are bounded.** The constructor refuses a
+    start whose gains, at any update of the covariance's trajectory, fall
+    outside the exact stability rectangle; §18 states the cap.
+
+What is not claimed: stability during convergence at a detector slope other
+than 1 or with a detector delay, where the covariance is wrong about the
+loop. The report measures noise-free closed loops through slopes 0.6, 0.76 and
+1 and delays 0 to 2 (§2.6); that is a measurement, not a promise, and the
+converging loop's stability against the frozen-gain prediction is open
+([#3136](https://github.com/doppler-dsp/doppler/issues/3136)).
+
+## 21. How a flavor is built
+
+**Its own component, calling the base.** The Kalman flavor is
+`state_filter_kalman`, a component of its own with its own class,
+`KalmanStateFilter`. It is not a view of `state_filter`: jm builds a view's
+`step`, `steps` and state blob from its parent's and has no way to override
+them (an override is refused as a duplicate member,
+[just-makeit gh-1092](https://github.com/just-buildit/just-makeit/issues/1092),
+on the pinned jm 0.126.1 and on 0.130.1), and the Kalman step and blob are
+exactly what differ. Nothing is
+copied across: the Kalman struct holds the base `dp_state_filter_state_t`
+by value as its first member, and the loop's three lines, the exact
+stability and the exact bandwidth are the base's own functions
+(`dp_state_filter_step`, `dp_state_filter_loop_stable`,
+`dp_state_filter_loop_bandwidth`). The read surface the two classes share
+(`kp`, `ki`, `kr`, `integ`, `rate`, `bn`, `t`, `bandwidth`, `stable`) is
+shared by forwarding: each is a thin C function or a field read through the
+base member, so the two classes cannot drift.
+
+**The state, typed, public, and embeddable by value.** The Kalman filter is
+its own C type, whose first member is the base, followed by the six distinct
+entries of the covariance `P`, its start `P0`, and the two figures `q` and
+`r`. It is public, as the base is, because the same embedders (the DSSS
+carrier loop among them) hold their filter by value: it has an `init` that
+needs no heap, and `create`/`destroy` for the heap path. Its functions
+(`init`, `create`, `destroy`, `configure`, `reset`, `step`, `steps` and the
+state triplet) take the Kalman pointer, so the compiler refuses a C caller
+who hands a Kalman filter to the base's `configure` or `set_state`; the
+base's functions that only read (`stable`, `bandwidth` and the fields) accept
+`&k->base`. The step is out of line: its covariance update runs once per loop
+update, at a rate far under the sample rate, so there is no hot path to
+protect.
+
+**What a caller states.** The caller's figures, as the owner ruled them: the
+rms detector error when locked `sigma_e`, the rms change of the rate per
+update `sigma_a`, and an optional frequency uncertainty `sigma_f0` (0 =
+absent), all in the loop's own units; the automatic case is `bn` and `t`
+alone. In C these are two typed constructors (`create` from the figures,
+`create_bn` from a bandwidth) over the internal `(q, r, start)` form. In
+Python they are one class with optional arguments: the figures, or `bn`
+alone, and both or neither is refused with an error that names the two forms.
+No carrier-to-noise-density or jerk argument and no detector model is in the
+filter; the guide shows the conversion a caller with a C/N0 and a jerk figure
+makes, as an example and not an API.
+
+**The hot step.** The fixed-gain step is untouched, and the fixed-gain
+struct, its inline step and every embedder's size do not move: the Kalman
+type is a different type. The Kalman step is its own function: the loop's
+three lines on the gains in force, then the covariance update and the gain
+refresh. The fixed-gain rows cannot move, since every file under
+`native/*/state_filter/` and its generated binding is byte-identical to the
+fixed-gain component's; the Kalman rows are `kalman_step`, `kalman_configure`,
+`create_start_1e2` and `create_start_1e4`.
+
+**Telemetry.** Neither flavor has `set_telemetry`, and that is decided, not
+missed. A leaf filter has no probes of its own to publish: the loop that
+embeds it attaches telemetry and publishes the loop's outputs (the control
+value, the phase error, the frequency estimate), and the filter's state is
+readable (`kp`, `ki`, `kr`, `integ`, `rate`, and for this flavor `sigma_f` and
+the covariance start through the blob). One thing differs for the Kalman
+flavor, and a composing loop must act on it: the fixed-gain filter's `kp`,
+`ki` and `kr` are constants, so an embedder can publish them once at attach,
+but the Kalman flavor's gain schedule moves, so they are running values and
+an embedder that wants them as probes publishes them per update. That is a
+line in the embedder's adoption ([#3136](https://github.com/doppler-dsp/doppler/issues/3136)),
+not code here.
+
+**The blob.** The Kalman blob has its own magic and version, so a fixed-gain
+blob and a Kalman blob refuse each other at the envelope. The fixed-gain
+blob's flavor and pad words (eight bytes, reserved at version 1) are read as
+zero there and stay as built; the Kalman blob does not use them. Its payload
+is the base's seven numbers, then `P`, `P0`, `q` and `r`. `P` is not
+checkable by the gains-from-bandwidth rule the fixed-gain blob uses, so a
+Kalman set-state accepts a blob only if `P` and `P0` are finite and positive
+definite (a Cholesky), the figures are inside the flavor's domain, the gains
+in force are the ones `P` and `r` give, and the bandwidth is the figures'.
+
+## 22. Reuse
+
+A search of the tree for a covariance or Riccati step (`covariance`,
+`Riccati`, `Kalman`, `innovation`, `Cholesky`, the Lyapunov solve) finds
+only `state_filter`'s own exact-bandwidth solve. There is nothing to reuse.
+The Lyapunov solve of §11.1 and the Riccati update are different equations;
+the 3-by-3 update here is new and small.
+
+## 23. Where each question is answered
+
+Each question the design raised, and where its answer is. Every number is in
+the report (`src/doppler/track/tests/validation/state_filter_kalman/results.md`);
+none is typed here.
+
+1. **Convergence time against the fixed-gain loop's pull-in.** A start of 4
+    times `sigma_f` settles a frequency step in 0.58 of the fixed-gain loop's
+    updates at `bn*t` 0.02 (§2.6); the table of settling by start, slope and
+    delay is the report's record.
+1. **Wrong noise figures.** The delivered bandwidth goes as the sixth root of
+    the noise ratio to 1.1% over ratios 0.01 to 100 (§2.3).
+1. **Conditioning of the covariance update for slow loops.** The plain update
+    is kept: against a copy in `long double` it stays positive definite at
+    every update and its gains stay within 3e-11 down to `bn*t` 1e-6 (§2.7);
+    the entry that loses digits is the small `p12`, which the gains do not
+    feel.
+1. **`r` and the slope both move with the signal-to-noise ratio.** The
+    effective loop gain is the Kalman gain times the detector slope, so a slope
+    of 0.6 to 0.76 is the loop gain `K` of the stability map (§2.4); what the
+    filter does when `r` is wrong in the joint way a compressed detector makes
+    it is a closed loop with noise and a real discriminator, which is open
+    ([#3136](https://github.com/doppler-dsp/doppler/issues/3136)).
+1. **The slope and delay range.** The filter at its steady state is stable at
+    slopes 0.6, 0.76 and 1 and delays 0 to 2 at `bn*t` 0.04 (§2.4); the
+    converging loop is measured noise-free (§2.6) and its stability against
+    the frozen-gain prediction is open (#3136).
+1. **The step's cost.** About 9 ns per update; a retune about 0.29 ms; a
+    create with a start above 1 1.2 ms at `bn*t` 1e-2 and 5.7 ms at 1e-4 (bench
+    rows `kalman_step`, `kalman_configure`, `create_start_1e2`,
+    `create_start_1e4`, single runs on one machine).

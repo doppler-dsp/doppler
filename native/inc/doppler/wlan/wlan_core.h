@@ -16,8 +16,14 @@
  * Every number the design page marks checked against the standard's text
  * is a constant here, or a member of dp_wlan_tables_t, which
  * dp_wlan_tables_standard() returns filled with the Clause 17 literals
- * transcribed from the text and each pinned in the test against its printed
- * form. dp_wlan_tables_empty() is the same struct with nothing in it: a
+ * transcribed from the text. What the test holds against a printed form is
+ * the RATE bits, both training sequences, the constellation encodings and the
+ * 2/3 and 3/4 puncture masks (Figure 17-9's sent bits). The second
+ * interleaver permutation is held by its worked 16-QAM example and by a
+ * re-derivation of Eq. (17-16), (17-17) written in the test for every index
+ * of all four Clause 17 pairs: that is the equation as posted on #3109, not a
+ * printed table. The pilot polarity is not held against a printed form, nor
+ * is the 5/6 mask (Clause 19). dp_wlan_tables_empty() is the same struct with nothing in it: a
  * builder that needs an empty entry refuses (returns 0 or -1) and changes
  * nothing, and the machinery tests run on SYNTHETIC tables that claim no
  * conformance. The tables are:
@@ -70,6 +76,15 @@ extern "C"
 #define WLAN_GI 16u
 /** @brief An OFDM symbol with its guard interval, in samples. */
 #define WLAN_SYM_LEN 80u
+/** @brief The largest oversampling factor: a 20 MHz PPDU in a generator
+ *         running at 2.56 GS/s, so a transform of at most 8192 points. */
+#define WLAN_OVERSAMPLE_MAX 128u
+/** @brief The window argument that means "the standard's 100 ns transition":
+ *         dp_wlan_window_resolve() turns it into `2 * M` samples. A spelling
+ *         of dp_wlan_create() only; every function below it takes a count of
+ *         samples at the output rate, and refuses this value as out of range
+ *         (it is above `80 * M`). `0` is the explicit rectangular choice. */
+#define WLAN_WINDOW_STANDARD UINT32_MAX
 /** @brief The L-STF, in samples (8 us at 20 MHz). */
 #define WLAN_STF_LEN 160u
 /** @brief The L-LTF, in samples (8 us at 20 MHz). */
@@ -82,6 +97,10 @@ extern "C"
 #define WLAN_TAIL_BITS 6u
 /** @brief The largest PSDU, in octets (LENGTH is 12 bits; 17.3.4.3). */
 #define WLAN_PSDU_MAX 4095u
+/** @brief The most Data OFDM symbols a PPDU can have: the largest PSDU at the
+ *         slowest rate (BPSK 1/2, 24 data bits per symbol),
+ *         `ceil ((16 + 8 * 4095 + 6) / 24)`. */
+#define WLAN_N_SYM_MAX 1366u
 /** @brief The pilot subcarrier indices (17.3.5.9). */
 #define WLAN_PILOT_K { -21, -7, 7, 21 }
 /** @brief The pilot values before the polarity element (17.3.5.10). */
@@ -115,21 +134,27 @@ typedef struct
   dp_wlan_code_t code;   /**< the BCC rate */
 } dp_wlan_rate_t;
 
-/** @brief A (rate, SIGNAL RATE bits) pair of dp_wlan_tables_t. */
+/** @brief A row of dp_wlan_tables_t: Table 17-6 as printed, the data rate
+ *         and the SIGNAL RATE bits of one pair. */
 typedef struct
 {
   dp_wlan_rate_t rate; /**< the rate this entry names              */
   uint8_t        bits; /**< the four RATE bits, as an integer 0..15 */
+  uint8_t        mbps; /**< the data rate at 20 MHz in Mb/s, Table 17-6's
+                            first column; 0 = not given (synthetic tables) */
 } dp_wlan_signal_rate_t;
 
 /** @brief The second interleaver permutation: input index @p i to output. */
 typedef size_t (*dp_wlan_perm2_fn) (size_t i, size_t n_cbps, size_t n_bpsc);
 
 /**
- * @brief What the standard supplies and this tree does not yet hold.
+ * @brief What the standard supplies: the Clause 17 literals.
  *
- * Empty (NULL, 0) until transcribed from the text; see the file comment.
- * Every pointer is borrowed and must outlive its use.
+ * dp_wlan_tables_standard() returns it filled, transcribed from the text (the
+ * file comment says which members the test holds against a printed form);
+ * dp_wlan_tables_empty() returns it with every member empty (NULL, 0), and a
+ * builder that needs an empty member refuses. See the file comment. Every
+ * pointer is borrowed and must outlive its use.
  */
 typedef struct
 {
@@ -138,6 +163,11 @@ typedef struct
   double scale_stf;  /**< L-STF time-domain scale; 0 = absent              */
   double scale_ltf;  /**< L-LTF scale; 0 = absent                          */
   double scale_data; /**< SIGNAL and Data scale; 0 = absent               */
+  /* The standard tables set all three to 1/sqrt(52): unit mean power over
+     the 52 occupied subcarriers, this library's convention (#3148). Annex I
+     prints the same math with the inverse transform's own 1/64, so its
+     time-domain samples equal this library's times sqrt(52)/64; a table whose
+     three scales are 1/64 renders them. One gain covers every field. */
   const dp_wlan_signal_rate_t *signal_rates; /**< RATE bits per rate      */
   size_t                       n_signal_rates; /**< entries above         */
   dp_wlan_perm2_fn perm2; /**< second interleaver permutation; NULL = absent */
@@ -180,15 +210,116 @@ typedef struct
   uint32_t code;   /**< the dp_wlan_code_t, as an integer         */
   uint32_t n_cbps; /**< coded bits per OFDM symbol, 48 * n_bpsc   */
   uint32_t n_dbps; /**< data bits per OFDM symbol                 */
+  uint32_t rate_mbps; /**< data rate at 20 MHz, Mb/s; 0 = no Table 17-6 row */
+  uint32_t window;     /**< window length in samples at the output rate  */
+  uint32_t oversample; /**< M: the output rate over the 20 MHz clock     */
 } dp_wlan_state_t;
 
 /**
  * @brief Create a rate holder, by the index of the constellation and of the
- *        code rate.
+ *        code rate, with the window and the oversampling its PPDUs use.
  * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
  * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
- * @return Heap-allocated state, or NULL if either index is outside its range
- *         or the pair's data bits per OFDM symbol are not a whole number.
+ * @param window         Window length in samples at the output rate, or
+ *                       WLAN_WINDOW_STANDARD for the standard's 100 ns
+ *                       transition (`2 * M` samples, see
+ *                       dp_wlan_window_resolve()); 0 is no window. A count
+ *                       is 0 to
+ *                       80 * @p oversample: the modulator takes no run whose
+ *                       window is longer than an OFDM symbol of its class, and
+ *                       the shortest is the SIGNAL and Data symbol of 80 * M
+ *                       samples. Above the 16 * M guard interval the cross-fade
+ *                       reaches into the symbol body; the standard's own
+ *                       transition is 2 * M.
+ * @param oversample     `M`, 1 to WLAN_OVERSAMPLE_MAX: the output rate over
+ *                       the 20 MHz clock (see dp_wlan_layout()).
+ * @return Heap-allocated state, or NULL if an index, @p window or
+ *         @p oversample is outside its range (every pair of the four
+ *         constellations and four code rates is built).
+ * @note Caller must call dp_wlan_destroy() when done.
+ */
+dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate,
+                                 uint32_t window, uint32_t oversample);
+
+/**
+ * @brief Bits per subcarrier of a constellation index: the one map from the
+ *        index dp_wlan_create() takes to the `n_bpsc` of a rate pair.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
+ * @return 1, 2, 4 or 6, or 0 for an index outside 0 to 3.
+ *
+ * @code
+ * unsigned n = dp_wlan_n_bpsc (2);   // 16-QAM: 4 bits per subcarrier
+ * @endcode
+ */
+unsigned dp_wlan_n_bpsc (int constellation);
+
+/**
+ * @brief The standard's 100 ns transition at an oversampling: `2 * M`
+ *        samples (17.3.2.5).
+ *
+ * The one definition of the rule. It is `static inline` so that wfmgen's
+ * draw library, which links no DSP, calls it instead of keeping a copy;
+ * dp_wlan_window_resolve() returns it for WLAN_WINDOW_STANDARD.
+ *
+ * @param oversample  `M`.
+ * @return The count.
+ */
+static inline uint32_t
+dp_wlan_window_standard (uint32_t oversample)
+{
+  return 2u * oversample;
+}
+
+/**
+ * @brief The window, in samples at the output rate, that a caller's
+ *        @p window argument means at this oversampling.
+ *
+ * WLAN_WINDOW_STANDARD gives `2 * oversample`, the standard's 100 ns
+ * transition (17.3.2.5); any other value is returned unchanged, so 0 stays
+ * the explicit rectangular choice. The one place the default is defined:
+ * dp_wlan_create() and the wfmgen source call it, and a caller who wants the
+ * default for a call that takes a count (dp_wlan_layout(), dp_wlan_ppdu())
+ * asks it too. It does not range-check: dp_wlan_params_why() does, on the
+ * resolved count.
+ * @param window      A count, or WLAN_WINDOW_STANDARD.
+ * @param oversample  `M`.
+ * @return The count.
+ *
+ * @code
+ * >>> from doppler.wlan import Wlan
+ * >>> Wlan(oversample=4).window   # the default: 100 ns at 80 MHz
+ * 8
+ * >>> Wlan(window=0, oversample=4).window   # rectangular, by asking
+ * 0
+ * @endcode
+ */
+uint32_t dp_wlan_window_resolve (uint32_t window, uint32_t oversample);
+
+/**
+ * @brief Why dp_wlan_create() would refuse these arguments, or NULL if it
+ *        would not: the first argument that fails, by name.
+ *
+ * The oversampling is checked before the window, because the window's limit
+ * depends on it.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ * @param window         Window length in samples at the output rate.
+ * @param oversample     `M`.
+ * @return A static sentence naming the argument and its range, or NULL.
+ */
+const char *dp_wlan_params_why (int constellation, int code_rate,
+                                uint32_t window, uint32_t oversample);
+
+/**
+ * @brief dp_wlan_create(), and the reason when it refuses. The binding calls
+ *        this one.
+ * @param constellation  0 BPSK, 1 QPSK, 2 16-QAM, 3 64-QAM.
+ * @param code_rate      0 for 1/2, 1 for 2/3, 2 for 3/4, 3 for 5/6.
+ * @param window         Window length in samples at the output rate.
+ * @param oversample     `M`.
+ * @param[out] why       On a refusal only, dp_wlan_params_why()'s sentence;
+ *                       left as the caller set it on success. May be NULL.
+ * @return The state, or NULL with @p why set.
  * @note Caller must call dp_wlan_destroy() when done.
  *
  * @code
@@ -203,7 +334,9 @@ typedef struct
  *
  * @endcode
  */
-dp_wlan_state_t *dp_wlan_create (int constellation, int code_rate);
+dp_wlan_state_t *dp_wlan_create_why (int constellation, int code_rate,
+                                     uint32_t window, uint32_t oversample,
+                                     const char **why);
 
 /**
  * @brief Destroy a rate holder.
@@ -230,7 +363,8 @@ void dp_wlan_reset (dp_wlan_state_t *state);
 
 /**
  * @brief Whether @p r is a rate this component builds: `n_bpsc` in
- *        {1, 2, 4, 6} and a data-bit count per OFDM symbol that is whole.
+ *        {1, 2, 4, 6} and a code rate of the four. The data bits per OFDM
+ *        symbol are whole for every such pair (the test shows it).
  * @param r  The rate.
  * @return 1 if it is, 0 if not.
  */
@@ -249,6 +383,35 @@ unsigned dp_wlan_n_cbps (const dp_wlan_rate_t *r);
  * @return `N_DBPS`, or 0 for an invalid rate.
  */
 unsigned dp_wlan_n_dbps (const dp_wlan_rate_t *r);
+
+/**
+ * @brief The data rate of a pair at 20 MHz, in Mb/s: the table's printed
+ *        column.
+ *
+ * Table 17-6 lists eight of the sixteen pairs; the rate is read from its
+ * first column, and the unit test holds that column against `N_DBPS / 4` for
+ * every row.
+ * @param t          The tables.
+ * @param r          The pair.
+ * @param[out] mbps  The rate; written only on success.
+ * @return 1 on success, 0 if the table does not list @p r (or gives no
+ *         rates, as dp_wlan_tables_empty() does). @p mbps is then unchanged.
+ */
+int dp_wlan_mbps (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
+                  unsigned *mbps);
+
+/**
+ * @brief The pair of a data rate at 20 MHz, from Table 17-6: the inverse of
+ *        dp_wlan_mbps().
+ * @param t       The tables.
+ * @param mbps    The rate: 6, 9, 12, 18, 24, 36, 48 or 54 in the standard's
+ *                table.
+ * @param[out] r  The pair; written only on success.
+ * @return 1 on success, 0 if the table lists no such rate. @p r is then
+ *         unchanged.
+ */
+int dp_wlan_rate_from_mbps (const dp_wlan_tables_t *t, unsigned mbps,
+                            dp_wlan_rate_t *r);
 
 /**
  * @brief The Data OFDM symbols a PSDU needs:
@@ -280,14 +443,73 @@ size_t dp_wlan_rate_n_sym (const dp_wlan_rate_t *r, size_t psdu_len);
 size_t dp_wlan_n_sym (const dp_wlan_state_t *state, size_t psdu_len);
 
 /**
- * @brief The samples a PPDU of @p n_sym Data symbols occupies:
- *        `160 + 160 + 80 + 80 * n_sym`, plus the @p window samples of the last
- *        symbol's window tail.
- * @param n_sym   Data OFDM symbols.
- * @param window  Window length in samples, 0 for none.
- * @return Samples.
+ * @brief The samples a PPDU of @p n_in PSDU octets occupies at this object's
+ *        rate, window and oversampling: the capacity dp_wlan_ppdu_why() needs,
+ *        exactly.
+ * @param state  A rate holder from dp_wlan_create().
+ * @param n_in   PSDU octets, 1 to WLAN_PSDU_MAX.
+ * @return Samples, or 0 for a length outside that range or for a rate with no
+ *         SIGNAL RATE bits (Table 17-6 lists eight of the sixteen pairs; the
+ *         others cannot be sent, and `rate_mbps` is 0 for them).
  */
-size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window);
+size_t dp_wlan_ppdu_max_out (const dp_wlan_state_t *state, size_t n_in);
+
+/**
+ * @brief Render a PSDU to a whole PPDU: L-STF, L-LTF, SIGNAL and Data, at the
+ *        rate, window and oversampling this object holds.
+ *
+ * The standard's tables are the library's (dp_wlan_tables_standard()); the PSDU
+ * is the caller's octets as given, FCS included. The result is the
+ * dp_wlan_ppdu() output for the same arguments, with the refusal's reason.
+ *
+ * @param state              A rate holder from dp_wlan_create().
+ * @param in                 The PSDU octets.
+ * @param n_in               Their count, 1 to WLAN_PSDU_MAX.
+ * @param scrambler_state    The scrambler register's initial state, 1 to 127.
+ * @param[out] out           Receives dp_wlan_ppdu_max_out() samples.
+ * @param max_out            Capacity of @p out, in samples.
+ * @param[out] why           On a refusal only, a static sentence saying why;
+ *                           left as the caller set it on success. May be NULL.
+ * @return The samples written, or -1 if the rate has no SIGNAL RATE bits, the
+ *         PSDU length or the scrambler state is out of range, or @p max_out is
+ *         short; @p out is then untouched. On the Python face a short `out=`
+ *         is refused before the other arguments are, by the binding.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wlan import Wlan
+ * >>> w = Wlan(constellation="qam16", code_rate="r34")  # 36 Mb/s
+ * >>> psdu = np.arange(100, dtype=np.uint8)
+ * >>> x = w.ppdu(psdu, 93)
+ * >>> x.dtype, x.shape  # 160 + 160 + 80 + 80 * 6, plus the 2-sample window
+ * (dtype('complex64'), (882,))
+ * >>> w2 = Wlan(constellation="qam16", code_rate="r34", oversample=2)
+ * >>> w2.ppdu(psdu, 93).shape  # twice as fine, and a 4-sample window
+ * (1764,)
+ * >>> w.ppdu(psdu, 0)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: the scrambler state is 1 to 127
+ *
+ * @endcode
+ */
+int64_t dp_wlan_ppdu_why(dp_wlan_state_t *state, const uint8_t *in, size_t n_in, uint32_t scrambler_state, float _Complex *out, size_t max_out, const char **why);
+
+/**
+ * @brief The samples a PPDU of @p n_sym Data symbols occupies:
+ *        `M * (160 + 160 + 80 + 80 * n_sym)`, plus the @p window samples of the
+ *        last symbol's window tail, with `M` the oversampling factor.
+ * @param n_sym       Data OFDM symbols, 1 to WLAN_N_SYM_MAX.
+ * @param window      Window length in samples at the output rate, 0 for none.
+ *                    A count: WLAN_WINDOW_STANDARD is resolved by the caller
+ *                    (dp_wlan_window_resolve()), not here.
+ * @param oversample  `M`: the output rate over the 20 MHz clock, 1 to
+ *                    WLAN_OVERSAMPLE_MAX (128).
+ * @return Samples, or 0 if @p n_sym or @p oversample is outside its range
+ *         (the ranges dp_wlan_layout() accepts).
+ */
+size_t dp_wlan_ppdu_len (size_t n_sym, unsigned window,
+                         unsigned oversample);
 
 /**
  * @brief The BCC at a code rate: K = 7, generators 133 and 171 octal, with
@@ -472,16 +694,29 @@ size_t dp_wlan_points (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
  *
  * @param o       A fresh modulator from dp_ofdm_create().
  * @param t       The tables (L-STF and L-LTF values and the scales).
- * @param n_sym   Data OFDM symbols.
- * @param window  Window length in samples at each symbol boundary, 0 for none.
- * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0,
+ * @param n_sym   Data OFDM symbols, 1 to WLAN_N_SYM_MAX.
+ * @param window  Window length in samples at each symbol boundary, at the
+ *                output rate, 0 for none.
+ * @param oversample  `M`, 1 to WLAN_OVERSAMPLE_MAX. The transform is `64 M`
+ *                long, the subcarriers are the same, and every length (the
+ *                L-STF, the L-LTF, the guard interval, the body) is `M` times
+ *                its 20 MHz value: zero-padding the grid before the inverse
+ *                transform, not a resampler. The transform is unnormalized
+ *                and the scale is not changed, so `x_M[M n] = x_1[n]` and the
+ *                unit-power convention holds at every `M`. `M = 1` is the
+ *                20 MHz layout.
+ * @return 0 and a checked layout, or -1 if a table is empty, @p n_sym is 0
+ *         or above WLAN_N_SYM_MAX, @p oversample is outside
+ *         1..WLAN_OVERSAMPLE_MAX, @p window is above 80 * @p oversample,
  *         or the modulator refuses a call.
- * @note On -1 @p o may already hold some of the classes: it is not to be
- *       used again, only destroyed. dp_wlan_ppdu() builds into its own
- *       modulator and destroys it, so it is unaffected.
+ * @note A refusal by the arguments (@p t NULL or a table empty, @p n_sym,
+ *       @p oversample or @p window out of range) leaves @p o untouched. A
+ *       refusal by the modulator may leave classes in it, and then it is
+ *       not to be used again, only destroyed. dp_wlan_ppdu() builds into its
+ *       own modulator and destroys it, so it is unaffected.
  */
 int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
-                    size_t n_sym, unsigned window);
+                    size_t n_sym, unsigned window, unsigned oversample);
 
 /**
  * @brief Render a PPDU to samples.
@@ -490,14 +725,16 @@ int dp_wlan_layout (dp_ofdm_state_t *o, const dp_wlan_tables_t *t,
  * @param psdu      PSDU octets.
  * @param len       Their count.
  * @param state     The scrambler register state, 1..127.
- * @param window    Window length in samples, 0 for none.
+ * @param window    Window length in samples at the output rate, 0 for none.
+ * @param oversample  `M`, 1 to WLAN_OVERSAMPLE_MAX (see dp_wlan_layout()).
  * @param[out] out  Receives dp_wlan_ppdu_len() samples.
  * @param cap       Capacity of @p out, in samples.
  * @return Samples written, or 0 if any stage refuses (changing nothing).
  */
 size_t dp_wlan_ppdu (const dp_wlan_tables_t *t, const dp_wlan_rate_t *r,
                      const uint8_t *psdu, size_t len, uint8_t state,
-                     unsigned window, float _Complex *out, size_t cap);
+                     unsigned window, unsigned oversample, float _Complex *out,
+                     size_t cap);
 
 #ifdef __cplusplus
 }

@@ -1104,8 +1104,13 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
           }
         else
           {
-            bw = (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
-                                                  : 0.0;
+            /* An ofdm source occupies its channel, not fs / sps: the
+               bandwidth field (0 is the 20 MHz default of a C source that
+               skipped the defaults). */
+            bw = src->type == WFM_SYNTH_FRAMES
+                     ? (src->bandwidth > 0.0 ? src->bandwidth : 20e6)
+                 : (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
+                                                    : 0.0;
             center = fc + d->freq;
             cJSON_AddNumberToObject (a, "core:freq_lower_edge",
                                      center - bw / 2.0);
@@ -1149,6 +1154,58 @@ dp_wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
                 cJSON_AddNumberToObject (a, "wfmgen:frame_symbols",
                                          (double)src->frame_symbols);
               }
+          }
+        /* An ofdm source's configuration, as given, by the names its faces
+           use: what a scorer needs to know which PPDUs the frames below are.
+           The rate is `wlan` (Mb/s) when that is how the source spelled it,
+           else the constellation and code rate: the two spellings are
+           exclusive, so the unused pair is not written (it would read as
+           bpsk 1/2). The MAC header's octets are written when the header is
+           literal bits; a generated Field (a PN header) is in the scene
+           record under its own spelling. The idle gap is noise, not signal. */
+        if (src->type == WFM_SYNTH_FRAMES)
+          {
+            if (src->wlan)
+              cJSON_AddNumberToObject (a, "wfmgen:wlan", (double)src->wlan);
+            else
+              {
+                if (src->constellation >= 0 && src->constellation < 4)
+                  cJSON_AddStringToObject (
+                      a, "wfmgen:constellation",
+                      OFDM_CONSTELLATION_NAMES[src->constellation]);
+                if (src->code_rate >= 0 && src->code_rate < 4)
+                  cJSON_AddStringToObject (
+                      a, "wfmgen:code_rate",
+                      OFDM_CODE_RATE_NAMES[src->code_rate]);
+              }
+            if (src->mac >= 0 && src->mac < 3)
+              cJSON_AddStringToObject (a, "wfmgen:mac",
+                                       OFDM_MAC_NAMES[src->mac]);
+            if (src->mac_header.bits && src->mac_header.len >= 8u)
+              {
+                /* octets, the first bit of each eight most significant */
+                char hex[2u * 32u + 1u];
+                /* a validated header is 24 or 30 octets; clamp for a caller
+                   that skipped the validator */
+                const size_t n_oct = src->mac_header.len / 8u < 32u
+                                         ? src->mac_header.len / 8u
+                                         : 32u;
+                for (size_t k = 0; k < n_oct; k++)
+                  {
+                    unsigned b = 0;
+                    for (unsigned q = 0; q < 8u; q++)
+                      b = (b << 1) | (src->mac_header.bits[8u * k + q] & 1u);
+                    (void)snprintf (hex + 2u * k, 3u, "%02x", b);
+                  }
+                cJSON_AddStringToObject (a, "wfmgen:mac_header", hex);
+              }
+            cJSON_AddNumberToObject (a, "wfmgen:scrambler_init",
+                                     (double)src->scrambler_init);
+            cJSON_AddNumberToObject (
+                a, "wfmgen:window", (double)dp_wfm_source_window (src, s->fs));
+            cJSON_AddNumberToObject (a, "wfmgen:gap", (double)src->gap);
+            cJSON_AddNumberToObject (a, "wfmgen:bandwidth",
+                                     dp_wfm_source_bandwidth (src));
           }
         /* The truth for scoring (payload-data-source.md 4.8): what the
          * source's data sent, as the record carries it -- frames, the fill

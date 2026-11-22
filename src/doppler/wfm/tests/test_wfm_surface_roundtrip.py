@@ -81,10 +81,33 @@ VALUE = {
     # #1619: a data source, and the fill its 12 bits need in 8-bit frames.
     "data": "0x1acf",
     "fill": "01",
+    # ofdm: a rate Table 17-6 lists, and a pair it lists (qpsk 3/4 is 18 Mb/s).
+    "wlan": "24",
+    "code_rate": "3/4",
+    "scrambler_init": "93",
+    "window": "4",
+    "gap": "40",
+    "bandwidth": "10e6",
+    # 24 octets: a data frame's header (only mac data takes it, and needs it)
+    "mac_header": "0x" + "08020000ffffffffffff0200000000010200000000020000",
 }
+
+#: What an ofdm row needs beside its own: a sample rate that is a multiple of
+#: the bandwidth, and the PSDU's data source (the type itself is added by the
+#: row's `json_when`).
+_OFDM = ["--fs", "20e6", "--data", "pn:800:15", "--data-len", "800"]
 
 #: Flags a row needs beside its own for the run to be buildable at all.
 EXTRA = {
+    "wlan": _OFDM,
+    "constellation": _OFDM,
+    "code_rate": [*_OFDM, "--constellation", "qpsk"],
+    "scrambler_init": _OFDM,
+    "window": _OFDM,
+    "mac": _OFDM,
+    "gap": _OFDM,
+    "bandwidth": _OFDM,
+    "mac_header": [*_OFDM, "--mac", "data"],
     "modulation": ["--type", "bits", "--data", "1011"],
     "symbol_rate": ["--data-code", "1011"],
     # A payload is written for a source that carries one; a preamble or a
@@ -138,7 +161,24 @@ EXTRA = {
 #: Rows whose run takes its length from a FINITE data source, so a --count
 #: beside them is refused (payload-data-source.md 4.6) and the record
 #: carries none.
-NO_COUNT = {"data", "fill", "modulation", "acq_code", "sync", "data_code"}
+NO_COUNT = {
+    "data",
+    "fill",
+    "modulation",
+    "acq_code",
+    "sync",
+    "data_code",
+    # ofdm: the PSDU's data source sets the length.
+    "wlan",
+    "constellation",
+    "code_rate",
+    "scrambler_init",
+    "window",
+    "mac",
+    "gap",
+    "bandwidth",
+    "mac_header",
+}
 
 #: Rows this test cannot drive, each with the reason.
 SKIP: dict[str, str] = {}

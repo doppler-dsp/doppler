@@ -191,7 +191,7 @@ class AGC:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "agc" or "rx.agc".
-        decim : int
+        decim : int, default 1
             Emit every decim-th gain update; >= 1.
 
         Raises

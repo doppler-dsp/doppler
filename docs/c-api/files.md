@@ -249,6 +249,8 @@ Here is a list of all files with brief descriptions:
                 * **file** [**spectrogram\_core.h**](spectrogram__core_8h.md) _Streaming spectrogram: a stream of any-size chunks in, rows of nfft-bin spectra out, one row every hop samples._     
             * **dir** [**state\_filter**](dir_f99952e39f9637fbb70decda0be42187.md)     
                 * **file** [**state\_filter\_core.h**](state__filter__core_8h.md) _A filter over an explicit state vector (the frequency estimate and its rate): the fixed-gain third-order tracking loop._     
+            * **dir** [**state\_filter\_kalman**](dir_cec9ba98649e30568bd09d31ea5df0bb.md)     
+                * **file** [**state\_filter\_kalman\_core.h**](state__filter__kalman__core_8h.md) _The Kalman flavor of the third-order tracking loop: the gains come from a covariance recursion instead of being held._     
             * **dir** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md)     
                 * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
                 * **file** [**tlm\_sink.h**](tlm__sink_8h.md) _NATS PUB sink for telemetry records._     

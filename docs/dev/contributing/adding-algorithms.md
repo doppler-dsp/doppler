@@ -18,6 +18,78 @@ belongs on the page this one links to — a second copy of a procedure is the
 thing that goes quietly out of date, and this page exists to make the map
 readable, not to become a sixteenth copy of the territory.
 
+<a id="the-lifecycle-at-a-glance"></a>
+
+## The card
+
+One screen. Everything below it on this page is the reference behind a row.
+
+<!-- spine-card:start -->
+
+**The principles.** They are what the phases exist to keep true:
+
+1. **A claim names its evidence.** Every number says what prints it, and
+    every claim says what test, validator or benchmark holds it.
+1. **A test shows its failing case.** An assertion with no case it rejects
+    is a comment.
+1. **A page states what is.** The record of how it got there lives beside
+    it, not in it.
+1. **A constant is derived or measured.** Never fitted, ported or matched.
+1. **Test what the use case can produce.** Not what will never happen.
+1. **Reuse first.** Add new only when nothing existing fits.
+1. **Build the general object.** An application is a configuration of it:
+    the standard's numbers arrive as arguments or a table, never as the
+    object's shape. A one-off is the exception, and says why.
+1. **It just works with the least input.** Every knob stays, behind that.
+1. **A deviation is declared.** Skipping a row is allowed; skipping it
+    silently is not.
+
+**The phases.** In this order, for every object:
+
+| #   | phase          | produces                                                   | the how lives in                                                                                                           | proven by                                                               |
+| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                                                                  | review only                                                             |
+| 2   | **Declare**    | `objects/<obj>.toml`, its `modules/<mod>.toml` entry       | [Adding a Module](adding-a-module.md)                                                                                      | `make drift-check`                                                      |
+| 3   | **Implement**  | `native/inc/doppler/<obj>/<obj>_core.h` + `_core.c`        | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)                                             | `ctest`                                                                 |
+| 4   | **Pin**        | `native/tests/<obj>/test_<obj>_core.c`                     | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
+| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md)                                           | `make drift-check`, `make test-stubs`                                   |
+| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
+| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
+| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                                                                         | `make validate-check`, `test_validation_limits.py`                      |
+| 9   | **User story** | API entry, guide section, examples, gallery, benchmarks    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make user-docs-check`, `make test-stubs`, `make test-examples-c`       |
+| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                                                                   | `make changelog-check`, `make issue-link-check`                         |
+
+<!-- spine-card:end -->
+
+**The card, per object.** `make spine-check` prints this table for each
+object the branch touches, every row present, missing, skipped or not
+applicable, with the file or the gate that says so; `SPINE_FLAGS=--all`
+prints every object. It runs on `make lint`, CI appends it to the job
+summary, and an author pastes it at the top of a pull request body. The
+rows are read from the table above, and each is answered by the gate that
+owns it. The same target holds the copy of the principles in `CLAUDE.md`
+to this page; `make format` rewrites that copy.
+
+**Declaring a deviation.** A branch that leaves a row out says so in a
+commit message, one line a row:
+
+```text
+Spine-skip: <phase> <object>: <reason> (#<issue>)
+```
+
+`<phase>` is the row's name or number; the reason and the issue that owns
+the work are mandatory, and a line that does not parse fails. The same
+commit adds the gap to `scripts/.spine-gaps`
+(`<object> <phase>/<item>: <reason> (#<issue>)`), which is what holds it
+once the branch has merged. That list holds every gap in the tree and only
+shrinks: a line with no `Spine-skip` behind it is refused, and so is a
+line whose gap has closed. A row left out in silence fails
+`make spine-check`.
+
+CI runs the merge-guarding set; the per-phase targets above are how you
+find out sooner. (`make gates` reproduces that set locally, and is only for
+debugging a CI red: [How We Work](../workflow.md#2-prove-it-locally-then-push).)
+
 ______________________________________________________________________
 
 !!! warning "Use the existing, proven tools"
@@ -110,7 +182,14 @@ why, which the user story in phase 9 draws on but never replaces.
     it is not committed; see [Repository Map](repository-map.md) for why the
     algorithm lands in C exactly once;
 - **a sketch of the implementation plan** — the object's shape, its state,
-    and which existing primitive it composes rather than re-implements.
+    and which existing primitive it composes rather than re-implements;
+- **the general object, and the application as its configuration** — name
+    the widest thing this is an instance of (a modulator, a correlator, a
+    loop filter) and build that. The application's numbers (a standard's
+    lengths, rates, polynomials, tables) are what a caller passes or a
+    preset supplies, so the next application is a new configuration and
+    not a new object. Where a one-off is the right call, the page says
+    what the general form would cost and why it is not built.
 
 **This phase has no gate**, and a design doc is enforced by review alone —
 which is precisely why it goes first: it is the cheapest place to be wrong.
@@ -128,27 +207,6 @@ anything: a reader has to replay it to find out what is true today.
 
 It is not, however, the *only* ungated phase — phase 4's sabotage is the
 other, and that one is a gap rather than a design.
-
-______________________________________________________________________
-
-## The lifecycle at a glance
-
-| #   | phase          | produces                                                   | the how lives in                                                                                                           | proven by                                                               |
-| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                                                                  | review only                                                             |
-| 2   | **Declare**    | `objects/<obj>.toml`, its `modules/<mod>.toml` entry       | [Adding a Module](adding-a-module.md)                                                                                      | `make drift-check`                                                      |
-| 3   | **Implement**  | `native/inc/doppler/<obj>/<obj>_core.h` + `_core.c`        | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)                                             | `ctest`                                                                 |
-| 4   | **Pin**        | `native/tests/<obj>/test_<obj>_core.c`                     | [Object Validation](validation.md) step 2                                                                                  | `ctest`, `make tests-ssot`                                              |
-| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md)                                           | `make drift-check`, `make test-stubs`                                   |
-| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md), [telemetry](../../design/telemetry.md#instrumenting-an-object) | `check_serializable.py`, the state matrix, the object's probe-list test |
-| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                                                                         | `make validate-c`, `make characterize`                                  |
-| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                                                                         | `make validate-check`, `test_validation_limits.py`                      |
-| 9   | **User story** | API entry, guide section, examples, gallery, benchmarks    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)                                             | `make user-docs-check`, `make test-stubs`, `make test-examples-c`       |
-| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                                                                   | `make changelog-check`, `make issue-link-check`                         |
-
-CI runs the merge-guarding set; the per-phase targets above are how you
-find out sooner. (`make gates` reproduces that set locally, and is only for
-debugging a CI red: [How We Work](../workflow.md#2-prove-it-locally-then-push).)
 
 ______________________________________________________________________
 
@@ -195,16 +253,33 @@ Validation](validation.md) owns this rule and its two failure modes
 (consistency tests that are blind to a shared defect; reject tests that pass
 vacuously).
 
-**Nothing executes this, and you have to supply the discipline.** `ctest`
-proves a test passes; no gate proves it can fail. The rule is stated on this
-page, in [Object Validation](validation.md) step 2, and again in
-[Measuring a Receiver](measuring-a-receiver.md) — and enforced on none of
-them, which is the shape `validation.md` opens by warning about. The cost is
-measurable: six tests in an already-certified object were later found to pass
+**A pin is proven in three layers, and a count in a PR body is none of
+them.** Each answers a different way a test passes without testing, and
+[Object Validation](validation.md#three-layers-that-prove-a-pin) owns the
+how:
+
+| layer                       | proves                                                  | runs                             |
+| --------------------------- | ------------------------------------------------------- | -------------------------------- |
+| a **negative control**      | the assertion can fail: it is red on a named wrong case | in the test, every push          |
+| **refusal-branch coverage** | every refusing branch decides at least one test         | read from the coverage job's run |
+| **derived mutants**         | a changed line of the library turns a test red          | on purpose, at certification     |
+
+The first is written with the test, in the same file, and is part of the
+claim: an assertion with no case it rejects is a comment. The other two are
+read from a run, never from a list somebody keeps.
+
+**The control is yours to write today; nothing yet refuses a claim without
+one.** `ctest` proves a test passes, and no gate proves it can fail: the
+gates for all three layers are
+[gh-847](https://github.com/doppler-dsp/doppler/issues/847). The cost of
+their absence is measured. Six tests in an already-certified object passed
 against a receiver whose carrier discriminator did nothing at all
-([gh-843](https://github.com/doppler-dsp/doppler/issues/843)). Until a gate
-exists, treat the sabotage as part of writing the test, not as a review step
-somebody else performs.
+([gh-843](https://github.com/doppler-dsp/doppler/issues/843)). An audit on
+2026-11-17 found a ramp test whose tolerance was twice the whole excursion,
+a lock threshold below the statistic's no-signal mean, three reject tests
+refused for a reason other than the one they named, and a forged blob that
+never reached the clause it was written for, in objects whose pull requests
+reported their pins as sabotaged.
 
 **A guard can pass because it never ran.** The blob test for
 `rate_hypotheses` (the count is a reject key) was first written as "if the two

@@ -931,6 +931,71 @@ test_prepare_refuses_an_unbufferable_count (void)
   return 0;
 }
 
+/* An ofdm source's Plan renders as the composer does, noise included: the
+   Plan keeps a noise-only copy of a noisy source, and an ofdm source's
+   renderer, header and data are not that copy's to keep. A copy that lost
+   the noise, or read the composer's freed header, would not equal compose
+   (and under ASan reads freed memory). With and without mac data. */
+static int
+ofdm_plan_case (const char *json, const char *what)
+{
+  wfm_plan_t *p = dp_wfm_plan_prepare (json);
+  DP_REQUIRE_MSG (p, what);
+  const size_t    n   = dp_wfm_plan_len (p);
+  float _Complex *ref = malloc (n * sizeof *ref);
+  float _Complex *got = malloc (n * sizeof *got);
+  DP_REQUIRE_MSG (ref && got && n > 0, what);
+  DP_REQUIRE_MSG (compose_pull (json, ref, n, 257) == n, what);
+  DP_REQUIRE_MSG (dp_wfm_plan_render (p, "{}", got) == n, what);
+  DP_REQUIRE_MSG (memcmp (ref, got, n * sizeof *ref) == 0, what);
+  /* control: the noise is in it: a clean scene of the same source differs */
+  free (ref);
+  free (got);
+  dp_wfm_plan_destroy (p);
+  return 0;
+}
+
+static int
+test_ofdm_scene_matches_compose (void)
+{
+  static const char head[]
+      = "{\"version\":1,\"segments\":[{\"type\":\"ofdm\",\"fs\":20000000,"
+        "\"wlan\":36,\"scrambler_init\":93,\"data\":\"pn:800:15\","
+        "\"data_len\":800,\"snr\":20,\"snr_mode\":\"fs\",\"seed\":3";
+  char none[512], data[768], clean[512];
+  (void)snprintf (none, sizeof none, "%s}]}", head);
+  (void)snprintf (data, sizeof data,
+                  "%s,\"mac\":\"data\",\"mac_header\":\"0x08020000ffffffffffff"
+                  "0200000000010200000000020000\"}]}",
+                  head);
+  (void)snprintf (clean, sizeof clean, "%s}]}", head);
+  /* the clean variant: snr 100 */
+  char *at = strstr (clean, "\"snr\":20");
+  DP_REQUIRE_MSG (at, "clean scene");
+  memcpy (at, "\"snr\":99", 8);
+  if (ofdm_plan_case (none, "ofdm plan, mac none")
+      || ofdm_plan_case (data, "ofdm plan, mac data"))
+    return 1;
+  /* the noise is really in the noisy scene: it is not the clean one */
+  wfm_plan_t *pn = dp_wfm_plan_prepare (none);
+  wfm_plan_t *pc = dp_wfm_plan_prepare (clean);
+  DP_REQUIRE_MSG (pn && pc && dp_wfm_plan_len (pn) == dp_wfm_plan_len (pc),
+                  "ofdm plan control");
+  const size_t    n = dp_wfm_plan_len (pn);
+  float _Complex *a = malloc (n * sizeof *a), *b = malloc (n * sizeof *b);
+  DP_REQUIRE_MSG (a && b, "alloc");
+  DP_REQUIRE_MSG (dp_wfm_plan_render (pn, "{}", a) == n
+                      && dp_wfm_plan_render (pc, "{}", b) == n,
+                  "ofdm plan control render");
+  DP_REQUIRE_MSG (memcmp (a, b, n * sizeof *a) != 0,
+                  "a noisy ofdm plan is not the clean one");
+  free (a);
+  free (b);
+  dp_wfm_plan_destroy (pn);
+  dp_wfm_plan_destroy (pc);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -938,7 +1003,8 @@ main (void)
       || test_background_must_be_prefix ()
       || test_background_bundled_is_not_folded ()
       || test_every_source_kind_renders_as_it_composes ()
-      || test_framed_scene_matches_compose () || test_data_source_scene ())
+      || test_framed_scene_matches_compose () || test_data_source_scene ()
+      || test_ofdm_scene_matches_compose ())
     return 1;
   if (test_parallel_build_bit_exact ())
     return 1;

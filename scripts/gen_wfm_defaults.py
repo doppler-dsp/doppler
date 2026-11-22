@@ -98,6 +98,20 @@ def _enums(man: dict) -> dict[str, list[str]]:
     return {e["name"]: list(e["values"]) for e in man.get("enum", [])}
 
 
+_NAMED = re.compile(r"[A-Z_][A-Z0-9_]*")
+
+
+def is_named(raw) -> bool:
+    """A default that names a C constant (``WFM_WINDOW_UNSET``), not a value.
+
+    The constant is the struct's initialiser and Python's keyword default,
+    but no face has a number to print for it: the schema carries no
+    ``default``, and the CLI help says nothing of one (the row's doc says
+    what an unset field means).
+    """
+    return isinstance(raw, str) and _NAMED.fullmatch(raw.strip()) is not None
+
+
 def _literal(field: dict, enums: dict[str, list[str]]) -> str | None:
     """The C initialiser for one field's default, or None to omit it.
 
@@ -126,6 +140,8 @@ def _literal(field: dict, enums: dict[str, list[str]]) -> str | None:
         return None if idx == 0 else f"{idx} /* {en}: {raw} */"
 
     text = str(raw).strip()
+    if is_named(text):
+        return text
     ctype = field.get("type", "")
     if ctype in ("double", "float"):
         return None if float(text) == 0.0 else text
@@ -624,7 +640,7 @@ def help_lines(row: dict, doc: str) -> list[str]:
     others = [o["cli"] for o in row.get("not_with", []) if o["cli"]]
     if others:
         text += " Not with " + ", ".join(others) + "."
-    if row["default"] is not None:
+    if row["default"] is not None and not is_named(row["default"]):
         # A no-break space: the wrap may not split "(default" from its
         # value, and textwrap does not count U+00A0 as a place to break.
         text += f" (default\u00a0{row['default']})"
@@ -731,7 +747,7 @@ def help_splice_errors(man: dict) -> list[str]:
 def _typed_default(r: dict):
     """A row's manifest default as the JSON value a scene would carry."""
     raw = r["default"]
-    if raw is None:
+    if raw is None or is_named(raw):
         return None
     if r["kind"] == "WFM_SV_CHOICE":
         return raw
@@ -775,7 +791,9 @@ def row_schema(r: dict, doc: str) -> dict:
         doc += " Scalar, or a [lo, hi] pair drawn uniformly per repeat."
     else:
         prop = scalar
-    if r["json_omit"]:
+    if r["json_omit"] and is_named(r["default"]):
+        doc += " A record holds the resolved value, never the absence."
+    elif r["json_omit"]:
         doc += " Omitted from a record at its default."
     d = _typed_default(r)
     if d is not None:
@@ -986,7 +1004,13 @@ def render_reference() -> str:
             spell = f"{r['cli']} {r['metavar']}" if r["metavar"] else r["cli"]
             cli = f"`{spell}`" if r["cli"] else "—"
             js = f"`{r['json']}`" if r["json"] else "—"
-            dflt = f"`{r['default']}`" if r["default"] is not None else "—"
+            dflt = (
+                "unset"
+                if is_named(r["default"])
+                else f"`{r['default']}`"
+                if r["default"] is not None
+                else "—"
+            )
             doc = docs[owner][r["member"]]["doc"]
             for e in _excluded_by(r, excl):
                 o = _other(r, e, rows)
@@ -1070,6 +1094,8 @@ def render_surface() -> str:
         "  int                json_required; /**< absent/unknown: refuse */",
         "  int                json_omit;     /**< not written at its",
         "                                         default (or at 0) */",
+        "  int                json_keep_zero; /**< 0 is a value: written",
+        "                                         under json_omit */",
         "  int                json_bool;     /**< written as true/false */",
         "  int                has_when;      /**< written only when ... */",
         "  int                when_row;    /**< ... this row's choice ... */",
@@ -1120,6 +1146,11 @@ def render_surface() -> str:
             fields.append(".json_required = 1")
         if r["json_omit"] == "default":
             fields.append(".json_omit = 1")
+            # A default that names a constant is not 0, so a 0 the row holds
+            # is a value (an ofdm window of 0 is the rectangular one) and a
+            # record must carry it: "unset" is the constant, never the zero.
+            if is_named(r["default"]):
+                fields.append(".json_keep_zero = 1")
         if r["json_bool"]:
             fields.append(".json_bool = 1")
         if r.get("when_row"):

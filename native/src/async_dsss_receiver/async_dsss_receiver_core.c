@@ -4,7 +4,6 @@
 #include "doppler/detection/detection_core.h"
 #include "doppler/psd/psd_core.h"
 #include "doppler/util/util_core.h"
-#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2677,7 +2676,6 @@ dp_async_dsss_receiver_get_state (const dp_async_dsss_receiver_state_t *s,
     .refine_min_blocks   = (uint64_t)s->refine_min_blocks,
     .samples_in          = s->samples_in,
     .align_pending       = (uint64_t)(s->align_pending != 0),
-    .threads             = (int64_t)s->acq->search->threads,
     .rank                = (uint64_t)s->rank,
     .n_excl              = (uint64_t)s->n_excl,
     .srch_origin         = s->srch_origin,
@@ -2751,7 +2749,6 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
       || (extra.state == ASYNC_DSSS_RX_SEARCHING && extra.pooled)
       || extra.pick_want > ASYNC_DSSS_RX_MAX_PEAKS
       || extra.n_picks > ASYNC_DSSS_RX_MAX_PEAKS || extra.align_pending > 1
-      || extra.threads < 1 || extra.threads > INT_MAX
       || extra.rank >= ASYNC_DSSS_RX_MAX_PEAKS
       || extra.n_excl > ASYNC_DSSS_RX_MAX_EXCLUSIONS
       || extra.srch_origin > extra.samples_in
@@ -2855,9 +2852,5 @@ dp_async_dsss_receiver_set_state (dp_async_dsss_receiver_state_t *s,
   memcpy (s->pick_at, extra.pick_at, sizeof s->pick_at);
   s->excl_at = extra.excl_at;
   s->ho_src  = (int)extra.ho_src;
-  /* set_threads()'s value (#2022): the same request the writer's last
-     call made, which on a machine with as many cores runs as many. */
-  if (extra.threads != (int64_t)s->acq->search->threads)
-    (void)dp_correlator_set_threads (s->acq, (int)extra.threads);
   return DP_OK;
 }

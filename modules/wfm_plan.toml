@@ -24,6 +24,20 @@ link = true
 [[module.wfm_plan.depends_on]]
 name = "wfm_compose"
 link = true
+# wfm_compose_core renders ofdm sources through wlan, so every module that
+# links it links wlan and wlan's own dependencies (jm does not walk them).
+[[module.wfm_plan.depends_on]]
+name = "wlan"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "ofdm"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "fft"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "mpsk"
+link = true
 [[module.wfm_plan.depends_on]]
 name = "wfm_dsp"
 link = true

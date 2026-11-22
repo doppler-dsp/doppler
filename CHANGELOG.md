@@ -13,6 +13,306 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-11-19
+
+### Added
+
+- **A new benchmark row needs its label in the PR that adds it, and CI
+    checks it.** `make bench-labels-pr-check` reads the rows the PR's own CI
+    run measured, untimed: 601 C rows with their units and 288 Python rows
+    today. It refuses one with no label, and a C row whose unit contradicts
+    its label. Before this, v0.83.0's five unlabelled HalfbandDecimatorR2C
+    rows were first seen on release day (#2390; the gaps left are #3039).
+
+- **Puncturing for the convolutional code.** `ConvEncoder` and `Viterbi` take
+    `punct_period` and `punct_mask`, a pattern that deletes mother-code symbols
+    to raise the rate; the decoder puts them back as zero-valued LLRs. The
+    pattern and the position in it are in the state blob (v2), and a blob from
+    another pattern is refused. Measured at equal Eb/N0: rate 1/2 < 2/3 < 3/4
+    in error rate, all still ahead of uncoded BPSK at 3 dB
+    ([design](docs/design/viterbi.md)). Node synchronization is not defined for
+    a punctured code.
+
+- **`Costas` can switch a live loop to third order, to hold a ramping
+    carrier with no steady phase lag.** A Costas blob saved before this
+    release is refused, and so is a parent blob that holds one.
+    See [Costas, order 3](docs/guide/tracking-loops.md#order-3-a-carrier-that-ramps).
+
+- **A CRC guide page and a C example.** `docs/guide/crc.md` lists the nine named
+    models with their parameters, `refin` and check value (held to `dp_crc.h` by
+    a test) and says the one thing a caller must get right, that `refin` is part of
+    the model, so a flipped one is another CRC with no error; `crc_demo.c`
+    computes all nine from octets and from a bit stream and shows exactly
+    that.
+
+- **A general OFDM modulator.** `doppler.ofdm.Ofdm` turns constellation
+    points and a layout (classes of OFDM symbol and runs of them: transform
+    length, subcarrier map, pilot pattern with a polarity sequence, per-
+    subcarrier gain, cyclic prefix, window) into baseband samples. It names no
+    standard and needs no wfmgen in the process. `wlan`, the IEEE 802.11 builders, is its
+    first caller; wfmgen's `ofdm` type is not built. Serializable, with the layout as its reject key. See the
+    [guide](docs/guide/ofdm.md) and the [design](docs/design/ofdm.md).
+
+- **One parametric CRC.** `dp_crc.h` computes any CRC from its model (width,
+    polynomial, initial register, input reflection `refin`, output reflection,
+    output XOR: six fields, set by designated initializers) over the
+    library's unpacked bit streams or over octets, with nine named catalogue
+    instances (CRC-32/ISO-HDLC, CRC-32C, CRC-16/IBM-3740, CRC-8/SMBUS, and
+    others), each pinned to its catalogue check value and confirmed against
+    zlib and `binascii` where they have it. `dp_crc16_ccitt` is now one row of
+    it, with its output unchanged. Header-only; no protocol is claimed to use
+    any model.
+
+- **The pool bench times emitters on the air.** Fifteen rows at the
+    specification's 11 MSa/s, 2.5 GHz carrier and data-free blocks, with 0
+    to 9 emitters held and a near-far pair, at D = 150 and D = 1
+    ([#3060](https://github.com/doppler-dsp/doppler/issues/3060)).
+
+- **Square QAM beside the PSK maps.** `qam_map`, `qam_demap` and
+    `qam_bits_per_symbol` in `doppler.mpsk` for 4, 16, 64, 256 and 1024 points,
+    Gray-labelled on each axis with a 16-bit label, unit average energy, and
+    QAM-4 equal to QPSK. Hard decisions only; soft demap is
+    [#3112](https://github.com/doppler-dsp/doppler/issues/3112). The mapping
+    is the library's convention and claims no standard's table
+    ([design](docs/design/mpsk.md)).
+
+- **`make spine-check` shows the lifecycle, object by object.** For each
+    object a branch touches it prints the ten phases of
+    [the lifecycle card](docs/dev/contributing/adding-algorithms.md) as
+    present, missing or skipped, each answered by the gate that owns it. A
+    new gap fails `make lint` unless a commit declares it with
+    `Spine-skip:`; the 202 gaps of today are held in `scripts/.spine-gaps`,
+    which only shrinks (#3140).
+
+- **`KalmanStateFilter`, the third-order loop with Kalman gains.**
+    `doppler.track.KalmanStateFilter(sigma_e, sigma_a)` (or `bn` alone) sizes
+    the loop from the detector's rms error and the rms change of the carrier's
+    rate per update, and its gains come from a covariance recursion, so an
+    initial frequency uncertainty gives a high-gain start that settles a
+    frequency step about 1.7 times as fast as `StateFilter` at the same final
+    bandwidth. Its own component, calling `StateFilter`. See the
+    [tracking loops guide](docs/guide/tracking-loops.md#kalmanstatefilter-a-loop-sized-from-the-signal).
+
+- **`StateFilter`, a third-order loop filter for a drifting carrier.**
+    `doppler.track.StateFilter(bn, t)` keeps a rate estimate beside the
+    frequency estimate, so a frequency ramp is tracked with no steady phase
+    error (a second-order loop settles to `r/ki`), at the same noise
+    bandwidth, from `bn` and `t` alone. The bandwidth asked for is the one
+    delivered, and `bandwidth(delay, gain)` and `stable(delay, gain)` give
+    the exact answer for a detector delay and loop gain. See the
+    [tracking loops guide](docs/guide/tracking-loops.md#statefilter-a-loop-filter-for-a-drifting-carrier).
+
+- **Gardner against DTTL in `RateSync` at Es/N0 = 3 dB.** On the
+    specification's gapped stream, slips counted from markers on the
+    stream: level matters more than detector (Gardner: 0 slips at half the
+    contracted level, over 800 at twice, about 220 in data against the
+    DTTL's 7 to 10), and at the contract nearly every slip is in the idle
+    run ([results](src/doppler/track/tests/characterization/README.md),
+    [#751](https://github.com/doppler-dsp/doppler/issues/751),
+    [#3079](https://github.com/doppler-dsp/doppler/issues/3079)).
+
+- **`wlan`: IEEE 802.11 non-HT OFDM builders.** A rate (a constellation and
+    a code rate) and what follows from it (`doppler.wlan.Wlan`), the minimal
+    MAC with its CRC-32 FCS, the scrambler, the punctured BCC and the layout
+    for the OFDM modulator, in C. The unit test holds the RATE bits, both
+    training sequences and the constellation encodings against the
+    standard's printed form; what it does not hold, and the conformance
+    claim, are in the [802.11 guide](docs/guide/wlan.md).
+
+- **`wlan`: a PPDU at `M` times the 20 MHz rate.** `dp_wlan_layout()`,
+    `dp_wlan_ppdu_len()` and `dp_wlan_ppdu()` take `oversample` (1 to 128), a
+    larger transform rather than a resampler; `M = 1` is the PPDU as before, bit for
+    bit ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
+
+- **`Wlan.ppdu()`: a whole 802.11 PPDU in Python.**
+    `Wlan(constellation, code_rate, window=0, oversample=1)` holds the
+    raised-cosine window (in samples at the output rate) and the
+    oversampling, and `ppdu(psdu, scrambler_state)` returns the `complex64`
+    samples, held to the C output for the 36 Mb/s PPDU
+    ([#3175](https://github.com/doppler-dsp/doppler/issues/3175)).
+
+- **`wlan`: the data rate of a rate pair, from Table 17-6.** `Wlan.rate_mbps`
+    and the C lookups `dp_wlan_mbps()` and `dp_wlan_rate_from_mbps()` give the 20 MHz
+    rate (6 to 54 Mb/s) of the eight pairs the table lists; the preset
+    design is [#3175](https://github.com/doppler-dsp/doppler/issues/3175).
+
+### Changed
+
+- **The correlator's design is one page,
+    [`docs/design/correlator.md`](docs/design/correlator.md),** describing the
+    object as it is: its seven flavors, the one constructor, which flavors
+    serve each member, the state blob, the map (padded inverse,
+    delay-Doppler, batches), detection, and a new section on cost and
+    parallelism with its runs in `correlator-measurements.md` (#3047). The
+    step-3 and step-4 plans and the two `corr2d-*` pages it absorbs are
+    archived; code comments and `test_correlator.py`'s table reader point at
+    the new sections (#3051).
+
+- **The delay-Doppler map's stages balance across workers.** Each stage cut
+    one chunk per worker, so it ran as slow as its slowest worker. It now
+    cuts 4 per worker, and each chunk claims whichever scratch slot is free.
+    `op5M_U50k_D150_t8` measured 5% faster; the result is bit-identical as
+    before (#3047).
+
+- **The docstring meter notices a class losing its authored Examples.** A
+    class whose stub Examples is the hand-written `@code` block carries an `e`
+    flag in `docs/.docstring-coverage-baseline` (66 of 120 classes today), and
+    the per-symbol rule fails when it goes. Moving a binding's constructor
+    to another C function had left `StateFilter` with the scaffold and nothing
+    failed (#3162).
+
+- **`ofdm`: `Ofdm.modulate()` raises `ValueError`, naming the cause, for a
+    refused call, where it returned an empty array.** Code that tested
+    `modulate(...).size == 0` for a refusal must catch it; a render of nothing
+    still returns an empty array. C gains `dp_ofdm_modulate_why`. See the [OFDM
+    guide](docs/guide/ofdm.md).
+
+- **`ofdm`: the two `2**32 - 1` sentinels are named, and the refusals the
+    suite never took are tested.** `add_fixed`'s every-phase value and
+    `add_run`'s keep-the-prefix default are documented as `OFDM_ALL_PHASES` and
+    `OFDM_CP_DEFAULT` (both 2\*\*32 - 1, asserted; just-makeit#2679 owns a
+    named default); a partial `finish` clears the rest of the tail. See the [OFDM guide](docs/guide/ofdm.md).
+
+- **Behavior change: `Ofdm.check()` raises instead of returning a negative.**
+    It used to return `0` for a usable layout and a bare negative for an
+    unusable one; it now raises `ValueError` naming the condition (no run, a
+    window longer than an OFDM symbol, two fixed entries on one subcarrier)
+    and returns `None` when the layout is usable, so a caller that tested
+    `check() < 0` must catch the exception. C has `dp_ofdm_check_why()`;
+    `dp_ofdm_check()` is unchanged. A C example, `ofdm_demo.c`, runs the
+    lifecycle and checks itself, `modulate` has Python benchmark rows at the
+    C rows' sizes, and the guide states the output's dtype, ownership and
+    scale.
+
+- **`RateSync` and `SymbolSync` locks wait two decisions to declare and six
+    to drop.** The counts derive from the threshold's sizing rates at a
+    per-decision budget of 1e-6, where both declared on one block
+    ([#3133](https://github.com/doppler-dsp/doppler/issues/3133)).
+
+- **The `AsyncDsssReceiver`'s search lists one peak an emitter.** Its peak
+    zone now covers every Doppler bin of every roll at one chip
+    (`Correlator.set_peak_zone`, new), so a strong emitter's own lag no
+    longer fills the list and starves a weaker one
+    ([#3067](https://github.com/doppler-dsp/doppler/issues/3067), [#3060](https://github.com/doppler-dsp/doppler/issues/3060)).
+
+- **A tiled search with D > 1 now uses every thread asked for, not one a
+    tile.** The pool was capped at the tile count, though the
+    delay-Doppler map already fans by epoch, bin and row, and the decide
+    pass now cuts each tile's rows into up to 8 equal chunks (aiming at
+    24 in all, so a many-tile grid does not split). At the #2457
+    design point (3 tiles, D = 90) 16 threads went from 10–14 to 7.2–7.8
+    ns a sample. The result is still bit-identical at any thread count;
+    the CFAR reference's float rounding moves once, with the chunk count
+    (#3047).
+
+- **`StateFilter` construction is timed.** A `create` row in the C and Python
+    benchmarks (the gain solve plus the allocation and the binding), with its
+    labels; the values are taken at the next release set.
+
+- **`StateFilter`: the header and design page say what the exact stability
+    test does and what the tests run.** The test decides the decay of one sum,
+    not a Cholesky pivot; the verified range is `bn*t` 1e-6 to the bound at one
+    delay and gain, plus a simulation at eighteen delay-and-gain points; the
+    `K_MIN` source is a requirement until the receiver's slope rows land
+    ([#3135](https://github.com/doppler-dsp/doppler/issues/3135)).
+
+- **`KalmanStateFilter`'s refusals name the argument that failed.** One sentence
+    used to cover ten different refusals; it is now `bn alone`, `t must be a   positive, finite update period`, `the bandwidth sigma_e and sigma_a give   is above the largest the filter accepts`, and so on, from the new C
+    `dp_state_filter_kalman_args_why()`. `configure()` says what it refused.
+
+- **`StateFilter`'s refusals name the argument that failed.** `StateFilter(...)`
+    said one sentence for six different failures (and cited a repo path);
+    it now says `t must be a positive, finite update period`, `bn must be >= 0`,
+    `bn*t is above the largest the filter accepts`, and so on, from the new C
+    `dp_state_filter_params_why()`. `configure()` says what it refused
+    instead of `configure failed (rc=-4)`.
+
+- **`StateFilter`'s report names a control for each claim.** Section 4 now says
+    what checks each of its 19 limits, the wrong case that must fail, and
+    derives its numeric tolerances from rounding (the old ones were up to
+    eight decades looser than the measurement); the claim inventory lists the
+    restore check, the fractional model and the off-manifold tests it left
+    out. The gains are compared with a long double solve (1.6e-15 here).
+
+- **`StateFilter`: the stability grid now holds unstable loops, and the
+    state-restore tolerance is pinned.** The delay-and-gain grid that judged
+    `stable()` against a simulation had no unstable cell (so a `stable()` that
+    always said 1 passed it); it has twelve now. The 1e-9 gain tolerance of the
+    restore check is held a decade either side, and two header claims that no
+    test held are reworded to what is held.
+
+- **`make lint` refuses a hand-scaled `dp_cgauss` noise level in C.**
+    `dp_cgauss` is already unit power, so a further `/ sqrt (2.0)` per
+    component delivers 3.01 dB less noise than its label
+    ([#689](https://github.com/doppler-dsp/doppler/issues/689)).
+    `scripts/check_stimulus_sources.py` names the nine sites, one
+    allowlist line each; the list only shrinks.
+
+- **`make lint` fails on a C identifier the Windows headers define away.**
+    `<windows.h>` defines `near`, `far`, `IN`, `OUT`, `small` and a few
+    other plain words as macros, so a variable with one of those names
+    breaks only the Windows build. `make lint-windows-macro-names`
+    (`scripts/check_windows_macro_names.py`) flags every use outside
+    comments and strings; the five that predate it are a list that only
+    shrinks.
+
+- **`wlan`: `dp_wlan_layout` takes at most 1,366 Data symbols.** That is the
+    largest PSDU at the slowest rate (`WLAN_N_SYM_MAX`); the old limit was
+    65,533, which no PPDU reaches. `Wlan` no longer lists a "not a whole
+    number" refusal that could not happen. See the
+    [802.11 guide](docs/guide/wlan.md).
+
+- **A PPDU example, and `wlan`'s stage-by-stage benchmark rows.** `wlan_ppdu_demo.c`
+    renders a whole PPDU through `dp_wlan_ppdu()` and checks its length, the
+    L-STF's period, the L-LTF's repeat and the power of every field against
+    the library's unit-power scale (Annex I's printed samples are ours times
+    sqrt(52)/64, held by a test, #3148); the guide's one
+    sentence naming three functions is now the steps with the example. The
+    interleaver, mapper, points, layout and PPDU have bench rows at 64-QAM
+    rate 3/4 (#3147).
+
+### Fixed
+
+- **`make warnings-check` passes under gcc 15 and clang 21.** The CRC
+    test's nine-byte check message is written as nine characters, so no
+    terminating NUL is implied and
+    `-Wunterminated-string-initialization` has nothing to report.
+
+- **A C++ program can include doppler's public headers directly, and CI
+    now checks it.** 152 of the 164 installed headers parse as C++11; 9
+    remain, on a list `make cxx-headers-check` only lets shrink, and 3
+    private or Python-only headers are declared not to be C++ headers at
+    all. The complex types cross as they are; an inline body built on the
+    C99 complex library is C-only (`dp_complex.h`, "From C++"), and
+    `dp_cic_decimate()` is now also exported, so C++ has an entry point. No
+    ABI change for a C caller (#3108).
+
+- **A tracking `AsyncDsssReceiver`'s `chip_phase` is at the stream's next
+    sample, not its chain's.** It trailed by the partial period the chain
+    carries: about 50 chips at 11 MSa/s, so the pool re-seeded every held
+    signal as a duplicate ([#3063](https://github.com/doppler-dsp/doppler/issues/3063)).
+
+- **A release no longer times out on CI that is merely queued.** `verify-ci`
+    ran its own 60 x 20s poll, a 20-minute window that counted queue time.
+    main's slowest push CI in two weeks took 18.2 min, so one run queued ahead
+    was enough. It now runs the org standard's `make release-verify-ci`,
+    which waits while the tagged SHA's run is alive, capped at 120 min.
+
+- **`wfm`: a documented default is compared with the object's actual one.**
+    The engine's `fs` parameter now says what it does (default 1e6, so `freq`
+    is in Hz against 1 MHz), and a test reads each `name : type, default V`
+    line of the `Synth` and `Segment` docstrings and requires a bare object's
+    attribute to equal it. `Synth.fs` is documented as 1.0 and runs at 1e6
+    ([#3142](https://github.com/doppler-dsp/doppler/issues/3142)); that is a
+    shrink-only exemption until jm's composer generator reads the default and
+    its documentation from the object
+    ([just-makeit#2678](https://github.com/just-buildit/just-makeit/issues/2678)).
+
+- **The TSan job no longer dies on an ubuntu-26.04 host.** There the TSan
+    runtime aborts at startup ("unexpected memory mapping") before any test
+    runs, so `ubuntu-latest`'s move to 26.04 blocked every code PR. The
+    sanitizer job now runs on `ubuntu-24.04`; the fix on 26.04 is #3058.
+
 ## [0.83.0] - 2026-11-11
 
 ### Added
@@ -19434,5 +19734,6 @@ ______________________________________________________________________
 [0.81.0]: https://github.com/doppler-dsp/doppler/compare/v0.80.0...v0.81.0
 [0.82.0]: https://github.com/doppler-dsp/doppler/compare/v0.81.0...v0.82.0
 [0.83.0]: https://github.com/doppler-dsp/doppler/compare/v0.82.0...v0.83.0
+[0.84.0]: https://github.com/doppler-dsp/doppler/compare/v0.83.0...v0.84.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.83.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.84.0...HEAD

@@ -138,7 +138,7 @@ python -m doppler.examples.async_dsss_receiver_spec_demo out.png
 ```
 
 The C twin is
-[`async_dsss_receiver_spec_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/native/examples/async_dsss_receiver_spec_demo.c).
+[`async_dsss_receiver_spec_demo.c`](https://github.com/doppler-dsp/doppler/blob/v0.84.0/native/examples/async_dsss_receiver_spec_demo.c).
 It runs the same captures with the same seeds through the same receiver and
 makes the same checks, through the C API, and it prints the same lines: a pair
 test runs both twins from one build and compares them. It shows what the
@@ -146,4 +146,4 @@ binding hides: the capture streamed through the rate converter and the Doppler
 channel one push at a time, the buffers the caller owns, and the per-push
 record kept from `status()`.
 
-Source: [`async_dsss_receiver_spec_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/async_dsss_receiver_spec_demo.py).
+Source: [`async_dsss_receiver_spec_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/examples/async_dsss_receiver_spec_demo.py).

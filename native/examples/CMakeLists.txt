@@ -6,13 +6,14 @@ cmake_minimum_required(VERSION 3.16)
 
 foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo rate_converter_demo
              ccsds_link_demo dsss_burst_receiver_demo burst_capture_demo
-             wfmgen_demo wfmgen_frame_demo wfmgen_data_source_demo framed_link_demo
+             wfmgen_demo wfmgen_frame_demo wfmgen_data_source_demo wfmgen_ofdm_demo framed_link_demo
              data_source_link_demo
              wfm_field_demo
              doppler_channel_profile_demo async_despread_demo
              ring_drip_feed_demo ring_chunking_demo ring_framer_demo
              ring_write_policy_demo ring_element_view_demo
-             spectrogram_demo wlan_mac_demo state_filter_demo)
+             spectrogram_demo wlan_mac_demo wlan_ppdu_demo state_filter_demo
+             state_filter_kalman_demo ofdm_demo crc_demo)
     add_executable(${_ex} ${_ex}.c)
     target_include_directories(${_ex} PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc

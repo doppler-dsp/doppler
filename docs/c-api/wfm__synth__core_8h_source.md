@@ -46,6 +46,10 @@ enum {
                            symbol_rate is supplied (dp_wfm_synth_set_dsss_cont).
                            The two modes share this one type — a symbol_rate
                            discriminates, no tenth waveform type. */
+    WFM_SYNTH_FRAMES = 9, /* finished frames of samples from a frame
+                             callback, installed by dp_wfm_synth_attach_frames();
+                             nothing in it is OFDM or any standard's: the
+                             `ofdm` face type selects it */
 };
 
 enum {
@@ -88,6 +92,12 @@ typedef struct {
     int (*set_state)(void *user, const void *blob);
     const char *(*refusal)(const void *user);
 } wfm_synth_refill_state_t;
+
+#define WFM_SYNTH_FRAME_MAX ((size_t)1 << 24)
+
+typedef int (*wfm_synth_frame_fn)(void *user, uint64_t frame,
+                                  const uint8_t *bits, size_t n_bits,
+                                  float _Complex *out, size_t n_out);
 
 typedef struct {
     int wtype;   
@@ -140,6 +150,15 @@ typedef struct {
        refill with none, which refuses serialization. */
     const wfm_synth_refill_state_t *refill_state; 
     uint8_t data_ended; 
+    /* type=frames (dp_wfm_synth_attach_frames): `symbols` holds the frame in play
+       (`n_symbols` samples) and `sym_read_idx` is its cursor, which STOPS at
+       n_symbols; `bits` (`n_bits`) holds the frame's bits, drawn from `refill`. */
+    wfm_synth_frame_fn frames; 
+    void *frames_user;         
+    void (*frames_free)(void *); 
+    const wfm_synth_refill_state_t *frames_state; 
+    uint64_t frames_done; 
+    uint8_t refused;      
 } dp_wfm_synth_state_t;
 
 JM_FORCEINLINE int
@@ -168,6 +187,40 @@ wfm_synth_bit_next(dp_wfm_synth_state_t *s, unsigned *bit)
     return 1;
 }
 
+
+JM_FORCEINLINE int
+wfm_synth_frame_ahead(dp_wfm_synth_state_t *s)
+{
+    if (s->sym_read_idx < s->n_symbols)
+        return 1;
+    if (s->data_ended)
+        return 0;
+    if (!s->frames || !s->refill) {
+        s->data_ended = 1;
+        return 0;
+    }
+    const int ended = s->refill(s->refill_user, s->bits, s->n_bits) != 0;
+    /* The synth's bits are 0 or 1 always: the renderer is promised them, and
+       the blob carries them, whose restore refuses any other byte. A source
+       may write any byte (the bits path normalises on read,
+       wfm_synth_bit_symbol), and may write some before it reports its end,
+       so they are normalised whatever the refill returns. */
+    for (size_t k = 0; k < s->n_bits; k++)
+        s->bits[k] = s->bits[k] ? 1u : 0u;
+    if (ended) {
+        s->data_ended = 1;
+        return 0;
+    }
+    if (s->frames(s->frames_user, s->frames_done, s->bits, s->n_bits,
+                  s->symbols, s->n_symbols) != 0) {
+        s->data_ended = 1;
+        s->refused    = 1;
+        return 0;
+    }
+    s->frames_done++;
+    s->sym_read_idx = 0;
+    return 1;
+}
 
 #ifndef __cplusplus
 /* C only: the body uses the C99 complex library, which C++ does not have
@@ -325,6 +378,15 @@ int dp_wfm_synth_set_refill(dp_wfm_synth_state_t *state, wfm_synth_refill_fn fn,
 int dp_wfm_synth_set_refill_state(dp_wfm_synth_state_t *state,
                                   const wfm_synth_refill_state_t *ops);
 
+int dp_wfm_synth_attach_frames(dp_wfm_synth_state_t *state, wfm_synth_frame_fn fn,
+                            void *user, void (*free_user)(void *),
+                            size_t n_bits, size_t n_out);
+
+int dp_wfm_synth_attach_frames_state(dp_wfm_synth_state_t *state,
+                                  const wfm_synth_refill_state_t *ops);
+
+int dp_wfm_synth_frames_refused(const dp_wfm_synth_state_t *state);
+
 const char *dp_wfm_synth_state_refusal(const dp_wfm_synth_state_t *state);
 
 int dp_wfm_synth_data_ended(const dp_wfm_synth_state_t *state);
@@ -428,6 +490,12 @@ dp_wfm_synth_step(dp_wfm_synth_state_t *state)
         }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
+    } else if (state->wtype == WFM_SYNTH_FRAMES) {
+        /* A finished frame, played as it is: the helper draws the next one when
+         * the cursor reaches the end, and silence follows the data's end. */
+        sym = wfm_synth_frame_ahead(state)
+                  ? state->symbols[state->sym_read_idx++]
+                  : (0.0f + 0.0f * I);
     } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
@@ -531,7 +599,7 @@ void dp_wfm_synth_set_cur_im(dp_wfm_synth_state_t *state, float val);
  * bits are config restored by create, but a PULLED frame is state: with a
  * refill the blob carries it and nests the refill's own sub-blob. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 6u
+#define WFM_SYNTH_STATE_VERSION 7u
 size_t dp_wfm_synth_state_bytes (const dp_wfm_synth_state_t *state);
 void dp_wfm_synth_get_state (const dp_wfm_synth_state_t *state, void *blob);
 int dp_wfm_synth_set_state (dp_wfm_synth_state_t *state, const void *blob);

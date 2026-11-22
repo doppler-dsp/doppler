@@ -459,6 +459,15 @@ repos:
         language: system
         pass_filenames: false
 
+      # Every owned Field of wfm_source_t is handled at each site that owns
+      # a source's arrays: a new Field cannot be missed in a fourth file.
+      - id: source-fields
+        name: every owned source Field is handled at every owner
+        entry: make -s lint-source-fields
+        language: system
+        files: ^(native/inc/doppler/wfm/wfm_compose\.h|native/src/wfm/(wfm_compose|wfm_json|wfm_plan)\.c|native/src/app/wfmgen\.c|scripts/check_source_owned_fields\.py)$
+        pass_filenames: false
+
       # A CI step may not discard the exit code it just produced. Fires on
       # every file, because a workflow's shape is decided in YAML and the
       # step it guards can be added anywhere in .github/.

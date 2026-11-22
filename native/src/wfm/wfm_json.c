@@ -89,6 +89,7 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
         free (srcs[k].symbols);
         free ((void *)srcs[k].acq_code.bits);
         free ((void *)srcs[k].data_code.bits);
+        free ((void *)srcs[k].mac_header.bits);
         free ((void *)srcs[k].data.bits);
         free ((void *)srcs[k].fill.bits);
         free ((void *)srcs[k].data_from_file);
@@ -716,10 +717,13 @@ add_rows (cJSON *o, wfm_surf_owner_t owner, const void *base)
       /* Omitted at its default, AND at zero: a C caller that zero-fills a
          struct means "unset" by it, and for every omitted row but `repeats`
          the two are the same value -- for `repeats`, 0 and 1 both mean one
-         instance (wfm_compose.h). A ranged field is never omitted: it
-         records its SPAN. */
+         instance (wfm_compose.h). A row whose default names a constant keeps
+         its zero: for `window` 0 is the rectangular window, and a record
+         without it would read back as the default. A ranged field is never
+         omitted: it records its SPAN. */
       if (r->json_omit && !is_ranged
-          && (v == 0.0 || v == row_get (r, def, r->off)))
+          && ((v == 0.0 && !r->json_keep_zero)
+              || v == row_get (r, def, r->off)))
         continue;
       if (r->kind == WFM_SV_CHOICE)
         cJSON_AddStringToObject (o, r->json, r->choices[(int)v]);
@@ -781,6 +785,16 @@ read_rows (const cJSON *o, wfm_surf_owner_t owner, void *base,
           *(wfm_seq_t *)((char *)base + r->off) = f.seq;
           if (r->reps_off)
             *(size_t *)((char *)base + r->reps_off) = f.reps;
+          continue;
+        }
+      /* An absent count, or one that is no number (num() takes its default
+         for the same input), is the default's own bits, not its double: a
+         size_t default that names a sentinel (WFM_WINDOW_UNSET, SIZE_MAX) does
+         not survive the trip through a double, and row_set would refuse it. */
+      if (!cJSON_IsNumber (it) && r->kind == WFM_SV_SIZE && !r->range_bit)
+        {
+          *(size_t *)((char *)base + r->off)
+              = *(const size_t *)((const char *)def + r->off);
           continue;
         }
       const double dv = row_get (r, def, r->off);
@@ -1180,15 +1194,24 @@ dp_wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
         stream |= dp_wfm_source_data_is_stream (&g->sources[k]);
       if (stream || dp_wfm_segment_sets_length (g))
         cJSON_DeleteItemFromObjectCaseSensitive (s, "num_samples");
+      /* A record holds the window the source renders with, never "unset":
+         a scene read back then renders the same samples under any later
+         default. The copy shares the source's pointers and is only read. */
       if (g->n_sources == 1)
-        add_source_obj (s, &g->sources[0]);
+        {
+          wfm_source_t one = g->sources[0];
+          one.window       = dp_wfm_source_window (&one, g->fs);
+          add_source_obj (s, &one);
+        }
       else
         {
           cJSON *sum = cJSON_AddArrayToObject (s, "sum");
           for (size_t k = 0; k < g->n_sources; k++)
             {
-              cJSON *so = cJSON_CreateObject ();
-              add_source_obj (so, &g->sources[k]);
+              cJSON       *so  = cJSON_CreateObject ();
+              wfm_source_t one = g->sources[k];
+              one.window       = dp_wfm_source_window (&one, g->fs);
+              add_source_obj (so, &one);
               cJSON_AddItemToArray (sum, so);
             }
         }

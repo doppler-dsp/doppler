@@ -62,13 +62,15 @@ _A filter over an explicit state vector (the frequency estimate and its rate): t
 | ---: | :--- |
 |  double | [**dp\_state\_filter\_bandwidth**](#function-dp_state_filter_bandwidth) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double delay, double gain) <br>_This filter's exact delivered noise bandwidth at a detector delay and loop gain._  |
 |  int | [**dp\_state\_filter\_configure**](#function-dp_state_filter_configure) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Retune the gains for a new_ `(bn, t)` _without disturbing the frequency and rate estimates._ |
-|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create**](#function-dp_state_filter_create) (double bn, double t) <br>_Create a state filter, validating its arguments._  |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create**](#function-dp_state_filter_create) (double bn, double t) <br>_Create a state filter, validating its arguments. The binding calls_ [_**dp\_state\_filter\_create\_why()**_](state__filter__core_8h.md#function-dp_state_filter_create_why) _, which also says why it refused._ |
+|  [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* | [**dp\_state\_filter\_create\_why**](#function-dp_state_filter_create_why) (double bn, double t, const char \*\* why) <br>_Create a state filter, validating its arguments: the one constructor the Python class_ `StateFilter` _calls._ |
 |  void | [**dp\_state\_filter\_destroy**](#function-dp_state_filter_destroy) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state) <br>_Destroy a state filter and release all memory._  |
 |  void | [**dp\_state\_filter\_get\_state**](#function-dp_state_filter_get_state) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, void \* blob) <br>_Serialize the filter into_ `blob:` _gains, estimates, bn and t._ |
 |  void | [**dp\_state\_filter\_init**](#function-dp_state_filter_init) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double bn, double t) <br>_Initialise a filter in place (no allocation)._  |
 |  double | [**dp\_state\_filter\_loop\_bandwidth**](#function-dp_state_filter_loop_bandwidth) (int order, double kp, double ki, double kr, double delay, double gain) <br>_The exact delivered noise bandwidth of that loop, in cycles per update:_ `Bn = (1/2) * sum h[n]^2` _of its impulse response. The phase is the oscillator's at the detector instant, the phase the error is formed from; the phase just after the proportional step of the same update has a smaller sum of squares (design page section 11.1, which gives the ratio)._ |
 |  int | [**dp\_state\_filter\_loop\_stable**](#function-dp_state_filter_loop_stable) (int order, double kp, double ki, double kr, double delay, double gain) <br>_Whether a loop of this order with these gains is stable._  |
 |  int | [**dp\_state\_filter\_params\_ok**](#function-dp_state_filter_params_ok) (double bn, double t) <br>_The domain the loop is defined on:_ `bn >= 0` _,_`t > 0` _, both finite, and_`bn*t` _zero or between STATE\_FILTER\_BNT\_MIN and STATE\_FILTER\_BNT\_MAX._ |
+|  const char \* | [**dp\_state\_filter\_params\_why**](#function-dp_state_filter_params_why) (double bn, double t) <br>_The reason (_ `bn` _,_`t` _) is outside the domain, naming the argument, or NULL when it is inside._ |
 |  void | [**dp\_state\_filter\_reset**](#function-dp_state_filter_reset) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state) <br>_Zero the frequency and rate estimates, keeping the gains._  |
 |  int | [**dp\_state\_filter\_set\_state**](#function-dp_state_filter_set_state) ([**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the blob is refused. The envelope is checked, the flavor word must be 0, and the payload is decoded into a temporary and accepted only when_ [_**dp\_state\_filter\_state\_ok()**_](state__filter__core_8h.md#function-dp_state_filter_state_ok) _accepts it. The estimates are not checked: a NaN in them is garbage in. A refused blob leaves_`state` _unchanged._ |
 |  bool | [**dp\_state\_filter\_stable**](#function-dp_state_filter_stable) (const [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md) \* state, double delay, double gain) <br>_Whether this filter is stable at a detector delay and loop gain._  |
@@ -269,7 +271,7 @@ True
 
 ### function dp\_state\_filter\_create 
 
-_Create a state filter, validating its arguments._ 
+_Create a state filter, validating its arguments. The binding calls_ [_**dp\_state\_filter\_create\_why()**_](state__filter__core_8h.md#function-dp_state_filter_create_why) _, which also says why it refused._
 ```C++
 dp_state_filter_state_t * dp_state_filter_create (
     double bn,
@@ -298,6 +300,51 @@ Heap-allocated state, or NULL if `(bn, t)` is outside [**dp\_state\_filter\_para
 
 **Note:**
 
+Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#function-dp_state_filter_destroy) when done. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_state\_filter\_create\_why 
+
+_Create a state filter, validating its arguments: the one constructor the Python class_ `StateFilter` _calls._
+```C++
+dp_state_filter_state_t * dp_state_filter_create_why (
+    double bn,
+    double t,
+    const char ** why
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth, normalized cycles/sample; &gt;= 0 (default 0.01). `bn = 0` is a deliberately frozen loop. 
+* `t` Update period in samples; &gt; 0 (default 1.0). 
+* `why` Where the refusal's sentence goes, naming the argument it refused ([**dp\_state\_filter\_params\_why()**](state__filter__core_8h.md#function-dp_state_filter_params_why)); set to NULL when the filter is built. May be NULL. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL (with `why` set) outside the domain or on allocation failure. 
+
+
+
+
+**Note:**
+
 Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#function-dp_state_filter_destroy) when done.
 
 
@@ -312,7 +359,7 @@ Caller must call [**dp\_state\_filter\_destroy()**](state__filter__core_8h.md#fu
 >>> StateFilter(bn=0.5)                # bn*t past the stability bound
 Traceback (most recent call last):
     ...
-ValueError: bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)
+ValueError: bn*t is above the largest the filter accepts, the bound the third-order loop is stable to
 ```
  
 
@@ -392,7 +439,7 @@ void dp_state_filter_init (
 
 
 
-Computes the gains for `bn` and `t` and stores both. Does **not** touch `integ` or `rate`, so it doubles as a reconfigure that preserves lock. Arguments are NOT validated here, on purpose, as in [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): the embedder checks [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) first. An argument outside it gives gains the loop is not stable with.
+Computes the gains for `bn` and `t` and stores both. Does **not** touch `integ` or `rate`, so it doubles as a reconfigure that preserves lock. Arguments are NOT validated here, on purpose, as in [**dp\_loop\_filter\_init()**](loop__filter__core_8h.md#function-dp_loop_filter_init): the embedder checks [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) first. An argument outside it gives gains no stability claim is made for (past STATE\_FILTER\_BNT\_MAX the corner of the rectangle goes unstable, but only well past it: the exact bound is about 0.1248).
 
 
 
@@ -479,10 +526,10 @@ int dp_state_filter_loop_stable (
 The exact test on the characteristic polynomial of the discrete loop of docs/design/loop-filter.md section 11.1: a unit detector, the filter, an oscillator that accumulates the control, a detector delay of `delay` updates, and a loop gain of `gain` times nominal. The one function for both orders: `order` 2 is [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md)'s recurrence (`kr` is ignored), `order` 3 this object's.
 
 
-At an integer `delay` the delay is a real transport delay and the answer is exact. Between integers the model is linear interpolation of the detector's error between the two nearest updates, which low-passes the detector and so reads more stable than a pure fractional delay; the stability claim is for integer delays. A detector that averages over a window is a third model the caller owns.
+At an integer `delay` the delay is a real transport delay and the answer is exact. Between integers the model is linear interpolation of the detector's error between the two nearest updates, which low-passes the detector, a different model from a pure fractional delay, whose stability this function does not state; the rectangle's claim is exact at integer delays and holds under this model between them. A detector that averages over a window is a third model the caller owns.
 
 
-The test is the positivity of the solution of the loop's Lyapunov equation, which is stability only when the loop's state is driven (the pair (A, b) is controllable). Where it is not, the answer is 0: a gain at zero leaves a state undriven or marginal, so the frozen loop (`bn = 0`, every gain zero), an order-3 loop with `kr = 0` and an order-2 loop with `ki = 0` (a pole-zero cancellation at `z = 1`) all read as not stable, and [**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth) is NaN for them.
+The test is whether the sum `P = sum_k A^k b b^T (A^T)^k` converges (below), which is stability only when the loop's state is driven (the pair (A, b) is controllable): `P` is then the solution of the loop's Lyapunov equation, and it exists exactly when every pole is inside the unit circle. Where the state is not driven, the answer is 0: a gain at zero leaves a state undriven or marginal, so the frozen loop (`bn = 0`, every gain zero), an order-3 loop with `kr = 0` and an order-2 loop with `ki = 0` (a pole-zero cancellation at `z = 1`) all read as not stable, and [**dp\_state\_filter\_loop\_bandwidth()**](state__filter__core_8h.md#function-dp_state_filter_loop_bandwidth) is NaN for them.
 
 
 Both answers come from one computation in `double` on every platform: the loop's state matrix `A` is balanced by a power-of-two diagonal similarity and then squared repeatedly while `P = sum_k A^k b b^T (A^T)^k` accumulates by `P <- P + A P A^T`, `A <- A A`. Each term of the sum is positive semidefinite, so the sum cannot lose definiteness by cancellation (an individual entry may be negative); the bandwidth is `(d^2 + c P c^T) / 2` of that `P`.
@@ -491,7 +538,7 @@ Both answers come from one computation in `double` on every platform: the loop's
 The decision rule is exact: after each pass the largest absolute entry of the balanced `A^(2^j)` is read. Below 1e-12 the loop is stable and the sum is complete (every later term is under 1e-24 of the last). Non-finite or above 1e150 the loop is not stable, and the function returns 0 there, before overflow can make any entry NaN. After 64 passes without either, the loop is not stable (a pole at radius `1 - delta` is decided in about `log2 (40/delta)` passes, so the cap reaches `delta` near 1e-17). A pole within about 1e-12 of the unit circle is within rounding of it, and the answer there is not guaranteed either way; a marginal loop (a gain at zero, a pole at `z = 1`) never goes to zero and reads as not stable.
 
 
-It is verified on the design gains from STATE\_FILTER\_BNT\_MIN to STATE\_FILTER\_BNT\_MAX at delays 0 to 4 and loop gains 0.5 to 2, on loops built at a known radius either side of 1 (1e-6 and 1e-9), and on gains off the design manifold (a Kalman filter's gains while its covariance converges, `bn*t` 1e-3 to 0.08) against a simulation of the loop's own state recursion.
+What the tests run, and what they do not: the exact bandwidth at delay 0 and loop gain 1 against the bandwidth asked for, from `bn*t` 1e-6 to STATE\_FILTER\_BNT\_MAX (1203 cells, within 1e-9; not claimed below 1e-6, which is above STATE\_FILTER\_BNT\_MIN); the verdict and the bandwidth against a simulation of the real step at one design loop (`bn*t` 0.03) for delays 0, 0.5, 1, 1.25, 2 and 3 and loop gains 1, 0.7 and 1.6; loops built at a known radius either side of 1 (1e-6 and 1e-9); and gains off the design manifold (a Kalman filter's gains while its covariance converges, `bn*t` 1e-3 to 0.08) against a simulation of the loop's own state recursion. The full sweep (every `bn*t` from the floor to the bound, delays 0 to 4, loop gains 0.5 to 2) is not run.
 
 
 
@@ -550,6 +597,45 @@ The ONE predicate; [**dp\_state\_filter\_create()**](state__filter__core_8h.md#f
 **Returns:**
 
 1 inside the domain, 0 outside it (a NaN is outside). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_state\_filter\_params\_why 
+
+_The reason (_ `bn` _,_`t` _) is outside the domain, naming the argument, or NULL when it is inside._
+```C++
+const char * dp_state_filter_params_why (
+    double bn,
+    double t
+) 
+```
+
+
+
+The same predicate as [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok), with a sentence for the first condition that fails: `t` not positive and finite, `bn` NaN, `bn` negative, `bn` infinite, or `bn*t` under the floor or over the bound. The strings are static.
+
+
+
+
+**Parameters:**
+
+
+* `bn` Loop noise bandwidth. 
+* `t` Update period in samples. 
+
+
+
+**Returns:**
+
+A static sentence, or NULL if the pair is inside the domain. 
 
 
 
@@ -734,6 +820,9 @@ int dp_state_filter_state_ok (
 
 
 For restoring a serialized filter, whose gains are taken verbatim: the filter must be inside [**dp\_state\_filter\_params\_ok()**](state__filter__core_8h.md#function-dp_state_filter_params_ok) at its own `bn` and `t`, and its gains must match the ones [**dp\_state\_filter\_init()**](state__filter__core_8h.md#function-dp_state_filter_init) writes there to a relative tolerance of 1e-9. `integ` and `rate` are not checked.
+
+
+The 1e-9 is an allowance between platforms, and what is known of the spread is this: the test holds the gains within 1e-12 of a long double solve of the same closed form on every platform whose long double is wider than double (x86-64 Linux, 80-bit; arm64 Linux, 128-bit), so two such platforms agree within 2e-12 and the tolerance is 500 times that. macOS and Windows have no wider reference and are not covered by the number; the tolerance is to be tightened to a stated multiple once they have one.
 
 
 
@@ -985,7 +1074,7 @@ _The stability rectangle the automatic case is good for._
 
 
 
-The loop is stable at every loop gain from STATE\_FILTER\_K\_MIN to STATE\_FILTER\_K\_MAX times nominal and every detector delay from 0 to STATE\_FILTER\_DELAY\_MAX updates, for `bn*t` up to STATE\_FILTER\_BNT\_MAX. `K_MIN` is the floor the automatic case covers for a detector whose slope falls with signal-to-noise ratio (a caller measures 0.58 of nominal at its floor); `DELAY_MAX` covers the delay a detector that updates on a sample grid sweeps through. The bound is the largest `bn*t` for which the exact stability test passes at the upper corner (`K_MAX`, `DELAY_MAX`), rounded down; the C test derives it from [**dp\_state\_filter\_loop\_stable()**](state__filter__core_8h.md#function-dp_state_filter_loop_stable) rather than restating it.
+The loop is stable at every loop gain from STATE\_FILTER\_K\_MIN to STATE\_FILTER\_K\_MAX times nominal and every detector delay from 0 to STATE\_FILTER\_DELAY\_MAX updates (exactly at an integer delay; between integers under the interpolation model of [**dp\_state\_filter\_loop\_stable()**](state__filter__core_8h.md#function-dp_state_filter_loop_stable)), for `bn*t` up to STATE\_FILTER\_BNT\_MAX. `K_MIN` is the floor the automatic case covers for a detector whose slope falls with signal-to-noise ratio: a requirement, with no measured source of that slope on main yet (the async receiver's pull-in validator will print one, #3135); `DELAY_MAX` covers the delay a detector that updates on a sample grid sweeps through. The bound is the largest `bn*t` for which the exact stability test passes at the upper corner (`K_MAX`, `DELAY_MAX`), rounded down; the C test derives it from [**dp\_state\_filter\_loop\_stable()**](state__filter__core_8h.md#function-dp_state_filter_loop_stable) rather than restating it.
 
 
 What `K_MIN` constrains is the claim, not the predicate: the lower gain edge is set by the shape (about `1/(A*B)` of nominal, a little higher with delay), so no `bn*t` bound can move it, and the predicate bounds `bn*t` from the upper corner alone. The C test asserts that the measured lower edge at the bound, at every delay up to `DELAY_MAX`, is below `K_MIN`, and prints the margin. At the bound that edge is 0.236 of nominal at a delay of zero and 0.310 at `DELAY_MAX`, 4.1 dB under `K_MIN`. 

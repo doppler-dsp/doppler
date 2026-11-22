@@ -207,8 +207,8 @@ _enum_index (const char *const *tab, const char *s)
 }
 
 static const char *const _enum_wfm_type[] = {
-  "tone",  "noise", "pn",      "bpsk", "qpsk",
-  "chirp", "bits",  "symbols", "dsss", NULL,
+  "tone", "noise",   "pn",   "bpsk", "qpsk", "chirp",
+  "bits", "symbols", "dsss", "ofdm", NULL,
 };
 
 static const char *const _enum_snr_mode[] = {
@@ -237,6 +237,21 @@ static const char *const _enum_bitmod[] = {
 static const char *const _enum_wfm_pulse[] = {
   "rect",
   "rrc",
+  NULL,
+};
+
+static const char *const _enum_ofdm_constellation[] = {
+  "bpsk", "qpsk", "qam16", "qam64", NULL,
+};
+
+static const char *const _enum_ofdm_code_rate[] = {
+  "1/2", "2/3", "3/4", "5/6", NULL,
+};
+
+static const char *const _enum_ofdm_mac[] = {
+  "none",
+  "fcs",
+  "data",
   NULL,
 };
 
@@ -304,6 +319,7 @@ Synth_dealloc (SynthObject *self)
   free ((void *)self->src.retired_bits.bits);
   free ((void *)self->src.data.bits);
   free ((void *)self->src.fill.bits);
+  free ((void *)self->src.mac_header.bits);
   dp_wfm_frame_free ((wfm_frame_desc_t *)self->src.frame);
   jm_inflight_free (&self->_jm_inflight);
   Py_TYPE (self)->tp_free ((PyObject *)self);
@@ -426,9 +442,11 @@ _attach_frame (wfm_source_t *_jm_src, PyObject *_jm_obj)
 
 /* Coerce a 0/1 pattern (bytes | int sequence) or None
  * into an owned *dst and *n_dst (one shared coercer; each bytes field
- * passes its own struct destination). */
+ * passes its own struct destination).
+ * A bit_pattern field passes its name as bits, and an element
+ * that is not 0 or 1 is refused by it (gh-2696). */
 static int
-_attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
+_attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj, const char *bits)
 {
   free (*dst);
   *dst   = NULL;
@@ -440,6 +458,17 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
       Py_ssize_t nb = PyBytes_GET_SIZE (obj);
       if (nb <= 0)
         return 1;
+      const uint8_t *in = (const uint8_t *)PyBytes_AS_STRING (obj);
+      for (Py_ssize_t i = 0; bits && i < nb; i++)
+        if (in[i] > 1)
+          {
+            PyErr_Format (PyExc_ValueError,
+                          "%s is a bit array, one element per bit (0 or 1): "
+                          "element %zd is %ld, not a bit; np.unpackbits turns "
+                          "octets into bits",
+                          bits, (Py_ssize_t)(i), (long)(in[i]));
+            return 0;
+          }
       uint8_t *buf = (uint8_t *)malloc ((size_t)nb);
       if (!buf)
         {
@@ -473,6 +502,17 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
             Py_DECREF (seq);
             return 0;
           }
+        if (bits && v != 0 && v != 1)
+          {
+            free (buf);
+            Py_DECREF (seq);
+            PyErr_Format (PyExc_ValueError,
+                          "%s is a bit array, one element per bit (0 or 1): "
+                          "element %zd is %ld, not a bit; np.unpackbits turns "
+                          "octets into bits",
+                          bits, (Py_ssize_t)(i), (long)(v));
+            return 0;
+          }
         buf[i] = (uint8_t)(v != 0);
       }
     Py_DECREF (seq);
@@ -487,10 +527,10 @@ _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
  * its reason. Anything else is _attach_bytes's. */
 static int
 _coerce_dp_wfm_source_bits_refuse_text (uint8_t **dst, size_t *n_dst,
-                                        PyObject *obj)
+                                        PyObject *obj, const char *bits)
 {
   if (!obj || !PyUnicode_Check (obj))
-    return _attach_bytes (dst, n_dst, obj);
+    return _attach_bytes (dst, n_dst, obj, bits);
   Py_ssize_t  slen;
   const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
   if (!s)
@@ -533,10 +573,10 @@ _coerce_dp_wfm_source_bits_refuse_text (uint8_t **dst, size_t *n_dst,
  * its reason. Anything else is _attach_bytes's. */
 static int
 _coerce_dp_wfm_source_sync_refuse_text (uint8_t **dst, size_t *n_dst,
-                                        PyObject *obj)
+                                        PyObject *obj, const char *bits)
 {
   if (!obj || !PyUnicode_Check (obj))
-    return _attach_bytes (dst, n_dst, obj);
+    return _attach_bytes (dst, n_dst, obj, bits);
   Py_ssize_t  slen;
   const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
   if (!s)
@@ -579,10 +619,10 @@ _coerce_dp_wfm_source_sync_refuse_text (uint8_t **dst, size_t *n_dst,
  * its reason. Anything else is _attach_bytes's. */
 static int
 _coerce_dp_wfm_source_crc_refuse_text (uint8_t **dst, size_t *n_dst,
-                                       PyObject *obj)
+                                       PyObject *obj, const char *bits)
 {
   if (!obj || !PyUnicode_Check (obj))
-    return _attach_bytes (dst, n_dst, obj);
+    return _attach_bytes (dst, n_dst, obj, bits);
   Py_ssize_t  slen;
   const char *s = PyUnicode_AsUTF8AndSize (obj, &slen);
   if (!s)
@@ -654,8 +694,8 @@ Synth_replace_acq_code (SynthObject *self, PyObject *value)
   wfm_source_t _t  = self->src;
   _t.acq_code.bits = NULL;
   _t.acq_code.len  = 0;
-  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.acq_code.bits,
-                                               &_t.acq_code.len, value))
+  if (!_coerce_dp_wfm_source_bits_refuse_text (
+          (uint8_t **)&_t.acq_code.bits, &_t.acq_code.len, value, "acq_code"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -684,7 +724,8 @@ Synth_replace_data_code (SynthObject *self, PyObject *value)
   _t.data_code.bits = NULL;
   _t.data_code.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data_code.bits,
-                                               &_t.data_code.len, value))
+                                               &_t.data_code.len, value,
+                                               "data_code"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -713,7 +754,8 @@ Synth_replace_sync (SynthObject *self, PyObject *value)
   _t.retired_sync.bits = NULL;
   _t.retired_sync.len  = 0;
   if (!_coerce_dp_wfm_source_sync_refuse_text (
-          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value))
+          (uint8_t **)&_t.retired_sync.bits, &_t.retired_sync.len, value,
+          "sync"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -741,8 +783,8 @@ Synth_replace_crc (SynthObject *self, PyObject *value)
   wfm_source_t _t     = self->src;
   _t.retired_crc.bits = NULL;
   _t.retired_crc.len  = 0;
-  if (!_coerce_dp_wfm_source_crc_refuse_text ((uint8_t **)&_t.retired_crc.bits,
-                                              &_t.retired_crc.len, value))
+  if (!_coerce_dp_wfm_source_crc_refuse_text (
+          (uint8_t **)&_t.retired_crc.bits, &_t.retired_crc.len, value, "crc"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -797,7 +839,8 @@ Synth_replace_bits (SynthObject *self, PyObject *value)
   _t.retired_bits.bits = NULL;
   _t.retired_bits.len  = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text (
-          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value))
+          (uint8_t **)&_t.retired_bits.bits, &_t.retired_bits.len, value,
+          "bits"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -826,7 +869,7 @@ Synth_replace_data (SynthObject *self, PyObject *value)
   _t.data.bits    = NULL;
   _t.data.len     = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.data.bits,
-                                               &_t.data.len, value))
+                                               &_t.data.len, value, "data"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -855,7 +898,7 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
   _t.fill.bits    = NULL;
   _t.fill.len     = 0;
   if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.fill.bits,
-                                               &_t.fill.len, value))
+                                               &_t.fill.len, value, "fill"))
     return 0;
   /* gh-2272: a GIL-free call may still be running on this
      object; new ones are refused from here, so wait for those. */
@@ -874,6 +917,36 @@ Synth_replace_fill (SynthObject *self, PyObject *value)
   free ((void *)self->src.fill.bits);
   self->src.fill.bits = _t.fill.bits;
   self->src.fill.len  = _t.fill.len;
+  return 1;
+}
+
+static int
+Synth_replace_mac_header (SynthObject *self, PyObject *value)
+{
+  wfm_source_t _t    = self->src;
+  _t.mac_header.bits = NULL;
+  _t.mac_header.len  = 0;
+  if (!_coerce_dp_wfm_source_bits_refuse_text ((uint8_t **)&_t.mac_header.bits,
+                                               &_t.mac_header.len, value,
+                                               "mac_header"))
+    return 0;
+  /* gh-2272: a GIL-free call may still be running on this
+     object; new ones are refused from here, so wait for those. */
+  if (jm_inflight_wait (&self->_jm_inflight) < 0)
+    {
+      free ((void *)_t.mac_header.bits);
+      return 0;
+    }
+  if (self->_gen)
+    {
+      /* Built from the config being replaced; the next
+         steps() builds it again from the new one. */
+      dp_wfm_synth_destroy (self->_gen);
+      self->_gen = NULL;
+    }
+  free ((void *)self->src.mac_header.bits);
+  self->src.mac_header.bits = _t.mac_header.bits;
+  self->src.mac_header.len  = _t.mac_header.len;
   return 1;
 }
 
@@ -916,6 +989,15 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                                "fill",
                                                "code_only_symbols",
                                                "frame_symbols",
+                                               "wlan",
+                                               "constellation",
+                                               "code_rate",
+                                               "scrambler_init",
+                                               "window",
+                                               "mac",
+                                               "gap",
+                                               "bandwidth",
+                                               "mac_header",
                                                "fs",
                                                NULL };
   const char        *type                  = "tone";
@@ -960,7 +1042,18 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   unsigned long long code_only_symbols_raw = 0;
   PyObject          *frame_symbols_obj     = NULL;
   unsigned long long frame_symbols_raw     = 0;
-  double             fs                    = 1e6;
+  int                wlan                  = 0;
+  const char        *constellation         = "bpsk";
+  const char        *code_rate             = "1/2";
+  int                scrambler_init        = 0;
+  PyObject          *window_obj            = NULL;
+  unsigned long long window_raw            = WFM_WINDOW_UNSET;
+  const char        *mac                   = "none";
+  PyObject          *gap_obj               = NULL;
+  unsigned long long gap_raw               = 0;
+  double             bandwidth             = 20e6;
+  PyObject          *mac_header            = NULL;
+  double             fs                    = 1000000.0;
   PyObject          *_kw                   = kwds;
   int                _kw_owned             = 0;
   if (kwds)
@@ -1048,14 +1141,16 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsLiiOsOiOOOOdsssdiOOOOOOdiOOOOOOOd", kwlist, &type,
-          &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length, &pn_poly_obj,
-          &lfsr, &level, &background, &f_end, &span_obj, &doppler,
-          &doppler_rate, &carrier_hz, &doppler_lifetime, &modulation, &pulse,
-          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps_obj, &data_code,
-          &sync, &crc, &symbol_rate, &dsss_code_only, &frame, &bits, &data,
-          &data_len_obj, &fill, &code_only_symbols_obj, &frame_symbols_obj,
-          &fs))
+          args, _kw, "|sOOsLiiOsOiOOOOdsssdiOOOOOOdiOOOOOOOissiOsOdOd", kwlist,
+          &type, &freq, &snr, &snr_mode, &seed_raw, &sps, &pn_length,
+          &pn_poly_obj, &lfsr, &level, &background, &f_end, &span_obj,
+          &doppler, &doppler_rate, &carrier_hz, &doppler_lifetime, &modulation,
+          &pulse, &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps_obj,
+          &data_code, &sync, &crc, &symbol_rate, &dsss_code_only, &frame,
+          &bits, &data, &data_len_obj, &fill, &code_only_symbols_obj,
+          &frame_symbols_obj, &wlan, &constellation, &code_rate,
+          &scrambler_init, &window_obj, &mac, &gap_obj, &bandwidth,
+          &mac_header, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -1081,7 +1176,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       {
         PyErr_Format (PyExc_ValueError,
                       "invalid type '%s' (choices: tone, noise, pn, bpsk, "
-                      "qpsk, chirp, bits, symbols, dsss)",
+                      "qpsk, chirp, bits, symbols, dsss, ofdm)",
                       type);
         return -1;
       }
@@ -1521,6 +1616,86 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   size_t frame_symbols    = (size_t)frame_symbols_raw;
   self->src.frame_symbols = frame_symbols;
+  self->src.wlan          = wlan;
+  {
+    int _i = _enum_index (_enum_ofdm_constellation, constellation);
+    if (_i < 0)
+      {
+        PyErr_Format (
+            PyExc_ValueError,
+            "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)",
+            constellation);
+        return -1;
+      }
+    self->src.constellation = _i;
+  }
+  {
+    int _i = _enum_index (_enum_ofdm_code_rate, code_rate);
+    if (_i < 0)
+      {
+        PyErr_Format (PyExc_ValueError,
+                      "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6)",
+                      code_rate);
+        return -1;
+      }
+    self->src.code_rate = _i;
+  }
+  self->src.scrambler_init = scrambler_init;
+  if (window_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (window_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      window_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((window_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || window_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "window: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t window    = (size_t)window_raw;
+  self->src.window = window;
+  {
+    int _i = _enum_index (_enum_ofdm_mac, mac);
+    if (_i < 0)
+      {
+        PyErr_Format (PyExc_ValueError,
+                      "invalid mac '%s' (choices: none, fcs, data)", mac);
+        return -1;
+      }
+    self->src.mac = _i;
+  }
+  if (gap_obj != NULL)
+    {
+      PyObject *_ix = PyNumber_Index (gap_obj);
+      if (_ix == NULL)
+        {
+          return -1;
+        }
+      gap_raw = PyLong_AsUnsignedLongLong (_ix);
+      if ((gap_raw == (unsigned long long)-1 && PyErr_Occurred ())
+          || gap_raw > (unsigned long long)SIZE_MAX)
+        {
+          PyErr_Format (PyExc_OverflowError,
+                        "gap: %S is out of range for size_t [0, %llu]", _ix,
+                        (unsigned long long)SIZE_MAX);
+          Py_DECREF (_ix);
+          return -1;
+        }
+      Py_DECREF (_ix);
+    }
+  size_t gap          = (size_t)gap_raw;
+  self->src.gap       = gap;
+  self->src.bandwidth = bandwidth;
+  if (!Synth_replace_mac_header (self, mac_header))
+    return -1;
   return 0;
 }
 
@@ -1529,11 +1704,11 @@ Synth_get_type (SynthObject *self, void *closure)
 {
   (void)closure;
   long _v = (long)(self->src.type);
-  if (_v < 0 || _v >= 9)
+  if (_v < 0 || _v >= 10)
     {
       PyErr_Format (PyExc_ValueError,
                     "type holds out-of-range wfm_type value %ld"
-                    " (valid: 0..8)",
+                    " (valid: 0..9)",
                     _v);
       return NULL;
     }
@@ -1551,7 +1726,7 @@ Synth_set_type (SynthObject *self, PyObject *value, void *closure)
     {
       PyErr_Format (PyExc_ValueError,
                     "invalid type '%s' (choices: tone, noise, pn, bpsk, qpsk, "
-                    "chirp, bits, symbols, dsss)",
+                    "chirp, bits, symbols, dsss, ofdm)",
                     s);
       return -1;
     }
@@ -2491,6 +2666,233 @@ Synth_set_frame_symbols (SynthObject *self, PyObject *value, void *closure)
   return 0;
 }
 static PyObject *
+Synth_get_wlan (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromLong ((long)self->src.wlan);
+}
+static int
+Synth_set_wlan (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
+    return -1;
+  self->src.wlan = _v;
+  return 0;
+}
+static PyObject *
+Synth_get_constellation (SynthObject *self, void *closure)
+{
+  (void)closure;
+  long _v = (long)(self->src.constellation);
+  if (_v < 0 || _v >= 4)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "constellation holds out-of-range ofdm_constellation value %ld"
+          " (valid: 0..3)",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_ofdm_constellation[_v]);
+}
+static int
+Synth_set_constellation (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  const char *s = PyUnicode_AsUTF8 (value);
+  if (!s)
+    return -1;
+  int _i = _enum_index (_enum_ofdm_constellation, s);
+  if (_i < 0)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "invalid constellation '%s' (choices: bpsk, qpsk, qam16, qam64)", s);
+      return -1;
+    }
+  self->src.constellation = _i;
+  return 0;
+}
+static PyObject *
+Synth_get_code_rate (SynthObject *self, void *closure)
+{
+  (void)closure;
+  long _v = (long)(self->src.code_rate);
+  if (_v < 0 || _v >= 4)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "code_rate holds out-of-range ofdm_code_rate value %ld"
+                    " (valid: 0..3)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_ofdm_code_rate[_v]);
+}
+static int
+Synth_set_code_rate (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  const char *s = PyUnicode_AsUTF8 (value);
+  if (!s)
+    return -1;
+  int _i = _enum_index (_enum_ofdm_code_rate, s);
+  if (_i < 0)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "invalid code_rate '%s' (choices: 1/2, 2/3, 3/4, 5/6)", s);
+      return -1;
+    }
+  self->src.code_rate = _i;
+  return 0;
+}
+static PyObject *
+Synth_get_scrambler_init (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromLong ((long)self->src.scrambler_init);
+}
+static int
+Synth_set_scrambler_init (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  int _v = 0;
+  if (!PyArg_Parse (value, "i", &_v))
+    return -1;
+  self->src.scrambler_init = _v;
+  return 0;
+}
+static PyObject *
+Synth_get_window (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->src.window);
+}
+static int
+Synth_set_window (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  unsigned long long _v_raw = 0ULL;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "window: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
+  size_t _v        = (size_t)_v_raw;
+  self->src.window = _v;
+  return 0;
+}
+static PyObject *
+Synth_get_mac (SynthObject *self, void *closure)
+{
+  (void)closure;
+  long _v = (long)(self->src.mac);
+  if (_v < 0 || _v >= 3)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "mac holds out-of-range ofdm_mac value %ld"
+                    " (valid: 0..2)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_ofdm_mac[_v]);
+}
+static int
+Synth_set_mac (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  const char *s = PyUnicode_AsUTF8 (value);
+  if (!s)
+    return -1;
+  int _i = _enum_index (_enum_ofdm_mac, s);
+  if (_i < 0)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "invalid mac '%s' (choices: none, fcs, data)", s);
+      return -1;
+    }
+  self->src.mac = _i;
+  return 0;
+}
+static PyObject *
+Synth_get_gap (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->src.gap);
+}
+static int
+Synth_set_gap (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  unsigned long long _v_raw = 0ULL;
+  {
+    PyObject *_ix = PyNumber_Index (value);
+    if (_ix == NULL)
+      {
+        return -1;
+      }
+    _v_raw = PyLong_AsUnsignedLongLong (_ix);
+    if ((_v_raw == (unsigned long long)-1 && PyErr_Occurred ())
+        || _v_raw > (unsigned long long)SIZE_MAX)
+      {
+        PyErr_Format (PyExc_OverflowError,
+                      "gap: %S is out of range for size_t [0, %llu]", _ix,
+                      (unsigned long long)SIZE_MAX);
+        Py_DECREF (_ix);
+        return -1;
+      }
+    Py_DECREF (_ix);
+  }
+  size_t _v     = (size_t)_v_raw;
+  self->src.gap = _v;
+  return 0;
+}
+static PyObject *
+Synth_get_bandwidth (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyFloat_FromDouble (self->src.bandwidth);
+}
+static int
+Synth_set_bandwidth (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  double _v = 0.0;
+  if (!PyArg_Parse (value, "d", &_v))
+    return -1;
+  self->src.bandwidth = _v;
+  return 0;
+}
+static PyObject *
+Synth_get_mac_header (SynthObject *self, void *closure)
+{
+  (void)closure;
+  if (self->src.mac_header.bits && self->src.mac_header.len)
+    return PyBytes_FromStringAndSize ((const char *)self->src.mac_header.bits,
+                                      (Py_ssize_t)self->src.mac_header.len);
+  Py_RETURN_NONE;
+}
+static int
+Synth_set_mac_header (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  return Synth_replace_mac_header (self, value) ? 0 : -1;
+}
+static PyObject *
 Synth_get_fs (SynthObject *self, void *closure)
 {
   (void)closure;
@@ -2746,7 +3148,64 @@ static PyGetSetDef Synth_getset[] = {
     "give it with code_only_symbols, or both 0 for no window. The frame runs "
     "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
-  { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
+  { "wlan", (getter)Synth_get_wlan, (setter)Synth_set_wlan,
+    "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
+    "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
+    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
+    "Refused beside constellation or code_rate, with a bandwidth other than "
+    "20 MHz, and on any other type.\n",
+    NULL },
+  { "constellation", (getter)Synth_get_constellation,
+    (setter)Synth_set_constellation,
+    "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
+    "qam64; the pair with code_rate must be a row of the standard's rate "
+    "table.\n",
+    NULL },
+  { "code_rate", (getter)Synth_get_code_rate, (setter)Synth_set_code_rate,
+    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
+    NULL },
+  { "scrambler_init", (getter)Synth_get_scrambler_init,
+    (setter)Synth_set_scrambler_init,
+    "For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. "
+    "0 draws a fresh state for each PPDU from seed, so a run is reproducible "
+    "and a resume re-renders the same PPDU.\n",
+    NULL },
+  { "window", (getter)Synth_get_window, (setter)Synth_set_window,
+    "For type=ofdm: the transition window in samples at the output rate, 0 "
+    "for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). "
+    "Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads back) is "
+    "the standard's 100 ns, 2 * fs / bandwidth samples; a scene or a record "
+    "written from the source holds that count.\n",
+    NULL },
+  { "mac", (getter)Synth_get_mac, (setter)Synth_set_mac,
+    "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
+    "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
+    "(mac_header) and a body, with the FCS appended.\n",
+    NULL },
+  { "gap", (getter)Synth_get_gap, (setter)Synth_set_gap,
+    "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
+    "with noise at the source's noise variance.\n",
+    NULL },
+  { "bandwidth", (getter)Synth_get_bandwidth, (setter)Synth_set_bandwidth,
+    "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
+    "802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an "
+    "integer multiple of it, at most 128 times it; the multiple is the "
+    "oversampling M, done by a larger transform.\n",
+    NULL },
+  { "mac_header", (getter)Synth_get_mac_header, (setter)Synth_set_mac_header,
+    "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
+    "frame's header). A Field of whole octets on the command line and in a "
+    "scene, where a hex Field such as 0x08020000 is the octets it spells; a "
+    "bit array in Python, 8 bits per octet, each octet's first bit the most "
+    "significant (bytes.fromhex is not accepted: "
+    "np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY "
+    "appends the frame's octets (the data source) and the FCS. Refused with "
+    "mac none or fcs, and without it for mac data.\n",
+    NULL },
+  { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs,
+    "Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz "
+    "against 1 MHz; pass `fs=1.0` to give `freq` in cycles per sample.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -3065,7 +3524,8 @@ static PyTypeObject SynthType = {
       "    continuous asynchronous stream when symbol_rate is set.\n"
       "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
       "``\"qpsk\"``,\n"
-      "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
+      "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``, "
+      "``\"ofdm\"``.\n"
       "freq : float | tuple[float, float], default 0.0\n"
       "    Carrier or offset frequency in Hz; for chirp, the sweep start. "
       "With fs\n"
@@ -3371,12 +3831,77 @@ static PyTypeObject SynthType = {
       "runs\n"
       "    on the stream's own symbol clock, so its edges land at any chip "
       "phase.\n"
-      "fs : float, default 1.0\n"
-      "    Sample rate in Hz, one per segment and shared by all its sources. "
-      "At\n"
-      "    the default 1.0 every frequency is normalised (cycles per "
-      "sample);\n"
-      "    state it whenever a scene is in real Hz.\n"),
+      "wlan : int, default 0\n"
+      "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
+      "6, 9,\n"
+      "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
+      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
+      "= not\n"
+      "    given. Refused beside constellation or code_rate, with a "
+      "bandwidth\n"
+      "    other than 20 MHz, and on any other type.\n"
+      "constellation : str, default ``\"bpsk\"``\n"
+      "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
+      "qam16,\n"
+      "    qam64; the pair with code_rate must be a row of the standard's "
+      "rate\n"
+      "    table.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
+      "code_rate : str, default ``\"1/2\"``\n"
+      "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
+      "5/6.\n"
+      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``.\n"
+      "scrambler_init : int, default 0\n"
+      "    For type=ofdm: the 7-bit initial state of the data scrambler, 1 to "
+      "127.\n"
+      "    0 draws a fresh state for each PPDU from seed, so a run is "
+      "reproducible\n"
+      "    and a resume re-renders the same PPDU.\n"
+      "window : int, default WFM_WINDOW_UNSET\n"
+      "    For type=ofdm: the transition window in samples at the output "
+      "rate, 0\n"
+      "    for none, at most 80 times fs over bandwidth (the shortest OFDM\n"
+      "    symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python "
+      "reads\n"
+      "    back) is the standard's 100 ns, 2 * fs / bandwidth samples; a "
+      "scene or\n"
+      "    a record written from the source holds that count.\n"
+      "mac : str, default ``\"none\"``\n"
+      "    For type=ofdm: how the caller's octets become the PSDU. none: as "
+      "given.\n"
+      "    fcs: an MPDU without its FCS, which the PHY appends. data: a "
+      "header\n"
+      "    (mac_header) and a body, with the FCS appended.\n"
+      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``.\n"
+      "gap : int, default 0\n"
+      "    For type=ofdm: idle samples after each PPDU, at the output rate, "
+      "filled\n"
+      "    with noise at the source's noise variance.\n"
+      "bandwidth : float, default 20e6\n"
+      "    For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for\n"
+      "    802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be "
+      "an\n"
+      "    integer multiple of it, at most 128 times it; the multiple is the\n"
+      "    oversampling M, done by a larger transform.\n"
+      "mac_header : bytes | None, default None\n"
+      "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
+      "data\n"
+      "    frame's header). A Field of whole octets on the command line and "
+      "in a\n"
+      "    scene, where a hex Field such as 0x08020000 is the octets it "
+      "spells; a\n"
+      "    bit array in Python, 8 bits per octet, each octet's first bit the "
+      "most\n"
+      "    significant (bytes.fromhex is not accepted:\n"
+      "    np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). "
+      "The PHY\n"
+      "    appends the frame's octets (the data source) and the FCS. Refused "
+      "with\n"
+      "    mac none or fcs, and without it for mac data.\n"
+      "fs : float, default 1000000.0\n"
+      "    Sample rate in Hz. The default is 1e6 (1 MHz), so `freq` is in Hz\n"
+      "    against 1 MHz; pass `fs=1.0` to give `freq` in cycles per "
+      "sample.\n"),
 };
 
 /* Factory shared body: inject {type: <name>} into kwds, call the type. */
@@ -4960,6 +5485,119 @@ Segment_flat_frame_symbols (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
                                  "frame_symbols");
 }
+static PyObject *
+Segment_flat_wlan (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "wlan is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "wlan");
+}
+static PyObject *
+Segment_flat_constellation (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "constellation is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "constellation");
+}
+static PyObject *
+Segment_flat_code_rate (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "code_rate is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "code_rate");
+}
+static PyObject *
+Segment_flat_scrambler_init (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "scrambler_init is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "scrambler_init");
+}
+static PyObject *
+Segment_flat_window (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "window is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "window");
+}
+static PyObject *
+Segment_flat_mac (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "mac is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "mac");
+}
+static PyObject *
+Segment_flat_gap (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "gap is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "gap");
+}
+static PyObject *
+Segment_flat_bandwidth (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "bandwidth is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "bandwidth");
+}
+static PyObject *
+Segment_flat_mac_header (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "mac_header is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0),
+                                 "mac_header");
+}
 
 static PyObject *
 Segment_add (SegmentObject *self, PyObject *args)
@@ -5255,6 +5893,58 @@ static PyGetSetDef Segment_getset[] = {
     "give it with code_only_symbols, or both 0 for no window. The frame runs "
     "on the stream's own symbol clock, so its edges land at any chip phase.\n",
     NULL },
+  { "wlan", (getter)Segment_flat_wlan, NULL,
+    "For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of 6, 9, "
+    "12, 18, 24, 36, 48, 54: a second spelling of constellation and code_rate "
+    "(--wlan 36 is --constellation qam16 --code-rate 3/4). 0 = not given. "
+    "Refused beside constellation or code_rate, with a bandwidth other than "
+    "20 MHz, and on any other type.\n",
+    NULL },
+  { "constellation", (getter)Segment_flat_constellation, NULL,
+    "For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, qam16, "
+    "qam64; the pair with code_rate must be a row of the standard's rate "
+    "table.\n",
+    NULL },
+  { "code_rate", (getter)Segment_flat_code_rate, NULL,
+    "For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, 5/6.\n",
+    NULL },
+  { "scrambler_init", (getter)Segment_flat_scrambler_init, NULL,
+    "For type=ofdm: the 7-bit initial state of the data scrambler, 1 to 127. "
+    "0 draws a fresh state for each PPDU from seed, so a run is reproducible "
+    "and a resume re-renders the same PPDU.\n",
+    NULL },
+  { "window", (getter)Segment_flat_window, NULL,
+    "For type=ofdm: the transition window in samples at the output rate, 0 "
+    "for none, at most 80 times fs over bandwidth (the shortest OFDM symbol). "
+    "Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python reads back) is "
+    "the standard's 100 ns, 2 * fs / bandwidth samples; a scene or a record "
+    "written from the source holds that count.\n",
+    NULL },
+  { "mac", (getter)Segment_flat_mac, NULL,
+    "For type=ofdm: how the caller's octets become the PSDU. none: as given. "
+    "fcs: an MPDU without its FCS, which the PHY appends. data: a header "
+    "(mac_header) and a body, with the FCS appended.\n",
+    NULL },
+  { "gap", (getter)Segment_flat_gap, NULL,
+    "For type=ofdm: idle samples after each PPDU, at the output rate, filled "
+    "with noise at the source's noise variance.\n",
+    NULL },
+  { "bandwidth", (getter)Segment_flat_bandwidth, NULL,
+    "For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for "
+    "802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be an "
+    "integer multiple of it, at most 128 times it; the multiple is the "
+    "oversampling M, done by a larger transform.\n",
+    NULL },
+  { "mac_header", (getter)Segment_flat_mac_header, NULL,
+    "For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a data "
+    "frame's header). A Field of whole octets on the command line and in a "
+    "scene, where a hex Field such as 0x08020000 is the octets it spells; a "
+    "bit array in Python, 8 bits per octet, each octet's first bit the most "
+    "significant (bytes.fromhex is not accepted: "
+    "np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). The PHY "
+    "appends the frame's octets (the data source) and the FCS. Refused with "
+    "mac none or fcs, and without it for mac data.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -5304,7 +5994,8 @@ static PyTypeObject SegmentType = {
       "    continuous asynchronous stream when symbol_rate is set.\n"
       "    One of ``\"tone\"``, ``\"noise\"``, ``\"pn\"``, ``\"bpsk\"``, "
       "``\"qpsk\"``,\n"
-      "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``.\n"
+      "    ``\"chirp\"``, ``\"bits\"``, ``\"symbols\"``, ``\"dsss\"``, "
+      "``\"ofdm\"``.\n"
       "freq : float | tuple[float, float], default 0.0\n"
       "    Carrier or offset frequency in Hz; for chirp, the sweep start. "
       "With fs\n"
@@ -5610,6 +6301,73 @@ static PyTypeObject SegmentType = {
       "runs\n"
       "    on the stream's own symbol clock, so its edges land at any chip "
       "phase.\n"
+      "wlan : int, default 0\n"
+      "    For type=ofdm: the 802.11a/g data rate in Mb/s at 20 MHz, one of "
+      "6, 9,\n"
+      "    12, 18, 24, 36, 48, 54: a second spelling of constellation and\n"
+      "    code_rate (--wlan 36 is --constellation qam16 --code-rate 3/4). 0 "
+      "= not\n"
+      "    given. Refused beside constellation or code_rate, with a "
+      "bandwidth\n"
+      "    other than 20 MHz, and on any other type.\n"
+      "constellation : str, default ``\"bpsk\"``\n"
+      "    For type=ofdm: the subcarrier constellation, one of bpsk, qpsk, "
+      "qam16,\n"
+      "    qam64; the pair with code_rate must be a row of the standard's "
+      "rate\n"
+      "    table.\n"
+      "    One of ``\"bpsk\"``, ``\"qpsk\"``, ``\"qam16\"``, ``\"qam64\"``.\n"
+      "code_rate : str, default ``\"1/2\"``\n"
+      "    For type=ofdm: the convolutional code rate, one of 1/2, 2/3, 3/4, "
+      "5/6.\n"
+      "    One of ``\"1/2\"``, ``\"2/3\"``, ``\"3/4\"``, ``\"5/6\"``.\n"
+      "scrambler_init : int, default 0\n"
+      "    For type=ofdm: the 7-bit initial state of the data scrambler, 1 to "
+      "127.\n"
+      "    0 draws a fresh state for each PPDU from seed, so a run is "
+      "reproducible\n"
+      "    and a resume re-renders the same PPDU.\n"
+      "window : int, default WFM_WINDOW_UNSET\n"
+      "    For type=ofdm: the transition window in samples at the output "
+      "rate, 0\n"
+      "    for none, at most 80 times fs over bandwidth (the shortest OFDM\n"
+      "    symbol). Unset (WFM_WINDOW_UNSET, 2**64 - 1, which is what Python "
+      "reads\n"
+      "    back) is the standard's 100 ns, 2 * fs / bandwidth samples; a "
+      "scene or\n"
+      "    a record written from the source holds that count.\n"
+      "mac : str, default ``\"none\"``\n"
+      "    For type=ofdm: how the caller's octets become the PSDU. none: as "
+      "given.\n"
+      "    fcs: an MPDU without its FCS, which the PHY appends. data: a "
+      "header\n"
+      "    (mac_header) and a body, with the FCS appended.\n"
+      "    One of ``\"none\"``, ``\"fcs\"``, ``\"data\"``.\n"
+      "gap : int, default 0\n"
+      "    For type=ofdm: idle samples after each PPDU, at the output rate, "
+      "filled\n"
+      "    with noise at the source's noise variance.\n"
+      "bandwidth : float, default 20e6\n"
+      "    For type=ofdm: the channel bandwidth in Hz, 20e6, 10e6 or 5e6 for\n"
+      "    802.11a/g/p/j; 0 is 20e6, the default. The segment's fs must be "
+      "an\n"
+      "    integer multiple of it, at most 128 times it; the multiple is the\n"
+      "    oversampling M, done by a larger transform.\n"
+      "mac_header : bytes | None, default None\n"
+      "    For type=ofdm with mac=data: the MAC header, 24 or 30 octets (a "
+      "data\n"
+      "    frame's header). A Field of whole octets on the command line and "
+      "in a\n"
+      "    scene, where a hex Field such as 0x08020000 is the octets it "
+      "spells; a\n"
+      "    bit array in Python, 8 bits per octet, each octet's first bit the "
+      "most\n"
+      "    significant (bytes.fromhex is not accepted:\n"
+      "    np.unpackbits(np.frombuffer(octets, np.uint8)) makes the bits). "
+      "The PHY\n"
+      "    appends the frame's octets (the data source) and the FCS. Refused "
+      "with\n"
+      "    mac none or fcs, and without it for mac data.\n"
       "fs : float, default 1.0\n"
       "    Sample rate in Hz, one per segment and shared by all its sources. "
       "At\n"
@@ -5934,6 +6692,19 @@ _dp_wfm_compose_segments_to_list (const wfm_segment_t *src, size_t n)
             {
               syn->src.fill.bits = NULL;
               syn->src.fill.len  = 0;
+            }
+          if (syn->src.mac_header.bits && syn->src.mac_header.len)
+            {
+              uint8_t *copy = (uint8_t *)malloc (syn->src.mac_header.len);
+              if (copy)
+                memcpy (copy, syn->src.mac_header.bits,
+                        syn->src.mac_header.len);
+              syn->src.mac_header.bits = copy;
+            }
+          else
+            {
+              syn->src.mac_header.bits = NULL;
+              syn->src.mac_header.len  = 0;
             }
           {
             wfm_frame_desc_t *_a0 = (wfm_frame_desc_t *)syn->src.frame;
@@ -6690,6 +7461,15 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "fill",
                                                   "code_only_symbols",
                                                   "frame_symbols",
+                                                  "wlan",
+                                                  "constellation",
+                                                  "code_rate",
+                                                  "scrambler_init",
+                                                  "window",
+                                                  "mac",
+                                                  "gap",
+                                                  "bandwidth",
+                                                  "mac_header",
                                                   NULL };
 
 static PyObject *

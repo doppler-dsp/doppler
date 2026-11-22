@@ -277,7 +277,7 @@ LINT_TOOLS   = conflict ruff ruff-format mdformat clang-format \
                warnings-exempt stock-images uv-pin uv-lock tlm-name-join \
                ring-internals size-mul named-args acq-pfa-split \
                finding-citations test-all-ci changelog-fragments dup-include \
-               windows-macro-names
+               windows-macro-names source-fields
 FORMAT_TOOLS = ruff-format ruff mdformat named-args clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -667,6 +667,12 @@ LINT_doc-claims = python3 scripts/check_doc_claims.py
 # pin the indices, and to the no-second-home rule.
 # Design: docs/design/waveform-enum-ssot.md
 LINT_wfm-enum-tables = $(UV) run python scripts/check_wfm_enum_tables.py
+
+# Every owned Field of wfm_source_t (a wfm_seq_t member) is mentioned at each
+# of the four hand-written sites that own a source's arrays, so a new one
+# cannot be missed in a fourth file (mac_header was missed by the Plan).
+# Why not one shared list: the sites own different subsets on purpose.
+LINT_source-fields = $(UV) run python scripts/check_source_owned_fields.py
 
 # A CI step may not throw away the exit code it just produced. The default
 # Actions shell is `bash -e`, where a PIPELINE reports the last command's
@@ -1967,6 +1973,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
+                release-runners-check \
                 ci-aggregator-check python-versions-check \
                 jm-pin \
                 issue-link-check bootstrap-cmd-check \
@@ -2004,6 +2011,7 @@ LOCAL_TARGETS = specan record-demo pool-record-write acq-surface-record \
                 container-mount-check \
                 cargo-lock-check design-pages-check wfmgen-flag-matrix \
                 gallery-scripts-check user-docs-check surface-check bench-commits-check \
+                spine-check \
                 nats-vendor-fresh-check \
                 ci-run ci-gates ccache-stats \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
@@ -2106,7 +2114,8 @@ include standard.mk
 # that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
 # run natively and skip Docker entirely.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      workflow-syntax-check ci-aggregator-check python-versions-check \
+      workflow-syntax-check release-runners-check ci-aggregator-check \
+      python-versions-check \
       gates-extra-home-check \
       release-notes-size-check \
       issue-link-check bootstrap-cmd-check deps-budget-check \
@@ -2116,6 +2125,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       ccsds-isolation-check container-mount-check cargo-lock-check \
       instrumented-sweep-check mem-guard-check \
       design-pages-check gallery-scripts-check user-docs-check \
+      spine-check \
       surface-check bench-commits-check validate-spellings-check \
       drift-check doxygen-check
 
@@ -2209,6 +2219,12 @@ bench-coverage-check: ## Verify every tested component has a benchmark that runs
 # COMMENT closed the container's script early and the rest ran on the runner.
 workflow-syntax-check: ## Verify every workflow `run:` block is valid shell
 	@$(UV) run python scripts/check_workflow_syntax.py
+
+# release.yml pins every runner image. v0.84.0's x86_64 py3.9 PyPI smoke ran
+# on `ubuntu-latest`, which had rolled to 26.04, and setup-python has no 3.9
+# there (#3188). ci.yml stays on -latest on purpose, as the early warning.
+release-runners-check: ## Verify release.yml names no floating (-latest) runner
+	@$(UV) run python scripts/check_release_runners.py
 
 # protect-main requires ONE status check, `CI passed`, so ci.yml's `ci-passed`
 # `needs` list is the whole merge gate: a job left out of it can fail on every
@@ -2697,6 +2713,31 @@ surface-check: ## Python surface: every package declares __all__; the unrendered
 user-docs-check: ## Verify every class has API, guide and example, and every example a gallery decision
 	@$(UV) run python scripts/check_user_docs.py --base $(USER_DOCS_BASE) \
 	     $(USER_DOCS_FLAGS) $(GALLERY_SCRIPTS)
+
+# The lifecycle card (docs/dev/contributing/adding-algorithms.md) as a
+# table: for each object the branch touches, which of the card's phases are
+# present, missing, or skipped with a declared reason (#3140). Each row is
+# answered by the gate that owns it, and the phases are read from the card,
+# so the two cannot disagree. A gap fails unless scripts/.spine-gaps holds
+# it; that list only shrinks, and a new line needs a `Spine-skip:` trailer
+# in one of the branch's commits.
+#
+# BASE is the base issue-link-check and changelog-check measure against
+# (CHANGELOG_BASE, which CI sets to the pull request's base SHA), because
+# the Land row is those two gates' verdicts and all three must read one
+# branch. SPINE_FLAGS=--all prints every object. In CI the tables are also
+# appended to the job summary: GITHUB_STEP_SUMMARY is set there and nowhere
+# else.
+#
+# CLAUDE.md's copy of the card's principles is held to the page too, and
+# `make format` rewrites it (docs-relink runs `check_spine.py --fix`). The
+# markers are mandatory: a CLAUDE.md without them fails.
+BASE ?= $(CHANGELOG_BASE)
+SPINE_FLAGS ?=
+spine-check: ## Show each touched object's lifecycle phases; fail on an undeclared gap (BASE=<ref>)
+	@$(UV) run python scripts/check_spine.py --base $(BASE) $(SPINE_FLAGS) \
+	     $(if $(GITHUB_STEP_SUMMARY),--summary "$(GITHUB_STEP_SUMMARY)") \
+	     $(GALLERY_SCRIPTS)
 
 gallery-scripts-check: ## Verify every committed gallery plot has a script `make gallery` runs
 	@$(UV) run python scripts/check_gallery_scripts.py $(GALLERY_SCRIPTS)
@@ -3819,6 +3860,7 @@ docs-relink: ## Regenerate every generated doc region
 	$(UV) run python scripts/gen_doc_versions.py --write
 	$(UV) run python scripts/gen_jm_pin.py --write
 	$(UV) run python scripts/gen_changelog_links.py --write
+	$(UV) run python scripts/check_spine.py --fix
 
 # The pre-push half of docs-relink: the regions a source edit can drift
 # without touching the generated file. The hook dispatches HERE rather than

@@ -12,7 +12,7 @@ the integrator holds the running frequency/rate estimate and `kp·e` is the
 instantaneous (phase) correction.
 
 Source:
-[`src/doppler/track/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/track/__init__.py)
+[`src/doppler/track/__init__.py`](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/track/__init__.py)
 
 ## How it works
 
@@ -61,13 +61,22 @@ tracked with zero steady phase error, at the same noise bandwidth, from the
 same two numbers: `bn` and `t`. There is no damping argument and no other
 coefficient to pick.
 
-```python
-from doppler.track import StateFilter
-
-sf = StateFilter(bn=0.01, t=1.0)
-sf.step(0.25)                   # rate += kr*e; integ += rate + ki*e
-round(sf.integ, 8)              # the frequency estimate; sf.rate is its slope
+```pycon
+>>> from doppler.track import StateFilter
+>>> sf = StateFilter(bn=0.01, t=1.0)
+>>> round(sf.step(0.25), 8)         # rate += kr*e; integ += rate + ki*e
+0.00597554
+>>> round(sf.integ, 8)              # the frequency estimate
+7.016e-05
+>>> round(sf.rate, 12)              # its slope, per update per update
+4.11883e-07
 ```
+
+`rate` is the change of `integ` per update, so a Doppler rate of `R` Hz/s at
+an update period of `T` seconds is `rate = R * T**2` in cycles per update per
+update (set it with `sf.rate = ...` to start a loop on a known ramp; the
+[design page](../design/loop-filter.md) derives it). The class and its
+members are in the Python reference, `doppler.track.StateFilter`.
 
 Close both loops on a ramp and read the steady error:
 
@@ -102,6 +111,58 @@ is the yes or no. Both are exact for an integer `delay`. The design page,
 the second-order loop's bandwidth is by the same expression. The C example
 is `native/examples/state_filter_demo.c`.
 
+## KalmanStateFilter — a loop sized from the signal
+
+`StateFilter` is sized from a bandwidth. If you know the detector's noise and
+how fast the carrier's rate can change, give those two figures instead and
+get the bandwidth that is optimal for them: `KalmanStateFilter` is the same
+third-order loop with its gains computed each update from a covariance
+recursion. It takes the rms detector error when the loop is locked
+(`sigma_e`) and the rms change of the rate per update (`sigma_a`), both in the
+loop's own units, or `bn` and `t` alone. Nothing in it knows a detector: a
+caller with a carrier-to-noise density and a jerk figure makes the two
+figures in one line, as an example and not an API:
+
+```python
+--8<-- "src/doppler/examples/state_filter_kalman_demo.py:figures"
+```
+
+Started at its steady state, the gains are constant: a third-order loop at
+the optimal gains for those figures. They are not `StateFilter`'s Butterworth
+gains; the two differ by 0.7% to 9% of `kr` between `bn*t` 0.01 and the bound
+(the design page, Part III, measures it), and `KalmanStateFilter` has its own
+bounds, `bn*t` from 1e-6 to 0.12. An initial frequency uncertainty `sigma_f0`,
+between `sigma_f` (the steady state's own deviation, a property) and 5 times
+it (less at `bn*t` above 0.04, where the allowed start falls to 1.2 at the
+bound), starts the covariance larger, so the gains rise for a while and the
+loop settles to a frequency step about 1.7 times as fast as the fixed-gain loop of
+the same final bandwidth:
+
+```python
+--8<-- "src/doppler/examples/state_filter_kalman_demo.py:start"
+```
+
+Both are runnable as they stand: `python -m doppler.examples.state_filter_kalman_demo`
+and, after `make build`, `./build/native/examples/state_filter_kalman_demo`.
+The C example does the same pull-in and shows the lifecycle a C caller
+manages: create from the figures, a start of four times `sigma_f`, the step
+response against the fixed-gain loop, a start far past the allowed one refused
+with `NULL`, `configure()` with every argument 0 ending the start early (the
+gains go to the steady state at once and the estimates carry), and destroy:
+
+```c
+--8<-- "native/examples/state_filter_kalman_demo.c"
+```
+
+A larger start is refused, because the gains it would produce along the way
+leave the region where the exact stability test covers every loop gain from
+0.5 to 2 and every detector delay up to two updates. `bandwidth(delay, gain)`
+and `stable(delay, gain)` answer for the gains in force now, as if they
+stopped changing; they are not a statement about the converging loop. The
+state round-trips through `get_state()` and `set_state()`, and the blob
+carries the covariance. The C type embeds the fixed-gain struct, so an
+embedder holds it by value (`native/inc/doppler/state_filter_kalman/`).
+
 ## Costas — carrier-tracking loop
 
 `Costas` is the first loop built on `LoopFilter`: a continuous BPSK
@@ -126,22 +187,46 @@ See the [carrier loop stress gallery page](../gallery/costas.md) for the bare
 PLL stalling on a large residual while the FLL assist pulls it in.
 
 ```python
+import numpy as np
 from doppler.track import Costas
 from doppler.wfm import Synth
 
-rx = Synth(type="qpsk", sps=16, snr=20, freq=0.01).steps(4096)  # received IQ
+bpsk = Synth(type="bpsk", sps=16, snr=20).steps(16000)  # BPSK, no offset
+n = np.arange(len(bpsk))
+rx = (bpsk * np.exp(2j * np.pi * 0.01 * n)).astype(np.complex64)  # 0.01 off
 
-# bn_fll > 0 adds the FLL assist for large/fast-moving residuals
+# The bare PLL cannot pull in a residual this large; the FLL assist can.
+pll = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16)
+pll.steps(rx)
+assert not pll.locked
+
 c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.03)
 symbols = c.steps(rx)        # one complex prompt symbol per tsamps samples
 f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
-locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
+assert abs(f_est - 0.01) < 5e-4 and c.locked
 ```
 
 ### Order 3 — a carrier that ramps
 
 A Doppler ramp leaves the default loop a steady phase lag of `x/ki`, which
-grows as the loop narrows. `set_order(3, bn)` switches a live loop to a
+grows as the loop narrows.
+
+**When to switch.** For a carrier ramping at `r` cycles per sample² (`R / fs²` for `R` Hz/s), the ramp per update is `x = 2π·r·tsamps²` radians per
+update², and order 2's steady phase error is `x / ki`, with `ki` the loop
+filter's own gain at the loop's `bn` and `zeta`. Switch to order 3 when that
+error is more than the phase budget the link allows. It grows as `1/bn²`:
+
+````python
+import math
+from doppler.track import LoopFilter
+
+tsamps, r = 16, 2e-8                     # r: cycles/sample^2
+x = 2 * math.pi * r * tsamps**2          # the ramp per update, rad/update^2
+lag = {bn: math.degrees(x / LoopFilter(bn, 0.707, 1.0).ki)
+       for bn in (0.05, 0.01)}
+assert 0.2 < lag[0.05] < 0.25            # 0.22 degrees at bn 0.05
+assert 5.0 < lag[0.01] < 5.5             # 5.3 degrees at bn 0.01
+``` `set_order(3, bn)` switches a live loop to a
 [`StateFilter`](#statefilter-a-loop-filter-for-a-drifting-carrier), which
 also tracks the carrier's rate and holds a ramp with no steady lag. The
 frequency estimate carries across the switch. The rate starts at zero, or
@@ -152,30 +237,8 @@ carries the order. [Costas's design](../design/costas.md#3-the-second-loop-order
 has what a switch carries.
 
 ```python
-import numpy as np
-from doppler.track import Costas
-
-tsamps, nsym, ramp = 16, 6000, 2e-8         # ramp: cycles/sample^2
-n = np.arange(nsym * tsamps)
-bits = np.where(np.random.default_rng(1).random(nsym) < 0.5, -1.0, 1.0)
-rx = (np.repeat(bits, tsamps)
-      * np.exp(1j * 2 * np.pi * 0.5 * ramp * n**2)).astype(np.complex64)
-
-def mean_lag(order):
-    c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=tsamps)
-    if order == 3:
-        c.set_order(3, 0.05)                # keeps the frequency estimate
-    e = []
-    for s in range(nsym):
-        c.steps(rx[s * tsamps:(s + 1) * tsamps])
-        e.append(c.last_error)              # sin(phase error), per symbol
-    return c, float(np.mean(e[-2000:]))
-
-c2, lag2 = mean_lag(2)
-c3, lag3 = mean_lag(3)
-assert c3.order == 3 and lag2 > 1e-3      # order 2 lags the ramp...
-assert abs(lag3) < 0.02 * lag2            # ...order 3 holds it
-```
+--8<-- "src/doppler/examples/costas_demo.py:order3"
+````
 
 ## CarrierMpsk — M-PSK carrier-tracking loop
 
@@ -572,6 +635,12 @@ symbols = rx_sync.steps(rx)   # one symbol per recovered instant
 rx_sync.rate                  # tracked samples/symbol -- the clock estimate
 rx_sync.locked                # verify-counted timing-lock decision
 ```
+
+`locked` is decided once per block of 133 symbols. It declares after two
+consecutive blocks clear the threshold and drops after six fall below it, so
+the earliest declaration is 266 symbols in; both counts derive from a
+per-decision false-transition budget of 1e-6, and
+`configure_lock_raw()` sets others.
 
 Judge lock by `lock_stat` / `locked` rather than by an error-vector magnitude:
 a single cycle slip during acquisition drags a windowed EVM by 20 dB while the

@@ -405,7 +405,24 @@ def _attribute(path: Path, prefix: str, names: set[str]) -> str | None:
     than no gate, so attribution goes to the longest component name the
     filename actually starts with.
     """
-    stem = path.name[len(prefix) + 1 : -len(".c")]
+    return owner(path.name[len(prefix) + 1 : -len(".c")], names)
+
+
+def owner(stem: str, names: set[str]) -> str | None:
+    """The longest of `names` that `stem` is, or starts with at a `_`.
+
+    The attribution rule of :func:`_attribute`, apart from the filename it
+    is applied to, so a gate that reads another kind of file
+    (`native/validation/<obj>_*.c`, a characterization directory: both in
+    `check_spine.py`) attributes it by the same rule.
+
+    >>> owner("mpsk_receiver_core", {"mpsk", "mpsk_receiver"})
+    'mpsk_receiver'
+    >>> owner("mpsk_soft", {"mpsk", "mpsk_receiver"})
+    'mpsk'
+    >>> owner("mpskx", {"mpsk"}) is None
+    True
+    """
     cands = [n for n in names if stem == n or stem.startswith(n + "_")]
     return max(cands, key=len) if cands else None
 

@@ -103,7 +103,9 @@ main (void)
   for (size_t c = 0; c < sizeof CAT / sizeof CAT[0]; c++)
     {
       DP_CHECK_MSG (dp_crc_valid (&CAT[c].model), CAT[c].name);
-      const uint64_t by = dp_crc_bytes (&CAT[c].model, CHECK, 9, CAT[c].refin);
+      DP_CHECK_MSG (!CAT[c].model.refin == !CAT[c].refin,
+                    "the named model carries the catalogue's refin");
+      const uint64_t by = dp_crc_bytes (&CAT[c].model, CHECK, 9);
       DP_CHECK_MSG (by == CAT[c].check, CAT[c].name);
       const size_t nb = to_bits (CHECK, 9, CAT[c].refin, bits);
       DP_CHECK_MSG (dp_crc_bits (&CAT[c].model, bits, nb) == CAT[c].check,
@@ -131,11 +133,11 @@ main (void)
         const size_t   n = strlen (V[i].msg);
         const dp_crc_t a = DP_CRC_32_ISO_HDLC, b = DP_CRC_16_XMODEM,
                        c = DP_CRC_16_IBM_3740;
-        DP_CHECK_MSG (dp_crc_bytes (&a, m, n, 1) == V[i].crc32,
+        DP_CHECK_MSG (dp_crc_bytes (&a, m, n) == V[i].crc32,
                       "CRC-32/ISO-HDLC against zlib");
-        DP_CHECK_MSG (dp_crc_bytes (&b, m, n, 0) == V[i].xmodem,
+        DP_CHECK_MSG (dp_crc_bytes (&b, m, n) == V[i].xmodem,
                       "CRC-16/XMODEM against binascii");
-        DP_CHECK_MSG (dp_crc_bytes (&c, m, n, 0) == V[i].ibm,
+        DP_CHECK_MSG (dp_crc_bytes (&c, m, n) == V[i].ibm,
                       "CRC-16/IBM-3740 against binascii");
       }
     /* the 256-octet ramp 0x00..0xFF: zlib.crc32 = 0x29058C73 */
@@ -143,7 +145,7 @@ main (void)
     for (int i = 0; i < 256; i++)
       ramp[i] = (uint8_t)i;
     const dp_crc_t a = DP_CRC_32_ISO_HDLC;
-    DP_CHECK_MSG (dp_crc_bytes (&a, ramp, 256, 1) == 0x29058C73u,
+    DP_CHECK_MSG (dp_crc_bytes (&a, ramp, 256) == 0x29058C73u,
                   "the 256-octet ramp against zlib");
   }
 
@@ -151,9 +153,10 @@ main (void)
   {
     /* CRC-1 with polynomial x + 1 is a parity check: compared with a
        popcount, which shares nothing with the register arithmetic. */
-    const dp_crc_t par = { 1u, 1u, 0u, 0, 0u };
-    uint32_t       st  = 20261116u;
-    int            ok  = 1;
+    const dp_crc_t par
+        = { .width = 1u, .poly = 1u, .init = 0u, .refout = 0, .xorout = 0u };
+    uint32_t st = 20261116u;
+    int      ok = 1;
     for (int t = 0; t < 300; t++)
       {
         uint8_t      b[200];
@@ -203,8 +206,16 @@ main (void)
 
     /* refout is a bit-reversal of the result and nothing else */
     {
-      const dp_crc_t plain = { 16u, 0x1021u, 0xFFFFu, 0, 0u };
-      const dp_crc_t refl  = { 16u, 0x1021u, 0xFFFFu, 1, 0u };
+      const dp_crc_t plain = { .width  = 16u,
+                               .poly   = 0x1021u,
+                               .init   = 0xFFFFu,
+                               .refout = 0,
+                               .xorout = 0u };
+      const dp_crc_t refl  = { .width  = 16u,
+                               .poly   = 0x1021u,
+                               .init   = 0xFFFFu,
+                               .refout = 1,
+                               .xorout = 0u };
       uint8_t        b[64];
       for (size_t i = 0; i < sizeof b; i++)
         b[i] = (uint8_t)(dp_xs32 (&st) & 1u);
@@ -223,11 +234,12 @@ main (void)
       uint8_t bb[37 * 8];
       for (size_t i = 0; i < sizeof by; i++)
         by[i] = (uint8_t)dp_xs32 (&st);
-      const dp_crc_t m = DP_CRC_32_ISO_HDLC;
       for (int refin = 0; refin < 2; refin++)
         {
+          dp_crc_t m      = DP_CRC_32_ISO_HDLC;
+          m.refin         = refin;
           const size_t nb = to_bits (by, sizeof by, refin, bb);
-          DP_CHECK_MSG (dp_crc_bytes (&m, by, sizeof by, refin)
+          DP_CHECK_MSG (dp_crc_bytes (&m, by, sizeof by)
                             == dp_crc_bits (&m, bb, nb),
                         "bytes and bits entry points agree");
         }
@@ -255,13 +267,26 @@ main (void)
   /* ── 5. refusals ──────────────────────────────────────────────────── */
   {
     DP_CHECK (!dp_crc_valid (NULL));
-    const dp_crc_t w0   = { 0u, 0u, 0u, 0, 0u };
-    const dp_crc_t w65  = { 65u, 1u, 0u, 0, 0u };
-    const dp_crc_t wide = { 8u, 0x107u, 0u, 0, 0u };    /* poly needs 9 bits */
-    const dp_crc_t wini = { 8u, 0x07u, 0x1FFu, 0, 0u }; /* init needs 9 */
-    const dp_crc_t wxor = { 8u, 0x07u, 0u, 0, 0x100u };
-    const dp_crc_t w64  = { 64u, 1u, ~(uint64_t)0, 0, ~(uint64_t)0 };
-    const dp_crc_t w1   = { 1u, 1u, 1u, 1, 1u };
+    const dp_crc_t w0
+        = { .width = 0u, .poly = 0u, .init = 0u, .refout = 0, .xorout = 0u };
+    const dp_crc_t w65
+        = { .width = 65u, .poly = 1u, .init = 0u, .refout = 0, .xorout = 0u };
+    const dp_crc_t wide = {
+      .width = 8u, .poly = 0x107u, .init = 0u, .refout = 0, .xorout = 0u
+    }; /* poly needs 9 bits */
+    const dp_crc_t wini = {
+      .width = 8u, .poly = 0x07u, .init = 0x1FFu, .refout = 0, .xorout = 0u
+    }; /* init needs 9 */
+    const dp_crc_t wxor = {
+      .width = 8u, .poly = 0x07u, .init = 0u, .refout = 0, .xorout = 0x100u
+    };
+    const dp_crc_t w64 = { .width  = 64u,
+                           .poly   = 1u,
+                           .init   = ~(uint64_t)0,
+                           .refout = 0,
+                           .xorout = ~(uint64_t)0 };
+    const dp_crc_t w1
+        = { .width = 1u, .poly = 1u, .init = 1u, .refout = 1, .xorout = 1u };
     DP_CHECK_MSG (!dp_crc_valid (&w0), "width 0 is not a model");
     DP_CHECK_MSG (!dp_crc_valid (&w65), "width 65 does not fit the register");
     DP_CHECK_MSG (!dp_crc_valid (&wide), "a polynomial wider than the width");
@@ -269,6 +294,27 @@ main (void)
     DP_CHECK_MSG (!dp_crc_valid (&wxor), "an xorout wider than the width");
     DP_CHECK_MSG (dp_crc_valid (&w64), "width 64 with every bit set is legal");
     DP_CHECK_MSG (dp_crc_valid (&w1), "width 1 is legal");
+
+    /* The header says a polynomial of zero is allowed: it is the degenerate
+     * CRC that shifts its register out. Held by derivation: with no
+     * polynomial to XOR in, n bits leave the register as init << n (masked),
+     * so 0xA5 over four input bits is 0x50 whatever the bits are, and over
+     * eight or more it is 0. A control: the same model with a nonzero
+     * polynomial is NOT that (its register gets XORed into). */
+    const dp_crc_t z = {
+      .width = 8u, .poly = 0u, .init = 0xA5u, .refout = 0, .xorout = 0u
+    };
+    const dp_crc_t nz = {
+      .width = 8u, .poly = 0x07u, .init = 0xA5u, .refout = 0, .xorout = 0u
+    };
+    const uint8_t b4a[4] = { 1, 0, 1, 1 }, b4b[4] = { 0, 0, 0, 0 };
+    uint8_t       b8[8] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+    DP_CHECK_MSG (dp_crc_valid (&z), "a polynomial of zero is allowed");
+    DP_CHECK (dp_crc_bits (&z, b4a, 4) == 0x50u);
+    DP_CHECK (dp_crc_bits (&z, b4b, 4) == 0x50u);
+    DP_CHECK (dp_crc_bits (&z, b8, 8) == 0u);
+    DP_CHECK_MSG (dp_crc_bits (&nz, b4a, 4) != 0x50u,
+                  "control: a nonzero polynomial is not the shift-out CRC");
   }
 
   DP_TEST_END ("test_dp_crc");

@@ -339,7 +339,7 @@ OfdmObj_add_run (OfdmObject *self, PyObject *args, PyObject *kwds)
                              "polarity_offset", "first_phase", NULL };
   long long    class_index_raw     = 0LL;
   long long    count_raw           = 0LL;
-  long long    cyclic_prefix_raw   = 4294967295;
+  long long    cyclic_prefix_raw   = OFDM_CP_DEFAULT;
   long long    polarity_offset_raw = 0;
   long long    first_phase_raw     = 0;
   if (!PyArg_ParseTupleAndKeywords (
@@ -422,8 +422,18 @@ OfdmObj_check (OfdmObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  int y = dp_ofdm_check (self->handle);
-  return PyLong_FromLong ((long)y);
+  const char *_why = NULL;
+  int         _rc  = dp_ofdm_check_why (self->handle, &_why);
+  if (_rc != 0)
+    {
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                      "the layout is not usable", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -532,10 +542,22 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
           PyErr_SetString (PyExc_RuntimeError, "destroyed");
           return NULL;
         }
-      size_t n_out = dp_ofdm_modulate (
+      const char *_why = NULL;
+      int64_t     _rc  = dp_ofdm_modulate_why (
           self->handle, (const float _Complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
+          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap, &_why);
       Py_DECREF (in_arr);
+      if (_rc < 0)
+        {
+          Py_DECREF (out_arr);
+          if (_why)
+            PyErr_SetString (PyExc_ValueError, _why);
+          else
+            PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "modulate refused",
+                          (long long)_rc);
+          return NULL;
+        }
+      size_t n_out = (size_t)_rc;
       if ((size_t)(n_out) > (size_t)(_cap))
         {
           Py_DECREF (out_arr);
@@ -595,10 +617,22 @@ OfdmObj_modulate (OfdmObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t n_out = dp_ofdm_modulate (
+  const char *_why = NULL;
+  int64_t     _rc  = dp_ofdm_modulate_why (
       self->handle, (const float _Complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0, _cap);
+      _d0, _cap, &_why);
   Py_DECREF (in_arr);
+  if (_rc < 0)
+    {
+      Py_DECREF (arr0);
+      if (_why)
+        PyErr_SetString (PyExc_ValueError, _why);
+      else
+        PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "modulate refused",
+                      (long long)_rc);
+      return NULL;
+    }
+  size_t n_out = (size_t)_rc;
   if ((size_t)(n_out) > (size_t)(_cap))
     {
       Py_DECREF (arr0);
@@ -956,15 +990,15 @@ static PyMethodDef OfdmObj_methods[] = {
     "    Transform length, 2 to OFDM_N_FFT_MAX.\n"
     "subcarrier_map : npt.NDArray[np.uint8] | bytes | bytearray | memoryview\n"
     "    `n_fft` entries, index `k + n_fft/2`, each OFDM_DATA or OFDM_NULL.\n"
-    "useful : int\n"
+    "useful : int, default 0\n"
     "    Body samples read cyclically from the transform; 0 reads as n_fft.\n"
-    "cyclic_prefix : int\n"
+    "cyclic_prefix : int, default 0\n"
     "    Default prefix, samples; at most `useful`.\n"
-    "window : int\n"
+    "window : int, default 0\n"
     "    Window transition, samples; at most the symbol length.\n"
-    "scale : float\n"
+    "scale : float, default 1.0\n"
     "    Multiplies the transform output.\n"
-    "n_phase : int\n"
+    "n_phase : int, default 1\n"
     "    Period of the fixed pattern, at least 1.\n"
     "\n"
     "Returns\n"
@@ -1072,7 +1106,7 @@ static PyMethodDef OfdmObj_methods[] = {
     "all\n"
     ">>> p = Ofdm(); p.add_class(8, z, cyclic_prefix=2)\n"
     "0\n"
-    ">>> p.add_fixed(0, 4294967295, 2, 1.0)      # one pilot\n"
+    ">>> p.add_fixed(0, 2**32 - 1, 2, 1.0)      # one pilot, every phase\n"
     ">>> p.add_polarity(0, np.array([1, -1], np.complex64))\n"
     ">>> p.add_run(0, 2)\n"
     "0\n"
@@ -1084,10 +1118,11 @@ static PyMethodDef OfdmObj_methods[] = {
     "add_fixed(class_index, phase, k, value) -> None\n"
     "\n"
     "Append one fixed entry to a class: a pilot, a training value, a boosted "
-    "pilot. `phase` is the pattern phase it belongs to, or 4294967295 for "
-    "every phase. `k` is the subcarrier, from `-n_fft/2` to `n_fft/2 - 1`. A "
-    "fixed entry displaces data on its subcarrier in its phase, and is "
-    "multiplied by the class's polarity element for the OFDM symbol.\n"
+    "pilot. `phase` is the pattern phase it belongs to, or 2**32 - 1 "
+    "(`OFDM_ALL_PHASES` in C) for every phase. `k` is the subcarrier, from "
+    "`-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its "
+    "subcarrier in its phase, and is multiplied by the class's polarity "
+    "element for the OFDM symbol.\n"
     "\n"
     "A fixed entry displaces data on its subcarrier in its phase (when the\n"
     "map has data there) and is multiplied by the class's polarity element.\n"
@@ -1124,7 +1159,7 @@ static PyMethodDef OfdmObj_methods[] = {
     "0\n"
     ">>> o.points_remaining()      # six data subcarriers\n"
     "6\n"
-    ">>> o.add_fixed(0, 4294967295, 3, 1j)   # a pilot on a data subcarrier\n"
+    ">>> o.add_fixed(0, 2**32 - 1, 3, 1j)   # a pilot on a data subcarrier\n"
     ">>> o.points_remaining()      # it displaces one\n"
     "5\n" },
   { "add_run", (PyCFunction)(void *)OfdmObj_add_run,
@@ -1133,7 +1168,8 @@ static PyMethodDef OfdmObj_methods[] = {
     "-> int\n"
     "\n"
     "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` "
-    "overrides the class's prefix for this run (4294967295 keeps it); "
+    "overrides the class's prefix for this run (omit it, or give "
+    "`OFDM_CP_DEFAULT` = 4294967295 = 2**32 - 1, to keep the class's); "
     "`polarity_offset` is the class's polarity element used by the run's "
     "first symbol; `first_phase` is the pattern phase of the run's first "
     "symbol. Returns the run's index.\n"
@@ -1144,12 +1180,12 @@ static PyMethodDef OfdmObj_methods[] = {
     "    An existing class.\n"
     "count : int\n"
     "    OFDM symbols, at least 1.\n"
-    "cyclic_prefix : int\n"
+    "cyclic_prefix : int, default OFDM_CP_DEFAULT\n"
     "    Override of the class's prefix, or OFDM_CP_DEFAULT; at most the\n"
     "    class's `useful`.\n"
-    "polarity_offset : int\n"
+    "polarity_offset : int, default 0\n"
     "    Polarity element of the run's first symbol.\n"
-    "first_phase : int\n"
+    "first_phase : int, default 0\n"
     "    Pattern phase of the run's first symbol.\n"
     "\n"
     "Returns\n"
@@ -1178,26 +1214,30 @@ static PyMethodDef OfdmObj_methods[] = {
     ">>> o.add_run(0, 3)\n"
     "1\n" },
   { "check", (PyCFunction)OfdmObj_check, METH_NOARGS,
-    "check() -> int\n"
+    "check() -> None\n"
     "\n"
-    "Check the whole layout and return 0 if it is usable, or a negative value "
-    "if not (no run, a window longer than an OFDM symbol, two fixed entries "
-    "on one subcarrier in one phase). `modulate` checks on first use and "
-    "returns an empty array for a layout that fails; call this to find out "
-    "why before any points exist. Adding a class, fixed entry or run to a "
-    "checked layout re-opens it, keeping the position and the held window "
-    "tail, so a signal can be extended while it is rendered; the next "
-    "`modulate` checks the longer layout.\n"
+    "Check the whole layout and return 0 if it is usable; raise ValueError, "
+    "with a sentence naming the condition, if not (no run, a window longer "
+    "than an OFDM symbol of its class, two fixed entries on one subcarrier in "
+    "one phase, or memory or a transform plan that could not be built). "
+    "`modulate` checks on first use and raises `ValueError`, with the same "
+    "sentence, for a layout that fails; call this first to learn it before "
+    "any points exist. Adding a class, fixed entry or run to a checked layout "
+    "re-opens it, keeping the position and the held window tail, so a signal "
+    "can be extended while it is rendered; the next `modulate` checks the "
+    "longer layout.\n"
     "\n"
     "Refuses a layout with no run, a window longer than an OFDM symbol of\n"
     "its class, or two fixed entries on one subcarrier in one phase. Derives\n"
     "what the render uses (the data count per phase, the window weights, one\n"
     "inverse transform per distinct length). Idempotent once it has passed.\n"
     "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    0 if the layout is usable, a negative value if not.\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    the reason the C call gives, or ``the layout is not usable``, with\n"
+    "    the return code appended (gh-869), when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1207,12 +1247,13 @@ static PyMethodDef OfdmObj_methods[] = {
     ">>> m = np.zeros(8, np.uint8); m[[1, 2, 3]] = 1\n"
     ">>> o.add_class(8, m)\n"
     "0\n"
-    ">>> o.check() < 0            # no run yet\n"
-    "True\n"
+    ">>> o.check()                # no run yet\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the layout has no run\n"
     ">>> o.add_run(0, 1)\n"
     "0\n"
-    ">>> o.check()\n"
-    "0\n" },
+    ">>> o.check()                # usable: returns None\n" },
   { "points_remaining", (PyCFunction)OfdmObj_points_remaining, METH_NOARGS,
     "points_remaining() -> int\n"
     "\n"
@@ -1248,9 +1289,11 @@ static PyMethodDef OfdmObj_methods[] = {
     "points: its data subcarriers less those a fixed entry displaces in its "
     "pattern phase. Rendering stops when the next OFDM symbol needs more "
     "points than remain; OFDM symbols that need none (training fields) "
-    "render. A point count that ends inside an OFDM symbol is refused, the "
-    "modulator untouched, and returns an empty array. The window tail of the "
-    "last OFDM symbol is held for the next call; `finish` returns it.\n"
+    "render. A refused call (an unusable layout, a point count that ends "
+    "inside an OFDM symbol or runs past the layout, a buffer too short) "
+    "raises `ValueError` saying which, the modulator untouched. The window "
+    "tail of the last OFDM symbol is held for the next call; `finish` returns "
+    "it.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1262,8 +1305,18 @@ static PyMethodDef OfdmObj_methods[] = {
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
-    "    Samples written, or 0 if the call is refused, in which case out and\n"
-    "    the modulator are untouched.\n"
+    "    Samples written, which may be 0: no points at the end of the\n"
+    "    layout, or zero points mid-layout when the next OFDM symbol needs\n"
+    "    some. A refused call changes nothing and reports it by face: C\n"
+    "    returns a negative value and sets why; the Python binding raises\n"
+    "    ValueError with that sentence.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    the reason the C call gives, or ``modulate refused``, with the\n"
+    "    return code appended (gh-869), when it gives none.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1281,16 +1334,23 @@ static PyMethodDef OfdmObj_methods[] = {
     ">>> x.size\n"
     "20\n"
     ">>> o.points_remaining()\n"
-    "6\n" },
+    "6\n"
+    ">>> o.modulate(np.ones(5, np.complex64))        # inside a symbol\n"
+    "Traceback (most recent call last):\n"
+    "    ...\n"
+    "ValueError: the points end inside an OFDM symbol: pass a count that ends "
+    "where one does (see points_remaining and modulate_max_out)\n" },
   { "modulate_max_out", (PyCFunction)OfdmObj_modulate_max_out, METH_VARARGS,
     "modulate_max_out(n_in) -> int\n"
     "\n"
-    "Samples dp_ofdm_modulate() writes for n_in points.\n"
+    "Samples a render of n_in points writes.\n"
     "\n"
     "Simulates the render from the current position: OFDM symbols are taken\n"
-    "in layout order until the next one needs more points than remain. Zero\n"
-    "if n_in ends inside an OFDM symbol or runs past the layout (the call is\n"
-    "refused), and for a layout that does not seal.\n"
+    "in layout order until the next one needs more points than remain. The\n"
+    "result is zero if n_in ends inside an OFDM symbol or runs past the\n"
+    "layout (that call is refused), for a layout that does not seal, and for\n"
+    "no points when the next OFDM symbol needs some. Use it to size the\n"
+    "output before the call.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1300,7 +1360,22 @@ static PyMethodDef OfdmObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    Samples that call will write.\n" },
+    "    Samples that call will write.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.ofdm import Ofdm\n"
+    ">>> o = Ofdm()\n"
+    ">>> m = np.zeros(8, np.uint8); m[[1, 2, 3, 5, 6, 7]] = 1\n"
+    ">>> o.add_class(8, m, cyclic_prefix=2)\n"
+    "0\n"
+    ">>> o.add_run(0, 3)\n"
+    "0\n"
+    ">>> o.modulate_max_out(12)   # two OFDM symbols of 10 samples\n"
+    "20\n"
+    ">>> o.modulate_max_out(5)    # ends inside a symbol\n"
+    "0\n" },
   { "finish", (PyCFunction)(void *)OfdmObj_finish,
     METH_VARARGS | METH_KEYWORDS,
     "finish(count=..., out=None) -> ndarray\n"

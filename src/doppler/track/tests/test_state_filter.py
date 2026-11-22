@@ -53,20 +53,33 @@ def test_defaults_and_properties():
 
 
 @pytest.mark.parametrize(
-    "bn, t",
+    "bn, t, names",
     [
-        (-0.01, 1.0),
-        (0.01, 0.0),
-        (0.01, -1.0),
-        (float("nan"), 1.0),
-        (0.01, float("inf")),
-        (BNT_MAX * 1.01, 1.0),
-        (0.01, BNT_MAX * 110),
+        (-0.01, 1.0, "bn must be >= 0"),
+        (0.01, 0.0, "t must be a positive"),
+        (0.01, -1.0, "t must be a positive"),
+        (float("nan"), 1.0, "bn must not be NaN"),
+        (float("inf"), 1.0, "bn must be finite"),
+        (0.01, float("inf"), "t must be a positive"),
+        (1e-31, 1.0, "bn\\*t is below"),
+        (BNT_MAX * 1.01, 1.0, "bn\\*t is above"),
+        (0.01, BNT_MAX * 110, "bn\\*t is above"),
     ],
 )
-def test_create_refuses_outside_the_domain(bn, t):
-    with pytest.raises(ValueError, match="bn must be >= 0"):
+def test_create_refuses_outside_the_domain(bn, t, names):
+    """Each refusal names the argument that failed, not the whole domain."""
+    with pytest.raises(ValueError, match=names):
         StateFilter(bn=bn, t=t)
+
+
+def test_configure_refuses_with_a_sentence_and_changes_nothing():
+    sf = StateFilter(bn=0.02)
+    before = (sf.kp, sf.ki, sf.kr, sf.bn, sf.t)
+    with pytest.raises(ValueError, match="configure refused"):
+        sf.configure(-1.0, 1.0)
+    assert (sf.kp, sf.ki, sf.kr, sf.bn, sf.t) == before
+    sf.configure(0.03, 1.0)  # the minimal pair: a good pair is accepted
+    assert sf.bn == 0.03
 
 
 def test_the_bound_itself_is_inside_and_bn_zero_is_frozen():

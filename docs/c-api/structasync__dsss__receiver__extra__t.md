@@ -77,7 +77,6 @@ _The receiver's own fields in its state blob, after the envelope and before the 
 |  uint8\_t | [**state**](#variable-state)  <br> |
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**dp\_lockdet\_state\_t**](structdp__lockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
-|  int64\_t | [**threads**](#variable-threads)  <br> |
 
 
 
@@ -849,24 +848,6 @@ dp_lockdet_state_t async_dsss_receiver_extra_t::sym_lockdet;
 
 
 restored by create()). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable threads 
-
-```C++
-int64_t async_dsss_receiver_extra_t::threads;
-```
-
-
-
-v12: set\_threads()'s result (#2022). 
  
 
 

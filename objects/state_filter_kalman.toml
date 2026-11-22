@@ -1,0 +1,128 @@
+# The Kalman flavor of StateFilter: the same third-order loop with its gains
+# computed each update from a covariance recursion (docs/design/loop-filter.md
+# Part III). Its own component because a flavor whose step and state blob
+# differ cannot be a view (jm generates a view's step and blob from its
+# parent's and has no override for them). It CALLS the fixed-gain component:
+# the base struct is its first member, and the update, the exact stability
+# and the exact bandwidth are the base's functions; the read surface below is
+# forwarding to them.
+[state_filter_kalman]
+arg_type = "double"
+return_type = "double"
+mutable = "true"
+no_state = "true"
+no_step = "false"
+class_name = "KalmanStateFilter"
+serializable = "true"
+create_fn = "dp_state_filter_kalman_create_args_why"
+# the sentence names the argument that failed (dp_state_filter_kalman_args_why)
+create_why = true
+doc = "The third-order loop filter whose gains come from a Kalman covariance recursion instead of being held: the loop of `StateFilter`, sized from the signal. Give the rms detector error when the loop is locked (`sigma_e`) and the rms change of the rate per update (`sigma_a`), in the loop's own units, or a bandwidth alone (`bn`); the steady-state bandwidth follows from their ratio. An optional initial frequency uncertainty (`sigma_f0`) gives a high-gain start that settles a frequency step about 1.7 times as fast, within a cap the constructor enforces. `step` and `steps` take loop errors and return control values; `kp`, `ki`, `kr` are the gains in force now."
+create_error = "ValueError"
+create_error_message = "give sigma_e and sigma_a, or bn alone, in range"
+depends_on = [{ name = "state_filter", link = true }]
+fragment = "generated"
+
+[[state_filter_kalman.init_params]]
+name = "sigma_e"
+type = "double"
+default = "0.0"
+doc = "RMS detector error when the loop is locked, in the loop's error units per update. With `sigma_a`: the figures form. Leave 0 for the automatic case (`bn`)."
+
+[[state_filter_kalman.init_params]]
+name = "sigma_a"
+type = "double"
+default = "0.0"
+doc = "RMS change of the rate per update, in the same units per update per update. With `sigma_e`: the figures form."
+
+[[state_filter_kalman.init_params]]
+name = "t"
+type = "double"
+default = "1.0"
+doc = "Update period in samples."
+
+[[state_filter_kalman.init_params]]
+name = "sigma_f0"
+type = "double"
+default = "0.0"
+doc = "Initial frequency uncertainty (figures form), 0 for the steady state: at least the steady state's own frequency deviation and at most the largest start whose gains stay inside the stability rectangle (5 times it up to bn*t 0.04, less above)."
+
+[[state_filter_kalman.init_params]]
+name = "bn"
+type = "double"
+default = "0.0"
+doc = "The automatic case: the noise bandwidth in cycles per sample, with `t`, and no `sigma_e`, `sigma_a` or `sigma_f0`. The steady-state gains of the optimal filter with that exact bandwidth, from the first update."
+
+[[state_filter_kalman.methods]]
+name = "configure"
+doc = "Change the figures (or `bn` alone), keeping the frequency and rate estimates; the covariance restarts from the new steady state, so a retune restarts the gain schedule while the estimates carry. An argument of 0 keeps its current value (`sigma_f0` 0 is the steady state), so a call names only what changes. A filter built from `bn` holds the figures that bandwidth implies (`sigma_e` 1), a call with `bn` replaces the stored figures by those it implies, and `bn` may not be mixed with the figures. With no arguments the gains go to the steady state at once and the estimates carry (this ends a high-gain start early); `configure(sigma_f0=x)` alone re-opens the gains with the same figures. Raises ValueError, changing nothing, outside the domain."
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "configure refused: name sigma_e and sigma_a (and optionally sigma_f0), or bn alone, with t positive and finite and the result inside the domain; nothing changed"
+params = [{ name = "sigma_e", type = "double", default = "0.0" }, { name = "sigma_a", type = "double", default = "0.0" }, { name = "t", type = "double", default = "0.0" }, { name = "sigma_f0", type = "double", default = "0.0" }, { name = "bn", type = "double", default = "0.0" }]
+
+[[state_filter_kalman.methods]]
+name = "bandwidth"
+fn = "dp_state_filter_kalman_bandwidth"
+doc = "Exact delivered noise bandwidth of this loop AT THE GAINS IN FORCE NOW, in cycles per update, for a detector delay of `delay` updates and a loop gain of `gain` times nominal; the loop it would be if the gains stopped changing. NaN when that loop is not stable there."
+arg_type = "void"
+return_type = "double"
+params = [{ name = "delay", type = "double", default = "0.0" }, { name = "gain", type = "double", default = "1.0" }]
+
+[[state_filter_kalman.methods]]
+name = "stable"
+fn = "dp_state_filter_kalman_stable"
+doc = "Whether the loop at the gains in force now is stable for a detector delay of `delay` updates and a loop gain of `gain` times nominal. A statement about frozen gains, not about the converging loop."
+arg_type = "void"
+return_type = "bool"
+params = [{ name = "delay", type = "double", default = "0.0" }, { name = "gain", type = "double", default = "1.0" }]
+
+[[state_filter_kalman.properties]]
+name = "kp"
+type = "double"
+expr = "self->handle->base.kp"
+doc = "Proportional gain in force now (rewritten each update)."
+
+[[state_filter_kalman.properties]]
+name = "ki"
+type = "double"
+expr = "self->handle->base.ki"
+doc = "Integral gain in force now."
+
+[[state_filter_kalman.properties]]
+name = "kr"
+type = "double"
+expr = "self->handle->base.kr"
+doc = "Rate gain in force now."
+
+[[state_filter_kalman.properties]]
+name = "integ"
+type = "double"
+expr = "self->handle->base.integ"
+doc = "The frequency estimate."
+
+[[state_filter_kalman.properties]]
+name = "rate"
+type = "double"
+expr = "self->handle->base.rate"
+doc = "The rate estimate."
+
+[[state_filter_kalman.properties]]
+name = "bn"
+type = "double"
+expr = "self->handle->base.bn"
+doc = "The steady-state noise bandwidth in cycles per sample."
+
+[[state_filter_kalman.properties]]
+name = "t"
+type = "double"
+expr = "self->handle->base.t"
+doc = "The update period in samples."
+
+[[state_filter_kalman.properties]]
+name = "sigma_f"
+type = "double"
+expr = "dp_state_filter_kalman_sigma_f(self->handle)"
+doc = "The steady state's frequency deviation for these figures, in the loop's units: the lowest `sigma_f0` accepted; the highest is 5 times it up to bn*t 0.04 and less above (see the validation report)."

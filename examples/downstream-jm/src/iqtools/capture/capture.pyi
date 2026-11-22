@@ -33,6 +33,7 @@ class CaptureSummary(tuple[int, float, float]):
         """Centre frequency (Hz); 0 if the file was silent."""
 
 METADATA_SOURCE: tuple[str, ...]
+"""Names of the metadata_source values, indexed by value."""
 
 @final
 class Capture:
@@ -85,8 +86,8 @@ class Capture:
 
         Size an `out=` buffer with this before calling read(), or use it to
         allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on read_max_out()
-        replaces this text.
+        on is a property of the algorithm, so a header block on the C function
+        capture_read_max_out replaces this text.
 
         Parameters
         ----------
@@ -246,8 +247,8 @@ class RawCapture:
 
         Size an `out=` buffer with this before calling read(), or use it to
         allocate one up front. The bound is this object's own: what it depends
-        on is a property of the algorithm, so a header block on read_max_out()
-        replaces this text.
+        on is a property of the algorithm, so a header block on the C function
+        capture_read_max_out replaces this text.
 
         Parameters
         ----------

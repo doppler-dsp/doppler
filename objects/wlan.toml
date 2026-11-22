@@ -16,7 +16,10 @@ no_state = "true"
 no_step = "true"
 class_name = "Wlan"
 create_error = "ValueError"
-create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, or the pair's data bits per OFDM symbol are not a whole number"
+create_fn = "dp_wlan_create_why"
+# the sentence names the argument that failed (dp_wlan_params_why)
+create_why = true
+create_error_message = "constellation is not one of bpsk, qpsk, qam16, qam64, code_rate is not one of r12, r23, r34, r56, window is not 0 to 80 * oversample, or oversample is not 1 to 128"
 depends_on = [
     { name = "ofdm", link = true },
     { name = "conv", link = true },
@@ -37,6 +40,38 @@ name = "code_rate"
 type = "string_enum:r12,r23,r34,r56"
 default = "r12"
 doc = "The BCC rate: `r12` is 1/2, `r23` is 2/3, `r34` is 3/4 and `r56` is 5/6."
+
+[[wlan.init_params]]
+name = "window"
+type = "uint32_t"
+# WLAN_WINDOW_STANDARD (UINT32_MAX): the standard's transition, resolved by
+# dp_wlan_window_resolve. jm 0.133.1 names the constant: default_raw
+# (just-makeit#2697).
+default_raw = "WLAN_WINDOW_STANDARD"
+doc = "The default is the standard's 100 ns transition, `2 * oversample` samples; 0 is no window. Otherwise the window length in samples at the OUTPUT rate, 0 to 80 times `oversample`: the cross-fade at each OFDM symbol boundary of the PPDUs `ppdu` renders. Above the `16 * oversample` guard interval the cross-fade reaches into the symbol body."
+
+[[wlan.init_params]]
+name = "oversample"
+type = "uint32_t"
+default = "1"
+doc = "`M`, 1 to 128: the output rate over the 20 MHz clock. The PPDU is rendered by a transform `M` times longer, the same subcarriers, not resampled."
+
+[[wlan.methods]]
+name = "ppdu"
+doc = "Render a PSDU to a whole PPDU (L-STF, L-LTF, SIGNAL, Data) at this rate, window and oversampling, as complex64 samples. Refuses with `ValueError` naming why."
+arg_type = "uint8_t"
+return_type = "float _Complex"
+fn = "dp_wlan_ppdu_why"
+# the capacity function the binding calls, by name (just-makeit#2680)
+max_out_fn = "dp_wlan_ppdu_max_out"
+variable_output = true
+pass_capacity = true
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "ppdu refused"
+params = [{ name = "scrambler_state", type = "uint32_t" }]
 
 [[wlan.methods]]
 name = "n_sym"
@@ -62,3 +97,21 @@ name = "n_dbps"
 type = "uint32_t"
 field = true
 doc = "Data bits per OFDM symbol: `n_cbps` times the code rate."
+
+[[wlan.properties]]
+name = "rate_mbps"
+type = "uint32_t"
+field = true
+doc = "The data rate at 20 MHz in Mb/s, as Table 17-6 prints it: 6, 9, 12, 18, 24, 36, 48 or 54, and 0 for the eight pairs the table does not list."
+
+[[wlan.properties]]
+name = "window"
+type = "uint32_t"
+field = true
+doc = "The window length in samples at the output rate."
+
+[[wlan.properties]]
+name = "oversample"
+type = "uint32_t"
+field = true
+doc = "`M`: the output rate over the 20 MHz clock."

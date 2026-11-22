@@ -130,6 +130,18 @@ typedef enum
 } wfm_bitmod_t;
 
 /**
+ * @brief The `window` of an ofdm source that nobody set: the standard's 100 ns
+ *        transition, `2 * fs / bandwidth` samples.
+ *
+ * It is the manifest default of `wfm_source_t.window`, so a source a face
+ * builds starts unset, and `0` stays the explicit rectangular window (a C
+ * caller that zero-initializes a source gets it). A count of samples is never
+ * this large: the range is 0 to `80 * fs / bandwidth`, at most
+ * `80 * 128`. dp_wfm_source_window() turns it into the count.
+ */
+#define WFM_WINDOW_UNSET SIZE_MAX
+
+/**
  * @brief One additive source within a segment: a `synth` config + its level.
  *
  * The nine synth fields mirror `dp_wfm_synth_create()` (minus `fs`, which is the
@@ -429,6 +441,54 @@ typedef struct {
                             code_only_symbols, or both 0 for no window. The
                             frame runs on the stream's own symbol clock, so
                             its edges land at any chip phase. */
+    int wlan; /**< For type=ofdm: the 802.11a/g data rate in Mb/s at
+                            20 MHz, one of 6, 9, 12, 18, 24, 36, 48, 54: a
+                            second spelling of constellation and code_rate
+                            (--wlan 36 is --constellation qam16 --code-rate
+                            3/4). 0 = not given. Refused beside constellation
+                            or code_rate, with a bandwidth other than 20 MHz,
+                            and on any other type. */
+    int constellation; /**< For type=ofdm: the subcarrier constellation, one of
+                            bpsk, qpsk, qam16, qam64; the pair
+                            with code_rate must be a row of the standard's rate
+                            table. */
+    int code_rate; /**< For type=ofdm: the convolutional code rate, one of
+                            1/2, 2/3, 3/4, 5/6. */
+    int scrambler_init; /**< For type=ofdm: the 7-bit initial state of the data
+                            scrambler, 1 to 127. 0 draws a fresh state for each
+                            PPDU from seed, so a run is reproducible and a
+                            resume re-renders the same PPDU. */
+    size_t window; /**< For type=ofdm: the transition window in samples at
+                            the output rate, 0 for none, at most 80 times fs
+                            over bandwidth (the shortest OFDM symbol). Unset
+                            (WFM_WINDOW_UNSET, 2**64 - 1, which is what
+                            Python reads back) is the standard's 100 ns,
+                            2 * fs / bandwidth samples; a scene or a record
+                            written from the source holds that count. */
+    int mac; /**< For type=ofdm: how the caller's octets become the
+                            PSDU. none: as given. fcs: an MPDU without its FCS,
+                            which the PHY appends. data: a header (mac_header)
+                            and a body, with the FCS appended. */
+    size_t gap; /**< For type=ofdm: idle samples after each PPDU, at the
+                            output rate, filled with noise at the source's
+                            noise variance. */
+    double bandwidth; /**< For type=ofdm: the channel bandwidth in Hz, 20e6,
+                            10e6 or 5e6 for 802.11a/g/p/j; 0 is 20e6, the
+                            default. The segment's fs must be an integer
+                            multiple of it, at most 128 times it; the
+                            multiple is the oversampling M, done by a larger
+                            transform. */
+    wfm_seq_t mac_header; /**< For type=ofdm with mac=data: the MAC header, 24 or
+                            30 octets (a data frame's header). A Field of whole
+                            octets on the command line and in a scene, where a
+                            hex Field such as 0x08020000 is the octets it
+                            spells; a bit array in Python, 8 bits per octet,
+                            each octet's first bit the most significant
+                            (bytes.fromhex is not accepted:
+                            np.unpackbits(np.frombuffer(octets, np.uint8))
+                            makes the bits). The PHY appends the frame's octets
+                            (the data source) and the FCS. Refused with mac
+                            none or fcs, and without it for mac data. */
 } wfm_source_t;
 
 /**
@@ -938,6 +998,116 @@ extern const char dp_wfm_why_retired_crc[];
  * @endcode
  */
 const char *dp_wfm_source_to_synth_error(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The rules of an `ofdm` source that need the segment's sample rate:
+ *        `fs` is an integer multiple of `bandwidth` (the oversampling `M`,
+ *        done by a larger transform), `M` is at most 128, `window` is within
+ *        80 `M` samples, and a frame with its `gap` is at most 2^24 samples.
+ *        Asked by
+ *        dp_wfm_scene_error(), so every face says the same sentence.
+ *
+ * @param src  The source; any other type, or one that fails its rate-free
+ *             rules (dp_wfm_source_error()), answers NULL.
+ * @param fs   The segment's sample rate (Hz).
+ * @return A static sentence, or NULL.
+ *
+ * @code
+ * wfm_source_t s = { .type = WFM_SYNTH_FRAMES, .sps = 1, .bandwidth = 20e6 };
+ * dp_wfm_ofdm_fs_error (&s, 30e6);   // not an integer multiple, or NULL
+ * @endcode
+ */
+const char *dp_wfm_ofdm_fs_error(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The window an ofdm source renders with, in samples at the output
+ *        rate: the count it holds, or the standard's for an unset one.
+ *
+ * `WFM_WINDOW_UNSET` gives `2 * fs / bandwidth` (the 100 ns transition,
+ * 17.3.2.5, which `dp_wlan_window_resolve` gives `Wlan` at the same
+ * oversampling); any other count, `0` included, is returned as it is, so the
+ * explicit rectangular window stays. When `fs` is not a whole multiple of the
+ * bandwidth, or the multiple is above 128 (`WLAN_OVERSAMPLE_MAX`), there is
+ * no oversampling to scale by, and the unset value comes back unchanged for
+ * dp_wfm_ofdm_fs_error() to refuse; a count it returns is never above
+ * `2 * 128`. The one place the
+ * default is defined for this face: the renderer, the scene and the record
+ * each call it, so none holds an unset window.
+ *
+ * @param src  The source.
+ * @param fs   The segment's sample rate, Hz.
+ * @return The count of samples.
+ *
+ * @code
+ * #include <doppler/wfm/wfm_defaults.h>   // WFM_SOURCE_DEFAULTS
+ *
+ * wfm_source_t s = WFM_SOURCE_DEFAULTS;   // window unset
+ * printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 8: 2 * (80 / 20)
+ * s.window = 0;
+ * printf ("%zu\n", dp_wfm_source_window (&s, 80e6));   // 0: rectangular
+ * @endcode
+ */
+size_t dp_wfm_source_window(const wfm_source_t *src, double fs);
+
+/**
+ * @brief The channel bandwidth of an ofdm source, Hz: its `bandwidth`, or the
+ *        preset's 20e6 when that is 0 (a C source that skipped the defaults).
+ *
+ * A negative value is not repaired here: dp_wfm_source_error() refuses it by
+ * name.
+ *
+ * @param src  The source.
+ * @return Hz.
+ */
+double dp_wfm_source_bandwidth(const wfm_source_t *src);
+
+/**
+ * @brief The oversampling `M = fs / bandwidth` of an ofdm source, 1 to
+ *        `WLAN_OVERSAMPLE_MAX`, or 0 with the reason it has none.
+ *
+ * The one derivation: dp_wfm_ofdm_fs_error() and the renderer take their
+ * geometry from it, and dp_wfm_source_window() scales by it. `fs` must be a
+ * whole multiple of the bandwidth (the transform is longer, not resampled)
+ * and at most 128 times it.
+ *
+ * @param src  The source.
+ * @param fs   The segment's sample rate, Hz.
+ * @param why  Receives the refusal's sentence, or NULL on success; may be
+ *             NULL.
+ * @return `M`, or 0.
+ */
+unsigned dp_wfm_source_oversample(const wfm_source_t *src, double fs,
+                                  const char **why);
+
+/**
+ * @brief Install an `ofdm` source's frame renderer and its data pull on a
+ *        synth created with type WFM_SYNTH_FRAMES: the PPDU of each frame of
+ *        the data source, built through `wlan` from the source's constellation
+ *        and code rate (or `wlan`), `window`, `mac`, `gap` and the oversampling
+ *        `fs / bandwidth`. A no-op for any other type.
+ *
+ * Called by every face's build, as dp_wfm_source_attach_dsss() is, so the
+ * standalone and the composed source cannot drift. The renderer's
+ * configuration, @p seed included, is the state triplet's reject keys.
+ *
+ * @param syn   The synth.
+ * @param src   The source; it must pass dp_wfm_source_error() and
+ *              dp_wfm_ofdm_fs_error().
+ * @param fs    The segment's sample rate (Hz).
+ * @param seed  The seed the scrambler's per-PPDU draw uses when
+ *              `scrambler_init` is 0 (the composer's epoch-advanced seed).
+ * @return 0 on success or for another type, -1 if a refused source reached
+ *         here or a build failed.
+ *
+ * @code
+ * dp_wfm_synth_state_t *syn = dp_wfm_synth_create (
+ *     WFM_SYNTH_FRAMES, 20e6, 0.0, 100.0, 0, 1u, 1, 0, 0, 0, 0.0);
+ * // dp_wfm_source_attach_ofdm (syn, &src, 20e6, 1u) installs the renderer
+ * @endcode
+ */
+int dp_wfm_source_attach_ofdm(dp_wfm_synth_state_t *syn,
+                              const wfm_source_t *src, double fs,
+                              uint32_t seed);
 
 /**
  * @brief Attach an unspread source's bit pattern, framed or not.

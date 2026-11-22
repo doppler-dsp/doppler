@@ -213,6 +213,49 @@
     }                                                                         \
   while (0)
 
+/**
+ * A parent blob from before a child grew is refused by the parent's size.
+ *
+ * A composition's version does not move when a child grows (the child
+ * bumps its own; docs/design/state-serialization.md), so a parent blob
+ * from before the growth carries the parent's current version and an
+ * envelope `gone` bytes smaller. This builds that blob from the parent's
+ * own: its header's `bytes` reduced by `gone` and its tail cut by as much,
+ * and checks that set_state refuses it, leaves the instance untouched,
+ * and still takes the parent's real blob (the positive control). It holds
+ * the size refusal on any parent without rebuilding the child's old
+ * layout, which test_despreader_core.c does once for the despreader.
+ */
+#define DP_STATE_SHRUNK_TEST(pfx, s, gone)                                    \
+  do                                                                          \
+    {                                                                         \
+      size_t         _fb  = pfx##_state_bytes (s);                            \
+      unsigned char *_g   = malloc (_fb);                                     \
+      unsigned char *_f   = malloc (_fb);                                     \
+      unsigned char *_pre = malloc (_fb);                                     \
+      unsigned char *_pos = malloc (_fb);                                     \
+      DP_CHECK (_g && _f && _pre && _pos && (size_t)(gone) < _fb);            \
+      if (_g && _f && _pre && _pos && (size_t)(gone) < _fb)                   \
+        {                                                                     \
+          pfx##_get_state ((s), _g);                                          \
+          memcpy (_f, _g, _fb - (gone));                                      \
+          dp_state_hdr_t _h;                                                  \
+          memcpy (&_h, _f, sizeof _h);                                        \
+          _h.bytes -= (uint32_t)(gone);                                       \
+          memcpy (_f, &_h, sizeof _h);                                        \
+          pfx##_get_state ((s), _pre);                                        \
+          DP_CHECK (pfx##_set_state ((s), _f) == DP_ERR_INVALID);             \
+          pfx##_get_state ((s), _pos);                                        \
+          DP_CHECK (memcmp (_pre, _pos, _fb) == 0);                           \
+          DP_CHECK (pfx##_set_state ((s), _g) == DP_OK);                      \
+        }                                                                     \
+      free (_g);                                                              \
+      free (_f);                                                              \
+      free (_pre);                                                            \
+      free (_pos);                                                            \
+    }                                                                         \
+  while (0)
+
 /*
  * The ACCEPT-AT-THE-BOUND half: a forge test proves a value past a bound is
  * refused, and says nothing about a bound drawn one too tight. This writes

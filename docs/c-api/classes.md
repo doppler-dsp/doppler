@@ -127,6 +127,7 @@
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
 * [**dp\_specan\_state\_t**](structdp__specan__state__t.md)
 * [**dp\_spectrogram\_state\_t**](structdp__spectrogram__state__t.md)
+* [**dp\_state\_filter\_kalman\_state\_t**](structdp__state__filter__kalman__state__t.md)
 * [**dp\_state\_filter\_state\_t**](structdp__state__filter__state__t.md)
 * [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)
 * [**dp\_symsync\_state\_t**](structdp__symsync__state__t.md)

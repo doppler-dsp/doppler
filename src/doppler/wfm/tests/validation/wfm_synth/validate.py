@@ -31,28 +31,37 @@ anything to doppler.
 
 from __future__ import annotations
 
+import csv
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from doppler.tests._repo import repo_root
-from doppler.tests._validation_common import Report, cli
+from doppler.tests._repo import build_dir, exe, repo_root
+from doppler.tests._validation_common import Report, cli, harness_blocks
 from doppler.wfm import Frame, _SynthEngine, rrc_taps
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = repo_root(__file__)
+# The ofdm source's noise, measured in C (§2.10): the frames type is reached
+# only through the bridge, never by _SynthEngine.
+OFDM_HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_wfm_synth_ofdm_noise"
+)
 
 R = Report()
 
 FS = 1.0e6
 SEED = 5
 
-# Every waveform type the enum carries, in enum order. Kept as a list so a
-# tenth type cannot be added without a deliberate answer in each sweep --
-# the same reason the C test asserts wfm_synth_bps over the whole enum.
+# Every waveform type the binding's create() accepts, in enum order. Kept as
+# a list so a new one cannot be added without a deliberate answer in each
+# sweep -- the same reason the C test asserts wfm_synth_bps over the whole
+# enum. The enum's tenth, WFM_SYNTH_FRAMES, is not among them: it renders
+# only with a frame renderer installed, which the ofdm source's bridge does
+# and _SynthEngine cannot, so it is measured through that source (§2.10).
 TYPES = [
     "tone",
     "noise",
@@ -235,6 +244,8 @@ class Data:
     cycle_symbols: bool = False
     unreachable: list[str] = field(default_factory=list)
     accessors_ok: bool = False
+    ofdm_rows: list[dict] = field(default_factory=list)
+    ofdm_check: list[dict] = field(default_factory=list)
 
 
 # ── 1. the object ────────────────────────────────────────────────────
@@ -879,6 +890,119 @@ def measure_accessors(d: Data) -> None:
     R.md()
 
 
+def _ofdm_sweep() -> list[dict]:
+    """The C sweep: run and saved when writing, read back otherwise."""
+    if R.write:
+        rows = harness_blocks(OFDM_HARNESS, "wfm_synth", ROOT)["ofdm_noise"]
+        DATA.mkdir(parents=True, exist_ok=True)
+        with (DATA / "ofdm_noise.csv").open(
+            "w", newline="", encoding="utf-8"
+        ) as f:
+            w = csv.DictWriter(
+                f, fieldnames=list(rows[0]), lineterminator="\n"
+            )
+            w.writeheader()
+            w.writerows(rows)
+        return rows
+    with (DATA / "ofdm_noise.csv").open(encoding="utf-8") as f:
+        return [{k: float(v) for k, v in r.items()} for r in csv.DictReader(f)]
+
+
+def _ofdm_ok(r: dict) -> bool:
+    return (
+        abs(r["ppdu_ratio"] - 1.0) < r["tol"]
+        and abs(r["gap_ratio"] - 1.0) < r["tol"]
+        and r["auto_is_fs"] == 1
+    )
+
+
+def measure_ofdm(d: Data) -> None:
+    R.md("### 2.10 The frames type, through the ofdm source")
+    R.md()
+    R.md(
+        "`WFM_SYNTH_FRAMES` plays finished frames from a renderer the "
+        "bridge installs; the wfmgen `ofdm` type is its one renderer, an "
+        "802.11 PPDU built by `wlan` per frame, then an idle gap. Its frame "
+        "and its state are pinned in C (`test_wfm_synth_frames.c`, "
+        "`test_wfm_ofdm_bridge.c`): the render is the PPDU `wlan` builds, "
+        "each field at unit power over its useful samples, a resume "
+        "mid-PPDU byte for byte. What is measured here is its noise: the "
+        "contract is AWGN of variance 10^(-snr/10) per complex sample, "
+        "referred to the full sampled band and a unit-power frame, in the "
+        "PPDU and the gap alike, with `auto` meaning `fs`."
+    )
+    R.md()
+    R.md(
+        "**Method, and the prediction it was held to before the first "
+        "run.** The harness `native/validation/wfm_synth_ofdm_noise.c` "
+        "renders one source twice from one seed, clean and at the cell's "
+        "snr; the difference is the noise alone. Its mean power per "
+        "complex sample is read by the measure module's "
+        "`dp_tonemeas_time_stats()` (2 rms^2 over the interleaved I and Q). "
+        "|n|^2 / sigma^2 is exponential with unit mean and variance, so N "
+        "samples estimate sigma^2 to a relative standard error of "
+        "1/sqrt(N), and a cell passes within 5/sqrt(N). Each part (PPDU, "
+        "gap) holds N = 64 frames x 880 M samples: 56320 at M = 1 (2.1 %) "
+        "to 450560 at M = 8 (0.74 %). The references it must refuse are "
+        "far outside that: in-band (64 M / 52, 2.46 at M = 2), the 20 MHz "
+        "channel (M), an Es/N0 per subcarrier (52/64, -19 %). The window "
+        "is 0, stated: the default is changing (#3190)."
+    )
+    R.md()
+    d.ofdm_rows = _ofdm_sweep()
+    d.ofdm_check = [
+        {k: float(v) if k != "auto_is_fs" else int(v) for k, v in r.items()}
+        for r in harness_blocks(
+            OFDM_HARNESS, "wfm_synth", ROOT, ("--check", "--emit")
+        )["ofdm_noise"]
+    ]
+    R.table(
+        [
+            "M",
+            "snr dB",
+            "N per part",
+            "PPDU var / sigma^2",
+            "gap var / sigma^2",
+            "5/sqrt(N)",
+            "frame power",
+            "SNR over fs, dB",
+            "auto = fs",
+        ],
+        [
+            [
+                f"{r['m']:.0f}",
+                f"{r['snr_db']:.0f}",
+                f"{r['n']:.0f}",
+                f"{r['ppdu_ratio']:.4f}",
+                f"{r['gap_ratio']:.4f}",
+                f"{r['tol']:.4f}",
+                f"{r['frame_power']:.4f}",
+                f"{r['snr_full_band_db']:.2f}",
+                "yes" if r["auto_is_fs"] == 1 else "no",
+            ]
+            for r in d.ofdm_rows
+        ],
+    )
+    worst = max(
+        max(abs(r["ppdu_ratio"] - 1), abs(r["gap_ratio"] - 1)) / r["tol"] * 5
+        for r in d.ofdm_rows
+    )
+    R.md(
+        f"Every cell is inside its tolerance; the worst is {worst:.1f} "
+        "standard errors from 1. The frame power column is the clean "
+        "PPDU's mean power with its prefixes and guard interval, and is "
+        "information, not a check: the unit-power convention is over each "
+        "field's useful samples (pinned at 1e-4 in "
+        "`test_wfm_ofdm_bridge.c`), and a prefix copies part of a symbol, "
+        "whose power over that part is not the symbol's. The noise is "
+        "referred to 1, not to this. The SNR column is what a full-band "
+        "meter reads; inside "
+        "the occupied 52 of 64 M subcarriers it is 10log10(64 M / 52) "
+        "higher. Raw: `data/ofdm_noise.csv`."
+    )
+    R.md()
+
+
 def characterise() -> Data:
     R.md("## 2. Characterisation")
     R.md()
@@ -897,6 +1021,7 @@ def characterise() -> Data:
     measure_faces(d)
     measure_state(d)
     measure_accessors(d)
+    measure_ofdm(d)
     return d
 
 
@@ -1007,6 +1132,67 @@ def review(d: Data) -> None:
         "LIBRARY's, at every order' section of `test_wfm_synth_core.c`. "
         "§2.3 measures the property that survives the language boundary: "
         "adjacent labels differ in one bit.",
+    )
+    R.find(
+        "wfm_ofdm_inventory_pins_added",
+        "FIXED",
+        "**The ofdm source's ranges were held only on their refused "
+        "side, and two of its claims by nothing.** Reading "
+        "`wfm_compose.h` and `wfm_synth_core.h` against "
+        "`test_wfm_ofdm_bridge.c` and `test_wfm_synth_frames.c`: the "
+        "window's 80 M cap, scrambler_init's 1 to 127 and M's 128 each "
+        "had a row one past the edge and none at it, so a window cap that "
+        "forgot the M passed every row; `dp_wfm_ofdm_fs_error`'s answer "
+        "for another type was never asked; and the renderer's unit-power "
+        "contract was assumed by the gap test, not measured. Closed in "
+        "`test_wfm_ofdm_bridge.c` (window 160 builds and 161 is refused "
+        "at M = 2; 1 and 127; M = 128 builds; the fs rule on another type "
+        "and on a refused source; each field at unit power over its "
+        "useful samples to 1e-4). Sabotage of `wfm_synth_bridge.c`, each "
+        "red: the cap without M and off by one, 1 and 127 refused, 128 "
+        "refused, the fs rule skipping its type or its own rules, the "
+        "frame scaled by 1.0001.",
+    )
+    R.find(
+        "ofdm_fs_rules_header_short",
+        "FIXED",
+        "**The header's sample-rate rules for an ofdm source named three "
+        "of four.** `dp_wfm_ofdm_fs_error`'s brief and the `bandwidth` "
+        "doc said fs is an integer multiple of the bandwidth; the code "
+        "also refuses a multiple above 128 (`WLAN_OVERSAMPLE_MAX`), and "
+        "takes a bandwidth of 0 as 20 MHz, the default. Both docs state "
+        "the two. A NaN bandwidth is garbage in, garbage out, and is "
+        "neither documented nor pinned (the owner's ruling).",
+    )
+    R.find(
+        "bit_field_bytes_not_bits",
+        "CONFIRMED",
+        "**A `bytes` value on a source bit field is stored byte for byte, "
+        "so a byte above 1 is not a bit.** The binding's generated "
+        "`_attach_bytes` copies a `bytes` object as it is, while a list "
+        "or an array maps each element to `v != 0`. Measured on this "
+        "build: `data`, `fill`, `acq_code`, `data_code` and `mac_header` "
+        "each store `bytes([8, 0, 8, 8])` as `[8, 0, 8, 8]`; on "
+        "type=bits that data renders as all zeros, a silently wrong "
+        "waveform; a `mac_header` given as `bytes.fromhex(...)` is "
+        "accepted at construction and refused only at render, by its "
+        "length (24 octets arrive as 24 bits). The coercer is jm's, so "
+        "the fix is upstream: just-makeit#2696, tracked here as #3194.",
+    )
+    R.find(
+        "frames_type_not_on_synth_engine",
+        "BY DESIGN",
+        "**`WFM_SYNTH_FRAMES`, the enum's tenth type, is not on "
+        "`_SynthEngine`, and the public faces cover it.** The type plays "
+        "only with a frame renderer installed, which the bridge does for "
+        "an ofdm source and the raw engine cannot; `_SynthEngine` is "
+        "private (not in `doppler.wfm.__all__`), and this report measures "
+        "through it, so its per-type sweeps (§2.1 to §2.9) cover the nine "
+        'it accepts. The public `Synth` and `Composer` take `type="ofdm"`, '
+        "and `src/doppler/wfm/tests/test_ofdm_source.py` holds what they "
+        "render to `Wlan.ppdu` on every face (Synth, Composer, the CLI). "
+        "The type itself is certified in C (`test_wfm_synth_frames.c`: its "
+        "state, refusals and resume) and its noise measured in §2.10.",
     )
 
 
@@ -1120,6 +1306,18 @@ def limits(d: Data) -> None:
         d.accessors_ok,
         "all ten accessors are bound and behave: sym_pos counts and wraps, "
         "the held symbol reads back, an injected value survives",
+    )
+    R.limit(
+        bool(d.ofdm_rows)
+        and all(_ofdm_ok(r) for r in d.ofdm_rows)
+        and all(_ofdm_ok(r) for r in d.ofdm_check),
+        "an ofdm source's noise is 10^(-snr/10) per sample over the full "
+        "band, within 5/sqrt(N), in the PPDU and the gap, at M = 1 to 8 "
+        "and 0 to 30 dB, and auto renders as fs",
+        by="validate_wfm_synth_ofdm_noise --check (ctest); §2.10",
+        control="the in-band reference reads 52 / (64 M), 0.41 at M = 2",
+        red="snr referred to the 20 MHz channel: 0.498; per subcarrier: "
+        "0.809; auto not forced to fs: DIFF",
     )
     R.limit(
         len(d.unreachable) == 4,
@@ -1244,7 +1442,15 @@ def build(write: bool = True) -> Report:
     limits(d)
     R.executive(
         "Synth",
-        [
+        source=(
+            "Generated by `validate.py` in this folder. Sections 2.1 to 2.9 "
+            "are measured from the C implementation through its binding, "
+            "`doppler.wfm._SynthEngine`; section 2.10 is measured in C by "
+            "`native/validation/wfm_synth_ofdm_noise.c`, because the frames "
+            "type is not on that binding. Nothing is modelled. Re-run to "
+            "regenerate."
+        ),
+        takeaways=[
             "**A chirp's span is declared, never read off the caller.** "
             "Pinned, it is one waveform however it is read -- one call, "
             "step() or 64-sample blocks, bit for bit. A standalone `Synth` "
@@ -1274,6 +1480,11 @@ def build(write: bool = True) -> Report:
             "state hand-off resumes bit-for-bit on all nine -- which is "
             "what lets a render be split across calls, threads or "
             "processes (§2.7, §2.8).",
+            "**An ofdm source's snr is per sample over the full band.** "
+            "Its noise variance is 10^(-snr/10) at every oversampling, in "
+            "the PPDU and the gap, so the SNR inside the occupied "
+            "subcarriers is 10log10(64 M / 52) higher; `auto` is `fs` "
+            "(§2.10).",
             "**The evidence is younger than the object.** The SNR "
             "conversion the header calls its single source of truth, four "
             "more public entry points and all ten accessors were tested by "
@@ -1288,7 +1499,8 @@ def build(write: bool = True) -> Report:
         plots(d)
     R.summary(
         "\n- Raw sweeps: `data/snr_contract.csv`, "
-        "`data/rrc_containment.csv`, `data/pn_autocorr.csv`"
+        "`data/rrc_containment.csv`, `data/pn_autocorr.csv`, "
+        "`data/ofdm_noise.csv`"
     )
     R.emit(HERE / "results.md")
     return R

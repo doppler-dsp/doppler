@@ -100,7 +100,7 @@ dp_wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
    * source's own figure would move the noise off the reference its TYPE
    * names -- the one dp_wfm_snr_over_fs resolves for the segment floor.
    * Clean sources pass through so the no-AWGN shortcut still applies. */
-  if ((src->type == WFM_SYNTH_DSSS
+  if ((src->type == WFM_SYNTH_DSSS || src->type == WFM_SYNTH_FRAMES
        || dp_wfm_source_synth_type (src) != src->type)
       && snr < WFM_SYNTH_SNR_CLEAN)
     {

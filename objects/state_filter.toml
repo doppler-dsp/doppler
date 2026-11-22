@@ -10,7 +10,10 @@ serializable = "true"
 # the domain was violated (bn, t, or a bn*t past the stability bound), not
 # that malloc failed.
 create_error = "ValueError"
-create_error_message = "bn must be >= 0 and t > 0, both finite, with bn*t no larger than the bound the third-order loop is stable to (docs/design/loop-filter.md section 12)"
+create_fn = "dp_state_filter_create_why"
+# the sentence names the argument that failed (dp_state_filter_params_why)
+create_why = true
+create_error_message = "bn must be >= 0 and t > 0, both finite, with bn*t inside the domain"
 fragment = "generated"
 
 [[state_filter.init_params]]
@@ -29,6 +32,8 @@ doc = "Recompute the gains for a new (bn, t); preserves the frequency and rate e
 arg_type = "void"
 return_type = "int"
 status_return = true
+error = "ValueError"
+error_message = "configure refused (bn, t): t must be positive and finite, bn finite and >= 0, and bn*t inside the domain; nothing changed"
 params = [{ name = "bn", type = "double" }, { name = "t", type = "double" }]
 
 [[state_filter.methods]]

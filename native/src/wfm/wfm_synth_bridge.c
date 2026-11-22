@@ -15,11 +15,13 @@
 #include <string.h>
 
 #include "doppler/ccsds_tm/ccsds_tm_frame.h" /* the kernels its coded stages run */
+#include "doppler/dp_hash64.h"               /* the per-PPDU scrambler draw */
 #include "doppler/wfm/wfm_compose.h"         /* wfm_source_t */
 #include "doppler/wfm/wfm_dsp.h"   /* wfm_rrc_ntaps / dp_wfm_rrc_taps */
 #include "doppler/wfm/wfm_frame.h" /* the frame descriptor both faces now read */
 #include "doppler/wfm/wfm_surface.h" /* the exclusions every face refuses */
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include "doppler/wlan/wlan_core.h" /* the ofdm type's renderer */
 
 /* Pulse enum index 1 == "rrc" (see the wfm_pulse [[enum]] SSOT). */
 #define WFM_PULSE_RRC 1
@@ -80,14 +82,17 @@ static const char WHY_NEEDS_DATA[]
     = "a frame's payload is a data source: give --data FIELD or "
       "--data-from-file PATH";
 
-static int type_can_frame (const wfm_source_t *src);
-static int has_data (const wfm_source_t *src);
+static int         type_can_frame (const wfm_source_t *src);
+static int         has_data (const wfm_source_t *src);
+static const char *ofdm_source_error (const wfm_source_t *src);
 
 const char *
 dp_wfm_framing_flags_error (const wfm_source_t *src)
 {
   if (src->type == WFM_SYNTH_DSSS)
     return NULL; /* a burst of preamble and sync alone is a burst */
+  if (src->type == WFM_SYNTH_FRAMES)
+    return NULL; /* the PSDU is the payload; ofdm_source_error decides */
   if (!type_can_frame (src))
     return WHY_CANNOT_FRAME;
   if (!has_data (src))
@@ -306,6 +311,9 @@ dp_wfm_source_error (const wfm_source_t *src)
   const char *window_why = window_error (src);
   if (window_why)
     return window_why;
+  const char *ofdm_why = ofdm_source_error (src);
+  if (ofdm_why)
+    return ofdm_why;
   /* A bits waveform sends its data source's bits -- or a carried frame of
      fixed bits, once -- and nothing else: there is no pattern of its own to
      cycle (doppler#1718). */
@@ -350,6 +358,10 @@ const char *
 dp_wfm_source_frame_error (const wfm_source_t *src)
 {
   if (!dp_wfm_source_has_frame (src))
+    return NULL;
+  /* An ofdm source's PSDU is its data source's frame, built by the PHY:
+     ofdm_source_error (asked by dp_wfm_source_error) has decided it. */
+  if (src->type == WFM_SYNTH_FRAMES)
     return NULL;
   /* One frame, said one way (docs/design/frame-description.md R). A carried
      description IS the frame, so an unspread preamble beside it is a second
@@ -526,9 +538,10 @@ data_error (const wfm_source_t *src)
                "or is not a regular file (a stream is -, stdin)";
       return NULL;
     }
-  if (!type_can_frame (src) && src->type != WFM_SYNTH_DSSS)
+  if (!type_can_frame (src) && src->type != WFM_SYNTH_DSSS
+      && src->type != WFM_SYNTH_FRAMES)
     return "a data source fills a frame's payload: use --type "
-           "bits/bpsk/qpsk/pn/dsss";
+           "bits/bpsk/qpsk/pn/dsss/ofdm";
   if (src->data.kind == WFM_SEQ_DATA || src->fill.kind == WFM_SEQ_DATA)
     return "data:LEN has no bits of its own: it is the frame's field that "
            "--data fills, not a source or a fill";
@@ -1096,6 +1109,12 @@ dp_wfm_source_to_synth (const wfm_source_t *src, double fs)
       return NULL;
     }
 
+  if (dp_wfm_source_attach_ofdm (eng, src, fs, src->seed) != 0)
+    {
+      dp_wfm_synth_destroy (eng);
+      return NULL;
+    }
+
   if (src->pulse == WFM_PULSE_RRC
       && (src->type == WFM_SYNTH_PN || src->type == WFM_SYNTH_BPSK
           || src->type == WFM_SYNTH_QPSK || src->type == WFM_SYNTH_BITS
@@ -1124,6 +1143,377 @@ dp_wfm_synth_attach_data (dp_wfm_synth_state_t *syn, const wfm_frame_desc_t *d,
   wfm_frame_desc_layout_t l;
   (void)dp_wfm_frame_desc_layout (d, &l); /* pull_new has checked it */
   return pull_park (syn, p, l.out_bits, modulation);
+}
+
+/* ── the ofdm type: 802.11 PPDUs, one per frame of the data source ────────
+
+   The bridge installs a frame callback (dp_wfm_synth_attach_frames) that
+   builds a PPDU through the `wlan` object from the frame's bits, and nests
+   the callback's configuration as its state triplet's reject keys. Design:
+   docs/design/wlan.md, section 5. The 802.11 numbers arrive from
+   wlan_core.h's tables; nothing of the standard is written here. */
+
+/* One octet is eight bits of the frame, the first bit its MOST significant:
+   the order every byte-to-bit unpacking here uses (a data file's bytes, a
+   hex Field), so a file of PSDU octets, or `--data 0x08...`, is those octets.
+   The PHY's own least-significant-first order on the air is wlan's. */
+
+/* The names tables (wfm_names.h) are indexed by these values: the order is
+   the contract, held here for the two C enums and in test_wfm_ofdm_bridge.c
+   for each name against its value. */
+_Static_assert (WLAN_CODE_1_2 == 0 && WLAN_CODE_2_3 == 1 && WLAN_CODE_3_4 == 2
+                    && WLAN_CODE_5_6 == 3,
+                "OFDM_CODE_RATE_NAMES is indexed by dp_wlan_code_t");
+_Static_assert (WLAN_MAC_NONE == 0 && WLAN_MAC_FCS == 1 && WLAN_MAC_DATA == 2,
+                "OFDM_MAC_NAMES is indexed by dp_wlan_mac_t");
+
+/* A data frame's longest header: 24 octets, or 30 with the fourth address. */
+#define WFOFDM_HDR_MAX 30u
+
+/* The octets of `n_oct * 8` bits, the first bit of each eight the most
+   significant. */
+static void
+wfofdm_pack (const uint8_t *bits, size_t n_oct, uint8_t *out)
+{
+  for (size_t k = 0; k < n_oct; k++)
+    out[k] = (uint8_t)dp_bin_to_int (bits + 8u * k, 8u, DP_BITORDER_BIG);
+}
+
+typedef struct
+{
+  int      constellation; /* wlan's index: 0 BPSK ... 3 64-QAM */
+  int      code_rate;     /* wlan's index: 0 1/2 ... 3 5/6 */
+  unsigned oversample;    /* M = fs / bandwidth */
+  size_t   n_bits;        /* data_len: the frame's bits */
+  size_t   psdu_len;      /* octets, the FCS included */
+  size_t   window;        /* samples at fs: dp_wfm_source_window's count */
+  size_t   n_sym, ppdu_len, n_out;
+} wfofdm_geom_t;
+
+/* The rate pair of two indexes, which dp_wlan_n_bpsc has already vouched
+   for. */
+static dp_wlan_rate_t
+wfofdm_rate (int c, int r)
+{
+  return (dp_wlan_rate_t){ dp_wlan_n_bpsc (c), (dp_wlan_code_t)r };
+}
+
+/* The (constellation, code rate) a source names: wlan N expands through the
+   standard's Table 17-6; otherwise the two fields are the pair, and an index
+   outside the four a face offers (a C or Python source can give one) is
+   refused in the field's own words. */
+static const char *
+wfofdm_pair (const wfm_source_t *src, int *c, int *r)
+{
+  *c = src->constellation;
+  *r = src->code_rate;
+  if (!src->wlan)
+    {
+      if (!dp_wlan_n_bpsc (*c))
+        return "constellation is one of bpsk, qpsk, qam16 or qam64";
+      if (*r < 0 || *r > 3)
+        return "code_rate is one of 1/2, 2/3, 3/4 or 5/6";
+      return NULL;
+    }
+  dp_wlan_rate_t pair;
+  if (src->wlan < 0
+      || !dp_wlan_rate_from_mbps (dp_wlan_tables_standard (),
+                                  (unsigned)src->wlan, &pair))
+    return "wlan is the 20 MHz data rate in Mb/s and takes one of 6, 9, 12, "
+           "18, 24, 36, 48 or 54";
+  for (int k = 0; k < 4; k++)
+    if (dp_wlan_n_bpsc (k) == pair.n_bpsc)
+      *c = k;
+  *r = (int)pair.code;
+  return NULL;
+}
+
+/* The rules of an ofdm source that need no sample rate. */
+static const char *
+ofdm_source_error (const wfm_source_t *src)
+{
+  const int is_ofdm = src->type == WFM_SYNTH_FRAMES;
+  if (!is_ofdm)
+    {
+      if (src->wlan)
+        return "wlan is the 802.11 data rate of an ofdm source: give type "
+               "ofdm, or drop wlan";
+      if (src->constellation || src->code_rate || src->scrambler_init
+          || (src->window && src->window != WFM_WINDOW_UNSET) || src->mac
+          || src->gap || src->mac_header.len
+          || (src->bandwidth != 0.0 && src->bandwidth != 20e6))
+        return "constellation, code_rate, scrambler_init, window, mac, "
+               "mac_header, gap and bandwidth are fields of an ofdm source: "
+               "give type ofdm, or drop them";
+      return NULL;
+    }
+  if (src->wlan && (src->constellation || src->code_rate))
+    return "wlan is a spelling of constellation and code_rate: give wlan, "
+           "or constellation and code_rate, not both";
+  if (src->bandwidth < 0.0)
+    return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
+           "source, not negative";
+  if (src->wlan && dp_wfm_source_bandwidth (src) != 20e6)
+    return "wlan is the data rate at 20 MHz, and a bandwidth other than "
+           "20 MHz carries a different rate for the same pair: give "
+           "constellation and code_rate with that bandwidth, or drop wlan";
+  if (dp_wfm_source_bandwidth (src) != 20e6
+      && dp_wfm_source_bandwidth (src) != 10e6
+      && dp_wfm_source_bandwidth (src) != 5e6)
+    return "bandwidth is 20e6, 10e6 or 5e6 Hz for an 802.11a/g/p/j ofdm "
+           "source";
+  int         c, r;
+  const char *why = wfofdm_pair (src, &c, &r);
+  if (why)
+    return why;
+  const dp_wlan_rate_t pair = wfofdm_rate (c, r);
+  unsigned             mbps;
+  if (!dp_wlan_mbps (dp_wlan_tables_standard (), &pair, &mbps))
+    return "this constellation and code_rate have no SIGNAL RATE bits "
+           "(Table 17-6 lists eight of the sixteen pairs)";
+  if (src->scrambler_init < 0 || src->scrambler_init > 127)
+    return "scrambler_init is the 7-bit initial state: 1 to 127, or 0 to "
+           "draw one per PPDU from seed";
+  if (src->mac != WLAN_MAC_NONE && src->mac != WLAN_MAC_FCS
+      && src->mac != WLAN_MAC_DATA)
+    return "mac is one of none, fcs or data";
+  if (src->mac_header.kind == WFM_SEQ_DATA && src->mac_header.len)
+    return "data:LEN has no bits of its own: it is the frame's field that "
+           "--data fills, not a mac_header";
+  if (src->mac != WLAN_MAC_DATA && src->mac_header.len)
+    return "mac_header is the MAC header of mac data: give mac data, or "
+           "drop the mac_header";
+  if (src->mac == WLAN_MAC_DATA && !src->mac_header.len)
+    return "mac data needs a mac_header: its octets, 24 or 30, as a Field "
+           "(a hex Field 0x0802... is the octets it spells)";
+  if (src->mac_header.len % 8u)
+    return "mac_header is whole octets: its bits must be a multiple of 8";
+  if (src->mac == WLAN_MAC_DATA && src->mac_header.len != 8u * 24u
+      && src->mac_header.len != 8u * 30u)
+    return "mac_header is a data frame's header: 24 octets, or 30 with the "
+           "fourth address";
+  uint8_t hbits[8u * WFOFDM_HDR_MAX];
+  if (src->mac_header.len
+      && dp_wfm_seq_bits (&src->mac_header, hbits, src->mac_header.len)
+             != src->mac_header.len)
+    return "mac_header is a Field that does not build: check its generator";
+  if (src->snr_mode == 2 || src->snr_mode == 3)
+    return "snr_mode ebno and esno are refused for ofdm: its noise is "
+           "referred to the signal power in the full band (auto or fs)";
+  if (src->sps > 1 || src->pulse != 0 || src->symbol_rate > 0.0 || src->symbols
+      || src->data_code.len || src->acq_code.len || src->frame)
+    return "ofdm renders finished samples: sps, pulse, symbols, "
+           "symbol_rate, data_code, acq_code and frame describe a "
+           "symbol-rate stream or a frame the PHY builds itself";
+  if (!has_data (src))
+    return "an ofdm source sends a data source's octets as PSDUs: give "
+           "--data FIELD or --data-from-file PATH";
+  const size_t bits = common_data_len (src);
+  if (bits == 0 || bits % 8u)
+    return "an ofdm frame is whole octets: data_len must be a multiple of 8";
+  if (!dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac, src->mac_header.len / 8u,
+                         bits / 8u))
+    return "an ofdm frame's PSDU is 1 to 4095 octets, the FCS included: "
+           "data_len is out of range";
+  return NULL;
+}
+
+/* The rules that need fs, and the geometry they decide. Every size_t field is
+   range-checked BEFORE it is narrowed or summed: a wrapped sum allocates a
+   frame smaller than the renderer writes. */
+static const char *
+wfofdm_geom (const wfm_source_t *src, double fs, wfofdm_geom_t *g)
+{
+  int c, r;
+  (void)wfofdm_pair (src, &c, &r); /* ofdm_source_error has accepted it */
+  const char    *no = NULL;
+  const unsigned m  = dp_wfm_source_oversample (src, fs, &no);
+  if (no)
+    return no;
+  g->constellation = c;
+  g->code_rate     = r;
+  g->oversample    = m;
+  g->window        = dp_wfm_source_window (src, fs); /* M is checked above */
+  if (g->window > (size_t)WLAN_SYM_LEN * g->oversample)
+    return "window is 0 to 80 times fs over bandwidth samples: the "
+           "shortest OFDM symbol";
+  g->n_bits   = common_data_len (src);
+  g->psdu_len = dp_wlan_mpdu_len ((dp_wlan_mac_t)src->mac,
+                                  src->mac_header.len / 8u, g->n_bits / 8u);
+  const dp_wlan_rate_t pair = wfofdm_rate (c, r);
+  g->n_sym                  = dp_wlan_rate_n_sym (&pair, g->psdu_len);
+  /* A PSDU of 1 to 4095 octets is 1 to WLAN_N_SYM_MAX Data symbols at the
+     slowest rate (test_wlan_core.c pins both ends), so a PPDU always fits. */
+  g->ppdu_len
+      = dp_wlan_ppdu_len (g->n_sym, (unsigned)g->window, g->oversample);
+  if (g->ppdu_len > WFM_SYNTH_FRAME_MAX
+      || src->gap > WFM_SYNTH_FRAME_MAX - g->ppdu_len)
+    return "an ofdm frame, its gap included, is at most 2^24 samples";
+  g->n_out = g->ppdu_len + src->gap;
+  return NULL;
+}
+
+const char *
+dp_wfm_ofdm_fs_error (const wfm_source_t *src, double fs)
+{
+  if (src->type != WFM_SYNTH_FRAMES || ofdm_source_error (src))
+    return NULL; /* not ofdm, or already refused at its own rules */
+  wfofdm_geom_t g;
+  return wfofdm_geom (src, fs, &g);
+}
+
+/* The renderer: a pure function of this and (frame, bits). */
+typedef struct
+{
+  dp_wlan_state_t *w;
+  int              mac;
+  uint32_t         scrambler_init; /* 0: drawn per PPDU from seed and frame */
+  uint64_t         seed, gap;
+  uint32_t         constellation, code_rate, window, oversample;
+  uint32_t         hdr_len;             /* octets, 0 unless mac data */
+  uint8_t          hdr[WFOFDM_HDR_MAX]; /* the MAC header's octets */
+  size_t           n_bits, n_out, ppdu_len;
+} wfofdm_render_t;
+
+static int
+wfofdm_frame (void *u, uint64_t frame, const uint8_t *bits, size_t n_bits,
+              float _Complex *out, size_t n_out)
+{
+  wfofdm_render_t *r = u;
+  uint8_t          psdu[WLAN_PSDU_MAX];
+  uint8_t          body[WLAN_PSDU_MAX];
+  /* The synth calls with the n_bits and n_out fixed at attach. */
+  const size_t n_oct = n_bits / 8u;
+  wfofdm_pack (bits, n_oct, body);
+  const size_t len = dp_wlan_mpdu ((dp_wlan_mac_t)r->mac, r->hdr, r->hdr_len,
+                                   body, n_oct, psdu, sizeof psdu);
+  uint32_t     scr = r->scrambler_init;
+  if (!scr)
+    {
+      uint64_t h = dp_hash64 (DP_HASH64_INIT, &r->seed, sizeof r->seed);
+      h          = dp_hash64 (h, &frame, sizeof frame);
+      scr        = 1u + (uint32_t)(h % 127u);
+    }
+  const char   *why = NULL;
+  const int64_t got
+      = dp_wlan_ppdu_why (r->w, psdu, len, scr, out, r->ppdu_len, &why);
+  memset (out + r->ppdu_len, 0, (n_out - r->ppdu_len) * sizeof *out);
+  /* The geometry was validated at attach, so a PPDU is rendered; a refusal
+     is the synth's to report. */
+  return got != (int64_t)r->ppdu_len;
+}
+
+static void
+wfofdm_free (void *u)
+{
+  wfofdm_render_t *r = u;
+  dp_wlan_destroy (r->w);
+  free (r);
+}
+
+/* The renderer's configuration, as bytes: the reject keys. Only what no other
+   key already decides: the frame's bit count and length are the synth's own
+   keys, and the gap is n_out less the PPDU's length, which the keys below
+   (rate, window, M, mac) and the bit count fix. Each key here is proved
+   alone by test_wfm_ofdm_bridge.c, at an equal n_out. */
+#define WFOF_STATE_MAGIC DP_FOURCC ('W', 'F', 'O', 'F')
+#define WFOF_STATE_VERSION 1u
+#define WFOF_STATE_BYTES                                                      \
+  (sizeof (dp_state_hdr_t) + 7u * 4u + 8u + WFOFDM_HDR_MAX)
+
+static size_t
+wfofdm_state_bytes (const void *u)
+{
+  (void)u;
+  return WFOF_STATE_BYTES;
+}
+
+static void
+wfofdm_get_state (const void *u, void *blob)
+{
+  const wfofdm_render_t *r = u;
+  DP_GET_OPEN (WFOF_STATE_MAGIC, WFOF_STATE_VERSION, WFOF_STATE_BYTES);
+  dp_w_u32 (&_w, r->constellation);
+  dp_w_u32 (&_w, r->code_rate);
+  dp_w_u32 (&_w, r->window);
+  dp_w_u32 (&_w, r->oversample);
+  dp_w_u32 (&_w, (uint32_t)r->mac);
+  dp_w_u32 (&_w, r->scrambler_init);
+  dp_w_u32 (&_w, r->hdr_len);
+  dp_w_u64 (&_w, r->seed);
+  dp_w_bytes (&_w, r->hdr, WFOFDM_HDR_MAX);
+}
+
+/* The synth compares get_state's bytes and never calls a renderer's
+   set_state, so the triplet has none. */
+static const wfm_synth_refill_state_t wfofdm_state_ops
+    = { wfofdm_state_bytes, wfofdm_get_state, NULL, NULL };
+
+int
+dp_wfm_source_attach_ofdm (dp_wfm_synth_state_t *syn, const wfm_source_t *src,
+                           double fs, uint32_t seed)
+{
+  if (src->type != WFM_SYNTH_FRAMES)
+    return 0;
+  /* No data source: nothing to render, as set_bits is a no-op without a
+     pattern. The Plan's noise-only copy of a noisy source is such a source
+     (its data is the composer's, dropped), and it only draws the noise. A
+     source with data must pass the validator, which refuses none. */
+  if (!has_data (src))
+    return 0;
+  wfofdm_geom_t g;
+  if (ofdm_source_error (src) || wfofdm_geom (src, fs, &g))
+    return -1;
+  wfofdm_render_t *r = dp_xcalloc (1, sizeof *r);
+  /* The arguments were validated by ofdm_source_error and wfofdm_geom, so
+     the constructor cannot refuse them. */
+  r->w   = dp_wlan_create (g.constellation, g.code_rate, (uint32_t)g.window,
+                           g.oversample);
+  r->mac = src->mac;
+  r->hdr_len = (uint32_t)(src->mac_header.len / 8u);
+  if (r->hdr_len)
+    {
+      /* a Field of any kind (literal, PN, Gold, dotted) becomes its bits;
+         ofdm_source_error has built it once, so it builds */
+      uint8_t hbits[8u * WFOFDM_HDR_MAX];
+      (void)dp_wfm_seq_bits (&src->mac_header, hbits, src->mac_header.len);
+      wfofdm_pack (hbits, r->hdr_len, r->hdr);
+    }
+  r->scrambler_init = (uint32_t)src->scrambler_init;
+  r->seed           = seed;
+  r->gap            = src->gap;
+  r->constellation  = (uint32_t)g.constellation;
+  r->code_rate      = (uint32_t)g.code_rate;
+  r->window         = (uint32_t)g.window;
+  r->oversample     = g.oversample;
+  r->n_bits         = g.n_bits;
+  r->n_out          = g.n_out;
+  r->ppdu_len       = g.ppdu_len;
+  if (dp_wfm_synth_attach_frames (syn, wfofdm_frame, r, wfofdm_free, g.n_bits,
+                                  g.n_out)
+      != 0)
+    {
+      wfofdm_free (r);
+      return -1;
+    }
+  /* From here the synth owns the renderer. The pull is the data source's
+     frames, one per PPDU, copied as drawn (no description to assemble). */
+  wfm_data_src_t *ds = dp_wfm_data_create_seq (
+      src->data_from_file ? NULL : &src->data, src->data_from_file, g.n_bits,
+      &src->fill, NULL);
+  if (!ds)
+    return -1;
+  data_pull_t *p = dp_xcalloc (1, sizeof *p);
+  p->src         = ds;
+  p->pacing      = WFM_DATA_UNPACED;
+  p->reps        = 1u;
+  p->chunk_bits  = g.n_bits;
+  p->chunk       = dp_xcalloc (g.n_bits, 1);
+  p->raw         = 1;
+  /* A frames synth with its renderer installed takes a refill. */
+  (void)dp_wfm_synth_set_refill (syn, data_pull_refill, p, data_pull_free);
+  (void)dp_wfm_synth_set_refill_state (syn, &data_pull_state);
+  return dp_wfm_synth_attach_frames_state (syn, &wfofdm_state_ops);
 }
 
 int
@@ -1167,6 +1557,14 @@ dp_wfm_source_data_samples (const wfm_source_t *src, double fs,
         return 0;
       return dp_wfm_dsss_cont_edge (data_symbol_end (src, frames), cps) * sps;
     }
+  if (src->type == WFM_SYNTH_FRAMES)
+    {
+      /* A frame is one PPDU and its gap, n_out samples at the output rate. */
+      wfofdm_geom_t g;
+      return ofdm_source_error (src) || wfofdm_geom (src, fs, &g)
+                 ? 0
+                 : frames * g.n_out;
+    }
   wfm_frame_desc_t        d;
   wfm_frame_desc_layout_t l;
   if (source_frame (src, &d) != 0 || dp_wfm_frame_desc_layout (&d, &l) != 0)
@@ -1198,6 +1596,11 @@ dp_wfm_source_data_frames (const wfm_source_t *src)
                       : dp_wfm_data_length_bits (NULL, src->data_from_file);
   if (is_cont_dsss (src))
     return total; /* no frame: one bit per data symbol */
+  if (src->type == WFM_SYNTH_FRAMES)
+    {
+      const uint64_t len = common_data_len (src);
+      return len ? (total + len - 1u) / len : 0;
+    }
   wfm_frame_desc_t d;
   int              i = -1;
   if (source_frame (src, &d) != 0 || (i = data_field (&d)) < 0

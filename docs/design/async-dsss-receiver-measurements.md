@@ -69,7 +69,7 @@ floor the receiver was held to: its BER is under 5% at 5 dB and over 10% at
 BER sits from the bound.
 
 **The 3.069 Mcps point** is the receiver's
-[certification record](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
+[certification record](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/dsss/tests/validation/async_dsss_receiver/results.md):
 23 of 23 limits at 3.069 Mcps and 2,700 sym/s, two samples a chip, on
 continuous random data with no data-free block, `carrier_freq_hz` 0, and a
 search over ±3 kHz (±1/T_E). It covers that point and no other: not the
@@ -230,7 +230,7 @@ except for the search's Doppler as the hand-over with no refine dwell. Rows:
 - **A'**: aid off.
 - **C**: A', with the carrier loop's error formed from one coherent sum
     over the code-period window find_max_power already picks
-    (`dll_core.c:1055-1068`), squared and halved, in place of the sum of
+    (`dll_core.c:1066-1081`), squared and halved, in place of the sum of
     squared partials (`async_dsss_receiver_core.c:812-815`). It is a scratch
     switch, `SCR_CDET`.
 
@@ -351,7 +351,7 @@ and the runs that lead here are in
     - **A'**: A with the symbol-period aid off;
     - **C**: A' with the carrier loop's error formed from one coherent sum
         over the code-period window find_max_power picks
-        (`dll_core.c:1055-1068`), squared and halved, in place of the sum of
+        (`dll_core.c:1066-1081`), squared and halved, in place of the sum of
         squared partials (`async_dsss_receiver_core.c:812-815`).
 - **Cells:** carried of 70 (a run carries when over 80% of its 500-symbol
     windows match the data at either polarity) · loss against the BPSK

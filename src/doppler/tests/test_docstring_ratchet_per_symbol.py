@@ -226,3 +226,69 @@ def test_committed_baseline_actually_arms_the_rule() -> None:
     # would not have caught the event it was built for.
     assert any(ln.startswith("doppler.track.MpskReceiverR ") for ln in entries)
     assert any(ln.startswith("doppler.wfm.FrameDesc ") for ln in entries)
+
+
+# ── a class's authored Examples (#3162) ─────────────────────────────────────
+
+_SCAFFOLD = (
+    "A thing.\n\nExamples\n--------\nCreate with defaults:\n\n"
+    ">>> from doppler.m import X\n>>> obj = X()\n"
+)
+_AUTHORED = (
+    "A thing.\n\nExamples\n--------\n>>> from doppler.m import X\n"
+    ">>> X(bn=0.01).kp\n0.0236\n"
+)
+
+
+def _class(gate, doc: str):
+    return gate.Sym("m.X", "class", [], False, False, doc)
+
+
+def test_the_scaffold_example_is_not_authored() -> None:
+    gate = _gate()
+    assert not gate.authored_example(_SCAFFOLD)
+    assert not gate.authored_example(None)
+    assert not gate.authored_example("A thing.\n")
+    assert gate.authored_example(_AUTHORED)
+
+
+def test_an_authored_class_example_is_flagged_and_the_scaffold_is_not() -> (
+    None
+):
+    gate = _gate()
+    got = gate.face_flags({"m": [_class(gate, _AUTHORED)]}, False, set())
+    assert gate.AUTHORED in got["m.X"]
+    got = gate.face_flags({"m": [_class(gate, _SCAFFOLD)]}, False, set())
+    assert gate.AUTHORED not in got["m.X"]
+
+
+def test_a_class_losing_its_authored_example_is_a_loss() -> None:
+    """The 4f676d1d4 shape: covered before, covered after, example gone.
+
+    The scaffold is a valid `>>>` doctest, so the class stays covered on the
+    stub face and only the authored flag moves.
+    """
+    gate = _gate()
+    before = gate.face_flags({"m": [_class(gate, _AUTHORED)]}, False, set())
+    after = gate.face_flags({"m": [_class(gate, _SCAFFOLD)]}, False, set())
+    assert before["m.X"].replace(gate.AUTHORED, "") == after["m.X"], (
+        "the stub face must be unchanged, or this is not the shape"
+    )
+    (loss,) = gate.symbol_losses(before, after, have_runtime=False)
+    assert "m.X" in loss and "authored Examples LOST" in loss
+
+
+def test_gaining_an_authored_example_is_not_a_loss() -> None:
+    gate = _gate()
+    base = gate.face_flags({"m": [_class(gate, _SCAFFOLD)]}, False, set())
+    now = gate.face_flags({"m": [_class(gate, _AUTHORED)]}, False, set())
+    assert gate.symbol_losses(base, now, have_runtime=False) == []
+
+
+def test_methods_are_never_flagged_authored() -> None:
+    gate = _gate()
+    m = gate.Sym("m.X.step", "method", ["x"], True, False, _AUTHORED)
+    assert (
+        gate.AUTHORED
+        not in gate.face_flags({"m": [m]}, False, set())["m.X.step"]
+    )

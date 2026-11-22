@@ -43,7 +43,7 @@ def airtime_us(w: Wlan, psdu_len: int) -> float:
 rows = []
 for constellation, code_rate in RATES:
     w = Wlan(constellation=constellation, code_rate=code_rate)
-    rows.append((constellation, code_rate, w.n_dbps / 4.0, w.n_sym(FRAME)))
+    rows.append((constellation, code_rate, w.rate_mbps, w.n_sym(FRAME)))
 # --8<-- [end:rates]
 
 
@@ -57,7 +57,7 @@ def main() -> None:
         w = Wlan(constellation=constellation, code_rate=code_rate)
         t = airtime_us(w, FRAME)
         print(
-            f"{constellation + ' ' + code_rate:>14} {mbps:7.1f} "
+            f"{constellation + ' ' + code_rate:>14} {mbps:7d} "
             f"{n_sym:13d} {t:13.0f}"
         )
         # the symbols a frame needs follow from the data rate: its bits
@@ -66,9 +66,10 @@ def main() -> None:
         # a faster rate never takes longer
         assert t <= last
         last = t
-    # the 36 Mb/s rate: 144 data bits per 4 us symbol
+    # the 36 Mb/s rate: 144 data bits per 4 us symbol, and the table's own
+    # column says the same
     w36 = Wlan(constellation="qam16", code_rate="r34")
-    assert w36.n_dbps / 4.0 == 36.0
+    assert w36.n_dbps / 4.0 == 36.0 == w36.rate_mbps
     print("OK: the symbol counts follow from the data rates")
 
 

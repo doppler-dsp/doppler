@@ -2909,6 +2909,181 @@
     },
     "stderr": ""
   },
+  "ofdm_mac_data": {
+    "argv": [
+      "--type",
+      "ofdm",
+      "--fs",
+      "20e6",
+      "--wlan",
+      "36",
+      "--scrambler-init",
+      "93",
+      "--mac",
+      "data",
+      "--mac-header",
+      "0x08020000ffffffffffff0200000000010200000000020000",
+      "--data",
+      "pn:800:15",
+      "--data-len",
+      "800"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 8336
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "data": "pn:800:15",
+          "data_len": 800,
+          "data_sent": {
+            "bits": 800,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
+          "freq": 0,
+          "fs": 20000000,
+          "lfsr": "galois",
+          "mac": "data",
+          "mac_header": "0x08020000ffffffffffff0200000000010200000000020000",
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "scrambler_init": 93,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "ofdm",
+          "window": 2,
+          "wlan": 36
+        }
+      ],
+      "version": 1
+    }
+  },
+  "ofdm_pair": {
+    "argv": [
+      "--type",
+      "ofdm",
+      "--fs",
+      "40e6",
+      "--bandwidth",
+      "20e6",
+      "--constellation",
+      "qam16",
+      "--code-rate",
+      "3/4",
+      "--window",
+      "4",
+      "--gap",
+      "40",
+      "--data",
+      "pn:800:15",
+      "--data-len",
+      "800"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 14432
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "code_rate": "3/4",
+          "constellation": "qam16",
+          "data": "pn:800:15",
+          "data_len": 800,
+          "data_sent": {
+            "bits": 800,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
+          "freq": 0,
+          "fs": 40000000,
+          "gap": 40,
+          "lfsr": "galois",
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "ofdm",
+          "window": 4
+        }
+      ],
+      "version": 1
+    }
+  },
+  "ofdm_wlan": {
+    "argv": [
+      "--type",
+      "ofdm",
+      "--fs",
+      "20e6",
+      "--wlan",
+      "36",
+      "--scrambler-init",
+      "93",
+      "--mac",
+      "fcs",
+      "--data",
+      "pn:800:15",
+      "--data-len",
+      "800"
+    ],
+    "exit": 0,
+    "outputs": {
+      "sink.bin": {
+        "bytes": 7056
+      }
+    },
+    "record": {
+      "continuous": false,
+      "repeat": false,
+      "segments": [
+        {
+          "data": "pn:800:15",
+          "data_len": 800,
+          "data_sent": {
+            "bits": 800,
+            "frames": 1,
+            "idle_frames": 0,
+            "pad_bits": 0
+          },
+          "freq": 0,
+          "fs": 20000000,
+          "lfsr": "galois",
+          "mac": "fcs",
+          "off_samples": 0,
+          "pn_length": 15,
+          "pn_poly": 0,
+          "scrambler_init": 93,
+          "seed": 0,
+          "snr": 100,
+          "snr_mode": "auto",
+          "sps": 1,
+          "type": "ofdm",
+          "window": 2,
+          "wlan": 36
+        }
+      ],
+      "version": 1
+    }
+  },
   "out_blue": {
     "argv": [
       "--type",

@@ -10,6 +10,10 @@
 
 #include "doppler/wfm/wfm_compose.h"
 
+#include "doppler/wlan/wlan_core.h" /* WLAN_OVERSAMPLE_MAX */
+
+#include <math.h>
+
 /* Deterministic uniform double in [0,1) from a 64-bit key (splitmix64). */
 static double
 draw_u01 (uint64_t key)
@@ -168,4 +172,43 @@ dp_wfm_compose_draws (const wfm_segment_t *segs, size_t n_segs,
         }
     }
   return total;
+}
+
+/* The channel bandwidth of an ofdm source: 0 (a C source that skipped the
+   defaults) is the preset's 20 MHz. A negative one is a finite wrong value,
+   refused by name in ofdm_source_error; a NaN compares false and takes the
+   default, so it reaches no size or index. */
+double
+dp_wfm_source_bandwidth (const wfm_source_t *src)
+{
+  return src->bandwidth > 0.0 ? src->bandwidth : 20e6;
+}
+
+unsigned
+dp_wfm_source_oversample (const wfm_source_t *src, double fs, const char **why)
+{
+  const double ratio = fs / dp_wfm_source_bandwidth (src);
+  const double m     = floor (ratio + 0.5);
+  const char  *no    = NULL;
+  if (!(fs > 0.0) || fabs (ratio - m) > 1e-9 * m || m < 1.0)
+    no = "fs must be an integer multiple of bandwidth: the oversampling "
+         "is done by a larger transform, not a resampler";
+  else if (m > (double)WLAN_OVERSAMPLE_MAX)
+    no = "fs over bandwidth is at most 128";
+  if (why)
+    *why = no;
+  return no ? 0u : (unsigned)m;
+}
+
+size_t
+dp_wfm_source_window (const wfm_source_t *src, double fs)
+{
+  if (src->window != WFM_WINDOW_UNSET)
+    return src->window;
+  /* The standard's count at the source's oversampling, by wlan's own rule
+     (the inline both share);
+     a rate with no oversampling has none, and the unset value is left for
+     dp_wfm_ofdm_fs_error to refuse. */
+  const unsigned m = dp_wfm_source_oversample (src, fs, NULL);
+  return m ? dp_wlan_window_standard (m) : WFM_WINDOW_UNSET;
 }

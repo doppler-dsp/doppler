@@ -47,6 +47,48 @@
 static const size_t seg_len[N_CFG] = { 262144, 16384, 4096, 1024 };
 #define REF_IDX 0
 
+/* What an ofdm source costs per output sample: its PPDUs built through wlan
+   from a data source's frames (100-octet PSDUs), pulled through the
+   composer in PULL-sample blocks. The data is a generated Field long enough
+   that no round runs it dry, so the rate is the PPDU's build, not silence.
+   Rows: the slowest and the fastest 20 MHz rate, and the fastest at twice
+   the bandwidth (a transform twice as long, so the oversampling's cost). */
+static void
+bench_ofdm (jm_bench_t *bench, const char *name, int wlan, double fs,
+            float _Complex *out)
+{
+  static double t[ITERATIONS];
+  wfm_source_t  src = {
+    .type           = WFM_SYNTH_FRAMES,
+    .snr            = 100.0,
+    .sps            = 1,
+    .wlan           = wlan,
+    .scrambler_init = 93,
+    .data
+    = { .kind = WFM_SEQ_PN, .len = 800u * 80000u, .reg_bits = 15, .seed = 1 },
+    .data_len = 800
+  };
+  wfm_segment_t           seg = { .sources = &src, .n_sources = 1, .fs = fs };
+  dp_wfm_compose_state_t *c   = dp_wfm_compose_create (&seg, 1, 0, 1);
+  if (!c)
+    {
+      fprintf (stderr, "ofdm compose create failed (%s): %s\n", name,
+               dp_wfm_scene_error (&seg, 1, 0, 1));
+      exit (1);
+    }
+  for (size_t done = 0; done < TOTAL; done += PULL) /* warm up */
+    (void)dp_wfm_compose_execute (c, out, PULL);
+  for (int r = 0; r < ITERATIONS; r++)
+    {
+      const uint64_t t0 = jm_bench_now_ns ();
+      for (size_t done = 0; done < TOTAL; done += PULL)
+        (void)dp_wfm_compose_execute (c, out, PULL);
+      t[r] = jm_bench_elapsed_sec (t0, jm_bench_now_ns ());
+    }
+  dp_bench_record (bench, name, t, ITERATIONS, TOTAL, "sample");
+  dp_wfm_compose_destroy (c);
+}
+
 int
 main (void)
 {
@@ -144,6 +186,11 @@ main (void)
   printf ("  The samples-equivalent column is the one to design against: a\n"
           "  burst schedule whose segments are shorter than that number is\n"
           "  spending more on starting waveforms than on emitting them.\n");
+
+  printf ("\n=== an ofdm source, per output sample ===\n");
+  bench_ofdm (&_bench, "ofdm[6 Mb/s,M=1]", 6, 20e6, out);
+  bench_ofdm (&_bench, "ofdm[54 Mb/s,M=1]", 54, 20e6, out);
+  bench_ofdm (&_bench, "ofdm[54 Mb/s,M=2]", 54, 40e6, out);
 
   for (int c = 0; c < N_CFG; c++)
     dp_wfm_compose_destroy (comp[c]);

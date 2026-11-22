@@ -13,8 +13,10 @@ import pytest
 
 from doppler.ofdm import Ofdm
 
-CP_DEFAULT = 4294967295
-ALL_PHASES = 4294967295
+# the C sentinels OFDM_CP_DEFAULT and OFDM_ALL_PHASES; test_ofdm_core.c holds
+# that both are 2**32 - 1
+CP_DEFAULT = 2**32 - 1
+ALL_PHASES = 2**32 - 1
 
 
 def _useful(c):
@@ -353,25 +355,105 @@ def test_builders_refuse_with_value_error():
         o.add_fixed(c, 0, 4, 1.0)
     with pytest.raises(ValueError):
         o.add_run(c + 1, 1)
-    assert o.check() < 0  # no run
+    with pytest.raises(ValueError, match="no run"):
+        o.check()
     o.add_run(c, 1)
-    assert o.check() == 0
+    o.check()  # the minimal pair: a run, and it is usable
     assert o.add_run(c, 1) == 1  # a checked layout is re-opened, not refused
-    assert o.check() == 0
+    o.check()
 
 
-def test_a_refused_call_returns_empty_and_moves_nothing():
+def _small():
+    m = np.zeros(8, np.uint8)
+    m[[1, 2, 3, 5, 6, 7]] = 1
+    o = Ofdm()
+    return o, m
+
+
+def test_check_names_a_window_longer_than_the_symbol():
+    o, m = _small()
+    c = o.add_class(8, m, useful=4, cyclic_prefix=2, window=6)
+    o.add_run(c, 1, cyclic_prefix=0)  # a 4-sample symbol under a 6 window
+    with pytest.raises(ValueError, match="window is longer"):
+        o.check()
+    ok, m = _small()  # the pair: the same run on an 8-sample body
+    c = ok.add_class(8, m, useful=8, cyclic_prefix=2, window=6)
+    ok.add_run(c, 1, cyclic_prefix=0)
+    ok.check()
+
+
+def test_check_names_two_fixed_entries_on_one_subcarrier():
+    o, m = _small()
+    c = o.add_class(8, m, n_phase=2)
+    o.add_fixed(c, 0xFFFFFFFF, 2, 1.0)
+    o.add_fixed(c, 1, 2, 1.0)
+    o.add_run(c, 1)
+    with pytest.raises(ValueError, match="one subcarrier"):
+        o.check()
+    ok, m = _small()  # the pair: the second entry on another subcarrier
+    c = ok.add_class(8, m, n_phase=2)
+    ok.add_fixed(c, 0xFFFFFFFF, 2, 1.0)
+    ok.add_fixed(c, 1, 3, 1.0)
+    ok.add_run(c, 1)
+    ok.check()
+
+
+def test_modulate_on_an_unusable_layout_raises_the_same_sentence_check_does():
+    o, m = _small()
+    o.add_class(8, m)  # no run
+    with pytest.raises(ValueError, match="no run"):
+        o.modulate(np.ones(6, np.complex64))
+    with pytest.raises(ValueError, match="no run"):
+        o.check()
+
+
+def test_a_refused_call_raises_its_reason_and_moves_nothing():
     o = Ofdm()
     m = np.zeros(8, np.uint8)
     m[[1, 2, 3, 5, 6, 7]] = 1
     o.add_class(8, m, cyclic_prefix=2)
     o.add_run(0, 3)
     assert o.points_remaining() == 18
-    assert o.modulate(np.ones(5, np.complex64)).size == 0  # inside a symbol
-    assert o.modulate(np.ones(24, np.complex64)).size == 0  # past the end
+    with pytest.raises(ValueError, match="inside an OFDM symbol"):
+        o.modulate(np.ones(5, np.complex64))
+    with pytest.raises(ValueError, match="more points than the layout"):
+        o.modulate(np.ones(24, np.complex64))
+    with pytest.raises(ValueError, match="need >="):
+        o.modulate(np.ones(12, np.complex64), out=np.empty(3, np.complex64))
     assert o.points_remaining() == 18
     assert o.modulate(np.ones(12, np.complex64)).size == 20
     assert o.points_remaining() == 6
+
+
+def test_check_leaves_nothing_a_later_call_or_a_blob_can_see():
+    """Sealing is derived state, recomputed on first use, so it is not state.
+
+    `check()` raises or returns None and seals the layout; every method that
+    needs the seal calls the check itself. If sealing changed what a later
+    call does, the flag would belong in the blob. It does not: a layout that
+    was checked first has the same blob, the same render and the same window
+    tail as one that never was, and a refused check changes nothing.
+    """
+    a, m = _small()
+    a.add_class(8, m, cyclic_prefix=2, window=2)
+    a.add_run(0, 3)
+    b, m = _small()
+    b.add_class(8, m, cyclic_prefix=2, window=2)
+    b.add_run(0, 3)
+    assert b.check() is None
+    assert a.get_state() == b.get_state()
+    pts = (np.arange(a.points_remaining()) + 1j).astype(np.complex64)
+    assert np.array_equal(a.modulate(pts), b.modulate(pts))
+    assert np.array_equal(a.finish(), b.finish())
+    assert a.get_state() == b.get_state()
+
+    c, m = _small()
+    c.add_class(8, m)  # no run: refused, twice, the same way
+    before = c.get_state()
+    for _ in range(2):
+        with pytest.raises(ValueError, match="no run"):
+            c.check()
+    assert c.get_state() == before
 
 
 def test_a_layout_extended_mid_stream_renders_as_if_built_whole():

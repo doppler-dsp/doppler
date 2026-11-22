@@ -127,8 +127,10 @@ NOT_A_PROBE_PREFIX: dict[str, str] = {
 # The composites that register their own probes, then forward to a child
 # whose longer names refuse: the dead registry slots of #1897. Every name they
 # leave behind is exact, so (1) and (3) hold for them; only (2) does not.
+# The Despreader is not one: it attaches its Costas loop first, and Costas
+# holds the longest leaf (".freq_rate", #3127), so a prefix too long for any
+# of its names is refused before anything registers.
 _DEAD_SLOTS_1897 = {
-    "doppler.dsss.Despreader",
     "doppler.track.BpskReceiver",
     "doppler.track.MpskReceiver",
     "doppler.track.MpskReceiverR",

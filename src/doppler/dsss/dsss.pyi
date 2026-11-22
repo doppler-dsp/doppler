@@ -256,6 +256,9 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
         """
 
 ASYNC_DSSS_RX_STATE: dict[int, str]
+"""Names of the async_dsss_rx_state values, keyed by code
+(ASYNC_DSSS_RX_SEARCHING .. ASYNC_DSSS_RX_LOST).
+"""
 
 @final
 class Despreader:
@@ -394,16 +397,16 @@ class Despreader:
         """Attach (or detach) a telemetry context across the despreader. Pure
         forwarder — the despreader registers no probes of its own: the carrier
         loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" /
-        ".nco" and the code loop registers "<prefix>.code.e" / ".rate" /
-        ".lock" / ".locked" / ".nco" / ".prompt_amp" / ".offset_pwr" (the
-        ".locked" pair are the loops' verify-counted lockdet decisions, 0/1;
-        ".freq" / ".rate" the filters' integrators and ".nco" their complete
-        commands, see dp_costas_set_telemetry() and dp_dll_set_telemetry()) —
-        twelve probes, all thinned by decim and emitted once per code period
-        (the despreader flushes both loops at its per-period update). Passing
-        NULL detaches both loops. Setup path, never hot; the context is
-        borrowed and must outlive the attachment (SPSC rules in
-        dp_tlm/dp_tlm_core.h).
+        ".nco" / ".freq_rate" / ".order" and the code loop registers
+        "<prefix>.code.e" / ".rate" / ".lock" / ".locked" / ".nco" /
+        ".prompt_amp" / ".offset_pwr" (the ".locked" pair are the loops'
+        verify-counted lockdet decisions, 0/1; ".freq" / ".rate" the filters'
+        integrators and ".nco" their complete commands, see
+        dp_costas_set_telemetry() and dp_dll_set_telemetry()) — fourteen
+        probes, all thinned by decim and emitted once per code period (the
+        despreader flushes both loops at its per-period update). Passing NULL
+        detaches both loops. Setup path, never hot; the context is borrowed and
+        must outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -411,7 +414,7 @@ class Despreader:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "ch0".
-        decim : int
+        decim : int, default 1
             Emit every decim-th code period; >= 1.
 
         Raises
@@ -430,15 +433,15 @@ class Despreader:
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
         >>> names = sorted(tlm.probe_names)
-        >>> names[:5]
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco']
-        >>> names[5:]
+        >>> names[:7]
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.freq_rate', 'ch0.car.lock', 'ch0.car.locked', 'ch0.car.nco', 'ch0.car.order']
+        >>> names[7:]
         ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.nco', 'ch0.code.offset_pwr', 'ch0.code.prompt_amp', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
-        >>> recs = tlm.read()   # twelve records per code period
-        >>> len(recs) > 0 and len(recs) % 12 == 0
+        >>> recs = tlm.read()   # fourteen records per code period
+        >>> len(recs) > 0 and len(recs) % 14 == 0
         True
 
         """
@@ -512,7 +515,7 @@ class Despreader:
             Per-decision false-alarm probability, in (0, 1).
         n_looks : int
             Non-coherent integration depth N (looks); clamped >= 1.
-        ref_snr_db : float
+        ref_snr_db : float, default 0.0
             Noise-reference estimator SNR in dB (> 0), or 0 to derive from
             n_looks (see dp_dll_configure_lock()).
 
@@ -3007,8 +3010,8 @@ class AsyncDsssReceiver:
 
         - "<prefix>.car" -- the chip-domain carrier loop
           (dp_costas_set_telemetry(): ".lock", ".e", ".freq", ".locked",
-          ".nco"), once per carrier update: once a code period, except while it
-          coasts, when loop 1 is held;
+          ".nco", ".freq_rate", ".order"), once per carrier update: once a code
+          period, except while it coasts, when loop 1 is held;
         - "<prefix>.code" -- the code loop (dp_dll_set_telemetry(): ".e",
           ".rate", ".lock", ".locked", ".nco", and the lock statistic's two
           terms ".prompt_amp" and ".offset_pwr"), once per discriminator
@@ -3076,7 +3079,7 @@ class AsyncDsssReceiver:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix; NULL means "rx".
-        decim : int
+        decim : int, default 1
             Emit every decim-th event on each probe; >= 1.
 
         Raises
@@ -3103,7 +3106,7 @@ class AsyncDsssReceiver:
         >>> rx.set_telemetry(tlm, "rx")
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.car",
         ...                                                    "rx.code")))
-        ['rx.car.e', 'rx.car.freq', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
+        ['rx.car.e', 'rx.car.freq', 'rx.car.freq_rate', 'rx.car.lock', 'rx.car.locked', 'rx.car.nco', 'rx.car.order', 'rx.code.e', 'rx.code.lock', 'rx.code.locked', 'rx.code.nco', 'rx.code.offset_pwr', 'rx.code.prompt_amp', 'rx.code.rate']
         >>> sorted(p for p in tlm.probe_names if p.startswith(("rx.s", "rx.h",
         ...                                                    "rx.refu")))
         ['rx.had_lock', 'rx.handover_hz', 'rx.ho_src', 'rx.hold', 'rx.refused', 'rx.state', 'rx.sym.lock', 'rx.sym.locked']
@@ -3122,12 +3125,11 @@ class AsyncDsssReceiver:
         search is bit-identical at every count, so this changes the cost of a
         steps() call and nothing about its output. A pool that steps its
         receivers in parallel sets each one to 1. A mutator's value, so it
-        travels in the state blob (#2022). The blob carries the count that RAN,
-        not the request: set_threads(0) on a writer restores as the count the
-        writer ran (its online cores, capped at the tiles at D = 1) on any
-        reader, by design -- a resumed receiver runs as the one that was
-        checkpointed, and a pool's 1 is 1 everywhere. Setup path; not while
-        another thread is inside steps().
+        travels in the state blob (#2022), in one place: the searcher's own
+        blob, as the request, which dp_correlator_set_state() applies through
+        dp_correlator_set_threads(). A pool's 1 restores as 1 everywhere; a
+        writer's 0 restores as 0, which the reader runs on its own online
+        cores. Setup path; not while another thread is inside steps().
 
         Parameters
         ----------
@@ -3881,7 +3883,7 @@ class AsyncDsssPool:
             Context to attach, or NULL to detach every receiver.
         prefix : str
             Probe-name prefix; NULL means "pool".
-        decim : int
+        decim : int, default 1
             Emit every decim-th event on each probe; >= 1.
 
         Raises
@@ -4073,7 +4075,7 @@ class DsssBurstReceiver:
         samples per chip.
     chip_rate : float, default 1000000.0
         chips per second.
-    cn0_dbhz : float
+    cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE
         design C/N0 for the acquisition, dB-Hz (or NaN).
     doppler_uncertainty : float, default 0.0
         the Doppler span to search, cycles/sample.

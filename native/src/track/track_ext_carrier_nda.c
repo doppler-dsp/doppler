@@ -775,7 +775,7 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "    Telemetry context to attach, or NULL to detach.\n"
     "prefix : str\n"
     "    Probe-name prefix, e.g. \"car\" or \"rx.car\".\n"
-    "decim : int\n"
+    "decim : int, default 1\n"
     "    Emit every decim-th sample; >= 1.\n"
     "\n"
     "Raises\n"

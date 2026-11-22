@@ -36,6 +36,7 @@ free_segment_sources (wfm_segment_t *seg)
         free (seg->sources[k].symbols);
         free ((void *)seg->sources[k].acq_code.bits);
         free ((void *)seg->sources[k].data_code.bits);
+        free ((void *)seg->sources[k].mac_header.bits);
         free ((void *)seg->sources[k].data.bits);
         free ((void *)seg->sources[k].fill.bits);
         free ((void *)seg->sources[k].data_from_file);
@@ -77,10 +78,11 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
      copy of the description AND of each field's literal bits, and owns
      both (dp_wfm_frame_copy). Without this a `--from-file` scene would be
      reading a description its parser had already freed. */
-  dst->frame          = dp_wfm_frame_copy (src->frame);
-  dst->acq_code.bits  = dup_u8 (src->acq_code.bits, src->acq_code.len);
-  dst->data_code.bits = dup_u8 (src->data_code.bits, src->data_code.len);
-  dst->symbols        = NULL;
+  dst->frame           = dp_wfm_frame_copy (src->frame);
+  dst->acq_code.bits   = dup_u8 (src->acq_code.bits, src->acq_code.len);
+  dst->data_code.bits  = dup_u8 (src->data_code.bits, src->data_code.len);
+  dst->mac_header.bits = dup_u8 (src->mac_header.bits, src->mac_header.len);
+  dst->symbols         = NULL;
   if (src->symbols && src->n_symbols)
     {
       size_t n     = src->n_symbols;
@@ -231,6 +233,12 @@ dp_wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
     {
       /* Invalid geometry: fail the build (the composer skips the segment to a
        * silent gap; a standalone Synth raises at first use). */
+      dp_wfm_synth_destroy (syn);
+      return NULL;
+    }
+  /* An ofdm source's PPDU renderer and its data pull (no-op otherwise). */
+  if (dp_wfm_source_attach_ofdm (syn, src, fs, seed) != 0)
+    {
       dp_wfm_synth_destroy (syn);
       return NULL;
     }
@@ -787,6 +795,8 @@ dp_wfm_scene_error (const wfm_segment_t *segs, size_t n_segs, int repeat,
         if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0
             && !(dp_wfm_source_dsss_cps (src, segs[i].fs) >= 1.0))
           return dp_wfm_why_dsss_cont_rate;
+        if ((why = dp_wfm_ofdm_fs_error (src, segs[i].fs)) != NULL)
+          return why;
         if (!dp_wfm_source_data_is_stream (src))
           continue;
         /* A stream has no end to repeat and its bytes are gone once read,

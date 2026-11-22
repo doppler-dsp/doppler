@@ -34,10 +34,10 @@ const jm_any_fn jm_bound_symbols_ofdm[] = {
     (jm_any_fn)dp_ofdm_add_polarity,
     (jm_any_fn)dp_ofdm_add_fixed,
     (jm_any_fn)dp_ofdm_add_run,
-    (jm_any_fn)dp_ofdm_check,
+    (jm_any_fn)dp_ofdm_check_why,
     (jm_any_fn)dp_ofdm_points_remaining,
     (jm_any_fn)dp_ofdm_modulate_max_out,
-    (jm_any_fn)dp_ofdm_modulate,
+    (jm_any_fn)dp_ofdm_modulate_why,
     (jm_any_fn)dp_ofdm_finish_max_out,
     (jm_any_fn)dp_ofdm_finish,
 };

@@ -136,3 +136,91 @@ def test_bad_bn_fll_is_refused_at_create_and_live(bad: float) -> None:
         with pytest.raises(ValueError, match="bn_fll must be >= 0"):
             c.bn_fll = bad
         assert c.bn_fll == 0.01
+
+
+def test_set_order_switches_and_carries_the_estimate():
+    """order reads what set_order selected; the frequency estimate carries
+    across a switch both ways, and a seeded rate is dropped on the way back
+    to order 2."""
+    c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=TSAMPS)
+    assert c.order == 2 and c.norm_rate == 0.0
+    c.set_order(3, 0.02)
+    assert c.order == 3 and c.bn == 0.02
+    assert c.norm_freq == pytest.approx(0.01, abs=1e-15)
+    c.norm_rate = 1e-9
+    assert c.norm_rate == pytest.approx(1e-9, rel=1e-12)
+    c.set_order(2, 0.05)
+    assert c.order == 2 and c.norm_rate == 0.0
+    assert c.norm_freq == pytest.approx(0.01, abs=1e-15)
+
+
+def test_order_three_holds_a_ramp_order_two_lags():
+    """The reason the order exists: on a frequency ramp order 2 holds a
+    steady phase error, order 3 none, and order 3's rate is the ramp's."""
+    nsym, ramp = 6000, 2e-8  # ramp: cycles/sample^2
+    n = np.arange(nsym * TSAMPS)
+    rng = np.random.default_rng(1)
+    bits = np.where(rng.random(nsym) < 0.5, -1.0, 1.0)
+    rx = (
+        np.repeat(bits, TSAMPS) * np.exp(1j * 2 * np.pi * 0.5 * ramp * n**2)
+    ).astype(np.complex64)
+    lags = {}
+    for order in (2, 3):
+        c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=TSAMPS)
+        if order == 3:
+            c.set_order(3, 0.05)
+        e = []
+        for s in range(nsym):
+            c.steps(rx[s * TSAMPS : (s + 1) * TSAMPS])
+            e.append(c.last_error)
+        lags[order] = float(np.mean(e[-2000:]))
+        if order == 3:
+            assert c.norm_rate == pytest.approx(ramp, rel=1e-3)
+    assert lags[2] > 1e-3
+    assert abs(lags[3]) < 0.02 * lags[2]
+
+
+@pytest.mark.parametrize(
+    ("order", "bn"),
+    [(4, 0.05), (1, 0.05), (3, 0.2), (3, -0.01)],
+)
+def test_set_order_refusals_change_nothing(order: int, bn: float) -> None:
+    """Another order, or a bn outside the loop's domain (at most 0.12 at
+    order 3), raises ValueError and leaves the loop as it was."""
+    c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=TSAMPS)
+    blob = c.get_state()
+    with pytest.raises(ValueError, match="set_order"):
+        c.set_order(order, bn)
+    assert c.get_state() == blob
+
+
+def test_order_three_refuses_the_fll_assist_both_ways():
+    """The FLL assist and order 3 do not combine, whichever comes first."""
+    c = Costas(bn=0.05, zeta=0.707, tsamps=TSAMPS, bn_fll=0.01)
+    with pytest.raises(ValueError, match="set_order"):
+        c.set_order(3, 0.05)
+    assert c.order == 2
+    c.bn_fll = 0.0
+    c.set_order(3, 0.05)
+    with pytest.raises(ValueError, match="bn_fll"):
+        c.bn_fll = 0.01
+    assert c.bn_fll == 0.0
+
+
+def test_norm_rate_is_refused_at_order_two():
+    """Order 2 holds no rate: norm_rate reads 0 and refuses a write."""
+    c = Costas(bn=0.05, zeta=0.707, tsamps=TSAMPS)
+    with pytest.raises(ValueError, match="norm_rate"):
+        c.norm_rate = 1e-9
+    assert c.norm_rate == 0.0
+
+
+def test_reset_keeps_order_three_and_zeroes_the_rate():
+    """reset keeps the order, rewinds the frequency to the seed and zeroes
+    the rate."""
+    c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.003, tsamps=TSAMPS)
+    c.set_order(3, 0.05)
+    c.norm_rate = 1e-9
+    c.reset()
+    assert c.order == 3 and c.norm_rate == 0.0
+    assert c.norm_freq == pytest.approx(0.003, abs=1e-15)

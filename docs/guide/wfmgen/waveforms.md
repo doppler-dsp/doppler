@@ -256,7 +256,7 @@ wfmgen --type dsss --data-code 0x1d --symbol-rate 2700 --sps 2 \
 From Python, `data=` takes the bits -- a file's bytes become bits through
 `cvt.bytes_to_bin` -- and there is no file face of its own. The message comes
 back frame by frame, each with its own CRC
-([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/wfmgen_data_source_demo.py),
+([`wfmgen_data_source_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/examples/wfmgen_data_source_demo.py),
 whose C twin is `native/examples/wfmgen_data_source_demo.c`):
 
 ```python
@@ -1023,6 +1023,103 @@ sweeps one.
 
 ______________________________________________________________________
 
+## OFDM — 802.11a/g PPDUs
+
+`--type ofdm` sends one PHY frame (a PPDU) per frame of a
+[data source](#data-a-payload-drawn-frame-by-frame): the L-STF, the L-LTF, the
+SIGNAL field and the Data field, built through the [`wlan`](../wlan.md)
+object from the frame's octets. `--data-len` is the PSDU in bits, a whole
+number of octets, and the first bit of each eight is the octet's most
+significant, the order a data file's bytes and a hex Field unpack in, so
+`--data-from-file psdu.bin` sends the PSDU in the file and `--data 0x0802...`
+the octets it spells. A source ends when its data does, as every data source
+does.
+
+The rate is one number, the 20 MHz data rate in Mb/s of Table 17-6: 6, 9, 12,
+18, 24, 36, 48 or 54. It is a second spelling of `--constellation` and
+`--code-rate`, and the two give the same bytes:
+
+```sh
+wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac fcs \
+       --data pn:800:15 --data-len 800 -o rate.cf32
+wfmgen --type ofdm --fs 20e6 --constellation qam16 --code-rate 3/4 \
+       --scrambler-init 93 --mac fcs --data pn:800:15 --data-len 800 \
+       -o pair.cf32
+cmp rate.cf32 pair.cf32
+```
+
+`--mac fcs` treats the octets as an MPDU without its FCS and appends it. With
+`--scrambler-init 0` (the default) each PPDU draws its scrambler's initial
+state from `--seed` and its index, so a run is reproducible and a resumed
+run re-renders the same PPDU.
+
+`--fs` is a multiple of `--bandwidth` (20 MHz unless given, 10 or 5 for the
+half- and quarter-clocked channels). The multiple is done by a larger
+transform, not a resampler, so with `--window 0` every second sample of the
+40 MHz PPDU is the 20 MHz one, to float rounding (a window blends the
+neighbours of each symbol boundary, so it is not). `--window N` is the
+transition window in samples at the output rate, at most 80 times the
+multiple. Left out it is the standard's 100 ns transition, `2 * fs / bandwidth` samples (`wlan`'s default at the same oversampling), and `--window 0` is no transition shaping at all. A scene or a record written from the
+source holds the count, so it renders the same samples under any later
+default. `--gap N` is `N` idle samples after each PPDU. A source with `--snr`
+puts its noise in the gap too, at the variance the PPDU carries, so a gap is
+a silent stretch of the channel and not a hole in it.
+
+The default window is what meets the 802.11 transmit mask when oversampled.
+Measured at `fs` = 80 MHz (`M` = 4): `--window 0` reads -35.4 dBr at 30 MHz
+against the mask's -40, and the default window of 2 `M` samples (8 there)
+passes every point; the measurement is in
+`src/doppler/wlan/tests/validation/wlan/results.md` (finding
+`default_window_fails_mask`). At 40 MHz the mask is representable to 20 MHz
+only, since 30 MHz is above Nyquist.
+
+```sh
+wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --gap 400 \
+       --snr 20 --seed 7 --data pn:3200:15 --data-len 1600 -o oversampled.cf32
+```
+
+A source that wants no transition shaping, the rectangular window, asks for
+it:
+
+```sh
+wfmgen --type ofdm --fs 40e6 --bandwidth 20e6 --wlan 54 --window 0 --gap 400 \
+       --snr 20 --seed 7 --data pn:3200:15 --data-len 1600 -o rect.cf32
+```
+
+The noise reference is the signal power over the noise power in the full
+band, so `--snr-mode auto` and `fs` mean the same, and `esno` and `ebno` are
+refused: they ask for a symbol rate this waveform does not have. So are
+`--sps`, `--pulse` and the other options of a symbol-rate stream, and a
+frame description: the PHY builds its own fields. `--wlan` is refused beside
+`--constellation` or `--code-rate`, beside a bandwidth other than 20 MHz,
+and on any other type.
+
+`--mac data` takes the header from `--mac-header`, a [Field](fields.md) of
+whole octets (24, or 30 with the fourth address; a hex Field `0x0802...` is
+the octets it spells), and sends the PPDU of the header, the frame's octets
+and the FCS. The 36 Mb/s PPDU of a 100-octet body behind a 24-octet header
+(Frame Control, Duration, three addresses, Sequence Control):
+
+```sh
+wfmgen --type ofdm --fs 20e6 --wlan 36 --scrambler-init 93 --mac data \
+       --mac-header 0x08020000ffffffffffff0200000000010200000000020000 \
+       --data pn:800:15 --data-len 800 -o macdata.cf32
+```
+
+`--mac-header` is refused with `--mac none` or `--mac fcs`, and `--mac data`
+is refused without it, with a header that is not 24 or 30 octets, or whose
+Field does not build.
+
+From Python the same source is keywords (`mac_header` and `data` take bit
+arrays). The example below, `src/doppler/examples/wfmgen_ofdm_demo.py` (its C
+twin is `native/examples/wfmgen_ofdm_demo.c`), builds two PPDUs from one body
+and holds them to `Wlan.ppdu` of the same octets, the FCS computed with
+`zlib`:
+
+```python
+--8<-- "src/doppler/examples/wfmgen_ofdm_demo.py:ofdm"
+```
+
 ## Coded frames — `--frame FILE`
 
 A **coded** frame is a description, and `--frame FILE` is how `wfmgen` takes
@@ -1257,7 +1354,7 @@ own copy, and `frame=` is an input: read it back from `Composer.to_json()`.
 --8<-- "src/doppler/examples/wfmgen_frame_demo.py:frame"
 ```
 
-The whole script, [`src/doppler/examples/wfmgen_frame_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.83.0/src/doppler/examples/wfmgen_frame_demo.py), checks that
+The whole script, [`src/doppler/examples/wfmgen_frame_demo.py`](https://github.com/doppler-dsp/doppler/blob/v0.84.0/src/doppler/examples/wfmgen_frame_demo.py), checks that
 the frame reaches the samples and that the record rebuilds them; its C twin
 is `native/examples/wfmgen_frame_demo.c`.
 

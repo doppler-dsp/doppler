@@ -33,7 +33,8 @@ set(WFM_PLAN_DSP_SOURCES
     ${CMAKE_SOURCE_DIR}/native/src/lo/lo_core.c
     ${CMAKE_SOURCE_DIR}/native/src/nco/nco_core.c
     ${CMAKE_SOURCE_DIR}/native/src/awgn/awgn_core.c
-    ${CMAKE_SOURCE_DIR}/native/src/pn/pn_core.c)
+    ${CMAKE_SOURCE_DIR}/native/src/pn/pn_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/wlan/wlan_core.c)
 set(_wfm_plan_dsp_concat "")
 foreach(_f ${WFM_PLAN_DSP_SOURCES})
     file(SHA256 "${_f}" _wfm_plan_dsp_h)
@@ -68,6 +69,7 @@ target_include_directories(wfm_compose_core PUBLIC
 # wfm_plan.c fans the per-source signal build across cores (dp_parallel.h);
 # Threads::Threads (located once at the top-level CMakeLists) is PUBLIC so the
 # tests and the .so that link this object library pick up -pthread transitively.
+# the ofdm source type renders its PPDUs through wlan (wfm_synth_bridge.c)
 target_link_libraries(wfm_compose_core PUBLIC ${DP_MATH_LIBRARY} Threads::Threads)
 
 # The pull that replaces the cycle: a synth fed frame by frame from a data
@@ -76,7 +78,7 @@ target_link_libraries(wfm_compose_core PUBLIC ${DP_MATH_LIBRARY} Threads::Thread
 add_executable(test_wfm_synth_data
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_data.c)
 target_link_libraries(test_wfm_synth_data PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -85,11 +87,40 @@ target_include_directories(test_wfm_synth_data PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_synth_data COMMAND test_wfm_synth_data)
 
+# The frame renderer: a WFM_SYNTH_FRAMES synth plays finished frames of samples
+# drawn from a frame callback (dp_wfm_synth_attach_frames). Linked as the data test
+# is, because the synth's noise add lives with the composer's DSP.
+add_executable(test_wfm_synth_frames
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_frames.c)
+target_link_libraries(test_wfm_synth_frames PRIVATE
+    wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    ccsds_tm_core conv_core rs_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
+    ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_synth_frames PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_wfm_synth_frames COMMAND test_wfm_synth_frames)
+
+# The ofdm source type through the bridge: a data source's octets become the
+# PPDUs wlan builds, with the refusals every face shares.
+add_executable(test_wfm_ofdm_bridge
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_ofdm_bridge.c)
+target_link_libraries(test_wfm_ofdm_bridge PRIVATE
+    wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    ccsds_tm_core conv_core rs_core
+    wfm_synth_core lo_core awgn_core
+    pn_core gold_core fir_core resamp_core
+    ${DP_MATH_LIBRARY})
+target_include_directories(test_wfm_ofdm_bridge PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_wfm_ofdm_bridge COMMAND test_wfm_ofdm_bridge)
+
 add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -105,7 +136,7 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 add_executable(bench_wfm_compose_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/wfm_compose/bench_wfm_compose_core.c)
 target_link_libraries(bench_wfm_compose_core PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -120,7 +151,7 @@ target_include_directories(bench_wfm_compose_core PRIVATE
 add_executable(test_wfm_plan
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
 target_link_libraries(test_wfm_plan PRIVATE
-    wfm_compose_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
+    wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_dsp_core wfm_frame_core cvt_core wfm_cjson_core
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
@@ -387,7 +418,7 @@ if(DP_WITH_STREAM) # the CLI links the stream layer (#1575)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
         wfmgen_core
-        wfm_compose_core doppler_channel_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
+        wfm_compose_core wlan_core ofdm_core fft_core conv_core mpsk_core doppler_channel_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
         wfm_dsp_core wfm_frame_core ccsds_tm_core conv_core rs_core wfm_synth_core lo_core awgn_core pn_core gold_core fir_core resamp_core
         cvt_core  # bytes_to_bin: --bits-file
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>

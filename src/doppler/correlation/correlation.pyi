@@ -6,6 +6,9 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 
 CORRELATOR_FLAVOR: dict[int, str]
+"""Names of the correlator_flavor values, keyed by code (DP_CORRELATOR_1D ..
+DP_CORRELATOR_SEARCH_BURST).
+"""
 
 @final
 class Correlator:
@@ -38,7 +41,7 @@ class Correlator:
         Detection threshold on peak / noise; default 0.
     noise_lo : int, default 0
         First noise bin; default 0.
-    noise_hi : int
+    noise_hi : int, default (unsigned long long)-1ULL
         Last noise bin; default SIZE_MAX, the last bin.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         How the noise bins are aggregated into the floor the test statistic
@@ -54,7 +57,7 @@ class Correlator:
         known data clock.
     reps : int, default 1
         Preamble repetitions a burst holds (the burst search).
-    cn0_dbhz : float
+    cn0_dbhz : float, default DP_CORRELATOR_CN0_NONE
         Design-point C/N0, dB-Hz; default DP_CORRELATOR_CN0_NONE (NaN, none).
         The continuous search needs a finite one.
     doppler_uncertainty : float, default 0.0
@@ -1074,24 +1077,30 @@ class Correlator:
         """Set how many threads the searcher fans its stages across
         (docs/design/acq-surface.md §13, §18.3: persistent workers).
 
-        A continuous engine is created with a pool of the machine's online
-        cores when it has more than one tile; a burst engine, and a single-tile
-        one, run serially. This sets the count: 0 auto-selects the online core
-        count, 1 runs everything on the calling thread, n runs on n workers
-        (the caller included). At a depth of one epoch (D = 1) the count is
-        capped at `window_bins`: every per-epoch fan hands out one tile a task,
-        so a worker past that only wakes and waits. At D > 1 every stage fans
-        finer than tiles (epochs, capture bins, rows, chunks of rows), so the
-        count is taken whole, and each worker holds its own FFT plans and
-        scratch: memory grows with the count. The request is kept, and every
-        regrid re-applies it, so an engine narrowed to one tile and widened
-        again runs on the request, not on the 1 the narrow grid ran on. The
-        workers are created here, once, and parked between pushes; nothing is
-        created per push. The surface is bit-identical at every count -- every
-        output row and every decide chunk is computed whole by one worker, and
-        the chunk count is the grid's -- so this changes the cost of a push and
-        nothing about its result. Setup path, never hot; not while another
-        thread is inside push().
+        A continuous engine is created asking for the machine's online cores,
+        except with one tile at a depth of one epoch, which runs serially; a
+        burst engine runs serially until asked. Its workers start at its first
+        push, so an engine set to one thread before it is pushed never starts
+        any. This sets the count: 0 auto-selects the online core count, 1 runs
+        everything on the calling thread, n runs on n workers (the caller
+        included). At a depth of one epoch (D = 1) the count is capped at
+        `window_bins`: every per-epoch fan hands out one tile a task, so a
+        worker past that only wakes and waits. At D > 1 every stage fans finer
+        than tiles (epochs, capture bins, rows, chunks of rows), so the count
+        is taken whole, and each worker holds its own FFT plans and scratch:
+        memory grows with the count. The request is kept, and every regrid
+        re-applies it, so an engine narrowed to one tile and widened again runs
+        on the request, not on the 1 the narrow grid ran on. The workers are
+        created here, once, and parked between pushes; nothing is created per
+        push after the first. The surface is bit-identical at every count --
+        every output row and every decide chunk is computed whole by one
+        worker, and the chunk count is the grid's -- so this changes the cost
+        of a push and nothing about its result. The request travels in the
+        state blob (a mutator's value, #2022): dp_correlator_set_state()
+        applies it through this call, so the target resolves it as it would
+        here: 0 becomes the target's own online cores, an explicit n is taken
+        whole, and either is capped at the target's tiles only at D = 1. Setup
+        path, never hot; not while another thread is inside push().
 
         Parameters
         ----------
@@ -1168,7 +1177,7 @@ class Correlator:
             Telemetry context to attach, or NULL to detach.
         prefix : str
             Probe-name prefix, e.g. "acq" or "ch0.acq".
-        decim : int
+        decim : int, default 1
             Emit every decim-th decided dwell; >= 1. Refused
             (DP_ERR_UNSUPPORTED) on every flavor but the continuous search
             (docs/design/correlator.md section 4).

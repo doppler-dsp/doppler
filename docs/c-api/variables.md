@@ -115,6 +115,13 @@
 * **MODE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
 
+## o
+
+* **OFDM\_CODE\_RATE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+* **OFDM\_CONSTELLATION\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+* **OFDM\_MAC\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
+
+
 ## p
 
 * **pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04** ([**pn\_core.h**](pn__core_8h.md))
@@ -190,6 +197,7 @@
 * **wfm\_t0\_source\_t** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **wfm\_\_synth\_\_core\_8h\_1a05589fbab0657f08285ebdfe93f5ec9e** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_\_synth\_\_core\_8h\_1a16af7b253440dadd46a80a4b9fddba4d** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_frame\_fn** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_refill\_fn** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_filetype\_t** ([**wfm\_writer\_core.h**](wfm__writer__core_8h.md))
 

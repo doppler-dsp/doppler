@@ -69,7 +69,7 @@ params = [
 
 [[ofdm.methods]]
 name = "add_fixed"
-doc = "Append one fixed entry to a class: a pilot, a training value, a boosted pilot. `phase` is the pattern phase it belongs to, or 4294967295 for every phase. `k` is the subcarrier, from `-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its subcarrier in its phase, and is multiplied by the class's polarity element for the OFDM symbol."
+doc = "Append one fixed entry to a class: a pilot, a training value, a boosted pilot. `phase` is the pattern phase it belongs to, or 2**32 - 1 (`OFDM_ALL_PHASES` in C) for every phase. `k` is the subcarrier, from `-n_fft/2` to `n_fft/2 - 1`. A fixed entry displaces data on its subcarrier in its phase, and is multiplied by the class's polarity element for the OFDM symbol."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -84,7 +84,7 @@ params = [
 
 [[ofdm.methods]]
 name = "add_run"
-doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (4294967295 keeps it); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
+doc = "Append a run of `count` OFDM symbols of one class. `cyclic_prefix` overrides the class's prefix for this run (omit it, or give `OFDM_CP_DEFAULT` = 4294967295 = 2**32 - 1, to keep the class's); `polarity_offset` is the class's polarity element used by the run's first symbol; `first_phase` is the pattern phase of the run's first symbol. Returns the run's index."
 arg_type = "void"
 return_type = "int"
 error_negative = true
@@ -93,16 +93,21 @@ error_message = "cannot append a run: class_index names no class, count is 0, fi
 params = [
     { name = "class_index", type = "uint32_t" },
     { name = "count", type = "uint32_t" },
-    { name = "cyclic_prefix", type = "uint32_t", default = "4294967295" },
+    { name = "cyclic_prefix", type = "uint32_t", default = "OFDM_CP_DEFAULT" },
     { name = "polarity_offset", type = "uint32_t", default = "0" },
     { name = "first_phase", type = "uint32_t", default = "0" },
 ]
 
 [[ofdm.methods]]
 name = "check"
-doc = "Check the whole layout and return 0 if it is usable, or a negative value if not (no run, a window longer than an OFDM symbol, two fixed entries on one subcarrier in one phase). `modulate` checks on first use and returns an empty array for a layout that fails; call this to find out why before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
+doc = "Check the whole layout and return 0 if it is usable; raise ValueError, with a sentence naming the condition, if not (no run, a window longer than an OFDM symbol of its class, two fixed entries on one subcarrier in one phase, or memory or a transform plan that could not be built). `modulate` checks on first use and raises `ValueError`, with the same sentence, for a layout that fails; call this first to learn it before any points exist. Adding a class, fixed entry or run to a checked layout re-opens it, keeping the position and the held window tail, so a signal can be extended while it is rendered; the next `modulate` checks the longer layout."
 arg_type = "void"
 return_type = "int"
+fn = "dp_ofdm_check_why"
+why = true
+status_return = true
+error = "ValueError"
+error_message = "the layout is not usable"
 
 [[ofdm.methods]]
 name = "points_remaining"
@@ -112,11 +117,21 @@ return_type = "size_t"
 
 [[ofdm.methods]]
 name = "modulate"
-doc = "Render OFDM symbols from constellation points, in layout order, and return the samples. Each OFDM symbol takes its data count from the points: its data subcarriers less those a fixed entry displaces in its pattern phase. Rendering stops when the next OFDM symbol needs more points than remain; OFDM symbols that need none (training fields) render. A point count that ends inside an OFDM symbol is refused, the modulator untouched, and returns an empty array. The window tail of the last OFDM symbol is held for the next call; `finish` returns it."
+doc = "Render OFDM symbols from constellation points, in layout order, and return the samples. Each OFDM symbol takes its data count from the points: its data subcarriers less those a fixed entry displaces in its pattern phase. Rendering stops when the next OFDM symbol needs more points than remain; OFDM symbols that need none (training fields) render. A refused call (an unusable layout, a point count that ends inside an OFDM symbol or runs past the layout, a buffer too short) raises `ValueError` saying which, the modulator untouched. The window tail of the last OFDM symbol is held for the next call; `finish` returns it."
 arg_type = "float _Complex"
 return_type = "float _Complex"
+fn = "dp_ofdm_modulate_why"
+# the capacity function the binding calls, by name (just-makeit#2680)
+max_out_fn = "dp_ofdm_modulate_max_out"
 variable_output = true
 pass_capacity = true
+# 0 samples is a valid answer (no points at the end of the layout), so the
+# refusal is the negative count, and the sentence comes from the kernel.
+count_type = "int64_t"
+error_negative = true
+why = true
+error = "ValueError"
+error_message = "modulate refused"
 
 [[ofdm.methods]]
 name = "finish"

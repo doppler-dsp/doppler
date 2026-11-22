@@ -135,8 +135,12 @@ anything.
 
 Never in a blob:
 
-- **Handles to the outside world:** telemetry sinks, event logs, thread
-    counts, refill callbacks.
+- **Handles to the outside world:** telemetry sinks, event logs, a
+    worker pool and its threads, refill callbacks. The thread count a
+    caller requested is a mutator's value and travels (rule 2); the target
+    builds its own workers from it as its setter would: a request of 0
+    becomes the target's own online cores, and an explicit count is taken
+    as asked.
 - **Addresses:** a pointer `create()` re-establishes.
 - **The wall clock.**
 

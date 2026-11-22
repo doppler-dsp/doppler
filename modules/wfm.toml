@@ -1,4 +1,5 @@
 [module.wfm]
+applied_reexports = ["compose", "sample_clock", "stage_kinds", "wfm_reader", "wfm_sink", "wfm_writer"]
 doc = """
 Waveform generation: PN and CCSDS Gold code generators (PN, Gold) and a configurable modulated-symbol synthesizer, with BLUE/SigMF writers and readers re-exported.
 

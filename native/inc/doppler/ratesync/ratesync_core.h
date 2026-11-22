@@ -504,7 +504,14 @@ extern "C"
    * @param num_phases  Matched-filter arms; power of two (1024 is a good
    *                    default). Sets the fractional-timing resolution to
    *                    `1/num_phases` of an output period.
-   * @param bn          Loop noise bandwidth, normalised to the symbol rate.
+   * @param bn          Loop noise bandwidth, normalised to the symbol rate,
+ *                    of the closed loop given a unit-slope detector (see
+ *                    LoopFilter). The detector is normalised by its own
+ *                    slope against the pulse, which makes the slope 1 at
+ *                    UNIT symbol amplitude only: Gardner's goes as the
+ *                    amplitude squared and DTTL's as the amplitude, so a
+ *                    quarter-amplitude stream runs a Gardner loop at 1/16
+ *                    of `bn`.
    * @param zeta        Damping factor (1.0 = critical; 0.707 usual).
    * @param ted         RATESYNC_TED_GARDNER (blind) or RATESYNC_TED_DTTL
    *                    (decision-directed; BPSK/QPSK only).

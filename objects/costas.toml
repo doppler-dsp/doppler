@@ -21,6 +21,7 @@ fragment = "generated"
 name = "bn"
 type = "double"
 default = "0.05"
+doc = "Loop noise bandwidth, of the closed loop given a unit-slope detector (see LoopFilter). The detector's slope is 1 per radian at every signal level and falls below 1 as the SNR per symbol falls (about 0.6 at 0 dB for BPSK), so the delivered loop is narrower at low SNR."
 
 [[costas.init_params]]
 name = "zeta"

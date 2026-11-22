@@ -1,0 +1,13 @@
+control no-emitter 2.2 GHz 10.0 dB seed 1 bn 0.01199: PASS, no flag sustains
+control no-emitter 2.2 GHz 4.0 dB seed 1 bn 0.01199: PASS, no flag sustains
+control no-emitter 2.8 GHz 10.0 dB seed 1 bn 0.009421: PASS, no flag sustains
+control no-emitter 2.8 GHz 4.0 dB seed 1 bn 0.009421: PASS, no flag sustains
+control no-emitter 2.2 GHz 10.0 dB seed 1 bn 0.04: PASS, no flag sustains
+control no-emitter 2.2 GHz 4.0 dB seed 1 bn 0.04: PASS, no flag sustains
+control no-emitter 2.8 GHz 10.0 dB seed 1 bn 0.009421: PASS, no flag sustains
+control no-emitter 2.8 GHz 4.0 dB seed 1 bn 0.009421: PASS, no flag sustains
+control carrier-null 2.2 GHz 10.0 dB seed 1 bn 0 (pull-in 0 Hz): PASS, it does not work: the symbol flag never sustains; code never sustains, symbol never sustains, SER 0 / 0
+control carrier-null 2.2 GHz 4.0 dB seed 1 bn 0 (pull-in 0 Hz): PASS, it does not work: the symbol flag never sustains; code never sustains, symbol never sustains, SER 0 / 0
+control carrier-null 2.8 GHz 10.0 dB seed 1 bn 0 (pull-in 0 Hz): PASS, it does not work: the symbol flag never sustains; code never sustains, symbol never sustains, SER 0 / 0
+control opened-loop 2.2 GHz 10.0 dB seed 1 bn 0 (pull-in 0 Hz): PASS, it does not work: the carrier flag never sustains; code sustains, symbol sustains, SER 0 / 0
+control opened-loop 2.8 GHz 10.0 dB seed 1 bn 0 (pull-in 0 Hz): PASS, it does not work: the carrier flag never sustains; code sustains, symbol sustains, SER 0 / 0

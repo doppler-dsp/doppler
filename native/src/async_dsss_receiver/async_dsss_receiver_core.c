@@ -458,18 +458,25 @@ adr_build_refine_chain (
    * is used as-is rather than re-derived). */
   dp_carrier_acq_state_t *ca = adr_new_carrier_acq (s, target_rate);
 
-  float _Complex *dll_out_buf
-      = dp_xmallocn (s->refine_segments, sizeof (*dll_out_buf));
+  /* The refine Dll's output, sized at the most one call can emit:
+     adr_refine_period() feeds a code period's samples a call, and such a
+     call holds two epoch ends whenever the boundary sits on its edge, so
+     two periods' dumps. dp_dll_steps() stops emitting at max_out and drops
+     the rest silently (#3282), so one period's capacity lost a whole period
+     of partials there (#3281). Sized as the tracking path's is
+     (adr_size_track_scratch()): tsamps, at most one dump a sample. */
+  float _Complex *dll_out_buf = dp_xmallocn (s->tsamps, sizeof (*dll_out_buf));
 
-  size_t rc_out_cap
-      = (size_t)((double)s->refine_segments * refine_rc->rate) + 64;
+  /* The converter's output for that many dumps in one call, its rate times
+     the input plus its own margin, as the tracking path's. */
+  size_t rc_out_cap = (size_t)((double)s->tsamps * refine_rc->rate) + 64;
   float _Complex *rc_out_buf = dp_xmallocn (rc_out_cap, sizeof (*rc_out_buf));
 
   *refine_dll_out  = refine_dll;
   *refine_rc_out   = refine_rc;
   *ca_out          = ca;
   *dll_out_buf_out = dll_out_buf;
-  *dll_out_cap_out = s->refine_segments;
+  *dll_out_cap_out = s->tsamps;
   *rc_out_buf_out  = rc_out_buf;
   *rc_out_cap_out  = rc_out_cap;
 }

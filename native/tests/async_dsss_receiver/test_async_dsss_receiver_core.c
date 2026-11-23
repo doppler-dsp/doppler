@@ -53,6 +53,7 @@
 #include "doppler/dp_complex.h"
 #include "doppler/wfm/wfm_dsp.h" /* dp_wfm_cont_dsss_chips: the wfmgen C API       */
 #include "doppler/wfm_synth/wfm_synth_core.h"
+#include <limits.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -2072,16 +2073,34 @@ _test_fine_design (void)
  * 3,000 symbols a second, 50 dB-Hz, the carrier 500 Hz off, the refine
  * seeded at 1,700 Hz: a seed error of 1,200 Hz, past a whole-period sum's
  * unambiguous 1/(4T) (781 Hz), inside K's range (K 9 here, 7,031 Hz). The
- * hand-over is the fine estimate's (ho_src 3) and within 2 Hz of the truth.
- * The control: noise alone, seeded the same, refuses the fine check and hands
- * over from another source. Sabotage: K forced to 1 (the dumps summed to the
- * whole period) -> the estimate lands one image off (about 1,563 Hz), red;
- * the check's 2.51 dB dropped -> the noise control passes the check more
- * often (at this pfa, not on one draw: the threshold's own pin is
- * _test_fine_design's thr_db). */
+ * hand-over is the fine estimate's (ho_src 3) and, on this one draw, within
+ * three of the fine design's own sd of the truth (fine.sd_hz: 7.26 Hz here,
+ * 0.58 Hz for the sequential fixture's longer dwell; 3 sd is 99.7% of a
+ * Gaussian estimate, a coverage choice, and one draw cannot tell an sd of 5
+ * from 15: the refine path's sizing has its own deterministic pin,
+ * _test_refine_keeps_every_dump). The control: noise alone, seeded the same,
+ * refuses the fine check and hands over from another source. Sabotage: K
+ * forced to 1 (the dumps summed to the whole period) -> the estimate lands one
+ * image off (about 1,563 Hz), red; the check's 2.51 dB dropped -> the noise
+ * control passes the check more often (at this pfa, not on one draw: the
+ * threshold's own pin is _test_fine_design's thr_db). */
+/* What _fine_run reads of the refine path while it refines (NULL: not
+   read): the fine design's sd; whether the refine Dll's epoch boundary
+   crossed a call's edge (its code phase ahead wrapping from the period's
+   top half to its bottom half between two calls: a call that then holds two
+   epoch ends); and, while the fine buffer is not full, the least and most
+   of fine_n less fine.k sums for every whole period fed. */
+typedef struct
+{
+  double sd_hz;
+  int    crossed;
+  long   k, lag_min, lag_max;
+} fine_trace_t;
+
 static int
 _fine_run (int signal, int sequential, double *ho_hz, int *src,
-           size_t *fired_at, double *t_track, size_t *fine_blocks)
+           size_t *fired_at, double *t_track, size_t *fine_blocks,
+           fine_trace_t *tr)
 {
   const size_t sf = 1023, spc = 3;
   const double chip = 3.2e6, fs = chip * (double)spc, sym = 3000.0;
@@ -2113,9 +2132,29 @@ _fine_run (int signal, int sequential, double *ho_hz, int *src,
   size_t          pos = 0;
   *fired_at           = 0;
   *fine_blocks        = rx->fine.blocks;
+  double ahead        = NAN;
+  if (tr)
+    {
+      tr->sd_hz   = rx->fine.sd_hz;
+      tr->k       = rx->fine.k;
+      tr->crossed = 0;
+      tr->lag_min = LONG_MAX;
+      tr->lag_max = LONG_MIN;
+    }
   for (; pos + te <= n && rx->state != ASYNC_DSSS_RX_TRACKING; pos += te)
     {
       (void)dp_async_dsss_receiver_steps (rx, x + pos, te, out, n);
+      if (tr && rx->state == ASYNC_DSSS_RX_REFINING && rx->refine_dll
+          && rx->fine_n < rx->fine_cap)
+        {
+          const double a = dp_dll_get_code_phase_ahead (rx->refine_dll, 0);
+          tr->crossed |= ahead > 0.5 * (double)sf && a < 0.5 * (double)sf;
+          ahead = a;
+          const long lag
+              = (long)rx->fine_n - (long)rx->fine.k * (long)(pos / te);
+          tr->lag_min = lag < tr->lag_min ? lag : tr->lag_min;
+          tr->lag_max = lag > tr->lag_max ? lag : tr->lag_max;
+        }
       /* The block CarrierAcquisition fired on, read while refining (the
          hand-over rebuilds the chain). */
       if (!*fired_at && rx->state == ASYNC_DSSS_RX_REFINING && rx->ca->ready)
@@ -2366,13 +2405,14 @@ _test_fine_seed_bound (void)
 static int
 _test_fine_hands_over (void)
 {
-  double hz, tt;
-  int    src;
-  size_t fired, fb;
-  DP_CHECK (_fine_run (1, 0, &hz, &src, &fired, &tt, &fb) == 1);
+  double       hz, tt;
+  int          src;
+  size_t       fired, fb;
+  fine_trace_t tr;
+  DP_CHECK (_fine_run (1, 0, &hz, &src, &fired, &tt, &fb, &tr) == 1);
   DP_CHECK (src == ASYNC_DSSS_RX_HO_FINE);
-  DP_CHECK (fabs (hz - 500.0) < 2.0);
-  DP_CHECK (_fine_run (0, 0, &hz, &src, &fired, &tt, &fb) == 1);
+  DP_CHECK (fabs (hz - 500.0) < 3.0 * tr.sd_hz);
+  DP_CHECK (_fine_run (0, 0, &hz, &src, &fired, &tt, &fb, NULL) == 1);
   DP_CHECK (src != ASYNC_DSSS_RX_HO_FINE);
   return 0;
 }
@@ -2391,10 +2431,11 @@ _test_fine_hands_over (void)
 static int
 _test_sequential_refine_waits_out_the_fine_dwell (void)
 {
-  double    hz, tt;
-  int       src;
-  size_t    fired, fb;
-  const int tracking = _fine_run (1, 1, &hz, &src, &fired, &tt, &fb);
+  double       hz, tt;
+  int          src;
+  size_t       fired, fb;
+  fine_trace_t tr;
+  const int    tracking = _fine_run (1, 1, &hz, &src, &fired, &tt, &fb, &tr);
   printf ("  sequential refine: the estimator fired at block %zu of the "
           "fine dwell's %zu; tracking %d at %.3f s, ho_src %d at %.2f Hz\n",
           fired, fb, tracking, tt, src, hz);
@@ -2403,7 +2444,38 @@ _test_sequential_refine_waits_out_the_fine_dwell (void)
   DP_CHECK_MSG (tracking, "a sequential refine that fired early still "
                           "leaves refining");
   DP_CHECK (src == ASYNC_DSSS_RX_HO_FINE);
-  DP_CHECK (fabs (hz - 500.0) < 2.0);
+  DP_CHECK (fabs (hz - 500.0) < 3.0 * tr.sd_hz);
+  return 0;
+}
+
+/* The refine path keeps every dump (#3281). adr_refine_period() feeds the
+ * refine Dll a code period's samples a call, and such a call holds two
+ * epoch ends whenever the boundary sits on its edge: its output must take
+ * two periods' dumps, or dp_dll_steps() drops the second period's
+ * silently (#3282) and the fine buffer, which assumes contiguous sums, gets
+ * a phase step (a 6 Hz hand-over error at 10 of the design's sd, before
+ * the fix). The sequential fixture sits on that edge (seeded at chip 0,
+ * period-long calls): the premise, a DP_REQUIRE, is that its epoch
+ * boundary crossed a call's edge while the fine buffer filled. The claim:
+ * after c whole periods the buffer holds fine.k c sums, or fine.k (c + 1)
+ * when the last call held two epoch ends, and never fewer. Sabotage: the
+ * refine Dll's output back to refine_segments -> the two-ends call keeps
+ * one period, the count falls fine.k behind for good, red. */
+static int
+_test_refine_keeps_every_dump (void)
+{
+  double       hz, tt;
+  int          src;
+  size_t       fired, fb;
+  fine_trace_t tr;
+  (void)_fine_run (1, 1, &hz, &src, &fired, &tt, &fb, &tr);
+  printf ("  refine dumps: the epoch crossed a call edge %d; fine_n less "
+          "fine.k a period %ld to %ld\n",
+          tr.crossed, tr.lag_min, tr.lag_max);
+  DP_REQUIRE_MSG (tr.crossed, "the fixture's refine Dll crosses a call's "
+                              "edge while the fine buffer fills");
+  DP_CHECK_MSG (tr.lag_min >= 0, "no call's dumps are dropped");
+  DP_CHECK_MSG (tr.lag_max <= tr.k, "no call emits more than its epochs");
   return 0;
 }
 
@@ -7099,6 +7171,7 @@ main (void)
   DP_CHECK (_test_near_far_levels () == 0);
   DP_CHECK (_test_fine_hands_over () == 0);
   DP_CHECK (_test_sequential_refine_waits_out_the_fine_dwell () == 0);
+  DP_CHECK (_test_refine_keeps_every_dump () == 0);
   DP_CHECK (_test_sequential_handover_on_a_ramp () == 0);
   (void)_test_reacquire_clock_restarts_on_lock ();
   (void)_test_configure_chain_raw_keeps_the_carrier ();

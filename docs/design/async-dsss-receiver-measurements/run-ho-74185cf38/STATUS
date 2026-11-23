@@ -1,0 +1,4 @@
+head 74185cf38 test(async_dsss_pool): the ghost validator reads SECOND's hand-over dirty=0 start 07:32:40
+build rc=0 07:32:41
+handover done 07:33:14 exits:       2 0
+done 07:33:14

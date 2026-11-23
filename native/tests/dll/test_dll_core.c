@@ -1384,6 +1384,48 @@ a_blob_taken_mid_hold_resumes (void)
   return fails;
 }
 
+/* The inclusive upper edge of the remainder is one the object produces, not
+ * only one the range check accepts. A command f in [-2^-53, 0) has floor -1,
+ * and f - floor(f) rounds to exactly 1.0, so the dropped remainder is the
+ * whole step 2^-32: dll_set_inc() is public and takes any finite command,
+ * and through dll_steer() the edge needs the loop's command to cancel the
+ * carried remainder to within 2^-53 (a measure-zero case, but one the bound
+ * must hold). The blob it makes is accepted and resumes bit for bit; one
+ * ulp past it is refused. Sabotaged: the range check's `<=` made `<` -- the
+ * blob is refused. */
+static int
+the_remainders_upper_edge_is_produced_and_accepted (void)
+{
+  int          fails = 0;
+  const size_t sf    = 31;
+  const double step  = 1.0 / 4294967296.0;
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 7u);
+  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
+  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
+  DP_REQUIRE (code && a && b);
+  a->inc_resid = 0.0;
+  dll_set_inc (a, -1e-20);
+  DP_CHECK_MSG (a->inc_resid == step,
+                "a command just under zero leaves exactly one step to carry");
+  void *blob = malloc (dp_dll_state_bytes (a));
+  DP_REQUIRE (blob);
+  dp_dll_get_state (a, blob);
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_OK,
+                "the edge the object produces is accepted");
+  DP_CHECK_MSG (b->inc_resid == step, "and resumes bit for bit");
+  dp_dll_state_t *in
+      = (dp_dll_state_t *)((char *)blob + sizeof (dp_state_hdr_t));
+  in->inc_resid = nextafter (step, 1.0);
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
+                "one ulp past the edge is refused");
+  free (blob);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  free (code);
+  return fails;
+}
+
 /* A blob from before the remainder was carried (version 16) is refused, and
  * so is a carried remainder no conversion could have dropped: it is added to
  * the next steer's frequency, so a forged value is a forged rate. */
@@ -2731,8 +2773,9 @@ main (void)
        so what is left is the aid's extra, 2.52 chips. */
     adv               = fmod (adv, (double)sf);
     const double want = 200.0 * (double)sf * aid;
-    DP_CHECK_MSG (fabs (adv - want) < 0.05,
-                  "held, a new rate aid moves the code rate at once");
+    DP_CHECK_MSG (
+        fabs (adv - want) < 0.05,
+        "held, a new rate aid moves the code rate from the next boundary");
     DP_CHECK (dp_dll_get_code_rate (d) == 1.0); /* the loop's own observable */
     (void)n;
     dp_dll_destroy (d);
@@ -2817,6 +2860,7 @@ main (void)
   DP_CHECK (a_hold_follows_its_rate_to_a_step (6285, 5, 0) == 0);
   DP_CHECK (a_hold_follows_its_rate_to_a_step (6285, 5, 1) == 0);
   DP_CHECK (a_blob_taken_mid_hold_resumes () == 0);
+  DP_CHECK (the_remainders_upper_edge_is_produced_and_accepted () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

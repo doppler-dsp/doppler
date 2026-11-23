@@ -1963,23 +1963,29 @@ class Dll:
         on top of the loop's own control. For physically-coupled Doppler, pass
         carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate
         dilation the discriminator alone can't pull in at low SNR. Applied
-        continuously across the epoch (not a phase pulse), and nudges the
-        current phase_inc so the aid takes effect before the first period
-        update. code_rate stays the loop's own observable and is unaffected.
+        continuously across the epoch (not a phase pulse). The call only stores
+        the aid: it reaches phase_inc at the next steer (a period boundary),
+        and until then the NCO runs the increment it already has (the last
+        steer's, or the nominal one on a fresh or seeded loop). code_rate stays
+        the loop's own observable and is unaffected.
 
         A fixed fractional rate bias summed into the sample-and-hold
         `phase_inc` on top of the loop's own control every epoch -- for
         physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so
         the code NCO rides the code-rate dilation the discriminator alone can't
         pull in at low SNR. Applied continuously across the epoch (via
-        `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`
-        so the aid takes effect before the first period update. `code_rate`
-        stays the loop's own observable and is unaffected. A HELD loop
-        (dp_dll_set_coast()) takes the new aid at its next period boundary,
-        where the held rate is converted with the aid in it: a holder that
-        refreshes the Doppler it holds (a searcher-timed receiver's fold) sees
-        the code rate follow, and refreshing it any number of times within a
-        period changes nothing a conversion carries.
+        `phase_inc`), not as a phase pulse. The call only stores the aid: it
+        reaches `phase_inc` at the next steer (a period boundary), and until
+        then the NCO runs the increment it already has -- the last steer's on a
+        loop that has been running, the nominal `1 / (sf * sps)` on a fresh or
+        seeded one. Calling it every period, as a carrier-aided receiver does,
+        therefore leads the NCO by one update. `code_rate` stays the loop's own
+        observable and is unaffected. A HELD loop (dp_dll_set_coast()) takes
+        the new aid at its next period boundary, where the held rate is
+        converted with the aid in it: a holder that refreshes the Doppler it
+        holds (a searcher-timed receiver's fold) sees the code rate follow, and
+        refreshing it any number of times within a period changes nothing a
+        conversion carries.
 
         Parameters
         ----------

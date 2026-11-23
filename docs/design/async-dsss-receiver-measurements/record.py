@@ -815,8 +815,8 @@ def _ns(bench_: dict[str, Any], key: str) -> str:
 #: The receiver's states, the bench row each is, and its thread count.
 STATES = (
     ("tracking", "track", 1),
-    ("searching one tile, one-epoch looks", "tile", 1),
-    ("searching ±1/T_E (3 tiles), one-epoch looks", "span", 1),
+    ("searching one tile, one-epoch coherent dwells", "tile", 1),
+    ("searching ±1/T_E (3 tiles), one-epoch coherent dwells", "span", 1),
     ("searching ±1/T_E, slow time over D = 154", "deep", 1),
     ("the same, four threads", "deep_t4", 4),
 )

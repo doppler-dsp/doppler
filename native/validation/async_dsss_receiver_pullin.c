@@ -620,6 +620,89 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
    error-rate window's two verdicts: all five sustained inside the lock
    allocation (lock20) and the meter aligned at that start (aligned; its
    failure is unaligned_lock). check_cell() pins the last two. */
+/* One definition of a crossing of the fold, used by the stress, the
+   transitions, their baseline and D10's split: the folded error (cycles,
+   period half a cycle) jumps by more than a quarter cycle (90 degrees)
+   between consecutive tracked blocks. A crossing that comes back counts
+   twice: these are crossings, not net cycle slips. */
+static int
+pi_cross (const float *e_car, size_t b)
+{
+  return b > 0 && !isnan (e_car[b]) && !isnan (e_car[b - 1])
+         && fabs (e_car[b] - e_car[b - 1]) > 0.25;
+}
+
+/* D10's split (draw_t's slips_pre .. post_s) over the blocks on the
+   emitter's code (within half a chip) from the hand-over, cut at the
+   declared lock. A jump down past the fold is the phase moving forward
+   through +90 degrees (+1), up is back through -90 (-1). */
+static void
+pi_d10_split (const float *e_car, const float *e_cod, size_t n_blk,
+              double blk_s, double t_track_s, double t_lock_s, draw_t *d)
+{
+  size_t n_post = 0;
+  d->slips_pre = d->slips_post = 0;
+  d->net_rev_post              = 0;
+  for (size_t b = 1; b < n_blk; b++)
+    {
+      const double t = (double)b * blk_s;
+      if (t < t_track_s || isnan (e_car[b]) || fabs (e_cod[b]) > 0.5f)
+        continue;
+      const int c = pi_cross (e_car, b);
+      if (t < t_lock_s)
+        {
+          d->slips_pre += (size_t)c;
+          continue;
+        }
+      n_post++;
+      if (c)
+        {
+          d->slips_post++;
+          d->net_rev_post += e_car[b] < e_car[b - 1] ? 1 : -1;
+        }
+    }
+  d->post_s = (double)n_post * blk_s;
+}
+
+/* D10's gate's failing case, run once on the first draw that declares
+   lock with a second of on-code tracking after it: the same error stream
+   with a forced pi slip spliced in a second after the declared lock -- the
+   phase walking forward half a cycle over PI_FORCED_SLIP_BLK blocks, then
+   holding there, refolded -- must read one net reversal, so the gate
+   (net_rev_post == 0) goes red on it. */
+#define PI_FORCED_SLIP_BLK 20
+static int pi_forced_slip_done = 0;
+
+static void
+pi_forced_slip (const float *e_car, const float *e_cod, size_t n_blk,
+                double blk_s, const draw_t *d)
+{
+  const size_t b0 = (size_t)ceil ((d->t_lock_s + 1.0) / blk_s);
+  if (pi_forced_slip_done || !d->lock20 || isnan (d->t_track_s)
+      || b0 + PI_FORCED_SLIP_BLK >= n_blk)
+    return;
+  pi_forced_slip_done = 1;
+  float *f            = dp_xmalloc (n_blk * sizeof *f);
+  for (size_t b = 0; b < n_blk; b++)
+    {
+      double add = 0.0;
+      if (b >= b0)
+        add = 0.5
+              * fmin (1.0, (double)(b - b0 + 1) / (double)PI_FORCED_SLIP_BLK);
+      const double e = (double)e_car[b] + add;
+      f[b] = isnan (e_car[b]) ? NAN : (float)(e - 0.5 * floor (e / 0.5 + 0.5));
+    }
+  draw_t forced = *d;
+  pi_d10_split (f, e_cod, n_blk, blk_s, d->t_track_s, d->t_lock_s, &forced);
+  printf ("  D10 gate's failing case: a forced pi slip %.1f s after the "
+          "declared lock reads %ld net reversal(s) (the draw: %ld)\n",
+          1.0, forced.net_rev_post, d->net_rev_post);
+  DP_CHECK_MSG (forced.net_rev_post == 1,
+                "control: a forced pi slip after the declared lock is one "
+                "net reversal, so the gate is red on it");
+  free (f);
+}
+
 static int
 pi_works (const draw_t *d)
 {
@@ -1208,14 +1291,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
     size_t n_off = 0, n_all = 0;
     size_t n     = 0;
     d->car_slips = d->ho_slips = 0;
-    /* One definition of a crossing of the fold, used by the stress, the
-       transitions and their baseline: the folded error jumps by more than
-       a quarter cycle (90 degrees) between consecutive tracked blocks. A
-       crossing that comes back counts twice: these are crossings, not net
-       cycle slips. */
+    /* The crossings (pi_cross, one definition). */
     for (size_t b = 0; b < n_blk; b++)
-      cross[b] = (uint8_t)(b > 0 && !isnan (e_car[b]) && !isnan (e_car[b - 1])
-                           && fabs (e_car[b] - e_car[b - 1]) > 0.25);
+      cross[b] = (uint8_t)pi_cross (e_car, b);
     /* The baselines: what "a crossing preceded this change" and "the
        carrier error passed X in the second before it" are read against,
        each in the window a change's attribution reads. */
@@ -1428,27 +1506,9 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   d->post_s                    = NAN;
   if (d->lock20 && !isnan (d->t_track_s))
     {
-      size_t n_post = 0;
-      for (size_t b = 1; b < n_blk; b++)
-        {
-          const double t = (double)b * blk_s;
-          if (t < d->t_track_s || isnan (e_car[b]) || fabs (e_cod[b]) > 0.5f)
-            continue;
-          if (t < d->t_lock_s)
-            {
-              d->slips_pre += cross[b];
-              continue;
-            }
-          n_post++;
-          if (cross[b])
-            {
-              d->slips_post++;
-              /* A jump down past the fold is the phase moving forward
-                 through +90 degrees, and up is back through -90. */
-              d->net_rev_post += e_car[b] < e_car[b - 1] ? 1 : -1;
-            }
-        }
-      d->post_s = (double)n_post * blk_s;
+      pi_d10_split (e_car, e_cod, n_blk, blk_s, d->t_track_s, d->t_lock_s, d);
+      if (!pi_no_emitter && !pi_expect_broken)
+        pi_forced_slip (e_car, e_cod, n_blk, blk_s, d);
     }
   /* The analytic budget, as a check where it predicts: a hand-over inside
      the loop's worst-start edge. A window that opens before the hand-over
@@ -2180,6 +2240,14 @@ main (int argc, char **argv)
                           == 0);
               DP_CHECK_MSG (!ds[n].data_ended,
                             "the payload outlasted the run");
+              /* D10: no pi reversal after the declared lock. Slips before
+                 it are printed (slips_pre) and never gated: the lock
+                 declares the link, so a reversal it has not declared is
+                 the pull-in's. Its failing case is pi_forced_slip(). */
+              if (!pi_no_emitter && !pi_expect_broken)
+                DP_CHECK_MSG (ds[n].net_rev_post == 0,
+                              "D10: no net pi reversal after the declared "
+                              "lock");
               if (emit)
                 emit_row (&ds[n], s);
               n++;

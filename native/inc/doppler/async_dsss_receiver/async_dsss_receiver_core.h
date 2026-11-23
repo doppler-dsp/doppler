@@ -246,6 +246,33 @@ extern "C"
   double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                             size_t code_len);
 
+  /**
+   * @brief The pre-despread carrier lock's non-coherent count at a design
+   *        C/N0: the updates one lock decision sums.
+   *
+   * The lock is the ratio of sums of `I^2 - Q^2` over `I^2 + Q^2` over a
+   * run of updates (one a code period), decided against its exact
+   * threshold at Pfa ASYNC_DSSS_RX_CAR_LOCK_PFA. The count is the least
+   * whose decision detects at Pd ASYNC_DSSS_RX_CAR_LOCK_PD
+   * (dp_det_ratio_block_len()) at the update SNR `gamma = C/N0 T` and the
+   * loop's phase jitter at its rule bandwidth
+   * (dp_async_dsss_receiver_carrier_bn()), `bn (1 + 1/(2 gamma)) / gamma`
+   * rad^2. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz) it is 33 at 2.2 GHz
+   * and 43 at 2.8 GHz. It grows fast as C/N0 falls: 713 at 30 dB-Hz at
+   * 2.8 GHz. 0 when no count up to CARRIER_NDA_BLOCK_MAX_LEN reaches the
+   * probability (below about 5 to 10 dB-Hz at 415.1-B-1), and
+   * dp_async_dsss_receiver_create() refuses that design C/N0.
+   *
+   * @param cn0_dbhz   Design C/N0, dB-Hz.
+   * @param chip_rate  Chips per second, > 0.
+   * @param code_len   Chips a code period, > 0.
+   * @return The count, updates; 0 as above or for an update SNR that is
+   *         not finite and positive.
+   */
+  uint32_t dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
+                                                         double chip_rate,
+                                                         size_t code_len);
+
   /** The fine hand-over's design: the refine's squared pair sums, located by
    *  PolynomialPhaseEstimator, and the dwell that hands over inside the
    *  carrier loop's edge with probability `p_ho`. Every field is derived by
@@ -1479,6 +1506,10 @@ typedef enum
                                      seed domain (a Doppler at or past fs/2),
                                      since create or reset. The search went on
                                      over each one's tail.                */
+    uint64_t carrier_lock_n_noncoh; /**< The carrier lock's non-coherent
+                                     count, the updates one decision sums
+                                     (dp_async_dsss_receiver_get_carrier_lock_n_noncoh()):
+                                     fixed at create.                     */
   } async_dsss_receiver_status_t;
 
   /**
@@ -1780,6 +1811,23 @@ typedef enum
    *
    * @endcode
    */
+  /**
+   * @brief The carrier lock's non-coherent count this receiver was built
+   *        with, dp_async_dsss_receiver_carrier_lock_n_noncoh() at its
+   *        `cn0_dbhz`.
+   *
+   * A decision sums that many updates, one a code period, and the flag
+   * declares after dp_det_verify_count(ASYNC_DSSS_RX_CAR_LOCK_PFA, 1e-6)
+   * decisions in a row: so the carrier flag's least time to declare is
+   * the count times the code period times that declare count, which the
+   * application holds against its own lock-time allocation.
+   *
+   * @param state  Must be non-NULL.
+   * @return The count, updates (never 0: create() refuses that).
+   */
+  size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+      const dp_async_dsss_receiver_state_t *state);
+
   size_t dp_async_dsss_receiver_get_coherent_bins (
       const dp_async_dsss_receiver_state_t *state);
 

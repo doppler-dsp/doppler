@@ -219,6 +219,22 @@ def test_reacquire_needs_a_release_interval():
     _new_receiver(70.0, lost_confirm_s=0.02, reacquire=True)
 
 
+def test_an_unsizable_carrier_lock_is_refused():
+    # A design C/N0 at which no carrier-lock count up to 10^7 updates
+    # detects at Pd 0.99 is refused, in the receiver and in the pool,
+    # with the message naming the fix; a sized one reads its count.
+    code = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    kw = {"chip_rate": CHIP_RATE, "symbol_rate": SYM_RATE, "sample_rate": FS}
+    msg = "carrier lock can be sized"
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssReceiver(code, cn0_dbhz=0.0, **kw)
+    with pytest.raises(ValueError, match=msg):
+        AsyncDsssPool(code, n_receivers=2, threads=1, cn0_dbhz=0.0, **kw)
+    rx = AsyncDsssReceiver(code, cn0_dbhz=40.0, **kw)
+    assert rx.carrier_lock_n_noncoh >= 2
+    assert rx.status().carrier_lock_n_noncoh == rx.carrier_lock_n_noncoh
+
+
 def test_refine_false_needs_a_deep_search():
     # refine=False hands a seed straight to tracking, which holds only on
     # a search at least 25 code periods deep: one epoch deep is refused,

@@ -299,7 +299,10 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                        "cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite "
                        "doppler_uncertainty >= 0; refine false needs a "
                        "search at least 25 code periods deep; a symbol of at "
-                       "least a code period)");
+                       "least a code period; a cn0_dbhz at which the "
+                       "receivers' carrier lock can be sized: a count of at "
+                       "most 10^7 updates detecting at Pd 0.99 against Pfa "
+                       "1e-3, so raise cn0_dbhz)");
       return -1;
     }
   return 0;
@@ -376,6 +379,9 @@ static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
   { "refused_hits",
     "Searching hits refused as seeds by the seed domain (a Doppler at or past "
     "fs/2), since create or reset. The search went on over each one's tail." },
+  { "carrier_lock_n_noncoh",
+    "The carrier lock's non-coherent count, the updates one decision sums "
+    "(dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssPoolObj_status_desc
@@ -384,7 +390,7 @@ static PyStructSequence_Desc AsyncDsssPoolObj_status_desc
         "controller's step: state (1 refining, 2 tracking, 3 idle, 4 lost; a "
         "pooled receiver never searches), the live estimates, both lock "
         "flags, and the two clocks in input samples.",
-        AsyncDsssPoolObj_status_fields, 14 };
+        AsyncDsssPoolObj_status_fields, 15 };
 static PyTypeObject *AsyncDsssPoolObj_status_type = NULL;
 
 static PyObject *
@@ -460,6 +466,10 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
   PyStructSequence_SET_ITEM (
       _o, 13,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 14,
+      PyLong_FromUnsignedLongLong (
+          (unsigned long long)_r.carrier_lock_n_noncoh));
   return _o;
 }
 
@@ -1026,7 +1036,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "status(receiver) -> PoolReceiverStatus record (state, doppler_hz, "
     "chip_phase, code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples, refused_hits)\n"
+    "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
     "\n"
     "Receiver receiver's status, now.\n"
     "\n"
@@ -1404,7 +1414,10 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "0;\n"
     "    refine false needs a search at least 25 code periods deep; a symbol "
     "of\n"
-    "    at least a code period)``.\n"
+    "    at least a code period; a cn0_dbhz at which the receivers' carrier "
+    "lock\n"
+    "    can be sized: a count of at most 10^7 updates detecting at Pd 0.99\n"
+    "    against Pfa 1e-3, so raise cn0_dbhz)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

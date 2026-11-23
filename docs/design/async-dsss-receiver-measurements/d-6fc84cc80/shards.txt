@@ -1,0 +1,119 @@
+== rows/2.2-10-0.err exit 0
+== rows/2.2-10-1.err exit 0
+== rows/2.2-10-10.err exit 1
+FAIL: at 10 dB static every draw's link works
+FAIL: and the meter syncs at the end
+validate_async_dsss_receiver_pullin FAILED (2)
+== rows/2.2-10-11.err exit 0
+== rows/2.2-10-12.err exit 0
+== rows/2.2-10-13.err exit 0
+== rows/2.2-10-14.err exit 0
+== rows/2.2-10-15.err exit 0
+== rows/2.2-10-2.err exit 0
+== rows/2.2-10-3.err exit 0
+== rows/2.2-10-4.err exit 0
+== rows/2.2-10-5.err exit 0
+== rows/2.2-10-6.err exit 1
+FAIL: at 10 dB static every draw's link works
+FAIL: and the meter syncs at the end
+validate_async_dsss_receiver_pullin FAILED (2)
+== rows/2.2-10-7.err exit 0
+== rows/2.2-10-8.err exit 1
+FAIL: at 10 dB static every draw's link works
+FAIL: and the meter syncs at the end
+validate_async_dsss_receiver_pullin FAILED (2)
+== rows/2.2-10-9.err exit 0
+== rows/2.2-4-0.err exit 0
+== rows/2.2-4-1.err exit 0
+== rows/2.2-4-10.err exit 0
+== rows/2.2-4-11.err exit 0
+== rows/2.2-4-12.err exit 0
+== rows/2.2-4-13.err exit 0
+== rows/2.2-4-14.err exit 0
+== rows/2.2-4-15.err exit 0
+== rows/2.2-4-2.err exit 0
+== rows/2.2-4-3.err exit 0
+== rows/2.2-4-4.err exit 0
+== rows/2.2-4-5.err exit 0
+== rows/2.2-4-6.err exit 0
+== rows/2.2-4-7.err exit 0
+== rows/2.2-4-8.err exit 0
+== rows/2.2-4-9.err exit 0
+== rows/2.2-5-0.err exit 0
+== rows/2.2-5-1.err exit 0
+== rows/2.2-5-10.err exit 0
+== rows/2.2-5-11.err exit 0
+== rows/2.2-5-12.err exit 0
+== rows/2.2-5-13.err exit 0
+== rows/2.2-5-14.err exit 0
+== rows/2.2-5-15.err exit 0
+== rows/2.2-5-2.err exit 0
+== rows/2.2-5-3.err exit 0
+== rows/2.2-5-4.err exit 0
+== rows/2.2-5-5.err exit 0
+== rows/2.2-5-6.err exit 0
+== rows/2.2-5-7.err exit 0
+== rows/2.2-5-8.err exit 0
+== rows/2.2-5-9.err exit 0
+== rows/2.8-10-0.err exit 0
+== rows/2.8-10-1.err exit 0
+== rows/2.8-10-10.err exit 0
+== rows/2.8-10-11.err exit 0
+== rows/2.8-10-12.err exit 0
+== rows/2.8-10-13.err exit 0
+== rows/2.8-10-14.err exit 0
+== rows/2.8-10-15.err exit 0
+== rows/2.8-10-2.err exit 0
+== rows/2.8-10-3.err exit 0
+== rows/2.8-10-4.err exit 0
+== rows/2.8-10-5.err exit 0
+== rows/2.8-10-6.err exit 1
+FAIL: at 10 dB static every draw's link works
+FAIL: and the meter syncs at the end
+validate_async_dsss_receiver_pullin FAILED (2)
+== rows/2.8-10-7.err exit 1
+FAIL: at 10 dB static every draw's link works
+FAIL: and aligns at the start
+validate_async_dsss_receiver_pullin FAILED (2)
+== rows/2.8-10-8.err exit 0
+== rows/2.8-10-9.err exit 0
+== rows/2.8-4-0.err exit 0
+== rows/2.8-4-1.err exit 0
+== rows/2.8-4-10.err exit 0
+== rows/2.8-4-11.err exit 0
+== rows/2.8-4-12.err exit 0
+== rows/2.8-4-13.err exit 0
+== rows/2.8-4-14.err exit 0
+== rows/2.8-4-15.err exit 0
+== rows/2.8-4-2.err exit 0
+== rows/2.8-4-3.err exit 0
+== rows/2.8-4-4.err exit 0
+== rows/2.8-4-5.err exit 0
+== rows/2.8-4-6.err exit 0
+== rows/2.8-4-7.err exit 0
+== rows/2.8-4-8.err exit 0
+== rows/2.8-4-9.err exit 0
+== rows/2.8-5-0.err exit 0
+== rows/2.8-5-1.err exit 0
+== rows/2.8-5-10.err exit 0
+== rows/2.8-5-11.err exit 0
+== rows/2.8-5-12.err exit 0
+== rows/2.8-5-13.err exit 0
+== rows/2.8-5-14.err exit 0
+== rows/2.8-5-15.err exit 0
+== rows/2.8-5-2.err exit 0
+== rows/2.8-5-3.err exit 0
+== rows/2.8-5-4.err exit 0
+== rows/2.8-5-5.err exit 0
+== rows/2.8-5-6.err exit 0
+== rows/2.8-5-7.err exit 0
+== rows/2.8-5-8.err exit 0
+== rows/2.8-5-9.err exit 0
+== k1/2.2-13.err exit 0
+== k1/2.2-4.err exit 0
+== k1/2.2-46.err exit 0
+== k1/2.2-5.err exit 0
+== k1/2.2-50.err exit 0
+== k1/2.8-31.err exit 0
+== k1/2.8-46.err exit 0
+== k1/2.8-7.err exit 0

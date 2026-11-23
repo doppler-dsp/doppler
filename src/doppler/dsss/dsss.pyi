@@ -2973,11 +2973,11 @@ class AsyncDsssReceiver:
           (dp_async_dsss_receiver_get_doppler_hz()): 0 before a seed, the
           seed's while refining, the refined value from the hand-over on, and 0
           again after a refused hand-over or a reset(), which return the
-          receiver to searching. A record is a float, so it resolves about 0.5
-          Hz near 5 MHz. Not the live carrier: status().doppler_hz reads that,
-          and ".car.freq" and ".car.nco" are the carrier loop's own view of it,
-          in cycles a sample at the input rate, so times chip_rate * spc for
-          Hz;
+          receiver to searching (idle in a pool). A record is a float, so it
+          resolves about 0.5 Hz near 5 MHz. Not the live carrier:
+          status().doppler_hz reads that, and ".car.freq" and ".car.nco" are
+          the carrier loop's own view of it, in cycles a sample at the input
+          rate, so times chip_rate * spc for Hz;
         - "<prefix>.refused" -- the hits refused as seeds so far
           (status().refused_hits);
         - "<prefix>.ho_src" -- which estimate the live chain was built from, an
@@ -3593,7 +3593,7 @@ class AsyncDsssPool:
     doppler_uncertainty : float, default 100.0
         Doppler search half-range, Hz.
     segments : int, default 4
-        Dll segments per symbol.
+        Dll segments per code period.
     sps : int, default 8
         Demodulator samples per symbol.
     differential : int, default 0
@@ -3844,7 +3844,7 @@ class AsyncDsssPool:
     def set_threads(self, n: int) -> None:
         """Set the workers push() steps the receivers on.
 
-        The receivers' results do not change with it (header step 1); only the
+        The receivers' results do not change with it (header step 2); only the
         time a push takes does. A mutator's value, so it travels in the state
         blob (#2022).
 

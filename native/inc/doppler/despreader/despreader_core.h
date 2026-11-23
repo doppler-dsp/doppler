@@ -522,9 +522,11 @@ extern "C"
 /** FourCC type tag ("DSPR") stamped in a despreader state blob. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D', 'S', 'P', 'R')
 /** Layout version of the despreader state blob; a mismatch is rejected. */
-#define DESPREADER_STATE_VERSION 5u /* v5: dll child grew (output level,     \
-                                        #2495); v4: costas child grew      \
-                                        (lockdet rule) */
+#define DESPREADER_STATE_VERSION 6u /* v6: dll child grew (window sum,     \
+                                        the rate table, the last look's    \
+                                        terms, DLL v16-v18); v5: dll child \
+                                        grew (output level, #2495); v4:    \
+                                        costas child grew (lockdet rule) */
   /**
    * @brief Byte size of the state blob.
    * @param state  Must be non-NULL.

@@ -139,7 +139,10 @@ extern "C"
   } dsss_receiver_extra_t;
 
 #define DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('D', 'S', 'R', 'X')
-#define DSSS_RECEIVER_STATE_VERSION 4u /* v4: the search child is the
+#define DSSS_RECEIVER_STATE_VERSION 5u /* v5: the dll child grew (DLL v16 to
+                                           v18: the window sum, the rate
+                                           table, the last look's terms); v4:
+                                           the search child is the
                                            correlator's search flavor
                                            ('CORL', #2752 3.4b); v3: the dll
                                            child grew (output

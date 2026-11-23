@@ -101,9 +101,11 @@ extern "C"
  * composition: costas + dll children + running bit-sync histogram/state;
  * the owned code copy is restored by create. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D', 'S', 'P', 'R')
-#define DESPREADER_STATE_VERSION 5u /* v5: dll child grew (output level,     \
-                                        #2495); v4: costas child grew      \
-                                        (lockdet rule) */
+#define DESPREADER_STATE_VERSION 6u /* v6: dll child grew (window sum,     \
+                                        the rate table, the last look's    \
+                                        terms, DLL v16-v18); v5: dll child \
+                                        grew (output level, #2495); v4:    \
+                                        costas child grew (lockdet rule) */
   size_t dp_despreader_state_bytes (const dp_despreader_state_t *state);
   void   dp_despreader_get_state (const dp_despreader_state_t *state, void *blob);
   int    dp_despreader_set_state (dp_despreader_state_t *state, const void *blob);

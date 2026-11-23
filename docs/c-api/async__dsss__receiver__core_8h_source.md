@@ -50,7 +50,8 @@ extern "C"
 #define ASYNC_DSSS_RX_CAR_LOCK_PD 0.99
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(bn, chip_rate, code_len)              \
   ((bn) * (chip_rate) / (2.0 * (double)(code_len)))
-#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn) ((size_t)(1.0 / (bn) + 0.5))
+#define ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)                                  \
+  ((size_t)ceil (1.0 / (bn) - 1e-9))
 
   double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                             size_t code_len);

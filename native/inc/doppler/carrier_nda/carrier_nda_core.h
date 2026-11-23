@@ -296,6 +296,22 @@ carrier_nda_loop_error (double pe)
  *  gain 1 where the estimate holds, never above the design point's, never
  *  the averaged form's sign. M = 2 only. */
 #define CARRIER_NDA_DEN_UNIT 2
+/** @brief The averaged and unit denominators' floor, as a fraction of the
+ *  update's own `|z|^2`: the denominator is never under `|z|^2 / this`, so
+ *  the error 2IQ over it, at most `|z|^2` over it, is never past this in
+ *  magnitude. Derived from a chosen rate, 1e-6: on noise alone `|z|^2` over
+ *  its mean is exponential, `P(|z|^2 > x mean) = e^-x`, so x = -ln(1e-6)
+ *  engages the floor on one update in 10^6. With a signal the unit form
+ *  compares `|z|^2` with the signal's power `A^2` (its denominator's
+ *  value), the noncentral chi-square tail `Q_1(sqrt(2 gamma),
+ *  sqrt(2 x gamma))` at update SNR gamma: at the 415.1-B-1 floor's window
+ *  sums, 2.6e-9 at gamma 2.397 (2.2 GHz) and 1.3e-7 at 1.884 (2.8 GHz),
+ *  under the noise-only rate; the averaged form, against `A^2 + N`, 7e-14
+ *  and 3e-12. Printed by test_carrier_nda_core.c's 17c through
+ *  dp_marcum_q(). Otherwise it engages only on a level step the running
+ *  average has not yet followed (a burst, a gain step upstream), which the
+ *  quotient would hand the loop unbounded. */
+#define CARRIER_NDA_DEN_STEP 13.815510557964274
 /** @brief The largest block a block lock takes, updates. Its threshold is
  *  dp_det_threshold_f()'s F(len, len) quantile, a bisection on a continued
  *  fraction capped at 300 terms. Against scipy's `f.isf`, the threshold r it
@@ -638,6 +654,11 @@ carrier_nda_loop_error (double pe)
             a2              = s->pow_avg - noise_pw;
             a2              = a2 < lo ? lo : a2 > s->pow_avg ? s->pow_avg : a2;
           }
+        /* Never under the update's own power over CARRIER_NDA_DEN_STEP, so
+           |pe| <= |z|^2 / a2 <= CARRIER_NDA_DEN_STEP whatever the average
+           lags. */
+        if (a2 < p / CARRIER_NDA_DEN_STEP)
+          a2 = p / CARRIER_NDA_DEN_STEP;
         pe = a2 > 0.0 ? 2.0 * i * q / a2 : 0.0;
       }
     if (s->blk_len)
@@ -1147,8 +1168,9 @@ carrier_nda_loop_error (double pe)
    * divided by the slope, carrier_nda_loop_error(), slope 1.
    *
    * @param state  Must be non-NULL.
-   * @return Dimensionless error, bounded in magnitude by 1; 0 before the
-   *         first sample.
+   * @return Dimensionless error, bounded in magnitude by 1 with the limiter
+   *         and by CARRIER_NDA_DEN_STEP with the averaged or unit
+   *         denominator; 0 before the first sample.
    */
   double dp_carrier_nda_get_last_error (const dp_carrier_nda_state_t *state);
   /**

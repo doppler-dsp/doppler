@@ -104,6 +104,7 @@
 * **CARRIER\_NDA\_BLOCK\_MAX\_LEN** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_AVERAGED** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_LIMITER** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
+* **CARRIER\_NDA\_DEN\_STEP** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DEN\_UNIT** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_DISC\_SLOPE** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_EPS** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))

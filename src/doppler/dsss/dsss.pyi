@@ -33,7 +33,7 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
         """winning-row peak-to-mean (rough confidence)."""
 
 @final
-class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int]):
+class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int, int]):
     """AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2
     tracking, 4 lost), the live estimates, both lock flags, and the two clocks
     in input samples.
@@ -68,6 +68,8 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped. With reacquire, the symbol lock flag's clock alone.
     refused_hits : int
         Searching hits refused as seeds by the seed domain (a Doppler at or past fs/2), since create or reset. The search went on over each one's tail.
+    carrier_lock_n_noncoh : int
+        The carrier lock's non-coherent count, the updates one decision sums (dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create.
     """
 
     @property
@@ -143,8 +145,15 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
         tail.
         """
 
+    @property
+    def carrier_lock_n_noncoh(self) -> int:
+        """The carrier lock's non-coherent count, the updates one decision sums
+        (dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at
+        create.
+        """
+
 @final
-class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int]):
+class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int, int, int]):
     """One AsyncDsssPool receiver's status record, read after the controller's
     step: state (1 refining, 2 tracking, 3 idle, 4 lost; a pooled receiver
     never searches), the live estimates, both lock flags, and the two clocks in
@@ -180,6 +189,8 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
         Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped. With reacquire, the symbol lock flag's clock alone.
     refused_hits : int
         Searching hits refused as seeds by the seed domain (a Doppler at or past fs/2), since create or reset. The search went on over each one's tail.
+    carrier_lock_n_noncoh : int
+        The carrier lock's non-coherent count, the updates one decision sums (dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create.
     """
 
     @property
@@ -253,6 +264,13 @@ class PoolReceiverStatus(tuple[int, float, float, float, float, int, int, float,
         """Searching hits refused as seeds by the seed domain (a Doppler at or
         past fs/2), since create or reset. The search went on over each one's
         tail.
+        """
+
+    @property
+    def carrier_lock_n_noncoh(self) -> int:
+        """The carrier lock's non-coherent count, the updates one decision sums
+        (dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at
+        create.
         """
 
 ASYNC_DSSS_RX_STATE: dict[int, str]
@@ -2465,7 +2483,10 @@ class AsyncDsssReceiver:
         period is finite and positive with a carrier bandwidth the loop filter
         accepts, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
         refine false needs a search at least 25 code periods deep; a symbol of
-        at least a code period)``.
+        at least a code period; a cn0_dbhz at which the carrier lock can be
+        sized: a count of at most 10^7 updates detecting at Pd 0.99 against Pfa
+        1e-3, below about 5 to 10 dB-Hz at 415.1-B-1 there is none, so raise
+        cn0_dbhz)``.
 
     Examples
     --------
@@ -3380,7 +3401,13 @@ class AsyncDsssReceiver:
 
     @property
     def coherent_bins(self) -> int:
-        """The searcher's slow-time depth D: epochs per coherent block."""
+        """Coherent bins."""
+
+    @property
+    def carrier_lock_n_noncoh(self) -> int:
+        """The carrier lock's non-coherent count this receiver was built with,
+        dp_async_dsss_receiver_carrier_lock_n_noncoh() at its `cn0_dbhz`.
+        """
 
     @property
     def lifecycle(self) -> Literal["searching", "refining", "tracking", "idle", "lost"]:
@@ -3666,7 +3693,9 @@ class AsyncDsssPool:
         refine_n_fft >= 1, refine_zero_pad >= 1; and for the searcher a finite
         cn0_dbhz, 0 < pfa < 1, 0 < pd < 1, a finite doppler_uncertainty >= 0;
         refine false needs a search at least 25 code periods deep; a symbol of
-        at least a code period)``.
+        at least a code period; a cn0_dbhz at which the receivers' carrier lock
+        can be sized: a count of at most 10^7 updates detecting at Pd 0.99
+        against Pfa 1e-3, so raise cn0_dbhz)``.
 
     Examples
     --------

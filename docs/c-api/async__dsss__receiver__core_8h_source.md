@@ -56,6 +56,10 @@ extern "C"
   double dp_async_dsss_receiver_carrier_bn (double cn0_dbhz, double chip_rate,
                                             size_t code_len);
 
+  uint32_t dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
+                                                         double chip_rate,
+                                                         size_t code_len);
+
   typedef struct
   {
     int    k;        
@@ -385,6 +389,7 @@ typedef enum
     uint64_t state_samples; 
     uint64_t both_down_samples; 
     uint64_t refused_hits;      
+    uint64_t carrier_lock_n_noncoh; 
   } async_dsss_receiver_status_t;
 
   async_dsss_receiver_status_t dp_async_dsss_receiver_status (
@@ -416,6 +421,9 @@ typedef enum
       const dp_async_dsss_receiver_state_t *state);
 
   int dp_async_dsss_receiver_get_threads (
+      const dp_async_dsss_receiver_state_t *state);
+
+  size_t dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
       const dp_async_dsss_receiver_state_t *state);
 
   size_t dp_async_dsss_receiver_get_coherent_bins (

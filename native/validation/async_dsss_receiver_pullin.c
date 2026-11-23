@@ -1294,11 +1294,12 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           } rules[] = {
             { "sym", dp_async_dsss_receiver_get_sym_lock_rule (rx), 0.0,
               rx->lock_alpha, NAN },
-            /* carrier_nda's block lock when the receiver sets one (a
-               block statistic over car_blk updates), else its EMA. */
+            /* carrier_nda's block lock: a ratio of sums over the
+               receiver's carrier-lock non-coherent count (create() refuses
+               a design without one). */
             { "car", dp_async_dsss_receiver_get_car_lock_rule (rx),
-              (double)rx->car_blk, rx->car_blk ? 0.0 : CARRIER_NDA_LOCK_ALPHA,
-              dp_carrier_nda_get_bn (&rx->car) },
+              (double)dp_async_dsss_receiver_get_carrier_lock_n_noncoh (rx),
+              0.0, dp_carrier_nda_get_bn (&rx->car) },
             { "code", dp_async_dsss_receiver_get_code_lock_rule (rx),
               (double)rx->dll->n_looks, rx->dll->lock_alpha,
               dp_dll_get_bn (rx->dll) },

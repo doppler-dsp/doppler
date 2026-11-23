@@ -2212,6 +2212,66 @@ _test_near_far_levels (void)
   return 0;
 }
 
+/* The carrier lock is sized or the receiver is refused (owner,
+ * 2026-11-23: "no lock length reaches the detection probability means
+ * raise"). At the 415.1-B-1 point the count is 33 at 2.2 GHz and 43 at 2.8
+ * GHz at the floor, read back through the getter and the status record.
+ * Falling C/N0 grows it until no count up to CARRIER_NDA_BLOCK_MAX_LEN
+ * reaches Pd ASYNC_DSSS_RX_CAR_LOCK_PD: the edge is found through the
+ * public count itself (2.2 GHz, half-dB steps down from 15 dB-Hz), and
+ * create() refuses a design there, at once (before the search is sized).
+ * The failing case is the fallback this replaced: a receiver built there
+ * with the count 0 and carrier_nda's unsized EMA lock, which this reads
+ * as non-NULL. */
+static int
+_test_unsized_carrier_lock_is_refused (void)
+{
+  uint8_t code[1023];
+  dp_dsss_gold_1023 (code);
+  static const uint32_t want[2] = { 33u, 43u };
+  const double          fcs[2]  = { DP_S415_FC_LO, DP_S415_FC_HI };
+  for (int f = 0; f < 2; f++)
+    {
+      const double chip = dp_s415_chip_rate (fcs[f]);
+      DP_CHECK (dp_async_dsss_receiver_carrier_lock_n_noncoh (
+                    dp_s415_cn0 (DP_S415_FLOOR_DB), chip, DP_S415_SF)
+                == want[f]);
+      dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
+      DP_REQUIRE (rx != NULL);
+      DP_CHECK (dp_async_dsss_receiver_get_carrier_lock_n_noncoh (rx)
+                == want[f]);
+      DP_CHECK (dp_async_dsss_receiver_status (rx).carrier_lock_n_noncoh
+                == want[f]);
+      dp_async_dsss_receiver_destroy (rx);
+    }
+  const double chip = dp_s415_chip_rate (DP_S415_FC_LO);
+  double       edge = NAN;
+  for (double c = 15.0; c > -20.0; c -= 0.5)
+    if (dp_async_dsss_receiver_carrier_lock_n_noncoh (c, chip, DP_S415_SF)
+        == 0u)
+      {
+        edge = c;
+        break;
+      }
+  printf ("  carrier lock: no count reaches Pd %.2f at 2.2 GHz from %.1f "
+          "dB-Hz down (%u updates at %.1f dB-Hz)\n",
+          ASYNC_DSSS_RX_CAR_LOCK_PD, edge,
+          dp_async_dsss_receiver_carrier_lock_n_noncoh (edge + 0.5, chip,
+                                                        DP_S415_SF),
+          edge + 0.5);
+  DP_REQUIRE_MSG (!isnan (edge), "the model has an edge above -20 dB-Hz");
+  dp_async_dsss_receiver_state_t *lo = dp_async_dsss_receiver_create (
+      code, DP_S415_SF, chip, DP_S415_SYM, DP_S415_FS, 2, edge, 1e-3, 0.9,
+      DP_S415_SPAN_HZ, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false, 100000,
+      DP_S415_FC_LO, 0.0, false, (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM,
+      dp_s415_r_env (), true);
+  DP_CHECK_MSG (lo == NULL, "a design whose carrier lock cannot be sized "
+                            "is refused");
+  if (lo)
+    dp_async_dsss_receiver_destroy (lo);
+  return 0;
+}
+
 /* The seed's error bound the fine hand-over is designed to (create():
  * min(2 doppler_uncertainty, symbol_rate + the search's row); the design
  * page's "The seed's error bound"). At the 415.1-B-1 point it changes
@@ -6769,7 +6829,8 @@ _test_no_refine_hands_over_at_the_seed (void)
  * bin (> in place of >=, or 1 / bn rounded down) -> the D = 25 row or the
  * D = 24 row red. */
 /* The carrier loop's bandwidth from the loop-SNR rule
- * (async-dsss-receiver.md §1.3 and §4.10, "Its bandwidth"): at the
+ * (async-dsss-receiver.md §1.3, and "Its bandwidth" under §4.10's
+ * carrier loop): at the
  * 415.1-B-1 floor, C/N0 38.77 dB-Hz, rho = C/N0 T is 2.397 at 2.2 GHz and
  * 1.884 at 2.8 GHz (T = 1023 chips at the carrier times 31/21216), and
  * with the M = 2 detector's squaring loss S_L = 1 / (1 + 1/(2 rho)),
@@ -7003,6 +7064,7 @@ main (void)
   DP_CHECK (_test_carrier_config_is_a_reject_key () == 0);
   DP_CHECK (_test_a_refused_blob_changes_nothing () == 0);
   DP_CHECK (_test_fine_design () == 0);
+  DP_CHECK (_test_unsized_carrier_lock_is_refused () == 0);
   DP_CHECK (_test_fine_seed_bound () == 0);
   DP_CHECK (_test_near_far_levels () == 0);
   DP_CHECK (_test_fine_hands_over () == 0);

@@ -277,7 +277,11 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                        "bandwidth the loop filter accepts, 0 < pfa < 1, 0 < "
                        "pd < 1, a finite doppler_uncertainty >= 0; refine "
                        "false needs a search at least 25 code periods deep; "
-                       "a symbol of at least a code period)");
+                       "a symbol of at least a code period; a cn0_dbhz at "
+                       "which the carrier lock can be sized: a count of at "
+                       "most 10^7 updates detecting at Pd 0.99 against Pfa "
+                       "1e-3, below about 5 to 10 dB-Hz at 415.1-B-1 there "
+                       "is none, so raise cn0_dbhz)");
       return -1;
     }
   return 0;
@@ -562,6 +566,9 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "refused_hits",
     "Searching hits refused as seeds by the seed domain (a Doppler at or past "
     "fs/2), since create or reset. The search went on over each one's tail." },
+  { "carrier_lock_n_noncoh",
+    "The carrier lock's non-coherent count, the updates one decision sums "
+    "(dp_async_dsss_receiver_get_carrier_lock_n_noncoh()): fixed at create." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
@@ -569,7 +576,7 @@ static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc
         "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
         "tracking, 4 lost), the live estimates, both lock flags, and the two "
         "clocks in input samples.",
-        AsyncDsssReceiverObj_status_fields, 14 };
+        AsyncDsssReceiverObj_status_fields, 15 };
 static PyTypeObject *AsyncDsssReceiverObj_status_type = NULL;
 
 static PyObject *
@@ -618,6 +625,10 @@ AsyncDsssReceiverObj_status (AsyncDsssReceiverObject *self,
   PyStructSequence_SET_ITEM (
       _o, 13,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.refused_hits));
+  PyStructSequence_SET_ITEM (
+      _o, 14,
+      PyLong_FromUnsignedLongLong (
+          (unsigned long long)_r.carrier_lock_n_noncoh));
   return _o;
 }
 
@@ -1249,6 +1260,19 @@ AsyncDsssReceiver_getprop_coherent_bins (AsyncDsssReceiverObject *self,
           self->handle));
 }
 static PyObject *
+AsyncDsssReceiver_getprop_carrier_lock_n_noncoh (AsyncDsssReceiverObject *self,
+                                                 void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+          self->handle));
+}
+static PyObject *
 AsyncDsssReceiver_getprop_lifecycle (AsyncDsssReceiverObject *self,
                                      void *Py_UNUSED (closure))
 {
@@ -1529,7 +1553,12 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "n_exclusions", (getter)AsyncDsssReceiver_getprop_n_exclusions, NULL,
     "Code phases set_exclusions() holds.\n", NULL },
   { "coherent_bins", (getter)AsyncDsssReceiver_getprop_coherent_bins, NULL,
-    "The searcher's slow-time depth D: epochs per coherent block.\n", NULL },
+    "Coherent bins.\n", NULL },
+  { "carrier_lock_n_noncoh",
+    (getter)AsyncDsssReceiver_getprop_carrier_lock_n_noncoh, NULL,
+    "The carrier lock's non-coherent count this receiver was built with, "
+    "dp_async_dsss_receiver_carrier_lock_n_noncoh() at its `cn0_dbhz`.\n",
+    NULL },
   { "lifecycle", (getter)AsyncDsssReceiver_getprop_lifecycle, NULL,
     "Where the receiver is in its lifecycle, by name: `\"searching\"`, "
     "`\"refining\"`, `\"tracking\"`, `\"idle\"` (a pooled receiver with no "
@@ -1866,7 +1895,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
     "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
     "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
-    "both_down_samples, refused_hits)\n"
+    "both_down_samples, refused_hits, carrier_lock_n_noncoh)\n"
     "\n"
     "Read the status record, by value: the state; where the emitter is\n"
     "now (the live carrier), its chip phase, code rate and C/N0; both lock\n"
@@ -2778,7 +2807,12 @@ static PyTypeObject AsyncDsssReceiverObjType = {
     "0;\n"
     "    refine false needs a search at least 25 code periods deep; a symbol "
     "of\n"
-    "    at least a code period)``.\n"
+    "    at least a code period; a cn0_dbhz at which the carrier lock can be\n"
+    "    sized: a count of at most 10^7 updates detecting at Pd 0.99 against "
+    "Pfa\n"
+    "    1e-3, below about 5 to 10 dB-Hz at 415.1-B-1 there is none, so "
+    "raise\n"
+    "    cn0_dbhz)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

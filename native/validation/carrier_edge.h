@@ -4,7 +4,7 @@
  *        415.1-B-1 point: its detector's S-curve, the mean loop on it, and
  *        the worst-start no-slip edge.
  *
- * One home for the derivation docs/design/async-dsss-receiver.md §4.10's
+ * One home for the derivation docs/design/async-dsss-receiver.md's
  * "The pre-despread carrier loop" row prints
  * (validate_costas_pullin --design) and the error-rate window reads (the
  * pull-in harness's budget check, "The error-rate window"): a hand-over

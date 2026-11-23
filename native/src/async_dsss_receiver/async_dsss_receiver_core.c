@@ -145,21 +145,30 @@ adr_enter (dp_async_dsss_receiver_state_t *s, int state)
  * (1 + 1/(2 gamma)) / (2 gamma) an update, and the closed loop passes 2 bn
  * of it (pin 18 of test_carrier_nda_core.c measures that law), so
  * phase_var = bn (1 + 1/(2 gamma)) / gamma: 1/200 rad^2 at the rule's bn.
- * The block is the least whose ratio of sums detects at Pd
+ * The count is the least whose ratio of sums detects at Pd
  * ASYNC_DSSS_RX_CAR_LOCK_PD against the exact threshold at Pfa
- * ASYNC_DSSS_RX_CAR_LOCK_PFA: at the 415.1-B-1 floor 33 updates at 2.2 GHz
- * and 43 at 2.8 GHz. */
-static void
-adr_size_carrier_lock (dp_async_dsss_receiver_state_t *s, double cn0_dbhz,
-                       double chip_rate, size_t code_len)
+ * ASYNC_DSSS_RX_CAR_LOCK_PFA. */
+static double
+adr_carrier_gamma (double cn0_dbhz, double chip_rate, size_t code_len)
 {
-  const double g = pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
-  const double var = s->bn_carrier * (1.0 + 1.0 / (2.0 * g)) / g;
+  return pow (10.0, cn0_dbhz / 10.0) * (double)code_len / chip_rate;
+}
+
+uint32_t
+dp_async_dsss_receiver_carrier_lock_n_noncoh (double cn0_dbhz,
+                                              double chip_rate,
+                                              size_t code_len)
+{
+  const double g = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  if (!(isfinite (g) && g > 0.0))
+    return 0u;
+  const double bn
+      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
+  const double var = bn * (1.0 + 1.0 / (2.0 * g)) / g;
   const int    b = dp_det_ratio_block_len (g, var, ASYNC_DSSS_RX_CAR_LOCK_PFA,
                                            ASYNC_DSSS_RX_CAR_LOCK_PD,
                                            (int)CARRIER_NDA_BLOCK_MAX_LEN);
-  s->car_gamma   = g;
-  s->car_blk     = b > 0 ? (uint32_t)b : 0u;
+  return b > 0 ? (uint32_t)b : 0u;
 }
 
 /* The fine check's threshold on PolynomialPhaseEstimator's snr_db (the
@@ -1637,6 +1646,28 @@ dp_async_dsss_receiver_create (
       return NULL;
   }
 
+  /* The carrier loop, from the design C/N0 alone, decided before anything
+     is built: its bandwidth by the loop-SNR rule
+     (dp_async_dsss_receiver_carrier_bn()), its update SNR and its block
+     lock's non-coherent count
+     (dp_async_dsss_receiver_carrier_lock_n_noncoh()). A design C/N0 whose
+     update SNR is not finite and positive (an absurd finite cn0_dbhz overflows
+     or underflows it), whose rule bandwidth the loop filter refuses, or at
+     which no block up to CARRIER_NDA_BLOCK_MAX_LEN reaches
+     ASYNC_DSSS_RX_CAR_LOCK_PD against ASYNC_DSSS_RX_CAR_LOCK_PFA, builds no
+     receiver: the receiver chooses the lock's rates, so it does not accept
+     an unsized flag (carrier_nda's own EMA lock stays that object's
+     default). Refused here, before the search is sized, so a refused
+     design is refused at once. */
+  const double car_bn
+      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
+  const double   car_gamma = adr_carrier_gamma (cn0_dbhz, chip_rate, code_len);
+  const uint32_t car_blk   = dp_async_dsss_receiver_carrier_lock_n_noncoh (
+      cn0_dbhz, chip_rate, code_len);
+  if (!(isfinite (car_gamma) && car_gamma > 0.0)
+      || !dp_loop_filter_params_ok (car_bn, 0.707, 1.0) || car_blk == 0u)
+    return NULL;
+
   dp_async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
   obj->tlm_sym_lock = obj->tlm_sym_locked = -1; /* detached */
   obj->tlm_sym_num = obj->tlm_sym_den = -1;
@@ -1712,23 +1743,11 @@ dp_async_dsss_receiver_create (
   /* A dwell's whole peak list, for adr_pick() to rank. Its first entry is
      the one-peak detector's pick, so rank 0 with no exclusions takes what
      max_peaks 1 took. */
-  /* The carrier loop's bandwidth, from the loop-SNR rule at the design
-     C/N0 (dp_async_dsss_receiver_carrier_bn()): the refine rule below and
-     every chain this receiver builds read it. */
-  obj->bn_carrier
-      = dp_async_dsss_receiver_carrier_bn (cn0_dbhz, chip_rate, code_len);
-  adr_size_carrier_lock (obj, cn0_dbhz, chip_rate, code_len);
-  /* A design C/N0 whose update SNR is not finite and positive (an absurd
-     finite cn0_dbhz overflows or underflows it), or whose rule bandwidth
-     the loop filter refuses, builds no carrier loop: the unit denominator
-     takes gamma > 0 (0 would select the averaged form), and the in-place
-     init is unguarded. Refused here, not aborted in the build. */
-  if (!(isfinite (obj->car_gamma) && obj->car_gamma > 0.0)
-      || !dp_loop_filter_params_ok (obj->bn_carrier, 0.707, 1.0))
-    {
-      dp_async_dsss_receiver_destroy (obj);
-      return NULL;
-    }
+  /* The carrier loop, as decided above: the refine rule below and every
+     chain this receiver builds read it. */
+  obj->bn_carrier = car_bn;
+  obj->car_gamma  = car_gamma;
+  obj->car_blk    = car_blk;
   /* With no refine the search's Doppler is the hand-over, and the carrier
      loop pulls in from it only while half the search's Doppler row is
      inside the loop's acquisition bound (async-dsss-receiver.md §4.4).
@@ -2731,6 +2750,13 @@ dp_async_dsss_receiver_get_threads (
 }
 
 size_t
+dp_async_dsss_receiver_get_carrier_lock_n_noncoh (
+    const dp_async_dsss_receiver_state_t *state)
+{
+  return (size_t)state->car_blk;
+}
+
+size_t
 dp_async_dsss_receiver_get_coherent_bins (
     const dp_async_dsss_receiver_state_t *state)
 {
@@ -2833,20 +2859,21 @@ dp_async_dsss_receiver_status (const dp_async_dsss_receiver_state_t *s)
       doppler_hz = 0.0;
     }
   async_dsss_receiver_status_t r = {
-    .state             = s->state,
-    .doppler_hz        = doppler_hz,
-    .chip_phase        = dp_async_dsss_receiver_get_chip_phase (s),
-    .code_rate         = dp_async_dsss_receiver_get_code_rate (s),
-    .cn0_dbhz_est      = s->cn0_dbhz_est,
-    .code_locked       = dp_async_dsss_receiver_get_code_locked (s),
-    .locked            = dp_async_dsss_receiver_get_locked (s),
-    .lock_metric       = s->lock_metric,
-    .lock_threshold    = dp_async_dsss_receiver_get_lock_threshold (s),
-    .car_last_error    = dp_async_dsss_receiver_get_car_last_error (s),
-    .mpsk_last_error   = dp_async_dsss_receiver_get_mpsk_last_error (s),
-    .state_samples     = s->state_samples,
-    .both_down_samples = s->both_down_samples,
-    .refused_hits      = s->refused_hits,
+    .state                 = s->state,
+    .doppler_hz            = doppler_hz,
+    .chip_phase            = dp_async_dsss_receiver_get_chip_phase (s),
+    .code_rate             = dp_async_dsss_receiver_get_code_rate (s),
+    .cn0_dbhz_est          = s->cn0_dbhz_est,
+    .code_locked           = dp_async_dsss_receiver_get_code_locked (s),
+    .locked                = dp_async_dsss_receiver_get_locked (s),
+    .lock_metric           = s->lock_metric,
+    .lock_threshold        = dp_async_dsss_receiver_get_lock_threshold (s),
+    .car_last_error        = dp_async_dsss_receiver_get_car_last_error (s),
+    .mpsk_last_error       = dp_async_dsss_receiver_get_mpsk_last_error (s),
+    .state_samples         = s->state_samples,
+    .both_down_samples     = s->both_down_samples,
+    .refused_hits          = s->refused_hits,
+    .carrier_lock_n_noncoh = s->car_blk,
   };
   return r;
 }

@@ -1224,12 +1224,12 @@ adr_track_period (dp_async_dsss_receiver_state_t *s,
       if (s->car.tlm.ctx)
         dp_carrier_nda_tlm_flush (&s->car);
       /* Continuous carrier->code aiding: the pre-despread loop tracks the
-         FULL carrier offset (including the 500 Hz/s ramp), so refresh the
-         code NCO's rate bias from it every period. This keeps the initial
-         build-time seed (dp_dll_set_rate_aid in adr_build_track_chain) fresh
-         as the ramp drifts, and applies at the next period boundary
-         (dll_set_rate_ aid only stores the field, never clobbers phase_inc).
-         Off when carrier_freq_hz == 0. */
+         FULL carrier offset (including the use case's Doppler rate, R_env,
+         11 Hz/s), so refresh the code NCO's rate bias from it every period.
+         This keeps the initial build-time seed (dp_dll_set_rate_aid in
+         adr_build_track_chain) fresh as the ramp drifts, and applies at the
+         next period boundary (dll_set_rate_ aid only stores the field, never
+         clobbers phase_inc). Off when carrier_freq_hz == 0. */
       if (s->carrier_freq_hz > 0.0)
         dp_dll_set_rate_aid (s->dll, dp_carrier_nda_get_norm_freq (&s->car)
                                          * (s->chip_rate * (double)s->spc)

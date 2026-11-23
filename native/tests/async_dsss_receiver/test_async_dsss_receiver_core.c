@@ -2223,9 +2223,10 @@ _test_near_far_levels (void)
  * GHz at the floor, read back through the getter and the status record.
  * Falling C/N0 grows it until no count up to CARRIER_NDA_BLOCK_MAX_LEN
  * reaches Pd ASYNC_DSSS_RX_CAR_LOCK_PD: the edge is found through the
- * public count itself on the 7-chip fixture (23.5 dB-Hz there), create()
- * refuses a design at it, at once (before the search is sized), and one
- * half-dB step above it constructs at the model's count (9.7e6).
+ * public count itself on the 7-chip fixture, create() refuses a design at
+ * it, at once (before the search is sized), and one half-dB step above it
+ * constructs at the model's count. The scan assumes the count is monotone
+ * in C/N0. The edge is printed as the update SNR, C/N0 x T, either side.
  * The failing case is the fallback this replaced: a receiver built there
  * with the count 0 and carrier_nda's unsized EMA lock, which this reads
  * as non-NULL. */
@@ -2254,8 +2255,8 @@ _test_unsized_carrier_lock_is_refused (void)
     }
   /* The edge, found through the public count on the 7-chip fixture
      (_car_twin's geometry: 1 Mcps, T = 7 us), where the search is cheap
-     to size either side of it; at 415.1-B-1 it sits near 5 to 10 dB-Hz,
-     where sizing the search alone takes minutes. */
+     to size either side of it; at 415.1-B-1's edge, sizing the search
+     alone takes minutes. */
   double edge = NAN;
   for (double c = 40.0; c > 0.0; c -= 0.5)
     if (dp_async_dsss_receiver_carrier_lock_n_noncoh (c, 1.0e6, 7) == 0u)
@@ -2266,9 +2267,12 @@ _test_unsized_carrier_lock_is_refused (void)
   DP_REQUIRE_MSG (!isnan (edge), "the model has an edge above 0 dB-Hz");
   const uint32_t above
       = dp_async_dsss_receiver_carrier_lock_n_noncoh (edge + 0.5, 1.0e6, 7);
-  printf ("  carrier lock, 7 chips at 1 Mcps: no count reaches Pd %.2f at "
-          "%.1f dB-Hz and below; %u updates at %.1f dB-Hz\n",
-          ASYNC_DSSS_RX_CAR_LOCK_PD, edge, above, edge + 0.5);
+  const double t7 = 7.0 / 1.0e6; /* the fixture's code period, s */
+  printf ("  carrier lock, 7 chips at 1 Mcps (T %.0f us): refused at update "
+          "SNR gamma = C/N0 T %.4g (%.1f dB-Hz) and below; built at gamma "
+          "%.4g (%.1f dB-Hz), %u updates\n",
+          t7 * 1e6, pow (10.0, edge / 10.0) * t7, edge,
+          pow (10.0, (edge + 0.5) / 10.0) * t7, edge + 0.5, above);
   dp_async_dsss_receiver_state_t *lo = _car_twin (edge);
   DP_CHECK_MSG (lo == NULL, "a design whose carrier lock cannot be sized "
                             "is refused");

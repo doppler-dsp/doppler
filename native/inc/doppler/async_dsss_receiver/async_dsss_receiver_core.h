@@ -259,9 +259,9 @@ extern "C"
    * (dp_async_dsss_receiver_carrier_bn()), `bn (1 + 1/(2 gamma)) / gamma`
    * rad^2. At the 415.1-B-1 floor (C/N0 38.77 dB-Hz) it is 33 at 2.2 GHz
    * and 43 at 2.8 GHz. It grows fast as C/N0 falls: 713 at 30 dB-Hz at
-   * 2.8 GHz. 0 when no count up to CARRIER_NDA_BLOCK_MAX_LEN reaches the
-   * probability (below about 5 to 10 dB-Hz at 415.1-B-1), and
-   * dp_async_dsss_receiver_create() refuses that design C/N0.
+   * 2.8 GHz. 0 when the design's update SNR, C/N0 x T, is too low for any
+   * count up to CARRIER_NDA_BLOCK_MAX_LEN to reach Pd, and
+   * dp_async_dsss_receiver_create() refuses that design: raise cn0_dbhz.
    *
    * @param cn0_dbhz   Design C/N0, dB-Hz.
    * @param chip_rate  Chips per second, > 0.

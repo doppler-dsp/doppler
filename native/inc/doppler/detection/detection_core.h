@@ -518,12 +518,13 @@ double dp_det_ratio_threshold(double pfa, int n);
  *   pairs), so the bound is 1.04e-8 at the boundary and smaller beyond, and
  *   the two regions meet within it (test_detection_core.c). `E W < 0`,
  *   the 0 side, occurs at any gamma once `exp(-2 phase_var) < r (1 +
- *   1/gamma)` (a term's mean is `A^2 exp(-2 phase_var) - r (A^2 + 2)`),
- *   but it does not reach this region: `|E W|` is then at most about `r`
- *   times the terms' spread, and `r` shrinks as `1/sqrt(n)`, so `w` stays
- *   small. Over n 2 to 10^7, gamma 10^-3 to 10^12 and phase_var 10^-4 to
- *   30 rad^2 its largest is 4.4 (searched with this function's own mean
- *   and variance), so the 0 branch is a sign choice no input reaches.
+ *   1/gamma)` (a term's mean is `A^2 exp(-2 phase_var) - r (A^2 + 2)`).
+ *   Returning 0 there is correct by the same Chebyshev bound:
+ *   `P(W > 0) <= 1 / w^2`, at most 1.04e-8 in this region. (Over n 2 to
+ *   10^7, gamma 10^-3 to 10^12 and phase_var 10^-4 to 30 rad^2 the
+ *   largest `w` on that side is 4.4, searched with this function's own
+ *   mean and variance: `|E W|` is then at most about `r` times the
+ *   terms' spread, and `r` shrinks as `1/sqrt(n)`.)
  *
  * A Gaussian for the ratio (the delta method) is optimistic in the lower
  * tail, where a detection probability near 1 is read: at `gamma` 2.397 and

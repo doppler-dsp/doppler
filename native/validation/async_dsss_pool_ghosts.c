@@ -135,6 +135,12 @@ typedef struct
      lost_confirm_s. */
   double code_down_s[2], both_down_s[2];
   double t_code_first_s, t_code_last_s, df_end_hz, df_end_lat;
+  /* The pool's spacing, Hz (lattice_hz), and over the ghost rule's own
+     window (the pool's carrier rings, the last full window the harness
+     reads while the second receiver tracks: one controller step before a
+     release) the largest |delta - k spacing|, k the window mean's nearest
+     whole number, Hz. NaN: no full window. */
+  double spacing_hz, win_dev_hz;
   /* Both arms, every GH_RATIO_DT while both receivers track: the second
      receiver's Dll prompt amplitude over the first's, dB (its median and
      10th / 90th percentiles over the run), and their code-phase
@@ -201,19 +207,44 @@ static size_t   gh_n_seeds;
    image and the delta's standard deviation over the window is under
    ASYNC_DSSS_POOL_GHOST_STILL_HZ, so the end value is within EPS plus
    three of that sd of the image: 40 Hz, about 0.025 of an image spacing.
+   The 3 is a 3-sd coverage choice on a sample sd, not a derivation; the
+   rows' win_dev_hz column records the window's largest |delta - k
+   interval|, what a derived bound would be checked against (#3263).
    (The records' 30 releases ended at most 3.7 Hz off one.) */
 #define GH_IMAGE_TOL_HZ                                                       \
   (ASYNC_DSSS_POOL_GHOST_EPS_HZ + 3.0 * ASYNC_DSSS_POOL_GHOST_STILL_HZ)
 
 /* A carrier offset of `df_hz` sits on a carrier image at spacing
-   `spacing_hz` (1/(2T)): within GH_IMAGE_TOL_HZ of a whole nonzero number
-   of spacings. */
+   `spacing_hz` (1/(2T), the pool's own lattice_hz): within
+   GH_IMAGE_TOL_HZ of a whole nonzero number of spacings. */
 static int
 gh_on_image (double df_hz, double spacing_hz)
 {
   const double k = round (df_hz / spacing_hz);
   return isfinite (df_hz) && k != 0.0
          && fabs (df_hz - k * spacing_hz) <= GH_IMAGE_TOL_HZ;
+}
+
+/* Over the ghost rule's window, read from the pool's own rings (both
+   written at the same slots), the largest |delta - k lattice_hz| of j's
+   carrier against i's, k the nearest whole number to the window's mean
+   delta over lattice_hz: what the rule's mean and spread summarize. NaN
+   when either ring is not full. */
+static double
+gh_win_dev (const dp_async_dsss_pool_state_t *p, size_t i, size_t j)
+{
+  const size_t w = p->ghost_window;
+  if (p->hist_len[i] < w || p->hist_len[j] < w)
+    return NAN;
+  const double *fi = p->car_hist + i * w, *fj = p->car_hist + j * w;
+  double        m = 0.0;
+  for (size_t b = 0; b < w; b++)
+    m += fj[b] - fi[b];
+  const double k  = round (m / (double)w / p->lattice_hz);
+  double       mx = 0.0;
+  for (size_t b = 0; b < w; b++)
+    mx = fmax (mx, fabs (fj[b] - fi[b] - k * p->lattice_hz));
+  return mx;
 }
 
 /* a - b on a circle of n, in [-n/2, n/2). */
@@ -670,6 +701,8 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
   double       run_c[2] = { 0, 0 }, run_b[2] = { 0, 0 };
   memset (o, 0, sizeof *o);
   o->t_code_first_s = o->t_code_last_s = o->df_end_hz = NAN;
+  o->spacing_hz                                       = p->lattice_hz;
+  o->win_dev_hz                                       = NAN;
   gh_acc_t acc                                        = { 0 };
   for (;;)
     {
@@ -705,7 +738,10 @@ gh_forced (const uint8_t *code, double fc, int k, uint32_t seed, gh_t *o)
                 o->t_code_first_s = t - t_seed;
               o->t_code_last_s = t - t_seed;
             }
-          o->df_end_hz = s1.doppler_hz - s0.doppler_hz;
+          o->df_end_hz    = s1.doppler_hz - s0.doppler_hz;
+          const double wd = gh_win_dev (p, 0, 1);
+          if (!isnan (wd))
+            o->win_dev_hz = wd;
         }
       /* The runs, both receivers, while each tracks. */
       const async_dsss_receiver_status_t sr[2] = { s0, s1 };
@@ -784,6 +820,8 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
   o->end_b_lat = o->end_a_lat = o->end_b_chips = o->end_a_chips = NAN;
   o->df_end_hz = o->df_end_lat = NAN;
   o->t_end_s                   = NAN;
+  o->spacing_hz                = p->lattice_hz;
+  o->win_dev_hz                = NAN;
   gh_acc_t acc                 = { 0 };
   for (;;)
     {
@@ -831,8 +869,10 @@ gh_second (const uint8_t *code, double fc, double b_dbhz, uint32_t seed,
               o->ho_a_hz = s1.doppler_hz - ta.car_hz;
               o->t_ho_s  = t - t_seed;
             }
-          o->df_end_hz   = s1.doppler_hz - s0.doppler_hz;
-          o->df_end_lat  = o->df_end_hz / p->lattice_hz;
+          o->df_end_hz  = s1.doppler_hz - s0.doppler_hz;
+          o->df_end_lat = o->df_end_hz / p->lattice_hz;
+          if (!isnan (gh_win_dev (p, 0, 1)))
+            o->win_dev_hz = gh_win_dev (p, 0, 1);
           o->end_b_lat   = (s1.doppler_hz - tb.car_hz) / p->lattice_hz;
           o->end_a_lat   = (s1.doppler_hz - ta.car_hz) / p->lattice_hz;
           o->end_b_chips = gh_wrap (s1.chip_phase, tb.code_chips, 1023.0);
@@ -1038,7 +1078,7 @@ main (int argc, char **argv)
             "t_code_first_s,t_code_last_s,df_end_hz,"
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
             "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho,"
-            "rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s\n");
+            "rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s,win_dev_hz\n");
   else
     printf ("ghosts: 415.1-B-1, 11 MSa/s, a pool designed at 38.8 dB-Hz; "
             "FORCED on a %.0f dB-Hz parent's %u-chip sidelobe, %.0f s\n",
@@ -1062,15 +1102,15 @@ main (int argc, char **argv)
             /* The rule's claim, on the ghost's carrier at its end (its
                release step, or the run's end), against its parent's. */
             if (o.outcome == 1)
-              DP_CHECK_MSG (
-                  gh_on_image (o.df_end_hz, o.df_end_hz / o.df_end_lat),
-                  "the ghost rule releases a ghost only on a "
-                  "carrier image of its parent: a whole nonzero "
-                  "number of image spacings off");
+              DP_CHECK_MSG (gh_on_image (o.df_end_hz, o.spacing_hz),
+                            "the ghost rule releases a ghost only on a "
+                            "carrier image of its parent: a whole nonzero "
+                            "number of image spacings off");
             if (emit)
               printf ("%.1f,%d,%u,%d,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%.3f,%.3f,"
                       "%.3f,%.1f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.3f,"
-                      "%.4f,%.4f,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%zu,%.2f\n",
+                      "%.4f,%.4f,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%zu,%.2f,%."
+                      "2f\n",
                       fcs[f] / 1e9, k, s, o.outcome, o.code_frac, o.sym_frac,
                       o.any_k, o.code_down_s[0], o.both_down_s[0],
                       o.code_down_s[1], o.both_down_s[1], o.t_code_first_s,
@@ -1078,7 +1118,7 @@ main (int argc, char **argv)
                       o.ratio_p10_db, o.ratio_p90_db, o.dphi_start, o.dphi_end,
                       o.dphi_spread, o.acf_start_db, o.dphi_win_med, o.rho_coh,
                       o.rho_nc, o.n_rho, o.rc100, o.rc25, o.nl100, o.nl25,
-                      o.ns25, o.thr25, o.nb25, o.t_cross);
+                      o.ns25, o.thr25, o.nb25, o.t_cross, o.win_dev_hz);
           }
         if (!emit && n)
           {
@@ -1099,11 +1139,10 @@ main (int argc, char **argv)
       printf ("  refine off, 2.8 GHz, k = +2: outcome %d, carrier %.2f "
               "image spacings off A at the end\n",
               o.outcome, o.df_end_lat);
-      DP_CHECK_MSG (
-          o.outcome == 1 && round (o.df_end_lat) == 2.0
-              && gh_on_image (o.df_end_hz, o.df_end_hz / o.df_end_lat),
-          "refine off: a k = 2 sidelobe ghost is released by the "
-          "ghost rule");
+      DP_CHECK_MSG (o.outcome == 1 && round (o.df_end_lat) == 2.0
+                        && gh_on_image (o.df_end_hz, o.spacing_hz),
+                    "refine off: a k = 2 sidelobe ghost is released by the "
+                    "ghost rule");
     }
   if (emit)
     {
@@ -1119,7 +1158,8 @@ main (int argc, char **argv)
     printf ("# second\nfc_ghz,b_dbhz,seed,outcome,code_frac,any_k,"
             "ratio_med_db,ratio_p10_db,ratio_p90_db,dphi_start,dphi_end,"
             "dphi_spread,acf_start_db,dphi_win_med,rho_coh,rho_nc,n_rho,"
-            "lag_r,b_ber,rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s\n");
+            "lag_r,b_ber,rc100,rc25,nl100,nl25,ns25,thr25,nb25,t_cross_s,"
+            "win_dev_hz\n");
   else
     printf ("  SECOND: a distinct emitter on a %.0f dB-Hz one's carrier\n",
             GH_A2_DBHZ);
@@ -1138,13 +1178,13 @@ main (int argc, char **argv)
             if (emit)
               printf ("%.1f,%.1f,%u,%d,%.3f,%d,%.2f,%.2f,%.2f,%.3f,%.3f,"
                       "%.3f,%.2f,%.3f,%.4f,%.4f,%zu,%ld,%.5f,%.4f,%.4f,%.4f,"
-                      "%.4f,%.4f,%.4f,%zu,%.2f\n",
+                      "%.4f,%.4f,%.4f,%zu,%.2f,%.2f\n",
                       fcs[f] / 1e9, b_lvls[l], s, o.outcome, o.code_frac,
                       o.any_k, o.ratio_med_db, o.ratio_p10_db, o.ratio_p90_db,
                       o.dphi_start, o.dphi_end, o.dphi_spread, o.acf_start_db,
                       o.dphi_win_med, o.rho_coh, o.rho_nc, o.n_rho, o.lag_r,
                       o.b_ber, o.rc100, o.rc25, o.nl100, o.nl25, o.ns25,
-                      o.thr25, o.nb25, o.t_cross);
+                      o.thr25, o.nb25, o.t_cross, o.win_dev_hz);
             /* Counted, not scored: the parent never tracked A. */
             DP_CHECK_MSG (!o.no_parent, "receiver 0 tracks A with code lock");
             if (o.no_parent)
@@ -1159,10 +1199,9 @@ main (int argc, char **argv)
                receiver, as the rule claims: the hand-over had moved B's
                receiver there (§8.2), which the rule correctly takes. */
             if (o.outcome == 1)
-              DP_CHECK_MSG (
-                  gh_on_image (o.df_end_hz, o.df_end_hz / o.df_end_lat),
-                  "the ghost rule releases a distinct emitter's "
-                  "receiver only off that emitter's carrier");
+              DP_CHECK_MSG (gh_on_image (o.df_end_hz, o.spacing_hz),
+                            "the ghost rule releases a distinct emitter's "
+                            "receiver only off that emitter's carrier");
           }
         if (!emit && n)
           {

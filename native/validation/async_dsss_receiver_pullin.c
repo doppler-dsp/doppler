@@ -147,6 +147,8 @@
  *             [--fc GHZ] [--esn0 DB] [--rate HZ_S]   (a slice of the grid)
  *             [--no-emitter | --expect-broken [--carrier-null]]
  *                                                  (the C12 controls)
+ *             [--fine-k1]  (the fine hand-over's control: whole-period
+ *                           sums, predicted one image off past 1/(4T))
  *             [--telemetry DIR --draw FC,ESN0,RATE,SEED [--from S]
  *              [--to S]]
  */
@@ -212,6 +214,11 @@ typedef struct
   size_t frame_off;
   double ho_err_hz;
   int    ho_src;
+  /* The fine hand-over's estimate at the refine's decision, whether or
+     not its check passed: its error against the truth at the hand-over
+     sample (Hz), its snr_db and its sums. NAN / 0 where it did not run. */
+  double fine_err_hz, fine_snr_db;
+  size_t fine_n;
   /* How close acquisition brings the receiver before any loop sees it,
      against the channel's truth: the search's own seed at the sample the
      chain is built from (its Doppler, its code phase in chips, the
@@ -405,6 +412,10 @@ static int pi_expect_broken = 0;
    receiver broken by construction. Its verdict asserts the code and symbol
    flags never sustain, beside --expect-broken's works 0. */
 static int pi_carrier_null = 0;
+/* --fine-k1: the fine hand-over's control, its sums forced to whole code
+   periods (docs/design/async-dsss-receiver.md, "The control that must
+   fail"). */
+static int pi_fine_k1 = 0;
 /* The code lock's look count forced on each entry into tracking, for the
    #3134 control (0: as built, dp_det_n_noncoh()'s sizing). */
 static size_t pi_code_nl = 0;
@@ -660,6 +671,11 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
 
   dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fc, true);
   DP_REQUIRE (rx != NULL);
+  /* --fine-k1: the fine hand-over's control. Its sums are whole code
+     periods (K = 1), whose unambiguous range is 1/(4T): a seed error past
+     it is predicted to land one image off (1/(MT)). */
+  if (pi_fine_k1 && rx->fine_on)
+    rx->fine.k = 1;
 
   const size_t   n_blk  = (size_t)(secs * DP_S415_FS) / PI_PUSH;
   uint8_t       *f_sym  = dp_xmalloc (n_blk);
@@ -674,11 +690,12 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   float complex *tmp    = dp_xmalloc (ocap * sizeof *tmp);
   size_t         ns = 0, first_in = SIZE_MAX;
   d->ho_err_hz   = NAN;
-  d->t_car_s     = NAN;
-  d->t_pull_s    = NAN;
-  d->t_demod_s   = NAN;
-  d->t_sync_s    = NAN;
-  d->t_track_s   = NAN;
+  d->fine_err_hz = d->fine_snr_db = NAN;
+  d->t_car_s                      = NAN;
+  d->t_pull_s                     = NAN;
+  d->t_demod_s                    = NAN;
+  d->t_sync_s                     = NAN;
+  d->t_track_s                    = NAN;
   d->seed_err_hz = d->seed_code_chip = d->seed_t_s = NAN;
   d->ho_code_chip = d->ho_age_s = NAN;
   /* The instrument: the receiver's own probes on every draw that is not a
@@ -888,6 +905,10 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
           d->ho_err_hz      = dp_async_dsss_receiver_get_doppler_hz (rx)
                               - dp_air_truth (&air, 0, at).car_hz;
           d->ho_src         = dp_async_dsss_receiver_get_handover_source (rx);
+          d->fine_err_hz    = rx->seed_doppler_hz_est + rx->fine_hz
+                              - dp_air_truth (&air, 0, at).car_hz;
+          d->fine_snr_db    = rx->fine_snr_db;
+          d->fine_n         = rx->fine_n;
           d->t_track_s      = (double)at / DP_S415_FS;
           d->ho_age_s       = d->t_track_s - d->seed_t_s;
         }
@@ -1595,7 +1616,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
   "base_row_hz,base_half_sample_chip,base_unamb_hz,base_pullin_hz,"           \
   "base_half_spacing_chip,bn_car,win_natural_frac,"                           \
   "t_car_s,pulled_in,t_pull_s,t_demod_s,t_sync_s,t_lock_s,lock20,"            \
-  "unaligned_lock,edge_hz,budget_s,early_lock\n"
+  "unaligned_lock,edge_hz,budget_s,early_lock,fine_err_hz,fine_snr_db,"       \
+  "fine_n\n"
 
 static void
 emit_row (const draw_t *d, uint32_t seed)
@@ -1609,7 +1631,7 @@ emit_row (const draw_t *d, uint32_t seed)
       "%zu,%zu,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,%.2f,"
       "%.3f,%.3f,%.3f,"
       "%.3f,%.4f,%.2f,%.2f,%.4f,%.4f,%.4f,"
-      "%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d\n",
+      "%.4f,%d,%.4f,%.4f,%.4f,%.4f,%d,%d,%.2f,%.4f,%d,%.3f,%.2f,%zu\n",
       d->fc / 1e9, d->esn0, d->rate, seed, d->f0, d->frame_off, d->ho_err_hz,
       d->ho_src, d->seed_err_hz, d->seed_code_chip, d->seed_t_s,
       d->ho_code_chip, d->ho_age_s, d->t_track_s, d->t_sym_s, d->t_code_s,
@@ -1629,7 +1651,7 @@ emit_row (const draw_t *d, uint32_t seed)
       d->bn_car, d->win_n ? (double)d->win_natural / (double)d->win_n : NAN,
       d->t_car_s, d->pulled_in, d->t_pull_s, d->t_demod_s, d->t_sync_s,
       d->t_lock_s, d->lock20, d->unaligned_lock, d->edge_hz, d->budget_s,
-      d->early_lock);
+      d->early_lock, d->fine_err_hz, d->fine_snr_db, d->fine_n);
 }
 
 static int
@@ -1643,6 +1665,7 @@ static void
 print_cell (const draw_t *ds, size_t n)
 {
   size_t        works = 0, acq = 0, fl = 0, al = 0, slip = 0, unsync = 0;
+  size_t        slip_fine = 0, n_fine = 0; /* post-lock slips by source */
   size_t        late = 0, unal = 0, early = 0;
   unsigned long err = 0, sc = 0;
   double        t[PI_DRAWS * 4];
@@ -1657,6 +1680,9 @@ print_cell (const draw_t *ds, size_t n)
       unal += (size_t)ds[i].unaligned_lock;
       early += (size_t)(ds[i].early_lock == 1);
       slip += (size_t)(ds[i].aligned && ds[i].slipped);
+      n_fine += (size_t)(ds[i].ho_src == ASYNC_DSSS_RX_HO_FINE);
+      slip_fine += (size_t)(ds[i].aligned && ds[i].slipped
+                            && ds[i].ho_src == ASYNC_DSSS_RX_HO_FINE);
       unsync += (size_t)(ds[i].aligned && ds[i].end_unsynced);
       if (ds[i].aligned && !ds[i].slipped)
         {
@@ -1684,6 +1710,11 @@ print_cell (const draw_t *ds, size_t n)
       nt ? t[nt / 2] : NAN, nt ? t[(size_t)(0.9 * (double)nt)] : NAN,
       nt ? t[nt - 1] : NAN, DP_S415_LOCK_S, late, unal, early, al, slip,
       unsync, ci.p_hat, ci.lo, ci.hi, err, sc, loss);
+  /* Post-lock slips by the hand-over's source: the fine estimate's, and
+     the fallback's (CarrierAcquisition's or the seed's). */
+  printf ("    hand-over: fine %zu of %zu; slipped after lock: fine %zu, "
+          "fallback %zu\n",
+          n_fine, n, slip_fine, slip - slip_fine);
 }
 
 /* 415.1-B-1 §7.4.1 in every cell. Its form depends on what the cell's
@@ -1955,6 +1986,8 @@ main (int argc, char **argv)
         pi_expect_broken = 1;
       else if (strcmp (argv[i], "--carrier-null") == 0)
         pi_carrier_null = 1;
+      else if (strcmp (argv[i], "--fine-k1") == 0)
+        pi_fine_k1 = 1;
       else if (strcmp (argv[i], "--design") == 0)
         design = 1;
       else if (strcmp (argv[i], "--shard") == 0 && i + 1 < argc)

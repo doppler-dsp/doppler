@@ -74,7 +74,8 @@ typedef struct {
     double rate_p;           
     double   err_sum;        
     uint64_t err_n;          
-    double seed_chip;        
+    double inc_resid;        
+    double seed_chip;       
     double bn;               
     double zeta;             
     float _Complex acc_e;     
@@ -246,8 +247,19 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     double u     = s->inv_upd;
     double ctrl  = u * (s->ctrl_i * integ + s->ctrl_p * pe);
     s->code_rate = 1.0 + u * (s->rate_i * integ + s->rate_p * pe);
-    s->code_nco.phase_inc
-        = nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+    /* The increment is a 32-bit word and the conversion truncates, so a
+       command under one step (2^-32 cycles per sample) is dropped whole at
+       every steer: the loop reads as frozen exactly where its command is
+       smallest, at a long code or many samples per chip (the command goes as
+       1/(sf sps)^2 at one segment's partials, 1/(sf^2 sps) at one). What
+       the conversion drops is carried into the next steer instead, so the
+       mean increment is the commanded one to within a step over the number
+       of steers. */
+    const double f = s->inv_tsamps * (1.0 + s->rate_aid) + ctrl
+                     + s->inc_resid;
+    const uint32_t inc = nco_norm_freq_to_inc(f);
+    s->code_nco.phase_inc = inc;
+    s->inc_resid          = (f - floor(f)) - nco_word_to_norm(inc);
 }
 
 JM_FORCEINLINE JM_HOT void
@@ -324,7 +336,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 16u /* v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 17u /* v17: the conversion's carried remainder, inc_resid, so a command under one phase-word step still moves the increment (#3249); v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

@@ -193,7 +193,13 @@ typedef struct {
                                   not -- the block-mean read a holder
                                   corrects a coasting loop on (§12.22).  */
     uint64_t err_n;          /**< steers in err_sum.                       */
-    double seed_chip;        /**< create-time code phase, for reset.       */
+    double inc_resid;        /**< the fraction of a phase-word step the last
+                                  steer's conversion to `phase_inc` dropped,
+                                  cycles per sample, in [0, 2^-32]: carried
+                                  into the next steer, so a command under one
+                                  step still moves the mean increment (the
+                                  conversion truncates).                     */
+    double seed_chip;       /**< create-time code phase, for reset.       */
     double bn;               /**< loop noise bandwidth (retained).         */
     double zeta;             /**< damping factor (retained).               */
     float _Complex acc_e;     /**< early correlator accumulator.            */
@@ -583,8 +589,19 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     double u     = s->inv_upd;
     double ctrl  = u * (s->ctrl_i * integ + s->ctrl_p * pe);
     s->code_rate = 1.0 + u * (s->rate_i * integ + s->rate_p * pe);
-    s->code_nco.phase_inc
-        = nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+    /* The increment is a 32-bit word and the conversion truncates, so a
+       command under one step (2^-32 cycles per sample) is dropped whole at
+       every steer: the loop reads as frozen exactly where its command is
+       smallest, at a long code or many samples per chip (the command goes as
+       1/(sf sps)^2 at one segment's partials, 1/(sf^2 sps) at one). What
+       the conversion drops is carried into the next steer instead, so the
+       mean increment is the commanded one to within a step over the number
+       of steers. */
+    const double f = s->inv_tsamps * (1.0 + s->rate_aid) + ctrl
+                     + s->inc_resid;
+    const uint32_t inc = nco_norm_freq_to_inc(f);
+    s->code_nco.phase_inc = inc;
+    s->inc_resid          = (f - floor(f)) - nco_word_to_norm(inc);
 }
 
 /**
@@ -877,9 +894,12 @@ size_t dp_dll_steps_max_out(dp_dll_state_t *state);
  * >>> rng = np.random.default_rng(1)
  * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
  * >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
- * >>> x = np.tile(np.repeat(chip, 2), 40).astype(np.complex64)
+ * >>> one = np.repeat(chip, 2)                # one period: 31 chips x 2
+ * >>> x = np.concatenate([np.tile(one, 40), one[:31]])  # 40.5 periods
  * >>> d = Dll(code=code, sps=2)
- * >>> sym = d.steps(x)                        # one prompt per period
+ * >>> sym = d.steps(x.astype(np.complex64))   # one prompt per period
+ * >>> len(sym)                                # the half period ends mid-period
+ * 40
  * >>> sym.dtype
  * dtype('complex64')
  * >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
@@ -1206,10 +1226,10 @@ double dp_dll_get_code_rate(const dp_dll_state_t *state);
  * >>> from doppler.track import Dll
  * >>> rng = np.random.default_rng(3)
  * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
- * >>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+ * >>> idx = (np.arange(63 * 4 * 200 + 126) // 4) % 63
  * >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
  * >>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
- * >>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+ * >>> _ = d.steps(x)                        # 200.5 periods: the loop pulls in
  * >>> m = d.take_error_mean()               # the 200 steers' mean
  * >>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
  * True
@@ -1237,10 +1257,10 @@ size_t dp_dll_take_error(dp_dll_state_t *state, double *sum);
  * >>> from doppler.track import Dll
  * >>> rng = np.random.default_rng(3)
  * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
- * >>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+ * >>> idx = (np.arange(63 * 4 * 200 + 126) // 4) % 63
  * >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
  * >>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
- * >>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+ * >>> _ = d.steps(x)                        # 200.5 periods: the loop pulls in
  * >>> m = d.take_error_mean()               # the 200 steers' mean
  * >>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
  * True
@@ -1363,7 +1383,9 @@ int dp_dll_configure_lock(dp_dll_state_t *state, double pfa, size_t n_looks, dou
  * >>> # >= 7 chips gives a usable lock statistic
  * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
  * >>> chip = np.where(code & 1, -1.0, 1.0)
- * >>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)
+ * >>> one = np.repeat(chip, 4)                # one period: 63 chips x 4
+ * >>> x = np.concatenate([np.tile(one, 400), one[:126]])  # 400.5 periods
+ * >>> x = x.astype(np.complex64)
  * >>> d = Dll(code, sps=4, bn=0.005)
  * >>> # raw geometry: declare at R>3, drop at R<2.5, 8-look,
  * >>> # 2-of-2 hysteresis
@@ -1455,7 +1477,7 @@ void dp_dll_tlm_flush(const dp_dll_state_t *s);
  * >>> d.set_telemetry(tlm, "code")
  * >>> sorted(tlm.probe_names)
  * ['code.e', 'code.lock', 'code.locked', 'code.nco', 'code.rate']
- * >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
+ * >>> x = np.ones(31 * 2 * 50 + 31, dtype=np.complex64)  # 50.5 periods
  * >>> _ = d.steps(x)
  * >>> recs = tlm.read()   # five records per code epoch
  * >>> len(recs) > 0 and len(recs) % 5 == 0
@@ -1474,7 +1496,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
 /** @brief State-blob magic for the DLL (FourCC "DLL "). */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
 /** @brief DLL blob layout version; the trailing comment is its history. */
-#define DLL_STATE_VERSION 16u /* v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 17u /* v17: the conversion's carried remainder, inc_resid, so a command under one phase-word step still moves the increment (#3249); v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

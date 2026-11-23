@@ -68,6 +68,7 @@ _DLL state._ [More...](#detailed-description)
 |  int | [**have\_prev\_epoch**](#variable-have_prev_epoch)  <br> |
 |  uint32\_t | [**held\_inc**](#variable-held_inc)  <br> |
 |  [**dp\_loop\_filter\_state\_t**](structdp__loop__filter__state__t.md) | [**held\_lf**](#variable-held_lf)  <br> |
+|  double | [**inc\_resid**](#variable-inc_resid)  <br> |
 |  double | [**inv\_sps**](#variable-inv_sps)  <br> |
 |  double | [**inv\_tsamps**](#variable-inv_tsamps)  <br> |
 |  double | [**inv\_tsamps2**](#variable-inv_tsamps2)  <br> |
@@ -731,6 +732,24 @@ dp_loop_filter_state_t dp_dll_state_t::held_lf;
 
 
 the filter as of the last [**dp\_dll\_hold\_here()**](dll__core_8h.md#function-dp_dll_hold_here). 
+
+
+        
+
+<hr>
+
+
+
+### variable inc\_resid 
+
+```C++
+double dp_dll_state_t::inc_resid;
+```
+
+
+
+the fraction of a phase-word step the last steer's conversion to `phase_inc` dropped, cycles per sample, in [0, 2^-32]: carried into the next steer, so a command under one step still moves the mean increment (the conversion truncates). 
+ 
 
 
         

@@ -512,37 +512,59 @@ win_frac (const uint8_t *ind, const float *e_car, const float *e_cod,
 }
 
 /* One draw: the receiver on `secs` of the scene. */
-/* The detector's mean slope at per-update SNR rho with kw partials: the
-   error the receiver forms (adr_track_period: each partial squared, the
-   squares summed, half the angle, its sine), on a carrier at +/-PI_SLOPE_D
-   rad, the noise the shipped awgn at rho/kw a partial. Common noise for
-   both signs, so the difference is the slope and not two noise draws. */
+/* The carrier loop's mean discriminator slope at per-update SNR rho, as
+   the receiver forms it: carrier_nda at M = 2 with the unit denominator
+   the receiver builds (ASYNC_DSSS_RX_CAR_DEN_ALPHA, the design update SNR
+   rho, the noise power handed in), each update the window sum on a
+   carrier at +/-PI_SLOPE_D rad of unit amplitude plus the shipped awgn at
+   rho, and the error the loop filter is handed,
+   carrier_nda_loop_error() of dp_carrier_nda_get_last_error(). Common
+   noise for both signs, so the difference is the slope and not two noise
+   draws. With `limiter` set it is the limiter form instead (the
+   denominator the update's own |z|^2), whose gain falls with rho: the
+   failing case for the instrument (carrier_nda_core.h, the denominators'
+   gain laws). */
 #define PI_SLOPE_N 200000
 #define PI_SLOPE_D 0.05
 static double
-pi_slope (double rho, int kw, uint64_t seed)
+pi_slope (double rho, int limiter, uint64_t seed)
 {
-  const float amp = dp_awgn_amplitude_for_snr (
-      (float)(10.0 * log10 (rho / (double)kw)), 1.0f);
+  const float amp
+      = dp_awgn_amplitude_for_snr ((float)(10.0 * log10 (rho)), 1.0f);
   dp_awgn_state_t *g = dp_awgn_create (seed, amp);
   DP_REQUIRE (g != NULL);
+  dp_carrier_nda_state_t *cp
+      = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 1, 2);
+  dp_carrier_nda_state_t *cm
+      = dp_carrier_nda_create (0.01, 0.707, 0.0, 8, 1, 2);
+  DP_REQUIRE (cp && cm);
+  if (!limiter)
+    DP_REQUIRE (
+        dp_carrier_nda_set_denominator (cp, ASYNC_DSSS_RX_CAR_DEN_ALPHA, rho)
+            == DP_OK
+        && dp_carrier_nda_set_denominator (cm, ASYNC_DSSS_RX_CAR_DEN_ALPHA,
+                                           rho)
+               == DP_OK);
+  const double npw        = 1.0 / rho; /* E|n|^2 at unit signal power */
   const float _Complex sp = cexpf (I * (float)PI_SLOPE_D), sm = conjf (sp);
-  float _Complex n[4];
+  float _Complex n[1];
   double acc = 0.0;
+  size_t k   = 0;
   for (int i = 0; i < PI_SLOPE_N; i++)
     {
-      DP_REQUIRE (dp_awgn_generate (g, (size_t)kw, n, 4) == (size_t)kw);
-      float _Complex qp = 0.0f, qm = 0.0f;
-      for (int k = 0; k < kw; k++)
-        {
-          const float _Complex a = sp + n[k], b = sm + n[k];
-          qp += a * a, qm += b * b;
-        }
-      acc += sin (0.5 * atan2 (cimagf (qp), crealf (qp)))
-             - sin (0.5 * atan2 (cimagf (qm), crealf (qm)));
+      DP_REQUIRE (dp_awgn_generate (g, 1, n, 1) == 1);
+      carrier_nda_update (cp, sp + n[0], npw);
+      carrier_nda_update (cm, sm + n[0], npw);
+      if (i < 4096) /* the average's boot, then its steady state */
+        continue;
+      acc += carrier_nda_loop_error (dp_carrier_nda_get_last_error (cp))
+             - carrier_nda_loop_error (dp_carrier_nda_get_last_error (cm));
+      k++;
     }
+  dp_carrier_nda_destroy (cp);
+  dp_carrier_nda_destroy (cm);
   dp_awgn_destroy (g);
-  return acc / ((double)PI_SLOPE_N * 2.0 * PI_SLOPE_D);
+  return acc / ((double)k * 2.0 * PI_SLOPE_D);
 }
 
 /* --dynamics pass: R_env for this run (0 until main computes it). */
@@ -2096,10 +2118,20 @@ pi_design (const double fcs[2], const double esn0s[4])
       {
         const double chip = dp_s415_chip_rate (fcs[f]), T = (double)SF / chip;
         const double rho = pi_rho (fcs[f], esn0s[e]);
-        /* One coherent sum over the code-period window: one partial. */
-        const int    kw = 1;
-        const double k
-            = pi_slope (rho, kw, 4410u + (uint64_t)(f * 8 + e * 2 + 1));
+        /* One coherent sum over the code-period window: one update. */
+        const int      kw = 1;
+        const uint64_t sd = 4410u + (uint64_t)(f * 8 + e * 2 + 1);
+        const double   k  = pi_slope (rho, 0, sd);
+        /* The instrument's failing case: the limiter form on the same
+           noise reads a lower gain, by its law, at the floor's rho. The
+           unit form's holds near 1 at every rho. */
+        const double kl = pi_slope (rho, 1, sd);
+        DP_CHECK_MSG (fabs (k - 1.0) < 0.05,
+                      "the unit denominator's slope is about 1 at every "
+                      "rho");
+        if (esn0s[e] <= DP_S415_FLOOR_DB + 1e-9)
+          DP_CHECK_MSG (kl < k - 0.05, "control: the limiter form's gain "
+                                       "falls at the floor");
         /* The rule's, and the run's: the receiver's own (built at the
            floor, so the rule's too) unless --bn-carrier names one. */
         const double bns[2]

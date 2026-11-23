@@ -528,7 +528,7 @@ void dp_dll_lock_epoch(dp_dll_state_t *s);
  *
  * The remainder lies from 0 to 2^-32, one phase-word step, inclusive, and a
  * caller relies on that interval and on no value inside it. For a command
- * in [-2^-53, 0) strict IEEE evaluation rounds `f - floor(f)` up to 1.0 and
+ * from -2^-53 up to, not including, 0 strict IEEE evaluation rounds `f - floor(f)` up to 1.0 and
  * leaves exactly one step; a build that reassociates under -ffast-math
  * (clang's -O3 on a command it can fold) computes `f - (floor(f) + word)`,
  * the exact remainder, a hair under it. What is shown: by reasoning, for a

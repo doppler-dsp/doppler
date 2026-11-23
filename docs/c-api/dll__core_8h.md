@@ -114,7 +114,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  int | [**dp\_dll\_set\_telemetry**](#function-dp_dll_set_telemetry) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers seven probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock —_ [_**dp\_dll\_get\_code\_rate()**_](dll__core_8h.md#function-dp_dll_get_code_rate) _, the loop's own rate, without the carrier aid; a held loop reports its held integrator's), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold), "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic) and "&lt;prefix&gt;.nco" (what the code NCO is commanded: the complete loop-filter output, the integrator, the proportional term and the carrier aid, as chips per nominal chip, at the NCO's resolution of one phase-increment step; a held loop's held command), and the two terms the lock statistic is formed from, for its decomposition (#3134): "&lt;prefix&gt;.prompt\_amp" (the epoch's last look's prompt magnitude \|P\|, the signal term) and "&lt;prefix&gt;.offset\_pwr" (that look's offset (noise) tap power \|O\|^2, the noise reference's input, of which R's denominator E\|O\|^2 is the running mean). Both are in the units the statistic is formed in_ _the look's normalized correlation. They are ONE look's terms_ _the epoch's last look_ _not the epoch's sum: with segments &gt; 1 an epoch holds several looks, and R sums \|P\|^2 over n\_looks of them, so R = sqrt(2 sum \|P\|^2 / E\|O\|^2) is rebuilt from these only as their moments (n\_looks E\|P\|^2 over E\|O\|^2), never from one epoch's pair. Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dp\_dll\_state\_bytes**](#function-dp_dll_state_bytes) (const [**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  size\_t | [**dp\_dll\_steps**](#function-dp_dll_steps) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
-|  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>_Output capacity hint for_ [_**dp\_dll\_steps()**_](dll__core_8h.md#function-dp_dll_steps) _: always 0._ |
+|  size\_t | [**dp\_dll\_steps\_max\_out**](#function-dp_dll_steps_max_out) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, size\_t x\_len) <br>_The most partials one_ [_**dp\_dll\_steps()**_](dll__core_8h.md#function-dp_dll_steps) _call on_`x_len` _samples can emit: the capacity to size its_`out` _from._ |
 |  int | [**dp\_dll\_symbol\_period\_ok**](#function-dp_dll_symbol_period_ok) (size\_t segments, double partials\_per\_symbol) <br>_Whether_ [_**dp\_dll\_set\_symbol\_period()**_](dll__core_8h.md#function-dp_dll_set_symbol_period) _takes_`partials_per_symbol` _as a period to turn the symbol aid ON._ |
 |  size\_t | [**dp\_dll\_take\_error**](#function-dp_dll_take_error) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state, double \* sum) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
 |  double | [**dp\_dll\_take\_error\_mean**](#function-dp_dll_take_error_mean) ([**dp\_dll\_state\_t**](structdp__dll__state__t.md) \* state) <br>[_**dp\_dll\_take\_error()**_](dll__core_8h.md#function-dp_dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
@@ -2068,7 +2068,7 @@ The Python face of the loop. Each code period the early/prompt/late correlators 
 * `x` Carrier-wiped input samples (one contiguous block). 
 * `x_len` Number of input samples. 
 * `out` Output buffer for the emitted prompt symbols. 
-* `max_out` Capacity of `out` in elements; emission stops there. 
+* `max_out` Capacity of `out` in elements, at least [**dp\_dll\_steps\_max\_out()**](dll__core_8h.md#function-dp_dll_steps_max_out) for `x_len:` emission stops there (memory-safe). 
 
 
 
@@ -2108,16 +2108,33 @@ dtype('complex64')
 
 ### function dp\_dll\_steps\_max\_out 
 
-_Output capacity hint for_ [_**dp\_dll\_steps()**_](dll__core_8h.md#function-dp_dll_steps) _: always 0._
+_The most partials one_ [_**dp\_dll\_steps()**_](dll__core_8h.md#function-dp_dll_steps) _call on_`x_len` _samples can emit: the capacity to size its_`out` _from._
 ```C++
 size_t dp_dll_steps_max_out (
-    dp_dll_state_t * state
+    dp_dll_state_t * state,
+    size_t x_len
 ) 
 ```
 
 
 
-Emitted prompts never outnumber input samples, so size `out` to the input length.
+`segments x min(x_len, floor(2 x_len / P) + 1)`, with `P = sf x sps` the code period in samples (a real number: a period need not be a whole number of samples). A code period closes when the code NCO's phase wraps forward, and a close emits the period's `segments` partials together (one prompt at `segments` 1). The terms:
+
+
+
+* `floor(2 x_len / P) + 1` closes: a call that begins just before a wrap closes a period at its first sample, then one every `P / 2` samples at most. The 2 is headroom for a loop that is tracking, or pulling in near nominal (a locked loop sits within 1e-4 of it); it is not a limit the Dll enforces, which has no rate clamp, and it is not a tracking-free guarantee: a loop that is acquiring or re-acquiring can change its rate wildly and slip cycles, so no rate is assumed to hold there. It needs no carried phase: the +1 is the worst carried phase.
+* `min(x_len, ...)`: one wrap a sample at most, because the increment is a 32-bit word. A call of 0 samples emits nothing.
+
+
+
+
+The hard ceiling, which holds at any rate and in any loop state: an epoch closes at most once per input sample, so `segments x x_len` partials are never exceeded. A caller that must not lose a partial under any loop state sizes to that, and pays for it in memory: a call of 1e6 samples at 127 chips, 2 samples per chip and 8 segments is 8,000,000 partials (64 MB of complex64) against this bound's 63,000 (0.5 MB), 127 times as much.
+
+
+Sizing `max_out` from this keeps a tracking loop's call from ever having to stop. A call that must emit more than its `max_out`  a capacity below the bound, or a loop past the headroom  stops there without writing out of range and drops the rest: with the bound it is the caller's error, and past the headroom it is the price of a rate the bound does not assume.
+
+
+Held by test\_dll\_core.c: a one-sample call that completes a carried period at `segments` 4 emits all four partials, random call lengths at `segments` 1, 4 and 8 and at 2, 2.2 and 3.4219 samples per chip never exceed it, and a code rate of 1.9 times nominal does not either.
 
 
 
@@ -2125,13 +2142,14 @@ Emitted prompts never outnumber input samples, so size `out` to the input length
 **Parameters:**
 
 
-* `state` Unused. 
+* `state` DLL state. Must be non-NULL. 
+* `x_len` Number of input samples the call will be given. 
 
 
 
 **Returns:**
 
-0 (no state-derived bound). 
+The bound, in partials; 0 for `x_len` 0. 
 
 
 

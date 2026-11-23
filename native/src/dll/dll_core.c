@@ -954,13 +954,24 @@ dp_dll_configure (dp_dll_state_t *state, double bn, double zeta)
   return DP_OK;
 }
 
-/* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
- * input length, so 0 (== "caller sizes") is the correct sentinel. */
+/* The most partials one call on x_len samples can emit (see the header for
+ * the derivation and what holds it): segments x min(x_len, floor(2 x_len / P)
+ * + 1), P = sf x sps. A period closes on a forward wrap of the code NCO; the
+ * +1 is a call that starts just before one, and the 2 is a declared headroom
+ * on the code rate. The product is checked: a bound that wrapped would be a
+ * small capacity, the failure this exists to prevent. */
 size_t
-dp_dll_steps_max_out (dp_dll_state_t *state)
+dp_dll_steps_max_out (dp_dll_state_t *state, size_t x_len)
 {
-  (void)state;
-  return 0; /* one prompt per code period, so prompts <= inputs */
+  const double p      = (double)state->sf * state->sps;
+  double       closes = floor (2.0 * (double)x_len / p) + 1.0;
+  if (closes > (double)x_len)
+    closes = (double)x_len; /* one wrap a sample at most; 0 for no samples */
+  const size_t per = state->segments > 1 ? state->segments : 1;
+  size_t       bound;
+  if (!dp_size_mul ((size_t)closes, per, &bound))
+    return SIZE_MAX;
+  return bound;
 }
 
 /* The block kernel with the telemetry decision as a compile-time literal:
@@ -1346,9 +1357,11 @@ dll_steps_impl (dp_dll_state_t *state, const float _Complex *x, size_t x_len,
               const double lvl
                   = state->out_level > 0.0 ? state->out_level : 1.0;
               for (size_t k = 0; k < w; k++)
-                if (emitted < max_out)
-                  out[emitted++]
-                      = state->chunk_p[k] / (float)(state->seg_norm * lvl);
+                {
+                  if (emitted < max_out)
+                    out[emitted++]
+                        = state->chunk_p[k] / (float)(state->seg_norm * lvl);
+                }
 
               /* Step 6 (Python: `backward_sums = partial_sums[::-1]
                  .cumsum()`, returned for the NEXT call's own

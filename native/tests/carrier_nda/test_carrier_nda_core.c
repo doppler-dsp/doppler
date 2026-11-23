@@ -363,6 +363,8 @@ test_composer_options (void)
               == DP_ERR_INVALID);
     DP_CHECK (dp_carrier_nda_set_block_lock (c, 31, 0.0, 2, 3)
               == DP_ERR_INVALID);
+    DP_CHECK (dp_carrier_nda_set_block_lock (c, 31, 0.5, 2, 3)
+              == DP_ERR_INVALID);
     DP_CHECK (dp_carrier_nda_set_block_lock (c, 31, 1.0, 2, 3)
               == DP_ERR_INVALID);
     DP_CHECK (c->blk_len == 0);

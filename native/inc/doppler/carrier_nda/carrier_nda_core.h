@@ -950,7 +950,9 @@ carrier_nda_loop_error (double pe)
    * @param state   Must be non-NULL.
    * @param len     Updates a block, 2 to CARRIER_NDA_BLOCK_MAX_LEN; or 0 for
    *                the EMA.
-   * @param pfa     The false-alarm rate a block, in (0, 1).
+   * @param pfa     The false-alarm rate a block, in (0, 1/2): at 1/2 or
+   *                more the threshold is at or under 0 and the lock declares
+   *                on noise as often as not.
    * @param n_up    Blocks above the threshold to declare; clamped >= 1.
    * @param n_down  Blocks below it to drop; clamped >= 1.
    * @return DP_OK, or DP_ERR_INVALID (nothing changes) for an M other than

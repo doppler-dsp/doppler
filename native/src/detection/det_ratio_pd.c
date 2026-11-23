@@ -14,10 +14,17 @@
    with the Gaussian's weights, and phi_W is the update's to the power len.
    The t axis is scaled by W's own sd and integrated by Simpson to 40 sd's
    reciprocal, past which |phi_W| is negligible (it falls as a power len of
-   t). */
-#define DET_RATIO_PD_NTH 33  /* theta nodes (odd: one at 0)         */
-#define DET_RATIO_PD_NT 1500 /* Simpson panel pairs on the t axis  */
-#define DET_RATIO_PD_U 40.0  /* the t axis's end, in 1 / sd(W)     */
+   t). On that axis the integrand oscillates at about w = |E W| / sd(W)
+   radians a unit (sin(len ang) with ang ~ t E[term]), which grows as
+   sqrt(n gamma): the step is scaled to it, DET_RATIO_PD_PTS points a
+   period and never fewer panels than DET_RATIO_PD_NT, so a fixed step
+   cannot alias at high n gamma. Past DET_RATIO_PD_NT_MAX panel pairs (w
+   about 9.8e3) the result is NaN, outside the stated domain. */
+#define DET_RATIO_PD_NTH 33         /* theta nodes (odd: one at 0)        */
+#define DET_RATIO_PD_NT 1500        /* Simpson panel pairs, the least     */
+#define DET_RATIO_PD_NT_MAX 1000000 /* and the most                      */
+#define DET_RATIO_PD_PTS 32.0       /* points a period of the oscillation */
+#define DET_RATIO_PD_U 40.0         /* the t axis's end, in 1 / sd(W)     */
 double
 dp_det_ratio_pd (int n, double pfa, double gamma, double phase_var)
 {
@@ -60,14 +67,21 @@ dp_det_ratio_pd (int n, double pfa, double gamma, double phase_var)
       v += wt[j] * dm * dm;
     }
   const double sdw = sqrt ((double)len * v);
-  const double h   = DET_RATIO_PD_U / (2.0 * DET_RATIO_PD_NT);
+  /* Panel pairs: h = U / (2 nt) <= 2 pi / (PTS w). */
+  const double w       = fabs ((double)len * m) / sdw;
+  const double nt_need = ceil (DET_RATIO_PD_PTS * w * DET_RATIO_PD_U
+                               / (4.0 * 3.141592653589793));
+  if (!(nt_need <= (double)DET_RATIO_PD_NT_MAX))
+    return NAN;
+  const long nt  = nt_need > DET_RATIO_PD_NT ? (long)nt_need : DET_RATIO_PD_NT;
+  const double h = DET_RATIO_PD_U / (2.0 * (double)nt);
   double       acc = (double)len * m / sdw; /* the integrand's limit at 0 */
   /* In real arithmetic, so no complex library is needed (dp_complex.h
      routes only the float names): with da = 1 - 2iat and db = 1 + 2ibt,
      a c2 / da - b s2 / db = X_r + i X_i, the update's theta term is
      exp(-t a2 X_i) (cos + i sin)(t a2 X_r), and phi_W is taken in polar
      form, its log-magnitude and its angle each times len. */
-  for (int k = 1; k <= 2 * DET_RATIO_PD_NT; k++)
+  for (long k = 1; k <= 2 * nt; k++)
     {
       const double u = h * k, t = u / sdw;
       const double qa = 1.0 + 4.0 * a * a * t * t,
@@ -88,7 +102,7 @@ dp_det_ratio_pd (int n, double pfa, double gamma, double phase_var)
           = atan2 (ei, er)
             - 0.5 * (atan2 (-2.0 * a * t, 1.0) + atan2 (2.0 * b * t, 1.0));
       const double f = exp ((double)len * lmag) * sin ((double)len * ang) / u;
-      acc += (k == 2 * DET_RATIO_PD_NT ? 1.0 : k % 2 ? 4.0 : 2.0) * f;
+      acc += (k == 2 * nt ? 1.0 : k % 2 ? 4.0 : 2.0) * f;
     }
   return 0.5 + h / 3.0 * acc / 3.141592653589793;
 }

@@ -845,6 +845,9 @@ double dp_det_ratio_pd (
 Each term is `z = A d e^{j theta} + noise`, `|d| = 1`, the noise complex Gaussian; `gamma` is `A^2 / E|noise|^2` and `phase_var` the jitter `E[theta^2]`, Gaussian and independent from term to term. With `r` the threshold det\_ratio\_threshold() gives for (`n`, `pfa`), `R > r` is `W = sum((1 - r) I^2 - (1 + r) Q^2) > 0`, a sum of independent terms. Its characteristic function is one term's to the power `n`, and the probability is its inversion (Gil-Pelaez): a quadrature over the jitter at +/-8 sigma and Simpson's rule on the frequency axis, in real arithmetic. At `gamma` 0 it is the false-alarm rate, `pfa`.
 
 
+The frequency step is scaled to the integrand's oscillation, which grows as `sqrt(n gamma)`, at 32 points a period and never under 1,500 panel pairs, so it is exact (to the quadrature's rounding) across its domain: every `n gamma` whose oscillation needs at most 10^6 panel pairs (about `n gamma < 2e8`). Past that it returns NaN, and det\_ratio\_block\_len() reads a NaN as not reached. At the domain's high end the probability is 1 to double precision (test\_detection\_core.c: n 200, gamma 1000).
+
+
 A Gaussian for the ratio (the delta method) is optimistic in the lower tail, where a detection probability near 1 is read: at `gamma` 2.397 and 4.40 deg it gives 0.992 at n = 31, where this gives 0.982, and the measurement 0.982 (test\_detection\_core.c's ratio section).
 
 
@@ -914,7 +917,7 @@ n)`. It is the lock statistic of an NDA BPSK carrier loop (I and Q of a squared-
 
 **Returns:**
 
-The threshold on R, in (0, 1); NaN on invalid input.
+The threshold on R, in (-1, 1): positive for `pfa` under 1/2 (the F point is above 1), 0 at 1/2, negative above it; NaN on invalid input. A lock wants `pfa` well under 1/2.
 
 
 

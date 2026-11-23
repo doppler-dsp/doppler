@@ -261,7 +261,7 @@ carrier_nda_state_ok (const dp_carrier_nda_state_t *s)
     {
       const double r = s->m == 2 && s->blk_len >= 2
                                && s->blk_len <= CARRIER_NDA_BLOCK_MAX_LEN
-                               && s->blk_pfa > 0.0 && s->blk_pfa < 1.0
+                               && s->blk_pfa > 0.0 && s->blk_pfa < 0.5
                            ? carrier_nda_block_thresh (s->blk_len, s->blk_pfa)
                            : NAN;
       blk_ok = isfinite (r) && s->blk_n < s->blk_len
@@ -495,7 +495,7 @@ dp_carrier_nda_set_block_lock (dp_carrier_nda_state_t *state, uint32_t len,
   else
     {
       if (state->m != 2 || len < 2 || len > CARRIER_NDA_BLOCK_MAX_LEN
-          || !(pfa > 0.0 && pfa < 1.0))
+          || !(pfa > 0.0 && pfa < 0.5))
         return DP_ERR_INVALID;
       state->blk_len = len;
       state->blk_pfa = pfa;

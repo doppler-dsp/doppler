@@ -4207,7 +4207,9 @@ class CarrierNda:
         len : int
             Updates a block, 2 to CARRIER_NDA_BLOCK_MAX_LEN; or 0 for the EMA.
         pfa : float, default 1e-3
-            The false-alarm rate a block, in (0, 1).
+            The false-alarm rate a block, in (0, 1/2): at 1/2 or more the
+            threshold is at or under 0 and the lock declares on noise as often
+            as not.
         n_up : int, default 2
             Blocks above the threshold to declare; clamped >= 1.
         n_down : int, default 3

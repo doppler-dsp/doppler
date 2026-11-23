@@ -13,8 +13,10 @@ dp_det_ratio_block_len (double gamma, double phase_var, double pfa, double pd,
   /* The probability rises with n (the threshold falls toward 0 and the
      block's spread with it): double to a length that reaches pd, then
      bisect for the least. */
+  /* A NaN (outside dp_det_ratio_pd()'s domain) reaches nothing: written
+     as !(>=) so it never reads as reached. */
   int hi = 2;
-  while (dp_det_ratio_pd (hi, pfa, gamma, phase_var) < pd)
+  while (!(dp_det_ratio_pd (hi, pfa, gamma, phase_var) >= pd))
     {
       if (hi >= max_n)
         return 0;

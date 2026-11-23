@@ -2434,12 +2434,16 @@ class AsyncDsssReceiver:
         seed's own sample, from the seed's code phase and Doppler; the receiver
         goes from searching (or idle) to tracking and never reads refining, and
         the `refine_*` parameters are unused. The Doppler handed over is the
-        search's: the block's mean, within half a Doppler row of it, so within
-        half a row plus `doppler_rate` times half the dwell (`coherent_bins`
-        code periods) of the Doppler at the hand-over sample. False holds only
-        while half the search's Doppler row, `chip_rate / (code_len *
-        coherent_bins)`, is inside the carrier loop's acquisition bound,
-        ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is `coherent_bins >=
+        search's: the block's mean, within one Doppler row of it, since the
+        peak is one of the rows bracketing it and at a near tie noise decides
+        which, not always the nearer one; so within a row plus `doppler_rate`
+        times half the dwell (`coherent_bins` code periods) of the Doppler at
+        the hand-over sample. Past half a row, the carrier loop meets it
+        outside its budgeted edge, and its lock time is the pull-in's, not the
+        budget's (the design page, §2.3). False is sized on the nearer row: it
+        is accepted only while half the search's Doppler row, `chip_rate /
+        (code_len * coherent_bins)`, is inside the carrier loop's acquisition
+        bound, ASYNC_DSSS_RX_CARRIER_PULLIN_HZ: that is `coherent_bins >=
         ASYNC_DSSS_RX_NO_REFINE_MIN_BINS(bn)`, with `bn` the receiver's carrier
         bandwidth (dp_async_dsss_receiver_carrier_bn()): 25 at 0.04, at any
         chip rate. A receiver configured outside it (a one-epoch search, D = 1,

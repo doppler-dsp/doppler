@@ -1200,7 +1200,7 @@ int dp_carrier_nda_set_block_lock (
 
 * `state` Must be non-NULL. 
 * `len` Updates a block, 2 to CARRIER\_NDA\_BLOCK\_MAX\_LEN; or 0 for the EMA. 
-* `pfa` The false-alarm rate a block, in (0, 1). 
+* `pfa` The false-alarm rate a block, in (0, 1/2): at 1/2 or more the threshold is at or under 0 and the lock declares on noise as often as not. 
 * `n_up` Blocks above the threshold to declare; clamped &gt;= 1. 
 * `n_down` Blocks below it to drop; clamped &gt;= 1. 
 

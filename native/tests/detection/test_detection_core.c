@@ -90,6 +90,20 @@ test_ratio_sizing (void)
   /* A signal too weak for any block under the cap. */
   DP_CHECK (dp_det_ratio_block_len (1e-6, 0.0, 1e-3, 0.99, 100000) == 0);
   DP_CHECK (isnan (dp_det_ratio_pd (0, 1e-3, 1.0, 0.0)));
+  /* High n gamma: the integrand oscillates at about sqrt(n gamma / 2) a unit
+     of the scaled axis, so a fixed step aliased there (doppler review C4).
+     At n 200 and gamma 1000 the block's mean is hundreds of its sd's past
+     the threshold: the probability is 1 to double precision, and the step
+     scaled to the oscillation reads it. Past the panel cap it is outside
+     the stated domain and reads NaN, and block_len, which treats a NaN as
+     not reached, finds no block rather than reading the first as enough. */
+  {
+    const double hi = dp_det_ratio_pd (200, 1e-3, 1000.0, 0.0);
+    printf ("  ratio Pd at n 200, gamma 1000: %.12f\n", hi);
+    DP_CHECK (fabs (hi - 1.0) < 1e-9);
+    DP_CHECK (isnan (dp_det_ratio_pd (2, 1e-3, 1e12, 0.0)));
+    DP_CHECK (dp_det_ratio_block_len (1e12, 0.0, 1e-3, 0.99, 64) == 0);
+  }
   DP_CHECK (isnan (dp_det_ratio_threshold (0.0, 31)));
   return 0;
 }

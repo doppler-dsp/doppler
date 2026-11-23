@@ -15,8 +15,8 @@ its state and its proofs.*
     general modulator `ofdm` gives the rate table, the minimal MAC, the
     coding chain, the layout and the PPDU. Not built: wfmgen's `ofdm`
     waveform type (section 5) and the HT, VHT and HE flavors. "What exists, and what does not" in
-    section 4 says which blocks have a home today. Section 10 lists the
-    decisions, ruled and open; sections 8 and 9 list what is not known.
+    section 4 says which blocks have a home today. Section 10 lists what
+    is decided and what is open; sections 8 and 9 list what is not known.
 
 !!! note "Where the conformance evidence lives"
 
@@ -112,7 +112,7 @@ symbol; `N_SYM` OFDM symbols in the Data field.
     text and is cited where it is written into code. A preset has no
     tunable that the standard fixes. A number section 9 does not mark
     checked is labeled unverified where it is written, and the preset
-    claims no conformance (Ruled, section 10).
+    claims no conformance (Decided, section 10).
 1. **A preset is a layout.** `wlan` builds layouts; the modulator is the
     general one of [ofdm](ofdm.md) and branches on no standard.
 1. **Nothing is implemented twice.** Each PHY block calls the object that
@@ -132,12 +132,11 @@ symbol; `N_SYM` OFDM symbols in the Data field.
     that makes a PPDU a frame a real receiver accepts: an MPDU built from a
     caller's header and body with its FCS (section 3, "The minimal MAC").
     No aggregation, no management or control frames, no encryption, no
-    channel access timing. Ruled 2026-11-16.
+    channel access timing.
 1. **One spatial stream. MIMO is out of scope, not deferred.** No more than
     one spatial stream, no space-time block coding, no cyclic shift
     diversity across transmit chains, no HT MCS 8 to 31. HT, VHT and HE
-    are single-stream PHYs, and wfmgen keeps one output stream. Ruled
-    2026-11-16.
+    are single-stream PHYs, and wfmgen keeps one output stream.
 
 ## 3. The layers
 
@@ -169,7 +168,7 @@ is built (section 4).
 
 ### The minimal MAC
 
-Ruled 2026-11-16: the generator wraps the caller's octets as one MPDU, and
+The generator wraps the caller's octets as one MPDU, and
 nothing more. A source's `mac` field selects one of three modes:
 
 | `mac`  | the caller supplies          | the PSDU is                       |
@@ -597,7 +596,7 @@ before any C.
     OFDM waveform means;
 - a `data_len` that is not a whole number of octets, or outside the PSDU
     length the preset allows;
-- `snr_mode = ebno` and `esno` (owner ruling: `auto` and `fs` mean signal
+- `snr_mode = ebno` and `esno` (`auto` and `fs` mean signal
     power over noise in the full band);
 - a `scrambler_init` above 127. Zero is not refused: it draws the initial
     state per PPDU from `seed` and the frame index;
@@ -1320,11 +1319,11 @@ drift.
 
 ## 10. Decisions
 
-### Ruled
+### Decided
 
 1. **The general shape is the deliverable, and the letters wait on the
     text.** No preset claims conformance to 802.11a, g, n or ac until its
-    numbers are checked against the standard's text. The owner's ruling: the
+    numbers are checked against the standard's text. The
     general shape shared across the flavors is what matters, and the
     letters are not certified until validated by the specifications.
 1. **The name of the 802.11 component is `wlan`.** A C identifier cannot

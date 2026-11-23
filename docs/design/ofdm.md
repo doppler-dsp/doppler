@@ -9,8 +9,8 @@ description: "A general OFDM modulator as a library object: a layout of symbol c
     The modulator on this page is built (`ofdm_core.h`, with its layout, its
     state and its serialization); `wlan` is its first caller. Not built:
     wfmgen's `ofdm` waveform type, the complex-envelope PAPR and the EVM of
-    an OFDM grid. "What exists, and what does not" says which is which. The
-    decisions are at the end, the ruled ones and the open ones.
+    an OFDM grid. "What exists, and what does not" says which is which. What is
+    decided and what is open are at the end.
 
 The library gains an OFDM modulator: an object that turns constellation
 points into the baseband samples of an OFDM signal, for any OFDM signal
@@ -106,8 +106,7 @@ proven.
     C and Python (section 5); the CLI and JSON faces belong to wfmgen's
     type.
 1. **MIMO is out of scope, not deferred.** One output stream. A spatial
-    stream is another layout rendered separately, not a field here. Ruled
-    2026-11-16.
+    stream is another layout rendered separately, not a field here.
 
 ## 3. What exists, and what does not
 
@@ -277,7 +276,7 @@ modulator, and each is a finding:
 - **A second data stream on fixed carriers**, which DVB-T's TPS carriers
     need (their values follow per-frame content). It is an additive map
     value naming a second point source; nothing existing moves.
-- **MIMO**, out by ruling: a spatial stream is another layout.
+- **MIMO**, out of scope: a spatial stream is another layout.
 
 ## 5. The object, and where it lives
 
@@ -427,9 +426,9 @@ section 6, and nothing else is claimed.
 
 ## 8. Decisions
 
-### Ruled
+### Decided
 
-1. **The general shape is the deliverable.** The owner's ruling: the modulator takes a layout, the
+1. **The general shape is the deliverable.** The modulator takes a layout, the
     presets are filled instances of it, and **no preset claims conformance
     to any standard (802.11a, g, n or ac) until its numbers are checked
     against the standard's text.** The letters are not certified until

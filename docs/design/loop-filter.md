@@ -1038,19 +1038,17 @@ widths off (a hundred times `sigma_f`) is refused; the fixed-gain answer to
 that case is to start wide and `configure` narrower (§5), which keeps the
 estimates.
 
-**What relaxing the ceiling buys, measured and not shipped.** The owner
-ruled the rule stays as designed for the first version and asked what
-relaxing it buys. The report's §2.6 measures starts of 10, 30 and 100 times
-`sigma_f` (built through the embedder's unguarded `init_qr`, which the
-validated constructors do not accept, so nothing shipped accepts them and an
-embedder that passes one is outside the certified range): at `bn*t` 0.01 a
-start of 30 settles a frequency step in 0.27 of the fixed-gain loop's
-updates, against 0.56 at the ceiling, and no closed loop diverged or failed
-to settle across starts 1 to 100, slopes 0.6, 0.76 and 1 and delays 0 to 2 at
-`bn*t` 0.01 and 0.04. Frozen at the gains in force the loop does leave the
-rectangle for a few updates past the cap; the converging loop did not
-diverge. That is a measurement, not a guarantee, and whether to relax the
-ceiling is the owner's.
+**What relaxing the ceiling buys, measured and not shipped.** The rule stays as
+designed for the first version. The report's §2.6 measures starts of 10, 30 and
+100 times `sigma_f` (built through the embedder's unguarded `init_qr`, which
+the validated constructors do not accept, so nothing shipped accepts them and
+an embedder that passes one is outside the certified range): at `bn*t` 0.01 a
+start of 30 settles a frequency step in 0.27 of the fixed-gain loop's updates,
+against 0.56 at the ceiling, and no closed loop diverged or failed to settle
+across starts 1 to 100, slopes 0.6, 0.76 and 1 and delays 0 to 2 at `bn*t` 0.01
+and 0.04. Frozen at the gains in force the loop does leave the rectangle for a
+few updates past the cap; the converging loop did not diverge. That is a
+measurement, not a guarantee, and whether to relax the ceiling is the owner's.
 
 ## 19. The claim of §13.1, proved and corrected
 
@@ -1165,7 +1163,7 @@ base's functions that only read (`stable`, `bandwidth` and the fields) accept
 update, at a rate far under the sample rate, so there is no hot path to
 protect.
 
-**What a caller states.** The caller's figures, as the owner ruled them: the
+**What a caller states.** The caller's figures: the
 rms detector error when locked `sigma_e`, the rms change of the rate per
 update `sigma_a`, and an optional frequency uncertainty `sigma_f0` (0 =
 absent), all in the loop's own units; the automatic case is `bn` and `t`

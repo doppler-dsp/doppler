@@ -225,6 +225,23 @@ void dp_dll_lock_look(dp_dll_state_t *s, double norm);
 void dp_dll_lock_epoch(dp_dll_state_t *s);
 
 JM_FORCEINLINE JM_HOT void
+dll_set_inc(dp_dll_state_t *s, double command)
+{
+    const double   f   = command + s->inc_resid;
+    const uint32_t inc = nco_norm_freq_to_inc(f);
+    s->code_nco.phase_inc = inc;
+    s->inc_resid          = (f - floor(f)) - nco_word_to_norm(inc);
+}
+
+JM_FORCEINLINE JM_HOT double
+dll_held_command(const dp_dll_state_t *s)
+{
+    const dp_loop_filter_state_t *lf = s->held_inc ? &s->held_lf : &s->lf;
+    return s->inv_tsamps * (1.0 + s->rate_aid)
+           + s->inv_upd * s->ctrl_i * lf->integ;
+}
+
+JM_FORCEINLINE JM_HOT void
 dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
 {
     double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
@@ -236,11 +253,17 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
     s->err_sum += e;
     s->err_n++;
     if (s->coast)
-        return; /* held: the discriminator read (last_error, the probe, the
-                   sum) but not filtered, phase_inc as it stands
-                   (dp_dll_set_coast) -- a holder coasting on another clock
-                   reads where the signal sits against the held phase, which
-                   is what it corrects on */
+    {
+        /* held: the discriminator read (last_error, the probe, the sum) but
+           not filtered -- a holder coasting on another clock reads where the
+           signal sits against the held phase, which is what it corrects on.
+           The held rate is converted here, once a period, through the same
+           carry as a live steer, so a coasting loop follows its held rate to
+           within one phase-word step of accumulated phase however long the
+           hold. */
+        dll_set_inc(s, dll_held_command(s));
+        return;
+    }
     (void)dp_loop_filter_step(&s->lf, e);
     double integ = s->lf.integ;
     double pe    = s->lf.kp * e;
@@ -252,14 +275,10 @@ dll_steer(dp_dll_state_t *s, double ep, double lp, double pp)
        every steer: the loop reads as frozen exactly where its command is
        smallest, at a long code or many samples per chip (the command goes as
        1/(sf sps)^2 at one segment's partials, 1/(sf^2 sps) at one). What
-       the conversion drops is carried into the next steer instead, so the
-       mean increment is the commanded one to within a step over the number
-       of steers. */
-    const double f = s->inv_tsamps * (1.0 + s->rate_aid) + ctrl
-                     + s->inc_resid;
-    const uint32_t inc = nco_norm_freq_to_inc(f);
-    s->code_nco.phase_inc = inc;
-    s->inc_resid          = (f - floor(f)) - nco_word_to_norm(inc);
+       the conversion drops is carried into the next steer instead (see
+       dll_set_inc()), so the mean increment is the commanded one to within
+       a step over the number of steers. */
+    dll_set_inc(s, s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
 JM_FORCEINLINE JM_HOT void

@@ -4,13 +4,13 @@ description: "the library's decision vocabulary: the signal and the search's gri
 
 # Vocabulary
 
-The words the library's design pages, headers and reviews use for a
-search, a decision and a loop. A term names its own axis or role; a bare
-general word (block, look, tile, bin, row, cell, surface, span) is not a
-term. A name in backticks is the C field; `py:` gives the Python name where
-it differs. Numbers in brackets are the correlator's UNO Q case
-([correlator §9](correlator.md#9-cost-and-parallelism)). An entry that is a
-draft names the issue it waits on.
+The words the library's design pages, headers and reviews use for a search, a
+decision and a loop. A term names its own axis or role; a bare general word
+(`block`, `look`, `tile`, `bin`, `row`, `cell`, `surface`, `span`) is not a
+term. A name in backticks is the C field; `py:` gives the Python name where it
+differs. Numbers in brackets are the correlator's UNO Q case ([correlator
+§9](correlator.md#9-cost-and-parallelism)). An entry that is a draft names the
+issue it waits on.
 
 ## 1. The signal and the search's grid
 
@@ -178,19 +178,22 @@ draft names the issue it waits on.
 
 - **update**: one step of a tracking loop's filter. **Update interval**:
     the time between updates \[the async receiver's carrier loop: one code
-    period\].
+    period\]. For an averaged statistic, the total dwell is the update
+    interval; the average's length is its memory.
 - **memory**: an averaged statistic's effective length, (2 − α)/α
-    updates for an EMA of weight α. An averaged statistic's total dwell is
-    its update interval.
+    updates for an EMA of weight α.
 - **acquisition bound**: the frequency offset inside which a second-order
     loop locks in its normal lock time, about 5/bn updates: 0.5 bn per
     update, `bn / (2T)` Hz at an update interval T. Past it the lock time
     is the pull-in's and grows with the offset. Empirical, not derived
     from the loop equations: held for `carrier_nda` by its validation
     report (`src/doppler/track/tests/validation/carrier_nda/results.md`,
-    §2.5) and, at the async receiver's configuration, by the committed
-    sweep its design page cites
-    ([async-dsss-receiver.md](async-dsss-receiver.md)).
+    §2.5) and, at the async receiver's configuration, by the sweep
+    committed with that receiver,
+    `docs/design/async-dsss-receiver-measurements/sweep-1b7312b09/`: its
+    `read_sweep.py`, section "Lock time by hand-over error", prints the
+    median, p90 and worst lock time at each step in `B_L`, with 0.50 `B_L`
+    the bound.
 - **false lock**: a tracking loop sitting on a Doppler ambiguity. It is one
     definition for both uses: the receiver's carrier loop on an estimate
     whole ambiguity intervals off, and `carrier_nda`'s own stable locks at
@@ -205,65 +208,95 @@ A word below is not used in prose for the meaning given. The tables are
 the one declaration a check reads: one row per retired word or phrase;
 `retired` lists the phrases, each in backticks, matched as whole words
 without regard to case; `allowed` lists phrases, each in backticks, inside
-which a match is not a use; `review only` marks a row whose sense a script
-cannot tell, which review holds. Code spans, fenced blocks, generated
-regions and the measurement records are not prose.
+which a match is not a use, or `—` for none. A row is matched by a script
+only where its phrase has one sense in this tree; a common word with other
+senses is `review only`, which review holds and a check skips. Code spans,
+fenced blocks, generated regions and the measurement records are not
+prose.
 
-| retired                                                                      | use instead                                                                    | allowed                                                         |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `block`, `depth`                                                             | coherent dwell, and D its length in epochs                                     | `data-free block`, `refine block`, `refine blocks`, `blocks of` |
-| `block lock`                                                                 | ratio-of-sums lock                                                             | —                                                               |
-| `look` (one element of a non-coherent sum)                                   | coherent dwell                                                                 | `look-back`, `look for`, `looks like`                           |
-| `looks`, `look count`, `n looks`                                             | non-coherent count                                                             | `looks like`                                                    |
-| `term` (one element of a non-coherent sum)                                   | coherent dwell                                                                 | review only                                                     |
-| `detection dwell`                                                            | total dwell                                                                    | —                                                               |
-| `dwell` (bare, for a decision interval)                                      | total dwell                                                                    | `coherent dwell`, `total dwell`                                 |
-| `dwell` (for an average's length)                                            | memory                                                                         | review only                                                     |
-| `tile`, `Doppler window`, `span`, `native span`                              | Doppler roll; its width is the epoch rate                                      | —                                                               |
-| `bin`, `row` (unqualified)                                                   | Doppler bin; Doppler interpolation                                             | `Doppler bin`, `lag bin`                                        |
-| `cell`, `surface` (unqualified)                                              | delay-Doppler cell, delay-Doppler surface                                      | `delay-Doppler cell`, `delay-Doppler surface`                   |
-| `preamble`, `burst` (for the thing detected)                                 | acquisition sequence                                                           | review only                                                     |
-| `repetition` (for the interval)                                              | epoch                                                                          | `repetition count`                                              |
-| `sliding`, `phase` (for total-dwell offsets)                                 | total-dwell offset; phase is carrier phase                                     | review only                                                     |
-| `code phase` (for lag, of a non-code template)                               | lag                                                                            | review only                                                     |
-| `dwell straddle`                                                             | alignment loss                                                                 | —                                                               |
-| `lattice`, `lattice step`, `lattice image`, `carrier image`, `image spacing` | Doppler ambiguity, ambiguity interval                                          | —                                                               |
-| `image` (for a Doppler ambiguity)                                            | Doppler ambiguity; image means a spectral, I/Q-mismatch or interpolation image | review only                                                     |
-| `reliable pull-in`                                                           | acquisition bound, or no-slip edge                                             | —                                                               |
-| `lock-in`                                                                    | acquisition bound, or no-slip edge                                             | —                                                               |
+| retired                                                                      | use instead                                                                    | allowed     |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------- |
+| `block lock`                                                                 | ratio-of-sums lock                                                             | —           |
+| `detection dwell`                                                            | total dwell                                                                    | —           |
+| `dwell straddle`                                                             | alignment loss                                                                 | —           |
+| `look count`, `n looks`                                                      | non-coherent count                                                             | —           |
+| `tile`, `Doppler window`, `native span`                                      | Doppler roll; its width is the epoch rate                                      | —           |
+| `lattice`, `lattice step`, `lattice image`, `carrier image`, `image spacing` | Doppler ambiguity, ambiguity interval                                          | —           |
+| `reliable pull-in`, `lock-in`                                                | acquisition bound, or no-slip edge                                             | —           |
+| `block`, `depth` (for the search's coherent sum)                             | coherent dwell, and D its length in epochs                                     | review only |
+| `block` (for a lock's decision interval)                                     | non-coherent count                                                             | review only |
+| `look` (one element of a non-coherent sum)                                   | coherent dwell; the Dll's `look-back` keeps its name                           | review only |
+| `looks` (the count)                                                          | non-coherent count                                                             | review only |
+| `term` (one element of a non-coherent sum)                                   | coherent dwell                                                                 | review only |
+| `dwell` (bare, for a decision interval)                                      | total dwell                                                                    | review only |
+| `dwell` (for an average's length)                                            | memory                                                                         | review only |
+| `span` (for a Doppler roll's width)                                          | the epoch rate                                                                 | review only |
+| `bin`, `row` (for a Doppler bin)                                             | Doppler bin; Doppler interpolation                                             | review only |
+| `cell`, `surface` (of the search)                                            | delay-Doppler cell, delay-Doppler surface                                      | review only |
+| `preamble`, `burst` (for the thing detected)                                 | acquisition sequence                                                           | review only |
+| `repetition` (for the interval)                                              | epoch                                                                          | review only |
+| `sliding`, `phase` (for total-dwell offsets)                                 | total-dwell offset; phase is carrier phase                                     | review only |
+| `code phase` (for lag, of a non-code template)                               | lag                                                                            | review only |
+| `image` (for a Doppler ambiguity)                                            | Doppler ambiguity; image means a spectral, I/Q-mismatch or interpolation image | review only |
 
 On design pages only, narration: a page states what is, so its prose does
 not use these.
 
-| retired                              | use instead                                       | allowed     |
-| ------------------------------------ | ------------------------------------------------- | ----------- |
-| `today`, `today's`                   | the present tense                                 | review only |
-| `now` (against a before)             | the present tense                                 | review only |
-| `as built`                           | the present tense                                 | —           |
-| `proposed` (for what is built)       | what is                                           | review only |
-| `used to`, `no longer`, `previously` | the present tense; the history goes to the record | —           |
+| retired                                                   | use instead                                       | allowed     |
+| --------------------------------------------------------- | ------------------------------------------------- | ----------- |
+| `as built`                                                | the present tense                                 | —           |
+| `today`, `today's`                                        | the present tense                                 | review only |
+| `now` (against a before)                                  | the present tense                                 | review only |
+| `proposed` (for what is built)                            | what is                                           | review only |
+| `used to`, `no longer`, `previously` (narrating a change) | the present tense; the history goes to the record | review only |
 
 ## 5. Names
 
 A count is `n_` and what it counts; a length carries its unit as a suffix.
-`n_noncoh` is the non-coherent count's name and keeps it.
+`n_noncoh` is the non-coherent count's name and keeps it. The table is the
+whole list of renames ruled on 2026-11-23 and not yet merged; a row leaves
+when its rename merges.
 
-| name                                                   | becomes                         | where it is renamed                        |
-| ------------------------------------------------------ | ------------------------------- | ------------------------------------------ |
-| `coherent_bins` (D)                                    | `n_coherent`                    | the correlator's own PR, after the release |
-| `window_bins` (W)                                      | `n_rolls`                       | the correlator's own PR, after the release |
-| `code_bins` (N)                                        | `template_len`                  | the correlator's own PR, after the release |
-| `doppler_bins`, the property (W·D)                     | `n_doppler_bins`                | the correlator's own PR, after the release |
-| `doppler_bins`, `configure_search_raw`'s argument (D)  | `n_coherent`                    | the correlator's own PR, after the release |
-| `doppler_span_hz` (half the epoch rate)                | `epoch_rate_hz` (the full rate) | the correlator's own PR, after the release |
-| `pd_burst`                                             | `pd_acquisition`                | the correlator's own PR, after the release |
-| `n_looks` (Dll, Despreader, both receivers)            | `n_noncoh`                      | the async receiver PR                      |
-| `blk_len` (carrier_nda)                                | `n_noncoh`                      | the async receiver PR                      |
-| `set_block_lock`                                       | `set_ratio_lock`                | the async receiver PR                      |
-| `block_thresh`                                         | `ratio_thresh`                  | the async receiver PR                      |
-| `CARRIER_NDA_BLOCK_MAX_LEN`                            | `CARRIER_NDA_LOCK_MAX_N_NONCOH` | the async receiver PR                      |
-| `dp_det_ratio_block_len`                               | `dp_det_ratio_n_noncoh`         | the async receiver PR                      |
-| `car_blk` (the async receiver)                         | `car_n_noncoh`                  | the async receiver PR                      |
-| `lattice_hz` (the pool)                                | `ambiguity_interval_hz`         | the async receiver PR                      |
-| `*_lat` (the pool's ghost validator)                   | `*_intervals`                   | the async receiver PR                      |
-| `block_ms` (the pull-in validator's `# search` column) | `coherent_dwell_ms`             | the async receiver PR                      |
+**In the async receiver PR**, the names as the branch spells them. Shipped
+in a release, so retired by name and declared breaking:
+
+| name         | becomes                 | where                                                                                                                                                                                                  |
+| ------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `n_looks`    | `n_noncoh`              | the Dll's field and its `configure_lock` and `configure_lock_raw` parameter; the Despreader's, DsssReceiver's and AsyncDsssReceiver's `configure_lock` or `configure_lock_raw` parameter; C and Python |
+| `p_look`     | `p_decision`            | the first parameter of `det_verify_count` and `det_verify_delay`, C and Python                                                                                                                         |
+| `lattice_hz` | `ambiguity_interval_hz` | AsyncDsssPool's state field                                                                                                                                                                            |
+
+New on that branch:
+
+| name                                   | becomes                                                  | where                                                                  |
+| -------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `set_block_lock`                       | `set_ratio_lock`                                         | CarrierNda, C and Python                                               |
+| `get_block_thresh`, `block_thresh`     | `get_ratio_thresh`, `ratio_thresh`                       | CarrierNda, C and the Python property                                  |
+| `blk_len`                              | `n_noncoh`                                               | CarrierNda's field                                                     |
+| `blk_thr`, `blk_pfa`                   | `ratio_thr`, `ratio_pfa`                                 | CarrierNda's fields                                                    |
+| `blk_n`, `blk_num`, `blk_den`          | `ratio_n`, `ratio_num`, `ratio_den`                      | CarrierNda's running sums                                              |
+| `CARRIER_NDA_BLOCK_MAX_LEN`            | `CARRIER_NDA_LOCK_MAX_N_NONCOH`                          | CarrierNda's macro                                                     |
+| `det_ratio_block_len`                  | `det_ratio_n_noncoh`                                     | detection, C and Python                                                |
+| `car_blk`                              | `car_n_noncoh`                                           | AsyncDsssReceiver's field; `carrier_lock_n_noncoh` keeps its name      |
+| `blocks`                               | `n_noncoh`                                               | the fine design's output field                                         |
+| `block_s`                              | `coherent_dwell_s`                                       | the fine design's parameter                                            |
+| `max_blocks`                           | `max_n_noncoh`                                           | the fine design's parameter                                            |
+| `look_prompt_amp`                      | `lock_prompt_amp`                                        | the Dll's field; its probe stays `prompt_amp`                          |
+| `look_offset_pwr`                      | `lock_offset_pwr`                                        | the Dll's field; its probe stays `offset_pwr`                          |
+| `lock_look`                            | `lock_accumulate`                                        | the Dll's internal function                                            |
+| `df_end_lat`, `end_b_lat`, `end_a_lat` | `df_end_intervals`, `end_b_intervals`, `end_a_intervals` | the pool's ghost validator; its committed CSV columns stay as recorded |
+| `gh_on_image`, `GH_IMAGE_TOL_HZ`       | `gh_on_ambiguity`, `GH_AMBIGUITY_TOL_HZ`                 | the pool's ghost validator                                             |
+| `block_ms`                             | `coherent_dwell_ms`                                      | the pull-in validator's `# search` column                              |
+
+**In the correlator's own PR, after the release**, all shipped:
+
+| name                                                  | becomes                         | where                                                                   |
+| ----------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------- |
+| `coherent_bins` (D)                                   | `n_coherent`                    | the correlator, and the async receiver's matching argument and property |
+| `window_bins` (W)                                     | `n_rolls`                       | the correlator                                                          |
+| `code_bins` (N)                                       | `template_len`                  | the correlator                                                          |
+| `doppler_bins`, the property (W·D)                    | `n_doppler_bins`                | the correlator                                                          |
+| `doppler_bins`, `configure_search_raw`'s argument (D) | `n_coherent`                    | the correlator                                                          |
+| `doppler_span_hz` (half the epoch rate)               | `epoch_rate_hz` (the full rate) | the correlator                                                          |
+| `pd_burst`                                            | `pd_acquisition`                | the correlator                                                          |
+| `n_blocks`, `max_n_blocks`, `refine_max_n_blocks`     | not yet named                   | CarrierAcquisition, and the receiver's refine argument                  |

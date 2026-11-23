@@ -252,4 +252,4 @@ flavor is refused by another. See [Checkpoint & Resume](state-serialization.md).
     [Acquiring a Repeated Preamble](acquisition.md),
     [DSSS Burst Acquisition](dsss-acquisition.md)
 - [The correlator's design](../design/correlator.md) —
-    why there is one class, and every ruling behind its knobs
+    why there is one class, and every decision behind its knobs

@@ -49,7 +49,8 @@ assert waterfall[:, 256 // 2 + 32].min() > 0.99  # a unit tone reads 1.0
 
 The object says how it was built: `nfft`, `hop`, `window`, `beta` and `mode`
 read back, `window` and `mode` as the strings that made them. `hop` defaults
-to 0, which means `nfft`, so the default tiles the stream at any `nfft`:
+to 0, which means `nfft`, so by default the rows cover the stream end to end
+at any `nfft`:
 
 ```python
 sp = Spectrogram(nfft=1024, window="kaiser", beta=7.5)

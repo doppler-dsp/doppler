@@ -614,6 +614,96 @@ pi_live_align (const dp_air_t *air, size_t first_in, double secs,
     }
 }
 
+/* The end's verdict (§4.11's "works": the data held to the end). The
+   meter re-detects the alignment on a marker near the end
+   (dp_ber_marker_place() backward from ns - guard); a different lag or an
+   inverted phase there is a slip. Where it cannot place one (its `ok`
+   down), the end is judged by the start's alignment instead: the last
+   PI_END_TAIL symbols scored against it. A clean end reads the link's own
+   rate; a slip anywhere before the tail reads random data, half of them
+   wrong. The tail is refused when its errors pass the midpoint of the two,
+   n (bound + 0.5) / 2, with bound the contract's (BPSK at Es/N0 less
+   PI_MARGIN_DB). That end-sync refusal is the meter's own: at 2.2 GHz, 10
+   dB, seed 43, the end marker the replay resolves noiselessly sat 0.26 dB
+   under the threshold at the right lag (56, the start's), and the stream
+   carried 6 errors in 178,175 symbols. */
+#define PI_END_TAIL 1000u
+static void
+pi_end_verdict (const float complex *syms, size_t ns, const uint8_t *truth,
+                size_t n_truth, const dp_ber_marker_t *mk,
+                const dp_ber_sync_t *sy, double esn0, int force_unsync,
+                int *unsynced, int *slipped, unsigned long *tail_err)
+{
+  const size_t    guard  = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
+  dp_ber_marker_t mk_end = *mk;
+  const size_t    at_end = dp_ber_marker_place (
+      truth, n_truth, 2, ns - guard, 0, DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
+  mk_end.t0         = at_end == SIZE_MAX ? n_truth : at_end;
+  dp_ber_sync_t end = dp_ber_sync (syms, ns, truth, n_truth, &mk_end, 2,
+                                   DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
+  if (force_unsync)
+    end.ok = 0;
+  *tail_err = 0;
+  if (end.ok)
+    {
+      *unsynced = 0;
+      *slipped  = end.lag != sy->lag || cos (end.phase - sy->phase) < 0.0;
+      return;
+    }
+  const size_t lo = ns > PI_END_TAIL ? ns - PI_END_TAIL : 0;
+  dp_ber_t     acc;
+  dp_ber_init (&acc, 2, ULONG_MAX);
+  dp_ber_score (&acc, syms, lo, ns, truth, n_truth, mk, sy);
+  const double bound
+      = dp_ber_theory_ser (2, pow (10.0, (esn0 - PI_MARGIN_DB) / 10.0));
+  *tail_err = acc.errors;
+  *unsynced
+      = acc.symbols == 0
+        || (double)acc.errors > 0.5 * (double)acc.symbols * (bound + 0.5);
+  *slipped = 0;
+  dp_ber_free (&acc);
+}
+
+/* The end verdict's failing cases, once, on the first draw that aligns: the
+   same stream with its end sync forced to fail must be accepted on its
+   tail, and the stream with one symbol dropped PI_END_TAIL / 2 before its
+   end must be refused, both with the end sync as it is and forced to
+   fail. */
+static int pi_end_controls_done = 0;
+
+static void
+pi_end_controls (const float complex *syms, size_t ns, const uint8_t *truth,
+                 size_t n_truth, const dp_ber_marker_t *mk,
+                 const dp_ber_sync_t *sy, double esn0)
+{
+  if (pi_end_controls_done || ns < 2 * PI_END_TAIL)
+    return;
+  pi_end_controls_done = 1;
+  int           u, sl;
+  unsigned long te;
+  pi_end_verdict (syms, ns, truth, n_truth, mk, sy, esn0, 1, &u, &sl, &te);
+  printf ("  end verdict's failing cases: end sync forced off, the tail "
+          "reads %lu errors in %u: %s\n",
+          te, PI_END_TAIL, u || sl ? "refused" : "accepted");
+  DP_CHECK_MSG (!u && !sl, "control: a clean end the sync cannot place is "
+                           "accepted on its tail");
+  float complex *f  = dp_xmalloc (ns * sizeof *f);
+  const size_t   at = ns - PI_END_TAIL / 2;
+  memcpy (f, syms, at * sizeof *f);
+  memcpy (f + at, syms + at + 1, (ns - at - 1) * sizeof *f);
+  for (int force = 0; force < 2; force++)
+    {
+      pi_end_verdict (f, ns - 1, truth, n_truth, mk, sy, esn0, force, &u, &sl,
+                      &te);
+      printf ("  end verdict's failing cases: a symbol dropped %u before "
+              "the end, end sync %s: %s (tail errors %lu)\n",
+              PI_END_TAIL / 2, force ? "forced off" : "as it is",
+              u || sl ? "refused" : "accepted", te);
+      DP_CHECK_MSG (u || sl, "control: a slip before the end is refused");
+    }
+  free (f);
+}
+
 /* One definition of a crossing of the fold, used by the stress, the
    transitions, their baseline and D10's split: the folded error (cycles,
    period half a cycle) jumps by more than a quarter cycle (90 degrees)
@@ -699,7 +789,7 @@ pi_forced_slip (const float *e_car, const float *e_cod, size_t n_blk,
 
 /* Whether a draw's link works: every one of the five flags sustained
    (§4.11 C17) and never changed over the data, up at the end, not a false
-   lock, the data held (no slip, an end the meter could sync), and the
+   lock, the data held (no slip, and an end held: pi_end_verdict()), and the
    error-rate window's two verdicts: all five sustained inside the lock
    allocation (lock20) and the meter aligned at that start (aligned; its
    failure is unaligned_lock). check_cell() pins the last two. */
@@ -1552,9 +1642,8 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
       const size_t guard = (size_t)DP_BER_LAG_SPAN + DP_BER_SYNC_SYMS;
       if (lock_sym + 2 * guard + 500 < ns)
         {
-          dp_ber_marker_t mk     = { NULL, DP_BER_SYNC_SYMS, 0, 0, 0 };
-          dp_ber_marker_t mk_end = mk;
-          size_t          at     = dp_ber_marker_place (
+          dp_ber_marker_t mk = { NULL, DP_BER_SYNC_SYMS, 0, 0, 0 };
+          size_t          at = dp_ber_marker_place (
               truth, n_truth, 2, lock_sym + DP_BER_LAG_SPAN, 0,
               DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, 1);
           mk.t0            = at == SIZE_MAX ? n_truth : at;
@@ -1562,24 +1651,16 @@ run_draw (const uint8_t *code, double fc, double esn0, double rate_mag,
                                           DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
           if (sy.ok)
             {
-              size_t at_end
-                  = dp_ber_marker_place (truth, n_truth, 2, ns - guard, 0,
-                                         DP_BER_LAG_SPAN, DP_BER_SYNC_PFA, -1);
-              mk_end.t0 = at_end == SIZE_MAX ? n_truth : at_end;
-              dp_ber_sync_t end
-                  = dp_ber_sync (syms, ns, truth, n_truth, &mk_end, 2,
-                                 DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
               d->aligned        = 1;
               d->unaligned_lock = 0;
               /* A slip is a different alignment at the end; an end the
-                 sync could not place is its own verdict (end_unsynced),
-                 not a slip: dp_ber_sync has refused a clean, aligned end
-                 at 20 dB (the error count from the start's alignment was
-                 0 of 26,022). */
-              d->end_unsynced = !end.ok;
-              d->slipped
-                  = end.ok
-                    && (end.lag != sy.lag || cos (end.phase - sy.phase) < 0.0);
+                 sync cannot place is judged on its tail under the start's
+                 alignment (pi_end_verdict). */
+              unsigned long tail_err;
+              pi_end_verdict (syms, ns, truth, n_truth, &mk, &sy, esn0, 0,
+                              &d->end_unsynced, &d->slipped, &tail_err);
+              if (!pi_no_emitter && !pi_expect_broken)
+                pi_end_controls (syms, ns, truth, n_truth, &mk, &sy, esn0);
               const long   lo_e = (long)(mk.t0 + mk.n) - sy.lag;
               const size_t lo   = (lo_e > 0 && (size_t)lo_e > lock_sym)
                                       ? (size_t)lo_e

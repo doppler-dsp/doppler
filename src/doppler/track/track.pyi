@@ -1725,11 +1725,12 @@ class Dll:
     >>> rng = np.random.default_rng(1)
     >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # a 31-chip PN code
     >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
-    >>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)
+    >>> one = np.repeat(chip, 2)                # one period: 31 chips x 2
+    >>> x = np.concatenate([np.tile(one, 60), one[:31]])  # 60.5 periods
     >>> d = Dll(code=code, sps=2)               # 2 samples/chip loop
-    >>> sym = d.steps(x)                        # one prompt per period
-    >>> sym.shape                               # 60 despread symbols
-    (60,)
+    >>> sym = d.steps(x.astype(np.complex64))   # one prompt per period
+    >>> len(sym)                                # the half period ends mid-period
+    60
     >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
     1.0
     >>> round(d.code_rate, 3)                   # code NCO at nominal rate
@@ -1978,11 +1979,11 @@ class Dll:
         >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(
         ...     np.int64) % 63
         >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
-        >>> plain = Dll(code, sps=4, bn=0.005)
-        >>> _ = plain.steps(x)
+        >>> plain = Dll(code, sps=4, bn=0.05)  # wn 0.09 per period: a ramp of
+        >>> _ = plain.steps(x)                 # 0.03 chip/period stays in range
         >>> round(plain.code_rate, 4)      # loop had to pull the whole Doppler
         1.0005
-        >>> aided = Dll(code, sps=4, bn=0.005)
+        >>> aided = Dll(code, sps=4, bn=0.05)
         >>> aided.set_rate_aid(delta)      # feed the Doppler forward instead
         >>> _ = aided.steps(x)
         >>> round(aided.code_rate, 4)      # loop integrator stays at nominal

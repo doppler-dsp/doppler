@@ -64,11 +64,10 @@ typedef struct {
        proportional term reach phase_inc (cycles per sample) and code_rate
        (a ratio), set once by segments in set_segments(). ONE steer,
        dll_steer(), applies it on both paths; the two tables record the
-       measured, separately pinned gains each path shipped with (the
-       coherent full-epoch loop treats the integrator as a rate ratio,
-       the partial-correlation loop treats the filter's output as chips
-       over sps) -- reconciling them is a certified-behaviour change,
-       tracked, not folded in here. */
+       gains each path ships with (the coherent full-epoch loop applies
+       both terms as chips per epoch, the partial-correlation loop treats
+       the filter's output as chips over sps) -- the segmented table is not
+       reconciled yet (doppler#3234). */
     double ctrl_i;           
     double ctrl_p;           
     double rate_i;           
@@ -325,7 +324,7 @@ int dp_dll_set_telemetry(dp_dll_state_t *state, dp_tlm_t * tlm, const char * pre
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 15u /* v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 16u /* v16: the one-segment gain table is unit gain, so an older blob would resume the loop sf times too wide (#3234); v15: the output level, out_level/out_level_n (#2495); v14: the taps' phase words (#2397); v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

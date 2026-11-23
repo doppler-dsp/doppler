@@ -1171,6 +1171,75 @@ output_level_is_input_level_free (void)
   return 0;
 }
 
+/* The filter's contract (loop_filter_core.h) is a unit-gain actuator: one
+ * unit of the integrator moves the code phase by one chip per update. The
+ * coherent full-epoch loop applied the integrator as a code-rate ratio, so a
+ * unit moved the phase by `sf` chips: an integral path `sf` times the
+ * contract's (doppler#3234). Seeded directly, with no error to disturb it,
+ * the integrator is steered into the NCO and the phase that increment moves
+ * in one period is read back, per code length. Returns the failed checks. */
+static int
+the_integrator_moves_the_phase_one_chip_per_update (size_t sf)
+{
+  int          fails = 0;
+  const size_t sps   = 4;
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 17u);
+  dp_dll_state_t *d
+      = dp_dll_create (code, sf, (double)sps, 0.0, 0.002, 0.707, 0.5, 1);
+  DP_REQUIRE (code && d);
+  const double integ
+      = 0.01; /* chips per update, 66 or more LSB of phase_inc */
+  const uint32_t nominal = nco_norm_freq_to_inc (d->inv_tsamps);
+  d->lf.integ            = integ;
+  dll_steer (d, 1.0, 1.0, 1.0); /* e = 0: the integrator alone steers */
+  const double dinc  = (double)(int32_t)(d->code_nco.phase_inc - nominal)
+                       / 4294967296.0; /* cycles per sample */
+  const double chips = dinc * ((double)sf * (double)sps) * (double)sf;
+  DP_CHECK_MSG (fabs (chips - integ) <= 0.02 * integ,
+                "one unit of the integrator is one chip per update");
+  if (fabs (chips - integ) > 0.02 * integ)
+    DP_TEST_ERR ("  sf %zu: moved %.6f chips for integ %.6f (the old gain: "
+                 "%.6f)\n",
+                 sf, chips, integ, integ * (double)sf);
+  /* code_rate is the ratio to the nominal rate: integ chips of sf */
+  DP_CHECK_MSG (fabs (dp_dll_get_code_rate (d) - (1.0 + integ / (double)sf))
+                    < 1e-12,
+                "code_rate is 1 + integ / sf");
+  dp_dll_destroy (d);
+  free (code);
+  return fails;
+}
+
+/* The gain table is restored verbatim from a blob, so one saved before the
+ * integral path became a unit-gain actuator (version 15) would resume the loop
+ * sf times too wide, bit-exactly: that blob is refused. Returns failed checks.
+ */
+static int
+a_blob_from_before_the_unit_gain_integral_path_is_refused (void)
+{
+  int          fails = 0;
+  const size_t sf    = 31;
+  uint8_t     *code  = malloc (sf);
+  make_code (code, sf, 5u);
+  dp_dll_state_t *a = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
+  dp_dll_state_t *b = dp_dll_create (code, sf, 4.0, 0.0, 0.01, 0.707, 0.5, 1);
+  DP_REQUIRE (code && a && b);
+  const size_t bytes = dp_dll_state_bytes (a);
+  void        *blob  = malloc (bytes);
+  DP_REQUIRE (blob);
+  dp_dll_get_state (a, blob);
+  DP_CHECK (dp_dll_set_state (b, blob) == DP_OK); /* the current version */
+  ((dp_state_hdr_t *)blob)->version = 15u;
+  DP_CHECK_MSG (dp_dll_set_state (b, blob) == DP_ERR_INVALID,
+                "a version 15 blob carries the old gain table");
+  free (blob);
+  dp_dll_destroy (a);
+  dp_dll_destroy (b);
+  free (code);
+  return fails;
+}
+
 int
 main (void)
 {
@@ -1278,9 +1347,13 @@ main (void)
     double          delta = 5e-4; /* incoming code runs 0.05% fast */
     size_t          n = make_signal (rx, code, sf, sps, delta, nper, 9u, 1);
 
-    /* half-chip E/L discriminator is steep — keep the loop BW low. */
+    /* The loop must pull in a code Doppler of 5e-4: 0.0315 chips per period
+       of ramp. A second-order loop's transient error to a rate step is about
+       the rate over its natural frequency, wn = 8 zeta bn / (4 zeta^2 + 1);
+       to stay inside the discriminator's linear range (about a chip) wn is at
+       least 0.03 per period, so bn is 0.01 or more, and 0.05 gives margin. */
     dp_dll_state_t *d
-        = dp_dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, 1);
+        = dp_dll_create (code, sf, sps, 0.0, 0.05, 0.707, 0.5, 1);
     float _Complex *sym = malloc (nper * sizeof (*sym));
     size_t          k   = dp_dll_steps (d, rx, n, sym, nper);
     /* the loop must speed its replica up to match the incoming rate */
@@ -2364,7 +2437,20 @@ main (void)
     dp_dll_state_t *run
         = dp_dll_create (code, sf, sps, 0.15, 0.005, 0.707, 0.5, 1);
     (void)dp_dll_steps (run, rx, n, sym, nper);
-    DP_CHECK (dp_dll_take_error (run, &sum) == nper);
+    {
+      /* One steer per epoch. The seed offset of 0.15 chip delays this
+         loop's period boundaries until it pulls in; at bn 0.005 that takes
+         about 1000 periods, so within 300 the last boundary falls just past
+         the end of the stream and the count is nper - 1. (It read nper only
+         because the old loop's integral path pulled the offset in within a
+         few periods, doppler#3234.) The held loop above never moves, so its
+         boundaries are on time and its count is nper. */
+      size_t got = dp_dll_take_error (run, &sum);
+      DP_CHECK_MSG (got + 1 == nper,
+                    "the running loop's seed offset is still unpulled at the "
+                    "end of 300 periods (bn 0.005 settles in about 5/bn = "
+                    "1000), so the last boundary falls past the stream");
+    }
     /* The Python face: the mean, NaN once taken. */
     (void)dp_dll_steps (held, rx, sf * sps * 10, sym, nper);
     DP_CHECK (fabs (dp_dll_take_error_mean (held)) > 0.05);
@@ -2521,6 +2607,12 @@ main (void)
        0. */
     DP_CHECK (isnan (dp_fmod_pos (nan_in, m)));
   }
+
+  /* The integral path is a unit-gain actuator at every code length. */
+  DP_CHECK (the_integrator_moves_the_phase_one_chip_per_update (31) == 0);
+  DP_CHECK (the_integrator_moves_the_phase_one_chip_per_update (127) == 0);
+
+  DP_CHECK (a_blob_from_before_the_unit_gain_integral_path_is_refused () == 0);
 
   DP_TEST_END ("test_dll_core");
 }

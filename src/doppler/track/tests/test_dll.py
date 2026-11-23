@@ -78,7 +78,11 @@ def test_tracks_code_doppler():
     # async; the replica speeds up to match the incoming chip rate and the
     # fractional-boundary discriminator holds sub-chip lock (clean despread).
     rx = _signal(code, delta, 1500, seed=9, const_data=True)
-    d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)
+    # bn from the requirement: a ramp of delta * SF chips per period must stay
+    # inside the discriminator's range (about a chip), and a second-order
+    # loop's transient to a rate step is about the rate over wn = 8 zeta bn /
+    # (4 zeta^2 + 1), so wn >= 0.03 per period: bn 0.05 has margin.
+    d = Dll(code, SPS, 0.0, 0.05, 0.707, 0.5)
     sym = d.steps(rx)
     assert d.code_rate == pytest.approx(1.0 + delta, abs=1e-4)
     # 0.85, not 0.9: the point-sample 2x-oversampled replica (dll_replica)

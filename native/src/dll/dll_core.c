@@ -279,13 +279,18 @@ set_segments (dp_dll_state_t *s, size_t segments)
   s->segments  = segments ? segments : 1;
   s->seg_chips = (double)s->sf / (double)s->segments;
   s->seg_norm  = (double)s->sf * s->sps / (double)s->segments;
-  /* The steer's gain table (dll_steer): the coherent full-epoch loop
-     applies the integrator as a code-rate ratio (inv_tsamps cycles per
-     sample per unit) and kp*e as chips per epoch (inv_tsamps/sf), and
-     reports code_rate = 1 + integ; the partial-correlation loop applies
-     the filter's whole output as chips over sps (inv_tsamps^2 per unit) and
-     reports 1 + output * inv_tsamps. These are the two loops' measured,
-     separately pinned gains, kept as data behind the one steer. */
+  /* The steer's gain table (dll_steer): how the loop filter's output reaches
+     the code NCO. The filter's contract (loop_filter_core.h) is a unit-gain
+     actuator, so one unit of its output moves the code phase by one chip
+     per update, for the integrator as for the proportional term. The
+     coherent full-epoch loop (`segments == 1`) updates once per period, so a
+     phase_inc change of `delta` cycles per sample held for `tsamps` samples
+     moves the phase by `delta * tsamps * sf` chips: both terms take
+     `inv_tsamps_sf` (= 1 / (tsamps * sf)) for that, and code_rate, the ratio
+     to the nominal rate, is 1 + integ / sf. The partial-correlation loop
+     applies the filter's whole output as chips over sps (inv_tsamps^2 per
+     unit) and reports 1 + output * inv_tsamps. These are kept as data behind
+     the one steer. */
   if (s->segments > 1)
     {
       s->ctrl_i = s->ctrl_p = s->inv_tsamps2;
@@ -293,9 +298,9 @@ set_segments (dp_dll_state_t *s, size_t segments)
     }
   else
     {
-      s->ctrl_i = s->inv_tsamps;
+      s->ctrl_i = s->inv_tsamps_sf;
       s->ctrl_p = s->inv_tsamps_sf;
-      s->rate_i = 1.0;
+      s->rate_i = 1.0 / (double)s->sf;
       s->rate_p = 0.0;
     }
 }

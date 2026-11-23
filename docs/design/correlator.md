@@ -10,8 +10,8 @@ a reference by FFT, then perhaps detect. Its seven flavors are one state
 type with one constructor each; the Python class takes every knob and the C
 picks the flavor from them.
 
-The search's mathematics (the epoch matrix, the tiles, the gate, the
-surface) is [the acquisition surface](acq-surface.md). How to use it is
+The search's mathematics (the epoch matrix, the Doppler rolls, the gate, the
+delay-Doppler surface) is [the acquisition surface](acq-surface.md). How to use it is
 [the correlator guide](../guide/correlator.md). §11 is how it came to be one
 object.
 
@@ -24,7 +24,7 @@ The words this page uses are the library's, defined on
 
 | caller                                                   | flavor                     | does with the answer                                 |
 | -------------------------------------------------------- | -------------------------- | ---------------------------------------------------- |
-| a user correlating a block against a template            | 1-D, 2-D                   | maps: one per call, or a batch reduced in C          |
+| a user correlating an input against a template           | 1-D, 2-D                   | maps: one per call, or a batch reduced in C          |
 | a user searching a code over delay × Doppler             | delay-Doppler              | maps, a hypothesis bank, the peak per map            |
 | a user detecting a reference in a stream                 | 1-D or 2-D detector        | detections from `push`, the gate a multiple of noise |
 | a user acquiring a DSSS signal or a burst                | continuous or burst search | detections from `push`, the gate from Pfa and Pd     |
@@ -58,7 +58,7 @@ layers it needs, and none exists twice:
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
 | **map**       | the reference spectrum and the transforms: the 2-D shape, the single-row shape and the delay-Doppler map (§7) |
 | **dwell**     | the coherent accumulator and its count; the non-coherent sum                                                  |
-| **stream**    | the ring and framer; a search's block-coherent epochs held raw                                                |
+| **stream**    | the ring and framer; a search's coherent dwell's epochs held raw                                              |
 | **detection** | magnitude, noise estimate, peak list, the gate, twins, the decision (§8)                                      |
 | **search**    | the search record: sizing, the grid, rates, the carrier, the sidelobe cache, Pfa and Pd, telemetry, hand-off  |
 
@@ -232,9 +232,9 @@ flavor is refused by every other; then each layer packs its own fields once.
     keys: they decide what the stored statistic means), `threshold` (a
     mutator's value, #2022), the framer's child blob and the last dump's
     result.
-- **Searches:** the search's extra block (the counts that are reject keys,
+- **Searches:** the search's own section (the counts that are reject keys,
     and the stream position), the framer's snapshot, the non-coherent
-    accumulator when `n_noncoh > 1`, the twins, a tiled block's raw epochs,
+    accumulator when `n_noncoh > 1`, the twins, a rolled search's coherent dwell of raw epochs,
     and `carrier_freq_hz`.
 
 `set_state` checks the whole blob, children included, before it commits
@@ -375,7 +375,7 @@ bank (carriers and rates) of one frame through the same loop.
 
 - **Map h is a fresh dwell-1 object's map for frame h,** bit for bit, on
     every path and at every thread count: `execute()` and the batch run the
-    same row, tile and frame helpers.
+    same row, roll and frame helpers.
 - **The dwell is untouched.** A batch never reads or writes the accumulator,
     its count or the blob, so it may run mid-dwell.
 - **Every reduction folds in h order,** so a float sum is the same at every
@@ -401,11 +401,11 @@ A carrier-offset search as one batch is
 `native/examples/delay_doppler_batch_demo.c`, and its Python twin
 `src/doppler/examples/delay_doppler_batch_demo.py`.
 
-### 7.5 The search's block map
+### 7.5 The search's coherent-dwell map
 
-The two searches run one block-coherent delay-Doppler map a block of $D$
+The two searches run one delay-Doppler map a coherent dwell of $D$
 epochs: the forward transform of each epoch, slow time over chunks of
-capture bins, then the rows over (tile, slow row) with each tile's
+capture bins, then the rows over (roll, slow row) with each roll's
 code-rate ramp. Its definition, its two schedules and its one rule
 (`dp__dd_schedule`), and the carrier's rebuild are
 [the acquisition surface §18](acq-surface.md#18-one-delay-doppler-map).
@@ -415,7 +415,7 @@ code-rate ramp. Its definition, its two schedules and its one rule
 
 - **The peak list** (`det_peak_list`) is the one peak picker for every
     detecting flavor: one peak for a detector, up to `max_peaks` for a
-    search, zoned by span. On equal cells it keeps the lowest index.
+    search, zoned by the peak zone (below). On equal cells it keeps the lowest index.
 - **The peak zone.** By default a search's listed peak masks one native
     Doppler row by the template's mainlobe across the lags, so one strong
     emitter can fill the list with its own lag: its slow-time sidelobes,
@@ -529,12 +529,12 @@ by resampling to a 2,048-sample period; #2457's point does not.
 
 **The FFT backend's fast sizes.** The `fft` object (`dp_fft_create`) takes its float SIMD path (pffft)
 only for multiples of 16 whose only factors are 2, 3 and 5; every other
-length runs in double through pocketfft. The search's slow-time depth is
+length runs in double through pocketfft. The search's coherent dwell length $D$ is
 rounded to 7-smooth (`dp_fft_smooth_floor`), which is not that set: 180
 points take 0.57 µs, where 160 take 0.17 µs and 192 take 0.21 µs. The rule
 that would fix it floors $D\,I$ to the backend's fast set rather than to
 7-smooth, and its price is each point's own: at $D = 90$ the nearest fast
-depth that keeps 2 rows a bin is 80 (0.5 dB), while the pool's $D = 150$
+length that keeps 2 rows a Doppler bin is 80 (0.5 dB), while the pool's $D = 150$
 (300 points) has 144 (288 points) for 0.18 dB.
 
 ### 9.2 Bytes against bandwidth
@@ -542,7 +542,7 @@ depth that keeps 2 rows a bin is 80 (0.5 dB), while the pool's $D = 150$
 On the x86 dev box the search is not bandwidth-bound. Counting each map
 stage's buffers read and written once (a floor, with no cache):
 
-| tiles | logical bytes a sample | map stage at 16 threads | triad ceiling, all threads |
+| rolls | logical bytes a sample | map stage at 16 threads | triad ceiling, all threads |
 | ----: | ---------------------: | ----------------------: | -------------------------: |
 |     3 |                    136 |                 25 GB/s |                    77 GB/s |
 |    11 |                    456 |                 28 GB/s |                    77 GB/s |
@@ -559,42 +559,42 @@ bandwidth-bound target such as a GPU on unified memory.
 
 ### 9.3 How each stage splits across workers
 
-Every stage of the search's map runs once a block and fans once on its
+Every stage of the search's map runs once a coherent dwell and fans once on its
 pool:
 
 | stage                                    | split by                                                                                                                   |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | forward transforms                       | epoch                                                                                                                      |
 | slow time                                | chunks of capture bins                                                                                                     |
-| rows                                     | (tile, slow row)                                                                                                           |
-| decide (magnitude, reference, peak scan) | chunks of whole rows: each tile's rows cut equally, aiming at 24 chunks in all and at most 8 a tile; one a tile at $D = 1$ |
+| rows                                     | (roll, slow row)                                                                                                           |
+| decide (magnitude, reference, peak scan) | chunks of whole rows: each roll's rows cut equally, aiming at 24 chunks in all and at most 8 a roll; one a roll at $D = 1$ |
 
 - **Results never depend on the thread count.** Each output row is one
     task's arithmetic, and the decide pass's chunk count is fixed by the grid,
     not the pool, so its float sums fold in one order. The surface and every
     hit are bit-identical at any thread count.
-- **The pool is not capped at one worker a tile when $D > 1$,** since
-    every stage fans finer than tiles. That holds at one tile too: its map
+- **The pool is not capped at one worker a roll when $D > 1$,** since
+    every stage fans finer than rolls. That holds at one roll too: its map
     fans by epoch, capture bin and row, and only its decide pass stays one
     chunk
     ([#3055](https://github.com/doppler-dsp/doppler/issues/3055)). At
-    $D = 1$ a block is one epoch and the cap stays: there the fans run
-    every epoch, and the caller's `epoch_fan` decides; one tile at $D = 1$
+    $D = 1$ a coherent dwell is one epoch and the cap stays: there the fans
+    run every epoch, and the caller's `epoch_fan` decides; one roll at $D = 1$
     runs serial at any thread count.
 - **Each map stage (forward, slow time, rows) cuts 4 chunks a worker,** and a chunk claims whichever
     per-worker slot (plans and scratch) is free, so a fast worker takes more
     of a stage than a slow one.
 - **Memory grows with the thread count** at $D > 1$: plans and scratch are
-    per worker, not per tile. They and the workers start at the engine's
+    per worker, not per roll. They and the workers start at the engine's
     first push, or at `set_threads()`, never at create: a pool of receivers
     sets each to one worker before any is pushed, and none builds them.
 
-What it buys at the design point and at ±15 kHz (11 tiles), ns a sample:
+What it buys at the design point and at ±15 kHz (11 rolls), ns a sample:
 
 | threads               |     1 |    2 |    4 |    8 |   16 |
 | --------------------- | ----: | ---: | ---: | ---: | ---: |
-| design point, 3 tiles |  38.7 | 21.2 | 13.2 |  8.5 |  6.5 |
-| ±15 kHz, 11 tiles     | 100.2 | 54.7 | 33.7 | 22.0 | 16.0 |
+| design point, 3 rolls |  38.7 | 21.2 | 13.2 |  8.5 |  6.5 |
+| ±15 kHz, 11 rolls     | 100.2 | 54.7 | 33.7 | 22.0 | 16.0 |
 
 Each is the best of five pushes, except the design point at 16 threads:
 the best of four runs, three of them best of fifteen pushes, which spread
@@ -604,8 +604,8 @@ the best of four runs, three of them best of fifteen pushes, which spread
 
 | lever                                                                          | result                                                                                                                   |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Bluestein over pffft for the 2,046-point forward                               | 0.85× today at 2,046 points, 0.39× at 90                                                                                 |
-| slow-time depth 80 instead of 90 at #2457's point (§9.1's rule)                | about 10% of the search for 0.5 dB of coherent gain; not taken there. The pool's 150 → 144 is not measured               |
+| Bluestein over pffft for the 2,046-point forward                               | 0.85× at 2,046 points, 0.39× at 90                                                                                       |
+| a coherent dwell of 80 epochs instead of 90 at #2457's point (§9.1's rule)     | about 10% of the search for 0.5 dB of coherent gain; not taken there. The pool's 150 → 144 is not measured               |
 | pad slow time to 192 rows                                                      | breaks the rule that each native Doppler bin spans exactly `interp` rows, which the row map, zone fold and hand-off read |
 | gather the row product in pffft's internal order and run the unordered inverse | bit-identical, and a tie: the gather costs what the reorder did                                                          |
 | `-march=native`                                                                | 7% at one thread, 0 at 16                                                                                                |
@@ -622,7 +622,7 @@ its own issue.
 - **#2457's 2,046-point forward:** batch SIMD across
     epochs, or a front end that resamples to a 2,048-point period as the
     pool's does (§9.1).
-- **Zero-copy block input.** Input reaches the block through two copies
+- **Zero-copy input.** Input reaches a coherent dwell through two copies
     (the framer's ring, then `blk_raw`), 13% of the 16-thread critical path.
     Removing one needs the framer to view the caller's buffer when it holds
     no carry, a framer feature for every user.
@@ -633,12 +633,12 @@ its own issue.
     by side, a lane each (epochs for the forward, columns for slow time,
     which the column stage already gathers 16 at a time), would run any
     radix in float at the full vector width. That would also remove the
-    fast-size constraint behind §9.4's depth trade. It needs runtime ISA
+    fast-size constraint behind §9.4's coherent-dwell trade. It needs runtime ISA
     dispatch, and it is the shape a Q15 kernel would take. Not measured.
 - **The decide pass's magnitude** calls libm `cabsf` per cell
     (`search_tile_decide`), and the non-coherent sum squares the result.
     `sqrtf(re*re + im*im)` vectorizes and the sum needs no root; both move
-    results by ulps, so they are not bit-identical to today.
+    results by ulps, so they are not bit-identical to the present ones.
 - **What a clip does not bound.** A time-domain clip bounds the input and
     the product, not the spectra: a clipped CW still lands in one bin, about
     $33 + 20\log_{10} k$ dB above the noise bin at $N = 2046$. So a narrow
@@ -653,7 +653,7 @@ its own issue.
     request and the ISA, and recorded in the blob or refused on restore,
     never picked from a per-machine timing cache.
 - **Measure on the A53.** The UNO Q burst search measured 152 ns a sample
-    at one tile, $D = 64$, one thread (10% of one core), and 657 with five
+    at one roll, $D = 64$, one thread (10% of one core), and 657 with five
     rate hypotheses
     ([#3054](https://github.com/doppler-dsp/doppler/issues/3054)); that
     harness is not in the record. #2457's point is unmeasured on the A53. The UNO Q's own bench

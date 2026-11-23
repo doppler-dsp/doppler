@@ -2436,93 +2436,51 @@ At 10 dB the same dwell gives `ρ` 26 to 29 dB and sd 0.05 to 0.07 Hz. At 11 Hz/
 
 #### The error-rate window
 
-Built at `77547aa86`, step 1 of the build order.
+Every harness that scores the receiver's errors scores them in one window,
+which opens at the observed lock. The 415.1-B-1 allocation gives a signal
+20 s to lock (§7.4.1, `DP_S415_LOCK_S`).
 
-**The owner's points.**
+- **The start** is the latest of the five flags' sustained times
+    (`dp_ber_lock_all()`, `native/tests/dp_ber_test.h`): symbol, code,
+    carrier, demodulator carrier and sync, read through one reader,
+    `dp_s415_lock_flags()` (`native/tests/dp_s415_test.h`). A flag is
+    sustained at the first of 200 decisions up in a row after which it is up
+    for 90% of the rest (`dp_ber_lock_symbol()`).
+- **A link whose latest flag has not sustained 20 s after arrival has not
+    locked.** It is counted as not locked in 20 s and never scored.
+- **The meter aligns once, at that start.** A failure to align is its own
+    verdict, `unaligned_lock`, never a score of 0.
+- **The settle budget is a check, used only on hand-overs inside the
+    carrier loop's no-slip edge**, where the loop's path is predictable:
+    `hb_edge_hz()` (`native/validation/carrier_edge.h`), the unit-form
+    detector's mean-loop edge at the draw's Es/N0 and the loop's own `bn`
+    (§4.10, "Its bandwidth"). A window that opens before the hand-over plus
+    the budget is a flag that declared before its loops settled, printed as
+    `early_lock`; the window stays the observed one. Outside the edge the
+    budget is not computed.
 
-- (a) "This tells me our ber meter is still flawed".
-- (b) "These signals are typically allocated 20 seconds to lock".
-- The analytic settle budget "is only budget-able when the offset is well inside the loop bandwidth ... otherwise it's non-deterministic and follows a different path each draw in phase space".
+**Where it is used:**
 
-**The window opens at the observed lock and fails at 20 s.**
-
-- **The start** is the latest of the five flags' sustained times: symbol, code, carrier, demodulator carrier and sync.
-    - Each flag is held to `dp_ber_lock_symbol()`'s rule: 200 up in a row, then 90% of the rest.
-    - The latest of the five is `dp_ber_lock_all()` (`native/tests/dp_ber_test.h`).
-    - Every harness reads the five flags through one reader, `dp_s415_lock_flags()` (`dp_s415_test.h`).
-    - All five, because "works" already needs all five sustained (C17). When the carrier loop changes, its flag becomes the `I² − Q²` block decision (above).
-- **A link whose latest flag has not sustained by `DP_S415_LOCK_S` (20 s from arrival) has not locked.** It is counted as "not locked in 20 s" and never scored. The 20 s is 415.1-B-1 §7.4.1's allocation.
-- **The meter aligns once, at that start.** A failure there is its own verdict, `unaligned_lock` / "unaligned at lock", never a silent 0.
-- **The analytic budget is a check, used only on hand-overs inside the loop's worst-start edge**, where the loop's path is predictable.
-    - The edge is today's detector on the mean loop, at the draw's Es/N0 and the loop's own bn: `hb_edge_hz()` in `native/validation/carrier_edge.h`. That is `validate_costas_pullin --design`'s derivation, moved there unchanged; `--design` prints identical output.
-    - A window that opens before the hand-over plus the budget is a flag that declared before its loops settled. It is printed as `early_lock` / EARLY LOCK, and the window stays the observed one.
-    - Outside the edge the budget is not computed.
-
-**At each call site:**
-
-| harness                                                                  | flags in                | scored                                                                                                                                   | its verdicts                                                                                                                                |
-| ------------------------------------------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| pull-in, every draw (`async_dsss_receiver_pullin.c`)                     | blocks of 4,096 samples | from the start to the draw's end; the 90% test is read over the whole draw                                                               | columns `t_lock_s`, `lock20`, `unaligned_lock`, `edge_hz`, `budget_s`, `early_lock`; "works" (`pi_works()`) requires `lock20` and `aligned` |
-| error rate, a burst (`async_dsss_receiver_ber.c`)                        | symbols                 | `DP_S415_SCORE_S`, 5 s. The burst runs until all five have been up 200 in a row, then 5 s more, stopping at 20 s with none: at most 25 s | columns `lock_at`, `lock20`, `unaligned_lock`, `early_lock`; a burst that did not lock or align is unsettled                                |
-| error rate, the pool rows (same file, `spec_draw()`)                     | symbols, per receiver   | 5 s per held receiver. The draw runs until three receivers have scored, or 20 s with none still filling: at most 25 s                    | `unlocked` (not locked in 20 s), `unaligned`; `--check` asserts every emitter held, locked and aligned                                      |
-| 3.069 Mcps unit tests (`_best_ber()`, `test_async_dsss_receiver_core.c`) | none                    | unchanged: the stream's back half, at the best of ±250 lags and both polarities                                                          | unchanged                                                                                                                                   |
-
-**The 3.069 Mcps unit tests are not moved to the window.**
-
-- Their streams are 0.56 s and 1 s, against a window that needs up to 25 s.
-- The point they test is not the receiver's specification point.
-- Two of them are D3's reds (i) and (ii), read below as too short to read the receiver.
-- Moving them means 25 s streams in the unit suite, or retiring them with their point. That decision is #3080's, items 1 and 2, where this carve-out is recorded.
+| harness                                                                    | flags in                | scored                                                                                                                                   | its verdicts                                                                                                                                |
+| -------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| pull-in, every draw (`async_dsss_receiver_pullin.c`)                       | blocks of 4,096 samples | from the start to the draw's end; the 90% test over the whole draw                                                                       | columns `t_lock_s`, `lock20`, `unaligned_lock`, `edge_hz`, `budget_s`, `early_lock`; `works` (`pi_works()`) requires `lock20` and `aligned` |
+| error rate, a burst (`async_dsss_receiver_ber.c`)                          | symbols                 | `DP_S415_SCORE_S`, 5 s. The burst runs until all five have been up 200 in a row, then 5 s more, stopping at 20 s with none: at most 25 s | columns `lock_at`, `lock20`, `unaligned_lock`, `early_lock`; a burst that did not lock or align is unsettled                                |
+| error rate, the pool rows (same file, `spec_draw()`)                       | symbols, per receiver   | 5 s per held receiver. The draw runs until three receivers have scored, or 20 s with none still filling: at most 25 s                    | `unlocked` (not locked in 20 s), `unaligned`; `--check` asserts every emitter held, locked and aligned                                      |
+| the decode floor, 3.069 Mcps (`_test_awgn_esn0_floor`)                     | symbols                 | from the start to the record's end, 5,400 symbols (2 s)                                                                                  | the floor's error rate at 4 to 10 dB                                                                                                        |
+| the hand-over under the clock offset (`_test_handover_under_clock_offset`) | symbols                 | one second from the start, which must come inside `DP_S415_LOCK_S`                                                                       | `decoded == 4` of the four seeds                                                                                                            |
 
 **The pins**, each red under its sabotage:
 
-- `test_dp_ber`'s `test_settle`:
-    - the latest of three differing flags decides (the earliest instead fails 3 checks);
-    - the limit is inclusive (no limit fails 1; an exclusive one fails 1);
-    - a flag that never sustains is not locked (ignoring it fails 2).
-- The pull-in `--check`'s `check_cell()`: a working draw with `lock20` cleared, or with `aligned` cleared, must not work. Dropping either term from `pi_works()` fails its own line.
-
-**At `77547aa86`, the `--check` runs** (dev box; one draw or one point each):
-
-- **Burst, 2.8 GHz 7 dB:** 7 bursts, 0 unsettled, 0 slipped, loss 0.88 dB (0.71 to 1.05).
-    - Seed 4, D3's slipped burst, opens at symbol 3,593 and scores 14,598 symbols with 27 errors, unslipped.
-    - Three bursts handed over inside the edge (+2.1, −13.6 and +8.9 Hz) open at symbols 265 to 531, before the 3,000-symbol budget: EARLY LOCK. The budget is `2 (5/bn_t + 5/bn_c)` at the demodulator's bandwidths. That it is 6 to 11 times longer than the observed lock at 7 dB inside the edge is a finding for the detector row, not a meter defect.
-- **Pool, the same cell:** 3 of 3 held, locked and aligned; loss 0.82 dB (0.62 to 1.02) over 43,146 symbols.
-- **Pull-in, 2.8 GHz 10 dB:** works 1 of 1. Lock at 0.35 s, not locked 0, unaligned 0, early 0; 2 errors in 57,549.
-- **The ramp row (D3's red (iv)) is still red,** as before.
-
-**The controls, rerun at `77547aa86`** on a clean tree (swiftgo, one job; `async-dsss-receiver-measurements/meter-77547aa86/`, `verdicts.txt` and `controls.csv`): run 415's 13, all PASS.
-
-- The 8 no-emitter draws: no flag sustains.
-- The 3 carrier-null draws: they do not work; the symbol flag never sustains.
-- The 2 opened-loop draws: they do not work; the carrier flag never sustains.
-    - They score 0 of 0 now, against 9 / 176,133 and 8 / 176,129 in run 415. With the carrier flag down, the window never opens.
-    - The old window scored them from the budget anyway.
-
-**Why the old window was replaced.** Run 415's committed rows, read at `68047547b`, when the window started at `dp_ber_settle()`'s budget:
-
-- **The meter aligned once,** at the budget plus the lag span. If the alignment failed, the draw was scored on nothing for its whole 60 s (`scored` 0).
-- **33 guideline-arm draws never aligned:** 19 at 2.2/4, 11 at 2.8/4, 2 at 2.2/10 and 1 at 2.8/10. All 33 handed over outside 18.84 Hz, and pulled in after the alignment point (`t_track_s` + 1 s) or never.
-- **The budget's premise holds inside the edge and nowhere else**, as the owner said. Hand-overs inside 18.84 Hz pulled in within 0.03 to 0.09 s. Those outside took up to 13.7 s.
-
-**What the 20 s rule does to run 415's rows.**
-
-- **One guideline-arm draw sustains all five past 20 s:** 2.8/4 seed 36, at 20.37 s, handed over at −218.6 Hz. It fails.
-- **The 3 + 1 draws that never pulled in** (2.2/4 seeds 3, 8 and 33; 2.8/4 seed 34) handed over at +297, +403, +322 and −351 Hz.
-    - All four came from dwells that were all data (the dwell section's table).
-    - That is 8 to 11 times the loop bandwidth, where the mean loop spins through the 20 s cap (the half-bandwidth row's control).
-    - They ran 60 s and never pulled in, so the draw's length is not the cause; the hand-over is.
-
-**The four checks D3 turned red, against this.**
-
-| check                                                                                                           | its window                                                                                          | verdict                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | the line that shows it                                                                       |
-| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| (i) `_test_awgn_esn0_floor` `ber_at[1] < 0.05`, 3.069 Mcps, 5 dB (`:764`)                                       | 1,500 symbols, 0.56 s (`:770`), scored on the back half by `_best_ber` with no lock                 | **too short to read, by construction.** The window starts 0.28 s after the first symbol, against a 20 s allocation, at a rule bn whose pull-in from outside the edge takes seconds (run 415). It says nothing either way about the receiver at that point                                                                                                                                                                                                                    | its reading, 0.44, is chance                                                                 |
-| (ii) `_test_handover_under_clock_offset`, "locks and decodes on every seed" (`:586`)                            | 2,700 symbols, 1 s (`:605`), the symbol flag at the end and `_best_ber` on the back half            | **too short to read.** That point's hand-overs run 2 to 6 times the 60 Hz bound (#982), far outside the edge, so their pull-in is the non-deterministic path. 1 s holds none of it                                                                                                                                                                                                                                                                                           | `decoded == 8` fails                                                                         |
-| (iii) `validate_async_dsss_receiver_ber --check`, "no burst slips" (2.8 GHz, 7 dB)                              | a 6 s burst, from the later of the 1 s budget and the symbol flag; the pre-despread loop in neither | **decided by the window: green at `77547aa86`.** Seed 4, which slipped under the old window, opens at symbol 3,593 (1.2 s) and scores 14,598 symbols with 27 errors, unslipped; all 7 bursts settle. Under the old window it was handed over at −69.6 Hz, about 4 times the 7 dB edge (17.9 Hz), and slipped with 13,948 errors                                                                                                                                              | D3's table of `d9041d731`'s eight `--check` bursts                                           |
-| (iv) `validate_async_dsss_receiver_pullin --check`, "the live carrier holds a 400 Hz/s ramp at 10 dB" (`:2698`) | a 3 s draw (`PI_RAMP_CHECK_S`, `:232`); asserts the end state                                       | **not a window of this kind.** It asserts tracking at a rate the owner ruled outside the loops' sizing (11 Hz/s governs). D3's wording "an order-2 loop lags that ramp past the check's limit" is not borne out by the loop's own ramp error, `2π R T²/(ω_n T)²` (`:1642`): 0.79° at 11 Hz/s is 29° at 400 Hz/s, inside the fold. So the failure is the pull-in under the ramp, not a steady lag. No line from the failing run is committed. D3's wording is to be corrected | printed by `--check`, not gated (the receiver is configured for R_env); no committed reading |
-
-So (i) and (ii) cannot read the receiver at all with a window that short, (iii) is green under the window at `77547aa86`, and (iv) is a check outside the use case. None of the four is shown on this page to be a receiver that fails inside a 20 s allocation.
+- `test_dp_ber.c`'s `test_settle`, on `dp_ber_lock_all()` with three
+    flags: the latest of three differing flags decides; the 20 s limit is
+    inclusive (a start at the limit is locked, one sample past is not); a
+    flag that never sustains is not locked, whatever the others do.
+- The pull-in `--check`'s `check_cell()`: a working draw with `lock20`
+    cleared, or with `aligned` cleared, must not work, so dropping either term
+    from `pi_works()` fails its own line.
+- The pull-in validator's controls, receivers broken by construction:
+    `--no-emitter` (the emitter 400 dB under the noise) asserts that no flag
+    sustains; `--expect-broken` with the carrier loop opened (`--bn-carrier 0`), and `--carrier-null`, assert that no draw works.
 
 ## 5. The pool: N receivers, one search
 

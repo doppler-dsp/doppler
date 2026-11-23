@@ -1691,11 +1691,11 @@ class Dll:
         Seed code phase, chips (default 0.0).
     bn : float, default 0.01
         Loop noise bandwidth (default 0.01), of the closed loop given a
-        unit-slope detector (see LoopFilter). At `segments` 1 the delivered
-        bandwidth is not `bn`: about 50 times it at 127 chips and unstable at
-        1023 (doppler#3234); the discriminator's own slope is 1.31 per chip at
-        spacing 0.5 (2 or more samples per chip) and 0 at a spacing of one chip
-        or more.
+        unit-slope detector (see LoopFilter). At `segments` 1 and spacing 0.5
+        the delivered bandwidth is `bn` times (4 zeta^2 Kd + 1) / (4 zeta^2 +
+        1), whatever the code length, where Kd is the discriminator's slope per
+        chip: 1.31 at 4 samples per chip (1.02 at 2). The slope is 0 at a
+        spacing of one chip or more.
     zeta : float, default 0.707
         Damping factor (default 0.707).
     spacing : float, default 0.5

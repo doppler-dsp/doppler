@@ -741,10 +741,24 @@ typedef struct
    run_ramp() reads them from the receiver. */
 static double ramp_row_hz, ramp_age_hz;
 
-/* One draw at the 415.1-B-1 point, 2.8 GHz, from `f0` Hz at +R_env. */
+/* The header's bound for refine false, the one predicate both the ramp
+   rows and their failing case read: within one row plus the half-dwell
+   age of the truth. */
 static int
-run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
-          int to_handover, double *bound_hz, ramp_t *r)
+ramp_within (double ho_err_hz, double bound_hz)
+{
+  return !isnan (ho_err_hz) && fabs (ho_err_hz) <= bound_hz;
+}
+
+/* One draw at the 415.1-B-1 point, 2.8 GHz, from `f0` Hz at +R_env.
+   `force_rows` != 0 skips the search: the receiver is seeded at the
+   emitter's true code phase and its true carrier plus that many rows
+   (the failing case of the bound), and the hand-over is read the same
+   way. */
+static int
+run_ramp_forced (const uint8_t *code, bool refine, double f0, uint32_t seed,
+                 int to_handover, double force_rows, double *bound_hz,
+                 ramp_t *r)
 {
   const double fc = DP_S415_FC_HI, chip = dp_s415_chip_rate (fc);
   const double cn0                   = dp_s415_cn0 (DP_S415_FLOOR_DB);
@@ -775,6 +789,26 @@ run_ramp (const uint8_t *code, bool refine, double f0, uint32_t seed,
   *r                = (ramp_t){ .ho_err_hz = NAN };
   size_t fed        = 0;
   int    early_done = 0;
+  if (force_rows != 0.0)
+    {
+      /* One chunk in (the scene's first chip is past sample 0), then the
+         seed at the next sample, as a code NCO reads it (half a sample
+         before the continuous phase), and the carrier off by force_rows
+         rows. */
+      DP_REQUIRE (dp_air_next (&air, x, RAMP_CHUNK));
+      (void)dp_async_dsss_receiver_steps (rx, x, RAMP_CHUNK, out, RAMP_CHUNK);
+      fed += RAMP_CHUNK;
+      DP_REQUIRE (rx->state == ASYNC_DSSS_RX_SEARCHING);
+      const dp_air_truth_t t = dp_air_truth (&air, 0, air.n_out);
+      DP_REQUIRE (!isnan (t.code_chips));
+      DP_REQUIRE (dp_async_dsss_receiver_seed (
+                      rx,
+                      fmod (t.code_chips - 0.5 * chip / DP_S415_FS
+                                + (double)DP_S415_SF,
+                            (double)DP_S415_SF),
+                      t.car_hz + force_rows * ramp_row_hz, cn0)
+                  == DP_OK);
+    }
   while (fed < (size_t)(RAMP_S * DP_S415_FS)
          && !(to_handover && !isnan (r->ho_err_hz)))
     {
@@ -844,8 +878,9 @@ ramp_rows (const uint8_t *code, int check, int emit)
         ramp_t r[2] = { { .ho_err_hz = NAN }, { .ho_err_hz = NAN } };
         for (int a = a0; a < 2; a++) /* a: 0 refine true, 1 refine false */
           {
-            DP_REQUIRE (
-                run_ramp (code, a == 0, f0s[f], s, check, &bound, &r[a]) == 0);
+            DP_REQUIRE (run_ramp_forced (code, a == 0, f0s[f], s, check, 0.0,
+                                         &bound, &r[a])
+                        == 0);
             const double e = fabs (r[a].ho_err_hz);
             worst[a]       = isnan (e) || e > worst[a] ? e : worst[a];
             over[a] += isnan (e) || e > bound;
@@ -861,14 +896,23 @@ ramp_rows (const uint8_t *code, int check, int emit)
           }
         if (!check && r[0].lock_early != r[1].lock_early)
           only[r[1].lock_early]++; /* [0]: only refine, [1]: only false */
-        DP_CHECK_MSG (!isnan (r[1].ho_err_hz)
-                          && fabs (r[1].ho_err_hz) <= bound,
+        DP_CHECK_MSG (ramp_within (r[1].ho_err_hz, bound),
                       "refine false hands over within a row plus the "
                       "half-dwell age of the truth");
       }
-  /* The bound's failing case: a hand-over two rows off is refused. */
-  DP_CHECK_MSG (2.0 * ramp_row_hz > bound,
-                "a hand-over two rows off is past the bound");
+  /* The bound's failing case, produced: refine false seeded two rows off
+     the truth hands over two rows off, and the predicate the rows are
+     held to refuses it. */
+  {
+    ramp_t fr = { .ho_err_hz = NAN };
+    DP_REQUIRE (run_ramp_forced (code, false, f0s[0], 1, 1, 2.0, &bound, &fr)
+                == 0);
+    printf ("  the bound's failing case: seeded two rows (%.1f Hz) off, "
+            "handed over %.1f Hz off against the bound %.1f Hz\n",
+            2.0 * ramp_row_hz, fr.ho_err_hz, bound);
+    DP_CHECK_MSG (!isnan (fr.ho_err_hz) && !ramp_within (fr.ho_err_hz, bound),
+                  "control: a hand-over two rows off is past the bound");
+  }
   if (!emit && check)
     printf ("  refine false: hand-over error largest %.1f Hz, %zu of %zu past "
             "%.1f Hz, %zu of %zu on the far row (past %.1f Hz) (--check: to "

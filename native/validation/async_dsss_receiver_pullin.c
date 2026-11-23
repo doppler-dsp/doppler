@@ -2359,6 +2359,18 @@ main (int argc, char **argv)
             }
         }
   free (ds);
+  /* The failing cases D10's gate and the end verdict rest on run on the
+     first draw that qualifies; a run where none did has not shown either
+     gate can fail, so it says so. Not on a control: its draws are built
+     not to work. */
+  if (!pi_no_emitter && !pi_expect_broken)
+    {
+      DP_CHECK_MSG (pi_forced_slip_done,
+                    "D10's failing case ran: a draw declared lock with a "
+                    "second of on-code tracking after it");
+      DP_CHECK_MSG (pi_end_controls_done,
+                    "the end verdict's failing cases ran: a draw aligned");
+    }
   if (check)
     {
       /* An out-of-use-case stress, printed and not gated: a 400 Hz/s

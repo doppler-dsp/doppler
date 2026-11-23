@@ -130,16 +130,23 @@
  * cannot follow a hand-over. Each prints its verdict a draw on stderr, and
  * the cell's own claims are not asserted on a control's draws.
  *
- * `--design` prints only the `# design` section, which --emit also prints:
- * per carrier and level, the second-order loop the rule and the run's
- * bandwidth ask for, read through the shipped exact functions
+ * `--design` prints only the design sections, which --emit also prints.
+ * `# design` is, per carrier and level, the second-order loop the rule and
+ * the run's bandwidth ask for, read through the shipped exact functions
  * (dp_state_filter_loop_bandwidth / _steady_error, with
  * dp_loop_filter_init's gains): the detector's
  * slope at that level (a Monte Carlo of the error the receiver forms, on
  * the shipped awgn), the delivered bandwidth at that slope and at the
  * delays the lag instrument measured, the loop SNR in the rule's
  * convention and on the squared phase with the slope referred (reported,
- * not designed to), and the ramp's lag.
+ * not designed to), and the ramp's lag. Before it, `# pass` (the use
+ * case's dynamics) and `# search` (the acquisition's dwell); after it,
+ * `# carrier_lock`: the carrier lock's count at the floor (33 at 2.2 GHz,
+ * 43 at 2.8 GHz, pinned) and, read off carrier_nda closed at the rule's
+ * bandwidth, the false-alarm rate on noise against
+ * ASYNC_DSSS_RX_CAR_LOCK_PFA and the miss rate at the floor against 1 -
+ * ASYNC_DSSS_RX_CAR_LOCK_PD, at the count and at one fewer (which must
+ * miss more).
  *
  * Usage:  validate_async_dsss_receiver_pullin [--check] [--emit]
  *             [--draws N] [--secs S] [--shard i/n] [--spc N]
@@ -2024,6 +2031,93 @@ check_cell (const draw_t *ds, size_t n)
                   "its error rate is under the bound's PI_MARGIN_DB lower");
 }
 
+/* The carrier lock's count, read independently of the formula that sized
+   it. dp_async_dsss_receiver_carrier_lock_n_noncoh() takes the count from
+   dp_det_ratio_pd()'s Gil-Pelaez inversion under a model (Gaussian jitter,
+   independent term to term). This reads the two rates the count is sized
+   for off the shipped object instead: carrier_nda, closed at the rule's
+   bandwidth with the receiver's unit denominator and block lock, fed one
+   window sum an update (unit noise plus, on signal, a static carrier at
+   amplitude sqrt(gamma)). On noise alone the share of blocks whose ratio
+   clears the threshold is the false-alarm rate, set for
+   ASYNC_DSSS_RX_CAR_LOCK_PFA; on signal at the floor the share that does
+   not is the miss rate, sized for 1 - ASYNC_DSSS_RX_CAR_LOCK_PD. The loop's
+   own jitter (correlated term to term, which the model does not assume) is
+   measured beside it. The data is left out: I^2 - Q^2 and I^2 + Q^2 are
+   unchanged by z -> -z, so a BPSK symbol cannot move either sum. */
+#define PI_CL_BLOCKS 200000u
+#define PI_CL_BOOT                                                            \
+  64u /* blocks: the denominator's average and the loop settle */
+typedef struct
+{
+  uint32_t n;       /* the count the receiver is built with          */
+  double   thresh;  /* the block lock's threshold on R               */
+  size_t   blocks;  /* blocks read on each population                */
+  size_t   exceed;  /* noise-alone blocks over the threshold         */
+  size_t   miss;    /* signal blocks at or under it                  */
+  double   var_rad; /* the loop's measured phase variance, rad^2     */
+} pi_cl_t;
+
+static int
+pi_car_lock_read (double gamma, double bn, uint32_t n, uint64_t seed,
+                  pi_cl_t *out)
+{
+  pi_cl_t     r      = { n, 0.0, PI_CL_BLOCKS, 0, 0, 0.0 };
+  const float amp    = dp_awgn_amplitude_for_snr (0.0f, 1.0f); /* unit noise */
+  dp_awgn_state_t *g = dp_awgn_create (seed, amp);
+  DP_REQUIRE (g != NULL);
+  double e2 = 0.0;
+  size_t ne = 0;
+  for (int sig = 0; sig < 2; sig++)
+    {
+      dp_carrier_nda_state_t *c
+          = dp_carrier_nda_create (bn, 0.707, 0.0, 8, 1, 2);
+      DP_REQUIRE (c != NULL);
+      DP_REQUIRE (dp_carrier_nda_set_denominator (
+                      c, ASYNC_DSSS_RX_CAR_DEN_ALPHA, gamma)
+                      == DP_OK
+                  && dp_carrier_nda_set_block_lock (
+                         c, n, ASYNC_DSSS_RX_CAR_LOCK_PFA, 1, 1)
+                         == DP_OK);
+      r.thresh = dp_carrier_nda_get_block_thresh (c);
+      /* A static carrier, 0.3 rad off the NCO's start: the loop pulls it
+         in over the boot. */
+      const double a         = sig ? sqrt (gamma) : 0.0;
+      const float _Complex s = (float)a * cexpf (I * 0.3f);
+      float _Complex w[1];
+      size_t blocks = 0;
+      for (size_t u = 0; blocks < PI_CL_BLOCKS; u++)
+        {
+          DP_REQUIRE (dp_awgn_generate (g, 1, w, 1) == 1);
+          const float _Complex x = s + w[0];
+          const float _Complex z = carrier_nda_wipeoff (c, x);
+          carrier_nda_update (c, z, 1.0);
+          if (u < (size_t)PI_CL_BOOT * n) /* whole blocks, past the boot */
+            continue;
+          if (sig)
+            {
+              /* The NCO's phase against the carrier: z = x conj(lo), so
+                 the signal's share of z is s z / x; modulo pi (M = 2). */
+              double e = carg (z) - carg (x) + 0.3;
+              e        = e - M_PI * floor (e / M_PI + 0.5);
+              e2 += e * e;
+              ne++;
+            }
+          if ((u + 1) % n)
+            continue;
+          blocks++;
+          const int over = dp_carrier_nda_get_lock (c) > r.thresh;
+          r.exceed += !sig && over;
+          r.miss += sig && !over;
+        }
+      dp_carrier_nda_destroy (c);
+    }
+  dp_awgn_destroy (g);
+  r.var_rad = ne ? e2 / (double)ne : NAN;
+  *out      = r;
+  return 0;
+}
+
 /* The `# design` section: see the file comment. Delays 0, 1 and 1.75
    updates span what the lag instrument measured (lag.epoch_T uniform over
    one update, the look-back adding up to 0.75 on most code-period
@@ -2164,6 +2258,73 @@ pi_design (const double fcs[2], const double esn0s[4])
                               order, lf.ki, 0.0, 2, dp_s415_r_env () * T * T));
             }
       }
+
+  /* The carrier lock's count at the floor, as the receiver is built, and
+     the two rates it is sized for, read off carrier_nda (see
+     pi_car_lock_read()). The counts are pinned at their literals as well:
+     a change to the sizing moves them, and this section says what they
+     then deliver. */
+  printf ("# carrier_lock\nfc_ghz,esn0_db,gamma,bn,phase_var_model,"
+          "phase_var_meas,n_noncoh,thresh,blocks,pfa,exceed,exceed_rate,"
+          "exceed_lo,exceed_hi,pd,miss,miss_rate,miss_lo,miss_hi\n");
+  static const uint32_t pinned[2] = { 33u, 43u };
+  for (int f = 0; f < 2; f++)
+    {
+      uint8_t code[SF];
+      for (size_t i = 0; i < SF; i++)
+        code[i] = (uint8_t)(i & 1u);
+      dp_async_dsss_receiver_state_t *rx = dp_s415_rx (code, fcs[f], true);
+      if (!rx)
+        {
+          DP_CHECK_MSG (0, "the floor's receiver builds");
+          continue;
+        }
+      const uint32_t n
+          = (uint32_t)dp_async_dsss_receiver_get_carrier_lock_n_noncoh (rx);
+      dp_async_dsss_receiver_destroy (rx);
+      const double g   = pi_rho (fcs[f], DP_S415_FLOOR_DB);
+      const double bn  = pi_bn_rule (fcs[f]);
+      const double var = bn * (1.0 + 1.0 / (2.0 * g)) / g;
+      DP_CHECK_MSG (n == pinned[f], "the carrier lock's count at the floor "
+                                    "is 33 at 2.2 GHz and 43 at 2.8 GHz");
+      /* The count, then one fewer: the count is the least that reaches
+         Pd, so one fewer must miss past 1 - Pd (the miss check's failing
+         case, on its own seed). */
+      for (int k = 0; k < 2; k++)
+        {
+          pi_cl_t r;
+          if (pi_car_lock_read (g, bn, n - (uint32_t)k,
+                                4510u + (uint64_t)(2 * f + k), &r)
+              != 0)
+            {
+              DP_CHECK_MSG (0, "the carrier lock's rates are read");
+              continue;
+            }
+          double el, eh, ml, mh;
+          dp_wilson ((double)r.exceed, (double)r.blocks, &el, &eh);
+          dp_wilson ((double)r.miss, (double)r.blocks, &ml, &mh);
+          printf ("%.1f,%.1f,%.4f,%.5f,%.6f,%.6f,%u,%.6f,%zu,%.0e,%zu,"
+                  "%.3e,%.3e,%.3e,%.2f,%zu,%.3e,%.3e,%.3e\n",
+                  fcs[f] / 1e9, DP_S415_FLOOR_DB, g, bn, var, r.var_rad, r.n,
+                  r.thresh, r.blocks, ASYNC_DSSS_RX_CAR_LOCK_PFA, r.exceed,
+                  (double)r.exceed / (double)r.blocks, el, eh,
+                  ASYNC_DSSS_RX_CAR_LOCK_PD, r.miss,
+                  (double)r.miss / (double)r.blocks, ml, mh);
+          /* The threshold is exact on noise at any count, so the measured
+             rate's interval holds the design's. */
+          DP_CHECK_MSG (el <= ASYNC_DSSS_RX_CAR_LOCK_PFA
+                            && ASYNC_DSSS_RX_CAR_LOCK_PFA <= eh,
+                        "the carrier lock's false-alarm rate on noise is "
+                        "its Pfa");
+          if (k == 0)
+            DP_CHECK_MSG (ml <= 1.0 - ASYNC_DSSS_RX_CAR_LOCK_PD,
+                          "the carrier lock's miss rate at the floor is "
+                          "within 1 - Pd");
+          else
+            DP_CHECK_MSG (ml > 1.0 - ASYNC_DSSS_RX_CAR_LOCK_PD,
+                          "control: one fewer misses past 1 - Pd");
+        }
+    }
 }
 
 int

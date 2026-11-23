@@ -183,7 +183,14 @@ def read_exempt(root: Path) -> dict[tuple[str, str], int]:
     path = root / EXEMPT
     if not path.exists():
         return out
-    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        raise SystemExit(
+            f"{EXEMPT.as_posix()}: not valid UTF-8 ({e.reason} at byte "
+            f"{e.start}); save it as UTF-8"
+        ) from e
+    for n, line in enumerate(text.splitlines(), 1):
         line = line.split("#", 1)[0].strip()
         if not line:
             continue
@@ -219,7 +226,17 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    rows, tables, found = read_rows(vocab.read_text(encoding="utf-8"))
+    try:
+        vocab_text = vocab.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        print(
+            f"check_retired_words: FAIL — {VOCAB.as_posix()} is not valid "
+            f"UTF-8 ({e.reason} at byte {e.start}); the rows are read as "
+            "UTF-8, so save it as UTF-8",
+            file=sys.stderr,
+        )
+        return 1
+    rows, tables, found = read_rows(vocab_text)
     scanned = [
         p for p in pages(root) if not p.name.endswith("-measurements.md")
     ]

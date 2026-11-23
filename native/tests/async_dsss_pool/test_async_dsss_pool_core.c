@@ -1725,6 +1725,11 @@ _test_ghost_is_released (void)
                   "the loss release frees it");
     dp_async_dsss_pool_destroy (p);
   }
+  /* The refine is OFF here, and only that keeps the seed on its lattice
+     image: the shipped pool refines, and its fine hand-over takes this
+     seed to A's own carrier (_test_shipped_pool_leaves_one_on_a,
+     doppler#3263). This is the ghost rule's pin, not the shipped
+     configuration. */
   _g415_t z;
   DP_REQUIRE (_g415_scene (code, 2, 60.0, 2, 0.0, 4.0, false, &z) == 0);
   dp_async_dsss_pool_state_t *p = z.p;

@@ -1693,9 +1693,10 @@ _g415_scene (const uint8_t *code, uint32_t seed, double cn0, int k,
    ghost on A's own carrier (k = 0) is NOT taken by the ghost rule -- a
    co-located true emitter looks the same to it (§8, doppler#2551). With A
    at 55 dB-Hz it holds neither flag and the loss release frees it
-   (lost_confirm_s 0.5 s). The 60 dB-Hz k = 0 row, whose premise (the
-   ghost on A's carrier) came from the reverted squared refine, is out
-   until its scene is derived under the release's refine (doppler#3216).
+   (lost_confirm_s 0.5 s). The 60 dB-Hz k = 0 case under the shipped
+   refine is _test_shipped_pool_leaves_one_on_a: the fine hand-over
+   carries the k = 2 seed to A's carrier, where it is held (the strict
+   xfail on doppler#3263).
    Sabotage: drop the ghost pass -> the k = 2 ghost holds to the end; let
    the carrier test take k = 0 -> the 55 dB-Hz one leaves as a ghost; drop the
    pool's reset of a lost receiver -> the 55 dB-Hz one is never freed. Not

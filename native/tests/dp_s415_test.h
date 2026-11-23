@@ -349,18 +349,26 @@ dp_s415_rx (const uint8_t *code, double fc, bool refine)
       (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, dp_s415_r_env (), refine);
 }
 
-/** A pool of @p n receivers at the point, as dp_s415_rx() builds each (at
- *  the floor's C/N0), with its release rule (@p lost_s) and @p threads. */
+/** As dp_s415_pool(), with the refine stage on or off (@p refine). */
 static inline dp_async_dsss_pool_state_t *
-dp_s415_pool (const uint8_t *code, double fc, size_t n, double lost_s,
-              int threads)
+dp_s415_pool_refine (const uint8_t *code, double fc, size_t n, double lost_s,
+                     int threads, bool refine)
 {
   return dp_async_dsss_pool_create (
       code, DP_S415_SF, n, dp_s415_chip_rate (fc), DP_S415_SYM, DP_S415_FS, 2,
       dp_s415_cn0 (DP_S415_FLOOR_DB), 1e-3, 0.9, DP_S415_SPAN_HZ, 4, 8, 0, 0.5,
       4, 14.0, 64, 8, false, 100000, fc, lost_s, false,
       (double)DP_S415_CODE_ONLY_SYM / DP_S415_SYM, dp_s415_r_env (), threads,
-      true);
+      refine);
+}
+
+/** A pool of @p n receivers at the point, as dp_s415_rx() builds each (at
+ *  the floor's C/N0), with its release rule (@p lost_s) and @p threads. */
+static inline dp_async_dsss_pool_state_t *
+dp_s415_pool (const uint8_t *code, double fc, size_t n, double lost_s,
+              int threads)
+{
+  return dp_s415_pool_refine (code, fc, n, lost_s, threads, true);
 }
 
 /** An emitter on the air at the point: carrier @p fc, offset @p f0 Hz at

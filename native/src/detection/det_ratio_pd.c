@@ -19,7 +19,9 @@
    sqrt(n gamma): the step is scaled to it, DET_RATIO_PD_PTS points a
    period and never fewer panels than DET_RATIO_PD_NT, so a fixed step
    cannot alias at high n gamma. Past DET_RATIO_PD_NT_MAX panel pairs (w
-   about 9.8e3) the result is NaN, outside the stated domain. */
+   past about 9.8e3) it returns the limit instead: Chebyshev on W bounds
+   P(W <= 0) by Var W / (E W)^2 = 1 / w^2 when E W > 0 (and P(W > 0) the
+   same when E W < 0), under 1.04e-8 there, so 1 (or 0) is within that. */
 #define DET_RATIO_PD_NTH 33         /* theta nodes (odd: one at 0)        */
 #define DET_RATIO_PD_NT 1500        /* Simpson panel pairs, the least     */
 #define DET_RATIO_PD_NT_MAX 1000000 /* and the most                      */
@@ -72,7 +74,7 @@ dp_det_ratio_pd (int n, double pfa, double gamma, double phase_var)
   const double nt_need = ceil (DET_RATIO_PD_PTS * w * DET_RATIO_PD_U
                                / (4.0 * 3.141592653589793));
   if (!(nt_need <= (double)DET_RATIO_PD_NT_MAX))
-    return NAN;
+    return m > 0.0 ? 1.0 : 0.0; /* within 1 / w^2 (Chebyshev, above) */
   const long nt  = nt_need > DET_RATIO_PD_NT ? (long)nt_need : DET_RATIO_PD_NT;
   const double h = DET_RATIO_PD_U / (2.0 * (double)nt);
   double       acc = (double)len * m / sdw; /* the integrand's limit at 0 */

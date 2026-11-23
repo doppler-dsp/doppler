@@ -206,7 +206,9 @@ test_composer_options (void)
   /* 17c. A level step the running average has not followed: a loop on
      unit amplitude for 1000 updates, then one update 40 dB up at 45
      degrees, where 2IQ is its whole power. Without the floor the unit
-     form divides 10^4 by an average of about 1 (the error ~1e4); with it
+     form divides 10^4 by the running average, which has taken the burst
+     at weight 1/256 before it is read: 1 + 9999/256 = 40.1, so the error
+     is about 250; with it
      the error is CARRIER_NDA_DEN_STEP exactly, the floor's ratio, and the
      samples before it are unchanged by the floor (their error matches
      2IQ over the average). */
@@ -685,6 +687,14 @@ test_composer_options (void)
                          h + offsetof (dp_carrier_nda_state_t, lockdet)
                              + offsetof (dp_lockdet_state_t, up_thresh),
                          &up9, sizeof up9);
+    /* A block lock's pfa of 1/2, which set_block_lock() refuses (its
+       threshold is 0, deciding on noise as often as not): refused on
+       restore too. */
+    const double pfa_half = 0.5;
+    DP_STATE_FORGE_TEST (dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC,
+                         CARRIER_NDA_STATE_VERSION,
+                         h + offsetof (dp_carrier_nda_state_t, blk_pfa),
+                         &pfa_half, sizeof pfa_half);
     const double off = b->blk_thr * (1.0 + 1e-8);
     DP_STATE_FORGE_TEST (
         dp_carrier_nda, b, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,

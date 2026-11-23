@@ -142,9 +142,13 @@ SNR at the floor is `ρ = C/N0·T`, the loss is
 prints it). `create()` sizes the carrier loop with it at `cn0_dbhz`, no
 wider than 0.04 (`ASYNC_DSSS_RX_BN_CARRIER`). Its acquisition bound,
 `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` at that bandwidth, is 15.59 Hz at
-2.2 GHz and 14.89 Hz at 2.8 GHz (the pull-in rows' `base_pullin_hz`).
-The step it pulls in from without slipping is §4.10's no-slip edge, 11.9
-and 11.4 Hz. There is no FLL. Pulling a loop in from a coarse estimate is the hand-over's
+2.2 GHz and 14.89 Hz at 2.8 GHz (the pull-in rows' `base_pullin_hz`):
+the empirical offset inside which the loop locks in its normal `5/bn`
+updates (§4.10, "Its bandwidth"). The two carriers differ only through the
+squaring loss at each update SNR, so at the 415.1-B-1 floor the rule gives
+about 30 Hz of loop bandwidth and a 15 Hz acquisition bound at both. The
+step the loop pulls in from without slipping is §4.10's no-slip edge,
+11.9 and 11.4 Hz. There is no FLL. Pulling a loop in from a coarse estimate is the hand-over's
 problem (§4.4), not the bandwidth's.
 
 ### 1.4 The stimulus, one period
@@ -1478,18 +1482,77 @@ M = 2 (`carrier_nda_core.h`), built for each tracking chain by
     [sweep-1b7312b09/design.txt](async-dsss-receiver-measurements/sweep-1b7312b09/design.txt)).
     The jitter is the rule's own: the unit form's phase variance,
     `bn (1 + 1/(2γ)) / γ`, is 1/200 rad² wherever `bn` is the rule's.
-- **The acquisition bound.** `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` is
-    `bn / (2T)`, half the loop bandwidth: 15.59 Hz at 2.2 GHz and 14.89 Hz at
+
+- **Why the two carriers differ at all.** `B_L = C/N0 · S_L / 200`, and
+    the C/N0 is the same at both carriers; only the squaring loss differs,
+    `S_L` 0.827 at 2.2 GHz and 0.790 at 2.8 GHz at each one's update SNR. So
+    the rule gives about 30 Hz of loop bandwidth and a 15 Hz acquisition
+    bound at the 415.1-B-1 floor. The receiver sizes `bn` from the design
+    C/N0 it is given, so another design point gets other figures.
+
+- **The acquisition bound: where the loop locks in its normal time.**
+    `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` is half the loop bandwidth, `0.5 bn`
+    an update or `bn / (2T)` in hertz: 15.59 Hz at 2.2 GHz and 14.89 Hz at
     2.8 GHz at the rule's `bn` (the `base_pullin_hz` column of
     [d-6fc84cc80/pullin_rows.csv](async-dsss-receiver-measurements/d-6fc84cc80/pullin_rows.csv)).
-    It is the one definition of the loop's pull-in on this page.
-- **The step the loop pulls in from without slipping.** On the mean loop,
-    a frequency step up to 0.382 `B_L` at 2.2 GHz and 0.383 `B_L` at 2.8 GHz
-    (11.9 and 11.4 Hz) crosses fewer than two lock points from every start
-    phase, and up to 0.459 and 0.460 `B_L` crosses none from a start at 0
-    (the same `# design_sweep` rows, `edge_worst` and `edge_start0`). That
-    edge is the hand-over's requirement ("The hand-over:
-    `CarrierAcquisition`'s dwell", below).
+    It is empirical, not derived from the loop equations: it is the offset
+    inside which the loop locks in its normal lock time, about `5/bn`
+    updates (`5 / B_L`, 0.16 and 0.17 s at the floor). Past it the lock time
+    is the pull-in's and grows with the offset. Two readings hold it, each
+    with its own criterion:
+
+    - **`carrier_nda` as a general object, against the ideal loop.**
+        `CarrierNda`'s validation report
+        (`src/doppler/track/tests/validation/carrier_nda/results.md`, §2.5,
+        held by `make validate-check`) measures the settling time
+        against the offset in units of `u = df · M / bn`, the tracked
+        frequency within 5% of the offset. Inside `u = 1`, which is
+        `0.5 bn` at M = 2 and so this bound, the loop settles within five
+        loop time constants, `5/bn` updates, at every M and `bn` measured
+        (the largest `u` that does is 1.03 to 1.08). Inside `u = 1/4` it
+        settles in a constant 1.6 time constants whatever the offset, as a
+        linear second-order loop does; past `u = 1` the time grows as the
+        pull-in law, 4.4 to 4.8 constants at `u = 1` and 15 to 19 at
+        `u = 2`. The same report's §2.10 runs the closed-loop reference
+        (`src/doppler/tests/loop_reference.py`: a real `LoopFilter` and NCO
+        around the ideal detector, subtraction, which no loop on this
+        filter betters): at `bn = 0.01` it absorbs a frequency ramp in 408
+        updates (`4.1/bn`) and a 0.25-cycle step in 273 (`2.7/bn`), each to
+        1% of its peak error. That report runs the object at one update a
+        sample on its default denominator.
+
+    - **The receiver's configuration.** The committed sweep runs the loop
+        as the receiver builds it, unit denominator, one update a code
+        period. At the floor, 120 draws a step, the median and worst times
+        to sustained lock are:
+
+        | step, `B_L` | 2.2 GHz, median / worst | 2.8 GHz, median / worst |
+        | ----------- | ----------------------- | ----------------------- |
+        | 0.25        | 0.062 / 0.115 s         | 0.064 / 0.182 s         |
+        | 0.5         | 0.153 / 0.268 s         | 0.159 / 0.279 s         |
+        | 1.0         | 0.568 / 0.864 s         | 0.568 / 0.944 s         |
+        | 2.0         | 2.316 / 3.358 s         | 2.271 / 3.654 s         |
+
+        At the bound, half the loop bandwidth, the median is `5 / B_L`; at
+        twice the loop bandwidth it is about 14 times that. Printed by
+        `python3 -I read_sweep.py .` in
+        [sweep-1b7312b09](async-dsss-receiver-measurements/sweep-1b7312b09/read_sweep.py),
+        "Lock time by hand-over error". Inside the bound a draw may slip on
+        the way in (76 and 79 of 120 at 0.5 `B_L`, the same reader's
+        "Slips"); slips before the declared lock are printed and never
+        gated ("Slips").
+
+- **The no-slip edge: where no lock point is crossed twice on the way.**
+    On the mean loop a step up to 0.382 `B_L` at 2.2 GHz and 0.383 `B_L`
+    at 2.8 GHz (11.9 and 11.4 Hz, about 11 to 12 Hz) crosses fewer than two
+    lock points from every start phase, and up to 0.459 and 0.460 `B_L`
+    crosses none from a start at 0 (the same `# design_sweep` rows,
+    `edge_worst` and `edge_start0`). The hand-over is held to this edge
+    ("The hand-over: `CarrierAcquisition`'s dwell", below), and the error-rate
+    window's settle budget is checked only inside it ("The error-rate
+    window"). The acquisition bound is what the no-refine search depth
+    below is sized to.
+
 - **A receiver without the refine needs a deep search.** Its hand-over is
     the search's Doppler, so half a search row must lie inside the
     acquisition bound: `coherent_bins` must be at least `1/bn`
